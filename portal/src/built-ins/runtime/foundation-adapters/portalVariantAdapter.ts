@@ -18,8 +18,7 @@ import "server-only";
 //
 // Soft-fail: when website-editor isn't installed for the client, returns
 // `{ ok: false, error: "website-editor not installed for client" }` so
-// the phase transition logs the failure but doesn't crash. The fulfillment
-// plugin's `TransitionService` already treats variant errors as non-fatal.
+// the phase transition remains an explicit retryable incomplete operation.
 
 import type { PortalVariantPort } from "@/built-ins/runtime/_types";
 import { logActivity } from "@/server/activity";

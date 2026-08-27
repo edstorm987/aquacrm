@@ -3,6 +3,7 @@ import { getSession } from "@/lib/server/auth/auth";
 import { ensurePrimaryAgencyWebsite, websitePageIsUpdating } from "@/server/agencyWebsite";
 import { ensureHydrated } from "@/server/storage";
 import { WebsitePageUpdating } from "../WebsitePageUpdating";
+import { MILESYMEDIA_HOME_PATH } from "@/lib/public/milesymediaRoutes";
 
 export const metadata = {
   title: "Client Centre — Milesymedia",
@@ -72,7 +73,7 @@ export default async function ClientCentrePage({
     <main className="min-h-screen bg-[radial-gradient(circle_at_35%_8%,#3a2a14_0%,#1a1208_38%,#050402_78%)] px-5 py-6 text-[#14120E] sm:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-48px)] w-full max-w-6xl flex-col">
         <header className="flex items-center justify-between gap-4 border-b border-[#D4B888]/22 pb-5 text-[#F7EFE2]">
-          <Link href="/" className="flex items-center gap-3" aria-label="Milesymedia home">
+          <Link href={MILESYMEDIA_HOME_PATH} className="flex items-center gap-3" aria-label="Milesymedia home">
             <span className="grid h-10 w-10 place-items-center rounded bg-[#D4B888] text-sm font-black text-[#171009]">
               M
             </span>
@@ -88,7 +89,7 @@ export default async function ClientCentrePage({
               Sign in
             </Link>
             <Link
-              href="/"
+              href={MILESYMEDIA_HOME_PATH}
               className="rounded border border-[#D4B888]/28 px-3 py-2 text-sm font-medium text-[#E9D9B9] transition hover:border-[#D4B888]/70 hover:text-white"
             >
               Back to site

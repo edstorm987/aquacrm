@@ -189,7 +189,7 @@ describe("the project switcher is compact and scoped to where you are", () => {
 
   it("still points the browser at the MAPPED address on a switch", () => {
     // The redirect-trust rule, restated where the switcher moved.
-    assert.match(editor, /setBrowserUrl\(aquaTagBrowserUrl\(project\)\)/);
+    assert.match(editor, /loadBrowserUrl\(aquaTagBrowserUrl\(project\)\)/);
   });
 });
 

@@ -151,6 +151,7 @@ test("only the plans that genuinely have no phases yield none", async () => {
     "enquiry-detail-card-handoff",
     "freelancer-workspace-HANDOFF",
     "public-bucket-HANDOFF",
+    "configurable-access-and-workspace-parity",
   ]);
   const empty = (await plans()).filter(p => parsePhases(p.md).length === 0).map(p => p.name);
   assert.deepEqual(empty.sort(), [...allowed].sort());

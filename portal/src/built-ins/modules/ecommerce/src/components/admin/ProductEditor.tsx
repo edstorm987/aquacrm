@@ -33,17 +33,25 @@ export function ProductEditor({ initial, apiBase, isNew = false }: ProductEditor
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          ...draft,
-          id: draft.id || slug,
-          slug,
-          price: Number(draft.price ?? 0),
+          command: "details",
+          create: isNew,
+          expectedVersion: isNew ? undefined : (initial.version ?? 1),
+          product: {
+            ...draft,
+            id: draft.id || slug,
+            slug,
+            price: Number(draft.price ?? 0),
+          },
         }),
       });
-      const data = await res.json() as { ok: boolean; error?: string };
+      const data = await res.json() as { ok: boolean; error?: string; product?: Product };
       if (!data.ok) {
-        setError(data.error ?? "Could not save.");
+        setError(res.status === 409
+          ? data.error ?? "This product changed in another editor. Reload and merge before saving."
+          : data.error ?? "Could not save.");
         return;
       }
+      if (data.product) setDraft(data.product);
       if (typeof window !== "undefined") {
         if (isNew) window.location.href = `../products/${slug}`;
         else window.location.reload();

@@ -11,6 +11,7 @@ import {
   validateAutomationGraph,
 } from "../src/server/automations";
 import { createCustomAI, deleteCustomAI, listCustomAIs, updateCustomAI } from "../src/server/customAIs";
+import { automationRunFeedback } from "../src/lib/automationRunFeedback";
 import { getState, mutate } from "../src/server/storage";
 import type { AutomationWorkflowNode } from "../src/server/types";
 
@@ -103,6 +104,34 @@ test("delayed runs resume once and dry-run email actions never send", async () =
   }
 });
 
+test("a failed live action produces immediate error feedback with the stored diagnostic", async () => {
+  const agencyId = `agency_automation_failure_${Date.now()}`;
+  const actor = "automation-test-owner";
+  mutate(state => {
+    state.agencies[agencyId] = { id: agencyId, name: "Automation Failure Test", slug: agencyId, ownerEmail: "owner@example.test", status: "active", brand: { primaryColor: "#087f8c" }, createdAt: Date.now(), updatedAt: Date.now() };
+  });
+  try {
+    const workflow = createAutomationWorkflow(agencyId, {
+      name: "Broken webhook",
+      status: "active",
+      nodes: [
+        automationNode("trigger", "trigger", { label: "Manual", triggerType: "manual" }),
+        automationNode("webhook", "action", { label: "Notify provider", actionType: "send-webhook", webhookUrl: "not-a-url" }),
+      ],
+      edges: [{ id: "webhook-edge", source: "trigger", target: "webhook" }],
+    }, actor);
+
+    const run = await runAutomationWorkflow(agencyId, workflow.id, "live", actor);
+    assert.equal(run.status, "failed");
+    const feedback = automationRunFeedback(run, "live");
+    assert.equal(feedback.kind, "error");
+    assert.match(feedback.message, /Live flow failed: The webhook action needs a valid URL\./);
+    assert.doesNotMatch(feedback.message, /completed/i);
+  } finally {
+    cleanup(agencyId);
+  }
+});
+
 test("active graphs reject loops and the custom AI registry stays tenant scoped", () => {
   const agencyId = `agency_automation_ai_${Date.now()}`;
   const actor = "automation-test-owner";
@@ -152,6 +181,7 @@ test("automation control centre is mounted with real integrations and navigation
   assert.match(workspace, /Unanswered enquiry reminder/);
   assert.match(workspace, /Custom AI registry/);
   assert.match(workspace, /Run history/);
+  assert.match(workspace, /automationRunFeedback\(data\.run, "live"\)/);
   assert.match(page, /redirect\("\/portal\/agency\/marketing\?view=automations"\)/);
   assert.match(data, /processAutomationSweep/);
   assert.match(marketing, /<AutomationsWorkspace \{\.\.\.automationData\} embedded/);

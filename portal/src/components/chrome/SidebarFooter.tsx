@@ -8,6 +8,7 @@
 
 import Link from "next/link";
 import { SidebarCollapseToggle } from "./SidebarCollapseToggle";
+import { sharedChromeLinkPrefetch } from "@/lib/chrome/sharedChromeLinkPrefetch";
 
 interface SettingsItem { label: string; href: string }
 interface Props {
@@ -25,6 +26,7 @@ export function SidebarFooter({ mobile = false, settingsItems = [] }: Props) {
     <div className={`mm-sidebar-footer flex shrink-0 flex-col gap-1 border-t border-black/10 pt-3 ${mobile ? "mt-3" : "mt-6"}`}>
       <Link
         href={settingsItem?.href ?? "/portal/agency/settings"}
+        prefetch={sharedChromeLinkPrefetch()}
         title={settingsItem?.label ?? "Settings"}
         data-nav-tone="slate"
         className="mm-sidebar-link flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-black/75 hover:bg-black/5"

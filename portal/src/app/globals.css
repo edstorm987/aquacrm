@@ -4,7 +4,7 @@
    (the lazy-loaded chunk that owns every @xyflow/react import), so it downloads with
    the canvas and nowhere else. The `.react-flow__*` overrides below are all at least
    two classes deep, so they still beat the base sheet whatever order it loads in. */
-@import "tailwindcss";
+@import "tailwindcss" source("..");
 
 .aqua-automation-flow .react-flow__pane { cursor: grab; }
 .aqua-automation-flow .react-flow__pane:active { cursor: grabbing; }
@@ -2867,8 +2867,19 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
 .mm-portal-root,
 .mm-portal-root > *,
 .mm-portal-root main#main-content,
-.mm-route-canvas > * {
+.mm-route-canvas > *,
+.mm-route-canvas > [data-aqua-loading-coordinator] > * {
   min-width: 0;
+}
+
+/* Content descendants must not force the route canvas wider. Do not apply
+   this max-width to every portal shell child: that would override deliberate
+   utility widths such as the Freelancer shell's max-w-3xl container. */
+.mm-route-canvas > * {
+  max-width: 100%;
+}
+
+.mm-route-canvas > [data-aqua-loading-coordinator] > * {
   max-width: 100%;
 }
 
@@ -3061,6 +3072,230 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
 .mm-route-canvas[data-mm-route-motion] {
   animation: mm-route-enter var(--mm-motion-slow) var(--mm-ease-out);
   transform-origin: top center;
+}
+
+/* A single intentional slow-path for the private portal. Within an existing
+   workspace it fills only the route viewport, preserving the familiar sidebar
+   and topbar. During a full workspace handover the portal-level boundary can
+   still fill its parent while the fixed cinematic plays above it. */
+.mm-route-canvas:has([data-aqua-viewport-loader]),
+.mm-route-canvas:has([data-testid="aqua-loading-curtain"]) {
+  animation: none;
+  position: relative;
+  isolation: isolate;
+}
+
+/* Keep the route's ordinary entrance motion from starting late after the
+   curtain, without permanently trapping fixed dialogs in a stacking context. */
+.mm-route-canvas:has([data-aqua-loading-handover="complete"]) {
+  animation: none;
+}
+
+.aqua-viewport-loading,
+.aqua-loading-curtain {
+  --aqua-loading-from: #071827;
+  --aqua-loading-mid: #0a2639;
+  --aqua-loading-to: #0b3144;
+  --aqua-loading-accent: #72ddd7;
+}
+
+.aqua-viewport-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  width: auto;
+  min-width: 0;
+  min-height: 100%;
+  place-items: center;
+  overflow: hidden;
+  isolation: isolate;
+  cursor: progress;
+  color: #ffffff;
+  background:
+    radial-gradient(circle at 50% 43%, color-mix(in srgb, var(--aqua-loading-accent) 18%, transparent), transparent 31%),
+    linear-gradient(145deg, var(--aqua-loading-from) 0%, var(--aqua-loading-mid) 50%, var(--aqua-loading-to) 100%);
+  opacity: 0;
+  animation: aqua-viewport-loading-reveal 180ms ease-out 110ms both;
+}
+
+/* The root /portal boundary is used while the destination workspace shell
+   itself is changing. There is no persistent destination chrome to preserve,
+   so the same component becomes the full-device underlay for the cinematic. */
+.aqua-viewport-loading[data-loading-scope="workspace"] {
+  position: fixed;
+  z-index: 9995;
+  width: 100dvw;
+  min-height: 100dvh;
+}
+
+/* Command deck: near-black bridge glass with instrument cyan. */
+.mm-route-canvas[data-portal-shell="command"] :is(.aqua-viewport-loading, .aqua-loading-curtain) {
+  --aqua-loading-from: #010810;
+  --aqua-loading-mid: #031722;
+  --aqua-loading-to: #073247;
+  --aqua-loading-accent: #62e8ff;
+}
+
+/* Dev Team: shipyard midnight with a restrained forge highlight. */
+.mm-dev-team-shell :is(.aqua-viewport-loading, .aqua-loading-curtain) {
+  --aqua-loading-from: #08131e;
+  --aqua-loading-mid: #112435;
+  --aqua-loading-to: #1c3040;
+  --aqua-loading-accent: #d4ad76;
+}
+
+/* First-party client and customer portals: deep marine blue. */
+.mm-client-workspace-shell :is(.aqua-viewport-loading, .aqua-loading-curtain),
+.mm-customer-portal :is(.aqua-viewport-loading, .aqua-loading-curtain),
+[data-portal-loading-theme="client"] :is(.aqua-viewport-loading, .aqua-loading-curtain) {
+  --aqua-loading-from: #04101c;
+  --aqua-loading-mid: #071f30;
+  --aqua-loading-to: #0b3447;
+  --aqua-loading-accent: #78d7ee;
+}
+
+.aqua-viewport-loading::before {
+  position: absolute;
+  inset: -30%;
+  z-index: -1;
+  content: "";
+  background: radial-gradient(circle, rgb(255 255 255 / 0.055) 0 1px, transparent 1.5px);
+  background-size: 34px 34px;
+  -webkit-mask-image: radial-gradient(circle at center, black, transparent 63%);
+  mask-image: radial-gradient(circle at center, black, transparent 63%);
+  opacity: 0.65;
+}
+
+.aqua-viewport-loading__content {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-direction: column;
+  gap: 0.8rem;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.aqua-viewport-loading__spinner {
+  display: block;
+  width: 2rem;
+  height: 2rem;
+  border: 2px solid rgb(255 255 255 / 0.28);
+  border-top-color: var(--aqua-loading-accent);
+  border-radius: 999px;
+  box-shadow: 0 0 22px rgb(255 255 255 / 0.16);
+  animation: aqua-viewport-loading-spin 760ms linear infinite;
+}
+
+.aqua-inline-loading-spinner {
+  display: block;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-top-color: currentColor;
+  border-radius: 999px;
+  animation: aqua-viewport-loading-spin 760ms linear infinite;
+}
+
+.aqua-viewport-loading__brand {
+  margin-top: 0.1rem;
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.22em;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--aqua-loading-accent);
+}
+
+.aqua-viewport-loading__label {
+  max-width: min(20rem, calc(100dvw - 3rem));
+  color: rgb(255 255 255 / 0.9);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+/* loading.tsx unmounts as soon as the next route is ready. A persistent
+   coordinator draws these two lightweight panels over the committed page so
+   the slow-path exits as a deliberate split-curtain reveal. It is visual only,
+   never blocks input after its bounded 460ms handover, and remains beneath all
+   cinematic overlays (z-index 10000+). */
+.aqua-loading-curtain {
+  position: absolute;
+  inset: 0;
+  z-index: 51;
+  height: min(100%, 100dvh);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  isolation: isolate;
+  pointer-events: none;
+}
+
+.aqua-loading-curtain[data-loading-scope="workspace"] {
+  position: fixed;
+  z-index: 9996;
+  width: 100dvw;
+  min-height: 100dvh;
+}
+
+.aqua-loading-curtain__half {
+  position: absolute;
+  inset-block: 0;
+  width: calc(50% + 1px);
+  background:
+    radial-gradient(circle at 50% 43%, color-mix(in srgb, var(--aqua-loading-accent) 18%, transparent), transparent 44%),
+    linear-gradient(145deg, var(--aqua-loading-from) 0%, var(--aqua-loading-mid) 58%, var(--aqua-loading-to) 100%);
+  box-shadow: 0 0 38px rgb(0 0 0 / 0.2);
+  will-change: transform;
+}
+
+.aqua-loading-curtain__half--left {
+  left: 0;
+  border-right: 1px solid color-mix(in srgb, var(--aqua-loading-accent) 34%, transparent);
+  transform-origin: left center;
+  animation: aqua-loading-curtain-left 460ms cubic-bezier(0.76, 0, 0.24, 1) both;
+}
+
+.aqua-loading-curtain__half--right {
+  right: 0;
+  border-left: 1px solid color-mix(in srgb, var(--aqua-loading-accent) 34%, transparent);
+  transform-origin: right center;
+  animation: aqua-loading-curtain-right 460ms cubic-bezier(0.76, 0, 0.24, 1) both;
+}
+
+@keyframes aqua-viewport-loading-reveal {
+  to { opacity: 1; }
+}
+
+@keyframes aqua-viewport-loading-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes aqua-loading-curtain-left {
+  0%, 10% { transform: translateX(0); }
+  100% { transform: translateX(-102%); }
+}
+
+@keyframes aqua-loading-curtain-right {
+  0%, 10% { transform: translateX(0); }
+  100% { transform: translateX(102%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aqua-viewport-loading {
+    opacity: 1;
+    animation: none;
+  }
+
+  .aqua-viewport-loading__spinner,
+  .aqua-inline-loading-spinner {
+    animation: none;
+  }
+
+  .aqua-loading-curtain {
+    display: none;
+  }
 }
 
 .mm-modal-backdrop {

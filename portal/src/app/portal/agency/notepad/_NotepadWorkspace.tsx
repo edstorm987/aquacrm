@@ -32,8 +32,10 @@ import type { NotepadFolder, NotepadNote, NotepadNoteStatus } from "@/server/typ
 type NotebookView = "all" | "pinned" | "archived" | "trashed" | `folder:${string}`;
 type SortMode = "updated" | "created" | "title";
 type SaveState = "saved" | "unsaved" | "saving" | "error";
+type NotepadDraft = Pick<NotepadNote, "id" | "title" | "body" | "folderId" | "tags" | "pinned" | "status" | "updatedAt">;
 
 const FOLDER_COLORS = ["#087f8c", "#9a6a16", "#a74478", "#4f46e5", "#187554", "#b95d12", "#5c6675"];
+const DRAFT_KEY_PREFIX = "aquacrm:notepad-draft:";
 
 export function NotepadWorkspace({
   initialNotes,
@@ -67,6 +69,47 @@ export function NotepadWorkspace({
   const revisions = useRef(new Map<string, number>());
 
   useEffect(() => { notesRef.current = notes; }, [notes]);
+
+  useEffect(() => {
+    const recoveredIds: string[] = [];
+    const recovered = notesRef.current.map(note => {
+      const draft = readDraft(note.id);
+      if (!draft) return note;
+      if (draft.updatedAt <= note.updatedAt) {
+        clearDraft(note.id);
+        return note;
+      }
+      recoveredIds.push(note.id);
+      revisions.current.set(note.id, Math.max(1, revisions.current.get(note.id) ?? 0));
+      return { ...note, ...draft };
+    });
+    if (recoveredIds.length) {
+      notesRef.current = recovered;
+      setNotes(recovered);
+      setSaveStates(current => ({
+        ...current,
+        ...Object.fromEntries(recoveredIds.map(id => [id, "error" as const])),
+      }));
+      setError(`${recoveredIds.length} unsaved ${recoveredIds.length === 1 ? "note was" : "notes were"} recovered from this browser. Use Retry save to persist the latest version.`);
+    }
+
+    const hasPendingDraft = () => saveTimers.current.size > 0 || notesRef.current.some(note => Boolean(readDraft(note.id)));
+    const flushForExit = () => sendDraftsKeepalive(notesRef.current, new Set(saveTimers.current.keys()));
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!hasPendingDraft()) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    window.addEventListener("pagehide", flushForExit);
+    return () => {
+      window.removeEventListener("beforeunload", warnBeforeUnload);
+      window.removeEventListener("pagehide", flushForExit);
+      flushForExit();
+      for (const timer of saveTimers.current.values()) clearTimeout(timer);
+      saveTimers.current.clear();
+    };
+  }, []);
 
   const selected = notes.find(note => note.id === selectedId) ?? null;
   const activeNotes = notes.filter(note => note.status === "active");
@@ -131,8 +174,15 @@ export function NotepadWorkspace({
   function editSelected(patch: Partial<Pick<NotepadNote, "title" | "body" | "folderId" | "tags" | "pinned">>) {
     if (!selected) return;
     const next: NotepadNote = { ...selected, ...patch, updatedAt: Date.now() };
-    setNotes(current => current.map(note => note.id === next.id ? next : note));
+    replaceNote(next);
+    writeDraft(next);
     scheduleSave(next);
+  }
+
+  function replaceNote(note: NotepadNote) {
+    const next = notesRef.current.map(item => item.id === note.id ? note : item);
+    notesRef.current = next;
+    setNotes(next);
   }
 
   function scheduleSave(note: NotepadNote) {
@@ -147,43 +197,56 @@ export function NotepadWorkspace({
     }, 650));
   }
 
-  async function persistNote(note: NotepadNote, revision: number) {
+  async function persistNote(note: NotepadNote, revision: number): Promise<boolean> {
     setSaveStates(current => ({ ...current, [note.id]: "saving" }));
     try {
-      const result = await post<{ note: NotepadNote }>({
-        action: "update-note",
-        noteId: note.id,
-        title: note.title,
-        body: note.body,
-        folderId: note.folderId ?? null,
-        tags: note.tags,
-        pinned: note.pinned,
-        status: note.status,
-      });
-      if (revisions.current.get(note.id) !== revision) return;
-      setNotes(current => current.map(item => item.id === note.id ? result.note : item));
+      const result = await post<{ note: NotepadNote }>(updateRequest(note));
+      if (revisions.current.get(note.id) !== revision) return false;
+      replaceNote(result.note);
+      clearDraft(note.id);
       setSaveStates(current => ({ ...current, [note.id]: "saved" }));
+      return true;
     } catch (caught) {
       if (revisions.current.get(note.id) === revision) setSaveStates(current => ({ ...current, [note.id]: "error" }));
       setError(message(caught));
+      return false;
     }
+  }
+
+  function retrySave(noteId: string) {
+    const note = notesRef.current.find(item => item.id === noteId);
+    if (!note) return;
+    const draft = readDraft(noteId);
+    const latest = draft ? { ...note, ...draft } : note;
+    const currentTimer = saveTimers.current.get(noteId);
+    if (currentTimer) clearTimeout(currentTimer);
+    saveTimers.current.delete(noteId);
+    const revision = (revisions.current.get(noteId) ?? 0) + 1;
+    revisions.current.set(noteId, revision);
+    replaceNote(latest);
+    writeDraft(latest);
+    setError("");
+    void persistNote(latest, revision);
   }
 
   async function changeStatus(note: NotepadNote, status: NotepadNoteStatus) {
     const timer = saveTimers.current.get(note.id);
     if (timer) clearTimeout(timer);
     saveTimers.current.delete(note.id);
+    const pendingRevision = revisions.current.get(note.id);
+    if (readDraft(note.id) && pendingRevision && !await persistNote(note, pendingRevision)) return;
     const revision = (revisions.current.get(note.id) ?? 0) + 1;
     revisions.current.set(note.id, revision);
     const optimistic = { ...note, status, updatedAt: Date.now() };
-    setNotes(current => current.map(item => item.id === note.id ? optimistic : item));
+    replaceNote(optimistic);
     setSaveStates(current => ({ ...current, [note.id]: "saving" }));
     try {
       const result = await post<{ note: NotepadNote }>({ action: "update-note", noteId: note.id, status });
-      setNotes(current => current.map(item => item.id === note.id ? result.note : item));
+      replaceNote(result.note);
+      clearDraft(note.id);
       setSaveStates(current => ({ ...current, [note.id]: "saved" }));
     } catch (caught) {
-      setNotes(current => current.map(item => item.id === note.id ? note : item));
+      replaceNote(note);
       setSaveStates(current => ({ ...current, [note.id]: "error" }));
       setError(message(caught));
     }
@@ -233,6 +296,7 @@ export function NotepadWorkspace({
     setError("");
     try {
       await post({ action: "delete-note", noteId: note.id });
+      clearDraft(note.id);
       setNotes(current => current.filter(item => item.id !== note.id));
       setSaveStates(current => {
         const next = { ...current };
@@ -259,11 +323,15 @@ export function NotepadWorkspace({
   }
 
   function chooseView(next: NotebookView) {
+    if (selectedId) flushScheduled(selectedId, saveTimers, notesRef, revisions, persistNote);
     setView(next);
     setMobileEditorOpen(false);
   }
 
   function openEditor(noteId: string) {
+    if (selectedId && selectedId !== noteId) {
+      flushScheduled(selectedId, saveTimers, notesRef, revisions, persistNote);
+    }
     setSelectedId(noteId);
     setMobileEditorOpen(true);
     if (typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches) {
@@ -425,7 +493,7 @@ export function NotepadWorkspace({
           {selected ? (
             <>
               <div className="flex flex-wrap items-center gap-2 border-b border-black/10 px-3 py-2 sm:px-4">
-                <button type="button" onClick={() => setMobileEditorOpen(false)} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/55 md:hidden" aria-label="Back to notes"><ArrowLeft size={17} /></button>
+                <button type="button" onClick={() => { flushScheduled(selected.id, saveTimers, notesRef, revisions, persistNote); setMobileEditorOpen(false); }} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/55 md:hidden" aria-label="Back to notes"><ArrowLeft size={17} /></button>
                 <label className="relative min-w-40 flex-1 sm:max-w-52">
                   <span className="sr-only">Folder</span>
                   <Folder className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-black/35" size={14} />
@@ -435,7 +503,7 @@ export function NotepadWorkspace({
                   </select>
                   <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-black/30" size={13} />
                 </label>
-                <SaveIndicator state={saveStates[selected.id] ?? "saved"} />
+                <SaveIndicator state={saveStates[selected.id] ?? "saved"} onRetry={() => retrySave(selected.id)} />
                 {selected.status !== "active" ? (
                   <button type="button" onClick={() => void changeStatus(selected, "active")} className="inline-flex h-9 items-center gap-1.5 rounded-md border border-black/10 px-2.5 text-xs font-medium text-black/60" title="Restore note"><RotateCcw size={14} /><span className="hidden sm:inline">Restore</span></button>
                 ) : (
@@ -529,8 +597,11 @@ function CompactViewButton({ active, onClick, icon, label, count }: { active: bo
   return <button type="button" onClick={onClick} className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium ${active ? "border-brand bg-brand/[0.08] text-black/80" : "border-black/10 bg-white text-black/55"}`}>{icon}{label}<span className="text-[10px] text-black/35">{count}</span></button>;
 }
 
-function SaveIndicator({ state }: { state: SaveState }) {
-  return <span className={`hidden min-w-16 items-center justify-end gap-1 text-[10px] sm:inline-flex ${state === "error" ? "text-red-700" : "text-black/38"}`}>{state === "saving" ? <LoaderCircle className="animate-spin" size={12} /> : state === "saved" ? <Check size={12} /> : state === "error" ? <X size={12} /> : <MoreHorizontal size={13} />}{state === "saving" ? "Saving" : state === "saved" ? "Saved" : state === "error" ? "Retry needed" : "Unsaved"}</span>;
+function SaveIndicator({ state, onRetry }: { state: SaveState; onRetry: () => void }) {
+  if (state === "error") {
+    return <button type="button" onClick={onRetry} className="inline-flex min-h-8 items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2 text-[10px] font-semibold text-red-700"><RotateCcw size={12} />Retry save</button>;
+  }
+  return <span className="inline-flex min-w-16 items-center justify-end gap-1 text-[10px] text-black/38">{state === "saving" ? <LoaderCircle className="animate-spin" size={12} /> : state === "saved" ? <Check size={12} /> : <MoreHorizontal size={13} />}{state === "saving" ? "Saving" : state === "saved" ? "Saved" : "Unsaved"}</span>;
 }
 
 function flushScheduled(
@@ -538,7 +609,7 @@ function flushScheduled(
   timers: React.MutableRefObject<Map<string, ReturnType<typeof setTimeout>>>,
   notes: React.MutableRefObject<NotepadNote[]>,
   revisions: React.MutableRefObject<Map<string, number>>,
-  persist: (note: NotepadNote, revision: number) => Promise<void>,
+  persist: (note: NotepadNote, revision: number) => Promise<unknown>,
 ) {
   const timer = timers.current.get(noteId);
   if (!timer) return;
@@ -547,6 +618,74 @@ function flushScheduled(
   const note = notes.current.find(item => item.id === noteId);
   const revision = revisions.current.get(noteId);
   if (note && revision) void persist(note, revision);
+}
+
+function updateRequest(note: NotepadNote): Record<string, unknown> {
+  return {
+    action: "update-note",
+    noteId: note.id,
+    title: note.title,
+    body: note.body,
+    folderId: note.folderId ?? null,
+    tags: note.tags,
+    pinned: note.pinned,
+    status: note.status,
+  };
+}
+
+function draftKey(noteId: string): string {
+  return `${DRAFT_KEY_PREFIX}${noteId}`;
+}
+
+function writeDraft(note: NotepadNote): void {
+  try {
+    const draft: NotepadDraft = {
+      id: note.id,
+      title: note.title,
+      body: note.body,
+      folderId: note.folderId,
+      tags: note.tags,
+      pinned: note.pinned,
+      status: note.status,
+      updatedAt: note.updatedAt,
+    };
+    window.localStorage.setItem(draftKey(note.id), JSON.stringify(draft));
+  } catch {
+    // The visible unsaved/error state and unload warning still protect the edit.
+  }
+}
+
+function readDraft(noteId: string): NotepadDraft | null {
+  try {
+    const raw = window.localStorage.getItem(draftKey(noteId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<NotepadDraft>;
+    if (parsed.id !== noteId || typeof parsed.title !== "string" || typeof parsed.body !== "string" || !Array.isArray(parsed.tags) || typeof parsed.updatedAt !== "number") return null;
+    return parsed as NotepadDraft;
+  } catch {
+    return null;
+  }
+}
+
+function clearDraft(noteId: string): void {
+  try {
+    window.localStorage.removeItem(draftKey(noteId));
+  } catch {
+    // A stale browser draft is harmless; server truth still won this save.
+  }
+}
+
+function sendDraftsKeepalive(notes: NotepadNote[], forcedNoteIds = new Set<string>()): void {
+  for (const note of notes) {
+    const draft = readDraft(note.id);
+    if (!draft && !forcedNoteIds.has(note.id)) continue;
+    void fetch("/api/portal/notepad", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(updateRequest(draft ? { ...note, ...draft } : note)),
+      keepalive: true,
+    }).catch(() => undefined);
+  }
 }
 
 function viewForNote(note?: NotepadNote): NotebookView {

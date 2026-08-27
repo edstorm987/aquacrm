@@ -9,6 +9,7 @@ import type { BudgetPotSnapshot, BudgetPotSignal } from "../lib/budgetHealth";
 import { SUPPORTED_CURRENCIES, formatMoney } from "../lib/currencies";
 import { dateInputValue } from "../lib/safeDate";
 import { FinanceNav } from "./FinanceNav";
+import { FinanceCurrencyNav } from "./FinanceCurrencyNav";
 
 interface CompanyOption { id: string; name: string }
 
@@ -38,11 +39,12 @@ const PERIODS: Array<[BudgetPotPeriod, string]> = [
 const inputClass = "min-h-10 w-full rounded-md border border-black/15 bg-white px-3 text-sm outline-none focus:border-black/40";
 const labelClass = "grid gap-1.5 text-xs font-medium text-black/58";
 
-export function BudgetPotsWorkspace({ initialPots, position, companies, apiBase }: {
+export function BudgetPotsWorkspace({ initialPots, position, companies, apiBase, availableCurrencies }: {
   initialPots: BudgetPotSnapshot[];
   position: FinancePosition;
   companies: CompanyOption[];
   apiBase: string;
+  availableCurrencies: Currency[];
 }) {
   const router = useRouter();
   const [pots, setPots] = useState(initialPots);
@@ -67,6 +69,7 @@ export function BudgetPotsWorkspace({ initialPots, position, companies, apiBase 
 
   return <section data-resolution-focus="budget" className="mx-auto w-full max-w-6xl space-y-7 pb-12">
     <FinanceNav active="budgets" />
+    <FinanceCurrencyNav active={position.currency} available={availableCurrencies} path="/portal/agency/agency-finance/budgets" label="Budget currency" />
     <header className="flex flex-wrap items-end justify-between gap-4 border-b border-black/10 pb-5">
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-black/45">Finance control</p>

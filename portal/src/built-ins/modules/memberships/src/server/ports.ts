@@ -31,6 +31,8 @@ import type {
 export interface StoragePort {
   get<T = unknown>(key: string): Promise<T | undefined>;
   set<T = unknown>(key: string, value: T): Promise<void>;
+  /** Serialize and durably flush a logical operation across application processes. */
+  runExclusive?<T>(key: string, operation: () => Promise<T>): Promise<T>;
   del(key: string): Promise<void>;
   list(prefix?: string): Promise<string[]>;
 }
@@ -65,6 +67,8 @@ export interface UserPort {
 // ─── Activity log ────────────────────────────────────────────────────────
 
 export interface LogActivityInput {
+  /** Stable source-operation identity. Replays return the original entry. */
+  idempotencyKey?: string;
   agencyId: AgencyId;
   clientId?: ClientId;
   actorUserId?: UserId;
@@ -130,6 +134,7 @@ export interface StripeCustomerInput {
   email: string;
   name?: string;
   metadata?: Record<string, string>;
+  idempotencyKey?: string;
 }
 
 export interface StripeCustomer {
@@ -162,6 +167,7 @@ export interface StripeCheckoutSessionInput {
   cancelUrl: string;
   metadata?: Record<string, string>;
   trialDays?: number;
+  idempotencyKey?: string;
   // Subscription mode is implied — memberships always creates
   // recurring subscriptions, not one-shot payments.
 }
@@ -206,13 +212,14 @@ export interface StripePort {
   createCustomer(input: StripeCustomerInput): Promise<StripeCustomer>;
   retrieveCustomer(id: string): Promise<StripeCustomer | null>;
   createSubscription(input: StripeSubscriptionInput): Promise<StripeSubscription>;
-  cancelSubscription(id: string, atPeriodEnd: boolean): Promise<StripeSubscription>;
+  cancelSubscription(id: string, atPeriodEnd: boolean, idempotencyKey?: string): Promise<StripeSubscription>;
   retrieveSubscription(id: string): Promise<StripeSubscription | null>;
   pauseSubscription(id: string): Promise<StripeSubscription>;
   resumeSubscription(id: string): Promise<StripeSubscription>;
   changeSubscriptionPlan(args: {
     id: string;
     newPriceId: string;
+    idempotencyKey?: string;
   }): Promise<StripeSubscription>;
 
   // Hosted UIs

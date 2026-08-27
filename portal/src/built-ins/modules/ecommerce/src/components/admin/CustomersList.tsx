@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 
 import type { CustomerSummary } from "../../lib/admin/customers";
-import { formatPrice } from "../../lib/admin/orders";
+import { formatCurrencyAmount } from "../../lib/admin/orders";
 import { formatUkDate } from "../../lib/safeDate";
 
 export interface CustomersListProps {
@@ -42,7 +42,7 @@ export function CustomersList({ customers }: CustomersListProps) {
             <th>Email</th>
             <th>Name</th>
             <th>Orders</th>
-            <th>Spent</th>
+            <th>Net spend</th>
             <th>Last order</th>
           </tr>
         </thead>
@@ -51,8 +51,17 @@ export function CustomersList({ customers }: CustomersListProps) {
             <tr key={c.email}>
               <td><a href={`./customers/${encodeURIComponent(c.email)}`}>{c.email}</a></td>
               <td>{c.name ?? "—"}</td>
-              <td>{c.totalOrders}</td>
-              <td>{formatPrice(c.totalSpent, "gbp")}</td>
+              <td>{c.settledOrders} settled / {c.totalOrders} total</td>
+              <td>
+                {c.spendByCurrency.length > 0
+                  ? c.spendByCurrency.map(row => (
+                    <div key={row.currency}>
+                      {formatCurrencyAmount(row.netSpent, row.currency)}
+                      {row.refunded > 0 ? <small> ({formatCurrencyAmount(row.refunded, row.currency)} refunded)</small> : null}
+                    </div>
+                  ))
+                  : "No settled spend"}
+              </td>
               <td>{c.lastOrderAt ? formatUkDate(c.lastOrderAt, { dateStyle: "medium" }) : "—"}</td>
             </tr>
           ))}

@@ -9,6 +9,7 @@ import type {
   UpdateIdentityPatch,
   UpdateProviderInput,
 } from "../lib/domain";
+import type { DeliveryResult } from "../server/delivery";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -19,6 +20,10 @@ function json(body: unknown, status = 200): Response {
 const badRequest = (m: string): Response => json({ ok: false, error: m }, 400);
 const notFound = (m: string): Response => json({ ok: false, error: m }, 404);
 const unprocessable = (m: string): Response => json({ ok: false, error: m }, 422);
+function deliveryHttpStatus(result: DeliveryResult): number {
+  if (result.ok) return 200;
+  return result.code === "provider_unconfigured" ? 409 : 422;
+}
 function methodGuard(req: Request, expected: string): Response | null {
   return req.method === expected ? null : json({ ok: false, error: "method_not_allowed" }, 405);
 }
@@ -57,7 +62,7 @@ export async function retryMessageHandler(req: Request, ctx: PluginCtx): Promise
   if (!body?.id) return badRequest("id required.");
   const c = buildContainer(ctx);
   const result = await c.delivery.retry(body.id);
-  return json(result, result.ok ? 200 : 422);
+  return json(result, deliveryHttpStatus(result));
 }
 
 // ─── Identities (admin) ──────────────────────────────────────────────────
@@ -135,7 +140,7 @@ export async function testSendHandler(req: Request, ctx: PluginCtx): Promise<Res
       externalRef: `test:${Date.now()}`,
     }, ctx.actor);
     const result = await c.delivery.deliver(message.id);
-    return json({ ...result, messageId: message.id });
+    return json({ ...result, messageId: message.id }, deliveryHttpStatus(result));
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
   }

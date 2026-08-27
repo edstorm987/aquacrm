@@ -20,7 +20,7 @@
 // `scripts/smoke-dev-thoughts.test.ts` drives BOTH against one ledger and
 // fails if they ever disagree.
 
-import { readFileSync, writeFileSync, renameSync, unlinkSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, renameSync, unlinkSync, existsSync, mkdirSync, rmSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 
 const FILE = process.env.DEV_THOUGHTS_FILE?.trim()
@@ -40,6 +40,68 @@ if (!existsSync(FILE)) {
   process.exit(0);
 }
 
+const LOCK = `${FILE}.aqua-lock`;
+const REAPER = `${LOCK}.reaper`;
+let ownsLock = false;
+
+function processExists(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try { process.kill(pid, 0); return true; }
+  catch (error) { return error?.code === "EPERM"; }
+}
+
+function staleLock() {
+  let info;
+  try { info = statSync(LOCK); } catch { return false; }
+  try {
+    const owner = JSON.parse(readFileSync(`${LOCK}/owner.json`, "utf8"));
+    return !processExists(owner.pid);
+  } catch { /* creator may be between mkdir and owner write */ }
+  return Date.now() - info.mtimeMs > 60_000;
+}
+
+function tryReap() {
+  try { mkdirSync(REAPER); } catch (error) {
+    if (error?.code === "EEXIST") return false;
+    throw error;
+  }
+  try {
+    if (!staleLock()) return false;
+    rmSync(LOCK, { recursive: true, force: true });
+    return true;
+  } finally {
+    rmSync(REAPER, { recursive: true, force: true });
+  }
+}
+
+async function acquireLock() {
+  const started = Date.now();
+  for (;;) {
+    try {
+      mkdirSync(LOCK);
+      writeFileSync(`${LOCK}/owner.json`, JSON.stringify({ pid: process.pid, createdAt: Date.now() }), "utf8");
+      ownsLock = true;
+      return;
+    } catch (error) {
+      if (error?.code !== "EEXIST") throw error;
+      if (tryReap()) continue;
+      if (Date.now() - started >= 10_000) throw new Error("Another process is still writing the thoughts ledger.");
+      await new Promise(resolve => setTimeout(resolve, 25));
+    }
+  }
+}
+
+function releaseLock() {
+  if (!ownsLock) return;
+  ownsLock = false;
+  rmSync(LOCK, { recursive: true, force: true });
+}
+
+if (ack) {
+  await acquireLock();
+  process.once("exit", releaseLock);
+}
+
 let rows;
 try {
   rows = JSON.parse(readFileSync(FILE, "utf8"));
@@ -49,6 +111,7 @@ try {
   // mid-write state — the ledger is genuinely damaged. Say so, and do not
   // write over it.
   console.error(`Could not parse ${FILE}. It is damaged, not mid-write — move it aside before anything writes to it again.`);
+  releaseLock();
   process.exit(1);
 }
 
@@ -70,6 +133,7 @@ const mine = rows.filter(t =>
 
 if (mine.length === 0) {
   console.log(`Nothing waiting for "${name}".`);
+  releaseLock();
   process.exit(0);
 }
 
@@ -102,8 +166,10 @@ if (ack) {
     renameSync(tmp, FILE);
   } catch (error) {
     try { unlinkSync(tmp); } catch { /* nothing to clean up */ }
+    releaseLock();
     throw error;
   }
+  releaseLock();
   console.log(`✓ Marked ${mine.length} as read for "${name}". Ed sees they've been picked up.`);
 } else {
   console.log(`Re-run with --ack once you've taken them on board:`);

@@ -181,6 +181,9 @@ export interface SendFailure {
   reason: string;
 }
 
+export const EMAIL_DELIVERY_DISABLED_REASON =
+  "Email delivery is disabled because no provider is configured. The message remains queued.";
+
 // ─── Cross-plugin event payloads ─────────────────────────────────────────
 
 export interface EmailDeliveredEvent {

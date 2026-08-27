@@ -118,10 +118,23 @@ export function ProductWorkspaceApplication({
       const response = await fetch("/api/tenants/product-workspaces", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ clientId, productId: product.id, action, pageId: page.id, ...payload }),
+        body: JSON.stringify({
+          clientId,
+          productId: product.id,
+          action,
+          pageId: page.id,
+          expectedRevision: workspace.revision,
+          ...payload,
+        }),
       });
       const result = await response.json() as { ok: boolean; error?: string; workspace?: PortalProductWorkspace };
-      if (!response.ok || !result.ok || !result.workspace) throw new Error(result.error || "The workspace could not be updated.");
+      if (!response.ok || !result.ok || !result.workspace) {
+        if (response.status === 409 && result.workspace) {
+          setWorkspace(result.workspace);
+          setFields(result.workspace.pages[page.id]?.fields ?? {});
+        }
+        throw new Error(result.error || "The workspace could not be updated.");
+      }
       setWorkspace(result.workspace);
       setFields(result.workspace.pages[page.id]?.fields ?? {});
       setNotice(success ?? "Saved to the shared workspace.");
@@ -155,22 +168,37 @@ export function ProductWorkspaceApplication({
         const uploaded = await upload.json() as { ok: boolean; error?: string; file?: CustomerFile };
         if (!upload.ok || !uploaded.ok || !uploaded.file) throw new Error(uploaded.error || `Could not upload ${file.name}.`);
         nextFiles.unshift(uploaded.file);
-        const attach = await fetch("/api/tenants/product-workspaces", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            clientId,
-            productId: product.id,
-            pageId: page.id,
-            action: "attach-file",
-            collectionId: collection.id,
-            fileId: uploaded.file.id,
-            title: uploaded.file.name,
-          }),
-        });
-        const attached = await attach.json() as { ok: boolean; error?: string; workspace?: PortalProductWorkspace };
-        if (!attach.ok || !attached.ok || !attached.workspace) throw new Error(attached.error || `Could not add ${file.name} to the collection.`);
-        nextWorkspace = attached.workspace;
+        let attachedWorkspace: PortalProductWorkspace | undefined;
+        let attachRevision = nextWorkspace.revision;
+        for (let attempt = 0; attempt < 2 && !attachedWorkspace; attempt += 1) {
+          const attach = await fetch("/api/tenants/product-workspaces", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              clientId,
+              productId: product.id,
+              pageId: page.id,
+              action: "attach-file",
+              expectedRevision: attachRevision,
+              collectionId: collection.id,
+              fileId: uploaded.file.id,
+              title: uploaded.file.name,
+            }),
+          });
+          const attached = await attach.json() as { ok: boolean; error?: string; workspace?: PortalProductWorkspace };
+          if (attach.ok && attached.ok && attached.workspace) {
+            attachedWorkspace = attached.workspace;
+            break;
+          }
+          if (attach.status === 409 && attached.workspace && attempt === 0) {
+            attachRevision = attached.workspace.revision;
+            nextWorkspace = attached.workspace;
+            continue;
+          }
+          throw new Error(attached.error || `Could not add ${file.name} to the collection.`);
+        }
+        if (!attachedWorkspace) throw new Error(`Could not add ${file.name} to the collection.`);
+        nextWorkspace = attachedWorkspace;
       }
       setFiles(nextFiles);
       setWorkspace(nextWorkspace);

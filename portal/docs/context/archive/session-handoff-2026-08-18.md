@@ -267,7 +267,8 @@ it one tap away**.
   there is nothing for the browser to use. The account is provisioned on first
   use and updated after — which is what finally makes a customer able to sign
   in normally rather than only ever through a link.
-- **`app/manifest.ts` is new.** Without it "add to home screen" makes a
+- **`public/manifest.webmanifest` is the current static successor to the original
+  dynamic manifest route.** Without a manifest, "add to home screen" makes a
   bookmark, not an app. The install step offers the real one-tap prompt where
   the browser fires `beforeinstallprompt`, and falls back to per-platform
   instructions where it does not. **The one-tap prompt needs a service

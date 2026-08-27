@@ -9,8 +9,8 @@ import "server-only";
 // subscribers — no global handlers leak across tenants.
 //
 // New cross-plugin wires for R6:
-//   • affiliates ← ecommerce `order.created`
-//       → AttributionService.recordOrder
+//   • affiliates ← ecommerce order lifecycle
+//       → AttributionService.recordOrder / reconcileOrder
 //   • client-crm ← ecommerce `order.created`
 //       → ActivityService.ingestOrderCreated
 //   • client-crm ← affiliates `affiliate.attribution_recorded`
@@ -58,24 +58,43 @@ interface SubscriptionEventPayload {
 
 // ─── affiliates ← ecommerce ─────────────────────────────────────────────
 
-subscribeForPlugin("affiliates", "order.created", async (event) => {
-  const payload = event.payload as OrderCreatedPayload;
-  if (!event.clientId || !payload.referralCodeId) return;
+async function affiliateContainerForOrderEvent(event: {
+  agencyId: string;
+  clientId?: string;
+}) {
+  if (!event.clientId) return null;
   const install = getInstall({ agencyId: event.agencyId, clientId: event.clientId }, "affiliates");
-  if (!install || !install.enabled) return;
-  const container = affiliatesContainerFor({
+  if (!install || !install.enabled) return null;
+  return affiliatesContainerFor({
     agencyId: event.agencyId,
     clientId: event.clientId,
     storage: makePluginStorage(install.id) as never,
     install,
   });
-  // RecordOrderArgs only needs orderId + referralCodeId — affiliates
-  // reads order subtotal/amount via its EcommerceOrdersPort internally.
-  await container.attributions.recordOrder({
-    orderId: payload.orderId,
-    referralCodeId: payload.referralCodeId,
+}
+
+for (const eventName of ["order.created", "order.paid"] as const) {
+  subscribeForPlugin("affiliates", eventName, async (event) => {
+    const payload = event.payload as OrderCreatedPayload;
+    if (!payload.orderId) return;
+    const container = await affiliateContainerForOrderEvent(event);
+    if (!container) return;
+    await container.attributions.recordOrder({
+      orderId: payload.orderId,
+      referralCodeId: payload.referralCodeId,
+    });
   });
-});
+}
+
+for (const eventName of ["order.refunded", "order.cancelled"] as const) {
+  subscribeForPlugin("affiliates", eventName, async (event) => {
+    const payload = event.payload as OrderCreatedPayload;
+    if (!payload.orderId) return;
+    const container = await affiliateContainerForOrderEvent(event);
+    if (!container) return;
+    await container.attributions.reconcileOrder(payload.orderId);
+  });
+}
 
 // ─── client-crm ← ecommerce ─────────────────────────────────────────────
 

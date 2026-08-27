@@ -10,6 +10,11 @@ import {
   resetAndSeedShowcaseWorkspace,
   SHOWCASE_AGENCY_SLUG,
 } from "@/lib/server/auth/showcaseMode";
+import {
+  SandboxEnvironmentError,
+  enterSandboxEnvironment,
+  exitSandboxEnvironment,
+} from "@/lib/server/sandbox/sandboxEnvironment";
 import { ensureHydrated } from "@/server/storage";
 import { getAgency } from "@/server/tenants";
 import { getUserById, getUserByLogin } from "@/server/users";
@@ -46,6 +51,30 @@ export async function POST(request: Request) {
     const action = body?.action;
     if (!action || !["enter", "exit", "reset"].includes(action)) {
       return NextResponse.json({ ok: false, error: "Choose enter, exit, or reset." }, { status: 400 });
+    }
+
+    // Compatibility adapter: all new private Showcase entries use the
+    // canonical isolated sandbox realm. Legacy signed sessions continue down
+    // the old exit/reset path so nobody is stranded during the migration.
+    if (session.sandbox) {
+      const result = action === "exit"
+        ? await exitSandboxEnvironment(session)
+        : await enterSandboxEnvironment(session, {
+          dataset: session.sandbox.dataset,
+          access: session.sandbox.access,
+          persona: session.sandbox.persona,
+          force: action === "reset",
+        });
+      return sessionResponse(result.token, result.redirect);
+    }
+    if (action === "enter") {
+      const result = await enterSandboxEnvironment(session, {
+        dataset: "demo",
+        access: "read-only",
+        persona: "owner",
+        force: true,
+      });
+      return sessionResponse(result.token, result.redirect);
     }
     // Older local sessions can survive a data reset with a stale user id.
     // Recover through the signed session email instead of making Showcase
@@ -91,6 +120,12 @@ export async function POST(request: Request) {
     });
     return sessionResponse(token, action === "reset" ? "/portal/agency/settings#showcase" : "/portal/agency");
   } catch (error) {
+    if (error instanceof SandboxEnvironmentError) {
+      return NextResponse.json(
+        { ok: false, error: error.message },
+        { status: error.status, headers: { "cache-control": "no-store" } },
+      );
+    }
     return authErrorResponse(error);
   }
 }

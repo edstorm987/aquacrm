@@ -5,7 +5,7 @@ import type { ClientContract, ClientContractTemplate } from "@/lib/clients/clien
 import type { ClientPaymentPlan } from "@/lib/clients/clientPaymentPlans";
 import { ContractsPanel } from "./_ContractsPanel";
 import { PaymentPlansPanel, type PaymentPlanEvidenceFile } from "./_PaymentPlansPanel";
-import { formatUkDate } from "@/lib/shared/formatDateTime";
+import { addBusinessCalendarDays, businessCalendarDate, formatUkDate } from "@/lib/shared/formatDateTime";
 
 interface Invoice {
   id: string;
@@ -14,7 +14,7 @@ interface Invoice {
   dueAt: number;
   totalCents: number;
   currency: "usd" | "gbp" | "eur" | string;
-  status: "draft" | "sent" | "paid" | "overdue" | "void";
+  status: "draft" | "sent" | "paid" | "overdue" | "void" | "partially-refunded" | "refunded";
   paidAt?: number;
   lineItems?: Array<{ description: string }>;
   notes?: string;
@@ -57,7 +57,9 @@ const STATUS_PALETTE: Record<Invoice["status"], string> = {
   sent:    "bg-blue-50 text-blue-800",
   paid:    "bg-emerald-50 text-emerald-800",
   overdue: "bg-red-50 text-red-800",
+  "partially-refunded": "bg-amber-50 text-amber-800",
   void:    "bg-black/10 text-black/45",
+  refunded: "bg-violet-50 text-violet-800",
 };
 
 function fmtMoney(cents: number, currency: string): string {
@@ -77,9 +79,7 @@ function fmtDate(ts: number): string {
 }
 
 function defaultDueDate(): string {
-  const due = new Date();
-  due.setDate(due.getDate() + 14);
-  return due.toISOString().slice(0, 10);
+  return addBusinessCalendarDays(14);
 }
 
 export function FinanceTabClient({
@@ -93,6 +93,8 @@ export function FinanceTabClient({
   clientName,
   recipientEmail,
   showContracts = true,
+  canManage = true,
+  canConfigure = canManage,
 }: {
   clientId: string;
   initial: InitialState;
@@ -104,6 +106,8 @@ export function FinanceTabClient({
   clientName?: string;
   recipientEmail?: string;
   showContracts?: boolean;
+  canManage?: boolean;
+  canConfigure?: boolean;
 }) {
   const [invoices, setInvoices] = useState<Invoice[] | null>(null);
   const [clientExpenses, setClientExpenses] = useState<ClientExpense[]>([]);
@@ -162,7 +166,7 @@ export function FinanceTabClient({
       return;
     }
     const cents = Math.round(amountFloat * 100);
-    const dueTs = draft.dueAt ? Date.parse(draft.dueAt) : Date.now() + 14 * 86_400_000;
+    const dueTs = Date.parse(draft.dueAt || addBusinessCalendarDays(14));
     setBusy(true);
     try {
       const createRes = await fetch("/api/portal/agency-finance/invoices", {
@@ -328,7 +332,7 @@ export function FinanceTabClient({
         )}
       </header>
 
-      <CloseDealCard clientId={clientId} onClosed={refresh} />
+      {canManage ? <CloseDealCard clientId={clientId} onClosed={refresh} /> : null}
 
       {/* MRR strip */}
       <section className="rounded-xl border border-black/10 bg-white p-4">
@@ -336,11 +340,11 @@ export function FinanceTabClient({
           <h2 className="text-sm font-medium text-black/85">12-month paid total</h2>
           {mrrSeries ? (
             <span className="text-base font-semibold text-black/90">{fmtMoney(totalPaid, "GBP")}</span>
-          ) : (
+          ) : canManage ? (
             <button type="button" onClick={openInvoiceComposer} disabled={pluginMissing} className="text-xs font-semibold text-brand hover:underline disabled:text-black/35 disabled:no-underline">
               {pluginMissing ? "Invoice engine unavailable" : "Create first invoice"}
             </button>
-          )}
+          ) : <span className="text-xs font-semibold text-black/35">No paid invoices</span>}
         </header>
         {mrrSeries ? (
           <svg
@@ -377,20 +381,20 @@ export function FinanceTabClient({
             <h2 className="text-sm font-medium text-black/85">Client profitability</h2>
             <p className="mt-1 text-xs text-black/45">Actual paid invoices less costs allocated to this client.</p>
           </div>
-          <button
+          {canManage ? <button
             type="button"
             onClick={() => setAddingCost(value => !value)}
             className="rounded-md border border-black/15 px-3 py-1.5 text-xs font-medium hover:bg-black/5"
           >
             {addingCost ? "Cancel" : "Add client cost"}
-          </button>
+          </button> : <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">Read-only</span>}
         </header>
         <dl className="grid grid-cols-3 divide-x divide-black/10 border-b border-black/10">
           <div className="p-4"><dt className="text-xs text-black/45">Paid income</dt><dd className="mt-1 font-semibold text-black/85">{fmtMoney(totalPaid, "GBP")}</dd></div>
           <div className="p-4"><dt className="text-xs text-black/45">Direct costs</dt><dd className="mt-1 font-semibold text-black/85">{fmtMoney(directCosts, "GBP")}</dd></div>
           <div className="p-4"><dt className="text-xs text-black/45">Gross profit</dt><dd className={`mt-1 font-semibold ${grossProfit < 0 ? "text-red-700" : "text-emerald-800"}`}>{fmtMoney(grossProfit, "GBP")}</dd></div>
         </dl>
-        {addingCost ? (
+        {canManage && addingCost ? (
           <ClientCostForm
             clientId={clientId}
             categories={expenseCategories.filter(category => category.status === "active")}
@@ -426,6 +430,8 @@ export function FinanceTabClient({
         recipientEmail={recipientEmail}
         initialContracts={initialContracts}
         initialTemplates={initialContractTemplates}
+        canManage={canManage}
+        canConfigure={canConfigure}
       /></div> : null}
 
       <PaymentPlansPanel
@@ -437,6 +443,8 @@ export function FinanceTabClient({
         initialFiles={initialCommercialFiles}
         invoices={invoices ?? []}
         onInvoiceCreated={refresh}
+        canManage={canManage}
+        canConfigure={canConfigure}
       />
 
       {/* Invoices */}
@@ -447,7 +455,7 @@ export function FinanceTabClient({
             <p className="mt-0.5 text-xs text-black/45">Issue a request to the client portal and email it through your connected sender.</p>
           </div>
           <div className="flex items-center gap-2 text-xs">
-            {!pluginMissing && (
+            {canManage && !pluginMissing && (
               <button
                 type="button"
                 onClick={() => setAdding(o => !o)}
@@ -459,7 +467,7 @@ export function FinanceTabClient({
             )}
           </div>
         </header>
-        {adding && (
+        {canManage && adding && (
           <form
             onSubmit={e => { e.preventDefault(); addManualInvoice(); }}
             className="border-b border-black/10 bg-black/[0.015] p-4"
@@ -553,7 +561,7 @@ export function FinanceTabClient({
           <div className="flex flex-col items-center gap-2 px-3 py-10 text-center">
             <p className="text-sm font-semibold text-black/65">{pluginMissing ? "Client invoicing is not enabled" : "No invoices yet"}</p>
             <p className="max-w-md text-xs leading-5 text-black/45">{pluginMissing ? "A workspace owner must enable the finance engine. This client workspace will expose invoicing here once it is available." : "Create, issue and track this client’s first invoice without leaving their workspace."}</p>
-            {!pluginMissing ? <button type="button" onClick={openInvoiceComposer} className="mt-2 rounded-md bg-brand px-3 py-2 text-xs font-semibold text-white shadow hover:opacity-90">Create first invoice</button> : null}
+            {canManage && !pluginMissing ? <button type="button" onClick={openInvoiceComposer} className="mt-2 rounded-md bg-brand px-3 py-2 text-xs font-semibold text-white shadow hover:opacity-90">Create first invoice</button> : null}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -586,7 +594,7 @@ export function FinanceTabClient({
                     </span>
                   </td>
                   <td className="px-3 py-1.5 text-right">
-                    {inv.status === "draft" && (
+                    {canManage && inv.status === "draft" && (
                       <button
                         type="button"
                         disabled={busy}
@@ -596,7 +604,7 @@ export function FinanceTabClient({
                         Send
                       </button>
                     )}
-                    {(inv.status === "sent" || inv.status === "overdue") && (
+                    {canConfigure && (inv.status === "sent" || inv.status === "overdue") && (
                       <button
                         type="button"
                         disabled={busy}
@@ -814,7 +822,7 @@ function ClientCostForm({
             <option value="0">No tax</option><option value="5">5%</option><option value="20">20% VAT</option>
           </select>
         </label>
-        <label className="grid gap-1 text-xs font-medium text-black/60">Date<input name="incurredAt" type="date" defaultValue={new Date().toISOString().slice(0, 10)} className="min-h-10 rounded-md border border-black/15 bg-white px-3 text-sm" /></label>
+        <label className="grid gap-1 text-xs font-medium text-black/60">Date<input name="incurredAt" type="date" defaultValue={businessCalendarDate()} className="min-h-10 rounded-md border border-black/15 bg-white px-3 text-sm" /></label>
         <label className="grid gap-1 text-xs font-medium text-black/60">Receipt URL<input name="receiptUrl" type="url" className="min-h-10 rounded-md border border-black/15 bg-white px-3 text-sm" /></label>
         <label className="grid gap-1 text-xs font-medium text-black/60 sm:col-span-2 lg:col-span-3">Description<input name="description" className="min-h-10 rounded-md border border-black/15 bg-white px-3 text-sm" placeholder="What this cost covered" /></label>
       </div>

@@ -21,8 +21,10 @@ import { TaskTemplateModal } from "@/components/attention/TaskTemplates";
 
 import { TodayView } from "./_TodayView";
 import { dateInputValue, formatUkDate } from "@/lib/shared/formatDateTime";
-import type { AgencyTask, AgencyTaskOrigin, AgencyTaskPriority, AgencyTaskRecurrence, AgencyTaskStatus, CommandCalendarConnection, CommandCalendarEntry, CommandCalendarEntryType, CommandCalendarExternalEvent, CommandCalendarSource, ExternalAssistantActionProposal, SopDocument } from "@/server/types";
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
+import type { AgencyTask, AgencyTaskOrigin, AgencyTaskPriority, AgencyTaskRecurrence, AgencyTaskStatus, CommandCalendarConnection, CommandCalendarEntry, CommandCalendarEntryType, CommandCalendarExternalEvent, CommandCalendarSource, ExternalAssistantActionProposal, PortalFormFieldDefinition, SopDocument } from "@/server/types";
 import { useNotificationAttention } from "@/components/chrome/NotificationAttentionProvider";
+import { PortalCustomFields, type PortalCustomFieldValues } from "@/components/forms/PortalCustomFields";
 
 export type GeneratedAction = {
   id: string;
@@ -80,6 +82,7 @@ export function ActionsWorkspace({
   team,
   clients,
   sops,
+  taskCustomFields,
   calendarEvents = [],
   initialCalendarEntries = [],
   initialCalendarIntegration,
@@ -96,6 +99,7 @@ export function ActionsWorkspace({
   team: TeamMember[];
   clients: ActionClient[];
   sops: SopDocument[];
+  taskCustomFields: PortalFormFieldDefinition[];
   calendarEvents?: GeneratedAction[];
   initialCalendarEntries?: CommandCalendarEntry[];
   initialCalendarIntegration: CalendarIntegrationState;
@@ -129,6 +133,7 @@ export function ActionsWorkspace({
   const [advisorReviewedAt, setAdvisorReviewedAt] = useState<number | null>(null);
   const [addingSuggestionId, setAddingSuggestionId] = useState<string | null>(null);
   const [acceptanceError, setAcceptanceError] = useState("");
+  const [taskError, setTaskError] = useState("");
   const [liveRecommendations, setLiveRecommendations] = useState(commandRecommendations);
   const [proposalBusyId, setProposalBusyId] = useState<string | null>(null);
   const openTasks = tasks.filter(task => task.status !== "done");
@@ -214,12 +219,16 @@ export function ActionsWorkspace({
   }, [editing, unifiedWindow]);
 
   async function patchTask(id: string, patch: Partial<AgencyTask>) {
-    const response = await fetch("/api/portal/tasks", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, ...patch }) });
-    const result = await response.json() as { ok: boolean; task?: AgencyTask; tasks?: AgencyTask[] };
-    if (result.ok && result.task) {
+    setTaskError("");
+    try {
+      const response = await fetch("/api/portal/tasks", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, ...patch }) });
+      const result = await response.json().catch(() => null) as { ok?: boolean; error?: string; field?: string; task?: AgencyTask; tasks?: AgencyTask[] } | null;
+      if (!response.ok || !result?.ok || !result.task) throw new Error(result?.error || "The task could not be saved.");
       setTasks(result.tasks ?? (current => current.map(task => task.id === id ? result.task as AgencyTask : task)));
       void attention?.refreshAlerts();
       router.refresh();
+    } catch (error) {
+      setTaskError(error instanceof Error ? error.message : "The task could not be saved.");
     }
   }
 
@@ -436,12 +445,14 @@ export function ActionsWorkspace({
     </section> : null}
 
     {acceptanceError ? <p role="alert" className="border-l-2 border-red-500 pl-3 text-xs leading-5 text-red-700">{acceptanceError}</p> : null}
+    {taskError ? <p role="alert" className="border-l-2 border-red-500 pl-3 text-xs leading-5 text-red-700">{taskError}</p> : null}
 
     {view === "list" ? source === "all" ? <UnifiedActionQueue
       window={unifiedWindow}
       team={team}
       clients={clients}
       sops={sops}
+      taskCustomFields={taskCustomFields}
       editing={editing}
       addingId={addingSuggestionId}
       proposalBusyId={proposalBusyId}
@@ -485,7 +496,7 @@ export function ActionsWorkspace({
 
       <section data-resolution-focus="task" aria-label="Accepted actions" className="grid gap-3">
         <div className="flex flex-wrap items-end justify-between gap-2 border-b border-black/10 pb-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-black/40">Accepted actions</p><h2 className="mt-1 text-lg font-semibold text-black/80">{`${sourceLabel(source)} tasks`}</h2></div><span className="text-xs text-black/40">{visibleTasks.length} shown</span></div>
-        {visibleTasks.map(task => <TaskCard key={task.id} task={task} team={team} clients={clients} sops={sops} expanded={editing === task.id} onToggle={() => setEditing(current => current === task.id ? null : task.id)} onPatch={patch => patchTask(task.id, patch)} onDelete={() => deleteTask(task.id)} />)}
+        {visibleTasks.map(task => <TaskCard key={task.id} task={task} team={team} clients={clients} sops={sops} customFields={taskCustomFields} expanded={editing === task.id} onToggle={() => setEditing(current => current === task.id ? null : task.id)} onPatch={patch => patchTask(task.id, patch)} onDelete={() => deleteTask(task.id)} />)}
         {!visibleTasks.length ? <div className="py-12 text-center"><Check className="mx-auto text-emerald-600" size={24} /><h2 className="mt-3 text-sm font-semibold text-black/70">No accepted tasks in this view</h2><p className="mt-1 text-xs text-black/42">Create one manually or approve a suggested task above.</p></div> : null}
       </section>
     </> : <CalendarView
@@ -496,6 +507,7 @@ export function ActionsWorkspace({
       integration={calendarIntegration}
       team={team}
       clients={clients}
+      customFields={taskCustomFields}
       onNavigate={amount => setMonth(addMonths(month, amount))}
       onToday={() => setMonth(startOfMonth(new Date()))}
       onTaskCreated={task => setTasks(current => [task, ...current.filter(item => item.id !== task.id)])}
@@ -504,7 +516,7 @@ export function ActionsWorkspace({
       onIntegrationChange={setCalendarIntegration}
     />}
 
-    {adding ? <TaskModal team={team} clients={clients} sops={sops} onClose={() => setAdding(false)} onCreated={task => { setTasks(current => [task, ...current]); setAdding(false); }} /> : null}
+    {adding ? <TaskModal team={team} clients={clients} sops={sops} customFields={taskCustomFields} onClose={() => setAdding(false)} onCreated={task => { setTasks(current => [task, ...current]); setAdding(false); }} /> : null}
     {pickingTemplate ? <TaskTemplateModal sops={sops} onClose={() => setPickingTemplate(false)} onCreated={task => { setTasks(current => [task, ...current]); setPickingTemplate(false); setEditing(task.id); }} /> : null}
   </div>;
 }
@@ -531,6 +543,7 @@ function UnifiedActionQueue({
   team,
   clients,
   sops,
+  taskCustomFields,
   editing,
   addingId,
   proposalBusyId,
@@ -553,6 +566,7 @@ function UnifiedActionQueue({
   team: TeamMember[];
   clients: ActionClient[];
   sops: SopDocument[];
+  taskCustomFields: PortalFormFieldDefinition[];
   editing: string | null;
   addingId: string | null;
   proposalBusyId: string | null;
@@ -583,7 +597,7 @@ function UnifiedActionQueue({
     {window.protected ? <ActionReserveSummary window={window} onOpenSource={onOpenSource} /> : null}
     {advisorError ? <p role="alert" className="border-l-2 border-red-500 pl-3 text-xs leading-5 text-red-700">{advisorError}</p> : null}
     {window.focus.map(item => {
-      if (item.type === "task") return <TaskCard key={item.id} task={item.task} team={team} clients={clients} sops={sops} expanded={editing === item.id} onToggle={() => onEdit(item.id)} onPatch={patch => onPatch(item.id, patch)} onDelete={() => onDelete(item.id)} />;
+      if (item.type === "task") return <TaskCard key={item.id} task={item.task} team={team} clients={clients} sops={sops} customFields={taskCustomFields} expanded={editing === item.id} onToggle={() => onEdit(item.id)} onPatch={patch => onPatch(item.id, patch)} onDelete={() => onDelete(item.id)} />;
       if (item.type === "suggestion") return <UnifiedSuggestionCard key={item.id} suggestion={item.suggestion} source={item.source} busy={addingId === item.id} onAccept={() => onAcceptSuggestion(item.suggestion, item.source)} onDismiss={item.source === "advisor" ? () => onDismissAdvisor(item.id) : undefined} />;
       if (item.type === "proposal") return <ExternalProposalRow key={item.id} proposal={item.proposal} team={team} busy={proposalBusyId === item.id} onDecision={onProposalDecision} unified />;
       return <UnifiedCrmCard key={item.id} action={item.action} busy={addingId === item.id} onAccept={() => onAcceptCrm(item.action)} onAttentionAction={onAttentionAction} onMarkDone={onMarkDone} />;
@@ -796,7 +810,7 @@ function AdvisorPanel({ configured, suggestions, busy, reviewedAt, error, adding
   </section>;
 }
 
-function TaskCard({ task, team, clients, sops, expanded, onToggle, onPatch, onDelete }: { task: AgencyTask; team: TeamMember[]; clients: ActionClient[]; sops: SopDocument[]; expanded: boolean; onToggle: () => void; onPatch: (patch: Partial<AgencyTask>) => void; onDelete: () => void }) {
+function TaskCard({ task, team, clients, sops, customFields, expanded, onToggle, onPatch, onDelete }: { task: AgencyTask; team: TeamMember[]; clients: ActionClient[]; sops: SopDocument[]; customFields: PortalFormFieldDefinition[]; expanded: boolean; onToggle: () => void; onPatch: (patch: Partial<AgencyTask>) => void; onDelete: () => void }) {
   const owner = team.find(member => member.id === task.assigneeUserId);
   const client = clients.find(item => item.id === task.clientId);
   const attachedSops = sops.filter(sop => task.sopIds?.includes(sop.id));
@@ -807,12 +821,12 @@ function TaskCard({ task, team, clients, sops, expanded, onToggle, onPatch, onDe
       <button type="button" onClick={onToggle} className="min-w-0 text-left"><span className="flex flex-wrap items-center gap-2"><strong className={`text-sm ${task.status === "done" ? "text-black/40 line-through" : "text-black/82"}`}>{task.title}</strong><SourceBadge origin={taskOrigin(task)} /><Priority value={task.priority} />{task.status === "in-progress" ? <Pill>In progress</Pill> : null}{task.reconciliation ? <ReconciliationBadge status={task.reconciliation.status} /> : null}{attachedSops.length ? <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-medium text-teal-700"><BookOpen size={11} />{attachedSops.length} {attachedSops.length === 1 ? "SOP" : "SOPs"}</span> : null}</span><span className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-black/45">{client ? <span className="inline-flex items-center gap-1 font-medium text-sky-700"><Building2 size={13} />{client.name}</span> : null}{owner ? <span className="inline-flex items-center gap-1"><UserRound size={13} />{owner.name}</span> : <span>Unassigned</span>}{task.startAt || task.dueAt ? <span className={`inline-flex items-center gap-1 ${isOverdue ? "font-medium text-red-700" : ""}`}><Clock3 size={13} />{dateRange(task.startAt, task.dueAt)}</span> : <span>No date</span>}{task.reminderAt ? <span className="inline-flex items-center gap-1"><Bell size={12} />{formatDateTime(task.reminderAt)}</span> : null}{task.recurrence ? <span className="inline-flex items-center gap-1 capitalize"><Repeat2 size={12} />{task.recurrence}</span> : null}</span></button>
       <button type="button" onClick={onToggle} className="col-start-2 inline-flex w-fit items-center gap-1.5 rounded-md border border-black/10 px-3 py-2 text-xs font-medium text-black/55 sm:col-start-auto">{expanded ? <X size={13} /> : <Pencil size={13} />}{expanded ? "Close" : "Edit"}</button>
     </div>
-    {expanded ? <TaskEditor task={task} team={team} clients={clients} sops={sops} onPatch={onPatch} onDelete={onDelete} /> : null}
+    {expanded ? <TaskEditor task={task} team={team} clients={clients} sops={sops} customFields={customFields} onPatch={onPatch} onDelete={onDelete} /> : null}
   </article>;
 }
 
-function TaskEditor({ task, team, clients, sops, onPatch, onDelete }: { task: AgencyTask; team: TeamMember[]; clients: ActionClient[]; sops: SopDocument[]; onPatch: (patch: Partial<AgencyTask>) => void; onDelete: () => void }) {
-  const [draft, setDraft] = useState({ title: task.title, notes: task.notes ?? "", status: task.status, priority: task.priority, assigneeUserId: task.assigneeUserId ?? "", clientId: task.clientId ?? "", startAt: dateInput(task.startAt), dueAt: dateInput(task.dueAt), reminderAt: dateTimeInput(task.reminderAt), recurrence: task.recurrence ?? "none" as AgencyTaskRecurrence, sopIds: task.sopIds ?? [] });
+function TaskEditor({ task, team, clients, sops, customFields, onPatch, onDelete }: { task: AgencyTask; team: TeamMember[]; clients: ActionClient[]; sops: SopDocument[]; customFields: PortalFormFieldDefinition[]; onPatch: (patch: Partial<AgencyTask>) => void; onDelete: () => void }) {
+  const [draft, setDraft] = useState({ title: task.title, notes: task.notes ?? "", status: task.status, priority: task.priority, assigneeUserId: task.assigneeUserId ?? "", clientId: task.clientId ?? "", startAt: dateInput(task.startAt), dueAt: dateInput(task.dueAt), reminderAt: dateTimeInput(task.reminderAt), recurrence: task.recurrence ?? "none" as AgencyTaskRecurrence, sopIds: task.sopIds ?? [], customFields: task.customFields ?? {} as PortalCustomFieldValues });
   return <div className="grid gap-3 border-t border-black/10 bg-black/[0.015] p-4">
     <input value={draft.title} onChange={event => setDraft(current => ({ ...current, title: event.target.value }))} className="min-h-10 rounded-md border border-black/15 bg-white px-3 text-sm font-medium" />
     <textarea value={draft.notes} onChange={event => setDraft(current => ({ ...current, notes: event.target.value }))} rows={3} className="rounded-md border border-black/15 bg-white px-3 py-2 text-sm" placeholder="Notes, links, or the expected outcome" />
@@ -826,6 +840,7 @@ function TaskEditor({ task, team, clients, sops, onPatch, onDelete }: { task: Ag
       <label className="grid gap-1 text-[10px] font-medium text-black/45">Reminder<input type="datetime-local" value={draft.reminderAt} onChange={event => setDraft(current => ({ ...current, reminderAt: event.target.value }))} className="min-h-10 rounded-md border border-black/15 bg-white px-2 text-xs" /></label>
       <Select label="Repeats" value={draft.recurrence} onChange={value => setDraft(current => ({ ...current, recurrence: value as AgencyTaskRecurrence }))} options={[["none","Does not repeat"],["daily","Daily"],["weekly","Weekly"],["monthly","Monthly"]]} />
     </div>
+    <PortalCustomFields fields={customFields} values={draft.customFields} onChange={values => setDraft(current => ({ ...current, customFields: values }))} legend="Action custom fields" />
     <div className="px-3 pb-3"><TaskChecklist task={task} sops={sops} onChange={next => onPatch(next)} /></div>
     {task.expectedOutcome || task.evidence?.length || task.reconciliation ? <section aria-label="Task evidence and reconciliation" className="overflow-hidden rounded-md border border-black/10 bg-white">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/10 px-3 py-2.5"><span className="inline-flex items-center gap-2 text-xs font-semibold text-black/65"><ShieldCheck size={14} />Evidence and resolution</span>{task.reconciliation ? <ReconciliationBadge status={task.reconciliation.status} /> : null}</div>
@@ -837,7 +852,7 @@ function TaskEditor({ task, team, clients, sops, onPatch, onDelete }: { task: Ag
       </div>
     </section> : null}
     <SopPicker sops={sops} selected={draft.sopIds} onChange={sopIds => setDraft(current => ({ ...current, sopIds }))} />
-    <div className="flex justify-between gap-3"><button type="button" onClick={onDelete} className="inline-flex min-h-10 items-center gap-2 px-2 text-xs font-medium text-red-700"><Trash2 size={14} />Delete</button><button type="button" onClick={() => onPatch({ title: draft.title, notes: draft.notes, status: draft.status, priority: draft.priority, assigneeUserId: draft.assigneeUserId, clientId: draft.clientId, startAt: toTimestamp(draft.startAt), dueAt: toTimestamp(draft.dueAt, true), reminderAt: toDateTimeTimestamp(draft.reminderAt) ?? 0, recurrence: draft.recurrence, sopIds: draft.sopIds })} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-xs font-semibold text-white"><Save size={14} /> Save changes</button></div>
+    <div className="flex justify-between gap-3"><button type="button" onClick={onDelete} className="inline-flex min-h-10 items-center gap-2 px-2 text-xs font-medium text-red-700"><Trash2 size={14} />Delete</button><button type="button" onClick={() => onPatch({ title: draft.title, notes: draft.notes, status: draft.status, priority: draft.priority, assigneeUserId: draft.assigneeUserId, clientId: draft.clientId, startAt: toTimestamp(draft.startAt), dueAt: toTimestamp(draft.dueAt, true), reminderAt: toDateTimeTimestamp(draft.reminderAt) ?? 0, recurrence: draft.recurrence, sopIds: draft.sopIds, customFields: draft.customFields })} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-xs font-semibold text-white"><Save size={14} /> Save changes</button></div>
   </div>;
 }
 
@@ -850,7 +865,7 @@ function GeneratedCard({ action, busy, onAccept, onAttentionAction, onMarkDone }
   </div>;
 }
 
-function CalendarView({ month, tasks, actions, entries, integration, team, onNavigate, onToday, onTaskCreated, onTaskUpdated, onEntriesChange, onIntegrationChange }: { month: Date; tasks: AgencyTask[]; actions: GeneratedAction[]; entries: CommandCalendarEntry[]; integration: CalendarIntegrationState; team: TeamMember[]; clients: ActionClient[]; onNavigate: (months: number) => void; onToday: () => void; onTaskCreated: (task: AgencyTask) => void; onTaskUpdated: (task: AgencyTask) => void; onEntriesChange: React.Dispatch<React.SetStateAction<CommandCalendarEntry[]>>; onIntegrationChange: React.Dispatch<React.SetStateAction<CalendarIntegrationState>> }) {
+function CalendarView({ month, tasks, actions, entries, integration, team, customFields, onNavigate, onToday, onTaskCreated, onTaskUpdated, onEntriesChange, onIntegrationChange }: { month: Date; tasks: AgencyTask[]; actions: GeneratedAction[]; entries: CommandCalendarEntry[]; integration: CalendarIntegrationState; team: TeamMember[]; clients: ActionClient[]; customFields: PortalFormFieldDefinition[]; onNavigate: (months: number) => void; onToday: () => void; onTaskCreated: (task: AgencyTask) => void; onTaskUpdated: (task: AgencyTask) => void; onEntriesChange: React.Dispatch<React.SetStateAction<CommandCalendarEntry[]>>; onIntegrationChange: React.Dispatch<React.SetStateAction<CalendarIntegrationState>> }) {
   const router = useRouter();
   const [selectedDate, setSelectedDate] = useState(dateKey(Date.now()));
   const [quarterMode, setQuarterMode] = useState(false);
@@ -863,6 +878,8 @@ function CalendarView({ month, tasks, actions, entries, integration, team, onNav
   const [syncing, setSyncing] = useState(false);
   const [connectionBusyId, setConnectionBusyId] = useState<string | null>(null);
   const [integrationError, setIntegrationError] = useState("");
+  const [googleCreateOperationId, setGoogleCreateOperationId] = useState<string | null>(null);
+  const [googleCreateRequestKey, setGoogleCreateRequestKey] = useState<string | null>(null);
   const [connectionNotice] = useState(() => typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("calendarConnected") || new URLSearchParams(window.location.search).get("calendarError") || "");
   const days = calendarDays(month);
   const selected = new Date(`${selectedDate}T12:00:00`);
@@ -905,23 +922,30 @@ function CalendarView({ month, tasks, actions, entries, integration, team, onNav
 
   async function toggleCalendarSource(sourceId: string) {
     const nextIds = integration.sources.filter(source => source.id === sourceId ? !source.selected : source.selected).map(source => source.id);
-    onIntegrationChange(current => ({ ...current, sources: current.sources.map(source => source.id === sourceId ? { ...source, selected: !source.selected } : source) }));
-    const response = await fetch("/api/portal/calendar/connections", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ selectedSourceIds: nextIds }) });
-    const result = await response.json().catch(() => null) as ({ ok?: boolean; error?: string } & Partial<CalendarIntegrationState>) | null;
-    if (!response.ok || !result?.ok || !result.connections || !result.sources || !result.events) { setIntegrationError(result?.error || "Calendar visibility could not be saved."); return; }
-    onIntegrationChange({ configured: result.configured ?? integration.configured, connections: result.connections, sources: result.sources, events: result.events });
-    if (nextIds.includes(sourceId) && !integration.events.some(event => event.sourceId === sourceId)) void syncCalendars();
+    setConnectionBusyId(sourceId); setIntegrationError("");
+    try {
+      const result = await checkedJsonMutation<({ ok?: boolean } & Partial<CalendarIntegrationState>)>("/api/portal/calendar/connections", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ selectedSourceIds: nextIds }) }, {
+        fallback: "Calendar visibility could not be saved.",
+        validate: value => value.ok === true && Boolean(value.connections && value.sources && value.events),
+      });
+      onIntegrationChange({ configured: result.configured ?? integration.configured, connections: result.connections!, sources: result.sources!, events: result.events! });
+      if (nextIds.includes(sourceId) && !integration.events.some(event => event.sourceId === sourceId)) void syncCalendars();
+    } catch (cause) { setIntegrationError(mutationErrorMessage(cause, "Calendar visibility could not be saved.")); }
+    finally { setConnectionBusyId(null); }
   }
 
   async function disconnectCalendar(connectionId: string) {
     if (!window.confirm("Disconnect this Google account and remove its cached events from Command Calendar?")) return;
     setConnectionBusyId(connectionId);
     setIntegrationError("");
-    const response = await fetch(`/api/portal/calendar/connections?connectionId=${encodeURIComponent(connectionId)}`, { method: "DELETE" });
-    const result = await response.json().catch(() => null) as ({ ok?: boolean; error?: string } & Partial<CalendarIntegrationState>) | null;
-    setConnectionBusyId(null);
-    if (!response.ok || !result?.ok || !result.connections || !result.sources || !result.events) { setIntegrationError(result?.error || "Calendar account could not be disconnected."); return; }
-    onIntegrationChange({ configured: result.configured ?? integration.configured, connections: result.connections, sources: result.sources, events: result.events });
+    try {
+      const result = await checkedJsonMutation<({ ok?: boolean } & Partial<CalendarIntegrationState>)>(`/api/portal/calendar/connections?connectionId=${encodeURIComponent(connectionId)}`, { method: "DELETE" }, {
+        fallback: "Calendar account could not be disconnected.",
+        validate: value => value.ok === true && Boolean(value.connections && value.sources && value.events),
+      });
+      onIntegrationChange({ configured: result.configured ?? integration.configured, connections: result.connections!, sources: result.sources!, events: result.events! });
+    } catch (cause) { setIntegrationError(mutationErrorMessage(cause, "Calendar account could not be disconnected.")); }
+    finally { setConnectionBusyId(null); }
   }
 
   function selectDay(day: Date) {
@@ -933,6 +957,8 @@ function CalendarView({ month, tasks, actions, entries, integration, team, onNav
   function openNew() {
     setEditingEntry(null);
     setEditingTask(null);
+    setGoogleCreateOperationId(null);
+    setGoogleCreateRequestKey(null);
     setError("");
     setEditorOpen(true);
   }
@@ -942,12 +968,18 @@ function CalendarView({ month, tasks, actions, entries, integration, team, onNav
     setError("");
     try {
       if (input.destinationSourceId && input.type === "event" && !editingEntry && !editingTask) {
-        const response = await fetch("/api/portal/calendar/google/events", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sourceId: input.destinationSourceId, title: input.title, notes: input.notes ?? "", startsAt: input.startsAt, endsAt: input.endsAt ?? null, allDay: input.allDay }) });
-        const result = await response.json().catch(() => null) as ({ ok?: boolean; error?: string } & Partial<CalendarIntegrationState>) | null;
+        const requestBody = { sourceId: input.destinationSourceId, title: input.title, notes: input.notes ?? "", startsAt: input.startsAt, endsAt: input.endsAt ?? null, allDay: input.allDay };
+        const requestKey = JSON.stringify(requestBody);
+        const operationId = googleCreateOperationId && googleCreateRequestKey === requestKey ? googleCreateOperationId : crypto.randomUUID();
+        if (operationId !== googleCreateOperationId) setGoogleCreateOperationId(operationId);
+        if (requestKey !== googleCreateRequestKey) setGoogleCreateRequestKey(requestKey);
+        const response = await fetch("/api/portal/calendar/google/events", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ operationId, ...requestBody }) });
+        const result = await response.json().catch(() => null) as ({ ok?: boolean; error?: string; warning?: string } & Partial<CalendarIntegrationState>) | null;
         if (!response.ok || !result?.ok || !result.connections || !result.sources || !result.events) throw new Error(result?.error || "Google event could not be saved.");
         onIntegrationChange({ configured: result.configured ?? integration.configured, connections: result.connections, sources: result.sources, events: result.events });
+        setIntegrationError(result.warning ?? "");
       } else if (input.type === "task") {
-        const response = await fetch("/api/portal/tasks", { method: editingTask ? "PATCH" : "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...(editingTask ? { id: editingTask.id } : {}), title: input.title, notes: input.notes ?? "", priority: input.priority, startAt: input.startsAt, dueAt: input.endsAt ?? input.startsAt, reminderAt: input.reminderAt ?? 0, status: editingTask?.status ?? "todo", origin: "manual" }) });
+        const response = await fetch("/api/portal/tasks", { method: editingTask ? "PATCH" : "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...(editingTask ? { id: editingTask.id } : {}), title: input.title, notes: input.notes ?? "", priority: input.priority, startAt: input.startsAt, dueAt: input.endsAt ?? input.startsAt, reminderAt: input.reminderAt ?? (editingTask ? 0 : undefined), status: editingTask?.status ?? "todo", origin: "manual", customFields: input.customFields }) });
         const result = await response.json().catch(() => null) as { ok?: boolean; error?: string; task?: AgencyTask } | null;
         if (!response.ok || !result?.ok || !result.task) throw new Error(result?.error || "Task could not be saved.");
         (editingTask ? onTaskUpdated : onTaskCreated)(result.task);
@@ -960,6 +992,8 @@ function CalendarView({ month, tasks, actions, entries, integration, team, onNav
       setEditorOpen(false);
       setEditingEntry(null);
       setEditingTask(null);
+      setGoogleCreateOperationId(null);
+      setGoogleCreateRequestKey(null);
       router.refresh();
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Calendar item could not be saved."); }
     finally { setBusy(false); }
@@ -967,26 +1001,37 @@ function CalendarView({ month, tasks, actions, entries, integration, team, onNav
 
   async function removeEntry() {
     if (!editingEntry) return;
-    setBusy(true);
-    const response = await fetch(`/api/portal/calendar?id=${encodeURIComponent(editingEntry.id)}`, { method: "DELETE" });
-    setBusy(false);
-    if (!response.ok) { setError("Calendar item could not be removed."); return; }
-    onEntriesChange(current => current.filter(entry => entry.id !== editingEntry.id));
-    setEditorOpen(false);
-    setEditingEntry(null);
-    router.refresh();
+    setBusy(true); setError("");
+    try {
+      await checkedJsonMutation<{ ok?: boolean }>(`/api/portal/calendar?id=${encodeURIComponent(editingEntry.id)}`, { method: "DELETE" }, {
+        fallback: "Calendar item could not be removed.",
+        validate: value => value.ok === true,
+      });
+      onEntriesChange(current => current.filter(entry => entry.id !== editingEntry.id));
+      setEditorOpen(false);
+      setEditingEntry(null);
+      router.refresh();
+    } catch (cause) { setError(mutationErrorMessage(cause, "Calendar item could not be removed.")); }
+    finally { setBusy(false); }
   }
 
   async function completeItem(item: CommandCalendarEntry | AgencyTask) {
-    if ("type" in item) {
-      const response = await fetch("/api/portal/calendar", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: item.id, status: item.status === "completed" ? "planned" : "completed" }) });
-      const result = await response.json().catch(() => null) as { entry?: CommandCalendarEntry } | null;
-      if (response.ok && result?.entry) { onEntriesChange(current => current.map(entry => entry.id === item.id ? result.entry! : entry)); router.refresh(); }
-    } else {
-      const response = await fetch("/api/portal/tasks", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: item.id, status: item.status === "done" ? "todo" : "done" }) });
-      const result = await response.json().catch(() => null) as { task?: AgencyTask } | null;
-      if (response.ok && result?.task) { onTaskUpdated(result.task); router.refresh(); }
-    }
+    setIntegrationError("");
+    try {
+      if ("type" in item) {
+        const result = await checkedJsonMutation<{ ok?: boolean; entry?: CommandCalendarEntry }>("/api/portal/calendar", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: item.id, status: item.status === "completed" ? "planned" : "completed" }) }, {
+          fallback: "Calendar item could not be updated.",
+          validate: value => value.ok === true && Boolean(value.entry),
+        });
+        onEntriesChange(current => current.map(entry => entry.id === item.id ? result.entry! : entry)); router.refresh();
+      } else {
+        const result = await checkedJsonMutation<{ ok?: boolean; task?: AgencyTask }>("/api/portal/tasks", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: item.id, status: item.status === "done" ? "todo" : "done" }) }, {
+          fallback: "Task could not be updated.",
+          validate: value => value.ok === true && Boolean(value.task),
+        });
+        onTaskUpdated(result.task!); router.refresh();
+      }
+    } catch (cause) { setIntegrationError(mutationErrorMessage(cause, "The item could not be updated.")); }
   }
 
   return <section className="mm-actions-calendar rounded-lg border border-black/10 bg-white p-3 sm:p-4" data-calendar-surface="command">
@@ -994,23 +1039,476 @@ function CalendarView({ month, tasks, actions, entries, integration, team, onNav
     {connectionNotice || integrationError ? <div role={integrationError ? "alert" : "status"} className={`mb-3 flex items-center gap-2 border-l-2 px-3 py-2 text-xs ${integrationError ? "border-red-500 bg-red-50 text-red-700" : "border-emerald-500 bg-emerald-50 text-emerald-700"}`}>{integrationError ? <CloudOff size={14} /> : <CalendarCheck2 size={14} />}{integrationError || `Connected ${connectionNotice}. Calendar events are now on the command plot.`}</div> : null}
     {quarterMode ? <div className="mm-calendar-quarter-grid grid gap-3 lg:grid-cols-3">{quarterMonths.map(quarterMonth => <MiniMonth key={quarterMonth.toISOString()} month={quarterMonth} selectedDate={selectedDate} tasks={tasks} actions={actions} entries={entries} externalEvents={visibleExternalEvents} onSelect={day => { setSelectedDate(dateKey(day.getTime())); onNavigate((day.getFullYear() - month.getFullYear()) * 12 + day.getMonth() - month.getMonth()); setQuarterMode(false); }} />)}</div> : <div className="mm-calendar-command-layout grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]"><div className="mm-actions-calendar-scroll overflow-x-auto overscroll-x-contain"><CalendarGrid month={month} days={days} selectedDate={selectedDate} tasks={tasks} actions={actions} entries={entries} externalEvents={visibleExternalEvents} sources={integration.sources} team={team} onSelect={selectDay} /></div><aside className="mm-calendar-day-inspector min-w-0 border border-black/10 bg-black/[0.015]"><header className="flex items-start justify-between gap-3 border-b border-black/10 p-4"><div><p className="text-[10px] font-semibold uppercase text-black/40">Selected day</p><h3 className="mt-1 text-lg font-semibold text-black/80">{selected.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</h3><p className="mt-1 text-xs text-black/42">{selectedTasks.length + selectedActions.length + selectedEntries.length + selectedExternalEvents.length} plotted item{selectedTasks.length + selectedActions.length + selectedEntries.length + selectedExternalEvents.length === 1 ? "" : "s"}</p></div><button onClick={() => openNew()} aria-label="Add to selected day" className="grid size-9 place-items-center rounded-md border border-black/10"><Plus size={15} /></button></header><div className="grid gap-2 p-3">{selectedTasks.map(task => <DayAgendaRow key={task.id} type="task" title={task.title} detail={`${calendarTime(task.startAt ?? task.dueAt)} · ${task.priority}`} complete={task.status === "done"} onComplete={() => void completeItem(task)} onOpen={() => { setEditingTask(task); setEditingEntry(null); setEditorOpen(true); }} />)}{selectedEntries.map(entry => <DayAgendaRow key={entry.id} type={entry.type} title={entry.title} detail={entryDetail(entry)} complete={entry.status === "completed"} onComplete={() => void completeItem(entry)} onOpen={() => { setEditingEntry(entry); setEditingTask(null); setEditorOpen(true); }} />)}{selectedExternalEvents.map(event => <ExternalCalendarAgendaRow key={event.id} event={event} source={integration.sources.find(source => source.id === event.sourceId)} />)}{selectedActions.map(action => <Link key={action.id} href={action.href} className="flex min-w-0 gap-3 border border-black/8 bg-white p-3"><span className="grid size-8 shrink-0 place-items-center bg-amber-50 text-amber-700"><Workflow size={14} /></span><span className="min-w-0"><strong className="block truncate text-xs text-black/75">{action.title}</strong><span className="mt-1 block text-[10px] text-black/40">CRM signal · {calendarTime(action.dueAt)}</span></span></Link>)}{!selectedTasks.length && !selectedEntries.length && !selectedExternalEvents.length && !selectedActions.length ? <div className="py-8 text-center"><CalendarDays className="mx-auto text-black/18" size={22} /><p className="mt-2 text-sm font-semibold text-black/55">Clear day</p><button onClick={() => openNew()} className="mt-3 text-xs font-semibold text-brand">Plan something</button></div> : null}</div></aside></div>}
     <div className="mm-calendar-command-footer mt-4 grid gap-3 border-t border-black/10 pt-4 lg:grid-cols-[1fr_auto]"><div><p className="text-[10px] font-semibold uppercase text-black/38">Due reminders · next 7 days</p><div className="mt-2 flex flex-wrap gap-2">{dueReminders.slice(0,6).map(item => <button key={item.id} type="button" onClick={() => { setSelectedDate(dateKey(Number(item.reminderAt))); onNavigate((new Date(Number(item.reminderAt)).getFullYear() - month.getFullYear()) * 12 + new Date(Number(item.reminderAt)).getMonth() - month.getMonth()); }} className="inline-flex min-h-8 items-center gap-1.5 border border-black/10 px-2.5 text-[10px] font-medium text-black/58"><AlarmClock size={12} />{item.title} · {calendarTime(Number(item.reminderAt), true)}</button>)}{!dueReminders.length ? <span className="text-xs text-black/35">No reminders due in the next seven days.</span> : null}</div></div><div className="grid grid-cols-3 gap-2 text-center text-[10px]"><CalendarMetric label="Open tasks" value={tasks.filter(task => task.status !== "done").length} /><CalendarMetric label="Goals" value={entries.filter(entry => entry.type === "goal" && entry.status === "planned").length} /><CalendarMetric label="Targets" value={entries.filter(entry => entry.type === "target" && entry.status === "planned").length} /></div></div>
-    {editorOpen ? <CalendarEditor selectedDate={selectedDate} entry={editingEntry} task={editingTask} writableSources={integration.sources.filter(source => source.selected && source.writable)} busy={busy} error={error} onClose={() => { if (!busy) { setEditorOpen(false); setEditingEntry(null); setEditingTask(null); setError(""); } }} onSave={saveEntry} onDelete={editingEntry ? removeEntry : undefined} /> : null}
+    {editorOpen ? <CalendarEditor selectedDate={selectedDate} entry={editingEntry} task={editingTask} customFields={customFields} writableSources={integration.sources.filter(source => source.selected && source.writable)} busy={busy} error={error} onClose={() => { if (!busy) { setEditorOpen(false); setEditingEntry(null); setEditingTask(null); setGoogleCreateOperationId(null); setGoogleCreateRequestKey(null); setError(""); } }} onSave={saveEntry} onDelete={editingEntry ? removeEntry : undefined} /> : null}
     {sourcesOpen ? <CalendarSourcesDialog integration={integration} syncing={syncing} busyId={connectionBusyId} error={integrationError} onClose={() => setSourcesOpen(false)} onToggle={sourceId => void toggleCalendarSource(sourceId)} onSync={connectionId => void syncCalendars(connectionId)} onDisconnect={connectionId => void disconnectCalendar(connectionId)} /> : null}
   </section>;
 }
 
-type CalendarEditorPayload = { type: CommandCalendarEntryType | "task"; title: string; notes?: string; startsAt: number; endsAt?: number; allDay: boolean; reminderAt?: number; status?: "planned" | "completed" | "cancelled"; targetValue?: number; currentValue?: number; targetUnit?: string; priority?: AgencyTaskPriority; destinationSourceId?: string };
+type CalendarEditorPayload = { type: CommandCalendarEntryType | "task"; title: string; notes?: string; startsAt: number; endsAt?: number; allDay: boolean; reminderAt?: number; status?: "planned" | "completed" | "cancelled"; targetValue?: number; currentValue?: number; targetUnit?: string; priority?: AgencyTaskPriority; destinationSourceId?: string; customFields?: PortalCustomFieldValues };
 
-function CalendarEditor({ selectedDate, entry, task, writableSources, busy, error, onClose, onSave, onDelete }: { selectedDate: string; entry: CommandCalendarEntry | null; task: AgencyTask | null; writableSources: CommandCalendarSource[]; busy: boolean; error: string; onClose: () => void; onSave: (input: CalendarEditorPayload) => void; onDelete?: () => void }) {
-  const initialType = task ? "task" : entry?.type ?? "event";
-  const [type, setType] = useState<CommandCalendarEntryType | "task">(initialType);
+function CalendarEditor({
+  selectedDate,
+  entry,
+  task,
+  customFields,
+  writableSources,
+  busy,
+  error,
+  onClose,
+  onSave,
+  onDelete,
+}: {
+  selectedDate: string;
+  entry: CommandCalendarEntry | null;
+  task: AgencyTask | null;
+  customFields: PortalFormFieldDefinition[];
+  writableSources: CommandCalendarSource[];
+  busy: boolean;
+  error: string;
+  onClose: () => void;
+  onSave: (input: CalendarEditorPayload) => void;
+  onDelete?: () => void;
+}) {
+  const initialType = task ? "task" : (entry?.type ?? "event");
+  const [type, setType] = useState<CommandCalendarEntryType | "task">(
+    initialType,
+  );
   const [allDay, setAllDay] = useState(entry?.allDay ?? !task?.startAt);
-  const starts = entry?.startsAt ?? task?.startAt ?? new Date(`${selectedDate}T09:00:00`).getTime();
-  const ends = entry?.endsAt ?? task?.dueAt ?? new Date(`${selectedDate}T10:00:00`).getTime();
-  return <div className="fixed inset-0 z-[100] grid items-end bg-black/45 sm:items-center sm:p-5"><button type="button" className="absolute inset-0" aria-label="Close calendar editor" onClick={onClose} /><form role="dialog" aria-modal="true" aria-labelledby="calendar-editor-heading" className="mm-calendar-editor relative mx-auto grid max-h-[94dvh] w-full max-w-2xl gap-4 overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:rounded-lg" onSubmit={event => { event.preventDefault(); const data = new FormData(event.currentTarget); const start = allDay ? new Date(`${data.get("date")}T12:00:00`).getTime() : new Date(String(data.get("startsAt"))).getTime(); const endRaw = allDay ? "" : String(data.get("endsAt") ?? ""); onSave({ type, title: String(data.get("title") ?? ""), notes: String(data.get("notes") ?? "") || undefined, startsAt: start, endsAt: endRaw ? new Date(endRaw).getTime() : undefined, allDay, reminderAt: data.get("reminderAt") ? new Date(String(data.get("reminderAt"))).getTime() : undefined, status: entry?.status ?? "planned", targetValue: data.get("targetValue") ? Number(data.get("targetValue")) : undefined, currentValue: data.get("currentValue") ? Number(data.get("currentValue")) : undefined, targetUnit: String(data.get("targetUnit") ?? "") || undefined, priority: String(data.get("priority") ?? "normal") as AgencyTaskPriority, destinationSourceId: String(data.get("destinationSourceId") ?? "") || undefined }); }}><header className="flex items-start justify-between gap-3 border-b border-black/10 pb-4"><div><p className="text-[10px] font-semibold uppercase text-brand">Command Calendar</p><h2 id="calendar-editor-heading" className="mt-1 text-xl font-semibold">{entry || task ? "Edit plotted item" : "Add to the plan"}</h2></div><button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-md border border-black/10"><X size={16} /></button></header><div className="grid gap-3 sm:grid-cols-2"><label className="grid gap-1 text-xs font-medium text-black/55">Item type<select data-calendar-editor-type name="type" value={type} disabled={Boolean(entry || task)} onChange={event => setType(event.target.value as CommandCalendarEntryType | "task")} className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm"><option value="task">Task</option><option value="event">Event</option><option value="work-block">Work block</option><option value="reminder">Reminder</option><option value="note">Note</option><option value="goal">Goal</option><option value="target">Numeric target</option></select></label>{!entry && !task && type === "event" && writableSources.length ? <label className="grid gap-1 text-xs font-medium text-black/55">Save to<select name="destinationSourceId" defaultValue="" className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm"><option value="">Aqua Calendar</option>{writableSources.map(source => <option key={source.id} value={source.id}>{source.name} · Google</option>)}</select></label> : null}</div><label className="grid gap-1 text-xs font-medium text-black/55">Title<input name="title" required defaultValue={entry?.title ?? task?.title ?? ""} className="min-h-11 rounded-md border border-black/15 px-3 text-sm" placeholder={type === "work-block" ? "Deep work: proposal system" : type === "target" ? "Monthly recurring revenue" : "What is happening?"} /></label><label className="grid gap-1 text-xs font-medium text-black/55">Notes<textarea name="notes" defaultValue={entry?.notes ?? task?.notes ?? ""} rows={3} className="rounded-md border border-black/15 p-3 text-sm" placeholder="Context, desired outcome, links or preparation..." /></label><label className="inline-flex items-center gap-2 text-xs font-medium text-black/55"><input type="checkbox" checked={allDay} onChange={event => setAllDay(event.target.checked)} />All-day item</label>{allDay ? <label className="grid gap-1 text-xs font-medium text-black/55">Date<input name="date" type="date" required defaultValue={dateKey(starts)} className="min-h-11 rounded-md border border-black/15 px-3 text-sm" /></label> : <div className="grid gap-3 sm:grid-cols-2"><label className="grid gap-1 text-xs font-medium text-black/55">Starts<input name="startsAt" type="datetime-local" required defaultValue={dateTimeInput(starts)} className="min-h-11 rounded-md border border-black/15 px-3 text-sm" /></label><label className="grid gap-1 text-xs font-medium text-black/55">Ends<input name="endsAt" type="datetime-local" defaultValue={dateTimeInput(ends)} className="min-h-11 rounded-md border border-black/15 px-3 text-sm" /></label></div>}<div className="grid gap-3 sm:grid-cols-2"><label className="grid gap-1 text-xs font-medium text-black/55">Reminder<input name="reminderAt" type="datetime-local" defaultValue={dateTimeInput(entry?.reminderAt ?? task?.reminderAt)} className="min-h-11 rounded-md border border-black/15 px-3 text-sm" /></label>{type === "task" ? <label className="grid gap-1 text-xs font-medium text-black/55">Priority<select name="priority" defaultValue={task?.priority ?? "normal"} className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm"><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label> : null}</div>{type === "goal" || type === "target" ? <div className="grid gap-3 sm:grid-cols-3"><label className="grid gap-1 text-xs font-medium text-black/55">Current<input name="currentValue" type="number" min="0" step="any" defaultValue={entry?.currentValue} className="min-h-11 rounded-md border border-black/15 px-3 text-sm" /></label><label className="grid gap-1 text-xs font-medium text-black/55">Target<input name="targetValue" type="number" min="0" step="any" defaultValue={entry?.targetValue} className="min-h-11 rounded-md border border-black/15 px-3 text-sm" /></label><label className="grid gap-1 text-xs font-medium text-black/55">Unit<input name="targetUnit" defaultValue={entry?.targetUnit} className="min-h-11 rounded-md border border-black/15 px-3 text-sm" placeholder="GBP, %, leads" /></label></div> : null}{error ? <p role="alert" className="border-l-2 border-red-500 pl-3 text-xs text-red-700">{error}</p> : null}<footer className="flex flex-wrap justify-between gap-3 border-t border-black/10 pt-4">{onDelete ? <button type="button" disabled={busy} onClick={onDelete} className="inline-flex min-h-10 items-center gap-2 px-2 text-xs font-semibold text-red-700"><Trash2 size={14} />Delete</button> : <span />}<button disabled={busy} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-xs font-semibold text-white disabled:opacity-50">{busy ? <LoaderCircle className="animate-spin" size={14} /> : <Save size={14} />}{busy ? "Saving..." : "Save to calendar"}</button></footer></form></div>;
+  const [customFieldValues, setCustomFieldValues] =
+    useState<PortalCustomFieldValues>(task?.customFields ?? {});
+  const starts =
+    entry?.startsAt ??
+    task?.startAt ??
+    new Date(`${selectedDate}T09:00:00`).getTime();
+  const ends =
+    entry?.endsAt ??
+    task?.dueAt ??
+    new Date(`${selectedDate}T10:00:00`).getTime();
+  return (
+    <div className="fixed inset-0 z-[100] grid items-end bg-black/45 sm:items-center sm:p-5">
+      <button
+        type="button"
+        className="absolute inset-0"
+        aria-label="Close calendar editor"
+        onClick={onClose}
+      />
+      <form
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="calendar-editor-heading"
+        className="mm-calendar-editor relative mx-auto grid max-h-[94dvh] w-full max-w-2xl gap-4 overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:rounded-lg"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const data = new FormData(event.currentTarget);
+          const start = allDay
+            ? new Date(`${data.get("date")}T12:00:00`).getTime()
+            : new Date(String(data.get("startsAt"))).getTime();
+          const endRaw = allDay ? "" : String(data.get("endsAt") ?? "");
+          onSave({
+            type,
+            title: String(data.get("title") ?? ""),
+            notes: String(data.get("notes") ?? "") || undefined,
+            startsAt: start,
+            endsAt: endRaw ? new Date(endRaw).getTime() : undefined,
+            allDay,
+            reminderAt: data.get("reminderAt")
+              ? new Date(String(data.get("reminderAt"))).getTime()
+              : undefined,
+            status: entry?.status ?? "planned",
+            targetValue: data.get("targetValue")
+              ? Number(data.get("targetValue"))
+              : undefined,
+            currentValue: data.get("currentValue")
+              ? Number(data.get("currentValue"))
+              : undefined,
+            targetUnit: String(data.get("targetUnit") ?? "") || undefined,
+            priority: String(
+              data.get("priority") ?? "normal",
+            ) as AgencyTaskPriority,
+            destinationSourceId:
+              String(data.get("destinationSourceId") ?? "") || undefined,
+            customFields: type === "task" ? customFieldValues : undefined,
+          });
+        }}
+      >
+        <header className="flex items-start justify-between gap-3 border-b border-black/10 pb-4">
+          <div>
+            <p className="text-[10px] font-semibold uppercase text-brand">
+              Command Calendar
+            </p>
+            <h2
+              id="calendar-editor-heading"
+              className="mt-1 text-xl font-semibold"
+            >
+              {entry || task ? "Edit plotted item" : "Add to the plan"}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid size-9 place-items-center rounded-md border border-black/10"
+          >
+            <X size={16} />
+          </button>
+        </header>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="grid gap-1 text-xs font-medium text-black/55">
+            Item type
+            <select
+              data-calendar-editor-type
+              name="type"
+              value={type}
+              disabled={Boolean(entry || task)}
+              onChange={(event) =>
+                setType(event.target.value as CommandCalendarEntryType | "task")
+              }
+              className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm"
+            >
+              <option value="task">Task</option>
+              <option value="event">Event</option>
+              <option value="work-block">Work block</option>
+              <option value="reminder">Reminder</option>
+              <option value="note">Note</option>
+              <option value="goal">Goal</option>
+              <option value="target">Numeric target</option>
+            </select>
+          </label>
+          {!entry && !task && type === "event" && writableSources.length ? (
+            <label className="grid gap-1 text-xs font-medium text-black/55">
+              Save to
+              <select
+                name="destinationSourceId"
+                defaultValue=""
+                className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm"
+              >
+                <option value="">Aqua Calendar</option>
+                {writableSources.map((source) => (
+                  <option key={source.id} value={source.id}>
+                    {source.name} · Google
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+        </div>
+        <label className="grid gap-1 text-xs font-medium text-black/55">
+          Title
+          <input
+            name="title"
+            required
+            defaultValue={entry?.title ?? task?.title ?? ""}
+            className="min-h-11 rounded-md border border-black/15 px-3 text-sm"
+            placeholder={
+              type === "work-block"
+                ? "Deep work: proposal system"
+                : type === "target"
+                  ? "Monthly recurring revenue"
+                  : "What is happening?"
+            }
+          />
+        </label>
+        <label className="grid gap-1 text-xs font-medium text-black/55">
+          Notes
+          <textarea
+            name="notes"
+            defaultValue={entry?.notes ?? task?.notes ?? ""}
+            rows={3}
+            className="rounded-md border border-black/15 p-3 text-sm"
+            placeholder="Context, desired outcome, links or preparation..."
+          />
+        </label>
+        <label className="inline-flex items-center gap-2 text-xs font-medium text-black/55">
+          <input
+            type="checkbox"
+            checked={allDay}
+            onChange={(event) => setAllDay(event.target.checked)}
+          />
+          All-day item
+        </label>
+        {allDay ? (
+          <label className="grid gap-1 text-xs font-medium text-black/55">
+            Date
+            <input
+              name="date"
+              type="date"
+              required
+              defaultValue={dateKey(starts)}
+              className="min-h-11 rounded-md border border-black/15 px-3 text-sm"
+            />
+          </label>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="grid gap-1 text-xs font-medium text-black/55">
+              Starts
+              <input
+                name="startsAt"
+                type="datetime-local"
+                required
+                defaultValue={dateTimeInput(starts)}
+                className="min-h-11 rounded-md border border-black/15 px-3 text-sm"
+              />
+            </label>
+            <label className="grid gap-1 text-xs font-medium text-black/55">
+              Ends
+              <input
+                name="endsAt"
+                type="datetime-local"
+                defaultValue={dateTimeInput(ends)}
+                className="min-h-11 rounded-md border border-black/15 px-3 text-sm"
+              />
+            </label>
+          </div>
+        )}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="grid gap-1 text-xs font-medium text-black/55">
+            Reminder
+            <input
+              name="reminderAt"
+              type="datetime-local"
+              defaultValue={dateTimeInput(
+                entry?.reminderAt ?? task?.reminderAt,
+              )}
+              className="min-h-11 rounded-md border border-black/15 px-3 text-sm"
+            />
+          </label>
+          {type === "task" ? (
+            <label className="grid gap-1 text-xs font-medium text-black/55">
+              Priority
+              <select
+                name="priority"
+                defaultValue={task?.priority ?? "normal"}
+                className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm"
+              >
+                <option value="low">Low</option>
+                <option value="normal">Normal</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </select>
+            </label>
+          ) : null}
+        </div>
+        {type === "goal" || type === "target" ? (
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="grid gap-1 text-xs font-medium text-black/55">
+              Current
+              <input
+                name="currentValue"
+                type="number"
+                min="0"
+                step="any"
+                defaultValue={entry?.currentValue}
+                className="min-h-11 rounded-md border border-black/15 px-3 text-sm"
+              />
+            </label>
+            <label className="grid gap-1 text-xs font-medium text-black/55">
+              Target
+              <input
+                name="targetValue"
+                type="number"
+                min="0"
+                step="any"
+                defaultValue={entry?.targetValue}
+                className="min-h-11 rounded-md border border-black/15 px-3 text-sm"
+              />
+            </label>
+            <label className="grid gap-1 text-xs font-medium text-black/55">
+              Unit
+              <input
+                name="targetUnit"
+                defaultValue={entry?.targetUnit}
+                className="min-h-11 rounded-md border border-black/15 px-3 text-sm"
+                placeholder="GBP, %, leads"
+              />
+            </label>
+          </div>
+        ) : null}
+        {type === "task" ? (
+          <PortalCustomFields
+            fields={customFields}
+            values={customFieldValues}
+            onChange={setCustomFieldValues}
+            legend="Action custom fields"
+          />
+        ) : null}
+        {error ? (
+          <p
+            role="alert"
+            className="border-l-2 border-red-500 pl-3 text-xs text-red-700"
+          >
+            {error}
+          </p>
+        ) : null}
+        <footer className="flex flex-wrap justify-between gap-3 border-t border-black/10 pt-4">
+          {onDelete ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onDelete}
+              className="inline-flex min-h-10 items-center gap-2 px-2 text-xs font-semibold text-red-700"
+            >
+              <Trash2 size={14} />
+              Delete
+            </button>
+          ) : (
+            <span />
+          )}
+          <button
+            disabled={busy}
+            className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-xs font-semibold text-white disabled:opacity-50"
+          >
+            {busy ? (
+              <LoaderCircle className="animate-spin" size={14} />
+            ) : (
+              <Save size={14} />
+            )}
+            {busy ? "Saving..." : "Save to calendar"}
+          </button>
+        </footer>
+      </form>
+    </div>
+  );
 }
 
-function CalendarGrid({ month, days, selectedDate, tasks, actions, entries, externalEvents, sources, team, onSelect }: { month: Date; days: Date[]; selectedDate: string; tasks: AgencyTask[]; actions: GeneratedAction[]; entries: CommandCalendarEntry[]; externalEvents: CommandCalendarExternalEvent[]; sources: CommandCalendarSource[]; team: TeamMember[]; onSelect: (day: Date) => void }) { return <div className="mm-actions-calendar-grid grid min-w-[700px] grid-cols-7 border-l border-t border-black/10">{["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(day => <div key={day} className="mm-actions-calendar-weekday border-b border-r border-black/10 bg-black/[0.02] px-2 py-2 text-center text-[10px] font-semibold uppercase text-black/40">{day}</div>)}{days.map(day => { const dayTasks = tasks.filter(task => overlapsDay(task.startAt ?? task.dueAt, task.dueAt ?? task.startAt, day)); const dayActions = actions.filter(action => action.dueAt && sameDay(action.dueAt, day.getTime())); const dayEntries = entries.filter(entry => overlapsDay(entry.startsAt, entry.endsAt ?? entry.startsAt, day)); const dayExternal = externalEvents.filter(event => overlapsDay(event.startsAt, event.endsAt ?? event.startsAt, day)); const total = dayTasks.length + dayActions.length + dayEntries.length + dayExternal.length; const currentMonth = day.getMonth() === month.getMonth(); const today = sameDay(day.getTime(), Date.now()); const selected = dateKey(day.getTime()) === selectedDate; return <button type="button" key={day.toISOString()} data-current-month={currentMonth} data-today={today} data-selected={selected} onClick={() => onSelect(day)} className="mm-actions-calendar-day min-h-28 border-b border-r border-black/10 p-1.5 text-left"><span className={`mm-actions-calendar-date grid size-6 place-items-center rounded-full text-[11px] ${today ? "bg-black text-white" : "text-black/50"}`}>{day.getDate()}</span><div className="mt-1 grid gap-1">{dayTasks.slice(0,2).map(task => <span key={task.id} title={task.title} data-calendar-entry="task" data-complete={task.status === "done"} className="truncate rounded px-1.5 py-1 text-[10px]">{task.title}{task.assigneeUserId ? ` · ${team.find(member => member.id === task.assigneeUserId)?.name ?? ""}` : ""}</span>)}{dayEntries.slice(0,2).map(entry => <span key={entry.id} title={entry.title} data-calendar-entry={entry.type} data-complete={entry.status === "completed"} className="truncate rounded px-1.5 py-1 text-[10px]">{entry.title}</span>)}{dayExternal.slice(0,3).map(event => { const source = sources.find(item => item.id === event.sourceId); return <span key={event.id} title={`${event.title} · ${source?.name ?? "Google Calendar"}`} data-calendar-entry="google" className="truncate rounded border-l-2 px-1.5 py-1 text-[10px]" style={{ borderLeftColor: source?.color, backgroundColor: `${source?.color ?? "#2563eb"}18`, color: source?.color }}>{event.title}</span>; })}{dayActions.slice(0,1).map(action => <span key={action.id} data-calendar-entry="signal" className="truncate rounded px-1.5 py-1 text-[10px]">{action.title}</span>)}{total > 7 ? <span className="px-1 text-[9px] text-black/35">+{total - 7} more</span> : null}</div></button>; })}</div>; }
+function CalendarGrid({
+  month,
+  days,
+  selectedDate,
+  tasks,
+  actions,
+  entries,
+  externalEvents,
+  sources,
+  team,
+  onSelect,
+}: {
+  month: Date;
+  days: Date[];
+  selectedDate: string;
+  tasks: AgencyTask[];
+  actions: GeneratedAction[];
+  entries: CommandCalendarEntry[];
+  externalEvents: CommandCalendarExternalEvent[];
+  sources: CommandCalendarSource[];
+  team: TeamMember[];
+  onSelect: (day: Date) => void;
+}) {
+  return (
+    <div className="mm-actions-calendar-grid grid min-w-[700px] grid-cols-7 border-l border-t border-black/10">
+      {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
+        <div
+          key={day}
+          className="mm-actions-calendar-weekday border-b border-r border-black/10 bg-black/[0.02] px-2 py-2 text-center text-[10px] font-semibold uppercase text-black/40"
+        >
+          {day}
+        </div>
+      ))}
+      {days.map((day) => {
+        const dayTasks = tasks.filter((task) =>
+          overlapsDay(
+            task.startAt ?? task.dueAt,
+            task.dueAt ?? task.startAt,
+            day,
+          ),
+        );
+        const dayActions = actions.filter(
+          (action) => action.dueAt && sameDay(action.dueAt, day.getTime()),
+        );
+        const dayEntries = entries.filter((entry) =>
+          overlapsDay(entry.startsAt, entry.endsAt ?? entry.startsAt, day),
+        );
+        const dayExternal = externalEvents.filter((event) =>
+          overlapsDay(event.startsAt, event.endsAt ?? event.startsAt, day),
+        );
+        const total =
+          dayTasks.length +
+          dayActions.length +
+          dayEntries.length +
+          dayExternal.length;
+        const currentMonth = day.getMonth() === month.getMonth();
+        const today = sameDay(day.getTime(), Date.now());
+        const selected = dateKey(day.getTime()) === selectedDate;
+        return (
+          <button
+            type="button"
+            key={day.toISOString()}
+            data-current-month={currentMonth}
+            data-today={today}
+            data-selected={selected}
+            onClick={() => onSelect(day)}
+            className="mm-actions-calendar-day min-h-28 border-b border-r border-black/10 p-1.5 text-left"
+          >
+            <span
+              className={`mm-actions-calendar-date grid size-6 place-items-center rounded-full text-[11px] ${today ? "bg-black text-white" : "text-black/50"}`}
+            >
+              {day.getDate()}
+            </span>
+            <div className="mt-1 grid gap-1">
+              {dayTasks.slice(0, 2).map((task) => (
+                <span
+                  key={task.id}
+                  title={task.title}
+                  data-calendar-entry="task"
+                  data-complete={task.status === "done"}
+                  className="truncate rounded px-1.5 py-1 text-[10px]"
+                >
+                  {task.title}
+                  {task.assigneeUserId
+                    ? ` · ${team.find((member) => member.id === task.assigneeUserId)?.name ?? ""}`
+                    : ""}
+                </span>
+              ))}
+              {dayEntries.slice(0, 2).map((entry) => (
+                <span
+                  key={entry.id}
+                  title={entry.title}
+                  data-calendar-entry={entry.type}
+                  data-complete={entry.status === "completed"}
+                  className="truncate rounded px-1.5 py-1 text-[10px]"
+                >
+                  {entry.title}
+                </span>
+              ))}
+              {dayExternal.slice(0, 3).map((event) => {
+                const source = sources.find(
+                  (item) => item.id === event.sourceId,
+                );
+                return (
+                  <span
+                    key={event.id}
+                    title={`${event.title} · ${source?.name ?? "Google Calendar"}`}
+                    data-calendar-entry="google"
+                    className="truncate rounded border-l-2 px-1.5 py-1 text-[10px]"
+                    style={{
+                      borderLeftColor: source?.color,
+                      backgroundColor: `${source?.color ?? "#2563eb"}18`,
+                      color: source?.color,
+                    }}
+                  >
+                    {event.title}
+                  </span>
+                );
+              })}
+              {dayActions.slice(0, 1).map((action) => (
+                <span
+                  key={action.id}
+                  data-calendar-entry="signal"
+                  className="truncate rounded px-1.5 py-1 text-[10px]"
+                >
+                  {action.title}
+                </span>
+              ))}
+              {total > 7 ? (
+                <span className="px-1 text-[9px] text-black/35">
+                  +{total - 7} more
+                </span>
+              ) : null}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function MiniMonth({ month, selectedDate, tasks, actions, entries, externalEvents, onSelect }: { month: Date; selectedDate: string; tasks: AgencyTask[]; actions: GeneratedAction[]; entries: CommandCalendarEntry[]; externalEvents: CommandCalendarExternalEvent[]; onSelect: (day: Date) => void }) { const days = calendarDays(month); return <section className="border border-black/10 p-3"><h3 className="text-sm font-semibold text-black/75">{month.toLocaleDateString("en-GB", { month: "long" })}</h3><div className="mt-3 grid grid-cols-7 gap-1 text-center">{["M","T","W","T","F","S","S"].map((label,index) => <span key={`${label}-${index}`} className="text-[8px] font-semibold text-black/30">{label}</span>)}{days.map(day => { const count = tasks.filter(task => overlapsDay(task.startAt ?? task.dueAt, task.dueAt ?? task.startAt, day)).length + actions.filter(action => action.dueAt && sameDay(action.dueAt, day.getTime())).length + entries.filter(entry => overlapsDay(entry.startsAt, entry.endsAt ?? entry.startsAt, day)).length + externalEvents.filter(event => overlapsDay(event.startsAt, event.endsAt ?? event.startsAt, day)).length; const inMonth = day.getMonth() === month.getMonth(); return <button key={day.toISOString()} type="button" onClick={() => onSelect(day)} data-selected={dateKey(day.getTime()) === selectedDate} className={`relative grid aspect-square place-items-center text-[9px] ${inMonth ? "text-black/58" : "text-black/18"}`}><span>{day.getDate()}</span>{count ? <i className="absolute bottom-0.5 size-1 rounded-full bg-brand" /> : null}</button>; })}</div></section>; }
 
@@ -1032,19 +1530,39 @@ function dateKey(value: number | Date) { const date = value instanceof Date ? va
 function calendarTime(value?: number, includeDate = false) { if (!value) return "Time not set"; return formatUkDate(value, includeDate ? { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" } : { hour: "2-digit", minute: "2-digit" }); }
 function relativeTime(value: number) { const seconds = Math.max(0, Math.round((Date.now() - value) / 1_000)); if (seconds < 60) return "just now"; if (seconds < 3_600) return `${Math.floor(seconds / 60)}m ago`; if (seconds < 86_400) return `${Math.floor(seconds / 3_600)}h ago`; return `${Math.floor(seconds / 86_400)}d ago`; }
 
-function TaskModal({ team, clients, sops, onClose, onCreated }: { team: TeamMember[]; clients: ActionClient[]; sops: SopDocument[]; onClose: () => void; onCreated: (task: AgencyTask) => void }) {
+function TaskModal({ team, clients, sops, customFields, onClose, onCreated }: { team: TeamMember[]; clients: ActionClient[]; sops: SopDocument[]; customFields: PortalFormFieldDefinition[]; onClose: () => void; onCreated: (task: AgencyTask) => void }) {
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   const [sopIds, setSopIds] = useState<string[]>([]);
   const [assigneeUserId, setAssigneeUserId] = useState("");
   const [clientId, setClientId] = useState("");
-  return <div className="fixed inset-0 z-[90] grid items-end bg-black/35 sm:items-center sm:p-6"><button className="absolute inset-0" aria-label="Close task form" onClick={onClose} /><form role="dialog" aria-modal="true" aria-labelledby="new-task-title" className="relative mx-auto grid max-h-[100dvh] w-full max-w-2xl gap-4 overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-lg" onSubmit={async event => { event.preventDefault(); setBusy(true); const data = new FormData(event.currentTarget); const response = await fetch("/api/portal/tasks", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: data.get("title"), notes: data.get("notes"), priority: data.get("priority"), assigneeUserId: assigneeUserId || undefined, clientId: clientId || undefined, startAt: toTimestamp(String(data.get("startAt") ?? "")), dueAt: toTimestamp(String(data.get("dueAt") ?? ""), true), reminderAt: toDateTimeTimestamp(String(data.get("reminderAt") ?? "")), recurrence: data.get("recurrence"), origin: "manual", sopIds }) }); const result = await response.json() as { ok: boolean; task?: AgencyTask }; setBusy(false); if (result.ok && result.task) onCreated(result.task); }}>
+  const [customFieldValues, setCustomFieldValues] = useState<PortalCustomFieldValues>({});
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    const data = new FormData(event.currentTarget);
+    try {
+      const response = await fetch("/api/portal/tasks", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: data.get("title"), notes: data.get("notes"), priority: data.get("priority"), assigneeUserId: assigneeUserId || undefined, clientId: clientId || undefined, startAt: toTimestamp(String(data.get("startAt") ?? "")), dueAt: toTimestamp(String(data.get("dueAt") ?? ""), true), reminderAt: toDateTimeTimestamp(String(data.get("reminderAt") ?? "")), recurrence: data.get("recurrence"), origin: "manual", sopIds, customFields: customFieldValues }) });
+      const result = await response.json().catch(() => null) as { ok?: boolean; error?: string; field?: string; task?: AgencyTask } | null;
+      if (!response.ok || !result?.ok || !result.task) throw new Error(result?.error || "The task could not be added.");
+      onCreated(result.task);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "The task could not be added.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return <div className="fixed inset-0 z-[90] grid items-end bg-black/35 sm:items-center sm:p-6"><button className="absolute inset-0" aria-label="Close task form" onClick={onClose} /><form role="dialog" aria-modal="true" aria-labelledby="new-task-title" className="relative mx-auto grid max-h-[100dvh] w-full max-w-2xl gap-4 overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-lg" onSubmit={submit}>
     <div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase text-black/40">New task</p><h2 id="new-task-title" className="mt-1 text-xl font-semibold">What needs to happen?</h2></div><button type="button" aria-label="Close task form" onClick={onClose} className="grid size-9 place-items-center rounded-md border border-black/10"><X size={16} /></button></div>
     <label className="grid gap-1 text-xs font-medium text-black/55">Task<input autoFocus required name="title" className="min-h-11 rounded-md border border-black/15 px-3 text-sm" placeholder="Prepare homepage concepts" /></label>
     <label className="grid gap-1 text-xs font-medium text-black/55">Notes<textarea name="notes" rows={4} className="rounded-md border border-black/15 px-3 py-2 text-sm" placeholder="Outcome, links, context, or checklist" /></label>
     <AssignmentPicker team={team} clients={clients} assigneeUserId={assigneeUserId} clientId={clientId} onAssigneeChange={setAssigneeUserId} onClientChange={setClientId} />
     <div className="grid gap-3 sm:grid-cols-3"><label className="grid gap-1 text-xs font-medium text-black/55">Priority<select name="priority" defaultValue="normal" className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm"><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label><label className="grid gap-1 text-xs font-medium text-black/55">Start date<input name="startAt" type="date" className="min-h-11 rounded-md border border-black/15 px-3 text-sm" /></label><label className="grid gap-1 text-xs font-medium text-black/55">Due date<input name="dueAt" type="date" className="min-h-11 rounded-md border border-black/15 px-3 text-sm" /></label></div>
     <div className="grid gap-3 sm:grid-cols-2"><label className="grid gap-1 text-xs font-medium text-black/55">Reminder<input name="reminderAt" type="datetime-local" className="min-h-11 rounded-md border border-black/15 px-3 text-sm" /></label><label className="grid gap-1 text-xs font-medium text-black/55">Repeats<select name="recurrence" defaultValue="none" className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm"><option value="none">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label></div>
+    <PortalCustomFields fields={customFields} values={customFieldValues} onChange={setCustomFieldValues} legend="Action custom fields" />
     <SopPicker sops={sops} selected={sopIds} onChange={setSopIds} />
+    {error ? <p role="alert" className="border-l-2 border-red-500 pl-3 text-xs leading-5 text-red-700">{error}</p> : null}
     <div className="flex justify-end"><button disabled={busy} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50"><Plus size={15} />{busy ? "Adding..." : "Add task"}</button></div>
   </form></div>;
 }

@@ -119,7 +119,7 @@ export function DeviceControl({
   };
 
   return (
-    <div className="flex min-w-0 items-center gap-1.5">
+    <div className="flex max-w-full min-w-0 items-center gap-1.5 overflow-x-auto [scrollbar-width:none]">
       <div className="inline-flex shrink-0 rounded-md border border-white/10 bg-black/25 p-1" aria-label="Quick devices">
         {QUICK.map(item => {
           const Icon = item.icon;

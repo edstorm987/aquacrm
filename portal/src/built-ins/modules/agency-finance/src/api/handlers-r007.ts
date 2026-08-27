@@ -12,6 +12,10 @@ import type {
   UpdatePlanPatch,
 } from "../lib/domain";
 import { resolveFinanceDefaultCurrency } from "@/lib/server/finance/financeCurrency";
+import { normaliseCurrency } from "../lib/currencies";
+import { assertKnownFields, assertNonEmptyText, assertTimestamp } from "../lib/runtimeValidation";
+import { authErrorResponse } from "@/lib/server/auth/auth";
+import { requireCurrentClientWorkspaceElementAccess, type ClientWorkspaceElementLevel } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -28,6 +32,19 @@ function build(ctx: PluginCtx) {
   return containerFor({ agencyId: ctx.agencyId, storage: ctx.storage, install: ctx.install });
 }
 
+async function clientCommercialGate(
+  clientId: string | null | undefined,
+  required: Exclude<ClientWorkspaceElementLevel, "hidden">,
+): Promise<Response | null> {
+  if (!clientId) return null;
+  try {
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.commercial", required);
+    return null;
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+}
+
 // ─── Payments ─────────────────────────────────────────────────────
 
 export async function listPaymentsHandler(req: Request, ctx: PluginCtx): Promise<Response> {
@@ -39,7 +56,13 @@ export async function listPaymentsHandler(req: Request, ctx: PluginCtx): Promise
     fromPaidAt: url.searchParams.get("from") ? Number(url.searchParams.get("from")) : undefined,
     toPaidAt: url.searchParams.get("to") ? Number(url.searchParams.get("to")) : undefined,
   };
-  const payments = await build(ctx).payments.list(filter);
+  const container = build(ctx);
+  const invoiceClientId = filter.invoiceId
+    ? (await container.invoices.get(filter.invoiceId))?.clientId
+    : undefined;
+  const denied = await clientCommercialGate(filter.clientId ?? invoiceClientId, "view");
+  if (denied) return denied;
+  const payments = await container.payments.list(filter);
   return json({ ok: true, payments });
 }
 
@@ -48,7 +71,12 @@ export async function createPaymentHandler(req: Request, ctx: PluginCtx): Promis
   const body = await safeJson<CreatePaymentInput>(req);
   if (!body || !body.invoiceId || !body.amountCents || !body.currency || !body.method) return badRequest("invalid_body");
   try {
-    const result = await build(ctx).payments.record(ctx.actor, body);
+    const container = build(ctx);
+    const invoice = await container.invoices.get(body.invoiceId);
+    if (!invoice) return notFound("invoice_not_found");
+    const denied = await clientCommercialGate(invoice.clientId, "manage");
+    if (denied) return denied;
+    const result = await container.payments.record(ctx.actor, body);
     return json({ ok: true, ...result }, 201);
   } catch (e) {
     if (e instanceof Error && e.message === "agency-finance: invoice not found") return notFound("invoice_not_found");
@@ -58,13 +86,18 @@ export async function createPaymentHandler(req: Request, ctx: PluginCtx): Promis
 
 export async function listIncomeHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   if (req.method !== "GET") return methodNotAllowed();
-  return json({ ok: true, income: await build(ctx).income.list() });
+  const clientId = new URL(req.url).searchParams.get("clientId") ?? undefined;
+  const denied = await clientCommercialGate(clientId, "view");
+  if (denied) return denied;
+  return json({ ok: true, income: await build(ctx).income.list({ clientId }) });
 }
 
 export async function createIncomeHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   if (req.method !== "POST") return methodNotAllowed();
   const body = await safeJson<CreateIncomeEntryInput>(req);
   if (!body?.title?.trim() || !body.amountCents || !body.method) return badRequest("title, amount and method are required");
+  const denied = await clientCommercialGate(body.clientId, "use");
+  if (denied) return denied;
   try {
     const defaultCurrency = resolveFinanceDefaultCurrency(ctx.agencyId, ctx.install.config.defaultCurrency) as Currency;
     const income = await build(ctx).income.create(ctx.actor, body, defaultCurrency);
@@ -113,13 +146,22 @@ export async function updatePlanHandler(req: Request, ctx: PluginCtx): Promise<R
 
 export async function assignPlanHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   if (req.method !== "POST") return methodNotAllowed();
-  const body = await safeJson<{ clientId: string; planId: string | null }>(req);
-  if (!body || !body.clientId) return badRequest("invalid_body");
+  const body = await safeJson<Record<string, unknown>>(req);
+  if (!body) return badRequest("invalid_body");
   try {
-    await build(ctx).plans.assignClient(ctx.actor, body.clientId, body.planId ?? null);
+    assertKnownFields(body, ["clientId", "planId"]);
+    assertNonEmptyText(body.clientId, "clientId");
+    if (!Object.prototype.hasOwnProperty.call(body, "planId")) {
+      return badRequest("planId_required");
+    }
+    if (body.planId !== null) assertNonEmptyText(body.planId, "planId");
+    const denied = await clientCommercialGate(body.clientId as string, "manage");
+    if (denied) return denied;
+    await build(ctx).plans.assignClient(ctx.actor, body.clientId, body.planId);
     return json({ ok: true });
   } catch (e) {
     if (e instanceof Error && e.message === "agency-finance: plan not found") return notFound("not_found");
+    if (e instanceof Error && e.message === "agency-finance: client not found") return notFound("client_not_found");
     return badRequest(e instanceof Error ? e.message : "assign_failed");
   }
 }
@@ -130,6 +172,13 @@ export async function pnlSummaryHandler(req: Request, ctx: PluginCtx): Promise<R
   if (req.method !== "GET") return methodNotAllowed();
   const url = new URL(req.url);
   const refNow = url.searchParams.get("now") ? Number(url.searchParams.get("now")) : Date.now();
-  const snapshot = await build(ctx).pnl.founderSnapshot(refNow);
-  return json({ ok: true, snapshot });
+  try {
+    assertTimestamp(refNow, "now");
+    const configured = resolveFinanceDefaultCurrency(ctx.agencyId, ctx.install.config.defaultCurrency) as Currency;
+    const currency = normaliseCurrency(url.searchParams.get("currency"), configured);
+    const snapshot = await build(ctx).pnl.founderSnapshot(refNow, 30, currency);
+    return json({ ok: true, snapshot });
+  } catch (error) {
+    return badRequest(error instanceof Error ? error.message : "invalid_report_request");
+  }
 }

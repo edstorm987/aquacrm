@@ -25,12 +25,83 @@ const PUBLIC_SHOWCASE_SESSION_ESCAPE_PATHS = new Set([
   "/api/auth/logout",
 ]);
 
+// A signed private sandbox may always change environment or return to live
+// state, even when its current access policy is read-only.
+const SANDBOX_SESSION_ESCAPE_PATHS = new Set([
+  "/api/auth/sandbox-mode",
+  "/api/auth/logout",
+]);
+
+// GET is safe from mutation, but not automatically safe from disclosure. A
+// public product-tour token may explore the fictional CRM; it may not browse
+// this repository, internal Dev Team material, workspace settings or the
+// source/editor APIs behind those tools. Leaf routes still re-check access —
+// this proxy list is the fast optimistic boundary, not the only boundary.
+const PUBLIC_SHOWCASE_PRIVATE_PAGE_ROOTS = [
+  "/portal/dev-team",
+  "/portal/dev-workspace",
+  "/portal/agency/dev-docs",
+  "/portal/agency/development/code",
+  "/portal/agency/settings",
+] as const;
+
+const PUBLIC_SHOWCASE_AGENCY_PAGE_ROOTS = [
+  "/portal/agency/inbox",
+  "/portal/agency/operations",
+  "/portal/agency/tools",
+  "/portal/agency/marketing",
+  "/portal/agency/fulfilment",
+  "/portal/agency/battle",
+  "/portal/agency/radar",
+  "/portal/agency/sops",
+  "/portal/agency/sop-library",
+  "/portal/agency/company",
+] as const;
+
+const PUBLIC_SHOWCASE_PRIVATE_API_ROOTS = [
+  "/api/portal/access",
+  "/api/portal/dev",
+  "/api/portal/dev-team",
+  "/api/portal/site-editor/files",
+] as const;
+
+// These endpoints perform work despite using GET (OAuth hand-offs, cron/sweep
+// entry points, materialising reads and APIs that mark/touch state). Method-
+// only protection cannot describe that. A public showcase token is refused by
+// operation before any route code runs.
+const PUBLIC_SHOWCASE_MUTATING_GET_ROOTS = [
+  "/api/auth/oauth/google/callback",
+  "/api/cron",
+  "/api/internal/sweep",
+  "/api/v1",
+  "/api/portal/advisor/radar",
+  "/api/portal/attention",
+  "/api/portal/automations",
+  "/api/portal/calendar/google",
+  "/api/portal/client-portal-design",
+  "/api/portal/development",
+  "/api/portal/inbox/meta",
+  "/api/portal/notifications",
+  "/api/portal/products",
+  "/api/portal/team-chat",
+  "/api/portal/website",
+  "/api/portal/website-sources",
+  "/api/tenants/client-telemetry",
+] as const;
+
+function matchesRoot(path: string, root: string): boolean {
+  return path === root || path.startsWith(`${root}/`);
+}
+
 interface ProxySession {
   role?: string;
   agencyId?: string;
   clientId?: string;
   exp?: number;
   publicShowcase?: boolean;
+  sandbox?: {
+    access?: "read-only" | "writable";
+  };
 }
 
 function decodePayload(token: string | undefined): ProxySession | null {
@@ -39,7 +110,23 @@ function decodePayload(token: string | undefined): ProxySession | null {
   if (dot <= 0) return null;
   const b64 = token.slice(0, dot);
   try {
-    const json = Buffer.from(b64, "base64url").toString("utf8");
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    const decoded: number[] = [];
+    let accumulator = 0;
+    let bitCount = 0;
+    for (const character of b64) {
+      const value = alphabet.indexOf(character);
+      if (value < 0) throw new Error("Invalid base64url payload");
+      accumulator = (accumulator << 6) | value;
+      bitCount += 6;
+      if (bitCount >= 8) {
+        bitCount -= 8;
+        decoded.push((accumulator >>> bitCount) & 0xff);
+        accumulator &= bitCount ? (1 << bitCount) - 1 : 0;
+      }
+    }
+    const bytes = Uint8Array.from(decoded);
+    const json = new TextDecoder().decode(bytes);
     return JSON.parse(json) as ProxySession;
   } catch {
     return null;
@@ -52,12 +139,23 @@ export function proxy(req: NextRequest) {
   const payload = decodePayload(token);
   const safeMethod = ["GET", "HEAD", "OPTIONS"].includes(req.method);
   const publicShowcaseSessionEscape = PUBLIC_SHOWCASE_SESSION_ESCAPE_PATHS.has(path);
+  const sandboxSessionEscape = SANDBOX_SESSION_ESCAPE_PATHS.has(path);
+  const privateReadOnlySandbox = payload?.publicShowcase !== true && payload?.sandbox?.access === "read-only";
 
   // Staff identities use the deliberately scoped Team workspace. Keep
   // owner agency pages and unrelated agency APIs out of their blast radius
-  // even when PORTAL_SECURITY is relaxed in local development.
+  // even when PORTAL_SECURITY is relaxed in local development. Staff and
+  // Fulfilment are the migration exceptions: their leaf pages and APIs enforce
+  // the canonical element grant, so an explicitly delegated person can mount
+  // them without opening the rest of the agency shell.
   if (payload?.role === "agency-staff") {
-    if (path.startsWith("/portal/agency")) {
+    const delegatedAgencyPageRoots = [
+      "/portal/agency/people",
+      "/portal/agency/fulfilment",
+      "/portal/agency/portals",
+    ];
+    if (path.startsWith("/portal/agency")
+      && !delegatedAgencyPageRoots.some(root => path === root || path.startsWith(`${root}/`))) {
       const url = req.nextUrl.clone();
       url.pathname = "/portal/team";
       url.search = "";
@@ -65,11 +163,20 @@ export function proxy(req: NextRequest) {
     }
     if (path.startsWith("/api/portal/")) {
       const staffApiRoots = [
+        "/api/portal/access",
+        "/api/portal/dev",
+        "/api/portal/site-editor/files",
         "/api/portal/dashboard-planning",
         "/api/portal/tasks",
         "/api/portal/calendar",
         "/api/portal/people",
         "/api/portal/notepad",
+        "/api/portal/team-chat",
+        "/api/portal/pipelines/move-client",
+        "/api/portal/products",
+        "/api/portal/aqua-tags/detect",
+        "/api/portal/website-sources",
+        "/api/portal/website-injections",
       ];
       if (!staffApiRoots.some(root => path === root || path.startsWith(`${root}/`))) {
         return NextResponse.json({ ok: false, error: "This API is not available in the employee workspace." }, { status: 403 });
@@ -85,6 +192,53 @@ export function proxy(req: NextRequest) {
       { ok: false, error: "This public showcase is read-only." },
       { status: 403, headers: { "cache-control": "no-store" } },
     );
+  }
+
+  if (privateReadOnlySandbox && !safeMethod && !sandboxSessionEscape) {
+    return NextResponse.json(
+      { ok: false, error: "This sandbox is read-only. Change its access policy in Settings → Environment." },
+      { status: 403, headers: { "cache-control": "no-store" } },
+    );
+  }
+
+  if (privateReadOnlySandbox) {
+    const mutatingGet = safeMethod && (
+      PUBLIC_SHOWCASE_MUTATING_GET_ROOTS.some(root => matchesRoot(path, root))
+      || /^\/api\/portal\/clients\/[^/]+\/radar(?:\/|$)/.test(path)
+    );
+    if (mutatingGet) {
+      return NextResponse.json(
+        { ok: false, error: "This operation is unavailable while the sandbox is read-only." },
+        { status: 403, headers: { "cache-control": "no-store" } },
+      );
+    }
+  }
+
+  if (payload?.publicShowcase) {
+    const mutatingGet = safeMethod && (
+      PUBLIC_SHOWCASE_MUTATING_GET_ROOTS.some(root => matchesRoot(path, root))
+      || /^\/api\/portal\/clients\/[^/]+\/radar(?:\/|$)/.test(path)
+    );
+    if (mutatingGet) {
+      return NextResponse.json(
+        { ok: false, error: "This operation is not available in the read-only public showcase." },
+        { status: 403, headers: { "cache-control": "no-store" } },
+      );
+    }
+    const unsupportedAgencyPage = path.startsWith("/portal/agency/")
+      && !PUBLIC_SHOWCASE_AGENCY_PAGE_ROOTS.some(root => matchesRoot(path, root));
+    if (unsupportedAgencyPage || PUBLIC_SHOWCASE_PRIVATE_PAGE_ROOTS.some(root => matchesRoot(path, root))) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/portal/agency";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+    if (PUBLIC_SHOWCASE_PRIVATE_API_ROOTS.some(root => matchesRoot(path, root))) {
+      return NextResponse.json(
+        { ok: false, error: "This internal surface is not part of the public showcase." },
+        { status: 404, headers: { "cache-control": "no-store" } },
+      );
+    }
   }
 
   const env = process.env.NEXT_PUBLIC_PORTAL_SECURITY;

@@ -191,6 +191,11 @@ export function ensureAgencyMasterSiteKey(agencyId: string): string {
   return getState().agencyMasterTagKeys![agencyId]!;
 }
 
+/** Read the durable key without creating one during a View-only request. */
+export function getAgencyMasterSiteKey(agencyId: string): string | undefined {
+  return getState().agencyMasterTagKeys?.[agencyId];
+}
+
 /** Which agency a master tag key belongs to, for the ingestion path. */
 export function resolveAgencyByMasterSiteKey(siteKey: string | undefined): string | undefined {
   if (!siteKey) return undefined;

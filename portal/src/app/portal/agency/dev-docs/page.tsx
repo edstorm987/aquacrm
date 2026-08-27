@@ -13,7 +13,7 @@ import { devDocsAccessible, listDevDocs, readDevDoc, scanBlockers } from "@/lib/
 import { DevDocsIndexView } from "./_DevDocsIndex";
 import { DevDocViewer } from "./_DevDocViewer";
 
-// Always read the live files — never serve a cached snapshot of the docs.
+// Dynamic route; its filesystem index has an explicit 15-second live-data bound.
 export const dynamic = "force-dynamic";
 
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
@@ -28,7 +28,7 @@ export default async function DevDocsPage({ searchParams }: { searchParams: Sear
     redirect("/portal");
   }
 
-  // Founder + Dev Mode, or this route does not exist.
+  // Founder-only Dev Team access, or this route does not exist.
   if (!devDocsAccessible(session)) notFound();
 
   const params = await searchParams;

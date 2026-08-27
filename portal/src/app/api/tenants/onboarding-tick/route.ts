@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ensureHydrated } from "@/server/storage";
-import { requireRoleForClient } from "@/lib/server/auth/auth";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES, type ClientStage } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import {
@@ -9,6 +9,7 @@ import {
   tickMilestone,
   type OnboardingProgressMap,
 } from "@/lib/server/onboardingMilestones";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 interface TickBody {
   clientId: string;
@@ -31,7 +32,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "unknown milestoneId for phase" }, { status: 400 });
   }
 
-  const session = await requireRoleForClient([...AGENCY_ROLES], body.clientId);
+  let session;
+  try {
+    session = await requireRoleForClient([...AGENCY_ROLES], body.clientId);
+    await requireCurrentClientWorkspaceElementAccess(body.clientId, "client.relationship", "use");
+  } catch (error) {
+    return authErrorResponse(error);
+  }
   const client = getClientForAgency(session.agencyId, body.clientId);
   if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
 

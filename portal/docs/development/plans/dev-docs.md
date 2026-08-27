@@ -1,8 +1,16 @@
-# Plan — Dev Docs: in-app docs browser (owner / dev-only) ⚡
+# Plan — Dev Docs: in-app docs browser (internal founder) ⚡
 
 ← [todo.md](../todo.md) · [development.md](../../development.md)
 
 **Status: ✅ SHIPPED — all 3 phases (2026-08-19), browser- and bundle-verified.**
+
+> **Production correction, 2026-08-26:** the original plan below says this
+> never ships to production. That constraint has been superseded. Dev Docs and
+> Dev Team now use the shared founder control-plane predicate: local Dev Mode
+> fixtures pass, and production accepts only the live `FOUNDER_EMAIL` account.
+> Next output tracing includes the bounded checked-in docs/source trees for
+> these routes. The original implementation rationale is retained below as
+> historical design context, not current access truth.
 
 > 📌 **Qualifies for `plans/archive/` but has NOT been moved.** Tried on 2026-08-20 and reverted: `scripts/smoke-dev-docs.test.ts:171–172` looks this file up by its exact path, `docs/development/plans/dev-docs.md`, and asserts the Dev Docs plan is indexed. Moving it breaks two Dev Docs suites. The move needs that path updated in the same change — source, not docs. **Commander's call.** The `:3032` walk and the react-markdown webpack confirmation are CLOSED: `_DocMarkdown.tsx` was split into a lazy `_DocMarkdownBody.tsx` (`next/dynamic ssr:false`) and the doc render was verified in a real `next build` + browser pass. Absorbed into the Dev Team Library, but the standalone `/portal/agency/dev-docs` route + settings-footer entry BOTH still exist.
 gated sidebar item, in-app viewer (`react-markdown` + `remark-gfm`), and the

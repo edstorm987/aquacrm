@@ -17,13 +17,15 @@ import {
 } from "@/server/dashboardPlanning";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
-import { canUsePeopleStation } from "@/server/people";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 
 async function agencySession(request: NextRequest) {
   await ensureHydrated();
   const session = await getSessionFromRequest(request);
   if (!session || !AGENCY_ROLES.includes(session.role)) throw new AuthError(401, "unauthorized");
-  if (session.role === "agency-staff" && !canUsePeopleStation(session.agencyId, session.userId, "my-day", request.method !== "GET")) throw new AuthError(403, "station_forbidden");
+  if (session.role === "agency-staff") {
+    await requireCurrentWorkspaceElementAccess("staff", "staff.overview", request.method === "GET" ? "view" : "use");
+  }
   return session;
 }
 

@@ -206,13 +206,19 @@ describe("Aqua Editor AI — separate from the agency assistant, structurally", 
   it("…and the Advisor's key does not switch the editor on", async () => {
     const { agencyId, userId } = await founder();
     const project = projectFor(agencyId, userId);
-    saveIntegrationConnection({
+    const advisor = saveIntegrationConnection({
       agencyId,
       provider: "openai",
       label: "Agency assistant",
       values: { apiKey: AGENCY_ASSISTANT_KEY, model: "gpt-5-mini" },
       actorUserId: userId,
     });
+    await testIntegrationConnection(
+      agencyId,
+      advisor.id,
+      { userId },
+      (async () => Response.json({ data: [] })) as typeof fetch,
+    );
 
     assert.equal(isAssistantConfigured(agencyId), true, "the Advisor is configured");
     assert.equal(editorAiConfigured(agencyId, project.id), false,
@@ -467,7 +473,7 @@ describe("Aqua Editor AI — the configuration endpoint", () => {
     assert.equal((await send(token, { projectId: project.id })).status, 400, "no action");
   });
 
-  it("is behind the same gate as the rest of the dev surface — no Dev Mode, no config", async () => {
+  it("uses the owner's capability baseline without requiring Dev Mode", async () => {
     const { token, agencyId, userId } = await founder();
     const project = projectFor(agencyId, userId);
     // The same request, WITHOUT withDevMode.
@@ -479,8 +485,8 @@ describe("Aqua Editor AI — the configuration endpoint", () => {
         body: JSON.stringify({ action: "set-token", projectId: project.id, apiKey: EDITOR_KEY }),
       },
     )));
-    assert.equal(response.status, 403);
-    assert.equal(resolveEditorAiToken(agencyId, project.id), null);
+    assert.equal(response.status, 200);
+    assert.equal(resolveEditorAiToken(agencyId, project.id), EDITOR_KEY);
   });
 
   it("refuses a cross-origin write", async () => {

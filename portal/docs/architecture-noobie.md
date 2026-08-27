@@ -130,13 +130,13 @@ the portals route, which meant portal-flavoured wording kept turning up in front
 of somebody editing a website; moving it out is what stops that happening again.
 If you are looking for "the editor", that file is it.
 
-**What is not yet shared is the vocabulary.** The website editor has ~78 block
-types; client portals have their own ~48. About 87% of them are the same idea
-under a different name — `hero` and `hero`, `callout` and `banner`, `divider` and
-`divider`. Unifying those into one list is the biggest single improvement
-available, and it is what would let an AI assistant build a portal by composing
-from one set of parts instead of three
-([the design](development/plans/) · roadmap item "One element engine").
+**The shared vocabulary foundation now exists, but the widening is unfinished.**
+The element registry and its first three phases are shipped under
+`src/engines/editor/elements/`, and portal blocks have a parity guard. Website
+and portal families still need to be widened onto the shared definitions before
+an assistant can compose every real surface from one complete catalogue. See the
+current “Engine widening + assistant proposals” item in
+[checklist.md](development/checklist.md).
 
 ---
 
@@ -157,9 +157,10 @@ list, the progress bars — all parsed from markdown. Change the file, the scree
 changes. Change it in the screen, the file changes.
 
 Each plan also carries a **file map**: the exact files that plan owns. That is
-what makes it safe to run several AI workers at once — before handing out two
-jobs, you check their file maps do not overlap. There is no git here, so two
-agents editing one file destroys work permanently.
+what makes it safer to run several workers at once — before handing out two
+jobs, you check their file maps do not overlap. A first commit now exists, but
+the shared working tree still carries uncommitted work from multiple lanes, so
+discarding or overwriting a file can still destroy somebody else's work.
 
 ---
 

@@ -4,6 +4,14 @@
 >
 > *It stays in `plans/` rather than moving to [archive/](archive/README.md) for two reasons: `smoke-dev-tasks-parse.test.ts` pins it by name in the set of plans that parse to zero phases, and `archive/README.md` says not to archive a handoff another plan still points at as its brief.*
 
+> **Current correction, 2026-08-26:** this is a dated implementation debrief.
+> Its repeated “Dev Mode only / never production” statements are historical.
+> Current Dev Team and Dev Docs access is founder-only in both environments:
+> local fixtures require Dev Mode; production accepts only the deployment's
+> live `FOUNDER_EMAIL` user. Next output tracing carries the bounded checked-in
+> docs/source trees. See [dev-docs.md](dev-docs.md) and
+> [status.md](../status.md) for the current durability boundary.
+
 ← [dev-docs.md](dev-docs.md) (the plan) · [development.md](../../development.md) (the law) · [state.md](../../context/state.md)
 
 _Debrief from the Dev-Docs worker, 2026-08-19. Everything I did, why, what's proven, what's left, and my honest read. Nothing lives only in chat._

@@ -21,6 +21,7 @@ interface CompanyOption {
 
 type Draft = {
   id?: string;
+  expectedUpdatedAt?: number;
   companyIds: string[];
   name: string;
   segment: string;
@@ -140,6 +141,7 @@ export function CustomerProfilesWorkspace({
   function beginEdit(profile: MarketingCustomerProfile) {
     setDraft({
       id: profile.id,
+      expectedUpdatedAt: profile.updatedAt,
       companyIds: [...profile.companyIds],
       name: profile.name,
       segment: profile.segment ?? "",
@@ -198,11 +200,12 @@ export function CustomerProfilesWorkspace({
       estimatedAudienceSize: draft.estimatedAudienceSize ? Number(draft.estimatedAudienceSize) : undefined,
     };
     delete payload.id;
+    delete payload.expectedUpdatedAt;
     try {
       const response = await fetch("/api/portal/agency-marketing/customer-profiles", {
         method: draft.id ? "PATCH" : "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(draft.id ? { id: draft.id, patch: payload } : payload),
+        body: JSON.stringify(draft.id ? { id: draft.id, expectedUpdatedAt: draft.expectedUpdatedAt, patch: payload } : payload),
       });
       const data = await response.json() as { ok?: boolean; error?: string };
       if (!response.ok || !data.ok) throw new Error(data.error ?? "Customer profile could not be saved.");
@@ -220,7 +223,7 @@ export function CustomerProfilesWorkspace({
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch(`/api/portal/agency-marketing/customer-profiles?id=${encodeURIComponent(profile.id)}`, { method: "DELETE" });
+      const response = await fetch(`/api/portal/agency-marketing/customer-profiles?id=${encodeURIComponent(profile.id)}&updatedAt=${profile.updatedAt}`, { method: "DELETE" });
       const data = await response.json() as { ok?: boolean; error?: string };
       if (!response.ok || !data.ok) throw new Error(data.error ?? "Customer profile could not be deleted.");
       router.refresh();

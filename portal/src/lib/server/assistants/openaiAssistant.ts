@@ -8,6 +8,10 @@ import type { AdvisorSkill } from "@/lib/advisor/advisorSkills";
 import type { AssistantMemory, AssistantMessage } from "@/server/types";
 import { resolveIntegrationValues } from "@/lib/server/integrations/integrationConnections";
 import { advisorSkillInstruction } from "@/lib/server/assistants/advisorSkillsService";
+import {
+  OPENAI_RESPONSES_URL,
+  requestOpenAiResponse,
+} from "@/lib/server/integrations/openaiResponses";
 
 /**
  * The one wire the assistants speak on. Exported so Aqua Editor AI's reply
@@ -15,7 +19,7 @@ import { advisorSkillInstruction } from "@/lib/server/assistants/advisorSkillsSe
  * the same idiom rather than growing a second HTTP shape — what differs there
  * is only the credential (the project's own key, never the agency connection).
  */
-export const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
+export { OPENAI_RESPONSES_URL };
 
 export function isAssistantConfigured(agencyId?: string) {
   return agencyId
@@ -104,36 +108,18 @@ export async function askMilesymediaAssistant(input: {
     input.question,
   ].join("\n");
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 45_000);
-  try {
-    const response = await fetch(OPENAI_RESPONSES_URL, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${apiKey}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: managed.model || assistantModel(input.agencyId),
-        instructions,
-        input: prompt,
-        store: false,
-        max_output_tokens: 1_500,
-      }),
-      signal: controller.signal,
-    });
-    const payload = await response.json().catch(() => ({})) as {
-      error?: { message?: string };
-    };
-    if (!response.ok) {
-      throw new Error(payload.error?.message || `OpenAI request failed (${response.status}).`);
-    }
-    const text = extractOutputText(payload);
-    if (!text) throw new Error("The assistant returned an empty response.");
-    return text;
-  } finally {
-    clearTimeout(timeout);
-  }
+  const payload = await requestOpenAiResponse({
+    apiKey,
+    payload: {
+      model: managed.model || assistantModel(input.agencyId),
+      instructions,
+      input: prompt,
+      max_output_tokens: 1_500,
+    },
+  });
+  const text = extractOutputText(payload);
+  if (!text) throw new Error("The assistant returned an empty response.");
+  return text;
 }
 
 interface RawAdvisorSuggestion {
@@ -193,20 +179,13 @@ export async function suggestAdvisorActions(input: {
     input.businessContext,
   ].join("\n");
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 45_000);
   try {
-    const response = await fetch(OPENAI_RESPONSES_URL, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${apiKey}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
+    const payload = await requestOpenAiResponse({
+      apiKey,
+      payload: {
         model: managed.model || assistantModel(input.agencyId),
         instructions,
         input: prompt,
-        store: false,
         max_output_tokens: 2_000,
         text: {
           format: {
@@ -241,14 +220,8 @@ export async function suggestAdvisorActions(input: {
             },
           },
         },
-      }),
-      signal: controller.signal,
+      },
     });
-    const payload = await response.json().catch(() => ({})) as { error?: { message?: string } };
-    if (!response.ok) {
-      if (guaranteedRadarActions.length) return guaranteedRadarActions;
-      throw new Error(payload.error?.message || `OpenAI request failed (${response.status}).`);
-    }
     const parsed = JSON.parse(extractOutputText(payload)) as { suggestions?: RawAdvisorSuggestion[] };
     const evidenceById = new Map<string, { href: string }>([
       ...input.alerts.flatMap(alert => [[alert.id, alert], [`alert:${alert.id}`, alert]] as Array<[string, { href: string }]>),
@@ -281,8 +254,6 @@ export async function suggestAdvisorActions(input: {
   } catch (error) {
     if (guaranteedRadarActions.length) return guaranteedRadarActions;
     throw error;
-  } finally {
-    clearTimeout(timeout);
   }
 }
 

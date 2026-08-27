@@ -37,6 +37,7 @@
     }
     var display = (user.name && user.name.trim()) || user.email;
     var role = (user.role || '').replace(/-/g, ' ');
+    var isLead = user.role === 'lead';
     var isClient = !!(user.agencyId || user.clientId);
 
     slot.innerHTML = ''
@@ -54,11 +55,15 @@
       +     '<div class="bos-auth-pop-role">' + role + '</div>'
       +   '</div>'
       +   '<div class="bos-auth-pop-list">'
-      +     '<a href="/portal/account">👤 My profile</a>'
-      +     (isClient
+      +     (isLead
+            ? '<a href="/business-os/app.html">◆ My Business OS</a>'
+            : '<a href="/portal/account">👤 My profile</a>')
+      +     (isLead
+            ? '<a href="/milesymedia/contact" class="bos-auth-pop-portal">★ Work with Milesymedia</a>'
+            : isClient
             ? '<a href="/portal" class="bos-auth-pop-portal">▣ Open my portal</a>'
-            : '<a href="/#contact" class="bos-auth-pop-portal">★ Work with Milesymedia</a>')
-      +     '<a href="/">↩ Back to website</a>'
+            : '<a href="/milesymedia/contact" class="bos-auth-pop-portal">★ Work with Milesymedia</a>')
+      +     '<a href="/milesymedia">↩ Back to website</a>'
       +   '</div>'
       +   '<form action="/api/auth/logout" method="post" class="bos-auth-pop-out">'
       +     '<button type="submit" class="bos-auth-pop-signout">↗ Sign out</button>'

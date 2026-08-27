@@ -23,6 +23,8 @@ export interface PluginCtx {
 export interface PluginStorage {
   get<T = unknown>(key: string): Promise<T | undefined>;
   set<T = unknown>(key: string, value: T): Promise<void>;
+  /** Serialize and durably flush a logical operation across application processes. */
+  runExclusive?<T>(key: string, operation: () => Promise<T>): Promise<T>;
   del(key: string): Promise<void>;
   list(prefix?: string): Promise<string[]>;
 }

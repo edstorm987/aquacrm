@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { routeTenantScope } from "@/lib/server/portal/apiTenantScope";
 import { previewClientErasure } from "@/server/clientErasure";
 import { ensureHydrated } from "@/server/storage";
-import { getClientForAgency } from "@/server/tenants";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 /**
  * The right-to-erasure PREVIEW — how many records an erasure WOULD remove,
@@ -21,11 +22,13 @@ export async function POST(request: Request) {
     await ensureHydrated();
     const session = await requireRole(["agency-owner", "agency-manager"]);
     const body = await request.json().catch(() => null) as { clientId?: string } | null;
-    const clientId = typeof body?.clientId === "string" ? body.clientId : "";
-    const client = getClientForAgency(session.agencyId, clientId);
+    const scope = routeTenantScope(session, { clientId: body?.clientId });
+    const client = scope.client;
     if (!client) return NextResponse.json({ ok: false, error: "That client was not found." }, { status: 404 });
+    const clientId = client.id;
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.settings", "manage");
 
-    const count = await previewClientErasure(session.agencyId, clientId);
+    const count = await previewClientErasure(scope.agencyId, clientId);
     if (count === null) return NextResponse.json({ ok: false, error: "That client was not found." }, { status: 404 });
 
     return NextResponse.json({

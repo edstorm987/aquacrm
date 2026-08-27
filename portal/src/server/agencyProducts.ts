@@ -6,6 +6,7 @@ import { defaultProductInternalWorkspace, isProductWorkspaceModule } from "@/lib
 import { logActivity } from "./activity";
 import { getState, mutate } from "./storage";
 import type { AgencyProduct, AgencyProductInternalWorkspace, AgencyProductKind, AgencyProductPortalMode, AgencyProductPortalRequirement, AgencyProductPortalTemplateKey, AgencyProductPricing, AgencyProductStatus, AgencyProductWorkspaceModule } from "./types";
+import { validatePortalEntityFields } from "./portalEditor";
 
 export interface AgencyProductInput {
   companyIds?: string[];
@@ -41,6 +42,7 @@ export interface AgencyProductInput {
   sopCategories?: string[];
   status?: AgencyProductStatus;
   active?: boolean;
+  customFields?: Record<string, unknown>;
 }
 
 export function listAgencyProducts(agencyId: string, includeArchived = false): AgencyProduct[] {
@@ -115,6 +117,9 @@ export function createAgencyProduct(agencyId: string, input: AgencyProductInput,
   if (!name) throw new Error("Product name required.");
   const now = Date.now();
   const status = validStatus(input.status, input.active);
+  const customFields = input.customFields === undefined
+    ? {}
+    : validatePortalEntityFields(agencyId, "products", input.customFields);
   const product: AgencyProduct = {
     id: `prod_${crypto.randomBytes(8).toString("hex")}`,
     agencyId,
@@ -153,6 +158,7 @@ export function createAgencyProduct(agencyId: string, input: AgencyProductInput,
     contractBody: clean(input.contractBody, 20_000) || undefined,
     sopIds: cleanList(input.sopIds, 100, 120),
     sopCategories: cleanList(input.sopCategories, 30, 100),
+    customFields,
     status,
     active: status === "live",
     createdAt: now,
@@ -170,6 +176,9 @@ export function updateAgencyProduct(agencyId: string, productId: string, input: 
   const status = input.status === undefined
     ? input.active === undefined ? productStatus(existing) : input.active ? "live" : "archived"
     : validStatus(input.status);
+  const customFields = input.customFields === undefined
+    ? existing.customFields ?? {}
+    : validatePortalEntityFields(agencyId, "products", input.customFields, existing.customFields);
   const updated: AgencyProduct = {
     ...existing,
     companyIds: input.companyIds === undefined ? existing.companyIds ?? [] : cleanList(input.companyIds, 30, 120),
@@ -212,6 +221,7 @@ export function updateAgencyProduct(agencyId: string, productId: string, input: 
     contractBody: input.contractBody === undefined ? existing.contractBody : clean(input.contractBody, 20_000) || undefined,
     sopIds: input.sopIds === undefined ? existing.sopIds ?? [] : cleanList(input.sopIds, 100, 120),
     sopCategories: input.sopCategories === undefined ? existing.sopCategories ?? [] : cleanList(input.sopCategories, 30, 100),
+    customFields,
     status,
     active: status === "live",
     updatedAt: Date.now(),

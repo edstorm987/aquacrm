@@ -49,6 +49,8 @@ export interface MapDevProjectDeps {
    * passes it, so the resolution order below is what actually runs.
    */
   githubToken?: string;
+  /** False for delegated requests: require this project's bound connection. */
+  allowSharedCredentials?: boolean;
   /** Defaults to the local working tree walk. */
   readWorkspace?: (root: string) => Promise<Array<{ path: string; size?: number }>>;
   /** Defaults to the real network detection. */
@@ -141,8 +143,9 @@ export async function mapProjectRepository(
     try {
       const token = deps.githubToken
         || devProjectGitHubToken(input.agencyId, project)
-        || resolveIntegrationValues(input.agencyId, "github").token
-        || process.env.GITHUB_TOKEN?.trim();
+        || (deps.allowSharedCredentials === false
+          ? undefined
+          : resolveIntegrationValues(input.agencyId, "github").token || process.env.GITHUB_TOKEN?.trim());
       if (!token) throw new GitHubNotConfigured();
       const head = await (deps.readTree ?? readRepoTree)({
         repository: project.repository,

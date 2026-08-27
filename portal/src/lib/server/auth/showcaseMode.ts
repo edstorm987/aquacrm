@@ -6,7 +6,7 @@ import { ensureDefaultAgencyProducts } from "@/server/agencyProducts";
 import { bootstrapAgency } from "@/server/agencyBootstrap";
 import { createClientMilestone } from "@/server/clientMilestones";
 import { updateCompanyProfile } from "@/server/company";
-import { createPerformanceExperiment } from "@/server/performanceExperiments";
+import { createPerformanceExperiment, updatePerformanceExperiment } from "@/server/performanceExperiments";
 import { getInstall } from "@/server/pluginInstalls";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { addCard, getPipelineBySlug } from "@/server/pipelines";
@@ -20,22 +20,38 @@ import type { Agency } from "@/server/types";
 
 export const SHOWCASE_AGENCY_SLUG = "milesymedia-showcase";
 export const SHOWCASE_AGENCY_NAME = "Milesymedia Showcase";
+export const PUBLIC_SHOWCASE_AGENCY_SLUG = "milesymedia-public-showcase";
+export const PUBLIC_SHOWCASE_AGENCY_NAME = "Milesymedia Public Showcase";
 
 const SYSTEM_ACTOR = "showcase-system";
 const DAY = 86_400_000;
 
 export async function ensureShowcaseWorkspace(): Promise<Agency> {
-  await ensureHydrated();
+  await ensureHydrated({ preserveExplicitRealm: true });
   return getAgencyBySlug(SHOWCASE_AGENCY_SLUG) ?? resetAndSeedShowcaseWorkspace();
 }
 
-export async function resetAndSeedShowcaseWorkspace(): Promise<Agency> {
-  await ensureHydrated();
-  resetShowcaseWorkspace();
+/**
+ * The public tour is one immutable fixture, separate from an owner's resettable
+ * Showcase Mode. Re-entering `/showcase` must never delete and rebuild data
+ * underneath somebody else's open tour.
+ */
+export async function ensurePublicShowcaseWorkspace(): Promise<Agency> {
+  await ensureHydrated({ preserveExplicitRealm: true });
+  return getAgencyBySlug(PUBLIC_SHOWCASE_AGENCY_SLUG)
+    ?? seedShowcaseWorkspace(PUBLIC_SHOWCASE_AGENCY_SLUG, PUBLIC_SHOWCASE_AGENCY_NAME);
+}
 
+export async function resetAndSeedShowcaseWorkspace(): Promise<Agency> {
+  await ensureHydrated({ preserveExplicitRealm: true });
+  resetShowcaseWorkspace(SHOWCASE_AGENCY_SLUG);
+  return seedShowcaseWorkspace(SHOWCASE_AGENCY_SLUG, SHOWCASE_AGENCY_NAME);
+}
+
+async function seedShowcaseWorkspace(slug: string, name: string): Promise<Agency> {
   const { agency } = await bootstrapAgency({
-    name: SHOWCASE_AGENCY_NAME,
-    slug: SHOWCASE_AGENCY_SLUG,
+    name,
+    slug,
     ownerEmail: "hello@milesymedia.example",
     brand: {
       primaryColor: "#0F766E",
@@ -441,12 +457,21 @@ export async function resetAndSeedShowcaseWorkspace(): Promise<Agency> {
     name: "Homepage consultation CTA",
     hypothesis: "A specific outcome-led CTA will create more qualified conversations.",
     primaryMetric: "Consultation requests",
-    status: "complete",
     variants: [
       { id: "control", name: "Let's talk", visitors: 1280, conversions: 64 },
       { id: "winner", name: "Plan my next move", visitors: 1314, conversions: 103 },
     ],
   }, SYSTEM_ACTOR);
+  const runningExperiment = updatePerformanceExperiment(agency.id, experiment.id, {
+    status: "running",
+    expectedVersion: experiment.version,
+  }, SYSTEM_ACTOR);
+  if (!runningExperiment) throw new Error("showcase_experiment_missing");
+  const completedExperiment = updatePerformanceExperiment(agency.id, experiment.id, {
+    status: "complete",
+    expectedVersion: runningExperiment.version,
+  }, SYSTEM_ACTOR);
+  if (!completedExperiment) throw new Error("showcase_experiment_missing");
 
   const agencyWebsite = ensureAgencyWebsite(agency.id);
   updateAgencyWebsite(agency.id, {
@@ -474,8 +499,8 @@ export async function resetAndSeedShowcaseWorkspace(): Promise<Agency> {
   return agency;
 }
 
-export function resetShowcaseWorkspace(): void {
-  const agency = getAgencyBySlug(SHOWCASE_AGENCY_SLUG);
+export function resetShowcaseWorkspace(slug = SHOWCASE_AGENCY_SLUG): void {
+  const agency = getAgencyBySlug(slug);
   if (!agency) return;
   const agencyId = agency.id;
   mutate(state => {
@@ -485,35 +510,46 @@ export function resetShowcaseWorkspace(): void {
     const pipelineIds = new Set(Object.values(state.pipelines)
       .filter(pipeline => pipeline.agencyId === agencyId)
       .map(pipeline => pipeline.id));
+    const installIds = new Set(Object.values(state.pluginInstalls)
+      .filter(install => install.agencyId === agencyId)
+      .map(install => install.id));
+    const websiteSourceIds = new Set(Object.values(state.websiteSources ?? {})
+      .filter(source => source.agencyId === agencyId)
+      .map(source => source.id));
+    const freelancerJobIds = new Set(Object.values(state.peopleFreelancerJobs)
+      .filter(job => job.agencyId === agencyId)
+      .map(job => job.id));
 
-    for (const [id, item] of Object.entries(state.clients)) if (item.agencyId === agencyId) delete state.clients[id];
-    for (const [id, item] of Object.entries(state.endCustomers)) if (item.agencyId === agencyId) delete state.endCustomers[id];
-    for (const [key, item] of Object.entries(state.users)) if (item.agencyId === agencyId) delete state.users[key];
-    for (const [id, item] of Object.entries(state.pluginInstalls)) {
-      if (item.agencyId !== agencyId) continue;
-      delete state.pluginInstalls[id];
-      delete state.pluginData[id];
+    // Purge every ordinary tenant-owned record, including newer collections
+    // such as canonical people, organisations, identity reviews, editor state,
+    // integrations, calendars, automations and HR. This intentionally walks
+    // the state model so adding another `{ agencyId }` collection cannot leave
+    // stale public-tour data behind merely because this reset list was not
+    // updated at the same time.
+    for (const value of Object.values(state)) {
+      if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+      const collection = value as Record<string, unknown>;
+      for (const [key, item] of Object.entries(collection)) {
+        if (key === agencyId || key.startsWith(`${agencyId}|`) || key.startsWith(`${agencyId}:`)) {
+          delete collection[key];
+          continue;
+        }
+        if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+        const record = item as { agencyId?: unknown; clientId?: unknown };
+        if (record.agencyId === agencyId || (typeof record.clientId === "string" && clientIds.has(record.clientId))) {
+          delete collection[key];
+        }
+      }
     }
-    for (const [id, item] of Object.entries(state.phases)) if (item.agencyId === agencyId) delete state.phases[id];
-    for (const [id, item] of Object.entries(state.pipelines)) if (item.agencyId === agencyId) delete state.pipelines[id];
+
+    // These child records inherit tenant ownership through a parent id rather
+    // than carrying agencyId themselves.
     for (const [id, item] of Object.entries(state.pipelineCards)) if (pipelineIds.has(item.pipelineId)) delete state.pipelineCards[id];
-    for (const [id, item] of Object.entries(state.tasks)) if (item.agencyId === agencyId) delete state.tasks[id];
-    for (const [id, item] of Object.entries(state.sops)) if (item.agencyId === agencyId) delete state.sops[id];
-    for (const [id, item] of Object.entries(state.agencyProducts)) if (item.agencyId === agencyId) delete state.agencyProducts[id];
-    for (const [id, item] of Object.entries(state.clientMilestones)) if (item.agencyId === agencyId || clientIds.has(item.clientId)) delete state.clientMilestones[id];
-    for (const [id, item] of Object.entries(state.clientDelight)) if (item.agencyId === agencyId) delete state.clientDelight[id];
-    for (const [id, item] of Object.entries(state.performanceExperiments)) if (item.agencyId === agencyId) delete state.performanceExperiments[id];
-    for (const [id, item] of Object.entries(state.developmentResources)) if (item.agencyId === agencyId) delete state.developmentResources[id];
-    for (const [id, item] of Object.entries(state.developmentWorkflows)) if (item.agencyId === agencyId) delete state.developmentWorkflows[id];
-    delete state.agencyWebsites[agencyId];
-    delete state.agencySettings[agencyId];
-    delete state.portalEditor[agencyId];
-    delete state.companyProfiles[agencyId];
-    for (const [id, item] of Object.entries(state.legalDocuments)) if (item.agencyId === agencyId) delete state.legalDocuments[id];
-    for (const key of Object.keys(state.assistant ?? {})) if (key.startsWith(`${agencyId}|`)) delete state.assistant![key];
+    for (const installId of installIds) delete state.pluginData[installId];
+    for (const sourceId of websiteSourceIds) delete state.websiteSiteConfigs?.[sourceId];
+    for (const jobId of freelancerJobIds) delete state.freelancerJobOverride[jobId];
+
     state.activity = state.activity.filter(item => item.agencyId !== agencyId);
-    for (const [id, event] of Object.entries(state.clientRecordLedger)) if (event.agencyId === agencyId) delete state.clientRecordLedger[id];
-    delete state.agencies[agencyId];
   });
 }
 

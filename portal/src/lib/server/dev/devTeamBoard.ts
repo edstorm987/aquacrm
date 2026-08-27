@@ -12,7 +12,6 @@ import "server-only";
 // (like devDocs.ts) all reads are confined to the repo `docs/` tree under
 // `PROJECT_ROOT`. The gate lives on the page, not here (mirrors `scanBlockers`).
 
-import { readdir } from "node:fs/promises";
 import { basename, join } from "node:path";
 
 import {
@@ -21,6 +20,7 @@ import {
   type DevDocBlocker,
 } from "@/lib/server/dev/devDocs";
 import { readParsedFile } from "@/lib/server/dev/devMarkdownCache";
+import { readDevWorkspaceDirectory } from "@/lib/server/dev/devWorkspaceFiles";
 
 // state.md lives here; worker Plan links are relative to this directory.
 const STATE_DOC_REL = "docs/context/state.md";
@@ -339,7 +339,9 @@ export async function scanPlanStatuses(): Promise<PlanStatus[]> {
   const dirAbs = join(PROJECT_ROOT, PLANS_DIR_REL);
   let names: string[];
   try {
-    names = await readdir(dirAbs);
+    names = (await readDevWorkspaceDirectory(dirAbs))
+      .filter(entry => entry.isFile())
+      .map(entry => entry.name);
   } catch {
     return [];
   }

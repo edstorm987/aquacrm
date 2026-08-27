@@ -12,7 +12,13 @@ import {
 } from "@/lib/server/dev/devMode";
 import { createAgency, getClientForAgency, listClients } from "@/server/tenants";
 import { createUser, getUser, listUsersForAgency, listUsersForClient } from "@/server/users";
-import { ensureHydrated, flushPendingWrites, getState } from "@/server/storage";
+import {
+  LIVE_DATA_REALM_ID,
+  ensureHydrated,
+  flushPendingWrites,
+  getState,
+  runInDataRealm,
+} from "@/server/storage";
 
 /**
  * Dev mode entry. Signs you into the `Bare Co` dev tenant with a fully
@@ -38,7 +44,17 @@ export async function GET(request: Request) {
     );
   }
 
-  await ensureHydrated();
+  // `/dev` mints a normal (non-sandbox) local session. An existing browser
+  // cookie may still select a sandbox resource realm, but that realm's user is
+  // only a presentation/data copy and can carry older session/access epochs.
+  // Anchor the entire lookup + mint to live local authority so the resulting
+  // cookie is immediately valid at capability-gated APIs. This remains inside
+  // devModeStatus()'s file/memory-only boundary and cannot reach production.
+  return runInDataRealm(LIVE_DATA_REALM_ID, () => enterLocalDev(request));
+}
+
+async function enterLocalDev(request: Request) {
+  await ensureHydrated({ preserveExplicitRealm: true });
 
   const slug = devAgencySlug();
   const existing = Object.values(getState().agencies)
@@ -133,32 +149,69 @@ export async function GET(request: Request) {
     return clientResponse;
   }
 
+  // Local role acceptance needs a real non-owner session, not the Sandbox
+  // switcher's owner-authority presentation modes. A named dev dataset may
+  // already contain staff, managers or freelancers; `?as=` can select one of
+  // those existing identities without creating a user or changing any grant.
+  // The same four dev-mode guards above still apply, including the file/memory
+  // backend boundary, so this can never mint a durable-production session.
+  const persona = new URL(request.url).searchParams.get("as")?.trim().toLowerCase();
+  const personaRoles = {
+    owner: "agency-owner",
+    manager: "agency-manager",
+    staff: "agency-staff",
+    freelancer: "freelancer",
+  } as const;
+  if (persona && !(persona in personaRoles)) {
+    return NextResponse.json(
+      { error: "Choose owner, manager, staff or freelancer for the local dev persona." },
+      { status: 400, headers: { "cache-control": "no-store" } },
+    );
+  }
+  const requestedRole = persona ? personaRoles[persona as keyof typeof personaRoles] : "agency-owner";
+  const selectedUser = requestedRole === "agency-owner"
+    ? owner
+    : listUsersForAgency(agency.id).find(user => user.role === requestedRole);
+  if (!selectedUser) {
+    return NextResponse.json(
+      {
+        error: `No ${persona} identity exists in ${agency.name}.`,
+        available: listUsersForAgency(agency.id).map(user => ({ id: user.id, name: user.name, role: user.role })),
+      },
+      { status: 404, headers: { "cache-control": "no-store" } },
+    );
+  }
+
   await flushPendingWrites();
 
   const token = issueSession({
-    userId: owner.id,
-    email: owner.email,
-    role: owner.role,
+    userId: selectedUser.id,
+    email: selectedUser.email,
+    role: selectedUser.role,
     agencyId: agency.id,
-    agencyIds: [agency.id],
+    agencyIds: selectedUser.agencyIds?.length ? selectedUser.agencyIds : [agency.id],
     activeAgencyId: agency.id,
+    clientId: selectedUser.clientId,
     // Marks the session as non-production data without making it read-only.
     isDemo: true,
-    sessionRev: owner.sessionRev ?? 0,
+    sessionRev: selectedUser.sessionRev ?? 0,
   } as never);
 
   const target = new URL(request.url).searchParams.get("to");
   // Only same-site paths, so `?to=` can never be turned into an open redirect.
-  const destination = target?.startsWith("/") && !target.startsWith("//")
-    ? target
-    : "/portal/agency/contacts";
+  const defaultDestination = selectedUser.role === "agency-staff"
+    ? "/portal/team"
+    : selectedUser.role === "freelancer"
+      ? "/portal/freelancer"
+      : "/portal/agency/contacts";
+  const destination = target?.startsWith("/") && !target.startsWith("//") ? target : defaultDestination;
 
   const response = NextResponse.redirect(new URL(destination, request.url), 303);
   const cookie = sessionCookie(token);
   response.cookies.set(cookie.name, cookie.value, cookie.options);
   response.headers.set("cache-control", "no-store");
   console.log(
-    `[dev-mode] signed in to ${agency.name} (${agency.id}) as ${owner.email} · `
+    `[dev-mode] signed in to ${agency.name} (${agency.id}) as ${selectedUser.email} (${selectedUser.role}) · `
     + `${listClients(agency.id).length} clients · backend=${getState() ? "file/memory" : "?"}`,
   );
   return response;

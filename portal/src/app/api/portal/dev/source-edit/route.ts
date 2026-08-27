@@ -1,15 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
-import { devDocsAccessible } from "@/lib/server/dev/devDocs";
-import { getDevProject } from "@/engines/editor/server/devProjects";
+import { accessErrorResponse, requireAccessCapability } from "@/server/accessControl";
+import { requireDevProjectAccess } from "@/lib/server/dev/devProjectAccess";
 import {
   SourceEditUnavailable,
   editBranchName,
   findWordsInProject,
   publishWordsEdit,
 } from "@/engines/editor/server/sourceEdit";
-import { ensureHydrated } from "@/server/storage";
 
 /**
  * Words → source → a commit.
@@ -22,15 +20,17 @@ import { ensureHydrated } from "@/server/storage";
  *
  * ── The guards, and why each one ────────────────────────────────────────────
  *
- * FOUNDER + DEV MODE, the same layered gate as every dev-team surface and the
- * same one the files route uses for writes. Reading a repository is an
- * agency-role concern; committing to one is not.
+ * Finding source requires project/explorer view. Transforming or committing
+ * source requires project edit/explorer use; a confirmed operation that opens
+ * its default pull request additionally requires project pull-request and the
+ * publish element. The project is resolved through the canonical access
+ * kernel before any repository token or source is touched.
  *
  * ORIGIN checked, like every other mutating portal route.
  *
  * The REPOSITORY, the REF and the TOKEN are never read from the body. All
- * three come off the `DevProject` looked up by `getDevProject(session.agencyId,
- * id)` — tenant first, then project — and the token resolves per-request from
+ * three come off the tenant-resolved `DevProject` — tenant first, then
+ * project — and the token resolves per-request from
  * the encrypted vault inside `devProjectGitHubToken`. Nothing secret is in the
  * request and nothing secret is in the response: the shapes below carry a
  * branch, a commit sha and a pull request URL, none of which is a credential.
@@ -65,11 +65,6 @@ function validOrigin(request: Request) {
 
 export async function POST(request: NextRequest) {
   try {
-    await ensureHydrated();
-    const session = await requireRole(["agency-owner", "agency-manager"]);
-    if (!devDocsAccessible(session)) {
-      return NextResponse.json({ ok: false, error: "Dev Mode is required to edit source." }, { status: 403 });
-    }
     if (!validOrigin(request)) {
       return NextResponse.json({ ok: false, error: "Invalid request origin." }, { status: 403 });
     }
@@ -79,10 +74,22 @@ export async function POST(request: NextRequest) {
     if (!projectId) {
       return NextResponse.json({ ok: false, error: "A project is required." }, { status: 400 });
     }
-    // Tenant before project, everywhere.
-    const project = getDevProject(session.agencyId, projectId);
-    if (!project) {
-      return NextResponse.json({ ok: false, error: "That project could not be found." }, { status: 404 });
+    const publishes = body?.action === "publish";
+    const access = await requireDevProjectAccess({
+      projectId,
+      capability: publishes ? "project.edit" : "project.view",
+      elementCapability: publishes
+        ? "element.development.explorer.use"
+        : "element.development.explorer.view",
+    });
+    const { project } = access;
+    const agencyId = access.resourceAgencyId;
+    const sourceDeps = { allowSharedCredentials: access.resolution.ownerBaseline };
+    const opensPullRequest = publishes && body?.confirm === true && body.openPullRequest !== false;
+    if (opensPullRequest) {
+      const scope = { kind: "project" as const, id: project.id };
+      await requireAccessCapability({ capability: "project.pull-request", scope });
+      await requireAccessCapability({ capability: "element.development.publish.use", scope });
     }
 
     try {
@@ -103,7 +110,7 @@ export async function POST(request: NextRequest) {
         }
 
         const result = await publishWordsEdit({
-          agencyId: session.agencyId,
+          agencyId,
           project,
           file,
           line: body.line as number,
@@ -115,13 +122,13 @@ export async function POST(request: NextRequest) {
           confirm: body.confirm,
           openPullRequest: body.openPullRequest,
           message: body.message,
-          actorUserId: session.userId,
-        });
+          actorUserId: access.user.id,
+        }, sourceDeps);
         return NextResponse.json({ ok: true, ...result });
       }
 
       const text = typeof body?.text === "string" ? body.text : "";
-      const found = await findWordsInProject({ agencyId: session.agencyId, project, text });
+      const found = await findWordsInProject({ agencyId, project, text }, sourceDeps);
       return NextResponse.json({ ok: true, branch: editBranchName(project), ...found });
     } catch (error) {
       if (error instanceof SourceEditUnavailable) {
@@ -140,6 +147,6 @@ export async function POST(request: NextRequest) {
       }, { status: 502 });
     }
   } catch (error) {
-    return authErrorResponse(error);
+    return accessErrorResponse(error);
   }
 }

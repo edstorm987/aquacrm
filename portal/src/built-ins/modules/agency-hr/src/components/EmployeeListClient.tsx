@@ -5,6 +5,7 @@
 // add-employee modal POSTs to /staff with `agencyEmployee:true` injected.
 
 import { useState } from "react";
+import { businessCalendarDate } from "@/lib/shared/formatDateTime";
 import type { CustomRole, Staff } from "../lib/domain";
 
 export interface EmployeeListClientProps {
@@ -35,7 +36,7 @@ export function EmployeeListClient({ employees, roles, apiBase }: EmployeeListCl
           email: fd.get("email"),
           title: fd.get("title"),
           role: "agency-staff",
-          joinedAt: new Date().toISOString().slice(0, 10),
+          joinedAt: businessCalendarDate(),
           agencyEmployee: true,
           customRoleId: fd.get("customRoleId") || undefined,
           metadata: {

@@ -3,7 +3,7 @@
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
 import { customerOrders, summariseCustomers } from "../lib/admin/customers";
-import { formatPrice } from "../lib/admin/orders";
+import { formatCurrencyAmount, formatPrice } from "../lib/admin/orders";
 import { formatUkDate } from "../lib/safeDate";
 
 export default async function CustomerDetailPage(props: PluginPageProps) {
@@ -20,7 +20,16 @@ export default async function CustomerDetailPage(props: PluginPageProps) {
       <header>
         <h1>{summary.name ?? summary.email}</h1>
         <p>{summary.email}</p>
-        <p>{summary.totalOrders} order{summary.totalOrders === 1 ? "" : "s"} · {formatPrice(summary.totalSpent, "gbp")} spent</p>
+        <p>{summary.settledOrders} settled / {summary.totalOrders} total order{summary.totalOrders === 1 ? "" : "s"}</p>
+        <ul aria-label="Net spend by currency">
+          {summary.spendByCurrency.map(row => (
+            <li key={row.currency}>
+              Net {formatCurrencyAmount(row.netSpent, row.currency)}
+              {row.refunded > 0 ? ` after ${formatCurrencyAmount(row.refunded, row.currency)} refunded` : ""}
+            </li>
+          ))}
+          {summary.spendByCurrency.length === 0 ? <li>No settled spend</li> : null}
+        </ul>
       </header>
       <h2>Orders</h2>
       <ul>

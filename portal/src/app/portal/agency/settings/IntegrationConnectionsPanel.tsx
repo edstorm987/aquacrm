@@ -26,6 +26,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   INTEGRATION_CATALOG,
   integrationDefinition,
+  integrationSupportsClientScope,
   type IntegrationDefinition,
   type IntegrationProvider,
 } from "@/lib/integrations/catalog";
@@ -118,13 +119,23 @@ export function IntegrationConnectionsPanel({ clients, canManage, initialProvide
     setBusyId("");
   }
 
+  async function activateConnection(connection: PublicIntegrationConnection) {
+    setBusyId(connection.id);
+    const result = await apiRequest("POST", { action: "activate", connectionId: connection.id });
+    if (result.connections) setConnections(result.connections);
+    setNotice(result.ok
+      ? `${connection.label} is now the active ${connection.clientId ? "client" : "workspace"} connection.`
+      : result.error || "Connection could not be activated.");
+    setBusyId("");
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3 border-b border-black/10 pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold text-black/90">Connected services</h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-black/55">
-            Connect, test and manage provider credentials here. A connection can serve the whole workspace or one client only.
+            Connect, test and manage provider credentials here. Providers with client-aware consumers can override the workspace connection for one client.
           </p>
         </div>
         <div className="shrink-0 text-sm font-semibold text-black/65">
@@ -175,6 +186,7 @@ export function IntegrationConnectionsPanel({ clients, canManage, initialProvide
             onAdd={() => setModal({ provider: definition.id })}
             onEdit={connection => setModal({ provider: definition.id, connection })}
             onTest={testConnection}
+            onActivate={activateConnection}
             onRevoke={revokeConnection}
           />
         ))}
@@ -214,6 +226,7 @@ function ProviderCard({
   onAdd,
   onEdit,
   onTest,
+  onActivate,
   onRevoke,
 }: {
   definition: IntegrationDefinition;
@@ -225,6 +238,7 @@ function ProviderCard({
   onAdd: () => void;
   onEdit: (connection: PublicIntegrationConnection) => void;
   onTest: (connection: PublicIntegrationConnection) => void;
+  onActivate: (connection: PublicIntegrationConnection) => void;
   onRevoke: (connection: PublicIntegrationConnection) => void;
 }) {
   const Icon = providerIcon[definition.id];
@@ -250,6 +264,9 @@ function ProviderCard({
 
       <div className="divide-y divide-black/[0.07]">
         {loading ? <p className="p-4 text-xs text-black/40">Loading connections…</p> : null}
+        {!loading && connections.length > 0 && !connections.some(connection => connection.isActive) ? (
+          <p className="bg-amber-50 px-4 py-2 text-xs font-medium text-amber-900">No active default. Test a connection, then choose Make active.</p>
+        ) : null}
         {!loading && !connections.length ? (
           <div className="p-4">
             <p className="text-xs leading-5 text-black/45">Not connected. Open the setup flow to create the key, paste it here and test it without leaving this page unfinished.</p>
@@ -267,6 +284,7 @@ function ProviderCard({
                   <div className="flex flex-wrap items-center gap-2">
                     <ConnectionStatus connection={connection} />
                     <strong className="truncate text-sm font-medium text-black/75">{connection.label}</strong>
+                    {connection.isActive ? <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800">Active</span> : null}
                   </div>
                   <p className="mt-1 text-xs text-black/45">{clientName}{connection.lastTestedAt ? ` · tested ${formatDate(connection.lastTestedAt)}` : " · not tested yet"}</p>
                   {connection.lastTestMessage ? <p className={`mt-1 text-xs leading-5 ${connection.lastTestStatus === "failed" ? "text-red-700" : "text-black/45"}`}>{connection.lastTestMessage}</p> : null}
@@ -274,6 +292,9 @@ function ProviderCard({
                 {canManage ? (
                   <div className="flex shrink-0 items-center gap-1.5">
                     <IconButton label="Test connection" onClick={() => onTest(connection)} disabled={busy}><RefreshCw size={14} className={busy ? "animate-spin" : ""} /></IconButton>
+                    {!connection.isActive && connection.lastTestStatus === "passed" ? (
+                      <button type="button" onClick={() => onActivate(connection)} disabled={busy} className="min-h-9 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 text-[11px] font-semibold text-emerald-800 disabled:opacity-40">Make active</button>
+                    ) : null}
                     <IconButton label="Edit connection" onClick={() => onEdit(connection)} disabled={busy}><Pencil size={14} /></IconButton>
                     <IconButton label="Revoke connection" onClick={() => onRevoke(connection)} disabled={busy} destructive><Trash2 size={14} /></IconButton>
                   </div>
@@ -294,9 +315,10 @@ function ConnectionModal({ state, clients, onClose, onSaved }: {
   onSaved: (connections: PublicIntegrationConnection[], message: string) => void;
 }) {
   const definition = integrationDefinition(state.provider);
+  const clientScopeSupported = integrationSupportsClientScope(state.provider);
   const existing = state.connection;
   const [label, setLabel] = useState(existing?.label ?? definition.name);
-  const [clientId, setClientId] = useState(existing?.clientId ?? "");
+  const [clientId, setClientId] = useState(clientScopeSupported ? existing?.clientId ?? "" : "");
   const [values, setValues] = useState<Record<string, string>>(existing?.config ?? {});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -320,9 +342,12 @@ function ConnectionModal({ state, clients, onClose, onSaved }: {
     }
     const tested = await apiRequest("POST", { action: "test", connectionId: saved.connection.id });
     const nextConnections = tested.connections ?? saved.connections ?? [];
-    onSaved(nextConnections, tested.ok
-      ? tested.connection?.lastTestMessage || `${definition.name} is connected.`
-      : `${definition.name} was saved, but its test failed: ${tested.error || "check the credentials and try again."}`);
+    const passed = tested.ok && tested.connection?.lastTestStatus === "passed";
+    onSaved(nextConnections, passed
+      ? tested.connection?.isActive
+        ? tested.connection.lastTestMessage || `${definition.name} is connected and active.`
+        : `${tested.connection?.lastTestMessage || `${definition.name} passed its test.`} Make it active when you are ready to switch.`
+      : `${definition.name} was saved, but its test failed: ${tested.connection?.lastTestMessage || tested.error || "check the credentials and try again."}`);
   }
 
   return (
@@ -351,10 +376,10 @@ function ConnectionModal({ state, clients, onClose, onSaved }: {
             <Field label="Connection name" help="Use a name you will recognise later.">
               <input value={label} onChange={event => setLabel(event.target.value)} className={controlClass} maxLength={120} required />
             </Field>
-            <Field label="Use this connection for" help="Client connections override the workspace default for that client.">
+            <Field label="Use this connection for" help={clientScopeSupported ? "An active client connection overrides the active workspace default for that client." : "This provider's real consumer is workspace-only."}>
               <select value={clientId} onChange={event => setClientId(event.target.value)} className={controlClass}>
                 <option value="">Entire AquaOasis-Web workspace</option>
-                {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
+                {clientScopeSupported ? clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>) : null}
               </select>
             </Field>
           </div>

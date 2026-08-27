@@ -393,7 +393,7 @@ describe("the navigator is mounted, and says its source on screen", () => {
     const at = editor.indexOf("function goToPage");
     const body = editor.slice(at, editor.indexOf("\n  }\n", at));
     assert.match(body, /setSection\(destination\.target as ClientPortalSectionId\)/);
-    assert.match(body, /setBrowserUrl\(href\)/);
+    assert.match(body, /loadBrowserUrl\(href\)/);
     // The re-handshake is the frame remounting on a new address, not a manual
     // ping racing a page that has not loaded.
     assert.equal(/pingTag\(\)/.test(body), false, "goToPage must not ping by hand");
@@ -457,7 +457,7 @@ describe("Ed's two switchers, and the rail's +, all survived", () => {
 //     inside somebody else's page, its script is served
 //     `stale-while-revalidate`, and any script on that page can post into the
 //     frame. A receiver that leaves its rule to the sender has no rule.
-//   • Picking a row calls `setBrowserUrl`, which becomes the frame's `src`,
+//   • Picking a row calls `loadBrowserUrl`, which updates the frame's `src`,
 //     which is what `aquaTagOrigin` derives the ONE trusted origin from. So an
 //     accepted off-origin link does not merely open a page: it silently moves
 //     the trust boundary, and the next selection, patch and assistant quote
@@ -575,13 +575,13 @@ describe("the navigator asks before it discards unsaved SEO", () => {
     const body = editor.slice(at, editor.indexOf("\n  }\n", at));
     assert.match(body, /if \(!confirmSeoDiscard\(\)\) return;/);
     assert.ok(
-      body.indexOf("confirmSeoDiscard") < body.indexOf("setBrowserUrl(href)"),
+      body.indexOf("confirmSeoDiscard") < body.indexOf("loadBrowserUrl(href)"),
       "the gate must come before the move, not after it",
     );
   });
 
   it("it is the NARROW gate — a portal draft is not lost by changing page", () => {
-    assert.match(editor, /function confirmSeoDiscard\(\) \{[\s\S]{0,240}?window\.confirm\("Discard the SEO fields you have filled in for this page\?"\)/);
+    assert.match(editor, /function confirmSeoDiscard\(\) \{[\s\S]{0,160}?confirmDiscard\(\{ seoFields: seoDirty, pagePreview: tagPreviewDirty \}\)/);
     const at = editor.indexOf("function goToPage");
     const body = editor.slice(at, editor.indexOf("\n  }\n", at));
     assert.equal(/confirmDraftDiscard\(\)/.test(body), false,
@@ -589,11 +589,11 @@ describe("the navigator asks before it discards unsaved SEO", () => {
   });
 
   it("the WIDE gate covers both, and still says exactly what it always did for a draft alone", () => {
-    assert.match(editor, /if \(dirty\) losing\.push\("the unsaved changes in this draft"\)/);
-    assert.match(editor, /if \(seoDirty\) losing\.push\("the SEO fields you have filled in for this page"\)/);
-    assert.match(editor, /window\.confirm\(`Discard \$\{losing\.join\(", and "\)\}\?`\)/);
+    assert.match(editor, /function confirmDraftDiscard\(includeRepository = true\)[\s\S]{0,320}?portalDraft: dirty,[\s\S]{0,120}?seoFields: seoDirty,[\s\S]{0,120}?repositoryFiles: includeRepository \? sourceDirtyPaths\.length : 0,[\s\S]{0,120}?pagePreview: tagPreviewDirty/);
+    assert.match(editor, /const prompt = editorDiscardPrompt\(work\)/);
+    assert.match(editor, /return !prompt \|\| window\.confirm\(prompt\)/);
     // Leaving the whole tab loses them too.
-    assert.match(editor, /if \(!dirty && !seoDirty\) return;/);
+    assert.match(editor, /if \(!dirty && !seoDirty && !sourceDirtyPaths\.length && !tagPreviewDirty\) return;/);
   });
 
   it("the panel is what reports it — the editor cannot know what a page's head said", () => {

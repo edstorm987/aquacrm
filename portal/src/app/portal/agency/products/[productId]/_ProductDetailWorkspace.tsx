@@ -5,13 +5,13 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, BookOpen, Check, CircleDollarSign, FileCheck2, LayoutDashboard, ListChecks, MonitorCog, Package, Pencil, Sparkles, Users, Workflow } from "lucide-react";
 import { useState } from "react";
 
-import type { AgencyProduct, SopDocument, TradingCompany } from "@/server/types";
+import type { AgencyProduct, PortalFormFieldDefinition, SopDocument, TradingCompany } from "@/server/types";
 import { PORTAL_PRODUCT_CATALOG } from "@/lib/portal/portalProducts";
 import { defaultProductInternalWorkspace, productWorkspaceModuleLabel } from "@/lib/products/productInternalWorkspace";
 import { ProductEditor, catalogueStatus, linkedSopCount, portalLabel, priceLabel, toDraft } from "../_ProductsWorkspace";
 import { ProductRolloutCentre, type ProductRolloutClient } from "./_ProductRolloutCentre";
 
-export function ProductDetailWorkspace({ initialProduct, products, sops, companies, rolloutClients, productTemplateNeedsRefresh, initialEditing = false }: { initialProduct: AgencyProduct; products: AgencyProduct[]; sops: SopDocument[]; companies: TradingCompany[]; rolloutClients: ProductRolloutClient[]; productTemplateNeedsRefresh: boolean; initialEditing?: boolean }) {
+export function ProductDetailWorkspace({ initialProduct, products, sops, companies, customFields, rolloutClients, productTemplateNeedsRefresh, initialEditing = false }: { initialProduct: AgencyProduct; products: AgencyProduct[]; sops: SopDocument[]; companies: TradingCompany[]; customFields: PortalFormFieldDefinition[]; rolloutClients: ProductRolloutClient[]; productTemplateNeedsRefresh: boolean; initialEditing?: boolean }) {
   const router = useRouter();
   const [product, setProduct] = useState(initialProduct);
   const [editing, setEditing] = useState(initialEditing);
@@ -126,7 +126,7 @@ export function ProductDetailWorkspace({ initialProduct, products, sops, compani
         <div className="mt-5"><Label>SOPs</Label>{linkedSops.length ? <div className="mt-2 divide-y divide-black/10 border-y border-black/10">{linkedSops.map(sop => <Link key={sop.id} href={`/portal/agency/sop-library?sop=${sop.id}`} className="flex items-center justify-between gap-3 py-3 text-sm text-black/65 hover:text-black"><span>{sop.title}</span><span className="text-xs text-black/35">{sop.category || sop.kind}</span></Link>)}</div> : <Empty>No SOPs or SOP categories linked.</Empty>}</div>
       </Section>
 
-      {editing ? <ProductEditor draft={toDraft(product)} products={products.map(item => item.id === product.id ? product : item)} sops={sops} companies={companies} focusSection={initialEditing ? "stages" : undefined} onClose={() => setEditing(false)} onSaved={saved => { setProduct(saved); setEditing(false); router.refresh(); }} /> : null}
+      {editing ? <ProductEditor draft={toDraft(product)} products={products.map(item => item.id === product.id ? product : item)} sops={sops} companies={companies} customFields={customFields} focusSection={initialEditing ? "stages" : undefined} onClose={() => setEditing(false)} onSaved={saved => { setProduct(saved); setEditing(false); router.refresh(); }} /> : null}
     </div>
   );
 }

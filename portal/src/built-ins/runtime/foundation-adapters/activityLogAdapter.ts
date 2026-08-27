@@ -5,6 +5,7 @@ import type { ActivityLogPort, ListActivityFilter, LogActivityInput } from "@/bu
 export const activityLogAdapter: ActivityLogPort = {
   logActivity(input: LogActivityInput) {
     return logActivity({
+      idempotencyKey: input.idempotencyKey,
       agencyId: input.agencyId,
       clientId: input.clientId,
       actorUserId: input.actorUserId,

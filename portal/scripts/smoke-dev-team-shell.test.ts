@@ -28,6 +28,7 @@ const read = (rel: string) => readFileSync(join(ROOT, rel), "utf8");
 const LAYOUT = "src/app/portal/dev-team/layout.tsx";
 const TOPBAR = "src/components/chrome/Topbar.tsx";
 const LIBRARIAN = "src/components/chrome/LibrarianDrawerControl.tsx";
+const DEFERRED_LIBRARIAN = "src/components/chrome/DeferredLibrarianDrawerControl.tsx";
 const DRAWER = "src/components/chrome/GlobalAdvisorDrawer.tsx";
 const ADVISOR = "src/components/chrome/AdvisorDrawerControl.tsx";
 const CHAT_PAGE = "src/app/portal/dev-team/chat/page.tsx";
@@ -35,8 +36,16 @@ const CHAT_PAGE = "src/app/portal/dev-team/chat/page.tsx";
 describe("Dev Team shell — Librarian drawer", () => {
   it("the layout passes a Librarian advisorControl, not the agency fallback", () => {
     const src = read(LAYOUT);
-    assert.match(src, /import \{ LibrarianDrawerControl \} from "@\/components\/chrome\/LibrarianDrawerControl"/);
-    assert.match(src, /advisorControl=\{<LibrarianDrawerControl\b/);
+    // The small intent trigger ships with the shell; the drawer/editor graph
+    // stays behind its client-side dynamic import until hover/focus/click.
+    assert.doesNotMatch(src, /^import \{ LibrarianDrawerControl \}/m);
+    assert.match(src, /import \{ DeferredLibrarianDrawerControl \} from "@\/components\/chrome\/DeferredLibrarianDrawerControl"/);
+    assert.match(src, /advisorControl=\{[\s\S]*?<DeferredLibrarianDrawerControl\b/);
+    const deferred = read(DEFERRED_LIBRARIAN);
+    assert.match(deferred, /import\("@\/components\/chrome\/LibrarianDrawerControl"\)/);
+    assert.match(deferred, /onMouseEnter=\{preload\}/);
+    assert.match(deferred, /onFocus=\{preload\}/);
+    assert.match(deferred, /onClick=\{open\}/);
   });
 
   it("the Librarian control exists and opens the SAME drawer (not a full page)", () => {
@@ -54,13 +63,18 @@ describe("Dev Team shell — Librarian drawer", () => {
     assert.match(src, /<LibrarianPanel\b/);
   });
 
-  it("the Librarian briefs from the file-finding skill, never the business snapshot", () => {
+  it("loads the file-finding world only after the drawer opens, never from the shell render", () => {
     // v1 admitted its retrieval bridge was never built and reused
     // `buildAssistantBusinessContext` to work at all. The bridge exists now
     // (`src/lib/server/dev/fileFinding.ts`), so the business snapshot — and
     // the whole Advisor chat stack behind it — must be GONE from this control.
     const src = read(LIBRARIAN);
-    assert.match(src, /import \{ fileFindingWorld \} from "@\/lib\/server\/dev\/fileFinding"/);
+    const panel = read("src/components/editing/LibrarianPanel.tsx");
+    const route = read("src/app/api/portal/dev/librarian/route.ts");
+    assert.doesNotMatch(src, /^import .*fileFindingWorld/m, "the closed drawer never scans the file world on render");
+    assert.match(src, /<LibrarianPanel\s+loadWorld/);
+    assert.match(panel, /body: JSON\.stringify\(\{ action: "world" \}\)/);
+    assert.match(route, /body\?\.action === "world"[\s\S]*fileFindingWorld\(access\.resourceAgencyId\)/);
     // Import-form pins: the header comment is allowed to NAME what was
     // removed; importing any of it back is what must fail here.
     assert.doesNotMatch(src, /import .*buildAssistantBusinessContext/);

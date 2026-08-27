@@ -4,10 +4,13 @@ import { resolveFinanceDefaultCurrency } from "@/lib/server/finance/financeCurre
 import { describePluginSettings } from "@/lib/server/plugins/pluginSettingsSurface";
 import { PluginSettingsPanel } from "@/components/workspaces/PluginSettingsPanel";
 import { FinanceNav } from "../components/FinanceNav";
+import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
+import Link from "next/link";
 
 export default async function SettingsPage(props: PluginPageProps) {
   const c = containerFor({ agencyId: props.agencyId, storage: props.storage, install: props.install });
   const defaultCurrency = resolveFinanceDefaultCurrency(props.agencyId, props.install.config.defaultCurrency);
+  const workspace = getAgencyWorkspaceSettings(props.agencyId);
   const [categories, invoices, expenses] = await Promise.all([
     c.categories.list(),
     c.invoices.list(),
@@ -39,6 +42,16 @@ export default async function SettingsPage(props: PluginPageProps) {
           <li key={c.id}>{c.name} {c.isDefault ? "(default)" : ""} · {c.status}</li>
         ))}
       </ul>
+
+      <h2>Invoice defaults and identity</h2>
+      <p>
+        New invoices use the workspace&apos;s {workspace.defaultPaymentTermsDays}-day payment terms and {workspace.defaultTaxRatePercent}% default tax rate.
+        Seller identity is captured from Business settings when each invoice is created, so later tax-detail changes do not rewrite historical exports.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Link className="rounded-md border border-black/15 bg-white px-3 py-2 text-sm font-medium" href="/portal/agency/settings#defaults">Edit invoice defaults</Link>
+        <Link className="rounded-md border border-black/15 bg-white px-3 py-2 text-sm font-medium" href="/portal/agency/settings#account">Edit business and tax identity</Link>
+      </div>
       {declaredSettings ? <PluginSettingsPanel initial={declaredSettings} /> : null}
 
       <h2>Install</h2>

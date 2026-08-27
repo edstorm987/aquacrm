@@ -2,6 +2,11 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+  enquiryIngestionComplete,
+  enquirySubmissionId,
+  normaliseAquaSubmissionId,
+} from "../src/lib/enquiries/submissionIdentity";
 
 const source = (...p: string[]) => (readFileSync(join(__dirname, "..", ...p), "utf-8") as string)
   .replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
@@ -15,7 +20,7 @@ describe("a form submission does not become three enquiries", () => {
     // endpoint idempotent within a short window.
     const src = route();
     const guardAt = src.indexOf("DEDUPE_WINDOW_MS");
-    const insertAt = src.indexOf('.from("brand_enquiries")\n      .insert(');
+    const insertAt = src.indexOf("persistEnquiry(enquiryRow");
     assert.ok(guardAt > 0, "there is no dedupe guard");
     assert.ok(insertAt > 0, "the insert moved — re-point this test");
     assert.ok(guardAt < insertAt, "the guard must run before the insert, not after");
@@ -24,18 +29,34 @@ describe("a form submission does not become three enquiries", () => {
   it("matches on the same brand and the same contact detail", () => {
     const src = route();
     assert.match(src, /\.eq\("brand_slug", brand\)/);
-    assert.match(src, /hasEmail\s*\?\s*await recent\.eq\("email", email\)\s*:\s*await recent\.eq\("phone", phone\)/s);
+    assert.match(src, /return hasEmail \? recent\.eq\("email", email\) : recent\.eq\("phone", phone\)/);
   });
 
   it("returns the existing enquiry rather than a new one when it dedupes", () => {
     // Same success shape as a real submission, so the site cannot tell a
     // deduped submit from a first one.
-    assert.match(route(), /submissionId: existing\[0\]\.id, deduped: true/);
+    assert.match(route(), /submissionId: submissionId \|\| existingEnquiry\.id,[\s\S]*deduped: true/);
   });
 
   it("only dedupes when there is a contact detail to match on", () => {
     // With neither email nor phone there is nothing to match, so it must fall
     // through to the insert rather than merge unrelated submissions.
     assert.match(route(), /if \(hasEmail \|\| hasPhone\) \{/);
+  });
+});
+
+describe("stable Aqua submission identity", () => {
+  it("accepts only the generated public reference shape", () => {
+    assert.equal(normaliseAquaSubmissionId(" aqua_sub_0123456789abcdef "), "aqua_sub_0123456789abcdef");
+    assert.equal(normaliseAquaSubmissionId("row_123"), "");
+    assert.equal(normaliseAquaSubmissionId("aqua_sub_short"), "");
+  });
+
+  it("distinguishes an incomplete held capture from completed ingestion", () => {
+    const held = { submissionId: "aqua_sub_0123456789abcdef", captureOnly: true };
+    const complete = { ...held, ingestionState: "complete", ingestionCompletedAt: "2026-08-25T12:00:00.000Z" };
+    assert.equal(enquirySubmissionId(held), "aqua_sub_0123456789abcdef");
+    assert.equal(enquiryIngestionComplete(held), false);
+    assert.equal(enquiryIngestionComplete(complete), true);
   });
 });

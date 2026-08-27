@@ -80,7 +80,7 @@ export class ContactService {
           tags: Array.from(new Set([...existing.tags, ...(input.tags ?? [])])),
           type: mergeContactType(existing.type, input.type),
           notes: existing.notes ?? input.notes,
-          customFields: { ...(input.customFields ?? {}), ...(existing.customFields ?? {}) },
+          customFields: { ...(existing.customFields ?? {}), ...(input.customFields ?? {}) },
           promotedFromLeadId: existing.promotedFromLeadId ?? input.promotedFromLeadId,
           leadCapturedAt: existing.leadCapturedAt ?? input.leadCapturedAt,
           firstContactedAt: existing.firstContactedAt ?? input.firstContactedAt,

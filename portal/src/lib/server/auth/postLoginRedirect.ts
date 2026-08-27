@@ -9,7 +9,8 @@
 // Routing table (chapter #124 WS-A R022):
 //   agency-owner / agency-manager                     → /portal/agency
 //   agency-staff                                      → /portal/team
-//   client-owner / client-staff / freelancer          → /portal/clients/<slug>
+//   client-owner / client-staff                       → /portal/clients/<slug>
+//   freelancer                                        → /portal/freelancer
 //   end-customer                                      → /portal/customer
 //   lead (not portal-scoped yet)                      → /login
 //
@@ -55,13 +56,14 @@ export function resolvePostLoginPath(
     case "agency-staff":
       return "/portal/team";
     case "client-owner":
-    case "client-staff":
-    case "freelancer": {
+    case "client-staff": {
       if (!src.clientId) return "/portal/agency";
       const client = lookup(src.clientId);
       if (!client) return "/portal/agency";
       return `/portal/clients/${client.slug}`;
     }
+    case "freelancer":
+      return "/portal/freelancer";
     case "end-customer":
       return "/portal/customer";
     case "lead":

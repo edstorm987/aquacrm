@@ -2,10 +2,22 @@
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
 
-The source of truth: the in-memory `PortalState` singleton plus all CRUD/domain
-functions that read and `mutate` it. **57 files, all flat** (re-counted 2026-08-20) (no subdirs). Nearly
+The application-state layer: the in-memory `PortalState` singleton plus all CRUD/domain
+functions that read and `mutate` it. **56 TypeScript files** (re-counted
+2026-08-24), including the `companyPortal/` subdirectory. Nearly
 every module is a set of pure functions operating on one `PortalState`
 collection, gated by `agencyId`.
+
+> **Current reliability limit (2026-08-24):** the file backend can acknowledge
+> a detached failed write, rewrites the whole JSON blob non-atomically, and
+> interprets malformed JSON as an empty writable workspace. See issues #16–#17;
+> “goes through `mutate()`” does not by itself prove durable persistence.
+
+> **Remote-wait contract (2026-08-26):** Supabase load/save/patch and Editor AI RPC calls use the
+> shared typed deadline and caller-cancellation primitive. Reads are safe to retry, keyed patches/
+> RPCs require the same key, and an unknown full-state save requires reconciliation. Focused stall
+> proof exists; mounted and live-Supabase acceptance remains under
+> [issue #148](../development/issues.md). Port 3032 was not used or changed.
 
 > **Editing rule:** state changes go through `getState()` / `mutate(fn)` from
 > `storage.ts` — never mutate returned objects directly. Add a new collection?
@@ -61,7 +73,7 @@ collection, gated by `agencyId`.
 - `clientMilestones.ts` — Owns `clientMilestones`: CRUD + `syncClientPerformanceMilestones`.
 - `performanceExperiments.ts` — Owns `performanceExperiments` (per-client tests): CRUD.
 - `clientDelight.ts` — Owns `clientDelight` records: CRUD.
-- `clientErasure.ts` — GDPR erasure with a **disposition policy** (not blanket delete): `eraseClientCompletely` (**async**) + `previewClientErasure`. Per plugin install the sweep resolves **hook › retain › delete**: a plugin's `onEraseClient` hook is authoritative (leads-pipeline erases its `contacts/email/<email>` key-PII); `dataDisposition: "retain"` excludes legal-hold data (agency-finance, fulfillment, and for-now ecommerce/affiliates/memberships) — kept, install record kept; otherwise **delete** (client-scoped slice-drop / agency-scoped `clientId` value-scan). Top-level `RETAIN_COLLECTIONS = {clientMilestones}`. The client record is always deleted, so retained finance keeps only the random `clientId` token. **Live scrub** (optional injected `supabase` param — route passes the real admin client, tests a fake): `inbox_*` deleted + a **no-PII audit stub** (count + date span); `brand_enquiries` **anonymised**, split by identity resolution (resolved-as-client → strip PII; separate party → drop link only). Audit `collections` records disposition per area (`retained:* / deleted:* / anonymised:* / hook:*`) + the stub. Finance/contracts/deliverables confirmed NOT reached. See [plugin-data-erasure plan](../development/plans/plugin-data-erasure.md).
+- `clientErasure.ts` — GDPR erasure with a **disposition policy** (not blanket delete): `eraseClientCompletely` (**async**) + `previewClientErasure`. Per plugin install the sweep resolves **hook › retain › delete**; legal-hold data is retained and hosted inbox/enquiry rows have delete/anonymise logic. **P1 operational caveat:** the local client is deleted before the hosted scrub; live failures are captured but the route still returns success and normal retry then 404s. The metadata stub contains counts/date spans, but the surviving activity message includes the client name. See [issues #24](../development/issues.md) and the [plugin-data-erasure plan](../development/plans/plugin-data-erasure.md).
 
 ## Client portal & product delivery surface
 - `clientPortalDesigns.ts` — Owns `clientPortalTemplates`/`clientPortalInstances`: theme/layout records, draft/publish/checkpoint/restore versions.

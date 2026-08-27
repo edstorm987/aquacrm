@@ -4,10 +4,12 @@ import crypto from "node:crypto";
 
 import { decryptCalendarSecret, encryptCalendarSecret } from "@/lib/server/calendarVault";
 import { verifyIdToken } from "@/lib/server/integrations/oauthGoogle";
+import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
 import { logActivity } from "@/server/activity";
-import { getState, mutate } from "@/server/storage";
+import { flushPendingWrites, getState, mutate } from "@/server/storage";
 import type {
   CommandCalendarConnection,
+  CommandCalendarEventCreateOperation,
   CommandCalendarExternalEvent,
   CommandCalendarSource,
 } from "@/server/types";
@@ -29,6 +31,7 @@ interface OAuthState { agencyId: string; userId: string; returnUrl: string; nonc
 interface GoogleTokenResponse { access_token?: string; refresh_token?: string; expires_in?: number; scope?: string; id_token?: string; error?: string; error_description?: string }
 interface GoogleCalendarListItem { id?: string; summary?: string; description?: string; backgroundColor?: string; foregroundColor?: string; timeZone?: string; accessRole?: CommandCalendarSource["accessRole"]; primary?: boolean; selected?: boolean; deleted?: boolean }
 interface GoogleEventItem { id?: string; summary?: string; description?: string; location?: string; status?: string; htmlLink?: string; recurringEventId?: string; updated?: string; organizer?: { email?: string }; attendees?: unknown[]; start?: { date?: string; dateTime?: string }; end?: { date?: string; dateTime?: string } }
+interface GoogleEventCreatePayload { id: string; summary: string; description?: string; start: { date?: string; dateTime?: string }; end: { date?: string; dateTime?: string } }
 
 export type CommandCalendarConnectionView = Omit<CommandCalendarConnection, "encryptedAccessToken" | "encryptedRefreshToken"> & {
   canRefresh: boolean;
@@ -39,6 +42,30 @@ export interface CommandCalendarIntegrationSnapshot {
   connections: CommandCalendarConnectionView[];
   sources: CommandCalendarSource[];
   events: CommandCalendarExternalEvent[];
+}
+
+export type GoogleCalendarEventCreateStatus = "created" | "reconciled" | "replayed";
+
+export interface GoogleCalendarEventCreateResult extends CommandCalendarIntegrationSnapshot {
+  operationId: string;
+  providerEventId: string;
+  createStatus: GoogleCalendarEventCreateStatus;
+  refreshStatus: "fresh" | "stale";
+  warning?: string;
+}
+
+export class GoogleCalendarEventCreateError extends Error {
+  readonly status: number;
+  readonly remoteCreated: boolean;
+  readonly retrySafe: boolean;
+
+  constructor(message: string, options: { status?: number; remoteCreated?: boolean } = {}) {
+    super(message);
+    this.name = "GoogleCalendarEventCreateError";
+    this.status = options.status ?? 502;
+    this.remoteCreated = options.remoteCreated === true;
+    this.retrySafe = true;
+  }
 }
 
 export function readGoogleCalendarConfig(redirectFallback?: string): GoogleCalendarConfig | null {
@@ -72,6 +99,7 @@ export function buildGoogleCalendarAuthorizeUrl(
   config: GoogleCalendarConfig,
   input: { agencyId: string; userId: string; returnUrl?: string; secret: string },
 ): string {
+  assertLiveProviderAccess("Google Calendar OAuth");
   const state = signState({
     agencyId: input.agencyId,
     userId: input.userId,
@@ -112,6 +140,7 @@ export async function connectGoogleCalendarAccount(input: {
   config: GoogleCalendarConfig;
   fetchImpl?: typeof fetch;
 }): Promise<CommandCalendarIntegrationSnapshot> {
+  assertLiveProviderAccess("Google Calendar connection");
   const fetchImpl = input.fetchImpl ?? fetch;
   const response = await fetchImpl(GOOGLE_TOKEN, {
     method: "POST",
@@ -156,6 +185,7 @@ export async function connectGoogleCalendarAccount(input: {
 }
 
 export async function syncGoogleCalendars(agencyId: string, ownerUserId: string, connectionId?: string): Promise<CommandCalendarIntegrationSnapshot> {
+  assertLiveProviderAccess("Google Calendar sync");
   const config = readGoogleCalendarConfig();
   if (!config) throw new Error("Google Calendar OAuth is not configured.");
   const connections = Object.values(getState().commandCalendarConnections).filter(connection =>
@@ -174,6 +204,7 @@ export async function syncGoogleCalendars(agencyId: string, ownerUserId: string,
 export async function createGoogleCalendarEvent(input: {
   agencyId: string;
   ownerUserId: string;
+  operationId: string;
   sourceId: string;
   title: string;
   notes?: string;
@@ -181,7 +212,10 @@ export async function createGoogleCalendarEvent(input: {
   endsAt?: number;
   allDay: boolean;
   fetchImpl?: typeof fetch;
-}): Promise<CommandCalendarIntegrationSnapshot> {
+  flushImpl?: typeof flushPendingWrites;
+  logActivityImpl?: typeof logActivity;
+}): Promise<GoogleCalendarEventCreateResult> {
+  assertLiveProviderAccess("Google Calendar event creation");
   const config = readGoogleCalendarConfig();
   if (!config) throw new Error("Google Calendar OAuth is not configured.");
   const source = getState().commandCalendarSources[input.sourceId];
@@ -190,35 +224,191 @@ export async function createGoogleCalendarEvent(input: {
   const original = getState().commandCalendarConnections[source.connectionId];
   if (!original) throw new Error("Calendar account not found.");
   const connection = await ensureAccessToken(original, config, input.fetchImpl ?? fetch);
+  const flushImpl = input.flushImpl ?? flushPendingWrites;
+  const logActivityImpl = input.logActivityImpl ?? logActivity;
+  const operationId = cleanText(input.operationId, 200);
+  if (!/^[A-Za-z0-9_-]{8,200}$/.test(operationId)) throw new GoogleCalendarEventCreateError("A valid calendar operation id is required.", { status: 400 });
   const title = cleanText(input.title, 300);
   if (!title) throw new Error("Event title required.");
   if (!Number.isFinite(input.startsAt) || input.startsAt <= 0) throw new Error("Event start required.");
   const endAt = Number.isFinite(input.endsAt) && input.endsAt! > input.startsAt
     ? input.endsAt!
     : input.startsAt + 60 * 60 * 1_000;
-  const payload = input.allDay
+  const operationRecordId = stableId("gcal_create", input.agencyId, input.ownerUserId, operationId);
+  const providerEventId = `aqua${crypto.createHash("sha256").update(`${input.agencyId}\u0000${input.ownerUserId}\u0000${operationId}`).digest("hex").slice(0, 48)}`;
+  const requestFingerprint = crypto.createHash("sha256").update(JSON.stringify({
+    sourceId: source.id,
+    title,
+    notes: cleanText(input.notes, 6_000),
+    startsAt: input.startsAt,
+    endsAt: endAt,
+    allDay: input.allDay,
+  })).digest("hex");
+  const existingOperation = getState().commandCalendarEventCreateOperations[operationRecordId];
+  if (existingOperation && existingOperation.requestFingerprint !== requestFingerprint) {
+    throw new GoogleCalendarEventCreateError("That calendar operation id was already used for a different event.", { status: 409 });
+  }
+  if (!existingOperation) {
+    const now = Date.now();
+    const operation: CommandCalendarEventCreateOperation = {
+      id: operationRecordId,
+      operationId,
+      requestFingerprint,
+      agencyId: input.agencyId,
+      ownerUserId: input.ownerUserId,
+      connectionId: connection.id,
+      sourceId: source.id,
+      providerEventId,
+      status: "pending",
+      createdAt: now,
+      updatedAt: now,
+    };
+    mutate(state => { state.commandCalendarEventCreateOperations[operation.id] = operation; });
+    await flushCreateBoundary("Aqua could not save the retry-safe calendar operation before contacting Google.", false, flushImpl);
+  }
+
+  const currentOperation = getState().commandCalendarEventCreateOperations[operationRecordId]!;
+  const knownEventId = currentOperation.providerEventId || providerEventId;
+  const knownLocalId = stableId("gcal_event", connection.id, source.providerCalendarId, knownEventId);
+  const knownLocalEvent = getState().commandCalendarExternalEvents[knownLocalId];
+  if (currentOperation.status === "completed" && currentOperation.refreshStatus === "fresh" && knownLocalEvent) {
+    await flushCreateBoundary("Aqua could not confirm the saved calendar operation. Retry this same save safely.", true, flushImpl);
+    return calendarCreateResult(input.agencyId, input.ownerUserId, operationId, knownEventId, "replayed", "fresh");
+  }
+
+  const payload: GoogleEventCreatePayload = input.allDay
     ? {
+        id: providerEventId,
         summary: title,
         description: cleanText(input.notes, 6_000) || undefined,
         start: { date: localDate(input.startsAt) },
         end: { date: localDate((Number.isFinite(input.endsAt) && input.endsAt! >= input.startsAt ? input.endsAt! : input.startsAt) + 86_400_000) },
       }
     : {
+        id: providerEventId,
         summary: title,
         description: cleanText(input.notes, 6_000) || undefined,
         start: { dateTime: new Date(input.startsAt).toISOString() },
         end: { dateTime: new Date(endAt).toISOString() },
       };
-  const url = new URL(`${GOOGLE_CALENDAR}/calendars/${encodeURIComponent(source.providerCalendarId)}/events`);
-  const response = await (input.fetchImpl ?? fetch)(url, {
-    method: "POST",
-    headers: { authorization: `Bearer ${decryptCalendarSecret(connection.encryptedAccessToken)}`, accept: "application/json", "content-type": "application/json" },
-    body: JSON.stringify(payload),
+  const fetchImpl = input.fetchImpl ?? fetch;
+  let adoptedEvent = knownLocalEvent;
+  let createStatus: GoogleCalendarEventCreateStatus = knownLocalEvent ? "replayed" : "created";
+  let adoptedProviderEventId = knownEventId;
+
+  if (!adoptedEvent) {
+    let providerItem: GoogleEventItem;
+    if (currentOperation.status === "pending") {
+      const url = new URL(`${GOOGLE_CALENDAR}/calendars/${encodeURIComponent(source.providerCalendarId)}/events`);
+      let response: Response;
+      try {
+        response = await fetchImpl(url, {
+          method: "POST",
+          headers: { authorization: `Bearer ${decryptCalendarSecret(connection.encryptedAccessToken)}`, accept: "application/json", "content-type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } catch (error) {
+        await recordCreateFailure(operationRecordId, safeError(error), flushImpl);
+        throw new GoogleCalendarEventCreateError("Google Calendar could not be reached. Retry this same save safely.");
+      }
+      if (response.ok) {
+        providerItem = await response.json().catch(() => ({})) as GoogleEventItem;
+      } else if (response.status === 409) {
+        providerItem = await fetchGoogleEvent(connection, source, providerEventId, fetchImpl);
+        createStatus = "reconciled";
+      } else {
+        const message = `Google Calendar could not create the event (${response.status}).`;
+        await recordCreateFailure(operationRecordId, message, flushImpl);
+        throw new GoogleCalendarEventCreateError(message);
+      }
+    } else {
+      providerItem = await fetchGoogleEvent(connection, source, knownEventId, fetchImpl);
+      createStatus = "reconciled";
+    }
+
+    adoptedProviderEventId = cleanText(providerItem.id, 300) || providerEventId;
+    const normalised = normaliseGoogleEvent({ ...payload, ...providerItem, id: adoptedProviderEventId }, connection, source);
+    if (!normalised) {
+      await recordCreateFailure(operationRecordId, "Google created the event but returned an unreadable event record.", flushImpl);
+      throw new GoogleCalendarEventCreateError(
+        "Google created the event, but Aqua could not adopt its event record yet. Retry this same save safely.",
+        { status: 503, remoteCreated: true },
+      );
+    }
+    const now = Date.now();
+    mutate(state => {
+      const prior = state.commandCalendarExternalEvents[normalised.id];
+      state.commandCalendarExternalEvents[normalised.id] = { ...normalised, createdAt: prior?.createdAt ?? normalised.createdAt, updatedAt: now };
+      const operation = state.commandCalendarEventCreateOperations[operationRecordId];
+      if (operation) state.commandCalendarEventCreateOperations[operationRecordId] = {
+        ...operation,
+        providerEventId: adoptedProviderEventId,
+        status: "adopted",
+        lastError: undefined,
+        adoptedAt: operation.adoptedAt ?? now,
+        updatedAt: now,
+      };
+    });
+    adoptedEvent = getState().commandCalendarExternalEvents[normalised.id];
+  } else if (currentOperation.status === "pending") {
+    const now = Date.now();
+    mutate(state => {
+      const operation = state.commandCalendarEventCreateOperations[operationRecordId];
+      if (operation) state.commandCalendarEventCreateOperations[operationRecordId] = {
+        ...operation,
+        status: "adopted",
+        adoptedAt: operation.adoptedAt ?? now,
+        lastError: undefined,
+        updatedAt: now,
+      };
+    });
+  }
+
+  try {
+    logActivityImpl({
+      idempotencyKey: `calendar.google_event_created:${operationId}`,
+      agencyId: input.agencyId,
+      actorUserId: input.ownerUserId,
+      category: "system",
+      action: "calendar.google_event_created",
+      message: `Added “${title}” to ${source.name} on Google Calendar.`,
+      metadata: { connectionId: connection.id, sourceId: source.id, operationId, providerEventId: adoptedProviderEventId },
+    });
+  } catch {
+    await flushCreateBoundary("Google created the event, but Aqua could not persist its local record yet. Retry this same save safely.", true, flushImpl);
+    throw new GoogleCalendarEventCreateError("Google created the event, but its activity record is still pending. Retry this same save safely.", { status: 503, remoteCreated: true });
+  }
+  await flushCreateBoundary("Google created the event, but Aqua could not persist its local record yet. Retry this same save safely.", true, flushImpl);
+
+  let refreshStatus: "fresh" | "stale" = "fresh";
+  let warning: string | undefined;
+  try {
+    await syncGoogleCalendarConnection(input.agencyId, input.ownerUserId, connection.id, { config, fetchImpl });
+  } catch (error) {
+    refreshStatus = "stale";
+    warning = `Event created on Google. The wider calendar refresh is stale: ${safeError(error)}`;
+  }
+  const now = Date.now();
+  mutate(state => {
+    if (adoptedEvent && !state.commandCalendarExternalEvents[adoptedEvent.id]) {
+      state.commandCalendarExternalEvents[adoptedEvent.id] = { ...adoptedEvent, updatedAt: now };
+    }
+    const operation = state.commandCalendarEventCreateOperations[operationRecordId];
+    if (operation) state.commandCalendarEventCreateOperations[operationRecordId] = {
+      ...operation,
+      status: "completed",
+      refreshStatus,
+      lastError: warning,
+      completedAt: now,
+      updatedAt: now,
+    };
   });
-  if (!response.ok) throw new Error(`Google Calendar could not create the event (${response.status}).`);
-  await syncGoogleCalendarConnection(input.agencyId, input.ownerUserId, connection.id, { config, fetchImpl: input.fetchImpl });
-  logActivity({ agencyId: input.agencyId, actorUserId: input.ownerUserId, category: "system", action: "calendar.google_event_created", message: `Added “${title}” to ${source.name} on Google Calendar.`, metadata: { connectionId: connection.id, sourceId: source.id } });
-  return getCommandCalendarIntegrationSnapshot(input.agencyId, input.ownerUserId);
+  await flushCreateBoundary(
+    "Google created the event, but Aqua could not persist its final refresh status. Retry this same save safely.",
+    true,
+    flushImpl,
+  );
+  return calendarCreateResult(input.agencyId, input.ownerUserId, operationId, adoptedProviderEventId, createStatus, refreshStatus, warning);
 }
 
 export async function syncGoogleCalendarConnection(
@@ -227,6 +417,7 @@ export async function syncGoogleCalendarConnection(
   connectionId: string,
   deps: { config: GoogleCalendarConfig; fetchImpl?: typeof fetch },
 ): Promise<void> {
+  assertLiveProviderAccess("Google Calendar sync");
   const fetchImpl = deps.fetchImpl ?? fetch;
   const original = getState().commandCalendarConnections[connectionId];
   if (!original || original.agencyId !== agencyId || original.ownerUserId !== ownerUserId) throw new Error("Calendar connection not found.");
@@ -277,6 +468,7 @@ export function disconnectGoogleCalendar(agencyId: string, ownerUserId: string, 
     delete state.commandCalendarConnections[connectionId];
     for (const source of Object.values(state.commandCalendarSources)) if (source.connectionId === connectionId) delete state.commandCalendarSources[source.id];
     for (const event of Object.values(state.commandCalendarExternalEvents)) if (event.connectionId === connectionId) delete state.commandCalendarExternalEvents[event.id];
+    for (const operation of Object.values(state.commandCalendarEventCreateOperations)) if (operation.connectionId === connectionId) delete state.commandCalendarEventCreateOperations[operation.id];
   });
   logActivity({ agencyId, actorUserId: ownerUserId, category: "system", action: "calendar.google_disconnected", message: `Disconnected Google Calendar for ${connection.accountEmail}.`, metadata: { connectionId } });
   return true;
@@ -417,7 +609,63 @@ export function normaliseGoogleEvent(item: GoogleEventItem, connection: CommandC
   };
 }
 
+async function fetchGoogleEvent(
+  connection: CommandCalendarConnection,
+  source: CommandCalendarSource,
+  providerEventId: string,
+  fetchImpl: typeof fetch,
+): Promise<GoogleEventItem> {
+  const url = new URL(`${GOOGLE_CALENDAR}/calendars/${encodeURIComponent(source.providerCalendarId)}/events/${encodeURIComponent(providerEventId)}`);
+  const response = await googleRequest(url, decryptCalendarSecret(connection.encryptedAccessToken), fetchImpl);
+  const item = await response.json().catch(() => ({})) as GoogleEventItem;
+  if (!item.id) throw new GoogleCalendarEventCreateError(
+    "Google has the event, but Aqua could not read it back yet. Retry this same save safely.",
+    { status: 503, remoteCreated: true },
+  );
+  return item;
+}
+
+async function recordCreateFailure(operationRecordId: string, message: string, flushImpl: typeof flushPendingWrites): Promise<void> {
+  mutate(state => {
+    const operation = state.commandCalendarEventCreateOperations[operationRecordId];
+    if (operation) state.commandCalendarEventCreateOperations[operationRecordId] = {
+      ...operation,
+      lastError: cleanText(message, 500),
+      updatedAt: Date.now(),
+    };
+  });
+  await flushCreateBoundary("Aqua could not persist the failed calendar attempt. Retry this same save safely.", false, flushImpl);
+}
+
+async function flushCreateBoundary(message: string, remoteCreated: boolean, flushImpl: typeof flushPendingWrites): Promise<void> {
+  try {
+    await flushImpl();
+  } catch {
+    throw new GoogleCalendarEventCreateError(message, { status: 503, remoteCreated });
+  }
+}
+
+function calendarCreateResult(
+  agencyId: string,
+  ownerUserId: string,
+  operationId: string,
+  providerEventId: string,
+  createStatus: GoogleCalendarEventCreateStatus,
+  refreshStatus: "fresh" | "stale",
+  warning?: string,
+): GoogleCalendarEventCreateResult {
+  return {
+    ...getCommandCalendarIntegrationSnapshot(agencyId, ownerUserId),
+    operationId,
+    providerEventId,
+    createStatus,
+    refreshStatus,
+    warning,
+  };
+}
+
 async function googleRequest(url: URL, accessToken: string, fetchImpl: typeof fetch): Promise<Response> {
+  assertLiveProviderAccess("Google Calendar");
   const response = await fetchImpl(url, { headers: { authorization: `Bearer ${accessToken}`, accept: "application/json" } });
   if (!response.ok) {
     const body = await response.text().catch(() => "");

@@ -236,7 +236,7 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
             ? "Compose ordered guides from the SOPs already in your library."
             : "Procedures, documents, presentations and training media in one organised library."}</p>
         </div>
-        {view === "library" ? (
+        {view === "library" && canManageGuides ? (
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => setCreatingCategory(current => !current)} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/12 bg-white px-3 text-sm font-medium text-black/70">
               <FolderPlus size={16} /> Create category
@@ -251,7 +251,7 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
               <PenLine size={16} /> Write SOP
             </button>
           </div>
-        ) : canManageGuides ? (
+        ) : view === "guides" && canManageGuides ? (
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => setGuideEditor({ mode: "create", draft: { ...EMPTY_GUIDE_DRAFT } })} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white">
               <Plus size={16} /> New guide
@@ -283,7 +283,7 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
       ) : (
       <>
 
-      {creatingCategory ? (
+      {canManageGuides && creatingCategory ? (
         <section className="mt-4 grid gap-2 rounded-lg border border-black/10 bg-black/[0.025] p-3 sm:grid-cols-[1fr_auto_auto]">
           <input
             autoFocus
@@ -314,10 +314,10 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
             <span className="mm-area-icon mx-auto grid size-12 place-items-center rounded-lg"><BookOpen size={21} /></span>
             <h2 className="mt-4 text-lg font-semibold text-black/80">No SOPs yet</h2>
             <p className="mt-1 text-sm leading-6 text-black/45">Write your first procedure or upload an existing document when you are ready.</p>
-            <div className="mt-5 flex justify-center gap-2">
+            {canManageGuides ? <div className="mt-5 flex justify-center gap-2">
               <button type="button" onClick={() => setUploadOpen(true)} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/12 px-3 text-sm font-medium"><FileUp size={15} /> Upload file</button>
               <button type="button" onClick={() => openWriter()} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white"><PenLine size={15} /> Write SOP</button>
-            </div>
+            </div> : <p className="mt-4 text-xs font-semibold text-sky-700">Read-only showcase</p>}
           </div>
         </section>
       ) : (
@@ -363,13 +363,13 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
                     </span>
                     <strong className="relative pointer-events-none mt-3 block truncate pr-8 text-sm">{folder.label}</strong>
                     <span className="relative pointer-events-none mt-1 block text-xs text-black/42">{folder.written} written · {folder.uploaded} uploads</span>
-                    {folder.id !== "uncategorised" ? <button type="button" title={`Delete ${folder.label} category`} onClick={() => setDeletingCategory({ category: folder.id, replacementCategory: "" })} className="absolute bottom-3 right-3 z-10 grid size-8 place-items-center rounded-md text-black/30 hover:bg-red-50 hover:text-red-700"><Trash2 size={15} /></button> : null}
+                    {canManageGuides && folder.id !== "uncategorised" ? <button type="button" title={`Delete ${folder.label} category`} onClick={() => setDeletingCategory({ category: folder.id, replacementCategory: "" })} className="absolute bottom-3 right-3 z-10 grid size-8 place-items-center rounded-md text-black/30 hover:bg-red-50 hover:text-red-700"><Trash2 size={15} /></button> : null}
                   </article>
                 );
               })}
-              <button type="button" onClick={() => setCreatingCategory(true)} className="grid min-h-32 place-items-center rounded-lg border border-dashed border-black/15 bg-white p-4 text-center text-sm font-semibold text-black/45 hover:border-black/30 hover:text-black/65">
+              {canManageGuides ? <button type="button" onClick={() => setCreatingCategory(true)} className="grid min-h-32 place-items-center rounded-lg border border-dashed border-black/15 bg-white p-4 text-center text-sm font-semibold text-black/45 hover:border-black/30 hover:text-black/65">
                 <span><FolderPlus className="mx-auto mb-2" size={20} />Create category</span>
-              </button>
+              </button> : null}
             </div>
           </section> : null}
 
@@ -380,7 +380,7 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
                 <p className="mt-0.5 text-xs text-black/42">{visible.length} result{visible.length === 1 ? "" : "s"}{tagFilter !== "all" ? ` tagged ${tagFilter}` : ""}.</p>
               </div>
               <div className="flex items-center gap-2">
-                {categoryFilter !== "all" && categoryFilter !== "uncategorised" ? <button type="button" title="Delete category" onClick={() => setDeletingCategory({ category: categoryFilter, replacementCategory: "" })} className="grid size-9 place-items-center rounded-md border border-black/10 bg-white text-black/40 hover:border-red-200 hover:bg-red-50 hover:text-red-700"><Trash2 size={15} /></button> : null}
+                {canManageGuides && categoryFilter !== "all" && categoryFilter !== "uncategorised" ? <button type="button" title="Delete category" onClick={() => setDeletingCategory({ category: categoryFilter, replacementCategory: "" })} className="grid size-9 place-items-center rounded-md border border-black/10 bg-white text-black/40 hover:border-red-200 hover:bg-red-50 hover:text-red-700"><Trash2 size={15} /></button> : null}
                 {categoryFilter !== "all" ? <button type="button" onClick={() => setCategoryFilter("all")} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/62"><ChevronLeft size={13} /> Back to folders</button> : null}
               </div>
             </div>
@@ -389,7 +389,7 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
                 <span className="mm-area-icon grid size-10 shrink-0 place-items-center rounded-md">
                   {resourceIcon(sop)}
                 </span>
-                <button type="button" onClick={() => sop.kind === "interactive" ? editComposer(sop) : sop.kind === "written" ? setEditor({
+                <button type="button" disabled={!canManageGuides} onClick={() => sop.kind === "interactive" ? editComposer(sop) : sop.kind === "written" ? setEditor({
                   id: sop.id,
                   title: sop.title,
                   category: sop.category ?? "",
@@ -407,13 +407,13 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
                 </button>
                 <div className="flex shrink-0 items-center gap-1 self-end sm:self-auto">
                   {sop.kind === "file" ? <a href={`/api/portal/sops/content?id=${encodeURIComponent(sop.id)}`} target="_blank" rel="noreferrer" title="Open file" className="grid size-9 place-items-center rounded-md text-black/45 hover:bg-black/[0.04] hover:text-black"><Download size={16} /></a> : null}
-                  <button type="button" title="Move, categorise or tag SOP" onClick={() => setOrganisingSop(sop)} className="grid size-9 place-items-center rounded-md text-black/40 hover:bg-black/[0.04] hover:text-black"><FolderInput size={16} /></button>
-                  <button type="button" title="Delete SOP" onClick={() => void remove(sop)} className="grid size-9 place-items-center rounded-md text-black/35 hover:bg-red-50 hover:text-red-700"><Trash2 size={16} /></button>
+                  {canManageGuides ? <><button type="button" title="Move, categorise or tag SOP" onClick={() => setOrganisingSop(sop)} className="grid size-9 place-items-center rounded-md text-black/40 hover:bg-black/[0.04] hover:text-black"><FolderInput size={16} /></button>
+                  <button type="button" title="Delete SOP" onClick={() => void remove(sop)} className="grid size-9 place-items-center rounded-md text-black/35 hover:bg-red-50 hover:text-red-700"><Trash2 size={16} /></button></> : null}
                 </div>
               </article>
             )) : <div className="mm-surface-card rounded-lg border border-dashed border-black/15 px-4 py-12 text-center text-sm text-black/45">
               <p>No SOPs match this view.</p>
-              <button type="button" onClick={() => openWriter(selectedCategory)} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white"><PenLine size={15} /> Write SOP here</button>
+              {canManageGuides ? <button type="button" onClick={() => openWriter(selectedCategory)} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white"><PenLine size={15} /> Write SOP here</button> : null}
             </div>}
           </section> : null}
         </>
@@ -421,42 +421,42 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
       </>
       )}
 
-      {editor ? <WrittenSopModal
+      {canManageGuides && editor ? <WrittenSopModal
         draft={editor}
         categories={categories}
         onClose={() => setEditor(null)}
         onSaved={sop => { upsert(sop); setEditor(null); }}
         onError={setError}
       /> : null}
-      {uploadOpen ? <UploadSopModal
+      {canManageGuides && uploadOpen ? <UploadSopModal
         categories={categories}
         initialCategory={selectedCategory}
         onClose={() => setUploadOpen(false)}
         onUploaded={sop => { upsert(sop); setUploadOpen(false); }}
         onError={setError}
       /> : null}
-      {editingFile ? <FileDetailsModal
+      {canManageGuides && editingFile ? <FileDetailsModal
         sop={editingFile}
         categories={categories}
         onClose={() => setEditingFile(null)}
         onSaved={sop => { upsert(sop); setEditingFile(null); }}
         onError={setError}
       /> : null}
-      {organisingSop ? <OrganiseSopModal
+      {canManageGuides && organisingSop ? <OrganiseSopModal
         sop={organisingSop}
         categories={categories}
         onClose={() => setOrganisingSop(null)}
         onSaved={sop => { upsert(sop); setOrganisingSop(null); }}
         onError={setError}
       /> : null}
-      {composer ? <InteractiveSopComposerModal
+      {canManageGuides && composer ? <InteractiveSopComposerModal
         draft={composer}
         categories={categories}
         onClose={() => setComposer(null)}
         onSaved={sop => { upsert(sop); setComposer(null); }}
         onError={setError}
       /> : null}
-      {deletingCategory ? <Modal title="Delete category" onClose={() => setDeletingCategory(null)}>
+      {canManageGuides && deletingCategory ? <Modal title="Delete category" onClose={() => setDeletingCategory(null)}>
         <div className="grid gap-4">
           <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
             <strong className="block">Delete “{deletingCategory.category}”?</strong>

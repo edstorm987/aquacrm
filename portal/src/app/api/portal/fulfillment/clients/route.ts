@@ -1,22 +1,29 @@
-// POST /api/portal/fulfillment/clients
+// GET/POST /api/portal/fulfillment/clients
 //
 // Backs the "+ New client" modal on the agency home
 // (src/app/portal/agency/_NewClientButton.tsx). Creates a client under
-// the caller's active agency via the canonical createClient() in
-// @/server/tenants. Auth-required.
+// the caller's active agency through the resumable fulfillment lifecycle.
 
+import { randomUUID } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
-import { ensureHydrated, getState, mutate } from "@/server/storage";
-import { createClient, getAgency } from "@/server/tenants";
-import { getSessionFromRequest } from "@/lib/server/auth/auth";
-import { logActivity } from "@/server/activity";
+import { ensureHydrated, flushPendingWrites } from "@/server/storage";
+import { getAgency, listClients } from "@/server/tenants";
+import { authErrorResponse } from "@/lib/server/auth/auth";
 import { setupClientStarterPortal, type ClientPortalSetupResult } from "@/server/clientPortalSetup";
 import { customerPortalProvisioningMetadata } from "@/lib/server/clients/customerPortalProvisioning";
 import { createClientDelight } from "@/server/clientDelight";
 import type { ClientStage } from "@/server/types";
 import { getTradingCompany } from "@/server/tradingCompanies";
+import { PortalFormValidationError } from "@/lib/forms/portalFormValues";
+import {
+  ClientLifecycleOperationConflictError,
+  ClientLifecyclePhaseNotFoundError,
+  createClientWithLifecycleOperation,
+} from "@/lib/server/clients/clientLifecycle";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 
 interface Body {
+  operationId?: string;
   name?: string;
   slug?: string;
   ownerEmail?: string;
@@ -34,15 +41,32 @@ interface Body {
   };
 }
 
+export async function GET() {
+  try {
+    await ensureHydrated();
+    const { actor } = await requireCurrentWorkspaceElementAccess("fulfilment", "fulfilment.services", "view");
+    const agencyId = actor.resourceAgencyId;
+    if (!getAgency(agencyId)) {
+      return NextResponse.json({ ok: false, error: "no active agency" }, { status: 403 });
+    }
+    return NextResponse.json({ ok: true, clients: listClients(agencyId) });
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+}
+
 export async function POST(req: NextRequest) {
   await ensureHydrated();
 
-  const session = await getSessionFromRequest(req);
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthenticated" }, { status: 401 });
+  let current;
+  try {
+    current = await requireCurrentWorkspaceElementAccess("fulfilment", "fulfilment.services", "manage");
+  } catch (error) {
+    return authErrorResponse(error);
   }
-  const agencyId = session.activeAgencyId ?? session.agencyId;
-  if (!agencyId || !getAgency(agencyId)) {
+  const session = current.actor.session;
+  const agencyId = current.actor.resourceAgencyId;
+  if (!getAgency(agencyId)) {
     return NextResponse.json({ ok: false, error: "no active agency" }, { status: 403 });
   }
 
@@ -59,47 +83,67 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const beforeCreate = structuredClone(getState());
     const suppliedMetadata = body.metadata ?? {};
     const createPortal = body.createPortal === true;
+    const stage = body.stage ?? "aqua-epic-intro";
+    const operationId = body.operationId?.trim() || `new-client:${randomUUID()}`;
     const companyId = body.companyId?.trim();
     if (companyId && !getTradingCompany(agencyId, companyId)) {
       return NextResponse.json({ ok: false, error: "client-facing brand not found" }, { status: 400 });
     }
-    const client = createClient(agencyId, {
-      name,
-      slug: body.slug?.trim() || undefined,
-      ownerEmail: body.ownerEmail?.trim() || undefined,
-      stage: body.stage,
-      companyId: companyId || undefined,
-      brand: body.brand?.primaryColor || body.brand?.logoUrl
-        ? { primaryColor: body.brand.primaryColor, logoUrl: body.brand.logoUrl }
-        : undefined,
-      metadata: {
-        ...suppliedMetadata,
-        portalRequired: createPortal,
-        ...(createPortal
-          ? customerPortalProvisioningMetadata({
-              clientName: name,
-              contactName: body.starterPortal?.contactName
-                ?? (typeof suppliedMetadata.contactName === "string" ? suppliedMetadata.contactName : undefined),
-              email: body.ownerEmail,
-              servicePlan: body.starterPortal?.planTier
-                ?? (typeof suppliedMetadata.planTier === "string" ? suppliedMetadata.planTier : undefined),
-            })
-          : {}),
+    const metadata = {
+      ...suppliedMetadata,
+      customFields: suppliedMetadata.customFields ?? {},
+      portalRequired: createPortal,
+      ...(createPortal
+        ? customerPortalProvisioningMetadata({
+            clientName: name,
+            contactName: body.starterPortal?.contactName
+              ?? (typeof suppliedMetadata.contactName === "string" ? suppliedMetadata.contactName : undefined),
+            email: body.ownerEmail,
+            servicePlan: body.starterPortal?.planTier
+              ?? (typeof suppliedMetadata.planTier === "string" ? suppliedMetadata.planTier : undefined),
+          })
+        : {}),
+    };
+    const creation = await createClientWithLifecycleOperation({
+      agencyId,
+      actor: session.userId,
+      operationId,
+      createInput: {
+        name,
+        slug: body.slug?.trim() || undefined,
+        ownerEmail: body.ownerEmail?.trim() || undefined,
+        stage,
+        companyId: companyId || undefined,
+        brand: body.brand?.primaryColor || body.brand?.logoUrl
+          ? { primaryColor: body.brand.primaryColor, logoUrl: body.brand.logoUrl }
+          : undefined,
+        metadata,
+      },
+      requestFingerprint: {
+        name,
+        slug: body.slug?.trim() || undefined,
+        ownerEmail: body.ownerEmail?.trim().toLowerCase() || undefined,
+        stage,
+        companyId: companyId || undefined,
+        brand: body.brand,
+        metadata,
+        createPortal,
+        starterPortal: body.starterPortal,
       },
     });
-
-    logActivity({
-      agencyId,
-      actorUserId: session.userId,
-      actorEmail: session.email,
-      category: "tenant",
-      action: "create",
-      message: `Created client "${client.name}".`,
-      clientId: client.id,
-    });
+    const client = creation.client;
+    if (!creation.ok) {
+      return NextResponse.json({
+        ok: false,
+        error: creation.error ?? "Client lifecycle setup is incomplete.",
+        code: "client_lifecycle_incomplete",
+        client: { id: client.id, name: client.name, slug: client.slug },
+        lifecycle: creation.lifecycle,
+        retryable: true,
+      }, { status: 503 });
+    }
 
     let portalSetup: ClientPortalSetupResult | null = null;
     if (createPortal) {
@@ -116,22 +160,15 @@ export async function POST(req: NextRequest) {
         },
       });
       if (!portalSetup.ok) {
-        mutate(state => {
-          state.agencies = beforeCreate.agencies;
-          state.clients = beforeCreate.clients;
-          state.endCustomers = beforeCreate.endCustomers;
-          state.users = beforeCreate.users;
-          state.pluginInstalls = beforeCreate.pluginInstalls;
-          state.pluginData = beforeCreate.pluginData;
-          state.phases = beforeCreate.phases;
-          state.activity = beforeCreate.activity;
-          state.clientRecordLedger = beforeCreate.clientRecordLedger;
-          state.pipelines = beforeCreate.pipelines;
-          state.pipelineCards = beforeCreate.pipelineCards;
-        });
         return NextResponse.json(
-          { ok: false, error: `client portal setup failed: ${portalSetup.error}` },
-          { status: 500 },
+          {
+            ok: false,
+            error: `Client created, but customer portal setup is incomplete: ${portalSetup.error}`,
+            code: "client_portal_setup_incomplete",
+            client: { id: client.id, name: client.name, slug: client.slug },
+            retryable: true,
+          },
+          { status: 503 },
         );
       }
     }
@@ -144,6 +181,7 @@ export async function POST(req: NextRequest) {
         ? suppliedMetadata.welcomePackNotes.trim()
         : "";
       createClientDelight(agencyId, {
+        idempotencyKey: `new-client-welcome:${operationId}`,
         clientId: client.id,
         recipientName: client.name,
         occasion: "welcome",
@@ -153,12 +191,28 @@ export async function POST(req: NextRequest) {
       }, session.userId);
     }
 
+    await flushPendingWrites();
+
     return NextResponse.json({
       ok: true,
       client: { id: client.id, name: client.name, slug: client.slug },
       portalSetup,
-    });
+      lifecycle: creation.lifecycle,
+      replayed: creation.replayed,
+    }, { status: creation.replayed ? 200 : 201 });
   } catch (err) {
+    if (err instanceof PortalFormValidationError) {
+      return NextResponse.json(
+        { ok: false, error: err.message, fieldId: err.fieldId },
+        { status: 422 },
+      );
+    }
+    if (err instanceof ClientLifecyclePhaseNotFoundError) {
+      return NextResponse.json({ ok: false, error: err.message, code: "phase_not_found" }, { status: 409 });
+    }
+    if (err instanceof ClientLifecycleOperationConflictError) {
+      return NextResponse.json({ ok: false, error: err.message, code: "operation_conflict" }, { status: 409 });
+    }
     return NextResponse.json(
       { ok: false, error: err instanceof Error ? err.message : "create failed" },
       { status: 500 },

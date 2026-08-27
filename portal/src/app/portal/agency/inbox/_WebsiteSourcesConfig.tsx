@@ -137,6 +137,10 @@ export function WebsiteSourcesConfig() {
   }
 
   async function remove(source: WebsiteSource) {
+    const confirmed = window.confirm(
+      `Permanently remove ${source.host}? This deletes its registration, tool injections and imported form schemas. This cannot be undone.`,
+    );
+    if (!confirmed) return;
     setError(null);
     setSources(current => current.filter(s => s.id !== source.id));
     try {
@@ -289,7 +293,8 @@ export function WebsiteSourcesConfig() {
                 <button
                   type="button"
                   onClick={() => void remove(source)}
-                  aria-label={`Remove ${source.host}`}
+                  aria-label={`Permanently remove ${source.host}`}
+                  title="Delete this registered site, its tool injections and imported form schemas"
                   className="grid size-9 place-items-center rounded-md border border-black/10 text-black/35 hover:border-red-300 hover:bg-red-50 hover:text-red-600"
                 ><Trash2 size={14} aria-hidden /></button>
               </div>

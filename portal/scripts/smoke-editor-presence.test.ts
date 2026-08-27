@@ -26,7 +26,7 @@ describe("editor presence", () => {
     assert.ok(!/setInterval/.test(route), "the server does not poll; it reads cached signals");
   });
 
-  it("is founder + Dev Mode gated like every dev-team surface", () => {
+  it("is founder-only Dev Team gated like every internal surface", () => {
     assert.match(route, /requireRole\(\["agency-owner", "agency-manager"\]\)/);
     assert.match(route, /devDocsAccessible\(session\)/);
   });

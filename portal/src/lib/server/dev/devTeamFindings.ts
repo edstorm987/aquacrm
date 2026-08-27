@@ -1,12 +1,27 @@
 import "server-only";
 
-import { readdir, readFile, writeFile, mkdir, stat, unlink } from "node:fs/promises";
 import { join, resolve, sep, basename } from "node:path";
 
-import { PROJECT_ROOT } from "@/lib/server/dev/devDocs";
+import { invalidateDevDocsIndex, PROJECT_ROOT } from "@/lib/server/dev/devDocs";
 import { invalidatePath, readParsedFile } from "@/lib/server/dev/devMarkdownCache";
 import { localDay, localStamp } from "@/lib/server/dev/devLocalTime";
-import { createPlan, type NewPlanResult } from "@/lib/server/dev/devTeamPlans";
+import { createPlan, preparePlan, type NewPlanResult } from "@/lib/server/dev/devTeamPlans";
+import {
+  atomicReplaceDevFile,
+  createDevFileExclusive,
+  deleteDevFile,
+  DevFileConflictError,
+  devFileVersion,
+  withDevFileTransaction,
+} from "@/lib/server/dev/devFileTransaction";
+import {
+  DevWorkspaceFileConflictError,
+  readDevWorkspaceDirectory,
+  readDevWorkspaceFile,
+  readDevWorkspaceSnapshot,
+  replaceDurableDevWorkspaceFiles,
+  usesDurableDevTeamWorkspace,
+} from "@/lib/server/dev/devWorkspaceFiles";
 
 // Findings — the INPUT side of the system.
 //
@@ -165,19 +180,6 @@ export async function createFinding(input: {
   if (!title) throw new Error("A finding needs a title — what did you see?");
 
   const slug = slugify(title, now);
-  await mkdir(FINDINGS_DIR, { recursive: true });
-
-  const absMd = confine(resolve(FINDINGS_DIR, `${slug}.md`));
-  // Same-day duplicates get a counter rather than clobbering.
-  let finalSlug = slug;
-  let finalAbs = absMd;
-  let n = 2;
-  while (await stat(finalAbs).then(() => true).catch(() => false)) {
-    finalSlug = `${slug}-${n}`;
-    finalAbs = confine(resolve(FINDINGS_DIR, `${finalSlug}.md`));
-    n += 1;
-    if (n > 50) throw new Error("Too many findings with that title today.");
-  }
 
   // Decode and size-check EVERY image before a single byte hits the disk. The
   // old loop wrote image 1, then threw on image 2, leaving an orphaned file in
@@ -192,18 +194,23 @@ export async function createFinding(input: {
     decoded.push(image);
   }
 
-  const images: string[] = [];
-  try {
-    if (decoded.length) await mkdir(IMAGES_DIR, { recursive: true });
-    for (const [i, image] of decoded.entries()) {
-      const name = `${finalSlug}-${i + 1}.${image.ext}`;
-      await writeFile(confine(resolve(IMAGES_DIR, name)), image.buffer);
-      images.push(name);
+  return withDevFileTransaction(join(FINDINGS_DIR, ".findings-index"), async () => {
+    const absMd = confine(resolve(FINDINGS_DIR, `${slug}.md`));
+    // Same-day duplicates get a counter rather than clobbering. This choice is
+    // now inside a cross-process lock and the final create is exclusive too.
+    let finalSlug = slug;
+    let finalAbs = absMd;
+    let n = 2;
+    while (await devFileVersion(finalAbs).then(version => Boolean(version))) {
+      finalSlug = `${slug}-${n}`;
+      finalAbs = confine(resolve(FINDINGS_DIR, `${finalSlug}.md`));
+      n += 1;
+      if (n > 50) throw new Error("Too many findings with that title today.");
     }
 
-    const finding: Finding = {
-      slug: finalSlug,
-      relPath: `docs/development/findings/${finalSlug}.md`,
+    const buildFinding = (findingSlug: string, images: string[]): Finding => ({
+      slug: findingSlug,
+      relPath: `docs/development/findings/${findingSlug}.md`,
       title,
       note: cleanNote(input.note ?? "", 4000),
       where: input.where ? cleanWhere(input.where, 200) || undefined : undefined,
@@ -211,15 +218,53 @@ export async function createFinding(input: {
       status: "open",
       images,
       createdAt: now,
-    };
+    });
 
-    await writeFile(finalAbs, renderFindingMarkdown(finding), "utf8");
-    invalidatePath(finalAbs);
-    return finding;
-  } catch (error) {
-    await Promise.all(images.map(name => unlink(resolve(IMAGES_DIR, name)).catch(() => {})));
-    throw error;
-  }
+    if (usesDurableDevTeamWorkspace()) {
+      for (;;) {
+        const names = decoded.map((image, index) => `${finalSlug}-${index + 1}.${image.ext}`);
+        const finding = buildFinding(finalSlug, names);
+        try {
+          await replaceDurableDevWorkspaceFiles([
+            ...decoded.map((image, index) => ({
+              target: confine(resolve(IMAGES_DIR, names[index])),
+              content: image.buffer,
+              expected: null,
+            })),
+            { target: finalAbs, content: renderFindingMarkdown(finding), expected: null },
+          ]);
+          invalidatePath(finalAbs);
+          invalidateDevDocsIndex();
+          return finding;
+        } catch (error) {
+          if (!(error instanceof DevWorkspaceFileConflictError)) throw error;
+          finalSlug = `${slug}-${n}`;
+          finalAbs = confine(resolve(FINDINGS_DIR, `${finalSlug}.md`));
+          n += 1;
+          if (n > 50) throw new Error("Too many findings with that title today.");
+        }
+      }
+    }
+
+    const images: string[] = [];
+    try {
+      for (const [i, image] of decoded.entries()) {
+        const name = `${finalSlug}-${i + 1}.${image.ext}`;
+        await createDevFileExclusive(confine(resolve(IMAGES_DIR, name)), image.buffer);
+        images.push(name);
+      }
+
+      const finding = buildFinding(finalSlug, images);
+
+      await createDevFileExclusive(finalAbs, renderFindingMarkdown(finding));
+      invalidatePath(finalAbs);
+      invalidateDevDocsIndex();
+      return finding;
+    } catch (error) {
+      await Promise.all(images.map(name => deleteDevFile(resolve(IMAGES_DIR, name)).catch(() => {})));
+      throw error;
+    }
+  });
 }
 
 function parseFinding(slug: string, md: string): Finding {
@@ -258,7 +303,9 @@ function parseFinding(slug: string, md: string): Finding {
 export async function listFindings(): Promise<Finding[]> {
   let names: string[];
   try {
-    names = await readdir(FINDINGS_DIR);
+    names = (await readDevWorkspaceDirectory(FINDINGS_DIR))
+      .filter(entry => entry.isFile())
+      .map(entry => entry.name);
   } catch {
     return [];
   }
@@ -277,7 +324,7 @@ export async function getFinding(slug: string): Promise<Finding | null> {
   const safe = slug.replace(/[^a-z0-9-]/gi, "");
   if (!safe) return null;
   try {
-    const md = await readFile(confine(resolve(FINDINGS_DIR, `${safe}.md`)), "utf8");
+    const md = await readDevWorkspaceFile(confine(resolve(FINDINGS_DIR, `${safe}.md`)), "utf8");
     return parseFinding(safe, md);
   } catch {
     return null;
@@ -289,18 +336,34 @@ export async function updateFinding(
   slug: string,
   patch: { status?: FindingStatus; planRelPath?: string },
 ): Promise<Finding | null> {
-  const existing = await getFinding(slug);
-  if (!existing) return null;
-  const next: Finding = {
-    ...existing,
-    status: patch.status ?? existing.status,
-    planRelPath: patch.planRelPath ?? existing.planRelPath,
-  };
-  const abs = confine(resolve(FINDINGS_DIR, `${next.slug}.md`));
-  await writeFile(abs, renderFindingMarkdown(next), "utf8");
-  // A status/plan change must not be served stale from the list cache.
-  invalidatePath(abs);
-  return next;
+  const safe = slug.replace(/[^a-z0-9-]/gi, "");
+  if (!safe) return null;
+  const abs = confine(resolve(FINDINGS_DIR, `${safe}.md`));
+  const apply = async () => withDevFileTransaction(abs, async () => {
+    const snapshot = await readDevWorkspaceSnapshot(abs).catch(error => {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+      throw error;
+    });
+    if (!snapshot) return null;
+    const existing = parseFinding(safe, snapshot.bytes.toString("utf8"));
+    const next: Finding = {
+      ...existing,
+      status: patch.status ?? existing.status,
+      planRelPath: patch.planRelPath ?? existing.planRelPath,
+    };
+    await atomicReplaceDevFile(abs, renderFindingMarkdown(next), snapshot.version);
+    // A status/plan change must not be served stale from the list cache.
+    invalidatePath(abs);
+    return next;
+  });
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      return await apply();
+    } catch (error) {
+      if (!usesDurableDevTeamWorkspace() || !(error instanceof DevFileConflictError) || attempt === 4) throw error;
+    }
+  }
+  throw new DevFileConflictError();
 }
 
 /** Read one screenshot for the gated image route. */
@@ -308,7 +371,7 @@ export async function readFindingImage(name: string): Promise<Buffer | null> {
   const safe = basename(name).replace(/[^a-z0-9._-]/gi, "");
   if (!safe || safe.includes("..")) return null;
   try {
-    return await readFile(confine(resolve(IMAGES_DIR, safe)));
+    return await readDevWorkspaceFile(confine(resolve(IMAGES_DIR, safe)));
   } catch {
     return null;
   }
@@ -400,16 +463,82 @@ export async function planFromFindings(
   options: { title?: string; goal?: string; now?: number } = {},
 ): Promise<PlanFromFindings> {
   if (findings.length === 0) throw new Error("Pick at least one finding.");
+  const selected = [...new Map(findings.map(finding => [finding.slug, finding])).values()];
   const now = options.now ?? Date.now();
-  const base = (options.title ?? "").trim() || defaultPlanTitle(findings, now);
+  const base = (options.title ?? "").trim() || defaultPlanTitle(selected, now);
   const goal = (options.goal ?? "").trim() || DEFAULT_PLAN_GOAL;
 
   const input = {
     goal,
-    phases: findings.map(f => `${f.title}${f.where ? ` (${f.where})` : ""}`),
-    notes: findingsAsPlanNotes(findings),
-    priority: findings.some(f => f.severity === "blocker") ? ("high" as const) : ("med" as const),
+    phases: selected.map(f => `${f.title}${f.where ? ` (${f.where})` : ""}`),
+    notes: findingsAsPlanNotes(selected),
+    priority: selected.some(f => f.severity === "blocker") ? ("high" as const) : ("med" as const),
   };
+
+  if (usesDurableDevTeamWorkspace()) {
+    let collision: Error | null = null;
+    for (let attempt = 1; attempt <= 25; attempt += 1) {
+      const candidateTitle = attempt === 1 ? base : `${base} (${attempt})`;
+      const prepared = preparePlan({ ...input, title: candidateTitle }, now);
+      const current = await Promise.all(selected.map(async finding => {
+        const absPath = confine(resolve(FINDINGS_DIR, `${finding.slug}.md`));
+        const snapshot = await readDevWorkspaceSnapshot(absPath).catch(error => {
+          if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+          throw error;
+        });
+        if (!snapshot) throw new Error(`The finding "${finding.title}" no longer exists. Reload before planning it.`);
+        return {
+          absPath,
+          snapshot,
+          finding: parseFinding(finding.slug, snapshot.bytes.toString("utf8")),
+        };
+      }));
+
+      const missing = current.filter(({ finding }) => !prepared.markdown.includes(`(../findings/${finding.slug}.md)`));
+      if (missing.length > 0) {
+        throw new Error(
+          `The plan was rendered, but ${missing.length} of those findings did not fit inside it `
+          + `(${missing.map(({ finding }) => finding.title).join(", ")}). They are still open — plan them in a smaller batch.`,
+        );
+      }
+
+      const updated = current.map(({ finding }) => ({
+        ...finding,
+        status: "planned" as const,
+        planRelPath: prepared.relPath,
+      }));
+      try {
+        await replaceDurableDevWorkspaceFiles([
+          { target: prepared.absPath, content: prepared.markdown, expected: null },
+          ...current.map(({ absPath, snapshot }, index) => ({
+            target: absPath,
+            content: renderFindingMarkdown(updated[index]),
+            expected: snapshot.version,
+          })),
+        ]);
+      } catch (error) {
+        if (error instanceof DevWorkspaceFileConflictError && error.relPath === prepared.relPath) {
+          collision = new Error(`A plan called "${prepared.slug}.md" already exists. Pick a different title.`);
+          continue;
+        }
+        if (error instanceof DevWorkspaceFileConflictError) {
+          throw new Error("One of those findings changed while the plan was being created. Reload and try again.");
+        }
+        throw error;
+      }
+
+      invalidatePath(prepared.absPath);
+      for (const { absPath } of current) invalidatePath(absPath);
+      invalidateDevDocsIndex();
+      const plan: NewPlanResult = {
+        slug: prepared.slug,
+        relPath: prepared.relPath,
+        absPath: prepared.absPath,
+      };
+      return { plan, title: prepared.title, findings: updated };
+    }
+    throw collision ?? new Error("Could not find a free filename for that plan.");
+  }
 
   let plan: NewPlanResult | null = null;
   let title = base;
@@ -427,8 +556,8 @@ export async function planFromFindings(
 
   // Verify BEFORE anything leaves the open list. A finding that isn't in the
   // plan must not be marked "planned".
-  const written = await readFile(plan.absPath, "utf8");
-  const missing = findings.filter(f => !written.includes(`(../findings/${f.slug}.md)`));
+  const written = await readDevWorkspaceFile(plan.absPath, "utf8");
+  const missing = selected.filter(f => !written.includes(`(../findings/${f.slug}.md)`));
   if (missing.length > 0) {
     throw new Error(
       `The plan was written, but ${missing.length} of those findings did not fit inside it `
@@ -437,7 +566,7 @@ export async function planFromFindings(
   }
 
   const updated = await Promise.all(
-    findings.map(async f => (await updateFinding(f.slug, { status: "planned", planRelPath: plan!.relPath })) ?? f),
+    selected.map(async f => (await updateFinding(f.slug, { status: "planned", planRelPath: plan!.relPath })) ?? f),
   );
   return { plan, title, findings: updated };
 }

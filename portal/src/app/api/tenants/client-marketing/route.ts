@@ -14,6 +14,7 @@ import { logActivity } from "@/server/activity";
 import { ensureHydrated } from "@/server/storage";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { AGENCY_ROLES, CLIENT_ROLES, isAgencyRole } from "@/server/types";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 type Action =
   | "update-service"
@@ -36,6 +37,7 @@ export async function POST(request: Request) {
   let session;
   try {
     session = await requireRoleForClient([...AGENCY_ROLES, ...CLIENT_ROLES], clientId);
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.marketing", "use");
   } catch (error) {
     return authErrorResponse(error);
   }

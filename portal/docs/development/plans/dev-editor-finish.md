@@ -2,19 +2,35 @@
 
 ← [development.md](../../development.md) · map: [aqua dev.md](../../../aqua%20dev.md) · engine plan: [dev-editor-engine.md](dev-editor-engine.md) · inspector: [dev-editor-inspector.md](dev-editor-inspector.md)
 
-**Status: in progress — refreshed against the tree on 2026-08-22. Sixteen of the
-eighteen phases are source-complete; phase 8 is done (project family, navigator AND
-the surface switcher its third bullet asked for), phase 9 is done (Website vs Normal,
-with per-page SEO written into the page's own source), phase 17's complete browser
-acceptance walk is open, and phase 18 is open. Nothing in phases 8 or 9 has rendered
-in a browser. A second pass on 2026-08-22 closed eleven verifier-proven defects
+**Status: in progress — implementation boundary refreshed against the tree on 2026-08-26.**
+Sixteen original phases remain source-complete. Since the older checkpoint, the trusted
+manifest-driven local preview supervisor/control, canonical human grant/request kernel,
+stable workspace-element levels, exact-project Dev Workspace and direct Dev API gates have
+also landed. Phase 17 now has mounted Start/Restart/Stop, responsive-pane and
+`/aqua-tag.js`-200 proof; its authoring, publication and failure paths remain open. Phase 18
+now has a reusable exact-project Dev Workspace and eligible portal links, but the complete
+client-owner/client-staff placement and edit/reload matrix remains open. A second pass on
+2026-08-22 closed eleven verifier-proven defects
 across phases 8 and 9 — line endings, the card size, `.js` heads, the layout's
 reachability, the tag-link origin policy, `public/*.html` routes, the unsaved-SEO
 prompt, and `portalTarget`'s last read of `projectKind` — see
-[updates.md](../updates.md).** The architecture is right (one universal editor,
+[updates.md](../updates.md). The architecture is right (one universal editor,
 shared strict tag protocol). The Aqua Tag itself has been browser-walked on a real
 client site, but the full edit → persist → publish lifecycle has not. Phase 18 is the
-point of the whole exercise: clients editing their own websites.
+point of the whole exercise: clients editing their own websites. Two reliability
+findings now sit inside the open acceptance work: the cross-instance Editor AI
+claim/RPC/database contract is incomplete and not proven against a live
+two-instance database
+([issues #18](../issues.md)), and project-bound dirty/prefill handling has improved
+while browser-hide/surface/lifecycle/refresh transitions and reported cross-
+project prefill bleed remain open
+([issues #19](../issues.md)).
+
+Focused access, exact-project API and preview-lifecycle tests are not a substitute
+for phase 17/18 browser acceptance. Representative restricted-role, responsive-pane
+and process-lifecycle slices have passed, but this plan does not claim the complete
+role/grant mutation, positive exact-client, two-project, accessibility or failure
+matrix has passed.
 
 ---
 
@@ -48,8 +64,59 @@ That is the acceptance test for this plan. Not "the phases are ticked" — **a c
 who is not Ed opens their own portal and safely edits their own website.** Every
 phase below either moves toward that or is not worth doing.
 
+## Launch direction update — 2026-08-26
 
-## Where we are today (verified against the tree, 2026-08-21)
+The editor remains one `DevEditor`, but its primary preview/source path is now a
+**repository-backed Dev Workspace** rather than production-page mutation. For each
+explicitly authorised project AquaCRM connects or creates a repository, opens an
+isolated branch/worktree, starts the project's declared local development command
+under supervision, embeds that loopback preview, maps selections to source, records
+human/visual/AI changes as a diff, runs checks, and publishes through commit and pull
+request. GitHub stores code; AquaCRM owns the controlled workspace, preview lifecycle
+and audit trail. Production remains unchanged until a separately authorised merge and
+deploy.
+
+An owned or explicitly authorised site without a repository can enter a migration
+flow: capture observable frontend/assets/routes, inventory forms/auth/data/providers,
+create a repository, reconstruct with AI assistance, and prove parity. “Exactly as it
+is” cannot include private backend logic that a public page does not expose; those
+parts must be named and reimplemented deliberately.
+
+Aqua Tag is optional for a repository preview. It stays the consented
+marketing/telemetry/tag-injection system and the remote-inspection bridge for sites
+whose code is unavailable; it is not the repository source of truth.
+
+The first configurable-access slice is now implemented for human users. Global labels
+such as developer, staff, freelancer or customer remain personas/templates on migrated
+paths. Effective authority is default-deny and intersects current live membership,
+workspace/project/client scope, active live/Sandbox resource realm and explicit
+capabilities. The implemented vocabulary separates workspace/project view and manage,
+edit, AI, preview, local preview control/logs, PR/publish/deploy, access governance and
+stable `element.<key>.view|use|manage` levels. The shared management UI is mounted in
+Settings, People and Fulfilment. Staff/Fulfilment runtime projections and the broad
+11-element exact-client route wave also consume it. AI/service principals and
+expiring share links remain follow-up consumers of this evaluator; the human UI does
+not implement them implicitly.
+
+The final access closure removed the inert generic Development workspace choice:
+Development capabilities remain available only on an exact project scope. Exact Staff
+and Fulfilment scopes now expose only their own element family plus the base Workspace
+family, prune stale selections on scope change and sanitise submission. The settled
+relevant access/Dev/workspace/client/People/performance/Sandbox gate is **130/130** with
+TypeScript/diff clean. A clean browser proved the exact sets, 390px layout/targets and
+all 28 role-template groups, but no role/grant was submitted; the full persisted access
+journey remains outside this Editor checkpoint.
+
+The trusted local preview foundation is also implemented for an already-configured
+repository: requests cannot supply the root, command, arguments, port, environment or
+shell; the local/test-only supervisor binds loopback, bounds/redacts logs, caps processes,
+locks the physical worktree and serialises start/restart ownership. The mounted browser
+completed Start, Restart and Stop, responsive Preview/Code switching and HTTP 200 for
+`/aqua-tag.js`. This does not complete clone/worktree/install automation or the full
+edit/check/PR/failure browser journey.
+
+
+## Where we are today (refreshed against the tree, 2026-08-26)
 
 - **The editor is one component**, `src/engines/editor/DevEditor.tsx`, mounted by two
   doors. The portal studio is gone as a separate thing.
@@ -78,16 +145,18 @@ phase below either moves toward that or is not worth doing.
   card over the cross-origin iframe forces Chromium to re-raster the
   out-of-process frame (white while it does). The cutscene is now a compact
   opaque toast under the top bar — no wash, no backdrop-filter, page untouched.
-- **The browser is a slave to its pane** — `maxWidth: "100%"` means a device preset
-  is "as much of 393px as the pane allows", not 393px.
-- **The 78 blocks never register** in the editor bundle; `PORTAL_ONLY_TABS` then
-  hides the Builder tab on a software project, hiding the evidence.
-- **Word edits are preview-only.** They rewrite the loaded page through the tag and
-  vanish on reload. `patch.ts` → `publish.ts` has no caller.
-- **Dev-mode publish does not commit to git**, despite Ed's "it just goes to git".
-- **The editor AI is a reskin of the agency Advisor** — confirmed visually: the
-  business radar ("12 need attention", client retention) renders inside the code
-  editor.
+- ~~**The browser was a slave to its pane.**~~ **FIXED in phase 10:** exact
+  device pixels, zoom/scroll behaviour, responsive drag sizing and per-project
+  persistence are source-tested; the visual browser walk remains phase 17.
+- ~~**The 78 blocks never registered.**~~ **FIXED in phase 6:** the complete
+  palette/renderer set is mounted through the shared registry and was seen live.
+- ~~**Word edits were preview-only and publish did not reach git.**~~ **FIXED in
+  phase 13:** source edits and code-file changes commit to the draft branch;
+  publish opens/reuses the pull request. The complete edit→merge acceptance walk
+  is still phase 17.
+- ~~**The editor AI was a reskin of the agency Advisor.**~~ **FIXED in phase 12:**
+  it has its own per-project key, config, history, UI and server reply path. A
+  durable database claim path now exists; live two-instance proof remains issue #18.
 
 ## Phasing
 
@@ -170,14 +239,13 @@ phase below either moves toward that or is not worth doing.
    map, and delete the `element`-vs-`builder` split where it only existed to serve
    `simple`.
 
-   **No capability model. Ed decided this explicitly (2026-08-21).** I raised the
-   concern that `simple` existed so *"nothing here can break the layout"*, and that
-   phase 15 puts this in front of clients. Ed's answer: *"clients get the exact thing
-   now that weve got — they can do vs code thing if they want, they can type it into
-   ai, whatever they want, i dont care, its up to them, hence why i built it."*
-   So do NOT build a text-only capability, a reduced visual mode, or a role-gated
-   feature set. A client gets the whole editor. The boundary is the PROJECT they are
-   connected to (phase 16), not the features they are shown.
+   **Capability decision superseded on 2026-08-26.** Keep the original product rule:
+   do not fork a text-only/client editor and never gate the component from a global
+   job title. The same `DevEditor` mounts everywhere. However, the mounted project and
+   workspace grant now decides which actions are available. One person may receive
+   visual editing and preview while another may also edit source, apply AI changes,
+   run tests, create commits/PRs or publish. No global role grants the whole editor,
+   every repository, the wider CRM or all Dev Team surfaces.
 
 6. ✅ **Mount the 78 blocks** *(shipped 2026-08-21 — 70 palette entries + 8 plugin renderers, lazy-split; element library seen live in the editor)*. `blockRegistry.ts` registers all 78 into the shared
    registry at `elements/registry.ts`; the editor never imports it, so its bundle's
@@ -472,8 +540,10 @@ phase below either moves toward that or is not worth doing.
     name the exact saved user message with `replyToMessageId`; sequential replay
     returns the stored answer, same-process concurrent replay shares one provider
     call, and a reply that becomes stale behind a newer user message is discarded.
-    **Still open for production:** an atomic distributed claim/unique append
-    across parallel server instances.
+    **Still open for production (reconfirmed 2026-08-24):** an atomic distributed
+    claim/unique append across parallel server instances. The focused **56/56**
+    result proves local replay/same-process behaviour, not the generic Postgres
+    function contract or a forced-fresh post-provider state read.
 
 13. ✅ **Make word edits persist, and publish to git** *(shipped 2026-08-22, triple-CONFIRMED — words commit via source-edit with the branch-tip lost-update guard; code files save/create through repo-write onto the draft branch; Publish opens/reuses the PR; the tree reads draft-first so your own edits are what you see)*. Today an edit changes the page
     on screen and loses it on reload — half the feature. Wire `patch.ts` →
@@ -623,51 +693,75 @@ phase below either moves toward that or is not worth doing.
     fetch/XHR wrappers and the protocol drift guards. The UI states the browser
     limitation rather than pretending document/image loads are throttled.
 
-17. **Verify it in a browser.** Nothing built on 2026-08-21 has ever run in one. The
-    full round trip — ping, ready, click, exact text in the right menu, edit, persist,
-    publish — is unproven. Drive it against a real tagged page and a real repository
-    project. This turns "the logic is right" into "it works", and no phase above
-    should be called done without it.
+17. 🟡 **Preview lifecycle browser-proven; finish managed authoring/failure acceptance.**
+    The trusted supervisor/control, exact-project route and direct project/element
+    gates are implemented and focused-tested. A real mounted repository preview now
+    proves Start, Restart with a replacement loopback process, Stop, responsive Preview/
+    Code panes and `/aqua-tag.js` HTTP 200. The remaining acceptance path is:
+    select an authorised project → create/resume its isolated branch/worktree →
+    prepare its supervised preview → health/logs ready → inspect an element →
+    visual/source/AI change → diff → save/reload → tests → commit/PR → stop/restart →
+    exact change retained. Prove dependency/start failure, occupied port, crashed
+    process, dynamic-loopback CSP, stale preview, rejected AI change, dirty project/mode/surface/refresh
+    transitions and unauthorised cross-project attempts. Run the remote tagged-site
+    bridge as a separate optional matrix, not as a prerequisite for repo preview.
 
-18. **Put the WHOLE editor in a client portal.** Ed's end state, and he was precise
+18. 🟡 **Finish putting the WHOLE editor in a client portal.** Ed's end state, and he was precise
     about it: *"the entry point is the whole dev editor — i just connect a project and
     add it in, they get the editor exactly what weve got now, but just ill configure
     it. clients get the exact thing now that weve got, they can do vs code thing if
     they want, they can type it into ai, whatever they want, i dont care, its up to
     them, hence why i built it."*
 
-    So this is **not** a cut-down client editor. It is the same `DevEditor`, the same
-    three modes, the same code surface, the same AI, the same visual builder. Do not
-    fork a client variant and do not hide features by role — that is the "second
-    editor" mistake this whole plan exists to undo.
+    So this is **not** a second client editor. It is the same `DevEditor` and the same
+    three interaction modes. Do not fork a client variant or gate it from a global
+    role. The selected workspace grant controls whether that mounting can inspect,
+    edit files, prompt/apply AI, run tests, commit, open a PR or publish.
 
-    **The one thing that IS enforced is the boundary, and it is a security boundary,
-    not a feature one.** Ed connects a project and adds the editor to that client's
-    portal; the client gets everything *inside that project* and can never reach
-    another. Tenant checked first, then project, on every read and every mutation —
-    the order `devProjects.ts` already uses. A client must not be able to switch to a
-    project that is not theirs (phase 8's switcher must respect this), must not reach
-    another agency's repository or tag, and must not read another project's AI
-    history (phase 12).
+    **The boundary and every action are enforced.** Ed connects one project/workspace
+    and grants an explicit capability set; the client can never reach another project
+    or inherit unrelated CRM/Dev Team access. Tenant and membership are checked first,
+    then project/workspace, environment, resource and capability on every read and
+    mutation. A client cannot switch to an ungranted project, reach another agency's
+    repository/tag, read another project's AI history, reveal secrets or publish
+    merely because a template calls them a developer.
 
-    **Do not start before 17.** Not for permissions — for correctness. Putting an
+    **Access dependency:** the minimum project-grant kernel in
+    `PRODUCT-ARCHITECTURE.md` now exists: fresh live identity, exact project/environment,
+    separate view/edit/AI/preview/PR/deploy capabilities, direct Dev route/API enforcement
+    and immediate access-revision invalidation on migrated paths. The first role-template,
+    person-grant, element-level and permission-request manager is also mounted in Settings,
+    People and Fulfilment. Phase 18 consumes that evaluator and must not create a
+    client-only permission system. Staff/Fulfilment and the broad 11-element internal
+    client route wave now consume it, including missing-client denial; dynamic module,
+    freelancer-job and task associations plus customer/freelancer adoption stay open. The complete
+    cross-role grant/request mutation and accessibility gate also remains open.
+
+    The reusable `/portal/dev-workspace` and eligible staff/freelancer/client/customer
+    links are now the first shared mount. That is not final client acceptance: decide the
+    intended in-portal placement and browser-prove a real client owner/staff can see only
+    their project, use only granted editor elements, retain edits across reload and request
+    extra access without seeing internal Dev Team.
+
+    **Do not call complete before 17.** Putting an
     editor that has never run in a browser in front of somebody who is not Ed is how
     a client discovers a bug on their own website.
 
 Ship in order where it matters: **1 before 2–4 and 8** (they live inside it),
 **6 before 7**, **13 before 7's insert path and before 14** (the lifecycle UI shows
 the branch 13 writes), **12 before 15** (the Librarian follows the editor AI's
-standalone shapes), **16 before 17** (never put an unverified editor in front of a
-client). 5, 10 and 11 were independent and are all done.
+standalone shapes), **16 and the minimum grant kernel before 17**, **17 before 18**
+(the reusable route may exist, but never present it as accepted to a client before
+the lifecycle works), and the full role/permission/Fulfilment responsive matrix is
+the final release gate. 5, 10 and 11 were independent
+and are all done.
 
 ## Open questions / decisions for Ed
 
-- **The browser gate.** Ed's rule is "no Aqua Tag, no browser". Applied literally it
-  deletes the portal builder's browser, because `/aqua-tag.js` is injected only by
-  `src/app/(website)/layout.tsx` and never on `/client-preview/*` — the portal
-  preview reports selections through the first-party block protocol instead. Current
-  behaviour is `portalTarget || tagMapped`. **To get the literal rule, inject the tag
-  into `/client-preview` and drop the `portalTarget ||`.** Ed's call.
+- **Resolved browser gate (2026-08-26).** A repository-backed supervised local preview
+  is a first-class browser source and does not require Aqua Tag. A remote site without
+  repository/source access uses the Tag when installed, or remains view-only when it
+  cannot provide a trusted selection bridge.
 - **Click-to-select is on by default** once the tag connects, and the tag's click
   handler calls `preventDefault()` — so links in the preview cannot be followed until
   you toggle selection off. Correct for editing, annoying for browsing. Keep, or
@@ -679,11 +773,12 @@ client). 5, 10 and 11 were independent and are all done.
 
 ## Guard rails (these have already bitten once today)
 
-- **A repository-backed project must never be written to this server's disk.** The
-  backstop is in `src/app/api/portal/site-editor/files/route.ts`; it exists because
-  the `+` button was creating files in AquaCRM's own working tree while telling the
-  operator they had gone into the project. Do not weaken it, and always send
-  `project` on a create.
+- **A repository-backed project may be written only inside its managed isolated
+  workspace.** Never write into AquaCRM's own working tree or an arbitrary server
+  path. Resolve the selected project to its bounded branch/worktree/container,
+  validate the relative path, retain the diff/audit, and always send `project` on a
+  create. The existing site-editor backstop must evolve to recognise only this
+  managed root; it must not be weakened into generic filesystem access.
 - **Never widen the tag's origin policy.** Exact string comparison against exactly
   one origin. A redirecting site is fixed by trusting the *mapped* `finalUrl`, not by
   accepting a set of origins or matching by prefix.

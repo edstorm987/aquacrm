@@ -126,15 +126,20 @@ export function findPersonByIdentity(agencyId: string, identity: PersonIdentity)
   const phones = normaliseAll(identity.phones, normaliseIdentityPhone);
   if (!emails.length && !phones.length) return null;
 
-  const candidates = listPersons(agencyId);
+  // Identity ownership must not change merely because a card was edited most
+  // recently. Oldest-first also gives legacy duplicate data a stable owner
+  // until an operator reviews it.
+  const candidates = listPersons(agencyId)
+    .sort((left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id));
   if (emails.length) {
     const match = candidates.find(person =>
       (person.emails ?? []).some(entry => emails.includes(entry.value)));
     if (match) return match;
   }
   if (phones.length) {
-    const match = candidates.find(person =>
-      (person.phones ?? []).some(entry => phones.includes(entry.value)));
+    const identifyingMatches = candidates.filter(person =>
+      !namesConflict(person.name, identity.name)
+      && (person.phones ?? []).some(entry => !entry.shared && phones.includes(entry.value)));
     // A shared number is NOT proof of a shared person. A company switchboard,
     // a reception line or a couple's landline would otherwise collapse every
     // person behind it into one record — and merging is far harder to undo
@@ -143,7 +148,19 @@ export function findPersonByIdentity(agencyId: string, identity: PersonIdentity)
     // So a phone match is only trusted when the names do not actively
     // disagree. Same number and no name, or same number and the same name, is
     // still a match.
-    if (match && !namesConflict(match.name, identity.name)) return match;
+    if (identifyingMatches.length === 1) return identifyingMatches[0];
+
+    // Once a number is known to be shared it is not identity by itself. The
+    // number plus one unambiguous compatible name can still reconnect a
+    // repeated import to the right colleague, though, instead of creating a
+    // fresh card every time that switchboard appears.
+    if (identity.name?.trim()) {
+      const sharedMatches = candidates.filter(person =>
+        person.name?.trim()
+        && !namesConflict(person.name, identity.name)
+        && (person.phones ?? []).some(entry => entry.shared && phones.includes(entry.value)));
+      if (sharedMatches.length === 1) return sharedMatches[0];
+    }
   }
   return null;
 }
@@ -221,8 +238,8 @@ export interface UpsertPersonResult {
  * erase what an operator already decided.
  */
 export function upsertPerson(agencyId: string, input: UpsertPersonInput): UpsertPersonResult {
-  const emails = buildEmails(input.emails);
-  const phones = buildPhones(input.phones);
+  let emails = buildEmails(input.emails);
+  let phones = buildPhones(input.phones);
 
   // Match on identity first, then fall back to the facet records supplied.
   //
@@ -238,6 +255,14 @@ export function upsertPerson(agencyId: string, input: UpsertPersonInput): Upsert
       clientId: input.facets.clientIds?.[0],
       enquiryId: input.facets.enquiryIds?.[0],
     }) : null);
+  const identitySettlement = settleIncomingIdentityOwnership(
+    agencyId,
+    existing?.id,
+    input.name,
+    emails,
+    phones,
+  );
+  ({ emails, phones } = identitySettlement);
   const now = Date.now();
 
   if (existing) {
@@ -246,7 +271,10 @@ export function upsertPerson(agencyId: string, input: UpsertPersonInput): Upsert
       // New addresses are added, never replaced — a second email on an
       // existing person is extra identity, not a correction.
       emails: mergeIdentityValues(existing.emails, emails),
-      phones: mergeIdentityValues(existing.phones, phones),
+      phones: mergeIdentityValues(
+        markPhoneValuesShared(existing.phones, identitySettlement.sharedPhoneValues),
+        phones,
+      ),
       name: clean(input.name, 160) ?? existing.name,
       company: clean(input.company, 160) ?? existing.company,
       jobTitle: clean(input.jobTitle, 120) ?? existing.jobTitle,
@@ -258,7 +286,16 @@ export function upsertPerson(agencyId: string, input: UpsertPersonInput): Upsert
       facets: mergeFacets(existing.facets, input.facets),
       updatedAt: now,
     };
-    mutate(state => { state.persons[next.id] = next; });
+    mutate(state => {
+      markOtherPhoneOwnersShared(
+        state.persons,
+        agencyId,
+        identitySettlement.sharedPhoneValues,
+        next.id,
+        now,
+      );
+      state.persons[next.id] = next;
+    });
     emit({ agencyId }, "person.updated", { personId: next.id });
     return { person: next, created: false };
   }
@@ -280,7 +317,16 @@ export function upsertPerson(agencyId: string, input: UpsertPersonInput): Upsert
     createdAt: now,
     updatedAt: now,
   };
-  mutate(state => { state.persons[person.id] = person; });
+  mutate(state => {
+    markOtherPhoneOwnersShared(
+      state.persons,
+      agencyId,
+      identitySettlement.sharedPhoneValues,
+      person.id,
+      now,
+    );
+    state.persons[person.id] = person;
+  });
   emit({ agencyId }, "person.created", { personId: person.id });
   return { person, created: true };
 }
@@ -387,9 +433,7 @@ function editIdentityValue(
     if (current.some((entry, i) => i !== index && entry.value === nextValue)) {
       throw new Error("This contact already has that value.");
     }
-    const owner = listPersons(agencyId).find(person =>
-      person.id !== personId
-      && (person[field] ?? []).some(entry => entry.value === nextValue));
+    const owner = findIdentityValueOwner(agencyId, field, nextValue, personId);
     if (owner) {
       throw new IdentityInUseError(
         owner.id,
@@ -449,6 +493,13 @@ function addIdentityValue(
   if (!existing) return null;
   const current = existing[field] ?? [];
   if (current.some(item => item.value === entry.value)) return existing;
+  const owner = findIdentityValueOwner(agencyId, field, entry.value, personId);
+  if (owner) {
+    throw new IdentityInUseError(
+      owner.id,
+      `${personDisplayName(owner)} already uses that ${field === "emails" ? "email address" : "number"}.`,
+    );
+  }
   const next: Person = {
     ...existing,
     [field]: entry.isPrimary
@@ -738,6 +789,101 @@ function buildPhones(values?: (string | undefined)[]): PersonPhone[] {
     built.push({ value, raw: raw?.trim(), isPrimary: built.length === 0 });
   }
   return built;
+}
+
+function settleIncomingIdentityOwnership(
+  agencyId: string,
+  targetPersonId: string | undefined,
+  incomingName: string | undefined,
+  emails: PersonEmail[],
+  phones: PersonPhone[],
+): { emails: PersonEmail[]; phones: PersonPhone[]; sharedPhoneValues: Set<string> } {
+  for (const email of emails) {
+    const owner = findIdentityValueOwner(agencyId, "emails", email.value, targetPersonId);
+    if (owner) {
+      throw new IdentityInUseError(
+        owner.id,
+        `${personDisplayName(owner)} already uses that email address. Review that card before combining people.`,
+      );
+    }
+  }
+
+  const sharedPhoneValues = new Set<string>();
+  const settledPhones = phones.map(phone => {
+    const owners = identityValueOwners(agencyId, "phones", phone.value, targetPersonId);
+    if (!owners.length) return phone;
+    const identifyingOwners = owners.filter(owner =>
+      (owner.phones ?? []).some(entry => entry.value === phone.value && !entry.shared));
+    if (!identifyingOwners.length) {
+      sharedPhoneValues.add(phone.value);
+      return { ...phone, shared: true };
+    }
+
+    const compatibleOwner = identifyingOwners.find(owner => !namesConflict(owner.name, incomingName));
+    if (compatibleOwner) {
+      throw new IdentityInUseError(
+        compatibleOwner.id,
+        `${personDisplayName(compatibleOwner)} already uses that number. Review that card before combining people.`,
+      );
+    }
+
+    // Different named people behind one number means a switchboard/shared
+    // line, not person identity. Validation only records that decision here;
+    // the upsert applies every affected card in its one final mutation. A
+    // later conflicting value therefore cannot leave an earlier phone half
+    // converted when this operation fails.
+    sharedPhoneValues.add(phone.value);
+    return { ...phone, shared: true };
+  });
+
+  return { emails, phones: settledPhones, sharedPhoneValues };
+}
+
+function markPhoneValuesShared(
+  phones: PersonPhone[] | undefined,
+  values: Set<string>,
+): PersonPhone[] {
+  return (phones ?? []).map(entry => values.has(entry.value) ? { ...entry, shared: true } : entry);
+}
+
+function markOtherPhoneOwnersShared(
+  persons: Record<string, Person>,
+  agencyId: string,
+  values: Set<string>,
+  targetPersonId: string,
+  now: number,
+): void {
+  if (!values.size) return;
+  for (const person of Object.values(persons)) {
+    if (person.agencyId !== agencyId || person.id === targetPersonId) continue;
+    if (!(person.phones ?? []).some(entry => values.has(entry.value) && !entry.shared)) continue;
+    persons[person.id] = {
+      ...person,
+      phones: markPhoneValuesShared(person.phones, values),
+      updatedAt: now,
+    };
+  }
+}
+
+function findIdentityValueOwner(
+  agencyId: string,
+  field: "emails" | "phones",
+  value: string,
+  excludePersonId?: string,
+): Person | null {
+  return identityValueOwners(agencyId, field, value, excludePersonId)[0] ?? null;
+}
+
+function identityValueOwners(
+  agencyId: string,
+  field: "emails" | "phones",
+  value: string,
+  excludePersonId?: string,
+): Person[] {
+  return Object.values(getState().persons)
+    .filter(person => person.agencyId === agencyId && person.id !== excludePersonId)
+    .filter(person => (person[field] ?? []).some(entry => entry.value === value))
+    .sort((left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id));
 }
 
 function mergeIdentityValues<T extends PersonEmail | PersonPhone>(base: T[] | undefined, incoming: T[]): T[] {

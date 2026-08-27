@@ -3,6 +3,7 @@
 import type { BlockRenderProps } from "../blockRegistry";
 import { blockStylesToCss } from "../blockStyles";
 import { useProductByHandle, formatPrice } from "../useProducts";
+import { useCart } from "../ecommerceBridge";
 
 // Renders a single product as a card. When a `productHandle` is set, the
 // host pulls live catalog data so the card mirrors the storefront. The
@@ -20,10 +21,11 @@ export default function ProductCardBlock({ block, editorMode }: BlockRenderProps
   // Hooks — always called. In editor mode we still fetch so the canvas
   // shows the live image as soon as a handle is set.
   const { product, loading } = useProductByHandle(handle);
+  const cart = useCart();
 
   const title = product?.name ?? fbTitle;
   const price = product
-    ? (product.onSale && product.salePrice ? formatPrice(product.salePrice) : formatPrice(product.price))
+    ? (product.onSale && product.salePrice ? formatPrice(product.salePrice, product.currency) : formatPrice(product.price, product.currency))
     : fbPrice;
   const image = product?.image || fbImage;
   const href = product ? `/products/${product.slug}` : undefined;
@@ -58,17 +60,28 @@ export default function ProductCardBlock({ block, editorMode }: BlockRenderProps
         {product?.tagline && <p style={{ fontSize: 11, opacity: 0.6, margin: "0 0 4px" }}>{product.tagline}</p>}
         <p style={{ fontSize: 13, opacity: 0.8, margin: 0 }}>
           {product?.onSale && product.salePrice
-            ? <><span style={{ textDecoration: "line-through", opacity: 0.5, marginRight: 6 }}>{formatPrice(product.price)}</span><span style={{ color: "var(--brand-accent, #ff6b35)", fontWeight: 600 }}>{price}</span></>
+              ? <><span style={{ textDecoration: "line-through", opacity: 0.5, marginRight: 6 }}>{formatPrice(product.price, product.currency)}</span><span style={{ color: "var(--brand-accent, #ff6b35)", fontWeight: 600 }}>{price}</span></>
             : price}
         </p>
       </div>
       <button
         type="button"
-        data-portal-add-to-cart={handle}
-        disabled={!handle}
-        style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: "var(--brand-accent, #ff6b35)", color: "#fff", fontSize: 13, fontWeight: 600, cursor: handle ? "pointer" : "not-allowed", opacity: handle ? 1 : 0.5 }}
+        onClick={() => {
+          if (editorMode || !product || (product.variants?.length ?? 0) > 0) return;
+          cart.addItem({
+            id: product.id,
+            productId: product.id,
+            name: product.name,
+            price: product.onSale && product.salePrice !== undefined ? product.salePrice : product.price,
+            quantity: 1,
+            image: product.image,
+            productHandle: product.slug,
+          });
+        }}
+        disabled={editorMode || !product}
+        style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: "var(--brand-accent, #ff6b35)", color: "#fff", fontSize: 13, fontWeight: 600, cursor: !editorMode && product ? "pointer" : "not-allowed", opacity: product ? 1 : 0.5 }}
       >
-        {ctaLabel}
+        {(product?.variants?.length ?? 0) > 0 ? "Choose options" : ctaLabel}
       </button>
     </article>
   );

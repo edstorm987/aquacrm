@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type DragEvent, type FormEvent, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import {
   ArrowDown,
   ArrowLeft,
@@ -52,7 +53,6 @@ import type {
   PeopleHiringStageConfig,
   PeopleLeaveRequest,
   PeopleProcessConfig,
-  PeopleRecognition,
   PeopleShift,
   PeopleTrainingAssignment,
   PeopleTrainingBlock,
@@ -64,28 +64,29 @@ import type {
 import type { DelegatableTask, StaffCard, StaffDirectoryEntry, StaffOrgChart, StaffOrgNode, StaffPresenceState } from "@/server/people";
 import type { StaffCapacitySignal, StaffCapacitySnapshot } from "@/server/staffCapacity";
 import { TeamChat } from "@/components/people/TeamChat";
-import { dateInputValue, formatUkDate } from "@/lib/shared/formatDateTime";
+import type { AccessEnvironment } from "@/components/access/accessModel";
+import { businessCalendarDate, businessCalendarMonth, dateInputValue, formatUkDate } from "@/lib/shared/formatDateTime";
+import type { WorkspaceElementLevel } from "@/lib/server/access/workspaceElementAccess";
+import type {
+  PeopleWorkspaceProjection,
+  StaffOverviewElementDto,
+  StaffPayPersonDto,
+  StaffPeopleElementDto,
+  StaffPersonRef,
+  StaffTrainingPersonDto,
+} from "@/lib/server/access/peopleWorkspaceProjection";
+import { PortalViewportLoading } from "@/components/ui/PortalViewportLoading";
+
+const AccessControlPanel = dynamic(
+  () => import("@/components/access/AccessControlPanel").then(module => module.AccessControlPanel),
+  { loading: () => <PortalViewportLoading label="Preparing access control…" /> },
+);
 
 type Station = { id: PeopleWorkspaceStationId; label: string; description: string; href: string; mandatory?: boolean };
-type Snapshot = {
-  applications: PeopleApplication[];
-  employees: PeopleEmployee[];
-  leaveRequests: PeopleLeaveRequest[];
-  shifts: PeopleShift[];
-  training: PeopleTrainingAssignment[];
-  stations: readonly Station[];
-  directory: StaffDirectoryEntry[];
-  cards: StaffCard[];
-  delegatable: DelegatableTask[];
-  employeeOfMonth: { recognition: PeopleRecognition; entry: StaffDirectoryEntry | null } | null;
-  orgChart: StaffOrgChart;
-  processConfig: PeopleProcessConfig;
-  contracts: PeopleContract[];
-  contractTemplates: Array<{ id: string; title: string; summary?: string }>;
-  trainingModules: PeopleTrainingModule[];
-};
+type Snapshot = PeopleWorkspaceProjection;
 
-type Tab = "overview" | "capacity" | "candidates" | "team" | "org" | "access" | "time" | "development" | "rewards" | "contracts" | "chat";
+export type PeopleCommandTab = "overview" | "capacity" | "candidates" | "team" | "org" | "access" | "time" | "development" | "rewards" | "contracts" | "chat";
+type Tab = PeopleCommandTab;
 const TABS: Array<{ id: Tab; label: string; icon: typeof UsersRound }> = [
   { id: "overview", label: "Overview", icon: UsersRound },
   { id: "capacity", label: "Capacity & hiring", icon: Gauge },
@@ -105,25 +106,27 @@ const STAGE_LABEL: Record<PeopleApplicationStage, string> = {
   applied: "Applied", "under-review": "Under review", interview: "Interview", shortlisted: "Shortlisted", offer: "Offer", accepted: "Accepted", onboarding: "Onboarding", declined: "Declined", withdrawn: "Withdrawn",
 };
 
-function requestedTab(view: string | null, applicationId: string | null, employeeId: string | null): Tab {
-  if (applicationId) return "candidates";
-  if (employeeId) return "team";
-  return TABS.some(item => item.id === view) ? (view as Tab) : "overview";
+function requestedTab(view: string | null, applicationId: string | null, employeeId: string | null, allowed: readonly Tab[]): Tab {
+  if (applicationId && allowed.includes("candidates")) return "candidates";
+  if (employeeId && allowed.includes("team")) return "team";
+  return allowed.includes(view as Tab) ? (view as Tab) : allowed[0] ?? "overview";
 }
 
-export function PeopleCommand({ initial, capacity }: { initial: Snapshot; capacity: StaffCapacitySnapshot }) {
+export function PeopleCommand({ initial, accessLevels, canManageAccess = false, accessEnvironment = "live" }: { initial: Snapshot; accessLevels: Readonly<Record<Tab, WorkspaceElementLevel>>; canManageAccess?: boolean; accessEnvironment?: AccessEnvironment }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const applicationId = searchParams.get("application");
   const employeeId = searchParams.get("employee");
-  const [tab, setTab] = useState<Tab>(() => requestedTab(searchParams.get("view"), applicationId, employeeId));
+  const visibleTabs = TABS.filter(item => accessLevels[item.id] !== "hidden");
+  const allowedTabs = visibleTabs.map(item => item.id);
+  const [tab, setTab] = useState<Tab>(() => requestedTab(searchParams.get("view"), applicationId, employeeId, allowedTabs));
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState(employeeId ?? initial.employees[0]?.id ?? "");
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState(employeeId ?? initial.pay?.people[0]?.id ?? initial.people?.directory[0]?.employeeId ?? "");
 
   useEffect(() => {
-    setTab(requestedTab(searchParams.get("view"), applicationId, employeeId));
+    setTab(requestedTab(searchParams.get("view"), applicationId, employeeId, allowedTabs));
     if (employeeId) setSelectedEmployeeId(employeeId);
     const targetId = applicationId ? `application-${applicationId}` : employeeId ? `employee-${employeeId}` : "";
     if (!targetId) return;
@@ -137,6 +140,7 @@ export function PeopleCommand({ initial, capacity }: { initial: Snapshot; capaci
   }, [applicationId, employeeId, searchParams]);
 
   function openTab(nextTab: Tab) {
+    if (!allowedTabs.includes(nextTab)) return;
     setTab(nextTab);
     router.replace(`/portal/agency/people?view=${nextTab}`, { scroll: false });
   }
@@ -148,6 +152,10 @@ export function PeopleCommand({ initial, capacity }: { initial: Snapshot; capaci
   }
 
   async function action(name: string, payload: Record<string, unknown>) {
+    if (accessLevels[tab] === "view" || accessLevels[tab] === "hidden") {
+      setError("Use access is required to update this workspace element.");
+      return null;
+    }
     setBusy(name);
     setError("");
     setNotice("");
@@ -175,10 +183,9 @@ export function PeopleCommand({ initial, capacity }: { initial: Snapshot; capaci
     }
   }
 
-  const activeEmployees = initial.employees.filter(employee => employee.status !== "alumni");
-  const openApplications = initial.applications.filter(application => !["declined", "withdrawn", "onboarding"].includes(application.stage));
-  const pendingLeave = initial.leaveRequests.filter(request => request.status === "pending");
-  const onboardingOpen = initial.employees.reduce((sum, employee) => sum + employee.onboardingItems.filter(item => item.status !== "done").length, 0);
+  const canUseTab = tab === "rewards" || tab === "access"
+    ? accessLevels[tab] === "manage"
+    : accessLevels[tab] === "use" || accessLevels[tab] === "manage";
 
   return (
     <div className="mx-auto w-full max-w-[1600px] space-y-5">
@@ -192,53 +199,68 @@ export function PeopleCommand({ initial, capacity }: { initial: Snapshot; capaci
       </header>
 
       <nav aria-label="People views" className="flex gap-1 overflow-x-auto border-b border-black/10">
-        {TABS.map(item => <button key={item.id} onClick={() => openTab(item.id)} className={`inline-flex min-h-11 shrink-0 items-center gap-2 border-b-2 px-3 text-sm font-medium ${tab === item.id ? "border-emerald-800 text-emerald-900" : "border-transparent text-black/50 hover:text-black/80"}`}><item.icon size={16} />{item.label}</button>)}
+        {visibleTabs.map(item => <button key={item.id} onClick={() => openTab(item.id)} className={`inline-flex min-h-11 shrink-0 items-center gap-2 border-b-2 px-3 text-sm font-medium ${tab === item.id ? "border-emerald-800 text-emerald-900" : "border-transparent text-black/50 hover:text-black/80"}`}><item.icon size={16} />{item.label}</button>)}
       </nav>
 
       {notice ? <p className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{notice}</p> : null}
       {error ? <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{error}</p> : null}
 
-      {tab === "overview" ? <Overview applications={initial.applications} employees={activeEmployees} pendingLeave={pendingLeave.length} onboardingOpen={onboardingOpen} employeeOfMonth={initial.employeeOfMonth} onOpen={openTab} /> : null}
-      {tab === "capacity" ? <CapacityCommand capacity={capacity} onOpen={openTab} /> : null}
-      {tab === "candidates" ? <Candidates applications={initial.applications} hiringStages={initial.processConfig.hiringStages} focusedApplicationId={applicationId} busy={busy} action={action} /> : null}
-      {tab === "team" ? <Directory directory={initial.directory} cards={initial.cards} delegatable={initial.delegatable} contractTemplates={initial.contractTemplates} focusedEmployeeId={employeeId} onOpenTab={openTab} busy={busy} action={action} /> : null}
-      {tab === "org" ? <OrgChart chart={initial.orgChart} onOpenPerson={openPerson} /> : null}
-      {tab === "contracts" ? <ContractsCommand contracts={initial.contracts} directory={initial.directory} onOpenPerson={openPerson} /> : null}
-      {tab === "chat" ? <TeamChat /> : null}
-      {tab === "access" ? <AccessComposer employees={initial.employees} stations={initial.stations} selectedEmployeeId={selectedEmployeeId} setSelectedEmployeeId={setSelectedEmployeeId} busy={busy} action={action} /> : null}
-      {tab === "time" ? <TimeAndLeave employees={initial.employees} requests={initial.leaveRequests} shifts={initial.shifts} busy={busy} action={action} /> : null}
-      {tab === "development" ? <Development employees={initial.employees} training={initial.training} onboardingTemplate={initial.processConfig.onboardingSteps} modules={initial.trainingModules} busy={busy} action={action} /> : null}
-      {tab === "rewards" ? <Rewards employees={initial.employees} selectedEmployeeId={selectedEmployeeId} setSelectedEmployeeId={setSelectedEmployeeId} busy={busy} action={action} /> : null}
+      {!canUseTab ? <p className="text-xs text-black/45">View-only access. Controls that change People records are disabled.</p> : null}
+      <fieldset disabled={!canUseTab} className="contents">
+      {tab === "overview" && initial.overview ? <Overview summary={initial.overview} allowedTabs={allowedTabs} onOpen={openTab} /> : null}
+      {tab === "capacity" && initial.capacity ? <CapacityCommand capacity={initial.capacity} allowedTabs={allowedTabs} onOpen={openTab} /> : null}
+      {tab === "candidates" && initial.people ? <Candidates applications={initial.people.applications} hiringStages={initial.people.hiringStages} focusedApplicationId={applicationId} busy={busy} action={action} /> : null}
+      {tab === "team" && initial.people ? <Directory directory={initial.people.directory} cards={initial.people.cards} delegatable={initial.people.delegatable} contractTemplates={initial.people.contractTemplates} focusedEmployeeId={employeeId} onOpenTab={openTab} accessLevels={accessLevels} busy={busy} action={action} /> : null}
+      {tab === "org" && initial.people ? <OrgChart chart={initial.people.orgChart} onOpenPerson={openPerson} /> : null}
+      {tab === "contracts" && initial.people ? <ContractsCommand contracts={initial.people.contracts} directory={initial.people.directory} onOpenPerson={openPerson} /> : null}
+      {tab === "chat" ? <TeamChat canUse={canUseTab} /> : null}
+      {tab === "access" ? <AccessControlPanel
+        scope={{ kind: "workspace", id: "staff", label: "Staff workspace" }}
+        people={initial.access?.people ?? []}
+        canManage={canManageAccess && accessLevels.access === "manage"}
+        currentEnvironment={accessEnvironment}
+        title="Staff roles and workspace elements"
+        description="Control each staff member’s reusable role, exact workspace authority and the individual stations visible in their portal."
+      /> : null}
+      {tab === "time" && initial.schedule ? <TimeAndLeave employees={initial.schedule.people} requests={initial.schedule.leaveRequests} shifts={initial.schedule.shifts} busy={busy} action={action} /> : null}
+      {tab === "development" && initial.training ? <Development employees={initial.training.people} training={initial.training.assignments} onboardingTemplate={initial.training.onboardingTemplate} modules={initial.training.modules} busy={busy} action={action} /> : null}
+      {tab === "rewards" && initial.pay ? <Rewards employees={initial.pay.people} selectedEmployeeId={selectedEmployeeId} setSelectedEmployeeId={setSelectedEmployeeId} busy={busy} action={action} /> : null}
+      </fieldset>
     </div>
   );
 }
 
-function Overview({ applications, employees, pendingLeave, onboardingOpen, employeeOfMonth, onOpen }: { applications: PeopleApplication[]; employees: PeopleEmployee[]; pendingLeave: number; onboardingOpen: number; employeeOfMonth: Snapshot["employeeOfMonth"]; onOpen: (tab: Tab) => void }) {
+function Overview({ summary, allowedTabs, onOpen }: { summary: StaffOverviewElementDto; allowedTabs: readonly Tab[]; onOpen: (tab: Tab) => void }) {
   const metrics = [
-    { label: "Active people", value: employees.length, detail: `${employees.filter(employee => Boolean(employee.userId)).length} portal accounts`, tab: "team" as Tab, icon: UsersRound },
-    { label: "Candidates live", value: applications.filter(item => !["declined", "withdrawn", "onboarding"].includes(item.stage)).length, detail: `${applications.filter(item => item.stage === "under-review").length} under review`, tab: "candidates" as Tab, icon: Route },
-    { label: "Onboarding steps", value: onboardingOpen, detail: "remaining across team", tab: "development" as Tab, icon: ClipboardCheck },
-    { label: "Leave decisions", value: pendingLeave, detail: "awaiting review", tab: "time" as Tab, icon: CalendarDays },
+    { label: "Active people", value: summary.activePeople, detail: `${summary.portalAccounts} portal accounts`, tab: "team" as Tab, icon: UsersRound },
+    { label: "Candidates live", value: summary.candidatesLive, detail: `${summary.candidatesUnderReview} under review`, tab: "candidates" as Tab, icon: Route },
+    { label: "Onboarding steps", value: summary.onboardingOpen, detail: "remaining across team", tab: "development" as Tab, icon: ClipboardCheck },
+    { label: "Leave decisions", value: summary.pendingLeave, detail: "awaiting review", tab: "time" as Tab, icon: CalendarDays },
   ];
   return (
     <div className="space-y-6">
-      {employeeOfMonth ? (
+      {summary.employeeOfMonth ? (
         <section className="flex flex-col gap-3 rounded-lg border border-[#bda169]/40 bg-gradient-to-r from-[#fbf8ef] to-white p-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <span className="relative inline-flex size-12 items-center justify-center rounded-full bg-[#8a6b2f] text-base font-semibold text-white">{initials(employeeOfMonth.entry?.name ?? "?")}<Star className="absolute -right-1 -top-1 rounded-full bg-white p-0.5 text-[#8a6b2f]" size={16} fill="currentColor" /></span>
-            <div><p className="text-xs font-semibold uppercase text-[#8a6b2f]">Employee of the month</p><p className="mt-0.5 text-lg font-semibold">{employeeOfMonth.entry?.name ?? "A team member"}</p>{employeeOfMonth.recognition.note ? <p className="mt-0.5 text-sm text-black/55">“{employeeOfMonth.recognition.note}”</p> : null}</div>
+            <span className="relative inline-flex size-12 items-center justify-center rounded-full bg-[#8a6b2f] text-base font-semibold text-white">{initials(summary.employeeOfMonth.name)}<Star className="absolute -right-1 -top-1 rounded-full bg-white p-0.5 text-[#8a6b2f]" size={16} fill="currentColor" /></span>
+            <div><p className="text-xs font-semibold uppercase text-[#8a6b2f]">Employee of the month</p><p className="mt-0.5 text-lg font-semibold">{summary.employeeOfMonth.name}</p>{summary.employeeOfMonth.note ? <p className="mt-0.5 text-sm text-black/55">“{summary.employeeOfMonth.note}”</p> : null}</div>
           </div>
-          {employeeOfMonth.entry ? <button onClick={() => onOpen("team")} className="inline-flex h-fit items-center gap-1 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-black/70 hover:bg-black/[0.03]">Open card <ChevronRight size={15} /></button> : null}
+          {allowedTabs.includes("team") ? <button onClick={() => onOpen("team")} className="inline-flex h-fit items-center gap-1 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-black/70 hover:bg-black/[0.03]">Open card <ChevronRight size={15} /></button> : null}
         </section>
       ) : null}
       <section className="grid gap-px overflow-hidden rounded-lg border border-black/10 bg-black/10 sm:grid-cols-2 xl:grid-cols-4">
-        {metrics.map(metric => <button key={metric.label} onClick={() => onOpen(metric.tab)} className="min-h-36 bg-white p-5 text-left hover:bg-[#f7faf8]"><metric.icon className="text-emerald-800" size={19} /><span className="mt-5 block text-3xl font-semibold tabular-nums">{metric.value}</span><span className="mt-1 block text-sm font-semibold">{metric.label}</span><span className="mt-1 block text-xs text-black/45">{metric.detail}</span></button>)}
+        {metrics.map(metric => {
+          const content = <><metric.icon className="text-emerald-800" size={19} /><span className="mt-5 block text-3xl font-semibold tabular-nums">{metric.value}</span><span className="mt-1 block text-sm font-semibold">{metric.label}</span><span className="mt-1 block text-xs text-black/45">{metric.detail}</span></>;
+          return allowedTabs.includes(metric.tab)
+            ? <button key={metric.label} onClick={() => onOpen(metric.tab)} className="min-h-36 bg-white p-5 text-left hover:bg-[#f7faf8]">{content}</button>
+            : <div key={metric.label} className="min-h-36 bg-white p-5 text-left">{content}</div>;
+        })}
       </section>
       <section data-resolution-focus="details" className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="rounded-lg border border-black/10 bg-white p-5">
-          <div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase text-emerald-800">Hiring flow</p><h2 className="mt-1 text-lg font-semibold">Candidate movement</h2></div><button onClick={() => onOpen("candidates")} className="text-sm font-semibold text-emerald-800">Open pipeline</button></div>
+          <div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase text-emerald-800">Hiring flow</p><h2 className="mt-1 text-lg font-semibold">Candidate movement</h2></div>{allowedTabs.includes("candidates") ? <button onClick={() => onOpen("candidates")} className="text-sm font-semibold text-emerald-800">Open pipeline</button> : null}</div>
           <div className="mt-5 grid grid-cols-3 gap-3 sm:grid-cols-5">
-            {(["applied", "under-review", "interview", "offer", "onboarding"] as PeopleApplicationStage[]).map(stage => <div key={stage} className="border-l-2 border-black/10 pl-3"><p className="text-2xl font-semibold">{applications.filter(item => item.stage === stage).length}</p><p className="mt-1 text-xs text-black/45">{STAGE_LABEL[stage]}</p></div>)}
+            {(["applied", "under-review", "interview", "offer", "onboarding"] as PeopleApplicationStage[]).map(stage => <div key={stage} className="border-l-2 border-black/10 pl-3"><p className="text-2xl font-semibold">{summary.applicationStages[stage] ?? 0}</p><p className="mt-1 text-xs text-black/45">{STAGE_LABEL[stage]}</p></div>)}
           </div>
         </div>
         <div className="rounded-lg border border-[#bda169]/35 bg-[#fbf8ef] p-5">
@@ -249,7 +271,7 @@ function Overview({ applications, employees, pendingLeave, onboardingOpen, emplo
   );
 }
 
-function CapacityCommand({ capacity, onOpen }: { capacity: StaffCapacitySnapshot; onOpen: (tab: Tab) => void }) {
+function CapacityCommand({ capacity, allowedTabs, onOpen }: { capacity: StaffCapacitySnapshot; allowedTabs: readonly Tab[]; onOpen: (tab: Tab) => void }) {
   if (!capacity.available) return <Empty title="Capacity intelligence is warming up" detail="The team Radar hasn't produced signals yet. It builds from your people, tasks, leave and shifts — add a little activity and it will populate here." />;
   const { health, attention, areas, hiring, coverage } = capacity;
   return (
@@ -265,13 +287,13 @@ function CapacityCommand({ capacity, onOpen }: { capacity: StaffCapacitySnapshot
       <section className="rounded-lg border border-black/10 bg-white">
         <header className="flex items-center justify-between border-b border-black/10 p-4"><div className="flex items-center gap-2"><TriangleAlert className="text-amber-600" size={18} /><h2 className="font-semibold">Where you're stretched</h2></div><span className="text-xs text-black/45">{attention.length} signal{attention.length === 1 ? "" : "s"} firing</span></header>
         <div className="divide-y divide-black/10">
-          {attention.length ? attention.map(signal => <SignalRow key={signal.familyId} signal={signal} />) : <p className="p-6 text-center text-sm text-black/45">No capacity or hiring pressure is firing right now. The team is balanced.</p>}
+          {attention.length ? attention.map((signal, index) => <SignalRow key={`${signal.area ?? "all"}:${signal.familyId}:${index}`} signal={signal} />) : <p className="p-6 text-center text-sm text-black/45">No capacity or hiring pressure is firing right now. The team is balanced.</p>}
         </div>
       </section>
 
       <section>
-        <div className="mb-3 flex items-center justify-between"><h2 className="font-semibold">Capacity by area</h2><button onClick={() => onOpen("candidates")} className="text-sm font-semibold text-emerald-800">Open recruitment</button></div>
-        {areas.length ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{areas.map(signal => <AreaCard key={signal.familyId} signal={signal} />)}</div> : <Empty title="No area capacity yet" detail="Per-area capacity appears once your capacity plan and workload have data." />}
+        <div className="mb-3 flex items-center justify-between"><h2 className="font-semibold">Capacity by area</h2>{allowedTabs.includes("candidates") ? <button onClick={() => onOpen("candidates")} className="text-sm font-semibold text-emerald-800">Open recruitment</button> : null}</div>
+        {areas.length ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{areas.map((signal, index) => <AreaCard key={`${signal.area ?? "all"}:${signal.familyId}:${index}`} signal={signal} />)}</div> : <Empty title="No area capacity yet" detail="Per-area capacity appears once your capacity plan and workload have data." />}
       </section>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -327,7 +349,7 @@ function SignalGroup({ title, detail, signals, emptyText }: { title: string; det
     <section className="rounded-lg border border-black/10 bg-white">
       <header className="border-b border-black/10 p-4"><h3 className="font-semibold">{title}</h3><p className="mt-1 text-xs text-black/45">{detail}</p></header>
       <div className="divide-y divide-black/10">
-        {signals.length ? signals.map(signal => <SignalRow key={signal.familyId} signal={signal} />) : <p className="p-6 text-center text-sm text-black/45">{emptyText}</p>}
+        {signals.length ? signals.map((signal, index) => <SignalRow key={`${signal.area ?? "all"}:${signal.familyId}:${index}`} signal={signal} />) : <p className="p-6 text-center text-sm text-black/45">{emptyText}</p>}
       </div>
     </section>
   );
@@ -485,7 +507,7 @@ function HireCandidate({ application, busy, action }: { application: PeopleAppli
 
 type ActionFn = (name: string, payload: Record<string, unknown>) => Promise<unknown>;
 
-function Directory({ directory, cards, delegatable, contractTemplates, focusedEmployeeId, onOpenTab, busy, action }: { directory: StaffDirectoryEntry[]; cards: StaffCard[]; delegatable: DelegatableTask[]; contractTemplates: Snapshot["contractTemplates"]; focusedEmployeeId: string | null; onOpenTab: (tab: Tab) => void; busy: string; action: ActionFn }) {
+function Directory({ directory, cards, delegatable, contractTemplates, focusedEmployeeId, onOpenTab, accessLevels, busy, action }: { directory: StaffDirectoryEntry[]; cards: StaffCard[]; delegatable: DelegatableTask[]; contractTemplates: StaffPeopleElementDto["contractTemplates"]; focusedEmployeeId: string | null; onOpenTab: (tab: Tab) => void; accessLevels: Readonly<Record<Tab, WorkspaceElementLevel>>; busy: string; action: ActionFn }) {
   const [selectedId, setSelectedId] = useState(focusedEmployeeId ?? "");
   const [query, setQuery] = useState("");
   const [dept, setDept] = useState("all");
@@ -495,7 +517,7 @@ function Directory({ directory, cards, delegatable, contractTemplates, focusedEm
   useEffect(() => { if (focusedEmployeeId) setSelectedId(focusedEmployeeId); }, [focusedEmployeeId]);
 
   const selectedCard = cards.find(card => card.entry.id === selectedId || (card.entry.employeeId && card.entry.employeeId === selectedId));
-  if (selectedCard) return <StaffCardView card={selectedCard} directory={directory} delegatable={delegatable} contractTemplates={contractTemplates} onBack={() => setSelectedId("")} onOpenTab={onOpenTab} busy={busy} action={action} />;
+  if (selectedCard) return <StaffCardView card={selectedCard} directory={directory} delegatable={delegatable} contractTemplates={contractTemplates} onBack={() => setSelectedId("")} onOpenTab={onOpenTab} accessLevels={accessLevels} busy={busy} action={action} />;
 
   const departments = [...new Set(directory.map(entry => entry.department).filter(Boolean))].sort() as string[];
   const statuses = [...new Set(directory.map(entry => entry.status))];
@@ -582,11 +604,19 @@ function isFreelancerEmployee(card: StaffCard) {
   return card.employee?.employmentType === "freelancer" || card.employee?.employmentType === "contractor";
 }
 
-function StaffCardView({ card, directory, delegatable, contractTemplates, onBack, onOpenTab, busy, action }: { card: StaffCard; directory: StaffDirectoryEntry[]; delegatable: DelegatableTask[]; contractTemplates: Snapshot["contractTemplates"]; onBack: () => void; onOpenTab: (tab: Tab) => void; busy: string; action: ActionFn }) {
+function StaffCardView({ card, directory, delegatable, contractTemplates, onBack, onOpenTab, accessLevels, busy, action }: { card: StaffCard; directory: StaffDirectoryEntry[]; delegatable: DelegatableTask[]; contractTemplates: StaffPeopleElementDto["contractTemplates"]; onBack: () => void; onOpenTab: (tab: Tab) => void; accessLevels: Readonly<Record<Tab, WorkspaceElementLevel>>; busy: string; action: ActionFn }) {
   const [tab, setTab] = useState<CardTab>("overview");
   const { entry, employee, work, holiday } = card;
   const isFreelancer = isFreelancerEmployee(card);
-  const tabs = CARD_TABS.filter(item => !item.freelancerOnly || isFreelancer);
+  const tabs = CARD_TABS.filter(item => {
+    if (item.freelancerOnly && !isFreelancer) return false;
+    if ((item.id === "pay" || item.id === "jobs") && accessLevels.rewards === "hidden") return false;
+    if (item.id === "access" && accessLevels.access === "hidden") return false;
+    if (item.id === "leave" && accessLevels.time === "hidden") return false;
+    if (item.id === "training" && accessLevels.development === "hidden") return false;
+    if (item.id === "contracts" && accessLevels.contracts === "hidden") return false;
+    return true;
+  });
   return (
     <div className="space-y-5">
       <button onClick={onBack} className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-800"><ArrowLeft size={16} /> Back to directory</button>
@@ -614,14 +644,14 @@ function StaffCardView({ card, directory, delegatable, contractTemplates, onBack
         {tabs.map(item => <button key={item.id} onClick={() => setTab(item.id)} className={`inline-flex min-h-11 shrink-0 items-center gap-2 border-b-2 px-3 text-sm font-medium ${tab === item.id ? "border-emerald-800 text-emerald-900" : "border-transparent text-black/50 hover:text-black/80"}`}><item.icon size={15} />{item.label}</button>)}
       </nav>
 
-      {tab === "overview" ? <CardOverview card={card} directory={directory} busy={busy} action={action} /> : null}
+      {tab === "overview" ? <CardOverview card={card} directory={directory} canManagePeople={accessLevels.team === "manage"} canManagePay={accessLevels.rewards === "manage"} canManageSchedule={accessLevels.time === "manage"} busy={busy} action={action} /> : null}
       {tab === "work" ? <CardWork card={card} delegatable={delegatable} busy={busy} action={action} /> : null}
-      {tab === "jobs" && isFreelancer ? <CardJobs card={card} busy={busy} action={action} /> : null}
+      {tab === "jobs" && isFreelancer ? <fieldset disabled={accessLevels.rewards !== "manage"} className="contents"><CardJobs card={card} busy={busy} action={action} /></fieldset> : null}
       {tab === "pay" ? <CardPay card={card} onOpenTab={onOpenTab} /> : null}
       {tab === "access" ? <CardAccess card={card} onOpenTab={onOpenTab} /> : null}
       {tab === "leave" ? <CardLeave card={card} onOpenTab={onOpenTab} /> : null}
       {tab === "training" ? <CardTraining card={card} onOpenTab={onOpenTab} /> : null}
-      {tab === "contracts" ? <CardContracts card={card} contractTemplates={contractTemplates} busy={busy} action={action} /> : null}
+      {tab === "contracts" ? <fieldset disabled={accessLevels.contracts !== "manage"} className="contents"><CardContracts card={card} contractTemplates={contractTemplates} busy={busy} action={action} /></fieldset> : null}
       {tab === "notes" ? <Empty title="Work notes arrive next" detail="Private notes and feedback for this person land here in a later phase of the Staff Command." /> : null}
     </div>
   );
@@ -631,18 +661,18 @@ function CardStat({ label, value, icon: Icon }: { label: string; value: string; 
   return <div className="bg-white p-4"><Icon className="text-[#a7d6ca]" size={16} /><p className="mt-3 text-2xl font-semibold tabular-nums text-black/85">{value}</p><p className="mt-1 text-xs font-semibold uppercase text-black/40">{label}</p></div>;
 }
 
-function CardOverview({ card, directory, busy, action }: { card: StaffCard; directory: StaffDirectoryEntry[]; busy: string; action: ActionFn }) {
+function CardOverview({ card, directory, canManagePeople, canManagePay, canManageSchedule, busy, action }: { card: StaffCard; directory: StaffDirectoryEntry[]; canManagePeople: boolean; canManagePay: boolean; canManageSchedule: boolean; busy: string; action: ActionFn }) {
   const { employee } = card;
   if (!employee) return <div className="space-y-4"><OwnerBanner /><section className="rounded-lg border border-black/10 bg-white p-5"><dl className="grid gap-4 sm:grid-cols-2"><Meta label="Email" value={card.entry.email} /><Meta label="Employment" value={words(card.entry.employmentType)} /><Meta label="Portal" value={card.entry.hasPortalAccount ? "Active" : "None"} /><Meta label="Open work" value={`${card.work.openTasks} actions`} /></dl></section></div>;
   const managerOptions = directory.filter(entry => entry.employeeId && entry.employeeId !== employee.id && entry.status !== "alumni" && entry.employmentType !== "freelancer" && entry.employmentType !== "contractor");
-  const submit = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const data = Object.fromEntries(new FormData(event.currentTarget)); await action("update-employee", { employeeId: employee.id, ...data, startDate: data.startDate ? new Date(`${data.startDate}T09:00:00`).getTime() : undefined, basePayMinor: Math.round(Number(data.basePay || 0) * 100) }); };
+  const submit = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const data = Object.fromEntries(new FormData(event.currentTarget)); await action("update-employee", { employeeId: employee.id, ...data, startDate: data.startDate ? new Date(`${data.startDate}T09:00:00`).getTime() : undefined, ...(canManagePay ? { basePayMinor: Math.round(Number(data.basePay || 0) * 100) } : {}) }); };
   return (
     <div className="space-y-5">
     <RecognitionSection card={card} busy={busy} action={action} />
     <FeedbackSection card={card} action={action} />
     <section className="rounded-lg border border-black/10 bg-white p-5">
       <h3 className="text-sm font-semibold uppercase text-emerald-800">Employee record</h3>
-      <form onSubmit={submit} className="mt-4 grid gap-4 sm:grid-cols-2">
+      <fieldset disabled={!canManagePeople} className="contents"><form onSubmit={submit} className="mt-4 grid gap-4 sm:grid-cols-2">
         <Input name="name" label="Name" defaultValue={employee.name} />
         <Input name="email" label="Email" type="email" defaultValue={employee.email} />
         <Input name="title" label="Title" defaultValue={employee.title} />
@@ -650,16 +680,13 @@ function CardOverview({ card, directory, busy, action }: { card: StaffCard; dire
         <label className="block text-xs font-semibold text-black/55"><span className="mb-1.5 block">Reports to</span><select name="managerEmployeeId" defaultValue={employee.managerEmployeeId ?? ""} className="min-h-10 w-full rounded-md border border-black/15 bg-white px-3 text-sm font-normal text-black"><option value="">No manager (top level)</option>{managerOptions.map(entry => <option key={entry.employeeId} value={entry.employeeId}>{entry.name}{entry.title ? ` · ${entry.title}` : ""}</option>)}</select></label>
         <Select name="employmentType" label="Employment" defaultValue={employee.employmentType} options={["full-time", "part-time", "contractor", "freelancer", "intern", "volunteer"]} />
         <Select name="status" label="Status" defaultValue={employee.status} options={["preboarding", "active", "leave", "suspended", "alumni"]} />
-        <Input name="weeklyHours" label="Weekly hours" type="number" step="0.5" defaultValue={employee.weeklyHours} />
-        <Input name="holidayAllowanceDays" label="Holiday allowance" type="number" step="0.5" defaultValue={employee.holidayAllowanceDays} />
-        <Select name="payBasis" label="Pay basis" defaultValue={employee.payBasis} options={["salary", "hourly", "day-rate", "commission-only", "unpaid"]} />
-        <Input name="basePay" label="Base pay" type="number" step="0.01" defaultValue={(employee.basePayMinor ?? 0) / 100} />
-        <Input name="currency" label="Currency" defaultValue={employee.currency} maxLength={3} />
+        {canManageSchedule ? <><Input name="weeklyHours" label="Weekly hours" type="number" step="0.5" defaultValue={employee.weeklyHours} /><Input name="holidayAllowanceDays" label="Holiday allowance" type="number" step="0.5" defaultValue={employee.holidayAllowanceDays} /></> : null}
+        {canManagePay ? <><Select name="payBasis" label="Pay basis" defaultValue={employee.payBasis} options={["salary", "hourly", "day-rate", "commission-only", "unpaid"]} /><Input name="basePay" label="Base pay" type="number" step="0.01" defaultValue={(employee.basePayMinor ?? 0) / 100} /><Input name="currency" label="Currency" defaultValue={employee.currency} maxLength={3} /></> : null}
         <Input name="startDate" label="Start date" type="date" defaultValue={employee.startDate ? isoDay(employee.startDate) : ""} />
         <Input name="targetRole" label="Growth path — role they're growing toward" defaultValue={employee.targetRole} />
         <label className="block text-xs font-semibold text-black/55 sm:col-span-1"><span className="mb-1.5 block">How they get there (shown to them)</span><input name="growthPathNote" defaultValue={employee.growthPathNote} className="min-h-10 w-full rounded-md border border-black/15 bg-white px-3 text-sm font-normal text-black" /></label>
         <button disabled={busy === "update-employee"} className="min-h-10 rounded-md bg-black px-4 text-sm font-semibold text-white sm:col-span-2">Save employee record</button>
-      </form>
+      </form></fieldset>
       {!employee.userId ? <div className="mt-4"><ProvisionEmployee employee={employee} busy={busy} action={action} /></div> : null}
     </section>
     </div>
@@ -669,7 +696,7 @@ function CardOverview({ card, directory, busy, action }: { card: StaffCard; dire
 function RecognitionSection({ card, busy, action }: { card: StaffCard; busy: string; action: ActionFn }) {
   const employee = card.employee;
   if (!employee) return null;
-  const period = new Date().toISOString().slice(0, 7);
+  const period = businessCalendarMonth();
   return (
     <section className={`rounded-lg border p-5 ${card.entry.isEmployeeOfMonth ? "border-[#bda169]/45 bg-[#fbf8ef]" : "border-black/10 bg-white"}`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -856,6 +883,13 @@ function CardJobs({ card, busy, action }: { card: StaffCard; busy: string; actio
     setAdding(false);
   };
   const advance = async (jobId: string, status: string, paymentRef?: string) => { await action("set-freelancer-job-status", { jobId, status, paymentRef }); };
+  const shareDeliverable = async (jobId: string) => {
+    const url = window.prompt("Deliverable link (http or https):")?.trim();
+    if (!url) return;
+    const name = window.prompt("Name shown to the freelancer:")?.trim();
+    if (!name) return;
+    await action("add-freelancer-deliverable", { jobId, name, url });
+  };
 
   return (
     <div className="space-y-5">
@@ -884,12 +918,15 @@ function CardJobs({ card, busy, action }: { card: StaffCard; busy: string; actio
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{job.title}</p><span className={`rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase ${JOB_STATUS_TONE[job.status] ?? "bg-black/5"}`}>{job.status}</span></div><p className="mt-1 text-sm text-black/45">{job.feeMinor !== undefined ? money(job.feeMinor, job.currency) : "No fee set"}{job.dueOn ? ` · due ${job.dueOn}` : ""}{job.clientId ? ` · ${job.clientId}` : ""}</p>{job.brief ? <p className="mt-2 line-clamp-2 text-sm text-black/50">{job.brief}</p> : null}{job.paymentRef ? <p className="mt-1 text-xs text-black/40">Finance ref: {job.paymentRef}</p> : null}</div>
               <div className="flex shrink-0 flex-wrap gap-2">
+                <JobButton disabled={busy !== ""} onClick={() => void shareDeliverable(job.id)}>Share deliverable</JobButton>
                 {job.status === "proposed" ? <JobButton disabled={busy !== ""} onClick={() => advance(job.id, "active")}>Start</JobButton> : null}
                 {job.status === "active" ? <JobButton disabled={busy !== ""} onClick={() => advance(job.id, "delivered")}>Mark delivered</JobButton> : null}
                 {job.status === "delivered" ? <JobButton primary disabled={busy !== ""} onClick={() => advance(job.id, "paid", window.prompt("Finance payment reference (optional):") || undefined)}>Mark paid</JobButton> : null}
                 {job.status !== "paid" && job.status !== "cancelled" ? <JobButton disabled={busy !== ""} onClick={() => advance(job.id, "cancelled")}>Cancel</JobButton> : null}
               </div>
             </div>
+            {job.deliverables?.length ? <div className="mt-3 border-t border-black/10 pt-3"><p className="text-xs font-semibold uppercase text-black/40">Shared deliverables</p><div className="mt-2 flex flex-wrap gap-2">{job.deliverables.map(item => <a key={item.id} href={item.url} target="_blank" rel="noreferrer" className="rounded-md border border-black/10 px-2.5 py-1.5 text-xs font-semibold text-emerald-800 underline">{item.name}</a>)}</div></div> : null}
+            {job.submissions?.length ? <div className="mt-3 border-t border-black/10 pt-3"><p className="text-xs font-semibold uppercase text-black/40">Work received</p><div className="mt-2 flex flex-wrap gap-2">{job.submissions.map(item => <a key={item.id} href={item.url} className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-800 underline">{item.name}</a>)}</div></div> : null}
           </div>
         )) : <Empty title="No jobs yet" detail="Create a one-time project job for this freelancer. Track it from proposed to paid; the payment itself is recorded in Finance." />}
       </section>
@@ -914,7 +951,7 @@ function ContractStatusPill({ contract }: { contract: PeopleContract }) {
   return <span className={`rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase ${tone.chip}`}>{tone.label}</span>;
 }
 
-function CardContracts({ card, contractTemplates, busy, action }: { card: StaffCard; contractTemplates: Snapshot["contractTemplates"]; busy: string; action: ActionFn }) {
+function CardContracts({ card, contractTemplates, busy, action }: { card: StaffCard; contractTemplates: StaffPeopleElementDto["contractTemplates"]; busy: string; action: ActionFn }) {
   const employee = card.employee;
   const [adding, setAdding] = useState(false);
   if (!employee) return <Empty title="No contracts" detail="The derived owner card doesn't hold staff contracts. Create a People record to manage owner agreements." />;
@@ -1012,12 +1049,12 @@ function AccessComposer({ employees, stations, selectedEmployeeId, setSelectedEm
   return <div className="grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]"><aside className="rounded-lg border border-black/10 bg-white p-3"><p className="px-2 py-2 text-xs font-semibold uppercase text-black/40">Team member</p>{employees.map(item => <button key={item.id} onClick={() => choose(item.id)} className={`flex min-h-12 w-full items-center gap-3 rounded-md px-2 text-left ${item.id === employee.id ? "bg-emerald-50 text-emerald-900" : "hover:bg-black/[0.03]"}`}><span className="inline-flex size-8 items-center justify-center rounded-full bg-black text-xs font-semibold text-white">{initials(item.name)}</span><span className="min-w-0"><span className="block truncate text-sm font-semibold">{item.name}</span><span className="block truncate text-xs opacity-55">{item.title}</span></span></button>)}</aside><section className="rounded-lg border border-black/10 bg-white p-5"><div className="flex flex-col justify-between gap-3 border-b border-black/10 pb-5 sm:flex-row sm:items-center"><div><p className="text-xs font-semibold uppercase text-emerald-800">Workspace composer</p><h2 className="mt-1 text-xl font-semibold">{employee.name}'s sidebar</h2><p className="mt-1 text-sm text-black/50">Drag enabled stations into order. View-only protects sensitive records.</p></div><button onClick={() => action("update-access", { employeeId: employee.id, workspaceAccess: access })} disabled={busy === "update-access"} className="min-h-10 rounded-md bg-black px-4 text-sm font-semibold text-white">Save access</button></div><div className="mt-5 grid gap-5 xl:grid-cols-[1fr_1.2fr]"><div><h3 className="text-sm font-semibold">Station library</h3><div className="mt-3 space-y-2">{stations.map(station => { const enabled = access.some(item => item.stationId === station.id); return <label key={station.id} className="flex cursor-pointer gap-3 rounded-md border border-black/10 p-3 hover:bg-black/[0.02]"><input type="checkbox" checked={enabled} disabled={station.mandatory} onChange={() => toggle(station.id)} className="mt-1" /><span><span className="block text-sm font-semibold">{station.label}</span><span className="mt-1 block text-xs leading-5 text-black/45">{station.description}</span></span></label>; })}</div></div><div><h3 className="text-sm font-semibold">Visible order</h3><div className="mt-3 space-y-2">{access.map((item, index) => { const station = stations.find(value => value.id === item.stationId); if (!station) return null; return <div key={item.stationId} draggable onDragStart={() => setDragged(item.stationId)} onDragOver={event => event.preventDefault()} onDrop={event => drop(item.stationId, event)} className="flex min-h-14 items-center gap-3 rounded-md border border-black/10 bg-[#fafaf7] px-3"><GripVertical className="cursor-grab text-black/30" size={16} /><span className="inline-flex size-7 items-center justify-center rounded-md bg-white text-xs font-semibold shadow-sm">{index + 1}</span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{station.label}</span><span className="block truncate text-xs text-black/40">{station.href}</span></span><select aria-label={`${station.label} access`} value={item.mode} onChange={event => setAccess(current => current.map(value => value.stationId === item.stationId ? { ...value, mode: event.target.value as "view" | "edit" } : value))} className="min-h-8 rounded-md border border-black/10 bg-white px-2 text-xs"><option value="view">View</option><option value="edit">Edit</option></select><button aria-label={`Move ${station.label} up`} disabled={index === 0} onClick={() => move(item.stationId, -1)} className="inline-flex size-8 items-center justify-center rounded-md border border-black/10 disabled:opacity-25"><ArrowUp size={14} /></button><button aria-label={`Move ${station.label} down`} disabled={index === access.length - 1} onClick={() => move(item.stationId, 1)} className="inline-flex size-8 items-center justify-center rounded-md border border-black/10 disabled:opacity-25"><ArrowDown size={14} /></button></div>; })}</div></div></div></section></div>;
 }
 
-function TimeAndLeave({ employees, requests, shifts, busy, action }: { employees: PeopleEmployee[]; requests: PeopleLeaveRequest[]; shifts: PeopleShift[]; busy: string; action: (name: string, payload: Record<string, unknown>) => Promise<unknown> }) {
+function TimeAndLeave({ employees, requests, shifts, busy, action }: { employees: StaffPersonRef[]; requests: PeopleLeaveRequest[]; shifts: PeopleShift[]; busy: string; action: (name: string, payload: Record<string, unknown>) => Promise<unknown> }) {
   async function saveShift(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const data = Object.fromEntries(new FormData(event.currentTarget)); await action("save-shift", { ...data, startsAt: new Date(String(data.startsAt)).getTime(), endsAt: new Date(String(data.endsAt)).getTime(), status: "published" }); event.currentTarget.reset(); }
   return <div className="space-y-6"><HolidaysCalendar employees={employees} requests={requests} shifts={shifts} /><div className="grid gap-6 xl:grid-cols-[1fr_22rem]"><div className="space-y-5"><section className="rounded-lg border border-black/10 bg-white"><header className="border-b border-black/10 p-4"><h2 className="font-semibold">Leave requests</h2></header>{requests.length ? requests.map(request => { const employee = employees.find(item => item.id === request.employeeId); return <div key={request.id} className="flex flex-col gap-3 border-b border-black/10 p-4 last:border-0 sm:flex-row sm:items-center"><div className="min-w-0 flex-1"><p className="font-semibold">{employee?.name || "Unknown employee"}</p><p className="mt-1 text-sm text-black/50">{request.type} · {request.startsOn} to {request.endsOn} · {request.days} working days</p></div><span className="w-fit rounded-md bg-black/5 px-2 py-1 text-xs font-semibold capitalize">{request.status}</span>{request.status === "pending" ? <div className="flex gap-2"><button onClick={() => action("decide-leave", { requestId: request.id, status: "approved" })} className="min-h-9 rounded-md bg-emerald-800 px-3 text-xs font-semibold text-white">Approve</button><button onClick={() => action("decide-leave", { requestId: request.id, status: "rejected" })} className="min-h-9 rounded-md border border-black/10 px-3 text-xs font-semibold">Reject</button></div> : null}</div>; }) : <div className="p-5 text-sm text-black/45">No leave requests yet.</div>}</section><section className="rounded-lg border border-black/10 bg-white"><header className="border-b border-black/10 p-4"><h2 className="font-semibold">Published shifts</h2></header>{shifts.length ? shifts.map(shift => <div key={shift.id} className="flex gap-3 border-b border-black/10 p-4 last:border-0"><CalendarDays className="text-emerald-800" size={17} /><div><p className="font-semibold">{shift.title} · {employees.find(item => item.id === shift.employeeId)?.name}</p><p className="mt-1 text-sm text-black/45">{formatDateTime(shift.startsAt)} to {formatUkDate(shift.endsAt, { timeStyle: "short" })}{shift.location ? ` · ${shift.location}` : ""}</p></div></div>) : <div className="p-5 text-sm text-black/45">No shifts published.</div>}</section></div><form onSubmit={saveShift} className="h-fit rounded-lg border border-black/10 bg-white p-5"><Plus className="text-emerald-800" size={18} /><h2 className="mt-3 text-lg font-semibold">Publish shift</h2><div className="mt-5 space-y-3"><Select name="employeeId" label="Employee" options={employees.map(item => item.id)} labels={Object.fromEntries(employees.map(item => [item.id, item.name]))} /><Input name="title" label="Shift or assignment" required /><Input name="startsAt" label="Starts" type="datetime-local" required /><Input name="endsAt" label="Ends" type="datetime-local" required /><Input name="location" label="Location" /><button disabled={busy === "save-shift"} className="min-h-10 w-full rounded-md bg-black text-sm font-semibold text-white">Publish shift</button></div></form></div></div>;
 }
 
-function HolidaysCalendar({ employees, requests, shifts }: { employees: PeopleEmployee[]; requests: PeopleLeaveRequest[]; shifts: PeopleShift[] }) {
+function HolidaysCalendar({ employees, requests, shifts }: { employees: StaffPersonRef[]; requests: PeopleLeaveRequest[]; shifts: PeopleShift[] }) {
   const [monthStart, setMonthStart] = useState(() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), 1); });
   const nameOf = (employeeId: string) => employees.find(item => item.id === employeeId)?.name ?? "Someone";
   const year = monthStart.getFullYear();
@@ -1030,7 +1067,7 @@ function HolidaysCalendar({ employees, requests, shifts }: { employees: PeopleEm
     ...Array.from({ length: leadOffset }, () => null),
     ...Array.from({ length: daysInMonth }, (_, index) => { const day = index + 1; return { day, iso: `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}` }; }),
   ];
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = businessCalendarDate();
   return (
     <section className="overflow-hidden rounded-lg border border-black/10 bg-white">
       <header className="flex items-center justify-between border-b border-black/10 p-4">
@@ -1067,7 +1104,7 @@ function HolidaysCalendar({ employees, requests, shifts }: { employees: PeopleEm
   );
 }
 
-function Development({ employees, training, onboardingTemplate, modules, busy, action }: { employees: PeopleEmployee[]; training: PeopleTrainingAssignment[]; onboardingTemplate: PeopleProcessConfig["onboardingSteps"]; modules: PeopleTrainingModule[]; busy: string; action: (name: string, payload: Record<string, unknown>) => Promise<unknown> }) {
+function Development({ employees, training, onboardingTemplate, modules, busy, action }: { employees: StaffTrainingPersonDto[]; training: PeopleTrainingAssignment[]; onboardingTemplate: PeopleProcessConfig["onboardingSteps"]; modules: PeopleTrainingModule[]; busy: string; action: (name: string, payload: Record<string, unknown>) => Promise<unknown> }) {
   const [employeeId, setEmployeeId] = useState(employees[0]?.id ?? ""); const employee = employees.find(item => item.id === employeeId);
   async function saveTraining(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const data = Object.fromEntries(new FormData(event.currentTarget)); await action("save-training", { ...data, employeeId, status: "assigned", dueAt: data.dueAt ? new Date(`${data.dueAt}T18:00:00`).getTime() : undefined }); event.currentTarget.reset(); }
   async function saveChecklist(items: PeopleEmployee["onboardingItems"]) { await action("update-onboarding", { employeeId, onboardingItems: items }); }
@@ -1170,7 +1207,7 @@ function AssignModule({ employeeId, employeeName, modules, busy, action }: { emp
   );
 }
 
-function Rewards({ employees, selectedEmployeeId, setSelectedEmployeeId, busy, action }: { employees: PeopleEmployee[]; selectedEmployeeId: string; setSelectedEmployeeId: (id: string) => void; busy: string; action: (name: string, payload: Record<string, unknown>) => Promise<unknown> }) {
+function Rewards({ employees, selectedEmployeeId, setSelectedEmployeeId, busy, action }: { employees: StaffPayPersonDto[]; selectedEmployeeId: string; setSelectedEmployeeId: (id: string) => void; busy: string; action: (name: string, payload: Record<string, unknown>) => Promise<unknown> }) {
   const employee = employees.find(item => item.id === selectedEmployeeId) ?? employees[0];
   const [rules, setRules] = useState<PeopleCommissionRule[]>(employee?.commissionRules ?? []);
   function choose(id: string) { setSelectedEmployeeId(id); setRules(employees.find(item => item.id === id)?.commissionRules ?? []); }

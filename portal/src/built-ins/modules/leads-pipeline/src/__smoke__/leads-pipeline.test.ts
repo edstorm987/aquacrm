@@ -46,7 +46,8 @@ import {
   handlePipelineCardMoved,
 } from "../server/subscribers";
 import { parseCsv, parseXlsxToDelimitedText } from "../server/csv";
-import { LeadService } from "../server/leads";
+import { LeadIdentityConflictError, LeadService } from "../server/leads";
+import { CommercialPaymentConflictError } from "../server/commercial";
 import { CSV_COLUMN_VARIANTS, projectLeadCard } from "../lib/domain";
 
 const AGENCY_ID: AgencyId = "agency_leads_smoke";
@@ -74,6 +75,11 @@ function buildWorld(opts: { withEmail?: boolean; withPipeline?: boolean } = {}) 
     },
     async set<T = unknown>(key: string, value: T): Promise<void> {
       data[key] = value;
+    },
+    async setIfAbsent<T = unknown>(key: string, value: T): Promise<boolean> {
+      if (Object.prototype.hasOwnProperty.call(data, key)) return false;
+      data[key] = value;
+      return true;
     },
     async del(key: string): Promise<void> {
       delete data[key];
@@ -372,6 +378,74 @@ describe("leads-pipeline / LeadService", () => {
     assert.equal(second.created, false);
     const all = await c.leads.list();
     assert.equal(all.length, 1);
+  });
+
+  test("identity edits refuse another lead's canonical email and phone", async () => {
+    const w = buildWorld();
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+    });
+    const alpha = await c.leads.upsert({
+      email: "alpha@example.com",
+      phone: "+44 7700 900111",
+      source: "manual",
+    }, ACTOR);
+    const bravo = await c.leads.upsert({
+      email: "bravo@example.com",
+      phone: "+44 7700 900222",
+      source: "manual",
+    }, ACTOR);
+
+    await assert.rejects(
+      () => c.leads.update(bravo.lead.id, { email: "  ALPHA@example.com " }, ACTOR),
+      (error: unknown) => error instanceof LeadIdentityConflictError && error.field === "email",
+    );
+    await assert.rejects(
+      () => c.leads.update(bravo.lead.id, { phone: "+44 (7700) 900111" }, ACTOR),
+      (error: unknown) => error instanceof LeadIdentityConflictError && error.field === "phone",
+    );
+    assert.equal((await c.leads.getByEmail("alpha@example.com"))?.id, alpha.lead.id);
+    assert.equal((await c.leads.getByEmail("bravo@example.com"))?.id, bravo.lead.id);
+    assert.equal((await c.leads.get(bravo.lead.id))?.phone, "+44 7700 900222");
+  });
+
+  test("two simultaneous identity edits cannot claim the same new email", async () => {
+    const w = buildWorld();
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+    });
+    const alpha = await c.leads.upsert({ email: "race-alpha@example.com", source: "manual" }, ACTOR);
+    const bravo = await c.leads.upsert({ email: "race-bravo@example.com", source: "manual" }, ACTOR);
+    const results = await Promise.allSettled([
+      c.leads.update(alpha.lead.id, { email: "shared@example.com" }, ACTOR),
+      c.leads.update(bravo.lead.id, { email: "SHARED@example.com" }, ACTOR),
+    ]);
+    assert.equal(results.filter(result => result.status === "fulfilled").length, 1);
+    const rejected = results.find(result => result.status === "rejected") as PromiseRejectedResult;
+    assert.ok(rejected.reason instanceof LeadIdentityConflictError);
+    const owner = await c.leads.getByEmail("shared@example.com");
+    assert.ok(owner);
+    assert.equal((await c.leads.list()).filter(lead => lead.email === "shared@example.com").length, 1);
+    const loserId = owner?.id === alpha.lead.id ? bravo.lead.id : alpha.lead.id;
+    const loserOriginal = loserId === alpha.lead.id ? "race-alpha@example.com" : "race-bravo@example.com";
+    assert.equal((await c.leads.getByEmail(loserOriginal))?.id, loserId);
+  });
+
+  test("simultaneous upserts of one canonical email converge on one lead", async () => {
+    const w = buildWorld();
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+    });
+    const [first, second] = await Promise.all([
+      c.leads.upsert({ email: "same@example.com", source: "import:first" }, ACTOR),
+      c.leads.upsert({ email: " SAME@example.com ", source: "import:second" }, ACTOR),
+    ]);
+    assert.equal(first.lead.id, second.lead.id);
+    assert.equal([first.created, second.created].filter(Boolean).length, 1);
+    assert.equal((await c.leads.list()).length, 1);
   });
 
   test("upsert accepts and deduplicates phone-only website enquiries", async () => {
@@ -750,6 +824,158 @@ describe("leads-pipeline / commercial packs", () => {
       signedDocumentName: "unsafe.html",
       signedDocumentDataUrl: "data:text/html;base64,PGgxPk5vPC9oMT4=",
     }, ACTOR), /PDF, PNG, JPEG, or WebP/);
+  });
+
+  test("simultaneous packs receive distinct reserved invoice numbers", async () => {
+    const w = buildWorld();
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+    });
+    const input = (partyId: string, email: string) => ({
+      partyKind: "lead" as const,
+      partyId,
+      recipientEmail: email,
+      lineItems: [{ description: "Service", quantity: 1, unitCents: 10_000 }],
+      taxCents: 0,
+      currency: "gbp" as const,
+      dueAt: Date.now() + 86_400_000,
+      billingCadence: "one-off" as const,
+      serviceLevel: "Service",
+      agreementTitle: "Agreement",
+      agreementBody: "Terms",
+    });
+    const [alpha, bravo] = await Promise.all([
+      c.commercial.save(input("lead_invoice_alpha", "alpha-invoice@example.test"), ACTOR),
+      c.commercial.save(input("lead_invoice_bravo", "bravo-invoice@example.test"), ACTOR),
+    ]);
+    assert.notEqual(alpha.invoiceNumber, bravo.invoiceNumber);
+    assert.deepEqual(
+      [alpha.invoiceNumber, bravo.invoiceNumber].sort(),
+      [`MM-${new Date().getUTCFullYear()}-0001`, `MM-${new Date().getUTCFullYear()}-0002`],
+    );
+  });
+
+  test("simultaneous distinct payments both survive and canonical retries count once", async () => {
+    const w = buildWorld();
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+    });
+    await c.commercial.save({
+      partyKind: "lead",
+      partyId: "lead_payment_race",
+      recipientEmail: "payment-race@example.test",
+      lineItems: [{ description: "Service", quantity: 1, unitCents: 10_000 }],
+      taxCents: 0,
+      currency: "gbp",
+      dueAt: Date.now() + 86_400_000,
+      billingCadence: "one-off",
+      serviceLevel: "Service",
+      agreementTitle: "Agreement",
+      agreementBody: "Terms",
+    }, ACTOR);
+    await Promise.all([
+      c.commercial.recordPayment("lead", "lead_payment_race", {
+        amountCents: 3_000,
+        method: "bank-transfer",
+        reference: "BANK-RACE-A",
+      }, ACTOR),
+      c.commercial.recordPayment("lead", "lead_payment_race", {
+        amountCents: 4_000,
+        method: "cash",
+        reference: "CASH-RACE-B",
+      }, ACTOR),
+    ]);
+    const retried = await c.commercial.recordPayment("lead", "lead_payment_race", {
+      amountCents: 3_000,
+      method: "bank-transfer",
+      reference: "  bank-race-a  ",
+    }, ACTOR);
+    assert.equal(retried?.payments.length, 2);
+    assert.equal(retried?.payments.reduce((sum, payment) => sum + payment.amountCents, 0), 7_000);
+    assert.equal(w.activityLog.filter(entry => entry.action === "commercial.payment.recorded").length, 2);
+    assert.equal(w.events.filter(event => event.name === "commercial.payment.recorded").length, 2);
+    assert.equal((await c.commercial.get("lead", "lead_payment_race"))?.payments.length, 2);
+  });
+
+  test("payment references are required and conflicting reuse is refused", async () => {
+    const w = buildWorld();
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+    });
+    await c.commercial.save({
+      partyKind: "contact",
+      partyId: "contact_payment_conflict",
+      recipientEmail: "payment-conflict@example.test",
+      lineItems: [{ description: "Service", quantity: 1, unitCents: 10_000 }],
+      taxCents: 0,
+      currency: "gbp",
+      dueAt: Date.now() + 86_400_000,
+      billingCadence: "one-off",
+      serviceLevel: "Service",
+      agreementTitle: "Agreement",
+      agreementBody: "Terms",
+    }, ACTOR);
+    await assert.rejects(c.commercial.recordPayment("contact", "contact_payment_conflict", {
+      amountCents: 2_000,
+      method: "cash",
+      reference: "   ",
+    }, ACTOR), /reference is required/i);
+    await c.commercial.recordPayment("contact", "contact_payment_conflict", {
+      amountCents: 2_000,
+      method: "cash",
+      reference: "TILL-001",
+    }, ACTOR);
+    await assert.rejects(c.commercial.recordPayment("contact", "contact_payment_conflict", {
+      amountCents: 2_500,
+      method: "cash",
+      reference: "till-001",
+    }, ACTOR), CommercialPaymentConflictError);
+    assert.equal((await c.commercial.get("contact", "contact_payment_conflict"))?.payments.length, 1);
+  });
+
+  test("a simultaneous invoice edit cannot replace an acknowledged payment", async () => {
+    const w = buildWorld();
+    const first = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+    });
+    const second = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+    });
+    const original = {
+      partyKind: "lead" as const,
+      partyId: "lead_save_payment_race",
+      recipientEmail: "save-payment-race@example.test",
+      lineItems: [{ description: "Service", quantity: 1, unitCents: 10_000 }],
+      taxCents: 0,
+      currency: "gbp" as const,
+      dueAt: Date.now() + 86_400_000,
+      billingCadence: "one-off" as const,
+      serviceLevel: "Service",
+      agreementTitle: "Agreement",
+      agreementBody: "Terms",
+    };
+    const saved = await first.commercial.save(original, ACTOR);
+    await Promise.all([
+      first.commercial.save({
+        ...original,
+        lineItems: [{ description: "Expanded service", quantity: 1, unitCents: 12_000 }],
+      }, ACTOR),
+      second.commercial.recordPayment("lead", original.partyId, {
+        amountCents: 2_000,
+        method: "bank-transfer",
+        reference: "BANK-SAVE-RACE",
+      }, ACTOR),
+    ]);
+    const final = await second.commercial.get("lead", original.partyId);
+    assert.equal(final?.invoiceNumber, saved.invoiceNumber);
+    assert.equal(final?.totalCents, 12_000);
+    assert.equal(final?.payments.length, 1);
+    assert.equal(final?.payments[0]?.reference, "BANK-SAVE-RACE");
   });
 });
 

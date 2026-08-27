@@ -6,7 +6,7 @@ test("Journey embeds the canonical pipeline workspace instead of linking away", 
   const hub = readFileSync("src/app/portal/clients/_PeopleHub.tsx", "utf8");
   const page = readFileSync("src/app/portal/clients/page.tsx", "utf8");
 
-  assert.match(hub, /view === "journey" \? <div className="mt-6 min-w-0">\{journeyWorkspace\}<\/div>/);
+  assert.match(hub, /view === "journey" \? <div className="mt-6 min-w-0">\{canManage \? journeyWorkspace : <JourneySection rows=\{journeyRows\} canManage=\{false\} \/>\}<\/div>/);
   assert.doesNotMatch(hub, /Open journey workspace/);
   assert.match(page, /LeadsPipelineWorkspaceServer/);
   assert.match(page, /pipeline=\{<LeadsPipelineWorkspaceServer/);

@@ -3,7 +3,7 @@
 //   1. enqueue happy path with template substitution
 //   2. idempotent on (triggeredByPlugin, externalRef)
 //   3. Postmark driver mock: returns externalRef, message marked sent
-//   4. No-op driver: marks sent without external call
+//   4. Disabled provider: refuses delivery and leaves the message queued
 //   5. Webhook signed-payload happy path: delivered updates timeline + emits event
 //   6. MarketingTemplatePort absent: enqueue without templateId still works
 //   7. Cross-plugin event subscriber wiring (mock router)
@@ -19,7 +19,7 @@ import type {
   PluginInstallScope,
   UserId,
 } from "../lib/tenancy";
-import type { PluginStorage } from "../lib/aquaPluginTypes";
+import type { PluginCtx, PluginStorage } from "../lib/aquaPluginTypes";
 import type {
   EmailMessage,
   PostmarkWebhookEvent,
@@ -27,6 +27,7 @@ import type {
   SendFailure,
   SendResult,
 } from "../lib/domain";
+import { EMAIL_DELIVERY_DISABLED_REASON } from "../lib/domain";
 import type {
   ActivityLogPort,
   DriverContext,
@@ -37,8 +38,14 @@ import type {
   PluginInstallStorePort,
   TenantPort,
 } from "../server/ports";
-import { containerWithDeps, EVENT_SUBSCRIPTIONS } from "../server/foundationAdapter";
+import {
+  containerWithDeps,
+  EVENT_SUBSCRIPTIONS,
+  registerEmailSenderFoundation,
+} from "../server/foundationAdapter";
 import { NoopDriver, PostmarkDriver } from "../server/drivers";
+import { buildEmailSenderHealth } from "../server/health";
+import { testSendHandler } from "../api/handlers";
 
 const AGENCY_ID: AgencyId = "agency_email_smoke";
 const ACTOR: UserId = "user_admin";
@@ -217,6 +224,7 @@ describe("email-sender smoke", () => {
       { provider: "postmark", apiKey: "pm_live_test123key", webhookSecret: "wh_secret_step3" },
       ACTOR,
     );
+    assert.equal((await services.provider.get()).status, "unconfigured");
     const message = await services.emails.enqueue({
       to: "carol@example.com",
       subject: "Postmark test",
@@ -233,13 +241,17 @@ describe("email-sender smoke", () => {
     assert.equal(updated?.status, "sent");
     assert.equal(updated?.externalRef, "pm_test_1");
     assert.ok(updated?.sentAt);
+    const activeProvider = await services.provider.get();
+    assert.equal(activeProvider.status, "active");
+    assert.ok(activeProvider.testedAt);
     const sentEvents = world.inspect.events.filter(e => e.name === "email.sent");
     assert.ok(sentEvents.length >= 1);
   });
 
-  test("step 4: no-op driver — marks sent without external call", async () => {
+  test("step 4: disabled provider — refuses delivery and leaves the row queued", async () => {
     await services.provider.update({ provider: "none" }, ACTOR);
     const before = world.inspect.fetchCalls.length;
+    const sentEventsBefore = world.inspect.events.filter(e => e.name === "email.sent").length;
     const message = await services.emails.enqueue({
       to: "dan@example.com",
       subject: "Noop driver test",
@@ -248,12 +260,91 @@ describe("email-sender smoke", () => {
       externalRef: "step4:noop",
     }, ACTOR);
     const result = await services.delivery.deliver(message.id);
-    assert.equal(result.ok, true);
-    assert.ok(result.externalRef?.startsWith("noop_"));
+    assert.equal(result.ok, false);
+    assert.equal(result.code, "provider_unconfigured");
+    assert.equal(result.reason, EMAIL_DELIVERY_DISABLED_REASON);
     const after = world.inspect.fetchCalls.length;
-    assert.equal(after, before, "no fetch calls under noop driver");
+    assert.equal(after, before, "no fetch calls under disabled provider");
     const updated = await services.emails.get(message.id);
-    assert.equal(updated?.status, "sent");
+    assert.equal(updated?.status, "queued");
+    assert.equal(updated?.externalRef, undefined);
+    assert.equal(updated?.sentAt, undefined);
+    const provider = await services.provider.get();
+    assert.equal(provider.provider, "none");
+    assert.equal(provider.status, "unconfigured");
+    assert.equal(provider.testedAt, undefined);
+    assert.equal(
+      world.inspect.events.filter(e => e.name === "email.sent").length,
+      sentEventsBefore,
+      "disabled delivery must not emit email.sent",
+    );
+
+    const directDriverResult = await new NoopDriver().send({
+      ctx: { agencyId: AGENCY_ID },
+      message,
+    });
+    assert.equal(directDriverResult.ok, false);
+    if (!directDriverResult.ok) {
+      assert.equal(directDriverResult.reason, EMAIL_DELIVERY_DISABLED_REASON);
+    }
+
+    const health = buildEmailSenderHealth(provider, await services.identities.list(), [updated!]);
+    assert.equal(health.ok, false);
+    assert.equal(health.components?.provider?.ok, false);
+    assert.match(health.components?.provider?.message ?? "", /delivery disabled/);
+  });
+
+  test("step 4b: test-send API returns conflict and preserves its queued row when disabled", async () => {
+    registerEmailSenderFoundation({
+      tenant: world.tenant,
+      activity: world.activity,
+      events: world.events,
+      pluginInstalls: world.pluginInstalls,
+      marketingTemplates: world.marketingTemplates,
+      drivers: world.drivers,
+    });
+    const ctx: PluginCtx = {
+      agencyId: AGENCY_ID,
+      actor: ACTOR,
+      storage: world.storage,
+      install: {
+        id: "install_email_smoke",
+        pluginId: "email-sender",
+        agencyId: AGENCY_ID,
+        enabled: true,
+        config: {},
+        features: {},
+        installedAt: 0,
+      },
+      services: {
+        clients: null,
+        pluginInstalls: null,
+        pluginRuntime: null,
+        registry: null,
+        phases: null,
+        activity: world.activity,
+        events: world.events,
+        variants: null,
+        tenant: world.tenant,
+      },
+    };
+    const response = await testSendHandler(new Request("http://local.test/api/portal/email-sender/test", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ to: "api-disabled@example.com" }),
+    }), ctx);
+    assert.equal(response.status, 409);
+    const body = await response.json() as {
+      ok: boolean;
+      code?: string;
+      reason?: string;
+      messageId?: string;
+    };
+    assert.equal(body.ok, false);
+    assert.equal(body.code, "provider_unconfigured");
+    assert.equal(body.reason, EMAIL_DELIVERY_DISABLED_REASON);
+    assert.ok(body.messageId);
+    assert.equal((await services.emails.get(body.messageId!))?.status, "queued");
   });
 
   test("step 5: webhook signed-payload happy path → delivered + emits event", async () => {

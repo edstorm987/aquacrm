@@ -149,6 +149,8 @@ export interface NavItem {
 export interface PluginPage {
   path: string;
   component: () => Promise<{ default: ComponentType<PluginPageProps> }>;
+  /** Render without server-only PluginPageProps across the RSC boundary. */
+  clientComponent?: boolean;
   requiresFeature?: string;
   title?: string;
 }

@@ -59,7 +59,7 @@ landed. **All uncommitted.** Narrative version:
 | Area | Files |
 | --- | --- |
 | **Connections** | `server/portalConnectionStore.ts`, `lib/server/portalConnections.ts`, `lib/server/connectionConfirmation.ts`, `app/connect/[connectionId]/{page,_ConnectFlow}.tsx`, `app/api/portal/connections/*` |
-| **Customer setup** | `app/setup/{page,_CustomerSetup}.tsx`, `app/api/portal/customer/{setup,connections}/`, `app/manifest.ts` |
+| **Customer setup** | `app/setup/{page,_CustomerSetup}.tsx`, `app/api/portal/customer/{setup,connections}/`, `public/manifest.webmanifest` (current static successor) |
 | **Erasure** | `server/clientErasure.ts`, `app/api/portal/clients/[clientId]/erase/`, `clients/[clientId]/settings/_ClientDangerZone.tsx`, `app/api/portal/website-enquiries/erase/` |
 | **Routing / master tags** | `server/websiteSources.ts`, `app/api/portal/website-sources/`, `agency/inbox/_WebsiteSourcesConfig.tsx`, `clients/[clientId]/_ClientTagWorkspace.tsx`, `agency/aqua-tags/{page,_AquaTagsWorkspace}.tsx` |
 | **De-dup** | `lib/portalProducts.ts` `PORTAL_PHASE_LABELS` |

@@ -5,6 +5,8 @@ import { containerFor } from "@/built-ins/modules/agency-finance/src/server";
 import { normaliseCurrency } from "@/built-ins/modules/agency-finance/src/lib/currencies";
 import type { Invoice } from "@/built-ins/modules/agency-finance/src/lib/domain";
 import {
+  buildFinancePlanSchedule,
+  cancelActiveFinancePlanSchedules,
   cleanClientPaymentPlans,
   type ClientPaymentMilestone,
   type ClientPaymentPlan,
@@ -24,8 +26,10 @@ import { getInstall } from "@/server/pluginInstalls";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
+import { ProductWorkspaceBusyError, withClientMetadataLedgerTransaction } from "@/server/productWorkspaceCoordinator";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
-type Action = "create" | "update" | "status" | "delete" | "create-invoice";
+type Action = "create" | "update" | "status" | "delete" | "create-invoice" | "assign-finance-plan" | "cancel-finance-plan";
 
 interface Body {
   clientId?: unknown;
@@ -45,6 +49,9 @@ interface Body {
   status?: unknown;
   milestones?: unknown;
   issue?: unknown;
+  expectedRevision?: unknown;
+  financePlanId?: unknown;
+  operationId?: unknown;
 }
 
 function cleanText(value: unknown, max: number): string {
@@ -61,8 +68,16 @@ function makeId(prefix: string): string {
   return `${prefix}_${crypto.randomBytes(8).toString("hex")}`;
 }
 
+function stableId(prefix: string, value: string): string {
+  return `${prefix}_${crypto.createHash("sha256").update(value).digest("hex").slice(0, 24)}`;
+}
+
+function persistPlans(agencyId: string, clientId: string, plans: ClientPaymentPlan[]) {
+  return updateClient(agencyId, clientId, { metadata: { clientPaymentPlans: plans } });
+}
+
 function savePlans(agencyId: string, clientId: string, plans: ClientPaymentPlan[]) {
-  const updated = updateClient(agencyId, clientId, { metadata: { clientPaymentPlans: plans } });
+  const updated = persistPlans(agencyId, clientId, plans);
   if (updated) {
     synchroniseClientRecordLedger({
       agencyId,
@@ -79,7 +94,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null) as Body | null;
   const clientId = cleanText(body?.clientId, 120);
   const action = cleanText(body?.action, 40) as Action;
-  if (!clientId || !["create", "update", "status", "delete", "create-invoice"].includes(action)) {
+  if (!clientId || !["create", "update", "status", "delete", "create-invoice", "assign-finance-plan", "cancel-finance-plan"].includes(action)) {
     return NextResponse.json({ ok: false, error: "Client and valid action are required." }, { status: 400 });
   }
 
@@ -89,6 +104,17 @@ export async function POST(request: Request) {
   } catch (error) {
     return authErrorResponse(error);
   }
+  try {
+    await requireCurrentClientWorkspaceElementAccess(
+      clientId,
+      "client.commercial",
+      action === "delete" || action === "assign-finance-plan" || action === "cancel-finance-plan" ? "manage" : "use",
+    );
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+  try {
+  return await withClientMetadataLedgerTransaction({ agencyId: session.agencyId, clientId, ledger: "payment-plans" }, async () => {
   const client = getClientForAgency(session.agencyId, clientId);
   if (!client) return NextResponse.json({ ok: false, error: "Client not found." }, { status: 404 });
 
@@ -99,6 +125,80 @@ export async function POST(request: Request) {
   const productById = new Map(products.map(product => [product.id, product]));
   const plans = cleanClientPaymentPlans(client.metadata?.clientPaymentPlans);
   const now = Date.now();
+
+  if (action === "assign-finance-plan") {
+    const financePlanId = cleanText(body?.financePlanId, 120);
+    const operationId = cleanText(body?.operationId, 180);
+    const firstDueAt = cleanInteger(body?.firstDueAt, 1, Number.MAX_SAFE_INTEGER);
+    if (!financePlanId || !operationId || !firstDueAt) {
+      return NextResponse.json({ ok: false, error: "Plan, first due date and operation identity are required." }, { status: 400 });
+    }
+    const prior = plans.find(plan => plan.commercialOperationId === operationId);
+    if (prior) return NextResponse.json({ ok: true, plans, plan: prior, deduped: true });
+    const alreadyAssigned = plans.find(plan => plan.financePlanId === financePlanId && plan.status === "active");
+    if (alreadyAssigned) return NextResponse.json({ ok: true, plans, plan: alreadyAssigned, deduped: true });
+    const install = getInstall({ agencyId: session.agencyId }, "agency-finance");
+    if (!install?.enabled) return NextResponse.json({ ok: false, error: "Connect Finance before assigning a commercial plan." }, { status: 409 });
+    const finance = containerFor({ agencyId: session.agencyId, storage: makePluginStorage(install.id), install });
+    const template = await finance.plans.get(financePlanId);
+    if (!template || !template.active) {
+      return NextResponse.json({ ok: false, error: "Choose an active Finance plan." }, { status: 404 });
+    }
+    const canonical = buildFinancePlanSchedule({
+      terms: template,
+      clientPaymentPlanId: stableId("payplan", `${session.agencyId}:${clientId}:${operationId}`),
+      operationId,
+      firstDueAt,
+      customerVisible: body?.customerVisible !== false,
+      now,
+      makeMilestoneId: (kind, index) => stableId("paym", `${session.agencyId}:${clientId}:${operationId}:${kind}:${index}`),
+    });
+    const next = [canonical, ...cancelActiveFinancePlanSchedules(plans, now)];
+    if (!savePlans(session.agencyId, clientId, next)) {
+      return NextResponse.json({ ok: false, error: "Commercial plan assignment could not be saved." }, { status: 500 });
+    }
+    logActivity({
+      idempotencyKey: `commercial-plan-assign:${operationId}`,
+      agencyId: session.agencyId,
+      clientId,
+      actorUserId: session.userId,
+      actorEmail: session.email,
+      category: "finance",
+      action: "client_payment_plan.finance_plan_assigned",
+      message: `Assigned “${template.label}” as the canonical client payment schedule.`,
+      metadata: { financePlanId: template.id, clientPaymentPlanId: canonical.id, currency: canonical.currency, monthlyAmountCents: canonical.monthlyAmountCents },
+    });
+    await flushPendingWrites();
+    return NextResponse.json({ ok: true, plans: next, plan: canonical }, { status: 201 });
+  }
+
+  if (action === "cancel-finance-plan") {
+    const operationId = cleanText(body?.operationId, 180);
+    if (!operationId) return NextResponse.json({ ok: false, error: "Operation identity is required." }, { status: 400 });
+    const priorCancellation = plans.find(plan => plan.commercialCancelledByOperationId === operationId);
+    if (priorCancellation) {
+      return NextResponse.json({ ok: true, plans, plan: priorCancellation, deduped: true });
+    }
+    const active = plans.filter(plan => plan.financePlanId && plan.status === "active");
+    if (!active.length) return NextResponse.json({ ok: true, plans, deduped: true });
+    const next = cancelActiveFinancePlanSchedules(plans, now, operationId);
+    if (!savePlans(session.agencyId, clientId, next)) {
+      return NextResponse.json({ ok: false, error: "Commercial plan cancellation could not be saved." }, { status: 500 });
+    }
+    logActivity({
+      idempotencyKey: `commercial-plan-cancel:${operationId}`,
+      agencyId: session.agencyId,
+      clientId,
+      actorUserId: session.userId,
+      actorEmail: session.email,
+      category: "finance",
+      action: "client_payment_plan.finance_plan_cancelled",
+      message: `Cancelled ${active.length === 1 ? `“${active[0]?.title}”` : `${active.length} commercial plans`}; existing invoices were retained.`,
+      metadata: { clientPaymentPlanIds: active.map(plan => plan.id), financePlanIds: active.map(plan => plan.financePlanId) },
+    });
+    await flushPendingWrites();
+    return NextResponse.json({ ok: true, plans: next });
+  }
 
   if (action === "create") {
     const title = cleanText(body?.title, 180);
@@ -127,6 +227,7 @@ export async function POST(request: Request) {
     }));
     const plan: ClientPaymentPlan = {
       id: makeId("payplan"),
+      revision: 0,
       title,
       summary: cleanText(body?.summary, 2_000) || undefined,
       currency: normaliseCurrency(body?.currency),
@@ -160,10 +261,30 @@ export async function POST(request: Request) {
   const planIndex = plans.findIndex(plan => plan.id === planId);
   if (planIndex < 0) return NextResponse.json({ ok: false, error: "Payment plan not found." }, { status: 404 });
   const current = plans[planIndex];
+  if (current.financePlanId && ["update", "status", "delete"].includes(action)) {
+    return NextResponse.json({
+      ok: false,
+      error: "This schedule is linked to a Finance plan. Manage its lifecycle from Finance → Plans.",
+      plans,
+    }, { status: 409 });
+  }
+  const requestedMilestoneId = action === "create-invoice" ? cleanText(body?.milestoneId, 120) : "";
+  const requestedMilestone = requestedMilestoneId
+    ? current.milestones.find(milestone => milestone.id === requestedMilestoneId)
+    : undefined;
+  const expectedRevision = cleanInteger(body?.expectedRevision, 0, Number.MAX_SAFE_INTEGER);
+  const replayingInvoiceOperation = action === "create-invoice" && Boolean(requestedMilestone?.invoiceOperationId);
+  if (expectedRevision === null || (expectedRevision !== current.revision && !replayingInvoiceOperation)) {
+    return NextResponse.json({
+      ok: false,
+      error: "This payment plan changed in another session. The latest version has been loaded; review it and try again.",
+      plans,
+    }, { status: 409 });
+  }
 
   if (action === "delete") {
-    if (current.milestones.some(milestone => Boolean(milestone.invoiceId))) {
-      return NextResponse.json({ ok: false, error: "A plan with linked invoices cannot be deleted. Cancel it instead." }, { status: 409 });
+    if (current.milestones.some(milestone => Boolean(milestone.invoiceId || milestone.invoiceOperationId))) {
+      return NextResponse.json({ ok: false, error: "A plan with linked or recovering invoices cannot be deleted. Cancel it instead." }, { status: 409 });
     }
     const next = plans.filter(plan => plan.id !== current.id);
     const files = Array.isArray(client.metadata?.files) ? client.metadata.files : [];
@@ -195,6 +316,7 @@ export async function POST(request: Request) {
     }
     const updated: ClientPaymentPlan = {
       ...current,
+      revision: current.revision + 1,
       status: requested,
       customerVisible: current.customerVisible,
       activatedAt: requested === "active" ? current.activatedAt ?? now : current.activatedAt,
@@ -219,7 +341,7 @@ export async function POST(request: Request) {
       const row = entry as Record<string, unknown>;
       const suppliedId = cleanText(row.id, 120);
       const existing = suppliedId ? existingById.get(suppliedId) : undefined;
-      if (existing?.invoiceId) {
+      if (existing?.invoiceId || existing?.invoiceOperationId) {
         submittedIds.add(existing.id);
         return [existing];
       }
@@ -255,6 +377,7 @@ export async function POST(request: Request) {
     const productIds = [...new Set(milestones.flatMap(milestone => milestone.productId ? [milestone.productId] : []))];
     const updated: ClientPaymentPlan = {
       ...current,
+      revision: current.revision + 1,
       title: cleanText(body?.title, 180) || current.title,
       summary: cleanText(body?.summary, 2_000) || undefined,
       currency: normaliseCurrency(body?.currency, normaliseCurrency(current.currency)),
@@ -271,15 +394,39 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, plans: next, plan: updated });
   }
 
-  const milestoneId = cleanText(body?.milestoneId, 120);
+  const milestoneId = requestedMilestoneId;
   const milestoneIndex = current.milestones.findIndex(milestone => milestone.id === milestoneId);
   if (milestoneIndex < 0) return NextResponse.json({ ok: false, error: "Payment milestone not found." }, { status: 404 });
-  const milestone = current.milestones[milestoneIndex];
-  if (milestone.invoiceId) return NextResponse.json({ ok: false, error: "This milestone already has an invoice." }, { status: 409 });
+  let operationPlan = current;
+  let operationPlans = plans;
+  let milestone = current.milestones[milestoneIndex];
   if (milestone.status === "waived") return NextResponse.json({ ok: false, error: "A waived milestone cannot be invoiced." }, { status: 409 });
 
   const install = getInstall({ agencyId: session.agencyId }, "agency-finance");
   if (!install?.enabled) return NextResponse.json({ ok: false, error: "Connect Finance before creating an invoice." }, { status: 409 });
+  const operationId = milestone.invoiceOperationId ?? makeId("payinvop");
+  if (!milestone.invoiceOperationId) {
+    const intentMilestone: ClientPaymentMilestone = {
+      ...milestone,
+      invoiceOperationId: operationId,
+      invoiceOperationStartedAt: Date.now(),
+    };
+    operationPlan = {
+      ...current,
+      milestones: current.milestones.map(item => item.id === intentMilestone.id ? intentMilestone : item),
+    };
+    operationPlans = plans.map(plan => plan.id === operationPlan.id ? operationPlan : plan);
+    if (!persistPlans(session.agencyId, clientId, operationPlans)) {
+      return NextResponse.json({ ok: false, error: "Invoice recovery identity could not be saved, so no invoice was created." }, { status: 500 });
+    }
+    try {
+      await flushPendingWrites();
+    } catch {
+      return NextResponse.json({ ok: false, error: "Invoice recovery identity could not be confirmed, so no invoice was created. Retry safely." }, { status: 503 });
+    }
+    milestone = intentMilestone;
+  }
+
   let invoice: Invoice;
   try {
     const finance = containerFor({ agencyId: session.agencyId, storage: makePluginStorage(install.id), install });
@@ -294,31 +441,71 @@ export async function POST(request: Request) {
       }],
       currency: normaliseCurrency(current.currency),
       notes: [`Payment plan: ${current.title}`, milestone.description, `Aqua plan reference: ${current.id}/${milestone.id}`].filter(Boolean).join("\n"),
+      idempotencyKey: `payment-plan:${session.agencyId}:${clientId}:${current.id}:${milestone.id}:${operationId}`,
     }, session.userId);
-    if (body?.issue !== false) invoice = (await finance.invoices.update(invoice.id, { status: "sent" }, session.userId)) ?? invoice;
+    if (body?.issue !== false && invoice.status === "draft") {
+      const issued = await finance.invoices.update(invoice.id, { status: "sent" }, session.userId);
+      if (!issued) throw new Error("The invoice was created but could not be reloaded for issue.");
+      invoice = issued;
+    }
+    await flushPendingWrites();
   } catch (error) {
-    return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "Invoice could not be created." }, { status: 422 });
+    return NextResponse.json({ ok: false, error: `${error instanceof Error ? error.message : "Invoice could not be created."} Retry will reuse the saved invoice operation.` }, { status: 422 });
   }
 
-  const updatedMilestone: ClientPaymentMilestone = {
-    ...milestone,
-    status: invoice.status === "paid" ? "paid" : "invoiced",
-    invoiceId: invoice.id,
-    invoiceNumber: invoice.number,
-    invoicedAt: now,
-    paidAt: invoice.paidAt,
-  };
-  const updatedPlan: ClientPaymentPlan = {
-    ...current,
-    milestones: current.milestones.map(item => item.id === updatedMilestone.id ? updatedMilestone : item),
-    updatedAt: now,
-  };
-  const next = plans.map(plan => plan.id === updatedPlan.id ? updatedPlan : plan);
-  if (!savePlans(session.agencyId, clientId, next)) {
-    return NextResponse.json({ ok: false, error: `Invoice ${invoice.number} was created, but its payment-plan link needs review.` }, { status: 500 });
+  if (invoice.status === "void" || invoice.status === "refunded") {
+    return NextResponse.json({ ok: false, error: `Invoice ${invoice.number} is ${invoice.status}. Review it before starting a replacement invoice.` }, { status: 409 });
   }
+
+  let updatedPlan = operationPlan;
+  let next = operationPlans;
+  if (milestone.invoiceId !== invoice.id
+    || milestone.invoiceNumber !== invoice.number
+    || milestone.status !== (invoice.status === "paid" ? "paid" : "invoiced")) {
+    const updatedMilestone: ClientPaymentMilestone = {
+      ...milestone,
+      status: invoice.status === "paid" ? "paid" : "invoiced",
+      invoiceId: invoice.id,
+      invoiceNumber: invoice.number,
+      invoicedAt: milestone.invoicedAt ?? invoice.issuedAt,
+      paidAt: invoice.paidAt,
+    };
+    updatedPlan = {
+      ...operationPlan,
+      revision: operationPlan.revision + 1,
+      milestones: operationPlan.milestones.map(item => item.id === updatedMilestone.id ? updatedMilestone : item),
+      updatedAt: Date.now(),
+    };
+    next = operationPlans.map(plan => plan.id === updatedPlan.id ? updatedPlan : plan);
+    if (!persistPlans(session.agencyId, clientId, next)) {
+      return NextResponse.json({ ok: false, error: `Invoice ${invoice.number} exists safely, but its payment-plan link needs review. Retry will adopt the same invoice.` }, { status: 500 });
+    }
+    try {
+      await flushPendingWrites();
+    } catch {
+      return NextResponse.json({ ok: false, error: `Invoice ${invoice.number} exists safely, but its payment-plan link could not be confirmed. Retry will adopt the same invoice.` }, { status: 500 });
+    }
+  }
+
+  synchroniseClientRecordLedger({
+    agencyId: session.agencyId,
+    clientId,
+    events: next.map(plan => clientPaymentPlanLedgerEvent(clientId, plan)),
+    completeSources: ["payment-plan"],
+  });
   upsertClientInvoiceLedgerEvent(session.agencyId, clientId, invoice);
-  logActivity({ agencyId: session.agencyId, clientId, actorUserId: session.userId, actorEmail: session.email, category: "finance", action: "client_payment_plan.invoiced", message: `Created ${invoice.number} from “${current.title}” milestone “${milestone.title}”.`, metadata: { planId, milestoneId, invoiceId: invoice.id, invoiceNumber: invoice.number } });
-  await flushPendingWrites();
+  logActivity({ idempotencyKey: `client-payment-plan-invoice:${operationId}`, agencyId: session.agencyId, clientId, actorUserId: session.userId, actorEmail: session.email, category: "finance", action: "client_payment_plan.invoiced", message: `Created ${invoice.number} from “${current.title}” milestone “${milestone.title}”.`, metadata: { planId, milestoneId, invoiceId: invoice.id, invoiceNumber: invoice.number, operationId } });
+  try {
+    await flushPendingWrites();
+  } catch {
+    return NextResponse.json({ ok: false, error: `Invoice ${invoice.number} and its payment-plan link are safe, but record reconciliation needs retrying.` }, { status: 500 });
+  }
   return NextResponse.json({ ok: true, plans: next, plan: updatedPlan, invoice });
+  });
+  } catch (error) {
+    if (error instanceof ProductWorkspaceBusyError) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 409 });
+    }
+    return authErrorResponse(error);
+  }
 }

@@ -159,6 +159,7 @@ export async function listPayoutsHandler(req: Request, ctx: PluginCtx): Promise<
   const filter: PayoutFilter = {
     affiliateId: url.searchParams.get("affiliateId") ?? undefined,
     status: (url.searchParams.get("status") ?? undefined) as PayoutFilter["status"],
+    currency: url.searchParams.get("currency") ?? undefined,
   };
   return json({ ok: true, payouts: await buildContainer(ctx).payouts.list(filter) });
 }
@@ -166,11 +167,23 @@ export async function listPayoutsHandler(req: Request, ctx: PluginCtx): Promise<
 export async function schedulePayoutHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   const guard = methodGuard(req, "POST");
   if (guard) return guard;
-  const body = await safeJson<{ affiliateId: string; method?: "paypal" | "manual" | "stripe-connect"; scheduledFor?: number }>(req);
+  const body = await safeJson<{
+    affiliateId: string;
+    currency?: string;
+    method?: "paypal" | "manual" | "stripe-connect";
+    scheduledFor?: number;
+    operationId?: string;
+  }>(req);
   if (!body?.affiliateId) return badRequest("affiliateId required.");
   try {
     const out = await buildContainer(ctx).payouts.schedule(
-      { affiliateId: body.affiliateId, method: body.method, scheduledFor: body.scheduledFor },
+      {
+        affiliateId: body.affiliateId,
+        currency: body.currency,
+        method: body.method,
+        scheduledFor: body.scheduledFor,
+        operationId: body.operationId,
+      },
       ctx.actor,
       (ctx.install.config.defaultPayoutMethod as "paypal" | "manual" | "stripe-connect" | undefined) ?? "manual",
     );

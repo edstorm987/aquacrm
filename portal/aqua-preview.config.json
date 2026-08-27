@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "repositories": [
+    "edstorm987/aquacrm"
+  ],
+  "command": "node",
+  "args": [
+    "node_modules/next/dist/bin/next",
+    "dev",
+    "--turbopack",
+    "--hostname",
+    "{host}",
+    "--port",
+    "{port}"
+  ],
+  "healthPath": "/",
+  "startupTimeoutMs": 60000,
+  "healthPollIntervalMs": 300,
+  "env": {
+    "NEXT_DIST_DIR": ".next-aqua-preview-{projectId}-{realm}",
+    "TURBO_TELEMETRY_DISABLED": "1"
+  }
+}

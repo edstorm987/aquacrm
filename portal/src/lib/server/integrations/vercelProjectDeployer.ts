@@ -5,6 +5,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { isProvisionedClientProjectPath } from "@/lib/server/clients/clientProjectProvisioner";
 import { resolveIntegrationValues } from "@/lib/server/integrations/integrationConnections";
+import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
 
 const VERCEL_API = "https://api.vercel.com";
 const MAX_FILES = 150;
@@ -112,6 +113,7 @@ export async function deployProjectPreviewToVercel(input: {
   projectSlug: string;
   config?: VercelDeploymentConfig;
 }, dependencies: DeployDependencies = {}): Promise<VercelPreviewDeployment> {
+  assertLiveProviderAccess("Vercel deployment");
   if (!isProvisionedClientProjectPath(input.localPath)) {
     throw new Error("Only projects provisioned inside the Milesymedia client-projects workspace can be deployed.");
   }

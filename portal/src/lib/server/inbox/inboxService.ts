@@ -1,31 +1,33 @@
 import "server-only";
 
-import type { InboxAttachment, InboxConversation, InboxMessage, InboxMessageType, InboxSnapshot } from "@/lib/inbox/types";
+import { createHash, randomUUID } from "node:crypto";
+
+import type { InboxAttachment, InboxMessage, InboxMessageType, InboxSnapshot } from "@/lib/inbox/types";
+import { readInboxReplyOperation } from "@/lib/inbox/replyDelivery";
 import {
+  appendInboxProviderMessage,
+  claimInboxReplyPart,
   claimInboxWebhookEvents,
   completeInboxWebhookEvent,
-  createInboxId,
   failInboxWebhookEvent,
   findPrivateConnectionByExternalAccount,
   getInboxConversation,
   getPrivateInboxConnection,
   listInboxSnapshot,
   markExternalMessageDeleted,
-  saveInboxConversation,
   saveInboxIdentity,
   saveInboxMessage,
+  prepareInboxReplyOperation,
+  settleInboxReplyPart,
   updateInboxConnection,
-  updateInboxConversation,
   updateInboxIdentityLinks,
-  updateInboxMessage,
+  InboxWebhookLeaseLostError,
 } from "@/lib/server/inbox/inboxStore";
 import { readMetaMessagingConfig, sendMetaAttachmentMessage, sendMetaTextMessage } from "@/lib/server/integrations/metaMessaging";
 import { upsertClientSocialMessageLedgerEvent } from "@/lib/server/clients/clientRecordLedger";
 import { logActivity } from "@/server/activity";
 import { triggerAutomations } from "@/server/automations";
 import { resolveContactIdentity, upsertIdentityResolutionReview } from "@/lib/server/identityResolution";
-
-const META_REPLY_WINDOW_MS = 24 * 60 * 60_000;
 
 type MetaMessagingEvent = {
   sender?: { id?: string };
@@ -47,6 +49,16 @@ type MetaMessagingEvent = {
   read?: { watermark?: number };
 };
 
+export class InboxReplyDeliveryError extends Error {
+  readonly reply: InboxMessage;
+
+  constructor(code: string, reply: InboxMessage, options?: ErrorOptions) {
+    super(code, options);
+    this.name = "InboxReplyDeliveryError";
+    this.reply = reply;
+  }
+}
+
 type MetaWebhookPayload = {
   object?: string;
   entry?: Array<{
@@ -63,11 +75,18 @@ export async function processInboxWebhookQueue(limit = 20): Promise<{ claimed: n
   let messages = 0;
   for (const event of events) {
     try {
+      if (!event.leaseOwner) throw new Error("inbox_webhook_claim_missing_lease_owner");
       messages += await ingestMetaWebhookPayload(event.payload as MetaWebhookPayload);
-      await completeInboxWebhookEvent(event.id);
+      await completeInboxWebhookEvent(event.id, event.leaseOwner);
       processed += 1;
     } catch (cause) {
-      await failInboxWebhookEvent(event, cause);
+      try {
+        await failInboxWebhookEvent(event, cause);
+      } catch (leaseError) {
+        // A replacement worker may already own an expired claim. The stale
+        // worker must not overwrite that row; the active lease will settle it.
+        if (!(leaseError instanceof InboxWebhookLeaseLostError)) throw leaseError;
+      }
       failed += 1;
     }
   }
@@ -203,51 +222,33 @@ async function ingestMetaMessagingEvent(
   const direction: InboxMessage["direction"] = isEcho ? "outbound" : "inbound";
   const descriptor = describeMetaEvent(event);
   if (!descriptor) return 0;
-  const existing = existingThread as InboxConversation | undefined;
-  const firstInboundAt = existing?.firstInboundAt ?? (direction === "inbound" ? sentAt : undefined);
-  const firstResponseAt = existing?.firstResponseAt
-    ?? (direction === "outbound" && firstInboundAt ? sentAt : undefined);
   const referral = cleanObject(event.referral);
-  const source = stringValue(referral.source) || existing?.source;
-  const campaign = stringValue(referral.ad_id) || stringValue(referral.campaign_id) || existing?.campaign;
-  const referralUrl = stringValue(referral.ref) || stringValue(referral.source_url) || existing?.referralUrl;
-  const conversation = await saveInboxConversation({
+  const appended = await appendInboxProviderMessage({
     agencyId,
     connectionId,
     identityId: identity.id,
     externalConversationId: externalUserId,
-    status: direction === "inbound" ? "open" : existing?.status ?? "open",
-    assignedTo: existing?.assignedTo,
-    tags: existing?.tags ?? [],
-    unreadCount: direction === "inbound" ? (existing?.unreadCount ?? 0) + 1 : existing?.unreadCount ?? 0,
-    firstInboundAt,
-    lastInboundAt: direction === "inbound" ? sentAt : existing?.lastInboundAt,
-    firstResponseAt,
-    lastOutboundAt: direction === "outbound" ? sentAt : existing?.lastOutboundAt,
-    lastMessageAt: sentAt,
-    responseDueAt: direction === "inbound" ? sentAt + META_REPLY_WINDOW_MS : existing?.responseDueAt,
-    snoozedUntil: direction === "inbound" ? undefined : existing?.snoozedUntil,
-    closedAt: direction === "inbound" ? undefined : existing?.closedAt,
-    source,
-    campaign,
-    referralUrl,
-    metadata: { ...(existing?.metadata ?? {}), providerObject: "meta", referral },
+    source: stringValue(referral.source),
+    campaign: stringValue(referral.ad_id) || stringValue(referral.campaign_id),
+    referralUrl: stringValue(referral.ref) || stringValue(referral.source_url),
+    conversationMetadata: {
+      providerObject: "meta",
+      ...(Object.keys(referral).length ? { referral } : {}),
+    },
+    message: {
+      externalMessageId: descriptor.externalMessageId,
+      direction,
+      type: descriptor.type,
+      text: descriptor.text,
+      attachments: descriptor.attachments,
+      replyToExternalMessageId: event.message?.reply_to?.mid,
+      status: direction === "inbound" ? "received" : "sent",
+      metadata: descriptor.metadata,
+      sentAt,
+    },
   });
-
-  const message = await saveInboxMessage({
-    agencyId,
-    connectionId,
-    conversationId: conversation.id,
-    externalMessageId: descriptor.externalMessageId,
-    direction,
-    type: descriptor.type,
-    text: descriptor.text,
-    attachments: descriptor.attachments,
-    replyToExternalMessageId: event.message?.reply_to?.mid,
-    status: direction === "inbound" ? "received" : "sent",
-    metadata: descriptor.metadata,
-    sentAt,
-  });
+  if (!appended.inserted) return 0;
+  const { conversation, message } = appended;
   const publicConnection = snapshot.connections.find(item => item.id === connectionId);
   if (identity.clientId && publicConnection) {
     upsertClientSocialMessageLedgerEvent(agencyId, identity.clientId, {
@@ -292,10 +293,15 @@ export async function sendInboxReply(input: {
   actorEmail?: string;
   origin?: string;
   attachments?: InboxAttachment[];
+  operationId?: string;
+  retryOnly?: boolean;
 }): Promise<InboxMessage> {
   const text = input.text.trim().slice(0, 2_000);
   const attachments = (input.attachments ?? []).filter(item => item.url).slice(0, 10);
-  if (!text && !attachments.length) throw new Error("inbox_reply_empty");
+  const suppliedOperationId = input.operationId?.trim();
+  if (suppliedOperationId && !/^[a-zA-Z0-9._:-]{8,128}$/.test(suppliedOperationId)) throw new Error("inbox_reply_operation_invalid");
+  if (input.retryOnly && !suppliedOperationId) throw new Error("inbox_reply_operation_required");
+  if (!input.retryOnly && !text && !attachments.length) throw new Error("inbox_reply_empty");
   const conversation = await getInboxConversation(input.agencyId, input.conversationId);
   if (!conversation) throw new Error("inbox_conversation_not_found");
   if (conversation.responseDueAt && conversation.responseDueAt < Date.now()) throw new Error("meta_reply_window_closed");
@@ -305,71 +311,118 @@ export async function sendInboxReply(input: {
   if (!config) throw new Error("meta_not_configured");
 
   const now = Date.now();
-  const pending = await saveInboxMessage({
-    id: createInboxId("msg"),
-    agencyId: input.agencyId,
-    connectionId: connection.id,
-    conversationId: conversation.id,
-    direction: "outbound",
-    type: attachments[0]?.type ?? "text",
-    text: text || undefined,
-    attachments,
-    status: "pending",
-    metadata: { actorUserId: input.actorUserId },
-    sentAt: now,
-  });
-  try {
-    const messageIds: string[] = [];
-    if (text) messageIds.push((await sendMetaTextMessage(config, connection, conversation.identity.externalUserId, text)).messageId);
-    for (const attachment of attachments) {
-      if (!attachment.url) continue;
-      const type = attachment.type === "image" || attachment.type === "audio" || attachment.type === "video" ? attachment.type : "file";
-      messageIds.push((await sendMetaAttachmentMessage(config, connection, conversation.identity.externalUserId, { type, url: attachment.url })).messageId);
-    }
-    const sent = await updateInboxMessage(input.agencyId, pending.id, {
-      externalMessageId: messageIds.at(-1),
-      status: "sent",
-      error: undefined,
-    });
-    await updateInboxConversation(input.agencyId, conversation.id, { unreadCount: 0, status: "open" });
-    await saveInboxConversation({
-      ...conversation,
-      lastOutboundAt: now,
-      firstResponseAt: conversation.firstResponseAt ?? now,
-      lastMessageAt: now,
-      unreadCount: 0,
-      status: "open",
-    });
-    logActivity({
+  const operationId = suppliedOperationId ?? randomUUID();
+  const messageId = `msg_reply_${createHash("sha256")
+    .update(`${input.agencyId}\u0000${conversation.id}\u0000${operationId}`)
+    .digest("hex")
+    .slice(0, 32)}`;
+  const payloadHash = createHash("sha256").update(JSON.stringify({ text, attachments })).digest("hex");
+  const parts = [
+    ...(text ? [{ id: "text", kind: "text" as const, status: "pending" as const, attempts: 0, updatedAt: now }] : []),
+    ...attachments.map((_, attachmentIndex) => ({
+      id: `attachment:${attachmentIndex}`,
+      kind: "attachment" as const,
+      attachmentIndex,
+      status: "pending" as const,
+      attempts: 0,
+      updatedAt: now,
+    })),
+  ];
+  let pending = await prepareInboxReplyOperation({
+    retryOnly: input.retryOnly,
+    message: {
+      id: messageId,
       agencyId: input.agencyId,
-      actorUserId: input.actorUserId,
-      actorEmail: input.actorEmail,
-      category: "inbox",
-      action: "social-message.sent",
-      message: `Replied to ${conversation.identity.displayName} from ${connection.displayName}.`,
-      metadata: { connectionId: connection.id, conversationId: conversation.id, messageId: sent.id },
-    });
-    if (conversation.identity.clientId) {
-      upsertClientSocialMessageLedgerEvent(input.agencyId, conversation.identity.clientId, {
-        conversationId: conversation.id,
-        messageId: sent.id,
-        channel: conversation.connection.channel,
-        accountName: conversation.connection.displayName,
-        participantName: conversation.identity.displayName,
-        text: sent.text,
-        attachmentCount: sent.attachments.length,
-        sentAt: sent.sentAt,
-        direction: "outbound",
-        status: sent.status,
-      });
+      connectionId: connection.id,
+      conversationId: conversation.id,
+      direction: "outbound",
+      type: attachments[0]?.type ?? "text",
+      text: text || undefined,
+      attachments,
+      status: "pending",
+      metadata: { actorUserId: input.actorUserId, actorEmail: input.actorEmail },
+      sentAt: now,
+    },
+    operation: { version: 1, operationId, payloadHash, parts },
+  });
+  if (pending.status === "sent") return pending;
+  const operation = readInboxReplyOperation(pending);
+  if (!operation) throw new Error("inbox_reply_operation_corrupt");
+
+  for (const part of operation.parts) {
+    const leaseOwner = `reply_${process.pid}_${randomUUID()}`;
+    const claim = await claimInboxReplyPart(input.agencyId, pending.id, part.id, leaseOwner);
+    pending = claim.message;
+    if (claim.outcome === "sent") continue;
+    if (claim.outcome === "busy") throw new InboxReplyDeliveryError("inbox_reply_in_progress", pending);
+    if (claim.outcome === "uncertain") throw new InboxReplyDeliveryError("inbox_reply_delivery_uncertain", pending);
+
+    let providerMessageId: string;
+    try {
+      if (claim.part.kind === "text") {
+        if (!pending.text) throw new Error("inbox_reply_text_missing");
+        providerMessageId = (await sendMetaTextMessage(config, connection, conversation.identity.externalUserId, pending.text)).messageId;
+      } else {
+        const attachment = pending.attachments[claim.part.attachmentIndex ?? -1];
+        if (!attachment?.url) throw new Error("inbox_reply_attachment_missing");
+        const type = attachment.type === "image" || attachment.type === "audio" || attachment.type === "video" ? attachment.type : "file";
+        providerMessageId = (await sendMetaAttachmentMessage(config, connection, conversation.identity.externalUserId, { type, url: attachment.url })).messageId;
+      }
+    } catch (cause) {
+      const detail = cause instanceof Error ? cause.message : "Meta could not send this reply part.";
+      try {
+        pending = await settleInboxReplyPart({
+          agencyId: input.agencyId,
+          messageId: pending.id,
+          partId: part.id,
+          leaseOwner,
+          error: detail,
+        });
+      } catch (settleCause) {
+        throw new InboxReplyDeliveryError("inbox_reply_delivery_uncertain", pending, { cause: settleCause });
+      }
+      await updateInboxConnection(input.agencyId, connection.id, { lastError: detail, status: "needs-attention" });
+      throw new InboxReplyDeliveryError("inbox_reply_part_failed", pending, { cause });
     }
-    return sent;
-  } catch (cause) {
-    const message = cause instanceof Error ? cause.message : "Meta could not send the message.";
-    await updateInboxMessage(input.agencyId, pending.id, { status: "failed", error: message });
-    await updateInboxConnection(input.agencyId, connection.id, { lastError: message, status: "needs-attention" });
-    throw cause;
+
+    try {
+      pending = await settleInboxReplyPart({
+        agencyId: input.agencyId,
+        messageId: pending.id,
+        partId: part.id,
+        leaseOwner,
+        providerMessageId,
+      });
+    } catch (cause) {
+      throw new InboxReplyDeliveryError("inbox_reply_delivery_uncertain", pending, { cause });
+    }
   }
+
+  if (pending.status !== "sent") throw new InboxReplyDeliveryError("inbox_reply_incomplete", pending);
+  logActivity({
+    agencyId: input.agencyId,
+    actorUserId: input.actorUserId,
+    actorEmail: input.actorEmail,
+    category: "inbox",
+    action: "social-message.sent",
+    message: `Replied to ${conversation.identity.displayName} from ${connection.displayName}.`,
+    metadata: { connectionId: connection.id, conversationId: conversation.id, messageId: pending.id, operationId },
+  });
+  if (conversation.identity.clientId) {
+    upsertClientSocialMessageLedgerEvent(input.agencyId, conversation.identity.clientId, {
+      conversationId: conversation.id,
+      messageId: pending.id,
+      channel: conversation.connection.channel,
+      accountName: conversation.connection.displayName,
+      participantName: conversation.identity.displayName,
+      text: pending.text,
+      attachmentCount: pending.attachments.length,
+      sentAt: pending.sentAt,
+      direction: "outbound",
+      status: pending.status,
+    });
+  }
+  return pending;
 }
 
 export async function addInboxNote(input: {

@@ -17,13 +17,15 @@ import { cleanPortalProducts, type PortalProductKey, type PortalProductSelection
 import { resolveAgencyProductAssignment } from "@/lib/products/productAssignments";
 import { listAgencyProducts } from "@/server/agencyProducts";
 import { clientMatchesContact, clientMatchesLead } from "../lib/clientMatch";
-import { getState, mutate } from "@/server/storage";
+import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { parseXlsxToDelimitedText } from "../server/csv";
 import { isoDateTimeValue } from "../lib/safeDate";
+import { businessCalendarDate } from "@/lib/shared/formatDateTime";
 import { parseCsv } from "../server/csv";
-import type { PortalState } from "@/server/types";
-import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import type { PortalFormFieldDefinition } from "@/server/types";
+import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { resolveIntegrationValues } from "@/lib/server/integrations/integrationConnections";
+import { stripeHttpRequest } from "@/lib/server/integrations/stripeHttp";
 import { recordWebsiteEnquiryResponse } from "@/lib/server/websiteEnquiries";
 import type {
   AudienceFilter,
@@ -56,8 +58,22 @@ import type {
   UpdateLeadPatch,
   UpdateProspectPatch,
 } from "../lib/domain";
+import { LeadIdentityConflictError } from "../server/leads";
+import { CommercialPaymentConflictError } from "../server/commercial";
 import { isLeadRelationshipCategory } from "../lib/domain";
 import { REQUIRED_PROSPECT_INSPECTION_CHECKS } from "../server/prospects";
+import { getPortalFormFields, validatePortalEntityFields } from "@/server/portalEditor";
+import { validatePortalFormValues } from "@/lib/forms/portalFormValues";
+import {
+  acquireLeadConversion,
+  leadConversionClaimKey,
+  leadConversionCoordinator,
+  leadConversionHolderId,
+  leadConversionRequestHash,
+  type LeadConversionClaimInput,
+  type LeadConversionCoordinator,
+} from "@/server/leadConversionCoordinator";
+import { ensureClientLifecycleOperation } from "@/lib/server/clients/clientLifecycle";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -416,6 +432,9 @@ export async function recordCommercialPaymentHandler(req: Request, ctx: PluginCt
     const pack = await buildContainer(ctx).commercial.recordPayment(body.partyKind, body.partyId, body, ctx.actor);
     return pack ? json({ ok: true, pack }) : notFound("commercial_pack_not_found");
   } catch (err) {
+    if (err instanceof CommercialPaymentConflictError) {
+      return json({ ok: false, error: "payment_reference_conflict", message: err.message }, 409);
+    }
     return unprocessable(err instanceof Error ? err.message : String(err));
   }
 }
@@ -471,12 +490,19 @@ export async function createCommercialStripeCheckoutHandler(req: Request, ctx: P
     params.set("payment_intent_data[metadata][partyId]", pack.partyId);
   }
   try {
-    const response = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+    const idempotencyKey = `commercial-checkout:${createHash("sha256")
+      .update(`${ctx.agencyId}\u0000${pack.id}\u0000${params.toString()}`)
+      .digest("hex")}`;
+    const response = await stripeHttpRequest<{ id?: string; url?: string; error?: { message?: string } }>({
+      secretKey: secret,
+      path: "/v1/checkout/sessions",
       method: "POST",
-      headers: { authorization: `Bearer ${secret}`, "content-type": "application/x-www-form-urlencoded" },
-      body: params,
+      form: params,
+      idempotencyKey,
+      outcome: "idempotent-write",
+      signal: req.signal,
     });
-    const checkout = await response.json() as { id?: string; url?: string; error?: { message?: string } };
+    const checkout = response.body;
     if (!response.ok || !checkout.id || !checkout.url) {
       return unprocessable(checkout.error?.message ?? "Stripe could not create the payment page.");
     }
@@ -522,12 +548,16 @@ export async function commercialStripeWebhookHandler(req: Request, ctx: PluginCt
   let metadata = object.metadata ?? object.parent?.subscription_details?.metadata ?? {};
   const subscriptionId = object.subscription ?? object.parent?.subscription_details?.subscription;
   if ((!metadata.partyKind || !metadata.partyId) && subscriptionId && stripe.secretKey) {
-    const response = await fetch(`https://api.stripe.com/v1/subscriptions/${encodeURIComponent(subscriptionId)}`, {
-      headers: { authorization: `Bearer ${stripe.secretKey}` },
-    });
-    if (response.ok) {
-      const subscription = await response.json() as { metadata?: Record<string, string> };
-      metadata = subscription.metadata ?? metadata;
+    try {
+      const response = await stripeHttpRequest<{ metadata?: Record<string, string> }>({
+        secretKey: stripe.secretKey,
+        path: `/v1/subscriptions/${encodeURIComponent(subscriptionId)}`,
+        outcome: "read",
+        signal: req.signal,
+      });
+      if (response.ok) metadata = response.body.metadata ?? metadata;
+    } catch (error) {
+      return json({ ok: false, error: error instanceof Error ? error.message : "Stripe subscription lookup failed." }, 503);
     }
   }
   const partyKind = metadata.partyKind;
@@ -553,14 +583,22 @@ export async function commercialStripeWebhookHandler(req: Request, ctx: PluginCt
     && pack.payments.filter(payment => payment.method === "stripe").length >= pack.installmentCount
     && stripe.secretKey
   ) {
-    await fetch(`https://api.stripe.com/v1/subscriptions/${encodeURIComponent(subscriptionId)}`, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${stripe.secretKey}`,
-        "content-type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({ cancel_at_period_end: "true" }),
-    });
+    try {
+      const cancellation = await stripeHttpRequest<{ error?: { message?: string } }>({
+        secretKey: stripe.secretKey,
+        path: `/v1/subscriptions/${encodeURIComponent(subscriptionId)}`,
+        method: "POST",
+        form: new URLSearchParams({ cancel_at_period_end: "true" }),
+        idempotencyKey: `commercial-installments-complete:${ctx.agencyId}:${pack.id}:${subscriptionId}`,
+        outcome: "idempotent-write",
+        signal: req.signal,
+      });
+      if (!cancellation.ok) {
+        return json({ ok: false, error: cancellation.body.error?.message ?? `Stripe returned ${cancellation.status}.` }, 502);
+      }
+    } catch (error) {
+      return json({ ok: false, error: error instanceof Error ? error.message : "Stripe subscription update failed." }, 503);
+    }
   }
   return json({ ok: true, commercialPackId: pack?.id });
 }
@@ -577,22 +615,6 @@ function validStripeSignature(payload: string, header: string, secret: string): 
   const expectedBuffer = Buffer.from(expected);
   const actualBuffer = Buffer.from(signature);
   return expectedBuffer.length === actualBuffer.length && timingSafeEqual(expectedBuffer, actualBuffer);
-}
-
-function restorePortalState(snapshot: PortalState): void {
-  mutate(state => {
-    state.agencies = snapshot.agencies;
-    state.clients = snapshot.clients;
-    state.endCustomers = snapshot.endCustomers;
-    state.users = snapshot.users;
-    state.pluginInstalls = snapshot.pluginInstalls;
-    state.pluginData = snapshot.pluginData;
-    state.phases = snapshot.phases;
-    state.activity = snapshot.activity;
-    state.clientRecordLedger = snapshot.clientRecordLedger;
-    state.pipelines = snapshot.pipelines;
-    state.pipelineCards = snapshot.pipelineCards;
-  });
 }
 
 function isExcelWorkbook(filename: string, mimeType: string): boolean {
@@ -613,9 +635,9 @@ async function syncCommercialPackToClientFinance(
   ctx: PluginCtx,
   pack: CommercialPack | null,
   clientId: string,
+  conversionKey: string,
 ): Promise<CommercialPack | null> {
   if (!pack) return null;
-  if (pack.financeInvoiceId) return pack;
   try {
     const [{ getInstall }, { makePluginStorage }, finance, foundation] = await Promise.all([
       import("@/server/pluginInstalls"),
@@ -631,21 +653,32 @@ async function syncCommercialPackToClientFinance(
       storage: makePluginStorage(install.id) as never,
       install: install as never,
     });
-    let invoice = await container.invoices.create({
-      clientId,
-      companyId: pack.companyId,
-      dueAt: pack.dueAt,
-      lineItems: pack.lineItems,
-      taxCents: pack.taxCents,
-      currency: pack.currency,
-      notes: [
-        `Created from opportunity invoice ${pack.invoiceNumber}.`,
-        pack.notes,
-        `Billing cadence: ${pack.billingCadence}.`,
-      ].filter(Boolean).join("\n"),
-    }, ctx.actor, pack.currency);
-    await buildContainer(ctx).commercial.setFinanceInvoiceId(pack.partyKind, pack.partyId, invoice.id);
-    if (pack.invoiceStatus !== "draft") {
+    let invoice = pack.financeInvoiceId
+      ? await container.invoices.get(pack.financeInvoiceId)
+      : null;
+    if (!invoice) {
+      invoice = await container.invoices.create({
+        clientId,
+        companyId: pack.companyId,
+        dueAt: pack.dueAt,
+        lineItems: pack.lineItems,
+        taxCents: pack.taxCents,
+        currency: pack.currency,
+        notes: [
+          `Created from opportunity invoice ${pack.invoiceNumber}.`,
+          pack.notes,
+          `Billing cadence: ${pack.billingCadence}.`,
+        ].filter(Boolean).join("\n"),
+        idempotencyKey: `lead-conversion:${conversionKey}:invoice:${pack.id}`,
+      }, ctx.actor, pack.currency);
+    }
+    if (pack.financeInvoiceId !== invoice.id) {
+      await buildContainer(ctx).commercial.setFinanceInvoiceId(pack.partyKind, pack.partyId, invoice.id);
+    }
+    // Imported payments cannot be attached to a draft finance invoice. A
+    // commercial pack carrying real payment evidence is collectible even when
+    // its older opportunity-side status was never advanced from draft.
+    if ((pack.invoiceStatus !== "draft" || pack.payments.length > 0) && invoice.status === "draft") {
       invoice = await container.invoices.update(invoice.id, { status: "sent" }, ctx.actor) ?? invoice;
     }
     for (const payment of pack.payments) {
@@ -657,12 +690,15 @@ async function syncCommercialPackToClientFinance(
         paidAt: payment.paidAt,
         externalRef: payment.reference,
         notes: `Imported from opportunity payment ${payment.id}.`,
+        idempotencyKey: `lead-conversion:${conversionKey}:payment:${payment.id}`,
       });
     }
     return await buildContainer(ctx).commercial.get(pack.partyKind, pack.partyId);
-  } catch {
-    // Conversion remains available if finance is not installed or temporarily unavailable.
-    return pack;
+  } catch (error) {
+    throw new Error(
+      `finance sync failed: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
+    );
   }
 }
 
@@ -896,7 +932,7 @@ function cleanFieldDefinition(value: unknown): CustomFieldDefinition | null {
   const options = Array.isArray(raw.options)
     ? raw.options.filter((item): item is string => typeof item === "string").map(item => item.trim().slice(0, 80)).filter(Boolean).slice(0, 30)
     : [];
-  return {
+  const definition = {
     id,
     label,
     type,
@@ -904,6 +940,34 @@ function cleanFieldDefinition(value: unknown): CustomFieldDefinition | null {
     formName: typeof raw.formName === "string" && raw.formName.trim() ? raw.formName.trim().slice(0, 80) : "Extra details",
     required: raw.required === true,
   };
+  if ((type === "select" || type === "multi-select") && definition.options.length === 0) return null;
+  return definition;
+}
+
+function contactFieldDefinitions(fields: CustomFieldDefinition[]): PortalFormFieldDefinition[] {
+  return fields.map((field, index) => ({
+    id: field.id,
+    label: field.label,
+    type: field.type,
+    options: field.options,
+    section: field.formName,
+    required: field.required === true,
+    active: true,
+    createdAt: index,
+    updatedAt: index,
+  }));
+}
+
+function validateContactCustomFields(
+  definitions: CustomFieldDefinition[],
+  values: unknown,
+  existing?: Record<string, unknown>,
+) {
+  return validatePortalFormValues({
+    fields: contactFieldDefinitions(definitions),
+    values,
+    existing,
+  });
 }
 
 function prepareCustomerPortalAccess(input: {
@@ -942,7 +1006,20 @@ export async function createLeadHandler(req: Request, ctx: PluginCtx): Promise<R
     return badRequest("email + source required.");
   }
   try {
-    const result = await buildContainer(ctx).leads.upsert(body, ctx.actor);
+    const container = buildContainer(ctx);
+    const existing = body.email
+      ? await container.leads.getByEmail(body.email)
+      : body.phone
+        ? await container.leads.getByPhone(body.phone)
+        : null;
+    const customFields = validatePortalEntityFields(
+      ctx.agencyId,
+      "leads",
+      body.customFields,
+      existing?.customFields,
+      ["niche"],
+    );
+    const result = await container.leads.upsert({ ...body, customFields }, ctx.actor);
     return json({ ok: true, lead: result.lead, created: result.created }, result.created ? 201 : 200);
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
@@ -956,9 +1033,59 @@ export async function updateLeadHandler(req: Request, ctx: PluginCtx): Promise<R
   if (!id) return badRequest("id required.");
   const body = await safeJson<UpdateLeadPatch>(req);
   if (!body) return badRequest("body required.");
-  const updated = await buildContainer(ctx).leads.update(id, body, ctx.actor);
-  if (!updated) return notFound("lead_not_found");
-  return json({ ok: true, lead: updated });
+  try {
+    const container = buildContainer(ctx);
+    const existing = await container.leads.get(id);
+    if (!existing) return notFound("lead_not_found");
+    const customFields = validatePortalEntityFields(
+      ctx.agencyId,
+      "leads",
+      body.customFields,
+      existing.customFields,
+      ["niche"],
+    );
+    const updated = await container.leads.update(id, { ...body, customFields }, ctx.actor);
+    if (!updated) return notFound("lead_not_found");
+    return json({ ok: true, lead: updated });
+  } catch (error) {
+    if (error instanceof LeadIdentityConflictError) {
+      return json({
+        ok: false,
+        error: "lead_identity_conflict",
+        field: error.field,
+        message: error.message,
+      }, 409);
+    }
+    return unprocessable(error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function recoverLeadCardId(
+  ctx: PluginCtx,
+  container: ReturnType<typeof buildContainer>,
+  pipelineId: string,
+  lead: Lead,
+): Promise<string | undefined> {
+  const cards = listCardsByAgency(ctx.agencyId).filter(card =>
+    card.kind === "lead" && card.pipelineId === pipelineId);
+  const exact = cards.find(card => {
+    if (card.kind !== "lead") return false;
+    const snapshot = card.lead as unknown as { leadId?: string };
+    return snapshot.leadId === lead.id;
+  });
+  if (exact) return exact.id;
+
+  // Legacy cards can lack leadId. Email fallback is allowed only while the
+  // canonical identity pointer still belongs to this lead and exactly one card
+  // carries the address. Ambiguity creates a new correctly-linked card instead
+  // of moving somebody else's work.
+  if (!lead.email || (await container.leads.getByEmail(lead.email))?.id !== lead.id) return undefined;
+  const emailMatches = cards.filter(card => {
+    if (card.kind !== "lead") return false;
+    const snapshot = card.lead as unknown as { email?: string };
+    return snapshot.email?.trim().toLowerCase() === lead.email.trim().toLowerCase();
+  });
+  return emailMatches.length === 1 ? emailMatches[0]?.id : undefined;
 }
 
 export async function updateLeadStatusHandler(req: Request, ctx: PluginCtx): Promise<Response> {
@@ -977,12 +1104,7 @@ export async function updateLeadStatusHandler(req: Request, ctx: PluginCtx): Pro
 
   let cardId = lead.pipelineCardId;
   if (!cardId) {
-    const existing = listCardsByAgency(ctx.agencyId).find(card => {
-      if (card.kind !== "lead" || card.pipelineId !== pipeline.id) return false;
-      const snapshot = card.lead as unknown as { leadId?: string; email?: string };
-      return snapshot.leadId === lead.id || snapshot.email === lead.email;
-    });
-    cardId = existing?.id;
+    cardId = await recoverLeadCardId(ctx, c, pipeline.id, lead);
   }
 
   if (!cardId) {
@@ -1032,12 +1154,7 @@ async function ensureLeadBoardCard(ctx: PluginCtx, lead: Lead): Promise<{ lead: 
 
   let cardId = lead.pipelineCardId;
   if (!cardId) {
-    const existing = listCardsByAgency(ctx.agencyId).find(card => {
-      if (card.kind !== "lead" || card.pipelineId !== pipeline.id) return false;
-      const snapshot = card.lead as unknown as { leadId?: string; email?: string };
-      return snapshot.leadId === lead.id || snapshot.email === lead.email;
-    });
-    cardId = existing?.id;
+    cardId = await recoverLeadCardId(ctx, c, pipeline.id, lead);
   }
 
   if (cardId) {
@@ -1180,6 +1297,38 @@ export async function markLeadContactedHandler(req: Request, ctx: PluginCtx): Pr
   return json({ ok: true, lead: updated });
 }
 
+function replayLeadConversionResponse(value: unknown): Response {
+  if (!value || typeof value !== "object") {
+    return json({ ok: false, error: "lead_conversion_result_unavailable" }, 503);
+  }
+  const result = value as Record<string, unknown>;
+  if (result.ok !== true || !result.client || typeof result.client !== "object") {
+    return json({ ok: false, error: "lead_conversion_result_unavailable" }, 503);
+  }
+  return json({ ...result, clientCreated: false, replayed: true }, 200);
+}
+
+async function failLeadConversion(
+  coordinator: LeadConversionCoordinator,
+  operation: LeadConversionClaimInput,
+  error: string,
+): Promise<void> {
+  try {
+    // Keep a failed operation resumable only after every partial side effect is
+    // durable. If persistence itself is unavailable, retain the active lease so
+    // another worker cannot race a stale snapshot immediately.
+    await flushPendingWrites();
+  } catch {
+    return;
+  }
+  try {
+    await coordinator.fail({ ...operation, error });
+  } catch {
+    // The HTTP request still reports the business failure. An expired/lost
+    // claim is safely fenced, and a later request can recover it by lease.
+  }
+}
+
 export async function convertLeadToClientHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
   const body = await safeJson<{
@@ -1196,125 +1345,239 @@ export async function convertLeadToClientHandler(req: Request, ctx: PluginCtx): 
   if (!body?.id) return badRequest("id required.");
 
   const c = buildContainer(ctx);
-  const lead = await c.leads.get(body.id);
-  if (!lead) return notFound("lead_not_found");
+  const initialLead = await c.leads.get(body.id);
+  if (!initialLead) return notFound("lead_not_found");
 
-  const beforeConvert = structuredClone(getState());
-  const existingClient = findExistingClientForLead(ctx.agencyId, lead);
-  const conversion = resolvedProductConversion(ctx.agencyId, {
+  const initialConversion = resolvedProductConversion(ctx.agencyId, {
     ...body,
     servicePlan: body.servicePlan ?? body.planTier,
   });
-  if (!conversion) return badRequest("product_not_found");
-  const commercialPack = await c.commercial.get("lead", lead.id);
-  const metadata = {
-    ...clientJourneyMetadata(lead, conversion, (existingClient?.metadata ?? {}) as Record<string, unknown>),
-    commercialPack: commercialPack ?? undefined,
-  };
-  const client = existingClient
-    ? updateClient(ctx.agencyId, existingClient.id, { metadata }) ?? existingClient
-    : createClient(ctx.agencyId, {
-    companyId: lead.companyId ?? lead.companyIds?.[0],
-    name: lead.company || lead.name || lead.email,
-    ownerEmail: lead.email,
-    stage: (body.stage ?? "aqua-epic-intro") as never,
-    metadata,
-  });
-  const syncedCommercialPack = await syncCommercialPackToClientFinance(ctx, commercialPack, client.id);
-  if (syncedCommercialPack) {
-    updateClient(ctx.agencyId, client.id, {
-      metadata: { ...(client.metadata as Record<string, unknown>), commercialPack: syncedCommercialPack },
-    });
-  }
+  if (!initialConversion) return badRequest("product_not_found");
 
-  await c.leads.update(
-    lead.id,
-    { tags: Array.from(new Set([...lead.tags, "converted"])), notes: lead.notes },
-    ctx.actor,
-  );
-
-  const pipeline = getPipelineBySlug(ctx.agencyId, LEADS_PIPELINE_SLUG);
-  const won = pipeline?.columns.find(col => col.id === "won" || col.label.toLowerCase() === "won");
-  if (pipeline && won) {
-    let cardId = lead.pipelineCardId;
-    if (!cardId) {
-      const card = addCard(ctx.agencyId, pipeline.id, {
-        kind: "lead",
-        columnId: won.id,
-        lead: {
-          leadId: lead.id,
-          email: lead.email,
-          name: lead.name,
-          company: lead.company,
-          source: lead.source,
-          capturedAt: lead.capturedAt,
-        } as never,
-      });
-      cardId = card?.id;
-    }
-    if (cardId) moveCard(ctx.agencyId, cardId, won.id);
-  }
-
-  const portalLogin = conversion.createPortal === false ? undefined : prepareCustomerPortalAccess({
-    email: lead.email,
-  });
-
-  const portalSetup = conversion.createPortal === false
-    ? { ok: true as const, skipped: true as const }
-    : await setupClientStarterPortal({
+  const coordinator = leadConversionCoordinator();
+  const operation: LeadConversionClaimInput = {
+    claimKey: leadConversionClaimKey({
       agencyId: ctx.agencyId,
-      clientId: client.id,
-      actor: ctx.actor,
-      metadata: {
-        phase: "Epic Intro",
-        planTier: String(conversion.servicePlan ?? "Milesymedia product"),
-        therapistName: lead.name,
-        practiceName: lead.company,
-        onboardingStartedAt: new Date().toISOString().slice(0, 10),
-      },
+      leadId: initialLead.id,
+      email: initialLead.email,
+    }),
+    requestHash: leadConversionRequestHash({
+      stage: body.stage ?? "aqua-epic-intro",
+      servicePlan: body.servicePlan ?? body.planTier ?? null,
+      productId: body.productId ?? null,
+      productKeys: body.productKeys ? [...body.productKeys].sort() : null,
+      projectValue: body.projectValue ?? null,
+      billingCadence: body.billingCadence ?? null,
+      createPortal: body.createPortal ?? null,
+    }),
+    holderId: leadConversionHolderId(),
+  };
+  let claim: Awaited<ReturnType<typeof acquireLeadConversion>>;
+  try {
+    claim = await acquireLeadConversion(coordinator, operation);
+  } catch (error) {
+    return json({
+      ok: false,
+      error: "lead_conversion_coordinator_unavailable",
+      message: error instanceof Error ? error.message : String(error),
+    }, 503);
+  }
+  if (claim.state === "conflict") {
+    return json({
+      ok: false,
+      error: "lead_conversion_request_conflict",
+      message: "This lead already has a conversion operation with different options.",
+    }, 409);
+  }
+  if (claim.state === "held") {
+    return json({
+      ok: false,
+      error: "lead_conversion_in_progress",
+      retryAfterMs: Math.max(250, claim.leaseExpiresAt - Date.now()),
+    }, 409);
+  }
+  if (claim.state === "complete") return replayLeadConversionResponse(claim.result);
+
+  try {
+    // A failed owner may have persisted part of the operation before releasing
+    // its lease. Refresh after claiming so a retry resumes those exact records.
+    await ensureHydrated({ fresh: true });
+    const lead = await c.leads.get(body.id);
+    if (!lead) {
+      await failLeadConversion(coordinator, operation, "lead_not_found_after_claim");
+      return notFound("lead_not_found");
+    }
+    const conversion = resolvedProductConversion(ctx.agencyId, {
+      ...body,
+      servicePlan: body.servicePlan ?? body.planTier,
     });
-  if (!portalSetup.ok) {
-    restorePortalState(beforeConvert);
-    return json({ ok: false, error: `client portal setup failed: ${portalSetup.error}`, portalSetup }, 500);
-  }
+    if (!conversion) {
+      await failLeadConversion(coordinator, operation, "product_not_found_after_claim");
+      return badRequest("product_not_found");
+    }
 
-  let trackedLead = await c.leads.get(lead.id) ?? lead;
-  if (!trackedLead.firstContactedAt) {
-    trackedLead = await c.leads.recordContact(lead.id, {
-      at: Date.now(),
-      channel: "other",
-      outcome: "converted",
-      note: "Contact confirmed during client conversion.",
-    }, ctx.actor) ?? trackedLead;
-  }
-  trackedLead = await c.leads.recordConversion(lead.id, client.id, ctx.actor) ?? trackedLead;
-  await c.contacts.promoteLead(trackedLead, ctx.actor);
-  const latestClient = getClientForAgency(ctx.agencyId, client.id) ?? client;
-  updateClient(ctx.agencyId, client.id, {
-    metadata: {
-      leadCapturedAt: trackedLead.capturedAt,
-      leadFirstContactedAt: trackedLead.firstContactedAt,
-      leadConvertedAt: trackedLead.convertedAt,
-      leadJourneyEvents: trackedLead.journeyEvents,
-      buyingJourney: {
-        ...((latestClient.metadata?.buyingJourney && typeof latestClient.metadata.buyingJourney === "object")
-          ? latestClient.metadata.buyingJourney as Record<string, unknown>
-          : {}),
-        capturedAt: trackedLead.capturedAt,
-        firstContactedAt: trackedLead.firstContactedAt,
-        convertedAt: trackedLead.convertedAt,
-        journeyEvents: trackedLead.journeyEvents,
+    const existingClient = findExistingClientForLead(ctx.agencyId, lead);
+    const commercialPack = await c.commercial.get("lead", lead.id);
+    const metadata = {
+      ...clientJourneyMetadata(lead, conversion, (existingClient?.metadata ?? {}) as Record<string, unknown>),
+      commercialPack: commercialPack ?? undefined,
+    };
+    const lifecycleStage = (body.stage ?? "aqua-epic-intro") as never;
+    const client = existingClient
+      ? updateClient(ctx.agencyId, existingClient.id, { metadata, stage: lifecycleStage }) ?? existingClient
+      : createClient(ctx.agencyId, {
+        companyId: lead.companyId ?? lead.companyIds?.[0],
+        name: lead.company || lead.name || lead.email,
+        ownerEmail: lead.email,
+        stage: lifecycleStage,
+        metadata,
+      });
+    const clientCreated = !existingClient;
+    const lifecycle = await ensureClientLifecycleOperation({
+      agencyId: ctx.agencyId,
+      actor: ctx.actor,
+      operationId: `lead-lifecycle:${operation.claimKey}`,
+      clientId: client.id,
+      stage: lifecycleStage,
+      metadata,
+      requestFingerprint: { conversionRequestHash: operation.requestHash, clientId: client.id },
+    });
+    if (!lifecycle.ok) {
+      await failLeadConversion(coordinator, operation, lifecycle.error ?? "client lifecycle incomplete");
+      return json({
+        ok: false,
+        error: "client_lifecycle_incomplete",
+        message: lifecycle.error,
+        clientId: client.id,
+        lifecycle: lifecycle.lifecycle,
+        retryable: true,
+      }, 503);
+    }
+    const syncedCommercialPack = await syncCommercialPackToClientFinance(
+      ctx,
+      commercialPack,
+      client.id,
+      operation.claimKey,
+    );
+    if (syncedCommercialPack) {
+      updateClient(ctx.agencyId, client.id, {
+        metadata: { ...(client.metadata as Record<string, unknown>), commercialPack: syncedCommercialPack },
+      });
+    }
+
+    if (!lead.tags.includes("converted")) {
+      await c.leads.update(
+        lead.id,
+        { tags: [...lead.tags, "converted"], notes: lead.notes },
+        ctx.actor,
+      );
+    }
+
+    const pipeline = getPipelineBySlug(ctx.agencyId, LEADS_PIPELINE_SLUG);
+    const won = pipeline?.columns.find(col => col.id === "won" || col.label.toLowerCase() === "won");
+    if (pipeline && won) {
+      let cardId = lead.pipelineCardId ?? await recoverLeadCardId(ctx, c, pipeline.id, lead);
+      if (!cardId) {
+        const card = addCard(ctx.agencyId, pipeline.id, {
+          kind: "lead",
+          columnId: won.id,
+          lead: {
+            leadId: lead.id,
+            email: lead.email,
+            name: lead.name,
+            company: lead.company,
+            source: lead.source,
+            capturedAt: lead.capturedAt,
+          } as never,
+        });
+        cardId = card?.id;
+      }
+      if (cardId) moveCard(ctx.agencyId, cardId, won.id);
+    }
+
+    const portalLogin = conversion.createPortal === false ? undefined : prepareCustomerPortalAccess({
+      email: lead.email,
+    });
+    const portalSetup = conversion.createPortal === false
+      ? { ok: true as const, skipped: true as const }
+      : await setupClientStarterPortal({
+        agencyId: ctx.agencyId,
+        clientId: client.id,
+        actor: ctx.actor,
+        metadata: {
+          phase: "Epic Intro",
+          planTier: String(conversion.servicePlan ?? "Milesymedia product"),
+          therapistName: lead.name,
+          practiceName: lead.company,
+          onboardingStartedAt: businessCalendarDate(),
+        },
+      });
+    if (!portalSetup.ok) {
+      await failLeadConversion(coordinator, operation, `client portal setup failed: ${portalSetup.error}`);
+      return json({
+        ok: false,
+        error: "client_portal_setup_incomplete",
+        message: `Client created, but customer portal setup is incomplete: ${portalSetup.error}`,
+        clientId: client.id,
+        portalSetup,
+        retryable: true,
+      }, 503);
+    }
+
+    let trackedLead = await c.leads.get(lead.id) ?? lead;
+    if (!trackedLead.firstContactedAt) {
+      trackedLead = await c.leads.recordContact(lead.id, {
+        at: Date.now(),
+        channel: "other",
+        outcome: "converted",
+        note: "Contact confirmed during client conversion.",
+      }, ctx.actor) ?? trackedLead;
+    }
+    trackedLead = await c.leads.recordConversion(lead.id, client.id, ctx.actor) ?? trackedLead;
+    const promotedContact = await c.contacts.getByEmail(trackedLead.email);
+    if (
+      !promotedContact
+      || promotedContact.type !== "customer"
+      || promotedContact.promotedFromLeadId !== trackedLead.id
+      || promotedContact.convertedAt !== trackedLead.convertedAt
+    ) {
+      await c.contacts.promoteLead(trackedLead, ctx.actor);
+    }
+    const latestClient = getClientForAgency(ctx.agencyId, client.id) ?? client;
+    const savedClient = updateClient(ctx.agencyId, client.id, {
+      metadata: {
+        leadCapturedAt: trackedLead.capturedAt,
+        leadFirstContactedAt: trackedLead.firstContactedAt,
+        leadConvertedAt: trackedLead.convertedAt,
+        leadJourneyEvents: trackedLead.journeyEvents,
+        buyingJourney: {
+          ...((latestClient.metadata?.buyingJourney && typeof latestClient.metadata.buyingJourney === "object")
+            ? latestClient.metadata.buyingJourney as Record<string, unknown>
+            : {}),
+          capturedAt: trackedLead.capturedAt,
+          firstContactedAt: trackedLead.firstContactedAt,
+          convertedAt: trackedLead.convertedAt,
+          journeyEvents: trackedLead.journeyEvents,
+        },
       },
-    },
-  });
+    }) ?? latestClient;
 
-  return json({
-    ok: true,
-    client,
-    clientCreated: !existingClient,
-    portalSetup,
-    portalLogin,
-  }, existingClient ? 200 : 201);
+    const result = {
+      ok: true,
+      client: savedClient,
+      clientCreated,
+      portalSetup,
+      portalLogin,
+    };
+    // The replay marker must never outrun the CRM write it represents.
+    await flushPendingWrites();
+    await coordinator.complete({ ...operation, result });
+    return json(result, clientCreated ? 201 : 200);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await failLeadConversion(coordinator, operation, message);
+    return json({ ok: false, error: "lead_conversion_failed", message }, 500);
+  }
 }
 
 export async function archiveLeadHandler(req: Request, ctx: PluginCtx): Promise<Response> {
@@ -1337,7 +1600,7 @@ export async function previewCsvHandler(req: Request, ctx: PluginCtx): Promise<R
   const uploaded = await readUploadedSheet(req);
   if (uploaded instanceof Response) return uploaded;
   const parsed = parseCsv(uploaded.text);
-  const customFields = (await ctx.storage.get<CustomFieldDefinition[]>(CUSTOM_FIELDS_KEY)) ?? [];
+  const customFields = getPortalFormFields(ctx.agencyId, "leads").filter(field => field.active);
   const guessedMapping = Object.fromEntries(Object.entries(parsed.headerVariants).map(([target, index]) => [String(index), target]));
   return json({
     ok: true,
@@ -1411,7 +1674,7 @@ export async function importCsvHandler(req: Request, ctx: PluginCtx): Promise<Re
       return badRequest("Each spreadsheet column must map to a different contact field.");
     }
   }
-  const customFields = (await ctx.storage.get<CustomFieldDefinition[]>(CUSTOM_FIELDS_KEY)) ?? [];
+  const customFields = getPortalFormFields(ctx.agencyId, "leads").filter(field => field.active);
   const result = await buildContainer(ctx).leads.importCsv({
     text,
     filename,
@@ -1421,6 +1684,7 @@ export async function importCsvHandler(req: Request, ctx: PluginCtx): Promise<Re
     defaultRelationshipCategory,
     mapping,
     customFieldTypes: Object.fromEntries(customFields.map(field => [field.id, field.type])),
+    validateCustomFields: (values, existing) => validatePortalEntityFields(ctx.agencyId, "leads", values, existing),
   });
   return json({ ok: true, ...result });
 }
@@ -1446,6 +1710,9 @@ export async function contactConfigurationHandler(req: Request, ctx: PluginCtx):
   const tags = (await ctx.storage.get<string[]>(CUSTOM_TAGS_KEY)) ?? [];
 
   if (body.action === "save-field") {
+    if (contactSelectWithoutOptions(body.field)) {
+      return badRequest("Select fields need at least one option.");
+    }
     const field = cleanFieldDefinition(body.field);
     if (!field) return badRequest("Field name required.");
     const next = [...fields.filter(item => item.id !== field.id), field].sort((a, b) =>
@@ -1477,6 +1744,14 @@ export async function contactConfigurationHandler(req: Request, ctx: PluginCtx):
   return badRequest("Unknown configuration action.");
 }
 
+function contactSelectWithoutOptions(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const source = value as { type?: unknown; options?: unknown };
+  if (source.type !== "select" && source.type !== "multi-select") return false;
+  return !Array.isArray(source.options)
+    || !source.options.some(option => typeof option === "string" && option.trim());
+}
+
 // ─── Contacts ────────────────────────────────────────────────────────────
 
 export async function listContactsHandler(req: Request, ctx: PluginCtx): Promise<Response> {
@@ -1496,8 +1771,16 @@ export async function createContactHandler(req: Request, ctx: PluginCtx): Promis
   if (!body || !body.email || !body.type || !body.source) {
     return badRequest("email + type + source required.");
   }
-  const result = await buildContainer(ctx).contacts.upsert(body, ctx.actor);
-  return json({ ok: true, contact: result.contact, created: result.created }, result.created ? 201 : 200);
+  try {
+    const container = buildContainer(ctx);
+    const existing = await container.contacts.getByEmail(body.email);
+    const definitions = (await ctx.storage.get<CustomFieldDefinition[]>(CUSTOM_FIELDS_KEY)) ?? [];
+    const customFields = validateContactCustomFields(definitions, body.customFields, existing?.customFields);
+    const result = await container.contacts.upsert({ ...body, customFields }, ctx.actor);
+    return json({ ok: true, contact: result.contact, created: result.created }, result.created ? 201 : 200);
+  } catch (error) {
+    return unprocessable(error instanceof Error ? error.message : String(error));
+  }
 }
 
 export async function updateContactHandler(req: Request, ctx: PluginCtx): Promise<Response> {
@@ -1507,9 +1790,18 @@ export async function updateContactHandler(req: Request, ctx: PluginCtx): Promis
   if (!id) return badRequest("id required.");
   const body = await safeJson<UpdateContactPatch>(req);
   if (!body) return badRequest("body required.");
-  const updated = await buildContainer(ctx).contacts.update(id, body, ctx.actor);
-  if (!updated) return notFound("contact_not_found");
-  return json({ ok: true, contact: updated });
+  try {
+    const container = buildContainer(ctx);
+    const existing = await container.contacts.get(id);
+    if (!existing) return notFound("contact_not_found");
+    const definitions = (await ctx.storage.get<CustomFieldDefinition[]>(CUSTOM_FIELDS_KEY)) ?? [];
+    const customFields = validateContactCustomFields(definitions, body.customFields, existing.customFields);
+    const updated = await container.contacts.update(id, { ...body, customFields }, ctx.actor);
+    if (!updated) return notFound("contact_not_found");
+    return json({ ok: true, contact: updated });
+  } catch (error) {
+    return unprocessable(error instanceof Error ? error.message : String(error));
+  }
 }
 
 export async function convertContactToClientHandler(req: Request, ctx: PluginCtx): Promise<Response> {
@@ -1531,7 +1823,6 @@ export async function convertContactToClientHandler(req: Request, ctx: PluginCtx
   const contact = await c.contacts.get(body.id);
   if (!contact) return notFound("contact_not_found");
 
-  const beforeConvert = structuredClone(getState());
   const existingClient = findExistingClientForContact(ctx.agencyId, contact);
   const conversion = resolvedProductConversion(ctx.agencyId, {
     ...body,
@@ -1543,15 +1834,50 @@ export async function convertContactToClientHandler(req: Request, ctx: PluginCtx
     ...clientJourneyMetadata(contact, conversion, (existingClient?.metadata ?? {}) as Record<string, unknown>),
     commercialPack: commercialPack ?? undefined,
   };
+  const lifecycleStage = (body.stage ?? "aqua-epic-intro") as never;
   const client = existingClient
-    ? updateClient(ctx.agencyId, existingClient.id, { metadata }) ?? existingClient
+    ? updateClient(ctx.agencyId, existingClient.id, { metadata, stage: lifecycleStage }) ?? existingClient
     : createClient(ctx.agencyId, {
     name: contact.company || contact.name || contact.email,
     ownerEmail: contact.email,
-    stage: (body.stage ?? "aqua-epic-intro") as never,
+    stage: lifecycleStage,
     metadata,
   });
-  const syncedCommercialPack = await syncCommercialPackToClientFinance(ctx, commercialPack, client.id);
+  const lifecycleFingerprint = leadConversionRequestHash({
+    contactId: contact.id,
+    stage: lifecycleStage,
+    servicePlan: body.servicePlan ?? body.planTier ?? null,
+    productId: body.productId ?? null,
+    productKeys: body.productKeys ? [...body.productKeys].sort() : null,
+    projectValue: body.projectValue ?? null,
+    billingCadence: body.billingCadence ?? null,
+    createPortal: body.createPortal ?? null,
+  });
+  const lifecycle = await ensureClientLifecycleOperation({
+    agencyId: ctx.agencyId,
+    actor: ctx.actor,
+    operationId: `contact-lifecycle:${lifecycleFingerprint}`,
+    clientId: client.id,
+    stage: lifecycleStage,
+    metadata,
+    requestFingerprint: { lifecycleFingerprint, clientId: client.id },
+  });
+  if (!lifecycle.ok) {
+    return json({
+      ok: false,
+      error: "client_lifecycle_incomplete",
+      message: lifecycle.error,
+      clientId: client.id,
+      lifecycle: lifecycle.lifecycle,
+      retryable: true,
+    }, 503);
+  }
+  const syncedCommercialPack = await syncCommercialPackToClientFinance(
+    ctx,
+    commercialPack,
+    client.id,
+    `contact:${ctx.agencyId}:${contact.id}`,
+  );
   if (syncedCommercialPack) {
     updateClient(ctx.agencyId, client.id, {
       metadata: { ...(client.metadata as Record<string, unknown>), commercialPack: syncedCommercialPack },
@@ -1579,12 +1905,18 @@ export async function convertContactToClientHandler(req: Request, ctx: PluginCtx
         planTier: String(conversion.servicePlan ?? "Milesymedia product"),
         therapistName: contact.name,
         practiceName: contact.company,
-        onboardingStartedAt: new Date().toISOString().slice(0, 10),
+        onboardingStartedAt: businessCalendarDate(),
       },
     });
   if (!portalSetup.ok) {
-    restorePortalState(beforeConvert);
-    return json({ ok: false, error: `client portal setup failed: ${portalSetup.error}`, portalSetup }, 500);
+    return json({
+      ok: false,
+      error: "client_portal_setup_incomplete",
+      message: `Client created, but customer portal setup is incomplete: ${portalSetup.error}`,
+      clientId: client.id,
+      portalSetup,
+      retryable: true,
+    }, 503);
   }
 
   return json({

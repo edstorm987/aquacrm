@@ -300,7 +300,8 @@ describe("the browser is gated on the Aqua Tag, not on what kind of thing this i
       "portalTarget must not be derived from the kind field again");
     assert.match(editor, /const portalTarget = !projectId;/,
       "portalTarget stays — it still owns the portal-only machinery — but it is answered by evidence");
-    assert.match(editor, /const browserAvailable = portalTarget \|\| tagMapped/);
+    assert.match(editor, /const browserAvailable = \(portalTarget \|\| tagMapped \|\| localPreviewReady\)/,
+      "a tag and the governed local preview are the two project browser sources");
     assert.match(editor, /const browserPane = showBrowser && browserAvailable/);
   });
 
@@ -384,7 +385,7 @@ describe("a site that redirects still reaches its own tag", () => {
   it("switches projects onto the mapped address too", () => {
     // The picker blanks and re-seeds the box. Re-seeding it from `siteUrl`
     // would reintroduce the bug the moment somebody changed project.
-    assert.match(editor, /setBrowserUrl\(aquaTagBrowserUrl\(project\)\)/);
+    assert.match(editor, /loadBrowserUrl\(aquaTagBrowserUrl\(project\)\)/);
     assert.equal(/setBrowserUrl\(project\?\.siteUrl/.test(editor), false);
     // And the client-side project record has to carry the map for that to work.
     assert.match(editor, /map\?: \{ tag\?: \{ finalUrl\?: string \} \| null \} \| null;/);
@@ -446,10 +447,13 @@ describe("the portal preview is not asked to be a tagged page", () => {
     assert.equal(inspectorTabsFor("visual", { portalTarget: true, tagMapped: true, surface: "normal" }).includes("element"), true);
   });
 
-  it("stops the mobile strip growing a tenth column", () => {
-    // The strip sizes itself `repeat(N, 1fr)`, so a tab that can never be
-    // filled narrows every real one.
-    assert.match(editor, /gridTemplateColumns: `repeat\(\$\{allowedTabs\.length\}, 1fr\) 44px`/);
+  it("keeps every mobile inspector tool reachable without crushing its label", () => {
+    // Tool count may grow, but a phone gets a horizontal rail with stable tab
+    // widths and a sticky close control — never N fractions of 360px.
+    assert.match(editor, /flex min-w-0 flex-1 overflow-x-auto/);
+    assert.match(editor, /min-h-14 w-16 shrink-0 flex-col/);
+    assert.match(editor, /grid min-h-14 w-11 shrink-0 place-items-center border-l/);
+    assert.doesNotMatch(editor, /gridTemplateColumns: `repeat\(\$\{allowedTabs\.length\}/);
     const onThePortalDoor = inspectorTabsFor("developer", { portalTarget: true, tagMapped: false, surface: "normal" });
     // 10/11 since 2026-08-22: the Librarian joined the developer ladder — a
     // REAL tab with a mounted panel on every target, so it belongs in the count.

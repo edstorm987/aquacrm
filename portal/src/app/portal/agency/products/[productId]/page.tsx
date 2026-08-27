@@ -13,6 +13,7 @@ import { productSelectionFingerprint, resolveAgencyProductAssignment, resolvePor
 import { portalProductSelectionFromAgencyProduct } from "@/lib/portal/portalProducts";
 import { clientProductVariations } from "@/lib/clients/clientProductVariations";
 import type { ProductRolloutClient } from "./_ProductRolloutCentre";
+import { getPortalFormFields } from "@/server/portalEditor";
 
 export default async function ProductDetailPage({ params, searchParams }: { params: Promise<{ productId: string }>; searchParams: Promise<{ edit?: string }> }) {
   await ensureHydrated();
@@ -63,6 +64,7 @@ export default async function ProductDetailPage({ params, searchParams }: { para
       products={products}
       sops={listSops(session.agencyId)}
       companies={listTradingCompanies(session.agencyId, true)}
+      customFields={getPortalFormFields(session.agencyId, "products")}
       rolloutClients={rolloutClients}
       productTemplateNeedsRefresh={Boolean(portalTemplate && (portalTemplate.productSourceUpdatedAt ?? 0) < product.updatedAt)}
     />

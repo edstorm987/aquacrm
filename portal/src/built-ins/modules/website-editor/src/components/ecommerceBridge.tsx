@@ -50,22 +50,32 @@ export interface CartSnapshot {
 
 export interface ProductVariant {
   id: string;
-  name: string;
+  optionValues: Record<string, string>;
   price: number;
   salePrice?: number;
-  inStock?: boolean;
-  options?: Record<string, string>;
+  image?: string;
+  sku?: string;
+  available?: number;
 }
 
 export interface Product {
   id: string;
-  handle: string;
+  handle?: string;
   slug?: string;
   name: string;
   description?: string;
   price: number;
   salePrice?: number;
   image?: string;
+  onSale?: boolean;
+  currency?: string;
+  stockSku?: string;
+  options?: Array<{
+    id: string;
+    name: string;
+    displayType: "swatch" | "color-wheel" | "size" | "text" | "image";
+    values: Array<{ id: string; label: string; hexColor?: string; image?: string; available?: boolean }>;
+  }>;
   variants?: ProductVariant[];
 }
 
@@ -192,7 +202,7 @@ export default function ProductVariantPicker({
   // every variant's option map.
   const optionKeys = Array.from(
     variants.reduce<Set<string>>((acc, v) => {
-      for (const k of Object.keys(v.options ?? {})) acc.add(k);
+      for (const k of Object.keys(v.optionValues)) acc.add(k);
       return acc;
     }, new Set<string>()),
   );
@@ -205,7 +215,7 @@ export default function ProductVariantPicker({
     onChange?.(
       {
         selectedVariantId: variantId,
-        options: v?.options ?? {},
+        options: v?.optionValues ?? {},
       },
       v
         ? {
@@ -213,7 +223,7 @@ export default function ProductVariantPicker({
             variant: v,
             price: v.salePrice ?? v.price,
             salePrice: v.salePrice,
-            available: v.inStock !== false,
+            available: v.available === undefined || v.available > 0,
           }
         : null,
     );
@@ -234,7 +244,7 @@ export default function ProductVariantPicker({
         optionKeys.map(optionKey => {
           const values = Array.from(
             variants.reduce<Set<string>>((acc, v) => {
-              const value = v.options?.[optionKey];
+              const value = v.optionValues[optionKey];
               if (value) acc.add(value);
               return acc;
             }, new Set<string>()),
@@ -246,8 +256,10 @@ export default function ProductVariantPicker({
               </p>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {values.map(value => {
-                  const target = variants.find(v => v.options?.[optionKey] === value);
-                  const isActive = selected?.options?.[optionKey] === value;
+                  const target = variants.find(v => v.optionValues[optionKey] === value);
+                  const isActive = selected?.optionValues[optionKey] === value;
+                  const option = product.options?.find(row => row.id === optionKey);
+                  const label = option?.values.find(row => row.id === value)?.label ?? value;
                   return (
                     <button
                       key={value}
@@ -265,7 +277,7 @@ export default function ProductVariantPicker({
                         opacity: target ? 1 : 0.4,
                       }}
                     >
-                      {value}
+                      {label}
                     </button>
                   );
                 })}
@@ -291,7 +303,10 @@ export default function ProductVariantPicker({
                 cursor: "pointer",
               }}
             >
-              {v.name}
+              {Object.entries(v.optionValues).map(([optionId, valueId]) => {
+                const option = product.options?.find(row => row.id === optionId);
+                return option?.values.find(row => row.id === valueId)?.label ?? valueId;
+              }).join(" · ") || v.id}
             </button>
           ))}
         </div>
@@ -305,15 +320,13 @@ export default function ProductVariantPicker({
 export interface StripeCheckoutInput {
   // Items the operator wants to charge for. When omitted, the bridge
   // submits the current cart contents (every `useCart()` item).
-  lineItems?: Array<{ productId?: string; variantId?: string; quantity?: number; priceCents?: number; name?: string }>;
+  lineItems?: Array<{ productId?: string; variantId?: string; quantity?: number }>;
+  operationId?: string;
   successUrl?: string;
   cancelUrl?: string;
   // Optional discount/referral metadata (T2 R5 hooks).
   referralCodeId?: string;
   discountCode?: string;
-  // Custom per-call payload (e.g. donation amount).
-  amountCents?: number;
-  description?: string;
 }
 
 export interface StripeCheckoutResult {
@@ -322,28 +335,60 @@ export interface StripeCheckoutResult {
   error?: string;
 }
 
+export interface CheckoutQuoteRecord {
+  currency: string;
+  subtotal: number;
+  discountAmount: number;
+  shipping: { amount: number; rateId?: string };
+  taxAmount: number;
+  taxAddedAmount: number;
+  amountTotal: number;
+}
+
+export async function quoteCheckout(
+  items: Array<{ productId?: string; variantId?: string; quantity: number }>,
+): Promise<{ quote?: CheckoutQuoteRecord; error?: string }> {
+  if (typeof window === "undefined") return { error: "SSR" };
+  try {
+    const response = await fetch("/api/portal/ecommerce/checkout/quote", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        version: 1,
+        operationId: globalThis.crypto?.randomUUID?.() ?? `quote-${Date.now()}`,
+        items,
+      }),
+    });
+    const data = await response.json() as { ok?: boolean; quote?: CheckoutQuoteRecord; error?: string };
+    return response.ok && data.quote ? { quote: data.quote } : { error: data.error ?? "Quote unavailable." };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 export async function goToStripeCheckout(input: StripeCheckoutInput = {}): Promise<StripeCheckoutResult> {
   if (typeof window === "undefined") return { ok: false, error: "SSR" };
   const lineItems = input.lineItems ?? readCart().map(it => ({
     productId: it.productId,
     variantId: it.variantId,
     quantity: it.quantity,
-    priceCents: it.price,
-    name: it.name,
   }));
+  const cartFingerprint = JSON.stringify(lineItems);
+  const operationId = input.operationId ?? checkoutOperationId(cartFingerprint);
   try {
     const res = await fetch("/api/portal/ecommerce/stripe/checkout", {
       method: "POST",
       headers: { "content-type": "application/json" },
       credentials: "include",
       body: JSON.stringify({
-        lineItems,
-        successUrl: input.successUrl ?? `${window.location.origin}/order-confirmed?session_id={CHECKOUT_SESSION_ID}`,
-        cancelUrl: input.cancelUrl ?? window.location.href,
+        version: 1,
+        operationId,
+        items: lineItems,
+        successPath: input.successUrl ?? "/order-confirmed?session_id={CHECKOUT_SESSION_ID}",
+        cancelPath: input.cancelUrl ?? `${window.location.pathname}${window.location.search}`,
         referralCodeId: input.referralCodeId,
         discountCode: input.discountCode,
-        amountCents: input.amountCents,
-        description: input.description,
       }),
     });
     if (!res.ok) {
@@ -362,6 +407,15 @@ export async function goToStripeCheckout(input: StripeCheckoutInput = {}): Promi
   }
 }
 
+let activeCheckout: { fingerprint: string; operationId: string } | null = null;
+
+function checkoutOperationId(fingerprint: string): string {
+  if (activeCheckout?.fingerprint === fingerprint) return activeCheckout.operationId;
+  const operationId = globalThis.crypto?.randomUUID?.() ?? `checkout-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  activeCheckout = { fingerprint, operationId };
+  return operationId;
+}
+
 // ─── Order lookup (used by OrderSuccessBlock) ─────────────────────────────
 
 export interface OrderRecord {
@@ -370,21 +424,29 @@ export interface OrderRecord {
   amountTotal: number;
   currency: string;
   customerEmail?: string;
-  items: Array<{ name: string; quantity: number; price: number }>;
+  items: Array<{ name: string; quantity: number; unitAmount: number; currency: string }>;
   createdAt: number;
 }
 
-export async function fetchOrderBySessionId(sessionId: string): Promise<OrderRecord | null> {
+export async function fetchOrderBySessionId(sessionId: string, attempts = 8): Promise<OrderRecord | null> {
   if (typeof window === "undefined" || !sessionId) return null;
-  try {
-    const res = await fetch(`/api/portal/ecommerce/orders/by-session/${encodeURIComponent(sessionId)}`, {
-      cache: "no-store",
-      credentials: "include",
-    });
-    if (!res.ok) return null;
-    const data = await res.json() as { order?: OrderRecord };
-    return data.order ?? null;
-  } catch { return null; }
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const res = await fetch(`/api/portal/ecommerce/orders/by-session?sessionId=${encodeURIComponent(sessionId)}`, {
+        cache: "no-store",
+        credentials: "include",
+      });
+      if (res.ok && res.status !== 202) {
+        const data = await res.json() as { order?: OrderRecord };
+        return data.order ?? null;
+      }
+      if (res.status !== 202) return null;
+    } catch {
+      if (attempt === attempts - 1) return null;
+    }
+    await new Promise(resolve => setTimeout(resolve, 750));
+  }
+  return null;
 }
 
 // ─── Variant fetch (used by VariantPickerBlock fallback) ──────────────────

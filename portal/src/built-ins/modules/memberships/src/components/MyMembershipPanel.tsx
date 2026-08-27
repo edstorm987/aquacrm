@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
+
 import type { Benefit, Plan, Subscription } from "../lib/domain";
 
 export interface MyMembershipPanelProps {
@@ -20,6 +22,7 @@ function fmt(cents: number, currency: string): string {
 export function MyMembershipPanel(props: MyMembershipPanelProps) {
   const { subscription, plan, benefits, availablePlans, apiBase } = props;
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   if (!subscription) {
     return (
@@ -75,30 +78,71 @@ export function MyMembershipPanel(props: MyMembershipPanelProps) {
       <footer className="memberships-my-actions">
         {subscription.stripeCustomerId && (
           <button type="button" disabled={busy} onClick={async () => {
-            setBusy(true);
+            setBusy(true); setErr(null);
             try {
-              const r = await fetch(`${apiBase}/me/portal`, { method: "POST" });
-              const data = await r.json();
-              if (data.ok && data.url) window.location.href = data.url;
+              const data = await checkedJsonMutation<{ ok: boolean; url?: string }>(
+                `${apiBase}/me/portal`,
+                { method: "POST" },
+                {
+                  fallback: "Billing management could not be opened.",
+                  validate: payload => payload.ok === true && Boolean(payload.url),
+                },
+              );
+              window.location.href = data.url!;
+            } catch (requestError) {
+              setErr(mutationErrorMessage(requestError, "Billing management could not be opened."));
             } finally { setBusy(false); }
           }}>Manage billing</button>
         )}
         {!subscription.cancelAtPeriodEnd && subscription.status !== "canceled" && (
           <button type="button" disabled={busy} onClick={async () => {
-            if (!confirm("Cancel your subscription at the end of the current period?")) return;
-            setBusy(true);
+            const providerBacked = Boolean(subscription.stripeSubscriptionId);
+            if (!confirm(providerBacked
+              ? "Cancel your subscription at the end of the current period?"
+              : "Cancel this free membership immediately?")) return;
+            setBusy(true); setErr(null);
             try {
-              await fetch(`${apiBase}/me/cancel`, { method: "POST" });
+              await checkedJsonMutation(`${apiBase}/me/cancel`, {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ operationId: browserOperationId("cancel") }),
+              }, {
+                fallback: "The membership could not be cancelled.",
+              });
               window.location.reload();
+            } catch (requestError) {
+              setErr(mutationErrorMessage(requestError, "The membership could not be cancelled."));
             } finally { setBusy(false); }
           }}>Cancel</button>
         )}
+        {availablePlans
+          .filter(candidate => candidate.status === "active" && candidate.id !== subscription.planId)
+          .map(candidate => (
+            <SubscribeButton
+              key={candidate.id}
+              apiBase={apiBase}
+              planId={candidate.id}
+              label={`Switch to ${candidate.name}`}
+            />
+          ))}
+        {err && <p role="alert" className="memberships-form-error">{err}</p>}
       </footer>
     </section>
   );
 }
 
-function SubscribeButton({ apiBase, planId }: { apiBase: string; planId: string }) {
+function browserOperationId(action: string): string {
+  const random = typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `membership-${action}-${random}`;
+}
+
+function SubscribeButton({ apiBase, planId, label = "Subscribe" }: {
+  apiBase: string;
+  planId: string;
+  label?: string;
+}) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   return (
@@ -106,21 +150,32 @@ function SubscribeButton({ apiBase, planId }: { apiBase: string; planId: string 
       <button type="button" disabled={busy} onClick={async () => {
         setBusy(true); setErr(null);
         try {
-          const r = await fetch(`${apiBase}/me/subscribe`, {
+          const data = await checkedJsonMutation<{
+            ok: boolean;
+            mode?: string;
+            checkoutUrl?: string;
+          }>(`${apiBase}/me/subscribe`, {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ planId, billing: "monthly" }),
+            body: JSON.stringify({
+              planId,
+              billing: "monthly",
+              operationId: browserOperationId(`subscribe-${planId}`),
+            }),
+          }, {
+            fallback: "The membership could not be started.",
+            validate: payload => payload.ok === true,
           });
-          const data = await r.json();
-          if (!r.ok || !data.ok) { setErr(data?.error ?? `Failed (${r.status})`); return; }
           if (data.mode === "checkout" && data.checkoutUrl) {
             window.location.href = data.checkoutUrl;
           } else {
             window.location.reload();
           }
+        } catch (requestError) {
+          setErr(mutationErrorMessage(requestError, "The membership could not be started."));
         } finally { setBusy(false); }
-      }}>{busy ? "…" : "Subscribe"}</button>
-      {err && <p className="memberships-form-error">{err}</p>}
+      }}>{busy ? "…" : label}</button>
+      {err && <p role="alert" className="memberships-form-error">{err}</p>}
     </>
   );
 }

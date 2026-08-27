@@ -1,8 +1,7 @@
 import "server-only";
 
 import type { NavPanel } from "@/lib/chrome/sidebarLayout";
-import type { OperationalAlert } from "@/lib/server/inbox/operationalAlerts";
-import { destinationForOperationalAlert } from "@/lib/intelligence/operationalAttention";
+import { destinationForOperationalAlert, type OperationalAlert } from "@/lib/intelligence/operationalAttention";
 
 export function addSidebarAttention(panels: NavPanel[], alerts: OperationalAlert[]): NavPanel[] {
   const counts = new Map<string, number>();

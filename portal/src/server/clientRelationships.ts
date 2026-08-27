@@ -1,7 +1,13 @@
 import "server-only";
 
 import type { Client } from "./types";
-import { createClient, getClientForAgency, listClients, updateClient } from "./tenants";
+import {
+  createClient,
+  getClientForAgency,
+  listClients,
+  updateClient,
+  type CreateClientInput,
+} from "./tenants";
 
 export interface CreateLinkedClientWorkspaceInput {
   sourceClientId: string;
@@ -12,6 +18,7 @@ export interface CreateLinkedClientWorkspaceInput {
   carryContact?: boolean;
   carryServices?: boolean;
   selectedProductIds?: string[];
+  stage?: Client["stage"];
 }
 
 export function clientRelationshipId(client: Client): string {
@@ -32,10 +39,10 @@ export function listClientRelationshipWorkspaces(
       || (a.workspaceLabel || a.name).localeCompare(b.workspaceLabel || b.name));
 }
 
-export function createLinkedClientWorkspace(
+export function prepareLinkedClientWorkspaceCreation(
   agencyId: string,
   input: CreateLinkedClientWorkspaceInput,
-): Client {
+): CreateClientInput & { stage: Client["stage"] } {
   const source = getClientForAgency(agencyId, input.sourceClientId);
   if (!source) throw new Error("Source client workspace was not found.");
   const name = input.name.trim().slice(0, 160);
@@ -64,16 +71,23 @@ export function createLinkedClientWorkspace(
     }
   }
 
-  return createClient(agencyId, {
+  return {
     name,
     relationshipId,
     workspaceLabel: input.workspaceLabel?.trim().slice(0, 120) || undefined,
     ownerEmail: input.carryContact === false ? undefined : source.ownerEmail,
     websiteUrl: input.websiteUrl?.trim() || undefined,
     companyId: input.companyId?.trim() || source.companyId,
-    stage: "discovery",
+    stage: input.stage ?? source.stage,
     metadata,
-  });
+  };
+}
+
+export function createLinkedClientWorkspace(
+  agencyId: string,
+  input: CreateLinkedClientWorkspaceInput,
+): Client {
+  return createClient(agencyId, prepareLinkedClientWorkspaceCreation(agencyId, input));
 }
 
 export function linkClientWorkspaces(agencyId: string, sourceClientId: string, targetClientId: string): Client[] {

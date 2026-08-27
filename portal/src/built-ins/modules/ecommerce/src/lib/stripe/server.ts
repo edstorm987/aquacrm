@@ -36,6 +36,10 @@ export interface CheckoutSessionInput {
   successUrl: string;
   cancelUrl: string;
   discountAmount?: number;       // pence
+  idempotencyKey: string;
+  expiresAt: number;
+  collectShippingAddress?: boolean;
+  allowedShippingCountries?: string[];
 }
 
 export interface CheckoutSessionResult {
@@ -90,10 +94,16 @@ export async function createCheckoutSession(
     metadata: input.metadata,
     success_url: input.successUrl,
     cancel_url: input.cancelUrl,
-    automatic_tax: { enabled: true },
-    shipping_address_collection: { allowed_countries: ["GB", "IE", "FR", "DE", "US", "CA"] },
+    // Tax and shipping have already been resolved and snapshotted by the
+    // authoritative checkout service. Provider-side repricing would make the
+    // final total impossible for the webhook to verify exactly.
+    automatic_tax: { enabled: false },
+    shipping_address_collection: input.collectShippingAddress
+      ? { allowed_countries: input.allowedShippingCountries ?? [] }
+      : undefined,
     phone_number_collection: { enabled: true },
-    allow_promotion_codes: input.discountAmount && input.discountAmount > 0 ? false : true,
+    allow_promotion_codes: false,
+    expires_at: Math.floor(input.expiresAt / 1000),
   };
 
   if (input.discountAmount && input.discountAmount > 0) {
@@ -106,7 +116,9 @@ export async function createCheckoutSession(
     params.discounts = [{ coupon: coupon.id }];
   }
 
-  const session = await stripe.checkout.sessions.create(params);
+  const session = await stripe.checkout.sessions.create(params, {
+    idempotencyKey: input.idempotencyKey,
+  });
   return { id: session.id as string, url: session.url as string };
 }
 

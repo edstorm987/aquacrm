@@ -90,6 +90,10 @@ async function founder() {
     agencyId: agency.id,
     password: "tag-operator-pass",
   });
+  // The canonical listing returns the tag only when at least one returned
+  // project is manageable. The owner baseline manages this fixture project;
+  // an empty or view-only list must not mint a key as a side effect.
+  saveDevProject({ agencyId: agency.id, name: "Tag management fixture", actorUserId: user.id });
   return {
     agency,
     token: issueSession({
@@ -197,12 +201,14 @@ describe("the tag the editor is handed", () => {
     }
   });
 
-  it("still answers the no-argument call the existing listing test makes", async () => {
+  it("uses the request origin while preserving the project listing contract", async () => {
     const { token } = await founder();
-    const response = await withDevMode(() => withSession(token, () => GET()));
+    const response = await withDevMode(() => withSession(token, () => GET(
+      new NextRequest("http://localhost/api/portal/dev/projects"),
+    )));
     const body = await response.json() as ProjectsBody;
     assert.equal(body.ok, true);
-    assert.ok(body.masterTag?.siteKey, "the request is only used for the origin, so it stays optional");
+    assert.ok(body.masterTag?.siteKey, "a concrete Route Handler request still returns the listing metadata");
   });
 });
 
@@ -250,7 +256,7 @@ describe("connecting the tag to a project", () => {
   it("reads no key from the body at all — the route only ever asks the session's agency", async () => {
     const source = await readFile(new URL("../src/app/api/portal/dev/projects/route.ts", import.meta.url), "utf8");
     assert.doesNotMatch(source, /body\.(siteKey|masterSiteKey|aquaTag(?!Id))/);
-    assert.match(source, /ensureAgencyMasterSiteKey\(session\.agencyId\)/);
+    assert.match(source, /ensureAgencyMasterSiteKey\(actor\.resourceAgencyId\)/);
   });
 
   it("an UNREACHABLE check never clears an id an earlier check earned", async () => {
@@ -323,7 +329,7 @@ describe("connecting the tag to a project", () => {
     assert.equal(result.status, 404, "a cross-tenant id must not resolve, let alone be checked");
   });
 
-  it("is behind the same gate as the rest of the endpoint — no Dev Mode, no check", async () => {
+  it("uses the owner access baseline without depending on legacy Dev Mode", async () => {
     const { token } = await founder();
     const created = await project(token, { name: "Gated" });
     // The same request, WITHOUT withDevMode.
@@ -331,7 +337,7 @@ describe("connecting the tag to a project", () => {
       "http://localhost/api/portal/dev/projects",
       { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "connect-tag", id: created.id, siteUrl: "gated.test" }) },
     )));
-    assert.equal(response.status, 403);
+    assert.equal(response.status, 200);
   });
 });
 
@@ -796,7 +802,7 @@ describe("the editor hears about the tag Settings just verified", () => {
     // `aquaTagBrowserUrl` — the finalUrl MAP recorded, with the typed siteUrl
     // only as fallback. Seeding from the typed address is the origin-trust bug
     // the bridge module documents at length.
-    assert.match(editor, /setBrowserUrl\(aquaTagBrowserUrl\(openProject\)\)/);
+    assert.match(editor, /loadBrowserUrl\(aquaTagBrowserUrl\(openProject\)\)/);
     assert.match(editor, /wasVerified/);
     assert.match(editor, /isVerified/);
   });

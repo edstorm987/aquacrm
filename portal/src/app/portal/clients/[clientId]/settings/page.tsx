@@ -4,12 +4,22 @@ import { requireRoleForClient } from "@/lib/server/auth/auth";
 import { ensureHydrated } from "@/server/storage";
 import { getClientForAgency } from "@/server/tenants";
 import { previewClientErasure } from "@/server/clientErasure";
-import { AGENCY_ROLES } from "@/server/types";
+import { AGENCY_ROLES, isAgencyRole } from "@/server/types";
 import { phaseLabel } from "@/server/phases";
 import { ClientStatusActions } from "./_ClientStatusActions";
 import { ClientDangerZone } from "./_ClientDangerZone";
 import { ClientDomainSettings } from "./_ClientDomainSettings";
 import { formatUkDateTime } from "@/lib/shared/formatDateTime";
+import { getPortalFormFields } from "@/server/portalEditor";
+import { ClientCustomFieldsSettings } from "./_ClientCustomFieldsSettings";
+import type { PortalCustomFieldValues } from "@/components/forms/PortalCustomFields";
+import {
+  clientWorkspaceElementAtLeast,
+  clientWorkspaceElementLevel,
+  currentClientWorkspaceElementAccess,
+  visibleClientWorkspaceTabs,
+} from "@/lib/server/access/clientWorkspaceElementAccess";
+import { clientWorkspaceHref } from "@/lib/clients/clientWorkspace";
 
 export default async function ClientSettingsPage({
   params,
@@ -28,11 +38,19 @@ export default async function ClientSettingsPage({
 
   const client = getClientForAgency(session.agencyId, clientId);
   if (!client) notFound();
+  const { access: clientAccess } = await currentClientWorkspaceElementAccess(client.id);
+  const settingsLevel = clientWorkspaceElementLevel(clientAccess, "client.settings");
+  if (!clientWorkspaceElementAtLeast(settingsLevel, "view")) redirect("/portal");
+  const canManageSettings = isAgencyRole(session.role)
+    && !session.publicShowcase
+    && clientWorkspaceElementAtLeast(settingsLevel, "manage");
+  const fallbackTab = visibleClientWorkspaceTabs(clientAccess)[0];
+  const backHref = fallbackTab ? clientWorkspaceHref(client.id, fallbackTab) : "/portal";
 
   const meta = client.metadata ?? {};
   // Owner-only: erasure is irreversible. The count is worked out here so the
   // danger zone can say exactly how much will go.
-  const canErase = session.role === "agency-owner";
+  const canErase = session.role === "agency-owner" && canManageSettings;
   const erasureCount = canErase ? await previewClientErasure(session.agencyId, client.id) ?? 0 : 0;
   const properties = Array.isArray(meta.properties)
     ? meta.properties.filter((property): property is { id: string; label: string; kind: string; liveUrl?: string } => (
@@ -55,7 +73,7 @@ export default async function ClientSettingsPage({
           </p>
         </div>
         <Link
-          href={`/portal/clients/${client.id}`}
+          href={backHref}
           className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-medium text-black/75 shadow-sm hover:bg-black/[0.03]"
         >
           Back to client
@@ -69,11 +87,25 @@ export default async function ClientSettingsPage({
         <InfoCard label="Plan" value={stringMeta(meta.portalServicePlan) || planName(stringMeta(meta.planTier)) || "Not set"} />
       </section>
 
-      <ClientDomainSettings
-        clientId={client.id}
-        initialWebsiteUrl={client.websiteUrl}
-        properties={properties}
-      />
+      {canManageSettings ? (
+        <>
+          <ClientDomainSettings
+            clientId={client.id}
+            initialWebsiteUrl={client.websiteUrl}
+            properties={properties}
+          />
+
+          <ClientCustomFieldsSettings
+            clientId={client.id}
+            fields={getPortalFormFields(session.agencyId, "clients")}
+            initialValues={portalCustomFieldValues(client.metadata?.customFields)}
+          />
+        </>
+      ) : (
+        <p className="rounded-lg border border-black/10 bg-white px-4 py-3 text-sm text-black/55">
+          This client settings element is view-only. An owner can grant Manage access for configuration changes.
+        </p>
+      )}
 
       <section className="rounded-2xl border border-black/10 bg-white p-5 shadow-sm">
         <h2 className="text-base font-semibold text-black/85">Client record</h2>
@@ -85,7 +117,7 @@ export default async function ClientSettingsPage({
         </dl>
       </section>
 
-      <ClientStatusActions clientId={client.id} status={client.status} />
+      {canManageSettings ? <ClientStatusActions clientId={client.id} status={client.status} /> : null}
 
       {canErase ? (
         <ClientDangerZone clientId={client.id} clientName={client.name} recordCount={erasureCount} />
@@ -121,4 +153,14 @@ function Detail({ label, value }: { label: string; value: string }) {
 
 function stringMeta(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function portalCustomFieldValues(value: unknown): PortalCustomFieldValues {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, PortalCustomFieldValues[string]] => {
+    const fieldValue = entry[1];
+    return typeof fieldValue === "string"
+      || typeof fieldValue === "boolean"
+      || Array.isArray(fieldValue) && fieldValue.every(item => typeof item === "string");
+  }));
 }

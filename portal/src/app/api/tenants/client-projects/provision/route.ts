@@ -10,6 +10,7 @@ import { logActivity } from "@/server/activity";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 type Body = {
   clientId?: string;
@@ -38,13 +39,6 @@ export async function POST(request: Request) {
     if (!validOrigin(request)) {
       return NextResponse.json({ ok: false, error: "Invalid request origin." }, { status: 403 });
     }
-    if (process.env.VERCEL === "1") {
-      return NextResponse.json({
-        ok: false,
-        error: "Create project files from the AquaCRM local workspace, then publish them with the connected GitHub account.",
-      }, { status: 409 });
-    }
-
     const body = await request.json().catch(() => null) as Body | null;
     const clientId = body?.clientId?.trim();
     const projectName = body?.projectName?.trim();
@@ -57,6 +51,13 @@ export async function POST(request: Request) {
     }
 
     const session = await requireRoleForClient([...AGENCY_ROLES], clientId);
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.systems", "manage");
+    if (process.env.VERCEL === "1") {
+      return NextResponse.json({
+        ok: false,
+        error: "Create project files from the AquaCRM local workspace, then publish them with the connected GitHub account.",
+      }, { status: 409 });
+    }
     const client = getClientForAgency(session.agencyId, clientId);
     if (!client) return NextResponse.json({ ok: false, error: "Client not found." }, { status: 404 });
 

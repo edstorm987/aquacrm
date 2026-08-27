@@ -1,10 +1,11 @@
-import { NextResponse, type NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
+import { proxy } from "./src/proxy";
 
 export const config = {
-  matcher: ["/portal/:path*"],
+  matcher: ["/portal/:path*", "/api/:path*"],
   runtime: "nodejs",
 };
 
-export function middleware(_req: NextRequest) {
-  return NextResponse.next();
+export function middleware(req: NextRequest) {
+  return proxy(req);
 }

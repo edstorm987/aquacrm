@@ -4,6 +4,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import { COLOR_MODE_STORAGE_KEY } from "@/lib/chrome/colorMode";
 import { isCommandCenterPath } from "@/lib/chrome/commandCenter";
+import { PortalLoadingCoordinator } from "@/components/ui/PortalLoadingCoordinator";
 
 const AREA_SEGMENTS: Array<[string, string]> = [
   ["/company", "company"],
@@ -75,7 +76,7 @@ export function PortalRouteCanvas({ children }: { children: ReactNode }) {
 
   return (
     <div key={pathname} className="mm-route-canvas" data-portal-area={area} data-portal-shell={shellTheme} data-mm-route-motion>
-      {children}
+      <PortalLoadingCoordinator>{children}</PortalLoadingCoordinator>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve, sep } from "node:path";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
 
 // Public media storage — the mirror of `privateUploadStorage.ts` for the
 // `aquacrm-public` bucket. The critical difference: private uploads store a
@@ -129,6 +130,7 @@ export async function storePublicUpload(
   input: StorePublicUploadInput,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<StoredPublicUpload> {
+  assertLiveProviderAccess("Public media storage");
   // Allow-list BEFORE any branch, so Supabase and local-dev share one gate.
   if (!publicUploadContentTypeAllowed(input.contentType)) {
     throw new PublicUploadContentTypeError(input.contentType);
@@ -177,6 +179,7 @@ export async function storePublicUpload(
 // no public *read* helper: public media is fetched via its `publicUrl`, never
 // proxied back through the app.
 export async function deleteSupabasePublicUpload(storageKey: string): Promise<boolean> {
+  assertLiveProviderAccess("Public media deletion");
   if (!supabasePublicUploadsConfigured() || !storageKey.trim()) return false;
   const bucket = resolvePublicBucket();
   const admin = createSupabaseAdminClient();

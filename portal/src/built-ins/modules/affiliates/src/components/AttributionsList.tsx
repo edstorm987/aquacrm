@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
+
 import type { Affiliate, Attribution, AttributionStatus } from "../lib/domain";
 
 export interface AttributionsListProps {
@@ -41,7 +43,15 @@ export function AttributionsList({ attributions, affiliates, apiBase, canMutate 
                   <span className={`affiliates-pill affiliates-pill-attr-${a.status}`}>{a.status}</span>
                 </header>
                 <p className="affiliates-meta">Order {a.orderId} · {a.commissionPercentSnapshot}%</p>
-                <p className="affiliates-meta">{(a.amountCents / 100).toFixed(2)} earned</p>
+                <p className="affiliates-meta">{formatMoney(a.amountCents, a.currency)} earned</p>
+                {(a.reversedAmountCents ?? 0) > 0 && (
+                  <p className="affiliates-meta">
+                    {formatMoney(a.reversedAmountCents ?? 0, a.currency)} reversed
+                    {(a.offsetAmountCents ?? 0) > (a.offsetAppliedCents ?? 0)
+                      ? ` · ${formatMoney((a.offsetAmountCents ?? 0) - (a.offsetAppliedCents ?? 0), a.currency)} future offset`
+                      : ""}
+                  </p>
+                )}
                 {canMutate && a.status === "pending" && (
                   <ApproveButton apiBase={apiBase} attributionId={a.id} />
                 )}
@@ -54,25 +64,43 @@ export function AttributionsList({ attributions, affiliates, apiBase, canMutate 
   );
 }
 
+function formatMoney(cents: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat("en-GB", { style: "currency", currency: currency.toUpperCase() }).format(cents / 100);
+  } catch {
+    return `${(cents / 100).toFixed(2)} ${currency.toUpperCase()}`;
+  }
+}
+
 function ApproveButton({ apiBase, attributionId }: { apiBase: string; attributionId: string }) {
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   return (
-    <button
-      type="button"
-      disabled={busy}
-      onClick={async () => {
-        setBusy(true);
-        try {
-          await fetch(`${apiBase}/attributions/approve`, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ id: attributionId }),
-          });
-          window.location.reload();
-        } finally { setBusy(false); }
-      }}
-    >
-      {busy ? "…" : "Approve"}
-    </button>
+    <span>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          setError(null);
+          try {
+            await checkedJsonMutation<{ ok: boolean }>(`${apiBase}/attributions/approve`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ id: attributionId }),
+            }, {
+              fallback: "The attribution could not be approved.",
+              validate: payload => payload.ok === true,
+            });
+            window.location.reload();
+          } catch (requestError) {
+            setError(mutationErrorMessage(requestError, "The attribution could not be approved."));
+          } finally { setBusy(false); }
+        }}
+      >
+        {busy ? "…" : "Approve"}
+      </button>
+      {error && <span role="alert" className="affiliates-form-error">{error}</span>}
+    </span>
   );
 }

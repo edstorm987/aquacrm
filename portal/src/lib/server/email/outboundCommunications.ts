@@ -4,9 +4,15 @@ import type { IntegrationProvider } from "@/lib/integrations/catalog";
 import {
   getIntegrationConnection,
   listIntegrationConnections,
-  resolveIntegrationConnectionValues,
+  resolveScopedIntegrationConnectionValues,
   resolveIntegrationValues,
 } from "@/lib/server/integrations/integrationConnections";
+import {
+  isRemoteOperationError,
+  withRemoteOperationDeadline,
+  type RemoteOperationRetry,
+} from "@/lib/server/remoteOperation";
+import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
 
 export type OutboundCommunicationChannel = "email" | "sms" | "whatsapp" | "call";
 
@@ -17,6 +23,8 @@ export interface CommunicationSenderIdentity {
   label: string;
   address: string;
   connectionId?: string;
+  clientId?: string;
+  isActive?: boolean;
 }
 
 export interface OutboundCommunicationReadiness {
@@ -31,6 +39,19 @@ export interface SendPhoneMessageResult {
   via: "twilio" | "unconfigured";
   externalMessageId?: string;
   reason?: string;
+  code?: "REMOTE_OPERATION_TIMEOUT" | "REMOTE_OPERATION_ABORTED" | "REMOTE_OPERATION_FAILED";
+  outcomeUnknown?: boolean;
+  retry?: RemoteOperationRetry;
+}
+
+export interface InitiatePhoneCallResult {
+  initiated: boolean;
+  via: "device" | "twilio";
+  externalCallId?: string;
+  reason?: string;
+  code?: "REMOTE_OPERATION_TIMEOUT" | "REMOTE_OPERATION_ABORTED" | "REMOTE_OPERATION_FAILED";
+  outcomeUnknown?: boolean;
+  retry?: RemoteOperationRetry;
 }
 
 export function outboundCommunicationReadiness(agencyId: string): OutboundCommunicationReadiness {
@@ -46,6 +67,8 @@ export function outboundCommunicationReadiness(agencyId: string): OutboundCommun
         label: connection.label,
         address,
         connectionId: connection.id,
+        clientId: connection.clientId,
+        isActive: connection.isActive,
       });
     }
     if (connection.provider === "twilio") {
@@ -60,6 +83,8 @@ export function outboundCommunicationReadiness(agencyId: string): OutboundCommun
         label: `${connection.label} · SMS`,
         address: smsFrom,
         connectionId: connection.id,
+        clientId: connection.clientId,
+        isActive: connection.isActive,
       });
       if (whatsappFrom) senders.push({
         id: `connection:${connection.id}:whatsapp`,
@@ -68,6 +93,8 @@ export function outboundCommunicationReadiness(agencyId: string): OutboundCommun
         label: `${connection.label} · WhatsApp`,
         address: whatsappFrom,
         connectionId: connection.id,
+        clientId: connection.clientId,
+        isActive: connection.isActive,
       });
       if (voiceFrom && agentPhone) senders.push({
         id: `connection:${connection.id}:call`,
@@ -76,6 +103,8 @@ export function outboundCommunicationReadiness(agencyId: string): OutboundCommun
         label: `${connection.label} · Voice`,
         address: voiceFrom,
         connectionId: connection.id,
+        clientId: connection.clientId,
+        isActive: connection.isActive,
       });
     }
   }
@@ -103,7 +132,7 @@ function addEnvironmentSender(
   label: string,
   addressField: string,
 ) {
-  if (senders.some(sender => sender.provider === provider && sender.channel === channel)) return;
+  if (senders.some(sender => sender.provider === provider && sender.channel === channel && !sender.clientId)) return;
   const values = resolveIntegrationValues(agencyId, provider);
   const address = values[addressField]?.trim();
   const credentialsReady = provider === "resend"
@@ -112,28 +141,35 @@ function addEnvironmentSender(
       ? Boolean(values.host && values.port && values.username && values.password)
       : Boolean(values.accountSid && values.authToken && (channel !== "call" || values.agentPhone));
   if (!address || !credentialsReady) return;
-  senders.push({ id: `environment:${provider}:${channel}`, channel, provider, label, address });
+  senders.push({ id: `environment:${provider}:${channel}`, channel, provider, label, address, isActive: true });
 }
 
 export function resolveCommunicationSender(
   agencyId: string,
   senderId: string,
   channel: OutboundCommunicationChannel,
+  clientId?: string,
 ): CommunicationSenderIdentity | null {
-  return outboundCommunicationReadiness(agencyId).senders.find(sender => sender.id === senderId && sender.channel === channel) ?? null;
+  return outboundCommunicationReadiness(agencyId).senders.find(sender =>
+    sender.id === senderId
+    && sender.channel === channel
+    && (!sender.clientId || sender.clientId === clientId)) ?? null;
 }
 
 export async function sendPhoneMessage(input: {
   agencyId: string;
+  clientId?: string;
   sender: CommunicationSenderIdentity;
   channel: "sms" | "whatsapp";
   to: string;
   body: string;
   mediaUrls?: string[];
+  signal?: AbortSignal;
+  timeoutMs?: number;
 }): Promise<SendPhoneMessageResult> {
   if (input.sender.provider !== "twilio") return { delivered: false, via: "unconfigured", reason: "The selected sender is not a messaging number." };
   const values = input.sender.connectionId
-    ? valuesForConnection(input.agencyId, input.sender.connectionId, "twilio")
+    ? valuesForConnection(input.agencyId, input.sender.connectionId, "twilio", input.clientId)
     : resolveIntegrationValues(input.agencyId, "twilio");
   if (!values.accountSid || !values.authToken) {
     return { delivered: false, via: "unconfigured", reason: "Connect the selected Twilio account before sending." };
@@ -149,29 +185,49 @@ export async function sendPhoneMessage(input: {
     Body: input.body.trim().slice(0, 1_600),
   });
   input.mediaUrls?.slice(0, 10).forEach(url => form.append("MediaUrl", url));
-  const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(values.accountSid)}/Messages.json`, {
-    method: "POST",
-    headers: {
-      authorization: `Basic ${Buffer.from(`${values.accountSid}:${values.authToken}`).toString("base64")}`,
-      "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
-    },
-    body: form,
-    cache: "no-store",
-  });
-  const payload = await response.json().catch(() => null) as { sid?: string; message?: string } | null;
+  let response: Response;
+  let payload: { sid?: string; message?: string } | null;
+  try {
+    assertLiveProviderAccess(`Twilio ${input.channel} delivery`);
+    ({ response, payload } = await withRemoteOperationDeadline({
+      operation: `Twilio ${input.channel} delivery`,
+      budget: "providerWrite",
+      outcome: "non-idempotent-write",
+      signal: input.signal,
+      timeoutMs: input.timeoutMs,
+    }, async signal => {
+      const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(values.accountSid)}/Messages.json`, {
+        method: "POST",
+        headers: {
+          authorization: `Basic ${Buffer.from(`${values.accountSid}:${values.authToken}`).toString("base64")}`,
+          "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
+        },
+        body: form,
+        cache: "no-store",
+        signal,
+      });
+      const payload = await response.json().catch(() => null) as { sid?: string; message?: string } | null;
+      return { response, payload };
+    }));
+  } catch (error) {
+    return { delivered: false, via: "twilio", ...phoneFailure(error, "message") };
+  }
   if (!response.ok || !payload?.sid) return { delivered: false, via: "twilio", reason: payload?.message || `Twilio returned ${response.status}.` };
   return { delivered: true, via: "twilio", externalMessageId: payload.sid };
 }
 
 export async function initiatePhoneCall(input: {
   agencyId: string;
+  clientId?: string;
   sender: CommunicationSenderIdentity;
   customerPhone: string;
-}): Promise<{ initiated: boolean; via: "device" | "twilio"; externalCallId?: string; reason?: string }> {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+}): Promise<InitiatePhoneCallResult> {
   if (input.sender.provider === "device") return { initiated: false, via: "device" };
   if (input.sender.provider !== "twilio") return { initiated: false, via: "device", reason: "The selected phone identity cannot place calls." };
   const values = input.sender.connectionId
-    ? valuesForConnection(input.agencyId, input.sender.connectionId, "twilio")
+    ? valuesForConnection(input.agencyId, input.sender.connectionId, "twilio", input.clientId)
     : resolveIntegrationValues(input.agencyId, "twilio");
   const customer = normalisePhone(input.customerPhone);
   const agent = normalisePhone(values.agentPhone ?? "");
@@ -181,24 +237,62 @@ export async function initiatePhoneCall(input: {
   }
   const twiml = `<Response><Dial callerId="${escapeXml(from)}"><Number>${escapeXml(customer)}</Number></Dial></Response>`;
   const form = new URLSearchParams({ To: agent, From: from, Twiml: twiml });
-  const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(values.accountSid)}/Calls.json`, {
-    method: "POST",
-    headers: {
-      authorization: `Basic ${Buffer.from(`${values.accountSid}:${values.authToken}`).toString("base64")}`,
-      "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
-    },
-    body: form,
-    cache: "no-store",
-  });
-  const payload = await response.json().catch(() => null) as { sid?: string; message?: string } | null;
+  let response: Response;
+  let payload: { sid?: string; message?: string } | null;
+  try {
+    assertLiveProviderAccess("Twilio call initiation");
+    ({ response, payload } = await withRemoteOperationDeadline({
+      operation: "Twilio call initiation",
+      budget: "providerWrite",
+      outcome: "non-idempotent-write",
+      signal: input.signal,
+      timeoutMs: input.timeoutMs,
+    }, async signal => {
+      const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(values.accountSid)}/Calls.json`, {
+        method: "POST",
+        headers: {
+          authorization: `Basic ${Buffer.from(`${values.accountSid}:${values.authToken}`).toString("base64")}`,
+          "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
+        },
+        body: form,
+        cache: "no-store",
+        signal,
+      });
+      const payload = await response.json().catch(() => null) as { sid?: string; message?: string } | null;
+      return { response, payload };
+    }));
+  } catch (error) {
+    const failure = phoneFailure(error, "call");
+    return { initiated: false, via: "twilio", ...failure };
+  }
   if (!response.ok || !payload?.sid) return { initiated: false, via: "twilio", reason: payload?.message || `Twilio returned ${response.status}.` };
   return { initiated: true, via: "twilio", externalCallId: payload.sid };
 }
 
-function valuesForConnection(agencyId: string, connectionId: string, provider: IntegrationProvider): Record<string, string> {
+function phoneFailure(
+  error: unknown,
+  kind: "message" | "call",
+): Omit<SendPhoneMessageResult, "delivered" | "via"> {
+  if (isRemoteOperationError(error)) {
+    return {
+      reason: error.message,
+      code: error.code,
+      outcomeUnknown: error.outcomeUnknown,
+      retry: error.retry,
+    };
+  }
+  return { reason: error instanceof Error ? error.message : `Twilio ${kind} request failed.` };
+}
+
+function valuesForConnection(
+  agencyId: string,
+  connectionId: string,
+  provider: IntegrationProvider,
+  clientId?: string,
+): Record<string, string> {
   const connection = getIntegrationConnection(agencyId, connectionId);
   if (!connection || connection.provider !== provider) throw new Error("communication_sender_not_found");
-  return resolveIntegrationConnectionValues(agencyId, connectionId);
+  return resolveScopedIntegrationConnectionValues(agencyId, connectionId, clientId);
 }
 
 export function normalisePhone(value: string): string | null {

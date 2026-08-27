@@ -12,6 +12,53 @@ chrome lives one level down), `page.tsx` (role-aware redirect:
 agency→`/agency`, client→`/clients/<id>`, end-customer→`/customer`),
 `not-found.tsx`.
 
+**Client-creation lifecycle contract (2026-08-26):** the mounted New Client
+selector reads the active agency's editable phase rows and sends a stable operation
+id to `/api/portal/fulfillment/clients`. The shared server boundary in
+`lib/server/clients/clientLifecycle.ts` persists the operation before side effects,
+checkpoints the client, then materialises the selected plugins, Website Editor
+starter and checklist. Identical retry reuses the client and only unfinished steps;
+changed reuse conflicts, a deleted phase is refused before creation and incomplete
+work returns the client id plus `retryable:true`. Lead/contact/person conversion and
+linked workspaces use the same boundary. Mounted all-stage/failure/reload browser
+acceptance remains under [issue #46](../development/issues.md).
+
+**Root pre-paint bootstrap contract (2026-08-26):** `app/layout.tsx` mounts the
+colour-mode and sidebar-collapse storage readers as uniquely identified Next
+16.3 `Script strategy="beforeInteractive"` components in `<head>`. Do not turn
+them back into native inline `<script>` elements: an absent nested client can
+call `notFound()` during a client render, and raw root scripts produced React's
+“script tag while rendering” error on that transition. The two script bodies
+remain in `lib/chrome/colorMode.ts` and
+`components/chrome/sidebarCollapseState.ts`; mounted valid/missing/generic-404
+console acceptance remains under [issue #152](../development/issues.md).
+
+**Current cross-portal accessibility caveat (2026-08-25):** the source contains
+64 `aria-modal="true"` declarations across 50 TSX files, but only three of those
+files use [`useFocusTrap`](../../src/lib/a11y/useFocusTrap.ts). Forty-seven modal
+files do not contain/restore keyboard focus and only four of those handle Escape;
+representative gaps span Actions, New Client, Finance, HR, Marketing and editor
+dialogs. The existing `ConfirmDialog`, mobile navigation and Enquiry detail card
+show the intended behavior. Tracked as [issue #135](../development/issues.md).
+The agency route skeleton separately hides its only live loading status under an
+`aria-hidden` root, tracked as [issue #136](../development/issues.md).
+Across portal/editor chrome, all 12 files declaring a tablist and nine production
+menus omit their role-specific roving/arrow-key behavior; Settings also controls
+missing panel ids, and the editor page picker is a listbox without item navigation.
+Native buttons remain individually tabbable, but the announced composite semantics
+are incomplete. Tracked as [issue #138](../development/issues.md).
+At least 13 manually confirmed internal icon actions also have no accessible name,
+and the published Contact/Booking/Newsletter/Search/Donation fields rely on
+placeholder-only prompts. Tracked as [issue #139](../development/issues.md).
+The root `app/error.tsx` is a segment boundary, not the application-wide fallback its comment
+claims. No `app/global-error.tsx` exists, so root-layout/App Router failures select Next 16's
+built-in generic screen instead of Aqua's recovery/capture path. Tracked as
+[issue #141](../development/issues.md).
+Customer setup's Chromium Install button also depends on `beforeinstallprompt`, but the live
+manifest/public asset set has no required 512px icon. It therefore falls through to manual
+instructions instead of becoming promotion-eligible in Chromium. Tracked separately from the
+revisit lifecycle as [issue #142](../development/issues.md).
+
 ---
 
 ## `agency/` — Ed's macro / portfolio view + Command Centre
@@ -39,7 +86,21 @@ agency→`/agency`, client→`/clients/<id>`, end-customer→`/customer`),
 - `_MasterInbox.tsx` ⊕ **(697L)** — the unified attention inbox.
 - `_EnquiryDetailCard.tsx` **[new, 330L]** — the per-enquiry **detail modal**, opened from the inbox for the selected enquiry. Mirrors the submission in two layers — **A)** every `formCapture` field in the form's own submission order + the answers Aqua has no column for (shown in full, not just counted); **B)** Aqua's own contact record (consent-first, then classification, services, source, triage, timeline, linked lead/contact/client) — and reuses `_EnquiryCommunications`. Extracted from `_MasterInbox`'s old inline expand (which took the `FormSubmission`/`Detail`/route-style helpers with it). **Phase 3:** Layer A now mirrors the *whole* real form when its schema is imported — the card fetches `GET /api/portal/website-enquiries/form-template` (→ `resolveFormSchemaForEnquiry`) on open and lays the submission out via the pure `lib/enquiryFormLayout.ts` `mergeFormLayout` (every field in order, blank where skipped), falling back to the raw submission when no template matches. **Phase 4:** Layer B has an editable **"Added by hand"** block (`ManualContactDetails`) — company/job-title/notes/custom fields the form didn't ask — saved to the new file-backed `server/enquiryContactDetails.ts` store via `GET/POST /api/portal/website-enquiries/contact-details` (never the live enquiry row or `people.ts`). **Phase 5 (polish):** genuinely-empty fields render a muted "—" via `Field` (never an invented value); meaningful distinctions kept. **Plan COMPLETE (P1–P5).** Two enhancements remain as commander-coordinated follow-ups beyond the plan: manual details → canonical `Person` on conversion; inline lead/contact/client re-linking.
 - `_UnifiedInboxWorkspace.tsx` (442L), `_EnquiryCommunications.tsx`.
+
+> **Capture/playback caveat (source-reviewed 2026-08-25):** the three voice-note surfaces and
+> recorded-call path force WebM after testing only one WebM codec. Unsupported construction can
+> retain the microphone stream and, for recorded calls, strand the already-created active call
+> plus busy UI ([issue #145](../development/issues.md)). Their private playback routes also lack
+> byte ranges ([issue #144](../development/issues.md)). Browser record/play/seek proof is pending.
+
+> **Chat/attention ordering caveat (source-reviewed 2026-08-25):** unversioned Team Chat channel
+> loads/polls can replace a newer active conversation, and Send reads that overwritten id. The
+> shared attention provider can likewise roll an older failure back over a newer action
+> ([issue #147](../development/issues.md)). Deferred-response/browser proof is pending.
 - `_SocialInboxWorkspace.tsx` — the Meta/IG social conversations + a **Channels** connection block. When Meta creds aren't stored yet it shows a **"Connect now"** form (`MetaConnectForm`) that saves the `meta` integration connection — fields come from `integrationDefinition("meta")`, POST to `/api/portal/settings/integrations`, then `router.refresh()` re-runs readiness and the Instagram/Facebook OAuth buttons replace the form. **Multi-account (one app, many IG/FB):** the OAuth connect result (`?meta=…&connected=N`) surfaces as a dismissible banner (`metaConnectNotice`), the connect buttons read "Add Instagram/Facebook" once ≥1 account is connected, and each account shows in the list with a connected-count + a "Routed" badge (connect-time routing via `meta/start?marketingAssetId=…&companyId=…`). Plan: [meta-inbox-connect](../development/plans/meta-inbox-connect.md).
+  **Header-action contract:** the old enabled no-op More ellipsis is removed. Assign and
+  Close/Reopen remain native controls backed by real conversation mutations; mounted visual/focus
+  confirmation remains under [issue #150](../development/issues.md).
 - `_WebsiteSourcesConfig.tsx` **[new]** — website inbox source configuration (routing + master-tag entry point). Also hosts the **"Import forms"** action (enquiry-detail-card plan Phase 2): reads a tagged site's real forms via `server/websiteFormSchemas.ts` → `scanFormSchemasInHtml` (in `lib/server/aquaTagDetection.ts`), stores each form's field schema on `WebsiteSiteConfig.formSchemas`, and shows "N forms found" + a chip per form. The schema then drives the enquiry card's layout (plan Phase 3).
 - `activity-inbox/page.tsx` — `/agency/activity-inbox` feed *(overlaps inbox — see hazards).*
 
@@ -50,7 +111,7 @@ agency→`/agency`, client→`/clients/<id>`, end-customer→`/customer`),
 - `pipelines/[slug]/page.tsx` — single-pipeline kanban; `_LeadsPipelineWorkspace.tsx` ⊕ **(2689L — the biggest UI file)**, `_LeadsPipelineWorkspaceServer.tsx` (data loader), `_PipelineBoard.tsx`, `_ScoutingCommand.tsx` (718L), `_FulfilmentProductSwitcher.tsx`.
 - `leads-pipeline/` — `_UpcomingMeetings.tsx`, `_WorkflowSteps.tsx`; `campaigns/_CampaignsWorkspace.tsx` (1182L), `_CampaignCreativeStudio.tsx`; **`contacts/_ContactsWorkspace.tsx` (1494L)** — the CSV rolodex *(overlaps agency/contacts — see hazards)*, `_CommercialPackModal.tsx`.
 - `contacts/page.tsx` + `_ContactsIndex.tsx` — the canonical people index; `contacts/[personId]/` `_ContactCard.tsx` (797L) + `_Interactions.tsx`; `contacts/companies/[organisationId]/` — single company record.
-- `people/page.tsx` + `_PeopleCommand.tsx` — the **Staff Command** console. Tabs: Overview / Recruitment / **Directory** / Access / Time & leave / Onboarding / Pay. The Directory tab (search + department/status filters, a **"who's around"** presence strip) opens a **per-person tabbed staff card** (Overview / Work / Jobs* / Pay / Access / Leave & shifts / Training / Notes) that aggregates identity + assigned work + days-worked + pay + access + leave + training. **Presence** is a 3-state derivation (online/idle/offline) from work-session heartbeat freshness (`presenceFromSessions`, `PRESENCE_ONLINE_MS`/`PRESENCE_IDLE_MS`) — an abandoned open session reads offline, not online. The **Capacity & hiring** tab is a **read-only** surface of the Radar `team` domain via [`server/staffCapacity.ts`](../../src/server/staffCapacity.ts) (`staffCapacitySnapshot`/`shapeStaffCapacity` → health / attention / capacity-by-area / hiring / coverage buckets; no Radar engine edit). The **Jobs** sub-tab (*freelancers/contractors only) drives the freelancer **one-time-job flow** (`listPeopleFreelancerJobs`/`savePeopleFreelancerJob`/`setPeopleFreelancerJobStatus`, `PeopleFreelancerJob` — proposed→active→delivered→paid; Finance stays the authority on money, linked by `paymentRef`). The Work tab carries a **delegation** panel (reassign owner/unassigned open tasks — `delegatableTasks` — or create-and-assign, via the existing `/api/portal/tasks`). **Recognition** (`PeopleRecognition`, `awardPeopleRecognition`/`currentEmployeeOfMonth`, `award-recognition` action) marks an **employee of the month** (⭐ on the row + card header + Overview banner) and shoutouts. The **Time & leave** tab opens with a **holidays calendar** (`HolidaysCalendar`) — a month grid of approved leave + published shifts across the team. The **Org chart** tab (`staffOrgChart` → `OrgChart`) renders the reporting-line tree from `managerEmployeeId` (owner on top, freelancers as a distinct layer, department composition, cycle-safe `unplaced` list); the card Overview's **"Reports to"** select edits `managerEmployeeId`. **Configurable process** (`PeopleProcessConfig`, `getPeopleProcessConfig`): an onboarding-template editor (Onboarding tab) shapes what new hires get; a hiring-process editor (Recruitment tab) sets each stage's label + guidance — **stage ids stay fixed** so the Radar `team` reads keep working. **Staff contracts** (`PeopleContract`, reuses `contractTemplates`): a **Contracts** tab (all staff contracts grouped by status) + a per-card Contracts sub-tab (draft from template/blank → send for sign-off); the staff member reviews + acknowledges (types their name) in their progression station (`MyContracts`). Distinct from client contracts (`client.metadata.contracts`) and the Legal vault — a unified cross-domain contracts view is not built. The **owner** appears as a derived card (synthetic `owner:<userId>`, not a seeded record). Data comes from `peopleSnapshot` → `staffDirectory`/`staffCard` in [`server/people.ts`](../../src/server/people.ts). Canonical staff spine is `PeopleEmployee` (see [hazards](hazards-and-duplication.md): agency-hr's `Staff` is a separate, to-be-reconciled directory). Plan: [staff-team-system](../development/plans/staff-team-system.md).
+- `people/page.tsx` + `_PeopleCommand.tsx` — the **Staff Command** console. Tabs: Overview / Recruitment / **Directory** / Access / Time & leave / Onboarding / Pay. The Directory tab (search + department/status filters, a **"who's around"** presence strip) opens a **per-person tabbed staff card** (Overview / Work / Jobs* / Pay / Access / Leave & shifts / Training / Notes) that aggregates identity + assigned work + days-worked + pay + access + leave + training. **Presence** is a 3-state derivation (online/idle/offline) from work-session heartbeat freshness (`presenceFromSessions`, `PRESENCE_ONLINE_MS`/`PRESENCE_IDLE_MS`) — an abandoned open session reads offline, not online. The **Capacity & hiring** tab is a **read-only** surface of the Radar `team` domain via [`server/staffCapacity.ts`](../../src/server/staffCapacity.ts) (`staffCapacitySnapshot`/`shapeStaffCapacity` → health / attention / capacity-by-area / hiring / coverage buckets; no Radar engine edit). The **Jobs** sub-tab (*freelancers/contractors only) drives the freelancer **one-time-job flow** (`listPeopleFreelancerJobs`/`savePeopleFreelancerJob`/`setPeopleFreelancerJobStatus`, `PeopleFreelancerJob` — proposed→active→delivered→paid; Finance stays the authority on money, linked by `paymentRef`) and shares named HTTP(S) deliverables. Received private freelancer submissions are listed there with guarded download links. The Work tab carries a **delegation** panel (reassign owner/unassigned open tasks — `delegatableTasks` — or create-and-assign, via the existing `/api/portal/tasks`). **Recognition** (`PeopleRecognition`, `awardPeopleRecognition`/`currentEmployeeOfMonth`, `award-recognition` action) marks an **employee of the month** (⭐ on the row + card header + Overview banner) and shoutouts. The **Time & leave** tab opens with a **holidays calendar** (`HolidaysCalendar`) — a month grid of approved leave + published shifts across the team. The **Org chart** tab (`staffOrgChart` → `OrgChart`) renders the reporting-line tree from `managerEmployeeId` (owner on top, freelancers as a distinct layer, department composition, cycle-safe `unplaced` list); the card Overview's **"Reports to"** select edits `managerEmployeeId`. **Configurable process** (`PeopleProcessConfig`, `getPeopleProcessConfig`): an onboarding-template editor (Onboarding tab) shapes what new hires get; a hiring-process editor (Recruitment tab) sets each stage's label + guidance — **stage ids stay fixed** so the Radar `team` reads keep working. **Staff contracts** (`PeopleContract`, reuses `contractTemplates`): a **Contracts** tab (all staff contracts grouped by status) + a per-card Contracts sub-tab (draft from template/blank → send for sign-off); the staff member reviews + acknowledges (types their name) in their progression station (`MyContracts`). Distinct from client contracts (`client.metadata.contracts`) and the Legal vault — a unified cross-domain contracts view doesn't exist yet. The **owner** appears as a derived card (synthetic `owner:<userId>`, not a seeded record). Data comes from `peopleSnapshot` → `staffDirectory`/`staffCard` in [`server/people.ts`](../../src/server/people.ts). Canonical staff spine is `PeopleEmployee` (see [hazards](hazards-and-duplication.md): agency-hr's `Staff` is a separate, to-be-reconciled directory). Plan: [staff-team-system](../development/plans/staff-team-system.md).
 - `phases/page.tsx` (+ `_AddCustomPhaseForm`, `_PhaseCardActions`), `phases/[phaseId]/` + `_PhaseEditorForm.tsx`.
 
 **Company — `company/`**
@@ -130,6 +191,11 @@ agency→`/agency`, client→`/clients/<id>`, end-customer→`/customer`),
 - `page.tsx` → `CustomerPortalView section="home"`; `[...rest]/page.tsx` — end-customer plugin catch-all; `_subroute.tsx` — shared resolver.
 - `_CustomerPortalViews.tsx` ⊕ **(1728L — the portal view renderer)**, `_CustomerPortalActions.tsx` (875L), `_CustomerPortalChrome.tsx` (508L), `_portalData.ts` (724L), `_PortalPageComposition.tsx` (285L), `_PortalInteractionBlocks.tsx`, `_ProductWorkspaceApplication.tsx` (538L), `_PortalCustomExtension.tsx`, `_PortalBuilderSelectionBridge.tsx`.
 - Sub-routes (thin, via `CustomerSubroute`): `affiliate/`, `bookings/`, `membership/`, `orders/`, `account/page.tsx` + **`account/_ConnectedApps.tsx` [new]** (self-disconnect).
+  **Bookings contract:** Account activity is resolved from registered, exact-client enabled and
+  explicitly operational capabilities. Ecommerce can expose Orders; Bookings remains hidden
+  because its direct holding page is not a lifecycle, including under stale install claims. The
+  direct URL remains honestly unavailable ([issue #149](../development/issues.md)).
+- **Current first-run caveat (2026-08-25):** `/setup` marks the whole welcome complete when the password saves, before its install scene is accepted or dismissed. Repeat visits then redirect to the portal, even though the scene promises its install instructions are available later under Support; `SupportView` contains no such help. Tracked as [issue #134](../development/issues.md).
 
 ---
 
@@ -138,17 +204,32 @@ agency→`/agency`, client→`/clients/<id>`, end-customer→`/customer`),
 - `account/` — `page.tsx`, `AvatarUploader.tsx`, `permissions/page.tsx`, `preferences/page.tsx` (**compatibility redirect only**).
 - `preview/[template]/page.tsx` — portal template preview (26L).
 
+**Current shared-shell caveat (2026-08-25):** the Profile menu/sidebar exposes
+`account/` to client owner/staff and agency staff, but Account, Permissions and
+the portal-level 404 still hard-code agency home/settings exits for every
+non-customer. Redirect gates may bounce those users afterwards; the visible
+recovery target is still wrong. Tracked as [issue #133](../development/issues.md).
+
 ---
 
-## `dev-team/` — the internal Dev Team workspace (founder + Dev Mode only)
+## `dev-team/` — the internal Dev Team workspace (deployment founder only)
 
 Its own portal scope with its own sidebar and chrome, gated twice (`layout.tsx`
-**and** every page re-assert `devDocsAccessible(session)` — founder + Dev Mode,
-so it does not exist in any production-like context). Entering it **does not
-change who you are**: Ed stays signed in as himself, and identity only changes
-when he deliberately inspects a persona in **Tools → Inspector**
+**and** every page re-assert `devDocsAccessible(session)`). The predicate is
+separate from the demo-persona switch: local Dev Mode fixtures pass for test
+and development, while production accepts only the live `FOUNDER_EMAIL`
+account after checking the current user record. Entering it **does not change
+who you are**: Ed stays signed in as himself, and identity only changes when he
+deliberately inspects a persona in **Tools → Inspector**
 (`/portal/dev-team/tools`; the section was called "Profiles" in an earlier draft
 of this chapter and never existed under that name on disk).
+
+Vercel output tracing explicitly includes the bounded `docs/`, `src/` and
+`scripts/` trees for Dev Team, Dev Docs and their APIs, so the Library,
+Librarian, source map and audits can read the checked-in deployment snapshot.
+The local working-tree and worker-presence panes remain environment-sensitive:
+GitHub-backed editor operations work in production, while a local-disk-only
+project must be connected to a repository before production can edit it.
 
 - `layout.tsx` — the gate + the nav. **Every item sets its own `NavItem.icon`**
   (a lucide component matching that section's own `PageHeader`). This is

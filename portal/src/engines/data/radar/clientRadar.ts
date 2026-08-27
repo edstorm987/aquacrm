@@ -8,7 +8,7 @@ import type {
   RadarEntityReference,
 } from "@/engines/data/radar/businessRadar";
 import type { ClientAquaHealth } from "@/lib/clients/clientAquaHealth";
-import type { ClientPaymentPosition } from "@/lib/clients/clientPaymentPlans";
+import type { ClientPaymentCurrencyPosition, ClientPaymentPosition } from "@/lib/clients/clientPaymentPlans";
 import type { PortalProductKey } from "@/lib/portal/portalProducts";
 
 const DAY = 86_400_000;
@@ -183,13 +183,13 @@ export function buildClientRadarSnapshot(input: ClientRadarInput): ClientRadarSn
   const paymentDetail = !input.financeConnected
     ? "Finance is not connected for this workspace."
     : paymentPosition
-      ? `${paymentPosition.label}. ${money(paymentPosition.outstandingCents, paymentPosition.currency)} remains outstanding across ${paymentPosition.activePlans} active payment plan${paymentPosition.activePlans === 1 ? "" : "s"}.`
+      ? `${paymentPosition.label}. ${moneyPositions(paymentPosition.currencyPositions, "outstandingCents") ?? "No collectible amount"} remains outstanding across ${paymentPosition.activePlans} active payment plan${paymentPosition.activePlans === 1 ? "" : "s"}.`
       : overdueInvoices.length
         ? `${overdueInvoices.length} invoice${overdueInvoices.length === 1 ? " is" : "s are"} overdue.`
         : openInvoices.length
           ? `${openInvoices.length} issued invoice${openInvoices.length === 1 ? " is" : "s are"} awaiting payment inside its retained terms.`
           : input.invoices.length ? "No issued client invoice is overdue." : "No issued invoice history exists yet.";
-  add({ ...base, id: "payment-position", domain: "finance", label: "Payment position", status: paymentStatus, detail: paymentDetail, evidence: paymentPosition ? [`${paymentPosition.missedPayments} missed`, `${paymentPosition.openInvoices} open invoices`, `${money(paymentPosition.paidCents, paymentPosition.currency)} collected`, `${money(paymentPosition.outstandingCents, paymentPosition.currency)} outstanding`] : [`${overdueInvoices.length} overdue`, `${openInvoices.length} open`, `${input.invoices.length} retained`], target: "No missed payments and all issued amounts collected by their due date", value: paymentPosition?.missedPayments ?? overdueInvoices.length, sourceId: `client-finance:${client.id}`, href: `${href}?tab=finance`, lastSeenAt: newest(input.invoices.flatMap(invoice => [invoice.paidAt, invoice.dueAt])), sampleSize: input.invoices.length + (paymentPosition?.activePlans ?? 0), expectedDirection: "lower" });
+  add({ ...base, id: "payment-position", domain: "finance", label: "Payment position", status: paymentStatus, detail: paymentDetail, evidence: paymentPosition ? [`${paymentPosition.missedPayments} missed`, `${paymentPosition.openInvoices} open invoices`, ...paymentPosition.currencyPositions.map(position => `${position.currency.toUpperCase()}: ${money(position.paidCents, position.currency)} collected · ${money(position.outstandingCents, position.currency)} outstanding`)] : [`${overdueInvoices.length} overdue`, `${openInvoices.length} open`, `${input.invoices.length} retained`], target: "No missed payments and all issued amounts collected by their due date", value: paymentPosition?.missedPayments ?? overdueInvoices.length, sourceId: `client-finance:${client.id}`, href: `${href}?tab=finance`, lastSeenAt: newest(input.invoices.flatMap(invoice => [invoice.paidAt, invoice.dueAt])), sampleSize: input.invoices.length + (paymentPosition?.activePlans ?? 0), expectedDirection: "lower" });
 
   const acceptedContracts = input.contracts.filter(contract => contract.status === "accepted");
   const waitingContracts = input.contracts.filter(contract => contract.status === "sent");
@@ -284,6 +284,14 @@ export function buildClientRadarSnapshot(input: ClientRadarInput): ClientRadarSn
 
 function money(cents: number, currency: string): string {
   return new Intl.NumberFormat("en-GB", { style: "currency", currency: currency.toUpperCase() }).format(cents / 100);
+}
+
+function moneyPositions(
+  positions: readonly ClientPaymentCurrencyPosition[],
+  field: "agreedCents" | "paidCents" | "outstandingCents",
+): string | null {
+  const retained = positions.filter(position => position[field] > 0);
+  return retained.length ? retained.map(position => money(position[field], position.currency)).join(" · ") : null;
 }
 
 function addProductChecks(

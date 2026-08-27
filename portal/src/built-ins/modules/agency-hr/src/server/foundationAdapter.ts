@@ -11,7 +11,7 @@
 // reaching deeper than the package's `./server` exports map.
 
 import type { PluginStorage } from "../lib/aquaPluginTypes";
-import type { ActivityLogPort, EventBusPort, PluginInstallStorePort, TenantPort } from "./ports";
+import type { ActivityLogPort, EventBusPort, PluginInstallStorePort, TenantPort, WorkforcePort } from "./ports";
 import type { AgencyId, UserId } from "../lib/tenancy";
 import type { AgencyHrContainer } from "./index";
 import { buildAgencyHrContainer } from "./index";
@@ -21,6 +21,7 @@ export interface AgencyHrFoundation {
   activity: ActivityLogPort;
   events: EventBusPort;
   pluginInstalls: PluginInstallStorePort;
+  workforce: WorkforcePort;
 }
 
 let registered: AgencyHrFoundation | null = null;
@@ -62,6 +63,7 @@ export function containerFor(args: {
     events: f.events,
     tenant: f.tenant,
     pluginInstalls: f.pluginInstalls,
+    workforce: f.workforce,
   });
 }
 
@@ -79,6 +81,7 @@ export function containerWithDeps(args: {
     events: args.foundation.events,
     tenant: args.foundation.tenant,
     pluginInstalls: args.foundation.pluginInstalls,
+    workforce: args.foundation.workforce,
   });
 }
 
@@ -98,5 +101,6 @@ export function _containerFromCtx(args: {
     events: registered.events,
     tenant: registered.tenant,
     pluginInstalls: registered.pluginInstalls,
+    workforce: registered.workforce,
   });
 }

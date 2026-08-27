@@ -7,14 +7,17 @@
 // real editing.
 
 import Link from "next/link";
-import { ArrowUpRight, Bell, Boxes, Briefcase, Check, CircleUserRound, Eye, Save, ScrollText, ShieldCheck, SlidersHorizontal, Sparkles, UsersRound } from "lucide-react";
+import dynamic from "next/dynamic";
+import { ArrowUpRight, Bell, Boxes, Briefcase, Check, CircleUserRound, FlaskConical, KeyRound, Save, ScrollText, ShieldCheck, SlidersHorizontal, Sparkles, UsersRound } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { ProductionReadiness, ReadinessStatus } from "@/lib/server/productionReadiness";
-import type { AgencyWorkspaceSettings, ClientStage } from "@/server/types";
+import type { AgencyWorkspaceSettings, ClientStage, SandboxSessionEnvironment } from "@/server/types";
+import type { AgencySettingsCapabilities } from "@/lib/agencySettingsCapabilities";
 import { TeamUsersPanel } from "./TeamUsersPanel";
-import { ShowcaseModePanel } from "./ShowcaseModePanel";
+import { SandboxModePanel } from "./SandboxModePanel";
 import { ActivityLogPanel } from "./ActivityLogPanel";
 import { ExternalAiConnectionPanel } from "./ExternalAiConnectionPanel";
+import { buildAgencyAccessScopeChoices } from "@/components/access/accessModel";
 import {
   APP_VERSION,
   PRODUCT_RELEASES,
@@ -22,6 +25,12 @@ import {
   RELEASE_STORAGE_KEY,
   formatReleaseDate,
 } from "@/lib/projects/releases";
+import { PortalViewportLoading } from "@/components/ui/PortalViewportLoading";
+
+const AccessControlPanel = dynamic(
+  () => import("@/components/access/AccessControlPanel").then(module => module.AccessControlPanel),
+  { loading: () => <PortalViewportLoading label="Preparing access control…" /> },
+);
 
 interface SettingsContext {
   user: { name?: string; email: string; role: string; avatarUrl?: string };
@@ -33,10 +42,16 @@ interface SettingsContext {
   };
   readiness: ProductionReadiness;
   settings: AgencyWorkspaceSettings;
-  canManageSettings: boolean;
-  isShowcase: boolean;
+  capabilities: AgencySettingsCapabilities;
+  sandbox?: SandboxSessionEnvironment;
+  access?: {
+    agencyId: string;
+    canManage: boolean;
+    people: Array<{ id: string; name: string; email: string; role: string }>;
+  };
   tradingCompanies: Array<{ id: string; name: string }>;
   clients: Array<{ id: string; name: string }>;
+  devProjects?: Array<{ id: string; name: string }>;
   team: Array<{
     id: string;
     name: string;
@@ -47,13 +62,14 @@ interface SettingsContext {
   }>;
 }
 
-type TabId = "account" | "team" | "workspace" | "showcase" | "freelancer" | "defaults" | "notifications" | "updates" | "logs" | "launch";
+type TabId = "account" | "team" | "access" | "workspace" | "environment" | "freelancer" | "defaults" | "notifications" | "updates" | "logs" | "launch";
 
 const TABS: { id: TabId; label: string; icon: ReactNode }[] = [
   { id: "account", label: "Account", icon: <CircleUserRound size={16} /> },
   { id: "team", label: "Team", icon: <UsersRound size={16} /> },
+  { id: "access", label: "Roles & access", icon: <KeyRound size={16} /> },
   { id: "workspace", label: "Workspace", icon: <Boxes size={16} /> },
-  { id: "showcase", label: "Showcase", icon: <Eye size={16} /> },
+  { id: "environment", label: "Environment", icon: <FlaskConical size={16} /> },
   { id: "freelancer", label: "Freelancer access", icon: <Briefcase size={16} /> },
   { id: "defaults", label: "Defaults", icon: <SlidersHorizontal size={16} /> },
   { id: "notifications", label: "Notifications", icon: <Bell size={16} /> },
@@ -67,7 +83,10 @@ export function SettingsTabs({ ctx }: { ctx: SettingsContext }) {
 
   useEffect(() => {
     const syncHash = () => {
-      const requested = window.location.hash.slice(1) as TabId;
+      const hash = window.location.hash.slice(1);
+      // Preserve old bookmarks while Showcase Mode is consolidated into the
+      // single Environment surface.
+      const requested = (hash === "showcase" ? "environment" : hash) as TabId;
       if (TABS.some(tab => tab.id === requested)) setActive(requested);
     };
     syncHash();
@@ -121,14 +140,15 @@ export function SettingsTabs({ ctx }: { ctx: SettingsContext }) {
       <div className="mt-6 flex flex-col gap-5">
         {active === "account"     && <GeneralPane ctx={ctx} />}
         {active === "team"        && <TeamPane ctx={ctx} />}
+        {active === "access"      && <AccessPane ctx={ctx} />}
         {active === "workspace"   && <WorkspacePane ctx={ctx} />}
-        {active === "showcase"    && <Section eyebrow="Showcase Mode"><ShowcaseModePanel active={ctx.isShowcase} canManage={ctx.canManageSettings} /></Section>}
+        {active === "environment" && <Section eyebrow="Environment"><SandboxModePanel environment={ctx.sandbox} canManage={ctx.capabilities.manageSettings} /></Section>}
         {active === "freelancer"  && <Section eyebrow="Freelancer access"><div className="grid gap-4"><p className="max-w-2xl text-sm leading-6 text-black/58">Control what a freelancer sees and can do in their own workspace — brief, dates, their fee, deliverables, whether the client is named or anonymised, and which actions they can take. Privacy-first by default.</p><Link href="/portal/agency/freelancer-access" className="inline-flex min-h-10 w-fit items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white hover:bg-black/85">Configure freelancer access <ArrowUpRight size={15} /></Link></div></Section>}
         {active === "defaults"    && <DefaultsPane ctx={ctx} />}
         {active === "notifications" && <NotificationsPane ctx={ctx} />}
         {active === "updates"     && <UpdatesPane />}
-        {active === "logs"        && <Section eyebrow="Activity log"><ActivityLogPanel clients={ctx.clients} /></Section>}
-        {active === "launch"      && <LaunchPane readiness={ctx.readiness} />}
+        {active === "logs"        && <Section eyebrow="Activity log">{ctx.capabilities.viewActivityLog ? <ActivityLogPanel clients={ctx.clients} /> : <SettingsPermissionNotice capability="view and export the workspace activity log" />}</Section>}
+        {active === "launch"      && <LaunchPane readiness={ctx.readiness} canManageExternalAi={ctx.capabilities.manageExternalAi} />}
       </div>
     </>
   );
@@ -139,8 +159,40 @@ function TeamPane({ ctx }: { ctx: SettingsContext }) {
     <Section eyebrow="Team">
       <TeamUsersPanel
         initialUsers={ctx.team}
+        canManage={ctx.capabilities.manageTeam}
         canCreateManagers={ctx.user.role === "agency-owner"}
         companies={ctx.tradingCompanies}
+      />
+    </Section>
+  );
+}
+
+function AccessPane({ ctx }: { ctx: SettingsContext }) {
+  // During a dev-server RSC/client hot swap, the browser can briefly retain a
+  // Settings payload produced before the access fields were added. Keep that
+  // transition usable; a fresh request always supplies the canonical values.
+  const access = ctx.access ?? {
+    agencyId: ctx.agency?.id ?? "",
+    canManage: false,
+    people: [],
+  };
+  const agencyId = access.agencyId;
+  const scopes = buildAgencyAccessScopeChoices({
+    agencyId,
+    clients: ctx.clients,
+    devProjects: ctx.devProjects ?? [],
+    canManageProjectAccess: access.canManage,
+  });
+  return (
+    <Section eyebrow="Roles and access">
+      <AccessControlPanel
+        scope={scopes[0]!}
+        scopeOptions={scopes}
+        people={access.people.map(person => ({ id: person.id, name: person.name, email: person.email, detail: person.role }))}
+        canManage={access.canManage}
+        currentEnvironment={ctx.sandbox ? "sandbox" : "live"}
+        title="Roles, workspaces and elements"
+        description="Create reusable roles, assign people to exact scopes and decide whether every registered workspace element is hidden, view-only, usable or manageable."
       />
     </Section>
   );
@@ -193,7 +245,7 @@ function GeneralPane({ ctx }: { ctx: SettingsContext }) {
           <Stat label="Brand colour" value={ctx.agency?.primaryColor ?? "—"} />
         </div>
         <div className="mt-5 border-t border-black/10 pt-5">
-          <BusinessSettingsForm initial={ctx.settings} canManage={ctx.canManageSettings} />
+          <BusinessSettingsForm initial={ctx.settings} canManage={ctx.capabilities.manageSettings} />
         </div>
       </Section>
       <Section eyebrow="Quick links">
@@ -302,7 +354,7 @@ function BusinessSettingsForm({ initial, canManage }: { initial: AgencyWorkspace
     <form onSubmit={submit}>
       <div className="mb-4">
         <h3 className="text-sm font-semibold text-black/80">Business details</h3>
-        <p className="mt-1 text-xs leading-5 text-black/45">Used as the central AquaOasis-Web identity for documents, client communication, and support.</p>
+        <p className="mt-1 text-xs leading-5 text-black/45">Legal and contact details are captured on each new invoice and are fallback identity for transactional email. Existing invoice exports retain the identity captured at creation; saved invoice-template business details override the generated contact block. A sender connection overrides email identity. Timezone is stored for future scheduling and does not shift existing records today.</p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Legal or trading name"><input value={form.legalName} onChange={event => setForm(value => ({ ...value, legalName: event.target.value }))} className={control} disabled={!canManage} /></Field>
@@ -312,7 +364,7 @@ function BusinessSettingsForm({ initial, canManage }: { initial: AgencyWorkspace
         <Field label="Company number"><input value={form.companyNumber} onChange={event => setForm(value => ({ ...value, companyNumber: event.target.value }))} className={control} disabled={!canManage} /></Field>
         <Field label="VAT or tax number"><input value={form.taxNumber} onChange={event => setForm(value => ({ ...value, taxNumber: event.target.value }))} className={control} disabled={!canManage} /></Field>
         <div className="sm:col-span-2"><Field label="Business address"><textarea rows={3} value={form.businessAddress} onChange={event => setForm(value => ({ ...value, businessAddress: event.target.value }))} className={`${control} resize-none py-2`} disabled={!canManage} /></Field></div>
-        <Field label="Timezone"><select value={form.timezone} onChange={event => setForm(value => ({ ...value, timezone: event.target.value }))} className={control} disabled={!canManage}><option value="Europe/London">Europe/London</option><option value="UTC">UTC</option><option value="America/New_York">America/New_York</option><option value="America/Los_Angeles">America/Los_Angeles</option><option value="Europe/Paris">Europe/Paris</option></select></Field>
+        <Field label="Timezone (scheduling support pending)"><select value={form.timezone} onChange={event => setForm(value => ({ ...value, timezone: event.target.value }))} className={control} disabled={!canManage}><option value="Europe/London">Europe/London</option><option value="UTC">UTC</option><option value="America/New_York">America/New_York</option><option value="America/Los_Angeles">America/Los_Angeles</option><option value="Europe/Paris">Europe/Paris</option></select></Field>
       </div>
       <SaveRow status={status} canManage={canManage} />
     </form>
@@ -418,22 +470,23 @@ function DefaultsPane({ ctx }: { ctx: SettingsContext }) {
       <Section eyebrow="Client defaults">
         <p className="mb-4 text-xs leading-5 text-black/45">Starting points for new records. Every client can still be changed individually from <InlineLink href="/portal/clients">Clients &amp; contacts</InlineLink>.</p>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Default starting stage"><select value={form.defaultClientStage} onChange={event => setForm(value => ({ ...value, defaultClientStage: event.target.value as ClientStage }))} className={control} disabled={!ctx.canManageSettings}>{STAGES.map(stage => <option key={stage.value} value={stage.value}>{stage.label}</option>)}</select></Field>
-          <Field label="Access-code expiry"><select value={form.portalAccessDays} onChange={event => setForm(value => ({ ...value, portalAccessDays: event.target.value }))} className={control} disabled={!ctx.canManageSettings}><option value="1">1 day</option><option value="3">3 days</option><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option></select></Field>
-          <label className="flex min-h-11 items-center gap-3 rounded-md border border-black/10 px-3 text-sm text-black/65 sm:col-span-2"><input type="checkbox" checked={form.createPortalByDefault} onChange={event => setForm(value => ({ ...value, createPortalByDefault: event.target.checked }))} disabled={!ctx.canManageSettings} /><span><strong className="font-medium text-black/75">Create client portals by default</strong><span className="block text-xs text-black/40">This remains optional on every new client.</span></span></label>
-          <div className="sm:col-span-2"><Field label="Default client welcome message"><textarea rows={4} value={form.clientWelcomeMessage} onChange={event => setForm(value => ({ ...value, clientWelcomeMessage: event.target.value }))} className={`${control} resize-none py-2`} placeholder="Welcome to your project home..." disabled={!ctx.canManageSettings} /></Field></div>
+          <Field label="Default starting stage"><select value={form.defaultClientStage} onChange={event => setForm(value => ({ ...value, defaultClientStage: event.target.value as ClientStage }))} className={control} disabled={!ctx.capabilities.manageSettings}>{STAGES.map(stage => <option key={stage.value} value={stage.value}>{stage.label}</option>)}</select></Field>
+          <Field label="Portal-access follow-up after"><select value={form.portalAccessDays} onChange={event => setForm(value => ({ ...value, portalAccessDays: event.target.value }))} className={control} disabled={!ctx.capabilities.manageSettings}><option value="1">1 day</option><option value="3">3 days</option><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option></select></Field>
+          <p className="text-xs leading-5 text-black/42 sm:col-span-2">Controls when Aqua raises the “portal access is ready” follow-up. One-time confirmation codes still expire after 15 minutes.</p>
+          <label className="flex min-h-11 items-center gap-3 rounded-md border border-black/10 px-3 text-sm text-black/65 sm:col-span-2"><input type="checkbox" checked={form.createPortalByDefault} onChange={event => setForm(value => ({ ...value, createPortalByDefault: event.target.checked }))} disabled={!ctx.capabilities.manageSettings} /><span><strong className="font-medium text-black/75">Create client portals by default</strong><span className="block text-xs text-black/40">This remains optional on every new client.</span></span></label>
+          <div className="sm:col-span-2"><Field label="Default client welcome message"><textarea rows={4} value={form.clientWelcomeMessage} onChange={event => setForm(value => ({ ...value, clientWelcomeMessage: event.target.value }))} className={`${control} resize-none py-2`} placeholder="Welcome to your project home..." disabled={!ctx.capabilities.manageSettings} /></Field></div>
         </div>
       </Section>
       <Section eyebrow="Finance defaults">
-        <p className="mb-4 text-xs leading-5 text-black/45">Applied to new products and documents. Amend individual records in <InlineLink href="/portal/agency/agency-finance/invoices">Invoices</InlineLink> or edit agreement templates inside <InlineLink href="/portal/agency/fulfilment?view=services">Services</InlineLink>.</p>
+        <p className="mb-4 text-xs leading-5 text-black/45">Payment terms and tax rate are the canonical defaults for each new invoice; changing them never rewrites an existing invoice. Amend individual records in <InlineLink href="/portal/agency/agency-finance/invoices">Invoices</InlineLink> or edit agreement templates inside <InlineLink href="/portal/agency/fulfilment?view=services">Services</InlineLink>.</p>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Field label="Currency"><select value={form.defaultCurrency} onChange={event => setForm(value => ({ ...value, defaultCurrency: event.target.value }))} className={control} disabled={!ctx.canManageSettings}><option>GBP</option><option>EUR</option><option>USD</option></select></Field>
-          <Field label="Default tax %"><input type="number" min="0" max="100" step="0.01" value={form.defaultTaxRatePercent} onChange={event => setForm(value => ({ ...value, defaultTaxRatePercent: event.target.value }))} className={control} disabled={!ctx.canManageSettings} /></Field>
-          <Field label="Payment terms"><input type="number" min="0" max="365" value={form.defaultPaymentTermsDays} onChange={event => setForm(value => ({ ...value, defaultPaymentTermsDays: event.target.value }))} className={control} disabled={!ctx.canManageSettings} /></Field>
-          <Field label="Invoice prefix"><input value={form.invoicePrefix} onChange={event => setForm(value => ({ ...value, invoicePrefix: event.target.value }))} className={control} maxLength={12} disabled={!ctx.canManageSettings} /></Field>
+          <Field label="Currency"><select value={form.defaultCurrency} onChange={event => setForm(value => ({ ...value, defaultCurrency: event.target.value }))} className={control} disabled={!ctx.capabilities.manageSettings}><option>GBP</option><option>EUR</option><option>USD</option></select></Field>
+          <Field label="Default tax %"><input type="number" min="0" max="100" step="0.01" value={form.defaultTaxRatePercent} onChange={event => setForm(value => ({ ...value, defaultTaxRatePercent: event.target.value }))} className={control} disabled={!ctx.capabilities.manageSettings} /></Field>
+          <Field label="Payment terms"><input type="number" min="0" max="365" value={form.defaultPaymentTermsDays} onChange={event => setForm(value => ({ ...value, defaultPaymentTermsDays: event.target.value }))} className={control} disabled={!ctx.capabilities.manageSettings} /></Field>
+          <Field label="Invoice prefix"><input value={form.invoicePrefix} onChange={event => setForm(value => ({ ...value, invoicePrefix: event.target.value }))} className={control} maxLength={12} disabled={!ctx.capabilities.manageSettings} /></Field>
         </div>
       </Section>
-      <SaveRow status={status} canManage={ctx.canManageSettings} />
+      <SaveRow status={status} canManage={ctx.capabilities.manageSettings} />
     </form>
   );
 }
@@ -466,23 +519,23 @@ function NotificationsPane({ ctx }: { ctx: SettingsContext }) {
     <form onSubmit={submit}>
       <Section eyebrow="Notifications">
         <div className="divide-y divide-black/10">
-          {options.map(option => <label key={option.key} className="flex cursor-pointer items-start justify-between gap-5 py-4 first:pt-0 last:pb-0"><span><strong className="text-sm font-medium text-black/75">{option.label}</strong><span className="mt-1 block text-xs leading-5 text-black/45">{option.detail}</span></span><input type="checkbox" className="mt-1" checked={notifications[option.key]} onChange={event => setNotifications(value => ({ ...value, [option.key]: event.target.checked }))} disabled={!ctx.canManageSettings} /></label>)}
+          {options.map(option => <label key={option.key} className="flex cursor-pointer items-start justify-between gap-5 py-4 first:pt-0 last:pb-0"><span><strong className="text-sm font-medium text-black/75">{option.label}</strong><span className="mt-1 block text-xs leading-5 text-black/45">{option.detail}</span></span><input type="checkbox" className="mt-1" checked={notifications[option.key]} onChange={event => setNotifications(value => ({ ...value, [option.key]: event.target.checked }))} disabled={!ctx.capabilities.manageSettings} /></label>)}
         </div>
       </Section>
       <Section eyebrow="Advisor guardrails">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Field label="Lead response target"><input type="number" min="1" max="240" value={advisor.speedToLeadTargetMinutes} onChange={event => setAdvisor(value => ({ ...value, speedToLeadTargetMinutes: Number(event.target.value) }))} className={control} disabled={!ctx.canManageSettings} /></Field>
-          <Field label="Lead warning after"><input type="number" min="1" max="720" value={advisor.speedToLeadWarningMinutes} onChange={event => setAdvisor(value => ({ ...value, speedToLeadWarningMinutes: Number(event.target.value) }))} className={control} disabled={!ctx.canManageSettings} /></Field>
-          <Field label="Lead critical after"><input type="number" min="1" max="1440" value={advisor.speedToLeadCriticalMinutes} onChange={event => setAdvisor(value => ({ ...value, speedToLeadCriticalMinutes: Number(event.target.value) }))} className={control} disabled={!ctx.canManageSettings} /></Field>
-          <Field label="Data stale after"><input type="number" min="1" max="720" value={advisor.staleDataHours} onChange={event => setAdvisor(value => ({ ...value, staleDataHours: Number(event.target.value) }))} className={control} disabled={!ctx.canManageSettings} /></Field>
+          <Field label="Lead response target"><input type="number" min="1" max="240" value={advisor.speedToLeadTargetMinutes} onChange={event => setAdvisor(value => ({ ...value, speedToLeadTargetMinutes: Number(event.target.value) }))} className={control} disabled={!ctx.capabilities.manageSettings} /></Field>
+          <Field label="Lead warning after"><input type="number" min="1" max="720" value={advisor.speedToLeadWarningMinutes} onChange={event => setAdvisor(value => ({ ...value, speedToLeadWarningMinutes: Number(event.target.value) }))} className={control} disabled={!ctx.capabilities.manageSettings} /></Field>
+          <Field label="Lead critical after"><input type="number" min="1" max="1440" value={advisor.speedToLeadCriticalMinutes} onChange={event => setAdvisor(value => ({ ...value, speedToLeadCriticalMinutes: Number(event.target.value) }))} className={control} disabled={!ctx.capabilities.manageSettings} /></Field>
+          <Field label="Data stale after"><input type="number" min="1" max="720" value={advisor.staleDataHours} onChange={event => setAdvisor(value => ({ ...value, staleDataHours: Number(event.target.value) }))} className={control} disabled={!ctx.capabilities.manageSettings} /></Field>
         </div>
         <p className="mt-3 text-xs text-black/42">Times are in minutes, except data freshness which is measured in hours.</p>
       </Section>
       <Section eyebrow="Digest">
-        <Field label="Summary frequency"><select value={notifications.digest} onChange={event => setNotifications(value => ({ ...value, digest: event.target.value as typeof notifications.digest }))} className={`${control} max-w-xs`} disabled={!ctx.canManageSettings}><option value="off">No digest</option><option value="daily">Daily summary</option><option value="weekly">Weekly summary</option></select></Field>
-        <p className="mt-2 text-xs leading-5 text-black/40">The preference is saved now. Email delivery requires the <InlineLink href="/portal/agency/company?view=connections">customer email connection</InlineLink>.</p>
+        <Field label="Summary frequency"><select value={notifications.digest} onChange={event => setNotifications(value => ({ ...value, digest: event.target.value as typeof notifications.digest }))} className={`${control} max-w-xs`} disabled={!ctx.capabilities.manageSettings}><option value="off">No digest</option><option value="daily">Daily summary</option><option value="weekly">Weekly summary</option></select></Field>
+        <p className="mt-2 text-xs leading-5 text-black/40">Stored for the future digest scheduler; daily and weekly digest emails are not sent today. The alert switches above control the active in-app notification feed.</p>
       </Section>
-      <SaveRow status={status} canManage={ctx.canManageSettings} />
+      <SaveRow status={status} canManage={ctx.capabilities.manageSettings} />
     </form>
   );
 }
@@ -526,6 +579,10 @@ function SaveRow({ status, canManage }: { status: string; canManage: boolean }) 
   return <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-black/10 pt-4"><p role="status" className="text-xs text-black/45">{canManage ? status : "Only an owner or manager can change these settings."}</p>{canManage ? <button className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white"><Save size={14} />Save settings</button> : null}</div>;
 }
 
+function SettingsPermissionNotice({ capability }: { capability: string }) {
+  return <p role="status" className="rounded-md border border-black/10 bg-black/[0.02] px-4 py-3 text-sm leading-6 text-black/55">Only an owner or manager can {capability}. Ask one of them if you need access.</p>;
+}
+
 async function saveSettings(patch: Record<string, unknown>): Promise<{ ok: boolean; error: string }> {
   try {
     const response = await fetch("/api/portal/settings", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(patch) });
@@ -566,14 +623,14 @@ function statusLabel(status: ReadinessStatus): string {
   return "Optional";
 }
 
-function LaunchPane({ readiness }: { readiness: ProductionReadiness }) {
+function LaunchPane({ readiness, canManageExternalAi }: { readiness: ProductionReadiness; canManageExternalAi: boolean }) {
   const required = readiness.items.filter(item => item.required);
   const readyCount = required.filter(item => item.status === "ready").length;
 
   return (
     <>
     <Section eyebrow="External AI">
-      <ExternalAiConnectionPanel />
+      {canManageExternalAi ? <ExternalAiConnectionPanel /> : <SettingsPermissionNotice capability="manage external AI access" />}
     </Section>
     <section aria-labelledby="launch-readiness-title" className="border-y border-black/10">
       <header className="flex flex-col gap-3 border-b border-black/10 py-5 sm:flex-row sm:items-end sm:justify-between">

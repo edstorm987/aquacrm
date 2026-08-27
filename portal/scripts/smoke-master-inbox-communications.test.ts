@@ -33,7 +33,7 @@ test("send-as accounts are workspace validated and provider backed", () => {
   assert.match(senders, /Messages\.json/);
   assert.match(senders, /Calls\.json/);
   assert.match(senders, /initiatePhoneCall/);
-  assert.match(route, /The selected send-as account is no longer connected/);
+  assert.match(route, /The selected send-as account is not available for this client/);
   assert.match(route, /senderId: sender\.id/);
   assert.match(route, /inboxReplies/);
   assert.match(route, /recordWebsiteEnquiryLeadContact/);

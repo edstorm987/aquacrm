@@ -345,10 +345,17 @@ export interface TemplateFilter {
 export interface CampaignSnapshot {
   from: number;
   to: number;
-  byChannel: Array<{ channel: CampaignChannel; count: number; budgetCents: number; resultTotal: number }>;
+  windowBasis: "createdAt";
+  byChannelCurrency: Array<{
+    channel: CampaignChannel;
+    currency: Currency;
+    count: number;
+    budgetCents: number;
+    resultsByKpi: Array<{ kpi: CampaignKpi; campaignCount: number; total: number }>;
+  }>;
   byStatus: Array<{ status: CampaignStatus; count: number }>;
   totalCampaigns: number;
-  totalBudgetCents: number;
+  totalBudgetByCurrency: Array<{ currency: Currency; budgetCents: number }>;
 }
 
 export interface LeadFunnel {

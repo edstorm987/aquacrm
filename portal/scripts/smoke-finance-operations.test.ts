@@ -115,6 +115,7 @@ test("Finance exposes operations, legal reuse and private compensation controls"
   const navigation = readFileSync("src/built-ins/modules/agency-finance/src/components/FinanceNav.tsx", "utf8");
   const sections = readFileSync("src/built-ins/modules/agency-finance/src/lib/sections.ts", "utf8");
   const workspace = readFileSync("src/built-ins/modules/agency-finance/src/components/FinanceOperationsWorkspace.tsx", "utf8");
+  const compensationModals = readFileSync("src/built-ins/modules/agency-finance/src/components/CanonicalCompensationModals.tsx", "utf8");
   const routes = readFileSync("src/built-ins/modules/agency-finance/src/api/routes.ts", "utf8");
   // Operations section + route live in the one canonical section list; the
   // manifest nav items and the in-page tabs both derive from it.
@@ -124,7 +125,9 @@ test("Finance exposes operations, legal reuse and private compensation controls"
   assert.match(navigation, /FINANCE_SECTIONS/);
   assert.match(workspace, /LegalCompliancePanel/);
   assert.match(workspace, /Department cost capacity/);
-  assert.match(workspace, /Freelancer invoice/);
+  assert.match(compensationModals, /Freelancer invoice/);
+  assert.match(compensationModals, /People owns this person’s terms/);
+  assert.match(workspace, /compensationPaymentDraftAmounts/);
   assert.match(routes, /operations\/obligations/);
   assert.match(routes, /operations\/profiles/);
   assert.match(routes, /operations\/payments/);

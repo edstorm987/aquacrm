@@ -15,6 +15,11 @@ import type {
 import type { ActivityLogPort, EventBusPort, StoragePort } from "./ports";
 import type { PlanService } from "./plans";
 import type { SubscriptionService } from "./subscriptions";
+import {
+  assertBenefit,
+  assertCreateBenefitInput,
+  assertUpdateBenefitPatch,
+} from "../lib/runtimeValidation";
 
 const BENEFIT_INDEX_KEY = "memberships/benefits/index";
 const benefitKey = (id: string): string => `memberships/benefits/${id}`;
@@ -46,10 +51,7 @@ export class BenefitService {
   }
 
   async create(input: CreateBenefitInput, actor: UserId): Promise<Benefit> {
-    if (!input.label.trim()) throw new Error("Benefit label required.");
-    if (input.category === "discount" && (input.percentOff === undefined || input.percentOff <= 0)) {
-      throw new Error("Discount benefits require percentOff > 0.");
-    }
+    assertCreateBenefitInput(input);
     const id = makeId("ben");
     const ts = now();
     const row: Benefit = {
@@ -65,6 +67,7 @@ export class BenefitService {
       createdAt: ts,
       updatedAt: ts,
     };
+    assertBenefit(row);
     await this.storage.set(benefitKey(id), row);
     const index = (await this.storage.get<string[]>(BENEFIT_INDEX_KEY)) ?? [];
     if (!index.includes(id)) {
@@ -83,6 +86,7 @@ export class BenefitService {
   }
 
   async update(id: string, patch: UpdateBenefitPatch, actor: UserId): Promise<Benefit | null> {
+    assertUpdateBenefitPatch(patch);
     const existing = await this.get(id);
     if (!existing) return null;
     const next: Benefit = {
@@ -91,6 +95,7 @@ export class BenefitService {
       label: patch.label?.trim() ?? existing.label,
       updatedAt: now(),
     };
+    assertBenefit(next);
     await this.storage.set(benefitKey(id), next);
     await this.activity.logActivity({
       agencyId: this.agencyId,

@@ -2,10 +2,11 @@
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
 
-~256 files (was ~204 — re-counted 2026-08-20:
+219 TypeScript files (re-counted 2026-08-24:
 `find src/lib -type f \( -name '*.ts' -o -name '*.tsx' \) | wc -l`).
 The layer between the [state store](state-layer.md) and the
-[UI](portal-ui.md)/[API](api-and-routes.md): services, engines, domain helpers.
+[UI](portal-ui.md)/[API](api-and-routes.md): services and domain helpers. The
+three reusable engines now live separately under `src/engines/`.
 
 > **REORGANISED 2026-08-20 (Ed's call: "organise the codebase into folders").**
 > Both halves are now foldered by domain — nothing sits loose except genuine
@@ -40,6 +41,20 @@ The layer between the [state store](state-layer.md) and the
 > Never import a `lib/server/*` module into a client component. Several concerns
 > exist as a **root-vs-server pair** (pure calc in `lib/`, IO in `lib/server/`) —
 > see the drift flags at the bottom.
+
+> **Date-only caveat (2026-08-25):** `shared/formatDateTime.ts` correctly fixes ordinary
+> date-time display to `Europe/London`, but `dateInputValue()` slices the UTC ISO date. Several
+> mounted UK-facing forms also build “today” the same way. A controlled 00:30 BST probe returned
+> the previous calendar day, so onboarding, expenses, Finance income/payment, HR join dates and
+> People calendar state do not share one local-calendar contract. Keep date-only values distinct
+> from timestamp instants and UTC provider/export stamps. Tracked as
+> [issue #140](../development/issues.md).
+
+> **Provider-wait contract (2026-08-26):** direct Twilio, Resend, Vercel-domain, Leads Pipeline
+> Stripe and Shopify fetchers use the shared typed operation deadline and composed caller
+> cancellation. Failures distinguish safe, same-operation-key and reconcile-first recovery;
+> never-settling/late-provider proof exists. Mounted and live-provider acceptance remains under
+> [issue #148](../development/issues.md).
 
 ## Auth, session & security  (`lib/server/`)
 `auth.ts` (session read/verify), `csrf.ts`, `mfa.ts` **[TOTP — ALL FOUR PHASES
@@ -143,6 +158,13 @@ counts and THIS agency's projects with recorded-map flavours
 (`github`/`workspace`/`map-error`/`unmapped`), network-free. Built ONCE
 for ANY assistant — the Librarian and Aqua Editor AI are consumers, not homes.
 Gate-free pure retrieval (`scanDevDocs` style): callers hold the gate.
+**Live-index performance contract (2026-08-26):** `scanDevDocs` and
+`scanWorkerSignals` sit behind the shared generation-safe coalesced refresh
+primitive in `devMarkdownCache.ts`. Concurrent cold reads share one traversal;
+warm values live for 15 seconds; `{ fresh: true }` bypasses a completed value;
+an in-app doc save invalidates immediately; and an invalidated in-flight scan
+cannot republish stale data. Outside filesystem edits are bounded to the TTL,
+not watched instantly. Both walkers exclude `.next` and `.next-*` output.
 Pinned by `scripts/smoke-file-finding-skill.test.ts`.
 **Consumers (2026-08-22):** the Librarian — `LibrarianPanel.tsx` +
 `librarianClient.ts` (`components/editing/`) over `/api/portal/dev/librarian`,
@@ -445,6 +467,12 @@ The copies this exists to delete are listed in
 `pluginData` state collection**), `pluginRequestScope.ts`,
 `privateUploadStorage.ts`. Seeds: `demoSeed.ts`, `founderSeed.ts`,
 `aquaOasisSeed.ts`, `showcaseMode.ts`, `devMode.ts`.
+
+**Current observability caveat (2026-08-25):** the first two names are helper
+libraries, not an active cross-cutting layer. Repository-wide search finds no
+production caller of either wrapper/capture function; the Sentry dependency is
+absent, yet readiness treats a DSN string as ready and the client fallback says
+an issue was logged. Tracked as [issue #132](../development/issues.md).
 
 ## ⚠ Duplication & look-alike flags (check before adding)
 1. **Editing bridge — NOT dead, corrected 2026-08-21.** This flag used to read "`lib/server/editing/adapters.ts` has no app importers (only `scripts/smoke-editor-adapters.test.ts`) … Deletion candidate." Both halves were wrong: (a) `lib/server/editing/appConfigAdapter.ts:9` does `import { fingerprint } from "./adapters"`, and appConfigAdapter is mounted by `dev-team/editor/{_Section,_AppConfigEditor}.tsx` and `api/portal/dev-team/editor/route.ts`, so the file is reachable from a live screen; (b) `scripts/smoke-editor-adapters.test.ts:7,17` imports it, so deleting it turns the suite red. **Do not delete.** What IS still true: the *portal/website* editor rides `src/engines/editor/editing/*` + `src/engines/editor/server/*`, and there is no `lib/server/siteEditor/`. Also true: `engines/editor/editing/{leases,modes}.ts` ARE used by `components/editing/*` — don't sweep the folder.

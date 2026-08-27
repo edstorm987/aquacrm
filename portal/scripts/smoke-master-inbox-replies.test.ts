@@ -7,6 +7,7 @@ const unifiedInbox = readFileSync("src/app/portal/agency/inbox/_UnifiedInboxWork
 const enquiryCommunications = readFileSync("src/app/portal/agency/inbox/_EnquiryCommunications.tsx", "utf8");
 const inboxPage = readFileSync("src/app/portal/agency/inbox/page.tsx", "utf8");
 const websiteReplyRoute = readFileSync("src/app/api/portal/website-enquiries/communications/route.ts", "utf8");
+const websiteCallRoute = readFileSync("src/app/api/portal/website-enquiries/calls/route.ts", "utf8");
 const websiteEnquiries = readFileSync("src/lib/server/websiteEnquiries.ts", "utf8");
 const socialWorkspace = readFileSync("src/app/portal/agency/inbox/_SocialInboxWorkspace.tsx", "utf8");
 const clientRequestRoute = readFileSync("src/app/api/tenants/client-requests/route.ts", "utf8");
@@ -25,7 +26,11 @@ test("website enquiry replies require a real recipient and sender", () => {
   assert.match(websiteReplyRoute, /requireRole\(\["agency-owner", "agency-manager", "agency-staff"\]\)/);
   assert.match(websiteReplyRoute, /This enquiry has no valid/);
   assert.match(websiteReplyRoute, /resolveCommunicationSender/);
+  assert.match(websiteReplyRoute, /enquiry\.metadata\?\.clientId/);
+  assert.match(websiteReplyRoute, /resolveCommunicationSender\(session\.agencyId, senderId, channel, targetClientId\)/);
   assert.match(websiteReplyRoute, /sendTransactionalEmail/);
+  assert.match(enquiryCommunications, /!sender\.clientId \|\| sender\.clientId === item\.clientId/);
+  assert.match(websiteCallRoute, /resolveCommunicationSender\(session\.agencyId, senderId, "call", targetClientId\)/);
   assert.match(inboxPage, /outboundCommunicationReadiness\(session\.agencyId\)/);
   // Connecting an email sender to reply through is done in the Channels tab's
   // connection manager (the panel that saves Resend/SMTP), not a dead status

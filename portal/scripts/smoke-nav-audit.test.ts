@@ -103,6 +103,7 @@ const CUSTOMER_SUBROUTE = join(ROOT, "src", "app", "portal", "customer", "_subro
 const CUSTOMER_BOOKINGS = join(ROOT, "src", "app", "portal", "customer", "bookings", "page.tsx");
 const CUSTOMER_ORDERS = join(ROOT, "src", "app", "portal", "customer", "orders", "page.tsx");
 const CUSTOMER_CHROME = join(ROOT, "src", "app", "portal", "customer", "_CustomerPortalChrome.tsx");
+const CUSTOMER_ACCOUNT_ACTIVITY = join(ROOT, "src", "lib", "portal", "customerAccountActivity.ts");
 const ORDER_DETAIL = join(ROOT, "src", "built-ins", "modules", "ecommerce", "src", "components", "admin", "OrderDetail.tsx");
 const ORDER_DETAIL_PAGE = join(ROOT, "src", "built-ins", "modules", "ecommerce", "src", "pages", "OrderDetailPage.tsx");
 const TENANTS = join(ROOT, "src", "server", "tenants.ts");
@@ -375,7 +376,7 @@ describe("standalone portal nav audit", () => {
     assert.ok(clientTabs.includes('id: "systems"'), "client tab id should be systems");
     assert.ok(clientTabs.includes('label: "Systems"'), "client tab label should be Systems");
     assert.ok(!clientLayout.includes('label: "Systems and development"'), "technical detail should not permanently crowd the client sidebar");
-    assert.ok(clientHome.includes('serviceCapabilities.systems ? ["systems" as const]'), "Delivery should expose the technical lens contextually");
+    assert.ok(clientHome.includes("systems={serviceCapabilities.systems ? {"), "Delivery should expose the technical lens contextually");
     assert.ok(clientTabs.includes('tools: "systems"'), "legacy tools tab links should resolve to systems");
     assert.ok(clientHome.includes('tab === "systems"'), "client systems tab branch missing");
     assert.ok(clientHome.includes("+ Add system"), "quick action should say Add system");
@@ -407,28 +408,31 @@ describe("standalone portal nav audit", () => {
     assert.ok(route.includes("const createPortal = body.createPortal === true"), "portal creation should require an explicit choice");
     assert.ok(route.includes("if (createPortal)"), "portal setup should only run when selected");
     assert.ok(route.includes("portalRequired: createPortal"), "client metadata should remember whether a portal is needed");
-    assert.ok(route.includes("structuredClone(getState())"), "create route should snapshot state before portal setup");
-    assert.ok(route.includes("client portal setup failed"), "create route should report portal setup failures clearly");
+    assert.ok(route.includes("createClientWithLifecycleOperation"), "create route should use the durable lifecycle operation");
+    assert.ok(route.includes('code: "client_lifecycle_incomplete"'), "create route should expose incomplete lifecycle work");
+    assert.ok(route.includes('code: "client_portal_setup_incomplete"'), "create route should expose incomplete portal work");
+    assert.ok(route.includes("retryable: true"), "partial setup should be explicitly retryable");
+    assert.ok(!route.includes("structuredClone(getState())"), "a later setup failure must not erase a durable client operation");
     assert.ok(modal.includes("What are we helping with?"), "new-client modal should capture a flexible service brief");
     assert.ok(modal.includes("serviceBrief: helpingWith || undefined"), "service brief should be saved with the client");
     assert.ok(!modal.includes("selectedProducts.map"), "product setup should stay out of the initial client form");
     assert.ok(modal.includes("Create a client portal now"), "new-client modal should offer portal creation");
     assert.ok(modal.includes("set up their portal later from the client record"), "modal should explain the later option");
     assert.ok(modal.includes("? {") && modal.includes("starterPortal:"), "starter portal details should only be sent when selected");
-    assert.ok(read(CLIENT_HOME).includes('meta.portalBuiltAt ? "Portal preview" : "Create client portal"'), "client record should expose later portal creation");
+    assert.ok(read(CLIENT_HOME).includes('meta.portalBuiltAt ? "Portal preview" : canManageClient ? "Create client portal" : "Portal status"'), "client record should expose later portal creation without offering it to read-only roles");
     assert.ok(!modal.includes('fetch("/api/tenants/apply-incubator-variant"'), "modal should not fire a second portal setup request");
   });
 
-  it("keeps lead/contact conversion transactional with starter portal setup", () => {
+  it("keeps lead/contact conversion resumable with starter portal setup", () => {
     const src = read(LEADS_HANDLERS);
     const leadBlock = src.match(/export async function convertLeadToClientHandler[\s\S]*?export async function archiveLeadHandler/)?.[0] ?? "";
     const contactBlock = src.match(/export async function convertContactToClientHandler[\s\S]*?export async function addContactToBoardHandler/)?.[0] ?? "";
 
     for (const [name, block] of [["lead", leadBlock], ["contact", contactBlock]] as const) {
-      assert.ok(block.includes("structuredClone(getState())"), `${name} conversion should snapshot state before mutating`);
+      assert.ok(block.includes("ensureClientLifecycleOperation"), `${name} conversion should use the canonical lifecycle operation`);
       assert.ok(block.includes("setupClientStarterPortal"), `${name} conversion should create the starter portal`);
-      assert.ok(block.includes("restorePortalState(beforeConvert)"), `${name} conversion should roll back on portal setup failure`);
-      assert.ok(block.includes("client portal setup failed"), `${name} conversion should fail loudly when portal setup fails`);
+      assert.ok(!block.includes("restorePortalState(beforeConvert)"), `${name} conversion must preserve resumable partial work`);
+      assert.ok(block.includes("retryable: true"), `${name} conversion should identify resumable setup failures`);
     }
   });
 
@@ -451,7 +455,7 @@ describe("standalone portal nav audit", () => {
     const actions = read(CLIENT_SETTINGS_ACTIONS);
     const tenants = read(TENANTS);
 
-    assert.ok(layout.includes('label: "Client settings"'), "client settings link missing from sidebar");
+    assert.ok(layout.includes('label: session.publicShowcase ? "Permissions" : "Client settings"'), "client settings link missing from the live sidebar");
     assert.ok(existsSync(CLIENT_SETTINGS_PAGE), "client settings page missing");
     assert.ok(route.includes("updateClient"), "client-status route should update clients");
     assert.ok(route.includes('"client.archived"'), "client-status route should log archive actions");
@@ -569,10 +573,14 @@ describe("standalone portal nav audit", () => {
     }
   });
 
-  it("exposes customer Orders, Bookings, and admin receipts from visible controls", () => {
+  it("exposes only operational customer account activity and admin receipts", () => {
     const chrome = read(CUSTOMER_CHROME);
-    assert.ok(chrome.includes('href: "/portal/customer/orders"'));
-    assert.ok(chrome.includes('href: "/portal/customer/bookings"'));
+    const activity = read(CUSTOMER_ACCOUNT_ACTIVITY);
+    assert.ok(chrome.includes("customerAccountActivityNavItems(accountActivityCapabilities)"));
+    assert.ok(activity.includes('href: "/portal/customer/orders"'));
+    assert.ok(activity.includes('href: "/portal/customer/bookings"'));
+    assert.ok(activity.includes('id: "bookings"'));
+    assert.match(activity, /id: "bookings",[\s\S]*?operational: false/);
     assert.ok(read(ORDER_DETAIL).includes("receiptHref"), "order toolbar should expose the receipt");
     assert.ok(read(ORDER_DETAIL_PAGE).includes("/receipt`"), "order detail should build the mounted receipt URL");
   });

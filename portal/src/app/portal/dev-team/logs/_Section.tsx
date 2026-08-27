@@ -4,9 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { ScrollText, UserRound, Bot, FileCode2, CircleDot } from "lucide-react";
 
 import { requireRole } from "@/lib/server/auth/auth";
-import { devDocsAccessible } from "@/lib/server/dev/devDocs";
-import { recentDocEdits } from "@/lib/server/dev/devDocEdits";
-import { scanWorkerSignals, groupActivity } from "@/lib/server/dev/devTeamWorkers";
+import { devTeamAccessible } from "@/lib/server/dev/devTeamAccess";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 import { relativeAge } from "@/lib/shared/formatDateTime";
@@ -29,12 +27,17 @@ export async function LogsSection({ tabs }: { tabs?: ReactNode }) {
   } catch {
     redirect("/portal");
   }
-  if (!devDocsAccessible(session)) notFound();
+  if (!devTeamAccessible(session)) notFound();
+
+  return <LiveLogsSection tabs={tabs} />;
+}
+
+async function LiveLogsSection({ tabs }: { tabs?: ReactNode }) {
+  const { readDevTeamLogsSnapshot } = await import("@/lib/server/dev/devTeamLogsSnapshot");
+  const snapshot = await readDevTeamLogsSnapshot();
 
   const nowMs = Date.now();
-  const [signals, edits] = await Promise.all([scanWorkerSignals(), recentDocEdits(20)]);
-  const activity = groupActivity(signals.recentFiles);
-  const recentFiles = signals.recentFiles.slice(0, 25);
+  const { activity, checkIns, edits, recentFiles } = snapshot;
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
@@ -46,22 +49,22 @@ export async function LogsSection({ tabs }: { tabs?: ReactNode }) {
         meta={
           <div className="flex flex-wrap items-center justify-end gap-2">
             {tabs}
-            <span title={changesPillTitle(signals.recentFiles.length)}>
-              <Pill tone="muted">{changesPillLabel(signals.recentFiles.length)}</Pill>
+            <span title={changesPillTitle(snapshot.changeCount)}>
+              <Pill tone="muted">{changesPillLabel(snapshot.changeCount)}</Pill>
             </span>
           </div>
         }
       />
 
       <Panel title="Worker check-ins" hint="What each agent says it's doing.">
-        {signals.checkIns.length === 0 ? (
+        {checkIns.length === 0 ? (
           <EmptyState>
             No check-ins yet. A worker appears here the moment it runs{" "}
             <code className="text-[color:var(--dt-faint)]">npm run worker:checkin</code>.
           </EmptyState>
         ) : (
           <ul className="flex flex-col divide-y divide-[color:var(--dt-hairline)]">
-            {signals.checkIns.map(worker => (
+            {checkIns.map(worker => (
               <li key={worker.name} className="flex items-start gap-2.5 py-2.5 first:pt-0 last:pb-0">
                 <CircleDot size={13} className="mt-0.5 shrink-0" style={{ color: "var(--dev-success)" }} />
                 <div className="min-w-0 flex-1">
@@ -91,7 +94,7 @@ export async function LogsSection({ tabs }: { tabs?: ReactNode }) {
           <EmptyState>Nothing changed in the last couple of hours.</EmptyState>
         ) : (
           <ul className="flex flex-col divide-y divide-[color:var(--dt-hairline)]">
-            {activity.slice(0, 10).map(area => (
+            {activity.map(area => (
               <li key={area.area} className="flex items-start gap-2.5 py-2 first:pt-0 last:pb-0">
                 <FileCode2 size={13} className="mt-0.5 shrink-0 text-[color:var(--dt-faint)]" />
                 <div className="min-w-0 flex-1">

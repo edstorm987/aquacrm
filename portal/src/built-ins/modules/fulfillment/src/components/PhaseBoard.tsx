@@ -1,10 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import type { Client, PhaseDefinition } from "../lib/tenancy";
 import type { ChecklistView } from "../server";
 import { ChecklistColumn } from "./ChecklistColumn";
+import {
+  createPhaseTransitionOperationId,
+  phaseTransitionFailureMessage,
+  type PhaseTransitionApiResult,
+} from "../lib/transitionFeedback";
 
 export interface PhaseBoardProps {
   client: Client;
@@ -22,6 +27,7 @@ export function PhaseBoard(props: PhaseBoardProps) {
   const [error, setError] = useState<string | null>(null);
   const [confirmAdvance, setConfirmAdvance] = useState(false);
   const [progressVersion, setProgressVersion] = useState(0);
+  const operationIdRef = useRef<string | null>(null);
 
   const allowAdvance = view.allRequiredComplete && nextPhase !== null;
 
@@ -45,6 +51,7 @@ export function PhaseBoard(props: PhaseBoardProps) {
     setAdvancing(true);
     setError(null);
     try {
+      operationIdRef.current ??= createPhaseTransitionOperationId(client.id, phase.id, nextPhase.id);
       const res = await fetch(`${apiBase}/phase/advance`, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -52,13 +59,15 @@ export function PhaseBoard(props: PhaseBoardProps) {
           clientId: client.id,
           fromPhaseId: phase.id,
           toPhaseId: nextPhase.id,
+          operationId: operationIdRef.current,
         }),
       });
-      const data = await res.json() as { ok: boolean; error?: string };
+      const data = await res.json() as PhaseTransitionApiResult;
       if (!data.ok) {
-        setError(data.error ?? "Advance failed.");
+        setError(phaseTransitionFailureMessage(data));
         return;
       }
+      operationIdRef.current = null;
       // Force a full reload so the server-rendered shell picks up the
       // new phase + plugin sidebar without coordinated cache invalidation.
       if (typeof window !== "undefined") window.location.reload();

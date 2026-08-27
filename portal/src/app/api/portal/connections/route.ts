@@ -11,9 +11,10 @@ import {
   withdrawPortalConnection,
 } from "@/server/portalConnectionStore";
 import { connectionLinkOrigin, type PortalConnection } from "@/lib/server/portal/portalConnections";
+import { routeTenantScope } from "@/lib/server/portal/apiTenantScope";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
-import { getClientForAgency } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 /**
  * Portal connections from the agency's side.
@@ -30,11 +31,16 @@ export async function GET(request: NextRequest) {
   try {
     await ensureHydrated();
     const session = await requireRole([...AGENCY_ROLES]);
-    const clientId = new URL(request.url).searchParams.get("clientId")?.trim();
+    const scope = routeTenantScope(session, { clientId: new URL(request.url).searchParams.get("clientId") });
+    // The agency Connections screen may intentionally list every connection;
+    // only the client-filtered workspace read inherits a client element gate.
+    if (scope.clientId) {
+      await requireCurrentClientWorkspaceElementAccess(scope.clientId, "client.portal", "view");
+    }
     const origin = connectionLinkOrigin(request.nextUrl.origin);
     return NextResponse.json({
       ok: true,
-      connections: listPortalConnections(session.agencyId, clientId || undefined)
+      connections: listPortalConnections(scope.agencyId, scope.clientId)
         .map(connection => describePortalConnection(connection, origin)),
     });
   } catch (error) {
@@ -50,6 +56,18 @@ export async function POST(request: NextRequest) {
     const action = typeof body?.action === "string" ? body.action : "open";
     const origin = connectionLinkOrigin(request.nextUrl.origin);
 
+    if (action !== "open" && ["withdraw", "reset", "delete"].includes(action)) {
+      const connectionId = typeof body?.connectionId === "string" ? body.connectionId.trim() : "";
+      if (!connectionId) {
+        return NextResponse.json({ ok: false, error: "A connection is required." }, { status: 400 });
+      }
+      const target = listPortalConnections(session.agencyId).find(connection => connection.id === connectionId);
+      if (!target) {
+        return NextResponse.json({ ok: false, error: "That connection was not found." }, { status: 404 });
+      }
+      await requireCurrentClientWorkspaceElementAccess(target.clientId, "client.portal", "manage");
+    }
+
     if (action === "open") {
       const clientId = typeof body?.clientId === "string" ? body.clientId.trim() : "";
       const label = typeof body?.label === "string" ? body.label : "";
@@ -58,10 +76,11 @@ export async function POST(request: NextRequest) {
       }
       // Read through the agency rather than trusting the id, so a connection
       // cannot be opened against somebody else's client.
-      const client = getClientForAgency(session.agencyId, clientId);
+      const client = routeTenantScope(session, { clientId }).client;
       if (!client) {
         return NextResponse.json({ ok: false, error: "That client was not found." }, { status: 404 });
       }
+      await requireCurrentClientWorkspaceElementAccess(clientId, "client.portal", "manage");
 
       let connection: PortalConnection;
       try {

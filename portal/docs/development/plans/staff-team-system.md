@@ -2,8 +2,17 @@
 
 ← [todo.md](../todo.md) · [development.md](../../development.md) · reference: [Advisor](../../workspace/advisor.md), [Radar](../../workspace/radar.md)
 
-**Status: ✅ COMPLETE — all 10 phases shipped 2026-08-19** (logic-tested throughout,
-full suite green, typecheck-clean; browser verification owed to the commander).
+**Status: ✅ COMPLETE — all 10 original phases shipped 2026-08-19** (logic-tested
+throughout, full suite green and typecheck-clean at that checkpoint). A later
+2026-08-26 governed-access pass browser-proved an Overview-only real Staff identity,
+My Day-only navigation and direct Pay/Actions refusal across the responsive width
+matrix. Positive Use/Manage mutations, request decisions, accessibility and the
+remaining legacy-policy convergence still belong to the newer configurable-access
+plan; they do not reopen these ten original feature phases. A final 2026-08-26
+boundary repair also projects People page/API data by the exact Staff element instead
+of sending the complete people graph, removes dead links into hidden tabs and browser-
+proves People Capacity at 390px without overflow or alert. Those access repairs are
+tracked in issues #156/#159 and do not change the original feature-phase status.
 See [updates.md](../updates.md) for each phase. Future enhancements noted: a unified
 cross-domain client+staff+supplier contracts view (none exists to merge into today),
 and embedding the full block editor — `src/engines/editor/DevEditor.tsx` (the one universal
@@ -127,7 +136,11 @@ code (it's a client codebase). Mapped to our wants:
 ## Decisions (Ed)
 - **Owner-as-staff** — Ed appears as a staff card too (capacity includes him) — confirm.
 - **Chat** — a full internal inbox, or lightweight notes/threads to start?
-- **Staff portal scope** — how much do staff see (their data + SOPs + progression) vs. more?
+- ~~**Staff portal scope** — how much do staff see (their data + SOPs + progression)
+  vs. more?~~ **Superseded 2026-08-26:** the completed station UI remains, but the
+  third product phase makes scope a per-person grant decision across Staff,
+  Fulfilment, clients and projects. Existing `workspaceAccess` becomes a compatibility
+  adapter to the canonical evaluator rather than a separate authority.
 - **Freelancers** — full records + one-time job flow, or lightweight for now?
 - **Training builder** — reuse the **website-editor blocks** (rich/powerful) or a **simple video+quiz builder** (faster) for authoring modules?
 - **Onboarding/hiring config** — fixed templates you tweak, or a fully custom **process builder** (more elite, more work)?

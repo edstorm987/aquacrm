@@ -34,7 +34,10 @@ test("universal search ranks partial matches and returns useful context", () => 
   assert.match(searchApi, /contextualSnippet/);
   assert.match(searchApi, /matchedOn: matchLabel/);
   assert.match(searchApi, /SEARCH_INDEX_TTL_MS/);
-  assert.match(searchUi, /\/api\/portal\/search\?warm=1/);
+  assert.doesNotMatch(searchUi, /\/api\/portal\/search\?warm=1/);
+  assert.match(searchUi, /!recordsEnabled \|\| !open \|\| normalised\.length < 2/);
+  assert.match(searchUi, /\/api\/portal\/search\?q=/);
+  assert.match(searchUi, /Type to search live records/);
 });
 
 test("universal search indexes the complete Command Centre intelligence and Radar context", () => {

@@ -312,6 +312,12 @@ available in-app" (service-role limit). See §1 sweep note and the plan Part D.
   Lifted here 2026-08-21 from the radar handoffs when they were archived — it was the only
   live home this fact had, and `plans/radar-upgrade.md` still lists probe cadence as an open
   question, which reads as "the cron does not exist" to anyone working from live docs.
+- ⚠ **Current scheduler mismatch (issue #131):** Evidence declares an hourly cadence but
+  is only rolled up by manual full scan or daily `cron/inbox`. That daily route calls
+  `runRadarScheduledSweep()` per agency, and the helper reruns the app-wide Infra probe inside
+  each call; an Infra failure also prevents that tenant's evidence sample. The dedicated
+  ten-minute probe cron already models the intended shape correctly (Infra once, Deep per
+  agency), but the daily evidence path does not.
 
 _See the [KPI dossier](kpi-intelligence.md) for the metrics that ride Radar's
 evidence vault, and the [Advisor dossier](advisor.md) for how findings become

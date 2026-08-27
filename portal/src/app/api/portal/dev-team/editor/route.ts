@@ -5,7 +5,7 @@ import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import { appConfigEditAdapter, prepareAppConfigIntents } from "@/lib/server/editing/appConfigAdapter";
 import { getAgency } from "@/server/tenants";
-import { ensureHydrated } from "@/server/storage";
+import { ensureDevTeamWorkspaceHydrated } from "@/lib/server/dev/devWorkspaceFiles";
 import { AGENCY_ROLES } from "@/server/types";
 
 // The Dev Team Editor's write path. One POST that both previews and applies —
@@ -43,9 +43,9 @@ function parseIntents(input: unknown): RawIntent[] | null {
 
 export async function POST(request: Request) {
   try {
-    await ensureHydrated();
+    await ensureDevTeamWorkspaceHydrated();
     const session = await requireRole([...AGENCY_ROLES]);
-    // Founder + Dev Mode, or this endpoint does not exist — matching the page,
+    // Founder-only Dev Team access, or this endpoint does not exist — matching the page,
     // which 404s rather than 403s so the surface is not even advertised.
     if (!devDocsAccessible(session)) {
       return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });

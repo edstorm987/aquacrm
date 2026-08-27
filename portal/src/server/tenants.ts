@@ -11,6 +11,7 @@ import { emit } from "./eventBus";
 import type {
   Agency, AgencyStatus, BrandKit, Client, ClientStage, EndCustomer,
 } from "./types";
+import { validatePortalEntityFields } from "./portalEditor";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -31,6 +32,43 @@ const DEFAULT_BRAND: BrandKit = {
   fontBody: "ui-sans-serif, system-ui",
   borderRadius: "12px",
 };
+
+const CLIENT_STAGES = new Set<ClientStage>([
+  "lead", "discovery", "design", "development", "onboarding", "live", "churned",
+  "aqua-epic-intro", "aqua-blueprint", "aqua-diagnostics", "aqua-brand-builder",
+  "aqua-traffic", "aqua-mastery",
+]);
+
+/**
+ * Old fixtures and partially imported PortalState rows predate the required
+ * client slug/brand fields. Treat those presentation fields as recoverable
+ * defaults at the store boundary so one legacy client cannot crash every
+ * client list or workspace that reads `brand.primaryColor` or `slug`.
+ */
+function normaliseClient(client: Client): Client {
+  const inheritedBrand = getState().agencies[client.agencyId]?.brand ?? DEFAULT_BRAND;
+  const brand = client.brand && client.brand.primaryColor
+    ? client.brand
+    : { ...DEFAULT_BRAND, ...inheritedBrand, ...(client.brand ?? {}) };
+  const slug = typeof client.slug === "string" && client.slug.trim()
+    ? client.slug
+    : slugify(client.name || client.id);
+  const rawStage = client.stage as string | undefined;
+  const stage: ClientStage = rawStage === "active"
+    ? "live"
+    : CLIENT_STAGES.has(rawStage as ClientStage) ? rawStage as ClientStage : "discovery";
+  const status: AgencyStatus = client.status === "suspended" || client.status === "archived"
+    ? client.status
+    : "active";
+  const relationshipId = client.relationshipId?.trim() || client.id;
+  return brand === client.brand
+    && slug === client.slug
+    && stage === client.stage
+    && status === client.status
+    && relationshipId === client.relationshipId
+    ? client
+    : { ...client, brand, slug, stage, status, relationshipId };
+}
 
 // ─── Agency CRUD ──────────────────────────────────────────────────────────
 
@@ -130,6 +168,11 @@ export function createClient(agencyId: string, input: CreateClientInput): Client
   if (!agency) throw new Error(`Agency "${agencyId}" not found.`);
 
   let saved!: Client;
+  const suppliedMetadata = input.metadata ?? {};
+  const hasCustomFieldSubmission = Object.prototype.hasOwnProperty.call(suppliedMetadata, "customFields");
+  const customFields = hasCustomFieldSubmission
+    ? validatePortalEntityFields(agencyId, "clients", suppliedMetadata.customFields)
+    : {};
   mutate(state => {
     const id = makeId("cli");
     const slug = slugify(input.slug ?? input.name);
@@ -148,7 +191,7 @@ export function createClient(agencyId: string, input: CreateClientInput): Client
       websiteUrl: input.websiteUrl,
       status: "active",
       endCustomers: input.endCustomers,
-      metadata: input.metadata,
+      metadata: { ...suppliedMetadata, customFields },
       createdAt: now,
       updatedAt: now,
     };
@@ -159,7 +202,8 @@ export function createClient(agencyId: string, input: CreateClientInput): Client
 }
 
 export function getClient(id: string): Client | null {
-  return getState().clients[id] ?? null;
+  const client = getState().clients[id];
+  return client ? normaliseClient(client) : null;
 }
 
 // Strict scope-check variant. Returns null if the client doesn't belong
@@ -169,12 +213,13 @@ export function getClientForAgency(agencyId: string, clientId: string): Client |
   const c = getState().clients[clientId];
   if (!c) return null;
   if (c.agencyId !== agencyId) return null;
-  return c;
+  return normaliseClient(c);
 }
 
 export function listClients(agencyId: string, options: { includeArchived?: boolean } = {}): Client[] {
   return Object.values(getState().clients)
     .filter(c => c.agencyId === agencyId && (options.includeArchived || c.status !== "archived"))
+    .map(normaliseClient)
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -200,33 +245,44 @@ export function updateClient(agencyId: string, clientId: string, patch: UpdateCl
     const existing = state.clients[clientId];
     if (!existing) return;
     if (existing.agencyId !== agencyId) return;
+    const current = normaliseClient(existing);
     const now = Date.now();
-    oldStage = existing.stage;
-    stageChanged = patch.stage !== undefined && patch.stage !== existing.stage;
-    const nextStage = patch.stage ?? existing.stage;
-    const nextStatus = patch.status ?? existing.status;
+    oldStage = current.stage;
+    stageChanged = patch.stage !== undefined && patch.stage !== current.stage;
+    const nextStage = patch.stage ?? current.stage;
+    const nextStatus = patch.status ?? current.status;
+    const existingCustomFields = current.metadata?.customFields && typeof current.metadata.customFields === "object" && !Array.isArray(current.metadata.customFields)
+      ? current.metadata.customFields as Record<string, unknown>
+      : undefined;
+    const hasCustomFieldSubmission = patch.metadata !== undefined
+      && Object.prototype.hasOwnProperty.call(patch.metadata, "customFields");
+    const incomingCustomFields = patch.metadata?.customFields;
+    const customFields = hasCustomFieldSubmission
+      ? validatePortalEntityFields(agencyId, "clients", incomingCustomFields, existingCustomFields)
+      : existingCustomFields ?? {};
     const metadata = patch.metadata !== undefined
-      ? { ...(existing.metadata ?? {}), ...patch.metadata }
-      : { ...(existing.metadata ?? {}) };
+      ? { ...(current.metadata ?? {}), ...patch.metadata }
+      : { ...(current.metadata ?? {}) };
+    metadata.customFields = customFields;
     if (stageChanged && nextStage === "churned") metadata.churnedAt = now;
-    if (stageChanged && existing.stage === "churned" && nextStage !== "churned") metadata.reactivatedAt = now;
-    if (patch.status === "archived" && existing.status !== "archived") metadata.archivedAt = now;
-    if (patch.status === "suspended" && existing.status !== "suspended") metadata.suspendedAt = now;
-    if (patch.status === "active" && existing.status !== "active") metadata.reactivatedAt = now;
+    if (stageChanged && current.stage === "churned" && nextStage !== "churned") metadata.reactivatedAt = now;
+    if (patch.status === "archived" && current.status !== "archived") metadata.archivedAt = now;
+    if (patch.status === "suspended" && current.status !== "suspended") metadata.suspendedAt = now;
+    if (patch.status === "active" && current.status !== "active") metadata.reactivatedAt = now;
     saved = {
-      ...existing,
-      relationshipId: patch.relationshipId === null ? undefined : patch.relationshipId?.trim() || existing.relationshipId,
-      workspaceLabel: patch.workspaceLabel === null ? undefined : patch.workspaceLabel?.trim() || existing.workspaceLabel,
-      companyId: patch.companyId === null ? undefined : patch.companyId ?? existing.companyId,
-      name: patch.name ?? existing.name,
-      ownerEmail: patch.ownerEmail ?? existing.ownerEmail,
-      websiteUrl: patch.websiteUrl === null ? undefined : patch.websiteUrl ?? existing.websiteUrl,
-      brand: patch.brand ? { ...existing.brand, ...patch.brand } : existing.brand,
+      ...current,
+      relationshipId: patch.relationshipId === null ? undefined : patch.relationshipId?.trim() || current.relationshipId,
+      workspaceLabel: patch.workspaceLabel === null ? undefined : patch.workspaceLabel?.trim() || current.workspaceLabel,
+      companyId: patch.companyId === null ? undefined : patch.companyId ?? current.companyId,
+      name: patch.name ?? current.name,
+      ownerEmail: patch.ownerEmail ?? current.ownerEmail,
+      websiteUrl: patch.websiteUrl === null ? undefined : patch.websiteUrl ?? current.websiteUrl,
+      brand: patch.brand ? { ...current.brand, ...patch.brand } : current.brand,
       status: nextStatus,
       stage: nextStage,
       endCustomers: patch.endCustomers !== undefined
-        ? { ...(existing.endCustomers ?? {}), ...patch.endCustomers }
-        : existing.endCustomers,
+        ? { ...(current.endCustomers ?? {}), ...patch.endCustomers }
+        : current.endCustomers,
       metadata,
       updatedAt: now,
     };

@@ -73,6 +73,11 @@ export function NotificationCentreButton({
     setUpdateUnread(false);
   }
 
+  function toggleNotifications() {
+    if (!open) void attention?.refreshAlerts();
+    setOpen(value => !value);
+  }
+
   return (
     <div ref={rootRef} className="mm-has-attention-badge relative overflow-visible">
       <button
@@ -81,7 +86,7 @@ export function NotificationCentreButton({
         aria-expanded={open}
         aria-haspopup="dialog"
         title="Notifications"
-        onClick={() => setOpen(value => !value)}
+        onClick={toggleNotifications}
         className="relative grid size-9 place-items-center rounded-md border border-black/10 bg-white text-black/60 shadow-sm transition hover:border-black/20 hover:bg-black/[0.025]"
       >
         <Bell size={16} aria-hidden="true" />
@@ -119,7 +124,7 @@ export function NotificationCentreButton({
               <NotificationRow
                 key={alert.id}
                 alert={alert}
-                busy={attention?.busyAlertId === alert.id}
+                busy={attention?.isAlertBusy(alert.id) ?? false}
                 onAction={(action, parkedUntil) => attention?.updateAlert(alert.id, action, parkedUntil) ?? Promise.resolve(false)}
                 onNavigate={() => {
                   if (alert.attention) void attention?.updateAlert(alert.id, "read");

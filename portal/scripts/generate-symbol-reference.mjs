@@ -4,16 +4,19 @@
 //
 //   node scripts/generate-symbol-reference.mjs
 //
-// Writes docs/reference/{00-index,server,lib,components,app,built-ins,scripts}.md
-// Each source file gets a heading listing its exported symbols with real
-// signatures + leading doc-comments. Grep this instead of opening source.
+// Writes nine consolidated docs: eight area volumes plus files-index.md and the
+// small 00-index.md contents page. Each source file gets one anchored section
+// with purpose, exports, dependencies and dependants. This deliberately replaces
+// the old docs/reference/files/** one-stub-per-source tree.
 
 import ts from "typescript";
-import { readFileSync, writeFileSync, readdirSync, statSync, mkdirSync } from "node:fs";
-import { join, relative } from "node:path";
+import { readFileSync, writeFileSync, readdirSync, statSync, mkdirSync, rmSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { dirname, join, relative } from "node:path";
 
 const ROOT = process.cwd();
 const OUT = join(ROOT, "docs", "reference");
+const LEGACY_FILES_DIR = join(OUT, "files");
 mkdirSync(OUT, { recursive: true });
 
 const SKIP_DIRS = new Set(["node_modules", ".next", ".git", "_attic", "dist", "build"]);
@@ -101,8 +104,13 @@ function extractFile(path) {
   const sf = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, /* tsx */ ts.ScriptKind.TSX);
   const full = sf.getFullText();
   const syms = [];
+  const imports = [];
+  const fileDoc = sf.statements.length ? docComment(sf.statements[0], sf, full) : "";
 
   for (const node of sf.statements) {
+    if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier) {
+      imports.push(node.moduleSpecifier.text);
+    }
     // export { a, b } from './x'  |  export * from './x'
     if (ts.isExportDeclaration(node)) {
       if (node.exportClause && ts.isNamedExports(node.exportClause)) {
@@ -151,26 +159,62 @@ function extractFile(path) {
       }
     }
   }
-  return syms;
+  return { syms, fileDoc, imports };
 }
 
 const KIND_ORDER = { default: 0, function: 1, class: 2, const: 3, type: 4, interface: 5, enum: 6, "re-export": 7 };
 
-function renderFile(relPath, syms) {
-  let md = `### \`${relPath}\`\n\n`;
+function resolveImport(fromFile, spec) {
+  let base;
+  if (spec.startsWith("@/")) base = join(ROOT, "src", spec.slice(2));
+  else if (spec.startsWith("./") || spec.startsWith("../")) base = join(dirname(fromFile), spec);
+  else return null;
+  for (const candidate of [base, `${base}.ts`, `${base}.tsx`, join(base, "index.ts"), join(base, "index.tsx")]) {
+    try {
+      if (statSync(candidate).isFile()) return candidate;
+    } catch {}
+  }
+  return null;
+}
+
+function fileAnchor(relPath) {
+  const readable = relPath.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 120);
+  const unique = createHash("sha1").update(relPath).digest("hex").slice(0, 10);
+  return `file-${readable}-${unique}`;
+}
+
+function renderFile(entry, bucketFile, bucketForRel) {
+  const { rel: relPath, syms, fileDoc, deps, users } = entry;
+  let md = `<a id="${fileAnchor(relPath)}"></a>\n\n### \`${relPath}\`\n\n`;
+  md += fileDoc
+    ? `**What it is:** ${fileDoc}\n\n`
+    : `_No file-level doc-comment; purpose is inferred from the path and exports._\n\n`;
   if (!syms.length) {
-    md += "_No exported symbols (internal/side-effect module)._\n\n";
-    return md;
-  }
-  syms.sort((a, b) => (KIND_ORDER[a.kind] - KIND_ORDER[b.kind]));
-  for (const s of syms) {
-    const d = s.doc ? ` — ${s.doc}` : "";
-    md += `- \`${s.sig}\`${d}\n`;
-    if (s.methods && s.methods.length) {
-      for (const m of s.methods) md += `    - \`${m}\`\n`;
+    md += "**Exports:** _No exported symbols (internal/side-effect module)._\n\n";
+  } else {
+    md += `**Exports (${syms.length}):**\n\n`;
+    syms.sort((a, b) => (KIND_ORDER[a.kind] - KIND_ORDER[b.kind]));
+    for (const s of syms) {
+      const d = s.doc ? ` — ${s.doc}` : "";
+      md += `- \`${s.sig}\`${d}\n`;
+      if (s.methods && s.methods.length) {
+        for (const m of s.methods) md += `    - \`${m}\`\n`;
+      }
     }
+    md += "\n";
   }
-  md += "\n";
+
+  const linkTo = targetRel => {
+    const targetBucket = bucketForRel(targetRel).file;
+    const prefix = targetBucket === bucketFile ? "" : targetBucket;
+    return `${prefix}#${fileAnchor(targetRel)}`;
+  };
+  md += deps.length
+    ? `**Depends on (${deps.length}):** ${deps.map(dep => `[\`${dep}\`](${linkTo(dep)})`).join(" · ")}\n\n`
+    : "**Depends on:** _No internal imports._\n\n";
+  md += users.length
+    ? `**Used by (${users.length}):** ${users.map(user => `[\`${user}\`](${linkTo(user)})`).join(" · ")}\n\n`
+    : "**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._\n\n";
   return md;
 }
 
@@ -193,61 +237,110 @@ const targets = [...walk(join(ROOT, "src"))];
 try { walk(join(ROOT, "scripts")).forEach((p) => targets.push(p)); } catch {}
 
 const byBucket = new Map(BUCKETS.map((b) => [b.file, []]));
+const info = new Map();
+const dependants = new Map();
 let totalFiles = 0,
   totalSyms = 0;
 
 for (const path of targets.sort()) {
   const rel = relative(ROOT, path).split("\\").join("/");
-  let syms = [];
+  let analysis;
   try {
-    syms = extractFile(path);
+    analysis = extractFile(path);
   } catch (e) {
-    syms = [{ kind: "const", sig: `/* parse error: ${e.message} */`, doc: "" }];
+    analysis = {
+      syms: [{ kind: "const", sig: `/* parse error: ${e.message} */`, doc: "" }],
+      fileDoc: "",
+      imports: [],
+    };
   }
+  const deps = analysis.imports
+    .map(spec => resolveImport(path, spec))
+    .filter((dep, index, all) => dep && dep !== path && all.indexOf(dep) === index);
+  info.set(path, { rel, ...analysis, deps });
   totalFiles++;
-  totalSyms += syms.filter((s) => s.kind !== "re-export").length;
-  const bucket = BUCKETS.find((b) => b.match(rel));
-  byBucket.get(bucket.file).push({ rel, syms });
+  totalSyms += analysis.syms.filter((s) => s.kind !== "re-export").length;
+}
+
+for (const [path, entry] of info) {
+  for (const dep of entry.deps) {
+    if (!dependants.has(dep)) dependants.set(dep, []);
+    dependants.get(dep).push(path);
+  }
+}
+
+const bucketForRel = rel => BUCKETS.find(bucket => bucket.match(rel));
+for (const [path, entry] of info) {
+  const deps = entry.deps.map(dep => info.get(dep)?.rel).filter(Boolean).sort();
+  const users = (dependants.get(path) ?? [])
+    .map(user => info.get(user)?.rel)
+    .filter(Boolean)
+    .filter((user, index, all) => all.indexOf(user) === index)
+    .sort();
+  const bucket = bucketForRel(entry.rel);
+  byBucket.get(bucket.file).push({ ...entry, deps, users });
 }
 
 // group each bucket's files by their immediate directory for navigability
-function renderBucket(title, entries) {
-  let md = `# Symbol reference — ${title}\n\n`;
+function renderBucket(bucket, entries) {
+  let md = `# Consolidated source reference — ${bucket.title}\n\n`;
   md += `← Back to [the reference index](00-index.md) · [the map contents page](../WORKSPACE-FILE-TREE.md)\n\n`;
-  md += `Every exported function, class, type and const in this area, with its real signature and doc-comment. Generated by \`scripts/generate-symbol-reference.mjs\` — grep it, don't read it top to bottom.\n\n`;
+  md += `One large generated volume for this area. Every source file has an anchored entry with its purpose, exported API, internal dependencies and dependants. Generated by \`scripts/generate-symbol-reference.mjs\` — grep it; do not read it top to bottom.\n\n`;
   let lastDir = null;
-  for (const { rel, syms } of entries) {
+  for (const entry of entries) {
+    const { rel } = entry;
     const dir = rel.slice(0, rel.lastIndexOf("/"));
     if (dir !== lastDir) {
       md += `\n## \`${dir}/\`\n\n`;
       lastDir = dir;
     }
-    md += renderFile(rel, syms);
+    md += renderFile(entry, bucket.file, bucketForRel);
   }
   return md;
 }
 
+// The old generator created one tiny Markdown file per source file. Remove that
+// exact generated tree only after source analysis has completed successfully.
+rmSync(LEGACY_FILES_DIR, { recursive: true, force: true });
+
 for (const b of BUCKETS) {
   const entries = byBucket.get(b.file);
   if (!entries.length) continue;
-  writeFileSync(join(OUT, b.file), renderBucket(b.title, entries));
+  writeFileSync(join(OUT, b.file), renderBucket(b, entries));
 }
 
 // index
 let idx = `# Symbol reference — index\n\n`;
 idx += `← Back to [the map contents page](../WORKSPACE-FILE-TREE.md)\n\n`;
-idx += `The **function-by-function** map: every exported symbol in every source file, with its real signature and doc-comment. This is the "where is everything" layer — grep it to find any function without opening source.\n\n`;
+idx += `The **consolidated source map**: every source file, exported symbol, internal dependency and dependant in eight large volumes. This is the "where is everything" layer — grep it to find any file or function without opening source.\n\n`;
 idx += `**Generated** by \`scripts/generate-symbol-reference.mjs\` (parses the code with the TypeScript compiler — complete and re-runnable; regenerate after code changes). Covers \`src/\` + \`scripts/\`.\n\n`;
 idx += `- **${totalFiles}** files · **${totalSyms}** exported symbols.\n\n`;
-idx += `## Files\n\n`;
+idx += `- **8** large source-reference volumes · **1** master file index · **0** per-source Markdown stubs.\n\n`;
+idx += `## Volumes\n\n`;
 for (const b of BUCKETS) {
   const entries = byBucket.get(b.file);
   if (!entries.length) continue;
   const syms = entries.reduce((n, e) => n + e.syms.filter((s) => s.kind !== "re-export").length, 0);
   idx += `- [${b.title}](${b.file}) — ${entries.length} files, ${syms} symbols\n`;
 }
-idx += `\n> For the higher-level "what each area does" prose, see the [chapters](../workspace/). For where-a-feature-lives, the [feature index](../workspace/feature-index.md). This reference is the ground-truth symbol list beneath both.\n`;
+idx += `\n- [Master source-file index](files-index.md) — every path linked directly to its anchored entry in the correct volume.\n\n`;
+idx += `> For the higher-level "what each area does" prose, see the [chapters](../workspace/). For where-a-feature-lives, the [feature index](../workspace/feature-index.md). These volumes are the ground-truth source graph beneath both.\n`;
 writeFileSync(join(OUT, "00-index.md"), idx);
+
+let fileIndex = `# Consolidated source-file index\n\n`;
+fileIndex += `← Back to [the reference index](00-index.md) · [the map](../WORKSPACE-FILE-TREE.md) · [development.md](../development.md)\n\n`;
+fileIndex += `Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **${totalFiles} source files; 0 per-source stubs.**\n\n`;
+for (const b of BUCKETS) {
+  const entries = byBucket.get(b.file);
+  if (!entries.length) continue;
+  fileIndex += `## ${b.title} (${entries.length})\n\n`;
+  for (const entry of entries.sort((left, right) => left.rel.localeCompare(right.rel))) {
+    const summary = entry.fileDoc ? ` — ${truncate(entry.fileDoc, 100)}` : "";
+    fileIndex += `- [\`${entry.rel}\`](${b.file}#${fileAnchor(entry.rel)})${summary}\n`;
+  }
+  fileIndex += "\n";
+}
+writeFileSync(join(OUT, "files-index.md"), fileIndex);
 
 console.log(`Wrote ${OUT}`);
 console.log(`Files: ${totalFiles}  Symbols: ${totalSyms}`);
@@ -255,3 +348,4 @@ for (const b of BUCKETS) {
   const entries = byBucket.get(b.file);
   if (entries.length) console.log(`  ${b.file.padEnd(16)} ${entries.length} files`);
 }
+console.log("Removed legacy docs/reference/files/ per-source stubs");

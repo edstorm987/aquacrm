@@ -3,16 +3,16 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireRole } from "@/lib/server/auth/auth";
 import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import { saveDevDoc } from "@/lib/server/dev/devDocEdits";
-import { ensureHydrated } from "@/server/storage";
+import { ensureDevTeamWorkspaceHydrated } from "@/lib/server/dev/devWorkspaceFiles";
 import { getUser } from "@/server/users";
 import { AGENCY_ROLES } from "@/server/types";
 
-// Save a doc edited in the Dev Team portal. Founder + Dev Mode only — the same
+// Save a doc edited in the Dev Team portal. Founder-only Dev Team access — the same
 // gate the portal asserts, re-asserted here so the write path can't be reached
-// directly in any production-like context.
+// directly by anyone outside the deployment-founder control plane.
 export async function POST(request: NextRequest) {
   try {
-    await ensureHydrated();
+    await ensureDevTeamWorkspaceHydrated();
 
     let session;
     try {
@@ -29,6 +29,7 @@ export async function POST(request: NextRequest) {
       content?: string;
       note?: string;
       expectedMtimeMs?: number;
+      expectedSha256?: string;
     } | null;
 
     if (!body?.relPath || typeof body.content !== "string") {
@@ -43,6 +44,7 @@ export async function POST(request: NextRequest) {
       note: typeof body.note === "string" ? body.note : undefined,
       authorName: account?.name,
       expectedMtimeMs: typeof body.expectedMtimeMs === "number" ? body.expectedMtimeMs : undefined,
+      expectedSha256: typeof body.expectedSha256 === "string" ? body.expectedSha256 : undefined,
     });
 
     return NextResponse.json({ ok: true, ...result }, { headers: { "cache-control": "no-store" } });

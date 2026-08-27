@@ -2,10 +2,12 @@
 //
 // Storage layout (single agency-scoped install — gated to the master
 // "Milesy Media" agencyId until `scopePolicy: "global"` lands):
-//   captures/index             → string[] of capture ids
-//   captures/by-id/<id>        → LeadCapture
-//   captures/by-email/<email>  → string[] of capture ids
-//                                (canonical lowercased email key)
+//   captures/by-id/<id>        → authoritative LeadCapture
+//
+// Legacy installs can also contain `captures/index` and
+// `captures/by-email/<email>`. Reads derive from the authoritative rows so an
+// interrupted or racing index update cannot hide an accepted completion;
+// erasure still removes the old pointers.
 
 import { makeId } from "../lib/ids";
 import { now } from "../lib/time";
@@ -36,9 +38,13 @@ export class FunnelInputError extends Error {
   constructor(message: string) { super(message); this.name = "FunnelInputError"; }
 }
 
-async function pushIndex(storage: StoragePort, key: string, id: string): Promise<void> {
-  const ids = (await storage.get<string[]>(key)) ?? [];
-  if (!ids.includes(id)) await storage.set(key, [...ids, id]);
+function operationCaptureId(source: LeadSource, completionId?: string): string {
+  if (!completionId) return makeId("lc");
+  const clean = completionId.trim();
+  if (!/^[a-zA-Z0-9_-]{8,128}$/.test(clean)) {
+    throw new FunnelInputError("invalid_completion_id");
+  }
+  return `lc_${source}_${clean}`;
 }
 
 export interface FunnelDeps {
@@ -74,6 +80,7 @@ export class FunnelService {
     return this.doCapture("hc", canonEmail(input.email), {
       sourceMeta: { ...(input.sourceMeta ?? {}), hcSlot: input.slot },
       hcSlot: input.slot,
+      completionId: input.completionId,
     });
   }
 
@@ -87,20 +94,38 @@ export class FunnelService {
         ...(input.input !== undefined ? { input: input.input } : {}),
         ...(input.output !== undefined ? { output: input.output } : {}),
       },
+      completionId: input.completionId,
     });
   }
 
   private async doCapture(
     source: LeadSource,
     email: string,
-    args: { sourceMeta: Record<string, unknown>; hcSlot?: HCSlot },
+    args: { sourceMeta: Record<string, unknown>; hcSlot?: HCSlot; completionId?: string },
   ): Promise<CaptureResult> {
+    const captureId = operationCaptureId(source, args.completionId);
+    const previous = await this.storage.get<LeadCapture>(captureKey(captureId));
+    if (previous) {
+      if (previous.email !== email || previous.source !== source) {
+        throw new FunnelInputError("completion_id_conflict");
+      }
+      const previousSession = this.sessions
+        ? await Promise.resolve(this.sessions.issueSession(previous.leadUserId))
+        : undefined;
+      return {
+        capture: previous,
+        leadUserId: previous.leadUserId,
+        created: false,
+        ...(previousSession !== undefined ? { session: previousSession } : {}),
+      };
+    }
+
     const t = now();
     const upsert = await Promise.resolve(this.leadUsers.upsertLeadByEmail(email));
     const leadUserId = upsert.user.id;
 
     const capture: LeadCapture = {
-      id: makeId("lc"),
+      id: captureId,
       source,
       leadUserId,
       email,
@@ -108,9 +133,30 @@ export class FunnelService {
       sourceMeta: args.sourceMeta,
       ...(args.hcSlot !== undefined ? { hcSlot: args.hcSlot } : {}),
     };
-    await this.storage.set(captureKey(capture.id), capture);
-    await pushIndex(this.storage, CAPTURE_INDEX, capture.id);
-    await pushIndex(this.storage, captureEmailKey(email), capture.id);
+    const inserted = this.storage.setIfAbsent
+      ? await this.storage.setIfAbsent(captureKey(capture.id), capture)
+      : await (async () => {
+          const raced = await this.storage.get<LeadCapture>(captureKey(capture.id));
+          if (raced) return false;
+          await this.storage.set(captureKey(capture.id), capture);
+          return true;
+        })();
+
+    if (!inserted) {
+      const raced = await this.storage.get<LeadCapture>(captureKey(capture.id));
+      if (!raced || raced.email !== email || raced.source !== source) {
+        throw new FunnelInputError("completion_id_conflict");
+      }
+      const racedSession = this.sessions
+        ? await Promise.resolve(this.sessions.issueSession(raced.leadUserId))
+        : undefined;
+      return {
+        capture: raced,
+        leadUserId: raced.leadUserId,
+        created: false,
+        ...(racedSession !== undefined ? { session: racedSession } : {}),
+      };
+    }
 
     if (upsert.created) {
       this.activity.logActivity({
@@ -179,6 +225,8 @@ export class FunnelService {
       const captures = await this.listByEmail(address);
       for (const capture of captures) {
         await this.storage.del(captureKey(capture.id));
+        // Legacy installs kept unlocked global/email indexes. Reads no longer
+        // trust them, but erasure still cleans them when present.
         const index = (await this.storage.get<string[]>(CAPTURE_INDEX)) ?? [];
         await this.storage.set(CAPTURE_INDEX, index.filter(value => value !== capture.id));
         erased++;
@@ -200,20 +248,15 @@ export class FunnelService {
   // ── Reads ───────────────────────────────────────────────────
 
   async listByEmail(email: string): Promise<LeadCapture[]> {
-    const ids = (await this.storage.get<string[]>(captureEmailKey(email))) ?? [];
-    const out: LeadCapture[] = [];
-    for (const id of ids) {
-      const c = await this.storage.get<LeadCapture>(captureKey(id));
-      if (c) out.push(c);
-    }
-    return out.sort((a, b) => b.capturedAt - a.capturedAt);
+    const canonical = canonEmail(email);
+    return (await this.list()).filter(capture => capture.email === canonical);
   }
 
   async list(filter: { source?: LeadSource } = {}): Promise<LeadCapture[]> {
-    const ids = (await this.storage.get<string[]>(CAPTURE_INDEX)) ?? [];
+    const keys = await this.storage.list("captures/by-id/");
     const out: LeadCapture[] = [];
-    for (const id of ids) {
-      const c = await this.storage.get<LeadCapture>(captureKey(id));
+    for (const key of keys) {
+      const c = await this.storage.get<LeadCapture>(key);
       if (!c) continue;
       if (filter.source && c.source !== filter.source) continue;
       out.push(c);

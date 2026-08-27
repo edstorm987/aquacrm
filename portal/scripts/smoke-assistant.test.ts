@@ -16,12 +16,24 @@ test("assistant is a tenant-scoped authenticated agency feature", () => {
 
 test("assistant keeps durable history and personal memory", () => {
   const store = read("src/lib/server/assistants/assistantStore.ts");
+  const route = read("src/app/api/assistant/route.ts");
   const types = read("src/server/types.ts");
   const storage = read("src/server/storage.ts");
   assert.match(store, /appendAssistantMessage/);
   assert.match(store, /addAssistantMemory/);
   assert.match(types, /AssistantWorkspaceState/);
   assert.match(storage, /assistant: parsed\.assistant \?\? \{\}/);
+  assert.match(store, /beginAssistantTurn/);
+  assert.match(store, /recordAssistantTurnProviderResult/);
+  assert.match(store, /completeAssistantTurn/);
+  assert.match(route, /operationId/);
+  assert.match(route, /withAssistantTransaction/);
+  assert.match(route, /assistant_turn_failed/);
+  assert.match(route, /assistant_turn_persistence_failed/);
+  const ui = read("src/app/portal/agency/assistant/AssistantWorkspace.tsx");
+  assert.match(ui, /pendingTurnRef/);
+  assert.match(ui, /crypto\.randomUUID/);
+  assert.match(ui, /turnOperations/);
 });
 
 test("assistant reads fresh skill-scoped context without exposing secrets", () => {
@@ -29,6 +41,7 @@ test("assistant reads fresh skill-scoped context without exposing secrets", () =
   const skillContext = read("src/lib/server/assistants/advisorSkillContext.ts");
   const route = read("src/app/api/assistant/route.ts");
   const openai = read("src/lib/server/assistants/openaiAssistant.ts");
+  const openaiWire = read("src/lib/server/integrations/openaiResponses.ts");
   assert.match(context, /SECRET_KEY/);
   assert.match(context, /recentActivity/);
   assert.match(context, /businessModules/);
@@ -36,7 +49,9 @@ test("assistant reads fresh skill-scoped context without exposing secrets", () =
   assert.match(route, /buildAdvisorSkillContext/);
   assert.doesNotMatch(route, /workspaceContext\.serialized/);
   assert.match(openai, /advisorSkillInstruction/);
-  assert.match(openai, /store: false/);
+  assert.match(openai, /requestOpenAiResponse/);
+  assert.match(openaiWire, /store: false/);
+  assert.match(openaiWire, /withRemoteOperationDeadline/);
   assert.match(openai, /OPENAI_API_KEY/);
 });
 

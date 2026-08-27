@@ -7,6 +7,17 @@
 ← [freelancer-workspace.md](freelancer-workspace.md) (the plan) · [todo.md](../todo.md) ·
 [status.md](../status.md) · [issues.md](../issues.md) #8 · [updates.md](../updates.md)
 
+> **Current supersession — 2026-08-25:** the “remote login NOT built” and “upload/message NOT
+> built” statements below are preserved as the 2026-08-19 handoff history, not current truth.
+> P6 now provisions/adopts the provider identity through the resumable operation, links one local
+> freelancer and People record, sends a password-setup invitation (or operator fallback link),
+> and implements shared deliverables, private work upload/download and direct owner Team Chat.
+> The mounted journey passes **3/3**, including legacy-local adoption/replay; surrounding coverage
+> **105/105** and TypeScript. The isolated
+> build was environment-killed during webpack compile without a code diagnostic. Exact build, real
+> Supabase/email/reset/login plus browser/cross-process reload remain acceptance. Read the plan's
+> current Status line and issue #112 resolution for the authoritative boundary.
+
 Written at the end of the freelancer build so the next session/Commander starts from
 facts, not a summary of a summary. Everything here is **uncommitted working tree** (standing
 rule: no commit/push unless Ed asks). Nothing below is browser-verified yet — that's the one
@@ -105,7 +116,7 @@ restores the right session type — the same trap that once sent exit → `/logi
 
 **Logic-tested, in-process** (the runtime-verify convention: drive the real route handlers with
 `issueSession` + `NextRequest`, memory backend — no dev server). In
-[`scripts/smoke-dev-mode.test.ts`](../../scripts/smoke-dev-mode.test.ts), the new
+[`scripts/smoke-dev-mode.test.ts`](../../../scripts/smoke-dev-mode.test.ts), the new
 **"Freelancer management — create + preview (real system)"** block (+7 tests):
 
 1. `createFreelancer` — validation (name_required, email_invalid), role/email-normalise/agency-scope,

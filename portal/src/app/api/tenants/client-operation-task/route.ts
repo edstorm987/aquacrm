@@ -7,6 +7,7 @@ import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { createAgencyTask } from "@/server/tasks";
 import { getClientForAgency } from "@/server/tenants";
 import { AGENCY_ROLES, type AgencyTaskPriority } from "@/server/types";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 function cleanPriority(value: unknown): AgencyTaskPriority {
   return value === "urgent" || value === "high" || value === "low" ? value : "normal";
@@ -26,6 +27,7 @@ export async function POST(request: Request) {
     }
 
     const session = await requireRoleForClient([...AGENCY_ROLES], clientId);
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.overview", "use");
     if (session.role === "agency-staff" && !canUsePeopleStation(session.agencyId, session.userId, "actions", true)) {
       return NextResponse.json({ ok: false, error: "Actions access is required" }, { status: 403 });
     }

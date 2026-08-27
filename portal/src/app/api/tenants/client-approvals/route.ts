@@ -4,6 +4,8 @@ import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { logActivity } from "@/server/activity";
+import { ProductWorkspaceBusyError, withClientMetadataLedgerTransaction } from "@/server/productWorkspaceCoordinator";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 export type ClientApprovalType = "design" | "launch";
 export type ClientApprovalStatus = "pending" | "approved" | "changes-requested";
@@ -53,8 +55,10 @@ export async function POST(req: Request) {
 
     if (action === "request") {
       const session = await requireRoleForClient([...AGENCY_ROLES], clientId);
+      await requireCurrentClientWorkspaceElementAccess(clientId, "client.portal", "use");
       const type = body?.type === "design" || body?.type === "launch" ? body.type : null;
       if (!type) return NextResponse.json({ ok: false, error: "valid approval type required" }, { status: 400 });
+      return await withClientMetadataLedgerTransaction({ agencyId: session.agencyId, clientId, ledger: "approvals" }, async () => {
       const client = getClientForAgency(session.agencyId, clientId);
       if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
 
@@ -86,12 +90,15 @@ export async function POST(req: Request) {
         metadata: { approvalId: item.id, approvalType: type },
       });
       return NextResponse.json({ ok: true, approval: item, approvals: next });
+      });
     }
 
     if (action === "approve" || action === "request-changes") {
       const session = await requireRoleForClient(["end-customer"], clientId);
+      await requireCurrentClientWorkspaceElementAccess(clientId, "client.portal", "use");
       const approvalId = typeof body?.approvalId === "string" ? body.approvalId : "";
       if (!approvalId) return NextResponse.json({ ok: false, error: "approvalId required" }, { status: 400 });
+      return await withClientMetadataLedgerTransaction({ agencyId: session.agencyId, clientId, ledger: "approvals" }, async () => {
       const client = getClientForAgency(session.agencyId, clientId);
       if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
       const meta = (client.metadata ?? {}) as { portalApprovals?: ClientApproval[] };
@@ -125,10 +132,14 @@ export async function POST(req: Request) {
         metadata: { approvalId: changed.id, approvalType: existing.type },
       });
       return NextResponse.json({ ok: true, approval: changed, approvals: next });
+      });
     }
 
     return NextResponse.json({ ok: false, error: "unknown action" }, { status: 400 });
   } catch (error) {
+    if (error instanceof ProductWorkspaceBusyError) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 409 });
+    }
     return authErrorResponse(error);
   }
 }

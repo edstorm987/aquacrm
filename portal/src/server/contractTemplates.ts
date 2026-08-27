@@ -13,18 +13,49 @@ export function listContractTemplates(agencyId: string, includeArchived = false)
 
 export function createContractTemplate(
   agencyId: string,
-  input: { title: unknown; summary?: unknown; body: unknown },
+  input: {
+    title: unknown;
+    summary?: unknown;
+    body: unknown;
+    sourceContractId?: unknown;
+    creationOperationId?: unknown;
+  },
   actorUserId: string,
 ): ClientContractTemplate {
   const title = clean(input.title, 180);
   const body = clean(input.body, 50_000);
   if (!title || !body) throw new Error("Template title and terms are required.");
+  const summary = clean(input.summary, 2_000) || undefined;
+  const sourceContractId = cleanId(input.sourceContractId, 120);
+  const creationOperationId = cleanId(input.creationOperationId, 180);
+  const stableId = creationOperationId
+    ? `ctpl_${crypto.createHash("sha256").update(`${agencyId}\u0000${creationOperationId}`).digest("hex").slice(0, 24)}`
+    : `ctpl_${crypto.randomBytes(8).toString("hex")}`;
+  const existing = getState().contractTemplates[stableId]
+    ?? (sourceContractId
+      ? Object.values(getState().contractTemplates).find(template =>
+          template.agencyId === agencyId && template.sourceContractId === sourceContractId)
+      : undefined);
+  if (existing) {
+    if (
+      existing.agencyId !== agencyId
+      || existing.title !== title
+      || existing.summary !== summary
+      || existing.body !== body
+      || (sourceContractId && existing.sourceContractId !== sourceContractId)
+    ) {
+      throw new Error("That template save was already used for different contract terms.");
+    }
+    return existing;
+  }
   const now = Date.now();
   const template: ClientContractTemplate = {
-    id: `ctpl_${crypto.randomBytes(8).toString("hex")}`,
+    id: stableId,
     agencyId,
+    sourceContractId: sourceContractId || undefined,
+    creationOperationId: creationOperationId || undefined,
     title,
-    summary: clean(input.summary, 2_000) || undefined,
+    summary,
     body,
     status: "active",
     source: "library",
@@ -34,6 +65,7 @@ export function createContractTemplate(
   };
   mutate(state => { state.contractTemplates[template.id] = template; });
   logActivity({
+    idempotencyKey: creationOperationId ? `contract-template:${creationOperationId}` : undefined,
     agencyId,
     actorUserId,
     category: "finance",
@@ -89,4 +121,9 @@ export function deleteContractTemplate(agencyId: string, id: string, actorUserId
 
 function clean(value: unknown, max: number): string {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
+}
+
+function cleanId(value: unknown, max: number): string {
+  const cleaned = clean(value, max);
+  return cleaned && /^[a-zA-Z0-9._:-]+$/.test(cleaned) ? cleaned : "";
 }

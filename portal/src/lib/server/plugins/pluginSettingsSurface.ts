@@ -27,6 +27,8 @@ import { getPlugin } from "@/built-ins/runtime/_registry";
 import type { SettingsField } from "@/built-ins/runtime/_types";
 import { getInstall, patchInstall } from "@/server/pluginInstalls";
 import {
+  activateIntegrationConnection,
+  listIntegrationConnections,
   resolveIntegrationValues,
   saveIntegrationConnection,
 } from "@/lib/server/integrations/integrationConnections";
@@ -209,14 +211,29 @@ export function writePluginSettings(input: WritePluginSettingsInput): WritePlugi
     const existing = resolveIntegrationValues(input.scope.agencyId, provider, {
       clientId: input.scope.clientId, includeEnvironmentFallback: false,
     });
+    const existingConnection = listIntegrationConnections(input.scope.agencyId).find(connection =>
+      connection.provider === provider
+      && (connection.clientId ?? "") === (input.scope.clientId ?? "")
+      && connection.isActive);
     try {
-      saveIntegrationConnection({
+      const saved = saveIntegrationConnection({
         agencyId: input.scope.agencyId,
+        connectionId: existingConnection?.id,
         provider,
         clientId: input.scope.clientId,
         values: { ...existing, ...values },
         actorUserId: input.actorUserId,
         actorEmail: input.actorEmail,
+      });
+      // This specialised plugin form is the deliberate live choice for this
+      // provider/scope. It has no separate test/activate step, so activate the
+      // fully validated vault row explicitly rather than relying on save order.
+      activateIntegrationConnection({
+        agencyId: input.scope.agencyId,
+        connectionId: saved.id,
+        actorUserId: input.actorUserId,
+        actorEmail: input.actorEmail,
+        allowUntested: true,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "vault_write_failed";

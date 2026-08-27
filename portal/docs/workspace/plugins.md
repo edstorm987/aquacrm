@@ -2,7 +2,8 @@
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
 
-720 files (re-counted 2026-08-20). **Every portal feature is an `AquaPlugin`.** The `runtime/` registers,
+771 files / 722 TypeScript files (re-counted 2026-08-24). The module system uses
+the `AquaPlugin` contract. The `runtime/` registers,
 validates, installs and route-resolves them; `modules/` holds the 13 plugins.
 Plugins are **explicitly registered** (not auto-discovered) so the bundler
 tree-shakes unused ones per tenant.
@@ -45,12 +46,15 @@ variant, starter). No stateful `onInstall`.
 | `types/` | 5 | `block.ts` (the BlockType union), `editorPage.ts`, `site.ts`, `theme.ts`, `content.ts`. |
 | `__smoke__/` | 49 | Contract tests `r007`→`r047`, one per feature round. |
 
-### 2. ecommerce (66) — `beta` · client · **requires website-editor**
-Per-client catalog + Stripe keys + storefront. Declares **8 storefront block
-ids** via `delegatedRender()` (throws if rendered here — website-editor supplies
-the renderer). `setup[]` step for Stripe keys; `healthcheck` = Stripe configured.
-- **server (9):** `orders.ts` (10.8KB), `discounts.ts`, `productsStore.ts`, `billing.ts` (`PLANS`), `giftCards.ts`, `referralCodes.ts` (feeds affiliates), `ports.ts`, `foundationAdapter.ts`.
-- **lib (17):** `products`, `variants`, `cart`, `shopify.ts` (**aspirational — no route hits it**), `stripe/server.ts`, `admin/{collections,customers,inventory,marketing,orders,reviews,shipping}.ts`.
+### 2. ecommerce (68) — `beta` · client · **requires website-editor**
+Per-client catalogue + Stripe keys + storefront. The server-authoritative checkout owns immutable
+quotes, operation-scoped stock/discount/gift-card reservations, provider settlement/expiry and
+order confirmation; product authoring is stable-id/versioned and reporting is state/currency-aware.
+Declares **8 storefront block ids** via `delegatedRender()` (throws if rendered here — website-
+editor supplies the renderer). `setup[]` step for Stripe keys; `healthcheck` = Stripe configured.
+The intended guest/end-customer route audience and literal live-provider browser acceptance remain.
+- **server (10):** `checkout.ts`, `orders.ts`, `discounts.ts`, `productsStore.ts`, `billing.ts` (`PLANS`), `giftCards.ts`, `referralCodes.ts` (feeds affiliates), `ports.ts`, `foundationAdapter.ts`, `index.ts`.
+- **lib (18):** `products`, `productAuthoring`, `variants`, `cart`, `shopify.ts` (**aspirational — no route hits it**), `stripe/server.ts`, `admin/{collections,customers,inventory,marketing,orders,reviews,shipping}.ts` and shared ids/time/tenancy helpers.
 - **components (17):** storefront (`Shop`, `ProductDetail`, `CartDrawer`…) + 10 admin editors. **pages (13).**
 
 ### 3. agency-finance (52) — `core` · agency

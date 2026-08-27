@@ -17,6 +17,7 @@ import type { CustomerPortalData } from "./_portalData";
 import { PortalBuilderSelectionBridge } from "./_PortalBuilderSelectionBridge";
 import { PortalCustomExtension } from "./_PortalCustomExtension";
 import { PortalApprovalBlock, PortalFileUploadBlock, PortalRequestBlock } from "./_PortalInteractionBlocks";
+import { summariseInvoicesByCurrency, type InvoiceCurrencyPosition } from "@/lib/clients/clientPaymentPlans";
 
 export function PortalPageComposition({
   section,
@@ -173,14 +174,12 @@ function EmptyBlock({ icon, label }: { icon: ReactNode; label: string }) {
 
 function metricRows(block: ClientPortalPageBlock, data: CustomerPortalData): Array<{ label: string; value: string; detail: string }> {
   if (block.dataSource === "billing") {
-    const total = data.invoices.reduce((sum, invoice) => sum + invoice.totalCents, 0);
-    const outstanding = data.invoices.filter(invoice => invoice.status !== "paid").reduce((sum, invoice) => sum + invoice.totalCents, 0);
-    const currency = data.invoices[0]?.currency || "GBP";
+    const positions = summariseInvoicesByCurrency(data.invoices);
     return [
       { label: "Plan", value: data.servicePlan || "Active", detail: data.billingCadence || "Billing plan" },
       { label: "Invoices", value: String(data.invoices.length), detail: `${data.invoices.filter(invoice => invoice.status === "paid").length} paid` },
-      { label: "Recorded", value: money(total, currency), detail: "All shared invoices" },
-      { label: "Outstanding", value: money(outstanding, currency), detail: "Still due" },
+      { label: "Recorded", value: invoiceTotals(positions, "recordedCents") ?? "—", detail: "All shared invoices" },
+      { label: "Outstanding", value: invoiceTotals(positions, "outstandingCents") ?? "No payment due", detail: "Issued and still due" },
     ];
   }
   if (block.dataSource === "delivery") {
@@ -277,6 +276,14 @@ function videoEmbedUrl(value: string): string | undefined {
 function money(cents: number, currency: string): string {
   try { return new Intl.NumberFormat("en-GB", { style: "currency", currency: currency.toUpperCase(), maximumFractionDigits: 0 }).format(cents / 100); }
   catch { return `${currency.toUpperCase()} ${(cents / 100).toFixed(0)}`; }
+}
+
+function invoiceTotals(
+  positions: readonly InvoiceCurrencyPosition[],
+  field: "recordedCents" | "outstandingCents",
+): string | null {
+  const retained = positions.filter(position => field === "recordedCents" ? position.invoiceCount > 0 : position.outstandingCents > 0);
+  return retained.length ? retained.map(position => money(position[field], position.currency)).join(" · ") : null;
 }
 
 function formatDate(timestamp: number): string {

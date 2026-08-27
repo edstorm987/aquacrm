@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
+
 import type { Currency } from "../lib/domain";
 
 export interface NewPlanModalProps {
@@ -42,17 +44,16 @@ export function NewPlanModal({ apiBase, defaultCurrency, onClose }: NewPlanModal
             return;
           }
           try {
-            const r = await fetch(`${apiBase}/plans`, {
+            await checkedJsonMutation(`${apiBase}/plans`, {
               method: "POST",
               headers: { "content-type": "application/json" },
               body: JSON.stringify(body),
+            }, {
+              fallback: "The membership plan could not be created.",
             });
-            const data = await r.json();
-            if (!r.ok || !data.ok) {
-              setError(data?.error ?? `Failed (${r.status})`);
-              return;
-            }
             window.location.reload();
+          } catch (requestError) {
+            setError(mutationErrorMessage(requestError, "The membership plan could not be created."));
           } finally {
             setBusy(false);
           }
@@ -72,7 +73,7 @@ export function NewPlanModal({ apiBase, defaultCurrency, onClose }: NewPlanModal
         </label>
         <label>Features (one per line)<textarea name="features" rows={4} /></label>
         <label>Trial days (0 = no trial)<input name="trialDays" type="number" min="0" defaultValue={0} /></label>
-        {error && <p className="memberships-form-error">{error}</p>}
+        {error && <p role="alert" className="memberships-form-error">{error}</p>}
         <footer>
           <button type="button" onClick={onClose} disabled={busy}>Cancel</button>
           <button type="submit" disabled={busy}>{busy ? "Saving…" : "Create plan"}</button>

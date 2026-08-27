@@ -11,11 +11,28 @@ import {
   type MarketingEvidenceConfidence,
   type UpdateMarketingCustomerProfilePatch,
 } from "../lib/domain";
+import {
+  deleteMarketingRecord,
+  getMarketingRecord,
+  listMarketingRecords,
+  nextRecordVersion,
+  setMarketingRecord,
+  withMarketingRecordLock,
+} from "./recordStorage";
 
 const STATUSES = new Set<MarketingCustomerProfileStatus>(["draft", "active", "archived"]);
 const AUDIENCE_TYPES = new Set<MarketingAudienceType>(["consumer", "business", "mixed"]);
 const PRIORITIES = new Set<MarketingCustomerProfilePriority>(["primary", "secondary", "experimental"]);
 const CONFIDENCE_LEVELS = new Set<MarketingEvidenceConfidence>(["assumption", "informed", "validated"]);
+const CUSTOMER_PROFILE_ROW_PREFIX = "customer-profiles/by-id/";
+const CUSTOMER_PROFILE_TOMBSTONE_PREFIX = "customer-profiles/deleted/";
+
+const customerProfileStorage = (ctx: PluginCtx) => ({
+  legacyKey: MARKETING_CUSTOMER_PROFILES_KEY,
+  rowPrefix: CUSTOMER_PROFILE_ROW_PREFIX,
+  tombstonePrefix: CUSTOMER_PROFILE_TOMBSTONE_PREFIX,
+  storage: ctx.storage,
+});
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -80,9 +97,8 @@ function cleanInput(input: CreateMarketingCustomerProfileInput): Omit<MarketingC
 }
 
 export async function customerProfilesHandler(request: Request, ctx: PluginCtx): Promise<Response> {
-  const rows = (await ctx.storage.get<MarketingCustomerProfile[]>(MARKETING_CUSTOMER_PROFILES_KEY)) ?? [];
-
   if (request.method === "GET") {
+    const rows = await listMarketingRecords<MarketingCustomerProfile>(customerProfileStorage(ctx));
     return json({ ok: true, profiles: [...rows].sort((a, b) => b.updatedAt - a.updatedAt) });
   }
 
@@ -90,38 +106,61 @@ export async function customerProfilesHandler(request: Request, ctx: PluginCtx):
     const body = await safeJson<CreateMarketingCustomerProfileInput>(request);
     const input = body ? cleanInput(body) : null;
     if (!input) return json({ ok: false, error: "A customer profile name is required." }, 400);
-    const now = Date.now();
-    const profile: MarketingCustomerProfile = {
-      ...input,
-      id: `aud_${crypto.randomBytes(8).toString("hex")}`,
-      agencyId: ctx.agencyId,
-      createdAt: now,
-      updatedAt: now,
-    };
-    await ctx.storage.set(MARKETING_CUSTOMER_PROFILES_KEY, [profile, ...rows]);
-    return json({ ok: true, profile }, 201);
+    return withMarketingRecordLock(ctx.agencyId, "customer-profiles", async () => {
+      const now = Date.now();
+      const profile: MarketingCustomerProfile = {
+        ...input,
+        id: `aud_${crypto.randomBytes(8).toString("hex")}`,
+        agencyId: ctx.agencyId,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await setMarketingRecord(customerProfileStorage(ctx), profile);
+      return json({ ok: true, profile }, 201);
+    });
   }
 
   if (request.method === "PATCH") {
-    const body = await safeJson<{ id: string; patch: UpdateMarketingCustomerProfilePatch }>(request);
+    const body = await safeJson<{ id: string; patch: UpdateMarketingCustomerProfilePatch; expectedUpdatedAt?: number }>(request);
     if (!body?.id || !body.patch) return json({ ok: false, error: "Profile id and changes are required." }, 400);
-    const existing = rows.find(row => row.id === body.id && row.agencyId === ctx.agencyId);
-    if (!existing) return json({ ok: false, error: "Customer profile not found." }, 404);
-    const input = cleanInput({ ...existing, ...body.patch });
-    if (!input) return json({ ok: false, error: "A customer profile name is required." }, 400);
-    const updated: MarketingCustomerProfile = { ...existing, ...input, updatedAt: Date.now() };
-    await ctx.storage.set(MARKETING_CUSTOMER_PROFILES_KEY, rows.map(row => row.id === updated.id ? updated : row));
-    return json({ ok: true, profile: updated });
+    return withMarketingRecordLock(ctx.agencyId, "customer-profiles", async () => {
+      const existing = await getMarketingRecord<MarketingCustomerProfile>(customerProfileStorage(ctx), body.id);
+      if (!existing || existing.agencyId !== ctx.agencyId) return json({ ok: false, error: "Customer profile not found." }, 404);
+      if (body.expectedUpdatedAt !== undefined && body.expectedUpdatedAt !== existing.updatedAt) {
+        return json({
+          ok: false,
+          error: "This customer profile changed in another tab. Review the latest version before saving again.",
+          current: existing,
+        }, 409);
+      }
+      const input = cleanInput({ ...existing, ...body.patch });
+      if (!input) return json({ ok: false, error: "A customer profile name is required." }, 400);
+      const updated: MarketingCustomerProfile = { ...existing, ...input, updatedAt: nextRecordVersion(existing.updatedAt) };
+      await setMarketingRecord(customerProfileStorage(ctx), updated);
+      return json({ ok: true, profile: updated });
+    });
   }
 
   if (request.method === "DELETE") {
     const id = new URL(request.url).searchParams.get("id")?.trim();
     if (!id) return json({ ok: false, error: "Profile id is required." }, 400);
-    if (!rows.some(row => row.id === id && row.agencyId === ctx.agencyId)) {
-      return json({ ok: false, error: "Customer profile not found." }, 404);
-    }
-    await ctx.storage.set(MARKETING_CUSTOMER_PROFILES_KEY, rows.filter(row => row.id !== id));
-    return json({ ok: true });
+    const expectedUpdatedAtRaw = new URL(request.url).searchParams.get("updatedAt");
+    const expectedUpdatedAt = expectedUpdatedAtRaw ? Number(expectedUpdatedAtRaw) : undefined;
+    return withMarketingRecordLock(ctx.agencyId, "customer-profiles", async () => {
+      const existing = await getMarketingRecord<MarketingCustomerProfile>(customerProfileStorage(ctx), id);
+      if (!existing || existing.agencyId !== ctx.agencyId) {
+        return json({ ok: false, error: "Customer profile not found." }, 404);
+      }
+      if (expectedUpdatedAt !== undefined && expectedUpdatedAt !== existing.updatedAt) {
+        return json({
+          ok: false,
+          error: "This customer profile changed in another tab. Review the latest version before deleting it.",
+          current: existing,
+        }, 409);
+      }
+      await deleteMarketingRecord(customerProfileStorage(ctx), id);
+      return json({ ok: true });
+    });
   }
 
   return json({ ok: false, error: "method_not_allowed" }, 405);

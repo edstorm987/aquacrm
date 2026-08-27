@@ -138,7 +138,17 @@ async function referenceFixture(): Promise<string> {
   return dir;
 }
 
-type RouteBody = { ok?: boolean; error?: string; result?: FileFindingResult };
+type RouteBody = {
+  ok?: boolean;
+  error?: string;
+  message?: string;
+  result?: FileFindingResult;
+  world?: {
+    docsTotal: number;
+    referencePages: number;
+    projects: Array<{ id: string; name: string; repo: string }>;
+  };
+};
 
 async function ask(token: string, body: unknown): Promise<{ status: number; body: RouteBody }> {
   const response = await withDevMode(() => withSession(token, () => librarianRoute.POST(new Request(
@@ -203,7 +213,18 @@ describe("fileFindingWorld — what the Librarian is briefed from", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("the Librarian's door — /api/portal/dev/librarian", () => {
-  it("refuses without Dev Mode, before reading anything", async () => {
+  it("loads the tenant-scoped drawer world only when explicitly requested", async () => {
+    const home = await founder();
+    const project = saveDevProject({ agencyId: home.agencyId, name: "Drawer project", actorUserId: home.userId });
+    const { status, body } = await ask(home.token, { action: "world" });
+    assert.equal(status, 200);
+    assert.equal(body.ok, true);
+    assert.ok((body.world?.docsTotal ?? 0) >= 0);
+    assert.ok((body.world?.referencePages ?? 0) >= 0);
+    assert.ok(body.world?.projects.some(item => item.id === project.id));
+  });
+
+  it("refuses without Dev Team access, before reading anything", async () => {
     const home = await founder();
     // withSession but NOT withDevMode: the layered gate's second rung.
     const response = await withSession(home.token, () => librarianRoute.POST(new Request(
@@ -212,7 +233,7 @@ describe("the Librarian's door — /api/portal/dev/librarian", () => {
     )));
     assert.equal(response.status, 403);
     const body = await response.json() as RouteBody;
-    assert.match(body.error ?? "", /Dev Mode/);
+    assert.match(body.message ?? "", /local working tree/i);
   });
 
   it("answers a foreign project id EXACTLY like an invented one", async () => {
@@ -238,7 +259,8 @@ describe("the Librarian's door — /api/portal/dev/librarian", () => {
     assert.equal(smuggled.status, 404);
     const src = read(ROUTE);
     assert.doesNotMatch(src, /body\.agencyId/);
-    assert.match(src, /agencyId: session\.agencyId/);
+    assert.match(src, /agencyId = access\.resourceAgencyId/);
+    assert.doesNotMatch(src, /agencyId = access\.resolution\.agencyId/);
   });
 
   it("answers a real question from the generated reference, and says what was not searched", async () => {

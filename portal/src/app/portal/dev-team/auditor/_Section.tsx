@@ -19,7 +19,7 @@ import { PageHeader, Panel, Pill, EmptyState } from "../_ui";
 // what the independent audit flagged as still-broken behind a green suite.
 // Reuses (read-only) `inspectProductionReadiness` (the checklist), `scanBlockers`
 // (state.md launch blockers) and `scanAuditFindings` (audits.md 🔴 verdicts),
-// composed in `scanDevTeamAudit`. Founder + Dev Mode only — the same layered
+// composed in `scanDevTeamAudit`. Founder-only Dev Team access — the same layered
 // gate as the layout/home/other sections.
 
 // ---- readiness presentation ------------------------------------------------
@@ -193,6 +193,7 @@ export async function AuditorSection({ tabs }: { tabs?: ReactNode }) {
   const stillOpenCount = countStillOpenFindings(findings);
 
   const openBlockers = blockers.filter(b => !b.resolved);
+  const overallOpenCount = stillOpenCount + openBlockers.length + requiredNotReady.length;
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
@@ -204,8 +205,8 @@ export async function AuditorSection({ tabs }: { tabs?: ReactNode }) {
         meta={
           <div className="flex flex-wrap items-center justify-end gap-2">
             {tabs}
-            <Pill tone={openCount > 0 ? "danger" : stillOpenCount > 0 ? "warn" : "ok"}>
-              {stillOpenCount > 0 ? `${stillOpenCount} open` : "All clear"}
+            <Pill tone={openCount > 0 || openBlockers.length > 0 || requiredNotReady.length > 0 ? "danger" : stillOpenCount > 0 ? "warn" : "ok"}>
+              {overallOpenCount > 0 ? `${overallOpenCount} open` : "Source checks clear"}
             </Pill>
           </div>
         }
@@ -232,7 +233,7 @@ export async function AuditorSection({ tabs }: { tabs?: ReactNode }) {
           )}
           <div className="min-w-0 text-sm">
             <span className="font-semibold text-[color:var(--dt-ink)]">
-              {readiness.ready ? "Launch-ready" : "Not launch-ready"}
+              {readiness.ready ? "Source prerequisites ready" : "Source prerequisites incomplete"}
             </span>
             <span className="text-[color:var(--dt-muted)]">
               {" — "}
@@ -363,9 +364,9 @@ export async function AuditorSection({ tabs }: { tabs?: ReactNode }) {
       </Panel>
 
       {/* 3 — Launch blockers (compact) */}
-      <Panel title="Launch blockers" hint="Live from state.md">
+      <Panel title="Launch blockers" hint="Live from current status docs">
         {openBlockers.length === 0 ? (
-          <EmptyState>No open blockers.</EmptyState>
+          <EmptyState>No open blockers in the current status documents.</EmptyState>
         ) : (
           <ul className="flex flex-col divide-y divide-[color:var(--dt-hairline)]">
             {openBlockers.map((b, i) => (
@@ -382,8 +383,9 @@ export async function AuditorSection({ tabs }: { tabs?: ReactNode }) {
       </Panel>
 
       <p className="text-[11px] text-[color:var(--dt-faint)]">
-        Live from the launch-readiness checks, <code className="text-[color:var(--dt-faint)]">docs/context/state.md</code> and{" "}
-        <code className="text-[color:var(--dt-faint)]">docs/development/audits.md</code>.
+        Live from the launch-readiness checks, <code className="text-[color:var(--dt-faint)]">docs/context/state.md</code>,{" "}
+        <code className="text-[color:var(--dt-faint)]">docs/development/checklist.md</code> and{" "}
+        <code className="text-[color:var(--dt-faint)]">docs/development/audits.md</code>. Source readiness does not replace a current browser, authorisation, tenant-isolation, crash, public-flow and performance audit.
       </p>
     </div>
   );

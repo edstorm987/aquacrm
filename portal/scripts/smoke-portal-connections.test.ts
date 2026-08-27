@@ -328,11 +328,11 @@ describe("the agency side of the flow", () => {
     assert.match(route(), /agencyId: session\.agencyId/);
   });
 
-  it("reads the client through the agency before opening anything", () => {
+  it("scopes the client through the agency before opening anything", () => {
     const source_ = route();
-    const lookupAt = source_.indexOf("getClientForAgency(session.agencyId");
+    const lookupAt = source_.indexOf("routeTenantScope(session, { clientId }).client");
     const openAt = source_.indexOf("openPortalConnection({");
-    assert.ok(lookupAt > 0, "the client is never checked");
+    assert.ok(lookupAt > 0, "the client is never checked through the tenant scope");
     assert.ok(lookupAt < openAt, "a connection is opened before the client is known");
   });
 

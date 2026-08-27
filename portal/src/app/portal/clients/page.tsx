@@ -9,6 +9,7 @@ import { phaseLabel } from "@/server/phases";
 import { getUserById } from "@/server/users";
 import { getInstall, listInstalledFor } from "@/server/pluginInstalls";
 import { buildSidebar } from "@/lib/chrome/sidebarLayout";
+import { AGENCY_SIDEBAR_PLUGIN_CATALOG } from "@/lib/chrome/agencySidebarPluginCatalog";
 import { effectiveRole, hasAllPermissions } from "@/lib/server/auth/effectiveRole";
 import { ThemeInjector } from "@/components/chrome/ThemeInjector";
 import { Sidebar } from "@/components/chrome/Sidebar";
@@ -48,6 +49,7 @@ import { synchroniseInboxIdentityResolutions } from "@/lib/server/inbox/inboxSer
 import { clearIdentityResolutionReviews, listIdentityResolutionReviews } from "@/lib/server/identityResolution";
 import { clientRelationshipId } from "@/server/clientRelationships";
 import { inferLeadRelationshipCategory, isLeadRelationshipCategory } from "@/built-ins/modules/leads-pipeline/src/lib/domain";
+import { getPortalFormFields } from "@/server/portalEditor";
 
 interface JourneyClientMetadata {
   leadId?: string;
@@ -103,7 +105,7 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
     counts.set(relationshipId, (counts.get(relationshipId) ?? 0) + 1);
     return counts;
   }, new Map<string, number>());
-  ensureDefaultAgencyProducts(session.agencyId);
+  if (!session.publicShowcase) ensureDefaultAgencyProducts(session.agencyId);
   const products = listAgencyProducts(session.agencyId);
   const workspaceSettings = getAgencyWorkspaceSettings(session.agencyId);
   const leadsInstall = getInstall({ agencyId: agency.id }, "leads-pipeline");
@@ -269,9 +271,9 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
       serviceNames: related?.serviceNames ?? [],
     };
   });
-  if (session.isDemo) {
+  if (session.isDemo && !session.publicShowcase) {
     clearIdentityResolutionReviews(session.agencyId);
-  } else {
+  } else if (!session.publicShowcase) {
     const [identityEnquiries, identitySocial] = await Promise.allSettled([
       listWebsiteEnquiries(session.agencyId, 500),
       listInboxSnapshot(session.agencyId),
@@ -382,13 +384,17 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
     role: session.role,
     scope: "agency",
     installedPlugins: installs,
+    pluginCatalog: AGENCY_SIDEBAR_PLUGIN_CATALOG,
     permissions: eff.permissions,
     isFounder: eff.isFounder,
+    devTeamAvailable: devDocsAccessible(session),
+    publicShowcase: session.publicShowcase,
   });
-  const operationalAlerts = await listOperationalAlerts(agency.id);
+  const operationalAlerts = session.publicShowcase ? [] : await listOperationalAlerts(agency.id);
   const alertViews = listOperationalAlertViews(agency.id, session.userId, operationalAlerts);
   const panels = addSidebarAttention(basePanels, alertViews.filter(alert => alert.attention));
   const currentPath = initialView === "journey" ? "/portal/clients?view=journey" : "/portal/clients";
+  const workspaceName = session.publicShowcase ? agency.name : INTERNAL_WORKSPACE_NAME;
 
   return (
     <>
@@ -397,36 +403,40 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
       <div className="mm-portal-root flex h-dvh overflow-hidden">
         <Sidebar
           panels={panels}
-          tenantLabel={INTERNAL_WORKSPACE_NAME}
+          tenantLabel={workspaceName}
           currentPath={currentPath}
         />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <Topbar
-            title={INTERNAL_WORKSPACE_NAME}
+            title={workspaceName}
             subtitle="Journey"
             role={session.role}
             email={session.email}
             name={currentUser?.name}
             avatarUrl={currentUser?.avatarUrl}
             panels={panels}
-            tenantLabel={INTERNAL_WORKSPACE_NAME}
+            tenantLabel={workspaceName}
             currentPath={currentPath}
             isDemo={session.isDemo}
             showcaseMode={Boolean(session.showcaseReturnAgencyId)}
+            sandboxMode={Boolean(session.sandbox)}
+            publicShowcase={session.publicShowcase}
             devConsole={devDocsAccessible(session) && (await devIconPreference())}
             privacyTerms={[
               ...clients.flatMap(client => [client.name, client.ownerEmail ?? ""]),
               ...contacts.flatMap(contact => [contact.name ?? "", contact.email, contact.phone ?? "", contact.company ?? ""]),
             ]}
-            notifications={<NotificationCentreButton />}
-            radarControl={session.role === "agency-owner" || session.role === "agency-manager" ? <RadarQuickLookControl agencyId={session.agencyId} /> : null}
-            advisorControl={session.role === "agency-owner" || session.role === "agency-manager" ? (
+            notifications={session.publicShowcase ? null : <NotificationCentreButton />}
+            radarControl={!session.publicShowcase && (session.role === "agency-owner" || session.role === "agency-manager") ? <RadarQuickLookControl agencyId={session.agencyId} /> : null}
+            advisorControl={!session.publicShowcase && (session.role === "agency-owner" || session.role === "agency-manager") ? (
               <AdvisorDrawerControl agencyId={session.agencyId} userId={session.userId} userName={currentUser?.name || session.email} />
             ) : null}
           />
           <main id="main-content" className="mm-private-surface min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
             <ErrorBoundary label="clients index">
               <PeopleHub
+                canManage={!session.publicShowcase}
+                clientCustomFields={getPortalFormFields(session.agencyId, "clients")}
                 initialView={initialView}
                 identityReviews={identityReviews}
                 clientDefaults={workspaceSettings}
@@ -450,7 +460,7 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
                   contractBody: product.contractBody, sopIds: product.sopIds,
                   sopCategories: product.sopCategories, companyIds: product.companyIds,
                 }))}
-                journeyWorkspace={<JourneyCommercialWorkspace
+                journeyWorkspace={session.publicShowcase ? null : <JourneyCommercialWorkspace
                   pipeline={<LeadsPipelineWorkspaceServer agencyId={agency.id} userId={session.userId} />}
                   meetingPeople={journeyMeetingPeople}
                   referenceNow={Date.now()}

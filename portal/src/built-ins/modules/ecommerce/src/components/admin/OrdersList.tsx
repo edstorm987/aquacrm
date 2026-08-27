@@ -4,7 +4,12 @@ import { Download } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import type { ServerOrder } from "../../server/orders";
-import { dashboardStats, filterOrders, formatPrice } from "../../lib/admin/orders";
+import {
+  dashboardStats,
+  filterOrders,
+  formatCurrencyAmount,
+  formatPrice,
+} from "../../lib/admin/orders";
 import { formatUkDate, isoDateTimeValue } from "../../lib/safeDate";
 
 export interface OrdersListProps {
@@ -54,10 +59,29 @@ export function OrdersList({ orders }: OrdersListProps) {
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-black/45">Commerce</p>
           <h1 className="mt-1 text-2xl font-semibold text-black/90">Orders</h1>
-          <p className="mt-1 text-sm text-black/55">{stats.totalOrders} total · revenue {formatPrice(stats.totalRevenue, "gbp")} · avg {formatPrice(stats.averageOrderValue, "gbp")}</p>
+          <p className="mt-1 text-sm text-black/55">
+            {stats.totalOrders} total · {stats.pendingOrders} pending · {stats.refundedOrders} refunded · {stats.cancelledOrders} cancelled
+          </p>
         </div>
         <button type="button" onClick={downloadCsv} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium hover:bg-black/[0.03]"><Download size={16} /> Download CSV</button>
       </header>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" aria-label="Revenue by currency">
+        {stats.byCurrency.map(row => (
+          <article key={row.currency} className="rounded-lg border border-black/10 bg-white p-4 text-sm">
+            <p className="text-xs font-semibold uppercase tracking-wide text-black/45">{row.currency.toUpperCase()}</p>
+            <p className="mt-2 font-semibold text-black/85">Net revenue {formatCurrencyAmount(row.netRevenue, row.currency)}</p>
+            <p className="mt-1 text-black/55">
+              Gross {formatCurrencyAmount(row.grossPaid, row.currency)} · refunds {formatCurrencyAmount(row.refunded, row.currency)}
+            </p>
+            <p className="mt-1 text-black/45">
+              {row.settledOrders} settled · net avg {formatCurrencyAmount(row.averageNetOrderValue, row.currency)} · cancelled face value {formatCurrencyAmount(row.cancelledFaceValue, row.currency)}
+            </p>
+          </article>
+        ))}
+        {stats.byCurrency.length === 0 ? (
+          <p className="text-sm text-black/45">No order money to report.</p>
+        ) : null}
+      </div>
         <div className="flex flex-wrap gap-2 border-b border-black/10 pb-3">
           <input
             className="min-h-10 min-w-56 flex-1 rounded-md border border-black/15 bg-white px-3 text-sm"

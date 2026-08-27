@@ -98,7 +98,7 @@ PORTAL_BACKEND=memory NODE_OPTIONS='--conditions react-server' npx tsx --test sc
 - Connections: `src/app/connect/`, `src/app/api/portal/connections/`,
   `src/lib/server/connectionConfirmation.ts`, `src/server/portalConnectionStore.ts`.
 - Customer setup: `src/app/setup/`, `src/app/api/portal/customer/setup/`,
-  `src/app/api/portal/customer/connections/`, `src/app/manifest.ts`.
+  `src/app/api/portal/customer/connections/`, `public/manifest.webmanifest` (the current static successor).
 - Erasure: `src/server/clientErasure.ts`,
   `src/app/api/portal/clients/[clientId]/erase/`,
   `.../settings/_ClientDangerZone.tsx`,

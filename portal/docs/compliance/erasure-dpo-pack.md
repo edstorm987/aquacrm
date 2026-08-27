@@ -5,6 +5,14 @@
 **Prepared:** 2026-08-20 · **Subject:** what AquaCRM actually does when a client is
 erased (UK GDPR Art. 17) · **Prepared by:** the engineering side, from the code.
 
+> **Critical correction, 2026-08-24:** the disposition rules below describe the
+> intended/local sweep, but the end-to-end operation is **not currently reliable**.
+> Hosted-table failures are collected and still returned by the API as success;
+> the local client is already gone, so the normal route cannot retry; and the
+> surviving activity message includes the client's name. Sections 1, 5, 6 and 10
+> below carry the corrected operational limits. Do not use this pack as evidence
+> that a production erasure completed.
+
 ---
 
 ## 0. What this document is — and is not
@@ -38,6 +46,11 @@ own test data. Nothing here has yet been applied to a real data subject.
 | **Reversibility** | **None.** This is a hard erasure, not an archive. There is no undo in the application. |
 | **Record kept** | One audit entry survives the erasure (§5). |
 | **Unit of erasure** | One **client workspace**. A person may hold more than one — see §4 on how that interacts. |
+
+**Completion warning:** the route currently answers `{ok:true}` even when the
+hosted-table scrub reports errors. Because the local client row has already been
+deleted, a normal retry returns “not found.” The UI/API result therefore cannot be
+treated as proof that every system completed the erasure.
 
 **Not built yet (process, not code):** there is no DSAR intake workflow — no place to
 log that a request was received, verify the requester's identity, or track the
@@ -146,13 +159,14 @@ merely matched against this client keeps their own details; only the link is rem
 
 ## 5. The evidence trail left behind
 
-One activity record survives every erasure and is the proof it happened lawfully. It
-records: that an erasure occurred, **who performed it**, when, the client id (a random
-token — the name and all identifiers are gone), a count of records removed, and a
-**per-area disposition tally** (what was deleted, retained, anonymised, and which
-plugin hooks ran). For the hosted tables it carries counts and a date span only.
+One activity record survives every erasure. It records the actor, time, client id,
+counts and per-area dispositions. Its metadata carries hosted-table counts/errors.
 
-**It deliberately contains no personal data** — this is asserted by test.
+**Current defect:** the human-readable activity message interpolates the original
+`clientName`. The permanent audit is therefore not de-identified, despite older
+tests and comments asserting that it names no person. Until that is removed and
+behaviourally tested at the activity-record boundary, the audit must be treated as
+retaining personal data.
 
 **Gap:** the audit records *what the system did*. It does not record *why* — who
 requested the erasure, how their identity was verified, or when the request came in.
@@ -164,22 +178,26 @@ That is the DSAR workflow in §8.
 
 We would rather understate this than oversell it.
 
-1. **The hosted-database scrub has never been run against the live database.** It is
+1. **Failure is reported as completion and is not normally retryable.** Per-table
+   hosted failures are caught into `live.errors`; the route still returns
+   `{ok:true}` after the local client has been deleted. A durable partial/failed
+   job record, truthful response and retry mechanism do not exist.
+2. **The hosted-database scrub has never been run against the live database.** It is
    proven against a faithful fake that records the same calls. We have deliberately not
    tested a destructive operation against real records. **A staged run against a
    throwaway seeded client is outstanding** and should happen before any real client
    exists.
-2. **Backups and point-in-time recovery are not addressed.** Erasing a row does not
+3. **Backups and point-in-time recovery are not addressed.** Erasing a row does not
    purge it from database backups or snapshots. We have not established what the
    retention window on those is. **Question Q6.**
-3. **Records created before 2026-08-19 may still contain addresses in internal log
+4. **Records created before 2026-08-19 may still contain addresses in internal log
    messages.** Several components used to write a person's email into their own activity
    messages; that is fixed at source, but historical entries in the existing (test) data
    still carry them. A one-off clean-up has not been run. No real client data is
    affected, because there are no real clients yet.
-4. **Third-party copies are out of scope of the button.** Anything already sent to a
+5. **Third-party copies are out of scope of the button.** Anything already sent to a
    sub-processor (§9) is not reached by this erasure. **Question Q5.**
-5. **One known residue:** where the system suggested linking a person to an organisation,
+6. **One known residue:** where the system suggested linking a person to an organisation,
    it stores a short rationale in free text, which can quote the person's own email
    domain. We left it in place rather than extend the policy on our own initiative.
    **Question Q4.**
@@ -242,8 +260,12 @@ published media ever carried personal data, "unpublish" would not erase it.
 
 ## 10. How to verify any of this yourself
 
-The behaviour above is covered by **27 automated tests** in the erasure suite. They are
-written to drive the **real** creation paths — capturing a lead, converting them to a
+The erasure suite contains extensive automated coverage of the local disposition
+rules and successful fake-Supabase path. That coverage does **not** currently
+prove truthful route completion, retry after a hosted failure, or removal of the
+client name from the surviving activity message. The prior “27 tests prove the
+behaviour above” wording was therefore too broad. Existing tests drive the **real**
+creation paths — capturing a lead, converting them to a
 client, sending them a campaign email, resolving their identity — and then assert on the
 **entire** stored state afterwards, searching for the person's email, phone and name in
 every stored value *and* in every storage key name.

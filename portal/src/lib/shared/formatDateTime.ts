@@ -1,8 +1,13 @@
+export const BUSINESS_TIME_ZONE = "Europe/London";
+
 const UK_DATE_TIME = new Intl.DateTimeFormat("en-GB", {
   dateStyle: "medium",
   timeStyle: "short",
-  timeZone: "Europe/London",
+  timeZone: BUSINESS_TIME_ZONE,
 });
+
+const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
+const CALENDAR_FORMATTERS = new Map<string, Intl.DateTimeFormat>();
 
 export function dateFromValue(value: unknown): Date | null {
   if (value instanceof Date) {
@@ -32,15 +37,93 @@ export function formatUkDate(
   fallback = "Date needs review",
 ): string {
   const date = dateFromValue(value);
-  return date ? new Intl.DateTimeFormat("en-GB", options).format(date) : fallback;
+  return date ? new Intl.DateTimeFormat("en-GB", {
+    ...options,
+    timeZone: options.timeZone ?? BUSINESS_TIME_ZONE,
+  }).format(date) : fallback;
 }
 
 export function isoDateTimeValue(value: unknown): string | undefined {
   return dateFromValue(value)?.toISOString();
 }
 
-export function dateInputValue(value: unknown): string {
-  return isoDateTimeValue(value)?.slice(0, 10) ?? "";
+function normaliseCalendarDate(value: string): string | null {
+  const match = DATE_ONLY.exec(value.trim());
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(0);
+  date.setUTCHours(0, 0, 0, 0);
+  date.setUTCFullYear(year, month - 1, day);
+  return date.getUTCFullYear() === year
+    && date.getUTCMonth() === month - 1
+    && date.getUTCDate() === day
+    ? `${match[1]}-${match[2]}-${match[3]}`
+    : null;
+}
+
+function calendarFormatter(timeZone: string): Intl.DateTimeFormat {
+  const existing = CALENDAR_FORMATTERS.get(timeZone);
+  if (existing) return existing;
+  const formatter = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  CALENDAR_FORMATTERS.set(timeZone, formatter);
+  return formatter;
+}
+
+/**
+ * A business calendar date is not a UTC timestamp and not the browser's local
+ * date. Aqua currently operates its business records in Europe/London; callers
+ * can pass another explicit IANA zone when a workspace gains that policy.
+ */
+export function businessCalendarDate(
+  value: unknown = Date.now(),
+  timeZone = BUSINESS_TIME_ZONE,
+): string {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (DATE_ONLY.test(trimmed)) return normaliseCalendarDate(trimmed) ?? "";
+  }
+  const date = dateFromValue(value);
+  if (!date) return "";
+  const parts = calendarFormatter(timeZone).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find(item => item.type === type)?.value ?? "";
+  const year = part("year");
+  const month = part("month");
+  const day = part("day");
+  return year && month && day ? `${year}-${month}-${day}` : "";
+}
+
+export function businessCalendarMonth(
+  value: unknown = Date.now(),
+  timeZone = BUSINESS_TIME_ZONE,
+): string {
+  return businessCalendarDate(value, timeZone).slice(0, 7);
+}
+
+/** Add whole calendar days without treating 23/25-hour DST days as 24 hours. */
+export function addBusinessCalendarDays(
+  days: number,
+  value: unknown = Date.now(),
+  timeZone = BUSINESS_TIME_ZONE,
+): string {
+  if (!Number.isSafeInteger(days)) return "";
+  const base = businessCalendarDate(value, timeZone);
+  const match = DATE_ONLY.exec(base);
+  if (!match) return "";
+  const date = new Date(0);
+  date.setUTCHours(0, 0, 0, 0);
+  date.setUTCFullYear(Number(match[1]), Number(match[2]) - 1, Number(match[3]) + days);
+  return date.toISOString().slice(0, 10);
+}
+
+export function dateInputValue(value: unknown, timeZone = BUSINESS_TIME_ZONE): string {
+  return businessCalendarDate(value, timeZone);
 }
 
 export function localDateTimeInputValue(value: unknown): string {

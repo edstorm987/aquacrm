@@ -1,10 +1,9 @@
-import "server-only";
+"use client";
 
 import { BookText } from "lucide-react";
 
 import { GlobalAdvisorDrawer } from "@/components/chrome/GlobalAdvisorDrawer";
 import { LibrarianPanel } from "@/components/editing/LibrarianPanel";
-import { fileFindingWorld } from "@/lib/server/dev/fileFinding";
 
 // The LIBRARIAN — the Dev Team's assistant, and it is ITS OWN THING now.
 //
@@ -30,7 +29,8 @@ import { fileFindingWorld } from "@/lib/server/dev/fileFinding";
 // The Librarian FINDS; the Aqua Editor AI EDITS. No business context, no
 // Advisor chat, no `/api/assistant`: the briefing is the skill's own view of
 // the world (docs, reference pages, this agency's projects), and the answer to
-// a question is ranked hits with their WHY — not prose.
+// a question is ranked hits with their WHY — not prose. The drawer requests
+// that world on first open; a closed Dev Team page never pays for its scan.
 //
 // What is REUSED is the drawer machinery: `GlobalAdvisorDrawer`'s trigger +
 // side panel (its `body` seam exists for exactly this), so the Topbar still
@@ -38,22 +38,18 @@ import { fileFindingWorld } from "@/lib/server/dev/fileFinding";
 // "full page + glitches back to agency" bug), and the assistant-picker seam
 // (`pickerHeader`) is still where a future picker of Dev-Team assistants
 // lives.
-export async function LibrarianDrawerControl({
-  agencyId,
-}: {
+export function LibrarianDrawerControl(_props: {
   agencyId: string;
   /** Accepted so the layout's call keeps working; the find tool is not per-person. */
   userId?: string;
   userName?: string;
+  initiallyOpen?: boolean;
 }) {
-  // The skill's view of the world — what the Librarian can see BEFORE any
-  // question: local, network-free, tenant-scoped. This replaced the business
-  // snapshot (`buildAssistantBusinessContext`) as the briefing.
-  const world = await fileFindingWorld(agencyId);
   return (
     <GlobalAdvisorDrawer
       assistantName="Librarian"
       label="Librarian"
+      initiallyOpen={_props.initiallyOpen}
       icon={<BookText size={16} />}
       // Shipyard-themed trigger: reads the --dev-* tokens so the button belongs
       // to the yard rather than the agency's black/white chrome.
@@ -74,10 +70,7 @@ export async function LibrarianDrawerControl({
       // clothes in both hosts (never `--dt-*` tokens).
       body={
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-[#141614] p-4">
-          <LibrarianPanel
-            projects={world.projects.map(project => ({ id: project.id, name: project.name, repo: project.repo }))}
-            world={{ docsTotal: world.docs.total, referencePages: world.reference.pages }}
-          />
+          <LibrarianPanel loadWorld />
         </div>
       }
     />

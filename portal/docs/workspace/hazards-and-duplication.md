@@ -328,8 +328,15 @@ as "the intended long-term mechanism". There are no recovery codes.
 
 ## ⚪ Dead / stale / alias (don't mistake for live code)
 
-- **`lib/server/editing/adapters.ts`** — **no app importers** (only `scripts/smoke-editor-adapters.test.ts`), orphaned. Deletion candidate. ⚠ **Paths here were stale, corrected 2026-08-21:** there is no `lib/server/siteEditor/*` any more, and no `lib/editing/`. The live editor is **`src/engines/editor/DevEditor.tsx`** (one universal editor, mounted by `agency/portals/editor` and `dev-team/editor/studio`), riding `src/engines/editor/editing/{engine,leases,modes}.ts` + `src/engines/editor/server/*`. `engines/editor/editing/{leases,modes}.ts` ARE used by `components/editing/*` — don't sweep those.
-- **`agency/sops/page.tsx`** — dead redirect to `/agency`. Canonical SOPs = `agency/sop-library/_SopLibrary`.
+- **`lib/server/editing/adapters.ts` stays.** The older “no app importers” claim
+  was false: `lib/server/editing/appConfigAdapter.ts` imports its `fingerprint`,
+  and the smoke suite imports the module directly. Removing it breaks the live
+  app-config editing path and tests. There is no `lib/server/siteEditor/*` or
+  `lib/editing/`; the universal surface is `src/engines/editor/DevEditor.tsx`,
+  riding `src/engines/editor/editing/*` + `src/engines/editor/server/*`.
+- **`agency/sops/page.tsx`** — compatibility redirect to the canonical
+  `/portal/agency/sop-library`; keep it unless breaking external bookmarks is an
+  explicit decision.
 - **Alias route trees (edit the source, not these):**
   - `agency/fulfilment/technical/*` → re-export `agency/development/*`.
   - `agency/command-center` → re-exports `agency/page.tsx`.
@@ -346,7 +353,9 @@ as "the intended long-term mechanism". There are no recovery codes.
 ---
 
 ## Standing rules (from `CLAUDE.md` / memory — always apply)
-- **Don't commit/push/deploy or alter git history unless Ed explicitly asks.** ~180 files are uncommitted.
+- **Don't commit/push/deploy or alter git history unless Ed explicitly asks.**
+  The first branch commit/push exists, but the shared working tree still carries
+  well over one hundred active changed/untracked entries.
 - **Run the FULL smoke suite** (`scripts/*.test.ts`, `PORTAL_BACKEND=memory`) before calling a behaviour change done — adjacent suites miss contract tests pinning old behaviour.
 - **Respect role + agency scope on every server mutation.**
 - **Changing what somebody IS must not destroy what they DID** — `Person` facets survive reclassification.

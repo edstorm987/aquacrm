@@ -1,7 +1,6 @@
+import { Suspense, type ReactNode } from "react";
+import { PortalViewportLoading } from "@/components/ui/PortalViewportLoading";
 import { ViewTabs } from "../_ui";
-import { LogsSection } from "../logs/_Section";
-import { UpdatesSection } from "../updates/_Section";
-import { LibrarySection } from "./_Section";
 
 // Library — the written record of this workspace, at three angles.
 //
@@ -15,12 +14,40 @@ export const dynamic = "force-dynamic";
 
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
 
+function ViewLoading({ tabs, label }: { tabs: ReactNode; label: string }) {
+  void tabs;
+  return <PortalViewportLoading label={`Preparing ${label}…`} testId="dev-team-library-view-loading" />;
+}
+
+async function DocsView({ tabs, searchParams }: { tabs: ReactNode; searchParams: SearchParams }) {
+  const { LibrarySection } = await import("./_Section");
+  return <LibrarySection tabs={tabs} searchParams={searchParams} />;
+}
+
+async function LogsView({ tabs }: { tabs: ReactNode }) {
+  const { LogsSection } = await import("../logs/_Section");
+  return <LogsSection tabs={tabs} />;
+}
+
+async function UpdatesView({ tabs }: { tabs: ReactNode }) {
+  const { UpdatesSection } = await import("../updates/_Section");
+  return <UpdatesSection tabs={tabs} />;
+}
+
 export default async function LibraryPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
   const view = params.view === "logs" ? "logs" : params.view === "updates" ? "updates" : "docs";
   const tabs = <ViewTabs section="library" active={view} />;
 
-  if (view === "logs") return <LogsSection tabs={tabs} />;
-  if (view === "updates") return <UpdatesSection tabs={tabs} />;
-  return <LibrarySection tabs={tabs} searchParams={searchParams} />;
+  if (view === "logs") {
+    return <Suspense fallback={<ViewLoading tabs={tabs} label="logs" />}><LogsView tabs={tabs} /></Suspense>;
+  }
+  if (view === "updates") {
+    return <Suspense fallback={<ViewLoading tabs={tabs} label="updates" />}><UpdatesView tabs={tabs} /></Suspense>;
+  }
+  return (
+    <Suspense fallback={<ViewLoading tabs={tabs} label="documents" />}>
+      <DocsView tabs={tabs} searchParams={searchParams} />
+    </Suspense>
+  );
 }

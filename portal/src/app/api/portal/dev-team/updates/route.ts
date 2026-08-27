@@ -3,16 +3,16 @@ import { NextResponse } from "next/server";
 import { AuthError, authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import { UpdateInputError, appendUpdateEntry } from "@/lib/server/dev/devTeamUpdates";
-import { ensureHydrated } from "@/server/storage";
+import { ensureDevTeamWorkspaceHydrated } from "@/lib/server/dev/devWorkspaceFiles";
 import { AGENCY_ROLES } from "@/server/types";
 
 // Write half of Dev Team → Updates: insert one new entry at the top of
 // docs/development/updates.md.
 //
 // The gate is re-asserted HERE, not inherited from the page: agency role first
-// (`requireRole`), then the same founder + Dev Mode predicate the whole Dev Team
-// portal hangs off (`devDocsAccessible`). A non-founder — or anyone at all
-// outside Dev Mode — gets a 404, so the route is as invisible as the section is.
+// (`requireRole`), then the same founder-only Dev Team access predicate the whole Dev Team
+// portal hangs off (`devDocsAccessible`). A non-founder gets a 404, so the
+// route is as invisible as the section is; production uses the live founder.
 // All validation/normalisation lives in `appendUpdateEntry`; this handler only
 // shapes the JSON body and maps errors to statuses.
 export const runtime = "nodejs";
@@ -25,7 +25,7 @@ interface Body {
 
 export async function POST(request: Request) {
   try {
-    await ensureHydrated();
+    await ensureDevTeamWorkspaceHydrated();
     const session = await requireRole([...AGENCY_ROLES]);
     if (!devDocsAccessible(session)) {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });

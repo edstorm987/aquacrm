@@ -20,10 +20,9 @@ import {
   addOrIncrementCartItem,
   cartTotals,
   removeCartItem,
-  reservationMap,
   updateCartQty,
 } from "../lib/cart";
-import { syncReservations } from "../lib/admin/inventory";
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 
 export type { CartLineItem } from "../lib/cart";
 
@@ -99,13 +98,6 @@ export function CartProvider(props: CartProviderProps) {
     try { localStorage.setItem(discountKey, JSON.stringify(discounts)); } catch { /* ignore */ }
   }, [discounts, hydrated, discountKey]);
 
-  // Mirror cart → inventory.reserved on the server.
-  useEffect(() => {
-    if (!hydrated) return;
-    const map = reservationMap(items);
-    syncReservations({ apiBase, reservations: map }).catch(() => { /* best-effort */ });
-  }, [items, hydrated, apiBase]);
-
   const totals = useMemo(() => cartTotals(items, discounts), [items, discounts]);
 
   const addItem = useCallback((item: Omit<CartLineItem, "quantity">) => {
@@ -123,21 +115,24 @@ export function CartProvider(props: CartProviderProps) {
 
   const applyDiscount = useCallback(
     async (code: string): Promise<{ ok: true } | { ok: false; reason: string }> => {
-      const res = await fetch(`${apiBase}/discounts/apply`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          code,
-          subtotal: totals.subtotal,
-          alreadyApplied: discounts.map(d => d.code),
-        }),
-      });
-      const data = await res.json() as
-        | { ok: true; discount: AppliedDiscount }
-        | { ok: false; error?: string; reason?: string };
-      if (!data.ok) return { ok: false, reason: data.reason ?? data.error ?? "Could not apply code." };
-      setDiscounts(prev => [...prev, data.discount]);
-      return { ok: true };
+      try {
+        const data = await checkedJsonMutation<{ ok?: boolean; discount?: AppliedDiscount }>(`${apiBase}/discounts/apply`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            code,
+            subtotal: totals.subtotal,
+            alreadyApplied: discounts.map(d => d.code),
+          }),
+        }, {
+          fallback: "Could not apply code.",
+          validate: value => value.ok === true && Boolean(value.discount),
+        });
+        setDiscounts(prev => [...prev, data.discount!]);
+        return { ok: true };
+      } catch (error) {
+        return { ok: false, reason: mutationErrorMessage(error, "Could not apply code.") };
+      }
     },
     [apiBase, totals.subtotal, discounts],
   );

@@ -8,6 +8,7 @@ import { getPipelineBySlug, listCards, listPipelines } from "@/server/pipelines"
 import { listClients } from "@/server/tenants";
 import { listTradingCompanies } from "@/server/tradingCompanies";
 import { isLeadJourneyEligible } from "@/lib/enquiries/enquiryClassification";
+import { getPortalFormFields } from "@/server/portalEditor";
 
 import { LeadsPipelineWorkspace } from "./_LeadsPipelineWorkspace";
 
@@ -174,6 +175,7 @@ export async function LeadsPipelineWorkspaceServer({ agencyId, userId }: { agenc
           brandName: brandId ? brandById.get(brandId) ?? "Unknown brand" : undefined,
           serviceIds,
           serviceNames,
+          customFields: lead.customFields ?? {},
           enquiryId: typeof lead.customFields?.enquiryId === "string" ? lead.customFields.enquiryId : undefined,
           enquiryClassification: lead.customFields?.enquiryClassification === "sales" ? "sales" : undefined,
         };
@@ -195,6 +197,7 @@ export async function LeadsPipelineWorkspaceServer({ agencyId, userId }: { agenc
         priceCents: product.priceCents,
         billingInterval: product.billingInterval,
       }))}
+      customFields={getPortalFormFields(agencyId, "leads")}
     />
   );
 }

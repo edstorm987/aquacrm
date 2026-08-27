@@ -30,6 +30,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
   function addToCart(): void {
     cart.addItem({
       id: resolved.variant?.id ?? product.slug,
+      productId: product.id,
       name: product.name,
       price: resolved.price,
       stockSku: resolved.variant?.sku ?? product.stockSku,

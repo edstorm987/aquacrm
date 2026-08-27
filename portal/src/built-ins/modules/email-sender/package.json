@@ -2,7 +2,7 @@
   "name": "@aqua/plugin-email-sender",
   "version": "0.1.0",
   "private": true,
-  "description": "Aqua portal email-sender plugin — cross-cutting email delivery engine. Provides EmailQueuePort to other plugins (agency-marketing templates, forms notifications, memberships welcome/invoice, affiliates payout-paid). Postmark + no-op drivers in v1; SendGrid/Resend stubs flagged for R11.",
+  "description": "Aqua portal email-sender plugin — cross-cutting email delivery engine. Provides EmailQueuePort to other plugins (agency-marketing templates, forms notifications, memberships welcome/invoice, affiliates payout-paid). Postmark + SMTP delivery; provider none keeps messages queued; SendGrid/Resend remain stubs.",
   "type": "module",
   "main": "index.ts",
   "exports": {
@@ -13,8 +13,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "smoke": "tsx --test src/__smoke__/email-sender.test.ts",
-    "test": "tsx --test src/__smoke__/email-sender.test.ts"
+    "smoke": "tsx --test src/__smoke__/email-sender.test.ts src/__smoke__/smtp-driver.test.ts",
+    "test": "tsx --test src/__smoke__/email-sender.test.ts src/__smoke__/smtp-driver.test.ts"
   },
   "peerDependencies": {
     "react": "^19.0.0",

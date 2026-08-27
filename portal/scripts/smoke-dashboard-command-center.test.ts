@@ -272,8 +272,9 @@ describe("dashboard command centre persistence", () => {
 
 describe("dashboard command centre surface", () => {
   it("prioritises execution, timekeeping, reflection, week planning, and Advisor actions", async () => {
-    const [page, dynamicRadar, trajectory, stationNav, popup, workspace, briefing, dayKpi, route, drawer, routeCanvas, smartClock, portalLayout, advisorContext, globalStyles] = await Promise.all([
+    const [page, executive, dynamicRadar, trajectory, stationNav, popup, workspace, briefing, dayKpi, route, drawer, routeCanvas, smartClock, portalLayout, advisorContext, globalStyles] = await Promise.all([
       readFile(new URL("../src/app/portal/agency/page.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../src/app/portal/agency/_ExecutiveCommandWorkspace.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/agency/_DynamicRadarConsole.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/agency/_CommandCentreKpiTrajectory.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/agency/_CommandStationNav.tsx", import.meta.url), "utf8"),
@@ -300,10 +301,10 @@ describe("dashboard command centre surface", () => {
     assert.match(page, /AgencyActionsPage/);
     assert.match(page, /actionsWorkspace=/);
     assert.match(page, /Command Centre Actions/);
-    assert.match(page, /Command Centre\s*<\/h1>/);
-    assert.match(page, /Command deck/);
+    assert.match(executive, /Command Centre\s*<\/h1>/);
+    assert.match(executive, /Command deck/);
     for (const initialDeckLabel of ["Executive overview", "Health, evidence, priorities and controls", "Checks monitored", "Sources connected", "Officer watch summary", "Command Centre quick actions", "Captain&apos;s log"]) {
-      assert.match(page, new RegExp(initialDeckLabel));
+      assert.match(executive, new RegExp(initialDeckLabel));
     }
     assert.doesNotMatch(page, /xl:h-\[calc\(100dvh-7\.5rem\)\]/);
     assert.doesNotMatch(page, /xl:max-w-\[68px\]/);
@@ -311,9 +312,9 @@ describe("dashboard command centre surface", () => {
     assert.match(dynamicRadar, /max-w-\[520px\]/);
     assert.match(dynamicRadar, /max-w-\[112px\]/);
     for (const heroRadarLabel of ["Live hero radar", "Live command plot", "Business radar", "Sweep live", "contacts held", "Open detailed plot"]) {
-      assert.match(`${page}\n${dynamicRadar}`, new RegExp(heroRadarLabel));
+      assert.match(`${executive}\n${dynamicRadar}`, new RegExp(heroRadarLabel));
     }
-    assert.match(page, /DynamicRadarConsole/);
+    assert.match(executive, /DynamicRadarConsole/);
     assert.match(dynamicRadar, /sectors\.map/);
     assert.match(dynamicRadar, /sector\.domains\.map/);
     assert.match(dynamicRadar, /PPI-01A–D · Linked sensor switcher/);
@@ -334,12 +335,12 @@ describe("dashboard command centre surface", () => {
     assert.match(dynamicRadar, /radarFocusParam/);
     assert.match(dynamicRadar, /Cash, revenue, invoices, budgets, tax, runway and profitability/);
     assert.match(globalStyles, /mm-radar-focus-transition/);
-    assert.match(page, /CommandDeckPopup/);
+    assert.match(executive, /CommandDeckPopup/);
     assert.match(dynamicRadar, /Open detailed plot/);
     assert.match(popup, /aqua-radar-inspector:open/);
     assert.match(popup, /role="dialog"/);
     assert.match(workspace, /aqua-radar-inspector:open/);
-    assert.match(page, /commandDeck className=/);
+    assert.match(executive, /commandDeck className=/);
     assert.doesNotMatch(page, /FounderDashboardKpis/);
     assert.doesNotMatch(page, /OperatingLoop/);
     for (const label of ["Strict work queue", "Timesheet", "Log what moved", "Week command"]) {
@@ -377,7 +378,7 @@ describe("dashboard command centre surface", () => {
     assert.doesNotMatch(workspace, /Day Command views/);
     assert.doesNotMatch(workspace, /label="My day & time"/);
     assert.doesNotMatch(workspace, /label="Actions"/);
-    assert.match(workspace, /onClick=\{\(\) => selectWorkspaceMode\("actions"\)\} className="inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline">All actions/);
+    assert.match(workspace, /onClick=\{\(\) => selectWorkspaceMode\("actions"\)\} disabled=\{serverNavigationBusy\} className="inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline disabled:opacity-45">All actions/);
     assert.match(workspace, /async function returnToToday\(\)/);
     assert.match(workspace, /if \(!isToday\) await selectDay\(actualToday\)/);
     assert.match(workspace, /Return to today’s Day Command/);
@@ -430,7 +431,7 @@ describe("dashboard command centre surface", () => {
     assert.match(workspace, /Open KPI Intelligence/);
     assert.match(workspace, /Open Radar Workspace/);
     assert.match(workspace, /Back to Command Centre/);
-    assert.match(workspace, /<CommandCentreKpiTrajectory intelligence=\{intelligenceSnapshot\} onOpen=\{openIntelligence\}/);
+    assert.match(workspace, /<CommandCentreKpiTrajectory intelligence=\{intelligenceState\} onOpen=\{openIntelligence\}/);
     assert.match(workspace, /if \(value === "omega"\) return "executive"/);
     assert.match(workspace, /role="region"/);
     assert.match(workspace, /mm-command-workspace-inline/);

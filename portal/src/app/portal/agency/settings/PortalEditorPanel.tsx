@@ -215,7 +215,11 @@ export function PortalEditorPanel({ canManage }: { canManage: boolean }) {
         <header className="flex flex-wrap items-start justify-between gap-3 border-b border-black/10 pb-4">
           <div>
             <h3 className="text-lg font-semibold text-black/85">{ENTITIES.find(item => item.id === entity)?.label} form</h3>
-            <p className="mt-1 max-w-xl text-sm leading-5 text-black/50">Add the information Milesymedia needs to capture. Group fields into clear sections so the working screen stays simple.</p>
+            <p className="mt-1 max-w-xl text-sm leading-5 text-black/50">
+              {entity === "contacts"
+                ? "Contact fields use the Leads Pipeline contact schema shared by contact records, imports and promotions. Changes here update that same schema."
+                : "Add the information Milesymedia needs to capture. Group fields into clear sections so the working screen stays simple."}
+            </p>
           </div>
           {canManage && !editing ? (
             <button type="button" onClick={() => setEditing(true)} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85">

@@ -329,6 +329,161 @@ export function isLeadRole(role: Role): boolean {
   return role === "lead";
 }
 
+// Governed access control. `Role` remains the coarse sign-in/persona label;
+// these records are the resource authority at an exact tenant, resource and
+// environment scope. UI visibility may derive from this result, but hiding a
+// control is never the authorization boundary.
+export const ACCESS_ENVIRONMENTS = ["live", "sandbox"] as const;
+export type AccessEnvironment = typeof ACCESS_ENVIRONMENTS[number];
+
+export const ACCESS_SCOPE_KINDS = ["agency", "workspace", "client", "project"] as const;
+export type AccessScopeKind = typeof ACCESS_SCOPE_KINDS[number];
+
+/** A semantic resource key: never a route, CSS selector or component path. */
+export interface AccessScope {
+  kind: AccessScopeKind;
+  id: string;
+  clientId?: string;
+  projectId?: string;
+}
+
+export const ACCESS_BASE_CAPABILITIES = [
+  "workspace.view",
+  "workspace.manage",
+  "project.view",
+  "project.manage",
+  "project.connection.manage",
+  "project.edit",
+  "project.ai",
+  "project.preview",
+  "project.pull-request",
+  "project.publish",
+  "project.deploy",
+  "dev.project.run_local",
+  "dev.project.logs",
+  "access.request",
+  "access.grant.manage",
+  "access.template.manage",
+  "access.request.review",
+  "access.audit.view",
+] as const;
+export type AccessBaseCapability = typeof ACCESS_BASE_CAPABILITIES[number];
+
+/** Stable product identifiers let a role toggle elements without DOM selectors. */
+export const ACCESS_ELEMENT_KEYS = [
+  "workspace.overview",
+  "workspace.actions",
+  "workspace.calendar",
+  "workspace.inbox",
+  "workspace.files",
+  "workspace.settings",
+  "staff.overview",
+  "staff.people",
+  "staff.schedule",
+  "staff.training",
+  "staff.pay",
+  "staff.chat",
+  "fulfilment.overview",
+  "fulfilment.services",
+  "fulfilment.projects",
+  "fulfilment.portals",
+  "fulfilment.tags",
+  "client.overview",
+  "client.relationship",
+  "client.fulfilment",
+  "client.marketing",
+  "client.systems",
+  "client.commercial",
+  "client.communications",
+  "client.files",
+  "client.portal",
+  "client.record",
+  "client.settings",
+  "development.overview",
+  "development.preview",
+  "development.explorer",
+  "development.code",
+  "development.ai",
+  "development.publish",
+  "project.overview",
+  "project.tasks",
+  "project.files",
+  "project.messages",
+  "project.editor",
+] as const;
+export type AccessElementKey = typeof ACCESS_ELEMENT_KEYS[number];
+
+export const ACCESS_ELEMENT_ACTIONS = ["view", "use", "manage"] as const;
+export type AccessElementAction = typeof ACCESS_ELEMENT_ACTIONS[number];
+export type AccessElementCapability = `element.${AccessElementKey}.${AccessElementAction}`;
+export type AccessCapability = AccessBaseCapability | AccessElementCapability;
+export const ACCESS_ELEMENT_CAPABILITIES = ACCESS_ELEMENT_KEYS.flatMap(elementKey => (
+  ACCESS_ELEMENT_ACTIONS.map(action => `element.${elementKey}.${action}` as AccessElementCapability)
+));
+export const ACCESS_CAPABILITIES: readonly AccessCapability[] = [
+  ...ACCESS_BASE_CAPABILITIES,
+  ...ACCESS_ELEMENT_CAPABILITIES,
+];
+
+export interface AccessRoleTemplate {
+  id: string;
+  agencyId: string;
+  name: string;
+  description?: string;
+  capabilities: AccessCapability[];
+  allowedScopeKinds: AccessScopeKind[];
+  allowedEnvironments: AccessEnvironment[];
+  archivedAt?: number;
+  createdBy: string;
+  updatedBy: string;
+  createdAt: number;
+  updatedAt: number;
+  idempotencyKey?: string;
+}
+
+export interface AccessGrant {
+  id: string;
+  agencyId: string;
+  userId: string;
+  scope: AccessScope;
+  environment: AccessEnvironment;
+  /** Direct capabilities, additive with the referenced template. */
+  capabilities: AccessCapability[];
+  templateId?: string;
+  expiresAt?: number;
+  revokedAt?: number;
+  revokedBy?: string;
+  revokeReason?: string;
+  reason?: string;
+  createdBy: string;
+  createdAt: number;
+  updatedAt: number;
+  idempotencyKey?: string;
+  requestId?: string;
+}
+
+export type AccessRequestStatus = "pending" | "approved" | "denied" | "cancelled";
+
+export interface AccessRequest {
+  id: string;
+  agencyId: string;
+  requesterUserId: string;
+  scope: AccessScope;
+  environment: AccessEnvironment;
+  requestedCapabilities: AccessCapability[];
+  reason: string;
+  requestedExpiresAt?: number;
+  status: AccessRequestStatus;
+  approvedCapabilities?: AccessCapability[];
+  grantId?: string;
+  decisionReason?: string;
+  decidedBy?: string;
+  decidedAt?: number;
+  createdAt: number;
+  updatedAt: number;
+  idempotencyKey?: string;
+}
+
 // ─── Server-side users ────────────────────────────────────────────────────
 
 // R025 schema version. The migration runner walks the users map and
@@ -383,6 +538,8 @@ export interface ServerUser {
   welcomeCompletedAt?: number;
   emailVerifiedAt?: number;       // R020: epoch ms when verification token redeemed
   sessionRev?: number;            // R021: rotation counter; bumped on role/password change
+  /** Access-policy revision. Grant/template changes bump this cache epoch. */
+  accessRev?: number;
   // R036: optional profile picture as a `data:image/...;base64,...` data URL.
   // v1 stores inline on the user record (256×256 cap → ~50KB after client-side
   // canvas resize). R+1 swaps to an external ref via the client-files plugin
@@ -401,6 +558,26 @@ export interface ServerUser {
 // Carried in `lk_session_v1` (HMAC-signed). Middleware decodes; route
 // handlers re-verify via `getSession()`. iat/exp in unix seconds.
 
+export type SandboxDataset = "empty" | "demo" | "snapshot";
+export type SandboxAccess = "read-only" | "writable";
+export type SandboxPersona = "owner" | "staff" | "customer" | "freelancer";
+
+export interface SandboxSessionEnvironment {
+  /** Opaque, server-minted storage realm. Never accept this value from a UI. */
+  realmId: string;
+  dataset: SandboxDataset;
+  access: SandboxAccess;
+  persona?: SandboxPersona;
+  /** Signed live control-plane authority to reset data or inspect personas. */
+  governor?: boolean;
+  /** The live identity and tenant restored when Sandbox Mode is switched off. */
+  returnUserId: string;
+  returnAgencyId: string;
+  returnWasDemo?: boolean;
+  returnAal?: "aal1" | "aal2";
+  enteredAt: number;
+}
+
 export interface SessionPayload {
   userId: string;
   email: string;
@@ -418,6 +595,8 @@ export interface SessionPayload {
   // unless the user explicitly switched in the Topbar.
   activeAgencyId?: string;
   clientId?: string;
+  /** Canonical environment selector. Legacy demo/showcase fields remain during migration. */
+  sandbox?: SandboxSessionEnvironment;
   // Sandboxed demo session. Set when the cookie was issued by `/demo`
   // (not by `/api/auth/login`). Surfaces a banner + POV toggle in the
   // portal chrome and isolates the demo agency from real tenants.
@@ -460,6 +639,8 @@ export interface SessionPayload {
   // user-aware paths (getCurrentUser / requireRole+lookup). Stateless verify
   // via HMAC stays cheap; rotation enforcement is opt-in at the lookup layer.
   sessionRev?: number;
+  /** Must match the authoritative user's accessRev on capability-gated paths. */
+  accessRev?: number;
   // Which assurance level this sign-in actually proved. "aal2" only when a
   // second factor (TOTP or a recovery code) was verified by the flow that
   // minted this cookie; "aal1" for password-only sign-ins. Optional and
@@ -699,6 +880,8 @@ export interface PersonPhone {
   raw?: string;
   label?: string;        // free text: "mobile", "office", "whatsapp", …
   isPrimary?: boolean;
+  /** Shared switchboards remain contactable but never identify a person without a compatible name. */
+  shared?: boolean;
 }
 
 // Company membership is proposed by the system and decided by a human.
@@ -1027,11 +1210,34 @@ export interface AssistantMemory {
   sourceThreadId?: string;
 }
 
+export type AssistantTurnOperationStatus = "generating" | "provider-complete" | "failed" | "completed";
+
+export interface AssistantTurnOperation {
+  id: string;
+  threadId: string;
+  sourceThreadId?: string;
+  message: string;
+  skillId: string;
+  memoryContent?: string;
+  userMessageId: string;
+  assistantMessageId: string;
+  memoryId?: string;
+  status: AssistantTurnOperationStatus;
+  attempts: number;
+  leaseExpiresAt?: number;
+  answer?: string;
+  error?: string;
+  createdAt: number;
+  updatedAt: number;
+  completedAt?: number;
+}
+
 export interface AssistantWorkspaceState {
   agencyId: string;
   userId: string;
   threads: AssistantThread[];
   memories: AssistantMemory[];
+  turnOperations?: AssistantTurnOperation[];
   updatedAt: number;
 }
 
@@ -1126,6 +1332,7 @@ export interface ExternalAssistantActionProposal {
 export type AgencyTaskStatus = "todo" | "in-progress" | "done";
 export type AgencyTaskPriority = "low" | "normal" | "high" | "urgent";
 export type AgencyTaskRecurrence = "none" | "daily" | "weekly" | "monthly";
+export type ClientTaskBoardColumnId = "backlog" | "this-week" | "doing" | "waiting-on-client" | "review" | "done";
 // "inbox" is work accepted from a Needs-attention alert. Added after the
 // four original origins; existing rows have no "inbox" value, so no
 // migration is needed — `taskOrigin` still defaults absent values to manual.
@@ -1227,6 +1434,12 @@ export interface AgencyTask {
   assigneeUserId?: string;
   clientId?: string;
   sopIds?: string[];
+  customFields?: Record<string, PortalFormFieldValue>;
+  /** Monotonic version used by shared client-board moves and deletes. */
+  revision?: number;
+  /** Optional projection of this canonical Action into the client fulfilment board. */
+  clientBoardColumn?: ClientTaskBoardColumnId;
+  clientBoardOrder?: number;
   /** Sub-tasks. See AgencyTaskChecklistItem. */
   checklist?: AgencyTaskChecklistItem[];
   createdBy: string;
@@ -1384,6 +1597,8 @@ export interface AutomationRun {
   waitUntil?: number;
   logs: AutomationRunLog[];
   initiatedBy?: string;
+  /** Stable source operation used to suppress duplicate workflow runs. */
+  idempotencyKey?: string;
   createdAt: number;
   updatedAt: number;
   finishedAt?: number;
@@ -1509,6 +1724,24 @@ export interface CommandCalendarExternalEvent {
   sourceUpdatedAt?: number;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface CommandCalendarEventCreateOperation {
+  id: string;
+  operationId: string;
+  requestFingerprint: string;
+  agencyId: string;
+  ownerUserId: string;
+  connectionId: string;
+  sourceId: string;
+  providerEventId: string;
+  status: "pending" | "adopted" | "completed";
+  refreshStatus?: "fresh" | "stale";
+  lastError?: string;
+  createdAt: number;
+  updatedAt: number;
+  adoptedAt?: number;
+  completedAt?: number;
 }
 
 export interface DashboardWeekPlan {
@@ -1734,6 +1967,7 @@ export interface AgencyProduct {
   contractBody?: string;
   sopIds: string[];
   sopCategories: string[];
+  customFields?: Record<string, PortalFormFieldValue>;
   status: AgencyProductStatus;
   active: boolean;
   createdAt: number;
@@ -1812,6 +2046,10 @@ export interface PerformanceExperiment {
   primaryMetric: string;
   status: PerformanceExperimentStatus;
   variants: PerformanceExperimentVariant[];
+  version: number;
+  revision: number;
+  amendsExperimentId?: string;
+  amendedByExperimentId?: string;
   startedAt?: number;
   endedAt?: number;
   createdBy: string;
@@ -1943,11 +2181,20 @@ export interface KpiTargetOverride {
   history?: Array<{ baselineValue?: number | null; targetValue?: number | null; effectiveFrom: number }>;
 }
 
+export interface KpiTargetOperationReceipt {
+  kpiId: string;
+  companyId?: string;
+  fingerprint: string;
+  committedAt: number;
+}
+
 /** Per-agency, optionally per-company, KPI target overrides. Resolved
  *  system-default → agency → company (most specific wins), like the radar policy. */
 export interface KpiTargetsConfig {
   byKpi: Record<string, KpiTargetOverride>;
   byCompany?: Record<string, Record<string, KpiTargetOverride>>;
+  /** Bounded server-only replay ledger; API responses omit it. */
+  operations?: Record<string, KpiTargetOperationReceipt>;
   updatedAt: number;
 }
 
@@ -2673,6 +2920,10 @@ export interface IntegrationConnection {
   lastTestedAt?: number;
   lastTestStatus?: "passed" | "failed";
   lastTestMessage?: string;
+  /** Explicit default for this provider + workspace/client scope. */
+  isActive?: boolean;
+  activatedAt?: number;
+  activatedBy?: string;
   createdBy: string;
   updatedBy: string;
   createdAt: number;
@@ -3425,6 +3676,26 @@ export interface PeopleTrainingAssignment {
 
 export type PeopleFreelancerJobStatus = "proposed" | "active" | "delivered" | "paid" | "cancelled";
 
+export interface PeopleFreelancerDeliverable {
+  id: string;
+  name: string;
+  url: string;
+  addedByUserId: string;
+  addedAt: number;
+}
+
+export interface PeopleFreelancerSubmission {
+  id: string;
+  name: string;
+  url: string;
+  uploadedByUserId: string;
+  uploadedAt: number;
+  size: number;
+  contentType: string;
+  storageProvider: "supabase" | "vercel-blob" | "local";
+  storageKey: string;
+}
+
 // A one-time project engagement for a freelancer/contractor — scoped work with a
 // fee and a proposed→active→delivered→paid lifecycle. The job tracks its own fee
 // and payment state, but Finance stays the authority on money actually paid:
@@ -3446,6 +3717,8 @@ export interface PeopleFreelancerJob {
   paidAt?: number;
   paymentRef?: string; // finance reference once the payment is recorded there
   notes?: string;
+  deliverables?: PeopleFreelancerDeliverable[];
+  submissions?: PeopleFreelancerSubmission[];
   createdAt: number;
   updatedAt: number;
 }
@@ -3453,7 +3726,7 @@ export interface PeopleFreelancerJob {
 // Agency-configurable policy for what a freelancer sees + can do in their own
 // workspace ("all configurable" — Ed). Lives in types.ts (not the server-only
 // freelancerWorkspace module) so PortalState can reference it. Per-job
-// overrides are a later refinement; v1 is the agency-wide default.
+// overrides replace this agency-wide default when present.
 export interface FreelancerAccessConfig {
   showFee: boolean;                       // the freelancer's own pay
   clientIdentity: "named" | "anonymised"; // real client name vs a neutral label
@@ -3622,6 +3895,39 @@ export interface PeopleRecognition {
   createdAt: number;
 }
 
+export type StaffProvisioningTargetKind = "agency-user" | "candidate" | "employee" | "freelancer";
+export type StaffProvisioningStage =
+  | "intent-recorded"
+  | "provider-ready"
+  | "local-user-ready"
+  | "target-linked"
+  | "complete";
+
+/**
+ * Durable, password-free checkpoint for creating one staff sign-in. The key is
+ * derived from agency + canonical email; the fingerprint binds it to the exact
+ * role and People target that the operator approved.
+ */
+export interface StaffProvisioningOperation {
+  id: string;
+  agencyId: string;
+  email: string;
+  name: string;
+  localRole: "agency-manager" | "agency-staff" | "freelancer";
+  targetKind: StaffProvisioningTargetKind;
+  targetId: string;
+  intentFingerprint: string;
+  localUserId: string;
+  targetEmployeeId?: string;
+  providerUserId?: string;
+  stage: StaffProvisioningStage;
+  attempts: number;
+  lastError?: string;
+  createdAt: number;
+  updatedAt: number;
+  completedAt?: number;
+}
+
 // ─── PortalState — the single typed object behind storage ─────────────────
 
 export type CustomKpiOp = "ratio" | "rate" | "sum" | "diff";
@@ -3641,12 +3947,32 @@ export interface CustomKpiDefinition {
   createdBy?: string;
 }
 
+/**
+ * One file in the founder-only Dev Team workspace when the app is running on
+ * immutable/serverless infrastructure. Local development still edits the
+ * checked-out repository directly; production stores only the changed overlay
+ * here and falls back to the deployment snapshot for untouched files.
+ */
+export interface DevTeamWorkspaceFile {
+  relPath: string;
+  encoding: "utf8" | "base64";
+  content: string;
+  sizeBytes: number;
+  sha256: string;
+  mtimeMs: number;
+  deleted?: boolean;
+  updatedBy?: string;
+}
+
 export interface PortalState {
   agencies: Record<string, Agency>;
   tradingCompanies: Record<string, TradingCompany>;
   clients: Record<string, Client>;
   endCustomers: Record<string, EndCustomer>;
   users: Record<string, ServerUser>;             // keyed by lower-cased email
+  accessRoleTemplates: Record<string, AccessRoleTemplate>;
+  accessGrants: Record<string, AccessGrant>;
+  accessRequests: Record<string, AccessRequest>;
   pluginInstalls: Record<string, PluginInstall>; // keyed by PluginInstall.id
   pluginData: Record<string, Record<string, unknown>>; // installId → key → value
   phases: Record<string, PhaseDefinition>;
@@ -3679,6 +4005,11 @@ export interface PortalState {
   // project. Deliberately NOT inside `assistant`, so clearing the agency
   // assistant cannot wipe an editor conversation. See EditorAiConversation.
   editorAiConversations: Record<string, EditorAiConversation>;
+  // Production overlay for Dev Team docs/plans/findings/worker ledgers. The
+  // checked-in deployment remains the baseline; only authored changes live
+  // here so a Vercel instance never pretends its ephemeral filesystem is
+  // durable.
+  devTeamWorkspaceFiles: Record<string, DevTeamWorkspaceFile>;
   tasks: Record<string, AgencyTask>;
   // Saved task sequences. See AgencyTaskTemplate.
   taskTemplates: Record<string, AgencyTaskTemplate>;
@@ -3708,6 +4039,7 @@ export interface PortalState {
   commandCalendarConnections: Record<string, CommandCalendarConnection>;
   commandCalendarSources: Record<string, CommandCalendarSource>;
   commandCalendarExternalEvents: Record<string, CommandCalendarExternalEvent>;
+  commandCalendarEventCreateOperations: Record<string, CommandCalendarEventCreateOperation>;
   sops: Record<string, SopDocument>;
   /** SOP Engine guides — ordered sequences of SOPs composed in the library. */
   sopGuides: Record<string, SopGuide>;
@@ -3752,4 +4084,5 @@ export interface PortalState {
   peopleMessages: Record<string, PeopleMessage>;
   peopleChannelReads: Record<string, PeopleChannelRead>;
   peopleTrainingModules: Record<string, PeopleTrainingModule>;
+  staffProvisioningOperations: Record<string, StaffProvisioningOperation>;
 }

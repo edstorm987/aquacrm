@@ -6,6 +6,7 @@ import {
   Search, Sparkles, Trash2, Upload, Wrench, X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 import type {
   DevelopmentResourceKind,
   DevelopmentWorkflow,
@@ -113,6 +114,9 @@ export function DevelopmentToolkitWorkspace({
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
   const [loadingResources, setLoadingResources] = useState(false);
+  const [resourceError, setResourceError] = useState("");
+  const [resourceRetry, setResourceRetry] = useState<"search" | "more">("search");
+  const [resourceReloadToken, setResourceReloadToken] = useState(0);
   const canManage = role === "agency-owner" || role === "agency-manager";
 
   const modeKinds = KINDS.filter(item => mode === "vault" ? item.group === "vault" : item.group === "toolkit").map(item => item.id);
@@ -144,34 +148,61 @@ export function DevelopmentToolkitWorkspace({
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       setLoadingResources(true);
+      setResourceError("");
+      setResourceRetry("search");
       const params = new URLSearchParams({ mode, limit: "36", offset: "0" });
       if (query.trim()) params.set("q", query.trim());
       if (kind !== "all") params.set("kind", kind);
       if (category !== "all") params.set("category", category);
-      const response = await fetch(`/api/portal/development?${params}`, { signal: controller.signal }).catch(() => null);
-      const result = response ? await response.json().catch(() => null) : null;
-      if (response?.ok && result?.resources) {
-        setResources(result.resources);
-        setTotal(result.total ?? result.resources.length);
+      try {
+        const result = await checkedJsonMutation<{ ok?: boolean; resources?: PublicResource[]; total?: number }>(
+          `/api/portal/development?${params}`,
+          { method: "GET", signal: controller.signal },
+          {
+            fallback: "Development resources could not be loaded.",
+            validate: payload => Array.isArray(payload.resources),
+          },
+        );
+        if (controller.signal.aborted) return;
+        const nextResources = result.resources ?? [];
+        setResources(nextResources);
+        setTotal(result.total ?? nextResources.length);
+      } catch (nextError) {
+        if (!controller.signal.aborted) {
+          setResourceError(mutationErrorMessage(nextError, "Development resources could not be loaded."));
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoadingResources(false);
       }
-      setLoadingResources(false);
     }, 220);
     return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [category, kind, mode, query]);
+  }, [category, kind, mode, query, resourceReloadToken]);
 
   async function loadMore() {
     setLoadingResources(true);
-    const params = new URLSearchParams({ mode, limit: "36", offset: String(resources.length) });
-    if (query.trim()) params.set("q", query.trim());
-    if (kind !== "all") params.set("kind", kind);
-    if (category !== "all") params.set("category", category);
-    const response = await fetch(`/api/portal/development?${params}`);
-    const result = await response.json().catch(() => null);
-    if (response.ok && result?.resources) {
-      setResources(current => [...current, ...result.resources.filter((item: PublicResource) => !current.some(existing => existing.id === item.id))]);
+    setResourceError("");
+    setResourceRetry("more");
+    try {
+      const params = new URLSearchParams({ mode, limit: "36", offset: String(resources.length) });
+      if (query.trim()) params.set("q", query.trim());
+      if (kind !== "all") params.set("kind", kind);
+      if (category !== "all") params.set("category", category);
+      const result = await checkedJsonMutation<{ ok?: boolean; resources?: PublicResource[]; total?: number }>(
+        `/api/portal/development?${params}`,
+        { method: "GET" },
+        {
+          fallback: "More development resources could not be loaded.",
+          validate: payload => Array.isArray(payload.resources),
+        },
+      );
+      const nextResources = result.resources ?? [];
+      setResources(current => [...current, ...nextResources.filter((item: PublicResource) => !current.some(existing => existing.id === item.id))]);
       setTotal(result.total ?? total);
+    } catch (nextError) {
+      setResourceError(mutationErrorMessage(nextError, "More development resources could not be loaded."));
+    } finally {
+      setLoadingResources(false);
     }
-    setLoadingResources(false);
   }
 
   function editResource(resource: PublicResource) {
@@ -353,6 +384,20 @@ export function DevelopmentToolkitWorkspace({
         {notice ? <Status text={notice} /> : null}
       </div>
 
+      {resourceError ? (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+          <span>{resourceError}</span>
+          <button
+            type="button"
+            disabled={loadingResources}
+            onClick={() => resourceRetry === "more" ? void loadMore() : setResourceReloadToken(value => value + 1)}
+            className="rounded-md border border-red-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-800 disabled:opacity-50"
+          >
+            {resourceRetry === "more" ? "Retry more" : "Retry resources"}
+          </button>
+        </div>
+      ) : null}
+
       {filtered.length ? <>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{displayed.map(resource => <ResourceCard key={resource.id} resource={resource} onEdit={() => editResource(resource)} onDelete={() => void removeResource(resource)} />)}</div>
         {displayed.length < total ? <div className="flex justify-center border-t border-black/10 pt-5"><button onClick={() => void loadMore()} disabled={loadingResources} className={secondary}>{loadingResources ? "Loading..." : `Show 36 more · ${total - displayed.length} remaining`}</button></div> : null}
@@ -372,14 +417,31 @@ export function DevelopmentToolkitWorkspace({
 function ResourceCard({ resource, onEdit, onDelete }: { resource: PublicResource; onEdit: () => void; onDelete: () => void }) {
   const [password, setPassword] = useState("");
   const [revealing, setRevealing] = useState(false);
+  const [revealError, setRevealError] = useState("");
   const Icon = resource.kind === "credential" ? KeyRound : resource.kind === "course" || resource.kind === "knowledge" ? BookOpen : resource.kind.includes("template") || resource.kind === "component" ? PackageOpen : resource.kind.includes("inspiration") ? Sparkles : Wrench;
   async function reveal() {
-    if (password) return setPassword("");
+    if (password) {
+      setPassword("");
+      setRevealError("");
+      return;
+    }
     setRevealing(true);
-    const response = await fetch("/api/portal/development", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "credential:reveal", resourceId: resource.id }) });
-    const result = await response.json().catch(() => null);
-    setRevealing(false);
-    if (response.ok && result?.password) setPassword(result.password);
+    setRevealError("");
+    try {
+      const result = await checkedJsonMutation<{ ok?: boolean; password?: string }>(
+        "/api/portal/development",
+        { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "credential:reveal", resourceId: resource.id }) },
+        {
+          fallback: "The shared password could not be revealed.",
+          validate: payload => typeof payload.password === "string" && payload.password.length > 0,
+        },
+      );
+      setPassword(result.password ?? "");
+    } catch (nextError) {
+      setRevealError(mutationErrorMessage(nextError, "The shared password could not be revealed."));
+    } finally {
+      setRevealing(false);
+    }
   }
   const openUrl = resource.kind === "credential" ? resource.credential?.loginUrl : resource.url;
   const hasImagePreview = Boolean(
@@ -399,7 +461,31 @@ function ResourceCard({ resource, onEdit, onDelete }: { resource: PublicResource
         {resource.description ? <p className="mt-2 line-clamp-3 text-xs leading-5 text-black/50">{resource.description}</p> : null}
         {resource.kind === "component" && resource.framework ? <p className="mt-2 text-[10px] font-semibold uppercase text-black/40">{resource.framework}</p> : null}
         {resource.kind === "component" && resource.codeSnippet ? <pre className="mt-3 max-h-24 overflow-hidden rounded-md bg-black/[0.035] p-2 font-mono text-[10px] leading-4 text-black/55"><code>{resource.codeSnippet}</code></pre> : null}
-        {resource.credential?.username ? <div className="mt-3 rounded-md bg-black/[0.025] p-2.5 text-xs"><p className="text-black/40">Username</p><p className="mt-0.5 break-all font-medium text-black/70">{resource.credential.username}</p>{resource.credential.hasPassword ? <div className="mt-2 flex items-center gap-2"><code className="min-w-0 flex-1 truncate text-black/60">{password || "••••••••••••"}</code><button onClick={() => void reveal()} disabled={revealing} className="grid size-7 place-items-center rounded-md border border-black/10">{password ? <EyeOff size={13} /> : <Eye size={13} />}</button>{password ? <button onClick={() => void navigator.clipboard.writeText(password)} className="grid size-7 place-items-center rounded-md border border-black/10"><Copy size={13} /></button> : null}</div> : null}</div> : null}
+        {resource.credential?.username ? (
+          <div className="mt-3 rounded-md bg-black/[0.025] p-2.5 text-xs">
+            <p className="text-black/40">Username</p>
+            <p className="mt-0.5 break-all font-medium text-black/70">{resource.credential.username}</p>
+            {resource.credential.hasPassword ? (
+              <>
+                <div className="mt-2 flex items-center gap-2">
+                  <code className="min-w-0 flex-1 truncate text-black/60">{password || "••••••••••••"}</code>
+                  <button
+                    type="button"
+                    onClick={() => void reveal()}
+                    disabled={revealing}
+                    aria-label={`${password ? "Hide" : "Reveal"} ${resource.title} password`}
+                    className="grid size-7 place-items-center rounded-md border border-black/10 disabled:opacity-50"
+                  >
+                    {password ? <EyeOff size={13} /> : <Eye size={13} />}
+                  </button>
+                  {password ? <button type="button" onClick={() => void navigator.clipboard.writeText(password)} className="grid size-7 place-items-center rounded-md border border-black/10" aria-label={`Copy ${resource.title} password`}><Copy size={13} /></button> : null}
+                </div>
+                {revealing ? <p className="mt-2 text-black/45">Revealing password…</p> : null}
+                {revealError ? <p role="alert" className="mt-2 text-red-700">{revealError} Retry with the reveal button.</p> : null}
+              </>
+            ) : null}
+          </div>
+        ) : null}
         {resource.localPath ? <p className="mt-3 break-all font-mono text-[10px] leading-4 text-black/40">{resource.localPath}</p> : null}
       </div>
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-black/8 pt-3">

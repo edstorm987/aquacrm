@@ -23,19 +23,44 @@ export function ExperimentsPanel({
 }) {
   const [experiments, setExperiments] = useState(initialExperiments);
   const [editing, setEditing] = useState<PerformanceExperiment | "new" | null>(null);
+  const [operationError, setOperationError] = useState("");
 
   function effectiveVariant(experiment: PerformanceExperiment, variant: PerformanceExperiment["variants"][number]) {
-    const live = liveVariants.find(item => item.experimentId === experiment.id && item.variant === variant.id)
-      ?? liveVariants.find(item => item.experimentId === experiment.id && item.variant === variant.name);
+    const live = liveVariants.find(item => item.experimentId === experiment.id && item.variant === variant.id);
     const visitors = variant.visitors + (live?.visitors ?? 0);
     const conversions = variant.conversions + (live?.conversions ?? 0);
     return { visitors, conversions, rate: visitors ? Math.round((conversions / visitors) * 10_000) / 100 : 0 };
   }
 
   async function remove(experiment: PerformanceExperiment) {
-    if (!window.confirm(`Delete “${experiment.name}”?`)) return;
-    const response = await fetch(`/api/portal/performance/experiments?id=${encodeURIComponent(experiment.id)}`, { method: "DELETE" });
-    if (response.ok) setExperiments(current => current.filter(item => item.id !== experiment.id));
+    if (!window.confirm(`Delete draft “${experiment.name}”? This cannot be undone.`)) return;
+    setOperationError("");
+    const response = await fetch(`/api/portal/performance/experiments?id=${encodeURIComponent(experiment.id)}&expectedVersion=${experiment.version}`, { method: "DELETE" });
+    const payload = await response.json().catch(() => null) as { error?: string } | null;
+    if (response.ok) setExperiments(current => current
+      .filter(item => item.id !== experiment.id)
+      .map(item => item.id === experiment.amendsExperimentId && item.amendedByExperimentId === experiment.id
+        ? { ...item, amendedByExperimentId: undefined, version: item.version + 1 }
+        : item));
+    else setOperationError(payload?.error || "Could not delete this draft.");
+  }
+
+  async function amend(experiment: PerformanceExperiment) {
+    setOperationError("");
+    const response = await fetch("/api/portal/performance/experiments", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "amend", id: experiment.id, clientId: experiment.clientId, expectedVersion: experiment.version }),
+    });
+    const payload = await response.json().catch(() => null) as { experiment?: PerformanceExperiment; error?: string } | null;
+    if (!response.ok || !payload?.experiment) {
+      setOperationError(payload?.error || "Could not create an amendment.");
+      return;
+    }
+    setExperiments(current => [payload.experiment!, ...current.map(item => item.id === experiment.id
+      ? { ...item, amendedByExperimentId: payload.experiment!.id, version: item.version + 1 }
+      : item)]);
+    setEditing(payload.experiment);
   }
 
   return (
@@ -47,6 +72,7 @@ export function ExperimentsPanel({
         </div>
         <button type="button" onClick={() => setEditing("new")} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white"><Plus size={15} />New test</button>
       </div>
+      {operationError ? <p className="mb-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{operationError}</p> : null}
 
       {experiments.length ? (
         <div className="divide-y divide-black/10 border-y border-black/10">
@@ -58,12 +84,13 @@ export function ExperimentsPanel({
                     <FlaskConical size={15} className="text-brand" />
                     <h3 className="font-semibold text-black/80">{experiment.name}</h3>
                     <span className="rounded border border-black/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-black/45">{experiment.status}</span>
+                    <span className="text-[10px] font-medium text-black/35">revision {experiment.revision}</span>
                   </div>
                   <p className="mt-1 text-xs text-black/45">{experiment.hypothesis || `Primary measure: ${experiment.primaryMetric}`}</p>
                 </div>
                 <div className="flex gap-1">
-                  <button type="button" onClick={() => setEditing(experiment)} aria-label={`Edit ${experiment.name}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/50"><Pencil size={14} /></button>
-                  <button type="button" onClick={() => void remove(experiment)} aria-label={`Delete ${experiment.name}`} className="grid size-9 place-items-center rounded-md border border-red-100 text-red-600"><Trash2 size={14} /></button>
+                  {experiment.status === "complete" ? <button type="button" onClick={() => void amend(experiment)} disabled={Boolean(experiment.amendedByExperimentId)} className="min-h-9 rounded-md border border-black/10 px-3 text-xs font-semibold text-black/60 disabled:opacity-40">{experiment.amendedByExperimentId ? "Amended" : "Amend"}</button> : <button type="button" onClick={() => setEditing(experiment)} aria-label={`Edit ${experiment.name}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/50"><Pencil size={14} /></button>}
+                  {experiment.status === "draft" ? <button type="button" onClick={() => void remove(experiment)} aria-label={`Delete ${experiment.name}`} className="grid size-9 place-items-center rounded-md border border-red-100 text-red-600"><Trash2 size={14} /></button> : null}
                 </div>
               </div>
               <div className="mt-4 grid gap-px overflow-hidden rounded-md border border-black/10 bg-black/10 sm:grid-cols-2">
@@ -115,16 +142,26 @@ function ExperimentDialog({
     setBusy(true);
     setError("");
     const data = new FormData(event.currentTarget);
+    const visitorsA = Number(data.get("visitorsA"));
+    const visitorsB = Number(data.get("visitorsB"));
+    const conversionsA = Number(data.get("conversionsA"));
+    const conversionsB = Number(data.get("conversionsB"));
+    if (conversionsA > visitorsA || conversionsB > visitorsB) {
+      setError("Conversions cannot exceed visitors for either variant.");
+      setBusy(false);
+      return;
+    }
     const payload = {
       id: experiment?.id,
+      expectedVersion: experiment?.version,
       clientId,
       name: data.get("name"),
       hypothesis: data.get("hypothesis"),
       primaryMetric: data.get("primaryMetric"),
       status: data.get("status"),
       variants: [
-        { id: "a", name: data.get("variantA"), visitors: Number(data.get("visitorsA")), conversions: Number(data.get("conversionsA")) },
-        { id: "b", name: data.get("variantB"), visitors: Number(data.get("visitorsB")), conversions: Number(data.get("conversionsB")) },
+        { id: experiment?.variants[0]?.id || "a", name: data.get("variantA"), visitors: visitorsA, conversions: conversionsA },
+        { id: experiment?.variants[1]?.id || "b", name: data.get("variantB"), visitors: visitorsB, conversions: conversionsB },
       ],
     };
     try {
@@ -151,13 +188,13 @@ function ExperimentDialog({
           <Field name="hypothesis" label="Hypothesis" defaultValue={experiment?.hypothesis} placeholder="A clearer outcome will increase contact enquiries." />
           <div className="grid gap-4 sm:grid-cols-2">
             <Field name="primaryMetric" label="Primary measure" defaultValue={experiment?.primaryMetric || "Form conversions"} required />
-            <label className="grid gap-1 text-xs font-medium text-black/60">Status<select name="status" defaultValue={experiment?.status || "draft"} className={control}><option value="draft">Draft</option><option value="running">Running</option><option value="paused">Paused</option><option value="complete">Complete</option></select></label>
+            <label className="grid gap-1 text-xs font-medium text-black/60">Status<select name="status" defaultValue={experiment?.status || "draft"} className={control}>{statusOptions(experiment?.status).map(status => <option key={status} value={status}>{status[0].toUpperCase() + status.slice(1)}</option>)}</select></label>
           </div>
           <div className="grid gap-4 rounded-md border border-black/10 p-4 sm:grid-cols-2">
             <VariantFields letter="A" variant={experiment?.variants[0]} />
             <VariantFields letter="B" variant={experiment?.variants[1]} />
           </div>
-          <p className="text-xs leading-5 text-black/45">Manual totals remain editable. Tagged events using this experiment ID and variant A or B are added automatically in reporting.</p>
+          <p className="text-xs leading-5 text-black/45">Manual totals remain editable until completion. Tagged events join by this experiment ID and each stable variant ID. Completed evidence is retained; later changes use a new amendment.</p>
         </div>
         {error ? <p className="mt-4 text-sm text-red-700">{error}</p> : null}
         <div className="mt-5 flex justify-end gap-2"><button type="button" onClick={onClose} className="min-h-10 px-3 text-sm">Cancel</button><button disabled={busy} className="min-h-10 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving..." : "Save test"}</button></div>
@@ -175,3 +212,11 @@ function Field({ name, label, defaultValue, placeholder, required, type = "text"
 }
 
 const control = "min-h-10 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/80 outline-none focus:border-black/35";
+
+function statusOptions(status?: PerformanceExperimentStatus): PerformanceExperimentStatus[] {
+  if (!status) return ["draft"];
+  if (status === "draft") return ["draft", "running"];
+  if (status === "running") return ["running", "paused", "complete"];
+  if (status === "paused") return ["paused", "running", "complete"];
+  return ["complete"];
+}

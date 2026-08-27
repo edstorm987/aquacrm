@@ -14,10 +14,11 @@ import { TopbarBackButton } from "@/components/chrome/TopbarBackButton";
 import type { NavPanel } from "@/lib/chrome/sidebarLayout";
 import type { ReactNode } from "react";
 import { ColorModeToggle } from "@/components/chrome/ColorModeToggle";
-import { PortalSearch } from "@/components/chrome/PortalSearch";
+import { DeferredPortalSearch } from "@/components/chrome/DeferredPortalSearch";
 import { PinCurrentControl, PinnedTabsBar } from "@/components/chrome/PinnedTabs";
 import { ShowcaseModeControl } from "@/components/chrome/ShowcaseModeControl";
 import { InspectorModeControl } from "@/components/chrome/InspectorModeControl";
+import { sharedChromeLinkPrefetch } from "@/lib/chrome/sharedChromeLinkPrefetch";
 import { PublicShowcaseControl } from "@/components/chrome/PublicShowcaseControl";
 import { PrivacyModeControl } from "@/components/chrome/PrivacyModeControl";
 import { DevConsoleControl } from "@/components/chrome/DevConsoleControl";
@@ -51,12 +52,14 @@ interface Props {
   homeHref?: string;
   homeLabel?: string;
   showcaseMode?: boolean;
+  /** Canonical private sandbox environment is active. */
+  sandboxMode?: boolean;
   publicShowcase?: boolean;
   /** Dev Mode (local/dev only) — surfaces the demo-persona toggle in the
    *  account menu. Both flags default off; only the agency layout sets them. */
   canUseDevMode?: boolean;
   devModeActive?: boolean;
-  /** Founder + Dev Mode — mount the ambient Dev Console peek. Server-decided:
+  /** Founder-only Dev Team access — mount the ambient Dev Console peek. Server-decided:
    *  each layout passes `canUseDevMode() && effectiveRole(session).isFounder`,
    *  so turning Dev Mode off removes the icon everywhere at once. */
   devConsole?: boolean;
@@ -73,10 +76,10 @@ interface Props {
   inspectingLabel?: string;
 }
 
-export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, sidebarVariant = "standard", isDemo, homeHref, homeLabel, showcaseMode, publicShowcase, canUseDevMode, devModeActive, devConsole, previewActive, notifications, radarControl, companySwitcher, advisorControl, privacyTerms, searchRecordsEnabled, inspecting, inspectingLabel }: Props) {
+export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, sidebarVariant = "standard", isDemo, homeHref, homeLabel, showcaseMode, sandboxMode, publicShowcase, canUseDevMode, devModeActive, devConsole, previewActive, notifications, radarControl, companySwitcher, advisorControl, privacyTerms, searchRecordsEnabled, inspecting, inspectingLabel }: Props) {
   const searchItems = panels?.flatMap(panel => panel.items.map(item => ({ label: item.label, href: item.href }))) ?? [];
   const recordsEnabled = searchRecordsEnabled ?? (role === "agency-owner" || role === "agency-manager" || role === "agency-staff");
-  const advisorEnabled = role === "agency-owner" || role === "agency-manager";
+  const advisorEnabled = !publicShowcase && (role === "agency-owner" || role === "agency-manager");
   return (
     <>
     <header className="mm-portal-topbar relative z-40 flex min-h-14 shrink-0 items-center justify-between gap-1.5 border-b border-black/10 bg-white/40 px-3 py-2 backdrop-blur-xl sm:gap-2 sm:px-4 md:px-6">
@@ -93,10 +96,10 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
       </div>
       <div className="flex shrink-0 flex-nowrap items-center gap-1 text-xs sm:gap-2 lg:gap-3">
         {!publicShowcase && companySwitcher ? <div className="mm-private-chrome hidden lg:block">{companySwitcher}</div> : null}
-        {searchItems.length ? <PortalSearch items={searchItems} recordsEnabled={recordsEnabled} /> : null}
-        {advisorEnabled ? advisorControl ?? <Link href="/portal/agency/assistant" aria-label="Open Aqua Advisor" className="inline-flex size-9 items-center justify-center gap-2 rounded-md border border-black/10 bg-white/60 text-black/55 transition hover:bg-white hover:text-black xl:w-auto xl:px-3"><Sparkles size={16} /><span className="hidden text-xs font-semibold xl:inline">Advisor</span></Link> : null}
+        {searchItems.length ? <DeferredPortalSearch items={searchItems} recordsEnabled={recordsEnabled} /> : null}
+        {advisorEnabled ? advisorControl ?? <Link href="/portal/agency/assistant" prefetch={sharedChromeLinkPrefetch()} aria-label="Open Aqua Advisor" className="inline-flex size-9 items-center justify-center gap-2 rounded-md border border-black/10 bg-white/60 text-black/55 transition hover:bg-white hover:text-black xl:w-auto xl:px-3"><Sparkles size={16} /><span className="hidden text-xs font-semibold xl:inline">Advisor</span></Link> : null}
         <PrivacyModeControl
-          canEnterShowcase={!publicShowcase && (role === "agency-owner" || role === "agency-manager")}
+          canEnterShowcase={!publicShowcase && !sandboxMode && role !== "lead"}
           showcaseMode={showcaseMode}
           sensitiveTerms={[email, name ?? "", ...(privacyTerms ?? [])]}
         />
@@ -108,18 +111,20 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
         {previewActive ? (
           <Link
             href="/portal/agency/phases"
+            prefetch={sharedChromeLinkPrefetch()}
             aria-label="Exit phase preview and return to your portal account"
             className="rounded-md border border-[#C9A76A]/60 bg-[#FAF7EE] px-2 py-1 text-[#8A6A2D] hover:bg-[#F4ECD9]"
           >
             <span aria-hidden>←</span> Back to portal account
           </Link>
-        ) : homeHref || (isDemo && !showcaseMode && !publicShowcase && !devModeActive) ? (
+        ) : homeHref || (isDemo && !showcaseMode && !sandboxMode && !publicShowcase && !devModeActive) ? (
           // One exit link. Existing callers pass neither prop → href "/" +
           // "Back to website" (unchanged demo behaviour). A caller that passes
           // homeHref (Dev Team → resolvePostLoginPath) shows it regardless of
           // demo/dev-mode, so the role-home exit is always the way out there.
           <Link
             href={homeHref ?? "/"}
+            prefetch={sharedChromeLinkPrefetch()}
             aria-label={homeLabel ?? "Back to website"}
             className="inline-flex size-9 shrink-0 items-center justify-center gap-1.5 rounded-md border border-black/10 bg-white text-black/70 hover:bg-black/5 lg:size-auto lg:px-2 lg:py-1"
           >

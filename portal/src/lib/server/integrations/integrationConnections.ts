@@ -5,6 +5,7 @@ import crypto from "node:crypto";
 import {
   INTEGRATION_CATALOG,
   integrationDefinition,
+  integrationSupportsClientScope,
   type IntegrationProvider,
 } from "@/lib/integrations/catalog";
 import type { PublicIntegrationConnection } from "@/lib/integrations/types";
@@ -13,6 +14,8 @@ import { logActivity } from "@/server/activity";
 import { getState, mutate } from "@/server/storage";
 import type { IntegrationConnection } from "@/server/types";
 import { testGoogleSearchConsole } from "@/lib/server/integrations/googleSearchConsole";
+import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
+import { withRemoteOperationDeadline } from "@/lib/server/remoteOperation";
 
 interface SaveIntegrationConnectionInput {
   agencyId: string;
@@ -44,6 +47,41 @@ export function listIntegrationConnections(agencyId: string): PublicIntegrationC
     .map(publicIntegrationConnection);
 }
 
+function sameScope(left: IntegrationConnection, right: IntegrationConnection): boolean {
+  return (left.clientId ?? "") === (right.clientId ?? "");
+}
+
+function connectionReady(connection: IntegrationConnection): boolean {
+  return connection.status === "connected" && connection.lastTestStatus === "passed";
+}
+
+/**
+ * Explicit active wins. Pre-migration tested rows have no `isActive` field, so
+ * the formerly selected newest row remains the effective default until one
+ * deliberate activation writes an explicit choice across the whole scope.
+ */
+function selectedConnection(connections: IntegrationConnection[]): IntegrationConnection | null {
+  const explicit = connections
+    .filter(connection => connection.isActive === true)
+    .sort((left, right) => (right.activatedAt ?? 0) - (left.activatedAt ?? 0));
+  if (explicit.length) return explicit[0];
+  const legacy = connections
+    .filter(connection => connection.isActive === undefined && connectionReady(connection))
+    .sort((left, right) => right.updatedAt - left.updatedAt || right.createdAt - left.createdAt || right.id.localeCompare(left.id));
+  return legacy[0] ?? null;
+}
+
+function scopedConnections(
+  agencyId: string,
+  provider: IntegrationProvider,
+  clientId?: string,
+): IntegrationConnection[] {
+  return Object.values(getState().integrationConnections).filter(connection =>
+    connection.agencyId === agencyId
+    && connection.provider === provider
+    && (connection.clientId ?? "") === (clientId ?? ""));
+}
+
 export function listManagedIntegrationProviders(agencyId: string): IntegrationProvider[] {
   return [...new Set(Object.values(getState().integrationConnections)
     .filter(connection => connection.agencyId === agencyId)
@@ -54,9 +92,10 @@ export function listManagedIntegrationProviders(agencyId: string): IntegrationPr
 // session-less global lookups (e.g. the Meta webhook, which must find which
 // agency an incoming request belongs to) where no agencyId is available up front.
 export function listAgencyIdsForProvider(provider: IntegrationProvider): string[] {
-  return [...new Set(Object.values(getState().integrationConnections)
+  const agencyIds = [...new Set(Object.values(getState().integrationConnections)
     .filter(connection => connection.provider === provider && !connection.clientId)
     .map(connection => connection.agencyId))];
+  return agencyIds.filter(agencyId => Boolean(selectedConnection(scopedConnections(agencyId, provider))));
 }
 
 export function getIntegrationConnection(
@@ -74,6 +113,7 @@ export function saveIntegrationConnection(input: SaveIntegrationConnectionInput)
     : null;
   if (input.connectionId && !existing) throw new Error("integration_not_found");
   if (existing && existing.provider !== input.provider) throw new Error("provider_cannot_change");
+  if (input.clientId && !integrationSupportsClientScope(input.provider)) throw new Error("integration_scope_unsupported");
 
   const allowedFields = new Set(definition.fields.map(field => field.id));
   const supplied = Object.fromEntries(Object.entries(input.values)
@@ -107,10 +147,16 @@ export function saveIntegrationConnection(input: SaveIntegrationConnectionInput)
     clientId: input.clientId || undefined,
     config,
     encryptedSecrets,
-    status: existing?.status === "connected" ? "saved" : existing?.status ?? "saved",
+    status: "saved",
     lastTestedAt: existing?.lastTestedAt,
     lastTestStatus: existing?.lastTestStatus,
     lastTestMessage: existing?.lastTestMessage,
+    // Saving credential/config bytes never silently makes them live. The
+    // immediate test can activate this row only when its scope has no active
+    // connection; replacements require a deliberate activation.
+    isActive: false,
+    activatedAt: existing?.activatedAt,
+    activatedBy: existing?.activatedBy,
     createdBy: existing?.createdBy ?? input.actorUserId,
     updatedBy: input.actorUserId,
     createdAt: existing?.createdAt ?? now,
@@ -152,18 +198,54 @@ export function revokeIntegrationConnection(input: {
   return publicIntegrationConnection(existing);
 }
 
+export function activateIntegrationConnection(input: {
+  agencyId: string;
+  connectionId: string;
+  actorUserId: string;
+  actorEmail?: string;
+  /** Specialised settings forms make an explicit live configuration choice. */
+  allowUntested?: boolean;
+}): PublicIntegrationConnection {
+  const connection = getIntegrationConnection(input.agencyId, input.connectionId);
+  if (!connection) throw new Error("integration_not_found");
+  if (!connectionReady(connection) && !input.allowUntested) throw new Error("integration_must_pass_test");
+  const activatedAt = Date.now();
+  let activated: IntegrationConnection = connection;
+  mutate(state => {
+    for (const candidate of Object.values(state.integrationConnections)) {
+      if (candidate.agencyId !== connection.agencyId || candidate.provider !== connection.provider || !sameScope(candidate, connection)) continue;
+      const isActive = candidate.id === connection.id;
+      const next = {
+        ...candidate,
+        isActive,
+        ...(isActive ? { activatedAt, activatedBy: input.actorUserId } : {}),
+      };
+      state.integrationConnections[candidate.id] = next;
+      if (isActive) activated = next;
+    }
+  });
+  logActivity({
+    agencyId: input.agencyId,
+    clientId: connection.clientId,
+    actorUserId: input.actorUserId,
+    actorEmail: input.actorEmail,
+    category: "integrations",
+    action: "integration.activated",
+    message: `Activated ${integrationDefinition(connection.provider).name} connection “${connection.label}”.`,
+    metadata: { connectionId: connection.id, provider: connection.provider, scope: connection.clientId ? "client" : "workspace" },
+  });
+  return publicIntegrationConnection(activated);
+}
+
 export function resolveIntegrationValues(
   agencyId: string,
   provider: IntegrationProvider,
   options: ResolveIntegrationOptions = {},
 ): Record<string, string> {
-  const connections = Object.values(getState().integrationConnections)
-    .filter(connection => connection.agencyId === agencyId && connection.provider === provider)
-    .sort((left, right) => right.updatedAt - left.updatedAt);
   const selected = options.clientId
-    ? connections.find(connection => connection.clientId === options.clientId)
-      ?? connections.find(connection => !connection.clientId)
-    : connections.find(connection => !connection.clientId);
+    ? selectedConnection(scopedConnections(agencyId, provider, options.clientId))
+      ?? selectedConnection(scopedConnections(agencyId, provider))
+    : selectedConnection(scopedConnections(agencyId, provider));
   const managed = selected ? privateValues(selected) : {};
   if (Object.keys(managed).length || options.includeEnvironmentFallback === false) return managed;
   // The environment's credentials belong to the FOUNDER'S agency, not to
@@ -185,6 +267,18 @@ export function resolveIntegrationConnectionValues(
   return privateValues(connection);
 }
 
+/** Resolve an explicitly selected connection without crossing its client boundary. */
+export function resolveScopedIntegrationConnectionValues(
+  agencyId: string,
+  connectionId: string,
+  clientId?: string,
+): Record<string, string> {
+  const connection = getIntegrationConnection(agencyId, connectionId);
+  if (!connection) throw new Error("integration_not_found");
+  if (connection.clientId && connection.clientId !== clientId) throw new Error("integration_scope_mismatch");
+  return privateValues(connection);
+}
+
 export function markIntegrationConnectionSynced(
   agencyId: string,
   connectionId: string,
@@ -192,10 +286,20 @@ export function markIntegrationConnectionSynced(
 ): PublicIntegrationConnection {
   const connection = getIntegrationConnection(agencyId, connectionId);
   if (!connection) throw new Error("integration_not_found");
+  const selected = selectedConnection(scopedConnections(agencyId, connection.provider, connection.clientId));
+  const shouldActivate = !selected || selected.id === connection.id;
   const updated: IntegrationConnection = {
     ...connection,
     config: { ...connection.config, lastSyncAt: String(syncedAt) },
     status: "connected",
+    lastTestedAt: syncedAt,
+    lastTestStatus: "passed",
+    lastTestMessage: "Google Search Console sync succeeded.",
+    isActive: shouldActivate,
+    ...(shouldActivate ? {
+      activatedAt: connection.activatedAt ?? syncedAt,
+      activatedBy: connection.activatedBy ?? connection.updatedBy,
+    } : {}),
     updatedAt: syncedAt,
   };
   mutate(state => { state.integrationConnections[connectionId] = updated; });
@@ -208,15 +312,19 @@ export async function testIntegrationConnection(
   actor: { userId: string; email?: string },
   fetchImpl: typeof fetch = fetch,
 ): Promise<PublicIntegrationConnection> {
+  assertLiveProviderAccess("Integration connection testing");
   const connection = getIntegrationConnection(agencyId, connectionId);
   if (!connection) throw new Error("integration_not_found");
   const values = privateValues(connection);
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), TEST_TIMEOUT_MS);
   let passed = false;
   let message = "Connection could not be verified.";
   try {
-    message = await testProvider(connection.provider, values, fetchImpl, controller.signal);
+    message = await withRemoteOperationDeadline({
+      operation: `${integrationDefinition(connection.provider).name} connection test`,
+      budget: "providerRead",
+      outcome: "read",
+      timeoutMs: TEST_TIMEOUT_MS,
+    }, signal => testProvider(connection.provider, values, fetchImpl, signal));
     passed = true;
   } catch (error) {
     // Every decrypted secret this test just used, so the scrubber can remove
@@ -224,11 +332,14 @@ export async function testIntegrationConnection(
     message = safeTestMessage(error, Object.keys(connection.encryptedSecrets)
       .map(key => values[key] ?? "")
       .filter(Boolean));
-  } finally {
-    clearTimeout(timeout);
   }
 
   const testedAt = Date.now();
+  // Decide at COMMIT time, after the provider await. If another request
+  // activated a row while this test was in flight, this test must not reorder
+  // that newer deliberate choice.
+  const selectedAtCommit = selectedConnection(scopedConnections(agencyId, connection.provider, connection.clientId));
+  const shouldActivate = passed && (!selectedAtCommit || selectedAtCommit.id === connection.id);
   const updated: IntegrationConnection = {
     ...connection,
     status: passed ? "connected" : "needs-attention",
@@ -236,7 +347,10 @@ export async function testIntegrationConnection(
     lastTestStatus: passed ? "passed" : "failed",
     lastTestMessage: message,
     updatedBy: actor.userId,
-    updatedAt: testedAt,
+    isActive: shouldActivate,
+    ...(shouldActivate
+      ? { activatedAt: connection.activatedAt ?? testedAt, activatedBy: connection.activatedBy ?? actor.userId }
+      : {}),
   };
   mutate(state => { state.integrationConnections[connection.id] = updated; });
   logActivity({
@@ -265,6 +379,8 @@ export function publicIntegrationConnection(connection: IntegrationConnection): 
     lastTestedAt: connection.lastTestedAt,
     lastTestStatus: connection.lastTestStatus,
     lastTestMessage: connection.lastTestMessage,
+    isActive: selectedConnection(scopedConnections(connection.agencyId, connection.provider, connection.clientId))?.id === connection.id,
+    activatedAt: connection.activatedAt,
     createdAt: connection.createdAt,
     updatedAt: connection.updatedAt,
   };

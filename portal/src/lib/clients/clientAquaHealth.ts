@@ -5,7 +5,7 @@ import { formatUkDate } from "@/lib/shared/formatDateTime";
 export type AquaHealthState = "strong" | "watch" | "risk" | "learning";
 
 export interface AquaHealthInvoiceEvidence {
-  status: "draft" | "sent" | "paid" | "overdue" | "void" | "refunded";
+  status: "draft" | "sent" | "paid" | "overdue" | "void" | "partially-refunded" | "refunded";
   dueAt: number;
   paidAt?: number;
   totalCents: number;
@@ -108,8 +108,8 @@ function paymentFactor(connected: boolean, invoices: AquaHealthInvoiceEvidence[]
   if (!connected) return learning(base, "Finance is not connected, so payment behaviour cannot be assessed.", ["Connect Agency Finance to activate this signal."]);
   const relevant = invoices.filter(invoice => !["void", "refunded"].includes(invoice.status));
   const paid = relevant.filter(invoice => invoice.status === "paid");
-  const unpaidPastDue = relevant.filter(invoice => ["sent", "overdue"].includes(invoice.status) && invoice.dueAt < now);
-  const open = relevant.filter(invoice => invoice.status === "sent" && invoice.dueAt >= now);
+  const unpaidPastDue = relevant.filter(invoice => ["sent", "overdue", "partially-refunded"].includes(invoice.status) && invoice.dueAt < now);
+  const open = relevant.filter(invoice => ["sent", "partially-refunded"].includes(invoice.status) && invoice.dueAt >= now);
   if (!relevant.length || relevant.every(invoice => invoice.status === "draft")) {
     return learning(base, "No issued or paid invoice history exists yet.", [`${relevant.length} draft invoice${relevant.length === 1 ? "" : "s"}`]);
   }

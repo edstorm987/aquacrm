@@ -33,6 +33,7 @@ export function FeaturedProducts({ products, title = "Featured", productHrefBase
               type="button"
               onClick={() => cart.addItem({
                 id: p.slug,
+                productId: p.id,
                 name: p.name,
                 price: p.price,
                 stockSku: p.stockSku,

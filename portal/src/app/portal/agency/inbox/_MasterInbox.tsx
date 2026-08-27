@@ -17,6 +17,7 @@ import { SocialInboxWorkspace } from "./_SocialInboxWorkspace";
 import { EnquiryDetailCard } from "./_EnquiryDetailCard";
 import { UnifiedInboxWorkspace, type UnifiedClientProfile } from "./_UnifiedInboxWorkspace";
 import { AttentionDot, useNotificationAttention } from "@/components/chrome/NotificationAttentionProvider";
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 import { resolveAttentionThreadKey, type AttentionThreadCandidate } from "@/lib/inbox/attentionThread";
 import { resolveAttentionAction } from "@/lib/inbox/attentionResolution";
 import {
@@ -102,7 +103,7 @@ function companyFilterOptions(items: Array<Pick<WebsiteEnquiry, "routedCompanyId
     .sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id));
 }
 
-export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsError, conversations, socialInbox, socialInboxError, metaReadiness, currentUserId, communicationReadiness, clientProfiles, updates, canErase, canManageChannels, channelClients, actionsSlot }: { referenceNow: number; alerts: OperationalAlertView[]; websiteForms: WebsiteEnquiry[]; websiteFormsError: string | null; conversations: Conversation[]; socialInbox: InboxSnapshot; socialInboxError: string | null; metaReadiness: MetaInboxReadiness; currentUserId: string; communicationReadiness: OutboundCommunicationReadiness; clientProfiles: UnifiedClientProfile[]; updates: Update[]; canErase: boolean; canManageChannels: boolean; channelClients: Array<{ id: string; name: string }>; actionsSlot?: ReactNode }) {
+export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsError, conversations, socialInbox, socialInboxError, metaReadiness, currentUserId, communicationReadiness, clientProfiles, updates, canErase, canManageChannels, channelClients, actionsSlot, readOnly = false }: { referenceNow: number; alerts: OperationalAlertView[]; websiteForms: WebsiteEnquiry[]; websiteFormsError: string | null; conversations: Conversation[]; socialInbox: InboxSnapshot; socialInboxError: string | null; metaReadiness: MetaInboxReadiness; currentUserId: string; communicationReadiness: OutboundCommunicationReadiness; clientProfiles: UnifiedClientProfile[]; updates: Update[]; canErase: boolean; canManageChannels: boolean; channelClients: Array<{ id: string; name: string }>; actionsSlot?: ReactNode; readOnly?: boolean }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedView = searchParams.get("view");
@@ -112,6 +113,7 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
   const [view, setView] = useState<View>(initialView);
   const [query, setQuery] = useState("");
   const [teamNote, setTeamNote] = useState("");
+  const [teamNoteError, setTeamNoteError] = useState<string | null>(null);
   const [openThread, setOpenThread] = useState<string | null>(searchParams.get("thread"));
   const [openForm, setOpenForm] = useState<string | null>(searchParams.get("form"));
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
@@ -160,15 +162,19 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
     event.preventDefault();
     if (!teamNote.trim()) return;
     setBusy(true);
-    const response = await fetch("/api/portal/master-inbox/message", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ message: teamNote }),
-    });
-    setBusy(false);
-    if (response.ok) {
+    setTeamNoteError(null);
+    try {
+      await checkedJsonMutation("/api/portal/master-inbox/message", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ message: teamNote }),
+      }, { fallback: "The team note could not be posted." });
       setTeamNote("");
       router.refresh();
+    } catch (requestError) {
+      setTeamNoteError(mutationErrorMessage(requestError, "The team note could not be posted."));
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -177,102 +183,114 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
     if (!reply) return;
     setBusy(true);
     setConversationReplyError(current => ({ ...current, [item.id]: "" }));
-    const response = await fetch("/api/tenants/client-requests", {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ clientId: item.clientId, requestId: item.id, reply }),
-    });
-    const payload = await response.json().catch(() => null) as { error?: string } | null;
-    setBusy(false);
-    if (response.ok) {
+    try {
+      await checkedJsonMutation("/api/tenants/client-requests", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ clientId: item.clientId, requestId: item.id, reply }),
+      }, { fallback: "The client reply could not be sent." });
       setReplyDrafts(current => ({ ...current, [item.id]: "" }));
       router.refresh();
-      return;
+    } catch (requestError) {
+      setConversationReplyError(current => ({
+        ...current,
+        [item.id]: mutationErrorMessage(requestError, "The client reply could not be sent."),
+      }));
+    } finally {
+      setBusy(false);
     }
-    setConversationReplyError(current => ({ ...current, [item.id]: payload?.error || "The client reply could not be sent." }));
   }
 
   async function updateConversationStatus(item: Conversation, status: "open" | "reviewed" | "closed") {
     setBusy(true);
-    const response = await fetch("/api/tenants/client-requests", {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ clientId: item.clientId, requestId: item.id, status }),
-    });
-    setBusy(false);
-    if (response.ok) router.refresh();
+    setConversationReplyError(current => ({ ...current, [item.id]: "" }));
+    try {
+      await checkedJsonMutation("/api/tenants/client-requests", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ clientId: item.clientId, requestId: item.id, status }),
+      }, { fallback: "The conversation status could not be updated." });
+      router.refresh();
+    } catch (requestError) {
+      setConversationReplyError(current => ({
+        ...current,
+        [item.id]: mutationErrorMessage(requestError, "The conversation status could not be updated."),
+      }));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function linkFormToLead(item: WebsiteEnquiry) {
     setLeadBusyId(item.id);
     setLeadError(current => ({ ...current, [item.id]: "" }));
-    const response = await fetch("/api/portal/website-enquiries/lead", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ enquiryId: item.id }),
-    });
-    const payload = await response.json().catch(() => null) as { error?: string } | null;
-    setLeadBusyId(null);
-    if (!response.ok) {
+    try {
+      await checkedJsonMutation("/api/portal/website-enquiries/lead", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ enquiryId: item.id }),
+      }, { fallback: "The submission could not be linked to sales." });
+      router.refresh();
+    } catch (requestError) {
       setLeadError(current => ({
         ...current,
-        [item.id]: payload?.error || "The submission could not be linked to sales.",
+        [item.id]: mutationErrorMessage(requestError, "The submission could not be linked to sales."),
       }));
-      return;
+    } finally {
+      setLeadBusyId(null);
     }
-    router.refresh();
   }
 
   async function updateWebsiteStatus(item: WebsiteEnquiry, status: WebsiteEnquiry["status"]) {
     setStatusBusyId(item.id);
     setStatusError(current => ({ ...current, [item.id]: "" }));
-    const response = await fetch("/api/portal/website-enquiries/status", {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ enquiryId: item.id, status }),
-    });
-    const payload = await response.json().catch(() => null) as { error?: string } | null;
-    setStatusBusyId(null);
-    if (!response.ok) {
-      setStatusError(current => ({ ...current, [item.id]: payload?.error || "The status could not be updated." }));
-      return;
+    try {
+      await checkedJsonMutation("/api/portal/website-enquiries/status", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ enquiryId: item.id, status }),
+      }, { fallback: "The status could not be updated." });
+      router.refresh();
+    } catch (requestError) {
+      setStatusError(current => ({ ...current, [item.id]: mutationErrorMessage(requestError, "The status could not be updated.") }));
+    } finally {
+      setStatusBusyId(null);
     }
-    router.refresh();
   }
 
   async function eraseWebsiteEnquiry(item: WebsiteEnquiry) {
     setStatusBusyId(item.id);
     setStatusError(current => ({ ...current, [item.id]: "" }));
-    const response = await fetch("/api/portal/website-enquiries/erase", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ enquiryId: item.id }),
-    });
-    const payload = await response.json().catch(() => null) as { error?: string } | null;
-    setStatusBusyId(null);
-    if (!response.ok) {
-      setStatusError(current => ({ ...current, [item.id]: payload?.error || "The enquiry could not be deleted." }));
-      return;
+    try {
+      await checkedJsonMutation("/api/portal/website-enquiries/erase", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ enquiryId: item.id }),
+      }, { fallback: "The enquiry could not be deleted." });
+      router.refresh();
+    } catch (requestError) {
+      setStatusError(current => ({ ...current, [item.id]: mutationErrorMessage(requestError, "The enquiry could not be deleted.") }));
+    } finally {
+      setStatusBusyId(null);
     }
-    router.refresh();
   }
 
   async function classifyWebsiteEnquiry(item: WebsiteEnquiry, classification: WebsiteEnquiryClassification) {
     if (classification === item.classification) return;
     setClassificationBusyId(item.id);
     setClassificationError(current => ({ ...current, [item.id]: "" }));
-    const response = await fetch("/api/portal/website-enquiries/classification", {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ enquiryId: item.id, classification }),
-    });
-    const payload = await response.json().catch(() => null) as { error?: string } | null;
-    setClassificationBusyId(null);
-    if (!response.ok) {
-      setClassificationError(current => ({ ...current, [item.id]: payload?.error || "The enquiry could not be routed." }));
-      return;
+    try {
+      await checkedJsonMutation("/api/portal/website-enquiries/classification", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ enquiryId: item.id, classification }),
+      }, { fallback: "The enquiry could not be routed." });
+      router.refresh();
+    } catch (requestError) {
+      setClassificationError(current => ({ ...current, [item.id]: mutationErrorMessage(requestError, "The enquiry could not be routed.") }));
+    } finally {
+      setClassificationBusyId(null);
     }
-    router.refresh();
   }
 
   return <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
@@ -283,12 +301,13 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
         <p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">Messages, support, production alerts, money, meetings, and business performance in one place.</p>
       </div>
       <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
+        {!readOnly ? <>
         <Link href="/portal/agency/email-sender" className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 font-semibold text-black/65 hover:border-black/25 hover:text-black">
           <Mail size={15} aria-hidden="true" /> Email operations
         </Link>
         <Link href="/portal/agency/activity-inbox" className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 font-semibold text-black/65 hover:border-black/25 hover:text-black">
           <Clock3 size={15} aria-hidden="true" /> Activity log
-        </Link>
+        </Link></> : <span className="rounded-full bg-sky-50 px-3 py-1.5 font-semibold text-sky-700">Read-only showcase</span>}
         <span className={`rounded-full px-3 py-1.5 font-medium ${urgent ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`}>{urgent ? `${urgent} urgent` : "No urgent issues"}</span>
         <span className="rounded-full bg-black/[0.04] px-3 py-1.5 text-black/55">{attentionAlerts.length} open</span>
       </div>
@@ -306,6 +325,8 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
       <Tab active={view === "updates"} onClick={() => setView("updates")} label="Updates" count={updates.length} icon={Bell} />
       <Tab active={view === "channels"} onClick={() => setView("channels")} label="Channels" icon={Inbox} />
     </nav>
+
+    <fieldset disabled={readOnly} className="contents">
 
     {view !== "all" && view !== "channels" && view !== "social" && view !== "actions" ? <div className="flex flex-wrap gap-2"><label className="relative min-w-0 flex-1 basis-full sm:basis-auto"><span className="sr-only">Search inbox</span><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-black/35" /><input value={query} onChange={event => setQuery(event.target.value)} className="min-h-11 w-full rounded-md border border-black/15 bg-white pl-10 pr-3 text-sm outline-none focus:border-black/35" placeholder="Search everything in this inbox" /></label>{view === "forms" || view === "chatbot" || view === "support" ? <select value={classificationFilter} onChange={event => setClassificationFilter(event.target.value as WebsiteEnquiryClassification | "all")} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/70 sm:w-auto" aria-label="Filter enquiries by classification"><option value="all">Every classification</option>{WEBSITE_ENQUIRY_CLASSIFICATIONS.map(value => <option key={value} value={value}>{WEBSITE_ENQUIRY_CLASSIFICATION_LABELS[value]}</option>)}</select> : null}{(view === "forms" || view === "chatbot" || view === "support") && companyOptions.length ? <select value={companyFilter} onChange={event => setCompanyFilter(event.target.value)} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/70 sm:w-auto" aria-label="Filter enquiries by company"><option value={COMPANY_FILTER_ALL}>Every destination</option><option value={COMPANY_FILTER_NONE}>Agency inbox only</option>{companyOptions.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select> : null}</div> : null}
 
@@ -328,7 +349,7 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
         {visibleAlerts.map(alert => {
           const resolution = resolveAttentionAction(alert);
           const contactThreadKey = resolution.opensInboxThread ? resolveAttentionThreadKey(alert, attentionThreadCandidates) : null;
-          return <AlertRow key={alert.id} alert={alert} contactAvailable={Boolean(contactThreadKey)} onContact={() => openAttentionContact(alert)} busy={notificationAttention?.busyAlertId === alert.id} onAction={(action, parkedUntil) => notificationAttention?.updateAlert(alert.id, action, parkedUntil) ?? Promise.resolve(false)} />;
+          return <AlertRow key={alert.id} alert={alert} contactAvailable={Boolean(contactThreadKey)} onContact={() => openAttentionContact(alert)} busy={notificationAttention?.isAlertBusy(alert.id) ?? false} onAction={(action, parkedUntil) => notificationAttention?.updateAlert(alert.id, action, parkedUntil) ?? Promise.resolve(false)} />;
         })}
       </div>
       {!visibleAlerts.length ? <Empty icon={<CircleCheck size={25} />} title="Nothing needs attention" detail="Support, monitoring, overdue money, meetings, client health, and campaign pacing are clear." /> : null}
@@ -439,7 +460,7 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
 
     {view === "updates" ? <section className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_340px]">
       <div><SectionHeader title="Business updates" detail="The latest changes across clients, billing, projects, support, and systems." /><div className="mt-3 grid gap-2">{visibleUpdates.map(item => <div key={item.id} className="mm-surface-card mm-interactive-row rounded-md p-3"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm font-medium text-black/75">{item.message}</p><p className="mt-1 text-xs text-black/40">{item.category.replaceAll("-", " ")} · {item.actorEmail ?? "System"}</p></div><time className="text-xs text-black/35">{formatDate(item.ts)}</time></div>{item.clientId ? <Link href={`/portal/clients/${item.clientId}`} className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-brand">Open client <ExternalLink size={12} /></Link> : null}</div>)}</div></div>
-      <form onSubmit={sendTeamNote} className="mm-surface-card h-fit rounded-md p-4"><div className="flex items-center gap-2"><Users size={17} className="text-black/40" /><h2 className="text-sm font-semibold text-black/75">Team notes</h2></div><p className="mt-1 text-xs leading-5 text-black/45">Leave a shared internal update for everyone working in AquaOasis-Web.</p><textarea value={teamNote} onChange={event => setTeamNote(event.target.value)} rows={5} className="mt-3 w-full rounded-md border border-black/15 px-3 py-2 text-sm" placeholder="What should the team know?" /><button disabled={busy || !teamNote.trim()} className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white disabled:opacity-40"><Send size={14} />{busy ? "Posting..." : "Post note"}</button></form>
+      <form onSubmit={sendTeamNote} className="mm-surface-card h-fit rounded-md p-4"><div className="flex items-center gap-2"><Users size={17} className="text-black/40" /><h2 className="text-sm font-semibold text-black/75">Team notes</h2></div><p className="mt-1 text-xs leading-5 text-black/45">Leave a shared internal update for everyone working in AquaOasis-Web.</p><textarea value={teamNote} onChange={event => setTeamNote(event.target.value)} rows={5} className="mt-3 w-full rounded-md border border-black/15 px-3 py-2 text-sm" placeholder="What should the team know?" />{teamNoteError ? <p role="alert" className="mt-2 text-xs text-red-700">{teamNoteError}</p> : null}<button disabled={busy || !teamNote.trim()} className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white disabled:opacity-40"><Send size={14} />{busy ? "Posting..." : "Post note"}</button></form>
     </section> : null}
 
     {view === "channels" ? <section className="grid gap-6">
@@ -463,6 +484,7 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
       </div>
       </div>
     </section> : null}
+    </fieldset>
   </div>;
 }
 

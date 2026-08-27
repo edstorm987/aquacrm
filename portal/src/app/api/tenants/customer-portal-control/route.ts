@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ensureHydrated } from "@/server/storage";
-import { getSessionFromRequest } from "@/lib/server/auth/auth";
+import { authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
 import { isAgencyRole } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { logActivity } from "@/server/activity";
@@ -9,6 +9,7 @@ import { resolvePortalProductAssignment } from "@/lib/products/productAssignment
 import { ensureClientPortalInstance, ensureProductPortalTemplate } from "@/server/clientPortalDesigns";
 import { getAgencyProduct, listAgencyProducts } from "@/server/agencyProducts";
 import { reconcileClientProductWorkspaces } from "@/server/productWorkspaces";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 type PortalMode = "onboarding" | "designing" | "developed-launch" | "maintenance";
 
@@ -113,6 +114,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "unsupported action" }, { status: 400 });
   }
   const agencyId = session.activeAgencyId ?? session.agencyId;
+  try {
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.portal", "manage");
+  } catch (error) {
+    return authErrorResponse(error);
+  }
   const client = getClientForAgency(agencyId, clientId);
   if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
   if (action !== "build-portal" && typeof client.metadata?.portalBuiltAt !== "number") {

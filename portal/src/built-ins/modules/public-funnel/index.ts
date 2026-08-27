@@ -30,13 +30,12 @@ const manifest: AquaPlugin = {
   tagline: "Health Check + tool completions → lead user → auto-signin into BOS.",
   description:
     "The public funnel link. Static `public/health-check/` POSTs the " +
-    "completed slot here; this plugin upserts a `lead` user via the " +
+    "completed slot through `/api/public/health-check/complete`; this plugin upserts a `lead` user via the " +
     "foundation `LeadUserPort`, captures the slot for BOS " +
     "personalisation, issues a session via `SessionPort`, and " +
-    "responds with `{ redirect: '/business-os' }` so the browser " +
-    "lands signed-in. Idempotent on canonical email — re-completing " +
-    "the HC reuses the existing lead user without creating a " +
-    "duplicate. Future Resources tools (rank-my-website, …) hit " +
+    "responds with a BOS redirect so the browser lands signed-in. " +
+    "Lead identity is reused by canonical email; a stable completion id " +
+    "makes capture retries reuse the same authoritative row. Future Resources tools (rank-my-website, …) hit " +
     "`tool-complete` with the same shape.",
 
   core: true,
@@ -68,7 +67,7 @@ const manifest: AquaPlugin = {
             label: "Issue Set-Cookie on capture",
             type: "boolean",
             default: true,
-            helpText: "When on, the capture handlers set the `aqua_session` cookie so the lead is signed in. Turn off for testing or if BOS handles its own auth bridge.",
+            helpText: "When on, the legacy plugin capture handlers set the `lk_session_v1` cookie so the lead is signed in. The mounted Health Check uses the foundation-owned public completion route.",
           },
         ],
       },

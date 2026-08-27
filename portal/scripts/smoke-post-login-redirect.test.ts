@@ -44,11 +44,15 @@ describe("Post-login redirect resolver (R022)", () => {
     const src = readFileSync(RESOLVER, "utf8");
     assert.ok(src.includes('case "client-owner"'));
     assert.ok(src.includes('case "client-staff"'));
-    assert.ok(src.includes('case "freelancer"'));
     assert.ok(src.includes("`/portal/clients/${client.slug}`"));
     // Fallback path on missing client / clientId.
     assert.ok(src.includes('if (!src.clientId) return "/portal/agency"'));
     assert.ok(src.includes('if (!client) return "/portal/agency"'));
+  });
+
+  it("freelancers route to their own workspace", () => {
+    const src = readFileSync(RESOLVER, "utf8");
+    assert.match(src, /case "freelancer":\s*return "\/portal\/freelancer";/);
   });
 
   it("end-customer routes to /portal/customer", () => {

@@ -112,6 +112,30 @@
   }
   function setProgress(p) { setJSON(KEY_PROGRESS, p); }
 
+  function hydrateHealthCheckFromServer() {
+    fetch('/api/public/business-os/context', { credentials: 'same-origin' })
+      .then(function (response) { return response.ok ? response.json() : null; })
+      .then(function (result) {
+        var slot = result && result.ok && result.context ? result.context.hcSlot : null;
+        var summary = slot && slot.summary;
+        if (!summary || typeof summary !== 'object') return;
+        setJSON(KEY_HEALTH, summary);
+        var progress = getProgress();
+        if (!progress.completed.healthCheck) {
+          progress.completed.healthCheck = true;
+          progress.xp += 250;
+          progress.timeSavedHrs += 8;
+          if (progress.achievements.indexOf('self-aware') === -1) progress.achievements.push('self-aware');
+          setProgress(progress);
+        }
+        paintHealthCheck();
+        paintProgress();
+      })
+      .catch(function () {
+        /* Signed-out/browser-only BOS remains fully usable from local state. */
+      });
+  }
+
   function getNiche() {
     var u = getUser();
     return (u && u.niche) || 'generic';
@@ -381,7 +405,7 @@
          + '</div>';
 
     html += '<div class="bos-side-section bos-side-cta-section">'
-         +    '<a href="/#contact" class="bos-side-become-client">'
+         +    '<a href="/milesymedia/contact" class="bos-side-become-client">'
          +      '<span class="ico">★</span> Become a client'
          +      '<span class="bos-side-become-sub">Hand it to us</span>'
          +    '</a>'
@@ -600,8 +624,19 @@
       });
       return;
     }
+    function safeAttribute(value) {
+      return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) {
+        return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c];
+      });
+    }
     body.innerHTML = a.history.map(function (m) {
-      return '<div class="bos-ai-msg bos-ai-msg-' + m.role + '">' + m.text + '</div>';
+      var actions = Array.isArray(m.actions) && m.actions.length
+        ? '<div class="bos-ai-actions">' + m.actions.map(function (action) {
+            var external = /^https?:|^mailto:|^tel:/.test(action.href || '') ? ' target="_blank" rel="noopener"' : '';
+            return '<a href="' + safeAttribute(action.href) + '"' + external + '>' + safeAttribute(action.label) + ' →</a>';
+          }).join('') + '</div>'
+        : '';
+      return '<div class="bos-ai-msg bos-ai-msg-' + m.role + '">' + m.text + actions + '</div>';
     }).join('');
     body.scrollTop = body.scrollHeight;
   }
@@ -617,12 +652,14 @@
     setAi(a); paintAi();
     setTimeout(function () {
       var reply;
+      var suggestedActions = [];
       /* Prefer the shared AquaAI scripted companion (R007). Falls back
          to the legacy keyword-router below when AquaAI hasn't loaded
          (e.g. tests or stale cached HTML). */
       if (window.AquaAI && typeof window.AquaAI.respondTo === 'function') {
         var res = window.AquaAI.respondTo(q);
         reply = res.reply;
+        suggestedActions = res.suggestedActions || [];
       } else {
         var hc = getJSON(KEY_HEALTH, null);
         var nm = nicheMeta();
@@ -642,7 +679,7 @@
         }
       }
       a = getAi();
-      a.history.push({ role: 'bot', text: reply });
+      a.history.push({ role: 'bot', text: reply, actions: suggestedActions });
       setAi(a); paintAi();
     }, 700);
   }
@@ -765,7 +802,7 @@
       +   '<p>' + t.blurb + '</p>'
       +   '<p class="muted">This isn\'t in your free tier yet — but if you\'d find it useful, we can switch it on for you. Most requests we already have built.</p>'
       +   '<div class="hc-actions" style="justify-content:center">'
-      +     '<a href="/#contact" class="btn btn-primary">Request access →</a>'
+      +     '<a href="/milesymedia/contact" class="btn btn-primary">Request access →</a>'
       +     '<a href="tools.html" class="btn btn-secondary">See all tools</a>'
       +   '</div>'
       + '</div>';
@@ -840,7 +877,7 @@
     var bar = document.createElement('div');
     bar.setAttribute('data-bos-trial-banner', '');
     bar.style.cssText = 'background:' + (kind === 'warn' ? '#3a2a14' : '#0F1420') + ';color:#D4B888;border-bottom:1px solid #2A2A2A;padding:10px 16px;font-size:13px;text-align:center;letter-spacing:0.02em;';
-    bar.innerHTML = msg + ' <a href="/#contact" style="color:#D4B888;font-weight:700;margin-left:8px">Talk to Milesymedia →</a>';
+    bar.innerHTML = msg + ' <a href="/milesymedia/contact" style="color:#D4B888;font-weight:700;margin-left:8px">Talk to Milesymedia →</a>';
     document.body.insertBefore(bar, document.body.firstChild);
   }
 
@@ -921,6 +958,7 @@
     tickStreak();
     paintProgress();
     paintHealthCheck();
+    hydrateHealthCheckFromServer();
     mountMobileNav();
     mountTierUI();
     mountDevBar();

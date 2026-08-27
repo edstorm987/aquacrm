@@ -13,6 +13,14 @@ planned.
 > consent**, and routes what it captures to the right inbox — the agency's, or a
 > specific client's.
 
+> **2026-08-26 authority clarification:** Aqua Tag is the consented marketing,
+> telemetry, managed-injection, form-routing and optional remote-inspection
+> bridge. It is **not** the code source of truth. For a repository-backed Dev
+> Workspace, the isolated branch/worktree is authoritative and its supervised
+> local preview works without Aqua Tag. When source is unavailable, Tag evidence
+> can help inspect an authorised remote site but cannot promise or manufacture
+> its private backend implementation.
+
 ---
 
 ## 1. The tag script
@@ -92,7 +100,7 @@ credential. Shows the site key, the paste snippet (`masterTagSnippet`), the
 `/api/public/form-capture`, `/api/telemetry/collect`) and the injectable
 allow-list — all **derived** from `AQUA_TAG_SOURCE` / `INJECTION_PROVIDERS`,
 never retyped. Detection, routing and injection *config* are NOT duplicated: it
-links to §3a. Founder + Dev Mode only.
+links to §3a. Deployment-founder only; local Dev Mode fixtures also pass.
 - It warns when `NEXT_PUBLIC_PORTAL_BASE_URL` is unset, because
   `connectionLinkOrigin()` then falls back to the request origin and the snippet
   would be pasted into a real site pointing at a dev host.

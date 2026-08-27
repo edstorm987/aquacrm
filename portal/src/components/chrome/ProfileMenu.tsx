@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Clapperboard, Eye, FlaskConical, Gauge, LogOut, NotebookPen, ShieldCheck, UserRound } from "lucide-react";
+import { ChevronDown, Clapperboard, FlaskConical, Gauge, LogOut, NotebookPen, ShieldCheck, UserRound } from "lucide-react";
 import type { Role } from "@/server/types";
 import { CINEMATIC_MODE_EVENT, CINEMATIC_MODE_STORAGE_KEY, cinematicModeEnabled, setCinematicMode } from "@/lib/chrome/cinematicMode";
 import { performanceModeCookieEnabled, setPerformanceModeCookie } from "@/lib/chrome/performanceMode";
@@ -58,8 +58,8 @@ export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "Aqua
   const firstName = display.split(/\s+/)[0] || "Account";
   const [open, setOpen] = useState(false);
   const [quickNoteOpen, setQuickNoteOpen] = useState(false);
-  const [cinematicMode, setCinematicModeState] = useState(true);
-  const [performanceMode, setPerformanceModeState] = useState(false);
+  const [cinematicMode, setCinematicModeState] = useState(false);
+  const [performanceMode, setPerformanceModeState] = useState(true);
   const [devIconShown, setDevIconShown] = useState(true);
   const [devBusy, setDevBusy] = useState(false);
 
@@ -67,7 +67,7 @@ export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "Aqua
   //
   // It used to mint a demo-owner session, which meant the founder browsing his
   // own dev workspace was suddenly a different account looking at demo data.
-  // The workspace is gated on founder + Dev Mode already, so entering it is
+  // The workspace is gated on founder-only Dev Team access already, so entering it is
   // plain navigation: Ed stays Ed, on his real account and real data, just
   // inside the workspace. Identity only changes when he deliberately INSPECTS a
   // persona (Dev Team → Profiles), and exiting that inspection returns him
@@ -318,13 +318,13 @@ export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "Aqua
                 {role.startsWith("agency-") ? (
                   <>
                     <Link
-                      href="/portal/agency/settings#showcase"
+                      href="/portal/agency/settings#environment"
                       role="menuitem"
                       onClick={() => setOpen(false)}
                       className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm text-[#2A2520] hover:bg-[#F4ECD9]"
                     >
-                      <Eye size={16} className="text-[#8E7340]" aria-hidden="true" />
-                      <span className="flex-1">Showcase Mode</span>
+                      <FlaskConical size={16} className="text-[#8E7340]" aria-hidden="true" />
+                      <span className="flex-1">Environment</span>
                     </Link>
                     <button
                       type="button"

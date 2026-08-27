@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { deleteSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { deleteLegalDocument, listLegalDocuments, updateLegalDocument } from "@/server/legalDocuments";
-import { ensureHydrated } from "@/server/storage";
+import { ensureHydrated, isSandboxDataRealm } from "@/server/storage";
 import type { LegalDocument } from "@/server/types";
 import { getActiveTradingCompanyId } from "@/lib/server/tradingCompanyContext";
 import { recordBelongsToCompany } from "@/server/tradingCompanies";
@@ -39,12 +39,14 @@ export async function DELETE(request: Request) {
     if (!id) return NextResponse.json({ ok: false, error: "Document required." }, { status: 400 });
     const document = deleteLegalDocument(session.agencyId, id);
     if (!document) return NextResponse.json({ ok: false, error: "Document not found." }, { status: 404 });
-    if (document.storageProvider === "supabase") await deleteSupabasePrivateUpload(document.storageKey).catch(() => false);
-    else if (document.storageProvider === "vercel-blob") await del(document.storageKey).catch(() => undefined);
-    else {
-      const root = resolve(process.cwd(), ".data", "legal-uploads");
-      const path = resolve(root, document.storageKey);
-      if (path.startsWith(`${root}/`)) await rm(path, { force: true }).catch(() => undefined);
+    if (!isSandboxDataRealm()) {
+      if (document.storageProvider === "supabase") await deleteSupabasePrivateUpload(document.storageKey).catch(() => false);
+      else if (document.storageProvider === "vercel-blob") await del(document.storageKey).catch(() => undefined);
+      else {
+        const root = resolve(process.cwd(), ".data", "legal-uploads");
+        const path = resolve(root, document.storageKey);
+        if (path.startsWith(`${root}/`)) await rm(path, { force: true }).catch(() => undefined);
+      }
     }
     return NextResponse.json({ ok: true });
   } catch (error) { return authErrorResponse(error); }

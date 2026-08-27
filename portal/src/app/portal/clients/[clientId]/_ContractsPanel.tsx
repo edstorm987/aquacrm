@@ -24,6 +24,9 @@ const CONTROL = "min-h-11 w-full rounded-md border border-black/15 bg-white px-3
 
 interface ContractDraft {
   contractId?: string;
+  operationId: string;
+  /** The contract is durable; only its optional reusable template still needs saving. */
+  templatePending: boolean;
   title: string;
   summary: string;
   body: string;
@@ -42,6 +45,8 @@ interface TemplateDraft {
 }
 
 const EMPTY_CONTRACT: ContractDraft = {
+  operationId: "",
+  templatePending: false,
   title: "",
   summary: "",
   body: "",
@@ -61,6 +66,11 @@ function formatShortDate(timestamp: number): string {
     year: "numeric",
     timeZone: "UTC",
   });
+}
+
+function contractOperationId(): string {
+  const random = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `contract-create:${random}`;
 }
 
 function EditorModal({ children, title, onClose }: { children: React.ReactNode; title: string; onClose: () => void }) {
@@ -96,12 +106,16 @@ export function ContractsPanel({
   initialTemplates,
   clientName,
   recipientEmail,
+  canManage = true,
+  canConfigure = canManage,
 }: {
   clientId: string;
   initialContracts: ClientContract[];
   initialTemplates: ClientContractTemplate[];
   clientName?: string;
   recipientEmail?: string;
+  canManage?: boolean;
+  canConfigure?: boolean;
 }) {
   const [contracts, setContracts] = useState(initialContracts);
   const [templates, setTemplates] = useState(initialTemplates);
@@ -115,13 +129,14 @@ export function ContractsPanel({
 
   function openBlankContract() {
     setUploadFile(null);
-    setEditor({ ...EMPTY_CONTRACT });
+    setEditor({ ...EMPTY_CONTRACT, operationId: contractOperationId() });
   }
 
   function openFromTemplate(template: ClientContractTemplate) {
     setUploadFile(null);
     setEditor({
       ...EMPTY_CONTRACT,
+      operationId: contractOperationId(),
       title: template.title,
       summary: template.summary ?? "",
       body: template.body,
@@ -156,6 +171,34 @@ export function ContractsPanel({
     return payload.file;
   }
 
+  async function saveTemplateFromContract(contract: ClientContract): Promise<void> {
+    const response = await fetch("/api/portal/contracts/templates", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "create", clientId, sourceContractId: contract.id }),
+    });
+    const payload = await response.json() as {
+      ok: boolean;
+      error?: string;
+      templates?: ClientContractTemplate[];
+    };
+    if (!response.ok || !payload.ok) throw new Error(payload.error || "The reusable template could not be saved.");
+    setTemplates(payload.templates ?? templates);
+  }
+
+  async function retryTemplateFromCard(contract: ClientContract) {
+    setBusy(true);
+    setNotice(null);
+    try {
+      await saveTemplateFromContract(contract);
+      setNotice("Reusable template saved. The existing contract was not changed.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "The reusable template could not be saved.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function saveContract() {
     if (!editor?.title.trim()) {
       setNotice("Give the contract a clear title.");
@@ -167,42 +210,75 @@ export function ContractsPanel({
     }
     setBusy(true);
     setNotice(null);
+    const wasAmendment = Boolean(editor.contractId && !editor.templatePending);
     try {
-      const uploaded = await uploadContractFile();
-      const response = await fetch("/api/tenants/client-contracts", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          clientId,
-          action: editor.contractId ? "update" : "create",
-          contractId: editor.contractId,
-          title: editor.title,
-          summary: editor.summary,
-          body: editor.body,
-          documentUrl: uploaded?.url ?? editor.documentUrl,
-          documentName: uploaded?.name ?? editor.documentName,
-          templateId: editor.templateId,
-          amendmentNote: editor.amendmentNote,
-        }),
-      });
-      const payload = await response.json() as { ok: boolean; error?: string; contracts?: ClientContract[] };
-      if (!response.ok || !payload.ok) throw new Error(payload.error || "Contract could not be saved.");
-      setContracts(payload.contracts ?? contracts);
-
-      if (editor.saveAsTemplate && editor.body.trim()) {
-        const templateResponse = await fetch("/api/portal/contracts/templates", {
+      let savedContract: ClientContract | undefined;
+      if (editor.templatePending && editor.contractId) {
+        // The first request already committed. A retry must not amend or create
+        // the contract again; it resumes only the optional template step.
+        savedContract = contracts.find(contract => contract.id === editor.contractId);
+        if (!savedContract) throw new Error("The saved contract is no longer in this view. Close this editor and use Save as template on its contract row.");
+      } else {
+        const uploaded = await uploadContractFile();
+        const response = await fetch("/api/tenants/client-contracts", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ action: "create", title: editor.title, summary: editor.summary, body: editor.body }),
+          body: JSON.stringify({
+            clientId,
+            action: editor.contractId ? "update" : "create",
+            contractId: editor.contractId,
+            operationId: editor.operationId,
+            title: editor.title,
+            summary: editor.summary,
+            body: editor.body,
+            documentUrl: uploaded?.url ?? editor.documentUrl,
+            documentName: uploaded?.name ?? editor.documentName,
+            templateId: editor.templateId,
+            amendmentNote: editor.amendmentNote,
+          }),
         });
-        const templatePayload = await templateResponse.json() as { ok: boolean; error?: string; templates?: ClientContractTemplate[] };
-        if (!templateResponse.ok || !templatePayload.ok) throw new Error(templatePayload.error || "Contract saved, but its template could not be created.");
-        setTemplates(templatePayload.templates ?? templates);
+        const payload = await response.json() as {
+          ok: boolean;
+          error?: string;
+          contract?: ClientContract;
+          contracts?: ClientContract[];
+        };
+        if (!response.ok || !payload.ok) throw new Error(payload.error || "Contract could not be saved.");
+        const nextContracts = payload.contracts ?? contracts;
+        setContracts(nextContracts);
+        savedContract = payload.contract
+          ?? nextContracts.find(contract => contract.creationOperationId === editor.operationId)
+          ?? (editor.contractId ? nextContracts.find(contract => contract.id === editor.contractId) : undefined);
+        if (!savedContract) throw new Error("The contract was saved, but its identity was not returned. Reload before trying again.");
+
+        if (editor.saveAsTemplate && editor.body.trim()) {
+          // Adopt the durable contract BEFORE the second request. If that
+          // request fails, Save resumes the template only instead of creating
+          // a second draft or amendment.
+          setEditor(current => current && ({
+            ...current,
+            contractId: savedContract!.id,
+            templatePending: true,
+          }));
+        }
+      }
+
+      if (editor.saveAsTemplate && editor.body.trim()) {
+        try {
+          await saveTemplateFromContract(savedContract);
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : "The reusable template could not be saved.";
+          throw new Error(`Contract saved, but its reusable template still needs saving. ${detail}`);
+        }
       }
 
       setEditor(null);
       setUploadFile(null);
-      setNotice(editor.contractId ? "Amendment saved as a new draft version." : "Contract draft created.");
+      setNotice(
+        editor.saveAsTemplate
+          ? `${wasAmendment ? "Amendment" : "Contract draft"} saved with its reusable template.`
+          : wasAmendment ? "Amendment saved as a new draft version." : "Contract draft created.",
+      );
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Contract could not be saved.");
     } finally {
@@ -296,14 +372,14 @@ export function ContractsPanel({
           <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-black/40">Client record</p>
           <h2 className="mt-1 text-sm font-medium text-black/85">Contracts</h2>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        {canManage ? <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={() => setTemplateLibraryOpen(true)} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/15 px-3 text-xs font-medium hover:bg-black/[0.03]">
             <Library size={14} aria-hidden="true" /> Templates
           </button>
           <button type="button" onClick={openBlankContract} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-medium text-white hover:bg-black/85">
             <Plus size={14} aria-hidden="true" /> New contract
           </button>
-        </div>
+        </div> : <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">Read-only</span>}
       </header>
 
       {contracts.length === 0 ? (
@@ -311,9 +387,9 @@ export function ContractsPanel({
           <FileSignature size={22} className="mx-auto text-black/25" aria-hidden="true" />
           <p className="mt-3 text-sm font-medium text-black/70">No contracts yet.</p>
           <p className="mt-1 text-xs text-black/45">Write one, upload a document, or start from a reusable template.</p>
-          <button type="button" onClick={openBlankContract} className="mt-4 inline-flex min-h-9 items-center gap-2 rounded-md border border-black/15 px-3 text-xs font-medium">
+          {canManage ? <button type="button" onClick={openBlankContract} className="mt-4 inline-flex min-h-9 items-center gap-2 rounded-md border border-black/15 px-3 text-xs font-medium">
             <Plus size={13} aria-hidden="true" /> Create first contract
-          </button>
+          </button> : null}
         </div>
       ) : (
         <ul className="divide-y divide-black/8">
@@ -337,17 +413,22 @@ export function ContractsPanel({
                 <button type="button" onClick={() => setInspection(contract)} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/15 px-3 text-xs font-medium">
                   <Eye size={13} aria-hidden="true" /> Inspect
                 </button>
-                <button type="button" onClick={() => openAmendment(contract)} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/15 px-3 text-xs font-medium">
+                {canConfigure && contract.body && !templates.some(template => template.sourceContractId === contract.id) ? (
+                  <button type="button" onClick={() => void retryTemplateFromCard(contract)} disabled={busy} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/15 px-3 text-xs font-medium disabled:opacity-45">
+                    <Library size={13} aria-hidden="true" /> Save as template
+                  </button>
+                ) : null}
+                {canManage ? <button type="button" onClick={() => openAmendment(contract)} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/15 px-3 text-xs font-medium">
                   <Pencil size={13} aria-hidden="true" /> Amend
-                </button>
+                </button> : null}
                 {contract.documentUrl && <a href={contract.documentUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/15 px-3 text-xs font-medium">Document <ExternalLink size={12} aria-hidden="true" /></a>}
-                {contract.status === "draft" && (
+                {canManage && contract.status === "draft" && (
                   <>
-                    <button type="button" onClick={() => void act("delete", contract)} disabled={busy} title="Delete draft" className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-black/15 text-black/55 disabled:opacity-45"><Trash2 size={14} aria-hidden="true" /></button>
+                    {canConfigure ? <button type="button" onClick={() => void act("delete", contract)} disabled={busy} title="Delete draft" className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-black/15 text-black/55 disabled:opacity-45"><Trash2 size={14} aria-hidden="true" /></button> : null}
                     <button type="button" onClick={() => void act("send", contract)} disabled={busy || (!contract.body && !contract.documentUrl)} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-medium text-white disabled:opacity-45"><Send size={13} aria-hidden="true" /> Send</button>
                   </>
                 )}
-                {contract.status === "sent" && <button type="button" onClick={() => void act("accept", contract)} disabled={busy} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/15 px-3 text-xs font-medium disabled:opacity-45"><Check size={13} aria-hidden="true" /> Mark accepted</button>}
+                {canManage && contract.status === "sent" && <button type="button" onClick={() => void act("accept", contract)} disabled={busy} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/15 px-3 text-xs font-medium disabled:opacity-45"><Check size={13} aria-hidden="true" /> Mark accepted</button>}
               </div>
             </li>
           ))}
@@ -355,52 +436,56 @@ export function ContractsPanel({
       )}
       {notice && <p aria-live="polite" className="border-t border-black/10 px-4 py-3 text-xs text-black/55">{notice}</p>}
 
-      {editor && (
-        <EditorModal title={editor.contractId ? "Amend contract" : "New contract"} onClose={() => !busy && setEditor(null)}>
+      {canManage && editor && (
+        <EditorModal title={editor.templatePending ? "Finish reusable template" : editor.contractId ? "Amend contract" : "New contract"} onClose={() => !busy && setEditor(null)}>
           <form onSubmit={event => { event.preventDefault(); void saveContract(); }} className="grid gap-5 p-4 sm:p-6">
-            {editor.contractId && (
+            {editor.templatePending ? (
+              <div className="rounded-md border border-sky-200 bg-sky-50 px-4 py-3 text-xs leading-5 text-sky-900">
+                The contract is already saved. Retry saves only its reusable template; it will not create or amend the contract again. You can also close this editor and use <strong>Save as template</strong> on the contract row later.
+              </div>
+            ) : editor.contractId ? (
               <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">
                 Saving creates a new draft version. The previous wording remains in the contract history, and the amended version must be sent and accepted again.
               </div>
-            )}
+            ) : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="grid gap-1.5 text-xs font-medium text-black/65">Contract title
-                <input value={editor.title} onChange={event => setEditor(value => value && ({ ...value, title: event.target.value }))} className={CONTROL} placeholder="Website design agreement" autoFocus />
+                <input value={editor.title} onChange={event => setEditor(value => value && ({ ...value, title: event.target.value }))} className={CONTROL} placeholder="Website design agreement" autoFocus disabled={editor.templatePending} />
               </label>
               <label className="grid gap-1.5 text-xs font-medium text-black/65">Short summary
-                <input value={editor.summary} onChange={event => setEditor(value => value && ({ ...value, summary: event.target.value }))} className={CONTROL} placeholder="Plain-English scope and purpose" />
+                <input value={editor.summary} onChange={event => setEditor(value => value && ({ ...value, summary: event.target.value }))} className={CONTROL} placeholder="Plain-English scope and purpose" disabled={editor.templatePending} />
               </label>
             </div>
             <label className="grid gap-1.5 text-xs font-medium text-black/65">Contract terms
-              <textarea value={editor.body} onChange={event => setEditor(value => value && ({ ...value, body: event.target.value }))} className={`${CONTROL} min-h-[20rem] resize-y py-3 font-mono text-[13px] leading-6`} placeholder="Write or paste the full contract terms here..." />
+              <textarea value={editor.body} onChange={event => setEditor(value => value && ({ ...value, body: event.target.value }))} className={`${CONTROL} min-h-[20rem] resize-y py-3 font-mono text-[13px] leading-6`} placeholder="Write or paste the full contract terms here..." disabled={editor.templatePending} />
               <span className="font-normal text-black/40">These terms are shown directly in the customer portal.</span>
             </label>
             <div className="grid gap-4 border-t border-black/10 pt-5 sm:grid-cols-2">
               <label className="grid gap-1.5 text-xs font-medium text-black/65">Upload contract document
-                <input type="file" onChange={event => setUploadFile(event.target.files?.[0] ?? null)} accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.webp" className="min-h-11 cursor-pointer rounded-md border border-black/15 bg-white px-2 py-1.5 text-xs file:mr-3 file:rounded file:border-0 file:bg-black/[0.05] file:px-3 file:py-1.5 file:text-xs" />
+                <input type="file" onChange={event => setUploadFile(event.target.files?.[0] ?? null)} accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.webp" className="min-h-11 cursor-pointer rounded-md border border-black/15 bg-white px-2 py-1.5 text-xs file:mr-3 file:rounded file:border-0 file:bg-black/[0.05] file:px-3 file:py-1.5 file:text-xs" disabled={editor.templatePending} />
                 <span className="font-normal text-black/40">Private PDF, document, text or image up to 12 MB.</span>
               </label>
               <label className="grid gap-1.5 text-xs font-medium text-black/65">Or attach a document link
-                <input type="url" value={editor.documentUrl} onChange={event => setEditor(value => value && ({ ...value, documentUrl: event.target.value, documentName: event.target.value ? value.documentName : "" }))} className={CONTROL} placeholder="https://" />
+                <input type="url" value={editor.documentUrl} onChange={event => setEditor(value => value && ({ ...value, documentUrl: event.target.value, documentName: event.target.value ? value.documentName : "" }))} className={CONTROL} placeholder="https://" disabled={editor.templatePending} />
                 {editor.documentName && <span className="truncate font-normal text-black/40">Current: {editor.documentName}</span>}
               </label>
             </div>
-            {editor.contractId && <label className="grid gap-1.5 text-xs font-medium text-black/65">Amendment note
+            {editor.contractId && !editor.templatePending && <label className="grid gap-1.5 text-xs font-medium text-black/65">Amendment note
               <input value={editor.amendmentNote} onChange={event => setEditor(value => value && ({ ...value, amendmentNote: event.target.value }))} className={CONTROL} placeholder="What changed and why?" />
             </label>}
             <label className="flex items-start gap-3 rounded-md border border-black/10 bg-white px-4 py-3 text-xs text-black/60">
-              <input type="checkbox" checked={editor.saveAsTemplate} onChange={event => setEditor(value => value && ({ ...value, saveAsTemplate: event.target.checked }))} className="mt-0.5 h-4 w-4 accent-black" />
+              <input type="checkbox" checked={editor.saveAsTemplate} onChange={event => setEditor(value => value && ({ ...value, saveAsTemplate: event.target.checked }))} className="mt-0.5 h-4 w-4 accent-black" disabled={editor.templatePending} />
               <span><strong className="block font-medium text-black/75">Save the written terms as a reusable template</strong>Use the same starting point for another client later.</span>
             </label>
             <div className="flex flex-wrap justify-end gap-2 border-t border-black/10 pt-4">
               <button type="button" onClick={() => setEditor(null)} disabled={busy} className="min-h-10 rounded-md border border-black/15 px-4 text-xs font-medium">Cancel</button>
-              <button type="submit" disabled={busy || !editor.title.trim() || (!editor.body.trim() && !editor.documentUrl.trim() && !uploadFile)} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-xs font-medium text-white disabled:opacity-45"><Save size={14} aria-hidden="true" /> {busy ? "Saving..." : editor.contractId ? "Save new version" : "Save draft"}</button>
+              <button type="submit" disabled={busy || !editor.title.trim() || (!editor.body.trim() && !editor.documentUrl.trim() && !uploadFile)} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-xs font-medium text-white disabled:opacity-45"><Save size={14} aria-hidden="true" /> {busy ? "Saving..." : editor.templatePending ? "Retry template save" : editor.contractId ? "Save new version" : "Save draft"}</button>
             </div>
           </form>
         </EditorModal>
       )}
 
-      {templateLibraryOpen && (
+      {canManage && templateLibraryOpen && (
         <EditorModal title="Contract templates" onClose={() => setTemplateLibraryOpen(false)}>
           <div className="p-4 sm:p-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -419,7 +504,7 @@ export function ContractsPanel({
                     </div>
                     <div className="flex items-center gap-2">
                       {template.source !== "product" && <button type="button" onClick={() => setTemplateEditor({ id: template.id, title: template.title, summary: template.summary ?? "", body: template.body })} className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-black/15" title="Edit template"><Pencil size={13} aria-hidden="true" /></button>}
-                      {template.source !== "product" && <button type="button" onClick={() => void deleteTemplate(template)} disabled={busy} className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-black/15 text-red-700" title="Delete template"><Trash2 size={13} aria-hidden="true" /></button>}
+                      {canConfigure && template.source !== "product" && <button type="button" onClick={() => void deleteTemplate(template)} disabled={busy} className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-black/15 text-red-700" title="Delete template"><Trash2 size={13} aria-hidden="true" /></button>}
                       <button type="button" onClick={() => openFromTemplate(template)} className="min-h-9 rounded-md bg-black px-3 text-xs font-medium text-white">Use template</button>
                     </div>
                   </li>
@@ -430,7 +515,7 @@ export function ContractsPanel({
         </EditorModal>
       )}
 
-      {templateEditor && (
+      {canManage && templateEditor && (
         <EditorModal title={templateEditor.id ? "Edit contract template" : "New contract template"} onClose={() => !busy && setTemplateEditor(null)}>
           <form onSubmit={event => { event.preventDefault(); void saveTemplate(); }} className="grid gap-4 p-4 sm:p-6">
             <label className="grid gap-1.5 text-xs font-medium text-black/65">Template title<input value={templateEditor.title} onChange={event => setTemplateEditor(value => value && ({ ...value, title: event.target.value }))} className={CONTROL} autoFocus /></label>

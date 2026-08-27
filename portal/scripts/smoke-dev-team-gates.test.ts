@@ -105,9 +105,9 @@ describe("Dev Team sections — every body refuses a non-founder itself", () => 
     });
   });
 
-  it("…and 404 outside Dev Mode too, whoever is asking", async () => {
-    // The founder half. `devDocsAccessible` is `canUseDevMode() && isFounder`,
-    // so with Dev Mode off even the owner is refused. No withDevMode here.
+  it("…and 404s an arbitrary owner who is not the deployment founder", async () => {
+    // Role alone is insufficient. With Dev Mode off, only the exact live
+    // FOUNDER_EMAIL identity passes; this unrelated agency owner must not.
     await ensureHydrated();
     seq += 1;
     const agency = createAgency({ name: "Gate Co", slug: `gate-owner-${Date.now()}-${seq}` });
@@ -133,7 +133,7 @@ describe("Dev Team sections — every body refuses a non-founder itself", () => 
           throw error;
         }
       });
-      assert.equal(outcome, "404", `${section.name} must 404 outside Dev Mode`);
+      assert.equal(outcome, "404", `${section.name} must 404 an unrelated agency owner`);
     }
   });
 });
@@ -196,7 +196,7 @@ describe("Dev Team tree — nothing reachable is left ungated by accident", () =
       if (!isRoute && !isSection) continue;
 
       const gated = /requireRole\(\[\.\.\.AGENCY_ROLES\]\)/.test(text)
-        && /devDocsAccessible\(session\)/.test(text);
+        && /(?:devDocsAccessible|devTeamAccessible)\(session\)/.test(text);
       if (!gated) missing.push(rel);
     }
     assert.deepEqual(missing, [], "these dev-team surfaces render without asking the founder gate");
@@ -209,7 +209,7 @@ describe("Dev Team tree — nothing reachable is left ungated by accident", () =
       const text = readFileSync(abs, "utf8");
       if (!rel.endsWith("route.ts")) continue;
       const gated = /requireRole\(\[\.\.\.AGENCY_ROLES\]\)/.test(text)
-        && /devDocsAccessible\(session\)/.test(text);
+        && /(?:devDocsAccessible|devTeamAccessible)\(session\)/.test(text);
       if (!gated) missing.push(rel);
     }
     assert.deepEqual(missing, [], "these dev-team write surfaces do not re-assert the founder gate");

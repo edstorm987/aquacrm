@@ -6,6 +6,7 @@ import { PortalEditorPanel } from "@/app/portal/agency/settings/PortalEditorPane
 import { requireRole } from "@/lib/server/auth/auth";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 
 export default async function PortalDataFormsPage() {
   await ensureHydrated();
@@ -15,6 +16,7 @@ export default async function PortalDataFormsPage() {
   } catch {
     redirect("/portal");
   }
+  await requireCurrentWorkspaceElementAccess("fulfilment", "fulfilment.portals", "manage");
 
   return (
     <div className="mx-auto w-full max-w-[1400px]">
@@ -27,7 +29,7 @@ export default async function PortalDataFormsPage() {
         <Link href="/portal/agency/portals" className="inline-flex min-h-10 items-center gap-2 self-start rounded-md border border-black/12 bg-white px-3 text-sm font-semibold text-black/65 hover:bg-black/[0.03]"><ArrowLeft size={15} /> Back to portals</Link>
       </header>
       <div id="forms" className="scroll-mt-6 pt-7">
-        <PortalEditorPanel canManage={session.role === "agency-owner" || session.role === "agency-manager"} />
+        <PortalEditorPanel canManage />
       </div>
     </div>
   );

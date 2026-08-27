@@ -9,6 +9,11 @@ at the top.
 ## Architecture / naming
 - **Milesymedia = Aqua (legacy names).** The product is branded "Aqua Advisor" / "AquaCRM", but legacy identifiers still say Milesymedia (`askMilesymediaAssistant`, default agency id `"milesymedia"`, env `MILESYMEDIA_ASSISTANT_API_TOKEN`, `/milesy-tag.js`). Same tenant — don't treat them as separate.
 - **Two persistence concerns, don't conflate:** the whole `PortalState` is one JSON blob (file / postgres `portal_kv` / supabase `app_datastores`), *separate* from the discrete Supabase tables (`brand_enquiries`, `inbox_*`, etc.). Which blob backend is live depends on `PORTAL_BACKEND`. (See [database.md](../workspace/database.md).)
+- **File-backed persistence contract was repaired 2026-08-25.** Whole-state commits
+  now use a same-directory temp file, fsync and atomic rename; failed saves are
+  surfaced and mark the backend unwritable; malformed JSON fails closed instead of
+  becoming an empty writable state. Keep the recovery regression with any storage
+  change. Cross-process collection transactions are still a separate concern.
 - **State goes through `getState()` / `mutate(fn)`** (`src/server/storage.ts`) — never mutate returned objects directly. New collection → add to `types.ts` `PortalState`.
 - **Auth is enforced in the server layer, not middleware.** `middleware.ts` matches `/portal/*` but is a pass-through no-op. Don't add auth there expecting it to run first.
 - **Integrations ⇄ settings are always both — two views, one source (Ed's principle).** A connection (Meta, email, SMS, …) should be manageable from **both** "Your connections" *and* Agency settings — the user shouldn't have to hunt for where it lives. **But** it's stored **once** (the integration-connection record); settings *renders the same record*, it does not hold a second copy. Two stores would drift (see [hazards](../workspace/hazards-and-duplication.md)) — "both" means both surfaces, one source of truth.
@@ -17,6 +22,10 @@ at the top.
 - Most tests are **static-source contract tests** — they assert code *shape*, not runtime behaviour. Green means "structure intact", not "it works". The generated docs share the limit — they were parsed, not run.
 - **Never claim a feature works without running it.** Distinguish: coded → static-tested → runtime-verified → user-reachable. Record the real level in [status.md](status.md).
 - When something matters, **exercise it** (click the flow / hit the live endpoint) and prefer a behavioural test (renders/calls and asserts the *result*) over another source-shape assertion.
+- Editor AI now includes an opt-in two-independent-Node-process Postgres claim test,
+  but it is skipped when `DATABASE_URL` is absent. Matching DDL and green local
+  tests still do not establish that production has the migration applied; run the
+  database test against the deployed contract before claiming production acceptance.
 
 ## Product decisions (settled — don't re-open without Ed)
 - **Scope-down is deliberate.** The standard portal is *one* Website product; the rest of the catalogue gets rebuilt one at a time. Don't re-sprawl the product list.

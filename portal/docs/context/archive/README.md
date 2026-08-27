@@ -38,6 +38,8 @@ runbook. That is [DEVELOPMENT-HANDOFF.md](../../DEVELOPMENT-HANDOFF.md), which i
 - [session-handoff-2026-08-18.md](session-handoff-2026-08-18.md)
 - [session-handoff-2026-08-19.md](session-handoff-2026-08-19.md)
 - [session-changelog-2026-08.md](session-changelog-2026-08.md) — the 18–19 Aug narrative.
+- [dev-editor-handoff-2026-08-22.md](dev-editor-handoff-2026-08-22.md) — the
+  22 Aug Editor session record; current status moved on after its 3,515-test checkpoint.
 
 **Superseded planning**
 - [phases.md](phases.md) — the old roadmap, superseded by [roadmap.md](../../development/roadmap.md).

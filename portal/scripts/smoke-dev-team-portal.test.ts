@@ -324,9 +324,10 @@ describe("command centre — the Dev Team station tells the truth", () => {
     assert.match(page, /composeLanes\(await scanDevTeamBoard\(\)\)/);
     assert.match(page, /devTeamBlockedCount = devTeamLanes\?\.blocked\.length \?\? 0/);
     assert.match(page, /devTeamLaunchBlockerCount = devTeamLanes\?\.blocked\.filter\(item => item\.kind === "blocker"\)\.length/);
-    // Still founder-gated (and skipped under Performance mode): no scan, no
-    // count, no station-badge work for anyone else, or when perf mode is on.
-    assert.match(page, /devTeamVisible && !perfMode \? composeLanes/);
+    // Still founder-gated (and skipped in the shared lightweight mode): no
+    // count or station-badge scan for anyone else, Performance mode, or the
+    // public showcase.
+    assert.match(page, /devTeamVisible && !lightweightMode \? composeLanes/);
     assert.doesNotMatch(page, /devTeamBlockerCount/, "the old hardcoded-zero-era prop is gone");
 
     // The badge is the real number, and never a bare hardcoded literal again.

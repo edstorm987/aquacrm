@@ -84,6 +84,7 @@ export interface Product {
   archived?: boolean;
   hidden?: boolean;
   stockSku?: string;                      // links to inventory item SKU
+  weightGrams?: number;                   // physical shipping quote input
   showLowStock?: boolean;
   available?: number;                     // computed: onHand - reserved
   rating?: number;
@@ -136,6 +137,7 @@ export interface Product {
 
   createdAt?: number;
   updatedAt?: number;
+  version?: number;
 }
 
 // Storage-side override — lets the operator tweak a few fields on a
@@ -162,6 +164,11 @@ export interface InventoryItemSnapshot {
   reserved: number;
   lowAt: number;
   unlimited?: boolean;
+  // Operation-owned checkout reservations. Keeping the marker on the same
+  // row as the counters makes reserve/release/commit replay-safe even when a
+  // request stops between different SKU writes.
+  checkoutOperations?: Record<string, "reserved" | "released" | "committed">;
+  version?: number;
 }
 
 export function computeAvailable(

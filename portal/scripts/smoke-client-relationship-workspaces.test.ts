@@ -127,7 +127,7 @@ test("dual-workspace controls are available internally and in the customer porta
   assert.match(overview, /portfolioAttentionCount/);
   assert.match(overview, /Assign services/);
   assert.match(overview, /Aqua Health/);
-  assert.match(overview, /workspace\.outstandingCents/);
+  assert.match(overview, /workspace\.outstandingByCurrency/);
   assert.match(overview, /workspace\.portalAccessState/);
   assert.match(overview, /Manage access/);
   assert.match(overview, /Open Aqua Health/);
@@ -138,6 +138,11 @@ test("dual-workspace controls are available internally and in the customer porta
   assert.match(workspaceRoute, /resolveAgencyProductAssignment/);
   assert.match(workspaceRoute, /reconcileClientProductWorkspaces/);
   assert.match(workspaceRoute, /linked-workspace-creation/);
+  assert.match(workspaceRoute, /createClientWithLifecycleOperation/);
+  assert.match(workspaceRoute, /listAgencyLifecyclePhases/);
+  assert.match(workspaceRoute, /client_lifecycle_incomplete/);
+  assert.match(internal, /linked-workspace:/);
+  assert.match(internal, /operationId: creationOperationId\(\)/);
   assert.match(ledgerRoute, /listClientRelationshipWorkspaces/);
 });
 

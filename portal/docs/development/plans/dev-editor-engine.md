@@ -1,5 +1,15 @@
 # The Dev Editor Engine (was "Aqua Engine")
 
+> **Architecture supersession — 2026-08-26:** keep one adaptive `DevEditor`, but
+> replace hardcoded install tiers/global role gates with default-deny grants per
+> project and per workspace. Roles may prefill a capability template; only the
+> explicit grant authorises preview, file, AI, test, git or publish actions. The
+> primary setup is repository + declared local preview command + optional deploy
+> provider. Aqua Tag is optional marketing/telemetry/remote-inspection evidence,
+> not a requirement for a repository-backed preview. The current launch plan is
+> [dev-editor-finish.md](dev-editor-finish.md); tier/Aqua-Tag-required wording below
+> is retained as historical design context where it conflicts.
+
 **Status:** in progress — Ed's grand-unification vision 2026-08-20. BIG epic, phased. Most pieces
 ALREADY EXIST; the work is unification + install-tiering + rename, not building from scratch.
 

@@ -214,8 +214,10 @@ describe("dev team auditor — the header pill counts everything still open", ()
   it("wires that count into the header pill, so 'All clear' needs both to be zero", async () => {
     const section = await read("src/app/portal/dev-team/auditor/_Section.tsx");
     assert.match(section, /countStillOpenFindings\(findings\)/, "the section uses the shared rule");
-    // "All clear" may only appear on the zero branch of the total.
-    assert.match(section, /stillOpenCount > 0 \? `\$\{stillOpenCount\} open` : "All clear"/);
+    // The header includes unresolved rulings, open blockers, and required
+    // readiness failures; its clear label appears only on the zero branch.
+    assert.match(section, /const overallOpenCount = stillOpenCount \+ openBlockers\.length \+ requiredNotReady\.length/);
+    assert.match(section, /overallOpenCount > 0 \? `\$\{overallOpenCount\} open` : "Source checks clear"/);
     // The banner-only number keeps its own, narrower label.
     assert.match(section, /\{openCount\} open now/);
     // …and that zero is not dressed up as good news while rulings are unresolved.

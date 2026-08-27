@@ -10,6 +10,7 @@ type MarketingAssetStatus = "draft" | "active" | "paused" | "complete" | "archiv
 
 export interface MarketingAsset {
   id: string;
+  updatedAt: number;
   companyIds?: string[];
   kind: MarketingAssetKind;
   name: string;
@@ -93,6 +94,7 @@ const CONFIG: Record<MarketingAssetKind, {
 
 type AssetDraft = {
   id?: string;
+  expectedUpdatedAt?: number;
   name: string;
   platform: string;
   url: string;
@@ -129,6 +131,7 @@ export function MarketingChannelsWorkspace({ kind, assets, companies = [], defau
   function edit(asset: MarketingAsset) {
     setDraft({
       id: asset.id,
+      expectedUpdatedAt: asset.updatedAt,
       name: asset.name,
       platform: asset.platform ?? "",
       url: asset.url ?? "",
@@ -174,7 +177,7 @@ export function MarketingChannelsWorkspace({ kind, assets, companies = [], defau
       const response = await fetch("/api/portal/agency-marketing/assets", {
         method: draft.id ? "PATCH" : "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(draft.id ? { id: draft.id, patch: payload } : { ...payload, kind }),
+        body: JSON.stringify(draft.id ? { id: draft.id, expectedUpdatedAt: draft.expectedUpdatedAt, patch: payload } : { ...payload, kind }),
       });
       const data = await response.json() as { ok?: boolean; error?: string };
       if (!response.ok || !data.ok) throw new Error(data.error ?? "Could not save this marketing item.");
@@ -194,7 +197,7 @@ export function MarketingChannelsWorkspace({ kind, assets, companies = [], defau
       const response = await fetch("/api/portal/agency-marketing/assets", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id: asset.id, patch: { status } }),
+        body: JSON.stringify({ id: asset.id, expectedUpdatedAt: asset.updatedAt, patch: { status } }),
       });
       const data = await response.json() as { ok?: boolean; error?: string };
       if (!response.ok || !data.ok) throw new Error(data.error ?? "Could not update status.");
@@ -211,7 +214,7 @@ export function MarketingChannelsWorkspace({ kind, assets, companies = [], defau
     setBusy(`delete:${asset.id}`);
     setError(null);
     try {
-      const response = await fetch(`/api/portal/agency-marketing/assets?id=${encodeURIComponent(asset.id)}`, { method: "DELETE" });
+      const response = await fetch(`/api/portal/agency-marketing/assets?id=${encodeURIComponent(asset.id)}&updatedAt=${asset.updatedAt}`, { method: "DELETE" });
       const data = await response.json() as { ok?: boolean; error?: string };
       if (!response.ok || !data.ok) throw new Error(data.error ?? "Could not delete this item.");
       router.refresh();

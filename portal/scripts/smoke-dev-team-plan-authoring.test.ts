@@ -265,11 +265,11 @@ describe("Creating a plan — confinement, refusal, and validation", () => {
 });
 
 describe("The plan write path is gated the same way the portal is", () => {
-  it("the route re-asserts the Dev Mode gate and is the only writer", () => {
+  it("the route re-asserts the founder-only Dev Team gate and is the only writer", () => {
     const route = read("src/app/api/portal/dev-team/plans/route.ts");
     assert.match(route, /requireRole\(\[\.\.\.AGENCY_ROLES\]\)/, "founder/agency roles only");
     assert.match(route, /devDocsAccessible\(session\)/, "the route asks the one predicate itself");
-    assert.match(route, /status: 404/, "outside Dev Mode the surface does not exist");
+    assert.match(route, /status: 404/, "outside founder-only access the surface does not exist");
     assert.match(route, /status: 401/, "an unauthenticated caller gets nowhere");
     assert.match(route, /createPlan\(/, "writing goes through the confined helper, never fs directly");
     assert.ok(!/node:fs/.test(route), "the route never touches the filesystem itself");
@@ -282,11 +282,12 @@ describe("The plan write path is gated the same way the portal is", () => {
   it("the writer only ever writes .md inside docs/development/plans", () => {
     const source = read("src/lib/server/dev/devTeamPlans.ts");
     assert.match(source, /^import "server-only";/m);
-    assert.match(source, /flag: "wx"/, "the overwrite refusal is the write, not a check before it");
+    assert.match(source, /createDevFileExclusive/, "the overwrite refusal is the create operation, not a check before it");
     assert.equal(
-      (source.match(/await writeFile\(/g) ?? []).length,
+      (source.match(/await createDevFileExclusive\(/g) ?? []).length,
       1,
-      "one write in the module — every other path is a read or a refusal",
+      "one cross-environment create in the module — every other path is a read or a refusal",
     );
+    assert.ok(!/node:fs/.test(source), "the plan writer cannot bypass the durable production adapter");
   });
 });

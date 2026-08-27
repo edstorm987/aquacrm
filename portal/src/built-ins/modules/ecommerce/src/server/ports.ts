@@ -27,6 +27,8 @@ import type {
 export interface StoragePort {
   get<T = unknown>(key: string): Promise<T | undefined>;
   set<T = unknown>(key: string, value: T): Promise<void>;
+  /** Serialize and durably flush one logical install-scoped operation. */
+  runExclusive?<T>(key: string, operation: () => Promise<T>): Promise<T>;
   del(key: string): Promise<void>;
   list(prefix?: string): Promise<string[]>;
 }
@@ -41,6 +43,7 @@ export interface TenantPort {
 // ─── Activity log ─────────────────────────────────────────────────────────
 
 export interface LogActivityInput {
+  idempotencyKey?: string;
   agencyId: AgencyId;
   clientId?: ClientId;
   actorUserId?: UserId;

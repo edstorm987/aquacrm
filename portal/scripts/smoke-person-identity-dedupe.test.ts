@@ -13,6 +13,7 @@ type Store = {
   mutate: (fn: (state: { persons: Record<string, unknown> }) => void) => void;
   upsertPerson: typeof import("../src/server/persons").upsertPerson;
   listPersons: typeof import("../src/server/persons").listPersons;
+  findPersonByIdentity: typeof import("../src/server/persons").findPersonByIdentity;
   findPersonByFacet: typeof import("../src/server/persons").findPersonByFacet;
 };
 
@@ -28,6 +29,7 @@ before(async () => {
     mutate: storage.mutate as Store["mutate"],
     upsertPerson: persons.upsertPerson,
     listPersons: persons.listPersons,
+    findPersonByIdentity: persons.findPersonByIdentity,
     findPersonByFacet: persons.findPersonByFacet,
   };
 });
@@ -97,9 +99,31 @@ describe("a shared phone number does not merge different people", () => {
   // records that can be linked later.
 
   it("keeps two clearly different people apart on a shared line", () => {
-    store.upsertPerson(AGENCY, { phones: ["01204 123456"], name: "Ruth Adeyemi" });
-    store.upsertPerson(AGENCY, { phones: ["01204 123456"], name: "Marcus Byrne" });
-    assert.equal(store.listPersons(AGENCY).length, 2, "a switchboard must not merge colleagues");
+    const ruth = store.upsertPerson(AGENCY, { phones: ["01204 123456"], name: "Ruth Adeyemi" }).person;
+    const marcus = store.upsertPerson(AGENCY, { phones: ["01204 123456"], name: "Marcus Byrne" }).person;
+    const people = store.listPersons(AGENCY);
+    assert.equal(people.length, 2, "a switchboard must not merge colleagues");
+    assert.equal(people.every(person => person.phones[0]?.shared === true), true,
+      "the line must be explicitly non-identifying on both cards");
+    assert.equal(store.findPersonByIdentity(AGENCY, { phones: ["01204 123456"] }), null,
+      "a shared number alone cannot choose a person");
+    assert.equal(
+      store.findPersonByIdentity(AGENCY, { phones: ["01204 123456"], name: "Ruth Adeyemi" })?.id,
+      ruth.id,
+      "the shared number plus one compatible name can reconnect a repeated import",
+    );
+    assert.equal(
+      store.findPersonByIdentity(AGENCY, { phones: ["01204 123456"], name: "Marcus Byrne" })?.id,
+      marcus.id,
+    );
+  });
+
+  it("does not duplicate either colleague when a shared-line sync repeats", () => {
+    for (let i = 0; i < 3; i += 1) {
+      store.upsertPerson(AGENCY, { phones: ["01204 123456"], name: "Ruth Adeyemi" });
+      store.upsertPerson(AGENCY, { phones: ["01204 123456"], name: "Marcus Byrne" });
+    }
+    assert.equal(store.listPersons(AGENCY).length, 2);
   });
 
   it("still merges the same person calling from the same number", () => {

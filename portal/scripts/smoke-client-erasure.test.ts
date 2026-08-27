@@ -52,6 +52,23 @@ function makeFakeSupabase(tables: Record<string, Record<string, unknown>[]>) {
   return { from: (t: string) => builder(t) };
 }
 
+function makeFailingSupabase(message = "provider unavailable") {
+  function builder() {
+    const b = {
+      select() { return b; },
+      delete() { return b; },
+      update() { return b; },
+      eq() { return b; },
+      in() { return b; },
+      then(resolve: (value: { data: null; error: { message: string } }) => void) {
+        resolve({ data: null, error: { message } });
+      },
+    };
+    return b;
+  }
+  return { from: () => builder() };
+}
+
 describe("permanently erasing a client", () => {
   let agencyId: string;
   let clientId: string;
@@ -72,6 +89,7 @@ describe("permanently erasing a client", () => {
 
     const result = await erasure.eraseClientCompletely({ agencyId, clientId, actorUserId: "ed" });
     assert.ok(result);
+    assert.equal(result!.completed, true);
     assert.equal(result!.clientName, "Doomed Client");
     assert.ok(result!.recordsErased >= 3);
 
@@ -88,6 +106,7 @@ describe("permanently erasing a client", () => {
     const erased = storage.getState().activity.find(e => e.action === "client.erased");
     assert.ok(erased, "no audit entry recorded the erasure");
     assert.match(erased!.message, /cannot be undone/i);
+    assert.doesNotMatch(erased!.message, /Doomed Client/);
     // And the client's OWN prior activity is gone.
     assert.equal(storage.getState().activity.some(e => e.clientId === clientId && e.action === "test.event"), false);
     void entries;
@@ -99,11 +118,42 @@ describe("permanently erasing a client", () => {
     assert.ok(tenants.getClientForAgency(agencyId, clientId), "the client must be untouched by a foreign erase");
   });
 
+  it("reports live failures as retryable and keeps the local client until retry succeeds", async () => {
+    const failed = await erasure.eraseClientCompletely({
+      agencyId,
+      clientId,
+      actorUserId: "ed",
+      supabase: makeFailingSupabase() as never,
+    });
+    assert.ok(failed);
+    assert.equal(failed!.completed, false);
+    assert.ok(failed!.live?.errors?.length);
+    assert.ok(tenants.getClientForAgency(agencyId, clientId), "a failed live scrub removed the retry target");
+    assert.equal(connections.listPortalConnections(agencyId, clientId).length, 1, "local data changed before live completion");
+
+    const failureAudit = storage.getState().activity.find(entry => entry.action === "client.erasure_failed");
+    assert.ok(failureAudit, "retryable per-system outcomes were not persisted");
+    assert.doesNotMatch(failureAudit!.message, /Doomed Client/);
+    assert.ok(Array.isArray((failureAudit!.metadata as { failedSystems?: unknown[] }).failedSystems));
+
+    const retried = await erasure.eraseClientCompletely({
+      agencyId,
+      clientId,
+      actorUserId: "ed",
+      supabase: makeFakeSupabase({}) as never,
+    });
+    assert.equal(retried?.completed, true);
+    assert.equal(tenants.getClientForAgency(agencyId, clientId), null);
+  });
+
   it("gates the route on the owner and a typed-back name", () => {
     const route = (require("node:fs").readFileSync(
       require("node:path").join(__dirname, "..", "src", "app", "api", "portal", "clients", "[clientId]", "erase", "route.ts"), "utf-8") as string);
     assert.match(route, /requireRole\("agency-owner"\)/);
     assert.match(route, /confirmName !== client\.name/);
+    assert.match(route, /if \(!result\.completed\)/);
+    assert.match(route, /retryable: true/);
+    assert.match(route, /status: 502/);
   });
 });
 
@@ -130,7 +180,7 @@ describe("manually deleting a website enquiry", () => {
     // The inbox renders it behind canErase, and the page only sets that for an
     // agency-owner — so ordinary staff never see it.
     assert.match(inbox(), /canErase \? <EnquiryDeleteButton/);
-    assert.match(page(), /canErase=\{session\.role === "agency-owner"\}/);
+    assert.match(page(), /canErase=\{!session\.publicShowcase && session\.role === "agency-owner"\}/);
   });
 
   it("asks twice before deleting, in place, without a modal", () => {

@@ -1,14 +1,24 @@
 import "server-only";
 
-import { readdir, writeFile, mkdir, rename } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 
 import { PROJECT_ROOT } from "@/lib/server/dev/devDocs";
 import { invalidateFile, readParsedFile } from "@/lib/server/dev/devMarkdownCache";
 import { localDay } from "@/lib/server/dev/devLocalTime";
 import { scanPlanStatuses, type PlanStatus } from "@/lib/server/dev/devTeamBoard";
 import { scanTasks, type DevTask } from "@/lib/server/dev/devTeamTasks";
-import { scanWorkerSignals } from "@/lib/server/dev/devTeamWorkers";
+import { readActiveCheckIns } from "@/lib/server/dev/devTeamWorkers";
+import {
+  atomicReplaceDevFile,
+  DevFileConflictError,
+  withDevFileTransaction,
+} from "@/lib/server/dev/devFileTransaction";
+import {
+  readDevWorkspaceDirectory,
+  readDevWorkspaceSnapshot,
+  usesDurableDevTeamWorkspace,
+  type DevWorkspaceFileVersion,
+} from "@/lib/server/dev/devWorkspaceFiles";
 
 // The ROADMAP — the outer view.
 //
@@ -482,18 +492,32 @@ async function readDoc(): Promise<{ preamble?: string; items: RoadmapItem[] }> {
   return (await readParsedFile("roadmap", roadmapPath(), parseRoadmapDoc)) ?? { items: [] };
 }
 
+/** Mutations bypass the mtime cache after taking the cross-process lock. */
+async function readDocFresh(): Promise<{
+  preamble?: string;
+  items: RoadmapItem[];
+  version: DevWorkspaceFileVersion | null;
+}> {
+  try {
+    const snapshot = await readDevWorkspaceSnapshot(roadmapPath());
+    return { ...parseRoadmapDoc(snapshot.bytes.toString("utf8")), version: snapshot.version };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    return { items: [], version: null };
+  }
+}
+
 export async function readItems(): Promise<RoadmapItem[]> {
   return (await readDoc()).items;
 }
 
-async function writeItems(items: RoadmapItem[], preamble?: string): Promise<void> {
+async function writeItems(
+  items: RoadmapItem[],
+  preamble: string | undefined,
+  expected: DevWorkspaceFileVersion | null,
+): Promise<void> {
   const path = roadmapPath();
-  await mkdir(dirname(path), { recursive: true });
-  // Temp file + rename: a crash mid-write leaves the previous roadmap intact
-  // rather than a half-rendered one.
-  const temp = `${path}.${process.pid}.tmp`;
-  await writeFile(temp, renderRoadmap(items, preamble), "utf8");
-  await rename(temp, path);
+  await atomicReplaceDevFile(path, renderRoadmap(items, preamble), expected);
   // Bust the read cache for THIS file so the next read reflects the write even
   // if the rename landed inside the same mtime tick with an identical size.
   invalidateFile("roadmap", path);
@@ -509,16 +533,19 @@ async function writeItems(items: RoadmapItem[], preamble?: string): Promise<void
  * two, with both calls resolving happily. Two browser tabs, or a worker's
  * `linkPlan` landing while a status edit saves, is all it takes.
  *
- * A process-level queue is enough here — single process, founder-only console —
- * and is far less to get wrong than file locking.
+ * The lock lives on disk beside the selected roadmap path, so separate Next
+ * workers and command processes share it. Each mutation re-reads only after it
+ * owns that lock and commits with atomic rename.
  */
-let writeQueue: Promise<unknown> = Promise.resolve();
-
-function serialise<T>(run: () => Promise<T>): Promise<T> {
-  const next = writeQueue.then(run, run);
-  // Keep the chain alive whether or not this link rejected.
-  writeQueue = next.then(() => undefined, () => undefined);
-  return next;
+async function serialise<T>(run: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      return await withDevFileTransaction(roadmapPath(), run);
+    } catch (error) {
+      if (!usesDurableDevTeamWorkspace() || !(error instanceof DevFileConflictError) || attempt === 4) throw error;
+    }
+  }
+  throw new DevFileConflictError();
 }
 
 // ---- the live view ---------------------------------------------------------
@@ -529,19 +556,26 @@ function serialise<T>(run: () => Promise<T>): Promise<T> {
  * an item is exactly as done as its tasks are.
  */
 export async function buildRoadmap(now = Date.now()): Promise<Roadmap> {
-  const [items, planFiles, archivedFiles, planStatuses, planTasks, signals] = await Promise.all([
+  const [items, planFiles, archivedFiles, planStatuses, planTasks, activeCheckIns] = await Promise.all([
     readItems(),
     // The plan FILES are the truth about existence: `scanPlanStatuses` only
     // returns plans carrying a `**Status:` line and `scanTasks` only those with
     // phases, so a real handoff doc would otherwise read as a typo.
-    readdir(join(PROJECT_ROOT, "docs", "development", "plans")).catch((): string[] => []),
+    readDevWorkspaceDirectory(join(PROJECT_ROOT, "docs", "development", "plans"))
+      .then(entries => entries.filter(entry => entry.isFile()).map(entry => entry.name))
+      .catch((): string[] => []),
     // Shipped plans move to plans/archive/ so the BOARD stops carrying them —
     // but the roadmap still links to them from its Shipped lane, so existence
     // has to be checked in both places.
-    readdir(join(PROJECT_ROOT, "docs", "development", "plans", "archive")).catch((): string[] => []),
+    readDevWorkspaceDirectory(join(PROJECT_ROOT, "docs", "development", "plans", "archive"))
+      .then(entries => entries.filter(entry => entry.isFile()).map(entry => entry.name))
+      .catch((): string[] => []),
     scanPlanStatuses().catch((): PlanStatus[] => []),
     scanTasks().catch(() => []),
-    scanWorkerSignals().catch(() => null),
+    // The roadmap only needs worker intent, never the recursive recent-file
+    // activity walk. Use the shared active predicate and keep filesystem
+    // scanning on the explicit worker/activity surfaces.
+    readActiveCheckIns(now).catch(() => []),
   ]);
 
   const fileNames = new Set(
@@ -552,7 +586,7 @@ export async function buildRoadmap(now = Date.now()): Promise<Roadmap> {
   );
   const statusByName = new Map(planStatuses.map(p => [p.name.toLowerCase(), p]));
   const tasksByName = new Map(planTasks.map(p => [p.planName.toLowerCase(), p]));
-  const checkIns = signals?.checkIns ?? [];
+  const checkIns = activeCheckIns;
 
   const views: RoadmapItemView[] = items.map(item => {
     const planLinks = item.plans.map(name => {
@@ -655,7 +689,7 @@ async function addItemUnsafe(input: NewItemInput, now = Date.now()): Promise<Roa
   const title = clean(input.title ?? "", 120);
   if (!title) throw new Error("Give it a name — what is the thing?");
 
-  const { preamble, items } = await readDoc();
+  const { preamble, items, version } = await readDocFresh();
   const base = itemId(title);
   if (!base) throw new Error("That name has no letters or numbers to make an id from.");
   let id = base;
@@ -678,7 +712,7 @@ async function addItemUnsafe(input: NewItemInput, now = Date.now()): Promise<Roa
     notes: input.notes ? clean(input.notes, 2000) : undefined,
   };
 
-  await writeItems([...items, item], preamble);
+  await writeItems([...items, item], preamble, version);
   return item;
 }
 
@@ -702,7 +736,7 @@ export function updateItem(input: UpdateItemInput, now = Date.now()): Promise<Ro
 }
 
 async function updateItemUnsafe(input: UpdateItemInput, now = Date.now()): Promise<RoadmapItem> {
-  const { preamble, items } = await readDoc();
+  const { preamble, items, version } = await readDocFresh();
   const item = items.find(i => i.id === input.id);
   if (!item) throw new Error("That roadmap item no longer exists.");
 
@@ -729,7 +763,7 @@ async function updateItemUnsafe(input: UpdateItemInput, now = Date.now()): Promi
     item.shippedOn = undefined;
   }
 
-  await writeItems(items, preamble);
+  await writeItems(items, preamble, version);
   return item;
 }
 
@@ -739,7 +773,7 @@ export function linkPlan(id: string, planName: string): Promise<RoadmapItem> {
 }
 
 async function linkPlanUnsafe(id: string, planName: string): Promise<RoadmapItem> {
-  const { preamble, items } = await readDoc();
+  const { preamble, items, version } = await readDocFresh();
   const item = items.find(i => i.id === id);
   if (!item) throw new Error("That roadmap item no longer exists.");
   // Same cleaning, dedupe and cap as addItem/updateItem — this used to be an
@@ -747,7 +781,7 @@ async function linkPlanUnsafe(id: string, planName: string): Promise<RoadmapItem
   // `plan-one` and 15 successive links stored 15 plans.
   item.plans = cleanPlans([...item.plans, planName]);
   if (item.status === "idea") item.status = "planned";
-  await writeItems(items, preamble);
+  await writeItems(items, preamble, version);
   return item;
 }
 
@@ -757,11 +791,11 @@ export function removeItem(id: string): Promise<{ removed: RoadmapItem }> {
 }
 
 async function removeItemUnsafe(id: string): Promise<{ removed: RoadmapItem }> {
-  const { preamble, items } = await readDoc();
+  const { preamble, items, version } = await readDocFresh();
   const index = items.findIndex(i => i.id === id);
   if (index < 0) throw new Error("That roadmap item no longer exists.");
   const [removed] = items.splice(index, 1);
-  await writeItems(items, preamble);
+  await writeItems(items, preamble, version);
   return { removed };
 }
 

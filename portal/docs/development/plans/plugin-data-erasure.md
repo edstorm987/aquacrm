@@ -2,7 +2,7 @@
 
 ← [todo.md](../todo.md) · [development.md](../../development.md) · **[DPO review pack »](../../compliance/erasure-dpo-pack.md)**
 
-**Status: ✅ SHIPPED — code-complete + runtime-verified (smoke-client-erasure 27/27, all 5 phases). Staged live run + DPO sign-off remain (process, not code).**
+**Status: P1 REWORK — local/plugin disposition coverage shipped; end-to-end completion is unsafe.** The local/fake-client suite covers the intended sweep, but live failures can still return success after the local client is deleted, the route then cannot normally retry, and the permanent activity message includes `clientName`. See [issues #24](../issues.md). A staged live run and DPO sign-off also remain.
 *bigger* than reported: `leads-pipeline`'s `onEraseClient` filtered `contact.clientId`,
 which **nothing in the codebase ever writes**, so the hook erased **nothing** — and
 because `clientErasure` skips a hook-owned slice wholesale, nothing else swept it
@@ -12,7 +12,8 @@ Both halves are now closed and proven by a test that drives the real
 create→convert→promote→erase path and asserts zero trace of the email *or phone*
 anywhere in state — a test verified to FAIL against the old code. See Phase 2b-rework
 below. Client erasure sweeps *plugin-owned* data and live Supabase per a disposition
-policy, so "delete a client + all its data" is complete (GDPR) without destroying the
+policy, but this does **not** make “delete a client + all its data” operationally
+complete: hosted failure reporting/retry and audit de-identification remain open. The
 finance/deliverable records held for legal defence. Live scrub proven against a
 faithful fake Supabase client; a staged live run + DPO sign-off remain before real
 clients (see [status.md](../status.md)).
@@ -55,9 +56,10 @@ long) confirmed by a solicitor/DPO. Safe to build to now — all data is Ed's ow
 1. ✅ **Erasure hook contract.** `onEraseClient?(ctx, clientId)` on the plugin manifest (`built-ins/runtime/_types.ts`), resolved like other plugin ports. **DONE.**
 2. ✅ **Runtime sweep.** `eraseClientCompletely` calls each installed plugin's hook + a generic `pluginData` clientId value-scan fallback. Client-scoped installs slice-dropped; agency-scoped value-scanned. leads-pipeline `onEraseClient` closes the email-in-key gap. **DONE + runtime-verified.**
 2.5. ✅ **Disposition policy (added after Ed's decision).** Per-plugin **`dataDisposition: "delete" | "retain"`** + a top-level `RETAIN_COLLECTIONS`; sweep order **hook › retain › delete**. Guard confirmed the blanket sweep was over-deleting finance/orders/deliverables → now **RETAIN** (`agency-finance`, `fulfillment` wholesale; `ecommerce`/`affiliates`/`memberships` retain-for-now). Audit records disposition per area. **DONE + verified 20/20.** ✅ **2.5c DONE + verified 24/24:** bespoke `onEraseClient` on **ecommerce** (strip order customer PII, keep amounts + payment refs) and **affiliates** (strip `displayName`/`payoutEmail`, keep earnings + Stripe ref; Attribution/Payout already de-identified). **memberships needs no hook** — its `Subscription` embeds no name/email (only a pseudonymous token + Stripe refs), and the member identity lives in top-level `endCustomers` which the sweep deletes. Ed's rule applied: **keep all payment/txn refs** (reconciliation/legal-proof handle), strip only identity PII.
-3. ✅ **Live tables — per the disposition policy. DONE + verified (fake client).** `brand_enquiries` → **anonymise**, split by identity resolution: enquirer `resolved` AS the client → strip PII (`name`/`email`/`phone`/`message` + `replies`/`calls`) + drop link; separate party → drop link only, keep their data. `inbox_conversations`/`inbox_messages`(via `conversation_id`)/`inbox_contact_identities` → **delete + no-PII audit stub** (count + date span). `inbox_channel_connections` untouched. The scrub takes an **injected** Supabase client (route passes the real admin client; tests pass a fake → never touch live). ✅ Guard confirmed the sweep does not reach finance/contracts/deliverables. Best-effort + idempotent (per-table failure recorded in the stub, not thrown).
-4. ✅ **Audit + report. DONE.** The one `client.erased` entry records disposition per area (`deleted:* / retained:* / anonymised:* / hook:*`) + the no-PII live stub (inbox counts + date span, enquiry counts) — no personal data.
-5. ✅ **Test. DONE.** `smoke-client-erasure.test.ts` now asserts **each disposition** end-to-end: retained (finance/milestones), deleted (crm/comms + install record), hook (ecommerce PII-strip/keep-payment, leads key-PII), live inbox delete + no-PII stub, and the `brand_enquiries` resolution split — plus the memory-only path (no supabase) and the route wiring. Full suite green.
+3. 🟡 **Live tables — disposition logic verified only with a fake client; completion contract open.** `brand_enquiries` → anonymise; inbox rows → delete; the injected-client path records per-table errors. The current route nevertheless returns success after errors and cannot normally retry once local deletion has happened.
+4. 🔴 **Audit + report requires rework.** The metadata stub is counts/date-span only, but the surviving activity message interpolates `clientName`; the complete audit record therefore contains personal data.
+5. ✅ **Original disposition test phase DONE.** The suite covers retained/deleted/hook categories and the successful fake live scrub. That phase remains complete for its stated disposition scope; it does not prove the new operational failure findings below.
+6. 🔴 **P1 failure semantics + audit rework.** Require a partial/failed HTTP result when any hosted operation fails, preserve a durable route-level retry after local deletion, and assert absence of `clientName` from the surviving activity record. This phase is open under issues #24.
 
 ### 2b-rework ✅ **The hook that erased nothing (2026-08-19)** — the real GDPR fix
 **Empirically proven first** (a throwaway probe driving real service calls, not a read):
@@ -183,7 +185,11 @@ reading. Fleet-wide sweep: those two sites were the only ones.
   recipient in free text. Deliberately kept — that *is* the signed contract.
 
 
-**Status:** code-complete + runtime-verified in memory. The live scrub is proven against a faithful **fake** Supabase client, not a live run (you don't test a destructive op on live data). Before real clients: a **staged live run** against a throwaway seeded client + **DPO sign-off** on the retention schedule. See [status.md](../status.md).
+**Disposition-sweep checkpoint:** local/plugin behaviour was runtime-verified in
+memory and the live-query shape was exercised with a fake client. **Current P1
+override:** end-to-end erasure is not code-complete because failure can be returned
+as success, retry is stranded and the audit keeps `clientName`. See issue #24 and
+[status.md](../status.md).
 
 ### ⚖️ Person records — Ed's decision (2026-08-19): **ANONYMISE IF ORPHANED** — ✅ **IMPLEMENTED + TESTED**
 

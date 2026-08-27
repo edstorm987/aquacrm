@@ -15,6 +15,11 @@ live worker panel) and it is wired into the Command Centre as a 4th station. Wha
 Centre station is only half-wired (its badge is hardcoded to zero). Ed's words: *"needs the
 icons and stuff and just actually be accurate work and have it wired in command centre."*
 
+> **Current correction, 2026-08-23:** this is a shipped plan and its phase narrative
+> records the 2026-08-19 checkpoint. The later MFA work is now complete: login gate,
+> code step, session assurance and recovery codes are all built. References below to
+> "no MFA step" or phases 3–4 being absent are historical findings, not current work.
+
 ## Goal
 Every number on the Dev Team surfaces is **true**, the navigation **looks like the rest of the
 app** (icons, not bare text), and the Command Centre station behaves like a first-class station

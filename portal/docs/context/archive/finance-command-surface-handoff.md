@@ -1,6 +1,14 @@
 # Handoff — Finance command surface (the whole build)
 
-> 🗄 **ARCHIVED 2026-08-21.** Historical worker debrief. The **plan** is the authority on status — [plans/finance-command-surface.md](../../development/plans/finance-command-surface.md) (5/5, still linked from the roadmap's `verify-sweep`). This file is the dated "what was built, what broke" record.
+> 🗄 **ARCHIVED 2026-08-21.** Historical worker debrief. This file records what the
+> 2026-08-19 delivery batch built and is not current completion evidence. The
+> [current checklist](../../development/checklist.md) and [issue #121](../../development/issues.md)
+> are the status authority; source/behaviour work #113–#121 is complete. Invoice identity #113,
+> payment allocation #114, Finance runtime
+> validity #115, recoverable plan assignment #116, recurring posting #117 and reporting semantics
+> #118 plus durable refund accounting #119 were resolved on 2026-08-26. Settings #120 and
+> commercial-plan convergence #121 retain mounted browser acceptance. The linked plan
+> remains the dated P1–P5 build record.
 
 ← [finance-command-surface.md](../../development/plans/finance-command-surface.md) (the plan) ·
 [updates.md](../../development/updates.md) · [status.md](../../development/status.md) · [development.md](../../development.md)
@@ -16,8 +24,14 @@ NOT done, and what to do next* — so nothing lives only in a chat.
 
 ## 0. TL;DR
 
-The [finance-command-surface plan](../../development/plans/finance-command-surface.md) is **fully
-built — P1 through P5 plus the You-Deserve-It wire.** Finance went from a
+The dated [finance-command-surface plan](../../development/plans/finance-command-surface.md)
+was **built through P1–P5 plus the You-Deserve-It wire.** That describes the scoped
+2026-08-19 batch, not current production completeness; the 2026-08-24 review reopened
+the correctness and operability work listed through
+[issue #121](../../development/issues.md); invoice identity #113, payment allocation #114,
+runtime validity #115, plan assignment #116, recurring posting #117, reporting semantics #118 and
+refund accounting #119 were resolved on 2026-08-26. Settings #120 and commercial-plan convergence
+#121 are code/behaviour-complete with mounted browser acceptance pending. Finance went from a
 real-but-**manual + sprawling** `agency-finance` plugin to a coherent
 **visibility + orchestration layer across every payment channel**, with Stripe
 wired for the online channel and a flagship **one-button close**.

@@ -1,9 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { getActiveAgencyId, requireRole } from "@/lib/server/auth/auth";
-import { provisionSupabaseIdentity } from "@/lib/supabase/admin";
+import { AuthError, authErrorResponse, getActiveAgencyId, requireRole } from "@/lib/server/auth/auth";
+import { routeTenantScope } from "@/lib/server/portal/apiTenantScope";
+import {
+  getStaffProvisioningOperation,
+  runStaffProvisioning,
+  StaffProvisioningConflictError,
+  StaffProvisioningRecoveryError,
+} from "@/server/staffProvisioning";
 import {
   acknowledgePeopleContract,
+  addPeopleFreelancerDeliverable,
   awardPeopleRecognition,
   completeModuleAssignment,
   createPeopleContract,
@@ -32,7 +39,7 @@ import {
   setPeopleFreelancerJobStatus,
   updatePeopleApplication,
   updatePeopleEmployee,
-  canUsePeopleStation,
+  PeopleIdentityConflictError,
 } from "@/server/people";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import type {
@@ -50,7 +57,18 @@ import type {
   PeopleTrainingAssignment,
   PeopleWorkspaceAccess,
 } from "@/server/types";
-import { createUser, getUser, validatePassword } from "@/server/users";
+import { getUser, validatePassword } from "@/server/users";
+import {
+  assertWorkspaceElementAccess,
+  currentWorkspaceElementAccess,
+  redactPeopleEmployeePay,
+  STAFF_STATION_ELEMENT_KEYS,
+  staffStationAccessEntries,
+  workspaceElementLevel,
+  type WorkspaceElementAccess,
+} from "@/lib/server/access/workspaceElementAccess";
+import { AccessControlError, accessErrorResponse } from "@/server/accessControl";
+import { projectPeopleWorkspaceSnapshot } from "@/lib/server/access/peopleWorkspaceProjection";
 
 export const runtime = "nodejs";
 
@@ -69,23 +87,117 @@ function text(value: unknown, max = 240): string {
 }
 
 function number(value: unknown): number | undefined {
+  if (value === undefined || value === null || (typeof value === "string" && !value.trim())) return undefined;
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function peopleNumber(value: unknown): number | undefined {
+  if (value === undefined || value === null || (typeof value === "string" && !value.trim())) return undefined;
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
 }
 
 function error(message: string, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status });
 }
 
-export async function GET() {
-  await ensureHydrated();
-  const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
-  const agencyId = getActiveAgencyId(session);
-  if (session.role === "agency-staff") {
-    const snapshot = employeePeopleSnapshot(agencyId, session.userId);
-    return snapshot ? NextResponse.json({ ok: true, ...snapshot }) : error("Your employee workspace has not been provisioned yet.", 404);
+function requireManagerPeopleAction(
+  access: WorkspaceElementAccess,
+  action: string,
+  body: Record<string, unknown>,
+): void {
+  if (action === "update-access") {
+    assertWorkspaceElementAccess(access, "workspace.settings", "manage");
+    return;
   }
-  return NextResponse.json({ ok: true, ...peopleSnapshot(agencyId) });
+  if (action === "update-commission") {
+    assertWorkspaceElementAccess(access, "staff.pay", "manage");
+    return;
+  }
+  if (["save-freelancer-job", "set-freelancer-job-status", "add-freelancer-deliverable"].includes(action)) {
+    assertWorkspaceElementAccess(access, "staff.people", "use");
+    // Freelancer fees, payment references and paid state are compensation data.
+    assertWorkspaceElementAccess(access, "staff.pay", "manage");
+    return;
+  }
+  if (action === "update-employee") {
+    assertWorkspaceElementAccess(access, "staff.people", "manage");
+    if (["payBasis", "basePayMinor", "currency"].some(field => body[field] !== undefined)) {
+      assertWorkspaceElementAccess(access, "staff.pay", "manage");
+    }
+    if (["weeklyHours", "holidayAllowanceDays"].some(field => body[field] !== undefined)) {
+      assertWorkspaceElementAccess(access, "staff.schedule", "manage");
+    }
+    return;
+  }
+  if (["decide-leave", "save-shift"].includes(action)) {
+    assertWorkspaceElementAccess(access, "staff.schedule", "use");
+    return;
+  }
+  if (["save-training", "assign-module", "update-onboarding"].includes(action)) {
+    assertWorkspaceElementAccess(access, "staff.training", "use");
+    return;
+  }
+  if (["save-training-module", "save-onboarding-template"].includes(action)) {
+    assertWorkspaceElementAccess(access, "staff.training", "manage");
+    return;
+  }
+  if ([
+    "hire-candidate",
+    "provision-employee",
+    "create-employee",
+    "save-hiring-stages",
+    "create-contract",
+    "send-contract",
+  ].includes(action)) {
+    assertWorkspaceElementAccess(access, "staff.people", "manage");
+    return;
+  }
+  if ([
+    "update-application",
+    "rotate-status-link",
+    "award-recognition",
+    "set-feedback-status",
+  ].includes(action)) {
+    assertWorkspaceElementAccess(access, "staff.people", "use");
+  }
+}
+
+export async function GET() {
+  try {
+    await ensureHydrated();
+    const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
+    const agencyId = getActiveAgencyId(session);
+    const { actor, access } = await currentWorkspaceElementAccess("staff");
+    if (!Object.values(access.levels).some(level => level !== "hidden")) throw new AuthError(403, "staff_workspace_forbidden");
+    const payVisible = workspaceElementLevel(access, "staff.pay") !== "hidden";
+    const scheduleVisible = workspaceElementLevel(access, "staff.schedule") !== "hidden";
+    const trainingVisible = workspaceElementLevel(access, "staff.training") !== "hidden";
+    if (session.role === "agency-staff") {
+      const snapshot = employeePeopleSnapshot(agencyId, session.userId);
+      if (!snapshot) return error("Your employee workspace has not been provisioned yet.", 404);
+      const stationAccess = staffStationAccessEntries(actor, access);
+      const employee = payVisible
+        ? { ...snapshot.employee, workspaceAccess: stationAccess }
+        : redactPeopleEmployeePay({ ...snapshot.employee, workspaceAccess: stationAccess });
+      return NextResponse.json({
+        ok: true,
+        ...snapshot,
+        employee: trainingVisible ? employee : { ...employee, onboardingItems: [] },
+        leaveRequests: scheduleVisible ? snapshot.leaveRequests : [],
+        shifts: scheduleVisible ? snapshot.shifts : [],
+        training: trainingVisible ? snapshot.training : [],
+        modules: trainingVisible ? snapshot.modules : [],
+        stations: snapshot.stations.filter(station => stationAccess.some(item => item.stationId === station.id)),
+      });
+    }
+    const snapshot = peopleSnapshot(agencyId);
+    return NextResponse.json({ ok: true, ...projectPeopleWorkspaceSnapshot(snapshot, access) });
+  } catch (cause) {
+    if (cause instanceof AccessControlError) return accessErrorResponse(cause);
+    return authErrorResponse(cause);
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -97,11 +209,12 @@ export async function POST(req: NextRequest) {
   const action = text(body.action, 80);
 
   try {
+    const { access } = await currentWorkspaceElementAccess("staff");
     if (session.role === "agency-staff") {
       const self = employeePeopleSnapshot(agencyId, session.userId);
       if (!self) return error("Employee workspace not found.", 404);
       if (action === "request-leave") {
-        if (!canUsePeopleStation(agencyId, session.userId, "leave", true)) return error("Time-off editing is not assigned to your workspace.", 403);
+        assertWorkspaceElementAccess(access, STAFF_STATION_ELEMENT_KEYS.leave, "use");
         const type = text(body.type, 40) as PeopleLeaveRequest["type"];
         const request = createPeopleLeaveRequest({
           agencyId,
@@ -115,7 +228,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true, request }, { status: 201 });
       }
       if (action === "update-onboarding") {
-        if (!canUsePeopleStation(agencyId, session.userId, "onboarding", true)) return error("Onboarding editing is not assigned to your workspace.", 403);
+        assertWorkspaceElementAccess(access, STAFF_STATION_ELEMENT_KEYS.onboarding, "use");
         const itemId = text(body.itemId, 120);
         const status = text(body.status, 30) as PeopleEmployee["onboardingItems"][number]["status"];
         const onboardingItems = self.employee.onboardingItems.map(item => item.id === itemId && item.owner === "employee" ? {
@@ -129,7 +242,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true, employee });
       }
       if (action === "update-training") {
-        if (!canUsePeopleStation(agencyId, session.userId, "training", true)) return error("Training editing is not assigned to your workspace.", 403);
+        assertWorkspaceElementAccess(access, STAFF_STATION_ELEMENT_KEYS.training, "use");
         const existing = self.training.find(item => item.id === text(body.trainingId, 120));
         if (!existing) return error("Training assignment not found.", 404);
         const training = savePeopleTraining({
@@ -141,7 +254,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true, training });
       }
       if (action === "complete-module") {
-        if (!canUsePeopleStation(agencyId, session.userId, "training", true)) return error("Training is not assigned to your workspace.", 403);
+        assertWorkspaceElementAccess(access, STAFF_STATION_ELEMENT_KEYS.training, "use");
         const answers = (body.answers && typeof body.answers === "object") ? body.answers as Record<string, string> : {};
         const outcome = completeModuleAssignment({ agencyId, assignmentId: text(body.assignmentId, 120), userId: session.userId, answers });
         if (!outcome) return error("Training assignment not found.", 404);
@@ -149,13 +262,14 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true, training: outcome.assignment, result: outcome.result });
       }
       if (action === "acknowledge-contract") {
+        assertWorkspaceElementAccess(access, "staff.people", "use");
         const contract = acknowledgePeopleContract({ agencyId, contractId: text(body.contractId, 120), userId: session.userId, name: text(body.name, 120), decline: Boolean(body.decline) });
         if (!contract) return error("Contract not found or not yours to sign.", 404);
         await flushPendingWrites();
         return NextResponse.json({ ok: true, contract });
       }
       if (action === "submit-feedback") {
-        if (!canUsePeopleStation(agencyId, session.userId, "progression", true)) return error("The growth & company station is not assigned to your workspace.", 403);
+        assertWorkspaceElementAccess(access, STAFF_STATION_ELEMENT_KEYS.progression, "use");
         const feedback = createPeopleFeedback({
           agencyId,
           employeeId: self.employee.id,
@@ -169,6 +283,7 @@ export async function POST(req: NextRequest) {
     }
 
     await requireRole([...MANAGERS]);
+    requireManagerPeopleAction(access, action, body);
     if (action === "update-application") {
       const stage = text(body.stage, 40) as PeopleApplicationStage;
       if (!APPLICATION_STAGES.has(stage)) return error("Choose a valid application stage.");
@@ -188,54 +303,78 @@ export async function POST(req: NextRequest) {
     if (action === "hire-candidate") {
       const application = getPeopleApplication(agencyId, text(body.applicationId, 120));
       if (!application) return error("Application not found.", 404);
-      if (application.employeeId) return error("This candidate already has an employee record.", 409);
       const password = text(body.temporaryPassword, 200);
       const passwordCheck = validatePassword(password);
       if (!passwordCheck.ok) return error(passwordCheck.error || "Choose a stronger temporary password.");
-      if (getUser(application.email)) return error("A user with this email already exists. Link the existing employee record instead.", 409);
-      await provisionSupabaseIdentity({ email: application.email, password, name: application.name, role: "staff", agencyId });
-      const user = createUser({ email: application.email, password, name: application.name, role: "agency-staff", agencyId, mustChangePassword: true });
       const employmentType = text(body.employmentType, 40) as PeopleEmploymentType;
-      const employee = createPeopleEmployee({
+      const result = await runStaffProvisioning({
         agencyId,
         actorUserId: session.userId,
-        applicationId: application.id,
-        userId: user.id,
-        name: application.name,
         email: application.email,
-        phone: application.phone,
-        title: text(body.title, 160) || application.roleInterest,
-        department: text(body.department, 120),
-        employmentType: EMPLOYMENT_TYPES.has(employmentType) ? employmentType : application.employmentPreference,
-        startDate: number(body.startDate),
-        weeklyHours: number(body.weeklyHours),
+        name: application.name,
+        password,
+        localRole: "agency-staff",
+        mustChangePassword: true,
+        target: {
+          kind: "candidate",
+          applicationId: application.id,
+          title: text(body.title, 160) || application.roleInterest,
+          department: text(body.department, 120),
+          employmentType: EMPLOYMENT_TYPES.has(employmentType) ? employmentType : application.employmentPreference ?? "full-time",
+          startDate: peopleNumber(body.startDate),
+          weeklyHours: peopleNumber(body.weeklyHours),
+        },
       });
-      await flushPendingWrites();
-      return NextResponse.json({ ok: true, employee, user: { id: user.id, email: user.email, mustChangePassword: user.mustChangePassword } }, { status: 201 });
+      return NextResponse.json({
+        ok: true,
+        employee: result.employee,
+        user: { id: result.user.id, email: result.user.email, mustChangePassword: result.user.mustChangePassword },
+        resumed: result.resumed,
+      }, { status: 201 });
     }
 
     if (action === "provision-employee") {
       const employee = getPeopleEmployee(agencyId, text(body.employeeId, 120));
       if (!employee) return error("Employee not found.", 404);
-      if (employee.userId) return error("This employee already has a portal account.", 409);
       const password = text(body.temporaryPassword, 200);
       const existingUser = getUser(employee.email);
+      if (employee.userId) {
+        const operation = getStaffProvisioningOperation(agencyId, employee.email);
+        if (
+          !operation
+          || operation.targetKind !== "employee"
+          || operation.targetId !== employee.id
+          || operation.localUserId !== employee.userId
+        ) return error("This employee already has a portal account.", 409);
+      }
       let user;
-      if (existingUser) {
+      if (existingUser && !employee.userId) {
         if (existingUser.agencyId !== agencyId || existingUser.role !== "agency-staff") return error("That email belongs to another account and cannot be linked automatically.", 409);
         user = existingUser;
+        const updated = updatePeopleEmployee(agencyId, employee.id, { userId: user.id, status: "active" }, session.userId);
+        await flushPendingWrites();
+        return NextResponse.json({ ok: true, employee: updated, user: { id: user.id, email: user.email }, resumed: false }, { status: 201 });
       } else {
         const passwordCheck = validatePassword(password);
         if (!passwordCheck.ok) return error(passwordCheck.error || "Choose a stronger temporary password.");
-        await provisionSupabaseIdentity({ email: employee.email, password, name: employee.name, role: "staff", agencyId });
-        user = createUser({ email: employee.email, password, name: employee.name, role: "agency-staff", agencyId, mustChangePassword: true });
+        const result = await runStaffProvisioning({
+          agencyId,
+          actorUserId: session.userId,
+          email: employee.email,
+          name: employee.name,
+          password,
+          localRole: "agency-staff",
+          mustChangePassword: true,
+          target: { kind: "employee", employeeId: employee.id },
+        });
+        return NextResponse.json({ ok: true, employee: result.employee, user: { id: result.user.id, email: result.user.email }, resumed: result.resumed }, { status: 201 });
       }
-      const updated = updatePeopleEmployee(agencyId, employee.id, { userId: user.id, status: "active" }, session.userId);
-      await flushPendingWrites();
-      return NextResponse.json({ ok: true, employee: updated, user: { id: user.id, email: user.email } }, { status: 201 });
     }
 
     if (action === "create-employee") {
+      const employmentType = body.employmentType === undefined
+        ? undefined
+        : text(body.employmentType, 40) as PeopleEmploymentType;
       const employee = createPeopleEmployee({
         agencyId,
         actorUserId: session.userId,
@@ -244,9 +383,9 @@ export async function POST(req: NextRequest) {
         phone: text(body.phone, 50),
         title: text(body.title, 160),
         department: text(body.department, 120),
-        employmentType: EMPLOYMENT_TYPES.has(text(body.employmentType, 40) as PeopleEmploymentType) ? text(body.employmentType, 40) as PeopleEmploymentType : undefined,
-        startDate: number(body.startDate),
-        weeklyHours: number(body.weeklyHours),
+        employmentType,
+        startDate: peopleNumber(body.startDate),
+        weeklyHours: peopleNumber(body.weeklyHours),
       });
       await flushPendingWrites();
       return NextResponse.json({ ok: true, employee }, { status: 201 });
@@ -258,28 +397,34 @@ export async function POST(req: NextRequest) {
       if (!existing) return error("Employee not found.", 404);
       let patch: Parameters<typeof updatePeopleEmployee>[2] = {};
       if (action === "update-access") patch = { workspaceAccess: Array.isArray(body.workspaceAccess) ? body.workspaceAccess as PeopleWorkspaceAccess[] : [] };
-      if (action === "update-commission") patch = { commissionRules: Array.isArray(body.commissionRules) ? body.commissionRules as PeopleCommissionRule[] : [] };
-      if (action === "update-onboarding") patch = { onboardingItems: Array.isArray(body.onboardingItems) ? body.onboardingItems as PeopleEmployee["onboardingItems"] : existing.onboardingItems };
+      if (action === "update-commission") {
+        if (!Array.isArray(body.commissionRules)) return error("Commission rules must be an array.");
+        patch = { commissionRules: body.commissionRules as PeopleCommissionRule[] };
+      }
+      if (action === "update-onboarding") {
+        if (!Array.isArray(body.onboardingItems)) return error("Onboarding items must be an array.");
+        patch = { onboardingItems: body.onboardingItems as PeopleEmployee["onboardingItems"] };
+      }
       if (action === "update-employee") {
         patch = {
-          name: text(body.name, 120) || existing.name,
-          email: text(body.email, 254) || existing.email,
-          phone: text(body.phone, 50),
-          title: text(body.title, 160) || existing.title,
-          department: text(body.department, 120),
-          managerEmployeeId: text(body.managerEmployeeId, 120) || undefined,
-          employmentType: EMPLOYMENT_TYPES.has(text(body.employmentType, 40) as PeopleEmploymentType) ? text(body.employmentType, 40) as PeopleEmploymentType : existing.employmentType,
-          status: text(body.status, 40) as PeopleEmployee["status"],
-          startDate: number(body.startDate),
-          endDate: number(body.endDate),
-          probationEndsAt: number(body.probationEndsAt),
-          weeklyHours: number(body.weeklyHours),
-          holidayAllowanceDays: number(body.holidayAllowanceDays),
-          payBasis: text(body.payBasis, 40) as PeopleEmployee["payBasis"],
-          basePayMinor: number(body.basePayMinor),
-          currency: text(body.currency, 3).toUpperCase() || existing.currency,
-          targetRole: text(body.targetRole, 160) || undefined,
-          growthPathNote: text(body.growthPathNote, 2_000) || undefined,
+          ...(body.name !== undefined ? { name: text(body.name, 120) || existing.name } : {}),
+          ...(body.email !== undefined ? { email: text(body.email, 254) || existing.email } : {}),
+          ...(body.phone !== undefined ? { phone: text(body.phone, 50) } : {}),
+          ...(body.title !== undefined ? { title: text(body.title, 160) || existing.title } : {}),
+          ...(body.department !== undefined ? { department: text(body.department, 120) } : {}),
+          ...(body.managerEmployeeId !== undefined ? { managerEmployeeId: text(body.managerEmployeeId, 120) || undefined } : {}),
+          ...(body.employmentType !== undefined ? { employmentType: text(body.employmentType, 40) as PeopleEmploymentType } : {}),
+          ...(body.status !== undefined ? { status: text(body.status, 40) as PeopleEmployee["status"] } : {}),
+          ...(body.startDate !== undefined ? { startDate: peopleNumber(body.startDate) } : {}),
+          ...(body.endDate !== undefined ? { endDate: peopleNumber(body.endDate) } : {}),
+          ...(body.probationEndsAt !== undefined ? { probationEndsAt: peopleNumber(body.probationEndsAt) } : {}),
+          ...(body.weeklyHours !== undefined ? { weeklyHours: peopleNumber(body.weeklyHours) } : {}),
+          ...(body.holidayAllowanceDays !== undefined ? { holidayAllowanceDays: peopleNumber(body.holidayAllowanceDays) } : {}),
+          ...(body.payBasis !== undefined ? { payBasis: text(body.payBasis, 40) as PeopleEmployee["payBasis"] } : {}),
+          ...(body.basePayMinor !== undefined ? { basePayMinor: peopleNumber(body.basePayMinor) } : {}),
+          ...(body.currency !== undefined ? { currency: text(body.currency, 3).toUpperCase() } : {}),
+          ...(body.targetRole !== undefined ? { targetRole: text(body.targetRole, 160) || undefined } : {}),
+          ...(body.growthPathNote !== undefined ? { growthPathNote: text(body.growthPathNote, 2_000) || undefined } : {}),
         };
       }
       const employee = updatePeopleEmployee(agencyId, employeeId, patch, session.userId);
@@ -300,8 +445,8 @@ export async function POST(req: NextRequest) {
         agencyId,
         employeeId: text(body.employeeId, 120),
         title: text(body.title, 160),
-        startsAt: number(body.startsAt) ?? 0,
-        endsAt: number(body.endsAt) ?? 0,
+        startsAt: peopleNumber(body.startsAt) ?? 0,
+        endsAt: peopleNumber(body.endsAt) ?? 0,
         location: text(body.location, 200),
         note: text(body.note, 1_000),
         status: text(body.status, 30) as PeopleShift["status"],
@@ -319,7 +464,7 @@ export async function POST(req: NextRequest) {
         description: text(body.description, 2_000),
         sopId: text(body.sopId, 160),
         resourceUrl: text(body.resourceUrl, 500),
-        dueAt: number(body.dueAt),
+        dueAt: peopleNumber(body.dueAt),
         status: text(body.status, 30) as PeopleTrainingAssignment["status"],
         evidence: text(body.evidence, 1_000),
       });
@@ -328,6 +473,9 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "save-freelancer-job") {
+      const requestedClientId = text(body.clientId, 120);
+      const clientScope = routeTenantScope(session, { clientId: requestedClientId });
+      if (requestedClientId && !clientScope.client) return error("Client not found.", 404);
       const job = savePeopleFreelancerJob({
         agencyId,
         actorUserId: session.userId,
@@ -335,7 +483,10 @@ export async function POST(req: NextRequest) {
         employeeId: text(body.employeeId, 120),
         title: text(body.title, 200),
         brief: text(body.brief, 4_000),
-        clientId: text(body.clientId, 120),
+        // The one id in this whole file that comes from the request rather
+        // than from the session: a freelancer job may name the client it is
+        // for, so it is proven to be this agency's before it is stored.
+        clientId: clientScope.clientId ?? "",
         feeMinor: number(body.feeMinor),
         currency: text(body.currency, 3),
         startsOn: text(body.startsOn, 10),
@@ -360,6 +511,18 @@ export async function POST(req: NextRequest) {
       if (!job) return error("Freelancer job not found.", 404);
       await flushPendingWrites();
       return NextResponse.json({ ok: true, job, jobs: listPeopleFreelancerJobs(agencyId, job.employeeId) });
+    }
+
+    if (action === "add-freelancer-deliverable") {
+      const job = addPeopleFreelancerDeliverable({
+        agencyId,
+        actorUserId: session.userId,
+        jobId: text(body.jobId, 120),
+        name: text(body.name, 180),
+        url: text(body.url, 2_000),
+      });
+      await flushPendingWrites();
+      return NextResponse.json({ ok: true, job, jobs: listPeopleFreelancerJobs(agencyId, job.employeeId) }, { status: 201 });
     }
 
     if (action === "award-recognition") {
@@ -455,6 +618,19 @@ export async function POST(req: NextRequest) {
 
     return error("Unknown People action.", 404);
   } catch (cause) {
-    return error(cause instanceof Error ? cause.message : "The People record could not be updated.", 400);
+    if (cause instanceof AccessControlError) return accessErrorResponse(cause);
+    if (cause instanceof AuthError) return authErrorResponse(cause);
+    if (cause instanceof StaffProvisioningRecoveryError) {
+      return NextResponse.json({
+        ok: false,
+        error: `${cause.message} Retry the same staff setup to resume safely.`,
+        retryable: true,
+        provisioningStage: cause.stage,
+      }, { status: 503 });
+    }
+    return error(
+      cause instanceof Error ? cause.message : "The People record could not be updated.",
+      cause instanceof PeopleIdentityConflictError || cause instanceof StaffProvisioningConflictError ? 409 : 400,
+    );
   }
 }

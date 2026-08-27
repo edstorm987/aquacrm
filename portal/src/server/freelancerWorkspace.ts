@@ -8,15 +8,23 @@ import "server-only";
 // (getPeopleEmployeeByUserId / listPeopleFreelancerJobs) rather than editing
 // server/people.ts, which the Staff worker owns.
 //
-// Phase 1 (this): the policy resolver returns SAFE, privacy-first DEFAULTS so
-// the view is correct out of the box. Phase 2 (Staff domain) persists an
-// agency-set config + per-job overrides and wires the editor into the staff
-// card — `resolveFreelancerAccess` is the single seam that changes.
+// The policy resolver applies privacy-first defaults, an agency-set policy and
+// optional per-job overrides. The same effective policy gates the read model,
+// submissions and agency messaging so a hidden action is not merely a UI flag.
 
 import { getClientForAgency } from "@/server/tenants";
-import { getPeopleEmployeeByUserId, listPeopleFreelancerJobs, setPeopleFreelancerJobStatus } from "@/server/people";
+import {
+  ensureDirectChannel,
+  getPeopleEmployeeByUserId,
+  listPeopleFreelancerJobs,
+  listPeopleMessages,
+  markChannelRead,
+  postPeopleMessage,
+  setPeopleFreelancerJobStatus,
+} from "@/server/people";
 import { getState, mutate } from "@/server/storage";
 import type { FreelancerAccessConfig, PeopleFreelancerJob, PeopleFreelancerJobStatus } from "@/server/types";
+import { listUsersForAgency } from "@/server/users";
 
 export type { FreelancerAccessConfig };
 
@@ -52,8 +60,8 @@ export function normaliseFreelancerAccess(input: unknown): FreelancerAccessConfi
   };
 }
 
-// The agency-wide policy (stored or defaults). v1 has no per-job overrides yet
-// — that's the documented next refinement.
+// The agency-wide policy (stored or defaults). A per-job override can replace
+// it through resolveFreelancerAccess().
 export function getFreelancerAccessConfig(agencyId: string): FreelancerAccessConfig {
   const stored = getState().freelancerAccessConfig?.[agencyId];
   return stored ? normaliseFreelancerAccess(stored) : DEFAULT_FREELANCER_ACCESS;
@@ -123,12 +131,24 @@ export interface FreelancerJobView {
   deliveredAt?: number;
   feeLabel?: string;      // formatted only when showFee
   notes?: string;
+  deliverables?: Array<{ id: string; name: string; url: string; addedAt: number }>;
+  submissions: Array<{ id: string; name: string; url: string; uploadedAt: number; size: number }>;
   can: FreelancerAccessConfig["actions"];
+}
+
+export interface FreelancerConversationMessage {
+  id: string;
+  authorName: string;
+  body: string;
+  mine: boolean;
+  createdAt: number;
 }
 
 export interface FreelancerWorkspaceView {
   freelancerName: string;
   jobs: FreelancerJobView[];
+  messages: FreelancerConversationMessage[];
+  canMessage: boolean;
 }
 
 function formatFee(feeMinor: number | undefined, currency: string): string | undefined {
@@ -146,12 +166,14 @@ function toJobView(job: PeopleFreelancerJob, agencyId: string, cfg: FreelancerAc
     title: job.title,
     status: job.status,
     deliveredAt: job.deliveredAt,
+    submissions: (job.submissions ?? []).map(file => ({ id: file.id, name: file.name, url: file.url, uploadedAt: file.uploadedAt, size: file.size })),
     can: cfg.actions,
   };
   if (cfg.showBrief) view.brief = job.brief;
   if (cfg.showDates) { view.startsOn = job.startsOn; view.dueOn = job.dueOn; }
   if (cfg.showFee) view.feeLabel = formatFee(job.feeMinor, job.currency);
   if (cfg.showNotes) view.notes = job.notes;
+  if (cfg.showDeliverables) view.deliverables = (job.deliverables ?? []).map(item => ({ id: item.id, name: item.name, url: item.url, addedAt: item.addedAt }));
   if (job.clientId) {
     view.clientLabel = cfg.clientIdentity === "named"
       ? (getClientForAgency(agencyId, job.clientId)?.name ?? undefined)
@@ -170,7 +192,64 @@ export function freelancerWorkspace(agencyId: string, userId: string): Freelance
   if (!employee) return null;
   const jobs = listPeopleFreelancerJobs(agencyId, employee.id)
     .map(job => toJobView(job, agencyId, resolveFreelancerAccess(agencyId, employee.id, job.id)));
-  return { freelancerName: employee.name, jobs };
+  return {
+    freelancerName: employee.name,
+    jobs,
+    messages: freelancerAgencyConversation(agencyId, userId),
+    canMessage: jobs.some(job => job.can.message),
+  };
+}
+
+function freelancerOwnerChannel(agencyId: string, userId: string) {
+  const owner = listUsersForAgency(agencyId).find(user => user.role === "agency-owner");
+  if (!owner) return null;
+  const channel = Object.values(getState().peopleChannels ?? {}).find(candidate =>
+    candidate.agencyId === agencyId
+    && candidate.kind === "direct"
+    && candidate.memberUserIds.includes(userId)
+    && candidate.memberUserIds.includes(owner.id));
+  return { owner, channel };
+}
+
+export function freelancerAgencyConversation(agencyId: string, userId: string): FreelancerConversationMessage[] {
+  const connection = freelancerOwnerChannel(agencyId, userId);
+  if (!connection?.channel) return [];
+  return listPeopleMessages(agencyId, connection.channel.id).map(message => ({
+    id: message.id,
+    authorName: message.authorName,
+    body: message.body,
+    mine: message.authorUserId === userId,
+    createdAt: message.createdAt,
+  }));
+}
+
+export function freelancerJobForAction(
+  agencyId: string,
+  userId: string,
+  jobId: string,
+  action: keyof FreelancerAccessConfig["actions"],
+): PeopleFreelancerJob | null {
+  const employee = getPeopleEmployeeByUserId(agencyId, userId);
+  if (!employee) return null;
+  const job = listPeopleFreelancerJobs(agencyId, employee.id).find(candidate => candidate.id === jobId);
+  if (!job || !resolveFreelancerAccess(agencyId, employee.id, job.id).actions[action]) return null;
+  return job;
+}
+
+export function messageFreelancerAgency(input: { agencyId: string; userId: string; jobId: string; body: string }): FreelancerConversationMessage[] {
+  const job = freelancerJobForAction(input.agencyId, input.userId, input.jobId, "message");
+  if (!job) throw new Error("Messaging is not available for this job.");
+  const owner = listUsersForAgency(input.agencyId).find(user => user.role === "agency-owner");
+  if (!owner) throw new Error("The agency owner account is unavailable.");
+  const channel = ensureDirectChannel(input.agencyId, input.userId, owner.id);
+  postPeopleMessage({
+    agencyId: input.agencyId,
+    channelId: channel.id,
+    authorUserId: input.userId,
+    body: `${job.title}: ${input.body}`,
+  });
+  markChannelRead(input.agencyId, channel.id, input.userId);
+  return freelancerAgencyConversation(input.agencyId, input.userId);
 }
 
 // Freelancer action: mark an active job's work submitted (→ `delivered`, the

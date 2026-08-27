@@ -7,7 +7,7 @@
 
 import type { AgencyId, PhaseDefinition, PhaseChecklistItem, ClientStage } from "../lib/tenancy";
 import { makeId } from "../lib/ids";
-import { buildDefaultPhases, DEFAULT_PHASE_PRESETS } from "./presets";
+import { buildDefaultPhases } from "./presets";
 import type { PhaseStorePort } from "./ports";
 
 export interface PhaseUpsertInput {
@@ -80,15 +80,5 @@ export class PhaseService {
   // phase settings UI when an agency adds a new task to a template.
   buildChecklistItem(label: string, visibility: PhaseChecklistItem["visibility"]): PhaseChecklistItem {
     return { id: makeId("task"), label, visibility };
-  }
-
-  // Surface the canonical preset list — used by the new-client wizard
-  // tooltip ("which plugins will install if I pick this preset?").
-  describePresets(): readonly { stage: ClientStage; label: string; pluginPreset: readonly string[] }[] {
-    return DEFAULT_PHASE_PRESETS.map(p => ({
-      stage: p.stage,
-      label: p.label,
-      pluginPreset: p.pluginPreset,
-    }));
   }
 }

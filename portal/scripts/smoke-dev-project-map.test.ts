@@ -29,6 +29,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { NextRequest } from "next/server";
 
 // First, and statically — see the note in dev-console-request-scope.ts.
 import { withDevMode, withSession } from "./dev-console-request-scope";
@@ -638,7 +639,7 @@ describe("the MAP endpoint", () => {
     assert.equal(result.status, 400);
   });
 
-  it("is behind the same gate as the rest of the endpoint — no Dev Mode, no map", async () => {
+  it("uses the owner access baseline without depending on legacy Dev Mode", async () => {
     const { token } = await founder();
     const created = await send(token, { action: "save", name: "Gated", repository: "o/r" });
     // Same request, WITHOUT withDevMode.
@@ -646,13 +647,14 @@ describe("the MAP endpoint", () => {
       "http://localhost/api/portal/dev/projects",
       { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "map", id: created.body.project!.id }) },
     )));
-    assert.equal(response.status, 403);
+    assert.equal(response.status, 200);
   });
 
   it("hands the list screen a status for every project", async () => {
     const { token } = await founder();
     await send(token, { action: "save", name: "Listed", repository: "o/r" });
-    const response = await withDevMode(() => withSession(token, () => GET()));
+    const request = { nextUrl: new URL("http://localhost/api/portal/dev/projects") } as NextRequest;
+    const response = await withDevMode(() => withSession(token, () => GET(request)));
     const body = await response.json() as ProjectsBody;
     assert.equal(body.ok, true);
     for (const listed of body.projects ?? []) {

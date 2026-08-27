@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Building2, ChartPie, Check, ChevronRight, CircleAlert, Compass, Flag, Gauge, HeartPulse, Package, Pencil, PlugZap, Plus, Save, ShieldCheck, Sparkles, Trash2, TrendingUp, UsersRound, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { AgencyProduct, CompanyObjective, CompanyPlan, CompanyProfile, CompanyQuarterlyReview, LegalDocument, SopDocument, TradingCompany } from "@/server/types";
+import type { AgencyProduct, CompanyObjective, CompanyPlan, CompanyProfile, CompanyQuarterlyReview, LegalDocument, PortalFormFieldDefinition, SopDocument, TradingCompany } from "@/server/types";
 import { calculateCompanyHealth } from "@/lib/performance/companyHealth";
 import { LegalCompliancePanel } from "./_LegalCompliancePanel";
 import { CompliancePosturePanel } from "./_CompliancePosturePanel";
@@ -37,7 +37,7 @@ type View = "overview" | "direction" | "plans" | "capacity" | "products" | "conn
 const control = "min-h-10 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black outline-none focus:border-black/40";
 const textarea = `${control} min-h-28 py-2`;
 
-export function CompanyWorkspace({ initial, companyName, actuals, staffCount, canEdit, legalDocuments, initialProducts, sops, tradingCompanies, serviceBrands, productDefaults, clients, workspaceWebsite, initialView, initialIntegration }: { initial: CompanyProfile; companyName: string; actuals: Actuals; staffCount: number; canEdit: boolean; legalDocuments: LegalDocument[]; initialProducts: AgencyProduct[]; sops: SopDocument[]; tradingCompanies: TradingCompany[]; serviceBrands: ServiceBrandSummary[]; productDefaults: { taxRatePercent: number; paymentTermsDays: number }; clients: Array<{ id: string; name: string }>; workspaceWebsite?: string; initialView?: View; initialIntegration?: IntegrationProvider }) {
+export function CompanyWorkspace({ initial, companyName, actuals, staffCount, canEdit, legalDocuments, initialProducts, sops, tradingCompanies, serviceBrands, productDefaults, productCustomFields, clients, workspaceWebsite, initialView, initialIntegration }: { initial: CompanyProfile; companyName: string; actuals: Actuals; staffCount: number; canEdit: boolean; legalDocuments: LegalDocument[]; initialProducts: AgencyProduct[]; sops: SopDocument[]; tradingCompanies: TradingCompany[]; serviceBrands: ServiceBrandSummary[]; productDefaults: { taxRatePercent: number; paymentTermsDays: number }; productCustomFields: PortalFormFieldDefinition[]; clients: Array<{ id: string; name: string }>; workspaceWebsite?: string; initialView?: View; initialIntegration?: IntegrationProvider }) {
   const [company, setCompany] = useState(initial);
   const [view, setView] = useState<View>(initialView ?? "overview");
   const [editingDirection, setEditingDirection] = useState(false);
@@ -323,6 +323,7 @@ export function CompanyWorkspace({ initial, companyName, actuals, staffCount, ca
             initialProducts={initialProducts}
             sops={sops}
             companies={tradingCompanies}
+            customFields={productCustomFields}
             defaults={productDefaults}
             embedded
           />

@@ -16,23 +16,32 @@ only when Ed asks or a task is too small to spin a worker for.
 
 ORIENT (read in this order):
 1. docs/context/README.md — the orchestration book (this whole setup).
-2. docs/context/state.md — the LIVE state. Trust its "Verified ground truth" table (re-checked
-   against source 2026-08-20). Treat every section headed "HISTORICAL" as a dated record of what
+2. docs/context/state.md — the LIVE orchestration state. Start with its current
+   P0/P1 ground-truth table (source/runtime-reviewed 2026-08-24), then treat the earlier verified table as dated
+   evidence. Treat every section headed "HISTORICAL" as a dated record of what
    someone believed that day — NOT fact. THE SOURCE IS THE TRUTH: when a doc and the code
    disagree, read the code, then fix the doc. Three already-fixed "launch blockers" were briefed
    as open on 2026-08-20 and one would have sent a worker back into a hardened auth route.
-2b. docs/development/checklist.md — the most reliable current summary of where the project stands
-   (Ed-owned; read it, don't edit it). docs/architecture-noobie.md explains the system plainly.
+2b. docs/development/checklist.md — the canonical current summary of where the project stands.
+   Update it when verified source changes the current answer. docs/architecture-noobie.md explains
+   the system plainly.
 3. docs/context/orchestration-model.md — the model + the rules that stop workers
    colliding on one repo (incl. the AUDIT LOOP + the read-only auditor rule).
 4. docs/development/audits.md — the auditor's VERDICTS (what's verified vs merely
    claimed). Reconcile against updates.md.
 5. docs/development.md — the project law (plans, todos, code map, discipline).
 
+CURRENT PRIORITY OVERRIDE (2026-08-24): issue #22 central session revocation is
+P0. A stale owner cookie created a working external-AI token after owner→staff
+downgrade. Then issues #23/#24: showcase mutating GET/OAuth bypass and erasure
+false-success/non-retry/audit-name. Do not dispatch from the old “three blockers
+fixed” history before reading these current entries.
+
 STANDING SETUP — two things should always be running alongside you. On boot,
 check state.md for their status and ASK ED TO CONFIRM each is up (re-establish if not):
-  1. DEV SERVER (in your own chat) — `npm run dev:verify` (file backend, autoPort;
-     via the `aquacrm-verify` launch config). It's how you browser-verify worker
+  1. DEV SERVER (in your own chat) — `npm run dev:sandbox:real` for the shared
+     port-3032 file-backed sandbox, or `npm run sandbox:fork -- <name> <port>` for
+     isolated verification. It's how you browser-verify worker
      output. If it's not up, offer to start it.
   2. THE AUDITOR — verifies shipped work before it's trusted as done; writes verdicts to
      docs/development/audits.md. ⏸ The RECURRING LOOP IS STOPPED (Ed, 2026-08-19): re-audits are
@@ -40,8 +49,8 @@ check state.md for their status and ASK ED TO CONFIRM each is up (re-establish i
      is docs/context/auditor-brief.md; Ed starts it with:
        /loop 20m You're the AquaCRM auditor. Read docs/context/auditor-brief.md and
        follow it exactly — run one audit sweep now, then each tick.
-     If audits.md has gone quiet while work is shipping, ask Ed whether the auditor
-     loop is still running. You do NOT run the auditor yourself — it must be an
+     If audits.md has gone quiet while work is shipping, ask Ed whether an on-request
+     audit should be started. You do NOT run the auditor yourself — it must be an
      independent chat (never the builder, never you).
 
 YOUR LOOP:

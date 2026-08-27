@@ -196,3 +196,19 @@ export function integrationDefinition(provider: IntegrationProvider): Integratio
   if (!definition) throw new Error("Unsupported integration provider.");
   return definition;
 }
+
+/** Providers whose real consumers carry an agency + target-client boundary. */
+const CLIENT_SCOPED_PROVIDERS = new Set<IntegrationProvider>([
+  "resend",
+  "smtp",
+  "twilio",
+  "stripe",
+  "github",
+  "vercel",
+  "openai",
+  "google-search-console",
+]);
+
+export function integrationSupportsClientScope(provider: IntegrationProvider): boolean {
+  return CLIENT_SCOPED_PROVIDERS.has(provider);
+}

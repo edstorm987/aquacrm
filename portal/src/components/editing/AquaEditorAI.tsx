@@ -105,6 +105,8 @@ export interface Attachment {
   preview?: string;
 }
 
+type StatusReadPhase = "ready" | "checking" | "unavailable";
+
 function describeContext(context: EditorAIContext, attachments: Attachment[]): string {
   const lines: string[] = [];
   lines.push(`I am editing ${context.target}${context.section ? ` — the ${context.section} page` : ""}.`);
@@ -137,6 +139,8 @@ export function AquaEditorAI({
   reason = "",
   configured,
   model,
+  canUse = true,
+  canManage = true,
   userName,
   context,
   picking,
@@ -167,6 +171,10 @@ export function AquaEditorAI({
   /** Whether THIS PROJECT has its own key. Never the agency assistant's gate. */
   configured: boolean;
   model: string;
+  /** AI element Use: composer and conversation mutations. */
+  canUse?: boolean;
+  /** AI element Manage: key, model and brief configuration. */
+  canManage?: boolean;
   userName: string;
   context: EditorAIContext;
   /** The studio's element picker — reused, not rebuilt. */
@@ -195,6 +203,17 @@ export function AquaEditorAI({
   const [status, setStatus] = useState<EditorAiStatus | null>(editorAi);
   const [reasonText, setReasonText] = useState(reason);
   const [vaultAvailable, setVaultAvailable] = useState(true);
+  const rendered = editorAi?.projectId ?? "";
+  const [statusRead, setStatusRead] = useState<{
+    projectId: string;
+    phase: StatusReadPhase;
+    error: string;
+  }>(() => ({
+    projectId,
+    phase: !projectId || projectId === rendered ? "ready" : "checking",
+    error: "",
+  }));
+  const [statusRetry, setStatusRetry] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   // The gate, as of the last thing that happened.
@@ -206,27 +225,53 @@ export function AquaEditorAI({
   // below lands, because inheriting the previous project's gate would leave a
   // composer enabled on a project with no key of its own, which is the whole
   // thing "a seperate tocken" is supposed to prevent.
-  const rendered = editorAi?.projectId ?? "";
+  const readPhase = statusRead.projectId === projectId ? statusRead.phase : "checking";
   const own = status?.projectId === projectId;
-  const configuredNow = own ? status!.configured : (Boolean(projectId) && projectId === rendered ? configured : false);
-  const modelNow = own ? status!.model : (projectId === rendered ? model : "");
+  const configuredNow = readPhase === "ready"
+    ? (own ? status!.configured : (Boolean(projectId) && projectId === rendered ? configured : false))
+    : false;
+  const modelNow = readPhase === "ready"
+    ? (own ? status!.model : (projectId === rendered ? model : ""))
+    : "";
 
   // Re-read the gate whenever the project changes under us. Cheap, mutates
   // nothing, and it is the only way the panel can be right about a project the
   // page was not rendered for.
   useEffect(() => {
-    if (!projectId || status?.projectId === projectId) return;
+    if (!projectId) {
+      setStatusRead({ projectId: "", phase: "ready", error: "" });
+      return;
+    }
+    if (status?.projectId === projectId && statusRetry === 0) {
+      setStatusRead({ projectId, phase: "ready", error: "" });
+      return;
+    }
     let cancelled = false;
     // Do not let project B wear project A's masked key status or failure copy
-    // during the request. The safe loading state is unconfigured and blank.
+    // during the request. Unknown is its own visible state: it is not the same
+    // fact as an unconfigured project.
     setStatus(null);
     setReasonText("");
+    setStatusRead({ projectId, phase: "checking", error: "" });
     readEditorAiStatus(projectId)
-      .then(result => { if (!cancelled) applyConfig(result); })
-      .catch(() => { /* the panel keeps the server's rendered answer */ });
+      .then(result => {
+        if (cancelled) return;
+        setStatus(result.status);
+        setReasonText(result.reason);
+        setVaultAvailable(result.vaultAvailable);
+        setStatusRead({ projectId, phase: "ready", error: "" });
+      })
+      .catch(cause => {
+        if (cancelled) return;
+        setStatusRead({
+          projectId,
+          phase: "unavailable",
+          error: cause instanceof Error ? cause.message : "This project's key status could not be read.",
+        });
+      });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId]);
+  }, [projectId, statusRetry]);
 
   // Attachments and captured text are project context. They must not follow a
   // switch into another project's conversation or key screen.
@@ -240,6 +285,7 @@ export function AquaEditorAI({
     setStatus(result.status);
     setReasonText(result.reason);
     setVaultAvailable(result.vaultAvailable);
+    setStatusRead({ projectId: result.status.projectId, phase: "ready", error: "" });
   }
 
   // When the user points at something, hand the assistant the referent. Loaded
@@ -255,7 +301,7 @@ export function AquaEditorAI({
   }, [context.element?.path, context.element?.line, context.words?.label, context.words?.text, context.words?.src]);
 
   function addFiles(files: FileList | null) {
-    if (!files?.length) return;
+    if (!canUse || !files?.length) return;
     setReading(true);
     const wanted = [...files].slice(0, 4);
     let pending = wanted.length;
@@ -287,7 +333,7 @@ export function AquaEditorAI({
   const composerTools = (
     <div className="grid gap-1.5">
       <div className="flex flex-wrap items-center gap-1.5">
-        {onPickElement ? (
+        {canUse && onPickElement ? (
           <button
             type="button"
             onClick={onPickElement}
@@ -369,7 +415,7 @@ export function AquaEditorAI({
       className="flex min-h-0 flex-1 flex-col gap-2"
       style={accentStyle}
       onDragOver={event => event.preventDefault()}
-      onDrop={event => { event.preventDefault(); addFiles(event.dataTransfer?.files ?? null); }}
+      onDrop={event => { event.preventDefault(); if (canUse) addFiles(event.dataTransfer?.files ?? null); }}
     >
       {/* ── Identity, and what it is scoped to ───────────────────────────── */}
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -385,7 +431,15 @@ export function AquaEditorAI({
             ) : null}
             {/* The gate, but only where there IS a project to gate. "No key on
                 this project" with no project is a sentence about nothing. */}
-            {!projectId ? null : configuredNow ? (
+            {!projectId ? null : readPhase === "checking" ? (
+              <span className={`inline-flex items-center gap-1 ${MUTED}`}>
+                <LoaderCircle size={11} className="animate-spin" aria-hidden /> checking this project&apos;s key
+              </span>
+            ) : readPhase === "unavailable" ? (
+              <span className="inline-flex items-center gap-1 text-amber-200/90">
+                <TriangleAlert size={11} aria-hidden /> key status unavailable
+              </span>
+            ) : configuredNow ? (
               <span className="inline-flex items-center gap-1 text-emerald-200/90">
                 <ShieldCheck size={11} aria-hidden /> its own key · {modelNow}
               </span>
@@ -396,7 +450,7 @@ export function AquaEditorAI({
             )}
           </p>
         </div>
-        {projectId ? (
+        {projectId && canManage ? (
           <div className="flex shrink-0 items-center gap-1.5">
             <button
               type="button"
@@ -413,6 +467,14 @@ export function AquaEditorAI({
 
       {!projectId ? (
         <NotScoped configured={configured} model={model} reason={reasonText} />
+      ) : readPhase === "checking" ? (
+        <StatusReadState phase="checking" error="" onRetry={() => undefined} />
+      ) : readPhase === "unavailable" ? (
+        <StatusReadState
+          phase="unavailable"
+          error={statusRead.error}
+          onRetry={() => setStatusRetry(value => value + 1)}
+        />
       ) : view === "key" ? (
         <AquaEditorAIKey
           projectId={projectId}
@@ -424,6 +486,10 @@ export function AquaEditorAI({
         />
       ) : (
         <AquaEditorAIThread
+          // A project switch is an identity boundary, not a prop refresh. A
+          // keyed thread cannot let project A's in-flight reply populate
+          // project B's conversation after the selector moves.
+          key={projectId}
           projectId={projectId}
           projectName={projectName}
           configured={configuredNow}
@@ -432,15 +498,48 @@ export function AquaEditorAI({
           initialConversation={initialConversation}
           initialLimits={historyLimits}
           prefill={prefill}
+          canUse={canUse}
+          canManage={canManage}
           // What the editor is pointing at, in words, sent WITH each message as
           // the model's editor context — the same description the "Load what
           // I'm editing" chip writes into the composer, but carried even when
           // nobody pressed the chip, so "make this bigger" has its referent.
           contextText={describeContext(context, attachments)}
-          composerTools={composerTools}
+          composerTools={canUse ? composerTools : undefined}
           onConfigure={() => setView("key")}
         />
       )}
+    </div>
+  );
+}
+
+function StatusReadState({
+  phase,
+  error,
+  onRetry,
+}: {
+  phase: Exclude<StatusReadPhase, "ready">;
+  error: string;
+  onRetry: () => void;
+}) {
+  if (phase === "checking") {
+    return (
+      <div className={`${PANEL} flex items-center gap-2 p-3 text-[11px] ${MUTED}`}>
+        <LoaderCircle size={13} className="animate-spin" aria-hidden /> Reading this project&apos;s key status…
+      </div>
+    );
+  }
+  return (
+    <div className={`${PANEL} grid gap-2 p-3`}>
+      <p className="flex items-center gap-1.5 text-xs font-semibold text-amber-100">
+        <TriangleAlert size={13} aria-hidden /> Key status unavailable
+      </p>
+      <p className={`text-[11px] leading-5 ${BODY}`}>
+        {error || "This project's key status could not be read."} The editor will not guess whether a key exists.
+      </p>
+      <button type="button" onClick={onRetry} className={`${CHIP_BUTTON} ${FOCUS_RING} w-fit`}>
+        Try again
+      </button>
     </div>
   );
 }

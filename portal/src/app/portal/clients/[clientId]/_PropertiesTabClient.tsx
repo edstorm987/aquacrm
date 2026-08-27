@@ -120,12 +120,16 @@ export function PropertiesTabClient({
   initialProperties,
   githubPublishingConfigured,
   vercelDeploymentConfigured,
+  canManage = true,
+  canRelease = canManage,
 }: {
   clientId: string;
   clientName: string;
   initialProperties: ClientProperty[];
   githubPublishingConfigured: boolean;
   vercelDeploymentConfigured: boolean;
+  canManage?: boolean;
+  canRelease?: boolean;
 }) {
   const [properties, setProperties] = useState<ClientProperty[]>(initialProperties);
   const [adding, setAdding] = useState(false);
@@ -352,7 +356,7 @@ export function PropertiesTabClient({
   }
 
   return (
-    <section className="flex flex-col gap-4">
+    <fieldset disabled={!canManage} className="flex min-w-0 flex-col gap-4 border-0 p-0 disabled:opacity-80">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-lg font-medium text-black/90">Development</h2>
@@ -361,7 +365,7 @@ export function PropertiesTabClient({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button
+          {canRelease ? <button
             type="button"
             onClick={() => {
               setProvisioning(value => !value);
@@ -372,7 +376,7 @@ export function PropertiesTabClient({
           >
             {provisioning ? <X size={15} aria-hidden="true" /> : <Sparkles size={15} aria-hidden="true" />}
             {provisioning ? "Cancel" : "Provision project"}
-          </button>
+          </button> : null}
           <button
             type="button"
             onClick={() => {
@@ -625,7 +629,7 @@ export function PropertiesTabClient({
                     <p className="mt-4 whitespace-pre-wrap rounded-md bg-black/[0.02] p-3 text-sm leading-6 text-black/65">{property.notes}</p>
                   )}
 
-                  {property.localPath && (property.repositoryStatus === "local" || property.deploymentStatus === "not-deployed") && (
+                  {canRelease && property.localPath && (property.repositoryStatus === "local" || property.deploymentStatus === "not-deployed") && (
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-black/8 pt-4">
                       <div className="flex items-center gap-2">
                         <span className="grid size-8 place-items-center rounded-md bg-black/[0.04] text-black/48">
@@ -678,7 +682,7 @@ export function PropertiesTabClient({
           ))}
         </div>
       )}
-    </section>
+    </fieldset>
   );
 }
 

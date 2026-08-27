@@ -34,7 +34,7 @@ export async function GET() {
     await ensureHydrated();
     const session = await requireRole(["agency-owner", "agency-manager"]);
     if (!devDocsAccessible(session)) {
-      return NextResponse.json({ ok: false, error: "Dev Mode is required." }, { status: 403 });
+      return NextResponse.json({ ok: false, error: "Dev Team access is required." }, { status: 403 });
     }
 
     const [signals, active] = await Promise.all([

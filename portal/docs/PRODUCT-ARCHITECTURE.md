@@ -1,19 +1,304 @@
 # AquaCRM Product Architecture
 
-Last updated: 17 August 2026
+Last reviewed: 26 August 2026 (implementation boundary reconciled)
+
+> This file describes intended and implemented product boundaries. It is not a
+> runtime-status document. Use [development/checklist.md](development/checklist.md)
+> for current completion/reliability and [development/status.md](development/status.md)
+> for verification depth. The access implementation and remaining adoption gate are
+> tracked in
+> [configurable-access-and-workspace-parity.md](development/plans/configurable-access-and-workspace-parity.md).
 
 ## System Shape
 
-AquaCRM is one Next.js application containing four related surfaces:
+AquaCRM is one Next.js application containing five related surfaces:
 
 1. The public AquaCRM website and brand enquiry capture.
 2. Secure agency operations under `/portal/agency`.
 3. Internal client workspaces under `/portal/clients/[clientId]`.
 4. Customer and team portals under `/portal/customer` and `/portal/team`.
+5. The production Dev Team control plane under `/portal/dev-team`.
 
 These surfaces share identity, agency scope, products, client records,
 communications, finance, delivery, and evidence. They are different views of
 the same operating system, not separate products with copied data.
+
+## Dev Workspace And Preview Architecture
+
+AquaCRM remains **one application and one control plane**. A project's preview is
+not another AquaCRM server and GitHub is not a runtime server. GitHub stores the
+repository; AquaCRM connects or creates that repository and manages an isolated
+project workspace.
+
+The authoritative development path is:
+
+1. select one explicitly authorised project and repository;
+2. create or resume an isolated branch/worktree;
+3. install with the project's declared package manager and lockfile policy;
+4. start its declared preview command as a supervised loopback process or
+   isolated container, with a bounded port, health state, logs and stop/restart;
+5. show that preview inside the Dev Editor and map inspected elements back to
+   source where the framework permits it;
+6. let visual controls, source tools or AI produce reviewable file changes;
+7. show the diff and run project checks before commit;
+8. publish through branch, commit and pull request; production changes only
+   after the separately authorised merge/deploy policy.
+
+The preview process is disposable. The repository branch/worktree is the code
+source of truth. AquaCRM stores workspace metadata, grants, audit events and
+process state; it must not treat an iframe DOM or a deployed production page as
+the canonical editable document.
+
+For a site without a repository, AquaCRM may offer an **authorised migration**:
+capture the publicly observable frontend and assets, inventory routes, forms,
+authentication, data and external providers, create a repository, reconstruct
+the site with AI assistance, and compare it against a parity checklist. Public
+HTML cannot reveal private backend logic, databases, credentials or provider
+workflows, so “exact conversion” applies only to evidence that can be observed;
+missing server behaviour must be identified and deliberately reimplemented.
+
+The Aqua Tag remains valuable but has a narrower authority. It owns consented
+marketing/analytics telemetry, managed tag injection, form/event routing and an
+optional remote-inspection bridge when repository source is unavailable. A
+repository-backed local preview does not require the Tag, and Tag observations
+never override repository truth.
+
+### Current preview implementation boundary
+
+The first trusted preview lifecycle is now implemented for already-configured
+local repositories. `aqua-preview.config.json` is the server-owned manifest;
+the browser supplies only an action and project id, never a root, command,
+arguments, environment, port or shell. In local/test mode the supervisor resolves
+an approved real path, starts the declared command with `shell:false` on loopback,
+bounds/redacts logs, caps concurrent processes and prevents two access realms from
+controlling the same physical worktree. Start, status, logs, stop and restart are
+separately capability-gated and production refuses this local process feature.
+
+The mounted repository preview has now browser-proved Start, Restart with a new
+loopback process, Stop, responsive Preview/Code panes and HTTP 200 for
+`/aqua-tag.js`. That is representative lifecycle acceptance, not completion of the
+eight-step path above. Repository creation/cloning, worktree preparation,
+installation policy and the complete journey through inspect/edit/AI/diff/check/PR
+still require end-to-end acceptance. Failure, crash, occupied-port,
+dirty-transition and reload paths remain part of that gate.
+
+## Project And Workspace Access Model
+
+Roles are templates, not authority. `developer`, `staff`, `freelancer`, `AI`,
+`customer` and `owner` may prefill a grant, but effective access is the
+intersection of explicit workspace, project, capability, resource and
+environment grants. Absence means deny. A role never grants blanket CRM,
+client, repository or Dev Team access.
+
+Identity and authority remain separate. A person's tenant membership, client
+relationship and portal persona establish hard audience ceilings and the correct
+shell; editing a role template cannot manufacture agency/client membership or
+cross a tenant boundary. Display assignments such as company tags are not
+membership. The same human may legitimately be staff in one scope, a freelancer
+on one job and a developer on one project without changing accounts or receiving
+the union of every surface.
+
+The implemented base capability vocabulary is:
+
+- `workspace.view` and `workspace.manage`;
+- `project.view`, `project.manage`, `project.edit`, `project.ai` and
+  `project.preview`;
+- `dev.project.run_local` and `dev.project.logs`;
+- `project.pull-request`, `project.publish` and `project.deploy`;
+- `access.request`, `access.grant.manage`, `access.template.manage`,
+  `access.request.review` and `access.audit.view`;
+- registered workspace-element capabilities such as
+  `element.<workspace>.<element>.view`, `.use` and `.manage`;
+- no capability that reveals stored secret values.
+
+Workspace-element permissions use stable product-owned identifiers for real
+sections, tabs, boards, tools, field groups and actions. They never store CSS
+selectors, DOM paths or arbitrary component names that can silently drift after
+a redesign. `view` permits the element and its safe data, `use` permits its
+ordinary interaction or mutation, and `manage` permits configuration or
+delegation. A role-template editor may present those as **Hidden**, **View only**,
+**Use/Edit** and **Manage**. Hiding is still only presentation: data loaders and
+mutation handlers enforce the corresponding element capability server-side.
+
+Adopted human paths use this evaluator. Sandbox and live are environment scopes,
+not alternative permission systems; the public Showcase keeps its
+separate fixed read-only realm. AI/service principals and expiring share links
+are the next consumers, not capabilities implied by the human UI. When added,
+they must name one workspace/project/environment and an allowlist, expire, be
+revocable and never grant more than the issuer held. A person invited to one
+client website can therefore be given that project without receiving another
+project, CRM finance, unrelated clients, production secrets or the rest of Dev
+Team.
+
+Live state is the governance control plane for identities, role templates, grants
+and requests. A signed Sandbox session selects a separate resource realm. The
+effective decision intersects the live grant with the resources that actually
+exist in that active realm, so a Sandbox-only Project A may be governed centrally
+without making a live-only or invented Project B visible. Demo realms are shared
+per agency/dataset and the browser never chooses their physical id. Non-owner
+members may enter only the safe Demo dataset, cannot force-reset it or select a
+more privileged persona, and live revocation invalidates their old Sandbox
+session. Provider and read-only fences remain additional layers beneath this
+access decision.
+
+### Per-person grants and visible workspaces
+
+Ed can now create, name, revise and archive reusable role templates and combine
+them with direct per-person grants. A template is inert until it is assigned
+within an exact scope and environment. The first kernel is additive and bounded:
+membership and audience ceilings remain hard limits, absence denies, and reducing
+access means revoking a grant or replacing it with a narrower assignment rather
+than composing ambiguous negative-rule precedence. A version-history/impact-
+preview experience is still future work; `createdAt`, `updatedAt` and attributable
+writers do not by themselves provide that richer workflow.
+
+Effective authority is evaluated from fresh user and membership state, the
+requested environment, the resource's tenant/client/project ownership and the
+union of unexpired grants that match every requested dimension. Sensitive
+decisions are not stored as durable truth in a session cookie. Grant, role,
+membership, expiry or revocation changes advance the user's access/session
+revision so an old browser cookie cannot retain the prior authority.
+
+The project-scoped Dev Workspace and its eligible portal links are derived from
+server-produced access resolution. Staff station and Fulfilment view projections
+now use the same decision for navigation/direct pages and representative operations.
+The broad exact-client projection does the same for the internal client workspace
+and its canonical tenant routes. Customer/freelancer and the remaining ambiguous
+module/task associations still have to converge.
+Discoverability is never security:
+every adopted page, direct deep link, API, file read, AI operation, preview
+process and publish action re-evaluates the same server-side capability before
+returning data or mutating state. A refusal must not flash sensitive content.
+Where policy allows, it may show a neutral Request access state instead of a
+dead end.
+The same rule applies inside a granted workspace: a role can expose the workspace
+while hiding one element, expose it read-only, permit ordinary use, or permit
+management. An element-level request names that registered element and requested
+level; it cannot be used to infer or request an arbitrary hidden DOM target.
+
+### Permission requests and delegated approval
+
+A permission request grants nothing. It records the requester, exact agency,
+workspace/project/resource, environment, capability allowlist, reason, requested
+duration and an idempotency key. Its lifecycle is pending, approved, narrowed,
+denied, cancelled, expired or revoked. An authorised approver may approve the
+exact request, approve a smaller capability set or duration, or deny it with a
+note. The requester cannot approve their own request; an AI/service principal
+cannot self-escalate; and an approver cannot delegate more than they currently
+hold in that exact scope.
+
+Approval and grant creation are one coordinated, idempotent operation. Repeated
+decisions cannot create duplicate grants. Request, decision and revocation append
+attributable, non-secret activity and refresh effective access immediately; expiry
+is evaluated at resolution time. The shared control surface shows current grants,
+expiry and request status and is mounted in Settings, People and Fulfilment.
+Product notifications and a dedicated Account Permissions destination remain
+separate follow-up work. A local manager may act only inside their delegated
+management ceiling.
+
+### Staff, Fulfilment, client and project parity
+
+There is now one evaluator and one set of canonical workspace/project/resource
+IDs, not identical screens and not copied stores. The owner can configure access
+from Settings, Staff/People and Fulfilment. Technical and Dev Workspace grants
+name their exact project and keep the internal Dev Team control plane—Roadmap,
+findings, workers, repository-wide docs and unrelated projects—outside that
+authority. The reusable Dev Workspace mounts the shared `DevEditor` from eligible
+staff, freelancer, client and customer navigation without inventing a client-only
+role system.
+
+Staff and Fulfilment are now runtime consumers: their canonical projections hide
+ungranted navigation, refuse hidden deep links and constrain representative data/
+mutation operations to View, Use or Manage. Staff People data is projected by the
+specific visible element instead of exposing the full directory/card/org graph, and
+Fulfilment client list/create requires Services View/Manage. The client workspace now registers 11
+stable elements: Overview, Relationship, Fulfilment, Marketing, Systems,
+Commercial, Communications, Files, Portal, Record and Settings. Its layout, tabs,
+Settings, plugin page catch-all and representative mutations resolve the exact client;
+an unrelated Staff/Fulfilment grant cannot act as an implicit tunnel into every
+client.
+
+That is a materially wider implemented slice, not complete application parity.
+All tenant route files containing `clientId` are 35/36 canonical-gated; the sole
+exception is the dev-only empty-store seeder, and 28 completed mappings are pinned
+by the source contract. The focused boundary passes 62/62 including six direct
+tests, with separate product-workspace cross-process proof 4/4 and clean TypeScript/
+diff. Expense attachments do not carry client identity, so they cannot honestly be
+described as exact-client gated; agency/global branches remain agency surfaces.
+
+The genuinely unclassified client associations are the dynamic plugin API catch-all
+for Fulfilment, Client CRM, Ecommerce, Memberships and Affiliates; freelancer jobs;
+and generic tasks/task-template application. Customer/session/relationship routes,
+the Dev project kernel, workspace list/create, website-source destination metadata
+and output/derived-association routes intentionally retain their more appropriate
+authority instead of being forced through the client-element evaluator.
+
+Governed client and end-customer collaboration routes now retain their existing
+relationship/role/action ceilings and also enforce the matching client element:
+Commercial for contracts, Files for file reads/writes, Communications for requests
+and Record for project briefs. Entirely ungoverned identities retain the explicit
+legacy migration fallback; that compatibility is not authority for a governed user.
+
+Exact workspace composition is also enforced in the manager. Staff scope exposes
+only base Workspace plus Staff elements; Fulfilment scope exposes only base Workspace
+plus Fulfilment elements. Changing scope prunes stale capability selections and the
+server-facing grant/request/review payload is sanitised again at submission. A generic
+Development workspace selection was removed because Development capabilities resolve
+against exact projects; exact project scopes remain the supported authority.
+
+Existing `PeopleEmployee.workspaceAccess`, Agency HR custom roles/client
+assignments and freelancer job access remain migration inputs. They have not all
+converged yet and must become explicit compatibility adapters or be retired rather
+than becoming competing authority. Record visibility (`internal`, `client`,
+`inherent`, `system`) remains a separate content-sharing rule and is intersected
+with access; a project grant does not turn an internal note into client-visible
+material.
+
+### Dev Workspace launch minimum
+
+The grant kernel, first management UI and project-scoped Dev Workspace are now
+implemented in source. They separate:
+
+- Dev Workspace view from internal Dev Team control-plane view;
+- project view, source edit, local preview run and log inspection;
+- AI prompt from AI apply;
+- settings/member management;
+- tests, commit and pull-request publication;
+- merge/deploy and production publication, which remain owner-only by default;
+- non-revealing secret use from any ability to view stored credentials.
+
+The Settings/People/Fulfilment manager now feeds real Staff and Fulfilment
+projections, and the 11-element client projection is exact-client gated. The Dev
+Workspace remains the deepest end-to-end adopter. The named module/freelancer-job/
+task associations, customer/freelancer workspaces and legacy loaders/mutation
+handlers must still be migrated or their unbacked toggles withheld from release.
+
+The final static/UI closure for this checkpoint passes 92/92 focused/adjacent access
+checks, 11/11 exact-scope composer checks and 32/32 `/dev` session/realm checks, with
+full TypeScript and diff checks clean. A freshly restarted mounted browser showed
+exactly the registered Staff-only and Fulfilment-only sets, a 390px 2×2 selector with
+44px targets and no overflow, and People Capacity without overflow or alert; the
+browser warning/error log was empty. The new-role composer visibly exposed all four
+scope kinds, both environments and all 28 stable element groups; one control interaction
+was restored without submit, so it is not persistence evidence. This evidence closes those concrete boundaries,
+not the complete cross-persona request/mutation/accessibility matrix below.
+The settled relevant combined gate is 130/130 across core access/Dev/workspace/client/
+People, exact Access UI, Dev Team performance and Sandbox protection; it is not a
+complete repository-suite rerun.
+
+The remaining launch gate uses two people, two projects and two environments. It proves a
+Project A grant cannot list/read Project B, edit does not imply publish, publish
+does not imply merge/deploy, Sandbox authority cannot cross into live, a request
+cannot self-approve, approval creates one grant, and revocation takes effect on
+the old session. The internal `/portal/dev-team` control plane remains separate
+from the reusable project Dev Workspace even though both mount the same editor
+engine. Focused automated coverage exists for these boundaries. Representative
+browser proof covers the manager across seven widths, real restricted Staff/
+Fulfilment deep-link refusal, missing exact-client refusal, responsive editor panes
+and preview Start/Restart/Stop. The clean follow-up additionally proves exact Staff/
+Fulfilment scope composition and mobile People Capacity. The complete cross-persona create/grant/request/
+approve/revoke, positive exact-client, mutation/reload, accessibility and failure
+matrix is still required.
 
 ## Macro And Micro Rule
 
@@ -128,9 +413,13 @@ Fulfilment owns the work that delivers what was sold:
 - website, technical, development, performance, resources, vault, and workflow;
 - service-specific marketing delivery where sold as a client service.
 
-Development is intentionally integrated into Fulfilment. Legacy development
-routes may remain for compatibility, but new navigation and functionality
-should reinforce Fulfilment as the operational owner.
+Client development delivery remains integrated into Fulfilment, but the Dev
+Workspace/Editor is one reusable engine rather than a Fulfilment-only feature.
+Dev Team is its macro control-plane home; a client Fulfilment workspace or
+client portal is a separately granted, project-scoped door into the same engine.
+The Dev Team control plane exists today; that does **not** mean the new managed
+preview/editor lifecycle is launch-ready. Its browser acceptance and client
+embedding finish line remain open.
 
 ### Finance
 
@@ -152,7 +441,10 @@ Route: `/portal/agency/people`
 Staff owns applicants, employment records, access, onboarding, leave, shifts,
 training, pay/commission configuration, and employee Day Command. Access is
 composed from permitted workspaces and clients, not from one unrestricted
-agency role.
+agency role. The People access manager assigns reusable role templates and
+person-specific grants; the Team shell projects only the resulting stations,
+clients, Fulfilment workspaces and projects. A station hidden from navigation is
+still refused by its page and API until an appropriate grant exists.
 
 ### Marketing
 

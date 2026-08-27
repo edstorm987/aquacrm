@@ -1,9 +1,17 @@
 import "server-only";
 
-import { appendFile, mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { appendFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import { PROJECT_ROOT } from "@/lib/server/dev/devDocs";
+import { atomicReplaceDevFile, withDevFileTransaction } from "@/lib/server/dev/devFileTransaction";
+import {
+  DevWorkspaceFileConflictError,
+  readDevWorkspaceSnapshot,
+  replaceDurableDevWorkspaceFiles,
+  usesDurableDevTeamWorkspace,
+  type DevWorkspaceFileVersion,
+} from "@/lib/server/dev/devWorkspaceFiles";
 
 // Ed's thoughts — the reply channel.
 //
@@ -111,14 +119,17 @@ function normalise(row: Thought & { acknowledgedBy?: unknown; acknowledgedAt?: u
   return Object.keys(readBy).length ? { ...rest, readBy } : { ...rest, readBy: undefined };
 }
 
-async function readAll(): Promise<Thought[]> {
+async function readAllSnapshot(): Promise<{ rows: Thought[]; version: DevWorkspaceFileVersion | null }> {
   const file = ledgerFile();
   let text: string;
+  let version: DevWorkspaceFileVersion;
   try {
-    text = await readFile(file, "utf8");
+    const snapshot = await readDevWorkspaceSnapshot(file);
+    text = snapshot.bytes.toString("utf8");
+    version = snapshot.version;
   } catch (error) {
     // No ledger yet is a legitimate empty. Anything else is not.
-    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return [];
+    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return { rows: [], version: null };
     throw error;
   }
   let parsed: unknown;
@@ -128,7 +139,11 @@ async function readAll(): Promise<Thought[]> {
     throw new ThoughtLedgerUnreadableError(file);
   }
   if (!Array.isArray(parsed)) throw new ThoughtLedgerUnreadableError(file);
-  return (parsed as Thought[]).map(normalise);
+  return { rows: (parsed as Thought[]).map(normalise), version };
+}
+
+async function readAll(): Promise<Thought[]> {
+  return (await readAllSnapshot()).rows;
 }
 
 /** The read path a rendered page takes: never throws, but never silent either. */
@@ -159,36 +174,58 @@ function applyCap(rows: Thought[]): { keep: Thought[]; evicted: Thought[] } {
   };
 }
 
-let writeSeq = 0;
-
-async function writeAll(rows: Thought[]): Promise<void> {
+async function writeAll(rows: Thought[], expected: DevWorkspaceFileVersion | null): Promise<void> {
   const file = ledgerFile();
-  await mkdir(dirname(file), { recursive: true });
   const { keep, evicted } = applyCap(rows);
+  const nextLedger = JSON.stringify(keep, null, 2) + "\n";
+  if (usesDurableDevTeamWorkspace()) {
+    const replacements: Array<{
+      target: string;
+      content: string;
+      expected: DevWorkspaceFileVersion | null;
+    }> = [{ target: file, content: nextLedger, expected }];
+    if (evicted.length) {
+      let archive = "";
+      let archiveVersion: DevWorkspaceFileVersion | null = null;
+      try {
+        const snapshot = await readDevWorkspaceSnapshot(archiveFile());
+        archive = snapshot.bytes.toString("utf8");
+        archiveVersion = snapshot.version;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      }
+      replacements.push({
+        target: archiveFile(),
+        content: archive + evicted.map(row => JSON.stringify(row)).join("\n") + "\n",
+        expected: archiveVersion,
+      });
+    }
+    await replaceDurableDevWorkspaceFiles(replacements);
+    return;
+  }
+
+  await mkdir(dirname(file), { recursive: true });
   if (evicted.length) {
     await appendFile(archiveFile(), evicted.map(r => JSON.stringify(r)).join("\n") + "\n", "utf8");
   }
-  // Atomic: a reader sees the old file or the new one, never a half-written
-  // splice of both. rename(2) is atomic within a filesystem.
-  const tmp = `${file}.${process.pid}.${writeSeq++}.tmp`;
-  try {
-    await writeFile(tmp, JSON.stringify(keep, null, 2) + "\n", "utf8");
-    await rename(tmp, file);
-  } catch (error) {
-    await unlink(tmp).catch(() => {});
-    throw error;
-  }
+  // Durable atomic replacement: readers see the old ledger or the complete new
+  // one, and fsync finishes before rename.
+  await atomicReplaceDevFile(file, nextLedger, expected);
 }
 
 /**
- * One mutation at a time inside this process. Read-modify-write over a shared
- * file interleaves otherwise, and the loser's row disappears.
+ * One mutation at a time across all processes. The lock is a directory beside
+ * the selected ledger, so the portal and worker-thoughts script share it.
  */
-let chain: Promise<unknown> = Promise.resolve();
-function serial<T>(run: () => Promise<T>): Promise<T> {
-  const next = chain.then(run, run);
-  chain = next.then(() => undefined, () => undefined);
-  return next;
+async function serial<T>(run: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      return await withDevFileTransaction(ledgerFile(), run);
+    } catch (error) {
+      if (!usesDurableDevTeamWorkspace() || !(error instanceof DevWorkspaceFileConflictError) || attempt === 4) throw error;
+    }
+  }
+  throw new DevWorkspaceFileConflictError();
 }
 
 function clean(s: string, max: number): string {
@@ -209,7 +246,7 @@ export async function addThought(input: {
   if (!text) throw new Error("Say something first.");
 
   return serial(async () => {
-    const rows = await readAll();
+    const { rows, version } = await readAllSnapshot();
     const thought: Thought = {
       // Time-ordered, and unique even when two land in the same millisecond at
       // the cap — the old id folded in `rows.length`, which stops moving there.
@@ -222,7 +259,7 @@ export async function addThought(input: {
       worker: input.worker ? clean(input.worker, 60) : undefined,
       projectId: input.projectId ? clean(input.projectId, 120) : undefined,
     };
-    await writeAll([thought, ...rows]);
+    await writeAll([thought, ...rows], version);
     return thought;
   });
 }
@@ -280,7 +317,7 @@ export async function acknowledge(ids: string[], worker: string): Promise<number
   const name = clean(worker, 60).toLowerCase();
   if (!name) return 0;
   return serial(async () => {
-    const rows = await readAll();
+    const { rows, version } = await readAllSnapshot();
     const wanted = new Set(ids);
     let n = 0;
     for (const row of rows) {
@@ -290,7 +327,7 @@ export async function acknowledge(ids: string[], worker: string): Promise<number
       row.readBy = { ...readBy, [name]: Date.now() };
       n += 1;
     }
-    if (n) await writeAll(rows);
+    if (n) await writeAll(rows, version);
     return n;
   });
 }

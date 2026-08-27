@@ -18,13 +18,77 @@ export interface OrderFilter {
 
 export interface OrdersDashboardStats {
   totalOrders: number;
-  totalRevenue: number;          // pence
   pendingOrders: number;
   paidOrders: number;
   shippedOrders: number;
   refundedOrders: number;
-  averageOrderValue: number;     // pence
+  cancelledOrders: number;
+  byCurrency: OrderCurrencyAccounting[];
   recentOrders: ServerOrder[];
+}
+
+export interface OrderCurrencyAccounting {
+  currency: string;
+  settledOrders: number;
+  grossPaid: number;
+  refunded: number;
+  netRevenue: number;
+  cancelledFaceValue: number;
+  pendingFaceValue: number;
+  averageNetOrderValue: number;
+}
+
+export interface OrderSettlementAmounts {
+  currency: string;
+  settled: boolean;
+  grossPaid: number;
+  refunded: number;
+  netRevenue: number;
+  cancelledFaceValue: number;
+  pendingFaceValue: number;
+}
+
+const SETTLED_STATUSES = new Set<OrderStatus>([
+  "paid", "fulfilled", "shipped", "delivered", "refunded",
+]);
+
+export function settlementAmounts(order: ServerOrder): OrderSettlementAmounts {
+  const currency = order.currency.trim().toLowerCase() || "unknown";
+  const amount = Math.max(0, Math.round(order.amountTotal));
+  if (order.status === "cancelled") {
+    return {
+      currency,
+      settled: false,
+      grossPaid: 0,
+      refunded: 0,
+      netRevenue: 0,
+      cancelledFaceValue: amount,
+      pendingFaceValue: 0,
+    };
+  }
+  if (!SETTLED_STATUSES.has(order.status)) {
+    return {
+      currency,
+      settled: false,
+      grossPaid: 0,
+      refunded: 0,
+      netRevenue: 0,
+      cancelledFaceValue: 0,
+      pendingFaceValue: amount,
+    };
+  }
+  const recordedRefund = order.refundedAmountCents
+    ?? (order.status === "refunded" ? amount : 0);
+  const refunded = Math.min(amount, Math.max(0, Math.round(recordedRefund)));
+  return {
+    currency,
+    settled: true,
+    grossPaid: amount,
+    refunded,
+    netRevenue: amount - refunded,
+    cancelledFaceValue: 0,
+    pendingFaceValue: 0,
+  };
 }
 
 export function filterOrders(orders: ServerOrder[], filter: OrderFilter): ServerOrder[] {
@@ -53,23 +117,50 @@ export function filterOrders(orders: ServerOrder[], filter: OrderFilter): Server
 
 export function dashboardStats(orders: ServerOrder[]): OrdersDashboardStats {
   const totalOrders = orders.length;
-  const totalRevenue = orders.reduce((s, o) => s + o.amountTotal, 0);
   const stats = {
     pending: 0, paid: 0, shipped: 0, refunded: 0, fulfilled: 0, delivered: 0, cancelled: 0,
   };
-  for (const o of orders) stats[o.status] = (stats[o.status] ?? 0) + 1;
-  const averageOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
+  const currencies = new Map<string, OrderCurrencyAccounting>();
+  for (const order of orders) {
+    stats[order.status] = (stats[order.status] ?? 0) + 1;
+    const amounts = settlementAmounts(order);
+    const row = currencies.get(amounts.currency) ?? {
+      currency: amounts.currency,
+      settledOrders: 0,
+      grossPaid: 0,
+      refunded: 0,
+      netRevenue: 0,
+      cancelledFaceValue: 0,
+      pendingFaceValue: 0,
+      averageNetOrderValue: 0,
+    };
+    if (amounts.settled) row.settledOrders += 1;
+    row.grossPaid += amounts.grossPaid;
+    row.refunded += amounts.refunded;
+    row.netRevenue += amounts.netRevenue;
+    row.cancelledFaceValue += amounts.cancelledFaceValue;
+    row.pendingFaceValue += amounts.pendingFaceValue;
+    currencies.set(amounts.currency, row);
+  }
+  const byCurrency = [...currencies.values()]
+    .map(row => ({
+      ...row,
+      averageNetOrderValue: row.settledOrders > 0
+        ? Math.round(row.netRevenue / row.settledOrders)
+        : 0,
+    }))
+    .sort((left, right) => left.currency.localeCompare(right.currency));
   const recentOrders = [...orders]
     .sort((a, b) => b.createdAt - a.createdAt)
     .slice(0, 10);
   return {
     totalOrders,
-    totalRevenue,
     pendingOrders: stats.pending,
     paidOrders: stats.paid,
     shippedOrders: stats.shipped,
     refundedOrders: stats.refunded,
-    averageOrderValue,
+    cancelledOrders: stats.cancelled,
+    byCurrency,
     recentOrders,
   };
 }
@@ -84,4 +175,8 @@ export function formatPrice(amount: number, currency: string): string {
       : currency.toUpperCase() === "EUR" ? "€"
         : "";
   return `${symbol}${(amount / 100).toFixed(2)}`;
+}
+
+export function formatCurrencyAmount(amount: number, currency: string): string {
+  return `${currency.toUpperCase()} ${formatPrice(amount, currency)}`;
 }

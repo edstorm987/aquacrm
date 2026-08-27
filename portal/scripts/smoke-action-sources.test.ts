@@ -98,7 +98,7 @@ test("external AI proposals remain approval-gated and accepted tasks expose reco
   assert.match(workspace, /scrollIntoView\(\{ behavior: "smooth", block: "center" \}\)/);
   assert.match(workspace, /attention\?\.refreshAlerts\(\)/);
   assert.match(attention, /refreshAlerts: \(\) => Promise<boolean>/);
-  assert.match(attention, /setInterval\(refreshWhenActive, 30_000\)/);
+  assert.match(attention, /setInterval\(refreshWhenStaleAndActive, NOTIFICATION_ACTIVATION_REFRESH_INTERVAL_MS\)/);
   assert.match(workspace, /Evidence and resolution/);
   assert.match(workspace, /ReconciliationBadge/);
   assert.match(route, /decideExternalAssistantActionProposal/);

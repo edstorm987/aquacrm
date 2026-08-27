@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { RefreshCw } from "lucide-react";
+import { MILESYMEDIA_HOME_PATH } from "@/lib/public/milesymediaRoutes";
 
 export function WebsitePageUpdating({ label, message }: { label: string; message?: string }) {
   return (
@@ -12,7 +13,7 @@ export function WebsitePageUpdating({ label, message }: { label: string; message
           {message || "We are making a focused improvement to this page. The rest of Milesymedia remains available."}
         </p>
         <div className="mt-7 flex justify-center gap-2">
-          <Link href="/" className="rounded bg-[#D4B888] px-4 py-2 text-sm font-semibold text-[#171009]">Back to Milesymedia</Link>
+          <Link href={MILESYMEDIA_HOME_PATH} className="rounded bg-[#D4B888] px-4 py-2 text-sm font-semibold text-[#171009]">Back to Milesymedia</Link>
           <Link href="/login" className="rounded border border-[#D4B888]/35 px-4 py-2 text-sm font-semibold">Client sign in</Link>
         </div>
       </section>

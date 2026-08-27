@@ -18,7 +18,7 @@ import "server-only";
 //   1. ZERO WRITES. `getState()` only, never `mutate()`. The state must be
 //      byte-identical before and after a preview.
 //   2. EVERY collection appears. The walk is driven by `PROMOTION_DISPOSITION`,
-//      so all 78 collections are reported — including the ones with nothing in
+//      so every PortalState collection is reported — including those with nothing in
 //      them. That is what stops this becoming the next 25-of-78 hand-list.
 //
 // ─── THE NINTH OWNERSHIP SURFACE ──────────────────────────────────────────

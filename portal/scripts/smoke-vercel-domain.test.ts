@@ -215,6 +215,20 @@ test("removeDomain — DELETE /v9/projects/<id>/domains/<host>", async () => {
   }
 });
 
+test("removeDomain treats an already-absent domain as the desired idempotent outcome", async () => {
+  mockFetch({ status: 404, body: { error: { message: "not found" } } });
+  try {
+    const result = await mod.removeDomain(
+      { token: "tok", projectId: "prj_test" },
+      "example.com",
+    );
+    assert.equal(result.ok, true);
+    assert.equal(result.hostname, "example.com");
+  } finally {
+    restoreFetch();
+  }
+});
+
 test("removeDomain returns error message on network failure", async () => {
   globalThis.fetch = (async () => {
     throw new Error("ECONNREFUSED");

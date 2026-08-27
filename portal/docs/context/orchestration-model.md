@@ -11,7 +11,7 @@ one chat's memory.
 | **Ed** | the human | Sets direction, spins chats, makes the decisions plans flag, approves commits. |
 | **Commander** | one Claude chat (orchestrator) | Assigns plans to workers, tracks [state](state.md), writes worker briefs, keeps docs in sync, reports to Ed. Builds only when asked / for trivial tasks. |
 | **Worker** | a Claude chat per plan | Builds **one plan**, staged; runs tests; updates the docs; reports back. Owns its files. |
-| **Auditor** | one looping Claude chat | Independently **verifies** shipped work before it's trusted as done — re-runs the suite, runs the app, checks the contracts + tests-are-real + docs-are-true. **Read-only on source** (findings, never fixes); writes only [audits.md](../development/audits.md). Never audits its own build. See [auditor-brief.md](auditor-brief.md). |
+| **Auditor** | an independent audit chat, started on request | Independently **verifies** shipped work before it's trusted as done — re-runs the suite, runs the app, checks the contracts + tests-are-real + docs-are-true. **Read-only on source** (findings, never fixes); writes only [audits.md](../development/audits.md). Never audits its own build. See [auditor-brief.md](auditor-brief.md). |
 
 ## How work flows
 ```
@@ -27,14 +27,14 @@ Worker ── reads brief + development.md + its plan
                     └─ reports back ──▶ Commander updates state.md (done / blocked / next)
 ```
 
-## The audit loop (verify before "done")
+## Independent audit (verify before "done")
 Builders test their own work; the auditor is the **independent** check that a claim
-is real. It runs on a **loop** and self-manages through the docs — no relay until
-something fails.
+is real. The recurring loop was stopped on 2026-08-19; audits are currently
+started on request and use the docs as their queue.
 ```
 Builder ships ─▶ logs the claim in updates.md
                      │
-Auditor (looping) ── each tick ─▶ pending = updates.md − audits.md
+Auditor (on request) ───────────▶ pending = updates.md − audits.md
                      ├─ audits the oldest unaudited: re-runs the suite, runs the app,
                      │   checks contracts / tests-real / reuse / scope / docs
                      └─ writes a verdict to audits.md   (loud line up top if REWORK/🔴)

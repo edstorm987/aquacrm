@@ -3,16 +3,16 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireRole } from "@/lib/server/auth/auth";
 import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import { addThought, listThoughts } from "@/lib/server/dev/devTeamThoughts";
-import { ensureHydrated } from "@/server/storage";
+import { ensureDevTeamWorkspaceHydrated } from "@/lib/server/dev/devWorkspaceFiles";
 import { getUser } from "@/server/users";
 import { AGENCY_ROLES } from "@/server/types";
 
-// Leave a thought on a task/plan so a worker can pick it up. Founder + Dev Mode
+// Leave a thought on a task/plan so a worker can pick it up. Founder-only Dev Team access
 // only, same gate as the rest of the console.
 export const dynamic = "force-dynamic";
 
 async function gate() {
-  await ensureHydrated();
+    await ensureDevTeamWorkspaceHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
   return devDocsAccessible(session) ? session : null;
 }

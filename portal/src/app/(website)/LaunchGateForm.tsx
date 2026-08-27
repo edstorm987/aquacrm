@@ -47,6 +47,7 @@ export function LaunchGateForm({
               brand,
               sourceUrl: window.location.href,
               campaign: new URLSearchParams(window.location.search).get("utm_campaign") ?? "",
+              submissionId: values.get("aquaSubmissionId"),
               consent: values.get("consent") === "yes",
               website: values.get("website"),
             }),

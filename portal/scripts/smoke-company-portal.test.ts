@@ -13,7 +13,7 @@
 // the top tier silently disappears.
 //
 // The thing actually being defended here is small and specific. `PortalState`
-// has 78 collections. The only existing "everything belonging to a tenant"
+// has many collections. The only existing "everything belonging to a tenant"
 // code hand-lists 25 of them (`showcaseMode.ts:477-519`) and the demo teardown
 // lists 7 (`demoSeed.ts:430-463`). Both silently miss the rest — a live bug.
 // So the first section below does not test that the map is *correct*; it tests
@@ -155,7 +155,7 @@ describe("Promotion disposition map — exhaustiveness", () => {
     assert.match(
       source,
       /keyof Required<PortalState>/,
-      "the map must be a mapped type over Required<PortalState> so a 79th collection fails tsc",
+      "the map must be a mapped type over Required<PortalState> so a new collection fails tsc",
     );
     assert.match(source, /satisfies PromotionDispositionMap/);
     assert.match(source, /AssertNever<UnclassifiedCollections>/);
@@ -393,7 +393,7 @@ describe("Promotion preview — what would move", () => {
     assert.equal(JSON.stringify(getState()), before, "a preview that writes is not a preview");
   });
 
-  it("reports every one of the 78 collections, including the empty ones", async () => {
+  it("reports every PortalState collection, including the empty ones", async () => {
     const f = await seedPromotableCompany();
     const preview = previewCompanyPortal(f.agencyId, f.companyId)!;
     assert.ok(previewCoversEveryCollection(preview));

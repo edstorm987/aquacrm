@@ -62,10 +62,10 @@ interface SearchIndexMeta {
   categories: Record<string, number>;
 }
 
-export function PortalSearch({ items, recordsEnabled = false }: { items: PortalSearchItem[]; recordsEnabled?: boolean }) {
+export function PortalSearch({ items, recordsEnabled = false, initiallyOpen = false }: { items: PortalSearchItem[]; recordsEnabled?: boolean; initiallyOpen?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initiallyOpen);
   const [query, setQuery] = useState("");
   const [recordResults, setRecordResults] = useState<RecordResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -75,8 +75,11 @@ export function PortalSearch({ items, recordsEnabled = false }: { items: PortalS
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const pathnameRef = useRef(pathname);
 
   useEffect(() => {
+    if (pathnameRef.current === pathname) return;
+    pathnameRef.current = pathname;
     setOpen(false);
     setQuery("");
     setCategoryFilter("All");
@@ -105,23 +108,6 @@ export function PortalSearch({ items, recordsEnabled = false }: { items: PortalS
   useEffect(() => {
     if (open) window.requestAnimationFrame(() => inputRef.current?.focus());
   }, [open]);
-
-  useEffect(() => {
-    if (!recordsEnabled) return;
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => {
-      void fetch("/api/portal/search?warm=1", { signal: controller.signal })
-        .then(response => response.ok ? response.json() : null)
-        .then((json: { indexed?: number; categories?: Record<string, number> } | null) => {
-          if (!controller.signal.aborted && json?.indexed) setIndexMeta({ indexed: json.indexed, categories: json.categories ?? {} });
-        })
-        .catch(() => undefined);
-    }, 600);
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [recordsEnabled]);
 
   useEffect(() => {
     const normalised = query.trim();
@@ -267,7 +253,7 @@ export function PortalSearch({ items, recordsEnabled = false }: { items: PortalS
               <Database size={12} className="shrink-0 text-brand" aria-hidden="true" />
               <strong className="font-semibold text-black/58">Whole workspace</strong>
               <span aria-hidden="true">·</span>
-              <span>{indexMeta.indexed ? `${indexMeta.indexed.toLocaleString()} searchable records` : "Live index preparing"}</span>
+              <span>{indexMeta.indexed ? `${indexMeta.indexed.toLocaleString()} searchable records` : "Type to search live records"}</span>
               <span className="ml-auto hidden text-black/30 sm:inline">CRM · KPIs · Radar · evidence · messages · files</span>
             </div> : null}
 

@@ -1,9 +1,15 @@
 import "server-only";
 
-import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 
 import { PROJECT_ROOT } from "@/lib/server/dev/devDocs";
+import { createCoalescedRefreshCache } from "@/lib/server/dev/devMarkdownCache";
+import {
+  readDevWorkspaceDirectory,
+  readDevWorkspaceFile,
+  statDevWorkspacePath,
+} from "@/lib/server/dev/devWorkspaceFiles";
+import { getActiveDataRealmId } from "@/server/dataRealm";
 
 // Live worker signals for the Dev Team board.
 //
@@ -43,6 +49,11 @@ const WATCHED = ["src", "scripts", "docs"];
 const SKIP_DIRS = new Set([
   "node_modules", ".next", ".git", ".data", "dist", "build", "coverage", ".turbo", ".vercel",
 ]);
+
+/** Build/vendor directory predicate shared by the walker and its regression test. */
+export function shouldSkipWorkerDirectory(name: string): boolean {
+  return SKIP_DIRS.has(name) || name.startsWith(".next-") || name.startsWith(".");
+}
 
 export interface WorkerCheckIn {
   name: string;
@@ -94,44 +105,74 @@ export function areaFor(relPath: string): string {
   return parts.slice(1, 3).join("/");
 }
 
-async function walk(dir: string, cutoff: number, out: ActiveFile[], budget = { left: 20000 }): Promise<void> {
-  if (budget.left <= 0) return;
-  let entries;
-  try {
-    entries = await readdir(dir, { withFileTypes: true });
-  } catch {
-    return;
-  }
-  for (const entry of entries) {
-    if (budget.left <= 0) return;
-    if (entry.name.startsWith(".") && entry.name !== ".data") {
-      if (entry.isDirectory()) continue;
-    }
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      if (SKIP_DIRS.has(entry.name)) continue;
-      await walk(full, cutoff, out, budget);
-      continue;
-    }
-    if (!entry.isFile()) continue;
-    budget.left -= 1;
-    try {
-      const info = await stat(full);
-      if (info.mtimeMs >= cutoff) {
-        const rel = relative(PROJECT_ROOT, full);
-        out.push({ relPath: rel, mtimeMs: info.mtimeMs, area: areaFor(rel) });
+const MAX_WATCHED_FILES = 20_000;
+const DIRECTORY_READ_CONCURRENCY = 128;
+const FILE_STAT_CONCURRENCY = 256;
+
+/**
+ * Discover watched files breadth-first in bounded concurrent batches. The old
+ * recursive walker awaited every child directory and every file stat in
+ * series; under the dev server's file watcher that turned ~2,500 cheap stats
+ * into a 2.5–5 second route tail. Batching preserves the same filesystem truth
+ * and safety budget without opening thousands of handles at once.
+ */
+async function discoverWatchedFiles(): Promise<string[]> {
+  const directories = WATCHED.map(dir => join(PROJECT_ROOT, dir));
+  const files: string[] = [];
+
+  for (let offset = 0; offset < directories.length && files.length < MAX_WATCHED_FILES;) {
+    const batch = directories.slice(offset, offset + DIRECTORY_READ_CONCURRENCY);
+    offset += batch.length;
+    const listings = await Promise.all(batch.map(async directory => {
+      try {
+        return { directory, entries: await readDevWorkspaceDirectory(directory) };
+      } catch {
+        return { directory, entries: [] };
       }
-    } catch {
-      // Unreadable file — skip it rather than failing the whole scan.
+    }));
+
+    for (const { directory, entries } of listings) {
+      for (const entry of entries) {
+        if (files.length >= MAX_WATCHED_FILES) break;
+        const full = join(directory, entry.name);
+        if (entry.isDirectory()) {
+          if (!shouldSkipWorkerDirectory(entry.name)) directories.push(full);
+        } else if (entry.isFile()) {
+          files.push(full);
+        }
+      }
     }
   }
+  return files;
+}
+
+async function readRecentFiles(cutoff: number): Promise<ActiveFile[]> {
+  const files = await discoverWatchedFiles();
+  const recentFiles: ActiveFile[] = [];
+  for (let offset = 0; offset < files.length; offset += FILE_STAT_CONCURRENCY) {
+    const batch = await Promise.all(files.slice(offset, offset + FILE_STAT_CONCURRENCY).map(async full => {
+      try {
+        const info = await statDevWorkspacePath(full);
+        if (info.mtimeMs < cutoff) return null;
+        const relPath = relative(PROJECT_ROOT, full);
+        return { relPath, mtimeMs: info.mtimeMs, area: areaFor(relPath) } satisfies ActiveFile;
+      } catch {
+        return null;
+      }
+    }));
+    for (const file of batch) if (file) recentFiles.push(file);
+  }
+  recentFiles.sort((left, right) => right.mtimeMs - left.mtimeMs || left.relPath.localeCompare(right.relPath));
+  return recentFiles;
 }
 
 /** Explicit worker check-ins, newest first. */
 export async function readCheckIns(): Promise<WorkerCheckIn[]> {
   let names: string[];
   try {
-    names = await readdir(WORKERS_DIR);
+    names = (await readDevWorkspaceDirectory(WORKERS_DIR))
+      .filter(entry => entry.isFile())
+      .map(entry => entry.name);
   } catch {
     return [];
   }
@@ -139,7 +180,7 @@ export async function readCheckIns(): Promise<WorkerCheckIn[]> {
   for (const file of names) {
     if (!file.endsWith(".json")) continue;
     try {
-      const raw = await readFile(join(WORKERS_DIR, file), "utf8");
+      const raw = await readDevWorkspaceFile(join(WORKERS_DIR, file), "utf8");
       const parsed = JSON.parse(raw) as Partial<WorkerCheckIn>;
       if (!parsed?.name) continue;
       out.push({
@@ -182,7 +223,9 @@ async function readSandboxes(): Promise<{ name: string; mtimeMs: number }[]> {
   const dataDir = join(PROJECT_ROOT, ".data");
   let names: string[];
   try {
-    names = await readdir(dataDir);
+    names = (await readDevWorkspaceDirectory(dataDir))
+      .filter(entry => entry.isFile())
+      .map(entry => entry.name);
   } catch {
     return [];
   }
@@ -191,7 +234,7 @@ async function readSandboxes(): Promise<{ name: string; mtimeMs: number }[]> {
     const match = /^portal-state\.(.+)\.json$/.exec(file);
     if (!match) continue;
     try {
-      const info = await stat(join(dataDir, file));
+      const info = await statDevWorkspacePath(join(dataDir, file));
       out.push({ name: match[1], mtimeMs: info.mtimeMs });
     } catch { /* ignore */ }
   }
@@ -206,8 +249,30 @@ async function readSandboxes(): Promise<{ name: string; mtimeMs: number }[]> {
 // non-default caller gets its own entry; `now` is deliberately NOT part of the key
 // (the whole point is to reuse a recent scan). Callers that need a guaranteed-fresh
 // read pass `fresh: true`.
-const SIGNALS_TTL_MS = 15_000;
-const signalsCache = new Map<number, { at: number; value: WorkerSignals }>();
+export const SIGNALS_TTL_MS = 15_000;
+const signalsCache = createCoalescedRefreshCache<string, WorkerSignals>(SIGNALS_TTL_MS);
+const fileActivityCache = createCoalescedRefreshCache<string, WorkerFileActivity>(SIGNALS_TTL_MS);
+
+function workerSignalsCacheKey(windowMs: number): string {
+  return `${getActiveDataRealmId()}:${windowMs}`;
+}
+
+export interface WorkerFileActivity {
+  recentFiles: ActiveFile[];
+  scannedAtMs: number;
+}
+
+/** The file-only activity read used by Logs, without check-ins or sandboxes. */
+export async function scanRecentWorkerFiles(
+  windowMs = 2 * 60 * 60 * 1000,
+  now = Date.now(),
+  opts: { fresh?: boolean } = {},
+): Promise<WorkerFileActivity> {
+  return fileActivityCache.get(workerSignalsCacheKey(windowMs), async () => ({
+    recentFiles: await readRecentFiles(now - windowMs),
+    scannedAtMs: now,
+  }), opts);
+}
 
 /**
  * Everything the live panel needs. `windowMs` bounds "recent" (default 2h).
@@ -219,34 +284,41 @@ export async function scanWorkerSignals(
   now = Date.now(),
   opts: { fresh?: boolean } = {},
 ): Promise<WorkerSignals> {
-  const cached = signalsCache.get(windowMs);
-  if (!opts.fresh && cached && now - cached.at < SIGNALS_TTL_MS) {
-    return cached.value;
-  }
+  return signalsCache.get(workerSignalsCacheKey(windowMs), async () => {
+    const [activity, checkIns, sandboxes] = await Promise.all([
+      // A composite-cache miss must start a current file scan. Reusing an
+      // activity value near the end of its own TTL and then caching that
+      // composite for another TTL would silently double the freshness bound.
+      scanRecentWorkerFiles(windowMs, now, { fresh: true }),
+      readCheckIns(),
+      readSandboxes(),
+    ]);
 
-  const cutoff = now - windowMs;
-  const recentFiles: ActiveFile[] = [];
+    return {
+      checkIns,
+      activeCheckIns: checkIns.filter(checkIn => isCheckInActive(checkIn, now)),
+      // Un-truncated on purpose: `recentFiles.length` and `groupActivity()` over
+      // this list are the "N files in 2h" and the area map the board prints, and
+      // slicing here made both of them a lie.
+      recentFiles: activity.recentFiles,
+      sandboxes,
+      scannedAtMs: activity.scannedAtMs,
+    };
+  }, opts);
+}
 
-  await Promise.all(
-    WATCHED.map(dir => walk(join(PROJECT_ROOT, dir), cutoff, recentFiles)),
-  );
+/** Test-only observability for the warm/coalesced scan contract. */
+export function __workerSignalsCacheStats() {
+  return signalsCache.stats();
+}
 
-  recentFiles.sort((a, b) => b.mtimeMs - a.mtimeMs);
+export function __workerFileActivityCacheStats() {
+  return fileActivityCache.stats();
+}
 
-  const [checkIns, sandboxes] = await Promise.all([readCheckIns(), readSandboxes()]);
-
-  const value: WorkerSignals = {
-    checkIns,
-    activeCheckIns: checkIns.filter(checkIn => isCheckInActive(checkIn, now)),
-    // Un-truncated on purpose: `recentFiles.length` and `groupActivity()` over
-    // this list are the "N files in 2h" and the area map the board prints, and
-    // slicing here made both of them a lie.
-    recentFiles,
-    sandboxes,
-    scannedAtMs: now,
-  };
-  signalsCache.set(windowMs, { at: now, value });
-  return value;
+export function __resetWorkerSignalsCache(): void {
+  signalsCache.reset();
+  fileActivityCache.reset();
 }
 
 export interface AreaActivity {

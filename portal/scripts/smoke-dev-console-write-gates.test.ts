@@ -153,12 +153,12 @@ describe("POST /api/portal/dev-team/docs — the write gate", () => {
     assert.ok(!existsSync(join(REPO, PROBE_DOC)));
   });
 
-  it("404s for a founder when Dev Mode is unavailable — the production-like case", async () => {
+  it("404s an arbitrary owner when local Dev Mode is unavailable", async () => {
     sessionCookie = await seedSession("agency-owner");
     const res = await withDevMode(false, () =>
       docsRoute.POST(post("/api/portal/dev-team/docs", { relPath: PROBE_DOC, content: "x" })),
     );
-    assert.equal(res.status, 404, "outside Dev Mode this route must not exist");
+    assert.equal(res.status, 404, "an unrelated owner must not inherit the deployment control plane");
     const body = (await res.json()) as { error?: string; mtimeMs?: number };
     assert.equal(body.error, "not_found");
     assert.equal(body.mtimeMs, undefined);
@@ -229,7 +229,7 @@ describe("POST /api/portal/dev-team/updates — the write gate", () => {
     assertLogUntouched();
   });
 
-  it("404s for a founder when Dev Mode is unavailable", async () => {
+  it("404s an arbitrary owner when local Dev Mode is unavailable", async () => {
     sessionCookie = await seedSession("agency-owner");
     const res = await withDevMode(false, () =>
       updatesRoute.POST(post("/api/portal/dev-team/updates", { title: BLANK_TITLE })),

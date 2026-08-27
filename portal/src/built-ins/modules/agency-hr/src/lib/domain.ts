@@ -12,7 +12,7 @@ import type { AgencyId, Role, UserId } from "./tenancy";
 
 // ─── Staff ────────────────────────────────────────────────────────────────
 
-export type StaffStatus = "active" | "on-leave" | "alumni";
+export type StaffStatus = "preboarding" | "active" | "on-leave" | "suspended" | "alumni";
 
 export type StaffLocationType = "remote" | "hybrid" | "onsite";
 
@@ -101,11 +101,10 @@ export interface UpdateRolePatch {
   requiresAuth?: boolean;
 }
 
-// A `Staff` row is the canonical record for a person who works for the
-// agency. The `userId` link is optional: not every staff member has a
-// portal login (a contracted illustrator might have a directory entry
-// but no login). When `userId` is set, the foundation's user store owns
-// the auth surface; HR stores everything else.
+// In the mounted portal, a `Staff` row is a projection of the canonical
+// People employee record plus Agency HR's department, role and assignment
+// metadata. The optional `userId` links that employee to a portal login.
+// Standalone package tests can still exercise the plugin's private store.
 export interface Staff {
   id: string;
   agencyId: AgencyId;
@@ -156,8 +155,8 @@ export interface Department {
 
 // ─── Leave requests ──────────────────────────────────────────────────────
 
-export type LeaveType = "pto" | "sick" | "sabbatical";
-export type LeaveStatus = "pending" | "approved" | "rejected";
+export type LeaveType = "annual" | "sick" | "unpaid" | "compassionate" | "parental" | "other" | "pto" | "sabbatical";
+export type LeaveStatus = "pending" | "approved" | "rejected" | "cancelled";
 
 export interface LeaveRequest {
   id: string;

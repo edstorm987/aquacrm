@@ -86,19 +86,6 @@ const manifest: AquaPlugin = {
             ],
           },
           {
-            id: "defaultPaymentTermsDays",
-            label: "Default payment terms (days)",
-            type: "number",
-            default: 30,
-            helpText: "Used as default invoice dueAt = issuedAt + N days. v1 stores; UI uses on create.",
-          },
-          {
-            id: "agencyTaxId",
-            label: "Agency tax ID (e.g. VAT/EIN)",
-            type: "text",
-            placeholder: "GB123456789",
-          },
-          {
             id: "taxReserveRate",
             label: "Indicative tax reserve (%)",
             type: "number",

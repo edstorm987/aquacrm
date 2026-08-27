@@ -25,7 +25,7 @@ if it needs a decision Ed hasn't made (the plan flags them), surface it — don'
 
 HARD RULES:
 - Reuse before building — the plan names what already exists to reuse. Check
-  docs/reference/ (per-file + symbol maps) before adding anything new.
+  docs/reference/ (eight consolidated source/symbol volumes) before adding anything new.
 - Run the FULL suite before calling a phase done:
   PORTAL_BACKEND=memory NODE_OPTIONS='--conditions react-server' npx tsx --test scripts/*.test.ts
   Extend the nearest test with your new BEHAVIOUR (not just a source-shape assertion).

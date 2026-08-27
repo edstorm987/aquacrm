@@ -243,3 +243,25 @@ test("runInjections has no fail-open category default", async () => {
     "a `|| \"necessary\"` default would make an unlabelled tool fail OPEN",
   );
 });
+
+test("tool delivery is honest: an open page is unchanged, while a fresh page receives the latest config", async () => {
+  const alreadyOpen = await bootTag([GSC]);
+  assert.equal(alreadyOpen.configRequests.length, 1);
+  assert.equal(alreadyOpen.appended.filter(element => element.tag === "meta").length, 1);
+
+  // Consent changes can release held tools, but they do not pretend to unload provider
+  // code or poll configuration after it has executed on this document.
+  alreadyOpen.aqua.consent.set({ preferences: true, analytics: true, marketing: true });
+  await alreadyOpen.settle();
+  assert.equal(alreadyOpen.configRequests.length, 1, "an already-open page does not claim remote teardown");
+
+  // A new page load fetches again. The route response itself is no-store, so an empty
+  // latest config reaches the page and the removed tool is not injected there.
+  const freshPage = await bootTag([]);
+  assert.equal(freshPage.configRequests.length, 1);
+  assert.deepEqual(
+    freshPage.appended.filter(element => element.tag === "script" || element.tag === "meta"),
+    [],
+    "a fresh page receives the latest empty tool configuration",
+  );
+});

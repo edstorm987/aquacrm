@@ -36,6 +36,21 @@ export class GitHubNotConfigured extends Error {
   }
 }
 
+/** A typed GitHub refusal, so callers never infer semantics from prose. */
+export class GitHubRequestError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(`GitHub request failed (${status}). ${message}`.trim());
+    this.name = "GitHubRequestError";
+  }
+}
+
+export function isGitHubNotFound(error: unknown): boolean {
+  return error instanceof GitHubRequestError && error.status === 404;
+}
+
 async function githubJson<T>(source: GitHubRepoSource, path: string): Promise<T> {
   const response = await (source.fetchImpl ?? fetch)(`${GITHUB_API}${path}`, {
     headers: {
@@ -46,7 +61,7 @@ async function githubJson<T>(source: GitHubRepoSource, path: string): Promise<T>
     cache: "no-store",
   });
   const body = await response.json().catch(() => ({})) as T & { message?: string };
-  if (!response.ok) throw new Error(`GitHub request failed (${response.status}). ${body.message ?? ""}`.trim());
+  if (!response.ok) throw new GitHubRequestError(response.status, body.message ?? "");
   return body;
 }
 

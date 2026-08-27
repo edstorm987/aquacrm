@@ -4,7 +4,7 @@
 //  1. The Dev Team "Editor" route mounts the FULL engine UI — the Portal Studio
 //     (live canvas, depth selector, and the Builder/Content/Pages/Brand/Code/
 //     Repo/Versions inspectors) — through the shared engine loader, and it is
-//     founder + Dev Mode gated like every other dev-team surface.
+//     founder-only Dev Team gated like every other internal surface.
 //     It previously mounted `CodeWorkspace`: a read-only repository tree, which
 //     is one inspector's worth of the engine. The repository browser still
 //     exists — it is the studio's Repo tab — so this is a superset, not a swap.
@@ -52,7 +52,7 @@ describe("dev editor engine — the dev-team editor points at the real engine", 
     assert.match(studio, /RepositoryPanel/);
   });
 
-  it("is founder + Dev Mode gated, the same layered gate as the rest of dev-team", () => {
+  it("uses the shared founder-only gate, the same layered gate as the rest of dev-team", () => {
     const page = read("src", "app", "portal", "dev-team", "editor", "studio", "page.tsx");
     assert.match(page, /requireRole\(\[\.\.\.AGENCY_ROLES\]\)/);
     assert.match(page, /devDocsAccessible\(session\)/);

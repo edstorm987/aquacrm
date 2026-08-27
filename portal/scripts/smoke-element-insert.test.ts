@@ -727,6 +727,8 @@ describe("the element library now inserts, and stays honest about where", () => 
   });
 
   it("shows the server's refusal sentence verbatim rather than paraphrasing", () => {
-    assert.match(panel, /setProblem\(payload\.error \?\? /);
+    assert.match(panel, /setProblem\(apiResponseError\(payload,/);
+    const helper = readFileSync(new URL("../src/lib/client/apiResponseError.ts", import.meta.url), "utf8");
+    assert.ok(helper.indexOf("body.message") < helper.indexOf("body.error"), "human access message must beat the machine code");
   });
 });

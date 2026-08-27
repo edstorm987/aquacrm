@@ -4,6 +4,29 @@
 
 **Status: ✅ BUILT — core shipped + browser-verified (2026-08-19), then RESHAPED to six sections (2026-08-20). Finishing work tracked in [dev-team-finish.md](dev-team-finish.md); the topbar entry point in [dev-console-topbar.md](archive/dev-console-topbar.md).**
 
+> **Production correction, 2026-08-26:** Dev Team is no longer coupled to the
+> local demo-persona switch. The current `devTeamAccessible()` predicate keeps
+> local founder fixtures behind Dev Mode but admits only the deployment's live
+> `FOUNDER_EMAIL` account in production. References below to “founder + Dev
+> Mode only” describe the original implementation, not the current gate.
+
+> **Production durability correction, 2026-08-26:** the current source no longer
+> tries to mutate Vercel's deployed filesystem. Production reads merge the traced
+> deployment snapshot with a durable PortalState file overlay; Library document
+> edits, roadmap/plans, findings and screenshots, Updates, thoughts and worker
+> check-ins use that overlay. Supabase commits through a row-locked batch RPC and
+> Postgres through a row-locked transaction, with exact-version conflict checks and
+> all-before-any validation for multi-file work. Local development deliberately
+> retains the direct working tree, and production code changes still use the
+> GitHub draft/PR path. The Supabase function was installed and verified, and
+> the isolated production release plus its documentation refresh became READY on
+> `aqua-crm.com` on 2026-08-26 after local and remote **268/268** builds and a
+> focused **128/128** gate. Public health, redirect and unauthenticated access
+> boundaries pass. The remaining acceptance item is a founder-authenticated
+> production browser walk; Vercel CLI masks sensitive values as `[SENSITIVE]`
+> and could not provide a real password for automated acceptance. Local `worker:checkin`
+> does not yet publish its local file automatically.
+
 > ⚠ **The section list below is the ORIGINAL twelve-item shape and is no longer what ships.** Corrected 2026-08-20 after this status kept briefing workers on sidebar rows that are now redirect stubs.
 >
 > **The portal today is SIX sidebar sections** ([`src/app/portal/dev-team/layout.tsx:68–75`](../../../src/app/portal/dev-team/layout.tsx)): **Home** · **Roadmap** · **Findings** · **Library** · **Tools** · **Notes** (plus "← Leave Dev Team" and "My profile"). The rest became `?view=` tabs inside those six, and every old route is a redirect stub, so no link died:

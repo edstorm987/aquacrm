@@ -113,7 +113,7 @@ export function updateAgencyWorkspaceSettings(
     timezone: cleanOptional(patch.timezone ?? current.timezone, 80) || DEFAULTS.timezone,
     defaultCurrency: cleanCurrency(patch.defaultCurrency ?? current.defaultCurrency),
     defaultTaxRatePercent: cleanNumber(patch.defaultTaxRatePercent ?? current.defaultTaxRatePercent, 0, 100),
-    defaultPaymentTermsDays: cleanNumber(patch.defaultPaymentTermsDays ?? current.defaultPaymentTermsDays, 0, 365),
+    defaultPaymentTermsDays: cleanWholeNumber(patch.defaultPaymentTermsDays ?? current.defaultPaymentTermsDays, 0, 365),
     invoicePrefix: cleanOptional(patch.invoicePrefix ?? current.invoicePrefix, 12)?.toUpperCase() || DEFAULTS.invoicePrefix,
     defaultClientStage: cleanStage(patch.defaultClientStage ?? current.defaultClientStage),
     createPortalByDefault: patch.createPortalByDefault ?? current.createPortalByDefault,
@@ -168,6 +168,10 @@ function cleanCurrency(value: unknown): string {
 function cleanNumber(value: unknown, min: number, max: number): number {
   const number = typeof value === "number" ? value : Number(value);
   return Number.isFinite(number) ? Math.min(max, Math.max(min, number)) : min;
+}
+
+function cleanWholeNumber(value: unknown, min: number, max: number): number {
+  return Math.round(cleanNumber(value, min, max));
 }
 
 function cleanStage(value: unknown): ClientStage {

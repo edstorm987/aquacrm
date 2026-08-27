@@ -39,6 +39,7 @@ interface Props {
   contactRow: ReactNode;
   portalAction?: ReactNode;
   relationshipSwitcher?: ReactNode;
+  canManage?: boolean;
 }
 
 export function ClientWorkspaceHeader({
@@ -57,6 +58,7 @@ export function ClientWorkspaceHeader({
   contactRow,
   portalAction,
   relationshipSwitcher,
+  canManage = true,
 }: Props) {
   const initials = clientName.split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase()).join("") || "C";
   const relationshipTone = relationship.state === "risk" ? "risk" : relationship.state === "strong" ? "strong" : "watch";
@@ -92,10 +94,10 @@ export function ClientWorkspaceHeader({
             <Inbox size={15} /> Contact
           </Link>
           {products.length ? <Link href={clientWorkspaceHref(clientId, "portal")} className="mm-client-context-button">
-            <PanelTop size={15} /> {portalReady ? "Open portal" : "Prepare portal"}
+            <PanelTop size={15} /> {portalReady ? "Open portal" : canManage ? "Prepare portal" : "Portal status"}
           </Link> : null}
           <Link href={`${clientWorkspaceHref(clientId, "delivery")}#service-assignment`} className="mm-client-context-button mm-client-context-button-primary">
-            <Settings2 size={15} /> Services
+            <Settings2 size={15} /> {canManage ? "Services" : "View services"}
           </Link>
           {portalAction}
         </div>
@@ -152,9 +154,9 @@ export function ClientWorkspaceHeader({
           ) : null}
         </div>
       ) : (
-        <Link href={`${clientWorkspaceHref(clientId, "delivery")}#service-assignment`} className="mm-client-assignment-alert">
+        canManage ? <Link href={`${clientWorkspaceHref(clientId, "delivery")}#service-assignment`} className="mm-client-assignment-alert">
           <CircleAlert size={16} /> This client has no service architecture yet. Assign the delivering company and services to activate their workspace.
-        </Link>
+        </Link> : <div className="mm-client-assignment-alert"><CircleAlert size={16} /> This client has no assigned services.</div>
       )}
     </header>
   );

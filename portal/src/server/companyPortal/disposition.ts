@@ -19,7 +19,7 @@
 //
 // So the map below is not a list. It is a MAPPED TYPE over
 // `Required<PortalState>`: TypeScript itself demands one entry per collection,
-// and `keyof` is read straight off the state type. Add a 79th collection to
+// and `keyof` is read straight off the state type. Add another collection to
 // `PortalState` and this file stops compiling until somebody classifies it.
 // Delete an entry and it stops compiling. Rename a collection and it stops
 // compiling. That is the whole job — see the GUARD block at the bottom.
@@ -181,6 +181,27 @@ export const PROMOTION_DISPOSITION = {
       "Client-tier users of a moving client move with it (their `agencyId` follows their client). Agency-tier staff do NOT: `ServerUser.companyIds` is a display label, and turning it into a retroactive tenancy grant is exactly the widening the switcher forbids — staff are PROPOSED, never auto-granted.",
     needsConfirmation: true,
   },
+  accessRoleTemplates: {
+    disposition: "leave",
+    ownership: "agency-scoped",
+    keying: "own-id",
+    reason:
+      "Authorization templates belong to the tenant that authored them. Company promotion must never copy a role policy into a new security boundary implicitly.",
+  },
+  accessGrants: {
+    disposition: "leave",
+    ownership: "agency-scoped",
+    keying: "own-id",
+    reason:
+      "A grant is an explicit tenant authority decision. It stays in the origin tenant; access in the promoted portal must be deliberately re-approved.",
+  },
+  accessRequests: {
+    disposition: "leave",
+    ownership: "history",
+    keying: "own-id",
+    reason:
+      "Permission requests and their decisions are governance history for the tenant in which they were made and are never re-stamped during promotion.",
+  },
 
   // ─── Plugins — the ninth ownership surface ──────────────────────────────
   pluginInstalls: {
@@ -326,6 +347,12 @@ export const PROMOTION_DISPOSITION = {
   },
 
   // ─── Work ───────────────────────────────────────────────────────────────
+  devTeamWorkspaceFiles: {
+    disposition: "leave",
+    ownership: "agency-scoped",
+    keying: "own-id",
+    reason: "Founder control-plane documents belong to the Aqua deployment, never to a company promoted out of the agency.",
+  },
   tasks: {
     disposition: "move",
     ownership: "client",
@@ -457,6 +484,12 @@ export const PROMOTION_DISPOSITION = {
     ownership: "agency-scoped",
     keying: "own-id",
     reason: "Mirrored external events — re-synced from the connection, never migrated.",
+  },
+  commandCalendarEventCreateOperations: {
+    disposition: "leave",
+    ownership: "agency-scoped",
+    keying: "own-id",
+    reason: "Provider idempotency records belong to the originating calendar connection and must never cross tenants.",
   },
 
   // ─── The company's operating model ──────────────────────────────────────
@@ -724,6 +757,12 @@ export const PROMOTION_DISPOSITION = {
     reason: "Training material authored in the origin tenant; no company dimension to split it by.",
     needsConfirmation: true,
   },
+  staffProvisioningOperations: {
+    disposition: "leave",
+    ownership: "agency-scoped",
+    keying: "own-id",
+    reason: "Password-free staff account recovery checkpoints belong to the holding agency and never follow a promoted company.",
+  },
 } satisfies PromotionDispositionMap;
 
 // ─── THE GUARD ────────────────────────────────────────────────────────────
@@ -762,10 +801,10 @@ type _NoStaleCollections = AssertNever<StaleCollections>;
 /**
  * How many collections `PortalState` had when this map was written. The map's
  * own length is checked against `PortalState` by the types above; this constant
- * is the human-readable half — a smoke test pins it, so a 79th collection
+ * is the human-readable half — a smoke test pins it, so the next collection
  * announces itself in a test name as well as in the compiler.
  */
-export const PROMOTION_COLLECTION_COUNT = 82;
+export const PROMOTION_COLLECTION_COUNT = 88;
 
 /** Every classified collection name, in `PortalState` order. */
 export const PROMOTION_COLLECTIONS = Object.keys(PROMOTION_DISPOSITION) as Array<

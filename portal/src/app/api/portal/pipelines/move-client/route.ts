@@ -14,23 +14,34 @@ import { AGENCY_ROLES, type ClientStage } from "@/server/types";
 import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
 import { getAgencyProduct, listAgencyProducts } from "@/server/agencyProducts";
 import { agencyProductPipelineColumns } from "@/lib/products/fulfilmentProductPipelines";
+import { transitionClientProductStage } from "@/server/productStageTransitions";
+import { resolveClientProductStage } from "@/lib/products/clientProductStageTruth";
+import { ProductWorkspaceBusyError, withProductWorkspaceTransaction } from "@/server/productWorkspaceCoordinator";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 export async function POST(req: Request) {
   try {
     await ensureHydrated();
     const session = await requireRole([...AGENCY_ROLES]);
-    const body = await req.json().catch(() => null) as { clientId?: string; columnId?: string; productKey?: string } | null;
+    const { actor } = await requireCurrentWorkspaceElementAccess("fulfilment", "fulfilment.services", "use");
+    const agencyId = actor.resourceAgencyId;
+    const body = await req.json().catch(() => null) as { clientId?: string; columnId?: string; productKey?: string; expectedRevision?: unknown } | null;
     if (!body?.clientId || !body.columnId) {
       return NextResponse.json({ ok: false, error: "clientId and columnId are required" }, { status: 400 });
     }
-    const client = getClientForAgency(session.agencyId, body.clientId);
+    const client = getClientForAgency(agencyId, body.clientId);
     if (!client) {
       return NextResponse.json({ ok: false, error: "Client not found" }, { status: 404 });
     }
+    await requireCurrentClientWorkspaceElementAccess(client.id, "client.fulfilment", "use");
 
     if (body.productKey) {
-      const catalogue = listAgencyProducts(session.agencyId, true);
-      const product = getAgencyProduct(session.agencyId, body.productKey)
+      if (typeof body.expectedRevision !== "number" || !Number.isSafeInteger(body.expectedRevision) || body.expectedRevision < 0) {
+        return NextResponse.json({ ok: false, error: "expectedRevision is required" }, { status: 400 });
+      }
+      const catalogue = listAgencyProducts(agencyId, true);
+      const product = getAgencyProduct(agencyId, body.productKey)
         ?? catalogue.find(item => item.portalTemplateKey === body.productKey);
       const columns = product ? agencyProductPipelineColumns(product) : [];
       const column = columns?.find(item => item.id === body.columnId);
@@ -39,59 +50,57 @@ export async function POST(req: Request) {
       if (!product || !column || !assigned) {
         return NextResponse.json({ ok: false, error: "Product or delivery stage not found" }, { status: 404 });
       }
-      const currentStages = client.metadata?.productPipelineStages;
-      const productPipelineStages = currentStages && typeof currentStages === "object"
-        ? { ...currentStages as Record<string, unknown> }
-        : {};
-      const previous = typeof productPipelineStages[product.id] === "string"
-        ? productPipelineStages[product.id]
-        : product.portalTemplateKey && typeof productPipelineStages[product.portalTemplateKey] === "string"
-          ? productPipelineStages[product.portalTemplateKey]
-        : undefined;
-      productPipelineStages[product.id] = column.id;
-      const updated = updateClient(session.agencyId, client.id, {
-        metadata: { productPipelineStages },
-      });
-      if (!updated) {
+      const transition = await withProductWorkspaceTransaction({
+        agencyId,
+        clientId: client.id,
+        productId: product.id,
+      }, () => transitionClientProductStage({
+          client,
+          product,
+          stageId: column.id,
+          actorUserId: session.userId,
+          actorEmail: session.email,
+          expectedRevision: body.expectedRevision as number,
+        }));
+      if (!transition) {
         return NextResponse.json({ ok: false, error: "Could not update product delivery" }, { status: 422 });
       }
-
-      logActivity({
-        agencyId: session.agencyId,
-        clientId: client.id,
-        actorUserId: session.userId,
-        actorEmail: session.email,
-        category: "fulfillment",
-        action: "client.product-delivery-stage.moved",
-        message: `Moved ${client.name}'s product delivery to ${column.label}.`,
-        metadata: { productId: product.id, productKey: product.portalTemplateKey, fromStage: previous, toStage: column.id },
-      });
-
+      if (transition.status === "conflict") {
+        return NextResponse.json({
+          ok: false,
+          error: "This delivery record changed in another session. The latest stage has been loaded; review it and try again.",
+          columnId: resolveClientProductStage(transition.client, product).stageId,
+          workspaceRevision: transition.workspaceRevision,
+        }, { status: 409 });
+      }
       return NextResponse.json({
         ok: true,
-        client: { id: updated.id, name: updated.name },
+        client: { id: transition.client.id, name: transition.client.name, stage: transition.client.stage },
         productKey: product.id,
-        columnId: column.id,
+        columnId: transition.stageId,
+        portalMode: transition.portalMode,
+        changed: transition.changed,
+        workspaceRevision: transition.workspaceRevision,
       });
     }
 
-    const pipeline = getPipelineBySlug(session.agencyId, "fulfilment");
+    const pipeline = getPipelineBySlug(agencyId, "fulfilment");
     const column = pipeline?.columns.find(item => item.id === body.columnId);
     if (!pipeline || !column) {
       return NextResponse.json({ ok: false, error: "Client or delivery stage not found" }, { status: 404 });
     }
 
-    const updated = updateClient(session.agencyId, client.id, { stage: column.id as ClientStage });
+    const updated = updateClient(agencyId, client.id, { stage: column.id as ClientStage });
     if (!updated) {
       return NextResponse.json({ ok: false, error: "Could not update the client stage" }, { status: 422 });
     }
 
-    migrateClientsToFulfilment(session.agencyId);
+    migrateClientsToFulfilment(agencyId);
     const card = listCards(pipeline.id).find(item => item.kind === "client" && item.clientId === client.id);
-    if (card) moveCard(session.agencyId, card.id, column.id);
+    if (card) moveCard(agencyId, card.id, column.id);
 
     logActivity({
-      agencyId: session.agencyId,
+      agencyId,
       clientId: client.id,
       actorUserId: session.userId,
       actorEmail: session.email,
@@ -107,6 +116,9 @@ export async function POST(req: Request) {
       columnId: column.id,
     });
   } catch (error) {
+    if (error instanceof ProductWorkspaceBusyError) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 409 });
+    }
     return authErrorResponse(error);
   }
 }

@@ -49,6 +49,8 @@ import {
   Workflow,
 } from "lucide-react";
 import { attentionTitle, useAttentionMatches, useNotificationAttention, useUnresolvedAttentionMatches } from "@/components/chrome/NotificationAttentionProvider";
+import { devTeamLinkPrefetch } from "@/lib/chrome/devTeamLinkPrefetch";
+import { sharedChromeLinkPrefetch } from "@/lib/chrome/sharedChromeLinkPrefetch";
 import type { OperationalAlertCategory } from "@/lib/intelligence/operationalAttention";
 
 const NAV_ICONS: Record<string, typeof Circle> = {
@@ -337,6 +339,7 @@ export function SidebarNavLink({
   return (
     <Link
       href={href}
+      prefetch={sharedChromeLinkPrefetch() ?? devTeamLinkPrefetch(href)}
       aria-current={active ? "page" : undefined}
       aria-label={resolvedAttentionCount > 0 ? `${label}, ${resolvedAttentionCount} notification${resolvedAttentionCount === 1 ? "" : "s"} in focus${reserveAttention.length ? ` and ${reserveAttention.length} held in reserve` : ""}` : undefined}
       title={hoverTitle}

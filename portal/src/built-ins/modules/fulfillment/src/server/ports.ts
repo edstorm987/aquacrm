@@ -140,6 +140,7 @@ export interface PluginRegistryPort {
 // ─── Activity log ──────────────────────────────────────────────────────────
 
 export interface LogActivityInput {
+  idempotencyKey?: string;
   agencyId: AgencyId;
   clientId?: ClientId;
   actorUserId?: UserId;

@@ -11,14 +11,51 @@ import "server-only";
 // route handlers `await ensureHydrated()` once at the top before reading.
 // Writes are debounced 250 ms and flushed asynchronously.
 
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "fs";
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from "fs";
+import { randomUUID } from "crypto";
 import { dirname, resolve } from "path";
+import { workUnitAsyncStorage } from "next/dist/server/app-render/work-unit-async-storage.external";
+import {
+  SESSION_COOKIE_NAME,
+  verifySessionToken,
+} from "@/lib/server/auth/sessionToken";
+import {
+  LIVE_DATA_REALM_ID,
+  enterDataRealm,
+  getActiveDataRealmId,
+  hasExplicitDataRealm,
+  isSandboxDataRealm,
+  normaliseDataRealmId,
+  runInDataRealm,
+} from "@/server/dataRealm";
+export {
+  LIVE_DATA_REALM_ID,
+  getActiveDataRealmId,
+  isSandboxDataRealm,
+  runInDataRealm,
+} from "@/server/dataRealm";
 import type { PortalState } from "./types";
 import {
   applyStoragePatch,
   diffStorageValue,
   type StoragePatchOperation,
 } from "./storagePatch";
+import {
+  applyDevTeamWorkspaceFileMutations as applyDevTeamWorkspaceMutationsToState,
+  DevTeamWorkspaceConflictError,
+  type DevTeamWorkspaceFileMutation,
+} from "./devTeamWorkspacePersistence";
 
 const empty = (): PortalState => ({
   // These four are declared optional on PortalState, which is why they were
@@ -33,6 +70,9 @@ const empty = (): PortalState => ({
   clients: {},
   endCustomers: {},
   users: {},
+  accessRoleTemplates: {},
+  accessGrants: {},
+  accessRequests: {},
   pluginInstalls: {},
   pluginData: {},
   phases: {},
@@ -51,6 +91,7 @@ const empty = (): PortalState => ({
   devProjects: {},
   editorAiConfigs: {},
   editorAiConversations: {},
+  devTeamWorkspaceFiles: {},
   tasks: {},
   taskTemplates: {},
   portalConnections: {},
@@ -67,6 +108,7 @@ const empty = (): PortalState => ({
   commandCalendarConnections: {},
   commandCalendarSources: {},
   commandCalendarExternalEvents: {},
+  commandCalendarEventCreateOperations: {},
   sops: {},
   sopGuides: {},
   agencyProducts: {},
@@ -105,7 +147,12 @@ const empty = (): PortalState => ({
   peopleMessages: {},
   peopleChannelReads: {},
   peopleTrainingModules: {},
+  staffProvisioningOperations: {},
 });
+
+export function createEmptyPortalState(): PortalState {
+  return empty();
+}
 
 // ─── Backend interface ────────────────────────────────────────────────────
 
@@ -115,9 +162,10 @@ interface Backend {
   kind: BackendKind;
   persistent: boolean;
   description: string;
-  loadBlob(): Promise<string | null>;
-  saveBlob(content: string): Promise<void>;
-  applyPatch?(operations: StoragePatchOperation[]): Promise<string>;
+  loadBlob(realmId: string): Promise<string | null>;
+  saveBlob(content: string, realmId: string): Promise<void>;
+  applyPatch?(operations: StoragePatchOperation[], realmId: string): Promise<string>;
+  applyDevTeamWorkspaceFiles?(operations: DevTeamWorkspaceFileMutation[], realmId: string): Promise<string>;
 }
 
 // ─── File backend (dev default) ───────────────────────────────────────────
@@ -131,31 +179,59 @@ const DATA_FILE = process.env.PORTAL_DATA_FILE
   ? resolve(process.cwd(), process.env.PORTAL_DATA_FILE)
   : resolve(process.cwd(), ".data", "portal-state.json");
 
+function dataFileForRealm(realmId: string): string {
+  const valid = normaliseDataRealmId(realmId);
+  if (valid === LIVE_DATA_REALM_ID) return DATA_FILE;
+  return resolve(dirname(DATA_FILE), "realms", `${valid}.json`);
+}
+
+function saveFileBlobAtomic(content: string, realmId = getActiveDataRealmId()): void {
+  const dataFile = dataFileForRealm(realmId);
+  const dir = dirname(dataFile);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  const temp = `${dataFile}.${process.pid}.${randomUUID()}.tmp`;
+  let descriptor: number | null = null;
+  try {
+    descriptor = openSync(temp, "wx", 0o600);
+    writeFileSync(descriptor, content, "utf-8");
+    fsyncSync(descriptor);
+    closeSync(descriptor);
+    descriptor = null;
+    // Same-directory rename is atomic: readers see the complete previous blob
+    // or the complete next blob, never a partially truncated JSON document.
+    renameSync(temp, dataFile);
+  } catch (error) {
+    if (descriptor !== null) {
+      try { closeSync(descriptor); } catch { /* already closed */ }
+    }
+    try { if (existsSync(temp)) unlinkSync(temp); } catch { /* preserve original failure */ }
+    throw error;
+  }
+}
+
 const fileBackend: Backend = {
   kind: "file",
   persistent: true,
   description: `JSON file at ${DATA_FILE}`,
-  async loadBlob() {
-    if (!existsSync(DATA_FILE)) return null;
-    try { return readFileSync(DATA_FILE, "utf-8"); }
-    catch { return null; }
+  async loadBlob(realmId) {
+    const dataFile = dataFileForRealm(realmId);
+    if (!existsSync(dataFile)) return null;
+    return readFileSync(dataFile, "utf-8");
   },
-  async saveBlob(content) {
-    const dir = dirname(DATA_FILE);
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-    writeFileSync(DATA_FILE, content, "utf-8");
+  async saveBlob(content, realmId) {
+    saveFileBlobAtomic(content, realmId);
   },
 };
 
 // ─── Memory backend (tests / ephemeral local runs) ───────────────────────
 
-let memoryBlob: string | null = null;
+const memoryBlobs = new Map<string, string>();
 const memoryBackend: Backend = {
   kind: "memory",
   persistent: false,
   description: "In-memory only — state evaporates when the process exits.",
-  async loadBlob() { return memoryBlob; },
-  async saveBlob(content) { memoryBlob = content; },
+  async loadBlob(realmId) { return memoryBlobs.get(normaliseDataRealmId(realmId)) ?? null; },
+  async saveBlob(content, realmId) { memoryBlobs.set(normaliseDataRealmId(realmId), content); },
 };
 
 // ─── Stub (KV lands in a later round) ─────────────────────────────────────
@@ -180,13 +256,17 @@ const postgresBackend: Backend = {
   kind: "postgres",
   persistent: true,
   description: "Postgres (single-row JSONB blob in `portal_kv` keyed `__portal_state__`).",
-  async loadBlob() {
+  async loadBlob(realmId) {
     const { loadBlob } = await import("./storagePostgres");
-    return loadBlob();
+    return loadBlob(realmId);
   },
-  async saveBlob(content) {
+  async saveBlob(content, realmId) {
     const { saveBlob } = await import("./storagePostgres");
-    return saveBlob(content);
+    return saveBlob(content, realmId);
+  },
+  async applyDevTeamWorkspaceFiles(operations, realmId) {
+    const { applyDevTeamWorkspaceFiles } = await import("./storagePostgres");
+    return applyDevTeamWorkspaceFiles(operations, realmId);
   },
 };
 
@@ -194,17 +274,21 @@ const supabaseBackend: Backend = {
   kind: "supabase",
   persistent: true,
   description: "Supabase app datastore (`aquacrm-portal-state`).",
-  async loadBlob() {
+  async loadBlob(realmId) {
     const { loadBlob } = await import("./storageSupabase");
-    return loadBlob();
+    return loadBlob({}, realmId);
   },
-  async saveBlob(content) {
+  async saveBlob(content, realmId) {
     const { saveBlob } = await import("./storageSupabase");
-    return saveBlob(content);
+    return saveBlob(content, {}, realmId);
   },
-  async applyPatch(operations) {
+  async applyPatch(operations, realmId) {
     const { applyPatch } = await import("./storageSupabase");
-    return applyPatch(operations);
+    return applyPatch(operations, {}, realmId);
+  },
+  async applyDevTeamWorkspaceFiles(operations, realmId) {
+    const { applyDevTeamWorkspaceFiles } = await import("./storageSupabase");
+    return applyDevTeamWorkspaceFiles(operations, {}, realmId);
   },
 };
 
@@ -291,55 +375,112 @@ const backend = pickBackend();
 
 // ─── Cache + hydration + flush ────────────────────────────────────────────
 
-let cache: PortalState | null = null;
-// Persistence and write capability are different properties. The memory
-// backend is deliberately ephemeral, but it must still accept writes so tests
-// and local previews exercise the same mutation/flush contract as production.
-let writable = backend.kind !== "kv";
-let flushTimer: ReturnType<typeof setTimeout> | null = null;
-let flushInFlight: Promise<void> | null = null;
-let fileSnapshotMtimeMs = 0;
-let mutationVersion = 0;
-let persistedVersion = 0;
-let lastFlushError: Error | null = null;
-let pendingPatchOperations: StoragePatchOperation[] = [];
+interface RealmRuntime {
+  cache: PortalState | null;
+  writable: boolean;
+  flushTimer: ReturnType<typeof setTimeout> | null;
+  flushInFlight: Promise<void> | null;
+  fileSnapshotMtimeMs: number;
+  mutationVersion: number;
+  persistedVersion: number;
+  lastFlushError: Error | null;
+  pendingPatchOperations: StoragePatchOperation[];
+  hydrated: boolean;
+  hydratePromise: Promise<void> | null;
+  remoteRefreshPromise: Promise<void> | null;
+  devTeamWorkspaceMutationQueue: Promise<void>;
+}
 
-let hydrated = false;
-let hydratePromise: Promise<void> | null = null;
-let remoteRefreshPromise: Promise<void> | null = null;
+const realmRuntimes = new Map<string, RealmRuntime>();
 
-export async function ensureHydrated(options?: { fresh?: boolean }): Promise<void> {
-  const shouldRefreshRemote =
+function realmRuntime(realmId = getActiveDataRealmId()): RealmRuntime {
+  const valid = normaliseDataRealmId(realmId);
+  const existing = realmRuntimes.get(valid);
+  if (existing) return existing;
+  const created: RealmRuntime = {
+    cache: null,
+    // Persistence and write capability are different properties. Memory is
+    // ephemeral but deliberately writable for tests and previews.
+    writable: backend.kind !== "kv",
+    flushTimer: null,
+    flushInFlight: null,
+    fileSnapshotMtimeMs: 0,
+    mutationVersion: 0,
+    persistedVersion: 0,
+    lastFlushError: null,
+    pendingPatchOperations: [],
+    hydrated: false,
+    hydratePromise: null,
+    remoteRefreshPromise: null,
+    devTeamWorkspaceMutationQueue: Promise.resolve(),
+  };
+  realmRuntimes.set(valid, created);
+  return created;
+}
+
+function enterSignedRequestRealm(preserveExplicitRealm: boolean): string {
+  // `enterWith()` is intentionally used so synchronous domain readers after
+  // `ensureHydrated()` see the selected realm. Selection must happen before
+  // ensureHydrated reaches its first await; entering an AsyncLocalStorage
+  // context after an await does not propagate back to the layout/route caller.
+  // Next already holds the request boundary in its request-scoped store, so
+  // read the incoming signed cookie there without introducing an await.
+  if (preserveExplicitRealm && hasExplicitDataRealm()) return getActiveDataRealmId();
+
+  let realmId = LIVE_DATA_REALM_ID;
+  const requestStore = workUnitAsyncStorage.getStore();
+  if (requestStore?.type === "request") {
+    const token = requestStore.cookies.get(SESSION_COOKIE_NAME)?.value;
+    const session = verifySessionToken(token);
+    if (session?.sandbox?.realmId) realmId = normaliseDataRealmId(session.sandbox.realmId);
+  } else if (hasExplicitDataRealm()) {
+    // Scripts, build-time renders and isolated tests do not have a request
+    // store. Preserve their explicit runInDataRealm() scope; otherwise they
+    // deliberately remain on the live/default realm.
+    return getActiveDataRealmId();
+  }
+  return enterDataRealm(realmId);
+}
+
+export async function ensureHydrated(options?: {
+  fresh?: boolean;
+  /** Server-only escape hatch for code already wrapped in runInDataRealm(). */
+  preserveExplicitRealm?: boolean;
+}): Promise<void> {
+  const realmId = enterSignedRequestRealm(options?.preserveExplicitRealm === true);
+  const runtime = realmRuntime(realmId);
+  const dataFile = dataFileForRealm(realmId);
+  const shouldRefreshPersistent =
     options?.fresh === true &&
-    (backend.kind === "supabase" || backend.kind === "postgres");
+    (backend.kind === "supabase" || backend.kind === "postgres" || backend.kind === "file");
 
-  if (shouldRefreshRemote && hydrated) {
-    if (!remoteRefreshPromise) {
-      remoteRefreshPromise = (async () => {
+  if (shouldRefreshPersistent && runtime.hydrated) {
+    if (!runtime.remoteRefreshPromise) {
+      runtime.remoteRefreshPromise = (async () => {
         // Never replace local changes with a remote snapshot that predates
         // them. Mutation routes explicitly flush before returning, while this
         // also protects callers during a warm server transition.
         await flushPendingWrites();
-        hydrated = false;
-        hydratePromise = null;
-        await ensureHydrated();
+        runtime.hydrated = false;
+        runtime.hydratePromise = null;
+        await ensureHydrated({ preserveExplicitRealm: options?.preserveExplicitRealm });
       })().finally(() => {
-        remoteRefreshPromise = null;
+        runtime.remoteRefreshPromise = null;
       });
     }
-    await remoteRefreshPromise;
+    await runtime.remoteRefreshPromise;
     return;
   }
-  if (hydrated && backend.kind === "file" && existsSync(DATA_FILE)) {
-    const currentMtimeMs = statSync(DATA_FILE).mtimeMs;
-    if (currentMtimeMs > fileSnapshotMtimeMs) {
-      hydrated = false;
-      hydratePromise = null;
+  if (runtime.hydrated && backend.kind === "file" && existsSync(dataFile)) {
+    const currentMtimeMs = statSync(dataFile).mtimeMs;
+    if (currentMtimeMs > runtime.fileSnapshotMtimeMs) {
+      runtime.hydrated = false;
+      runtime.hydratePromise = null;
     }
   }
-  if (hydrated) return;
-  if (!hydratePromise) {
-    hydratePromise = (async () => {
+  if (runtime.hydrated) return;
+  if (!runtime.hydratePromise) {
+    runtime.hydratePromise = (async () => {
       const isDeployedProduction =
         process.env.NODE_ENV === "production" &&
         Boolean(process.env.VERCEL_ENV) &&
@@ -350,22 +491,22 @@ export async function ensureHydrated(options?: { fresh?: boolean }): Promise<voi
         );
       }
       try {
-        let raw = await backend.loadBlob();
+        let raw = await backend.loadBlob(realmId);
         // R027 dual-read fallback. When Postgres is configured but the
         // blob row is missing (fresh DB / partial migration), read from
         // the file backend once, hydrate the cache, and stamp Postgres
         // so subsequent boots find the row natively. Logs a one-time
         // migration event so operators see the seam.
-        if (!raw && backend.kind === "postgres") {
+        if (!raw && backend.kind === "postgres" && realmId === LIVE_DATA_REALM_ID) {
           try {
-            const fallback = await fileBackend.loadBlob();
+            const fallback = await fileBackend.loadBlob(LIVE_DATA_REALM_ID);
             if (fallback) {
               raw = fallback;
               // Fire-and-forget: write the file blob into Postgres so
               // the next cold start reads natively. Errors surface in
               // the warn channel; cache is already populated either way.
               backend
-                .saveBlob(fallback)
+                .saveBlob(fallback, realmId)
                 .then(() => {
                   if (process.env.NODE_ENV !== "test") {
                     console.warn("[portal] dual-read fallback: hydrated cache from file backend + wrote to Postgres.");
@@ -388,21 +529,32 @@ export async function ensureHydrated(options?: { fresh?: boolean }): Promise<voi
             }
           }
         }
-        cache = raw ? parseBlob(raw) : empty();
-        mutationVersion = 0;
-        persistedVersion = 0;
-        pendingPatchOperations = [];
-        lastFlushError = null;
+        runtime.cache = raw ? parseBlob(raw) : empty();
+        runtime.mutationVersion = 0;
+        runtime.persistedVersion = 0;
+        runtime.pendingPatchOperations = [];
+        runtime.lastFlushError = null;
         // R025: migrate legacy single-agency user rows in place. Pure +
         // idempotent — re-running on already-migrated rows is a no-op.
         // Lazy-import to avoid pulling the migration helper into every
         // storage consumer's bundle.
         const { migrateUsersSchema } = await import("./userSchemaMigration");
-        migrateUsersSchema(cache.users);
-        if (backend.kind === "file" && existsSync(DATA_FILE)) {
-          fileSnapshotMtimeMs = statSync(DATA_FILE).mtimeMs;
+        migrateUsersSchema(runtime.cache.users);
+        if (backend.kind === "file" && existsSync(dataFile)) {
+          runtime.fileSnapshotMtimeMs = statSync(dataFile).mtimeMs;
         }
       } catch (e) {
+        const error = e instanceof Error ? e : new Error(String(e));
+        if (backend.kind === "file") {
+          // A missing file is a valid first run; an unreadable/corrupt existing
+          // file is not an empty CRM. Keep it untouched and fail visibly until
+          // an operator restores or deliberately replaces it.
+          runtime.cache = null;
+          runtime.writable = false;
+          runtime.lastFlushError = error;
+          runtime.hydrated = false;
+          throw new Error(`[portal] file state could not be loaded from ${dataFile}: ${error.message}`, { cause: error });
+        }
         if (process.env.NODE_ENV === "production") throw e;
         if (process.env.NODE_ENV !== "test") {
           console.warn(
@@ -410,19 +562,18 @@ export async function ensureHydrated(options?: { fresh?: boolean }): Promise<voi
             e instanceof Error ? e.message : e,
           );
         }
-        cache = empty();
+        runtime.cache = empty();
       } finally {
-        hydrated = true;
+        if (runtime.cache) runtime.hydrated = true;
       }
     })();
   }
-  await hydratePromise;
+  await runtime.hydratePromise;
 }
 
 function parseBlob(raw: string): PortalState {
-  try {
-    const parsed = JSON.parse(raw) as Partial<PortalState>;
-    return {
+  const parsed = JSON.parse(raw) as Partial<PortalState>;
+  return {
       // ⚠ Every collection MUST be rebuilt here. This object is the whole of
       // state — there is no `...parsed` — so a field omitted from this list is
       // silently DESTROYED on every hydration and then written back out empty
@@ -440,6 +591,9 @@ function parseBlob(raw: string): PortalState {
       clients: parsed.clients ?? {},
       endCustomers: parsed.endCustomers ?? {},
       users: parsed.users ?? {},
+      accessRoleTemplates: parsed.accessRoleTemplates ?? {},
+      accessGrants: parsed.accessGrants ?? {},
+      accessRequests: parsed.accessRequests ?? {},
       pluginInstalls: parsed.pluginInstalls ?? {},
       pluginData: parsed.pluginData ?? {},
       phases: parsed.phases ?? {},
@@ -458,6 +612,7 @@ function parseBlob(raw: string): PortalState {
       devProjects: parsed.devProjects ?? {},
       editorAiConfigs: parsed.editorAiConfigs ?? {},
       editorAiConversations: parsed.editorAiConversations ?? {},
+      devTeamWorkspaceFiles: parsed.devTeamWorkspaceFiles ?? {},
       tasks: parsed.tasks ?? {},
       taskTemplates: parsed.taskTemplates ?? {},
       portalConnections: parsed.portalConnections ?? {},
@@ -474,6 +629,7 @@ function parseBlob(raw: string): PortalState {
       commandCalendarConnections: parsed.commandCalendarConnections ?? {},
       commandCalendarSources: parsed.commandCalendarSources ?? {},
       commandCalendarExternalEvents: parsed.commandCalendarExternalEvents ?? {},
+      commandCalendarEventCreateOperations: parsed.commandCalendarEventCreateOperations ?? {},
       sops: parsed.sops ?? {},
       sopGuides: parsed.sopGuides ?? {},
       agencyProducts: parsed.agencyProducts ?? {},
@@ -513,52 +669,55 @@ function parseBlob(raw: string): PortalState {
       peopleMessages: parsed.peopleMessages ?? {},
       peopleChannelReads: parsed.peopleChannelReads ?? {},
       peopleTrainingModules: parsed.peopleTrainingModules ?? {},
-    };
-  } catch {
-    return empty();
-  }
+      staffProvisioningOperations: parsed.staffProvisioningOperations ?? {},
+  };
 }
 
-async function flush(options?: { throwOnError?: boolean }): Promise<void> {
-  if (!cache) return;
-  if (!writable) {
+async function flushRealm(
+  realmId: string,
+  runtime: RealmRuntime,
+  options?: { throwOnError?: boolean },
+): Promise<void> {
+  if (!runtime.cache) return;
+  if (!runtime.writable) {
     if (options?.throwOnError) {
-      throw lastFlushError ?? new Error(`[portal] backend "${backend.kind}" is not writable.`);
+      throw runtime.lastFlushError ?? new Error(`[portal] backend "${backend.kind}" is not writable.`);
     }
     return;
   }
-  if (flushInFlight) await flushInFlight;
-  if (persistedVersion === mutationVersion) return;
+  if (runtime.flushInFlight) await runtime.flushInFlight;
+  if (runtime.persistedVersion === runtime.mutationVersion) return;
 
-  const targetVersion = mutationVersion;
-  const snapshot = JSON.stringify(cache);
-  const operationCount = pendingPatchOperations.length;
-  const operations = pendingPatchOperations.slice(0, operationCount);
-  flushInFlight = (async () => {
+  const targetVersion = runtime.mutationVersion;
+  const snapshot = JSON.stringify(runtime.cache);
+  const operationCount = runtime.pendingPatchOperations.length;
+  const operations = runtime.pendingPatchOperations.slice(0, operationCount);
+  const dataFile = dataFileForRealm(realmId);
+  runtime.flushInFlight = (async () => {
     try {
       const savedBlob = backend.applyPatch && operations.length > 0
-        ? await backend.applyPatch(operations)
-        : (await backend.saveBlob(snapshot), null);
+        ? await backend.applyPatch(operations, realmId)
+        : (await backend.saveBlob(snapshot, realmId), null);
 
       if (savedBlob) {
-        pendingPatchOperations.splice(0, operationCount);
+        runtime.pendingPatchOperations.splice(0, operationCount);
         const remoteState = parseBlob(savedBlob);
-        cache = pendingPatchOperations.length > 0
-          ? parseBlob(JSON.stringify(applyStoragePatch(remoteState, pendingPatchOperations)))
+        runtime.cache = runtime.pendingPatchOperations.length > 0
+          ? parseBlob(JSON.stringify(applyStoragePatch(remoteState, runtime.pendingPatchOperations)))
           : remoteState;
       }
-      persistedVersion = targetVersion;
-      lastFlushError = null;
-      if (backend.kind === "file" && existsSync(DATA_FILE)) {
-        fileSnapshotMtimeMs = statSync(DATA_FILE).mtimeMs;
+      runtime.persistedVersion = targetVersion;
+      runtime.lastFlushError = null;
+      if (backend.kind === "file" && existsSync(dataFile)) {
+        runtime.fileSnapshotMtimeMs = statSync(dataFile).mtimeMs;
       }
     } catch (e) {
-      lastFlushError = e instanceof Error ? e : new Error(String(e));
+      runtime.lastFlushError = e instanceof Error ? e : new Error(String(e));
       // A remote timeout or brief outage is recoverable. Keep the pending
       // operations and allow the next mutation or explicit flush to retry.
       // Only a failed local file write indicates a process-level read-only
       // state that should remain disabled until restart.
-      if (backend.kind === "file") writable = false;
+      if (backend.kind === "file") runtime.writable = false;
       if (process.env.NODE_ENV !== "test") {
         console.warn(
           `[portal] backend "${backend.kind}" save failed:`,
@@ -566,46 +725,102 @@ async function flush(options?: { throwOnError?: boolean }): Promise<void> {
         );
       }
     } finally {
-      flushInFlight = null;
+      runtime.flushInFlight = null;
     }
   })();
-  await flushInFlight;
-  if (options?.throwOnError && lastFlushError) throw lastFlushError;
+  await runtime.flushInFlight;
+  if (options?.throwOnError && runtime.lastFlushError) throw runtime.lastFlushError;
 }
 
-function scheduleFlush() {
-  if (flushTimer) return;
-  flushTimer = setTimeout(() => {
-    flushTimer = null;
-    void flush();
+function scheduleFlush(realmId: string, runtime: RealmRuntime) {
+  if (runtime.flushTimer) return;
+  runtime.flushTimer = setTimeout(() => {
+    runtime.flushTimer = null;
+    void flushRealm(realmId, runtime);
   }, 250);
 }
 
 export function getState(): PortalState {
-  return cache ?? empty();
+  return realmRuntime().cache ?? empty();
+}
+
+function workspaceConflictFrom(error: unknown): DevTeamWorkspaceConflictError | null {
+  const message = error instanceof Error ? error.message : String(error);
+  const match = /DEV_TEAM_WORKSPACE_CONFLICT:([^\s"}]+)/.exec(message);
+  return match ? new DevTeamWorkspaceConflictError(match[1]) : null;
+}
+
+async function commitDevTeamWorkspaceFilesNow(
+  operations: DevTeamWorkspaceFileMutation[],
+): Promise<void> {
+  if (operations.length === 0) return;
+  await ensureHydrated();
+  await flushPendingWrites();
+
+  const realmId = getActiveDataRealmId();
+  const runtime = realmRuntime(realmId);
+
+  if (!backend.applyDevTeamWorkspaceFiles) {
+    // Memory/file fallback used by isolated tests. Production serverless
+    // backends always take the row-locked database path above.
+    mutate(state => applyDevTeamWorkspaceMutationsToState(state, operations));
+    await flushPendingWrites();
+    return;
+  }
+
+  try {
+    const savedBlob = await backend.applyDevTeamWorkspaceFiles(operations, realmId);
+    const remoteState = parseBlob(savedBlob);
+    // A normal domain mutation may have landed while the database RPC was in
+    // flight. Reapply those still-pending patches over the returned snapshot;
+    // their own flush remains responsible for persistence.
+    runtime.cache = runtime.pendingPatchOperations.length > 0
+      ? parseBlob(JSON.stringify(applyStoragePatch(remoteState, runtime.pendingPatchOperations)))
+      : remoteState;
+    runtime.hydrated = true;
+  } catch (error) {
+    throw workspaceConflictFrom(error) ?? error;
+  }
+}
+
+/**
+ * Atomically compare-and-swap one or more production Dev Team workspace files.
+ * Batches are validated before any file is changed by the database function.
+ */
+export function commitDevTeamWorkspaceFiles(
+  operations: DevTeamWorkspaceFileMutation[],
+): Promise<void> {
+  const runtime = realmRuntime();
+  const run = runtime.devTeamWorkspaceMutationQueue.then(() => commitDevTeamWorkspaceFilesNow(operations));
+  runtime.devTeamWorkspaceMutationQueue = run.then(() => undefined, () => undefined);
+  return run;
 }
 
 export function mutate(fn: (state: PortalState) => void): void {
-  if (!cache) cache = empty();
-  const before = backend.applyPatch ? structuredClone(cache) : null;
-  fn(cache);
+  const realmId = getActiveDataRealmId();
+  const runtime = realmRuntime(realmId);
+  if (!runtime.cache) runtime.cache = empty();
+  const before = backend.applyPatch ? structuredClone(runtime.cache) : null;
+  fn(runtime.cache);
   if (before) {
-    const operations = diffStorageValue(before, cache);
+    const operations = diffStorageValue(before, runtime.cache);
     if (operations.length === 0) return;
-    pendingPatchOperations.push(...operations);
+    runtime.pendingPatchOperations.push(...operations);
   }
-  mutationVersion += 1;
-  if (backend.kind === "file" && writable) {
+  runtime.mutationVersion += 1;
+  if (backend.kind === "file" && runtime.writable) {
     try {
-      fileBackend.saveBlob(JSON.stringify(cache));
-      persistedVersion = mutationVersion;
-      lastFlushError = null;
-      if (existsSync(DATA_FILE)) {
-        fileSnapshotMtimeMs = statSync(DATA_FILE).mtimeMs;
+      const dataFile = dataFileForRealm(realmId);
+      saveFileBlobAtomic(JSON.stringify(runtime.cache), realmId);
+      runtime.persistedVersion = runtime.mutationVersion;
+      runtime.lastFlushError = null;
+      if (existsSync(dataFile)) {
+        runtime.fileSnapshotMtimeMs = statSync(dataFile).mtimeMs;
       }
       return;
     } catch (e) {
-      writable = false;
+      runtime.lastFlushError = e instanceof Error ? e : new Error(String(e));
+      runtime.writable = false;
       if (process.env.NODE_ENV !== "test") {
         console.warn(
           `[portal] backend "${backend.kind}" save failed:`,
@@ -614,7 +829,7 @@ export function mutate(fn: (state: PortalState) => void): void {
       }
     }
   }
-  scheduleFlush();
+  scheduleFlush(realmId, runtime);
 }
 
 /**
@@ -623,23 +838,27 @@ export function mutate(fn: (state: PortalState) => void): void {
  * the next request may execute in a different process with a different cache.
  */
 export async function flushPendingWrites(): Promise<void> {
-  if (flushTimer) {
-    clearTimeout(flushTimer);
-    flushTimer = null;
+  const realmId = getActiveDataRealmId();
+  const runtime = realmRuntime(realmId);
+  if (runtime.flushTimer) {
+    clearTimeout(runtime.flushTimer);
+    runtime.flushTimer = null;
   }
-  await flush({ throwOnError: true });
+  await flushRealm(realmId, runtime, { throwOnError: true });
 }
 
 export async function reset(): Promise<void> {
-  cache = empty();
-  pendingPatchOperations = [];
-  hydrated = true;
-  mutationVersion += 1;
-  await flush({ throwOnError: true });
+  const realmId = getActiveDataRealmId();
+  const runtime = realmRuntime(realmId);
+  runtime.cache = empty();
+  runtime.pendingPatchOperations = [];
+  runtime.hydrated = true;
+  runtime.mutationVersion += 1;
+  await flushRealm(realmId, runtime, { throwOnError: true });
 }
 
 export function isPersistent(): boolean {
-  return backend.persistent && writable;
+  return backend.persistent && realmRuntime().writable;
 }
 
 export interface BackendInfo {
@@ -648,14 +867,48 @@ export interface BackendInfo {
   description: string;
   hydrated: boolean;
   writable: boolean;
+  realmId: string;
 }
 
 export function getBackendInfo(): BackendInfo {
+  const realmId = getActiveDataRealmId();
+  const runtime = realmRuntime(realmId);
   return {
     kind: backend.kind,
     persistent: backend.persistent,
     description: backend.description,
-    hydrated,
-    writable,
+    hydrated: runtime.hydrated,
+    writable: runtime.writable,
+    realmId,
   };
+}
+
+/** The selected file backend's state path, for filesystem-visible coordinators. */
+export function getFileBackendDataPath(): string | null {
+  return backend.kind === "file" ? dataFileForRealm(getActiveDataRealmId()) : null;
+}
+
+/** Replace one isolated realm without changing the caller's active realm. */
+export async function replaceDataRealmState(realmId: string, state: PortalState): Promise<void> {
+  await runInDataRealm(realmId, async () => {
+    const valid = getActiveDataRealmId();
+    const runtime = realmRuntime(valid);
+    if (runtime.flushTimer) clearTimeout(runtime.flushTimer);
+    runtime.flushTimer = null;
+    runtime.cache = parseBlob(JSON.stringify(state));
+    runtime.pendingPatchOperations = [];
+    runtime.hydrated = true;
+    runtime.writable = backend.kind !== "kv";
+    runtime.mutationVersion += 1;
+    runtime.persistedVersion = runtime.mutationVersion - 1;
+    runtime.lastFlushError = null;
+    await flushRealm(valid, runtime, { throwOnError: true });
+  });
+}
+
+/** Clone the complete current realm into an isolated target realm. */
+export async function cloneCurrentDataRealm(targetRealmId: string): Promise<void> {
+  await ensureHydrated({ fresh: true });
+  await flushPendingWrites();
+  await replaceDataRealmState(targetRealmId, structuredClone(getState()));
 }

@@ -18,6 +18,7 @@ import { loadOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
 import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/brands/tradingBrands";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated } from "@/server/storage";
+import { getClientForAgency } from "@/server/tenants";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 type MessageChannel = Exclude<OutboundCommunicationChannel, "call">;
@@ -73,17 +74,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "Enquiry, channel, send-as account and a message or attachment are required." }, { status: 400 });
     }
     const channel = channelInput as MessageChannel;
-    const sender = resolveCommunicationSender(session.agencyId, senderId, channel);
-    if (!sender) return NextResponse.json({ ok: false, error: "The selected send-as account is no longer connected." }, { status: 409 });
-
     const supabase = await createScopedSupabaseClient();
     const data = await loadOwnedEnquiry<EnquiryRow>(supabase, {
       id: enquiryId,
       agencyId: session.agencyId,
-      columns: ["brand_slug", "name", "email", "phone", "message"],
+      columns: ["brand_slug", "name", "email", "phone", "message", "metadata"],
     });
     if (!data) return NextResponse.json({ ok: false, error: "Website submission not found." }, { status: 404 });
     const enquiry = data;
+    const storedClientId = typeof enquiry.metadata?.clientId === "string" ? enquiry.metadata.clientId : undefined;
+    const targetClientId = storedClientId && getClientForAgency(session.agencyId, storedClientId) ? storedClientId : undefined;
+    const sender = resolveCommunicationSender(session.agencyId, senderId, channel, targetClientId);
+    if (!sender) return NextResponse.json({ ok: false, error: "The selected send-as account is not available for this client." }, { status: 409 });
     const media = await Promise.all(attachmentTokens.map(async token => {
       const payload = verifyInboxMediaToken(token);
       if (!payload || payload.agencyId !== session.agencyId || payload.targetKind !== "website" || payload.targetId !== enquiry.id) throw new Error("An attachment is invalid or has expired.");
@@ -117,16 +119,18 @@ export async function POST(request: Request) {
     const result = channel === "email"
       ? await sendTransactionalEmail({
           agencyId: session.agencyId,
+          clientId: targetClientId,
           to: recipient,
           fromName: brandName,
           subject,
           bodyText: emailText(enquiry, brandName, message),
           bodyHtml: emailHtml(enquiry, brandName, message),
           externalRef: `website-enquiry:${enquiry.id}:${replyId}`,
+          signal: request.signal,
           sender: { provider: sender.provider as "resend" | "smtp", connectionId: sender.connectionId },
           attachments: media.map(item => ({ filename: item.attachment.name, content: item.content, contentType: item.attachment.contentType })),
         })
-      : await sendPhoneMessage({ agencyId: session.agencyId, sender, channel, to: recipient, body: messageInput, mediaUrls: attachments.map(item => item.url) });
+      : await sendPhoneMessage({ agencyId: session.agencyId, clientId: targetClientId, sender, channel, to: recipient, body: messageInput, mediaUrls: attachments.map(item => item.url), signal: request.signal });
     const reply: StoredReply = {
       id: replyId,
       channel,

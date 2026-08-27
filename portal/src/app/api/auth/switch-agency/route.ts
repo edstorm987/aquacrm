@@ -2,19 +2,22 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import {
   authErrorResponse,
-  getActiveAgencyId,
-  getSessionAgencyIds,
   getSessionFromRequest,
   isSessionFresh,
   issueSession,
   sessionCookie,
 } from "@/lib/server/auth/auth";
+import {
+  buildCompanySwitcherState,
+  isBorrowedCompanyIdentity,
+  liveCompanyAgencyIds,
+  switchableCompanyAgencyIds,
+} from "@/lib/server/auth/companySwitcherState";
 import { resolvePostLoginPath } from "@/lib/server/auth/postLoginRedirect";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated } from "@/server/storage";
 import { getAgency } from "@/server/tenants";
 import { getUserById } from "@/server/users";
-import type { SessionPayload } from "@/server/types";
 
 // Company switcher — "I just get a company switcher that loads me in".
 //
@@ -61,15 +64,6 @@ interface SwitchBody {
   agencyId?: unknown;
 }
 
-// One row in the switcher. Only ever built from the person's own memberships.
-// Deliberately not exported — Next only permits route-handler exports here.
-interface SwitchOption {
-  id: string;
-  name: string;
-  slug: string;
-  swatch?: string;
-}
-
 // One refusal for every "you may not have this agency" case. Same status, same
 // body, whether or not the agency exists.
 function refuse() {
@@ -100,32 +94,6 @@ function hasValidOrigin(request: Request): boolean {
   }
 }
 
-// A session standing in for somebody else, or fenced to a sandbox tenant.
-// Switching from one of these is never right — see the SECURITY block.
-function isBorrowedIdentity(session: SessionPayload): boolean {
-  return Boolean(
-    session.isDemo ||
-    session.publicShowcase ||
-    session.devReturnAgencyId ||
-    session.previewReturnAgencyId ||
-    session.showcaseReturnAgencyId,
-  );
-}
-
-/**
- * Agencies this session may switch to: present in BOTH the signed cookie and
- * the live user record. Order follows the session so the switcher's list is
- * stable across a re-mint.
- */
-function switchableAgencyIds(session: SessionPayload, userAgencyIds: string[]): string[] {
-  const live = new Set(userAgencyIds);
-  return getSessionAgencyIds(session).filter(id => live.has(id));
-}
-
-function liveAgencyIds(user: { agencyIds?: string[]; agencyId: string }): string[] {
-  return user.agencyIds && user.agencyIds.length > 0 ? user.agencyIds : [user.agencyId];
-}
-
 export async function GET(request: NextRequest) {
   try {
     await ensureHydrated();
@@ -138,26 +106,10 @@ export async function GET(request: NextRequest) {
       return noStore(NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }));
     }
 
-    // Only ever the person's own memberships. This endpoint is not an agency
-    // directory and must never become one.
-    const agencies: SwitchOption[] = [];
-    for (const id of switchableAgencyIds(session, liveAgencyIds(user))) {
-      const agency = getAgency(id);
-      if (!agency || agency.status !== "active") continue;
-      agencies.push({
-        id: agency.id,
-        name: agency.name,
-        slug: agency.slug,
-        swatch: agency.brand?.primaryColor,
-      });
-    }
-
     return noStore(
       NextResponse.json({
         ok: true,
-        activeAgencyId: getActiveAgencyId(session),
-        canSwitch: !isBorrowedIdentity(session),
-        agencies,
+        ...buildCompanySwitcherState(session, user),
       }),
     );
   } catch (error) {
@@ -176,7 +128,7 @@ export async function POST(request: NextRequest) {
     if (!hasValidOrigin(request)) {
       return noStore(NextResponse.json({ ok: false, error: "invalid_origin" }, { status: 403 }));
     }
-    if (isBorrowedIdentity(session)) {
+    if (isBorrowedCompanyIdentity(session)) {
       return noStore(
         NextResponse.json(
           { ok: false, error: "Leave the preview before switching company." },
@@ -201,7 +153,7 @@ export async function POST(request: NextRequest) {
 
     // THE BOUNDARY. Everything past this line is inside the person's own
     // memberships; nothing from the body has been trusted.
-    const allowed = switchableAgencyIds(session, liveAgencyIds(user));
+    const allowed = switchableCompanyAgencyIds(session, liveCompanyAgencyIds(user));
     if (!allowed.includes(requestedAgencyId)) return refuse();
 
     const agency = getAgency(requestedAgencyId);

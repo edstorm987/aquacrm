@@ -17,15 +17,15 @@
 //     every `mm-tenant-*` class it styles itself with was removed from the
 //     stylesheets while it sat in the archive, so it would render unstyled.
 //     This component replaces it rather than reviving it.
-//   • `agencies` / `activeAgencyId` props. The archived component was fed by
-//     a layout; the layouts are owned elsewhere, so this one asks the server
-//     for its own options. That also means the list is always the server's
-//     answer about membership, not something a parent computed.
+//   • A second client lookup. The authenticated portal layout already has the
+//     session and live user, so it supplies the same membership-filtered answer
+//     through context. Switching still POSTs to the guarded endpoint and hard
+//     reloads after the cookie changes.
 //
 // Renders NOTHING when there is nothing to switch to (one company, a client
 // workspace, or a borrowed/demo session), so it is safe to mount everywhere.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 interface CompanyOption {
   id: string;
@@ -34,45 +34,33 @@ interface CompanyOption {
   swatch?: string;
 }
 
-interface OptionsResponse {
-  ok?: boolean;
-  activeAgencyId?: string;
-  canSwitch?: boolean;
-  agencies?: CompanyOption[];
+export interface CompanySwitcherInitialState {
+  activeAgencyId: string;
+  canSwitch: boolean;
+  agencies: CompanyOption[];
 }
+
+const CompanySwitcherStateContext = createContext<CompanySwitcherInitialState | null>(null);
+const NO_COMPANIES: CompanyOption[] = [];
 
 function initialOf(name: string): string {
   return (name.trim().charAt(0) || "?").toUpperCase();
 }
 
+export function CompanySwitcherStateProvider({ initialState, children }: { initialState: CompanySwitcherInitialState | null; children: ReactNode }) {
+  return <CompanySwitcherStateContext.Provider value={initialState}>{children}</CompanySwitcherStateContext.Provider>;
+}
+
 export function CompanySwitcher() {
-  const [options, setOptions] = useState<CompanyOption[]>([]);
-  const [activeId, setActiveId] = useState<string>("");
-  const [canSwitch, setCanSwitch] = useState(false);
+  const initialState = useContext(CompanySwitcherStateContext);
+  const options = initialState?.agencies ?? NO_COMPANIES;
+  const activeId = initialState?.activeAgencyId ?? "";
+  const canSwitch = initialState?.canSwitch === true;
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const wrapRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch("/api/auth/switch-agency", { credentials: "same-origin" });
-        if (!res.ok) return;
-        const data = (await res.json()) as OptionsResponse;
-        if (cancelled || !data.ok) return;
-        setOptions(Array.isArray(data.agencies) ? data.agencies : []);
-        setActiveId(typeof data.activeAgencyId === "string" ? data.activeAgencyId : "");
-        setCanSwitch(data.canSwitch === true);
-      } catch {
-        // Silent: the switcher is chrome, not a workflow. A failed lookup
-        // leaves the sidebar exactly as it was before this component existed.
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
 
   useEffect(() => {
     if (!open) return;

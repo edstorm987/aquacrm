@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { searchCandidateAccess, type SearchCandidateAccess } from "@/lib/server/access/searchCandidateAccess";
 import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
 import { listClients } from "@/server/tenants";
 import { getState, ensureHydrated } from "@/server/storage";
+import { getActiveDataRealmId } from "@/server/dataRealm";
+import { requireCurrentAccessActor } from "@/server/accessControl";
 import { listAgencyTasks } from "@/server/tasks";
 import { listSops } from "@/engines/sop/server/sops";
 import { listUsersForAgency } from "@/server/users";
@@ -100,15 +103,29 @@ const candidateCache = new Map<string, { expiresAt: number; promise: Promise<Can
 
 export async function GET(request: Request) {
   try {
-    await ensureHydrated();
+    // Realm selection happens synchronously inside ensureHydrated(). Capture
+    // it before the first await so this request owns one unambiguous cache key.
+    const hydration = ensureHydrated();
+    const realmId = getActiveDataRealmId();
+    await hydration;
     const session = await requireRole([...AGENCY_ROLES]);
     const url = new URL(request.url);
     const query = url.searchParams.get("q")?.trim().slice(0, 120) ?? "";
     const warm = url.searchParams.get("warm") === "1";
     if (!query && !warm) return NextResponse.json({ ok: true, results: [] });
 
-    ensureDefaultAgencyProducts(session.agencyId);
-    const candidates = await cachedCandidates(session.agencyId, session.userId, session.role);
+    if (!session.publicShowcase) ensureDefaultAgencyProducts(session.agencyId);
+    const access = session.role === "agency-staff"
+      ? searchCandidateAccess(await requireCurrentAccessActor())
+      : undefined;
+    const candidates = await cachedCandidates(
+      realmId,
+      session.agencyId,
+      session.userId,
+      session.role,
+      Boolean(session.publicShowcase),
+      access,
+    );
     if (warm) return NextResponse.json({ ok: true, warmed: true, indexed: candidates.length, categories: categoryCounts(candidates) });
     const matches = candidates
       .map(candidate => ({ candidate, score: score(candidate, query) }))
@@ -138,19 +155,28 @@ export async function GET(request: Request) {
   }
 }
 
-async function cachedCandidates(agencyId: string, userId: string, role: Role): Promise<Candidate[]> {
-  const key = `${agencyId}:${userId}:${role}`;
+async function cachedCandidates(
+  realmId: string,
+  agencyId: string,
+  userId: string,
+  role: Role,
+  isolatedShowcase: boolean,
+  access?: SearchCandidateAccess,
+): Promise<Candidate[]> {
+  const key = `${realmId}:${agencyId}:${userId}:${role}:${isolatedShowcase ? "isolated" : "live"}:${access?.fingerprint ?? "full"}`;
   const current = candidateCache.get(key);
   if (current && current.expiresAt > Date.now()) return current.promise;
-  const promise = buildCandidates(agencyId, userId, role).catch(error => {
-    candidateCache.delete(key);
-    throw error;
-  });
+  const promise = buildCandidates(agencyId, userId, role, isolatedShowcase)
+    .then(candidates => access ? candidates.filter(candidate => access.visible(candidate)) : candidates)
+    .catch(error => {
+      candidateCache.delete(key);
+      throw error;
+    });
   candidateCache.set(key, { expiresAt: Date.now() + SEARCH_INDEX_TTL_MS, promise });
   return promise;
 }
 
-async function buildCandidates(agencyId: string, userId: string, role: Role): Promise<Candidate[]> {
+async function buildCandidates(agencyId: string, userId: string, role: Role, isolatedShowcase: boolean): Promise<Candidate[]> {
   const state = getState();
   const clients = listClients(agencyId, { includeArchived: true });
   const clientById = new Map(clients.map(client => [client.id, client]));
@@ -537,34 +563,38 @@ async function buildCandidates(agencyId: string, userId: string, role: Role): Pr
   addWorkspaceCandidates(candidates, state, agencyId, userId, clientById);
   addPluginCandidates(candidates, state, agencyId, clientById);
 
-  const [enquiriesResult, inboxResult, alertsResult, radarResult, sourceDataResult] = await Promise.allSettled([
-    listWebsiteEnquiries(agencyId, 500),
-    listInboxSnapshot(agencyId),
-    listOperationalAlerts(agencyId),
-    getCachedBusinessIssueRadar(agencyId),
-    listRadarSourceSearchDatasets(agencyId),
-  ]);
-  if (enquiriesResult.status === "fulfilled") addWebsiteEnquiryCandidates(candidates, enquiriesResult.value);
-  if (inboxResult.status === "fulfilled") addInboxCandidates(candidates, inboxResult.value);
-  const alerts = alertsResult.status === "fulfilled" ? alertsResult.value : [];
-  for (const alert of alerts) {
-    push(candidates, {
-      id: `notification:${alert.id}`,
-      category: "Notification",
-      title: alert.title,
-      subtitle: [alert.detail, alert.clientName, readable(alert.category), readable(alert.severity)].filter(Boolean).join(" · "),
-      href: alert.href,
-      }, ["alert", "notification", "needs attention", alert.category, alert.severity]);
-  }
-  if (radarResult.status === "fulfilled") {
-    const evidence = inspectRadarEvidence(agencyId);
-    addRadarCandidates(candidates, radarResult.value, evidence);
-    const intelligenceResult = await Promise.allSettled([
-      buildCommandIntelligenceSnapshot({ agencyId, radar: radarResult.value, evidence }),
+  // Public showcase search is built only from its seeded tenant. These
+  // adapters can reach live inbox, website, Radar and source integrations.
+  if (!isolatedShowcase) {
+    const [enquiriesResult, inboxResult, alertsResult, radarResult, sourceDataResult] = await Promise.allSettled([
+      listWebsiteEnquiries(agencyId, 500),
+      listInboxSnapshot(agencyId),
+      listOperationalAlerts(agencyId),
+      getCachedBusinessIssueRadar(agencyId),
+      listRadarSourceSearchDatasets(agencyId),
     ]);
-    if (intelligenceResult[0]?.status === "fulfilled") addCommandIntelligenceCandidates(candidates, intelligenceResult[0].value);
+    if (enquiriesResult.status === "fulfilled") addWebsiteEnquiryCandidates(candidates, enquiriesResult.value);
+    if (inboxResult.status === "fulfilled") addInboxCandidates(candidates, inboxResult.value);
+    const alerts = alertsResult.status === "fulfilled" ? alertsResult.value : [];
+    for (const alert of alerts) {
+      push(candidates, {
+        id: `notification:${alert.id}`,
+        category: "Notification",
+        title: alert.title,
+        subtitle: [alert.detail, alert.clientName, readable(alert.category), readable(alert.severity)].filter(Boolean).join(" · "),
+        href: alert.href,
+      }, ["alert", "notification", "needs attention", alert.category, alert.severity]);
+    }
+    if (radarResult.status === "fulfilled") {
+      const evidence = inspectRadarEvidence(agencyId);
+      addRadarCandidates(candidates, radarResult.value, evidence);
+      const intelligenceResult = await Promise.allSettled([
+        buildCommandIntelligenceSnapshot({ agencyId, radar: radarResult.value, evidence }),
+      ]);
+      if (intelligenceResult[0]?.status === "fulfilled") addCommandIntelligenceCandidates(candidates, intelligenceResult[0].value);
+    }
+    if (sourceDataResult.status === "fulfilled") addSourceDataCandidates(candidates, sourceDataResult.value);
   }
-  if (sourceDataResult.status === "fulfilled") addSourceDataCandidates(candidates, sourceDataResult.value);
   return candidates;
 }
 

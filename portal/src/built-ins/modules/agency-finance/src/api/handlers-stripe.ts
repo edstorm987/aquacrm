@@ -23,6 +23,9 @@ import {
 } from "../lib/stripe";
 import { reconcileStripeEventOnce } from "../server/stripeReconcile";
 import { installConfigWithSecrets } from "@/lib/server/plugins/pluginSecretConfig";
+import { invoiceOutstandingCents, isCollectibleInvoiceStatus } from "../lib/paymentAllocation";
+import { authErrorResponse } from "@/lib/server/auth/auth";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -47,18 +50,37 @@ function getOrigin(req: Request): string {
 }
 const errorMessage = (err: unknown, fallback: string): string => (err instanceof Error ? err.message : fallback);
 
+async function clientCommercialGate(clientId: string, required: "use" | "manage"): Promise<Response | null> {
+  try {
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.commercial", required);
+    return null;
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+}
+
 // POST invoices/checkout — create a Stripe Checkout pay-link for an invoice.
 // The webhook reconciles by the invoiceId stamped into the session metadata.
 export async function stripeCheckoutHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   if (req.method !== "POST") return methodNotAllowed();
-  if (!stripeConfigured(stripeConfig(ctx))) return json({ ok: false, error: "stripe_not_configured" }, 400);
   const body = await safeJson<{ invoiceId?: string; customerEmail?: string }>(req);
   if (!body?.invoiceId) return badRequest("invoiceId is required");
   const c = build(ctx);
   const invoice = await c.invoices.get(body.invoiceId);
   if (!invoice) return notFound("invoice not found");
-  if (invoice.status === "paid") return json({ ok: false, error: "already_paid" }, 400);
+  const denied = await clientCommercialGate(invoice.clientId, "use");
+  if (denied) return denied;
+  if (!stripeConfigured(stripeConfig(ctx))) return json({ ok: false, error: "stripe_not_configured" }, 400);
+  if (!isCollectibleInvoiceStatus(invoice.status)) {
+    return json({ ok: false, error: "invoice_not_collectible" }, 409);
+  }
   try {
+    const [payments, refunds] = await Promise.all([
+      c.payments.listForInvoice(invoice.id),
+      c.payments.listRefundsForInvoice(invoice.id),
+    ]);
+    const outstandingCents = invoiceOutstandingCents(invoice, payments, refunds);
+    if (outstandingCents <= 0) return json({ ok: false, error: "no_outstanding_balance" }, 409);
     const keys = readStripeKeysFromInstall(stripeConfig(ctx));
     const cfg = ctx.install.config as Record<string, string>;
     const origin = getOrigin(req);
@@ -67,7 +89,7 @@ export async function stripeCheckoutHandler(req: Request, ctx: PluginCtx): Promi
     const session = await createInvoiceCheckout(keys, {
       invoiceId: invoice.id,
       invoiceNumber: invoice.number,
-      amountCents: invoice.totalCents,
+      amountCents: outstandingCents,
       currency: invoice.currency,
       customerEmail: body.customerEmail,
       description: `Payment for invoice ${invoice.number}`,
@@ -116,28 +138,61 @@ export async function stripeWebhookHandler(req: Request, ctx: PluginCtx): Promis
   }
 }
 
-// POST payments/refund — issue a Stripe refund against a recorded Stripe
-// payment. The `charge.refunded` webhook then flows the status back to the
-// invoice (single source of truth), so this just calls Stripe.
+// POST payments/refund — issue and immediately persist a Stripe refund. The
+// request idempotency key is forwarded to Stripe, and the returned provider id
+// becomes the durable local refund identity. A later webhook adopts the same
+// row or reconciles any cumulative remainder.
 export async function stripeRefundHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   if (req.method !== "POST") return methodNotAllowed();
-  if (!stripeConfigured(stripeConfig(ctx))) return json({ ok: false, error: "stripe_not_configured" }, 400);
-  const body = await safeJson<{ paymentId?: string; amountCents?: number; reason?: string }>(req);
+  const body = await safeJson<{ paymentId?: string; amountCents?: number; reason?: string; idempotencyKey?: string }>(req);
   if (!body?.paymentId) return badRequest("paymentId is required");
+  const requestId = body.idempotencyKey?.trim() || req.headers.get("idempotency-key")?.trim();
+  if (!requestId) return badRequest("idempotencyKey or Idempotency-Key header is required");
   const c = build(ctx);
   const payment = await c.payments.get(body.paymentId);
   if (!payment) return notFound("payment not found");
+  const denied = await clientCommercialGate(payment.clientId, "manage");
+  if (denied) return denied;
+  if (!stripeConfigured(stripeConfig(ctx))) return json({ ok: false, error: "stripe_not_configured" }, 400);
   if (payment.method !== "stripe" || !payment.externalRef) {
     return json({ ok: false, error: "not_a_stripe_payment" }, 400);
   }
   try {
+    const refunds = await c.payments.listRefundsForPayment(payment.id);
+    const alreadyRefundedCents = refunds.reduce((sum, refund) => sum + refund.amountCents, 0);
+    const refundableCents = payment.amountCents - alreadyRefundedCents;
+    const amountCents = body.amountCents ?? refundableCents;
+    if (!Number.isSafeInteger(amountCents) || amountCents <= 0) return badRequest("amountCents must be a positive integer");
+    if (amountCents > refundableCents) {
+      return json({ ok: false, error: "refund_exceeds_refundable_balance", refundableCents }, 409);
+    }
     const keys = readStripeKeysFromInstall(stripeConfig(ctx));
     const refund = await createStripeRefund(keys, {
       paymentIntentId: payment.externalRef,
-      amountCents: body.amountCents,
+      amountCents,
       reason: body.reason,
+      idempotencyKey: `aqua:${ctx.agencyId}:${payment.id}:${requestId}`,
     });
-    return json({ ok: true, refundId: refund.id, status: refund.status });
+    if (refund.status && refund.status !== "succeeded") {
+      return json({ ok: true, refundId: refund.id, status: refund.status, recorded: false }, 202);
+    }
+    const recorded = await c.payments.recordRefund(ctx.actor, {
+      paymentId: payment.id,
+      amountCents: refund.amount ?? amountCents,
+      currency: payment.currency,
+      provider: "stripe",
+      providerId: refund.id,
+      reason: refund.reason ?? body.reason,
+      refundedAt: Number.isSafeInteger(refund.created) ? refund.created! * 1_000 : undefined,
+    });
+    return json({
+      ok: true,
+      refundId: refund.id,
+      status: refund.status ?? "succeeded",
+      recorded: true,
+      deduped: recorded.deduped,
+      amountCents: recorded.refund.amountCents,
+    });
   } catch (err) {
     return json({ ok: false, error: errorMessage(err, "refund_failed") }, 502);
   }

@@ -1,8 +1,10 @@
 # Meta Master Inbox activation
 
-The application layer is complete and deliberately fail-closed. Until the
-values below are present, AquaCRM displays `Awaiting Meta values`, does not
-start OAuth, rejects unsigned webhooks, and cannot send social messages.
+The application layer is complete. Meta credentials can be saved in-app from
+Inbox Channels or Agency connections (encrypted vault, stored first), with
+environment values as a fallback. Until one source provides a complete app
+configuration, AquaCRM offers **Connect now** setup but does not start OAuth,
+rejects unsigned webhooks, and cannot send social messages.
 
 ## What is already wired
 
@@ -19,10 +21,14 @@ start OAuth, rejects unsigned webhooks, and cannot send social messages.
 - Outbound sending with pending, sent and failed states.
 - A local JSON adapter for development and indexed Supabase tables for live use.
 
-## Values to inject
+## Configuration
 
-Set these in `.env.local` for a public development tunnel/staging environment
-and in the production deployment's encrypted environment settings:
+Preferred per-agency path: enter App ID, App Secret, webhook verify token and
+Graph API version through the in-app Meta integration form. The settings and
+Inbox views read/write the same integration record; they are not two stores.
+
+Environment fallback for a public development tunnel/staging environment or a
+founder-managed deployment:
 
 ```dotenv
 INBOX_STORAGE_BACKEND=supabase
@@ -88,13 +94,16 @@ should be reconciled with the pinned Graph API version during review.
 - `POST /api/portal/inbox/messages` sends a reply or records an internal note.
 
 The existing founder-gated `/api/internal/sweep` also processes the inbox queue
-for local diagnostics. Production should schedule `/api/cron/inbox` at least
-once per minute as the retry safety net; normal webhooks are processed
-immediately after the acknowledgement response.
+for local diagnostics. Normal webhooks are processed immediately after the
+acknowledgement response. **Current deployment config is not a one-minute retry
+net:** `vercel.json` schedules `/api/cron/inbox` once daily at `06:00` UTC. If
+the operational requirement remains one minute, the schedule must be changed
+and verified; this document must not imply it is already configured.
 
 ## First connection check
 
-1. Open Marketing, choose Social media and connect the matching profile.
+1. Open Inbox → Channels (or Agency connections), configure Meta, then connect
+   the matching profile on an HTTPS deployment.
 2. Confirm Master Inbox shows the profile as `Live webhook subscribed`.
 3. Send a DM to the professional account from a different Instagram account.
 4. Confirm the conversation appears with an unread count and reply deadline.

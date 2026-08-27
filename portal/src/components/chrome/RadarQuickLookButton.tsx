@@ -7,18 +7,25 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { radarDigest, type AdvisorRadarDigest, type BusinessIssueRadar } from "@/engines/data/radar/businessRadar";
 
-export function RadarQuickLookButton({ initialRadar }: { initialRadar: AdvisorRadarDigest }) {
+export function RadarQuickLookButton({ initialRadar, paused = false }: { initialRadar: AdvisorRadarDigest; paused?: boolean }) {
   const router = useRouter();
   const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [radarSnapshot, setRadarSnapshot] = useState(initialRadar);
+  const [radarPaused, setRadarPaused] = useState(paused);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
-    if (initialRadar.generatedAt >= radarSnapshot.generatedAt) setRadarSnapshot(initialRadar);
-  }, [initialRadar, radarSnapshot.generatedAt]);
+    // A newer lightweight placeholder must not erase a real scan completed in
+    // this mounted control after an RSC refresh.
+    if (paused && !radarPaused) return;
+    if (initialRadar.generatedAt >= radarSnapshot.generatedAt) {
+      setRadarSnapshot(initialRadar);
+      setRadarPaused(paused);
+    }
+  }, [initialRadar, paused, radarPaused, radarSnapshot.generatedAt]);
 
   useEffect(() => {
     if (!open) return;
@@ -55,6 +62,7 @@ export function RadarQuickLookButton({ initialRadar }: { initialRadar: AdvisorRa
       const result = await response.json().catch(() => null) as { ok?: boolean; error?: string; radar?: BusinessIssueRadar } | null;
       if (!response.ok || !result?.ok || !result.radar) throw new Error(result?.error || `Radar scan failed (${response.status}).`);
       setRadarSnapshot(radarDigest(result.radar));
+      setRadarPaused(false);
       setNow(Date.now());
       window.dispatchEvent(new CustomEvent("aqua-radar:updated", { detail: { radar: result.radar } }));
       router.refresh();
@@ -69,7 +77,7 @@ export function RadarQuickLookButton({ initialRadar }: { initialRadar: AdvisorRa
     <div ref={rootRef} className="mm-has-attention-badge relative overflow-visible">
       <button
         type="button"
-        aria-label={attentionCount ? `Business Radar, ${attentionCount} alerts need attention` : "Business Radar, no current alerts"}
+        aria-label={radarPaused ? "Business Radar paused; run a scan to load current results" : attentionCount ? `Business Radar, ${attentionCount} alerts need attention` : "Business Radar, no current alerts"}
         aria-expanded={open}
         aria-haspopup="dialog"
         title="Business Radar"
@@ -81,6 +89,8 @@ export function RadarQuickLookButton({ initialRadar }: { initialRadar: AdvisorRa
           <span className="mm-attention-badge absolute -right-1.5 -top-1.5 z-10 grid min-h-4 min-w-4 place-items-center rounded-full bg-red-600 px-1 text-[9px] font-semibold leading-none text-white ring-2 ring-white" aria-hidden="true">
             {attentionCount > 99 ? "99+" : attentionCount}
           </span>
+        ) : radarPaused ? (
+          <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-amber-400 ring-2 ring-white" aria-hidden="true" />
         ) : (
           <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-emerald-500 ring-2 ring-white" aria-hidden="true" />
         )}
@@ -100,9 +110,9 @@ export function RadarQuickLookButton({ initialRadar }: { initialRadar: AdvisorRa
                 <p className="mt-0.5 text-[11px] text-white/55">Current watch · updated {formatAge(lastUpdatedAt, now)}</p>
               </div>
             </div>
-            <span className={`inline-flex shrink-0 items-center gap-1.5 text-[10px] font-semibold uppercase ${attentionCount ? "text-red-300" : "text-emerald-300"}`}>
-              {attentionCount ? <AlertTriangle size={12} aria-hidden="true" /> : <CheckCircle2 size={12} aria-hidden="true" />}
-              {attentionCount ? `${attentionCount} alerts` : "Clear"}
+            <span className={`inline-flex shrink-0 items-center gap-1.5 text-[10px] font-semibold uppercase ${radarPaused ? "text-amber-200" : attentionCount ? "text-red-300" : "text-emerald-300"}`}>
+              {radarPaused || attentionCount ? <AlertTriangle size={12} aria-hidden="true" /> : <CheckCircle2 size={12} aria-hidden="true" />}
+              {radarPaused ? "Paused" : attentionCount ? `${attentionCount} alerts` : "Clear"}
             </span>
           </header>
 
@@ -131,7 +141,7 @@ export function RadarQuickLookButton({ initialRadar }: { initialRadar: AdvisorRa
                   <ArrowUpRight size={13} className="mt-1 shrink-0 text-black/25 group-hover:text-black/55" aria-hidden="true" />
                 </Link>
               ))}
-              {!incidents.length ? <div className="px-5 py-8 text-center"><CheckCircle2 className="mx-auto text-emerald-600" size={22} /><p className="mt-2 text-xs font-semibold text-black/65">No critical or warning contacts</p><p className="mt-1 text-[11px] text-black/42">Learning and evidence gaps remain available in the full workspace.</p></div> : null}
+              {!incidents.length ? <div className="px-5 py-8 text-center">{radarPaused ? <Radar className="mx-auto text-amber-600" size={22} /> : <CheckCircle2 className="mx-auto text-emerald-600" size={22} />}<p className="mt-2 text-xs font-semibold text-black/65">{radarPaused ? "Radar scan paused" : "No critical or warning contacts"}</p><p className="mt-1 text-[11px] text-black/42">{radarPaused ? "Run a full scan to load current evidence and incidents." : "Learning and evidence gaps remain available in the full workspace."}</p></div> : null}
             </div>
           </div>
 

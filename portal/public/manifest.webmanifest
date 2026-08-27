@@ -1,0 +1,35 @@
+{
+  "name": "Aqua — your client portal",
+  "short_name": "Aqua",
+  "description": "Your project, files, billing and support in one place.",
+  "start_url": "/portal/customer",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0e1013",
+  "theme_color": "#0e1013",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon-default-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon-default-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/favicon-default-180.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon-default-32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    }
+  ]
+}

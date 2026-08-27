@@ -1,6 +1,11 @@
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
 
+const formatBudget = (budgetCents: number, currency: string): string => new Intl.NumberFormat("en-GB", {
+  style: "currency",
+  currency: currency.toUpperCase(),
+}).format(budgetCents / 100);
+
 export default async function ReportsPage(props: PluginPageProps) {
   const c = containerFor({ agencyId: props.agencyId, storage: props.storage, install: props.install });
   const to = Date.now();
@@ -11,18 +16,21 @@ export default async function ReportsPage(props: PluginPageProps) {
   ]);
   return (
     <section className="marketing-reports">
-      <header><h1>Reports</h1><p>Trailing 12 months.</p></header>
+      <header><h1>Reports</h1><p>Campaigns created in the trailing 12 months.</p></header>
 
-      <h2>Campaigns by channel</h2>
+      <h2>Campaigns by channel and currency</h2>
       <table className="marketing-table">
-        <thead><tr><th>Channel</th><th>Count</th><th>Budget (cents)</th><th>Result</th></tr></thead>
+        <thead><tr><th>Channel</th><th>Currency</th><th>Count</th><th>Budget</th><th>Measured results</th></tr></thead>
         <tbody>
-          {campaigns.byChannel.map(r => (
-            <tr key={r.channel}>
+          {campaigns.byChannelCurrency.map(r => (
+            <tr key={`${r.channel}:${r.currency}`}>
               <td>{r.channel}</td>
+              <td>{r.currency.toUpperCase()}</td>
               <td>{r.count}</td>
-              <td>{r.budgetCents}</td>
-              <td>{r.resultTotal}</td>
+              <td>{formatBudget(r.budgetCents, r.currency)}</td>
+              <td>{r.resultsByKpi.length > 0
+                ? r.resultsByKpi.map(result => `${result.kpi}: ${result.total}`).join(" · ")
+                : "—"}</td>
             </tr>
           ))}
         </tbody>

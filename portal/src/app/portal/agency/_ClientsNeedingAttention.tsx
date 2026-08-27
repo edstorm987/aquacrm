@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowRight, HeartPulse } from "lucide-react";
 
 import type { ClientAttentionItem } from "@/lib/server/clients/clientAttention";
+import { clientAttentionTruth } from "./dayCommandTruth";
 
 /**
  * Command Centre roll-up: which clients need attention, how bad, and the single
@@ -11,8 +12,9 @@ import type { ClientAttentionItem } from "@/lib/server/clients/clientAttention";
  * workspace, where the full detail lives. Data comes from
  * `listClientsNeedingAttention` (the client-radar fleet).
  */
-export function ClientsNeedingAttention({ items }: { items: ClientAttentionItem[] }) {
+export function ClientsNeedingAttention({ items, radarPaused = false }: { items: ClientAttentionItem[]; radarPaused?: boolean }) {
   const risk = items.filter(item => item.state === "risk").length;
+  const attentionTruth = clientAttentionTruth(items.length, risk, radarPaused);
   return (
     <section className="mm-surface-card overflow-hidden rounded-lg border border-black/10 p-4">
       <header className="flex items-center justify-between gap-3">
@@ -20,14 +22,14 @@ export function ClientsNeedingAttention({ items }: { items: ClientAttentionItem[
           <HeartPulse size={16} className="text-rose-600" />
           <h3 className="text-sm font-semibold text-black/82">Clients needing attention</h3>
         </div>
-        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${items.length ? (risk ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-700") : "bg-emerald-50 text-emerald-700"}`}>
-          {items.length ? `${items.length} to review${risk ? ` · ${risk} at risk` : ""}` : "All clear"}
+        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${attentionTruth.tone === "critical" ? "bg-rose-50 text-rose-700" : attentionTruth.tone === "warning" ? "bg-amber-50 text-amber-700" : attentionTruth.tone === "info" ? "bg-sky-50 text-sky-700" : "bg-emerald-50 text-emerald-700"}`}>
+          {attentionTruth.label}
         </span>
       </header>
 
       {items.length === 0 ? (
         <p className="mt-3 text-xs leading-5 text-black/45">
-          No active client is currently in a risk or watch state. Health signals are holding.
+          {radarPaused ? "Client Radar is paused. Current risk and watch state is unknown until a scan completes." : "No active client is currently in a risk or watch state. Health signals are holding."}
         </p>
       ) : (
         <ul className="mt-3 flex flex-col gap-1.5">

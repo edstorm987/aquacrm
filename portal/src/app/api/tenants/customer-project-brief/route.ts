@@ -4,6 +4,7 @@ import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES, CLIENT_ROLES } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { logActivity } from "@/server/activity";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 export interface CustomerProjectBrief {
   businessOverview?: string;
@@ -55,6 +56,7 @@ export async function POST(req: Request) {
       [...AGENCY_ROLES, ...CLIENT_ROLES, "end-customer"],
       clientId,
     );
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.record", "use");
     const client = getClientForAgency(session.agencyId, clientId);
     if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
 

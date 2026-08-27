@@ -103,6 +103,8 @@ export interface CommercialPayment {
   reference?: string;
   paidAt: number;
   receiptSentAt?: number;
+  activityRecordedAt?: number;
+  eventEmittedAt?: number;
 }
 
 export interface CommercialPack {

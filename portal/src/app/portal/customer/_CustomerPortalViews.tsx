@@ -31,10 +31,6 @@ import {
   UsersRound,
 } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
-import { cookies } from "next/headers";
-import { ensureHydrated } from "@/server/storage";
-import { requireRole } from "@/lib/server/auth/auth";
-import { getClientForAgency } from "@/server/tenants";
 import type { Client } from "@/server/types";
 import {
   CustomerAgreements,
@@ -46,11 +42,11 @@ import {
   type CustomerStageTask,
 } from "./_CustomerPortalActions";
 import {
-  loadCustomerPortalData,
   type CustomerFile,
   type CustomerPortalData,
   type CustomerPortalMode,
 } from "./_portalData";
+import { loadCustomerPortalRequestContext } from "./_requestContext";
 import {
   portalHomeHeading,
   portalProductDefinition,
@@ -65,12 +61,12 @@ import type { PerformanceEvent } from "@/lib/performance/performanceAnalytics";
 import { cleanMonthlyPerformanceReports, type MonthlyPerformanceReport } from "@/lib/performance/performanceReports";
 import type { ClientTelemetryEvent } from "@/lib/clients/clientTelemetry";
 import { listClientMilestones } from "@/server/clientMilestones";
-import { getAuthBrand } from "@/lib/brands/authBrand";
-import { resolveClientPortalProvider } from "@/lib/server/clients/clientPortalProvider";
 import { formatPortalCopy } from "@/lib/portal/clientPortalDesign";
 import { portalCustomPage } from "@/lib/portal/clientPortalBuilder";
 import { formatUkDate, formatUkDateTime } from "@/lib/shared/formatDateTime";
 import { PortalPageComposition } from "./_PortalPageComposition";
+import { summariseInvoicesByCurrency, type InvoiceCurrencyPosition } from "@/lib/clients/clientPaymentPlans";
+import { CustomerRelationshipStatus } from "./_CustomerRelationshipStatus";
 
 export type CustomerPortalSection = "home" | "project" | "results" | "files" | "billing" | "support" | "resources" | "details" | "service" | "custom";
 type CustomerPortalShellSection = Exclude<CustomerPortalSection, "service" | "custom">;
@@ -158,24 +154,6 @@ function pageContent(data: CustomerPortalData, section: CustomerPortalShellSecti
   };
 }
 
-async function context() {
-  await ensureHydrated();
-  const session = await requireRole("end-customer");
-  if (!session.clientId) notFound();
-  const client = getClientForAgency(session.agencyId, session.clientId);
-  if (!client) notFound();
-  const fallbackName = (session.email.split("@")[0] || "there").replace(/[._-]+/g, " ");
-  const cookieStore = await cookies();
-  const authBrand = getAuthBrand(cookieStore.get("aqua_public_brand")?.value);
-  const providerName = resolveClientPortalProvider(client, authBrand).name;
-  return {
-    session,
-    client,
-    providerName,
-    data: await loadCustomerPortalData(client, fallbackName, providerName),
-  };
-}
-
 function PageIntro({
   eyebrow,
   title,
@@ -208,6 +186,14 @@ function formatMoney(cents: number, currency: string): string {
     style: "currency",
     currency: currency.toUpperCase(),
   }).format(cents / 100);
+}
+
+function invoicePositionMoney(
+  positions: readonly InvoiceCurrencyPosition[],
+  field: "paidCents" | "outstandingCents",
+): string | null {
+  const retained = positions.filter(position => position[field] > 0);
+  return retained.length ? retained.map(position => formatMoney(position[field], position.currency)).join(" · ") : null;
 }
 
 function formatDate(timestamp?: number): string {
@@ -270,7 +256,8 @@ function InvoiceStatus({ status }: { status: string }) {
 }
 
 export async function CustomerPortalView({ section, productId, moduleId, customPageSlug }: { section: CustomerPortalSection; productId?: string; moduleId?: string; customPageSlug?: string }) {
-  const { client, data, providerName } = await context();
+  const { client, data, provider } = await loadCustomerPortalRequestContext();
+  const providerName = provider.name;
   if (section === "service" && !data.products.some(product => product.id === productId)) notFound();
   if (section === "custom" && !portalCustomPage(data.presentation, customPageSlug)) notFound();
   if (section === "home") {
@@ -311,7 +298,7 @@ export function CustomerPortalContent({
   if (section === "project") content = <ProjectView client={client} data={data} previewHrefPrefix={previewHrefPrefix} providerName={providerName} />;
   else if (section === "results") content = <ResultsView client={client} data={data} providerName={providerName} />;
   else if (section === "files") content = <FilesView client={client} data={data} readOnly={readOnly} providerName={providerName} />;
-  else if (section === "billing") content = <BillingView client={client} data={data} readOnly={readOnly} providerName={providerName} />;
+  else if (section === "billing") content = <BillingView client={client} data={data} readOnly={readOnly} providerName={providerName} previewHrefPrefix={previewHrefPrefix} />;
   else if (section === "support") content = <SupportView client={client} data={data} readOnly={readOnly} providerName={providerName} />;
   else if (section === "resources") content = <ResourcesView data={data} previewHrefPrefix={previewHrefPrefix} providerName={providerName} />;
   else if (section === "details") content = <RecordView client={client} data={data} previewHrefPrefix={previewHrefPrefix} providerName={providerName} />;
@@ -1199,10 +1186,10 @@ function CustomerPaymentPlans({ plans, files }: { plans: CustomerPortalData["pay
   );
 }
 
-function BillingView({ client, data, readOnly, providerName }: { client: Client; data: CustomerPortalData; readOnly: boolean; providerName: string }) {
-  const paid = data.invoices.filter(invoice => invoice.status === "paid").reduce((sum, invoice) => sum + invoice.totalCents, 0);
-  const outstanding = data.invoices.filter(invoice => invoice.status === "sent" || invoice.status === "overdue").reduce((sum, invoice) => sum + invoice.totalCents, 0);
-  const currency = data.invoices[0]?.currency || "gbp";
+function BillingView({ client, data, readOnly, providerName, previewHrefPrefix }: { client: Client; data: CustomerPortalData; readOnly: boolean; providerName: string; previewHrefPrefix?: string }) {
+  const invoicePositions = summariseInvoicesByCurrency(data.invoices);
+  const paid = invoicePositionMoney(invoicePositions, "paidCents");
+  const outstanding = invoicePositionMoney(invoicePositions, "outstandingCents");
 
   return (
     <>
@@ -1232,7 +1219,11 @@ function BillingView({ client, data, readOnly, providerName }: { client: Client;
           <div className="mt-8 grid gap-4 border-t border-black/10 pt-5 sm:grid-cols-2 xl:grid-cols-4">
             <div>
               <p className="text-[10px] uppercase tracking-[0.13em] text-black/35">Account status</p>
-              <p className="mt-2 text-sm font-medium">Active with {providerName}</p>
+              <CustomerRelationshipStatus
+                status={client.status}
+                providerName={providerName}
+                supportHref={customerHref("support", previewHrefPrefix)}
+              />
             </div>
             <div>
               <p className="text-[10px] uppercase tracking-[0.13em] text-black/35">Agreed investment</p>
@@ -1251,8 +1242,8 @@ function BillingView({ client, data, readOnly, providerName }: { client: Client;
         <Surface className="!bg-[var(--portal-hero)] p-6 text-white">
           <CreditCard size={19} className="text-[var(--portal-accent)]" aria-hidden="true" />
           <p className="mt-8 text-[10px] uppercase tracking-[0.16em] text-white/40">Outstanding</p>
-          <p className="mt-2 font-serif text-3xl">{formatMoney(outstanding, currency)}</p>
-          <p className="mt-2 text-xs text-white/45">{paid > 0 ? `${formatMoney(paid, currency)} paid to date` : "No paid invoices recorded yet"}</p>
+          <p className="mt-2 font-serif text-3xl">{outstanding ?? "No payment due"}</p>
+          <p className="mt-2 text-xs text-white/45">{paid ? `${paid} paid to date` : "No paid invoices recorded yet"}</p>
         </Surface>
       </div>
 

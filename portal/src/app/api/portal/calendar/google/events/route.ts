@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
-import { createGoogleCalendarEvent } from "@/lib/server/integrations/googleCalendar";
+import { createGoogleCalendarEvent, GoogleCalendarEventCreateError } from "@/lib/server/integrations/googleCalendar";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 
@@ -10,11 +10,13 @@ export async function POST(request: NextRequest) {
     await ensureHydrated();
     const session = await getSessionFromRequest(request);
     if (!session || !AGENCY_ROLES.includes(session.role)) throw new AuthError(401, "unauthorized");
-    const body = await request.json().catch(() => null) as { sourceId?: string; title?: string; notes?: string; startsAt?: number; endsAt?: number; allDay?: boolean } | null;
+    const body = await request.json().catch(() => null) as { operationId?: string; sourceId?: string; title?: string; notes?: string; startsAt?: number; endsAt?: number; allDay?: boolean } | null;
     if (!body?.sourceId) return NextResponse.json({ ok: false, error: "sourceId required" }, { status: 400 });
-    const snapshot = await createGoogleCalendarEvent({
+    if (!body.operationId) return NextResponse.json({ ok: false, error: "operationId required" }, { status: 400 });
+    const result = await createGoogleCalendarEvent({
       agencyId: session.agencyId,
       ownerUserId: session.userId,
+      operationId: body.operationId,
       sourceId: body.sourceId,
       title: body.title ?? "",
       notes: body.notes,
@@ -23,8 +25,14 @@ export async function POST(request: NextRequest) {
       allDay: body.allDay === true,
     });
     await flushPendingWrites();
-    return NextResponse.json({ ok: true, ...snapshot }, { status: 201 });
+    return NextResponse.json({ ok: true, ...result }, { status: result.createStatus === "created" ? 201 : 200 });
   } catch (error) {
+    if (error instanceof GoogleCalendarEventCreateError) return NextResponse.json({
+      ok: false,
+      error: error.message,
+      remoteCreated: error.remoteCreated,
+      retrySafe: error.retrySafe,
+    }, { status: error.status });
     if (error instanceof Error && !(error instanceof AuthError)) return NextResponse.json({ ok: false, error: error.message }, { status: 502 });
     return authErrorResponse(error);
   }

@@ -9,6 +9,12 @@ function json(body: unknown, status = 200, headers: Record<string, string> = {})
   });
 }
 const badRequest = (m: string): Response => json({ ok: false, error: m }, 400);
+const serviceUnavailable = (m: string): Response => json({
+  ok: false,
+  error: "capture_unavailable",
+  message: m,
+  retryable: true,
+}, 503);
 const methodNotAllowed = (): Response => json({ ok: false, error: "method_not_allowed" }, 405);
 async function safeJson<T>(req: Request): Promise<T | null> {
   try { return (await req.json()) as T; } catch { return null; }
@@ -19,13 +25,14 @@ function build(ctx: PluginCtx) {
 
 // Helper — once the funnel issues a session, set it as a Set-Cookie
 // header on the response so the browser auto-signs-in for /business-os.
-// Cookie name conventions are foundation-owned; we mirror the
-// `aqua_session` name used by T1's session module.
+// Cookie name conventions are foundation-owned. This legacy plugin endpoint
+// mirrors the current session name; the mounted Health Check uses the top-level
+// route, which calls the foundation cookie helper directly.
 function withSessionCookie(body: unknown, status: number, session?: string): Response {
   const headers: Record<string, string> = {};
   if (session) {
     headers["set-cookie"] =
-      `aqua_session=${encodeURIComponent(session)}; Path=/; HttpOnly; SameSite=Lax`;
+      `lk_session_v1=${encodeURIComponent(session)}; Path=/; HttpOnly; SameSite=Lax`;
   }
   return json(body, status, headers);
 }
@@ -39,12 +46,13 @@ export async function hcCompleteHandler(req: Request, ctx: PluginCtx): Promise<R
     return withSessionCookie({
       ok: true,
       redirect: "/business-os",
+      captureId: r.capture.id,
       leadUserId: r.leadUserId,
       created: r.created,
     }, 200, r.session);
   } catch (e) {
     if (e instanceof FunnelInputError) return badRequest(e.message);
-    return badRequest(e instanceof Error ? e.message : "hc_complete_failed");
+    return serviceUnavailable(e instanceof Error ? e.message : "hc_complete_failed");
   }
 }
 
@@ -57,12 +65,13 @@ export async function toolCompleteHandler(req: Request, ctx: PluginCtx): Promise
     return withSessionCookie({
       ok: true,
       redirect: "/business-os",
+      captureId: r.capture.id,
       leadUserId: r.leadUserId,
       created: r.created,
     }, 200, r.session);
   } catch (e) {
     if (e instanceof FunnelInputError) return badRequest(e.message);
-    return badRequest(e instanceof Error ? e.message : "tool_complete_failed");
+    return serviceUnavailable(e instanceof Error ? e.message : "tool_complete_failed");
   }
 }
 

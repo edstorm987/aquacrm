@@ -1,8 +1,8 @@
 // Cinematic mode — the USER-FACING name for whether the app's cutscenes and
 // route transitions play.
 //
-//   • Cinematic mode ON  (DEFAULT) → cutscenes & transitions PLAY.
-//   • Cinematic mode OFF          → they are skipped for speed.
+//   • Cinematic mode ON           → cutscenes & transitions PLAY.
+//   • Cinematic mode OFF (DEFAULT) → they are skipped for speed.
 //
 // This replaces the old "Performance mode" toggle, whose stored key
 // (`aqua-performance-mode`, value "1" = SKIP) carried the inverted meaning.
@@ -23,7 +23,8 @@ export const LEGACY_PERFORMANCE_MODE_STORAGE_KEY = "aqua-performance-mode";
 
 /**
  * Derive the cinematic preference from a raw cinematic value plus a raw legacy
- * value. Pure so it can be unit-tested without a DOM. Default is TRUE (play).
+ * value. Pure so it can be unit-tested without a DOM. Default is FALSE: the
+ * app must feel immediate unless somebody explicitly opts into cinematics.
  */
 export function resolveCinematicPreference(
   cinematicRaw: string | null,
@@ -34,18 +35,18 @@ export function resolveCinematicPreference(
   // No cinematic preference yet — fall back to the migrated legacy value.
   if (legacyRaw === "1") return false; // old performance-mode ON = skip = cinematic OFF
   if (legacyRaw === "0") return true;
-  return true; // default: cutscenes play
+  return false; // default: favour an immediate workspace over a load-in scene
 }
 
 export function cinematicModeEnabled(): boolean {
-  if (typeof window === "undefined") return true;
+  if (typeof window === "undefined") return false;
   try {
     return resolveCinematicPreference(
       window.localStorage.getItem(CINEMATIC_MODE_STORAGE_KEY),
       window.localStorage.getItem(LEGACY_PERFORMANCE_MODE_STORAGE_KEY),
     );
   } catch {
-    return true;
+    return false;
   }
 }
 

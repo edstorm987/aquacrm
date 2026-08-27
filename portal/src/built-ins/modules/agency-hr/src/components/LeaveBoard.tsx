@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
+
 import type { LeaveRequest, LeaveStatus, LeaveType, Staff } from "../lib/domain";
 
 export interface LeaveBoardProps {
@@ -16,11 +18,17 @@ const STATUS_LABEL: Record<LeaveStatus, string> = {
   pending: "Pending",
   approved: "Approved",
   rejected: "Rejected",
+  cancelled: "Cancelled",
 };
 
 const TYPE_LABEL: Record<LeaveType, string> = {
+  annual: "Annual",
   pto: "PTO",
   sick: "Sick",
+  unpaid: "Unpaid",
+  compassionate: "Compassionate",
+  parental: "Parental",
+  other: "Other",
   sabbatical: "Sabbatical",
 };
 
@@ -44,6 +52,7 @@ export function LeaveBoard({ leave, staff, apiBase, canDecide, actor }: LeaveBoa
             <option value="pending">Pending</option>
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>
+            <option value="cancelled">Cancelled</option>
           </select>
           <button type="button" onClick={() => setShowRequestForm(s => !s)}>+ New request</button>
         </div>
@@ -94,7 +103,7 @@ function NewLeaveForm({ apiBase, staff, onCancel }: { apiBase: string; staff: St
         const fd = new FormData(e.currentTarget);
         const body = {
           staffId: String(fd.get("staffId") ?? ""),
-          type: String(fd.get("type") ?? "pto") as LeaveType,
+          type: String(fd.get("type") ?? "annual") as LeaveType,
           startDate: String(fd.get("startDate") ?? ""),
           endDate: String(fd.get("endDate") ?? ""),
           reason: String(fd.get("reason") ?? "").trim() || undefined,
@@ -105,17 +114,16 @@ function NewLeaveForm({ apiBase, staff, onCancel }: { apiBase: string; staff: St
         }
         setBusy(true);
         try {
-          const r = await fetch(`${apiBase}/leave`, {
+          await checkedJsonMutation(`${apiBase}/leave`, {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify(body),
+          }, {
+            fallback: "The leave request could not be submitted.",
           });
-          const data = await r.json();
-          if (!r.ok || !data.ok) {
-            setError(data?.error ?? `Failed (${r.status})`);
-            return;
-          }
           window.location.reload();
+        } catch (requestError) {
+          setError(mutationErrorMessage(requestError, "The leave request could not be submitted."));
         } finally {
           setBusy(false);
         }
@@ -131,16 +139,19 @@ function NewLeaveForm({ apiBase, staff, onCancel }: { apiBase: string; staff: St
         </select>
       </label>
       <label>Type
-        <select name="type" defaultValue="pto">
-          <option value="pto">PTO</option>
+        <select name="type" defaultValue="annual">
+          <option value="annual">Annual</option>
           <option value="sick">Sick</option>
-          <option value="sabbatical">Sabbatical</option>
+          <option value="unpaid">Unpaid</option>
+          <option value="compassionate">Compassionate</option>
+          <option value="parental">Parental</option>
+          <option value="other">Other</option>
         </select>
       </label>
       <label>Start<input name="startDate" type="date" required /></label>
       <label>End<input name="endDate" type="date" required /></label>
       <label>Reason<textarea name="reason" rows={3} /></label>
-      {error && <p className="hr-form-error">{error}</p>}
+      {error && <p role="alert" className="hr-form-error">{error}</p>}
       <footer>
         <button type="button" onClick={onCancel} disabled={busy}>Cancel</button>
         <button type="submit" disabled={busy}>{busy ? "Submitting…" : "Submit"}</button>
@@ -151,25 +162,34 @@ function NewLeaveForm({ apiBase, staff, onCancel }: { apiBase: string; staff: St
 
 function DecideButton(props: { apiBase: string; leaveId: string; approvedBy: string; status: "approved" | "rejected"; label: string }) {
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   return (
-    <button
-      type="button"
-      disabled={busy}
-      onClick={async () => {
-        setBusy(true);
-        try {
-          await fetch(`${props.apiBase}/leave/decide`, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ id: props.leaveId, status: props.status, approvedBy: props.approvedBy }),
-          });
-          window.location.reload();
-        } finally {
-          setBusy(false);
-        }
-      }}
-    >
-      {busy ? "…" : props.label}
-    </button>
+    <span>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          setError(null);
+          try {
+            await checkedJsonMutation(`${props.apiBase}/leave/decide`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ id: props.leaveId, status: props.status, approvedBy: props.approvedBy }),
+            }, {
+              fallback: `The leave request could not be ${props.status}.`,
+            });
+            window.location.reload();
+          } catch (requestError) {
+            setError(mutationErrorMessage(requestError, `The leave request could not be ${props.status}.`));
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {busy ? "…" : props.label}
+      </button>
+      {error && <span role="alert" className="hr-form-error">{error}</span>}
+    </span>
   );
 }

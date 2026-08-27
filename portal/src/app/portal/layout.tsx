@@ -4,27 +4,50 @@
 // end-customer in /portal/customer/layout.tsx.
 
 import { redirect } from "next/navigation";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
+import { PortalViewportLoading } from "@/components/ui/PortalViewportLoading";
+import { PortalLoadingCoordinator } from "@/components/ui/PortalLoadingCoordinator";
 import { ensureHydrated } from "@/server/storage";
-import { getSession } from "@/lib/server/auth/auth";
+import { getSession, isSessionFresh } from "@/lib/server/auth/auth";
+import { buildCompanySwitcherState } from "@/lib/server/auth/companySwitcherState";
 import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import { CommandCenterTransition } from "@/components/chrome/CommandCenterTransition";
 import { ClientWorkspaceTransition } from "@/components/chrome/ClientWorkspaceTransition";
 import { DevModeLoadIn } from "@/components/chrome/DevModeLoadIn";
 import { DevModeSwitcher } from "@/components/chrome/DevModeSwitcher";
+import { SandboxModeSwitcher } from "@/components/chrome/SandboxModeSwitcher";
 import { SmartWorkSessionMonitor } from "@/components/chrome/SmartWorkSessionMonitor";
+import { CompanySwitcherStateProvider } from "@/components/chrome/CompanySwitcher";
 import { getUserById } from "@/server/users";
 import { AGENCY_ROLES } from "@/server/types";
+import { dashboardPlanningSnapshot } from "@/server/dashboardPlanning";
 
-export default async function PortalLayout({ children }: { children: ReactNode }) {
+export default function PortalLayout({ children }: { children: ReactNode }) {
+  return (
+    <PortalLoadingCoordinator scope="workspace">
+      <Suspense fallback={<PortalViewportLoading scope="workspace" label="Preparing your workspace…" />}>
+        <AuthenticatedPortalLayout>{children}</AuthenticatedPortalLayout>
+      </Suspense>
+    </PortalLoadingCoordinator>
+  );
+}
+
+async function AuthenticatedPortalLayout({ children }: { children: ReactNode }) {
   await ensureHydrated();
   const session = await getSession();
   if (!session) redirect("/login?brand=aquacrm&next=/portal");
   const currentUser = getUserById(session.userId);
   const internalOperator = AGENCY_ROLES.includes(session.role);
+  const companySwitcherState = internalOperator && currentUser && isSessionFresh(session, currentUser)
+    ? buildCompanySwitcherState(session, currentUser)
+    : null;
+  const workSessionNow = Date.now();
+  const initialWorkSession = internalOperator
+    ? dashboardPlanningSnapshot(session.agencyId, session.userId, undefined, workSessionNow).activeSession
+    : null;
 
   return (
-    <>
+    <CompanySwitcherStateProvider initialState={companySwitcherState}>
       <CommandCenterTransition />
       <ClientWorkspaceTransition />
       {/* The cinematic plays for TWO journeys, so it is mounted for both:
@@ -33,18 +56,22 @@ export default async function PortalLayout({ children }: { children: ReactNode }
           same identity). It renders nothing unless the caller armed the
           one-shot sessionStorage flag, and it still respects "skip cinematic
           loading screens" + reduced motion. */}
-      {session.isDemo || devDocsAccessible(session) ? <DevModeLoadIn /> : null}
+      {(session.isDemo && !session.publicShowcase) || devDocsAccessible(session) ? <DevModeLoadIn /> : null}
       {/* Dev Mode POV switcher — rendered here (not in a scope Topbar) so it's
           reachable from EVERY persona, including the customer portal, which has
           its own chrome. Fixed + dev-scoped; the load-in (z-10002,
           pointer-events:none) sits above it during a swap. */}
-      {session.isDemo && session.devReturnAgencyId ? (
+      {session.sandbox ? (
+        <div className="fixed inset-x-0 bottom-4 z-[9990] flex justify-center px-3">
+          <SandboxModeSwitcher environment={session.sandbox} role={session.role} />
+        </div>
+      ) : session.isDemo && session.devReturnAgencyId ? (
         <div className="fixed inset-x-0 bottom-4 z-[9990] flex justify-center px-3">
           <DevModeSwitcher role={session.role} />
         </div>
       ) : null}
       {children}
-      {internalOperator ? <SmartWorkSessionMonitor userName={currentUser?.name || session.email} /> : null}
-    </>
+      {internalOperator ? <SmartWorkSessionMonitor userName={currentUser?.name || session.email} initialSession={initialWorkSession} initialNow={workSessionNow} /> : null}
+    </CompanySwitcherStateProvider>
   );
 }

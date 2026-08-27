@@ -32,7 +32,12 @@ export interface StripeEvent {
 export interface StripeClientLike {
   checkout: { sessions: { create(params: Record<string, unknown>): Promise<{ id: string; url: string | null }> } };
   webhooks: { constructEvent(rawBody: string, signature: string, secret: string): StripeEvent };
-  refunds: { create(params: Record<string, unknown>): Promise<{ id: string; status?: string }> };
+  refunds: {
+    create(
+      params: Record<string, unknown>,
+      options?: { idempotencyKey?: string },
+    ): Promise<{ id: string; status?: string; amount?: number; created?: number; reason?: string | null }>;
+  };
 }
 
 // Per-key cache so we don't rebuild the client for every call.
@@ -114,15 +119,18 @@ export async function verifyStripeWebhook(
 // Issue a refund against Ed's Stripe account. `amountCents` omitted → full refund.
 export async function createStripeRefund(
   keys: StripeKeys,
-  input: { paymentIntentId: string; amountCents?: number; reason?: string },
+  input: { paymentIntentId: string; amountCents?: number; reason?: string; idempotencyKey?: string },
   client?: StripeClientLike,
-): Promise<{ id: string; status?: string }> {
+): Promise<{ id: string; status?: string; amount?: number; created?: number; reason?: string | null }> {
   const stripe = await getStripeClient(keys.secretKey, client);
-  return stripe.refunds.create({
-    payment_intent: input.paymentIntentId,
-    ...(input.amountCents !== undefined ? { amount: input.amountCents } : {}),
-    ...(input.reason ? { reason: input.reason } : {}),
-  });
+  return stripe.refunds.create(
+    {
+      payment_intent: input.paymentIntentId,
+      ...(input.amountCents !== undefined ? { amount: input.amountCents } : {}),
+      ...(input.reason ? { reason: input.reason } : {}),
+    },
+    input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : undefined,
+  );
 }
 
 // Read Ed's keys off the plugin install config. Never logs them.

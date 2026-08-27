@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/cron/radar-probes",
-      "schedule": "*/10 * * * *"
+      "schedule": "15 6 * * *"
     }
   ]
 }

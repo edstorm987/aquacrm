@@ -11,6 +11,7 @@ import { getAgency, getClientForAgency, updateClient } from "@/server/tenants";
 import { getTradingCompany } from "@/server/tradingCompanies";
 import { applyClientProductVariations } from "@/lib/clients/clientProductVariations";
 import { productStatus } from "@/server/agencyProducts";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 interface Body {
   clientId?: unknown;
@@ -43,6 +44,7 @@ export async function POST(request: Request) {
     }
 
     const session = await requireRoleForClient(["agency-owner", "agency-manager"], clientId);
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.fulfilment", "manage");
     const client = getClientForAgency(session.agencyId, clientId);
     if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
 

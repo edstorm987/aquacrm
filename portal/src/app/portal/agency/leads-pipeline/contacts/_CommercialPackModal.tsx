@@ -2,7 +2,7 @@
 
 import { Check, CreditCard, ExternalLink, FilePenLine, Landmark, Mail, Plus, ReceiptText, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { dateInputValue, formatUkDate } from "@/lib/shared/formatDateTime";
+import { addBusinessCalendarDays, dateInputValue, formatUkDate } from "@/lib/shared/formatDateTime";
 
 type Party = {
   kind: "lead" | "contact";
@@ -76,7 +76,7 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
   const [serviceLevel, setServiceLevel] = useState("Custom Milesymedia service");
   const [lines, setLines] = useState<Line[]>([{ description: "Service deposit", quantity: 1, unitCents: 0 }]);
   const [taxRate, setTaxRate] = useState("0");
-  const [dueAt, setDueAt] = useState(new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10));
+  const [dueAt, setDueAt] = useState(() => addBusinessCalendarDays(7));
   const [cadence, setCadence] = useState<Pack["billingCadence"]>("one-off");
   const [installments, setInstallments] = useState("2");
   const [agreementTitle, setAgreementTitle] = useState("Service level agreement");
@@ -141,7 +141,7 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
       : product.priceCents ?? 0;
     setLines([{ description: deposit ? `${product.name} deposit (${deposit}%)` : product.name, quantity: 1, unitCents }]);
     setTaxRate(String(product.taxRatePercent ?? 0));
-    setDueAt(new Date(Date.now() + (product.paymentTermsDays ?? 7) * 86_400_000).toISOString().slice(0, 10));
+    setDueAt(addBusinessCalendarDays(product.paymentTermsDays ?? 7));
     setNotes(product.billingNotes ?? "");
     if (product.pricing === "recurring") {
       setCadence(product.billingInterval === "quarter" ? "quarterly" : product.billingInterval === "year" ? "annual" : "monthly");
@@ -220,6 +220,10 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
   async function recordPayment() {
     if (!pack) {
       setError("Save the invoice before recording payment.");
+      return;
+    }
+    if (!paymentReference.trim()) {
+      setError("Add a bank, receipt, cash-book, or provider reference so a retry cannot duplicate this payment.");
       return;
     }
     setBusy("payment");
@@ -316,7 +320,7 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
             </div>
             <div className="mt-6 border-t border-black/10 pt-5">
               <p className="text-xs font-semibold uppercase tracking-wide text-black/40">Record bank, cash or other payment</p>
-              <div className="mt-3 grid gap-2"><input className={control} type="number" min="0.01" step="0.01" placeholder={`Amount (£) · balance ${gbp(balance)}`} value={paymentAmount} onChange={event => setPaymentAmount(event.target.value)} /><select className={control} value={paymentMethod} onChange={event => setPaymentMethod(event.target.value)}><option value="bank-transfer">Bank transfer</option><option value="cash">Cash</option><option value="stripe">Stripe</option><option value="other">Other</option></select><input className={control} placeholder="Reference or receipt number" value={paymentReference} onChange={event => setPaymentReference(event.target.value)} /><button type="button" onClick={() => void recordPayment()} disabled={busy === "payment" || Number(paymentAmount) <= 0} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium disabled:opacity-40"><Landmark size={16} /> {busy === "payment" ? "Recording..." : "Record payment"}</button></div>
+              <div className="mt-3 grid gap-2"><input className={control} type="number" min="0.01" step="0.01" placeholder={`Amount (£) · balance ${gbp(balance)}`} value={paymentAmount} onChange={event => setPaymentAmount(event.target.value)} /><select className={control} value={paymentMethod} onChange={event => setPaymentMethod(event.target.value)}><option value="bank-transfer">Bank transfer</option><option value="cash">Cash</option><option value="stripe">Stripe</option><option value="other">Other</option></select><input className={control} aria-label="Payment reference" required placeholder="Reference or receipt number · required" value={paymentReference} onChange={event => setPaymentReference(event.target.value)} /><button type="button" onClick={() => void recordPayment()} disabled={busy === "payment" || Number(paymentAmount) <= 0 || !paymentReference.trim()} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium disabled:opacity-40"><Landmark size={16} /> {busy === "payment" ? "Recording..." : "Record payment"}</button></div>
             </div>
             {pack?.payments.length ? <div className="mt-6 border-t border-black/10 pt-5"><p className="text-xs font-semibold uppercase tracking-wide text-black/40">Payment trail</p><ul className="mt-3 space-y-2">{pack.payments.map(payment => <li key={payment.id} className="flex justify-between gap-3 text-xs"><span className="capitalize text-black/55">{payment.method.replace("-", " ")} · {formatUkDate(payment.paidAt, { dateStyle: "medium" })}</span><strong>{gbp(payment.amountCents)}</strong></li>)}</ul></div> : null}
             {notice ? <p className="mt-5 border-l-2 border-emerald-600 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{notice}</p> : null}

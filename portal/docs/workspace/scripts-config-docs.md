@@ -14,7 +14,7 @@
 | `tailwind.config.ts` | `brand` tokens bound to CSS vars (per-tenant branding). |
 | `.npmrc` | `install-links=true` — copies vendored plugins into `node_modules`. **Re-run `npm install` after editing plugin source** or your change won't be picked up. |
 | `.env.example` | Every env var, split into per-deployment (infra) vs per-client (portal editor). `.env.local` = local secrets, gitignored. |
-| `vercel.json` | `npm install --legacy-peer-deps`; one cron: `/api/cron/inbox` daily 06:00. |
+| `vercel.json` | `npm install --legacy-peer-deps`; two crons: `/api/cron/inbox` daily 06:00 and `/api/cron/radar-probes` every 10 minutes. |
 | `AGENTS.md` / `CLAUDE.md` | AI-session rules + non-negotiable contracts. **Read these first.** |
 
 **Key npm scripts:** `dev` (:3032), `dev:sandbox` (file backend),
@@ -27,7 +27,7 @@
 > ```
 > `PORTAL_BACKEND=memory` keeps stateful tests off Ed's live sandbox.
 
-## `scripts/` (277 entries, 242 of them `*.test.ts`)
+## `scripts/` (344 top-level files, 308 of them `*.test.ts`)
 
 **Test convention:** `node:test` files run through `tsx` (no Jest/Vitest),
 mostly **static-source contract tests** (`readFileSync` a module + assert on its
@@ -38,7 +38,7 @@ content). `scripts/` is excluded from tsconfig — they only run under tsx.
 > `client-aqua-health`, `client-marketing-service`, `client-workspace-navigation`,
 > `hiring-capacity`, `attention-protection`, `inbox-attention-thread`.
 
-**242 `*.test.ts`, grouped by domain** (re-counted 2026-08-20) — there's a smoke test for almost
+**308 `*.test.ts`, grouped by domain** (re-counted 2026-08-24) — there's a smoke test for almost
 everything, so **check for an existing one before changing behaviour** (a
 contract test may pin the behaviour you're about to change):
 radar/monitoring · inbox/attention/actions · products/portals/client-workspaces ·
@@ -48,6 +48,11 @@ website/editor/domains · fulfilment/delivery/dev-ops · platform/storage/perf/r
 
 **Non-test scripts:**
 - **HTTP/e2e harnesses** (`.mjs`, need a live server): `smoke.mjs` (main black-box), `post-deploy-smoke.mjs`, `smoke-ux.mjs`, `smoke-perf.mjs`, `smoke-postgres.mjs`, `perf-baseline.mjs`.
+  **Evidence boundary:** `smoke-ux.mjs` is HTTP/SSR markup smoke, not visual e2e. Its
+  375/768/1280 loop puts the number only in the User-Agent and repeats substring checks;
+  it does not create a viewport, apply CSS, run client interactions, inspect focus/overflow
+  or capture the browser console. Keep its green result out of responsive/accessibility
+  acceptance until the real browser matrix in [issue #137](../development/issues.md) runs.
 - **Build/deploy:** `prepare-vercel-root-manifest.mjs` (post-build), `vercel-build.sh`, `build-route-inventory.mjs` → `route-inventory.json`, `schema.sql` (Postgres single-table KV).
 - **Migration/seed:** `provision-founder.mjs`, `migrate-file-to-{postgres,supabase}.mjs`, `backfill-persons.ts`, `seed-dev-tenant.ts`, `seed-bare-co-portal.ts`, `seed-contact-card-fixture.ts`.
 - **Audit/cleanup:** `audit-{actions,alert-families,judgement-evidence}.ts`, `launch-audit.ts`, `catalogue-development-workspace.ts`, `purge-duplicate-development-artifacts.ts` (`--apply`-gated), **`cleanup-junk-enquiries.mjs`** (one-off: deletes junk live-Supabase enquiries + stray test users; backs up first — **for Ed to run himself**).

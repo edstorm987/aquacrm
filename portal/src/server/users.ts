@@ -108,6 +108,8 @@ export interface UserLookupScope {
 }
 
 export interface CreateUserInput {
+  /** Pre-allocated by resumable workflows so a retry cannot mint a new identity. */
+  id?: string;
   email: string;
   username?: string;
   password: string;
@@ -125,6 +127,7 @@ export function createUser(input: CreateUserInput): ServerUser {
   if (!check.ok) throw new Error(check.error ?? "Invalid password");
   const email = normEmail(input.email);
   const key = userKey(email, input.role, input.clientId);
+  if (getState().users[key]) throw new Error("A user with that email already exists.");
   const now = Date.now();
   // R023: leads are global; bootstrap-agency NOT called for them. Stamp
   // the sentinel so the schema's required-string contract survives —
@@ -140,7 +143,7 @@ export function createUser(input: CreateUserInput): ServerUser {
   // every other role gets a single-element list mirroring agencyId.
   const agencyIds = input.role === "lead" ? [] : [agencyId];
   const user: ServerUser = {
-    id: makeId(),
+    id: input.id ?? makeId(),
     email,
     username: input.username ? input.username.trim() : undefined,
     name: input.name ?? email.split("@")[0],

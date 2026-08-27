@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import {
   destinationForOperationalAlert,
@@ -19,12 +19,17 @@ import {
   setAttentionProtectionEnabled,
   type OperationalAttentionWindow,
 } from "@/lib/intelligence/attentionProtection";
+import {
+  NOTIFICATION_ACTIVATION_REFRESH_INTERVAL_MS,
+  NotificationAttentionCoordinator,
+  notificationActivationRefreshDue,
+} from "@/lib/intelligence/notificationAttentionCoordination";
 
 interface AttentionContextValue {
   alerts: OperationalAlertView[];
   attentionWindow: OperationalAttentionWindow;
   focusProtectionEnabled: boolean;
-  busyAlertId: string | null;
+  isAlertBusy: (alertId: string) => boolean;
   error: string;
   setFocusProtectionEnabled: (enabled: boolean) => void;
   refreshAlerts: () => Promise<boolean>;
@@ -49,15 +54,41 @@ export function NotificationAttentionProvider({
     [clientId],
   );
   const [alerts, setAlerts] = useState(() => scopeAlerts(initialAlerts));
+  const alertsRef = useRef(alerts);
+  const coordinatorRef = useRef(new NotificationAttentionCoordinator());
+  const clientScopeRef = useRef(clientId);
+  const refreshInFlightRef = useRef<Promise<boolean> | null>(null);
+  const lastRefreshStartedAtRef = useRef(Date.now());
   const [focusProtectionEnabled, setFocusProtectionState] = useState(true);
-  const [busyAlertId, setBusyAlertId] = useState<string | null>(null);
+  const [busyAlertIds, setBusyAlertIds] = useState<ReadonlySet<string>>(() => new Set());
   const [error, setError] = useState("");
   const attentionWindow = useMemo(
     () => buildOperationalAttentionWindow(alerts, { enabled: focusProtectionEnabled }),
     [alerts, focusProtectionEnabled],
   );
 
-  useEffect(() => setAlerts(scopeAlerts(initialAlerts)), [initialAlerts, scopeAlerts]);
+  const commitAlerts = useCallback((next: OperationalAlertView[]) => {
+    alertsRef.current = next;
+    setAlerts(next);
+  }, []);
+
+  const syncBusyAlerts = useCallback(() => {
+    setBusyAlertIds(new Set(coordinatorRef.current.pendingAlertIds()));
+  }, []);
+
+  useEffect(() => {
+    const scopedAlerts = scopeAlerts(initialAlerts);
+    lastRefreshStartedAtRef.current = Date.now();
+    if (clientScopeRef.current !== clientId) {
+      coordinatorRef.current.reset();
+      clientScopeRef.current = clientId;
+      commitAlerts(scopedAlerts);
+      syncBusyAlerts();
+      return;
+    }
+    commitAlerts(coordinatorRef.current.rebaseSnapshot(scopedAlerts));
+    syncBusyAlerts();
+  }, [clientId, commitAlerts, initialAlerts, scopeAlerts, syncBusyAlerts]);
 
   useEffect(() => {
     const sync = () => setFocusProtectionState(attentionProtectionEnabled());
@@ -82,26 +113,42 @@ export function NotificationAttentionProvider({
     setAttentionProtectionEnabled(enabled);
   }, []);
 
-  const refreshAlerts = useCallback(async (): Promise<boolean> => {
-    const response = await fetch("/api/portal/notifications", { method: "GET", cache: "no-store" }).catch(() => null);
-    if (!response?.ok) return false;
-    const payload = await response.json().catch(() => null) as { alerts?: OperationalAlertView[] } | null;
-    if (!payload?.alerts) return false;
-    setAlerts(scopeAlerts(payload.alerts));
-    return true;
-  }, [scopeAlerts]);
+  const refreshAlerts = useCallback((): Promise<boolean> => {
+    if (refreshInFlightRef.current) return refreshInFlightRef.current;
+
+    lastRefreshStartedAtRef.current = Date.now();
+    const coordinator = coordinatorRef.current;
+    const token = coordinator.beginRefresh();
+    const request = (async () => {
+      const response = await fetch("/api/portal/notifications", { method: "GET", cache: "no-store" }).catch(() => null);
+      if (!response?.ok) return false;
+      const payload = await response.json().catch(() => null) as { alerts?: OperationalAlertView[] } | null;
+      if (!payload?.alerts) return false;
+      const result = coordinator.acceptRefresh(token, alertsRef.current, scopeAlerts(payload.alerts));
+      if (coordinator === coordinatorRef.current && result.applied) commitAlerts(result.alerts);
+      return true;
+    })();
+    const trackedRequest = request.finally(() => {
+      if (refreshInFlightRef.current === trackedRequest) refreshInFlightRef.current = null;
+    });
+    refreshInFlightRef.current = trackedRequest;
+    return trackedRequest;
+  }, [commitAlerts, scopeAlerts]);
 
   useEffect(() => {
-    const refreshWhenActive = () => {
-      if (!document.hidden) void refreshAlerts();
+    const refreshWhenStaleAndActive = () => {
+      const now = Date.now();
+      if (!document.hidden && notificationActivationRefreshDue(lastRefreshStartedAtRef.current, now)) {
+        void refreshAlerts();
+      }
     };
-    const interval = window.setInterval(refreshWhenActive, 30_000);
-    window.addEventListener("focus", refreshWhenActive);
-    document.addEventListener("visibilitychange", refreshWhenActive);
+    const interval = window.setInterval(refreshWhenStaleAndActive, NOTIFICATION_ACTIVATION_REFRESH_INTERVAL_MS);
+    window.addEventListener("focus", refreshWhenStaleAndActive);
+    document.addEventListener("visibilitychange", refreshWhenStaleAndActive);
     return () => {
       window.clearInterval(interval);
-      window.removeEventListener("focus", refreshWhenActive);
-      document.removeEventListener("visibilitychange", refreshWhenActive);
+      window.removeEventListener("focus", refreshWhenStaleAndActive);
+      document.removeEventListener("visibilitychange", refreshWhenStaleAndActive);
     };
   }, [refreshAlerts]);
 
@@ -116,10 +163,11 @@ export function NotificationAttentionProvider({
   }, [alerts, refreshAlerts]);
 
   async function updateAlert(alertId: string, action: OperationalAlertAction, parkedUntil?: number): Promise<boolean> {
-    const previous = alerts;
-    setBusyAlertId(alertId);
+    const coordinator = coordinatorRef.current;
+    const mutation = coordinator.beginMutation(alertsRef.current, alertId, action, parkedUntil);
     setError("");
-    setAlerts(current => optimisticAlertUpdate(current, alertId, action, parkedUntil));
+    commitAlerts(mutation.alerts);
+    syncBusyAlerts();
     try {
       const response = await fetch("/api/portal/notifications", {
         method: "PATCH",
@@ -129,27 +177,33 @@ export function NotificationAttentionProvider({
       });
       const payload = await response.json().catch(() => null) as { alerts?: OperationalAlertView[]; error?: string } | null;
       if (!response.ok || !payload?.alerts) throw new Error(payload?.error || "The notification could not be updated.");
-      setAlerts(scopeAlerts(payload.alerts));
+      const result = coordinator.acceptMutation(mutation.token, alertsRef.current, scopeAlerts(payload.alerts));
+      if (coordinator === coordinatorRef.current && result.applied) commitAlerts(result.alerts);
       return true;
     } catch (cause) {
-      setAlerts(previous);
-      setError(cause instanceof Error ? cause.message : "The notification could not be updated.");
+      const result = coordinator.rejectMutation(mutation.token, alertsRef.current);
+      if (coordinator === coordinatorRef.current && result.applied) commitAlerts(result.alerts);
+      if (coordinator === coordinatorRef.current && result.exposeFailure) {
+        setError(cause instanceof Error ? cause.message : "The notification could not be updated.");
+      }
       return false;
     } finally {
-      setBusyAlertId(null);
+      if (coordinator === coordinatorRef.current) syncBusyAlerts();
     }
   }
+
+  const isAlertBusy = useCallback((alertId: string) => busyAlertIds.has(alertId), [busyAlertIds]);
 
   const value = useMemo(() => ({
     alerts,
     attentionWindow,
     focusProtectionEnabled,
-    busyAlertId,
+    isAlertBusy,
     error,
     setFocusProtectionEnabled,
     refreshAlerts,
     updateAlert,
-  }), [alerts, attentionWindow, focusProtectionEnabled, busyAlertId, error, setFocusProtectionEnabled, refreshAlerts]);
+  }), [alerts, attentionWindow, focusProtectionEnabled, isAlertBusy, error, setFocusProtectionEnabled, refreshAlerts]);
   return <AttentionContext.Provider value={value}>{children}</AttentionContext.Provider>;
 }
 
@@ -266,19 +320,4 @@ export function attentionTitle(alerts: OperationalAlertView[]): string {
   const lines = alerts.slice(0, 5).map(alert => `• ${alert.title}`);
   if (alerts.length > 5) lines.push(`• ${alerts.length - 5} more`);
   return `${alerts.length} ${alerts.length === 1 ? "item needs" : "items need"} attention\n${lines.join("\n")}`;
-}
-
-function optimisticAlertUpdate(
-  alerts: OperationalAlertView[],
-  alertId: string,
-  action: OperationalAlertAction,
-  parkedUntil?: number,
-): OperationalAlertView[] {
-  if (action === "dismiss") return alerts.filter(alert => alert.id !== alertId);
-  return alerts.map(alert => {
-    if (alert.id !== alertId) return alert;
-    if (action === "read") return { ...alert, state: "read", attention: false, parkedUntil: undefined };
-    if (action === "unread") return { ...alert, state: "unread", attention: true, parkedUntil: undefined };
-    return { ...alert, state: "parked", attention: false, parkedUntil };
-  });
 }

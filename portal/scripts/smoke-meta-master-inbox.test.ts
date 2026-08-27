@@ -135,12 +135,18 @@ test("webhook verification resolves the owning agency's stored credentials, not 
   const crypto = await import("node:crypto");
 
   // Store a Meta app connection for agn_test whose App Secret + verify token differ from env.
-  connections.saveIntegrationConnection({
+  const storedConnection = connections.saveIntegrationConnection({
     agencyId: "agn_test",
     provider: "meta",
     label: "Stored Meta app",
     values: { appId: "app_555", appSecret: "stored-app-secret", webhookVerifyToken: "stored-verify-token", graphApiVersion: "v21.0" },
     actorUserId: "owner",
+  });
+  connections.activateIntegrationConnection({
+    agencyId: "agn_test",
+    connectionId: storedConnection.id,
+    actorUserId: "owner",
+    allowUntested: true,
   });
 
   // A webhook for the connected account (ig_business_123 → agn_test, saved in the prior test)

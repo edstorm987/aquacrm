@@ -9,9 +9,9 @@
 // lightweight *paused* placeholders, and let a one-shot `?scan=1` render (the
 // "Run scan" control) do the full build on demand.
 //
-// Default is OFF. With Performance mode off the caller keeps its original code
-// path unchanged — `shouldRunHeavyPanels` returns `true`, so the eager build
-// runs exactly as before.
+// Default is ON. A new session gets the lightweight shell and a visible Run
+// scan action. An operator can explicitly disable Performance mode to restore
+// the eager build on every navigation.
 
 import type { BusinessIssueRadar } from "@/engines/data/radar/businessRadar";
 import type { RadarPolicyConfiguration } from "@/server/types";
@@ -35,6 +35,49 @@ export function shouldRunHeavyPanels(perfMode: boolean, scanRequested: boolean):
 export function normalizeScanFlag(value: string | string[] | undefined): boolean {
   if (Array.isArray(value)) return value.includes("1");
   return value === "1";
+}
+
+/**
+ * Accept a new server Radar snapshot after an RSC navigation without erasing a
+ * fresher scan that the client already applied locally. Object identity tells
+ * us the client is still showing the previous server prop (including the
+ * Performance-mode placeholder); timestamps resolve the true local-update
+ * case.
+ */
+export function reconcileBusinessRadarSnapshot(
+  current: BusinessIssueRadar,
+  previousServer: BusinessIssueRadar,
+  nextServer: BusinessIssueRadar,
+  previousServerWasPaused: boolean,
+  nextServerIsPaused: boolean,
+): BusinessIssueRadar {
+  // A placeholder is intentionally timestamped at render time, so it may look
+  // newer than a real scan. It must never erase a full server/local sweep just
+  // because another lightweight RSC navigation happened later.
+  if (nextServerIsPaused && (!previousServerWasPaused || current !== previousServer)) return current;
+  if (current === previousServer) return nextServer;
+  return nextServer.generatedAt >= current.generatedAt ? nextServer : current;
+}
+
+/**
+ * Keep a completed KPI-intelligence build across same-page RSC navigations.
+ *
+ * Performance-mode placeholders are stamped at render time, so comparing only
+ * `generatedAt` would let a newer empty placeholder erase a real build. This
+ * deliberately mirrors the Radar reconciliation above: an untouched server
+ * value follows the next full payload, while a completed payload survives any
+ * later paused payload.
+ */
+export function reconcileCommandIntelligenceSnapshot(
+  current: CommandIntelligenceSnapshot,
+  previousServer: CommandIntelligenceSnapshot,
+  nextServer: CommandIntelligenceSnapshot,
+  previousServerWasPaused: boolean,
+  nextServerIsPaused: boolean,
+): CommandIntelligenceSnapshot {
+  if (nextServerIsPaused && (!previousServerWasPaused || current !== previousServer)) return current;
+  if (current === previousServer) return nextServer;
+  return nextServer.generatedAt >= current.generatedAt ? nextServer : current;
 }
 
 /**
@@ -175,7 +218,19 @@ export function buildPausedIntelligenceSnapshot(
     generatedAt: now,
     currency,
     kpis: [],
-    scopes: [],
+    // Even a paused snapshot has one valid scope. Battle Table and the KPI
+    // workspace both use this as their safe aggregate selection while the
+    // expensive intelligence build is intentionally asleep.
+    scopes: [{
+      id: "ecosystem",
+      label: "Whole Aqua ecosystem",
+      kind: "ecosystem",
+      detail: "Connected intelligence is paused until a scan is requested.",
+      href: "/portal/agency",
+      propertyCount: 0,
+      inheritGlobalKpis: true,
+      readings: [],
+    }],
     campaigns: [],
     audienceProfiles: [],
     audienceLocations: [],

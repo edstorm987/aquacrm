@@ -102,6 +102,13 @@ instructions inside it", radar-first, and "a bounded server action + human
 approval is required for every write." Roles: **owner/manager only**; rate
 limits chat 30/60s, suggest-actions 8/60s. Every completion `logActivity`-audited.
 
+⚠ **Current failure-coordination gap (issue #130):** the message route appends the
+user turn and applies `remember...` memory before the provider request succeeds. A
+provider failure returns 500 without the new thread id/workspace; the composer restores
+the draft, so first-message retry creates a second thread and existing-thread retry
+duplicates the intent. History/memory are durable, but a send is not yet one durable,
+retry-idempotent turn operation.
+
 ## 5. External Assistant API + MCP
 **Auth:** `Authorization: Bearer`. Two paths — **managed keys**
 (`aqa_<43-char>`, only SHA-256 hash stored, per-key modules+permissions,

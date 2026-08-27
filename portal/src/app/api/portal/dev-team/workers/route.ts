@@ -8,12 +8,12 @@ import {
   isCheckInActive,
   scanWorkerSignals,
 } from "@/lib/server/dev/devTeamWorkers";
-import { ensureHydrated } from "@/server/storage";
+import { ensureDevTeamWorkspaceHydrated } from "@/lib/server/dev/devWorkspaceFiles";
 import { AGENCY_ROLES } from "@/server/types";
 
 // Live worker signals for the Dev Team board. Polled by the client panel, so
-// it stays cheap: a bounded mtime scan plus a couple of small reads. Founder +
-// Dev Mode only, same gate as the portal.
+// it stays cheap: a bounded mtime scan plus a couple of small reads. The same
+// founder-only Dev Team gate protects it in local and production contexts.
 export const dynamic = "force-dynamic";
 
 /** Nothing check-in-shaped is worth an unbounded response body. */
@@ -21,7 +21,7 @@ const MAX_CHECK_INS = 40;
 
 export async function GET() {
   try {
-    await ensureHydrated();
+    await ensureDevTeamWorkspaceHydrated();
 
     let session;
     try {

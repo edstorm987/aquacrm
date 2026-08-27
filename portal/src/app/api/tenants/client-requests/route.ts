@@ -11,6 +11,8 @@ import type { InboxOutboundAttachment } from "@/lib/inbox/media";
 import { inboxMediaUrl, verifyInboxMediaToken } from "@/lib/server/inbox/inboxMedia";
 import { cleanClientRequests } from "@/lib/clients/clientRequests";
 import { synchroniseClientRequestLedgerEvents } from "@/lib/server/clients/clientRecordLedger";
+import { ProductWorkspaceBusyError, withClientMetadataLedgerTransaction } from "@/server/productWorkspaceCoordinator";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 export type ClientRequestType = "suggestion" | "design-feedback" | "support-ticket" | "cancel" | "move-provider";
 
@@ -85,6 +87,12 @@ export async function POST(req: Request) {
     }
 
     const session = await requireRoleForClient([...AGENCY_ROLES, ...CLIENT_ROLES, "end-customer"], body.clientId);
+    await requireCurrentClientWorkspaceElementAccess(body.clientId, "client.communications", "use");
+    return await withClientMetadataLedgerTransaction({
+      agencyId: session.agencyId,
+      clientId: body.clientId,
+      ledger: "requests",
+    }, async () => {
     const client = getClientForAgency(session.agencyId, body.clientId);
     if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
 
@@ -151,7 +159,11 @@ export async function POST(req: Request) {
     await flushPendingWrites();
 
     return NextResponse.json({ ok: true, request: item, requests });
+    });
   } catch (error) {
+    if (error instanceof ProductWorkspaceBusyError) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 409 });
+    }
     return authErrorResponse(error);
   }
 }
@@ -184,11 +196,18 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ ok: false, error: "invalid status" }, { status: 400 });
     }
 
+    const clientId = body.clientId;
     const session = await requireRoleForClient(
       reply ? [...AGENCY_ROLES, ...CLIENT_ROLES, "end-customer"] : [...AGENCY_ROLES],
-      body.clientId,
+      clientId,
     );
-    const client = getClientForAgency(session.agencyId, body.clientId);
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.communications", "use");
+    return await withClientMetadataLedgerTransaction({
+      agencyId: session.agencyId,
+      clientId,
+      ledger: "requests",
+    }, async () => {
+    const client = getClientForAgency(session.agencyId, clientId);
     if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
     if (attachments.some(attachment => verifyInboxMediaToken(attachment.token)?.agencyId !== session.agencyId)) return NextResponse.json({ ok: false, error: "An attachment is invalid." }, { status: 400 });
 
@@ -238,7 +257,11 @@ export async function PATCH(req: Request) {
     await flushPendingWrites();
 
     return NextResponse.json({ ok: true, request: changed, requests: next });
+    });
   } catch (error) {
+    if (error instanceof ProductWorkspaceBusyError) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 409 });
+    }
     return authErrorResponse(error);
   }
 }

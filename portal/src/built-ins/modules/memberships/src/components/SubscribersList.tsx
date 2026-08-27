@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
+
 import type { Plan, Subscription, SubscriptionStatus } from "../lib/domain";
 
 export interface SubscribersListProps {
@@ -74,26 +76,38 @@ export function SubscribersList({ subscribers, plans, apiBase, canMutate }: Subs
 
 function CancelButton({ apiBase, userId }: { apiBase: string; userId: string }) {
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   return (
-    <button
-      type="button"
-      disabled={busy}
-      onClick={async () => {
-        if (!confirm(`Cancel subscription for ${userId}?`)) return;
-        setBusy(true);
-        try {
-          await fetch(`${apiBase}/subscribers/cancel`, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ userId, atPeriodEnd: true }),
-          });
-          window.location.reload();
-        } finally {
-          setBusy(false);
-        }
-      }}
-    >
-      {busy ? "…" : "Cancel"}
-    </button>
+    <>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={async () => {
+          if (!confirm(`Cancel subscription for ${userId}?`)) return;
+          setBusy(true); setError(null);
+          try {
+            await checkedJsonMutation(`${apiBase}/subscribers/cancel`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                userId,
+                atPeriodEnd: true,
+                operationId: `membership-admin-cancel-${crypto.randomUUID()}`,
+              }),
+            }, {
+              fallback: "The subscription could not be cancelled.",
+            });
+            window.location.reload();
+          } catch (requestError) {
+            setError(mutationErrorMessage(requestError, "The subscription could not be cancelled."));
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {busy ? "…" : "Cancel"}
+      </button>
+      {error && <p role="alert" className="memberships-form-error">{error}</p>}
+    </>
   );
 }

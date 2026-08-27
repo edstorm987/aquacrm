@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
+
 import type { Affiliate, AffiliateStatus } from "../lib/domain";
 
 export interface AffiliatesListProps {
@@ -75,7 +77,7 @@ export function AffiliatesList({ affiliates, apiBase, canMutate }: AffiliatesLis
                 </header>
                 <p className="affiliates-meta">{a.payoutEmail}</p>
                 <p className="affiliates-meta">
-                  {a.totalReferred} referrals · {(a.lifetimeEarnings / 100).toFixed(2)} earned
+                  {a.totalReferred} referrals · {formatTotals(a.lifetimeEarningsByCurrency, a.lifetimeEarnings)} earned
                 </p>
                 {canMutate && a.status === "pending" && (
                   <ApproveButton apiBase={apiBase} affiliateId={a.id} />
@@ -89,27 +91,49 @@ export function AffiliatesList({ affiliates, apiBase, canMutate }: AffiliatesLis
   );
 }
 
+function formatTotals(byCurrency: Record<string, number> | undefined, legacyTotal: number): string {
+  const entries = Object.entries(byCurrency ?? {}).filter(([, amount]) => amount !== 0);
+  if (entries.length === 0) return legacyTotal === 0 ? "No paid earnings" : `${(legacyTotal / 100).toFixed(2)} legacy total`;
+  return entries.map(([currency, amount]) => {
+    try {
+      return new Intl.NumberFormat("en-GB", { style: "currency", currency: currency.toUpperCase() }).format(amount / 100);
+    } catch {
+      return `${(amount / 100).toFixed(2)} ${currency.toUpperCase()}`;
+    }
+  }).join(" · ");
+}
+
 function ApproveButton({ apiBase, affiliateId }: { apiBase: string; affiliateId: string }) {
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   return (
-    <button
-      type="button"
-      disabled={busy}
-      onClick={async () => {
-        setBusy(true);
-        try {
-          await fetch(`${apiBase}/affiliates`, {
-            method: "PATCH",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ id: affiliateId, patch: { status: "active" } }),
-          });
-          window.location.reload();
-        } finally {
-          setBusy(false);
-        }
-      }}
-    >
-      {busy ? "…" : "Approve"}
-    </button>
+    <span>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          setError(null);
+          try {
+            await checkedJsonMutation<{ ok: boolean }>(`${apiBase}/affiliates`, {
+              method: "PATCH",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ id: affiliateId, patch: { status: "active" } }),
+            }, {
+              fallback: "The affiliate could not be approved.",
+              validate: payload => payload.ok === true,
+            });
+            window.location.reload();
+          } catch (requestError) {
+            setError(mutationErrorMessage(requestError, "The affiliate could not be approved."));
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {busy ? "…" : "Approve"}
+      </button>
+      {error && <span role="alert" className="affiliates-form-error">{error}</span>}
+    </span>
   );
 }

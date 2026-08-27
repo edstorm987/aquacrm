@@ -6,6 +6,28 @@ export type InboxConversationStatus = "open" | "snoozed" | "closed";
 export type InboxMessageDirection = "inbound" | "outbound" | "internal";
 export type InboxMessageStatus = "received" | "pending" | "sent" | "delivered" | "read" | "failed" | "deleted";
 export type InboxMessageType = "text" | "image" | "video" | "audio" | "file" | "share" | "story" | "reaction" | "system" | "note";
+export type InboxReplyDeliveryStatus = "pending" | "sending" | "sent" | "failed" | "uncertain";
+
+export interface InboxReplyDeliveryPart {
+  id: string;
+  kind: "text" | "attachment";
+  attachmentIndex?: number;
+  status: InboxReplyDeliveryStatus;
+  attempts: number;
+  providerMessageId?: string;
+  error?: string;
+  leaseOwner?: string;
+  leaseExpiresAt?: number;
+  updatedAt: number;
+}
+
+export interface InboxReplyOperation {
+  version: 1;
+  operationId: string;
+  payloadHash: string;
+  parts: InboxReplyDeliveryPart[];
+  completedAt?: number;
+}
 
 export interface InboxAttachment {
   type: Exclude<InboxMessageType, "text" | "reaction" | "system" | "note">;

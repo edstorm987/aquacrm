@@ -1,10 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile, rm, utimes } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile, rm, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
+import { performance } from "node:perf_hooks";
+import * as ts from "typescript";
 
 import {
+  createCoalescedRefreshCache,
   memoiseByStat,
   readParsedFile,
   invalidateFile,
@@ -13,6 +17,25 @@ import {
   __cacheStats,
   __resetCache,
 } from "../src/lib/server/dev/devMarkdownCache";
+import {
+  __devDocsIndexCacheStats,
+  __resetDevDocsIndexCache,
+  DEV_DOCS_INDEX_TTL_MS,
+  isIgnoredDevDocsDirectory,
+  scanDevDocs,
+} from "../src/lib/server/dev/devDocs";
+import {
+  __resetWorkerSignalsCache,
+  __workerSignalsCacheStats,
+  SIGNALS_TTL_MS,
+  scanWorkerSignals,
+  shouldSkipWorkerDirectory,
+} from "../src/lib/server/dev/devTeamWorkers";
+import {
+  DEFAULT_MIN_FREE_BYTES,
+  evaluateDevDiskSpace,
+} from "./dev-preflight.mjs";
+import { composeDevTeamHomeSnapshot } from "../src/lib/server/dev/devTeamHomeSnapshot";
 
 // The Dev Team workspace was the slowest surface in the app: every request
 // re-read and re-parsed ~40 markdown files (roadmap.md, all 37 plans twice
@@ -176,6 +199,222 @@ test("a missing file returns null and never calls compute", async () => {
   });
   assert.equal(value, null);
   assert.equal(called, false, "compute ran for a file that cannot be stat'd");
+});
+
+// ---- the directory-index cache ---------------------------------------------
+
+test("simultaneous cold callers share one live-index refresh", async () => {
+  const cache = createCoalescedRefreshCache<string, { version: number }>(15_000);
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  let loads = 0;
+  const load = async () => {
+    loads += 1;
+    await gate;
+    return { version: loads };
+  };
+
+  const reads = [cache.get("index", load), cache.get("index", load), cache.get("index", load)];
+  assert.equal(loads, 1, "three concurrent misses started three filesystem walks");
+  assert.equal(cache.stats().coalesced, 2);
+  release();
+
+  const values = await Promise.all(reads);
+  assert.ok(values.every(value => value === values[0]), "callers did not share the same scan result");
+  assert.equal(cache.stats().loads, 1);
+
+  const forced = await cache.get("index", load, { fresh: true });
+  assert.equal(forced.version, 2, "explicit refresh reused the completed cached value");
+  assert.equal(cache.stats().loads, 2);
+});
+
+test("invalidation prevents an older in-flight refresh from publishing stale data", async () => {
+  const cache = createCoalescedRefreshCache<string, string>(15_000);
+  let releaseOld!: () => void;
+  let releaseNew!: () => void;
+  const oldGate = new Promise<void>(resolve => { releaseOld = resolve; });
+  const newGate = new Promise<void>(resolve => { releaseNew = resolve; });
+
+  const oldRead = cache.get("index", async () => {
+    await oldGate;
+    return "old";
+  });
+  cache.invalidate("index");
+  const newRead = cache.get("index", async () => {
+    await newGate;
+    return "new";
+  });
+
+  releaseOld();
+  assert.equal(await oldRead, "old", "the original caller still receives its completed read");
+  assert.equal(cache.stats().size, 0, "an invalidated in-flight value entered the cache");
+  releaseNew();
+  assert.equal(await newRead, "new");
+  assert.equal(await cache.get("index", async () => "unexpected"), "new");
+  assert.equal(cache.stats().loads, 2, "the post-invalidation warm read reloaded unexpectedly");
+});
+
+test("Dev Docs coalesces cold scans and makes warm navigation a memory read", async () => {
+  __resetDevDocsIndexCache();
+
+  const cold = await Promise.all([scanDevDocs(), scanDevDocs(), scanDevDocs()]);
+  const afterCold = __devDocsIndexCacheStats();
+  assert.equal(afterCold.loads, 1, "concurrent Dev Docs requests repeated the project walk");
+  assert.equal(afterCold.coalesced, 2);
+  assert.ok(cold.every(index => index === cold[0]), "cold callers did not share one index object");
+
+  const started = performance.now();
+  const warm = await Promise.all([scanDevDocs(), scanDevDocs(), scanDevDocs()]);
+  const warmMs = performance.now() - started;
+  assert.ok(warm.every(index => index === cold[0]), "warm calls rebuilt the docs index");
+  assert.equal(__devDocsIndexCacheStats().loads, 1, "warm calls started another project walk");
+  assert.ok(warmMs < 1_000, `warm Dev Docs reads took ${warmMs.toFixed(1)}ms; expected <1000ms`);
+});
+
+test("worker activity coalesces cold scans and makes warm reads a memory read", async () => {
+  __resetWorkerSignalsCache();
+
+  const cold = await Promise.all([scanWorkerSignals(), scanWorkerSignals(), scanWorkerSignals()]);
+  const afterCold = __workerSignalsCacheStats();
+  assert.equal(afterCold.loads, 1, "concurrent worker requests repeated the authored-tree walk");
+  assert.equal(afterCold.coalesced, 2);
+  assert.ok(cold.every(signals => signals === cold[0]), "cold callers did not share one signal object");
+
+  const started = performance.now();
+  const warm = await scanWorkerSignals();
+  const warmMs = performance.now() - started;
+  assert.equal(warm, cold[0]);
+  assert.equal(__workerSignalsCacheStats().loads, 1, "the warm signal read started another tree walk");
+  assert.ok(warmMs < 1_000, `warm worker signals took ${warmMs.toFixed(1)}ms; expected <1000ms`);
+});
+
+test("all worker-suffixed Next build directories are excluded from live indexes", () => {
+  assert.equal(DEV_DOCS_INDEX_TTL_MS, 15_000, "Dev Docs staleness bound drifted");
+  assert.equal(SIGNALS_TTL_MS, 15_000, "worker-signal staleness bound drifted");
+  for (const name of [".next", ".next-codex-alpha", ".next-worker-17", ".next-verify"]) {
+    assert.equal(isIgnoredDevDocsDirectory(name), true, `Dev Docs would enter ${name}`);
+    assert.equal(shouldSkipWorkerDirectory(name), true, `worker signals would enter ${name}`);
+  }
+  assert.equal(isIgnoredDevDocsDirectory("next-steps"), false);
+  assert.equal(shouldSkipWorkerDirectory("next-steps"), false);
+});
+
+test("the TypeScript project boundary excludes nested generated build trees", () => {
+  const configPath = fileURLToPath(new URL("../tsconfig.json", import.meta.url));
+  const loaded = ts.readConfigFile(configPath, ts.sys.readFile);
+  assert.equal(loaded.error, undefined, "tsconfig.json could not be read");
+
+  const started = performance.now();
+  const parsed = ts.parseJsonConfigFileContent(
+    loaded.config,
+    ts.sys,
+    dirname(configPath),
+    undefined,
+    configPath,
+  );
+  const parseMs = performance.now() - started;
+  assert.deepEqual(parsed.errors, [], "the TypeScript project boundary is invalid");
+
+  const projectRoot = dirname(configPath);
+  const files = parsed.fileNames.map(file => relative(projectRoot, file).replaceAll("\\", "/"));
+  assert.ok(files.includes("src/app/portal/dev-team/page.tsx"), "the real Dev Team page fell outside the project");
+  assert.ok(files.includes("middleware.ts"), "root runtime files fell outside the project");
+  assert.equal(
+    files.some(file => file === "private" || file.startsWith("private/")),
+    false,
+    "nested private build outputs entered the compiler project",
+  );
+  assert.ok(
+    files.length < 2_500,
+    `the compiler project expanded to ${files.length} files in ${parseMs.toFixed(1)}ms; generated trees are back on the hot path`,
+  );
+  assert.ok(parseMs < 1_000, `tsconfig expansion took ${parseMs.toFixed(1)}ms; expected <1000ms`);
+});
+
+test("the dev startup guard refuses the ENOSPC request-hang state without deleting anything", () => {
+  const belowThreshold = evaluateDevDiskSpace(DEFAULT_MIN_FREE_BYTES - 1n);
+  assert.equal(belowThreshold.ok, false, "a nearly full disk was allowed to start Next");
+  assert.match(belowThreshold.message ?? "", /ENOSPC/);
+  assert.match(belowThreshold.message ?? "", /Nothing was deleted automatically/);
+
+  const atThreshold = evaluateDevDiskSpace(DEFAULT_MIN_FREE_BYTES);
+  assert.equal(atThreshold.ok, true, "the exact documented free-space boundary was rejected");
+});
+
+// ---- landing-page streaming boundary --------------------------------------
+
+test("the Dev Team Home snapshot preserves every displayed count while returning a compact DTO", () => {
+  const snapshot = composeDevTeamHomeSnapshot({
+    blockers: [
+      { label: "Open", detail: "act", resolved: false },
+      { label: "Closed", resolved: true },
+    ],
+    roadmap: {
+      byHorizon: {
+        now: [{ id: "now", title: "In flight", target: "2026-09", dueInDays: 5 }],
+      },
+      schedule: Array.from({ length: 7 }, (_, index) => ({
+        id: `due-${index}`,
+        title: `Due ${index}`,
+        target: `2026-09-${String(index + 1).padStart(2, "0")}`,
+        dueInDays: index,
+      })),
+      items: [{ done: 2, total: 3 }, { done: 4, total: 5 }],
+    },
+    findings: [{ status: "open" }, { status: "fixed" }, { status: "open" }],
+    activeCheckIns: [
+      { name: "Working", status: "building", phase: "phase 2" },
+      { name: "Done", status: "working", phase: "done" },
+      { name: "Routed", status: "routed" },
+    ],
+    waiting: 3,
+  });
+
+  assert.deepEqual(snapshot.openBlockers, [{ label: "Open", detail: "act" }]);
+  assert.deepEqual(snapshot.inFlight, [{ id: "now", title: "In flight" }]);
+  assert.equal(snapshot.upcoming.length, 5, "Home must keep its five-row Next up cap");
+  assert.deepEqual([snapshot.tasksDone, snapshot.tasksTotal], [6, 8]);
+  assert.equal(snapshot.openFindings, 2);
+  assert.deepEqual(snapshot.activeWorkers.map(worker => worker.name), ["Working"]);
+  assert.equal(snapshot.waitingThoughts, 3);
+  assert.equal("items" in snapshot, false, "the complete roadmap leaked into the Home DTO");
+  assert.equal("findings" in snapshot, false, "complete finding notes leaked into the Home DTO");
+});
+
+test("the Dev Team shell streams before its scanner and Librarian module graphs", async () => {
+  const [page, layout, snapshot] = await Promise.all([
+    readFile(new URL("../src/app/portal/dev-team/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/app/portal/dev-team/layout.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/lib/server/dev/devTeamHomeSnapshot.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(page, /import \{ devTeamAccessible \} from "@\/lib\/server\/dev\/devTeamAccess"/);
+  assert.doesNotMatch(page, /^import .*devDocs/m, "the scanner-heavy docs graph returned to the shell chunk");
+  for (const reader of ["devTeamRoadmap", "devTeamFindings", "devTeamWorkers", "devTeamThoughts"]) {
+    assert.doesNotMatch(page, new RegExp(`^import .*${reader}`, "m"), `${reader} returned to the shell chunk`);
+  }
+  assert.match(page, /cache\(async \(\): Promise<DevTeamHomeSnapshot>/, "header and body no longer share one request snapshot");
+  assert.match(page, /<Suspense fallback=\{<DashboardFallback \/>\}>[\s\S]*?<LiveDashboard \/>/);
+  assert.match(snapshot, /await Promise\.all\(\[\s*import\("@\/lib\/server\/dev\/devDocs"\)/);
+  assert.match(snapshot, /const \[blockers, roadmap, findings, activeCheckIns, waiting\] = await Promise\.all/);
+  assert.match(snapshot, /workerReader\.readActiveCheckIns\(\)/, "Home stopped using the cheap authoritative worker check-ins");
+  assert.doesNotMatch(snapshot, /workerReader\.scanWorkerSignals\(\)/, "the recursive activity walk returned to Home");
+  const roadmap = await readFile(new URL("../src/lib/server/dev/devTeamRoadmap.ts", import.meta.url), "utf8");
+  assert.match(roadmap, /readActiveCheckIns\(now\)/, "roadmap worker intent stopped using active check-ins");
+  assert.doesNotMatch(roadmap, /scanWorkerSignals/, "the recursive activity walk returned through buildRoadmap");
+  const tasks = await readFile(new URL("../src/lib/server/dev/devTeamTasks.ts", import.meta.url), "utf8");
+  assert.match(tasks, /readActiveCheckIns\(\)/, "task ownership stopped using active check-ins");
+  assert.doesNotMatch(tasks, /scanWorkerSignals/, "the recursive activity walk returned through scanTasks");
+
+  assert.doesNotMatch(layout, /^import \{ LibrarianDrawerControl \}/m);
+  assert.match(layout, /import \{ DeferredLibrarianDrawerControl \} from "@\/components\/chrome\/DeferredLibrarianDrawerControl"/);
+  assert.doesNotMatch(layout, /await import\("@\/components\/chrome\/LibrarianDrawerControl"\)/, "closed Librarian still delayed the response stream");
+  const deferredLibrarian = await readFile(new URL("../src/components/chrome/DeferredLibrarianDrawerControl.tsx", import.meta.url), "utf8");
+  assert.match(deferredLibrarian, /import\("@\/components\/chrome\/LibrarianDrawerControl"\)/);
+  assert.doesNotMatch(layout, /^import \{ Topbar \}/m, "the shared-chrome graph returned to the first shell chunk");
+  assert.doesNotMatch(layout, /^import \{ NotificationCentreButton \}/m);
+  assert.match(layout, /import\("@\/components\/chrome\/Topbar"\)/);
+  assert.match(layout, /<Suspense fallback=\{<DevTeamTopbarFallback \/>\}>/);
 });
 
 // ---- integration: the real hot readers use the cache ------------------------

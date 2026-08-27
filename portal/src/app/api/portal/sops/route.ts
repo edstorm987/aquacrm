@@ -6,7 +6,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
 import { deleteSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { createInteractiveSop, createWrittenSop, deleteSopRecord, listSops, updateSop } from "@/engines/sop/server/sops";
-import { ensureHydrated } from "@/server/storage";
+import { ensureHydrated, isSandboxDataRealm } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 import type { BlockTreeJSON } from "@/engines/editor/elements";
 
@@ -115,16 +115,18 @@ export async function DELETE(request: NextRequest) {
     const sop = deleteSopRecord(session.agencyId, id);
     if (!sop) return NextResponse.json({ ok: false, error: "SOP not found" }, { status: 404 });
 
-    if (sop.storageProvider === "supabase" && sop.storageKey) {
-      await deleteSupabasePrivateUpload(sop.storageKey).catch(() => false);
-    }
-    if (sop.storageProvider === "vercel-blob" && sop.storageKey) {
-      await del(sop.storageKey).catch(() => undefined);
-    }
-    if (sop.storageProvider === "local" && sop.storageKey) {
-      const uploadRoot = resolve(process.cwd(), ".data", "sop-uploads");
-      const targetPath = resolve(uploadRoot, sop.storageKey);
-      if (targetPath.startsWith(`${uploadRoot}/`)) await unlink(targetPath).catch(() => undefined);
+    if (!isSandboxDataRealm()) {
+      if (sop.storageProvider === "supabase" && sop.storageKey) {
+        await deleteSupabasePrivateUpload(sop.storageKey).catch(() => false);
+      }
+      if (sop.storageProvider === "vercel-blob" && sop.storageKey) {
+        await del(sop.storageKey).catch(() => undefined);
+      }
+      if (sop.storageProvider === "local" && sop.storageKey) {
+        const uploadRoot = resolve(process.cwd(), ".data", "sop-uploads");
+        const targetPath = resolve(uploadRoot, sop.storageKey);
+        if (targetPath.startsWith(`${uploadRoot}/`)) await unlink(targetPath).catch(() => undefined);
+      }
     }
     return NextResponse.json({ ok: true });
   } catch (error) {

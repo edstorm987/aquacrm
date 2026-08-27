@@ -26,6 +26,7 @@ import { getInstall } from "@/server/pluginInstalls";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 function makeId(prefix: string): string { return `${prefix}_${crypto.randomBytes(8).toString("hex")}`; }
 function text(value: unknown, max: number): string { return typeof value === "string" ? value.trim().slice(0, max) : ""; }
@@ -53,7 +54,10 @@ export async function POST(request: Request) {
   }
 
   let session;
-  try { session = await requireRoleForClient([...AGENCY_ROLES], clientId); }
+  try {
+    session = await requireRoleForClient([...AGENCY_ROLES], clientId);
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.commercial", "manage");
+  }
   catch (error) { return authErrorResponse(error); }
 
   const client = getClientForAgency(session.agencyId, clientId);

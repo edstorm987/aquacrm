@@ -50,9 +50,11 @@ function formatFileDate(ts: number): string {
 export function FilesTabClient({
   clientId,
   initialFiles,
+  canManage = true,
 }: {
   clientId: string;
   initialFiles: ClientFileRef[];
+  canManage?: boolean;
 }) {
   const router = useRouter();
   const [files, setFiles] = useState<ClientFileRef[]>(initialFiles);
@@ -205,7 +207,7 @@ export function FilesTabClient({
       </aside>
 
       <div className="flex flex-col gap-3">
-        <div className="rounded-xl border border-black/10 bg-white p-4">
+        {canManage ? <div className="rounded-xl border border-black/10 bg-white p-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <div>
               <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-black/40">Client file room</p>
@@ -280,7 +282,7 @@ export function FilesTabClient({
             </label>
           </form>
           {error && <p role="alert" className="mt-2 rounded-md bg-red-50 px-2 py-1 text-xs text-red-700">{error}</p>}
-        </div>
+        </div> : <p className="rounded-md bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700">Files are read-only in the public showcase.</p>}
 
         {visible.length === 0 ? (
           <p className="rounded-xl border border-black/10 bg-white px-6 py-10 text-center text-sm text-black/55">
@@ -317,14 +319,14 @@ export function FilesTabClient({
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-col gap-1">
-                  <button
+                  {canManage ? <button
                     type="button"
                     onClick={() => void setVisibility(f, f.customerVisible !== true)}
                     disabled={busy}
                     className="rounded-md border border-black/15 px-2 py-1 text-[11px] hover:bg-black/5 disabled:opacity-50"
                   >
                     {f.customerVisible === true ? "Make private" : "Share"}
-                  </button>
+                  </button> : null}
                   <a
                     href={f.url}
                     target="_blank"
@@ -333,14 +335,14 @@ export function FilesTabClient({
                   >
                     Open
                   </a>
-                  <button
+                  {canManage ? <button
                     type="button"
                     onClick={() => remove(f.id)}
                     disabled={busy}
                     className="rounded-md border border-red-200 px-2 py-1 text-[11px] text-red-700 hover:bg-red-50 disabled:opacity-50"
                   >
                     Delete
-                  </button>
+                  </button> : null}
                 </div>
               </li>
             ))}

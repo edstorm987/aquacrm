@@ -99,6 +99,7 @@ export function buildFulfillmentContainer(deps: FulfillmentDeps): FulfillmentCon
     deps.events,
     checklistService,
     starterVariantService,
+    deps.storage,
   );
   const clientLifecycleService = new ClientLifecycleService(
     deps.clients,

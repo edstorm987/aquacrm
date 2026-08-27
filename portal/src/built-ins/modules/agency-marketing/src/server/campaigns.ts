@@ -30,6 +30,58 @@ const CMP_INDEX_KEY = "campaigns/index";
 const cmpKey = (id: string): string => `campaigns/by-id/${id}`;
 const byChannelKey = (channel: string): string => `campaigns/by-channel/${channel}`;
 
+const CAMPAIGN_CHANNELS = new Set<Campaign["channel"]>(["email", "sms", "social", "paid", "organic", "event"]);
+const CAMPAIGN_STATUSES = new Set<CampaignStatus>(["draft", "scheduled", "running", "paused", "completed", "archived"]);
+const CAMPAIGN_CURRENCIES = new Set<Campaign["currency"]>(["usd", "gbp", "eur"]);
+const CAMPAIGN_KPIS = new Set<NonNullable<Campaign["goalKpi"]>>(["leads", "signups", "revenue", "engagement"]);
+const campaignMutationQueues = new Map<AgencyId, Promise<void>>();
+
+async function withCampaignMutationLock<T>(agencyId: AgencyId, work: () => Promise<T>): Promise<T> {
+  const previous = campaignMutationQueues.get(agencyId) ?? Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const queued = previous.then(() => gate);
+  campaignMutationQueues.set(agencyId, queued);
+  await previous;
+  try {
+    return await work();
+  } finally {
+    release();
+    if (campaignMutationQueues.get(agencyId) === queued) campaignMutationQueues.delete(agencyId);
+  }
+}
+
+function assertOptionalText(field: string, value: unknown): void {
+  if (value !== undefined && typeof value !== "string") throw new Error(`${field} must be text.`);
+}
+
+function assertOptionalNumber(field: string, value: unknown, integer = false): void {
+  if (value === undefined) return;
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || (integer && !Number.isInteger(value))) {
+    throw new Error(`${field} must be a finite, non-negative${integer ? " integer" : " number"}.`);
+  }
+}
+
+function assertCampaignRecord(campaign: Campaign): void {
+  if (typeof campaign.name !== "string" || !campaign.name.trim()) throw new Error("Campaign name required.");
+  if (!CAMPAIGN_CHANNELS.has(campaign.channel)) throw new Error("channel must be a supported campaign channel.");
+  if (!CAMPAIGN_STATUSES.has(campaign.status)) throw new Error("status must be a supported campaign status.");
+  if (!CAMPAIGN_CURRENCIES.has(campaign.currency)) throw new Error("currency must be usd, gbp or eur.");
+  if (campaign.goalKpi !== undefined && !CAMPAIGN_KPIS.has(campaign.goalKpi)) {
+    throw new Error("goalKpi must be leads, signups, revenue or engagement.");
+  }
+  assertOptionalNumber("startAt", campaign.startAt, true);
+  assertOptionalNumber("endAt", campaign.endAt, true);
+  assertOptionalNumber("budgetCents", campaign.budgetCents, true);
+  assertOptionalNumber("goalTarget", campaign.goalTarget);
+  assertOptionalNumber("resultActual", campaign.resultActual);
+  assertOptionalText("ownerStaffId", campaign.ownerStaffId);
+  assertOptionalText("notes", campaign.notes);
+  if (campaign.startAt !== undefined && campaign.endAt !== undefined && campaign.endAt < campaign.startAt) {
+    throw new Error("endAt must be on or after startAt.");
+  }
+}
+
 const ALLOWED_TRANSITIONS: Record<CampaignStatus, CampaignStatus[]> = {
   draft: ["scheduled", "running", "archived"],
   scheduled: ["running", "paused", "archived"],
@@ -78,13 +130,13 @@ export class CampaignService {
   }
 
   async create(input: CreateCampaignInput, actor: UserId, defaultCurrency: Currency = "usd"): Promise<Campaign> {
-    if (!input.name.trim()) throw new Error("Campaign name required.");
-    if (input.startAt && input.endAt && input.endAt < input.startAt) {
-      throw new Error("endAt must be on or after startAt.");
-    }
-    if (input.budgetCents !== undefined && input.budgetCents < 0) {
-      throw new Error("budgetCents must be ≥ 0.");
-    }
+    return withCampaignMutationLock(this.agencyId, () => this.createUnlocked(input, actor, defaultCurrency));
+  }
+
+  private async createUnlocked(input: CreateCampaignInput, actor: UserId, defaultCurrency: Currency): Promise<Campaign> {
+    if (typeof input.name !== "string") throw new Error("Campaign name required.");
+    assertOptionalText("ownerStaffId", input.ownerStaffId);
+    assertOptionalText("notes", input.notes);
     const id = makeId("cmp");
     const ts = now();
     const row: Campaign = {
@@ -104,6 +156,7 @@ export class CampaignService {
       createdAt: ts,
       updatedAt: ts,
     };
+    assertCampaignRecord(row);
     await this.storage.set(cmpKey(id), row);
     const ix = (await this.storage.get<string[]>(CMP_INDEX_KEY)) ?? [];
     if (!ix.includes(id)) {
@@ -126,27 +179,16 @@ export class CampaignService {
   }
 
   async update(id: string, patch: UpdateCampaignPatch, actor: UserId): Promise<Campaign | null> {
+    return withCampaignMutationLock(this.agencyId, () => this.updateUnlocked(id, patch, actor));
+  }
+
+  private async updateUnlocked(id: string, patch: UpdateCampaignPatch, actor: UserId): Promise<Campaign | null> {
     const existing = await this.get(id);
     if (!existing) return null;
 
-    if (patch.status && patch.status !== existing.status) {
-      if (!ALLOWED_TRANSITIONS[existing.status].includes(patch.status)) {
-        throw new Error(`Cannot transition campaign ${existing.name} from ${existing.status} → ${patch.status}.`);
-      }
-    }
-    if (patch.startAt && patch.endAt && patch.endAt < patch.startAt) {
-      throw new Error("endAt must be on or after startAt.");
-    }
-
-    // Channel re-index when changed.
-    if (patch.channel && patch.channel !== existing.channel) {
-      const oldIx = (await this.storage.get<string[]>(byChannelKey(existing.channel))) ?? [];
-      await this.storage.set(byChannelKey(existing.channel), oldIx.filter(x => x !== id));
-      const newIx = (await this.storage.get<string[]>(byChannelKey(patch.channel))) ?? [];
-      if (!newIx.includes(id)) {
-        await this.storage.set(byChannelKey(patch.channel), [...newIx, id]);
-      }
-    }
+    if (patch.name !== undefined && typeof patch.name !== "string") throw new Error("Campaign name must be text.");
+    if (patch.ownerStaffId !== undefined && patch.ownerStaffId !== null) assertOptionalText("ownerStaffId", patch.ownerStaffId);
+    assertOptionalText("notes", patch.notes);
 
     const next: Campaign = {
       ...existing,
@@ -155,15 +197,31 @@ export class CampaignService {
       name: patch.name?.trim() ?? existing.name,
       updatedAt: now(),
     };
+    assertCampaignRecord(next);
+
+    if (next.status !== existing.status && !ALLOWED_TRANSITIONS[existing.status].includes(next.status)) {
+      throw new Error(`Cannot transition campaign ${existing.name} from ${existing.status} → ${next.status}.`);
+    }
+
+    // Channel re-index when changed.
+    if (next.channel !== existing.channel) {
+      const oldIx = (await this.storage.get<string[]>(byChannelKey(existing.channel))) ?? [];
+      await this.storage.set(byChannelKey(existing.channel), oldIx.filter(x => x !== id));
+      const newIx = (await this.storage.get<string[]>(byChannelKey(next.channel))) ?? [];
+      if (!newIx.includes(id)) {
+        await this.storage.set(byChannelKey(next.channel), [...newIx, id]);
+      }
+    }
+
     await this.storage.set(cmpKey(id), next);
 
-    if (patch.status && patch.status !== existing.status) {
+    if (next.status !== existing.status) {
       const action = `campaign.${
-        patch.status === "scheduled" ? "scheduled" :
-        patch.status === "running" ? "started" :
-        patch.status === "paused" ? "paused" :
-        patch.status === "completed" ? "completed" :
-        patch.status === "archived" ? "archived" :
+        next.status === "scheduled" ? "scheduled" :
+        next.status === "running" ? "started" :
+        next.status === "paused" ? "paused" :
+        next.status === "completed" ? "completed" :
+        next.status === "archived" ? "archived" :
         "updated"
       }` as const;
       await this.activity.logActivity({
@@ -171,15 +229,19 @@ export class CampaignService {
         actorUserId: actor,
         category: "marketing",
         action,
-        message: `Campaign "${next.name}" → ${patch.status}.`,
-        metadata: { campaignId: id, fromStatus: existing.status, toStatus: patch.status },
+        message: `Campaign "${next.name}" → ${next.status}.`,
+        metadata: { campaignId: id, fromStatus: existing.status, toStatus: next.status },
       });
-      this.events.emit({ agencyId: this.agencyId }, action, { campaignId: id, status: patch.status });
+      this.events.emit({ agencyId: this.agencyId }, action, { campaignId: id, status: next.status });
     }
     return next;
   }
 
   async delete(id: string, actor: UserId): Promise<boolean> {
+    return withCampaignMutationLock(this.agencyId, () => this.deleteUnlocked(id, actor));
+  }
+
+  private async deleteUnlocked(id: string, actor: UserId): Promise<boolean> {
     const existing = await this.get(id);
     if (!existing) return false;
     if (existing.status !== "draft") {

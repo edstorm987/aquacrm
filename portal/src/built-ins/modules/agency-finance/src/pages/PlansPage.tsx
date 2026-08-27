@@ -2,6 +2,8 @@ import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
 import { FinanceNav } from "../components/FinanceNav";
 import { NewPlanForm } from "../components/NewPlanForm";
+import { CommercialPlansManager } from "../components/CommercialPlansManager";
+import { resolveFinanceDefaultCurrency } from "@/lib/server/finance/financeCurrency";
 
 export default async function PlansPage(props: PluginPageProps) {
   const c = containerFor({
@@ -9,8 +11,13 @@ export default async function PlansPage(props: PluginPageProps) {
     storage: props.storage,
     install: props.install,
   });
-  const plans = await c.plans.list(true);
+  const [plans, assignments, clients] = await Promise.all([
+    c.plans.list(true),
+    c.plans.listCommercialAssignments(),
+    Promise.resolve(c.tenant.listClients?.(props.agencyId) ?? []),
+  ]);
   const apiBase = "/api/portal/agency-finance";
+  const defaultCurrency = resolveFinanceDefaultCurrency(props.agencyId, props.install.config.defaultCurrency);
 
   return (
     <section className="mx-auto w-full max-w-6xl space-y-8 pb-12">
@@ -19,42 +26,18 @@ export default async function PlansPage(props: PluginPageProps) {
       <header style={{ marginBottom: 16 }}>
         <h1>Plans</h1>
         <p style={{ color: "rgba(0,0,0,0.6)", margin: 0 }}>
-          {plans.length} plans · {plans.reduce((s, p) => s + p.clientIds.length, 0)} client assignments
+          {plans.length} templates · {assignments.length} active client schedules
         </p>
       </header>
 
-      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 24 }}>
-        <thead>
-          <tr style={{ borderBottom: "1px solid rgba(0,0,0,0.1)", textAlign: "left" }}>
-            <th style={{ padding: 6 }}>Tier</th>
-            <th style={{ padding: 6 }}>Label</th>
-            <th style={{ padding: 6 }}>Monthly</th>
-            <th style={{ padding: 6 }}>Minimum term</th>
-            <th style={{ padding: 6 }}>Clients</th>
-            <th style={{ padding: 6 }}>Active</th>
-          </tr>
-        </thead>
-        <tbody>
-          {plans.length === 0 && (
-            <tr><td colSpan={6} style={{ padding: 12, color: "rgba(0,0,0,0.5)" }}>No plans yet.</td></tr>
-          )}
-          {plans.map(p => (
-            <tr key={p.id} style={{ borderBottom: "1px solid rgba(0,0,0,0.05)", opacity: p.active ? 1 : 0.5 }}>
-              <td style={{ padding: 6, textTransform: "capitalize" }}>{p.tier}</td>
-              <td style={{ padding: 6 }}>{p.label}</td>
-              <td style={{ padding: 6 }}>{(p.monthlyAmountCents / 100).toFixed(2)} {p.currency.toUpperCase()}</td>
-              <td style={{ padding: 6, fontSize: 13 }}>
-                {p.lockInMonths ? `${p.lockInMonths}m · ${(p.lockInFeeCents / 100).toFixed(2)} ${p.currency.toUpperCase()} fee` : "—"}
-              </td>
-              <td style={{ padding: 6 }}>{p.clientIds.length}</td>
-              <td style={{ padding: 6 }}>{p.active ? "✓" : "—"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
       <h2>New plan</h2>
-      <NewPlanForm apiBase={apiBase} />
+      <NewPlanForm apiBase={apiBase} defaultCurrency={defaultCurrency} />
+      <CommercialPlansManager
+        apiBase={apiBase}
+        initialPlans={plans}
+        assignments={assignments}
+        clients={clients.map(client => ({ id: client.id, name: client.name }))}
+      />
       </div>
     </section>
   );

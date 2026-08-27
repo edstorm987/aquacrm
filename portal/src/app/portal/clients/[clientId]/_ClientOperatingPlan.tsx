@@ -64,6 +64,7 @@ export interface ClientProductPlan {
   quickActions: AgencyProductWorkspaceModule[];
   processSteps: ClientProductPlanStep[];
   advancedModules: AgencyProductWorkspaceModule[];
+  workspaceRevision: number;
 }
 
 const ACCOUNT_ICONS = {
@@ -95,6 +96,7 @@ export function ClientOperatingPlan({ clientId, accountSteps, products, canManag
   const router = useRouter();
   const [scope, setScope] = useState("account");
   const [processByProduct, setProcessByProduct] = useState<Record<string, ClientProductProcessEntry>>(() => Object.fromEntries(products.map(product => [product.id, { completedStepIds: product.completedStepIds, currentStageId: product.currentStageId, stageHistory: product.stageHistory }])));
+  const [revisionByProduct, setRevisionByProduct] = useState<Record<string, number>>(() => Object.fromEntries(products.map(product => [product.id, product.workspaceRevision])));
   const [savingKey, setSavingKey] = useState("");
   const [message, setMessage] = useState("");
   const activeProduct = products.find(product => product.id === scope) ?? null;
@@ -111,11 +113,16 @@ export function ClientOperatingPlan({ clientId, accountSteps, products, canManag
       const response = await fetch("/api/tenants/client-product-process", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ clientId, productId, stepId, completed }),
+        body: JSON.stringify({ clientId, productId, stepId, completed, expectedRevision: revisionByProduct[productId] }),
       });
-      const result = await response.json() as { error?: string; entry?: ClientProductProcessEntry };
-      if (!response.ok || !result.entry) throw new Error(result.error || "The process step could not be saved.");
+      const result = await response.json() as { error?: string; entry?: ClientProductProcessEntry; workspaceRevision?: number };
+      if (response.status === 409) {
+        if (result.entry) setProcessByProduct(current => ({ ...current, [productId]: result.entry! }));
+        if (typeof result.workspaceRevision === "number") setRevisionByProduct(current => ({ ...current, [productId]: result.workspaceRevision! }));
+      }
+      if (!response.ok || !result.entry || typeof result.workspaceRevision !== "number") throw new Error(result.error || "The process step could not be saved.");
       setProcessByProduct(current => ({ ...current, [productId]: result.entry ?? { completedStepIds: [] } }));
+      setRevisionByProduct(current => ({ ...current, [productId]: result.workspaceRevision! }));
       setMessage(completed ? "Step completed. The next move is ready." : "Step reopened.");
       router.refresh();
     } catch (error) {
@@ -133,11 +140,16 @@ export function ClientOperatingPlan({ clientId, accountSteps, products, canManag
       const response = await fetch("/api/tenants/client-product-process", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "set-stage", clientId, productId, stageId }),
+        body: JSON.stringify({ action: "set-stage", clientId, productId, stageId, expectedRevision: revisionByProduct[productId] }),
       });
-      const result = await response.json() as { error?: string; entry?: ClientProductProcessEntry };
-      if (!response.ok || !result.entry) throw new Error(result.error || "The service stage could not be saved.");
+      const result = await response.json() as { error?: string; entry?: ClientProductProcessEntry; workspaceRevision?: number };
+      if (response.status === 409) {
+        if (result.entry) setProcessByProduct(current => ({ ...current, [productId]: result.entry! }));
+        if (typeof result.workspaceRevision === "number") setRevisionByProduct(current => ({ ...current, [productId]: result.workspaceRevision! }));
+      }
+      if (!response.ok || !result.entry || typeof result.workspaceRevision !== "number") throw new Error(result.error || "The service stage could not be saved.");
       setProcessByProduct(current => ({ ...current, [productId]: result.entry ?? { completedStepIds: [] } }));
+      setRevisionByProduct(current => ({ ...current, [productId]: result.workspaceRevision! }));
       setMessage("Service stage updated. Its client portal moved with it.");
       router.refresh();
     } catch (error) {

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChevronRight, ExternalLink, FileCode2, Folder, FolderOpen, GitBranch, LoaderCircle, Lock, Plug, Search, TriangleAlert } from "lucide-react";
 
 import type { TreeDirectory, TreeFile } from "@/engines/editor/server/fileTree";
+import { apiResponseError } from "@/lib/client/apiResponseError";
 
 /**
  * Code mode — the repository, browsed and read like an editor.
@@ -46,9 +47,12 @@ export function CodeWorkspace({ initialRepository = "" }: { initialRepository?: 
     fetch(`/api/portal/site-editor/files${query$}`, { cache: "no-store" })
       .then(response => response.json())
       .then((payload: TreeResponse) => {
-        setMeta(payload);
-        setTree(payload.tree ?? null);
-        setCount(payload.count ?? 0);
+        const visible = payload?.ok === false
+          ? { ...payload, error: apiResponseError(payload, "The repository could not be read.") }
+          : payload;
+        setMeta(visible);
+        setTree(visible.tree ?? null);
+        setCount(visible.count ?? 0);
       })
       .catch(() => { setTree(null); setMeta({ error: "The repository could not be read." }); });
   }, [query$]);
@@ -59,7 +63,9 @@ export function CodeWorkspace({ initialRepository = "" }: { initialRepository?: 
     const separator = query$ ? "&" : "?";
     fetch(`/api/portal/site-editor/files${query$}${separator}path=${encodeURIComponent(open)}`, { cache: "no-store" })
       .then(response => response.json())
-      .then(payload => setFile(payload))
+      .then(payload => setFile(payload?.ok === false
+        ? { editable: false, reason: apiResponseError(payload, "That file could not be read.") }
+        : payload))
       .catch(() => setFile({ editable: false, reason: "That file could not be read." }))
       .finally(() => setLoading(false));
   }, [open, query$]);

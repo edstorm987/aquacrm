@@ -29,12 +29,14 @@ export default async function AccountPage() {
   const user = getUserById(session.userId);
   if (!user) redirect("/login");
   const isCustomer = session.role === "end-customer";
+  const isAgencyStaff = session.role === "agency-staff";
+  const workspaceHref = isCustomer ? "/portal/customer" : isAgencyStaff ? "/portal/team" : "/portal/agency";
 
   return (
     <main id="main-content" data-portal-area="account" className="mm-portal-root mm-route-canvas relative flex min-h-screen w-full justify-center px-4 py-16 sm:px-6 sm:py-20">
       <div className="absolute right-4 top-4 sm:right-6 sm:top-6"><ColorModeToggle /></div>
       <div className="w-full max-w-3xl">
-        <Link href={isCustomer ? "/portal/customer" : "/portal/agency"} className="mb-7 inline-flex min-h-9 items-center gap-2 text-xs font-medium text-black/50 transition hover:text-black/80">
+        <Link href={workspaceHref} className="mb-7 inline-flex min-h-9 items-center gap-2 text-xs font-medium text-black/50 transition hover:text-black/80">
           <ArrowLeft size={14} aria-hidden="true" />
           {isCustomer ? "Back to my portal" : "Back to workspace"}
         </Link>
@@ -46,7 +48,9 @@ export default async function AccountPage() {
           <p className="mt-2 text-sm leading-6 text-black/55">
             {isCustomer
               ? "Manage the personal details used in your client portal."
-              : <>Your basic details. Email and role are managed from <Link href="/portal/agency/settings#team" className="font-medium underline decoration-black/25 underline-offset-2 hover:text-black">Team settings</Link>.</>}
+              : isAgencyStaff
+                ? "Your basic details. An owner or manager manages your email and role."
+                : <>Your basic details. Email and role are managed from <Link href="/portal/agency/settings#team" className="font-medium underline decoration-black/25 underline-offset-2 hover:text-black">Team settings</Link>.</>}
           </p>
           </div>
         </header>

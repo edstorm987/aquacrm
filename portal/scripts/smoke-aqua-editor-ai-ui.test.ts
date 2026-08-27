@@ -417,10 +417,20 @@ describe("Aqua Editor AI UI — per project, and it says so", () => {
     );
     assert.match(
       panel,
-      /projectId === rendered \? configured : false/,
-      "and reports OFF for any other project until its own status lands",
+      /const readPhase = statusRead\.projectId === projectId \? statusRead\.phase : "checking"/,
+      "and treats any other project's answer as still checking, not configured or unconfigured",
     );
+    assert.match(panel, /const configuredNow = readPhase === "ready"/, "only a completed read can open the gate");
     assert.match(panel, /readEditorAiStatus\(projectId\)/, "which it then asks for");
+  });
+
+  it("does not call a failed key-status request 'no key'", () => {
+    const panel = read(...PANEL);
+    assert.match(panel, /phase: "unavailable"/, "a failed read has an explicit state");
+    assert.match(panel, /Key status unavailable/, "the failure is visible in words");
+    assert.match(panel, /will not guess whether a key exists/, "unknown is not presented as unconfigured");
+    assert.match(panel, /setStatusRetry\(value => value \+ 1\)/, "the operator can retry the read");
+    assert.ok(!panel.includes(".catch(() =>"), "the status failure must not be swallowed");
   });
 
   it("offers a clear control scoped to this project, behind a confirmation", () => {
@@ -473,7 +483,11 @@ describe("Aqua Editor AI UI — per project, and it says so", () => {
     assert.match(panel, /You clicked &lt;\{context\.words\.tagName\}&gt; on the page/, "and the capture is shown");
     assert.match(panel, /composerTools/, "the capture strip sits with the composer");
     const thread = read(...THREAD);
-    assert.match(thread, /if \(prefill\) setDraft\(prefill\)/, "a capture loads into the box, and is not sent");
+    assert.match(
+      thread,
+      /if \(canUse && prefill\) setDraft\(prefill\)/,
+      "a capture loads into the box only for AI Use, and is never sent automatically",
+    );
   });
 });
 

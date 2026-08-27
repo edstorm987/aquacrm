@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { Plus, Route } from "lucide-react";
 
@@ -9,6 +8,7 @@ import { devDocsAccessible, PROJECT_ROOT } from "@/lib/server/dev/devDocs";
 import { buildRoadmap, ROADMAP_REL_PATH } from "@/lib/server/dev/devTeamRoadmap";
 import { scanTasks } from "@/lib/server/dev/devTeamTasks";
 import { thoughtsByTask, unacknowledgedCount } from "@/lib/server/dev/devTeamThoughts";
+import { readDevWorkspaceDirectory } from "@/lib/server/dev/devWorkspaceFiles";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 import { PageHeader, Pill } from "../_ui";
@@ -137,7 +137,9 @@ export default async function RoadmapPage({ searchParams }: { searchParams: Sear
 
   const [roadmap, planFiles] = await Promise.all([
     buildRoadmap(),
-    readdir(join(PROJECT_ROOT, "docs", "development", "plans")).catch((): string[] => []),
+    readDevWorkspaceDirectory(join(PROJECT_ROOT, "docs", "development", "plans"))
+      .then(entries => entries.filter(entry => entry.isFile()).map(entry => entry.name))
+      .catch((): string[] => []),
   ]);
 
   const planNames = planFiles

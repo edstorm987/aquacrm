@@ -2,8 +2,11 @@
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md) · Sibling: [feature-index](feature-index.md) · [hazards-and-duplication](hazards-and-duplication.md)
 
-> **Read-only audit, 2026-08-20.** Nothing in this chapter changed behaviour. It is
-> a list, and the list is the scope of a decision already made.
+> **Baseline audit, 2026-08-20; not an exhaustive current inventory.** Nothing in
+> this chapter changed behaviour. In-app encrypted configuration paths have moved
+> since this checkpoint (including Finance and Meta), so re-run the env-only scan
+> before using the table to scope sellability. The open re-audit remains on
+> [checklist.md](../development/checklist.md).
 
 ## The principle this chapter serves
 
@@ -185,14 +188,14 @@ them to a tenant (§3).
 | `DATABASE_URL`, `PORTAL_BACKEND`, `PORTAL_STATE_KEY`, `PORTAL_DATA_FILE`, `PORTAL_ALLOW_SHARED_STATE`, `PORTAL_PG_POOL_MAX/_IDLE_MS/_CONNECT_MS` | `server/storage.ts`, `storagePostgres.ts`, `storageSupabase.ts`, `nonceStore.ts`, `databaseStorageHealth.ts` | The store. Correct. |
 | `NEXT_PUBLIC_SUPABASE_URL/_ANON_KEY/_PUBLIC_BUCKET/_UPLOAD_BUCKET`, `SUPABASE_SERVICE_ROLE_KEY` | `lib/supabase/{config,admin}.ts`, `privateUploadStorage.ts`, `publicUploadStorage.ts`, `inboxStore.ts` | Correct. |
 | `NEXT_PUBLIC_PORTAL_BASE_URL`, `NEXT_PUBLIC_PORTAL_SECURITY`, `PORTAL_PUBLIC_ORIGIN` | `proxy.ts`, `secrets.ts`, `portalConnections.ts`, `metaMessaging.ts`, provision route | One origin per deployment. Correct. |
-| `FOUNDER_EMAIL`, `FOUNDER_PASSWORD`, `FOUNDER_AGENCY_NAME` | `founderSeed.ts`, `founderAgency.ts`, `secrets.ts`, `api/auth/login` | Who owns the instance. Correct — and now load-bearing for the founder gate. |
+| `FOUNDER_EMAIL`, `FOUNDER_PASSWORD`, `FOUNDER_AGENCY_NAME` | `founderSeed.ts`, `founderAgency.ts`, `devTeamAccess.ts`, `secrets.ts`, `api/auth/login` | Who owns the instance. Correct — `FOUNDER_EMAIL` is also the exact live identity allowed into the production Dev Team control plane; role alone is insufficient. |
 | `CRON_SECRET` | `api/cron/inbox`, `api/cron/radar-probes` | Vercel Cron. Correct. |
-| `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_TRACES_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_DSN` | `observability.ts` | Operator's error reporting. Correct. |
+| `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_TRACES_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_DSN` | `observability.ts` | Operator-owned configuration is the correct tier, but the integration is not operational: the package is absent, no production caller mounts capture/request logging, and readiness trusts the DSN string alone. See [issue #132](../development/issues.md). |
 | `PORTAL_HANDOFF_SECRET`, `SESSION_SECRET` | `portalHandoff.ts` | Correct. **Neither is on `ENV_ALLOWLIST`** — see §5. |
 | `AQUA_EMBED_SIGNING_SECRET`, `AQUA_EMBED_API_TOKEN` | `aquaEmbedToken.ts` | Correct. |
 | `PORTAL_PREVIEW_SECRET` | `built-ins/modules/website-editor/.../content.ts` | Correct, but defaults to the literal `"round-1-default-secret"` with no production guard. |
 | `INBOX_STORAGE_BACKEND`, `INBOX_LOCAL_DATA_FILE`, `INBOX_WEBHOOK_RETENTION_DAYS` | `inboxStore.ts`, `api/cron/inbox` | Storage selection + retention. Retention is arguably a per-company policy later; not day one. |
-| `PORTAL_DEV_MODE`, `PORTAL_DEV_AGENCY` | `devMode.ts` | Dev-only, refuses on Vercel. Correct. |
+| `PORTAL_DEV_MODE`, `PORTAL_DEV_AGENCY` | `devMode.ts` | Dev-only demo-persona switch, refuses on Vercel. Correct. It no longer controls production Dev Team availability. |
 | `DEV_THOUGHTS_FILE`, `PORTAL_ROADMAP_FILE`, `CLIENT_PROJECTS_ROOT` | `devTeamThoughts.ts`, `devTeamRoadmap.ts`, `clientProjectProvisioner.ts` | Local filesystem paths. Correct. |
 | `RADAR_EXTERNAL_DB_TARGETS` (+ the URL vars it names) | `databaseStorageHealth.ts` 108/126 | Operator's own probe list. Correct. |
 | `PUBLIC_SHOWCASE_ENABLED` | `app/showcase/route.ts` | Correct. |

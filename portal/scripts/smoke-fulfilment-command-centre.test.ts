@@ -46,8 +46,7 @@ describe("fulfilment command centre", () => {
     assert.ok(page.includes("clientProductWorkspaces(client)"));
     assert.ok(page.includes("portalWorkspaceProgress(workspace)"));
     assert.ok(page.includes("agencyProductPipelineColumns"));
-    assert.ok(page.includes("defaultAgencyProductPipelineStage"));
-    assert.ok(page.includes("productPipelineStages"));
+    assert.ok(page.includes("resolveClientProductStage"));
     assert.ok(page.includes("focused: Boolean(requestedProduct && requestedDefinition)"));
     assert.ok(page.includes("overviews"));
     assert.ok(page.includes("productCards.filter(card => card.columnId === column.id).length"));
@@ -65,10 +64,13 @@ describe("fulfilment command centre", () => {
     const board = read(PIPELINE_BOARD);
     const route = read(MOVE_CLIENT);
     assert.ok(board.includes('fetch("/api/portal/pipelines/move-client"'));
-    assert.ok(board.includes("body: JSON.stringify({ clientId: card.id, columnId, productKey })"));
+    assert.ok(board.includes("expectedRevision: revisionOverrides[card.id] ?? card.revision"));
+    assert.ok(board.includes("response.status === 409"));
     assert.ok(board.includes("onDrop="));
     assert.ok(route.includes("agencyProductPipelineColumns(product)"));
-    assert.ok(route.includes("productPipelineStages[product.id] = column.id"));
+    assert.ok(route.includes("transitionClientProductStage"));
+    assert.ok(route.includes("workspaceRevision: transition.workspaceRevision"));
+    assert.ok(route.includes("withProductWorkspaceTransaction"));
   });
 
   it("opens the full service stage editor from a focused board", () => {

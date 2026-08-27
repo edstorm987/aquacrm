@@ -1,11 +1,25 @@
 import "server-only";
 
-import { readFile, writeFile, mkdir, stat } from "node:fs/promises";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import crypto from "node:crypto";
+import { join, relative, resolve, sep } from "node:path";
 
-import { PROJECT_ROOT } from "@/lib/server/dev/devDocs";
+import { invalidateDevDocsIndex, PROJECT_ROOT } from "@/lib/server/dev/devDocs";
 import { invalidatePath } from "@/lib/server/dev/devMarkdownCache";
 import type { SessionPayload } from "@/server/types";
+import {
+  atomicReplaceDevFile,
+  DevFileConflictError,
+  devFileVersion,
+  withDevFileTransaction,
+} from "@/lib/server/dev/devFileTransaction";
+import {
+  DevWorkspaceFileConflictError,
+  readDevWorkspaceFile,
+  readDevWorkspaceSnapshot,
+  replaceDurableDevWorkspaceFiles,
+  usesDurableDevTeamWorkspace,
+  type DevWorkspaceFileVersion,
+} from "@/lib/server/dev/devWorkspaceFiles";
 
 // Editing docs from inside the app, with attribution.
 //
@@ -38,6 +52,8 @@ export interface DocEdit {
   authorEmail?: string;
   at: number;
   sizeBytes: number;
+  /** Identifies the exact bytes this attribution belongs to. */
+  contentSha256?: string;
   /** Optional note Ed leaves with the save — "why", not "what". */
   note?: string;
 }
@@ -86,7 +102,7 @@ function resolveWritablePath(relPath: string): string {
 
 async function readLedger(): Promise<DocEdit[]> {
   try {
-    const raw = await readFile(LEDGER_PATH, "utf8");
+    const raw = await readDevWorkspaceFile(LEDGER_PATH, "utf8");
     const parsed = JSON.parse(raw) as unknown;
     return Array.isArray(parsed) ? parsed as DocEdit[] : [];
   } catch {
@@ -95,10 +111,9 @@ async function readLedger(): Promise<DocEdit[]> {
 }
 
 async function writeLedger(entries: DocEdit[]): Promise<void> {
-  await mkdir(dirname(LEDGER_PATH), { recursive: true });
   // Newest first, bounded — this is a working record, not an audit archive.
   const bounded = entries.slice(0, MAX_ENTRIES);
-  await writeFile(LEDGER_PATH, JSON.stringify(bounded, null, 2) + "\n", "utf8");
+  await atomicReplaceDevFile(LEDGER_PATH, JSON.stringify(bounded, null, 2) + "\n");
 }
 
 /**
@@ -116,58 +131,100 @@ export async function saveDevDoc(input: {
   note?: string;
   authorName?: string;
   expectedMtimeMs?: number;
-}): Promise<{ mtimeMs: number; sizeBytes: number }> {
+  expectedSha256?: string;
+}): Promise<{ mtimeMs: number; sizeBytes: number; contentSha256: string }> {
   const abs = resolveWritablePath(input.relPath);
 
   if (typeof input.content !== "string") throw new Error("Nothing to save.");
   if (input.content.length > MAX_BYTES) throw new Error("That document is too large to save here.");
 
-  const current = await stat(abs).catch(() => null);
-  if (!current) throw new Error("That document no longer exists.");
-  if (
-    typeof input.expectedMtimeMs === "number" &&
-    Math.abs(current.mtimeMs - input.expectedMtimeMs) > 1
-  ) {
-    throw new Error(
-      "This document changed on disk since you opened it — a worker may have edited it. Reload before saving so their change isn't lost.",
-    );
-  }
+  // One lock covers BOTH the document and the attribution ledger. Separate
+  // server processes therefore re-check the expected version in order, and
+  // the content hash makes an attribution meaningful only for the bytes that
+  // actually survived.
+  return withDevFileTransaction(LEDGER_PATH, async () => {
+    const current = await devFileVersion(abs);
+    if (!current) throw new Error("That document no longer exists.");
+    const hashConflict = Boolean(input.expectedSha256 && current.sha256 !== input.expectedSha256);
+    const legacyMtimeConflict = !input.expectedSha256
+      && typeof input.expectedMtimeMs === "number"
+      && Math.abs(current.mtimeMs - input.expectedMtimeMs) > 1;
+    if (hashConflict || legacyMtimeConflict) {
+      throw new Error(
+        "This document changed on disk since you opened it — a worker may have edited it. Reload before saving so their change isn't lost.",
+      );
+    }
 
-  await writeFile(abs, input.content, "utf8");
-  // A Library edit can rewrite a plan, state.md, the roadmap, audits.md or a
-  // finding — any of which a dev reader has memoised. Bust every namespace that
-  // cached THIS file so the edit is visible on the next read, mtime tick or not.
-  invalidatePath(abs);
-  const after = await stat(abs);
+    const entryBase = {
+      relPath: toPosix(relative(PROJECT_ROOT, abs)),
+      author: (input.authorName || input.session.email || "Unknown").slice(0, 80),
+      authorEmail: input.session.email,
+      at: Date.now(),
+      sizeBytes: Buffer.byteLength(input.content, "utf8"),
+      contentSha256: crypto.createHash("sha256").update(input.content).digest("hex"),
+      note: input.note ? input.note.replace(/\s+/g, " ").trim().slice(0, 400) : undefined,
+    } satisfies DocEdit;
 
-  const entry: DocEdit = {
-    // From `abs`, not from what the caller typed — see `ledgerKey`.
-    relPath: toPosix(relative(PROJECT_ROOT, abs)),
-    author: (input.authorName || input.session.email || "Unknown").slice(0, 80),
-    authorEmail: input.session.email,
-    at: Date.now(),
-    sizeBytes: after.size,
-    note: input.note ? input.note.replace(/\s+/g, " ").trim().slice(0, 400) : undefined,
-  };
-  const ledger = await readLedger();
-  await writeLedger([entry, ...ledger]);
+    if (usesDurableDevTeamWorkspace()) {
+      let ledgerEntries: DocEdit[] = [];
+      let ledgerVersion: DevWorkspaceFileVersion | null = null;
+      try {
+        const snapshot = await readDevWorkspaceSnapshot(LEDGER_PATH);
+        const parsed = JSON.parse(snapshot.bytes.toString("utf8")) as unknown;
+        ledgerEntries = Array.isArray(parsed) ? parsed as DocEdit[] : [];
+        ledgerVersion = snapshot.version;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      }
+      const ledgerContent = JSON.stringify([entryBase, ...ledgerEntries].slice(0, MAX_ENTRIES), null, 2) + "\n";
+      try {
+        const [after] = await replaceDurableDevWorkspaceFiles([
+          { target: abs, content: input.content, expected: current },
+          { target: LEDGER_PATH, content: ledgerContent, expected: ledgerVersion },
+        ]);
+        invalidatePath(abs);
+        invalidateDevDocsIndex();
+        return { mtimeMs: after.mtimeMs, sizeBytes: after.size, contentSha256: after.sha256 };
+      } catch (error) {
+        if (error instanceof DevWorkspaceFileConflictError) throw new DevFileConflictError(error.message);
+        throw error;
+      }
+    }
 
-  return { mtimeMs: after.mtimeMs, sizeBytes: after.size };
+    // Compare the exact bytes again immediately before atomic rename. This
+    // catches a direct editor/worker that does not participate in Aqua's lock.
+    const after = await atomicReplaceDevFile(abs, input.content, current);
+    // A Library edit can rewrite a plan, state.md, the roadmap, audits.md or a
+    // finding — any of which a dev reader has memoised. Bust every namespace that
+    // cached THIS file so the edit is visible on the next read, mtime tick or not.
+    invalidatePath(abs);
+    invalidateDevDocsIndex();
+
+    const ledger = await readLedger();
+    await writeLedger([{ ...entryBase, sizeBytes: after.size, contentSha256: after.sha256 }, ...ledger]);
+
+    return { mtimeMs: after.mtimeMs, sizeBytes: after.size, contentSha256: after.sha256 };
+  });
 }
 
 /** The edit history for one doc, plus whether it moved outside the app since. */
 export async function docHistory(relPath: string): Promise<DocHistory> {
   const abs = resolve(PROJECT_ROOT, relPath);
-  const info = await stat(abs).catch(() => null);
-  const mtimeMs = info?.mtimeMs ?? 0;
+  const version = await devFileVersion(abs);
+  const mtimeMs = version?.mtimeMs ?? 0;
 
   const key = ledgerKey(relPath);
   const ledger = await readLedger();
-  const edits = ledger.filter(e => ledgerKey(e.relPath) === key).slice(0, 20);
+  const forPath = ledger.filter(e => ledgerKey(e.relPath) === key);
+  // Keep the genuine history. The newest hash is checked separately below to
+  // decide whether the CURRENT bytes can still be attributed to the app.
+  const edits = forPath.slice(0, 20);
 
   // A second of slack: writeFile + stat aren't perfectly simultaneous.
-  const lastInApp = edits[0]?.at ?? 0;
-  const changedOutsideApp = mtimeMs > 0 && mtimeMs - lastInApp > 1500;
+  const lastInApp = forPath[0]?.at ?? 0;
+  const latestHash = forPath[0]?.contentSha256;
+  const hashMoved = Boolean(latestHash && version?.sha256 && latestHash !== version.sha256);
+  const changedOutsideApp = hashMoved || (mtimeMs > 0 && mtimeMs - lastInApp > 1500);
 
   return { edits, changedOutsideApp, mtimeMs };
 }

@@ -1270,12 +1270,12 @@ describe("the SEO actions on /api/portal/dev/repo-write", () => {
 
   it("sits INSIDE the route's existing gate — no new door was cut", () => {
     // The SEO actions add no guard of their own, and must not: they run after
-    // the same founder role check, the same Dev Mode check, the same origin
-    // check and the same tenant-then-project lookup as save, create and
-    // publish. This pins that they are inside that block rather than beside it.
+    // the same action-specific access check, origin check and canonical
+    // tenant-then-project resolution as save, create and publish. This pins
+    // that they are inside that block rather than beside it.
     const route = readFileSync(new URL("../src/app/api/portal/dev/repo-write/route.ts", import.meta.url), "utf8");
-    const gateAt = route.indexOf("const session = await requireRole([\"agency-owner\", \"agency-manager\"]);");
-    const lookupAt = route.indexOf("const project = getDevProject(session.agencyId, projectId);");
+    const gateAt = route.indexOf("const access = await requireDevProjectAccess({");
+    const lookupAt = route.indexOf("const { project } = access;");
     const seoAt = route.indexOf('body?.action === "seo-read"');
     const writeAt = route.indexOf('body?.action === "seo-write"');
     assert.ok(gateAt > 0 && lookupAt > gateAt);

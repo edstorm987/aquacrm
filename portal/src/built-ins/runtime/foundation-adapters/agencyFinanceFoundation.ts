@@ -5,6 +5,7 @@ import { registerAgencyFinanceFoundation } from "@aqua/plugin-agency-finance/ser
 import {
   tenantPort, activityPort, eventBusPort, pluginInstallStorePort, userPort,
 } from "./_foundationPorts";
+import { agencyFinanceCompensationTermsPort } from "./agencyFinanceCompensation";
 
 let registered = false;
 
@@ -16,6 +17,7 @@ export function ensureAgencyFinanceFoundationRegistered(): void {
     activity: activityPort,
     events: eventBusPort,
     pluginInstalls: pluginInstallStorePort,
+    compensation: agencyFinanceCompensationTermsPort,
   } as unknown as Parameters<typeof registerAgencyFinanceFoundation>[0]);
   registered = true;
 }

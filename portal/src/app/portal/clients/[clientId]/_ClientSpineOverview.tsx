@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import type { AquaHealthState } from "@/lib/clients/clientAquaHealth";
 import type { ClientOperationsBrief } from "@/lib/clients/clientOperations";
+import type { ClientPaymentCurrencyPosition } from "@/lib/clients/clientPaymentPlans";
 import type { ClientRadarSnapshot } from "@/engines/data/radar/businessRadar";
 import { clientWorkspaceHref } from "@/lib/clients/clientWorkspace";
 import { ClientOperationTaskButton } from "./_ClientOperationTaskButton";
@@ -47,8 +48,7 @@ interface Props {
     aquaHealthScore: number | null;
     aquaHealthState: AquaHealthState;
     aquaHealthConfidence: number;
-    outstandingCents: number;
-    currency: string;
+    outstandingByCurrency: Array<{ currency: string; cents: number }>;
     portalAccessState: "not-prepared" | "missing" | "ready" | "sent";
     current: boolean;
   }>;
@@ -87,10 +87,7 @@ interface Props {
     totalPlans: number;
     paymentState: string;
     paymentLabel: string;
-    scheduledCents: number;
-    paidCents: number;
-    outstandingCents: number;
-    currency: string;
+    currencyPositions: ClientPaymentCurrencyPosition[];
     overdueMilestones: number;
     nextDueAt?: number;
     acceptedContracts: number;
@@ -129,7 +126,7 @@ export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship,
     tone: "critical",
     title: "Service assignment is missing",
     detail: "Choose the delivering company and purchased services before work begins.",
-    action: "Assign services",
+    action: canManageProductPlans ? "Assign services" : "View service status",
     href: `${clientWorkspaceHref(clientId, "delivery")}#service-assignment`,
   });
   if (delivery.blockedMilestones > 0) operations.push({
@@ -185,7 +182,7 @@ export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship,
     tone: "setup",
     title: "Client portal is not ready",
     detail: "Prepare the shared experience before sending access to the client.",
-    action: "Prepare portal",
+    action: canManageProductPlans ? "Prepare portal" : "View portal status",
     href: clientWorkspaceHref(clientId, "portal"),
   });
   if (portal.pendingApprovals > 0) operations.push({
@@ -201,7 +198,7 @@ export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship,
     tone: "attention",
     title: "Portal access cannot be sent",
     detail: "Add the correct client access email before attempting an invitation.",
-    action: "Add access",
+    action: canManageProductPlans ? "Add access" : "View access status",
     href: clientWorkspaceHref(clientId, "portal"),
   });
   if (portalReady && portal.accessState === "ready") operations.push({
@@ -209,7 +206,7 @@ export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship,
     tone: "setup",
     title: "Portal invitation is ready to send",
     detail: "Review the client-facing experience, then issue the prepared access invitation.",
-    action: "Send access",
+    action: canManageProductPlans ? "Send access" : "View portal status",
     href: clientWorkspaceHref(clientId, "portal"),
   });
   if (!lastContactAt) operations.push({
@@ -231,7 +228,7 @@ export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship,
     tone: "setup",
     title: "Operational handover is incomplete",
     detail: `Add ${handoverGaps.join(", ")} so another operator can take over without reconstructing the account.`,
-    action: "Complete brief",
+    action: canManageProductPlans ? "Complete brief" : "View brief",
     href: `${clientWorkspaceHref(clientId, "overview")}?tab=overview#operational-brief`,
   });
   if (operationsBrief.nextReviewAt && operationsBrief.nextReviewAt < Date.now()) operations.unshift({
@@ -269,7 +266,7 @@ export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship,
     || workspace.blockedMilestones > 0
     || workspace.overdueMilestones > 0
     || workspace.aquaHealthState === "risk"
-    || workspace.outstandingCents > 0
+    || workspace.outstandingByCurrency.length > 0
     || (workspace.portalReady && workspace.portalAccessState !== "sent"),
   ).length;
   const radarAttentionCount = radar.totals.critical + radar.totals.warning + radar.totals.watch;
@@ -297,7 +294,7 @@ export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship,
           ? commercialGaps.slice(0, 2).join(" · ")
           : `${delivery.assignedProducts} service${delivery.assignedProducts === 1 ? "" : "s"} · ${commercial.acceptedContracts} accepted agreement${commercial.acceptedContracts === 1 ? "" : "s"}.`,
       state: !hasServices ? "setup" : commercialGaps.length ? "attention" : "done",
-      action: !hasServices ? "Assign services" : "Open commercial",
+      action: !hasServices ? (canManageProductPlans ? "Assign services" : "View service status") : "Open commercial",
       href: !hasServices ? `${clientWorkspaceHref(clientId, "delivery")}#service-assignment` : clientWorkspaceHref(clientId, "finance"),
     },
     {
@@ -361,9 +358,9 @@ export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship,
         <div className="grid grid-cols-2 border-t border-black/[0.08] sm:grid-cols-3 xl:grid-cols-6">
           <CommandAction icon={MessageSquareText} label="Message" detail="Open conversation" href={clientWorkspaceHref(clientId, "communications")} />
           <CommandAction icon={Phone} label="Call" detail="Client communications" href={clientWorkspaceHref(clientId, "communications")} />
-          <CommandAction icon={NotebookPen} label="Add note" detail="Update client record" href={`${clientWorkspaceHref(clientId, "notes")}#client-record`} />
+          <CommandAction icon={NotebookPen} label={canManageProductPlans ? "Add note" : "View notes"} detail={canManageProductPlans ? "Update client record" : "Review client record"} href={`${clientWorkspaceHref(clientId, "notes")}#client-record`} />
           <CommandAction icon={ListTodo} label="Review priorities" detail="Client operating plan" href={clientWorkspaceHref(clientId, "overview")} />
-          <CommandAction icon={FileUp} label="Upload file" detail="Files and evidence" href={clientWorkspaceHref(clientId, "files")} />
+          <CommandAction icon={FileUp} label={canManageProductPlans ? "Upload file" : "Open files"} detail="Files and evidence" href={clientWorkspaceHref(clientId, "files")} />
           <CommandAction icon={ReceiptText} label="Payment" detail="Contracts and plans" href={clientWorkspaceHref(clientId, "finance")} />
         </div>
       </section>
@@ -376,7 +373,7 @@ export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship,
             <p className="mt-1 text-xs leading-5 text-black/45">Switch scope instead of loading every workflow at once. Product processes are controlled from the product editor.</p>
           </div>
           <Link href={hasServices ? `${clientWorkspaceHref(clientId, "delivery", { mode: "advanced" })}#client-sops` : `${clientWorkspaceHref(clientId, "delivery")}#service-assignment`} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 px-3 text-xs font-semibold text-black/62 hover:bg-black/[0.03]">
-            <BookOpen size={14} /> {hasServices ? "Open linked SOPs" : "Assign services to link SOPs"}
+            <BookOpen size={14} /> {hasServices ? "Open linked SOPs" : canManageProductPlans ? "Assign services to link SOPs" : "Review service assignment"}
           </Link>
         </header>
         <ClientOperatingPlan clientId={clientId} accountSteps={processSteps} products={productPlans} canManage={canManageProductPlans} />
@@ -407,10 +404,10 @@ export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship,
                     <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-semibold">
                       <Link href={`${clientWorkspaceHref(workspace.id, "delivery")}#service-assignment`} title="Open service assignment and delivery" className="rounded-full bg-black/[0.045] px-2 py-1 text-black/52 hover:bg-black/[0.075]">{workspace.serviceNames.length ? `${workspace.serviceNames.slice(0, 2).join(" · ")}${workspace.serviceNames.length > 2 ? ` +${workspace.serviceNames.length - 2}` : ""}` : "No services assigned"}</Link>
                       <Link href={clientWorkspaceHref(workspace.id, "relationship")} title={`Open Aqua Health · ${workspace.aquaHealthConfidence}% evidence confidence`} className={`rounded-full px-2 py-1 hover:brightness-95 ${healthClass}`}>Aqua Health {workspace.aquaHealthScore === null ? "learning" : `${workspace.aquaHealthScore}/100`}</Link>
-                      {workspace.outstandingCents ? <Link href={clientWorkspaceHref(workspace.id, "finance")} title="Open contracts, invoices and payment plans" className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-1 text-red-700 hover:bg-red-100"><ReceiptText size={11} /> {formatMoney(workspace.outstandingCents, workspace.currency)} outstanding</Link> : null}
+                      {workspace.outstandingByCurrency.length ? <Link href={clientWorkspaceHref(workspace.id, "finance")} title="Open contracts, invoices and payment plans" className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-1 text-red-700 hover:bg-red-100"><ReceiptText size={11} /> {formatCurrencyAmounts(workspace.outstandingByCurrency)} outstanding</Link> : null}
                       {workspace.openRequests ? <Link href={clientWorkspaceHref(workspace.id, "communications")} title="Open client requests and messages" className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-amber-800 hover:bg-amber-100"><Inbox size={11} /> {workspace.openRequests} open request{workspace.openRequests === 1 ? "" : "s"}</Link> : null}
                       {deliveryAttention ? <Link href={clientWorkspaceHref(workspace.id, "delivery")} title={`${workspace.blockedMilestones} blocked · ${workspace.overdueMilestones} overdue`} className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-1 text-red-700 hover:bg-red-100"><CircleAlert size={11} /> {deliveryAttention} delivery issue{deliveryAttention === 1 ? "" : "s"}</Link> : null}
-                      {workspace.hasServices && !workspace.openRequests && !deliveryAttention && !workspace.outstandingCents ? <Link href={clientWorkspaceHref(workspace.id, "overview")} title="Open workspace operating picture" className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-emerald-700 hover:bg-emerald-100"><CheckCircle2 size={11} /> Operations clear</Link> : null}
+                      {workspace.hasServices && !workspace.openRequests && !deliveryAttention && !workspace.outstandingByCurrency.length ? <Link href={clientWorkspaceHref(workspace.id, "overview")} title="Open workspace operating picture" className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-emerald-700 hover:bg-emerald-100"><CheckCircle2 size={11} /> Operations clear</Link> : null}
                     </div>
                   </div>
                 </div>
@@ -518,8 +515,8 @@ export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship,
           eyebrow="Commercial"
           title="Contracts & payment plan"
           value={commercial.paymentLabel}
-          detail={commercial.scheduledCents
-            ? `${formatMoney(commercial.paidCents, commercial.currency)} of ${formatMoney(commercial.scheduledCents, commercial.currency)} collected · ${formatMoney(commercial.outstandingCents, commercial.currency)} outstanding`
+          detail={commercial.currencyPositions.some(position => position.agreedCents > 0)
+            ? `${formatPaymentPositions(commercial.currencyPositions, "paidCents")} of ${formatPaymentPositions(commercial.currencyPositions, "agreedCents")} collected · ${formatPaymentPositions(commercial.currencyPositions, "outstandingCents")} outstanding`
             : `${commercial.acceptedContracts} accepted agreement${commercial.acceptedContracts === 1 ? "" : "s"} · ${commercial.issuedInvoices} invoice${commercial.issuedInvoices === 1 ? "" : "s"}`}
           summary={commercial.overdueMilestones
             ? `${commercial.overdueMilestones} payment milestone${commercial.overdueMilestones === 1 ? " is" : "s are"} overdue and need an exact next action.`
@@ -594,6 +591,17 @@ function formatMoney(cents: number, currency: string): string {
   } catch {
     return `${currency.toUpperCase()} ${(Math.max(0, cents) / 100).toFixed(0)}`;
   }
+}
+
+function formatCurrencyAmounts(positions: ReadonlyArray<{ currency: string; cents: number }>): string {
+  return positions.map(position => formatMoney(position.cents, position.currency)).join(" · ");
+}
+
+function formatPaymentPositions(
+  positions: readonly ClientPaymentCurrencyPosition[],
+  field: "agreedCents" | "paidCents" | "outstandingCents",
+): string {
+  return positions.filter(position => position.agreedCents > 0).map(position => formatMoney(position[field], position.currency)).join(" · ");
 }
 
 function formatDate(value: number): string {

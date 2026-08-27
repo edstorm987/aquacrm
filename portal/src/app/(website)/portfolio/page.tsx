@@ -9,6 +9,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { WebsiteShell } from "../WebsiteShell";
+import { MILESYMEDIA_CONTACT_PATH } from "@/lib/public/milesymediaRoutes";
 
 export const metadata = {
   title: "Portfolio | Milesymedia",
@@ -175,7 +176,7 @@ export default function PortfolioPage() {
             Your website can be the front door to something much more useful.
           </h2>
           <Link
-            href="/#contact"
+            href={MILESYMEDIA_CONTACT_PATH}
             className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-md bg-[#171714] px-6 font-semibold text-white"
           >
             Talk through an idea

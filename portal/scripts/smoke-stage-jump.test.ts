@@ -11,6 +11,11 @@ test("a client can jump directly to a later stage with an audit reason", async (
 
   const service = new TransitionService(
     {
+      getClientForAgency: async () => ({
+        id: "client_friend",
+        agencyId: "agency_milesymedia",
+        stage,
+      }),
       updateClient: async (_agencyId: string, _clientId: string, patch: { stage: string }) => {
         stage = patch.stage;
         return { id: "client_friend", agencyId: "agency_milesymedia", stage } as never;
@@ -87,6 +92,12 @@ test("a new client can start midway through the lifecycle", async () => {
         id: "client_friend",
         agencyId: "agency_milesymedia",
         ...input,
+      }),
+      getClientForAgency: async (_agencyId: string, _clientId: string) => ({
+        id: "client_friend",
+        agencyId: "agency_milesymedia",
+        name: "Friend Website",
+        stage: "aqua-mastery",
       }),
     } as never,
     {} as never,

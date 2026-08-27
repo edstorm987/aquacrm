@@ -109,12 +109,10 @@ describe("the non-plugin app API routes — the class with no class-level guard"
   });
 
   it("the routes that DO take a client id from the request are pinned, one by one", () => {
-    // Not a hole by itself: every one of these pairs the request's clientId
-    // with `session.agencyId` and hands the pair to an agency-scoped store, so
-    // a stranger's client id selects nothing. It is pinned because that is a
-    // per-route property with no rule behind it — the sweep's real finding is
-    // that this list is the surface area a future mistake will live in, and
-    // `phases/apply` (arm 2) is what that mistake looks like.
+    // Not a hole by itself: each reader must either use the shared
+    // routeTenantScope guard or pair the id with the signed session agency.
+    // It is pinned because this is the surface where a future omission would
+    // live, and `phases/apply` (arm 2) is what that mistake looks like.
     const readers = appApiRoutes().filter(route => READS_REQUEST_CLIENT.test(routeSource(route)));
     assert.deepEqual(readers, [
       "portal/activity-inbox/list/route.ts",
@@ -139,16 +137,16 @@ describe("the non-plugin app API routes — the class with no class-level guard"
       "portal/settings/integrations/route.ts",
       "portal/tasks/route.ts",
       "portal/tasks/templates/route.ts",
-    ], "the client-id-from-request set changed — check the newcomer pairs it with session.agencyId");
+    ], "the client-id-from-request set changed — check the newcomer uses routeTenantScope or pairs it with the session agency");
   });
 
-  it("every one of them still names the session's agency somewhere", () => {
-    // The property that makes the list above safe, asserted rather than
-    // assumed. A route that reads a clientId from the request and never
-    // mentions the session's agency is scoping by the caller's word alone.
+  it("every one of them derives tenant scope from the session", () => {
+    // Direct pairing with the session agency and the shared routeTenantScope
+    // guard are the two supported forms. The helper validates ownership and
+    // returns an agency derived from the signed session.
     const orphans = appApiRoutes()
       .filter(route => READS_REQUEST_CLIENT.test(routeSource(route)))
-      .filter(route => !/session\.agencyId|getActiveAgencyId\(session\)|session\.clientId/.test(routeSource(route)));
+      .filter(route => !/routeTenantScope\(session\s*,|session\.agencyId|getActiveAgencyId\(session\)|session\.clientId/.test(routeSource(route)));
     assert.deepEqual(orphans, [],
       `these scope a client by the request alone:\n  ${orphans.join("\n  ")}`);
   });

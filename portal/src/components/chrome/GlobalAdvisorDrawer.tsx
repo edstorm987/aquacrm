@@ -30,6 +30,7 @@ interface Coverage {
   recentActivity: number;
   modules: string[];
   radar: AdvisorRadarDigest;
+  radarPaused?: boolean;
 }
 
 export function GlobalAdvisorDrawer({
@@ -54,6 +55,7 @@ export function GlobalAdvisorDrawer({
    *  now a caller may pass a simple identity header. */
   pickerHeader,
   body,
+  initiallyOpen = false,
 }: {
   /**
    * The Advisor-chat half, now optional: a caller that passes `body` mounts
@@ -72,6 +74,8 @@ export function GlobalAdvisorDrawer({
   icon?: ReactNode;
   buttonClassName?: string;
   pickerHeader?: ReactNode;
+  /** Open on first mount when an intent-loaded trigger handed control over. */
+  initiallyOpen?: boolean;
   /**
    * ── Body seam ────────────────────────────────────────────────────────────
    * The assistant's own surface, mounted INSTEAD of the Advisor chat. This is
@@ -83,14 +87,14 @@ export function GlobalAdvisorDrawer({
    */
   body?: ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initiallyOpen);
   // Mount the heavy chat only after the drawer's first open, then keep it
   // mounted so conversation state persists across open/close.
-  const [mounted, setMounted] = useState(false);
+  const [mounted, setMounted] = useState(initiallyOpen);
   const [notice, setNotice] = useState("");
   const [prefill, setPrefill] = useState("");
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
-  const openRef = useRef(false);
+  const openRef = useRef(initiallyOpen);
 
   useEffect(() => {
     setPortalRoot(document.body);

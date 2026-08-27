@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { INTEGRATION_CATALOG, type IntegrationProvider } from "@/lib/integrations/catalog";
-import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { AuthError, authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import {
+  activateIntegrationConnection,
+  getIntegrationConnection,
   integrationVaultAvailable,
   listIntegrationConnections,
   revokeIntegrationConnection,
@@ -11,9 +13,10 @@ import {
 } from "@/lib/server/integrations/integrationConnections";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getClientForAgency } from "@/server/tenants";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 type Body = {
-  action?: "save" | "test" | "revoke";
+  action?: "save" | "test" | "activate" | "revoke";
   connectionId?: string;
   provider?: IntegrationProvider;
   label?: string;
@@ -26,7 +29,10 @@ const PROVIDERS = new Set(INTEGRATION_CATALOG.map(item => item.id));
 export async function GET() {
   try {
     await ensureHydrated();
-    const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
+    // This is the agency-wide credential catalogue. Exact project grants read
+    // only the connection metadata projected by /api/portal/dev/projects;
+    // they must never enumerate ids belonging to unrelated projects here.
+    const session = await requireRole(["agency-owner", "agency-manager"]);
     return NextResponse.json({
       ok: true,
       vaultAvailable: integrationVaultAvailable(),
@@ -46,13 +52,20 @@ export async function POST(request: Request) {
     }
     const body = await request.json().catch(() => null) as Body | null;
     if (!body?.action) return NextResponse.json({ ok: false, error: "Choose an integration action." }, { status: 400 });
+    if (body.clientId && !getClientForAgency(session.agencyId, body.clientId)) {
+      return NextResponse.json({ ok: false, error: "That client is not in this workspace." }, { status: 400 });
+    }
+    const existingConnection = body.connectionId
+      ? getIntegrationConnection(session.agencyId, body.connectionId)
+      : null;
+    const clientScopes = [...new Set([existingConnection?.clientId, body.clientId].filter((id): id is string => Boolean(id)))];
+    for (const clientId of clientScopes) {
+      await requireCurrentClientWorkspaceElementAccess(clientId, "client.systems", "manage");
+    }
 
     if (body.action === "save") {
       if (!body.provider || !PROVIDERS.has(body.provider)) {
         return NextResponse.json({ ok: false, error: "Choose a supported provider." }, { status: 400 });
-      }
-      if (body.clientId && !getClientForAgency(session.agencyId, body.clientId)) {
-        return NextResponse.json({ ok: false, error: "That client is not in this workspace." }, { status: 400 });
       }
       const connection = saveIntegrationConnection({
         agencyId: session.agencyId,
@@ -79,6 +92,16 @@ export async function POST(request: Request) {
       await flushPendingWrites();
       return NextResponse.json({ ok: true, connection, connections: listIntegrationConnections(session.agencyId) });
     }
+    if (body.action === "activate") {
+      const connection = activateIntegrationConnection({
+        agencyId: session.agencyId,
+        connectionId: body.connectionId,
+        actorUserId: session.userId,
+        actorEmail: session.email,
+      });
+      await flushPendingWrites();
+      return NextResponse.json({ ok: true, connection, connections: listIntegrationConnections(session.agencyId) });
+    }
     if (body.action === "revoke") {
       const connection = revokeIntegrationConnection({
         agencyId: session.agencyId,
@@ -91,6 +114,7 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ ok: false, error: "Unsupported integration action." }, { status: 400 });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     const message = managementError(error);
     if (message) return NextResponse.json({ ok: false, error: message }, { status: 400 });
     return authErrorResponse(error);
@@ -110,6 +134,8 @@ function managementError(error: unknown): string | null {
     provider_cannot_change: "Create a new connection to use a different provider.",
     vault_not_configured: "Configure the AquaCRM vault key once before saving provider credentials.",
     integration_secret_invalid: "A saved credential could not be decrypted. Reconnect this provider.",
+    integration_scope_unsupported: "That provider only supports a workspace connection.",
+    integration_must_pass_test: "Test this connection successfully before making it active.",
   };
   return messages[code] ?? (code ? code : null);
 }

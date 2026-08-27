@@ -43,6 +43,20 @@ function defaults(agencyId: string): AgencyWebsiteProject {
   };
 }
 
+/**
+ * Read a website snapshot without creating or upgrading persisted state.
+ *
+ * Absence stays absence. The old fallback returned a complete Milesymedia
+ * project for every agency, which made an unconfigured workspace look as if it
+ * had a live repository, domain and local checkout.
+ */
+export function readAgencyWebsite(agencyId: string): AgencyWebsiteProject | null {
+  const existing = getState().agencyWebsites[agencyId];
+  if (!existing) return null;
+  const fallback = defaults(agencyId);
+  return { ...fallback, ...existing, pages: existing.pages?.length ? existing.pages : fallback.pages };
+}
+
 export function ensureAgencyWebsite(agencyId: string): AgencyWebsiteProject {
   const existing = getState().agencyWebsites[agencyId];
   if (existing) {

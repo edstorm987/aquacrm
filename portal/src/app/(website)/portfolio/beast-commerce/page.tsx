@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import { WebsiteShell } from "../../WebsiteShell";
 import { BeastCommerceDemo } from "./BeastCommerceDemo";
+import { MILESYMEDIA_CONTACT_PATH } from "@/lib/public/milesymediaRoutes";
 
 export const metadata = {
   title: "Beast commerce case study | Milesymedia",
@@ -92,7 +93,7 @@ export default function BeastCommercePage() {
             </h2>
           </div>
           <Link
-            href="/#contact"
+            href={MILESYMEDIA_CONTACT_PATH}
             className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-md bg-[#171714] px-6 font-semibold text-white"
           >
             Discuss a commerce project

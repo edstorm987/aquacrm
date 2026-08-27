@@ -168,8 +168,8 @@ test("Showcase Mode cannot import or rescan live external identities", () => {
   const clientsPage = readFileSync("src/app/portal/clients/page.tsx", "utf8");
   const inboxPage = readFileSync("src/app/portal/agency/inbox/page.tsx", "utf8");
   const apiRoute = readFileSync("src/app/api/portal/identity-resolution/route.ts", "utf8");
-  assert.match(clientsPage, /if \(session\.isDemo\) \{\s*clearIdentityResolutionReviews/);
-  assert.match(inboxPage, /session\.isDemo \? Promise\.resolve\(\[\]\) : listWebsiteEnquiries/);
+  assert.match(clientsPage, /if \(session\.isDemo && !session\.publicShowcase\) \{\s*clearIdentityResolutionReviews/);
+  assert.match(inboxPage, /session\.isDemo \|\| session\.publicShowcase \? Promise\.resolve\(\[\]\) : listWebsiteEnquiries/);
   assert.match(apiRoute, /session\.isDemo.*Showcase Mode is read-only/);
 });
 

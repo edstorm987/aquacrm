@@ -2,26 +2,18 @@
 
 // Countdown timer — tick down to a target date. Useful for sales,
 // launches, "ends in" urgency banners. ISO target prop or relative
-// "+N days" syntax. Days/hours/minutes/seconds shown by default;
-// renders nothing once expired (operator can hide / show fallback).
+// "+N days" syntax. Relative targets are anchored in the stored block when
+// created/published, so ticks and reloads cannot move the finish line.
 
 import { useEffect, useState } from "react";
 import type { BlockRenderProps } from "../blockRegistry";
 import { blockStylesToCss } from "../blockStyles";
-
-function parseTarget(input: string): number {
-  const trimmed = input.trim();
-  // Relative: "+7d" / "+24h" / "+30m"
-  const rel = /^\+(\d+)([dhm])$/.exec(trimmed);
-  if (rel) {
-    const n = Number(rel[1]);
-    const unit = rel[2];
-    const ms = unit === "d" ? n * 86_400_000 : unit === "h" ? n * 3_600_000 : n * 60_000;
-    return Date.now() + ms;
-  }
-  const t = Date.parse(trimmed);
-  return Number.isFinite(t) ? t : Date.now() + 86_400_000;
-}
+import {
+  COUNTDOWN_DEADLINE_PROP,
+  COUNTDOWN_RELATIVE_TARGET_PROP,
+  countdownParts,
+  resolveCountdownDeadline,
+} from "@/engines/editor/elements/countdownDeadline";
 
 function pad(n: number): string { return n.toString().padStart(2, "0"); }
 
@@ -31,33 +23,41 @@ export default function CountdownTimerBlock({ block }: BlockRenderProps) {
   const expiredText = (block.props.expiredText as string | undefined) ?? "Sale has ended.";
   const showSeconds = (block.props.showSeconds as boolean | undefined) ?? true;
 
-  const targetMs = parseTarget(target);
-  const [now, setNow] = useState<number>(() => Date.now());
+  const clockKey = `${target}\u0000${String(block.props[COUNTDOWN_RELATIVE_TARGET_PROP] ?? "")}\u0000${String(block.props[COUNTDOWN_DEADLINE_PROP] ?? "")}`;
+  const [clock, setClock] = useState<{ key: string; now: number; fallbackAnchor: number } | null>(null);
 
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
+    const startedAt = Date.now();
+    setClock({ key: clockKey, now: startedAt, fallbackAnchor: startedAt });
+    const id = setInterval(() => setClock(current => current?.key === clockKey
+      ? { ...current, now: Date.now() }
+      : current), 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [clockKey]);
 
-  const diff = Math.max(0, targetMs - now);
-  const expired = diff === 0;
-  const days = Math.floor(diff / 86_400_000);
-  const hours = Math.floor((diff % 86_400_000) / 3_600_000);
-  const mins = Math.floor((diff % 3_600_000) / 60_000);
-  const secs = Math.floor((diff % 60_000) / 1000);
+  const ready = clock?.key === clockKey;
+  const deadline = ready ? resolveCountdownDeadline(target, block.props, clock.fallbackAnchor) : null;
+  const remaining = ready ? countdownParts(deadline, clock.now) : null;
 
   return (
     <section data-block-type="countdown-timer" style={{ padding: "32px 24px", textAlign: "center", ...blockStylesToCss(block.styles) }}>
       <div style={{ maxWidth: 760, margin: "0 auto" }}>
         {heading && <p style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 2, opacity: 0.65, marginBottom: 12 }}>{heading}</p>}
-        {expired ? (
-          <p style={{ fontSize: 18 }}>{expiredText}</p>
+        {!remaining ? (
+          <div data-countdown-state="initialising" aria-label="Countdown loading" style={{ display: "flex", justifyContent: "center", gap: 16 }}>
+            <Cell label="Days" value="--" />
+            <Cell label="Hours" value="--" />
+            <Cell label="Mins" value="--" />
+            {showSeconds && <Cell label="Secs" value="--" />}
+          </div>
+        ) : remaining.expired ? (
+          <p data-countdown-state="expired" aria-live="polite" style={{ fontSize: 18 }}>{expiredText}</p>
         ) : (
-          <div style={{ display: "flex", justifyContent: "center", gap: 16 }}>
-            <Cell label="Days"   value={pad(days)} />
-            <Cell label="Hours"  value={pad(hours)} />
-            <Cell label="Mins"   value={pad(mins)} />
-            {showSeconds && <Cell label="Secs" value={pad(secs)} />}
+          <div data-countdown-state="active" style={{ display: "flex", justifyContent: "center", gap: 16 }}>
+            <Cell label="Days"   value={pad(remaining.days)} />
+            <Cell label="Hours"  value={pad(remaining.hours)} />
+            <Cell label="Mins"   value={pad(remaining.mins)} />
+            {showSeconds && <Cell label="Secs" value={pad(remaining.secs)} />}
           </div>
         )}
       </div>

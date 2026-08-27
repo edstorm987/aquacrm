@@ -254,6 +254,8 @@ const ecommercePlugin: AquaPlugin = {
           },
           { id: "successUrl", label: "Checkout success URL", type: "url",  placeholder: "https://luvandker.com/checkout/success" },
           { id: "cancelUrl",  label: "Checkout cancel URL",  type: "url",  placeholder: "https://luvandker.com/cart" },
+          { id: "defaultTaxRatePercent", label: "Default tax rate %", type: "number", default: 0, helpText: "Inclusive products report the tax portion; exclusive products add it to the checkout total." },
+          { id: "giftCardDenominations", label: "Gift-card denominations (minor units)", type: "text", default: "2500,5000,10000", helpText: "Comma-separated server-approved values; for GBP, 2500 means £25." },
           { id: "lowStockThreshold", label: "Default low-stock threshold", type: "number", default: 5 },
         ],
       },

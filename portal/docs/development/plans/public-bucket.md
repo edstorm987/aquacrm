@@ -18,7 +18,7 @@ the end-to-end capstone); full suite 0-fail; plugin smoke 49/49; typecheck-clean
 
 _Original plan below (kept for the record)._
 
-**Status: PLAN (not wired).** The `aquacrm-public` bucket is declared and
+**Historical starting point (superseded by DONE status above):** the `aquacrm-public` bucket was declared and
 prod-required but **nothing in the code uses it**. Wire it so approved website
 media gets real public URLs.
 

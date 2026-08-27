@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
-import { cleanClientProductProcessState, setClientProductStage } from "@/lib/clients/clientProductProcess";
+import { resolveClientProductStage } from "@/lib/products/clientProductStageTruth";
 import { defaultProductInternalWorkspace } from "@/lib/products/productInternalWorkspace";
 import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
-import { ensureHydrated, flushPendingWrites } from "@/server/storage";
+import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES, CLIENT_ROLES } from "@/server/types";
-import { getClientForAgency, updateClient } from "@/server/tenants";
+import { getClientForAgency } from "@/server/tenants";
 import { logActivity } from "@/server/activity";
 import { ensureDefaultAgencyProducts } from "@/server/agencyProducts";
-import { clientProductWorkspaces, saveClientProductWorkspaces } from "@/server/productWorkspaces";
+import { clientProductWorkspaces, mutateClientProductWorkspaceVersioned } from "@/server/productWorkspaces";
+import { transitionClientProductStage } from "@/server/productStageTransitions";
+import { ProductWorkspaceBusyError, withProductWorkspaceTransaction } from "@/server/productWorkspaceCoordinator";
 import type {
   PortalProductWorkspace,
   PortalWorkspaceAsset,
@@ -18,6 +20,7 @@ import type {
 } from "@/lib/portal/portalProductWorkspaces";
 import type { PortalProductMode } from "@/lib/portal/portalProducts";
 import type { ClientFileRef } from "../client-files/route";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 export const runtime = "nodejs";
 
@@ -40,6 +43,7 @@ interface Body {
   fileId?: unknown;
   caption?: unknown;
   selected?: unknown;
+  expectedRevision?: unknown;
   responseNote?: unknown;
   selectionLimit?: unknown;
   downloadsEnabled?: unknown;
@@ -86,19 +90,13 @@ function customerMessage(action: string, productName: string): string {
   return `${productName} workspace updated.`;
 }
 
-function updateWorkspace(
-  workspaces: PortalProductWorkspace[],
-  changed: PortalProductWorkspace,
-): PortalProductWorkspace[] {
-  return workspaces.map(item => item.productId === changed.productId ? changed : item);
-}
-
 export async function GET(req: Request) {
   await ensureHydrated();
   const clientId = new URL(req.url).searchParams.get("clientId")?.trim().slice(0, 120) ?? "";
   if (!clientId) return NextResponse.json({ ok: false, error: "clientId required" }, { status: 400 });
   try {
     const session = await requireRoleForClient([...AGENCY_ROLES, ...CLIENT_ROLES, "end-customer"], clientId);
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.fulfilment", "view");
     const client = getClientForAgency(session.agencyId, clientId);
     if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
     return NextResponse.json({ ok: true, workspaces: clientProductWorkspaces(client) });
@@ -117,8 +115,13 @@ export async function POST(req: Request) {
     if (!clientId || !productId || !action) {
       return NextResponse.json({ ok: false, error: "clientId, productId and action are required" }, { status: 400 });
     }
+    const expectedRevision = body?.expectedRevision;
+    if (typeof expectedRevision !== "number" || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
+      return NextResponse.json({ ok: false, error: "expectedRevision is required" }, { status: 400 });
+    }
 
     const session = await requireRoleForClient([...AGENCY_ROLES, ...CLIENT_ROLES, "end-customer"], clientId);
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.fulfilment", "use");
     const management = session.role !== "end-customer";
     const client = getClientForAgency(session.agencyId, clientId);
     if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
@@ -128,38 +131,50 @@ export async function POST(req: Request) {
     const now = Date.now();
     let workspace: PortalProductWorkspace = structuredClone(existing);
     let fileVisibility: { fileIds: string[]; visible: boolean } | null = null;
-    let clientForSave = client;
-    let syncedServiceStageId: string | undefined;
     const pageId = cleanText(body?.pageId, 120);
 
     if (action === "set-stage") {
       if (!management) return NextResponse.json({ ok: false, error: "only the delivery team can move product stages" }, { status: 403 });
       if (!STAGES.includes(body?.stage as PortalProductMode)) return NextResponse.json({ ok: false, error: "valid stage required" }, { status: 400 });
       const portalMode = body?.stage as PortalProductMode;
-      workspace.stage = portalMode;
-
       const product = ensureDefaultAgencyProducts(session.agencyId).find(item => item.id === productId);
-      if (product) {
-        const lifecycle = (product.internalWorkspace ?? defaultProductInternalWorkspace(product)).lifecycleStages;
-        const existingProcess = cleanClientProductProcessState(client.metadata?.clientProductProcess);
-        const currentStage = lifecycle.find(stage => stage.id === existingProcess[productId]?.currentStageId);
-        const matchingStage = currentStage?.portalMode === portalMode
-          ? currentStage
-          : lifecycle.find(stage => stage.portalMode === portalMode);
-        if (matchingStage) {
-          syncedServiceStageId = matchingStage.id;
-          const clientProductProcess = setClientProductStage(
-            existingProcess,
-            productId,
-            matchingStage.id,
-            session.email,
-            now,
-          );
-          const updated = updateClient(session.agencyId, clientId, { metadata: { clientProductProcess } });
-          if (!updated) return NextResponse.json({ ok: false, error: "service stage could not be synchronised" }, { status: 500 });
-          clientForSave = updated;
-        }
+      if (!product) return NextResponse.json({ ok: false, error: "product is no longer available" }, { status: 404 });
+      const lifecycle = (product.internalWorkspace ?? defaultProductInternalWorkspace(product)).lifecycleStages;
+      const currentTruth = resolveClientProductStage(client, product);
+      const currentStage = lifecycle.find(stage => stage.id === currentTruth.stageId);
+      const matchingStage = currentStage?.portalMode === portalMode
+        ? currentStage
+        : lifecycle.find(stage => stage.portalMode === portalMode);
+      if (!matchingStage) return NextResponse.json({ ok: false, error: "service stage could not be mapped" }, { status: 400 });
+      const transition = await withProductWorkspaceTransaction({
+        agencyId: session.agencyId,
+        clientId,
+        productId,
+      }, () => transitionClientProductStage({
+          client,
+          product,
+          stageId: matchingStage.id,
+          actorUserId: session.userId,
+          actorEmail: session.email,
+          expectedRevision,
+          now,
+        }));
+      if (!transition) return NextResponse.json({ ok: false, error: "service stage could not be synchronised" }, { status: 500 });
+      if (transition.status === "conflict") {
+        return NextResponse.json({
+          ok: false,
+          error: "This workspace changed in another session. The latest version has been loaded; review it and try again.",
+          workspace: clientProductWorkspaces(transition.client).find(item => item.productId === productId),
+        }, { status: 409 });
       }
+      return NextResponse.json({
+        ok: true,
+        workspace: clientProductWorkspaces(transition.client).find(item => item.productId === productId),
+        serviceStageId: transition.stageId,
+        portalMode: transition.portalMode,
+        accountStage: transition.client.stage,
+        changed: transition.changed,
+      });
     } else if (action === "toggle-check") {
       const itemId = cleanText(body?.itemId, 120);
       const page = workspace.pages[pageId];
@@ -343,17 +358,41 @@ export async function POST(req: Request) {
     }
 
     workspace.updatedAt = now;
-    let saved = saveClientProductWorkspaces(clientForSave, updateWorkspace(workspaces, workspace));
-    if (!saved) return NextResponse.json({ ok: false, error: "workspace could not be saved" }, { status: 500 });
-    if (fileVisibility?.fileIds.length) {
-      const ids = new Set(fileVisibility.fileIds);
-      const files = Array.isArray(saved.metadata?.files) ? saved.metadata.files as ClientFileRef[] : [];
-      saved = updateClient(session.agencyId, clientId, {
-        metadata: {
-          files: files.map(file => ids.has(file.id) ? { ...file, customerVisible: fileVisibility!.visible } : file),
+    const commit = await withProductWorkspaceTransaction({
+      agencyId: session.agencyId,
+      clientId,
+      productId,
+    }, () => mutateClientProductWorkspaceVersioned({
+        agencyId: session.agencyId,
+        clientId,
+        productId,
+        expectedRevision,
+        change: current => {
+          let files: ClientFileRef[] | undefined;
+          if (fileVisibility?.fileIds.length) {
+            const ids = new Set(fileVisibility.fileIds);
+            const currentFiles = Array.isArray(current.client.metadata?.files)
+              ? current.client.metadata.files as ClientFileRef[]
+              : [];
+            files = currentFiles.map(file => ids.has(file.id)
+              ? { ...file, customerVisible: fileVisibility!.visible }
+              : file);
+          }
+          return {
+            workspace,
+            ...(files ? { metadata: { files } } : {}),
+          };
         },
-      });
-      if (!saved) return NextResponse.json({ ok: false, error: "file visibility could not be saved" }, { status: 500 });
+      }));
+    if (commit.status === "not-found") {
+      return NextResponse.json({ ok: false, error: "workspace could not be saved" }, { status: 500 });
+    }
+    if (commit.status === "conflict") {
+      return NextResponse.json({
+        ok: false,
+        error: "This workspace changed in another session. The latest version has been loaded; review it and try again.",
+        workspace: commit.workspace,
+      }, { status: 409 });
     }
     logActivity({
       agencyId: session.agencyId,
@@ -367,12 +406,13 @@ export async function POST(req: Request) {
         productId,
         pageId,
         collectionId: cleanText(body?.collectionId, 120) || undefined,
-        serviceStageId: syncedServiceStageId,
       },
     });
-    await flushPendingWrites();
-    return NextResponse.json({ ok: true, workspace });
+    return NextResponse.json({ ok: true, workspace: commit.workspace });
   } catch (error) {
+    if (error instanceof ProductWorkspaceBusyError) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 409 });
+    }
     return authErrorResponse(error);
   }
 }

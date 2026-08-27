@@ -3,6 +3,7 @@
 
 import type { Block, BlockType } from "./block";
 import { getElementDefinition } from "./registry";
+import { initialiseCountdownBlock } from "./countdownDeadline";
 
 export function makeBlockId(): string {
   return `b_${Math.random().toString(36).slice(2, 10)}`;
@@ -10,10 +11,11 @@ export function makeBlockId(): string {
 
 export function createBlock(type: BlockType): Block {
   const def = getElementDefinition(type);
+  const props = initialiseCountdownBlock(type, { ...(def?.defaultProps ?? {}) });
   return {
     id: makeBlockId(),
     type,
-    props: { ...(def?.defaultProps ?? {}) },
+    props,
     styles: {},
     children: def?.isContainer ? [] : undefined,
   };

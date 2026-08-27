@@ -21,6 +21,7 @@
 //   renders "Published" or "Draft" based purely on `status`.
 
 import type { Block } from "../types/block";
+import { stabiliseCountdownDeadlines } from "@/engines/editor/elements/countdownDeadline";
 import type { EditorPage } from "../types/editorPage";
 
 export function getDraftTree(page: EditorPage): Block[] {
@@ -81,10 +82,11 @@ export function promoteToPublishedPatch(
   now: number = Date.now(),
 ): PromoteToPublishedPatch {
   const tree = getDraftTree(page);
+  const publishedTree = stabiliseCountdownDeadlines(tree, now);
   return {
     status: "published",
-    blocks: tree,
-    publishedBlocks: tree,
+    blocks: publishedTree,
+    publishedBlocks: publishedTree,
     draftBlocks: undefined,
     publishedAt: now,
     publishedBy: by,

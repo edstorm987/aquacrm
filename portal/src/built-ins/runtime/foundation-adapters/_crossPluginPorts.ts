@@ -45,6 +45,11 @@ export const ecommerceOrdersPortForAffiliates = {
       endCustomerUserId: order.endCustomerUserId,
       amountTotal: order.amountTotal,
       currency: order.currency,
+      status: order.status,
+      paidAt: order.paidAt,
+      refundedAt: order.refundedAt,
+      refundedAmountCents: order.refundedAmountCents
+        ?? (order.status === "refunded" ? order.amountTotal : undefined),
       // Subtotal pre-discount: amountTotal + already-applied discount.
       // ecommerce's ServerOrder doesn't carry an explicit subtotal; we
       // synthesise from amountTotal + discountAmount.

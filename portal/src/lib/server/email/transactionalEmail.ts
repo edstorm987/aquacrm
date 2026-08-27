@@ -1,6 +1,8 @@
 import { mayUseEnvironmentCredentials } from "@/lib/server/auth/founderAgency";
 import { sendResendEmail } from "@/lib/server/email/resendEmail";
-import { resolveIntegrationConnectionValues, resolveIntegrationValues } from "@/lib/server/integrations/integrationConnections";
+import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
+import { resolveScopedIntegrationConnectionValues, resolveIntegrationValues } from "@/lib/server/integrations/integrationConnections";
+import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
 
 interface TransactionalEmailInput {
   to: string;
@@ -11,6 +13,7 @@ interface TransactionalEmailInput {
   clientId?: string;
   fromName?: string;
   externalRef: string;
+  signal?: AbortSignal;
   sender?: { provider: "resend" | "smtp"; connectionId?: string };
   attachments?: Array<{ filename: string; content: Buffer; contentType?: string }>;
 }
@@ -53,9 +56,11 @@ export function transactionalEmailReadiness(
 export async function sendTransactionalEmail(
   input: TransactionalEmailInput,
 ): Promise<TransactionalEmailResult> {
+  assertLiveProviderAccess("Transactional email delivery");
+  const workspace = getAgencyWorkspaceSettings(input.agencyId);
   const requestedProvider = input.sender?.provider;
   const requestedValues = input.sender?.connectionId
-    ? resolveIntegrationConnectionValues(input.agencyId, input.sender.connectionId)
+    ? resolveScopedIntegrationConnectionValues(input.agencyId, input.sender.connectionId, input.clientId)
     : requestedProvider
       ? resolveIntegrationValues(input.agencyId, requestedProvider, { clientId: input.clientId })
       : null;
@@ -69,12 +74,12 @@ export async function sendTransactionalEmail(
   const resendFromEmail = resend.fromEmail || (!requestedProvider ? process.env.MILESYMEDIA_FROM_EMAIL?.trim() : undefined);
 
   if (apiKey && resendFromEmail) {
-    const fromName = input.fromName?.trim() || resend.fromName || process.env.MILESYMEDIA_FROM_NAME?.trim() || "AquaOasis-Web";
+    const fromName = input.fromName?.trim() || resend.fromName || workspace.legalName || process.env.MILESYMEDIA_FROM_NAME?.trim() || "AquaOasis-Web";
     const result = await sendResendEmail({
       apiKey,
       to: input.to,
       from: `${fromName} <${resendFromEmail}>`,
-      replyTo: resend.replyTo || process.env.MILESYMEDIA_REPLY_TO?.trim() || resendFromEmail,
+      replyTo: resend.replyTo || workspace.supportEmail || process.env.MILESYMEDIA_REPLY_TO?.trim() || resendFromEmail,
       subject: input.subject,
       text: input.bodyText,
       html: input.bodyHtml,
@@ -84,6 +89,7 @@ export async function sendTransactionalEmail(
         contentType: attachment.contentType,
       })),
       idempotencyKey: input.externalRef,
+      signal: input.signal,
     });
     if (!result.ok) return { delivered: false, via: "resend", reason: result.reason };
     return { delivered: true, via: "resend" };
@@ -99,11 +105,11 @@ export async function sendTransactionalEmail(
         secure: port === 465,
         auth: { user: smtp.username, pass: smtp.password },
       });
-      const fromName = input.fromName?.trim() || smtp.fromName || "AquaOasis-Web";
+      const fromName = input.fromName?.trim() || smtp.fromName || workspace.legalName || "AquaOasis-Web";
       await transport.sendMail({
         to: input.to,
         from: { name: fromName, address: smtp.fromEmail },
-        replyTo: smtp.replyTo || smtp.fromEmail,
+        replyTo: smtp.replyTo || workspace.supportEmail || smtp.fromEmail,
         subject: input.subject,
         text: input.bodyText,
         html: input.bodyHtml,

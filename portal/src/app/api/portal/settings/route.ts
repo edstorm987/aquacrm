@@ -26,9 +26,6 @@ export async function POST(request: Request) {
     patchInstall({ agencyId: session.agencyId }, "agency-finance", {
       config: {
         defaultCurrency: settings.defaultCurrency.toLowerCase(),
-        defaultPaymentTermsDays: settings.defaultPaymentTermsDays,
-        defaultTaxRatePercent: settings.defaultTaxRatePercent,
-        invoicePrefix: settings.invoicePrefix,
       },
     });
     return NextResponse.json({ ok: true, settings });

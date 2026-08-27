@@ -78,6 +78,7 @@ interface ContactsWorkspaceProps {
   contacts: ContactRow[];
   leads: LeadRow[];
   initialCustomFields: CustomFieldDefinition[];
+  initialLeadFields: import("@/server/types").PortalFormFieldDefinition[];
   initialCustomTags: string[];
   initialImportOpen?: boolean;
 }
@@ -117,7 +118,7 @@ const IMPORT_TEMPLATE = [
   "jane@example.com,Jane Smith,07123456789,Example Ltd,\"warm;google-profile\",google-maps,scraped-list,\"Needs website and Google profile help\"",
 ].join("\n");
 
-export function ContactsWorkspace({ referenceNow, contacts, leads, initialCustomFields, initialCustomTags, initialImportOpen = false }: ContactsWorkspaceProps) {
+export function ContactsWorkspace({ referenceNow, contacts, leads, initialCustomFields, initialLeadFields, initialCustomTags, initialImportOpen = false }: ContactsWorkspaceProps) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [contact, setContact] = useState(EMPTY_CONTACT);
@@ -658,9 +659,9 @@ export function ContactsWorkspace({ referenceNow, contacts, leads, initialCustom
                         <optgroup label="Contact fields">
                           {STANDARD_IMPORT_FIELDS.map(field => <option key={field.value} value={field.value}>{field.label}</option>)}
                         </optgroup>
-                        {customFields.length ? (
-                          <optgroup label="Custom fields">
-                            {customFields.map(field => <option key={field.id} value={`custom:${field.id}`}>{field.formName} · {field.label}</option>)}
+                        {initialLeadFields.filter(field => field.active).length ? (
+                          <optgroup label="Lead custom fields">
+                            {initialLeadFields.filter(field => field.active).map(field => <option key={field.id} value={`custom:${field.id}`}>{field.section} · {field.label}</option>)}
                           </optgroup>
                         ) : null}
                       </select>
@@ -1158,7 +1159,9 @@ function DetailsEditor({
     tags: tags.join(", "),
     notes: notes ?? "",
   });
-  const [customDraft, setCustomDraft] = useState<Record<string, CustomFieldValue>>(customFields ?? {});
+  const [customDraft, setCustomDraft] = useState<Record<string, CustomFieldValue>>(() => Object.fromEntries(
+    customFieldDefinitions.flatMap(field => customFields?.[field.id] === undefined ? [] : [[field.id, customFields[field.id]]]),
+  ));
 
   return (
     <details className="mt-3 rounded-lg border border-black/10 bg-black/[0.02] p-2">
@@ -1250,7 +1253,7 @@ function CustomFieldInput({
   if (field.type === "checkbox") {
     return (
       <label className="inline-flex min-h-10 items-center gap-2 text-xs font-medium text-black/60">
-        <input type="checkbox" checked={value === true} onChange={event => onChange(event.target.checked)} />
+        <input type="checkbox" required={field.required} checked={value === true} onChange={event => onChange(event.target.checked)} />
         {field.label}
       </label>
     );

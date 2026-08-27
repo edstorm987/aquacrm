@@ -118,6 +118,7 @@ export async function closeDealForClient(input: CloseDealInput, deps: CloseDealD
   // makes the create idempotent: a duplicate close reuses this same invoice.
   const draft = await deps.finance.invoices.create({
     clientId: deps.clientId,
+    issuedAt: deps.now,
     dueAt: input.dueAt,
     lineItems: [{ description: title, quantity: 1, unitCents: input.amountCents }],
     currency: input.currency,

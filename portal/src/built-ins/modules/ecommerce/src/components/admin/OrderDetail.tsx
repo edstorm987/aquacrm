@@ -1,7 +1,7 @@
 "use client";
 
 import { Download, FileJson, FilePenLine, Printer, ReceiptText, Save, X } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { formatPrice } from "../../lib/admin/orders";
 import type { OrderStatus, ServerOrder } from "../../server/orders";
@@ -13,9 +13,12 @@ export interface OrderDetailProps {
   receiptHref?: string;
 }
 
-const STATUSES: OrderStatus[] = [
-  "pending", "paid", "fulfilled", "shipped", "delivered", "refunded", "cancelled",
-];
+const NEXT_STATUSES: Partial<Record<OrderStatus, OrderStatus[]>> = {
+  pending: ["cancelled"],
+  paid: ["fulfilled", "shipped"],
+  fulfilled: ["shipped", "delivered"],
+  shipped: ["delivered"],
+};
 const control = "min-h-10 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black outline-none focus:border-black/35";
 
 export function OrderDetail({ order, apiBase, receiptHref }: OrderDetailProps) {
@@ -34,6 +37,7 @@ export function OrderDetail({ order, apiBase, receiptHref }: OrderDetailProps) {
   const [internalNotes, setInternalNotes] = useState(order.internalNotes ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const operationId = useRef(globalThis.crypto?.randomUUID?.() ?? `order-edit-${Date.now()}`);
   const downloadUrl = `${apiBase}/orders/download?id=${encodeURIComponent(order.id)}`;
 
   async function save(): Promise<void> {
@@ -45,6 +49,7 @@ export function OrderDetail({ order, apiBase, receiptHref }: OrderDetailProps) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           id: order.id,
+          operationId: operationId.current,
           patch: {
             status,
             customerName,
@@ -95,12 +100,12 @@ export function OrderDetail({ order, apiBase, receiptHref }: OrderDetailProps) {
         <div className="border-y border-black/10 bg-black/[0.015] p-5 sm:p-6">
           <div>
             <h2 className="font-semibold text-black/85">Edit order</h2>
-            <p className="mt-1 text-sm text-black/45">Update customer, delivery and fulfilment details. Transaction items and totals stay tied to the original payment.</p>
+            <p className="mt-1 text-sm text-black/45">Update customer, delivery and fulfilment details. Payment, cancellation and refund facts stay tied to the payment provider.</p>
           </div>
           <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <label className="grid gap-1 text-xs font-medium text-black/55">Customer name<input className={control} value={customerName} onChange={event => setCustomerName(event.target.value)} /></label>
             <label className="grid gap-1 text-xs font-medium text-black/55">Customer email<input className={control} type="email" value={customerEmail} onChange={event => setCustomerEmail(event.target.value)} /></label>
-            <label className="grid gap-1 text-xs font-medium text-black/55">Status<select className={control} value={status} onChange={event => setStatus(event.target.value as OrderStatus)}>{STATUSES.map(value => <option key={value} value={value}>{label(value)}</option>)}</select></label>
+            <label className="grid gap-1 text-xs font-medium text-black/55">Fulfilment status<select className={control} value={status} onChange={event => setStatus(event.target.value as OrderStatus)}>{[order.status, ...(NEXT_STATUSES[order.status] ?? [])].map(value => <option key={value} value={value}>{label(value)}</option>)}</select></label>
             <label className="grid gap-1 text-xs font-medium text-black/55 sm:col-span-2">Address<input className={control} value={line1} onChange={event => setLine1(event.target.value)} /></label>
             <label className="grid gap-1 text-xs font-medium text-black/55">Address line 2<input className={control} value={line2} onChange={event => setLine2(event.target.value)} /></label>
             <label className="grid gap-1 text-xs font-medium text-black/55">City<input className={control} value={city} onChange={event => setCity(event.target.value)} /></label>

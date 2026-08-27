@@ -12,6 +12,10 @@ export default async function PayoutsPage(props: PluginPageProps) {
     storage: props.storage,
     install: props.install,
   });
-  const [payouts, affiliates] = await Promise.all([c.payouts.list(), c.affiliates.list()]);
-  return <PayoutsList payouts={payouts} affiliates={affiliates} apiBase={API_BASE} canMutate />;
+  const [payouts, affiliates, balances] = await Promise.all([
+    c.payouts.list(),
+    c.affiliates.list(),
+    c.payouts.availableBalances(),
+  ]);
+  return <PayoutsList payouts={payouts} affiliates={affiliates} balances={balances} apiBase={API_BASE} canMutate />;
 }

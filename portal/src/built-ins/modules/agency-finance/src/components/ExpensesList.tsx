@@ -200,22 +200,30 @@ export function ExpensesList({ expenses, categories, clients, budgetPots, apiBas
   const awaitingReview = records.filter(expense => expense.status === "pending").length;
   const recurringDue = records.filter(expense => expense.recurringActive && expense.nextDueAt && expense.nextDueAt <= Date.now() + 30 * 86_400_000).length;
 
-  async function postNextExpense(id: string) {
-    setPostingId(id);
+  async function postNextExpense(expense: Expense) {
+    if (!expense.nextDueAt) {
+      window.alert("Set the next due date before posting this recurring expense.");
+      return;
+    }
+    setPostingId(expense.id);
     try {
       const response = await fetch(`${apiBase}/expenses/post-recurring`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify({ id: expense.id, occurrenceAt: expense.nextDueAt }),
       });
       const result = await response.json();
       if (!response.ok || !result.ok) {
         window.alert(result?.error ?? "Could not post the next expense.");
         return;
       }
+      const posted = result.expense as Expense;
+      const source = result.source as Expense;
       setRecords(current => [
-        result.expense as Expense,
-        ...current.map(expense => expense.id === result.source.id ? result.source as Expense : expense),
+        posted,
+        ...current
+          .filter(row => row.id !== posted.id)
+          .map(row => row.id === source.id ? source : row),
       ]);
       router.refresh();
     } finally {
@@ -513,10 +521,10 @@ export function ExpensesList({ expenses, categories, clients, budgetPots, apiBas
                     <div className="inline-flex items-center gap-1">
                     <button type="button" onClick={() => setSelectedExpense(expense)} aria-label={`Inspect ${expense.vendor || expense.description || "expense"}`} className="grid size-8 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/[0.03]"><Eye size={15} /></button>
                     {canMutate ? <button type="button" onClick={() => setEditingExpense(expense)} aria-label={`Edit ${expense.vendor || expense.description || "expense"}`} className="grid size-8 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/[0.03]"><Pencil size={15} /></button> : null}
-                    {canMutate && expense.recurrence && expense.recurringActive !== false ? (
+                    {canMutate && expense.recurrence && expense.recurringActive !== false && expense.nextDueAt ? (
                       <button
                         type="button"
-                        onClick={() => void postNextExpense(expense.id)}
+                        onClick={() => void postNextExpense(expense)}
                         disabled={postingId === expense.id}
                         className="min-h-8 rounded-md border border-black/15 px-2 text-xs font-medium text-black/70 hover:bg-black/[0.03] disabled:opacity-50"
                       >
@@ -877,7 +885,7 @@ function ExpenseForm({ expense, apiBase, categories, clients, budgetPots, custom
             {!['0', '5', '20'].includes(initialTaxRate) ? <option value={initialTaxRate}>{initialTaxRate}%</option> : null}
           </select>
         </label>
-        <label className={labelClass}>Expense date<input name="incurredAt" type="date" defaultValue={toDateInputValue(expense?.incurredAt ?? Date.now())} className={inputClass} /></label>
+        <label className={labelClass}>Expense date<input name="incurredAt" type="date" defaultValue={dateInputValue(expense?.incurredAt ?? Date.now())} className={inputClass} /></label>
         <label className={labelClass}>Paid using
           <select name="paymentMethod" className={inputClass} defaultValue={expense?.paymentMethod ?? "card"}>
             <option value="card">Card</option>
@@ -909,7 +917,7 @@ function ExpenseForm({ expense, apiBase, categories, clients, budgetPots, custom
             <option value="annual">Annual</option>
           </select>
         </label>
-        <label className={labelClass}>Next payment date<input name="nextDueAt" type="date" defaultValue={expense?.nextDueAt ? toDateInputValue(expense.nextDueAt) : ""} className={inputClass} /></label>
+        <label className={labelClass}>Next payment date<input name="nextDueAt" type="date" defaultValue={expense?.nextDueAt ? dateInputValue(expense.nextDueAt) : ""} className={inputClass} /></label>
         <label className={`${labelClass} sm:col-span-2`}>What was purchased?<input name="description" defaultValue={expense?.description ?? ""} className={inputClass} placeholder="Creative Cloud monthly subscription" /></label>
         <label className={`${labelClass} sm:col-span-2`}>Reason for this expense<textarea name="reason" rows={3} defaultValue={expense?.reason ?? ""} className={`${inputClass} py-2`} placeholder="Why the business needed this cost" /></label>
         <label className={labelClass}>Existing receipt link (optional)<input name="receiptUrl" type="url" defaultValue={expense?.receiptUrl ?? ""} className={inputClass} placeholder="https://…" /></label>
@@ -970,12 +978,6 @@ function CustomFieldInput({ field, value }: { field: CustomFieldDefinition; valu
     </label>;
   }
   return <label className={labelClass}>{field.label}<input name={name} required={field.required} type={field.type} defaultValue={typeof value === "string" ? value : ""} className={inputClass} /></label>;
-}
-
-function toDateInputValue(value: number): string {
-  const date = new Date(value);
-  const offset = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 10);
 }
 
 function formatCustomValue(value: string | string[] | boolean | undefined): string {

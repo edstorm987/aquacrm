@@ -433,6 +433,8 @@ describe("memberships smoke", () => {
           cancel_at_period_end: true,
           items: { data: [{ price: { id: "price_1" } }] },
           metadata: {
+            agencyId: AGENCY_ID,
+            clientId: CLIENT_ID,
             endCustomerUserId: CUSTOMER_USER_ID,
             planId: silverId,
             billing: "monthly",

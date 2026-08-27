@@ -9,6 +9,7 @@ import {
   ChartNoAxesCombined,
   ClipboardCheck,
   CircleHelp,
+  Code2,
   CreditCard,
   Files,
   FolderKanban,
@@ -29,9 +30,15 @@ import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { ProfileMenu } from "@/components/chrome/ProfileMenu";
 import { ColorModeToggle } from "@/components/chrome/ColorModeToggle";
 import { PrivacyModeControl } from "@/components/chrome/PrivacyModeControl";
+import { SafeSandboxEntry } from "@/components/chrome/SafeSandboxEntry";
+import { PortalLoadingCoordinator } from "@/components/ui/PortalLoadingCoordinator";
 import { contrastRatio } from "@/lib/a11y/contrastValidator";
 import { formatPortalCopy, portalCustomCode } from "@/lib/portal/clientPortalDesign";
 import { portalBuilder } from "@/lib/portal/clientPortalBuilder";
+import {
+  customerAccountActivityNavItems,
+  type CustomerAccountActivityCapability,
+} from "@/lib/portal/customerAccountActivity";
 import { portalProductModule, type PortalModuleIcon } from "@/lib/portal/portalProductModules";
 import type { PortalProductSelection } from "@/lib/portal/portalProducts";
 import type { ClientPortalDesignDocument } from "@/server/types";
@@ -62,6 +69,17 @@ const PRODUCT_ICONS: Record<PortalModuleIcon, typeof Home> = {
   support: CircleHelp,
 };
 
+const ACCOUNT_ACTIVITY_ICONS: Record<CustomerAccountActivityCapability, typeof Home> = {
+  orders: ShoppingBag,
+  bookings: CalendarDays,
+};
+
+export interface CustomerDevWorkspaceProject {
+  id: string;
+  name: string;
+  editorVisible: boolean;
+}
+
 function NavItems({
   pathname,
   close,
@@ -74,6 +92,8 @@ function NavItems({
   activePreviewModuleId,
   activePreviewCustomPageSlug,
   attention,
+  accountActivityCapabilities,
+  devProjects,
 }: {
   pathname: string;
   close?: () => void;
@@ -86,6 +106,8 @@ function NavItems({
   activePreviewModuleId?: string;
   activePreviewCustomPageSlug?: string;
   attention?: CustomerPortalAttention;
+  accountActivityCapabilities: readonly CustomerAccountActivityCapability[];
+  devProjects: readonly CustomerDevWorkspaceProject[];
 }) {
   const coreNav = products.length
     ? NAV.filter(item => item.section === "home" || (products.length > 1 && item.section === "project"))
@@ -94,6 +116,7 @@ function NavItems({
     ? NAV.filter(item => item.section === "files" || item.section === "billing" || item.section === "support" || item.section === "details")
     : [];
   const customPages = portalBuilder(presentation).customPages.filter(page => page.visible);
+  const accountActivityItems = customerAccountActivityNavItems(accountActivityCapabilities);
 
   function shellLinks(items: ReadonlyArray<typeof NAV[number]>) {
     return items.map(item => {
@@ -171,17 +194,32 @@ function NavItems({
           </div>
         </div>
       ) : null}
-      {!previewHrefPrefix ? (
+      {!previewHrefPrefix && accountActivityItems.length ? (
         <div className="mt-4 border-t border-white/8 pt-4">
           <p className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.14em] text-white/30">Account activity</p>
           <div className="grid gap-0.5">
-            {[
-              { href: "/portal/customer/orders", label: "Orders", icon: ShoppingBag },
-              { href: "/portal/customer/bookings", label: "Bookings", icon: CalendarDays },
-            ].map(item => {
-              const Icon = item.icon;
+            {accountActivityItems.map(item => {
+              const Icon = ACCOUNT_ACTIVITY_ICONS[item.id];
               const active = pathname.startsWith(item.href);
               return <Link key={item.href} href={item.href} onClick={close} aria-current={active ? "page" : undefined} className={`group flex min-h-10 items-center gap-3 rounded-sm px-3 text-sm transition ${active ? "bg-[#f4efe6] text-[#151310]" : "text-white/58 hover:bg-white/[0.07] hover:text-white"}`}><Icon size={16} strokeWidth={1.65} aria-hidden="true" /><span>{item.label}</span></Link>;
+            })}
+          </div>
+        </div>
+      ) : null}
+      {!previewHrefPrefix && devProjects.length ? (
+        <div className="mt-4 border-t border-white/8 pt-4">
+          <p className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.14em] text-white/30">Development</p>
+          <div className="grid gap-0.5">
+            {devProjects.map(project => {
+              const href = `/portal/dev-workspace/${encodeURIComponent(project.id)}`;
+              const active = pathname === href;
+              return (
+                <Link key={project.id} href={href} onClick={close} aria-current={active ? "page" : undefined} className={`group flex min-h-10 items-center gap-3 rounded-sm px-3 text-sm transition ${active ? "bg-[#f4efe6] text-[#151310]" : "text-white/58 hover:bg-white/[0.07] hover:text-white"}`}>
+                  <Code2 size={16} strokeWidth={1.65} aria-hidden="true" />
+                  <span className="min-w-0 flex-1 truncate">{project.name}</span>
+                  {!project.editorVisible ? <span className="text-[9px] font-semibold uppercase text-amber-200/70">Request</span> : null}
+                </Link>
+              );
             })}
           </div>
         </div>
@@ -228,6 +266,9 @@ export function CustomerPortalChrome({
   providerMark = "M",
   attention,
   workspaces = [],
+  accountActivityCapabilities = [],
+  devProjects = [],
+  safeSandboxEntry = false,
 }: {
   children: ReactNode;
   clientName: string;
@@ -253,6 +294,9 @@ export function CustomerPortalChrome({
   providerMark?: string;
   attention?: CustomerPortalAttention;
   workspaces?: CustomerPortalWorkspaceOption[];
+  accountActivityCapabilities?: readonly CustomerAccountActivityCapability[];
+  devProjects?: readonly CustomerDevWorkspaceProject[];
+  safeSandboxEntry?: boolean;
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -332,7 +376,7 @@ export function CustomerPortalChrome({
           {!isPreview && workspaces.length > 1 ? <CustomerWorkspaceSwitcher workspaces={workspaces} /> : null}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1"><NavItems pathname={pathname} previewHrefPrefix={previewHrefPrefix} activePreviewSection={activePreviewSection} activePreviewProductId={activePreviewProductId} activePreviewModuleId={activePreviewModuleId} activePreviewCustomPageSlug={activePreviewCustomPageSlug} projectLabel={projectLabel} presentation={presentation} products={products} attention={attention} /></div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1"><NavItems pathname={pathname} previewHrefPrefix={previewHrefPrefix} activePreviewSection={activePreviewSection} activePreviewProductId={activePreviewProductId} activePreviewModuleId={activePreviewModuleId} activePreviewCustomPageSlug={activePreviewCustomPageSlug} projectLabel={projectLabel} presentation={presentation} products={products} attention={attention} accountActivityCapabilities={accountActivityCapabilities} devProjects={devProjects} /></div>
 
         <div className="mt-auto border-t border-white/10 px-2 pt-5">
           <p className="text-[10px] uppercase tracking-[0.14em] text-white/35">{presentation.chrome.currentStageLabel}</p>
@@ -386,7 +430,7 @@ export function CustomerPortalChrome({
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               {!isPreview && workspaces.length > 1 ? <div className="mb-5 border-b border-white/10 px-1 pb-5"><CustomerWorkspaceSwitcher workspaces={workspaces} /></div> : null}
-              <NavItems pathname={pathname} close={() => setMobileOpen(false)} previewHrefPrefix={previewHrefPrefix} activePreviewSection={activePreviewSection} activePreviewProductId={activePreviewProductId} activePreviewModuleId={activePreviewModuleId} activePreviewCustomPageSlug={activePreviewCustomPageSlug} projectLabel={projectLabel} presentation={presentation} products={products} attention={attention} />
+              <NavItems pathname={pathname} close={() => setMobileOpen(false)} previewHrefPrefix={previewHrefPrefix} activePreviewSection={activePreviewSection} activePreviewProductId={activePreviewProductId} activePreviewModuleId={activePreviewModuleId} activePreviewCustomPageSlug={activePreviewCustomPageSlug} projectLabel={projectLabel} presentation={presentation} products={products} attention={attention} accountActivityCapabilities={accountActivityCapabilities} devProjects={devProjects} />
             </div>
             <div className="shrink-0 border-t border-white/10 px-3 pt-4">
               <p className="text-[10px] uppercase tracking-[0.14em] text-white/35">{presentation.chrome.currentStageLabel}</p>
@@ -428,6 +472,7 @@ export function CustomerPortalChrome({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
+            {safeSandboxEntry && !isPreview ? <SafeSandboxEntry /> : null}
             <div className="hidden sm:block"><ColorModeToggle /></div>
             <PrivacyModeControl canEnterShowcase={false} sensitiveTerms={[clientName, email, name ?? ""]} />
             {!isPreview && (
@@ -442,10 +487,10 @@ export function CustomerPortalChrome({
             {!hideAccountMenu && !previewBackHref && <div className="mm-private-chrome"><ProfileMenu email={email} role="end-customer" name={name} avatarUrl={avatarUrl} accountLabel={`${providerName} account`} /></div>}
           </div>
         </header>
-        <main id="main-content" className="mm-private-surface min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <main id="main-content" className="mm-private-surface relative min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <div className="mx-auto w-full max-w-[1360px] px-4 py-6 sm:px-7 sm:py-8 lg:px-12 lg:py-12">
             {activeExtensions.filter(item => item.code.placement === "before-content").map(item => <PortalCustomExtension key={item.id} id={item.id} code={item.code} context={extensionContext} />)}
-            {children}
+            <PortalLoadingCoordinator>{children}</PortalLoadingCoordinator>
             {activeExtensions.filter(item => item.code.placement === "after-content").map(item => <PortalCustomExtension key={item.id} id={item.id} code={item.code} context={extensionContext} />)}
           </div>
         </main>

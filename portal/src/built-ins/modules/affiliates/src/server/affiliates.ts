@@ -16,10 +16,61 @@ import type {
   UpdateAffiliatePatch,
 } from "../lib/domain";
 import type { ActivityLogPort, EventBusPort, StoragePort, UserPort } from "./ports";
+import {
+  assertAffiliate,
+  assertCreateAffiliateInput,
+  assertProviderId,
+  assertUpdateAffiliatePatch,
+} from "../lib/runtimeValidation";
 
 const AFFIL_INDEX_KEY = "affiliates/index";
 const affilKey = (id: string): string => `affiliates/by-id/${id}`;
 const userKey = (uid: UserId): string => `affiliates/by-user/${uid}`;
+const enrollmentClaimKey = (uid: UserId): string => `affiliates/claims/user/${encodeURIComponent(uid)}`;
+const counterBaselineKey = (id: string): string => `affiliates/counter-baseline/${id}`;
+const counterOperationKey = (id: string, operationId: string): string => `affiliates/counter-operation/${id}/${encodeURIComponent(operationId)}`;
+
+interface EnrollmentClaim {
+  signature: string;
+  row: Affiliate;
+  status: "pending" | "completed";
+  updatedAt: number;
+}
+
+interface CounterBaseline {
+  totalReferred: number;
+  lifetimeEarnings: number;
+}
+
+interface CounterOperation {
+  addReferred: number;
+  addEarningsCents: number;
+}
+
+const localTails = new Map<string, Promise<void>>();
+
+async function localExclusive<T>(key: string, operation: () => Promise<T>): Promise<T> {
+  const previous = localTails.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const tail = previous.then(() => gate);
+  localTails.set(key, tail);
+  await previous;
+  try { return await operation(); }
+  finally {
+    release();
+    if (localTails.get(key) === tail) localTails.delete(key);
+  }
+}
+
+function enrollmentSignature(input: CreateAffiliateInput): string {
+  return JSON.stringify({
+    userId: input.endCustomerUserId,
+    displayName: input.displayName.trim(),
+    payoutEmail: input.payoutEmail.trim().toLowerCase(),
+    defaultCommissionPercent: input.defaultCommissionPercent ?? null,
+  });
+}
 
 export class AffiliateService {
   constructor(
@@ -59,55 +110,77 @@ export class AffiliateService {
   // (any status) — agency owners flip status via update() to re-admit
   // or remove.
   async enroll(input: CreateAffiliateInput, actor: UserId): Promise<Affiliate> {
-    if (!input.displayName.trim()) throw new Error("displayName required.");
-    if (!input.payoutEmail.trim()) throw new Error("payoutEmail required.");
+    assertCreateAffiliateInput(input);
     const profile = await this.user.getUser(input.endCustomerUserId);
     if (!profile) throw new Error(`User ${input.endCustomerUserId} not found.`);
-
-    const existing = await this.getByUser(input.endCustomerUserId);
-    if (existing) {
-      throw new Error(`User ${input.endCustomerUserId} is already an affiliate (status: ${existing.status}).`);
-    }
-
-    const id = makeId("aff");
-    const ts = now();
-    const row: Affiliate = {
-      id,
-      agencyId: this.agencyId,
-      clientId: this.clientId,
-      endCustomerUserId: input.endCustomerUserId,
-      displayName: input.displayName.trim(),
-      status: "pending",                // owner approves via update()
-      defaultCommissionPercent: input.defaultCommissionPercent,
-      payoutEmail: input.payoutEmail.trim(),
-      totalReferred: 0,
-      lifetimeEarnings: 0,
-      joinedAt: ts,
-      createdAt: ts,
-      updatedAt: ts,
-    };
-    await this.storage.set(affilKey(id), row);
-    await this.storage.set(userKey(input.endCustomerUserId), id);
-    const ix = (await this.storage.get<string[]>(AFFIL_INDEX_KEY)) ?? [];
-    if (!ix.includes(id)) {
-      await this.storage.set(AFFIL_INDEX_KEY, [...ix, id]);
-    }
-    await this.activity.logActivity({
-      agencyId: this.agencyId,
-      clientId: this.clientId,
-      actorUserId: actor,
-      category: "affiliates",
-      action: "affiliate.enrolled",
-      message: `${row.displayName} enrolled as an affiliate.`,
-      metadata: { affiliateId: id, userId: input.endCustomerUserId, status: row.status },
+    return this.withLock("enrollment-collection", async () => {
+      const signature = enrollmentSignature(input);
+      const claimKey = enrollmentClaimKey(input.endCustomerUserId);
+      let claim = await this.storage.get<EnrollmentClaim>(claimKey);
+      const existing = await this.getByUser(input.endCustomerUserId);
+      if (existing) {
+        if (claim?.signature === signature && claim.status === "completed") return existing;
+        if (!claim && enrollmentSignature({
+          endCustomerUserId: existing.endCustomerUserId,
+          displayName: existing.displayName,
+          payoutEmail: existing.payoutEmail,
+          defaultCommissionPercent: existing.defaultCommissionPercent,
+        }) === signature) return existing;
+        if (claim?.signature === signature) claim = { ...claim, row: existing };
+        else {
+          throw new Error(`User ${input.endCustomerUserId} is already an affiliate (status: ${existing.status}).`);
+        }
+      }
+      if (claim && claim.signature !== signature) {
+        throw new Error(`User ${input.endCustomerUserId} is already claimed by another affiliate enrolment.`);
+      }
+      if (!claim) {
+        const ts = now();
+        const row: Affiliate = {
+          id: makeId("aff"),
+          agencyId: this.agencyId,
+          clientId: this.clientId,
+          endCustomerUserId: input.endCustomerUserId,
+          displayName: input.displayName.trim(),
+          status: "pending",
+          defaultCommissionPercent: input.defaultCommissionPercent,
+          payoutEmail: input.payoutEmail.trim(),
+          totalReferred: 0,
+          lifetimeEarnings: 0,
+          lifetimeEarningsByCurrency: {},
+          joinedAt: ts,
+          createdAt: ts,
+          updatedAt: ts,
+        };
+        assertAffiliate(row);
+        claim = { signature, row, status: "pending", updatedAt: ts };
+        await this.storage.set(claimKey, claim);
+      }
+      const row = await this.get(claim.row.id) ?? claim.row;
+      await this.storage.set(affilKey(row.id), row);
+      await this.storage.set(userKey(input.endCustomerUserId), row.id);
+      const index = (await this.storage.get<string[]>(AFFIL_INDEX_KEY)) ?? [];
+      if (!index.includes(row.id)) await this.storage.set(AFFIL_INDEX_KEY, [...index, row.id]);
+      await this.activity.logActivity({
+        idempotencyKey: `affiliates:enrolment:${row.id}`,
+        agencyId: this.agencyId,
+        clientId: this.clientId,
+        actorUserId: actor,
+        category: "affiliates",
+        action: "affiliate.enrolled",
+        message: `${row.displayName} enrolled as an affiliate.`,
+        metadata: { affiliateId: row.id, userId: input.endCustomerUserId, status: row.status },
+      });
+      this.events.emit({ agencyId: this.agencyId, clientId: this.clientId }, "affiliate.enrolled", {
+        affiliateId: row.id, userId: input.endCustomerUserId,
+      });
+      await this.storage.set(claimKey, { ...claim, row, status: "completed", updatedAt: now() });
+      return row;
     });
-    this.events.emit({ agencyId: this.agencyId, clientId: this.clientId }, "affiliate.enrolled", {
-      affiliateId: id, userId: input.endCustomerUserId,
-    });
-    return row;
   }
 
   async update(id: string, patch: UpdateAffiliatePatch, actor: UserId): Promise<Affiliate | null> {
+    assertUpdateAffiliatePatch(patch);
     const existing = await this.get(id);
     if (!existing) return null;
     const next: Affiliate = {
@@ -117,6 +190,7 @@ export class AffiliateService {
       payoutEmail: patch.payoutEmail?.trim() ?? existing.payoutEmail,
       updatedAt: now(),
     };
+    assertAffiliate(next);
     await this.storage.set(affilKey(id), next);
     await this.activity.logActivity({
       agencyId: this.agencyId,
@@ -133,22 +207,25 @@ export class AffiliateService {
   // Hard delete — drops the row + by-user reverse lookup. Use sparingly;
   // status:"removed" via update() is the documented v1 path.
   async delete(id: string, actor: UserId): Promise<boolean> {
-    const existing = await this.get(id);
-    if (!existing) return false;
-    await this.storage.del(affilKey(id));
-    await this.storage.del(userKey(existing.endCustomerUserId));
-    const ix = (await this.storage.get<string[]>(AFFIL_INDEX_KEY)) ?? [];
-    await this.storage.set(AFFIL_INDEX_KEY, ix.filter(x => x !== id));
-    await this.activity.logActivity({
-      agencyId: this.agencyId,
-      clientId: this.clientId,
-      actorUserId: actor,
-      category: "affiliates",
-      action: "affiliate.deleted",
-      message: `Removed ${existing.displayName} from affiliates.`,
-      metadata: { affiliateId: id },
+    return this.withLock("enrollment-collection", async () => {
+      const existing = await this.get(id);
+      if (!existing) return false;
+      await this.storage.del(affilKey(id));
+      await this.storage.del(userKey(existing.endCustomerUserId));
+      await this.storage.del(enrollmentClaimKey(existing.endCustomerUserId));
+      const ix = (await this.storage.get<string[]>(AFFIL_INDEX_KEY)) ?? [];
+      await this.storage.set(AFFIL_INDEX_KEY, ix.filter(x => x !== id));
+      await this.activity.logActivity({
+        agencyId: this.agencyId,
+        clientId: this.clientId,
+        actorUserId: actor,
+        category: "affiliates",
+        action: "affiliate.deleted",
+        message: `Removed ${existing.displayName} from affiliates.`,
+        metadata: { affiliateId: id },
+      });
+      return true;
     });
-    return true;
   }
 
   // R12 — persists Stripe Connect identifiers onto the Affiliate. Used
@@ -163,12 +240,14 @@ export class AffiliateService {
   ): Promise<Affiliate | null> {
     const existing = await this.get(id);
     if (!existing) return null;
+    if (patch.stripeAccountId !== undefined) assertProviderId(patch.stripeAccountId, "stripeAccountId");
     const next: Affiliate = {
       ...existing,
       stripeAccountId: patch.stripeAccountId ?? existing.stripeAccountId,
       stripeOnboardingStatus: patch.stripeOnboardingStatus ?? existing.stripeOnboardingStatus,
       updatedAt: now(),
     };
+    assertAffiliate(next);
     await this.storage.set(affilKey(id), next);
     return next;
   }
@@ -185,16 +264,131 @@ export class AffiliateService {
 
   // Internal — bumps counters from AttributionService. Doesn't log
   // activity (the attribution row is the canonical audit entry).
-  async _incrementCounters(id: string, args: { addReferred?: number; addEarningsCents?: number }): Promise<void> {
+  async _incrementCounters(
+    id: string,
+    args: { addReferred?: number; addEarningsCents?: number },
+    operationId?: string,
+    lockHeld = false,
+  ): Promise<void> {
+    const increment = async () => {
+      const existing = await this.get(id);
+      if (!existing) return;
+      let totalReferred: number;
+      let lifetimeEarnings: number;
+      if (operationId) {
+        let baseline = await this.storage.get<CounterBaseline>(counterBaselineKey(id));
+        if (!baseline) {
+          baseline = { totalReferred: existing.totalReferred, lifetimeEarnings: existing.lifetimeEarnings };
+          await this.storage.set(counterBaselineKey(id), baseline);
+        }
+        const operationKey = counterOperationKey(id, operationId);
+        const requestedOperation = {
+          addReferred: args.addReferred ?? 0,
+          addEarningsCents: args.addEarningsCents ?? 0,
+        } satisfies CounterOperation;
+        const storedOperation = await this.storage.get<CounterOperation>(operationKey);
+        if (
+          storedOperation
+          && (
+            storedOperation.addReferred !== requestedOperation.addReferred
+            || storedOperation.addEarningsCents !== requestedOperation.addEarningsCents
+          )
+        ) {
+          throw new Error(`Affiliate counter operation ${operationId} was replayed with different values.`);
+        }
+        if (!storedOperation) await this.storage.set(operationKey, requestedOperation);
+        const keys = await this.storage.list(`affiliates/counter-operation/${id}/`);
+        let referredDelta = 0;
+        let earningsDelta = 0;
+        for (const key of keys) {
+          const operation = await this.storage.get<CounterOperation>(key);
+          referredDelta += operation?.addReferred ?? 0;
+          earningsDelta += operation?.addEarningsCents ?? 0;
+        }
+        totalReferred = baseline.totalReferred + referredDelta;
+        lifetimeEarnings = baseline.lifetimeEarnings + earningsDelta;
+      } else {
+        totalReferred = existing.totalReferred + (args.addReferred ?? 0);
+        lifetimeEarnings = existing.lifetimeEarnings + (args.addEarningsCents ?? 0);
+        const baseline = await this.storage.get<CounterBaseline>(counterBaselineKey(id));
+        if (baseline) {
+          await this.storage.set(counterBaselineKey(id), {
+            totalReferred: baseline.totalReferred + (args.addReferred ?? 0),
+            lifetimeEarnings: baseline.lifetimeEarnings + (args.addEarningsCents ?? 0),
+          } satisfies CounterBaseline);
+        }
+      }
+      const next: Affiliate = {
+        ...existing,
+        totalReferred,
+        lifetimeEarnings,
+        lastActiveAt: now(),
+        updatedAt: now(),
+      };
+      assertAffiliate(next);
+      await this.storage.set(affilKey(id), next);
+    };
+    if (lockHeld) return increment();
+    await this.withLock(`counter:${id}`, increment);
+  }
+
+  // Payout completion reconciles this projection from canonical paid
+  // attributions instead of incrementing it. Retrying after any write boundary
+  // therefore converges on one earnings total rather than paying the counter twice.
+  async _setLifetimeEarnings(id: string, lifetimeEarnings: number): Promise<void> {
     const existing = await this.get(id);
-    if (!existing) return;
+    if (!existing) throw new Error(`Affiliate ${id} not found while reconciling earnings.`);
     const next: Affiliate = {
       ...existing,
-      totalReferred: existing.totalReferred + (args.addReferred ?? 0),
-      lifetimeEarnings: existing.lifetimeEarnings + (args.addEarningsCents ?? 0),
+      lifetimeEarnings,
       lastActiveAt: now(),
       updatedAt: now(),
     };
+    assertAffiliate(next);
     await this.storage.set(affilKey(id), next);
+    const baseline = await this.storage.get<CounterBaseline>(counterBaselineKey(id));
+    if (baseline) {
+      await this.storage.set(counterBaselineKey(id), {
+        ...baseline,
+        lifetimeEarnings: next.lifetimeEarnings,
+      });
+    }
+  }
+
+  async _setLifetimeEarningsByCurrency(
+    id: string,
+    lifetimeEarningsByCurrency: Record<string, number>,
+  ): Promise<void> {
+    const existing = await this.get(id);
+    if (!existing) throw new Error(`Affiliate ${id} not found while reconciling earnings.`);
+    const normalized: Record<string, number> = Object.fromEntries(
+      Object.entries(lifetimeEarningsByCurrency)
+        .map(([currency, amount]): [string, number] => [currency.toLowerCase(), Math.max(0, Math.round(amount))])
+        .sort(([left], [right]) => left.localeCompare(right)),
+    );
+    const next: Affiliate = {
+      ...existing,
+      // Compatibility-only aggregate; mounted surfaces render the map.
+      lifetimeEarnings: Object.values(normalized).reduce((sum, amount) => sum + amount, 0),
+      lifetimeEarningsByCurrency: normalized,
+      lastActiveAt: now(),
+      updatedAt: now(),
+    };
+    assertAffiliate(next);
+    await this.storage.set(affilKey(id), next);
+    const baseline = await this.storage.get<CounterBaseline>(counterBaselineKey(id));
+    if (baseline) {
+      await this.storage.set(counterBaselineKey(id), {
+        ...baseline,
+        lifetimeEarnings: next.lifetimeEarnings,
+      });
+    }
+  }
+
+  private async withLock<T>(key: string, operation: () => Promise<T>): Promise<T> {
+    if (this.storage.runExclusive) {
+      return this.storage.runExclusive(`affiliate:${key}`, operation);
+    }
+    return localExclusive(`${this.agencyId}:${this.clientId}:${key}`, operation);
   }
 }

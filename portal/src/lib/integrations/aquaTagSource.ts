@@ -97,11 +97,14 @@ export const AQUA_TAG_SOURCE = String.raw`(() => {
 
   // ── Consent-gated tag manager ───────────────────────────────────────────
   // Tools configured for this site (GA4/GTM/PostHog/pixels/Search Console) are
-  // fetched once from the config endpoint and each is injected only when its
+  // fetched once, without cache, for this page load and each is injected only when its
   // consent category is granted — retroactively when the visitor later opts in,
   // the same way analytics starts. v1 is an allow-list by id/key: the server
   // validates every value, so nothing arbitrary reaches the page. Every step is
   // wrapped — a failing tool must never break the site or the enquiry capture.
+  // Provider scripts cannot be reliably unloaded after execution, so an operator's
+  // later disable/remove applies to NEW page loads; the management UI states that
+  // boundary instead of claiming an already-open visitor page was remotely stopped.
   const configEndpoint = new URL("/api/public/aqua-tag-config?key=" + encodeURIComponent(siteKey) + "&host=" + encodeURIComponent(location.host), script.src).toString();
   let injectionConfig = [];
   const injectedKeys = {};
@@ -752,6 +755,37 @@ export const AQUA_TAG_SOURCE = String.raw`(() => {
     return fields;
   };
 
+  const makeSubmissionId = () => {
+    try {
+      if (crypto && typeof crypto.randomUUID === "function") return "aqua_sub_" + crypto.randomUUID().replace(/-/g, "");
+      if (crypto && typeof crypto.getRandomValues === "function") {
+        const bytes = crypto.getRandomValues(new Uint8Array(16));
+        return "aqua_sub_" + Array.from(bytes).map(byte => byte.toString(16).padStart(2, "0")).join("");
+      }
+    } catch {}
+    return "aqua_sub_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 14);
+  };
+
+  // The capture listener runs in the capture phase, before a React/Vue/bubble
+  // submit handler reads FormData. Stamping a hidden field here gives the tag
+  // request and the website's normal request one identity without asking the
+  // host form to coordinate network order.
+  const stampSubmissionId = form => {
+    const submissionId = makeSubmissionId();
+    let input = typeof form.querySelector === "function"
+      ? form.querySelector('input[name="aquaSubmissionId"]')
+      : null;
+    if (!input && typeof document.createElement === "function" && typeof form.appendChild === "function") {
+      input = document.createElement("input");
+      input.type = "hidden";
+      input.name = "aquaSubmissionId";
+      input.setAttribute("data-aqua-ignore", "");
+      form.appendChild(input);
+    }
+    if (input) input.value = submissionId;
+    return submissionId;
+  };
+
   document.addEventListener("submit", event => {
     const form = event.target;
     if (!(form instanceof HTMLFormElement)) return;
@@ -772,6 +806,7 @@ export const AQUA_TAG_SOURCE = String.raw`(() => {
     // where the assumptions are.
     try {
       if (!capturableForm(form)) return;
+      const submissionId = stampSubmissionId(form);
       const fields = captureSubmission(form);
       if (!fields.length) return;
       const payload = {
@@ -783,17 +818,33 @@ export const AQUA_TAG_SOURCE = String.raw`(() => {
         pageUrl: safeUrl(location.href),
         pagePath: location.pathname,
         submittedAt: new Date().toISOString(),
+        submissionId,
         fields,
       };
-      // keepalive so the record survives the navigation a submit usually causes.
-      fetch(captureEndpoint, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-        keepalive: true,
-        mode: "cors",
-        credentials: "omit",
-      }).catch(() => {});
+      // keepalive so the record survives navigation. Persistence failures are
+      // retried with the SAME id; they stay invisible to the host form but are
+      // no longer mistaken for accepted data.
+      const postCapture = attempt => {
+        fetch(captureEndpoint, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+          keepalive: true,
+          mode: "cors",
+          credentials: "omit",
+        }).then(response => {
+          if (!response || response.ok !== true) throw new Error("capture rejected");
+          if (typeof response.json !== "function") return true;
+          return response.json().then(result => {
+            if (!result || result.ok !== true) throw new Error("capture not persisted");
+            return true;
+          });
+        }).catch(() => {
+          if (attempt >= 2 || typeof setTimeout !== "function") return;
+          setTimeout(() => postCapture(attempt + 1), 400 * (attempt + 1));
+        });
+      };
+      postCapture(0);
     } catch { /* a failed capture must never break the website's own submit */ }
   }, true);
   document.addEventListener("click", event => {

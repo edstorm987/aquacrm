@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { businessCalendarDate } from "@/lib/shared/formatDateTime";
 import type { Department } from "../lib/domain";
 import type { Role } from "../lib/tenancy";
 
@@ -38,7 +39,7 @@ export function NewStaffModal({ apiBase, departments, onClose }: NewStaffModalPr
             role: String(fd.get("role") ?? "agency-staff") as Role,
             title: String(fd.get("title") ?? "").trim(),
             departmentId: (String(fd.get("departmentId") ?? "")) || undefined,
-            joinedAt: String(fd.get("joinedAt") ?? new Date().toISOString().slice(0, 10)),
+            joinedAt: String(fd.get("joinedAt") ?? businessCalendarDate()),
             locationType: (fd.get("locationType") as "remote" | "hybrid" | "onsite" | null) ?? undefined,
           };
           try {
@@ -75,7 +76,7 @@ export function NewStaffModal({ apiBase, departments, onClose }: NewStaffModalPr
             {departments.map(d => (<option key={d.id} value={d.id}>{d.name}</option>))}
           </select>
         </label>
-        <label>Joined<input name="joinedAt" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required /></label>
+        <label>Joined<input name="joinedAt" type="date" defaultValue={businessCalendarDate()} required /></label>
         <label>Location
           <select name="locationType" defaultValue="">
             <option value="">—</option>

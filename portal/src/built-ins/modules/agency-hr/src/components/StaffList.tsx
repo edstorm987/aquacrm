@@ -13,8 +13,10 @@ export interface StaffListProps {
 }
 
 const STATUS_LABEL: Record<StaffStatus, string> = {
+  preboarding: "Preboarding",
   active: "Active",
   "on-leave": "On leave",
+  suspended: "Suspended",
   alumni: "Alumni",
 };
 
@@ -60,8 +62,10 @@ export function StaffList({ staff, departments, apiBase, canMutate }: StaffListP
           />
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as StaffStatus | "all")}>
             <option value="all">All statuses</option>
+            <option value="preboarding">Preboarding</option>
             <option value="active">Active</option>
             <option value="on-leave">On leave</option>
+            <option value="suspended">Suspended</option>
             <option value="alumni">Alumni</option>
           </select>
           <select value={departmentFilter} onChange={e => setDepartmentFilter(e.target.value)}>

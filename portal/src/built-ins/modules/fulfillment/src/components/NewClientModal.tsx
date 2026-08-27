@@ -31,16 +31,17 @@ const DEFAULT_STATE: FormState = {
 
 export function NewClientModal(props: NewClientModalProps) {
   const { open, apiBase, onClose, onCreated, phasePresets } = props;
+  const firstStage = phasePresets[0]?.stage;
   const [state, setState] = useState<FormState>(DEFAULT_STATE);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
-      setState(DEFAULT_STATE);
+      setState({ ...DEFAULT_STATE, stage: firstStage ?? DEFAULT_STATE.stage });
       setError(null);
     }
-  }, [open]);
+  }, [open, firstStage]);
 
   if (!open) return null;
 
@@ -162,7 +163,7 @@ export function NewClientModal(props: NewClientModalProps) {
 
         <div className="fulfillment-modal-actions">
           <button type="button" onClick={onClose} disabled={busy}>Cancel</button>
-          <button type="submit" disabled={busy}>
+          <button type="submit" disabled={busy || phasePresets.length === 0}>
             {busy ? "Creating…" : "Create client"}
           </button>
         </div>

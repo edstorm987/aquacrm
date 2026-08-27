@@ -49,7 +49,9 @@ test("createCustomKpi persists a definition and deleteCustomKpi removes it", asy
 test("the KPI targets route reads and writes the config store", () => {
   const route = readFileSync("src/app/api/portal/kpi-registry/targets/route.ts", "utf8");
   assert.match(route, /getKpiTargetsConfig/);
-  assert.match(route, /setKpiTarget/);
-  assert.match(route, /clearKpiTarget/);
+  assert.match(route, /applyKpiTargetCommand/);
+  assert.match(route, /withPortalStateTransaction/);
+  assert.match(route, /expectedUpdatedAt/);
+  assert.match(route, /operationId/);
   assert.match(route, /requireRole/);   // authed
 });

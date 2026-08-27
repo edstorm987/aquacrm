@@ -2,7 +2,10 @@
 
 ← [todo.md](../todo.md) · [development.md](../../development.md)
 
-**Status: CODE-COMPLETE — all phases + webhook shipped 2026-08-19.** Two non-code steps to be *usable*: commander browser-verify + Ed creates the real Meta app. Replace the dead "Awaiting Meta
+**Status: CODE-COMPLETE — all phases + webhook shipped 2026-08-19.** The
+Connect-now UI and notice states were browser-verified on port 3032. The remaining
+usable-product proof is Ed creating the real Meta app and completing OAuth plus a
+live webhook on HTTPS. The plan replaced the dead "Awaiting Meta
 values" state with a **"Connect now"** button that lets Ed enter his Meta
 credentials in-app and actually connect — instead of the values being env-only.
 **Decision resolved (Ed):** full self-serve in-app entry (not env-only relabel).
@@ -69,7 +72,7 @@ real HTTPS deploy.
 supplies creds on an HTTPS deployment; the OAuth connect + live webhook can then be
 exercised for real.
 
-## Where we are (verified)
+## Original starting point (superseded by the shipped status above)
 - `_SocialInboxWorkspace.tsx` shows the connect UI **only when `readiness.configured`** (from `metaInboxReadiness()`), which checks **env vars** `META_APP_ID` / `META_APP_SECRET` (+ verify token, Graph API version, portal URL). If unset → the disabled **"Awaiting Meta values"** button (line 195).
 - The connect buttons already exist and work when configured: `/api/portal/inbox/meta/start` → Meta OAuth (`buildMetaAuthorizeUrl`, reads `readMetaMessagingConfig`).
 - So the block is: **credentials come from env, not the UI.** A "Connect now" that just links to OAuth would hit `not-configured`.
@@ -88,10 +91,13 @@ Connecting Meta genuinely needs a **Meta Developer app** (App ID + Secret) that 
 
 ## Decisions (Ed)
 - ✅ **Storage — RESOLVED: both.** Canonical = the integration connection; also surfaced/managed in Agency settings. One store, two views (not duplicated). This is a general principle — see [notes.md](../notes.md).
-- Full self-serve in-app entry (this plan), or keep env-only and just relabel + link setup docs (smaller, but not truly self-serve)?
+- ✅ **Entry — RESOLVED:** full self-serve in-app entry, with env fallback.
 
-## Done when (verified)
-With no env values set, **Connect now → enter valid Meta values → the Instagram/Facebook connect buttons light up and OAuth starts.** App Secret stored encrypted, never echoed back. Visually confirmed + a behavioural test on the config read/write.
+## Done definition
+The in-app implementation is complete and its UI/config contract is verified.
+Live acceptance remains: with no env values set, **Connect now → enter valid
+Meta values → Instagram/Facebook buttons → OAuth → signed webhook → reply** on
+an HTTPS deployment. The App Secret must remain encrypted and never echoed back.
 
 ## File map — what this plan owns
 

@@ -1,7 +1,9 @@
 # AquaCRM — Structure (the agreed taxonomy) + Roadmap
 
-The single source of truth for what every folder is and what's left. Companion to the
-"AquaCRM Structure & Roadmap" artifact. Ed's call 2026-08-20: end the naming sprawl.
+The source of truth for the folder taxonomy and architecture vocabulary. For the
+current delivery position and what's left, use [checklist.md](checklist.md); for
+sequencing, use [roadmap.md](roadmap.md). Companion to the "AquaCRM Structure &
+Roadmap" artifact. Ed's call 2026-08-20: end the naming sprawl.
 
 ## The one sentence
 **Engines** power **Modules**, which fill **Workspaces**, which are grouped into **Surfaces.**
@@ -17,8 +19,15 @@ The single source of truth for what every folder is and what's left. Companion t
 ## The three Engines (→ `src/engines/`)
 1. **Dev Editor Engine** — editing: blocks + code+git; detects website/portal/software and adapts.
    MOVED ✓: `src/engines/editor/{editing,elements,server}/` (was `lib/editing/` + `lib/elements/` + `lib/server/siteEditor/`).
-   DONE: block editing (P1–3), rename, Dev Team editor mounts the code+git engine (read).
-   OPEN: unify behind one adapter, live commit/publish path, install tiers, GitHub+AquaTag+Vercel setup.
+   DONE: block editing (P1–3), rename, universal Editor mount, source edits,
+   draft commits and publish/PR lifecycle, inline GitHub/Aqua Tag/AI setup.
+   OPEN: full browser acceptance, the remaining browser-hide/surface/lifecycle/
+   refresh transition and reported prefill-bleed coverage, a coherent deployed
+   Supabase RPC/direct-Postgres claim contract plus live two-instance proof,
+   client-portal mounting and the remaining engine widening/install-tier work.
+   Project dirty buffers and source-level AI project/prefill clearing have focused
+   regressions, but runtime isolation remains open. See
+   [dev-editor-finish.md](plans/dev-editor-finish.md).
 2. **SOP Engine** — SOPs → guides → training; traditional + interactive/video content.
    MOVED ✓: `src/engines/sop/server/{sops,sopGuides}.ts` (was `server/sops.ts` + `sopGuides.ts`). `sop-library/` workspace stays under `app/portal/`.
    DONE: interactive SOPs + composer, guides. ALSO already built (People-training island): assignment (`PeopleTrainingAssignment.sopId`), progress (status/completedAt), modules + quiz-gated certification (`PeopleTrainingModule`), team view (`/portal/team/training`).
@@ -29,7 +38,11 @@ The single source of truth for what every folder is and what's left. Companion t
    DONE: Radar (7 stages), KPI (7 phases), Command Intelligence.
    OPEN: fold in performance/intelligence, evolving baselines (rolling baseline + ~10% ratcheting band).
 
-## The five Surfaces (IA v2) — owner and staff get the same five
+## The five Surfaces (IA v2 target)
+
+Owner/staff parity is the intended taxonomy, not current verified behaviour. The
+proxy presently redirects all staff `/portal/agency*` pages and permits only five
+API roots, which conflicts with some leaf routes that admit staff (issues #25).
 | Surface | Is | State |
 |---|---|---|
 | Command Centre | now / your day (staff: employee portal) | exists |
@@ -40,9 +53,11 @@ The single source of truth for what every folder is and what's left. Companion t
 
 ## What's left
 - **The `src/engines/` move**: DONE ✓ — editor + sop + data all physically in `src/engines/`, imports rewritten, tsc + full suite green, adversarial-verified. "Plugin" already retired → "module".
-- **Finish the engines** (Ed's "very least"): editor unify+commit+tiers+setup · SOP training-merge+views+assignment · Data fold-in performance/intelligence + evolving baselines. ← now the active track.
+- **Finish the engines** (Ed's "very least"): editor acceptance+reliability+client mount+tiers · SOP training-merge+views+assignment · Data fold-in performance/intelligence + evolving baselines. ← now the active track.
 - **The surfaces**: Executive (extract-and-add, CC unchanged) — NEXT · Operations container (Governance in; lane exists) · staff-portal mirror.
-- **Launch-critical (only Ed)**: first prod deploy (never run on prod Supabase) · Vercel env (SERVICE_ROLE_KEY, SESSION_SECRET) · apply brand_enquiries migration · one real onboarding walk · Stripe/Meta/DPO · the first push.
+- **Launch-critical external/acceptance work:** merge/deploy decision · deployment
+  environment verification · pending migrations · one real onboarding walk ·
+  live Stripe/Meta/DPO steps. The first commit and push are already complete.
 
 ## Order
 1. ~~Executive surface~~ → 2. ~~`src/engines/` move~~ DONE ✓ → **3. finish each engine (active)** → 4. Executive + Operations container → 5. launch-hardening (Ed's track, parallel).

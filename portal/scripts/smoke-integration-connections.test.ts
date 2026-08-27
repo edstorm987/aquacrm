@@ -108,7 +108,64 @@ test("multiple messaging accounts remain distinct send-as identities", async () 
   }
 });
 
-test("integration secrets are encrypted at rest and redacted from browser records", () => {
+test("stalled Twilio message and call requests exit with unknown-outcome guidance", async () => {
+  const agency = tenants.createAgency({ name: "Twilio Deadline", slug: "twilio-deadline" });
+  const connection = connections.saveIntegrationConnection({
+    agencyId: agency.id,
+    provider: "twilio",
+    label: "Deadline Twilio",
+    values: {
+      accountSid: "AC_deadline",
+      authToken: "deadline-secret",
+      smsFrom: "+447700900301",
+      voiceFrom: "+447700900302",
+      agentPhone: "+447700900303",
+    },
+    actorUserId: "owner",
+  });
+  const sms = communications.resolveCommunicationSender(agency.id, `connection:${connection.id}:sms`, "sms");
+  const call = communications.resolveCommunicationSender(agency.id, `connection:${connection.id}:call`, "call");
+  assert.ok(sms);
+  assert.ok(call);
+
+  const oldFetch = globalThis.fetch;
+  let providerSignal: AbortSignal | null = null;
+  globalThis.fetch = ((_url: RequestInfo | URL, init?: RequestInit) => {
+    providerSignal = init?.signal as AbortSignal;
+    return new Promise<Response>(() => undefined);
+  }) as typeof fetch;
+  try {
+    const messageResult = await communications.sendPhoneMessage({
+      agencyId: agency.id,
+      sender: sms!,
+      channel: "sms",
+      to: "07700 900999",
+      body: "Hello",
+      timeoutMs: 5,
+    });
+    assert.equal(messageResult.delivered, false);
+    assert.equal(messageResult.code, "REMOTE_OPERATION_TIMEOUT");
+    assert.equal(messageResult.outcomeUnknown, true);
+    assert.equal(messageResult.retry, "reconcile-first");
+    assert.equal(providerSignal?.aborted, true);
+
+    const callResult = await communications.initiatePhoneCall({
+      agencyId: agency.id,
+      sender: call!,
+      customerPhone: "07700 900999",
+      timeoutMs: 5,
+    });
+    assert.equal(callResult.initiated, false);
+    assert.equal(callResult.code, "REMOTE_OPERATION_TIMEOUT");
+    assert.equal(callResult.outcomeUnknown, true);
+    assert.equal(callResult.retry, "reconcile-first");
+    assert.equal(providerSignal?.aborted, true);
+  } finally {
+    globalThis.fetch = oldFetch;
+  }
+});
+
+test("integration secrets are encrypted at rest and redacted from browser records", async () => {
   const agency = tenants.createAgency({ name: "Integration Smoke", slug: "integration-smoke" });
   const saved = connections.saveIntegrationConnection({
     agencyId: agency.id,
@@ -131,17 +188,18 @@ test("integration secrets are encrypted at rest and redacted from browser record
   assert.deepEqual(saved.configuredSecretFields, ["apiKey"]);
   assert.equal("encryptedSecrets" in saved, false);
   assert.doesNotMatch(JSON.stringify(storage.getState()), /re_super_secret_test_value/);
-  assert.equal(
-    connections.resolveIntegrationValues(agency.id, "resend", { includeEnvironmentFallback: false }).apiKey,
-    "re_super_secret_test_value",
-  );
+  assert.equal(connections.resolveIntegrationValues(agency.id, "resend", { includeEnvironmentFallback: false }).apiKey, undefined);
+  assert.equal(connections.resolveIntegrationConnectionValues(agency.id, saved.id).apiKey, "re_super_secret_test_value");
+  const tested = await connections.testIntegrationConnection(agency.id, saved.id, { userId: "owner" }, (async () => Response.json({ data: [] })) as typeof fetch);
+  assert.equal(tested.isActive, true, "the first passing connection in a scope becomes active");
+  assert.equal(connections.resolveIntegrationValues(agency.id, "resend", { includeEnvironmentFallback: false }).apiKey, "re_super_secret_test_value");
 });
 
-test("client-scoped credentials override the workspace default and blank edits preserve secrets", () => {
+test("client-scoped credentials override the workspace default and blank edits preserve secrets", async () => {
   const agency = tenants.createAgency({ name: "Scoped Integration", slug: "scoped-integration" });
   const firstClient = tenants.createClient(agency.id, { name: "First Client" });
   const secondClient = tenants.createClient(agency.id, { name: "Second Client" });
-  connections.saveIntegrationConnection({
+  const workspaceConnection = connections.saveIntegrationConnection({
     agencyId: agency.id,
     provider: "openai",
     values: { apiKey: "sk-workspace", model: "gpt-5-mini" },
@@ -155,6 +213,9 @@ test("client-scoped credentials override the workspace default and blank edits p
     values: { apiKey: "sk-client", model: "gpt-5" },
     actorUserId: "owner",
   });
+  const openAiFetch = (async () => Response.json({ data: [] })) as typeof fetch;
+  await connections.testIntegrationConnection(agency.id, workspaceConnection.id, { userId: "owner" }, openAiFetch);
+  await connections.testIntegrationConnection(agency.id, clientConnection.id, { userId: "owner" }, openAiFetch);
   connections.saveIntegrationConnection({
     agencyId: agency.id,
     connectionId: clientConnection.id,
@@ -164,6 +225,7 @@ test("client-scoped credentials override the workspace default and blank edits p
     values: { apiKey: "", model: "gpt-5.1" },
     actorUserId: "owner",
   });
+  await connections.testIntegrationConnection(agency.id, clientConnection.id, { userId: "owner" }, openAiFetch);
 
   assert.equal(connections.resolveIntegrationValues(agency.id, "openai", { clientId: firstClient.id }).apiKey, "sk-client");
   assert.equal(connections.resolveIntegrationValues(agency.id, "openai", { clientId: firstClient.id }).model, "gpt-5.1");
@@ -216,7 +278,7 @@ test("meta app credentials persist encrypted and resolve stored-then-env", async
   assert.doesNotMatch(JSON.stringify(saved), /meta_app_secret_value|verify_token_value/);
 
   // Server-side resolve returns the full decrypted credential set for the config reader.
-  const resolved = connections.resolveIntegrationValues(agency.id, "meta", { includeEnvironmentFallback: false });
+  const resolved = connections.resolveIntegrationConnectionValues(agency.id, saved.id);
   assert.equal(resolved.appId, "1122334455");
   assert.equal(resolved.appSecret, "meta_app_secret_value");
   assert.equal(resolved.webhookVerifyToken, "verify_token_value");
@@ -238,8 +300,9 @@ test("meta app credentials persist encrypted and resolve stored-then-env", async
   process.env.META_WEBHOOK_VERIFY_TOKEN = "env-verify-token";
   process.env.META_GRAPH_API_VERSION = "v20.0";
   try {
-    // A stored credential always wins, for anyone.
-    assert.equal(connections.resolveIntegrationValues(agency.id, "meta").appId, "1122334455");
+    // The saved row is available by explicit id before activation, without
+    // becoming the provider default merely because it was newest.
+    assert.equal(connections.resolveIntegrationConnectionValues(agency.id, saved.id).appId, "1122334455");
 
     // A DIFFERENT company with nothing stored gets NOTHING — not Ed's keys.
     const foreign = connections.resolveIntegrationValues(emptyAgency.id, "meta");
@@ -289,7 +352,9 @@ test("meta app credentials persist encrypted and resolve stored-then-env", async
   const tested = await connections.testIntegrationConnection(agency.id, saved.id, { userId: "owner" }, fetchImpl);
   assert.equal(tested.status, "connected");
   assert.equal(tested.lastTestStatus, "passed");
+  assert.equal(tested.isActive, true);
   assert.doesNotMatch(JSON.stringify(tested), /meta_app_secret_value/);
+  assert.equal(connections.resolveIntegrationValues(agency.id, "meta", { includeEnvironmentFallback: false }).appId, "1122334455");
 
   // Phase 2: the inbox config readers now consult this stored connection (store wins over env).
   // Clear the META_* + base-URL env hermetically (the suite shares one process, so another file's
@@ -328,6 +393,98 @@ test("meta app credentials persist encrypted and resolve stored-then-env", async
     restoreEnv("META_WEBHOOK_VERIFY_TOKEN", priorEnv.verifyToken);
     restoreEnv("META_GRAPH_API_VERSION", priorEnv.version);
   }
+});
+
+test("failed replacements and retests never reorder the active provider connection", async () => {
+  const agency = tenants.createAgency({ name: "Stable Activation", slug: "stable-activation" });
+  const good = connections.saveIntegrationConnection({
+    agencyId: agency.id,
+    provider: "resend",
+    label: "Known good",
+    values: { apiKey: "re_good", fromEmail: "good@example.com", fromName: "Good" },
+    actorUserId: "owner",
+  });
+  const passFetch = (async () => Response.json({ data: [] })) as typeof fetch;
+  const failFetch = (async () => Response.json({ message: "bad key" }, { status: 401 })) as typeof fetch;
+  const goodTest = await connections.testIntegrationConnection(agency.id, good.id, { userId: "owner" }, passFetch);
+  assert.equal(goodTest.isActive, true);
+  assert.equal(goodTest.updatedAt, good.updatedAt, "testing reordered the connection by rewriting updatedAt");
+  assert.equal(connections.resolveIntegrationValues(agency.id, "resend").apiKey, "re_good");
+
+  const broken = connections.saveIntegrationConnection({
+    agencyId: agency.id,
+    provider: "resend",
+    label: "Broken replacement",
+    values: { apiKey: "re_broken", fromEmail: "broken@example.com", fromName: "Broken" },
+    actorUserId: "owner",
+  });
+  assert.equal(connections.resolveIntegrationValues(agency.id, "resend").apiKey, "re_good", "save changed the active credential");
+  const failed = await connections.testIntegrationConnection(agency.id, broken.id, { userId: "owner" }, failFetch);
+  assert.equal(failed.lastTestStatus, "failed");
+  assert.equal(failed.isActive, false);
+  assert.throws(
+    () => connections.activateIntegrationConnection({ agencyId: agency.id, connectionId: broken.id, actorUserId: "owner" }),
+    /integration_must_pass_test/,
+  );
+  assert.equal(connections.resolveIntegrationValues(agency.id, "resend").apiKey, "re_good", "failed test displaced good credentials");
+
+  await connections.testIntegrationConnection(agency.id, good.id, { userId: "owner" }, passFetch);
+  assert.equal(connections.resolveIntegrationValues(agency.id, "resend").apiKey, "re_good", "retest order changed selection");
+
+  const candidate = connections.saveIntegrationConnection({
+    agencyId: agency.id,
+    provider: "resend",
+    label: "Passing candidate",
+    values: { apiKey: "re_candidate", fromEmail: "candidate@example.com", fromName: "Candidate" },
+    actorUserId: "owner",
+  });
+  const candidateTest = await connections.testIntegrationConnection(agency.id, candidate.id, { userId: "owner" }, passFetch);
+  assert.equal(candidateTest.isActive, false, "testing a second connection silently promoted it");
+  assert.equal(connections.resolveIntegrationValues(agency.id, "resend").apiKey, "re_good");
+  const activated = connections.activateIntegrationConnection({ agencyId: agency.id, connectionId: candidate.id, actorUserId: "owner" });
+  assert.equal(activated.isActive, true);
+  assert.equal(connections.resolveIntegrationValues(agency.id, "resend").apiKey, "re_candidate");
+  assert.equal(connections.listIntegrationConnections(agency.id).find(item => item.id === good.id)?.isActive, false);
+});
+
+test("communication senders enforce target-client scope and workspace-only providers reject client scope", () => {
+  const agency = tenants.createAgency({ name: "Sender Scope", slug: "sender-scope" });
+  const firstClient = tenants.createClient(agency.id, { name: "First Sender Client" });
+  const secondClient = tenants.createClient(agency.id, { name: "Second Sender Client" });
+  const workspace = connections.saveIntegrationConnection({
+    agencyId: agency.id,
+    provider: "twilio",
+    label: "Workspace phone",
+    values: { accountSid: "AC_workspace", authToken: "workspace-secret", smsFrom: "+447700900301" },
+    actorUserId: "owner",
+  });
+  const first = connections.saveIntegrationConnection({
+    agencyId: agency.id,
+    provider: "twilio",
+    clientId: firstClient.id,
+    label: "First client phone",
+    values: { accountSid: "AC_first", authToken: "first-secret", smsFrom: "+447700900302" },
+    actorUserId: "owner",
+  });
+  const firstSenderId = `connection:${first.id}:sms`;
+  assert.equal(communications.resolveCommunicationSender(agency.id, firstSenderId, "sms"), null);
+  assert.equal(communications.resolveCommunicationSender(agency.id, firstSenderId, "sms", secondClient.id), null);
+  assert.equal(communications.resolveCommunicationSender(agency.id, firstSenderId, "sms", firstClient.id)?.clientId, firstClient.id);
+  assert.ok(communications.resolveCommunicationSender(agency.id, `connection:${workspace.id}:sms`, "sms", firstClient.id));
+  assert.throws(
+    () => connections.resolveScopedIntegrationConnectionValues(agency.id, first.id, secondClient.id),
+    /integration_scope_mismatch/,
+  );
+  assert.throws(
+    () => connections.saveIntegrationConnection({
+      agencyId: agency.id,
+      provider: "meta",
+      clientId: firstClient.id,
+      values: { appId: "1", appSecret: "secret", webhookVerifyToken: "verify", graphApiVersion: "v21.0" },
+      actorUserId: "owner",
+    }),
+    /integration_scope_unsupported/,
+  );
 });
 
 function restoreEnv(key: string, value: string | undefined) {

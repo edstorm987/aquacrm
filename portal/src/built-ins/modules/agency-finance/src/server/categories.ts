@@ -11,11 +11,18 @@ import type {
   UpdateCategoryPatch,
 } from "../lib/domain";
 import type { ActivityLogPort, EventBusPort, StoragePort } from "./ports";
+import {
+  assertNonEmptyText,
+  assertKnownFields,
+  assertOptionalAllowedValue,
+  assertOptionalText,
+} from "../lib/runtimeValidation";
 
 import { listRowIds } from "./rowIndex";
 
 const CAT_INDEX_KEY = "categories/index";
 const catKey = (id: string): string => `categories/by-id/${id}`;
+const CATEGORY_STATUSES = ["active", "archived"] as const;
 
 // Seeded on plugin install — the default chart of accounts an
 // agency starts with. Customisable post-install via
@@ -59,17 +66,20 @@ export class CategoryService {
   }
 
   async create(input: CreateCategoryInput, actor: UserId): Promise<ExpenseCategory> {
-    if (!input.name.trim()) throw new Error("Category name required.");
+    assertKnownFields(input, ["name", "description"]);
+    assertNonEmptyText(input.name, "name");
+    assertOptionalText(input.description, "description");
+    const name = input.name.trim();
     const all = await this.list();
-    if (all.some(c => c.name.toLowerCase() === input.name.toLowerCase())) {
-      throw new Error(`Category "${input.name}" already exists.`);
+    if (all.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+      throw new Error(`Category "${name}" already exists.`);
     }
     const id = makeId("cat");
     const ts = now();
     const row: ExpenseCategory = {
       id,
       agencyId: this.agencyId,
-      name: input.name.trim(),
+      name,
       isDefault: false,
       status: "active",
       description: input.description,
@@ -96,16 +106,21 @@ export class CategoryService {
   async update(id: string, patch: UpdateCategoryPatch, actor: UserId): Promise<ExpenseCategory | null> {
     const existing = await this.get(id);
     if (!existing) return null;
-    if (patch.name && patch.name.toLowerCase() !== existing.name.toLowerCase()) {
+    assertKnownFields(patch, ["name", "description", "status"]);
+    if (patch.name !== undefined) assertNonEmptyText(patch.name, "name");
+    assertOptionalText(patch.description, "description");
+    assertOptionalAllowedValue(patch.status, CATEGORY_STATUSES, "status");
+    const name = patch.name?.trim();
+    if (name && name.toLowerCase() !== existing.name.toLowerCase()) {
       const all = await this.list();
-      if (all.some(c => c.id !== id && c.name.toLowerCase() === patch.name!.toLowerCase())) {
-        throw new Error(`Category "${patch.name}" already exists.`);
+      if (all.some(c => c.id !== id && c.name.toLowerCase() === name.toLowerCase())) {
+        throw new Error(`Category "${name}" already exists.`);
       }
     }
     const next: ExpenseCategory = {
       ...existing,
       ...patch,
-      name: patch.name?.trim() ?? existing.name,
+      name: name ?? existing.name,
       updatedAt: now(),
     };
     await this.storage.set(catKey(id), next);

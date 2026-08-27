@@ -11,15 +11,15 @@ import {
   type FindingSeverity,
 } from "@/lib/server/dev/devTeamFindings";
 import { invalidateDevConsoleBadge } from "@/lib/server/dev/devConsoleStatus";
-import { ensureHydrated } from "@/server/storage";
+import { ensureDevTeamWorkspaceHydrated } from "@/lib/server/dev/devWorkspaceFiles";
 import { AGENCY_ROLES } from "@/server/types";
 
 // Findings: capture what's wrong while using the app, then turn a batch of them
-// into a plan. Founder + Dev Mode only, same gate as the rest of the portal.
+// into a plan. Founder-only Dev Team access, same gate as the rest of the portal.
 export const dynamic = "force-dynamic";
 
 async function gate() {
-  await ensureHydrated();
+    await ensureDevTeamWorkspaceHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
   if (!devDocsAccessible(session)) return null;
   return session;

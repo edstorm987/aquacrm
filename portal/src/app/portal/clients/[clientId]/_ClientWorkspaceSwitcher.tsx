@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Building2, Check, ChevronDown, ExternalLink, Eye, Layers3, Link2, PanelsTopLeft, Plus, Unlink, X } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 
 export interface RelatedClientWorkspaceOption {
   id: string;
@@ -69,6 +69,25 @@ export function ClientWorkspaceSwitcher({
   const [productIds, setProductIds] = useState<string[]>([]);
   const [linkClientId, setLinkClientId] = useState(availableClients[0]?.id || "");
   const [pendingDetachId, setPendingDetachId] = useState("");
+  const createOperation = useRef({ fingerprint: "", id: "" });
+
+  function creationOperationId(): string {
+    const fingerprint = JSON.stringify({
+      name: name.trim(),
+      workspaceLabel: workspaceLabel.trim(),
+      websiteUrl: websiteUrl.trim(),
+      companyId,
+      carryContact,
+      productIds: [...productIds].sort(),
+    });
+    if (createOperation.current.fingerprint !== fingerprint) {
+      createOperation.current = {
+        fingerprint,
+        id: `linked-workspace:${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`,
+      };
+    }
+    return createOperation.current.id;
+  }
 
   function toggleProduct(productId: string) {
     setProductIds(current => current.includes(productId) ? current.filter(id => id !== productId) : [...current, productId]);
@@ -169,7 +188,7 @@ export function ClientWorkspaceSwitcher({
               ) : null}
 
               {panel === "create" ? (
-                <form onSubmit={event => { event.preventDefault(); void mutate({ action: "create", name, workspaceLabel, websiteUrl, companyId, carryContact, productIds }); }}>
+                <form onSubmit={event => { event.preventDefault(); void mutate({ action: "create", operationId: creationOperationId(), name, workspaceLabel, websiteUrl, companyId, carryContact, productIds }); }}>
                   <button type="button" onClick={() => setPanel("list")} className="mb-4 text-xs font-semibold text-[#087f8c]">← Back to workspaces</button>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Field label="Company or workspace name"><input required value={name} onChange={event => setName(event.target.value)} placeholder="Their second company" className="workspace-input" /></Field>

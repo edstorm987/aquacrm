@@ -14,6 +14,7 @@ import { listUsersForAgency } from "@/server/users";
 import { calculateServiceBrandHealth } from "@/lib/performance/companyHealth";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
 import { INTEGRATION_CATALOG, type IntegrationProvider } from "@/lib/integrations/catalog";
+import { getPortalFormFields } from "@/server/portalEditor";
 
 type CompanyPageSearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -40,7 +41,9 @@ export default async function CompanyPage({ searchParams }: { searchParams: Comp
   const clients = listClients(session.agencyId);
   const companyHealth = await buildCompanyHealthSnapshot(session.agencyId);
   const profile = companyHealth.profile;
-  ensureDefaultAgencyProducts(session.agencyId);
+  const canEdit = !session.publicShowcase
+    && (session.role === "agency-owner" || session.role === "agency-manager");
+  if (canEdit) ensureDefaultAgencyProducts(session.agencyId);
   const products = listAgencyProducts(session.agencyId, true);
   const users = listUsersForAgency(session.agencyId).filter(user => user.role.startsWith("agency-"));
   const tradingCompanies = listTradingCompanies(session.agencyId, true);
@@ -65,7 +68,6 @@ export default async function CompanyPage({ searchParams }: { searchParams: Comp
     }).overall,
   }));
   const settings = getAgencyWorkspaceSettings(session.agencyId);
-  const canEdit = session.role === "agency-owner" || session.role === "agency-manager";
   return <>
     {showCompaniesGrid ? (
       <TradingCompaniesPanel
@@ -83,7 +85,7 @@ export default async function CompanyPage({ searchParams }: { searchParams: Comp
     {!showCompaniesGrid ? (
       <CompanyWorkspace
         initial={profile}
-        companyName="AquaOasis-Web"
+        companyName={session.publicShowcase ? "Showcase company" : "AquaOasis-Web"}
         actuals={companyHealth.actuals}
         staffCount={users.length}
         canEdit={canEdit}
@@ -93,6 +95,7 @@ export default async function CompanyPage({ searchParams }: { searchParams: Comp
         tradingCompanies={tradingCompanies}
         serviceBrands={companies}
         productDefaults={{ taxRatePercent: settings.defaultTaxRatePercent, paymentTermsDays: settings.defaultPaymentTermsDays }}
+        productCustomFields={getPortalFormFields(session.agencyId, "products")}
         clients={clients.map(client => ({ id: client.id, name: client.name }))}
         workspaceWebsite={settings.website}
         initialView={initialView}

@@ -37,7 +37,6 @@ const DAY = 24 * 60 * 60 * 1000;
 export const OPERATIONAL_ALERT_THRESHOLDS = {
   clientContactDays: 14,
   contractAcceptanceDays: 7,
-  portalAccessDays: 3,
   recurringExpenseLookaheadDays: 7,
   staleMonitoringDays: 2,
   telemetryErrorWindowHours: 24,
@@ -56,7 +55,8 @@ export const getRequestOperationalAlerts = cache(
 export async function listOperationalAlerts(agencyId: string, now = Date.now()): Promise<OperationalAlert[]> {
   const clients = listClients(agencyId);
   const alerts: OperationalAlert[] = [];
-  const notificationSettings = getAgencyWorkspaceSettings(agencyId).notifications;
+  const workspaceSettings = getAgencyWorkspaceSettings(agencyId);
+  const notificationSettings = workspaceSettings.notifications;
   const state = getState();
   const peopleApplications = Object.values(state.peopleApplications).filter(application => application.agencyId === agencyId);
   const peopleEmployees = Object.values(state.peopleEmployees).filter(employee => employee.agencyId === agencyId && employee.status !== "alumni");
@@ -379,13 +379,13 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
     }
 
     const portalReadyAt = metadata?.portalAccessPreparedAt ?? metadata?.portalBuiltAt;
-    if (notificationSettings.clientAlerts && portalReadyAt && !metadata?.portalAccessSentAt && now - portalReadyAt >= OPERATIONAL_ALERT_THRESHOLDS.portalAccessDays * DAY) {
+    if (notificationSettings.clientAlerts && portalReadyAt && !metadata?.portalAccessSentAt && now - portalReadyAt >= workspaceSettings.portalAccessDays * DAY) {
       alerts.push({
         id: `portal-access:${client.id}`,
         severity: "notice",
         category: "client",
         title: `${clientLabel}'s portal access is ready to review`,
-        detail: `Access has been prepared for ${OPERATIONAL_ALERT_THRESHOLDS.portalAccessDays} days or more but has not been sent.`,
+        detail: `Access has been prepared for ${workspaceSettings.portalAccessDays} days or more but has not been sent.`,
         href: `/portal/clients/${client.id}?tab=portal`,
         clientId: client.id,
         clientName: client.name,

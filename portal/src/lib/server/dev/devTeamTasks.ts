@@ -1,11 +1,11 @@
 import "server-only";
 
-import { readdir } from "node:fs/promises";
 import { basename, join } from "node:path";
 
 import { PROJECT_ROOT } from "@/lib/server/dev/devDocs";
 import { readParsedFile } from "@/lib/server/dev/devMarkdownCache";
-import { scanWorkerSignals, type WorkerCheckIn } from "@/lib/server/dev/devTeamWorkers";
+import { readDevWorkspaceDirectory } from "@/lib/server/dev/devWorkspaceFiles";
+import { readActiveCheckIns, type WorkerCheckIn } from "@/lib/server/dev/devTeamWorkers";
 
 // Individual TASKS, not just plans.
 //
@@ -240,13 +240,17 @@ export async function scanTasks(opts: { onlyActive?: boolean } = {}): Promise<Pl
   const dirAbs = join(PROJECT_ROOT, PLANS_DIR_REL);
   let names: string[];
   try {
-    names = await readdir(dirAbs);
+    names = (await readDevWorkspaceDirectory(dirAbs))
+      .filter(entry => entry.isFile())
+      .map(entry => entry.name);
   } catch {
     return [];
   }
 
-  const signals = await scanWorkerSignals().catch(() => null);
-  const checkIns = signals?.checkIns ?? [];
+  // Task ownership only needs current worker intent. The detailed activity
+  // scanner recursively stats src/scripts/docs and made every consumer of
+  // scanTasks (including Dev Team Home) pay seconds for data it never uses.
+  const checkIns = await readActiveCheckIns().catch((): WorkerCheckIn[] => []);
 
   const built = await Promise.all(
     names.filter(n => n.toLowerCase().endsWith(".md")).sort().map(async (fileName): Promise<PlanTasks | null> => {

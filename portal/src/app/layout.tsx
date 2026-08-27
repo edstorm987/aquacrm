@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import Script from "next/script";
 import { SkipToContent } from "@/components/ui/SkipToContent";
 import dynamic from "next/dynamic";
 import { COLOR_MODE_SCRIPT } from "@/lib/chrome/colorMode";
@@ -14,14 +15,19 @@ const ScrollClassToggle = dynamic(() => import("@/components/chrome/ScrollClassT
 export const metadata: Metadata = {
   title: "AquaCRM",
   description: "AquaCRM business operations and secure client portal.",
+  manifest: "/manifest.webmanifest",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: COLOR_MODE_SCRIPT }} />
-        <script dangerouslySetInnerHTML={{ __html: SIDEBAR_COLLAPSE_HYDRATION_SCRIPT }} />
+        <Script id="aqua-color-mode-bootstrap" strategy="beforeInteractive">
+          {COLOR_MODE_SCRIPT}
+        </Script>
+        <Script id="aqua-sidebar-collapse-bootstrap" strategy="beforeInteractive">
+          {SIDEBAR_COLLAPSE_HYDRATION_SCRIPT}
+        </Script>
       </head>
       <body>
         <PageReveal />

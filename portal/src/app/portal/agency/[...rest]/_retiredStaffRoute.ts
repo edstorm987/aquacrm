@@ -4,8 +4,7 @@
 // `/portal/agency/agency-hr` (and `/portal/agency/agency-hr/staff`) alongside
 // the core one at `/portal/agency/people`. Two directories, both live, both
 // writable: an operator could add someone in one and not find them in the
-// other. Finance had already picked a winner — `financeWorkforce.ts` reads
-// `people.ts` first and demotes agency-hr rows to `legacyStaff` — so the plugin
+// other. Finance now reads only the canonical `people.ts` workforce, so the plugin
 // copy was destined to be the stale one. It is retired; these two paths now
 // redirect to the canonical directory.
 //
@@ -42,9 +41,9 @@ export function withQuery(
 // Given the catch-all's `rest` segments, return the destination the request
 // should be redirected to, or `null` to let normal plugin resolution proceed.
 //
-// Only the two retired paths match. Departments / Leave / Employees / Roles /
-// Settings — the pages that have no core equivalent and are the plugin's reason
-// to exist — fall through untouched, as does every other plugin.
+// Only the two retired paths match. Departments / Roles / Settings remain
+// HR-owned, while Leave / Employees are converged HR views over People. Those
+// paths fall through untouched, as does every other plugin.
 export function retiredStaffRedirect(
   rest: readonly string[],
   searchParams?: Record<string, string | string[] | undefined>,

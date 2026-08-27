@@ -49,6 +49,8 @@ process.chdir(SANDBOX);
 
 const edits = require_("../src/lib/server/dev/devDocEdits") as typeof import("../src/lib/server/dev/devDocEdits");
 const { saveDevDoc, docHistory, recentDocEdits } = edits;
+const devDocs = require_("../src/lib/server/dev/devDocs") as typeof import("../src/lib/server/dev/devDocs");
+const { __resetDevDocsIndexCache, scanDevDocs } = devDocs;
 
 const LEDGER = join(SANDBOX, ".data", "dev-doc-edits.json");
 const session = { email: "ed@aquacrm.test", role: "agency-owner" } as unknown as SessionPayload;
@@ -175,6 +177,23 @@ describe("saveDevDoc — worker-edit guard", () => {
     });
     assert.equal(readFileSync(abs, "utf8"), "# A\n\nround two\n");
     assert.ok(second.sizeBytes > 0);
+  });
+
+  it("invalidates the live docs index immediately after an in-app save", async () => {
+    const abs = join(SANDBOX, "docs", "a.md");
+    writeFileSync(abs, "# A\n\nbefore index save\n", "utf8");
+    __resetDevDocsIndexCache();
+    const before = await scanDevDocs();
+    const oldSize = before.entries.find(entry => entry.relPath === "docs/a.md")?.sizeBytes;
+
+    const nextContent = "# A\n\nthis is a distinctly longer indexed value\n";
+    await saveDevDoc({ session, relPath: "docs/a.md", content: nextContent });
+    const afterIndex = await scanDevDocs();
+    const nextSize = afterIndex.entries.find(entry => entry.relPath === "docs/a.md")?.sizeBytes;
+
+    assert.notEqual(afterIndex, before, "the pre-save index survived explicit invalidation");
+    assert.notEqual(nextSize, oldSize, "the next index did not observe the saved file");
+    assert.equal(nextSize, Buffer.byteLength(nextContent));
   });
 });
 

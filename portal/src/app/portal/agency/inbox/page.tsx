@@ -58,14 +58,14 @@ export default async function AgencyInboxPage() {
   const [liveAlerts, activity, websiteFormsResult, socialInboxResult] = await Promise.all([
     listOperationalAlerts(session.agencyId),
     Promise.resolve(listActivity({ agencyId: session.agencyId, limit: 150 })),
-    (session.isDemo ? Promise.resolve([]) : listWebsiteEnquiries(session.agencyId)).then(
+    (session.isDemo || session.publicShowcase ? Promise.resolve([]) : listWebsiteEnquiries(session.agencyId)).then(
       submissions => ({ submissions, error: null as string | null }),
       cause => ({
         submissions: [],
         error: cause instanceof Error ? cause.message : "Website enquiries could not be loaded.",
       }),
     ),
-    (session.isDemo ? Promise.resolve({ connections: [], conversations: [], generatedAt: Date.now() }) : listInboxSnapshot(session.agencyId)).then(
+    (session.isDemo || session.publicShowcase ? Promise.resolve({ connections: [], conversations: [], generatedAt: Date.now() }) : listInboxSnapshot(session.agencyId)).then(
       snapshot => ({ snapshot, error: null as string | null }),
       cause => ({
         snapshot: { connections: [], conversations: [], generatedAt: Date.now() },
@@ -73,15 +73,15 @@ export default async function AgencyInboxPage() {
       }),
     ),
   ]);
-  if (session.isDemo) clearIdentityResolutionReviews(session.agencyId);
+  if (session.isDemo && !session.publicShowcase) clearIdentityResolutionReviews(session.agencyId);
   const alerts = listOperationalAlertViews(session.agencyId, session.userId, liveAlerts).filter(alert => alert.attention);
-  const websiteForms = websiteFormsResult.error
+  const websiteForms = websiteFormsResult.error || session.publicShowcase
     ? websiteFormsResult.submissions
     : await synchroniseWebsiteEnquiryIdentities(session.agencyId, websiteFormsResult.submissions).catch(() => websiteFormsResult.submissions);
-  const socialInbox = socialInboxResult.error
+  const socialInbox = socialInboxResult.error || session.publicShowcase
     ? socialInboxResult.snapshot
     : await synchroniseInboxIdentityResolutions(session.agencyId, socialInboxResult.snapshot).catch(() => socialInboxResult.snapshot);
-  await flushPendingWrites();
+  if (!session.publicShowcase) await flushPendingWrites();
   const conversations = clients.flatMap(client => {
     const clientLabel = clientWorkspaceDisplayName(client);
     const metadata = client.metadata as { clientRequests?: RequestRecord[]; properties?: PropertyRecord[] } | undefined;
@@ -126,7 +126,7 @@ export default async function AgencyInboxPage() {
 
   return <MasterInbox
     referenceNow={Date.now()}
-    actionsSlot={<AgencyActionsPage />}
+    actionsSlot={session.publicShowcase ? null : <AgencyActionsPage />}
     alerts={alerts}
     websiteForms={websiteForms}
     websiteFormsError={websiteFormsResult.error}
@@ -135,8 +135,9 @@ export default async function AgencyInboxPage() {
     socialInboxError={socialInboxResult.error}
     metaReadiness={metaInboxReadiness(session.agencyId)}
     currentUserId={session.userId}
-    canErase={session.role === "agency-owner"}
-    canManageChannels={session.role === "agency-owner" || session.role === "agency-manager"}
+    canErase={!session.publicShowcase && session.role === "agency-owner"}
+    canManageChannels={!session.publicShowcase && (session.role === "agency-owner" || session.role === "agency-manager")}
+    readOnly={Boolean(session.publicShowcase)}
     channelClients={clients.map(client => ({ id: client.id, name: client.name }))}
     communicationReadiness={outboundCommunicationReadiness(session.agencyId)}
     clientProfiles={clients.map(client => ({

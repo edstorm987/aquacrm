@@ -8,7 +8,7 @@ import type { AgencyId, ClientId, UserId } from "./tenancy";
 
 // ─── Invoice ─────────────────────────────────────────────────────────────
 
-export type InvoiceStatus = "draft" | "sent" | "paid" | "overdue" | "void" | "refunded";
+export type InvoiceStatus = "draft" | "sent" | "paid" | "overdue" | "void" | "partially-refunded" | "refunded";
 export type Currency = "gbp" | "eur" | "usd" | "cad" | "aud" | "nzd" | "chf" | "sek" | "nok" | "dkk" | "jpy" | "sgd" | "hkd" | "aed";
 
 export interface InvoiceLineItem {
@@ -16,6 +16,13 @@ export interface InvoiceLineItem {
   quantity: number;
   unitCents: number;
   totalCents: number;                  // computed = quantity * unitCents
+}
+
+/** Business identity captured when an invoice is created. Invoice documents
+ * must not silently change when the agency later updates its legal/tax details. */
+export interface InvoiceIssuerSnapshot {
+  legalName: string;
+  businessDetails?: string;
 }
 
 export interface Invoice {
@@ -36,6 +43,7 @@ export interface Invoice {
   externalRef?: string;                // Stripe Invoice id when synced
   paidAt?: number;
   paidVia?: "stripe" | "bank-transfer" | "cash" | "manual";
+  issuerSnapshot?: InvoiceIssuerSnapshot; // absent only on legacy rows
   createdAt: number;
   updatedAt: number;
 }
@@ -44,7 +52,7 @@ export interface CreateInvoiceInput {
   clientId: ClientId;
   companyId?: string;
   issuedAt?: number;
-  dueAt: number;
+  dueAt?: number;                     // defaults from canonical workspace Finance settings
   lineItems: Array<{ description: string; quantity: number; unitCents: number }>;
   taxCents?: number;
   currency?: Currency;
@@ -351,6 +359,9 @@ export interface CompensationProfile {
   contractStartsAt?: number;
   contractEndsAt?: number;
   status: CompensationProfileStatus;
+  canonicalTermsSource?: "people" | "missing";
+  activeCommissionRuleCount?: number;
+  hasVariableCommission?: boolean;
   notes?: string;
   createdBy: UserId;
   createdAt: number;
@@ -430,7 +441,7 @@ export interface CreateCompensationPaymentInput {
   idempotencyKey?: string;    // one-time key per submit intent; see lib/idempotency.ts
 }
 
-export interface UpdateCompensationPaymentPatch extends Partial<Omit<CreateCompensationPaymentInput, "profileId" | "budgetPotId" | "paidAt">> {
+export interface UpdateCompensationPaymentPatch extends Partial<Omit<CreateCompensationPaymentInput, "profileId" | "budgetPotId" | "paidAt" | "idempotencyKey">> {
   budgetPotId?: string | null;
   paidAt?: number | null;
 }
@@ -460,6 +471,7 @@ export interface RevenueSnapshot {
   from: number;
   to: number;
   currency: Currency;
+  availableCurrencies: Currency[];
   invoicesIssued: number;
   invoicesPaid: number;
   totalIssuedCents: number;
@@ -467,8 +479,81 @@ export interface RevenueSnapshot {
   totalOverdueCents: number;
   totalExpensesCents: number;
   netCents: number;                    // totalPaidCents - totalExpensesCents
+  /** Payment/other-income cash received in the period. */
+  cashRevenueCents: number;
+  /** Positive receipts before refund cash outflows. */
+  grossCashRevenueCents: number;
+  /** Refund cash sent back in the period. */
+  refundCents: number;
+  /** Reimbursed expense cash paid in the period. */
+  cashExpenseCents: number;
+  cashNetCents: number;
+  /** Non-draft, non-void invoices issued in the period. */
+  accrualRevenueCents: number;
+  /** Approved or reimbursed expenses incurred in the period. */
+  committedExpenseCents: number;
+  accrualNetCents: number;
+  pendingExpenseCents: number;
+  outstandingReceivableCents: number;
+  outputTaxCents: number;
+  inputTaxCents: number;
+  deductibleCashExpenseCents: number;
+  missingReceiptCount: number;
   expensesByCategory: Array<{ categoryId: string; categoryName: string; amountCents: number; count: number }>;
-  monthly: Array<{ year: number; month: number; paidCents: number; expenseCents: number }>;
+  monthly: FinanceAccountingMonth[];
+}
+
+export interface FinanceAccountingMonth {
+  year: number;
+  month: number;
+  cashRevenueCents: number;
+  grossCashRevenueCents: number;
+  refundCents: number;
+  cashExpenseCents: number;
+  cashNetCents: number;
+  accrualRevenueCents: number;
+  committedExpenseCents: number;
+  accrualNetCents: number;
+  /** Compatibility aliases for older report consumers. */
+  paidCents: number;
+  expenseCents: number;
+}
+
+export interface FinanceClientCashPosition {
+  clientId: ClientId;
+  cashRevenueCents: number;
+  cashExpenseCents: number;
+  cashNetCents: number;
+}
+
+export interface FinanceAccountingSnapshot {
+  from: number;
+  to: number;
+  currency: Currency;
+  availableCurrencies: Currency[];
+  invoicesIssued: number;
+  invoiceReceipts: number;
+  issuedInvoiceCents: number;
+  grossCashInvoiceRevenueCents: number;
+  cashInvoiceRevenueCents: number;
+  otherCashRevenueCents: number;
+  grossCashRevenueCents: number;
+  refundCents: number;
+  cashRevenueCents: number;
+  cashExpenseCents: number;
+  cashNetCents: number;
+  accrualRevenueCents: number;
+  committedExpenseCents: number;
+  pendingExpenseCents: number;
+  accrualNetCents: number;
+  outstandingReceivableCents: number;
+  overdueReceivableCents: number;
+  outputTaxCents: number;
+  inputTaxCents: number;
+  deductibleCashExpenseCents: number;
+  missingReceiptCount: number;
+  byClient: FinanceClientCashPosition[];
+  hasData: boolean;
 }
 
 // ─── R007 additions: Payment + Plan + P&L (founder dashboard) ────────────
@@ -489,6 +574,60 @@ export interface Payment {
   paidAt: number;
   notes?: string;
   externalRef?: string;       // Stripe charge / bank reference
+  createdAt: number;
+}
+
+export type RefundProvider = "stripe" | "manual" | "other";
+
+/** A settled cash reversal tied to one receipt. Amounts are always positive. */
+export interface Refund {
+  id: string;
+  agencyId: AgencyId;
+  paymentId: string;
+  invoiceId: string;
+  clientId: ClientId;
+  amountCents: number;
+  currency: Currency;
+  provider: RefundProvider;
+  providerId: string;
+  providerEventId?: string;
+  reason?: string;
+  refundedAt: number;
+  createdBy: UserId;
+  createdAt: number;
+}
+
+export interface CreateRefundInput {
+  paymentId: string;
+  amountCents: number;
+  currency: Currency;
+  provider: RefundProvider;
+  providerId: string;
+  providerEventId?: string;
+  reason?: string;
+  refundedAt?: number;
+}
+
+export interface RefundFilter {
+  paymentId?: string;
+  invoiceId?: string;
+  clientId?: ClientId;
+  fromRefundedAt?: number;
+  toRefundedAt?: number;
+}
+
+export interface PaymentDispute {
+  id: string;
+  agencyId: AgencyId;
+  paymentId: string;
+  invoiceId: string;
+  clientId: ClientId;
+  amountCents: number;
+  currency: Currency;
+  providerId: string;
+  providerEventId?: string;
+  openedAt: number;
+  createdBy: UserId;
   createdAt: number;
 }
 
@@ -558,8 +697,8 @@ export interface Plan {
   // (tracked on the assigned client's metadata.lockInPaid by T1 R002).
   lockInMonths: number;
   lockInFeeCents: number;
-  // Clients currently assigned to this plan. v1: a client can only
-  // belong to ONE plan; reassignment moves the id between arrays.
+  // Legacy assignment mirror. New mounted assignments are canonical client
+  // payment schedules linked by financePlanId; consumers no longer read this.
   clientIds: ClientId[];
   active: boolean;
   createdAt: number;
@@ -580,9 +719,25 @@ export interface CreatePlanInput {
 export interface UpdatePlanPatch {
   label?: string;
   monthlyAmountCents?: number;
+  currency?: Currency;
   lockInMonths?: number;
   lockInFeeCents?: number;
   active?: boolean;
+}
+
+export interface CommercialPlanAssignment {
+  clientId: ClientId;
+  clientName: string;
+  financePlanId: string;
+  clientPaymentPlanId: string;
+  title: string;
+  currency: Currency;
+  monthlyAmountCents: number;
+  lockInMonths: number;
+  lockInFeeCents: number;
+  assignedAt: number;
+  status: "active" | "cancelled" | "completed";
+  depositInvoiceId?: string;
 }
 
 // ─── P&L / founder dashboard ─────────────────────────────────────────────
@@ -593,10 +748,17 @@ export interface PnLMonth {
   revenueCents: number;      // payments received within the month
   expensesCents: number;     // expenses incurred within the month
   netCents: number;
+  cashRevenueCents: number;
+  cashExpenseCents: number;
+  cashNetCents: number;
+  accrualRevenueCents: number;
+  committedExpenseCents: number;
+  accrualNetCents: number;
 }
 
 export interface FounderSnapshot {
   currency: Currency;
+  availableCurrencies: Currency[];
   // Monthly Recurring Revenue: sum of monthlyAmountCents for assigned
   // active plans (not based on payments — true MRR view).
   mrrCents: number;

@@ -17,14 +17,14 @@ import {
 import { logActivity } from "@/server/activity";
 import { ensureHydrated, flushPendingWrites, getState } from "@/server/storage";
 import type { ExternalAssistantApiPermission } from "@/server/types";
+import { canUseAgencySettingsCapability } from "@/lib/agencySettingsCapabilities";
 
-const ALLOWED_ROLES = new Set(["agency-owner", "agency-manager"]);
 const EXPIRY_OPTIONS = new Set([30, 90, 180, 365]);
 
 export async function GET(req: NextRequest) {
   await ensureHydrated();
   const session = await getSessionFromRequest(req);
-  if (!session || !ALLOWED_ROLES.has(session.role)) {
+  if (!session || !canUseAgencySettingsCapability(session.role, "manageExternalAi")) {
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
 
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   await ensureHydrated();
   const session = await getSessionFromRequest(req);
-  if (!session || !ALLOWED_ROLES.has(session.role)) {
+  if (!session || !canUseAgencySettingsCapability(session.role, "manageExternalAi")) {
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
   if (!validOrigin(req)) {
@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   await ensureHydrated();
   const session = await getSessionFromRequest(req);
-  if (!session || !ALLOWED_ROLES.has(session.role)) {
+  if (!session || !canUseAgencySettingsCapability(session.role, "manageExternalAi")) {
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
   if (!validOrigin(req)) {

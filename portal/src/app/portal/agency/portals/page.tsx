@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES } from "@/server/types";
 import { PortalsWorkspace } from "./_PortalsWorkspace";
 import { portalWorkspaceData } from "./_portalWorkspaceData";
+import { requireCurrentWorkspaceElementAccess, workspaceElementLevel } from "@/lib/server/access/workspaceElementAccess";
 
 export default async function PortalsPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   await ensureHydrated();
@@ -14,9 +15,11 @@ export default async function PortalsPage({ searchParams }: { searchParams: Prom
     redirect("/portal");
   }
 
-  const agencyId = session.activeAgencyId ?? session.agencyId;
+  const { actor, access } = await requireCurrentWorkspaceElementAccess("fulfilment", "fulfilment.portals", "view");
+  const agencyId = actor.resourceAgencyId;
+  const canManage = workspaceElementLevel(access, "fulfilment.portals") === "manage";
   const requestedView = (await searchParams).view;
-  if (requestedView === "editor") redirect("/portal/agency/portals/editor");
+  if (requestedView === "editor") redirect(canManage ? "/portal/agency/portals/editor" : "/portal/agency/fulfilment?view=portals");
   const { portals, products } = portalWorkspaceData(agencyId, session.userId);
 
   return (
@@ -24,7 +27,7 @@ export default async function PortalsPage({ searchParams }: { searchParams: Prom
       portals={portals}
       products={products}
       initialView={requestedView === "templates" ? "templates" : "library"}
-      canManage={session.role === "agency-owner" || session.role === "agency-manager"}
+      canManage={canManage}
     />
   );
 }

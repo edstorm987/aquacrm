@@ -19,9 +19,34 @@ import type { ActivityLogPort, EventBusPort, StoragePort } from "./ports";
 
 const LEAD_INDEX_KEY = "leads/index";
 const leadKey = (id: string): string => `leads/by-id/${id}`;
-const byEmailKey = (email: string): string => `leads/by-email/${email.toLowerCase()}`;
+const canonEmail = (email: string): string => email.trim().toLowerCase();
+const byEmailKey = (email: string): string => `leads/by-email/${canonEmail(email)}`;
 const byCampaignKey = (cmpId: string): string => `leads/by-campaign/${cmpId}`;
 const byStaffKey = (staffId: string): string => `leads/by-staff/${staffId}`;
+
+const leadMutationQueues = new Map<AgencyId, Promise<void>>();
+
+async function withLeadMutationLock<T>(agencyId: AgencyId, work: () => Promise<T>): Promise<T> {
+  const previous = leadMutationQueues.get(agencyId) ?? Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const queued = previous.then(() => gate);
+  leadMutationQueues.set(agencyId, queued);
+  await previous;
+  try {
+    return await work();
+  } finally {
+    release();
+    if (leadMutationQueues.get(agencyId) === queued) leadMutationQueues.delete(agencyId);
+  }
+}
+
+export class MarketingLeadIdentityConflictError extends Error {
+  constructor() {
+    super("Another marketing lead already uses this email. Review that record instead of merging people silently.");
+    this.name = "MarketingLeadIdentityConflictError";
+  }
+}
 
 // Allowed transitions — same shape as agency-finance's invoice
 // state-machine but tuned for sales funnel realities.
@@ -89,10 +114,14 @@ export class LeadService {
   }
 
   async create(input: CreateLeadInput, actor: UserId, sourceDefault: LeadSource = "manual"): Promise<Lead> {
-    const email = input.email.trim();
+    return withLeadMutationLock(this.agencyId, () => this.createUnlocked(input, actor, sourceDefault));
+  }
+
+  private async createUnlocked(input: CreateLeadInput, actor: UserId, sourceDefault: LeadSource): Promise<Lead> {
+    const email = canonEmail(input.email);
     if (!email) throw new Error("Lead email required.");
     const existing = await this.getByEmail(email);
-    if (existing) throw new Error(`Lead with email ${email} already exists.`);
+    if (existing) throw new MarketingLeadIdentityConflictError();
 
     const id = makeId("lead");
     const ts = now();
@@ -155,6 +184,10 @@ export class LeadService {
   //
   // Idempotent: a second run finds nothing and returns 0.
   async eraseForAddresses(addresses: readonly string[]): Promise<number> {
+    return withLeadMutationLock(this.agencyId, () => this.eraseForAddressesUnlocked(addresses));
+  }
+
+  private async eraseForAddressesUnlocked(addresses: readonly string[]): Promise<number> {
     let erased = 0;
     for (const address of new Set(addresses.map(a => a.trim().toLowerCase()).filter(Boolean))) {
       const existing = await this.getByEmail(address);
@@ -186,8 +219,15 @@ export class LeadService {
   }
 
   async update(id: string, patch: UpdateLeadPatch, actor: UserId): Promise<Lead | null> {
+    return withLeadMutationLock(this.agencyId, () => this.updateUnlocked(id, patch, actor));
+  }
+
+  private async updateUnlocked(id: string, patch: UpdateLeadPatch, actor: UserId): Promise<Lead | null> {
     const existing = await this.get(id);
     if (!existing) return null;
+
+    const nextEmail = patch.email === undefined ? existing.email : canonEmail(patch.email);
+    if (!nextEmail) throw new Error("Lead email required.");
 
     if (patch.status && patch.status !== existing.status) {
       if (!ALLOWED_TRANSITIONS[existing.status].includes(patch.status)) {
@@ -196,11 +236,14 @@ export class LeadService {
     }
 
     // Email change → re-key the by-email index.
-    if (patch.email && patch.email.toLowerCase() !== existing.email.toLowerCase()) {
-      const dup = await this.getByEmail(patch.email);
-      if (dup) throw new Error(`Email ${patch.email} already in use.`);
-      await this.storage.del(byEmailKey(existing.email));
-      await this.storage.set(byEmailKey(patch.email), id);
+    if (nextEmail !== canonEmail(existing.email)) {
+      const dup = await this.getByEmail(nextEmail);
+      if (dup && dup.id !== id) throw new MarketingLeadIdentityConflictError();
+      const oldPointerKey = byEmailKey(existing.email);
+      if (await this.storage.get<string>(oldPointerKey) === id) {
+        await this.storage.del(oldPointerKey);
+      }
+      await this.storage.set(byEmailKey(nextEmail), id);
     }
 
     // Campaign re-key.
@@ -236,7 +279,7 @@ export class LeadService {
       ...patch,
       campaignId: patch.campaignId === null ? undefined : patch.campaignId ?? existing.campaignId,
       assignedStaffId: patch.assignedStaffId === null ? undefined : patch.assignedStaffId ?? existing.assignedStaffId,
-      email: patch.email?.trim() ?? existing.email,
+      email: nextEmail,
       name: patch.name?.trim() ?? existing.name,
       phone: patch.phone?.trim() ?? existing.phone,
       updatedAt: now(),
@@ -263,6 +306,10 @@ export class LeadService {
   }
 
   async recordContact(id: string, note: string, actor: UserId): Promise<Lead | null> {
+    return withLeadMutationLock(this.agencyId, () => this.recordContactUnlocked(id, note, actor));
+  }
+
+  private async recordContactUnlocked(id: string, note: string, actor: UserId): Promise<Lead | null> {
     const existing = await this.get(id);
     if (!existing) return null;
     const ts = now();

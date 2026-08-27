@@ -49,6 +49,7 @@ export function Shop({ products, productHrefBase = "" }: ShopProps) {
                 type="button"
                 onClick={() => cart.addItem({
                   id: p.slug,
+                  productId: p.id,
                   name: p.name,
                   price: p.price,
                   stockSku: p.stockSku,

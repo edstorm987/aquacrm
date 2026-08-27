@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { SUPPORTED_CURRENCIES } from "../lib/currencies";
 
 // The Plans create form, as a client component.
 //
@@ -24,7 +25,7 @@ function freshIdempotencyKey(): string {
   return `idem_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
 }
 
-export function NewPlanForm({ apiBase }: { apiBase: string }) {
+export function NewPlanForm({ apiBase, defaultCurrency }: { apiBase: string; defaultCurrency: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [idempotencyKey] = useState(freshIdempotencyKey);
@@ -44,6 +45,7 @@ export function NewPlanForm({ apiBase }: { apiBase: string }) {
             tier: data.get("tier"),
             label: String(data.get("label") ?? "").trim(),
             monthlyAmountCents: Number(data.get("monthlyAmountCents") ?? 0),
+            currency: String(data.get("currency") ?? defaultCurrency),
             lockInMonths: Number(data.get("lockInMonths") ?? 0),
             lockInFeeCents: Number(data.get("lockInFeeCents") ?? 0),
             idempotencyKey,
@@ -65,7 +67,8 @@ export function NewPlanForm({ apiBase }: { apiBase: string }) {
       </label>
       <label>Label<input name="label" required /></label>
       <label>Monthly (pence)<input name="monthlyAmountCents" type="number" min={0} required /></label>
-      <label>Minimum term (months)<input name="lockInMonths" type="number" min={0} defaultValue={0} /></label>
+      <label>Currency<select name="currency" defaultValue={defaultCurrency}>{SUPPORTED_CURRENCIES.map(currency => <option key={currency.code} value={currency.code}>{currency.label}</option>)}</select></label>
+      <label>Minimum term (months)<input name="lockInMonths" type="number" min={0} max={36} defaultValue={0} /></label>
       <label>Deposit (pence)<input name="lockInFeeCents" type="number" min={0} defaultValue={0} /></label>
       {error ? <p role="alert" style={{ color: "#b91c1c", margin: 0 }}>{error}</p> : null}
       <button type="submit" disabled={busy}>{busy ? "Creating…" : "Create plan"}</button>

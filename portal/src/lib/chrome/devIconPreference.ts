@@ -8,7 +8,7 @@
 //
 // Default: SHOWN. Founders see the icon today, so an absent cookie must keep it
 // visible — turning the toggle OFF is the only thing that hides it. The
-// server-side founder + Dev-Mode gate still applies on top of this preference;
+// server-side founder-only Dev Team access gate still applies on top of this preference;
 // this cookie can only ever HIDE an icon the founder is already entitled to.
 
 /** Cookie name. Read on the server by `devIconPreference()`. */

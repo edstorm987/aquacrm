@@ -853,13 +853,13 @@ before(async () => {
 });
 
 describe("the lifecycle route — gate, tenancy, and honest refusals", () => {
-  it("refuses without Dev Mode, before reading anything", async () => {
+  it("keeps the owner baseline active without Dev Mode and still tenant-resolves the project", async () => {
     const home = await founder();
     const response = await withSession(home.token, () => POST(new Request(
       "http://localhost/api/portal/dev/lifecycle",
       { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "status", project: "x" }) },
     ) as never));
-    assert.equal(response.status, 403);
+    assert.equal(response.status, 404);
   });
 
   it("answers a foreign project id EXACTLY like an invented one", async () => {

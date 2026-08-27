@@ -36,6 +36,7 @@ import { buildSyntheticCanaryChecks, buildSyntheticCanaryIssues } from "@/engine
 import { formatElapsed } from "@/lib/enquiries/leadTiming";
 import { isoDateTimeValue } from "@/lib/shared/formatDateTime";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
+import { getActiveDataRealmId } from "@/server/dataRealm";
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
 import { containerFor as leadsContainerFor } from "@aqua/plugin-leads-pipeline/server";
 import { listLegalDocuments } from "@/server/legalDocuments";
@@ -69,7 +70,10 @@ interface RadarCacheEntry {
 const radarCache = new Map<string, RadarCacheEntry>();
 
 export function invalidateBusinessIssueRadarCache(agencyId: string): void {
-  radarCache.delete(agencyId);
+  const agencySuffix = `:${agencyId}`;
+  for (const key of radarCache.keys()) {
+    if (key.endsWith(agencySuffix)) radarCache.delete(key);
+  }
 }
 
 interface RadarInputs {
@@ -81,24 +85,30 @@ export function getCachedBusinessIssueRadar(
   agencyId: string,
   now = Date.now(),
 ): Promise<BusinessIssueRadar> {
-  const cached = radarCache.get(agencyId);
+  const realmId = getActiveDataRealmId();
+  const cacheKey = `${realmId}:${agencyId}`;
+  const cached = radarCache.get(cacheKey);
   if (cached?.radar && cached.expiresAt > now) return Promise.resolve(cached.radar);
   if (cached?.pending) return cached.pending;
 
+  const entry: RadarCacheEntry = { expiresAt: now + RADAR_CACHE_TTL_MS };
   const pending = buildBusinessIssueRadar(agencyId, now)
     .then(radar => {
-      radarCache.set(agencyId, {
-        radar,
-        expiresAt: Date.now() + RADAR_CACHE_TTL_MS,
-      });
+      if (radarCache.get(cacheKey) === entry) {
+        radarCache.set(cacheKey, {
+          radar,
+          expiresAt: Date.now() + RADAR_CACHE_TTL_MS,
+        });
+      }
       return radar;
     })
     .catch(error => {
-      radarCache.delete(agencyId);
+      if (radarCache.get(cacheKey) === entry) radarCache.delete(cacheKey);
       throw error;
     });
 
-  radarCache.set(agencyId, { pending, expiresAt: now + RADAR_CACHE_TTL_MS });
+  entry.pending = pending;
+  radarCache.set(cacheKey, entry);
   return pending;
 }
 

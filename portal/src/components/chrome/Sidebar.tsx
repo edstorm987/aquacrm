@@ -73,10 +73,9 @@ export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extr
             <span className="block truncate text-sm font-semibold text-black/90">{tenantLabel}</span>
           </span>
         </div>
-        {/* One app, several companies: which one am I operating as. Asks the
-            server for its own options and renders nothing unless this session
-            actually has more than one company to move between — so client
-            workspaces and single-company sign-ins look exactly as before. */}
+        {/* One app, several companies: which one am I operating as. The portal
+            layout provides the membership-filtered options and this renders
+            nothing unless there is actually somewhere else to move. */}
         {variant !== "client" && <CompanySwitcher />}
       </div>
 

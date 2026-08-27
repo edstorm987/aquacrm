@@ -29,9 +29,11 @@ function formatContactDate(ts: number): string {
 export function CommsRow({
   clientId,
   initial,
+  canManage = true,
 }: {
   clientId: string;
   initial: InitialState;
+  canManage?: boolean;
 }) {
   const router = useRouter();
   const [state, setState] = useState(initial);
@@ -128,24 +130,24 @@ export function CommsRow({
       >
         <span aria-hidden="true">🕘</span> {lastLabel}
       </span>
-      <button
+      {canManage ? <button
         type="button"
         onClick={markContacted}
         disabled={busy}
         className="rounded-md border border-black/15 px-2 py-0.5 hover:bg-black/5 disabled:opacity-50"
       >
         Mark contacted
-      </button>
-      <button
+      </button> : null}
+      {canManage ? <button
         type="button"
         onClick={() => setEditing(o => !o)}
         disabled={busy}
         className="rounded-md border border-black/15 px-2 py-0.5 hover:bg-black/5 disabled:opacity-50"
       >
         {editing ? "Cancel" : "Edit"}
-      </button>
+      </button> : null}
 
-      {editing && (
+      {canManage && editing && (
         <div
           role="group"
           aria-label="Edit comms"

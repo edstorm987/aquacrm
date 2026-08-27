@@ -37,10 +37,12 @@
 import type { PluginApiRoute } from "../lib/aquaPluginTypes";
 import {
   applyDiscountHandler,
+  checkoutQuoteHandler,
   deleteDiscountHandler,
   deleteProductHandler,
   downloadOrderHandler,
   getOrderHandler,
+  getOrderBySessionHandler,
   getProductHandler,
   issueGiftCardHandler,
   listCollectionsHandler,
@@ -73,12 +75,14 @@ export const apiRoutes: readonly PluginApiRoute[] = [
   // Orders
   { path: "orders", methods: ["GET"], handler: listOrdersHandler },
   { path: "orders/get", methods: ["GET"], handler: getOrderHandler },
+  { path: "orders/by-session", methods: ["GET"], handler: getOrderBySessionHandler },
   { path: "orders", methods: ["PATCH"], handler: updateOrderHandler },
   { path: "orders/status", methods: ["POST"], handler: updateOrderStatusHandler },
   { path: "orders/download", methods: ["GET"], handler: downloadOrderHandler },
 
   // Stripe
   { path: "stripe/checkout", methods: ["POST"], handler: stripeCheckoutHandler },
+  { path: "checkout/quote", methods: ["POST"], handler: checkoutQuoteHandler },
   { path: "stripe/webhook", methods: ["POST"], handler: stripeWebhookHandler },
   { path: "stripe/billing-portal", methods: ["POST"], handler: stripeBillingPortalHandler },
 

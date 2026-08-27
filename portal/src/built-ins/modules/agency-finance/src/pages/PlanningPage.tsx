@@ -5,6 +5,7 @@ import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { formatMoney, normaliseCurrency } from "../lib/currencies";
 import { containerFor } from "../server/foundationAdapter";
 import { FinanceNav } from "../components/FinanceNav";
+import { FinanceCurrencyNav } from "../components/FinanceCurrencyNav";
 import { resolveFinanceDefaultCurrency } from "@/lib/server/finance/financeCurrency";
 import { getCompanyProfile } from "@/server/company";
 
@@ -13,34 +14,32 @@ export default async function PlanningPage(props: PluginPageProps) {
   const defaultCurrency = resolveFinanceDefaultCurrency(props.agencyId, props.install.config.defaultCurrency);
   const profile = getCompanyProfile(props.agencyId, null);
   const now = Date.now();
-  const [snapshot, plans, invoices, expenses] = await Promise.all([
-    c.pnl.founderSnapshot(now),
+  const requestedCurrency = typeof props.searchParams.currency === "string" ? props.searchParams.currency : undefined;
+  const currency = normaliseCurrency(requestedCurrency, defaultCurrency);
+  const [snapshot, plans, assignments, accounting] = await Promise.all([
+    c.pnl.founderSnapshot(now, 30, currency),
     c.plans.list(false),
-    c.invoices.list(),
-    c.expenses.list(),
+    c.plans.listCommercialAssignments(),
+    c.accounting.snapshot({ from: 0, to: now, currency }),
   ]);
-  const currency = normaliseCurrency(snapshot.currency, defaultCurrency);
   const months = snapshot.trailingMonths;
   const latest = months.at(-1);
   const previous = months.at(-2);
-  const currentRevenue = latest?.revenueCents ?? 0;
-  const previousRevenue = previous?.revenueCents ?? 0;
+  const currentRevenue = latest?.cashRevenueCents ?? 0;
+  const previousRevenue = previous?.cashRevenueCents ?? 0;
   const monthlyGrowthRate = previousRevenue > 0 ? (currentRevenue - previousRevenue) / previousRevenue : null;
   const averageExpenseCents = months.length
-    ? Math.round(months.reduce((sum, month) => sum + month.expensesCents, 0) / months.length)
+    ? Math.round(months.reduce((sum, month) => sum + month.cashExpenseCents, 0) / months.length)
     : 0;
-  const monthlyTarget = profile.monthlyRevenueTargetCents;
-  const annualTarget = profile.annualRevenueTargetCents;
+  const usesCompanyTargetCurrency = currency === defaultCurrency;
+  const monthlyTarget = usesCompanyTargetCurrency ? profile.monthlyRevenueTargetCents : 0;
+  const annualTarget = usesCompanyTargetCurrency ? profile.annualRevenueTargetCents : 0;
   const targetGap = Math.max(0, monthlyTarget - currentRevenue);
   const dealsNeeded = targetGap > 0 ? Math.ceil(targetGap / Math.max(1, profile.averageDealValueCents)) : 0;
   const callsNeeded = dealsNeeded > 0 ? Math.ceil(dealsNeeded / Math.max(0.01, profile.salesCallCloseRatePercent / 100)) : 0;
-  const activePlanCount = plans.filter(plan => plan.active).length;
-  const outstandingCents = invoices
-    .filter(invoice => invoice.currency === currency && ["sent", "overdue"].includes(invoice.status))
-    .reduce((sum, invoice) => sum + invoice.totalCents, 0);
-  const pendingExpenseCents = expenses
-    .filter(expense => expense.currency === currency && expense.status !== "rejected" && expense.status !== "reimbursed")
-    .reduce((sum, expense) => sum + expense.amountCents, 0);
+  const activePlanCount = assignments.filter(assignment => assignment.currency === currency).length;
+  const outstandingCents = accounting.outstandingReceivableCents;
+  const pendingExpenseCents = accounting.pendingExpenseCents;
   const projected = projectMonths({
     startYear: latest?.year ?? new Date(now).getUTCFullYear(),
     startMonth: latest?.month ?? new Date(now).getUTCMonth() + 1,
@@ -66,18 +65,25 @@ export default async function PlanningPage(props: PluginPageProps) {
         </Link>
       </header>
 
+      <FinanceCurrencyNav
+        active={currency}
+        available={[...snapshot.availableCurrencies, ...plans.map(plan => plan.currency)]}
+        path="/portal/agency/agency-finance/planning"
+        label="Planning currency"
+      />
+
       <dl className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <Metric label="Current month" value={money(currentRevenue, currency)} icon={BarChart3} />
-        <Metric label="Monthly target" value={money(monthlyTarget, currency)} icon={Target} />
+        <Metric label="Current month cash" value={money(currentRevenue, currency)} icon={BarChart3} />
+        <Metric label="Monthly target" value={usesCompanyTargetCurrency ? money(monthlyTarget, currency) : `Not set for ${currency.toUpperCase()}`} icon={Target} />
         <Metric label="MRR / ARR" value={`${money(snapshot.mrrCents, currency)} / ${money(snapshot.arrCents, currency)}`} icon={TrendingUp} />
         <Metric label="Growth rate" value={monthlyGrowthRate === null ? currentRevenue > 0 ? "New revenue" : "No baseline" : percent(monthlyGrowthRate)} icon={TrendingUp} tone={monthlyGrowthRate === null ? undefined : monthlyGrowthRate >= 0 ? "good" : "warn"} />
-        <Metric label="Target gap" value={money(targetGap, currency)} icon={Flag} tone={targetGap === 0 ? "good" : "warn"} />
+        <Metric label="Target gap" value={usesCompanyTargetCurrency ? money(targetGap, currency) : "—"} icon={Flag} tone={usesCompanyTargetCurrency ? targetGap === 0 ? "good" : "warn" : undefined} />
       </dl>
 
       <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div>
           <h2 className="text-base font-semibold text-black/85">12 month projection</h2>
-          <p className="mt-1 text-sm text-black/45">Projection starts from current revenue or MRR, whichever is higher, and applies the latest measurable monthly growth rate. It holds flat until a prior-month baseline exists.</p>
+          <p className="mt-1 text-sm text-black/45">Projection starts from current cash receipts or MRR, whichever is higher, and applies the latest measurable monthly cash growth rate. It holds flat until a prior-month baseline exists.</p>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[640px] text-sm">
               <thead className="border-b border-black/10 text-left text-[11px] uppercase tracking-wide text-black/45">
@@ -107,11 +113,14 @@ export default async function PlanningPage(props: PluginPageProps) {
             <Row label="Annual target coverage" value={`${annualProgress}%`} />
             <Row label="Projected annual net" value={money(projectedAnnualNet, currency)} />
             <Row label="Outstanding invoices" value={money(outstandingCents, currency)} />
-            <Row label="Pending costs" value={money(pendingExpenseCents, currency)} />
-            <Row label="Active plans" value={String(activePlanCount)} />
+            <Row label="Committed costs" value={money(accounting.committedExpenseCents, currency)} />
+            <Row label="Pending costs (unapproved)" value={money(pendingExpenseCents, currency)} />
+            <Row label={`Active ${currency.toUpperCase()} plans`} value={String(activePlanCount)} />
           </dl>
           <p className="mt-4 text-xs leading-5 text-black/45">
-            To close this month&apos;s target gap, plan about {dealsNeeded} deal{dealsNeeded === 1 ? "" : "s"} or {callsNeeded} sales call{callsNeeded === 1 ? "" : "s"} at the current average deal and close-rate assumptions.
+            {usesCompanyTargetCurrency
+              ? <>To close this month&apos;s target gap, plan about {dealsNeeded} deal{dealsNeeded === 1 ? "" : "s"} or {callsNeeded} sales call{callsNeeded === 1 ? "" : "s"} at the current average deal and close-rate assumptions.</>
+              : <>Company targets are recorded in {defaultCurrency.toUpperCase()}; no FX conversion is applied to this {currency.toUpperCase()} view.</>}
           </p>
         </aside>
       </section>

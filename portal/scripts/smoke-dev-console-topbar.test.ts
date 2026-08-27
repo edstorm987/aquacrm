@@ -148,7 +148,7 @@ describe("Dev Console — the topbar wiring", () => {
   it("the gate is server-decided and re-asserted by the route", () => {
     const route = read("src/app/api/portal/dev-team/console/route.ts");
     assert.match(route, /devDocsAccessible\(session\)/, "the route asks the one predicate itself");
-    assert.match(route, /status: 404/, "outside Dev Mode the surface does not exist");
+    assert.match(route, /status: 404/, "outside founder-only access the surface does not exist");
     assert.match(route, /requireRole\(\[\.\.\.AGENCY_ROLES\]\)/);
 
     const control = read("src/components/chrome/DevConsoleControl.tsx");
@@ -165,7 +165,6 @@ describe("Dev Console — the topbar wiring", () => {
     // Every surface that renders a Topbar for an agency operator passes it.
     for (const surface of [
       "src/app/portal/agency/layout.tsx",
-      "src/app/portal/dev-team/layout.tsx",
       "src/app/portal/clients/page.tsx",
       "src/app/portal/clients/[clientId]/layout.tsx",
     ]) {
@@ -173,6 +172,14 @@ describe("Dev Console — the topbar wiring", () => {
       // (the profile "Dev Mode" toggle drives that cookie instead of navigating).
       assert.match(read(surface), /devConsole=\{devDocsAccessible\(session\) && /, `${surface} gates the icon server-side`);
     }
+    // Dev Team already rejects the whole layout through the same underlying
+    // founder decision before it constructs its streamed Topbar. It uses the
+    // lightweight access seam directly so importing the shell does not also
+    // import the docs scanner merely to ask the compatibility wrapper.
+    const devTeam = read("src/app/portal/dev-team/layout.tsx");
+    assert.match(devTeam, /import \{ devTeamAccessible \} from "@\/lib\/server\/dev\/devTeamAccess"/);
+    assert.match(devTeam, /if \(!devTeamAccessible\(session\)\) notFound\(\)/);
+    assert.match(devTeam, /devConsole=\{await devIconPreference\(\)\}/);
     // The staff portal is not a founder surface — no icon, no import.
     assert.doesNotMatch(read("src/app/portal/team/layout.tsx"), /devConsole/);
   });
@@ -364,7 +371,8 @@ describe("Dev Console — the Command Centre station", () => {
     assert.match(source, /Open the workspace/);
     // The station never gates itself — page.tsx decides whether it exists at all.
     assert.ok(!imported(source).has("devDocsAccessible"), "the gate lives upstream, in page.tsx");
-    assert.match(read("src/app/portal/agency/page.tsx"), /devTeamVisible = devDocsAccessible\(session\)/);
-    assert.match(read("src/app/portal/agency/page.tsx"), /devTeamVisible \? \(/, "the node is never constructed for anyone else");
+    assert.match(read("src/app/portal/agency/page.tsx"), /devTeamVisible = devTeamAccessible\(session\)/);
+    assert.match(read("src/app/portal/agency/page.tsx"), /resolveServerCommandStation\(resolvedSearchParams\?\.station, devTeamVisible\)/, "the server rejects a hand-typed Dev Team station for anyone else");
+    assert.match(read("src/app/portal/agency/page.tsx"), /requestedServerStation === "devteam"[\s\S]{0,180}await import\("\.\/_DevTeamStation"\)/, "the node is constructed only for an authorised explicit station request");
   });
 });

@@ -502,8 +502,8 @@ export function DevEditorSetup() {
             description: draft.description,
             repository: draft.repository,
             ref: draft.ref,
-            githubConnectionId: draft.githubConnectionId || undefined,
-            vercelConnectionId: draft.vercelConnectionId || undefined,
+            githubConnectionId: draft.githubConnectionId,
+            vercelConnectionId: draft.vercelConnectionId,
             // NO aquaTagId. The tag id is the browser gate, and a gate a body
             // can carry is a gate a request can forge — the server refuses it
             // outright and preserves the earned value itself. The draft still
@@ -1066,11 +1066,17 @@ function ProjectForm({ draft, setDraft, github, vercel, busy, parentOptions, has
 export function DevEditorProjectSettings({
   projectId,
   aiConfigured,
+  canManageConnections = true,
+  canRebindConnections = true,
 }: {
   /** The project this editor is open ON. Empty = a door with no project. */
   projectId: string;
   /** Whether the Aqua Editor AI holds a key for this project — never the key. */
   aiConfigured?: boolean;
+  /** Exact `project.connection.manage` for this project. */
+  canManageConnections?: boolean;
+  /** Owner/manager governance authority to replace repository credentials. */
+  canRebindConnections?: boolean;
 }) {
   const sk = SETUP_SKINS.editor;
   const [projects, setProjects] = useState<DevProject[]>([]);
@@ -1173,10 +1179,14 @@ export function DevEditorProjectSettings({
       id: project.id,
       name: draft.name,
       description: draft.description,
-      repository: draft.repository,
-      ref: draft.ref,
-      githubConnectionId: draft.githubConnectionId || undefined,
-      vercelConnectionId: draft.vercelConnectionId || undefined,
+      ...(canManageConnections ? {
+        repository: draft.repository,
+        ref: draft.ref,
+        // Empty is an explicit unbind. Omitting means carry the existing
+        // binding, so `undefined` cannot represent the user's clear action.
+        githubConnectionId: draft.githubConnectionId,
+        vercelConnectionId: draft.vercelConnectionId,
+      } : {}),
       // NO aquaTagId — the tag id is the browser gate and only Map / Check it
       // may set it, from the key the fetched page really carried. The server
       // preserves the earned value on every save.
@@ -1328,14 +1338,14 @@ export function DevEditorProjectSettings({
             <div className="grid gap-2 sm:grid-cols-2">
               <label className={`grid gap-1 text-[11px] font-semibold ${sk.muted}`}>
                 Repository <span className="font-normal">— blank reads this workspace</span>
-                <input value={draft.repository} onChange={event => setDraft({ ...draft, repository: event.target.value })} placeholder="owner/repository" className={sk.field} />
+                <input disabled={!canRebindConnections} value={draft.repository} onChange={event => setDraft({ ...draft, repository: event.target.value })} placeholder="owner/repository" className={sk.field} />
               </label>
               <label className={`grid gap-1 text-[11px] font-semibold ${sk.muted}`}>
                 Branch
-                <input value={draft.ref} onChange={event => setDraft({ ...draft, ref: event.target.value })} className={sk.field} />
+                <input disabled={!canManageConnections} value={draft.ref} onChange={event => setDraft({ ...draft, ref: event.target.value })} className={sk.field} />
               </label>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
+            {canRebindConnections ? <div className="grid gap-2 sm:grid-cols-2">
               <label className={`grid gap-1 text-[11px] font-semibold ${sk.muted}`}>
                 GitHub connection
                 <select value={draft.githubConnectionId} onChange={event => setDraft({ ...draft, githubConnectionId: event.target.value })} className={sk.field}>
@@ -1350,7 +1360,13 @@ export function DevEditorProjectSettings({
                   {vercel.map(item => <option key={item.id} value={item.id} className="bg-neutral-900">{item.label}</option>)}
                 </select>
               </label>
-            </div>
+            </div> : (
+              <p className={`rounded-md border border-white/10 bg-white/[0.035] px-2.5 py-2 text-[11px] leading-5 ${sk.muted}`}>
+                {canManageConnections
+                  ? "The repository and saved connections are governance-controlled. You can change the branch within this project's current repository."
+                  : "Repository, branch and connection bindings are read-only. Request repository-connection management for this exact project to change its branch."}
+              </p>
+            )}
             <label className={`grid gap-1 text-[11px] font-semibold ${sk.muted}`}>
               Website address <span className="font-normal">— where the Aqua Tag is installed; Map checks it</span>
               <input value={draft.siteUrl} onChange={event => setDraft({ ...draft, siteUrl: event.target.value })} placeholder="example.com" className={sk.field} />
@@ -1383,11 +1399,12 @@ export function DevEditorProjectSettings({
       {/* ── GitHub, connected from inside the editor ──────────────────────── */}
       {!github.length ? (
         <p className={sk.warnSoft}>
-          No GitHub connection saved yet, so this project falls back to the agency token.
-          Connect one below — no other screen needed.
+          {canRebindConnections
+            ? "No dedicated GitHub connection is bound to this project. Delegated access never falls back to an agency or server token."
+            : "No authorised GitHub connection metadata is available here. Ask the owner to bind a dedicated connection to this project."}
         </p>
       ) : null}
-      <GitHubConnectPanel
+      {canRebindConnections ? <GitHubConnectPanel
         skin="editor"
         onConnected={connectionId => {
           // Re-read so the connection appears in the selects, and point THIS
@@ -1396,7 +1413,7 @@ export function DevEditorProjectSettings({
           setDraft(current => (current ? { ...current, githubConnectionId: connectionId } : current));
           window.dispatchEvent(new CustomEvent(DEV_PROJECTS_CHANGED_EVENT));
         }}
-      />
+      /> : null}
 
       {/* ── Projects inside this one — created without leaving the editor ── */}
       <section className={`grid gap-2 rounded-lg border ${sk.hairline} bg-black/30 p-3`}>

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
+
 import type { Product } from "../../lib/products";
 
 export interface ProductsListProps {
@@ -11,17 +13,33 @@ export interface ProductsListProps {
 
 export function ProductsList({ products, apiBase }: ProductsListProps) {
   const [query, setQuery] = useState("");
+  const [busySlug, setBusySlug] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const filtered = products.filter(p => {
     if (!query) return true;
     const q = query.toLowerCase();
     return p.name.toLowerCase().includes(q) || p.slug.toLowerCase().includes(q);
   });
 
-  async function deleteProduct(slug: string): Promise<void> {
-    if (!confirm(`Delete product ${slug}?`)) return;
-    const res = await fetch(`${apiBase}/products?slug=${encodeURIComponent(slug)}`, { method: "DELETE" });
-    const data = await res.json() as { ok: boolean };
-    if (data.ok && typeof window !== "undefined") window.location.reload();
+  async function archiveProduct(slug: string): Promise<void> {
+    if (!confirm(`Archive ${slug}? It will leave the storefront but its inventory, collections and order history remain intact.`)) return;
+    setBusySlug(slug);
+    setError(null);
+    try {
+      await checkedJsonMutation<{ ok: boolean }>(
+        `${apiBase}/products?slug=${encodeURIComponent(slug)}`,
+        { method: "DELETE" },
+        {
+          fallback: `${slug} could not be archived.`,
+          validate: payload => payload.ok === true,
+        },
+      );
+      if (typeof window !== "undefined") window.location.reload();
+    } catch (requestError) {
+      setError(mutationErrorMessage(requestError, `${slug} could not be archived.`));
+    } finally {
+      setBusySlug(null);
+    }
   }
 
   return (
@@ -42,6 +60,7 @@ export function ProductsList({ products, apiBase }: ProductsListProps) {
           <a className="ecom-button" href="./products/new">+ New product</a>
         </div>
       </header>
+      {error && <p role="alert" className="ecom-error">{error}</p>}
       {products.length === 0 ? (
         <div className="ecom-empty" role="status">
           <h3>No products yet</h3>
@@ -71,7 +90,7 @@ export function ProductsList({ products, apiBase }: ProductsListProps) {
               <div className="ecom-product-actions">
                 <a href={`./products/${p.slug}`}>Edit</a>
                 <a href={`./products/${p.slug}/variants`}>Variants</a>
-                <button type="button" onClick={() => deleteProduct(p.slug)} aria-label={`Delete ${p.name}`}>Delete</button>
+                {!p.archived && <button type="button" disabled={busySlug === p.slug} onClick={() => archiveProduct(p.slug)} aria-label={`Archive ${p.name}`}>{busySlug === p.slug ? "Archiving…" : "Archive"}</button>}
               </div>
             </li>
           ))}

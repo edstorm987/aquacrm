@@ -109,6 +109,8 @@ export function buildMembershipsContainer(deps: MembershipsDeps): MembershipsCon
     subscriptions,
   );
   const webhook = new WebhookService(
+    deps.agencyId,
+    deps.clientId,
     storage,
     deps.activity,
     deps.events,

@@ -62,7 +62,7 @@ export default function ProductSearchBlock({ block, editorMode }: BlockRenderPro
                 <p style={{ fontSize: 13, fontWeight: 600, margin: "0 0 2px", lineHeight: 1.2 }}>{p.name}</p>
                 {p.tagline && <p style={{ fontSize: 11, opacity: 0.6, margin: 0 }}>{p.tagline}</p>}
               </div>
-              <p style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>{formatPrice(p.price)}</p>
+              <p style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>{formatPrice(p.onSale && p.salePrice !== undefined ? p.salePrice : p.price, p.currency)}</p>
             </a>
           ))}
         </div>

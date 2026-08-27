@@ -96,6 +96,7 @@ export async function POST(request: Request) {
     const result = await sendTransactionalEmail({
       agencyId: session.agencyId,
       to: recipient,
+      signal: request.signal,
       fromName: brandName,
       subject,
       bodyText: [

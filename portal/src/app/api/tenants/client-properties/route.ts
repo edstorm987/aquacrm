@@ -5,6 +5,7 @@ import { logActivity } from "@/server/activity";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
 import { isLocalDevelopmentUrl, normalizeWebsiteUrl } from "@/lib/public/publicUrl";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 export type ClientPropertyKind = "website" | "client-portal" | "dev-portal" | "software" | "lead-magnet" | "repo" | "template" | "tag";
 export type ClientPropertyStatus = "planning" | "building" | "review" | "live" | "redirected" | "archived";
@@ -141,6 +142,7 @@ export async function POST(req: Request) {
     }
 
     const session = await requireRoleForClient([...AGENCY_ROLES], body.clientId);
+    await requireCurrentClientWorkspaceElementAccess(body.clientId, "client.systems", "use");
     const client = getClientForAgency(session.agencyId, body.clientId);
     if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
 

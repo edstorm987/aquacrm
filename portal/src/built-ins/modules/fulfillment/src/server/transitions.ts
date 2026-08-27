@@ -2,16 +2,17 @@
 //
 // Algorithm (locked in `04-architecture.md §7` and Decisions log #4):
 //
-//   1. Disable old phase's plugins (`enabled = false`, config preserved).
-//   2. Enable / install new phase's plugins (re-enable if already present).
-//   3. Apply new phase's starter portal variant (T3 integration via
+//   1. Persist/claim one retryable transition operation.
+//   2. Enable / install every required target plugin while the old phase stays live.
+//   3. Apply the target starter portal variant (T3 integration via
 //      `StarterVariantService`).
-//   4. Update `client.stage = toPhase.stage`.
-//   5. Initialise the checklist progress for the new phase.
-//   6. Append an `ActivityLog` entry.
-//   7. Emit `phase.advanced` on the eventBus.
+//   4. Disable old-only plugins, preserving their config.
+//   5. Initialise the target checklist, then publish `client.stage`.
+//   6. Append one idempotent `ActivityLog` entry.
+//   7. Mark the operation complete, then emit `phase.advanced`.
 //
-// Auto-disable, config preserved. Reversible. Never auto-uninstall.
+// Every checkpoint is resumable. Missing plugins and failed variants are
+// incomplete work, never hidden inside `ok:true`.
 
 import type {
   AgencyId,
@@ -29,6 +30,7 @@ import type {
 } from "./ports";
 import type { ChecklistService } from "./checklist";
 import type { StarterVariantService } from "./starterVariant";
+import type { PluginStorage } from "../lib/aquaPluginTypes";
 
 export interface AdvancePhaseArgs {
   agencyId: AgencyId;
@@ -39,18 +41,21 @@ export interface AdvancePhaseArgs {
   reason?: string;
   directJump?: boolean;
   skippedStageCount?: number;
+  operationId?: string;
 }
 
 export interface AdvancePhaseResult {
   ok: true;
+  status: "complete";
+  operationId: string;
+  retryable: false;
+  replayed: boolean;
   client: Client;
   disabled: string[];
   enabled: string[];
-  // R7 — plugins referenced in the preset but skipped because they're
-  // not in the foundation registry. Soft-fail rather than hard-fail
-  // (matches the variant-id soft-fail in step 3 — same architecture
-  // spirit). Re-running advancePhase after T1 wires the registry
-  // picks them up automatically.
+  // Successful transitions have no skipped requirements. The field remains
+  // for response compatibility; unavailable preset plugins are returned on
+  // an `incomplete` result and picked up by retry after registration.
   skipped: { pluginId: string; error: string }[];
   variant:
     | { ok: true; variantId: string; pageId?: string; siteId?: string }
@@ -60,12 +65,46 @@ export interface AdvancePhaseResult {
 
 export interface AdvancePhaseFailure {
   ok: false;
+  status: "incomplete" | "rejected";
+  operationId?: string;
+  retryable: boolean;
   error: string;
   step: "disable" | "enable" | "variant" | "client" | "checklist" | "log";
   partial?: { disabled: string[]; enabled: string[] };
+  skipped?: { pluginId: string; error: string }[];
+  variant?: AdvancePhaseResult["variant"];
 }
 
+type TransitionStep = AdvancePhaseFailure["step"];
+
+interface TransitionOperationRecord {
+  operationId: string;
+  requestKey: string;
+  agencyId: string;
+  clientId: string;
+  fromPhaseId: string;
+  toPhaseId: string;
+  status: "pending" | "incomplete" | "complete";
+  attempts: number;
+  disabled: string[];
+  enabled: string[];
+  skipped: { pluginId: string; error: string }[];
+  variant: AdvancePhaseResult["variant"];
+  clientUpdated: boolean;
+  checklistInitialised: boolean;
+  activityLogged: boolean;
+  failedStep?: TransitionStep;
+  lastError?: string;
+  createdAt: number;
+  updatedAt: number;
+  completedAt?: number;
+}
+
+const TRANSITION_OPERATIONS_KEY = "phase-transition-operations:v1";
+
 export class TransitionService {
+  private memoryRecords: Record<string, TransitionOperationRecord> = {};
+
   constructor(
     private clients: ClientStorePort,
     private installs: PluginInstallStorePort,
@@ -74,9 +113,17 @@ export class TransitionService {
     private events: EventBusPort,
     private checklist: ChecklistService,
     private variants: StarterVariantService,
+    private storage?: PluginStorage,
   ) {}
 
   async advancePhase(args: AdvancePhaseArgs): Promise<AdvancePhaseResult | AdvancePhaseFailure> {
+    const run = () => this.runAdvancePhase(args);
+    return this.storage?.runExclusive
+      ? this.storage.runExclusive(`phase-transition:${args.clientId}`, run)
+      : run();
+  }
+
+  private async runAdvancePhase(args: AdvancePhaseArgs): Promise<AdvancePhaseResult | AdvancePhaseFailure> {
     const scope = { agencyId: args.agencyId, clientId: args.clientId };
     const isDirectJump = args.directJump === true;
     const skippedStageCount = args.skippedStageCount ?? 0;
@@ -85,195 +132,236 @@ export class TransitionService {
     if (args.fromPhase.agencyId !== args.agencyId || args.toPhase.agencyId !== args.agencyId) {
       return {
         ok: false,
+        status: "rejected",
         error: "Phase definitions don't belong to this agency.",
         step: "disable",
+        retryable: false,
       };
     }
 
-    // 1. Disable old phase plugins (only the ones not also in the new phase).
-    const disabled: string[] = [];
-    const newSet = new Set(args.toPhase.pluginPreset);
-    for (const pluginId of args.fromPhase.pluginPreset) {
-      if (newSet.has(pluginId)) continue;
-      const result = await this.runtime.setEnabled({
-        pluginId,
-        scope,
-        enabled: false,
-        actor: args.actor,
-      });
-      if (!result.ok) {
-        return {
-          ok: false,
-          error: `disable ${pluginId}: ${result.error}`,
-          step: "disable",
-          partial: { disabled, enabled: [] },
-        };
+    const records = this.storage
+      ? (await this.storage.get<Record<string, TransitionOperationRecord>>(TRANSITION_OPERATIONS_KEY)) ?? {}
+      : this.memoryRecords;
+    const requestedId = cleanOperationId(args.operationId)
+      ?? `legacy:${args.clientId}:${args.fromPhase.id}:${args.toPhase.id}:${args.actor}`;
+    const requestKey = [args.agencyId, args.clientId, args.fromPhase.id, args.toPhase.id, args.reason ?? ""].join("\u0000");
+    let record = records[requestedId]
+      ?? Object.values(records).find(item => item.status !== "complete" && item.requestKey === requestKey);
+    if (record && record.requestKey !== requestKey) {
+      return { ok: false, status: "rejected", operationId: requestedId, retryable: false, error: "That transition operation id belongs to a different request.", step: "enable" };
+    }
+    if (record?.status === "complete") {
+      const client = await Promise.resolve(this.clients.getClientForAgency(args.agencyId, args.clientId));
+      if (!client || client.stage !== args.toPhase.stage) {
+        return { ok: false, status: "rejected", operationId: record.operationId, retryable: false, error: "The completed transition no longer matches the client's current stage.", step: "client" };
       }
-      disabled.push(pluginId);
+      return {
+        ok: true, status: "complete", operationId: record.operationId, retryable: false, replayed: true,
+        client, disabled: record.disabled, enabled: record.enabled, skipped: [], variant: record.variant,
+      };
     }
 
-    // 2. Enable / install new phase plugins.
-    //
-    // Soft-fail policy (R7): plugin ids in the preset that aren't in
-    // the foundation registry yet (or fail with a "not found" /
-    // "not in registry" runtime error) are SKIPPED rather than
-    // aborting the phase advance. The skipped plugin is logged as a
-    // WARN activity entry + a `phase.preset_plugin_skipped` event
-    // emit; phase.advanced still fires and the client moves stage.
-    // This matches Bug B's variant-id soft-fail (architecture §7).
-    // Real registry-side errors (auth, scope policy mismatch,
-    // dependency unmet) still hard-fail.
-    const enabled: string[] = [];
-    const skipped: { pluginId: string; error: string }[] = [];
-    for (const pluginId of args.toPhase.pluginPreset) {
-      const existing = await this.installs.getInstall(scope, pluginId);
-      if (existing) {
-        if (!existing.enabled) {
-          const r = await this.runtime.setEnabled({
-            pluginId,
-            scope,
-            enabled: true,
-            actor: args.actor,
-          });
-          if (!r.ok) {
-            return {
-              ok: false,
-              error: `re-enable ${pluginId}: ${r.error}`,
-              step: "enable",
-              partial: { disabled, enabled },
-            };
+    const now = Date.now();
+    record = record ?? {
+      operationId: requestedId,
+      requestKey,
+      agencyId: args.agencyId,
+      clientId: args.clientId,
+      fromPhaseId: args.fromPhase.id,
+      toPhaseId: args.toPhase.id,
+      status: "pending",
+      attempts: 0,
+      disabled: [],
+      enabled: [],
+      skipped: [],
+      variant: { skipped: true },
+      clientUpdated: false,
+      checklistInitialised: false,
+      activityLogged: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    record = { ...record, status: "pending", attempts: record.attempts + 1, failedStep: undefined, lastError: undefined, enabled: [], disabled: [], skipped: [], updatedAt: now };
+    await this.saveRecord(records, record);
+
+    let step: TransitionStep = "enable";
+    const incomplete = async (error: string): Promise<AdvancePhaseFailure> => {
+      record = { ...record!, status: "incomplete", failedStep: step, lastError: error.slice(0, 1_000), updatedAt: Date.now() };
+      await this.saveRecord(records, record);
+      return {
+        ok: false,
+        status: "incomplete",
+        operationId: record.operationId,
+        retryable: true,
+        error,
+        step,
+        partial: { disabled: record.disabled, enabled: record.enabled },
+        skipped: record.skipped,
+        variant: record.variant,
+      };
+    };
+
+    try {
+      // Prepare every required target plugin before disabling the old phase.
+      for (const pluginId of args.toPhase.pluginPreset) {
+        const existing = await Promise.resolve(this.installs.getInstall(scope, pluginId));
+        if (existing?.enabled) {
+          record.enabled.push(pluginId);
+          continue;
+        }
+        const result = existing
+          ? await this.runtime.setEnabled({ pluginId, scope, enabled: true, actor: args.actor })
+          : await this.runtime.installPlugin({ pluginId, scope, installedBy: args.actor });
+        if (!result.ok) {
+          if (isUnregisteredPluginError(result.error)) {
+            record.skipped.push({ pluginId, error: result.error });
+            await this.saveRecord(records, record);
+            continue;
           }
+          await this.saveRecord(records, record);
+          return incomplete(`${existing ? "re-enable" : "install"} ${pluginId}: ${result.error}`);
         }
-        enabled.push(pluginId);
-      } else {
-        const r = await this.runtime.installPlugin({
-          pluginId,
-          scope,
-          installedBy: args.actor,
-        });
-        if (r.ok) {
-          enabled.push(pluginId);
-        } else if (isUnregisteredPluginError(r.error)) {
-          skipped.push({ pluginId, error: r.error });
-          await this.activity.logActivity({
-            agencyId: args.agencyId,
-            clientId: args.clientId,
-            actorUserId: args.actor,
-            category: "phase",
-            action: "phase.preset_plugin_skipped",
-            message: `Phase preset plugin "${pluginId}" skipped — not registered in foundation. Will install on next phase advance once T1 wires it.`,
-            metadata: { pluginId, reason: r.error, phaseStage: args.toPhase.stage },
-          });
-          this.events.emit(scope, "phase.preset_plugin_skipped" as never, {
-            pluginId,
-            phaseId: args.toPhase.id,
-            phaseStage: args.toPhase.stage,
-            reason: r.error,
-          });
-        } else {
-          return {
-            ok: false,
-            error: `install ${pluginId}: ${r.error}`,
-            step: "enable",
-            partial: { disabled, enabled },
-          };
-        }
+        record.enabled.push(pluginId);
+        await this.saveRecord(records, record);
       }
-    }
+      if (record.skipped.length) {
+        return incomplete(`Required preset plugins are unavailable: ${record.skipped.map(item => item.pluginId).join(", ")}.`);
+      }
 
-    // 3. Apply starter portal variant (T3 integration; no-op until T3 lands).
-    let variant: AdvancePhaseResult["variant"] = { skipped: true };
-    if (args.toPhase.portalVariantId) {
-      variant = await this.variants.apply({
-        agencyId: args.agencyId,
-        clientId: args.clientId,
-        variantId: args.toPhase.portalVariantId,
-        role: "account",
-        actor: args.actor,
-      });
-      if (!variant.ok) {
-        // Soft-fail: log + continue. The phase advance still succeeds —
-        // the variant can be re-applied manually from the editor.
-        this.activity.logActivity({
+      // A requested starter variant is required transition work, not a hidden warning.
+      step = "variant";
+      if (args.toPhase.portalVariantId && !("ok" in record.variant && record.variant.ok)) {
+        record.variant = await this.variants.apply({
+          agencyId: args.agencyId,
+          clientId: args.clientId,
+          variantId: args.toPhase.portalVariantId,
+          role: "account",
+          actor: args.actor,
+        });
+        await this.saveRecord(records, record);
+        if (!record.variant.ok) return incomplete(`apply variant ${args.toPhase.portalVariantId}: ${record.variant.error}`);
+      }
+
+      // Only retire old-phase plugins after the target is ready.
+      step = "disable";
+      const newSet = new Set(args.toPhase.pluginPreset);
+      for (const pluginId of args.fromPhase.pluginPreset) {
+        if (newSet.has(pluginId)) continue;
+        const existing = await Promise.resolve(this.installs.getInstall(scope, pluginId));
+        if (!existing || !existing.enabled) {
+          record.disabled.push(pluginId);
+          continue;
+        }
+        const result = await this.runtime.setEnabled({ pluginId, scope, enabled: false, actor: args.actor });
+        if (!result.ok) return incomplete(`disable ${pluginId}: ${result.error}`);
+        record.disabled.push(pluginId);
+        await this.saveRecord(records, record);
+      }
+
+      step = "checklist";
+      if (!record.checklistInitialised) {
+        await this.checklist.initialiseFor({ clientId: args.clientId, phase: args.toPhase });
+        record.checklistInitialised = true;
+        await this.saveRecord(records, record);
+      }
+
+      // Publish the new stage only after its plugins, variant and checklist exist.
+      step = "client";
+      let updated = await Promise.resolve(this.clients.getClientForAgency(args.agencyId, args.clientId));
+      if (!updated) return incomplete(`client ${args.clientId} not found or not in agency ${args.agencyId}`);
+      if (updated.stage !== args.toPhase.stage) {
+        updated = await Promise.resolve(this.clients.updateClient(args.agencyId, args.clientId, { stage: args.toPhase.stage }));
+        if (!updated) return incomplete(`client ${args.clientId} not found or not in agency ${args.agencyId}`);
+      }
+      record.clientUpdated = true;
+      await this.saveRecord(records, record);
+
+      step = "log";
+      if (!record.activityLogged) {
+        await Promise.resolve(this.activity.logActivity({
+          idempotencyKey: `phase-transition:${record.operationId}:advanced`,
           agencyId: args.agencyId,
           clientId: args.clientId,
           actorUserId: args.actor,
           category: "phase",
-          action: "phase.variant_apply_failed",
-          message: `Variant ${args.toPhase.portalVariantId} could not be applied: ${variant.error}`,
-          metadata: { variantId: args.toPhase.portalVariantId },
-        });
+          action: "phase.advanced",
+          message: isDirectJump
+            ? `Moved directly to ${args.toPhase.label}, bypassing ${skippedStageCount} ${skippedStageCount === 1 ? "stage" : "stages"}.${args.reason ? ` Reason: ${args.reason}` : ""}`
+            : `${args.toPhase.order >= args.fromPhase.order ? "Advanced" : "Moved back"} to ${args.toPhase.label}.${args.reason ? ` Reason: ${args.reason}` : ""}`,
+          metadata: {
+            operationId: record.operationId,
+            from: args.fromPhase.id,
+            fromStage: args.fromPhase.stage,
+            to: args.toPhase.id,
+            toStage: args.toPhase.stage,
+            disabled: record.disabled,
+            enabled: record.enabled,
+            directJump: isDirectJump,
+            skippedStageCount,
+            reason: args.reason,
+          },
+        }));
+        record.activityLogged = true;
       }
-    }
 
-    // 4. Update client.stage.
-    const updated = await this.clients.updateClient(args.agencyId, args.clientId, {
-      stage: args.toPhase.stage,
-    });
-    if (!updated) {
+      record = { ...record, status: "complete", failedStep: undefined, lastError: undefined, updatedAt: Date.now(), completedAt: Date.now() };
+      await this.saveRecord(records, record);
+
+      try {
+        this.events.emit(scope, "phase.advanced", {
+          operationId: record.operationId,
+          from: args.fromPhase.id,
+          to: args.toPhase.id,
+          fromStage: args.fromPhase.stage,
+          toStage: args.toPhase.stage,
+          disabled: record.disabled,
+          enabled: record.enabled,
+          skipped: [],
+          actor: args.actor,
+          directJump: isDirectJump,
+          skippedStageCount,
+          reason: args.reason,
+        });
+      } catch {
+        // A non-durable subscriber notification cannot make committed state ambiguous.
+      }
+
       return {
-        ok: false,
-        error: `client ${args.clientId} not found or not in agency ${args.agencyId}`,
-        step: "client",
-        partial: { disabled, enabled },
+        ok: true,
+        status: "complete",
+        operationId: record.operationId,
+        retryable: false,
+        replayed: false,
+        client: updated,
+        disabled: record.disabled,
+        enabled: record.enabled,
+        skipped: [],
+        variant: record.variant,
       };
+    } catch (error) {
+      return incomplete(error instanceof Error ? error.message : String(error));
     }
+  }
 
-    // 5. Initialise checklist for the new phase.
-    await this.checklist.initialiseFor({
-      clientId: args.clientId,
-      phase: args.toPhase,
-    });
-
-    // 6. Activity log.
-    await this.activity.logActivity({
-      agencyId: args.agencyId,
-      clientId: args.clientId,
-      actorUserId: args.actor,
-      category: "phase",
-      action: "phase.advanced",
-      message: isDirectJump
-        ? `Moved directly to ${args.toPhase.label}, bypassing ${skippedStageCount} ${skippedStageCount === 1 ? "stage" : "stages"}.${args.reason ? ` Reason: ${args.reason}` : ""}`
-        : `${args.toPhase.order >= args.fromPhase.order ? "Advanced" : "Moved back"} to ${args.toPhase.label}.${args.reason ? ` Reason: ${args.reason}` : ""}`,
-      metadata: {
-        from: args.fromPhase.id,
-        fromStage: args.fromPhase.stage,
-        to: args.toPhase.id,
-        toStage: args.toPhase.stage,
-        disabled,
-        enabled,
-        skipped: skipped.map(s => s.pluginId),
-        directJump: isDirectJump,
-        skippedStageCount,
-        reason: args.reason,
-      },
-    });
-
-    // 7. Event bus.
-    this.events.emit(scope, "phase.advanced", {
-      from: args.fromPhase.id,
-      to: args.toPhase.id,
-      fromStage: args.fromPhase.stage,
-      toStage: args.toPhase.stage,
-      disabled,
-      enabled,
-      skipped: skipped.map(s => s.pluginId),
-      actor: args.actor,
-      directJump: isDirectJump,
-      skippedStageCount,
-      reason: args.reason,
-    });
-
-    return { ok: true, client: updated, disabled, enabled, skipped, variant };
+  private async saveRecord(records: Record<string, TransitionOperationRecord>, record: TransitionOperationRecord) {
+    records[record.operationId] = record;
+    this.memoryRecords = records;
+    if (this.storage) await this.storage.set(TRANSITION_OPERATIONS_KEY, records);
   }
 }
 
-// Error-string detection for the runtime's "unregistered plugin"
-// failure mode. The foundation's `_runtime.installPlugin` returns
+function cleanOperationId(value: string | undefined): string | null {
+  const clean = value?.trim();
+  return clean && /^[a-zA-Z0-9:_-]{8,200}$/.test(clean) ? clean : null;
+}
+
+// Error-string classification for the runtime's "unregistered plugin"
+// incomplete mode. The foundation's `_runtime.installPlugin` returns
 // `{ ok: false, error: 'Plugin "X" not found.' }` for unregistered
 // ids — no error code today, so we match on the message. Real
 // runtime-side errors (scope-policy mismatch, dependency unmet,
-// auth) carry distinct messages and still hard-fail the advance.
+// auth) carry distinct messages. Both forms remain retryable incomplete
+// operations; the classified form also names every unavailable plugin.
 //
 // When the runtime grows an explicit error code, this helper switches
 // to that. For now it's a string match — narrow + agnostic to the

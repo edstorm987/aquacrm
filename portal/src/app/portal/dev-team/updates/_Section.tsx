@@ -24,7 +24,7 @@ import { UpdateComposer } from "./_UpdateComposer";
 // Dev Team → Updates — the dev changelog. Read LIVE off the project's own
 // running record (docs/development/updates.md), newest first, grouped by day —
 // plus a composer so Ed can check in an entry without opening an editor.
-// Founder + Dev Mode only: the same layered gate as the layout/home/working.
+// Founder-only Dev Team access: the same layered gate as the layout/home/working.
 
 // The updates doc lives here, so its relative links resolve from this dir.
 const DOC_DIR = "docs/development";
@@ -170,7 +170,7 @@ export async function UpdatesSection({ tabs }: { tabs?: ReactNode }) {
   } catch {
     redirect("/portal");
   }
-  // Founder + Dev Mode, or this section does not exist.
+  // Founder-only Dev Team access, or this section does not exist.
   if (!devDocsAccessible(session)) notFound();
 
   const entries = await scanUpdates();

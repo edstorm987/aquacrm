@@ -6,6 +6,7 @@ import { ChevronRight, FileCode2, Folder, FolderOpen, LoaderCircle, Lock, MouseP
 import type { TreeDirectory, TreeFile } from "@/engines/editor/server/fileTree";
 import { DEV_PROJECTS_CHANGED_EVENT } from "@/app/portal/dev-team/editor/setup/_DevEditorSetup";
 import { relevantFiles, type RelevanceScope } from "@/engines/editor/editing/fileRelevance";
+import { apiResponseError } from "@/lib/client/apiResponseError";
 
 /**
  * The site's source, inside the editor rather than beside it.
@@ -76,7 +77,14 @@ export function RepositoryPanel({ repository, onRepositoryChange, focus, onPickE
     let cancelled = false;
     fetch(`/api/portal/site-editor/files${search}`, { cache: "no-store" })
       .then(response => response.json())
-      .then(payload => { if (!cancelled) { setMeta(payload); setTree(payload.tree ?? null); } })
+      .then(payload => {
+        if (cancelled) return;
+        const visible = payload?.ok === false
+          ? { ...payload, error: apiResponseError(payload, "The repository could not be read.") }
+          : payload;
+        setMeta(visible);
+        setTree(visible.tree ?? null);
+      })
       .catch(() => { if (!cancelled) setMeta({ error: "The repository could not be read." }); });
     return () => { cancelled = true; };
   }, [search, refresh]);
@@ -95,7 +103,15 @@ export function RepositoryPanel({ repository, onRepositoryChange, focus, onPickE
     const separator = search ? "&" : "?";
     fetch(`/api/portal/site-editor/files${search}${separator}path=${encodeURIComponent(open)}`, { cache: "no-store" })
       .then(response => response.json())
-      .then(payload => { setFile(payload); setDraft(payload?.contents ?? null); })
+      .then(payload => {
+        if (payload?.ok === false) {
+          setFile({ editable: false, reason: apiResponseError(payload, "That file could not be read.") });
+          setDraft(null);
+          return;
+        }
+        setFile(payload);
+        setDraft(payload?.contents ?? null);
+      })
       .catch(() => setFile({ editable: false, reason: "That file could not be read." }))
       .finally(() => setLoading(false));
   }, [open, search]);

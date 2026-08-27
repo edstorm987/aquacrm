@@ -4,6 +4,7 @@
 
 export interface CartLineItem {
   id: string;
+  productId?: string;            // stable catalogue identity used at checkout
   name: string;
   price: number;                 // pence
   quantity: number;

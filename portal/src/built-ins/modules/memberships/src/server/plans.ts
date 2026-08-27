@@ -24,6 +24,12 @@ import type {
   UpdatePlanPatch,
 } from "../lib/domain";
 import type { ActivityLogPort, EventBusPort, StoragePort, StripePort } from "./ports";
+import {
+  assertCreatePlanInput,
+  assertPlan,
+  assertProviderId,
+  assertUpdatePlanPatch,
+} from "../lib/runtimeValidation";
 
 const PLAN_INDEX_KEY = "memberships/plans/index";
 const planKey = (id: string): string => `memberships/plans/${id}`;
@@ -58,9 +64,7 @@ export class PlanService {
   }
 
   async create(input: CreatePlanInput, actor: UserId): Promise<Plan> {
-    if (!input.name.trim()) throw new Error("Plan name required.");
-    if (input.priceMonthly < 0) throw new Error("priceMonthly must be ≥ 0.");
-    if (input.priceAnnual && input.priceAnnual < 0) throw new Error("priceAnnual must be ≥ 0.");
+    assertCreatePlanInput(input);
 
     // Order: place at the end of the current list unless caller specified.
     const existing = await this.list();
@@ -87,6 +91,8 @@ export class PlanService {
       createdAt: ts,
       updatedAt: ts,
     };
+    assertPlan(plan);
+    await this.assertBenefitReferences(plan.benefitIds);
 
     // Create matching Stripe Prices unless this is a $0 plan (free
     // tiers don't need Stripe at all — they just gate access).
@@ -98,6 +104,7 @@ export class PlanService {
         recurring: { interval: "month" },
         metadata: { planId: id, billing: "monthly" },
       });
+      assertProviderId(monthly.id, "stripePriceIdMonthly");
       plan.stripePriceIdMonthly = monthly.id;
     }
     if (plan.priceAnnual > 0) {
@@ -108,8 +115,10 @@ export class PlanService {
         recurring: { interval: "year" },
         metadata: { planId: id, billing: "annual" },
       });
+      assertProviderId(annual.id, "stripePriceIdAnnual");
       plan.stripePriceIdAnnual = annual.id;
     }
+    assertPlan(plan);
 
     await this.storage.set(planKey(id), plan);
     const index = (await this.storage.get<string[]>(PLAN_INDEX_KEY)) ?? [];
@@ -131,6 +140,7 @@ export class PlanService {
   }
 
   async update(id: string, patch: UpdatePlanPatch, actor: UserId): Promise<Plan | null> {
+    assertUpdatePlanPatch(patch);
     const existing = await this.get(id);
     if (!existing) return null;
 
@@ -146,6 +156,8 @@ export class PlanService {
       benefitIds: patch.benefitIds ?? existing.benefitIds,
       updatedAt: now(),
     };
+    assertPlan(next);
+    await this.assertBenefitReferences(next.benefitIds);
 
     // Stripe Prices are immutable. If price/currency changed, mint
     // new Price ids and orphan the old ones (subscribers on the old
@@ -159,6 +171,7 @@ export class PlanService {
           recurring: { interval: "month" },
           metadata: { planId: id, billing: "monthly" },
         });
+        assertProviderId(monthly.id, "stripePriceIdMonthly");
         next.stripePriceIdMonthly = monthly.id;
       } else {
         next.stripePriceIdMonthly = undefined;
@@ -171,11 +184,13 @@ export class PlanService {
           recurring: { interval: "year" },
           metadata: { planId: id, billing: "annual" },
         });
+        assertProviderId(annual.id, "stripePriceIdAnnual");
         next.stripePriceIdAnnual = annual.id;
       } else {
         next.stripePriceIdAnnual = undefined;
       }
     }
+    assertPlan(next);
 
     await this.storage.set(planKey(id), next);
 
@@ -266,6 +281,15 @@ export class PlanService {
       }
     }
     return { seeded, existed: 0 };
+  }
+
+  private async assertBenefitReferences(benefitIds: string[]): Promise<void> {
+    for (const benefitId of benefitIds) {
+      const benefit = await this.storage.get<{ agencyId?: string; clientId?: string }>(`memberships/benefits/${benefitId}`);
+      if (!benefit || benefit.agencyId !== this.agencyId || benefit.clientId !== this.clientId) {
+        throw new Error(`benefitIds: benefit ${benefitId} does not exist in this install`);
+      }
+    }
   }
 }
 

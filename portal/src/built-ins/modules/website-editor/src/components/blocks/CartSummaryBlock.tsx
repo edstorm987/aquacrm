@@ -30,7 +30,7 @@ export default function CartSummaryBlock({ block, editorMode }: BlockRenderProps
   // Editor preview: show a fake line item if cart is empty so the block
   // is visible on a fresh canvas.
   const previewItems = (editorMode && items.length === 0)
-    ? [{ id: "demo", name: "Sample item", price: 25, quantity: 1, variant: "" }]
+    ? [{ id: "demo", name: "Sample item", price: 2500, quantity: 1, variant: "" }]
     : items;
 
   return (
@@ -75,7 +75,7 @@ export default function CartSummaryBlock({ block, editorMode }: BlockRenderProps
       )}
       <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <span style={{ fontSize: 13, opacity: 0.7 }}>Subtotal</span>
-        <span style={{ fontSize: 18, fontWeight: 700 }}>{formatPrice(editorMode && previewItems[0]?.id === "demo" ? 25 : subtotal)}</span>
+        <span style={{ fontSize: 18, fontWeight: 700 }}>{formatPrice(editorMode && previewItems[0]?.id === "demo" ? 2500 : subtotal)}</span>
       </div>
       {!editorMode && previewItems.length > 0 && (
         <a href="/checkout" style={{ marginTop: 16, display: "block", textAlign: "center", padding: "12px 20px", borderRadius: 12, background: "var(--brand-accent, #ff6b35)", color: "#fff", fontSize: 14, fontWeight: 600, textDecoration: "none" }}>

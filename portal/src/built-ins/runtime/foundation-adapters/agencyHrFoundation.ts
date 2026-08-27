@@ -10,6 +10,7 @@ import { registerAgencyHrFoundation } from "@aqua/plugin-agency-hr/server";
 import {
   tenantPort, activityPort, eventBusPort, pluginInstallStorePort,
 } from "./_foundationPorts";
+import { agencyHrWorkforcePort } from "./agencyHrWorkforce";
 
 let registered = false;
 
@@ -20,6 +21,7 @@ export function ensureAgencyHrFoundationRegistered(): void {
     activity: activityPort,
     events: eventBusPort,
     pluginInstalls: pluginInstallStorePort,
+    workforce: agencyHrWorkforcePort,
   } as unknown as Parameters<typeof registerAgencyHrFoundation>[0]);
   registered = true;
 }

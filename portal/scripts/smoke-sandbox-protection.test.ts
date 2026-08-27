@@ -50,10 +50,20 @@ test("the shared sandbox is opt-in, not opt-out", () => {
   assert.ok(guardAt > 0 && fileReturnAt > guardAt && fileReturnAt - guardAt < 400,
     "the guard must sit immediately before `return fileBackend`");
 
-  // And the dev server must actually opt in, or the sandbox stops persisting.
+  // And every shared-state server must actually opt in, or the sandbox stops
+  // persisting. The normal 3032 path intentionally uses Turbopack; webpack is
+  // retained as an explicit fallback instead of being silently required by a
+  // stale smoke assertion.
   const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as { scripts: Record<string, string> };
-  for (const name of ["dev:sandbox", "dev:sandbox:real"]) {
+  for (const name of ["dev:sandbox", "dev:sandbox:webpack", "dev:sandbox:real"]) {
     assert.match(pkg.scripts[name], /PORTAL_ALLOW_SHARED_STATE=1/, `${name} must opt in to the shared sandbox`);
+  }
+  assert.match(pkg.scripts["dev:sandbox"], /NEXT_DIST_DIR=\.next-dev-turbo-3032/, "dev:sandbox must isolate Turbopack output");
+  assert.match(pkg.scripts["dev:sandbox"], /next dev --turbopack/, "dev:sandbox must use the intended Turbopack dev compiler");
+  for (const name of ["dev:sandbox:webpack", "dev:sandbox:real"]) {
+    assert.match(pkg.scripts[name], /NEXT_DIST_DIR=\.next-dev-3032/, `${name} must isolate webpack output`);
+    assert.match(pkg.scripts[name], /next dev --webpack/, `${name} must remain an explicit webpack fallback`);
+    assert.doesNotMatch(pkg.scripts[name], /--turbopack/, `${name} must not stop being a webpack fallback`);
   }
 });
 
@@ -89,7 +99,7 @@ test("a plain tsx script — not just a test — cannot reach the shared sandbox
   delete env.PORTAL_DATA_FILE;
   delete env.PORTAL_ALLOW_SHARED_STATE;
   delete env.PORTAL_BACKEND;
-  execFileSync("npx", ["tsx", "-e", probe], { cwd: ROOT, env, stdio: "ignore" });
+  execFileSync(process.execPath, ["--import", "tsx", "-e", probe], { cwd: ROOT, env, stdio: "ignore" });
   assert.deepEqual(tenantSlugs(), before, "a plain script wrote a tenant into the shared sandbox");
 });
 
@@ -99,8 +109,8 @@ test("running a smoke file leaves the shared sandbox byte-identical", () => {
   const before = tenantSlugs();
 
   execFileSync(
-    "npx",
-    ["tsx", "--test", "scripts/smoke-client-match.test.ts"],
+    process.execPath,
+    ["--import", "tsx", "--test", "scripts/smoke-client-match.test.ts"],
     { cwd: ROOT, env: { ...process.env, NODE_OPTIONS: "--conditions react-server" }, stdio: "ignore" },
   );
 

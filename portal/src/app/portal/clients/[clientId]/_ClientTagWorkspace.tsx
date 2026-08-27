@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Globe2, LoaderCircle, Plus, Trash2 } from "lucide-react";
+import { Globe2, Inbox, LoaderCircle, Plus } from "lucide-react";
 
 /**
  * Which of this client's tagged sites route their submissions here.
@@ -19,7 +19,7 @@ interface WebsiteSource {
   destinationClientId?: string;
 }
 
-export function ClientTagWorkspace({ clientId, clientName }: { clientId: string; clientName: string }) {
+export function ClientTagWorkspace({ clientId, clientName, canManage = true }: { clientId: string; clientName: string; canManage?: boolean }) {
   const [sources, setSources] = useState<WebsiteSource[]>([]);
   const [loading, setLoading] = useState(true);
   const [host, setHost] = useState("");
@@ -53,17 +53,17 @@ export function ClientTagWorkspace({ clientId, clientName }: { clientId: string;
     finally { setBusy(false); }
   }
 
-  async function remove(source: WebsiteSource) {
+  async function routeToInbox(source: WebsiteSource) {
     setError(null);
     setSources(current => current.filter(s => s.id !== source.id));
     try {
       const response = await fetch("/api/portal/website-sources", {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "remove", id: source.id }),
+        body: JSON.stringify({ action: "route-to-inbox", id: source.id }),
       });
       if (!response.ok) throw new Error();
     } catch {
-      setError("That could not be removed.");
+      setError("That site could not be routed back to the agency inbox.");
       setSources(current => [...current, source].sort((a, b) => a.host.localeCompare(b.host)));
     }
   }
@@ -81,7 +81,7 @@ export function ClientTagWorkspace({ clientId, clientName }: { clientId: string;
         </div>
       </div>
 
-      <form onSubmit={add} className="mt-4 flex flex-wrap gap-2">
+      {canManage ? <form onSubmit={add} className="mt-4 flex flex-wrap gap-2">
         <input
           value={host}
           onChange={event => setHost(event.target.value)}
@@ -96,7 +96,7 @@ export function ClientTagWorkspace({ clientId, clientName }: { clientId: string;
           {busy ? <LoaderCircle size={14} className="animate-spin" aria-hidden /> : <Plus size={14} aria-hidden />}
           Route a site here
         </button>
-      </form>
+      </form> : <p className="mt-4 rounded-md bg-sky-50 px-3 py-2 text-xs font-medium text-sky-700">Routing is read-only in the public showcase.</p>}
       {error ? <p role="alert" className="mt-2 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p> : null}
 
       {loading ? (
@@ -111,12 +111,13 @@ export function ClientTagWorkspace({ clientId, clientName }: { clientId: string;
           {sources.map(source => (
             <li key={source.id} className="flex items-center justify-between gap-3 rounded-md border border-black/10 bg-black/[0.015] px-3 py-2.5">
               <span className="truncate text-sm font-medium text-black/80">{source.host}</span>
-              <button
+              {canManage ? <button
                 type="button"
-                onClick={() => void remove(source)}
-                aria-label={`Stop routing ${source.host} to ${clientName}`}
-                className="grid size-8 place-items-center rounded-md border border-black/10 text-black/35 hover:border-red-300 hover:bg-red-50 hover:text-red-600"
-              ><Trash2 size={13} aria-hidden /></button>
+                onClick={() => void routeToInbox(source)}
+                aria-label={`Route ${source.host} back to the agency inbox`}
+                title="Keep the registered site and its tools; only change where new enquiries go"
+                className="grid size-8 place-items-center rounded-md border border-black/10 text-black/35 hover:border-brand/30 hover:bg-brand/[0.05] hover:text-brand"
+              ><Inbox size={13} aria-hidden /></button> : null}
             </li>
           ))}
         </ul>

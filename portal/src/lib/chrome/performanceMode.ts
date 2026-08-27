@@ -11,15 +11,16 @@
 //   • The next server render reads it via `performanceModePreference()` in
 //     `@/lib/server/performanceMode` and gates its expensive work.
 //
-// Default OFF → byte-for-byte today's behaviour.
+// Default ON. An explicit `0` cookie opts into eager full scans; `1` (or no
+// cookie) keeps the fast command shell and its visible Run scan action.
 
 /** Cookie name. Read on the server by `performanceModePreference()`. */
 export const PERFORMANCE_MODE_COOKIE = "aqua_perf_mode";
 
 /** Read the current preference from the browser's cookies. Client-only. */
 export function performanceModeCookieEnabled(): boolean {
-  if (typeof document === "undefined") return false;
-  return document.cookie.split("; ").some(entry => entry === `${PERFORMANCE_MODE_COOKIE}=1`);
+  if (typeof document === "undefined") return true;
+  return !document.cookie.split("; ").some(entry => entry === `${PERFORMANCE_MODE_COOKIE}=0`);
 }
 
 /**
@@ -34,7 +35,7 @@ export function setPerformanceModeCookie(enabled: boolean): void {
     // this is a rendering preference, never a security boundary.
     document.cookie = `${PERFORMANCE_MODE_COOKIE}=1; path=/; max-age=31536000; samesite=lax`;
   } else {
-    document.cookie = `${PERFORMANCE_MODE_COOKIE}=; path=/; max-age=0; samesite=lax`;
+    document.cookie = `${PERFORMANCE_MODE_COOKIE}=0; path=/; max-age=31536000; samesite=lax`;
   }
   if (typeof window !== "undefined") window.location.reload();
 }

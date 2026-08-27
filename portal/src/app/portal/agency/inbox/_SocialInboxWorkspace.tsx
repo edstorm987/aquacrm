@@ -15,7 +15,6 @@ import {
   Instagram,
   Link2,
   MessageSquareText,
-  MoreHorizontal,
   StickyNote,
   PlugZap,
   Search,
@@ -25,7 +24,8 @@ import {
   X,
 } from "lucide-react";
 
-import type { InboxConversationThread, InboxSnapshot, MetaInboxReadiness } from "@/lib/inbox/types";
+import type { InboxConversationThread, InboxMessage, InboxSnapshot, MetaInboxReadiness } from "@/lib/inbox/types";
+import { inboxReplyProgress } from "@/lib/inbox/replyDelivery";
 import { integrationDefinition } from "@/lib/integrations/catalog";
 import { formatElapsed } from "@/lib/enquiries/leadTiming";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
@@ -50,6 +50,7 @@ export function SocialInboxWorkspace({ snapshot, readiness, currentUserId, loadE
   const [query, setQuery] = useState("");
   const [channelId, setChannelId] = useState("all");
   const [draft, setDraft] = useState("");
+  const [draftOperationId, setDraftOperationId] = useState<string | null>(null);
   const [composerMode, setComposerMode] = useState<"reply" | "note">("reply");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(loadError ?? null);
@@ -84,21 +85,58 @@ export function SocialInboxWorkspace({ snapshot, readiness, currentUserId, loadE
 
   async function sendMessage() {
     if (!selected || !draft.trim()) return;
+    const operationId = composerMode === "reply" ? draftOperationId ?? globalThis.crypto.randomUUID() : undefined;
+    if (operationId) setDraftOperationId(operationId);
     setBusy("send");
     setError(null);
-    const response = await fetch("/api/portal/inbox/messages", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ conversationId: selected.id, text: draft, internal: composerMode === "note" }),
-    });
-    const payload = await response.json().catch(() => null) as { error?: string } | null;
-    setBusy(null);
-    if (!response.ok) {
-      setError(messageError(payload?.error));
-      return;
+    try {
+      const response = await fetch("/api/portal/inbox/messages", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ conversationId: selected.id, text: draft, internal: composerMode === "note", operationId }),
+      });
+      const payload = await response.json().catch(() => null) as { error?: string; message?: InboxMessage } | null;
+      if (!response.ok) {
+        setError(messageError(payload?.error));
+        if (payload?.message) {
+          setDraft("");
+          setDraftOperationId(null);
+          router.refresh();
+        }
+        return;
+      }
+      setDraft("");
+      setDraftOperationId(null);
+      router.refresh();
+    } catch {
+      setError(composerMode === "reply"
+        ? "The send result could not be confirmed. Retry the unchanged draft; Aqua will reuse the same operation."
+        : "The note result could not be confirmed. Refresh the conversation before trying again.");
+    } finally {
+      setBusy(null);
     }
-    setDraft("");
-    router.refresh();
+  }
+
+  async function retryMessage(message: InboxMessage) {
+    if (!selected) return;
+    const progress = inboxReplyProgress(message);
+    if (!progress?.retryable) return;
+    setBusy(`retry:${message.id}`);
+    setError(null);
+    try {
+      const response = await fetch("/api/portal/inbox/messages", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ conversationId: selected.id, operationId: progress.operation.operationId, retryOnly: true }),
+      });
+      const payload = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) setError(messageError(payload?.error));
+      router.refresh();
+    } catch {
+      setError("The retry result could not be confirmed. It is safe to retry this same operation again.");
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function mutateConversation(conversationId: string, patch: Record<string, unknown>, refresh = true) {
@@ -178,6 +216,7 @@ export function SocialInboxWorkspace({ snapshot, readiness, currentUserId, loadE
           setMode={setComposerMode}
           busy={busy}
           onSend={sendMessage}
+          onRetry={retryMessage}
           onMutate={mutateConversation}
         /> : <div className="grid min-h-[420px] place-items-center p-8 text-center"><div><MessageSquareText size={30} className="mx-auto text-black/20" /><p className="mt-4 text-sm font-semibold text-black/65">Choose a conversation</p><p className="mt-1 max-w-sm text-xs leading-5 text-black/40">The full message history, reply window, contact links and internal notes will appear here.</p></div></div>}
       </div>
@@ -280,7 +319,7 @@ function ConversationRow({ item, active, onClick }: { item: InboxConversationThr
   </button>;
 }
 
-function ThreadPanel({ item, currentUserId, draft, setDraft, mode, setMode, busy, onSend, onMutate }: {
+function ThreadPanel({ item, currentUserId, draft, setDraft, mode, setMode, busy, onSend, onRetry, onMutate }: {
   item: InboxConversationThread;
   currentUserId: string;
   draft: string;
@@ -289,6 +328,7 @@ function ThreadPanel({ item, currentUserId, draft, setDraft, mode, setMode, busy
   setMode: (value: "reply" | "note") => void;
   busy: string | null;
   onSend: () => Promise<void>;
+  onRetry: (message: InboxMessage) => Promise<void>;
   onMutate: (id: string, patch: Record<string, unknown>) => Promise<void>;
 }) {
   const windowOpen = Boolean(item.responseDueAt && item.responseDueAt > Date.now());
@@ -298,7 +338,6 @@ function ThreadPanel({ item, currentUserId, draft, setDraft, mode, setMode, busy
       <div className="flex items-center gap-1">
         <button type="button" title={item.assignedTo === currentUserId ? "Assigned to you" : "Assign to me"} aria-label="Assign conversation to me" onClick={() => void onMutate(item.id, { assignedTo: currentUserId })} className={`grid size-9 place-items-center rounded-md border border-black/10 ${item.assignedTo === currentUserId ? "bg-black text-white" : "bg-white text-black/45"}`}><UserRound size={15} /></button>
         <button type="button" title={item.status === "closed" ? "Reopen" : "Close"} aria-label={item.status === "closed" ? "Reopen conversation" : "Close conversation"} onClick={() => void onMutate(item.id, { status: item.status === "closed" ? "open" : "closed" })} className="grid size-9 place-items-center rounded-md border border-black/10 bg-white text-black/45">{item.status === "closed" ? <Inbox size={15} /> : <Archive size={15} />}</button>
-        <button type="button" title="More actions" aria-label="More conversation actions" className="grid size-9 place-items-center rounded-md border border-black/10 bg-white text-black/45"><MoreHorizontal size={16} /></button>
       </div>
     </header>
 
@@ -307,9 +346,7 @@ function ThreadPanel({ item, currentUserId, draft, setDraft, mode, setMode, busy
     </div>
 
     <div className="flex-1 space-y-3 overflow-y-auto bg-[#fbfbfa] px-4 py-5">
-      {item.messages.map(message => <div key={message.id} className={`flex ${message.direction === "outbound" ? "justify-end" : message.direction === "internal" ? "justify-center" : "justify-start"}`}>
-        {message.direction === "internal" ? <div className="max-w-[88%] rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"><span className="mb-1 flex items-center gap-1 font-semibold"><StickyNote size={12} /> Internal note</span><p className="whitespace-pre-wrap leading-5">{message.text}</p><time className="mt-1 block text-[9px] opacity-55">{longDate(message.sentAt)}</time></div> : <div className={`max-w-[78%] rounded-md px-3 py-2 text-xs ${message.direction === "outbound" ? "bg-black text-white" : "border border-black/[0.08] bg-white text-black/70"}`}><p className="whitespace-pre-wrap leading-5">{message.status === "deleted" ? "Message deleted on Meta" : message.text || messageTypeLabel(message.type)}</p>{message.attachments.map((attachment, index) => attachment.url ? <a key={`${attachment.url}:${index}`} href={attachment.url} target="_blank" rel="noreferrer" className={`mt-2 flex items-center gap-1 underline ${message.direction === "outbound" ? "text-white/80" : "text-brand"}`}>{attachment.title || attachment.type} <ExternalLink size={11} /></a> : null)}<span className={`mt-1 flex items-center justify-end gap-1 text-[9px] ${message.direction === "outbound" ? "text-white/55" : "text-black/35"}`}>{longDate(message.sentAt)}{message.direction === "outbound" ? message.status === "failed" ? <AlertCircle size={10} /> : <Check size={10} /> : null}</span></div>}
-      </div>)}
+      {item.messages.map(message => <MessageBubble key={message.id} message={message} busy={busy === `retry:${message.id}`} onRetry={onRetry} />)}
     </div>
 
     <aside className="border-t border-black/10 bg-white p-3">
@@ -317,6 +354,39 @@ function ThreadPanel({ item, currentUserId, draft, setDraft, mode, setMode, busy
       <div className="flex items-end gap-2 rounded-md border border-black/12 p-2 focus-within:border-black/30"><textarea rows={3} value={draft} onChange={event => setDraft(event.target.value)} placeholder={mode === "note" ? "Add context for the team" : windowOpen ? `Reply to ${item.identity.displayName}` : "The Meta reply window has closed"} disabled={mode === "reply" && !windowOpen} className="min-w-0 flex-1 resize-none bg-transparent px-1 py-1 text-xs leading-5 text-black/75 outline-none disabled:text-black/30" /><button type="button" onClick={() => void onSend()} disabled={busy === "send" || !draft.trim() || (mode === "reply" && !windowOpen)} aria-label={mode === "note" ? "Add internal note" : "Send reply"} title={mode === "note" ? "Add internal note" : "Send reply"} className="grid size-9 shrink-0 place-items-center rounded-md bg-black text-white disabled:opacity-35">{mode === "note" ? <StickyNote size={15} /> : <Send size={15} />}</button></div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-black/35"><span>{mode === "note" ? "Only your AquaCRM team can see this note." : "Replies are sent through Meta and recorded here."}</span><Link href={`/portal/agency/pipelines/leads?inbox=${encodeURIComponent(item.id)}`} className="inline-flex items-center gap-1 font-medium text-brand"><Link2 size={11} /> Link in Journey</Link></div>
     </aside>
+  </div>;
+}
+
+function MessageBubble({ message, busy, onRetry }: {
+  message: InboxMessage;
+  busy: boolean;
+  onRetry: (message: InboxMessage) => Promise<void>;
+}) {
+  if (message.direction === "internal") {
+    return <div className="flex justify-center"><div className="max-w-[88%] rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"><span className="mb-1 flex items-center gap-1 font-semibold"><StickyNote size={12} /> Internal note</span><p className="whitespace-pre-wrap leading-5">{message.text}</p><time className="mt-1 block text-[9px] opacity-55">{longDate(message.sentAt)}</time></div></div>;
+  }
+  const progress = inboxReplyProgress(message);
+  const statusText = progress
+    ? progress.uncertain
+      ? `Delivery needs review · ${progress.sent}/${progress.total} confirmed`
+      : progress.retryable
+        ? progress.sent
+          ? `Partially sent · ${progress.sent}/${progress.total} delivered`
+          : "Not sent"
+        : progress.sent === progress.total
+          ? "Sent"
+          : "Sending"
+    : null;
+  return <div className={`flex ${message.direction === "outbound" ? "justify-end" : "justify-start"}`}>
+    <div className={`max-w-[78%] rounded-md px-3 py-2 text-xs ${message.direction === "outbound" ? "bg-black text-white" : "border border-black/[0.08] bg-white text-black/70"}`}>
+      <p className="whitespace-pre-wrap leading-5">{message.status === "deleted" ? "Message deleted on Meta" : message.text || messageTypeLabel(message.type)}</p>
+      {message.attachments.map((attachment, index) => {
+        const part = progress?.operation.parts.find(candidate => candidate.id === `attachment:${index}`);
+        return attachment.url ? <a key={`${attachment.url}:${index}`} href={attachment.url} target="_blank" rel="noreferrer" className={`mt-2 flex items-center gap-1 underline ${message.direction === "outbound" ? "text-white/80" : "text-brand"}`}>{attachment.title || attachment.type}{part ? ` · ${deliveryPartLabel(part.status)}` : ""} <ExternalLink size={11} /></a> : null;
+      })}
+      {message.direction === "outbound" && statusText ? <div className={`mt-2 flex items-center justify-between gap-3 rounded px-2 py-1 text-[10px] ${progress?.retryable || progress?.uncertain ? "bg-white/10 text-white/80" : "text-white/55"}`}><span>{statusText}</span>{progress?.retryable ? <button type="button" disabled={busy} onClick={() => void onRetry(message)} className="rounded border border-white/25 px-2 py-1 font-semibold text-white disabled:opacity-50">{busy ? "Retrying…" : "Retry remaining"}</button> : null}</div> : null}
+      <span className={`mt-1 flex items-center justify-end gap-1 text-[9px] ${message.direction === "outbound" ? "text-white/55" : "text-black/35"}`}>{longDate(message.sentAt)}{message.direction === "outbound" ? progress?.uncertain || progress?.retryable || message.status === "failed" ? <AlertCircle size={10} /> : <Check size={10} /> : null}</span>
+    </div>
   </div>;
 }
 
@@ -329,7 +399,8 @@ function shortDate(value: number): string { return formatUkDate(value, { hour: "
 function longDate(value: number): string { return formatUkDate(value, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }); }
 function formatRemaining(value: number): string { const ms = Math.max(0, value - Date.now()); const hours = Math.floor(ms / 3_600_000); const minutes = Math.floor((ms % 3_600_000) / 60_000); return hours ? `${hours}h ${minutes}m` : `${minutes}m`; }
 function messageTypeLabel(value?: string): string { return value ? `${value[0]?.toUpperCase()}${value.slice(1)} message` : "No message preview"; }
-function messageError(value?: string): string { if (value === "meta_reply_window_closed") return "Meta's reply window has closed. Continue from the native inbox if Meta permits it."; if (value === "inbox_connection_not_ready" || value === "meta_not_configured") return "This sending profile is not ready yet. Check Channels and inject the Meta values."; return value?.replaceAll("_", " ") || "The inbox action could not be completed."; }
+function deliveryPartLabel(value: string): string { if (value === "sent") return "sent"; if (value === "failed") return "failed"; if (value === "uncertain") return "needs review"; if (value === "sending") return "sending"; return "waiting"; }
+function messageError(value?: string): string { if (value === "meta_reply_window_closed") return "Meta's reply window has closed. Continue from the native inbox if Meta permits it."; if (value === "inbox_connection_not_ready" || value === "meta_not_configured") return "This sending profile is not ready yet. Check Channels and inject the Meta values."; if (value === "inbox_reply_part_failed") return "Part of this reply was not sent. Reconnect the channel if needed, then use Retry remaining on the message."; if (value === "inbox_reply_delivery_uncertain") return "Meta may have accepted a part whose result Aqua could not record. Review it in Meta before taking further action; Aqua will not resend it automatically."; if (value === "inbox_reply_in_progress") return "Another worker is already sending the remaining part. Refresh in a moment."; return value?.replaceAll("_", " ") || "The inbox action could not be completed."; }
 
 // Turns the `?meta=…&connected=N` result the OAuth callback redirects back with
 // into human feedback — Facebook login can return several Pages + Instagram

@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { isProvisionedClientProjectPath } from "@/lib/server/clients/clientProjectProvisioner";
 import { resolveIntegrationValues } from "@/lib/server/integrations/integrationConnections";
+import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
 
 const GITHUB_API = "https://api.github.com";
 
@@ -103,6 +104,7 @@ export async function publishProjectToGitHub(input: {
   private?: boolean;
   config?: GitHubPublishingConfig;
 }, dependencies: PublishDependencies = {}): Promise<PublishedGitHubProject> {
+  assertLiveProviderAccess("GitHub publishing");
   if (!isProvisionedClientProjectPath(input.localPath) || !existsSync(input.localPath)) {
     throw new Error("Only projects provisioned inside the Milesymedia client-projects workspace can be published.");
   }

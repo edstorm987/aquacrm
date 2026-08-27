@@ -3,6 +3,7 @@ import "server-only";
 import { scanBlockers } from "@/lib/server/dev/devDocs";
 import { listFindings, type FindingSeverity } from "@/lib/server/dev/devTeamFindings";
 import { groupActivity, scanWorkerSignals } from "@/lib/server/dev/devTeamWorkers";
+import { getActiveDataRealmId } from "@/server/dataRealm";
 
 // Live status for the topbar Dev Console.
 //
@@ -88,22 +89,33 @@ const MAX_AREAS = 4;
 
 interface Slot<T> { value?: T; pending?: Promise<T>; expiresAt: number }
 
-function cached<T>(slot: Slot<T> | null, ttlMs: number, now: number, read: () => Promise<T>, store: (next: Slot<T> | null) => void): Promise<T> {
+function cached<T>(
+  slots: Map<string, Slot<T>>,
+  realmId: string,
+  ttlMs: number,
+  now: number,
+  read: () => Promise<T>,
+): Promise<T> {
+  const slot = slots.get(realmId);
   if (slot?.value && slot.expiresAt > now) return Promise.resolve(slot.value);
   if (slot?.pending) return slot.pending;
 
   const pending = read()
     .then(value => {
-      store({ value, expiresAt: Date.now() + ttlMs });
+      // A realm-scoped invalidation may happen while this read is in flight.
+      // Only the still-current promise may publish its result afterwards.
+      if (slots.get(realmId)?.pending === pending) {
+        slots.set(realmId, { value, expiresAt: Date.now() + ttlMs });
+      }
       return value;
     })
     .catch(error => {
       // Never cache a failure — the next open should retry, not repeat it.
-      store(null);
+      if (slots.get(realmId)?.pending === pending) slots.delete(realmId);
       throw error;
     });
 
-  store({ pending, expiresAt: now + ttlMs });
+  slots.set(realmId, { pending, expiresAt: now + ttlMs });
   return pending;
 }
 
@@ -132,12 +144,22 @@ async function readCore(now: number): Promise<DevConsoleCore> {
   };
 }
 
-let coreCache: Slot<DevConsoleCore> | null = null;
-let statusCache: Slot<DevConsoleStatus> | null = null;
+// The Dev Team workspace can be overlaid independently in every signed data
+// realm. A single module-global slot lets whichever realm opens the console
+// first supply findings, blockers and worker titles to every other realm until
+// the TTL expires, so realm id is the first cache dimension.
+const coreCache = new Map<string, Slot<DevConsoleCore>>();
+const statusCache = new Map<string, Slot<DevConsoleStatus>>();
+
+function coreForRealm(realmId: string, now: number): Promise<DevConsoleCore> {
+  return cached(coreCache, realmId, BADGE_TTL_MS, now, () => readCore(now));
+}
 
 /** Findings + blockers, with their lists. What the popover paints on first frame. */
 export function devConsoleCore(now = Date.now()): Promise<DevConsoleCore> {
-  return cached(coreCache, BADGE_TTL_MS, now, () => readCore(now), next => { coreCache = next; });
+  // Capture synchronously. Every continuation and cache write belongs to the
+  // realm that initiated this read, even while other requests alternate realms.
+  return coreForRealm(getActiveDataRealmId(), now);
 }
 
 /**
@@ -149,17 +171,26 @@ export async function devConsoleBadge(now = Date.now()): Promise<DevConsoleBadge
   return { openFindings, openBlockers, attention, scannedAtMs };
 }
 
-/** Drop everything cached — used after a capture so the count moves immediately. */
-export function invalidateDevConsoleBadge(): void {
-  coreCache = null;
-  statusCache = null;
+/**
+ * Drop the active realm by default — a finding mutation is realm-local. The
+ * explicit all-realm form is reserved for process-wide source changes/tests.
+ */
+export function invalidateDevConsoleBadge(scope: "current" | "all" = "current"): void {
+  if (scope === "all") {
+    coreCache.clear();
+    statusCache.clear();
+    return;
+  }
+  const realmId = getActiveDataRealmId();
+  coreCache.delete(realmId);
+  statusCache.delete(realmId);
 }
 
 // ---- the slow half ---------------------------------------------------------
 
-async function readStatus(now: number): Promise<DevConsoleStatus> {
+async function readStatus(realmId: string, now: number): Promise<DevConsoleStatus> {
   const [core, signals] = await Promise.all([
-    devConsoleCore(now),
+    coreForRealm(realmId, now),
     scanWorkerSignals(ACTIVE_WORKER_WINDOW_MS, now),
   ]);
   return {
@@ -187,5 +218,6 @@ async function readStatus(now: number): Promise<DevConsoleStatus> {
  * briefly cached so re-opening does not re-walk the tree.
  */
 export function devConsoleStatus(now = Date.now()): Promise<DevConsoleStatus> {
-  return cached(statusCache, STATUS_TTL_MS, now, () => readStatus(now), next => { statusCache = next; });
+  const realmId = getActiveDataRealmId();
+  return cached(statusCache, realmId, STATUS_TTL_MS, now, () => readStatus(realmId, now));
 }

@@ -7,9 +7,11 @@ import { isMissingAgencyIdColumn, isMissingAgencyIdColumnRead } from "@/lib/supa
 import { pickTenantOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
 import { resolveAgencyByMasterSiteKey, resolveWebsiteSourceRouting } from "@/server/websiteSources";
 import { upsertClientRecordLedgerEvent } from "@/lib/server/clients/clientRecordLedger";
+import { withEnquirySubmissionOperation } from "@/lib/server/enquirySubmissionOperation";
 import {
   additionalFields, derivePurpose, describeForm, type CapturedField,
 } from "@/lib/enquiries/formCapture";
+import { enquirySubmissionId, normaliseAquaSubmissionId } from "@/lib/enquiries/submissionIdentity";
 
 /**
  * What a website form actually contained, sent by the Aqua Tag.
@@ -129,8 +131,16 @@ export async function POST(req: NextRequest) {
 
   const siteKey = clean(body.siteKey, 80);
   const fields = readFields(body.fields);
+  const suppliedSubmissionId = clean(body.submissionId, 120);
+  const submissionId = normaliseAquaSubmissionId(suppliedSubmissionId);
   if (!siteKey || !fields.length) {
     return NextResponse.json({ ok: false }, { status: 400, headers: corsHeaders(origin) });
+  }
+  if (suppliedSubmissionId && !submissionId) {
+    return NextResponse.json(
+      { ok: false, error: "The submission reference is invalid." },
+      { status: 400, headers: corsHeaders(origin) },
+    );
   }
 
   const isHardcodedPublicSite = Boolean(
@@ -171,6 +181,7 @@ export async function POST(req: NextRequest) {
   const identity = { formName, formId: clean(body.formId, 120) || undefined, pagePath, purpose, purposeSource };
   const capture = {
     capturedAt: new Date().toISOString(),
+    submissionId: submissionId || null,
     siteKey,
     propertyId: clean(body.propertyId, 120) || site?.propertyId || null,
     pageUrl: clean(body.pageUrl, 500) || null,
@@ -201,6 +212,7 @@ export async function POST(req: NextRequest) {
   const routedClientId = destination.kind === "client" ? destination.clientId : undefined;
   const routedCompanyId = destination.kind === "company" ? destination.companyId : undefined;
 
+  return withEnquirySubmissionOperation(submissionId, async () => {
   try {
     const supabase = createSupabaseAdminClient();
     const since = new Date(Date.now() - MATCH_WINDOW_MS).toISOString();
@@ -219,31 +231,61 @@ export async function POST(req: NextRequest) {
     // capture is held on its own rather than risking a cross-tenant attach.
     type EnquiryRow = { id: string; agency_id?: string | null; metadata: Record<string, unknown> | null };
     let match: EnquiryRow | null = null;
-    if (masterAgencyId && (email || phone)) {
-      const runQuery = (withAgencyColumn: boolean) => {
+    if (submissionId || (masterAgencyId && (email || phone))) {
+      const runQuery = (withAgencyColumn: boolean, bySubmissionId: boolean) => {
         const query = supabase
           .from("brand_enquiries")
           .select(withAgencyColumn ? "id, agency_id, metadata" : "id, metadata")
           .gte("created_at", since)
           .order("created_at", { ascending: false })
-          .limit(5);
+          .limit(bySubmissionId ? 5 : 10);
+        if (bySubmissionId) return query.eq("metadata->>submissionId", submissionId);
         return email ? query.eq("email", email) : query.eq("phone", phone);
       };
       // Select agency_id when it exists; before the hand-applied migration the
       // column is absent, so retry without it and let metadata.agencyId decide.
-      let { data, error } = await runQuery(true);
+      let { data, error } = await runQuery(true, Boolean(submissionId));
       if (error && isMissingAgencyIdColumnRead(error)) {
-        ({ data, error } = await runQuery(false));
+        ({ data, error } = await runQuery(false, Boolean(submissionId)));
       }
-      match = pickTenantOwnedEnquiry((data ?? []) as unknown as EnquiryRow[], masterAgencyId);
+      if (error) throw new Error(`Could not match form capture: ${error.message}`);
+      const queriedRows = (data ?? []) as unknown as EnquiryRow[];
+      match = masterAgencyId
+        ? pickTenantOwnedEnquiry(queriedRows, masterAgencyId)
+        : queriedRows.find(row => enquirySubmissionId(row.metadata) === submissionId
+          && row.metadata?.siteKey === siteKey) ?? null;
+
+      // Compatibility for host forms that do not yet forward the hidden Aqua
+      // id: attach to a recent tenant-owned legacy row, but never merge onto a
+      // row carrying a DIFFERENT stable id.
+      if (!match && submissionId && (email || phone)) {
+        ({ data, error } = await runQuery(true, false));
+        if (error && isMissingAgencyIdColumnRead(error)) {
+          ({ data, error } = await runQuery(false, false));
+        }
+        if (error) throw new Error(`Could not match legacy form capture: ${error.message}`);
+        const legacyRows = ((data ?? []) as unknown as EnquiryRow[])
+          .filter(row => !enquirySubmissionId(row.metadata));
+        match = masterAgencyId
+          ? pickTenantOwnedEnquiry(legacyRows, masterAgencyId)
+          : legacyRows.find(row => row.metadata?.siteKey === siteKey) ?? null;
+      }
     }
 
     if (match) {
-      await supabase
+      const { error: attachError } = await supabase
         .from("brand_enquiries")
-        .update({ metadata: { ...(match.metadata ?? {}), formCapture: capture } })
+        .update({ metadata: {
+          ...(match.metadata ?? {}),
+          ...(submissionId ? { submissionId } : {}),
+          formCapture: capture,
+        } })
         .eq("id", match.id);
-      return NextResponse.json({ ok: true, attached: true }, { headers: corsHeaders(origin) });
+      if (attachError) throw new Error(`Could not attach form capture: ${attachError.message}`);
+      return NextResponse.json(
+        { ok: true, attached: true, submissionId: submissionId || match.id },
+        { headers: corsHeaders(origin) },
+      );
     }
 
     // Nothing to attach to yet. Held rather than dropped: the site may post
@@ -275,6 +317,7 @@ export async function POST(req: NextRequest) {
         siteKey,
         siteName: siteName,
         propertyId: capture.propertyId,
+        ...(submissionId ? { submissionId } : {}),
         formCapture: capture,
         // A master-tag submission is a real enquiry, not a held capture waiting
         // for the site's own POST — so it is not flagged capture-only.
@@ -292,6 +335,9 @@ export async function POST(req: NextRequest) {
       ({ data: inserted, error: insertError } = await supabase
         .from("brand_enquiries").insert(legacyRow).select("id").single());
     }
+    if (insertError || !inserted?.id) {
+      throw new Error(`Could not persist form capture: ${insertError?.message || "no record returned"}`);
+    }
 
     // Surface it on the client the site is routed to, so it reaches them and
     // not just the agency queue.
@@ -308,9 +354,18 @@ export async function POST(req: NextRequest) {
         href: `/portal/agency/inbox?view=all&thread=${encodeURIComponent(`website:${inserted.id}`)}`,
       });
     }
-    return NextResponse.json({ ok: true, attached: false }, { headers: corsHeaders(origin) });
-  } catch {
-    // A capture failure must never surface on the website.
-    return NextResponse.json({ ok: true }, { headers: corsHeaders(origin) });
+    return NextResponse.json(
+      { ok: true, attached: false, submissionId: submissionId || inserted.id },
+      { headers: corsHeaders(origin) },
+    );
+  } catch (cause) {
+    // The tag keeps this response away from the host form, but it needs a
+    // truthful retryable failure so the tag can safely retry the same id.
+    console.error("[form-capture] failed to persist capture", cause);
+    return NextResponse.json(
+      { ok: false, error: "The form capture could not be saved yet. Please retry." },
+      { status: 503, headers: { ...corsHeaders(origin), "retry-after": "2" } },
+    );
   }
+  });
 }

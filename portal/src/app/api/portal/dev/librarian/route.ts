@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
-import { devDocsAccessible } from "@/lib/server/dev/devDocs";
-import { findFiles } from "@/lib/server/dev/fileFinding";
-import { ensureHydrated } from "@/server/storage";
+import { accessErrorResponse } from "@/server/accessControl";
+import {
+  requireDevProjectAccess,
+  requireWholeWorkingTreeFounderAccess,
+} from "@/lib/server/dev/devProjectAccess";
+import { fileFindingWorld, findFiles } from "@/lib/server/dev/fileFinding";
 
 // ─── THE LIBRARIAN — find, never edit ────────────────────────────────────────
 //
@@ -14,14 +16,10 @@ import { ensureHydrated } from "@/server/storage";
 //
 // ── The gate ─────────────────────────────────────────────────────────────────
 //
-// The same layered gate as every dev-team surface (`editor-activity`,
-// `editor-ai`): role first, then Dev Mode, then origin. The skill itself is
-// deliberately gate-free pure retrieval — its header says the PUBLIC surface
-// gates, and this is that surface. The tenant boundary is one layer deeper:
-// `findFiles` scopes to the agency THIS ROUTE hands it, which is always the
-// SESSION's — a `projectId` comes from the browser, an agency id NEVER does —
-// and a foreign project id throws the same `project_not_found` an invented one
-// does, so a guessed id confirms nothing.
+// A project search requires project/explorer view and is resolved tenant-first
+// through the canonical access kernel. Searching the entire checked-out Aqua
+// tree is a separate local-only owner path; a project grant can never widen
+// into `process.cwd()`.
 //
 // ── POST only. On purpose. ───────────────────────────────────────────────────
 //
@@ -31,6 +29,7 @@ import { ensureHydrated } from "@/server/storage";
 // to have no GET to widen. Same rationale as `editor-ai`.
 
 type Body = {
+  action?: "world";
   query?: string;
   projectId?: string;
   limit?: number;
@@ -43,29 +42,64 @@ function validOrigin(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await ensureHydrated();
-    const session = await requireRole(["agency-owner", "agency-manager"]);
-    if (!devDocsAccessible(session)) {
-      return NextResponse.json({ ok: false, error: "Dev Mode is required." }, { status: 403 });
-    }
     if (!validOrigin(request)) {
       return NextResponse.json({ ok: false, error: "Invalid request origin." }, { status: 403 });
     }
 
     const body = await request.json().catch(() => null) as Body | null;
+    if (body?.action === "world") {
+      const access = await requireWholeWorkingTreeFounderAccess();
+      const world = await fileFindingWorld(access.resourceAgencyId);
+      return NextResponse.json({
+        ok: true,
+        world: {
+          docsTotal: world.docs.total,
+          referencePages: world.reference.pages,
+          projects: world.projects.map(project => ({ id: project.id, name: project.name, repo: project.repo })),
+        },
+      }, { headers: { "cache-control": "private, no-store" } });
+    }
     if (!body || typeof body.query !== "string") {
       return NextResponse.json({ ok: false, error: "Ask the Librarian for something." }, { status: 400 });
     }
     const projectId = typeof body.projectId === "string" ? body.projectId.trim() : "";
+    let agencyId: string;
+    let allowWorkspace = false;
+    let includeInternalSources = false;
+    let allowSharedCredentials = false;
+    if (projectId) {
+      const access = await requireDevProjectAccess({
+        projectId,
+        capability: "project.view",
+        elementCapability: "element.development.explorer.view",
+      });
+      agencyId = access.resourceAgencyId;
+      allowSharedCredentials = access.resolution.ownerBaseline;
+      if (!access.project.repository || access.project.map?.repo?.source === "workspace") {
+        // A workspace-backed project is Aqua's checkout, not a delegable
+        // repository. The separate local-owner gate is mandatory here.
+        await requireWholeWorkingTreeFounderAccess();
+        allowWorkspace = true;
+        includeInternalSources = true;
+      }
+    } else {
+      agencyId = (await requireWholeWorkingTreeFounderAccess()).resourceAgencyId;
+      includeInternalSources = true;
+      allowSharedCredentials = true;
+    }
 
     try {
       const result = await findFiles({
-        // The session's tenancy, never the request body's: nothing the browser
-        // sends can widen whose repository answers.
-        agencyId: session.agencyId,
+        // The access kernel's tenancy, never the request body's: nothing the
+        // browser sends can widen whose repository answers.
+        agencyId,
         projectId: projectId || undefined,
         query: body.query,
         limit: typeof body.limit === "number" ? body.limit : undefined,
+      }, {
+        allowWorkspace,
+        includeInternalSources,
+        allowSharedCredentials,
       });
       return NextResponse.json({ ok: true, result }, { headers: { "cache-control": "private, no-store" } });
     } catch (error) {
@@ -75,6 +109,6 @@ export async function POST(request: Request) {
       throw error;
     }
   } catch (error) {
-    return authErrorResponse(error);
+    return accessErrorResponse(error);
   }
 }

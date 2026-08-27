@@ -40,6 +40,18 @@ export interface EffectiveRole {
 }
 
 const EMPTY: EffectiveRole = { roleLabel: "None", permissions: [], isFounder: false };
+const SHOWCASE_READ_PERMISSIONS: readonly PermissionKey[] = [
+  "clients.view",
+  "finance.view",
+  "kanban.view",
+  "sops.view",
+  "sops.tag.sales",
+  "sops.tag.service",
+  "sops.tag.standards",
+  "sops.tag.internal",
+  "sops.tag.tools",
+  "employees.view",
+];
 
 function findSeed(label: string): EffectiveRole {
   const seed = DEFAULT_ROLES.find(r => r.label === label);
@@ -53,6 +65,13 @@ function findSeed(label: string): EffectiveRole {
 
 export function effectiveRole(session: SessionPayload | null | undefined): EffectiveRole {
   if (!session) return EMPTY;
+  // The public showcase deliberately uses an agency-shaped session so it can
+  // render the real product. It is not an agency owner. Keeping that exception
+  // here makes every permission consumer (sidebar, Dev Docs, Dev Team, account
+  // summary and page gates) agree on the same read-only visitor identity.
+  if (session.publicShowcase) {
+    return { roleLabel: "Showcase visitor", permissions: SHOWCASE_READ_PERMISSIONS, isFounder: false };
+  }
   switch (session.role) {
     case "agency-owner":
       return findSeed("Founder");

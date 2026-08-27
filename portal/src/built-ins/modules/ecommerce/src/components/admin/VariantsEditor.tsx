@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import type { Product, ProductOption, ProductVariant } from "../../lib/products";
 import { makeId } from "../../lib/ids";
+import { mergeOptionValueLabels } from "../../lib/productAuthoring";
 
 export interface VariantsEditorProps {
   product: Product;
@@ -33,13 +34,22 @@ export function VariantsEditor({ product: initial, apiBase }: VariantsEditorProp
       const res = await fetch(`${apiBase}/products`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(product),
+        body: JSON.stringify({
+          command: "variants",
+          productId: product.id,
+          expectedVersion: product.version ?? 1,
+          options: product.options ?? [],
+          variants: product.variants ?? [],
+        }),
       });
-      const data = await res.json() as { ok: boolean; error?: string };
+      const data = await res.json() as { ok: boolean; error?: string; product?: Product };
       if (!data.ok) {
-        setError(data.error ?? "Could not save.");
+        setError(res.status === 409
+          ? data.error ?? "This product changed in another editor. Reload and merge before saving."
+          : data.error ?? "Could not save.");
         return;
       }
+      if (data.product) setProduct(data.product);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -60,6 +70,58 @@ export function VariantsEditor({ product: initial, apiBase }: VariantsEditorProp
               onChange={(e) => setOptions(options.map((o, j) => j === i ? { ...o, name: e.target.value } : o))}
               disabled={busy}
             />
+            <div className="ecom-option-values">
+              {opt.values.map((value, valueIndex) => (
+                <div key={value.id} className="ecom-row">
+                  <input
+                    value={value.label}
+                    onChange={(event) => setOptions(options.map((candidate, optionIndex) => optionIndex === i ? {
+                      ...candidate,
+                      values: candidate.values.map((entry, entryIndex) => entryIndex === valueIndex ? { ...entry, label: event.target.value } : entry),
+                    } : candidate))}
+                    placeholder="Label"
+                    disabled={busy}
+                  />
+                  <input
+                    value={value.hexColor ?? ""}
+                    onChange={(event) => setOptions(options.map((candidate, optionIndex) => optionIndex === i ? {
+                      ...candidate,
+                      values: candidate.values.map((entry, entryIndex) => entryIndex === valueIndex ? { ...entry, hexColor: event.target.value || undefined } : entry),
+                    } : candidate))}
+                    placeholder="# colour"
+                    disabled={busy}
+                  />
+                  <input
+                    type="number"
+                    value={value.priceModifier ?? 0}
+                    onChange={(event) => setOptions(options.map((candidate, optionIndex) => optionIndex === i ? {
+                      ...candidate,
+                      values: candidate.values.map((entry, entryIndex) => entryIndex === valueIndex ? { ...entry, priceModifier: Number(event.target.value) } : entry),
+                    } : candidate))}
+                    placeholder="Price modifier"
+                    disabled={busy}
+                  />
+                  <input
+                    value={value.image ?? ""}
+                    onChange={(event) => setOptions(options.map((candidate, optionIndex) => optionIndex === i ? {
+                      ...candidate,
+                      values: candidate.values.map((entry, entryIndex) => entryIndex === valueIndex ? { ...entry, image: event.target.value || undefined } : entry),
+                    } : candidate))}
+                    placeholder="Image URL"
+                    disabled={busy}
+                  />
+                  <label><input
+                    type="checkbox"
+                    checked={value.available !== false}
+                    onChange={(event) => setOptions(options.map((candidate, optionIndex) => optionIndex === i ? {
+                      ...candidate,
+                      values: candidate.values.map((entry, entryIndex) => entryIndex === valueIndex ? { ...entry, available: event.target.checked } : entry),
+                    } : candidate))}
+                    disabled={busy}
+                  /> Available</label>
+                </div>
+              ))}
+            </div>
             <select
               value={opt.displayType}
               onChange={(e) => setOptions(options.map((o, j) => j === i ? { ...o, displayType: e.target.value as ProductOption["displayType"] } : o))}
@@ -75,7 +137,7 @@ export function VariantsEditor({ product: initial, apiBase }: VariantsEditorProp
               value={opt.values.map(v => v.label).join(",")}
               onChange={(e) => setOptions(options.map((o, j) => j === i ? {
                 ...o,
-                values: e.target.value.split(",").map(s => s.trim()).filter(Boolean).map(label => ({ id: label.toLowerCase().replace(/\s+/g, "-"), label })),
+                values: mergeOptionValueLabels(o.values, e.target.value),
               } : o))}
               placeholder="value labels (comma)"
               disabled={busy}
@@ -111,6 +173,26 @@ export function VariantsEditor({ product: initial, apiBase }: VariantsEditorProp
               value={v.price}
               onChange={(e) => setVariants(variants.map((x, j) => j === i ? { ...x, price: Number(e.target.value) } : x))}
               placeholder="price (pence)"
+              disabled={busy}
+            />
+            <input
+              type="number"
+              value={v.salePrice ?? ""}
+              onChange={(e) => setVariants(variants.map((x, j) => j === i ? { ...x, salePrice: e.target.value ? Number(e.target.value) : undefined } : x))}
+              placeholder="sale price"
+              disabled={busy}
+            />
+            <input
+              type="number"
+              value={v.available ?? ""}
+              onChange={(e) => setVariants(variants.map((x, j) => j === i ? { ...x, available: e.target.value ? Number(e.target.value) : undefined } : x))}
+              placeholder="available"
+              disabled={busy}
+            />
+            <input
+              value={v.image ?? ""}
+              onChange={(e) => setVariants(variants.map((x, j) => j === i ? { ...x, image: e.target.value || undefined } : x))}
+              placeholder="image URL"
               disabled={busy}
             />
             <input

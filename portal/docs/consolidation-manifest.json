@@ -1,0 +1,1071 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-27T01:48:23.835Z",
+  "canonicalMarkdownCount": 20,
+  "authoredVolumes": [
+    {
+      "path": "docs/00-START-HERE.md",
+      "title": "AquaCRM documentation — start here",
+      "description": "The catalogues, runbooks and entry-point instructions for people and agents."
+    },
+    {
+      "path": "docs/01-PRODUCT-AND-ARCHITECTURE.md",
+      "title": "Product and architecture",
+      "description": "Product shape, portal model, brand architecture and plain-English system explanations."
+    },
+    {
+      "path": "docs/02-CURRENT-STATE-AND-WORK.md",
+      "title": "Current state and work",
+      "description": "The current checklist, status, roadmap, goals, decisions and working queue."
+    },
+    {
+      "path": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
+      "title": "Issues, audits and tests",
+      "description": "Verified findings, independent reviews, browser audits and the testing record."
+    },
+    {
+      "path": "docs/04-DEVELOPMENT-PLANS.md",
+      "title": "Development plans",
+      "description": "Every active, completed and archived phased implementation plan and handoff."
+    },
+    {
+      "path": "docs/05-WORKSPACE-ENGINEERING.md",
+      "title": "Workspace engineering",
+      "description": "Source maps, subsystem dossiers, components, routes, state and built-in module notes."
+    },
+    {
+      "path": "docs/06-DEV-TEAM-OPERATIONS.md",
+      "title": "Dev Team operations",
+      "description": "Commander/worker briefs, orchestration, live state and operational handoffs."
+    },
+    {
+      "path": "docs/07-INTEGRATIONS-COMPLIANCE-AND-BRANDS.md",
+      "title": "Integrations, compliance and brands",
+      "description": "External APIs, inbox and portal concepts, compliance packs and brand records."
+    },
+    {
+      "path": "docs/08-HISTORY-AND-ARCHIVE.md",
+      "title": "History and archive",
+      "description": "The append-only change record, dated handoffs and superseded historical summaries."
+    }
+  ],
+  "generatedReferenceDirectory": "docs/reference",
+  "sources": [
+    {
+      "path": "AGENTS.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-agents-md",
+      "sha256": "63f2c50380ed6303237cce215ce27af1d620d094c215e28d1b1538a3c070e3bb",
+      "words": 95,
+      "bytes": 678
+    },
+    {
+      "path": "aqua dev.md",
+      "volume": "docs/06-DEV-TEAM-OPERATIONS.md",
+      "anchor": "source-aqua-dev-md",
+      "sha256": "2f70ff272bdcd0e4a31d250266053b1181b34a230256766958ca093b44abc1b3",
+      "words": 3658,
+      "bytes": 26420
+    },
+    {
+      "path": "assistant-integrations/milesymedia-api/SKILL.md",
+      "volume": "docs/07-INTEGRATIONS-COMPLIANCE-AND-BRANDS.md",
+      "anchor": "source-assistant-integrations-milesymedia-api-skill-md",
+      "sha256": "482c82e344fbb0eaa56a5413937021f618f1602615c6eaf9e312e0eddeb0dc2c",
+      "words": 289,
+      "bytes": 2253
+    },
+    {
+      "path": "CLAUDE.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-claude-md",
+      "sha256": "ae4e3ec9616c50f8fa57bee2fec5f06c5085b64d3baa8b1bf0e20b3de88b70c0",
+      "words": 2179,
+      "bytes": 16577
+    },
+    {
+      "path": "docs/architecture-noobie.md",
+      "volume": "docs/01-PRODUCT-AND-ARCHITECTURE.md",
+      "anchor": "source-docs-architecture-noobie-md",
+      "sha256": "089741ec7a410b5864537cb4f96a0253143dca6e0e8f02f5fa85ab27feabd47d",
+      "words": 1702,
+      "bytes": 10667
+    },
+    {
+      "path": "docs/compliance/erasure-dpo-pack.md",
+      "volume": "docs/07-INTEGRATIONS-COMPLIANCE-AND-BRANDS.md",
+      "anchor": "source-docs-compliance-erasure-dpo-pack-md",
+      "sha256": "8ab2e564540ba931d1f23261f725ea470b5fadef51c1ba96244058d883be3111",
+      "words": 2786,
+      "bytes": 17490
+    },
+    {
+      "path": "docs/context/archive/connect-flow-real-codes-handoff.md",
+      "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
+      "anchor": "source-docs-context-archive-connect-flow-real-codes-handoff-md",
+      "sha256": "b4d753ff824995400f3f9cc029616d48d465c86d9bc392ca4649107181fb095e",
+      "words": 1666,
+      "bytes": 12175
+    },
+    {
+      "path": "docs/context/archive/dev-editor-handoff-2026-08-22.md",
+      "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
+      "anchor": "source-docs-context-archive-dev-editor-handoff-2026-08-22-md",
+      "sha256": "22b297908344151b028a25a105d958a77daf743eaea42729e734f2b5bf62b382",
+      "words": 1838,
+      "bytes": 12672
+    },
+    {
+      "path": "docs/context/archive/erasure-worker-handoff.md",
+      "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
+      "anchor": "source-docs-context-archive-erasure-worker-handoff-md",
+      "sha256": "ea5b29d6c1ba91733790a0f2b8dd81371d458b229b3c90bc4b5adfa5d2e1490a",
+      "words": 1755,
+      "bytes": 12628
+    },
+    {
+      "path": "docs/context/archive/finance-command-surface-handoff.md",
+      "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
+      "anchor": "source-docs-context-archive-finance-command-surface-handoff-md",
+      "sha256": "548e78fb337a07f7a990ac7ab7d3ce4b38b76299ac3d65cc4f0c18f6a8267bda",
+      "words": 2986,
+      "bytes": 25843
+    },
+    {
+      "path": "docs/context/archive/handoff-inbox-chat-2026-08-19.md",
+      "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
+      "anchor": "source-docs-context-archive-handoff-inbox-chat-2026-08-19-md",
+      "sha256": "4f7137f8ed760dc60465cfe60af1379faa9af9d15017293cfff89ad82be7b2ab",
+      "words": 1647,
+      "bytes": 10991
+    },
+    {
+      "path": "docs/context/archive/kpi-worker-handoff.md",
+      "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
+      "anchor": "source-docs-context-archive-kpi-worker-handoff-md",
+      "sha256": "59af70b26e80fd8a0281a2c4652beac15819108d81b371589ad8ed44fb56a195",
+      "words": 1959,
+      "bytes": 15302
+    },
+    {
+      "path": "docs/context/archive/phases.md",
+      "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
+      "anchor": "source-docs-context-archive-phases-md",
+      "sha256": "b22da6e6511fed8c237cea402305524cf17c7e13a7a28766f98f3b215d4b7f52",
+      "words": 834,
+      "bytes": 6128
+    },
+    {
+      "path": "docs/context/archive/radar-handoff.md",
+      "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
+      "anchor": "source-docs-context-archive-radar-handoff-md",
+      "sha256": "cbd3015c1e19eedd4c1bf5e792c683907c8cff583abf37a8c34ae7f288adde57",
+      "words": 1833,
+      "bytes": 15632
+    },
+    {
+      "path": "docs/context/archive/radar-update-notes.md",
+      "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
+      "anchor": "source-docs-context-archive-radar-update-notes-md",
+      "sha256": "8081780d6fe3e18735d056d0bd0950d131e3ac89790453eb8d1ddc476ff664dc",
+      "words": 1036,
+      "bytes": 8164
+    },
+    {
+      "path": "docs/context/archive/README.md",
+      "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
+      "anchor": "source-docs-context-archive-readme-md",
+      "sha256": "775a593938399a8221b4d1cd74b9d68d4600bd3141a2783ca6078aad210b1419",
+      "words": 484,
+      "bytes": 3984
+    },
+    {
+      "path": "docs/context/archive/session-changelog-2026-08.md",
+      "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
+      "anchor": "source-docs-context-archive-session-changelog-2026-08-md",
+      "sha256": "efc92b0f6131a71effc8aba7ddaf2891a4f7899f40ac11d4133f023d7d04ad8d",
+      "words": 976,
+      "bytes": 7905
+    },
+    {
+      "path": "docs/context/archive/session-handoff-2026-08-18.md",
+      "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
+      "anchor": "source-docs-context-archive-session-handoff-2026-08-18-md",
+      "sha256": "23995814e190a10e8d51dbafeaceb5790d7a2109841a6f3b77b6b4a2308efcca",
+      "words": 4592,
+      "bytes": 30471
+    },
+    {
+      "path": "docs/context/archive/session-handoff-2026-08-19.md",
+      "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
+      "anchor": "source-docs-context-archive-session-handoff-2026-08-19-md",
+      "sha256": "d1204f76f833a78d61f21d80f3dd7e2502d2a2978a51de26788b6a7fadbc369e",
+      "words": 906,
+      "bytes": 7255
+    },
+    {
+      "path": "docs/context/archive/staff-worker-handoff.md",
+      "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
+      "anchor": "source-docs-context-archive-staff-worker-handoff-md",
+      "sha256": "9a5728b13552dd5572f1d2cae7996ef84f25b6c2e0215569dee514105120bbbf",
+      "words": 1811,
+      "bytes": 13183
+    },
+    {
+      "path": "docs/context/archive/website-editor-and-migration.md",
+      "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
+      "anchor": "source-docs-context-archive-website-editor-and-migration-md",
+      "sha256": "235e8af731b65da9b8e0a03cb35768011c3a1008adac6c91d3dd406243a5aca4",
+      "words": 1159,
+      "bytes": 7332
+    },
+    {
+      "path": "docs/context/archive/WHERE-WE-ARE-2026-08-18.md",
+      "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
+      "anchor": "source-docs-context-archive-where-we-are-2026-08-18-md",
+      "sha256": "4056e9a347cb7bb1540dc226f08412cef42e982d068c52cf3868ff424ec07517",
+      "words": 2192,
+      "bytes": 13728
+    },
+    {
+      "path": "docs/context/archive/WHERE-WE-STAND-2026-08-20.md",
+      "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
+      "anchor": "source-docs-context-archive-where-we-stand-2026-08-20-md",
+      "sha256": "26bf4442580eb9e2a8af14c884b1d2e1acc1564c801b5ae1316c8864c77625e0",
+      "words": 2482,
+      "bytes": 16279
+    },
+    {
+      "path": "docs/context/auditor-brief.md",
+      "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
+      "anchor": "source-docs-context-auditor-brief-md",
+      "sha256": "360272738775b7050d292e9d0a9db74655454b75be88e221688e7a3d396613ca",
+      "words": 1437,
+      "bytes": 9444
+    },
+    {
+      "path": "docs/context/commander-handoff.md",
+      "volume": "docs/06-DEV-TEAM-OPERATIONS.md",
+      "anchor": "source-docs-context-commander-handoff-md",
+      "sha256": "0925e11d043b59c1e5bc5a82751fc5834bc9aca528949292226d728507dc9c9d",
+      "words": 989,
+      "bytes": 6559
+    },
+    {
+      "path": "docs/context/next-wave-briefs.md",
+      "volume": "docs/06-DEV-TEAM-OPERATIONS.md",
+      "anchor": "source-docs-context-next-wave-briefs-md",
+      "sha256": "693f2947a2e09ecbff76c9016f773a336bd7697bb09f7f40f49f86ed432450e5",
+      "words": 2481,
+      "bytes": 18038
+    },
+    {
+      "path": "docs/context/orchestration-model.md",
+      "volume": "docs/06-DEV-TEAM-OPERATIONS.md",
+      "anchor": "source-docs-context-orchestration-model-md",
+      "sha256": "b619466bed624146be8ae3069eebe74e382eeffc31bd57842372041962ed6dea",
+      "words": 963,
+      "bytes": 6704
+    },
+    {
+      "path": "docs/context/README.md",
+      "volume": "docs/06-DEV-TEAM-OPERATIONS.md",
+      "anchor": "source-docs-context-readme-md",
+      "sha256": "9a90ee612b83b8f91c5d5b832c0911337f3247a28435cb5ddaafcf5b65dd0761",
+      "words": 755,
+      "bytes": 5067
+    },
+    {
+      "path": "docs/context/state.md",
+      "volume": "docs/06-DEV-TEAM-OPERATIONS.md",
+      "anchor": "source-docs-context-state-md",
+      "sha256": "6fd3a70b2a71740cdf3eb1818918c718e623d9afaedc4d8345ff449b6588b971",
+      "words": 8701,
+      "bytes": 71117
+    },
+    {
+      "path": "docs/context/worker-brief.md",
+      "volume": "docs/06-DEV-TEAM-OPERATIONS.md",
+      "anchor": "source-docs-context-worker-brief-md",
+      "sha256": "995e16442d23ea03f323b68e7e50a2f3c2946e0126064d8db37394fed9efced0",
+      "words": 1190,
+      "bytes": 7929
+    },
+    {
+      "path": "docs/CURRENT-IMPLEMENTATION.md",
+      "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
+      "anchor": "source-docs-current-implementation-md",
+      "sha256": "524f14cfe4c8aadf70abe5306f07f536f62cf78053464f12b9e52658458810e0",
+      "words": 4555,
+      "bytes": 34227
+    },
+    {
+      "path": "docs/DEVELOPMENT-HANDOFF.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-development-handoff-md",
+      "sha256": "9199166a1f30132bbc3c5bf13f7ee9434e04f5e4726ad3b7499bc801418fe9b5",
+      "words": 1552,
+      "bytes": 11722
+    },
+    {
+      "path": "docs/development-workspace-cleanup.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-development-workspace-cleanup-md",
+      "sha256": "bdb46a5cecd3764199eca4941bce509da7c7f38f2b4fb1c02eb9c25c3e3e6fcc",
+      "words": 793,
+      "bytes": 6090
+    },
+    {
+      "path": "docs/development.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-development-md",
+      "sha256": "a44b12ab756520032bd8a5531d07a102887cc105c3129fff39b40f5a61e2ad61",
+      "words": 3165,
+      "bytes": 23929
+    },
+    {
+      "path": "docs/development/audits.md",
+      "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
+      "anchor": "source-docs-development-audits-md",
+      "sha256": "a2883afd9cc42eddc43c8c563d7d47aa72e5cf613cd33950363c6f08846864b4",
+      "words": 36747,
+      "bytes": 269187
+    },
+    {
+      "path": "docs/development/checklist.md",
+      "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
+      "anchor": "source-docs-development-checklist-md",
+      "sha256": "cb9f4818cbd2a5c31c272ebc8c2262e74776c3ebd5779201d3dfd3c891cacf16",
+      "words": 19136,
+      "bytes": 151709
+    },
+    {
+      "path": "docs/development/findings/2026-08-22-agency-staff-can-read-salaries.md",
+      "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
+      "anchor": "source-docs-development-findings-2026-08-22-agency-staff-can-read-salaries-md",
+      "sha256": "7c087bfecb744644dbecc93e6d88324d0e251d95468f4816e7a3d7da1d2ba30c",
+      "words": 502,
+      "bytes": 3697
+    },
+    {
+      "path": "docs/development/findings/2026-08-22-app-audit-salvage.md",
+      "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
+      "anchor": "source-docs-development-findings-2026-08-22-app-audit-salvage-md",
+      "sha256": "16f6f10e5bc438db5dcd9deb3bc57607259eb61d32c05ef6d1c0f4840f73aac9",
+      "words": 1294,
+      "bytes": 10091
+    },
+    {
+      "path": "docs/development/findings/2026-08-22-stripe-can-never-be-configured.md",
+      "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
+      "anchor": "source-docs-development-findings-2026-08-22-stripe-can-never-be-configured-md",
+      "sha256": "e91f13c8620f1d2bc27e189935b14c2a06f74c25ffc675096070b8b3909e227a",
+      "words": 466,
+      "bytes": 3581
+    },
+    {
+      "path": "docs/development/findings/2026-08-22-surfaces-that-state-a-falsehood.md",
+      "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
+      "anchor": "source-docs-development-findings-2026-08-22-surfaces-that-state-a-falsehood-md",
+      "sha256": "dfeb4a6302c1e8feb092b99abe324a16107a2710eca6fd3ab104f699b3e3c133",
+      "words": 892,
+      "bytes": 6295
+    },
+    {
+      "path": "docs/development/goals.md",
+      "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
+      "anchor": "source-docs-development-goals-md",
+      "sha256": "28009372c4abf0a10fbd46b86e16c0138a8467edbd0c0cc55f4c643433d8f8da",
+      "words": 506,
+      "bytes": 3689
+    },
+    {
+      "path": "docs/development/issues.md",
+      "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
+      "anchor": "source-docs-development-issues-md",
+      "sha256": "f46208e3efa9980494078238962a72d15c56901fbc13281dd585cac5fca5d690",
+      "words": 27661,
+      "bytes": 218316
+    },
+    {
+      "path": "docs/development/notes.md",
+      "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
+      "anchor": "source-docs-development-notes-md",
+      "sha256": "d1c00e8f277754fb79ddb35519158a2857da5de9bc7d3704f63c70d0a79cec6c",
+      "words": 743,
+      "bytes": 5312
+    },
+    {
+      "path": "docs/development/plans/advisor-omega-upgrade.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-advisor-omega-upgrade-md",
+      "sha256": "fcbc2bc9848b27c6685119c5e6c9d28dc39cac5ad821dde511ea4939f30c79c0",
+      "words": 434,
+      "bytes": 3603
+    },
+    {
+      "path": "docs/development/plans/aqua-engine-and-dev-team-plugin.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-aqua-engine-and-dev-team-plugin-md",
+      "sha256": "e75595be128a5673797ad452e9b0310825641416e2d0f8fdc85eddbc6a2864b6",
+      "words": 587,
+      "bytes": 4180
+    },
+    {
+      "path": "docs/development/plans/aqua-tag-handoff.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-aqua-tag-handoff-md",
+      "sha256": "f13dd11ee6f3051651f5c8814512cf002d773bdb1c45ae898cebbfe8e5f5d2d2",
+      "words": 2708,
+      "bytes": 20772
+    },
+    {
+      "path": "docs/development/plans/aqua-tag-system.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-aqua-tag-system-md",
+      "sha256": "1f183c8fb49357a3dc98ccb2af09cba353a8cb1ec889d45cad3fde5a64f867a4",
+      "words": 2097,
+      "bytes": 14990
+    },
+    {
+      "path": "docs/development/plans/archive/dev-console-topbar.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-archive-dev-console-topbar-md",
+      "sha256": "c94523eaf66e5ecaca87a272b9ae269e8a71ecf462750edf5dcb0a103471e5a6",
+      "words": 1157,
+      "bytes": 8839
+    },
+    {
+      "path": "docs/development/plans/archive/README.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-archive-readme-md",
+      "sha256": "74ead064f650178ce50d08cd1f12ae62e3f65c457132ebc21ab470a7b3539e2d",
+      "words": 219,
+      "bytes": 1277
+    },
+    {
+      "path": "docs/development/plans/battle-table-overhaul.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-battle-table-overhaul-md",
+      "sha256": "6f88568cdd07ea906a6531beef56f372bfd99af17f659c5910275a8c50b1f8fa",
+      "words": 1281,
+      "bytes": 8889
+    },
+    {
+      "path": "docs/development/plans/client-health.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-client-health-md",
+      "sha256": "340b63d1ac0d401d37bb987a3e16a0cff3134b73579132b09ce4e3173e74f5fa",
+      "words": 1471,
+      "bytes": 11178
+    },
+    {
+      "path": "docs/development/plans/compliance-legal.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-compliance-legal-md",
+      "sha256": "550bdb57cdf6115663331447c5ec8183cee640e83f7384ef1a8c06273e6efcda",
+      "words": 1912,
+      "bytes": 13809
+    },
+    {
+      "path": "docs/development/plans/configurable-access-and-workspace-parity.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-configurable-access-and-workspace-parity-md",
+      "sha256": "b1bb328b9156f9d16f123c4604c972240b517a22beb6405e39bdbbe5e2054517",
+      "words": 2675,
+      "bytes": 21621
+    },
+    {
+      "path": "docs/development/plans/connect-flow-real-codes.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-connect-flow-real-codes-md",
+      "sha256": "6ca3989c969288cf606a26e31803e03aa13d073cbfbfa3553f9cb659a9352050",
+      "words": 889,
+      "bytes": 6633
+    },
+    {
+      "path": "docs/development/plans/dev-docs-handoff.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-dev-docs-handoff-md",
+      "sha256": "18658db39cef574cdc9a98f653a11d3df582737cc5e1756c6398da5a59a561be",
+      "words": 1619,
+      "bytes": 11578
+    },
+    {
+      "path": "docs/development/plans/dev-docs.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-dev-docs-md",
+      "sha256": "f7335b26cc3ee441b7b8702e25bb2a4c500e77f50edfb344316d4438181b47a3",
+      "words": 875,
+      "bytes": 6572
+    },
+    {
+      "path": "docs/development/plans/dev-editor-checklist.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-dev-editor-checklist-md",
+      "sha256": "5dc0638a8c7dbc20e0cf0a4862f795e249dab4dcd9154b48f58df852750f2952",
+      "words": 678,
+      "bytes": 3992
+    },
+    {
+      "path": "docs/development/plans/dev-editor-engine.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-dev-editor-engine-md",
+      "sha256": "795fdad70637bb7c2607b78c3bf8507d5859ed11a305af83b6f002570a8ea384",
+      "words": 1220,
+      "bytes": 9516
+    },
+    {
+      "path": "docs/development/plans/dev-editor-finish.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-dev-editor-finish-md",
+      "sha256": "51e7e6fa58ccd39adf7d2879315da1cec510ce2f2b97a3e66cb5439f7837ccbf",
+      "words": 7679,
+      "bytes": 54846
+    },
+    {
+      "path": "docs/development/plans/dev-editor-inspector.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-dev-editor-inspector-md",
+      "sha256": "fc679ad8d5c2e95b56a6697deeb25369242886c43d0665a70bd47ce3d24113cd",
+      "words": 547,
+      "bytes": 3604
+    },
+    {
+      "path": "docs/development/plans/dev-mode-demo-profiles.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-dev-mode-demo-profiles-md",
+      "sha256": "0f260daa17df9cf992498408e2d8c0d053a49b7b4a13bc24f82331ef352bdd3b",
+      "words": 1435,
+      "bytes": 11033
+    },
+    {
+      "path": "docs/development/plans/dev-team-finish.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-dev-team-finish-md",
+      "sha256": "ceb793dfd94d2380ba46c082a34bf6a0ad9f373efdc6e418d29e604b2d0d2e5b",
+      "words": 1701,
+      "bytes": 12134
+    },
+    {
+      "path": "docs/development/plans/dev-team-hub.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-dev-team-hub-md",
+      "sha256": "65a2ed401444441ca4ffa16aa613785d177a235fbd1d799165d95e0a061ff330",
+      "words": 1358,
+      "bytes": 9835
+    },
+    {
+      "path": "docs/development/plans/dev-team-librarian-and-assistants.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-dev-team-librarian-and-assistants-md",
+      "sha256": "153ec94b50d7bedd7aaf3a96de89b15e9c184cde7d779ac5ddf6e6a710feb32a",
+      "words": 1104,
+      "bytes": 7346
+    },
+    {
+      "path": "docs/development/plans/dev-team-portal.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-dev-team-portal-md",
+      "sha256": "7d8d6bd3a80461eca2c0e343dcf2d592d46bd661afb209e51e5e71599c8b4722",
+      "words": 4294,
+      "bytes": 34115
+    },
+    {
+      "path": "docs/development/plans/dev-team-ui-polish.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-dev-team-ui-polish-md",
+      "sha256": "1b6fbba4578be299d7f48fdb3017f2c593d8686137e782c405313835769c219c",
+      "words": 712,
+      "bytes": 5282
+    },
+    {
+      "path": "docs/development/plans/enquiry-detail-card-handoff.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-enquiry-detail-card-handoff-md",
+      "sha256": "2588dbdb72f2093a3d5d4066dcb49bdb8c50f1b986fd0ec516cf81bcc0cb5bde",
+      "words": 1100,
+      "bytes": 8528
+    },
+    {
+      "path": "docs/development/plans/enquiry-detail-card.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-enquiry-detail-card-md",
+      "sha256": "e4a7c738f477f1b6fd286646575b41556353bee0e74b680d2eccce81b6203843",
+      "words": 898,
+      "bytes": 6663
+    },
+    {
+      "path": "docs/development/plans/finance-command-surface.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-finance-command-surface-md",
+      "sha256": "3feac064311052ddb1a65c6c5ffd76f56604e8172512fc06ed4950ef31d46077",
+      "words": 1197,
+      "bytes": 9797
+    },
+    {
+      "path": "docs/development/plans/freelancer-workspace-HANDOFF.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-freelancer-workspace-handoff-md",
+      "sha256": "53f164362fdb7ab228cee39b14cd653ce23878c29fe9856a9667b5e09c949587",
+      "words": 2314,
+      "bytes": 18051
+    },
+    {
+      "path": "docs/development/plans/freelancer-workspace.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-freelancer-workspace-md",
+      "sha256": "bb875920ffcf8f48167d9e6609a91935c8f5427b487a9604fc5de2683aa67ee2",
+      "words": 1466,
+      "bytes": 13241
+    },
+    {
+      "path": "docs/development/plans/inbox-actions-unification.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-inbox-actions-unification-md",
+      "sha256": "893c95da60d02ca95dc54335d32e8b784303f0b2755e8974f1a52de082c814f5",
+      "words": 698,
+      "bytes": 5313
+    },
+    {
+      "path": "docs/development/plans/information-architecture-v2.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-information-architecture-v2-md",
+      "sha256": "d2d34f2ce72941a0ca652e57e584a125927f082bad7ea10252c9c9aed4b440c9",
+      "words": 893,
+      "bytes": 6007
+    },
+    {
+      "path": "docs/development/plans/internal-chat-attention.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-internal-chat-attention-md",
+      "sha256": "9122b0c133ea9b17892fbba6b131854f7915858934631a4300ae6d63c8bcbfdd",
+      "words": 434,
+      "bytes": 3394
+    },
+    {
+      "path": "docs/development/plans/kpi-intelligence-overhaul.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-kpi-intelligence-overhaul-md",
+      "sha256": "73829e039f8645fe88055f89ea04f279c97d3010f940ff04fe0b6b09afeed751",
+      "words": 1995,
+      "bytes": 15467
+    },
+    {
+      "path": "docs/development/plans/marketing-workspace-overhaul.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-marketing-workspace-overhaul-md",
+      "sha256": "bd9978c633e900bbc9308a39c02541c55b37aba383033d154c62dfc3c22f83e9",
+      "words": 1849,
+      "bytes": 14351
+    },
+    {
+      "path": "docs/development/plans/meta-inbox-connect.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-meta-inbox-connect-md",
+      "sha256": "d6cced05adb94e8f7cc2c3c8f77cab924dedd36c048bf8472ccfa093e8b549c1",
+      "words": 1197,
+      "bytes": 9229
+    },
+    {
+      "path": "docs/development/plans/mfa-login.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-mfa-login-md",
+      "sha256": "0fd93f64238782034e1d16ce8c8662ed78477f15a2e69ea584aefdb321488392",
+      "words": 1513,
+      "bytes": 10857
+    },
+    {
+      "path": "docs/development/plans/operations-command-surface.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-operations-command-surface-md",
+      "sha256": "12b5eadfe027e5f8b7abed4ecca3aa9afef79cf5ad0d7fe16aa3cbf2842b90f1",
+      "words": 823,
+      "bytes": 6176
+    },
+    {
+      "path": "docs/development/plans/plugin-data-erasure.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-plugin-data-erasure-md",
+      "sha256": "c3c5118204c01a054d7cb9f4a71b6e089c456c05559498641dab145d38de4551",
+      "words": 3211,
+      "bytes": 24381
+    },
+    {
+      "path": "docs/development/plans/promote-trading-company.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-promote-trading-company-md",
+      "sha256": "c989e63654eba46d94283f7ce29db8dbff00fcb7abce7c80e1ca40190f4a4f10",
+      "words": 4457,
+      "bytes": 34034
+    },
+    {
+      "path": "docs/development/plans/public-bucket-HANDOFF.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-public-bucket-handoff-md",
+      "sha256": "2b7dca7e36987a1f0d67a4051cbf1777bef490cc137759e7b5ef936988c74bdb",
+      "words": 1244,
+      "bytes": 9459
+    },
+    {
+      "path": "docs/development/plans/public-bucket.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-public-bucket-md",
+      "sha256": "3f33cbe50480103e24999e4b88b3b9cc7abf7003a7b541cc2bb5eac4c3709b4e",
+      "words": 764,
+      "bytes": 6252
+    },
+    {
+      "path": "docs/development/plans/radar-upgrade.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-radar-upgrade-md",
+      "sha256": "76e0c777345bfd6d9f8cfc1356b658fa9ccce9f4efabca67c8e7df9a94350d17",
+      "words": 2802,
+      "bytes": 20951
+    },
+    {
+      "path": "docs/development/plans/rls-enable.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-rls-enable-md",
+      "sha256": "b4aecbed98300e4bdddaf752d4a15fcc41a8c5f839eb70ecf9c4c97b8c9ea37b",
+      "words": 1521,
+      "bytes": 12243
+    },
+    {
+      "path": "docs/development/plans/runtime-verification.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-runtime-verification-md",
+      "sha256": "f5df534faefb3b4f9458d98c7619e3a6f47a07c5d767e5b713365814d01a1d65",
+      "words": 1390,
+      "bytes": 10636
+    },
+    {
+      "path": "docs/development/plans/security-hardening.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-security-hardening-md",
+      "sha256": "30ff5224e21ed9ac5e2c95b33c3040fbefe8330e341d7fc6cc147ac90579cb88",
+      "words": 965,
+      "bytes": 7524
+    },
+    {
+      "path": "docs/development/plans/sop-engine.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-sop-engine-md",
+      "sha256": "6db77e50137bf13f282a452da4a761463c171f13744094823d97a57a320bdc81",
+      "words": 607,
+      "bytes": 4332
+    },
+    {
+      "path": "docs/development/plans/staff-team-system.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-staff-team-system-md",
+      "sha256": "7931339ee018fbf2c7cbdaaa904313d46a6a64469fe0303f0d2206b413170d29",
+      "words": 2305,
+      "bytes": 17720
+    },
+    {
+      "path": "docs/development/plans/you-deserve-it-upgrade.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-you-deserve-it-upgrade-md",
+      "sha256": "b6fb7d73e876d6311417101c24f8ea85a534fb15a2e86b4d042c5927d1f1571e",
+      "words": 1191,
+      "bytes": 9009
+    },
+    {
+      "path": "docs/development/roadmap.md",
+      "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
+      "anchor": "source-docs-development-roadmap-md",
+      "sha256": "da05e0e5ba0fe7621b9ccee562ab05af4ed90706cfee82fe8205634744b4785d",
+      "words": 21160,
+      "bytes": 217851
+    },
+    {
+      "path": "docs/development/status.md",
+      "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
+      "anchor": "source-docs-development-status-md",
+      "sha256": "ae3757114206cc9de6da655f6fb2fe761449d47247c5e82d2dcef5620843ebb6",
+      "words": 20450,
+      "bytes": 159119
+    },
+    {
+      "path": "docs/development/STRUCTURE.md",
+      "volume": "docs/05-WORKSPACE-ENGINEERING.md",
+      "anchor": "source-docs-development-structure-md",
+      "sha256": "52f8d6f96fdd0a6ac40311404d9db7d24e257df942e39aa357b7b68d2be1317e",
+      "words": 883,
+      "bytes": 6919
+    },
+    {
+      "path": "docs/development/tests.md",
+      "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
+      "anchor": "source-docs-development-tests-md",
+      "sha256": "32139d317bf969e31eb52c51459a63266064357fd69b023d3b6edfb23f6e17c0",
+      "words": 12746,
+      "bytes": 99406
+    },
+    {
+      "path": "docs/development/todo.md",
+      "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
+      "anchor": "source-docs-development-todo-md",
+      "sha256": "6d61a289278f8a104dfb234dabf1dffcafdd7d9bba25be773aef575047f0dd06",
+      "words": 15468,
+      "bytes": 124170
+    },
+    {
+      "path": "docs/development/ultra-review-2026-08-24.md",
+      "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
+      "anchor": "source-docs-development-ultra-review-2026-08-24-md",
+      "sha256": "15cc2bde09ad6a6d2209c3e61b1a78e6a7e1f1c091ec69dd93469945edb97ba2",
+      "words": 15503,
+      "bytes": 119428
+    },
+    {
+      "path": "docs/development/updates.md",
+      "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
+      "anchor": "source-docs-development-updates-md",
+      "sha256": "79791616c722b90677e8d6d387520e18c0f9ed1dbb0c0003e42fd1af230d7a38",
+      "words": 75115,
+      "bytes": 583495
+    },
+    {
+      "path": "docs/development/visual-browser-audit-2026-08-23.md",
+      "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
+      "anchor": "source-docs-development-visual-browser-audit-2026-08-23-md",
+      "sha256": "3ee9b61d74e317c98f16ed33f6d9c3ba51001f5785c81128d58f6a33550cd341",
+      "words": 3582,
+      "bytes": 27092
+    },
+    {
+      "path": "docs/external-assistant-api.md",
+      "volume": "docs/07-INTEGRATIONS-COMPLIANCE-AND-BRANDS.md",
+      "anchor": "source-docs-external-assistant-api-md",
+      "sha256": "2a4a76c6d69d1c011c62be6642213c01e449b9b91dcf95285a34c9a3b9bcec25",
+      "words": 1675,
+      "bytes": 12057
+    },
+    {
+      "path": "docs/meta-master-inbox.md",
+      "volume": "docs/07-INTEGRATIONS-COMPLIANCE-AND-BRANDS.md",
+      "anchor": "source-docs-meta-master-inbox-md",
+      "sha256": "1de766d50ed8e3dce6693792d18ee11681c146e3a8cfbf994d98f93113e5fc22",
+      "words": 718,
+      "bytes": 5619
+    },
+    {
+      "path": "docs/portal-tiers-and-fractal-fulfilment.md",
+      "volume": "docs/07-INTEGRATIONS-COMPLIANCE-AND-BRANDS.md",
+      "anchor": "source-docs-portal-tiers-and-fractal-fulfilment-md",
+      "sha256": "f285f1ac2a3c486dc74347db9402290b9a4ff22405f18436a56815c0bc5fc230",
+      "words": 1263,
+      "bytes": 8391
+    },
+    {
+      "path": "docs/PRODUCT-ARCHITECTURE.md",
+      "volume": "docs/01-PRODUCT-AND-ARCHITECTURE.md",
+      "anchor": "source-docs-product-architecture-md",
+      "sha256": "88b78ad5b0c99adbf6f98c0a35cfc9cf6674128fce9ae41abd6c36287b0f1570",
+      "words": 4300,
+      "bytes": 31534
+    },
+    {
+      "path": "docs/WORKSPACE-FILE-TREE.md",
+      "volume": "docs/05-WORKSPACE-ENGINEERING.md",
+      "anchor": "source-docs-workspace-file-tree-md",
+      "sha256": "9e3de848465cd704c9b59dc9931a809f5d28313ca475d64a9ff988c516b53120",
+      "words": 1365,
+      "bytes": 10713
+    },
+    {
+      "path": "docs/workspace/advisor.md",
+      "volume": "docs/05-WORKSPACE-ENGINEERING.md",
+      "anchor": "source-docs-workspace-advisor-md",
+      "sha256": "d5b9b4fc79dca07c36b435c5ee2c8855d5fca405a0d42561e6d3cb7fcb12233a",
+      "words": 1445,
+      "bytes": 11556
+    },
+    {
+      "path": "docs/workspace/api-and-routes.md",
+      "volume": "docs/05-WORKSPACE-ENGINEERING.md",
+      "anchor": "source-docs-workspace-api-and-routes-md",
+      "sha256": "8bbf0d2e9c9f2d619f2308fc8d17217f57b63e0d81c5acb43ab1aac02993af69",
+      "words": 946,
+      "bytes": 9317
+    },
+    {
+      "path": "docs/workspace/api-reference.md",
+      "volume": "docs/05-WORKSPACE-ENGINEERING.md",
+      "anchor": "source-docs-workspace-api-reference-md",
+      "sha256": "9d773d5ce88367cc7550108546ab624c411028305aba71f28d3a598297041cce",
+      "words": 7465,
+      "bytes": 52144
+    },
+    {
+      "path": "docs/workspace/aqua-tag.md",
+      "volume": "docs/05-WORKSPACE-ENGINEERING.md",
+      "anchor": "source-docs-workspace-aqua-tag-md",
+      "sha256": "d662b63850cb5a8399402dcbc64054df306146bfffb8ca8480c4ca02bbc101e1",
+      "words": 3463,
+      "bytes": 26321
+    },
+    {
+      "path": "docs/workspace/components.md",
+      "volume": "docs/05-WORKSPACE-ENGINEERING.md",
+      "anchor": "source-docs-workspace-components-md",
+      "sha256": "5ef3bf2f75be332eb08728bd577bff060375f9b0f580c0d2502e709dc6073b9f",
+      "words": 1142,
+      "bytes": 8947
+    },
+    {
+      "path": "docs/workspace/database.md",
+      "volume": "docs/05-WORKSPACE-ENGINEERING.md",
+      "anchor": "source-docs-workspace-database-md",
+      "sha256": "4ed0007a7dd957cf271f0407fd3742833262b08ae774979a8425a640ccd566e0",
+      "words": 2273,
+      "bytes": 18240
+    },
+    {
+      "path": "docs/workspace/env-and-sellability.md",
+      "volume": "docs/05-WORKSPACE-ENGINEERING.md",
+      "anchor": "source-docs-workspace-env-and-sellability-md",
+      "sha256": "73e225f93a527d2d2ac6ea92c6dad72b5538380f87fbe4c51d5f1676a21e58f5",
+      "words": 3089,
+      "bytes": 24694
+    },
+    {
+      "path": "docs/workspace/feature-index.md",
+      "volume": "docs/05-WORKSPACE-ENGINEERING.md",
+      "anchor": "source-docs-workspace-feature-index-md",
+      "sha256": "b98e1ff5d3a5caf7e436c5a0e94a4944caefeeabb13d3c232a25b9467e9abbde",
+      "words": 4347,
+      "bytes": 41253
+    },
+    {
+      "path": "docs/workspace/hazards-and-duplication.md",
+      "volume": "docs/05-WORKSPACE-ENGINEERING.md",
+      "anchor": "source-docs-workspace-hazards-and-duplication-md",
+      "sha256": "cdefaec09890fcd38cc768835302dfaea6aa66bf2b529c794805b788470ad7f2",
+      "words": 5737,
+      "bytes": 44188
+    },
+    {
+      "path": "docs/workspace/kpi-intelligence.md",
+      "volume": "docs/05-WORKSPACE-ENGINEERING.md",
+      "anchor": "source-docs-workspace-kpi-intelligence-md",
+      "sha256": "d641f1291cbcd1b08d36a4cae2ae4508c463a5b9cbc496c99fd2cfec2571421a",
+      "words": 2283,
+      "bytes": 21991
+    },
+    {
+      "path": "docs/workspace/plugins.md",
+      "volume": "docs/05-WORKSPACE-ENGINEERING.md",
+      "anchor": "source-docs-workspace-plugins-md",
+      "sha256": "85bf55b735d1fb044b755b40f567f55163cbd7fdeaf77830b2ad00c30b36281a",
+      "words": 2193,
+      "bytes": 19385
+    },
+    {
+      "path": "docs/workspace/portal-ui.md",
+      "volume": "docs/05-WORKSPACE-ENGINEERING.md",
+      "anchor": "source-docs-workspace-portal-ui-md",
+      "sha256": "ab4485ad8dbd1e3be4180cd84bf627e4c2c7b21458e6e958d439553bcf4a8627",
+      "words": 3812,
+      "bytes": 33456
+    },
+    {
+      "path": "docs/workspace/radar.md",
+      "volume": "docs/05-WORKSPACE-ENGINEERING.md",
+      "anchor": "source-docs-workspace-radar-md",
+      "sha256": "3ce82366eef05f6cb142833c4657adf87afa9380de13139aaac26db8c49892a0",
+      "words": 3319,
+      "bytes": 29250
+    },
+    {
+      "path": "docs/workspace/scripts-config-docs.md",
+      "volume": "docs/05-WORKSPACE-ENGINEERING.md",
+      "anchor": "source-docs-workspace-scripts-config-docs-md",
+      "sha256": "6c64dba30a6b031fdab5a24d1b105ab34547388d2219c529fa85734fa4368908",
+      "words": 705,
+      "bytes": 6050
+    },
+    {
+      "path": "docs/workspace/shared-logic.md",
+      "volume": "docs/05-WORKSPACE-ENGINEERING.md",
+      "anchor": "source-docs-workspace-shared-logic-md",
+      "sha256": "8b8347940dd384a9710735bdba62872c804bf8c371f128cfdd38d2add85a19f4",
+      "words": 3847,
+      "bytes": 32617
+    },
+    {
+      "path": "docs/workspace/state-layer.md",
+      "volume": "docs/05-WORKSPACE-ENGINEERING.md",
+      "anchor": "source-docs-workspace-state-layer-md",
+      "sha256": "b891d38adf8e8bc297934f1e3776e15a9252712442057e72a15530af8a6bba3a",
+      "words": 1047,
+      "bytes": 9361
+    },
+    {
+      "path": "docs/zimante-brand-architecture.md",
+      "volume": "docs/07-INTEGRATIONS-COMPLIANCE-AND-BRANDS.md",
+      "anchor": "source-docs-zimante-brand-architecture-md",
+      "sha256": "703478a503dfeee344624481e93273bc3ae7f3e2810eefcb0d72867c994429ca",
+      "words": 336,
+      "bytes": 2578
+    },
+    {
+      "path": "public/health-check/DELIVERY-PLAN.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-public-health-check-delivery-plan-md",
+      "sha256": "623e142b32661ca9fa73ab2523e2c333b2f1a0bfeb73fa4702cc7e6e9d72b191",
+      "words": 642,
+      "bytes": 3801
+    },
+    {
+      "path": "README.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-readme-md",
+      "sha256": "78865db662380f9d9710ee4f46c1d65a05dc77dfa3abff0f57d86c8c677b434f",
+      "words": 437,
+      "bytes": 3651
+    },
+    {
+      "path": "src/archive/multi-agency/README.md",
+      "volume": "docs/05-WORKSPACE-ENGINEERING.md",
+      "anchor": "source-src-archive-multi-agency-readme-md",
+      "sha256": "8655235589a0bd2b94bc8938fae25f95d4feeacbe463af604f7a171ec039f357",
+      "words": 43,
+      "bytes": 277
+    },
+    {
+      "path": "src/built-ins/modules/ecommerce/README.md",
+      "volume": "docs/05-WORKSPACE-ENGINEERING.md",
+      "anchor": "source-src-built-ins-modules-ecommerce-readme-md",
+      "sha256": "7725ceb400276e7a925245869fc071ff60478156d2e1287a483c6c306e20ed59",
+      "words": 1118,
+      "bytes": 9772
+    },
+    {
+      "path": "src/built-ins/modules/fulfillment/README.md",
+      "volume": "docs/05-WORKSPACE-ENGINEERING.md",
+      "anchor": "source-src-built-ins-modules-fulfillment-readme-md",
+      "sha256": "f472689dde207e5bf11331dfe25bf0a0c78ab4ab0ee4c4c8fb58205975757ef9",
+      "words": 913,
+      "bytes": 7380
+    },
+    {
+      "path": "src/built-ins/modules/website-editor/README.md",
+      "volume": "docs/05-WORKSPACE-ENGINEERING.md",
+      "anchor": "source-src-built-ins-modules-website-editor-readme-md",
+      "sha256": "173e28950af41e88df93f3381e59507a05c230fa834b2c5027f2063fad35f281",
+      "words": 514,
+      "bytes": 4300
+    },
+    {
+      "path": "src/built-ins/runtime/milesymedia/README.md",
+      "volume": "docs/05-WORKSPACE-ENGINEERING.md",
+      "anchor": "source-src-built-ins-runtime-milesymedia-readme-md",
+      "sha256": "5c5839e189b2102ea1569d93a214982ed34d6a6021ff3d51170fefe535793b1c",
+      "words": 159,
+      "bytes": 1377
+    }
+  ]
+}

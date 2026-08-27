@@ -10,6 +10,10 @@ typecheck clean); the 2,040-rule catalogue and every prior contract stayed
 intact throughout. See the ✅ markers in **Phasing** below for each stage's
 landing note, and [updates.md](../updates.md) for the per-stage detail.
 
+> **Count note (current source, 2026-08-24):** 2,040 rules / 170 families is the
+> preserved Stage-1–7 checkpoint, not today's catalogue. The later Aqua Tag work
+> added two guarded families; current total is **2,064 rules / 172 families**.
+
 ---
 
 ## Why now

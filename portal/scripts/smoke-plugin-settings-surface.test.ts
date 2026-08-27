@@ -227,9 +227,9 @@ describe("agency-finance Stripe can now actually be configured", () => {
     assert.throws(
       () => writePluginSettings({
         pluginId: "agency-finance", scope: { agencyId: agency.id },
-        values: { defaultPaymentTermsDays: "soon" }, actorUserId: "user_settings_test",
+        values: { taxReserveRate: "soon" }, actorUserId: "user_settings_test",
       }),
-      (error: unknown) => error instanceof PluginSettingsError && error.message === "not_a_number:defaultPaymentTermsDays",
+      (error: unknown) => error instanceof PluginSettingsError && error.message === "not_a_number:taxReserveRate",
     );
   });
 

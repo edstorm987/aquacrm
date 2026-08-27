@@ -4,7 +4,7 @@ import { requireRole } from "@/lib/server/auth/auth";
 import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import { ACTIVE_WORKER_WINDOW_MS, devConsoleCore, devConsoleStatus } from "@/lib/server/dev/devConsoleStatus";
 import { readCheckIns, isCheckInActive } from "@/lib/server/dev/devTeamWorkers";
-import { ensureHydrated } from "@/server/storage";
+import { ensureDevTeamWorkspaceHydrated } from "@/lib/server/dev/devWorkspaceFiles";
 import { AGENCY_ROLES } from "@/server/types";
 
 // Live status for the topbar Dev Console popover.
@@ -20,21 +20,21 @@ import { AGENCY_ROLES } from "@/server/types";
 //                 panel asks for it alongside core and fills the rows in when
 //                 it lands rather than making the whole console wait.
 //
-// Same founder + Dev Mode gate as every other Dev Console surface, re-asserted
+// Same founder-only Dev Team access gate as every other Dev Console surface, re-asserted
 // here rather than trusted from the caller (the layout deciding not to render
 // the icon is a UI choice, not a security boundary).
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    await ensureHydrated();
+    await ensureDevTeamWorkspaceHydrated();
     let session;
     try {
       session = await requireRole([...AGENCY_ROLES]);
     } catch {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
-    // Not "forbidden" — outside Dev Mode this surface does not exist at all.
+    // Not "forbidden" — outside founder-only Dev Team access this surface does not exist.
     if (!devDocsAccessible(session)) {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }

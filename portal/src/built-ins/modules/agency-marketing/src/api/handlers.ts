@@ -23,6 +23,15 @@ import type {
   UpdateLeadPatch,
   UpdateTemplatePatch,
 } from "../lib/domain";
+import {
+  deleteMarketingRecord,
+  getMarketingRecord,
+  listMarketingRecords,
+  nextRecordVersion,
+  setMarketingRecord,
+  withMarketingRecordLock,
+} from "./recordStorage";
+import { MarketingLeadIdentityConflictError } from "../server/leads";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -32,6 +41,7 @@ function json(body: unknown, status = 200): Response {
 }
 const badRequest = (m: string): Response => json({ ok: false, error: m }, 400);
 const notFound = (m: string): Response => json({ ok: false, error: m }, 404);
+const conflict = (m: string, current?: unknown): Response => json({ ok: false, error: m, current }, 409);
 const unprocessable = (m: string): Response => json({ ok: false, error: m }, 422);
 function methodGuard(req: Request, expected: string): Response | null {
   return req.method === expected ? null : json({ ok: false, error: "method_not_allowed" }, 405);
@@ -45,13 +55,24 @@ const buildContainer = (ctx: PluginCtx) =>
   containerFor({ agencyId: ctx.agencyId, storage: ctx.storage, install: ctx.install });
 
 const defaultCurrency = (ctx: PluginCtx): Currency =>
-  (ctx.install.config.defaultCurrency as Currency | undefined) ?? "usd";
+  ctx.install.config.defaultCurrency === "gbp" || ctx.install.config.defaultCurrency === "eur"
+    ? ctx.install.config.defaultCurrency
+    : "usd";
 
 const MARKETING_ASSETS_KEY = "milesymedia/channel-assets/v1";
+const MARKETING_ASSET_ROW_PREFIX = "milesymedia/channel-assets/by-id/";
+const MARKETING_ASSET_TOMBSTONE_PREFIX = "milesymedia/channel-assets/deleted/";
 const MARKETING_ASSET_KINDS = new Set<MarketingAssetKind>(["social", "website", "funnel", "google-ads", "reputation"]);
 const MARKETING_ASSET_STATUSES = new Set<MarketingAssetStatus>(["draft", "active", "paused", "complete", "archived"]);
 const FUNNEL_FORMATS = new Set<FunnelFormat>(["one-page", "multi-step", "multi-page"]);
 const FUNNEL_STEP_KINDS = new Set<FunnelStepKind>(["landing", "form", "booking", "checkout", "thank-you", "custom"]);
+
+const marketingAssetStorage = (ctx: PluginCtx) => ({
+  legacyKey: MARKETING_ASSETS_KEY,
+  rowPrefix: MARKETING_ASSET_ROW_PREFIX,
+  tombstonePrefix: MARKETING_ASSET_TOMBSTONE_PREFIX,
+  storage: ctx.storage,
+});
 
 function cleanMarketingAssetInput(input: CreateMarketingAssetInput): Omit<MarketingAsset, "id" | "agencyId" | "createdAt" | "updatedAt"> | null {
   const name = typeof input.name === "string" ? input.name.trim().slice(0, 120) : "";
@@ -129,7 +150,7 @@ function cleanMarketingAssetInput(input: CreateMarketingAssetInput): Omit<Market
 export async function listMarketingAssetsHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   if (req.method !== "GET") return json({ ok: false, error: "method_not_allowed" }, 405);
   const kind = new URL(req.url).searchParams.get("kind") as MarketingAssetKind | null;
-  const rows = (await ctx.storage.get<MarketingAsset[]>(MARKETING_ASSETS_KEY)) ?? [];
+  const rows = await listMarketingRecords<MarketingAsset>(marketingAssetStorage(ctx));
   return json({
     ok: true,
     assets: rows
@@ -145,32 +166,37 @@ export async function createMarketingAssetHandler(req: Request, ctx: PluginCtx):
   if (!body) return badRequest("marketing item required.");
   const input = cleanMarketingAssetInput(body);
   if (!input) return badRequest("name and a valid marketing area are required.");
-  const now = Date.now();
-  const row: MarketingAsset = {
-    ...input,
-    id: `mkt_${crypto.randomBytes(8).toString("hex")}`,
-    agencyId: ctx.agencyId,
-    createdAt: now,
-    updatedAt: now,
-  };
-  const rows = (await ctx.storage.get<MarketingAsset[]>(MARKETING_ASSETS_KEY)) ?? [];
-  await ctx.storage.set(MARKETING_ASSETS_KEY, [row, ...rows]);
-  return json({ ok: true, asset: row }, 201);
+  return withMarketingRecordLock(ctx.agencyId, "assets", async () => {
+    const now = Date.now();
+    const row: MarketingAsset = {
+      ...input,
+      id: `mkt_${crypto.randomBytes(8).toString("hex")}`,
+      agencyId: ctx.agencyId,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await setMarketingRecord(marketingAssetStorage(ctx), row);
+    return json({ ok: true, asset: row }, 201);
+  });
 }
 
 export async function updateMarketingAssetHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   const guard = methodGuard(req, "PATCH");
   if (guard) return guard;
-  const body = await safeJson<{ id: string; patch: UpdateMarketingAssetPatch }>(req);
+  const body = await safeJson<{ id: string; patch: UpdateMarketingAssetPatch; expectedUpdatedAt?: number }>(req);
   if (!body?.id || !body.patch) return badRequest("id and patch required.");
-  const rows = (await ctx.storage.get<MarketingAsset[]>(MARKETING_ASSETS_KEY)) ?? [];
-  const existing = rows.find(row => row.id === body.id && row.agencyId === ctx.agencyId);
-  if (!existing) return notFound("marketing item not found");
-  const input = cleanMarketingAssetInput({ ...existing, ...body.patch, kind: existing.kind });
-  if (!input) return badRequest("name and a valid marketing area are required.");
-  const updated: MarketingAsset = { ...existing, ...input, updatedAt: Date.now() };
-  await ctx.storage.set(MARKETING_ASSETS_KEY, rows.map(row => row.id === updated.id ? updated : row));
-  return json({ ok: true, asset: updated });
+  return withMarketingRecordLock(ctx.agencyId, "assets", async () => {
+    const existing = await getMarketingRecord<MarketingAsset>(marketingAssetStorage(ctx), body.id);
+    if (!existing || existing.agencyId !== ctx.agencyId) return notFound("marketing item not found");
+    if (body.expectedUpdatedAt !== undefined && body.expectedUpdatedAt !== existing.updatedAt) {
+      return conflict("This marketing item changed in another tab. Review the latest version before saving again.", existing);
+    }
+    const input = cleanMarketingAssetInput({ ...existing, ...body.patch, kind: existing.kind });
+    if (!input) return badRequest("name and a valid marketing area are required.");
+    const updated: MarketingAsset = { ...existing, ...input, updatedAt: nextRecordVersion(existing.updatedAt) };
+    await setMarketingRecord(marketingAssetStorage(ctx), updated);
+    return json({ ok: true, asset: updated });
+  });
 }
 
 export async function deleteMarketingAssetHandler(req: Request, ctx: PluginCtx): Promise<Response> {
@@ -178,10 +204,17 @@ export async function deleteMarketingAssetHandler(req: Request, ctx: PluginCtx):
   if (guard) return guard;
   const id = new URL(req.url).searchParams.get("id");
   if (!id) return badRequest("id required.");
-  const rows = (await ctx.storage.get<MarketingAsset[]>(MARKETING_ASSETS_KEY)) ?? [];
-  if (!rows.some(row => row.id === id && row.agencyId === ctx.agencyId)) return notFound("marketing item not found");
-  await ctx.storage.set(MARKETING_ASSETS_KEY, rows.filter(row => row.id !== id));
-  return json({ ok: true });
+  const expectedUpdatedAtRaw = new URL(req.url).searchParams.get("updatedAt");
+  const expectedUpdatedAt = expectedUpdatedAtRaw ? Number(expectedUpdatedAtRaw) : undefined;
+  return withMarketingRecordLock(ctx.agencyId, "assets", async () => {
+    const existing = await getMarketingRecord<MarketingAsset>(marketingAssetStorage(ctx), id);
+    if (!existing || existing.agencyId !== ctx.agencyId) return notFound("marketing item not found");
+    if (expectedUpdatedAt !== undefined && expectedUpdatedAt !== existing.updatedAt) {
+      return conflict("This marketing item changed in another tab. Review the latest version before deleting it.", existing);
+    }
+    await deleteMarketingRecord(marketingAssetStorage(ctx), id);
+    return json({ ok: true });
+  });
 }
 
 // ─── Campaigns ───────────────────────────────────────────────────────────
@@ -261,6 +294,9 @@ export async function createLeadHandler(req: Request, ctx: PluginCtx): Promise<R
     const lead = await buildContainer(ctx).leads.create(body, ctx.actor);
     return json({ ok: true, lead }, 201);
   } catch (err) {
+    if (err instanceof MarketingLeadIdentityConflictError) {
+      return json({ ok: false, error: "marketing_lead_identity_conflict", message: err.message }, 409);
+    }
     return unprocessable(err instanceof Error ? err.message : String(err));
   }
 }
@@ -274,6 +310,9 @@ export async function updateLeadHandler(req: Request, ctx: PluginCtx): Promise<R
     const lead = await buildContainer(ctx).leads.update(body.id, body.patch ?? {}, ctx.actor);
     return lead ? json({ ok: true, lead }) : notFound("lead not found");
   } catch (err) {
+    if (err instanceof MarketingLeadIdentityConflictError) {
+      return json({ ok: false, error: "marketing_lead_identity_conflict", message: err.message }, 409);
+    }
     return unprocessable(err instanceof Error ? err.message : String(err));
   }
 }
@@ -334,6 +373,9 @@ export async function reportCampaignsHandler(req: Request, ctx: PluginCtx): Prom
   const url = new URL(req.url);
   const from = Number(url.searchParams.get("from") ?? 0);
   const to = Number(url.searchParams.get("to") ?? Date.now());
+  if (!Number.isFinite(from) || !Number.isFinite(to) || from < 0 || to < from) {
+    return badRequest("Report window requires finite timestamps with to on or after from.");
+  }
   const snapshot = await buildContainer(ctx).reports.campaignSnapshot({ from, to });
   return json({ ok: true, snapshot });
 }
@@ -343,6 +385,9 @@ export async function reportLeadsHandler(req: Request, ctx: PluginCtx): Promise<
   const url = new URL(req.url);
   const from = Number(url.searchParams.get("from") ?? 0);
   const to = Number(url.searchParams.get("to") ?? Date.now());
+  if (!Number.isFinite(from) || !Number.isFinite(to) || from < 0 || to < from) {
+    return badRequest("Report window requires finite timestamps with to on or after from.");
+  }
   const funnel = await buildContainer(ctx).reports.leadFunnel({ from, to });
   return json({ ok: true, funnel });
 }

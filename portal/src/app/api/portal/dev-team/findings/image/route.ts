@@ -3,10 +3,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireRole } from "@/lib/server/auth/auth";
 import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import { readFindingImage } from "@/lib/server/dev/devTeamFindings";
-import { ensureHydrated } from "@/server/storage";
+import { ensureDevTeamWorkspaceHydrated } from "@/lib/server/dev/devWorkspaceFiles";
 import { AGENCY_ROLES } from "@/server/types";
 
-// Serve a finding's screenshot behind the same founder + Dev Mode gate as the
+// Serve a finding's screenshot behind the same founder-only Dev Team access gate as the
 // rest of the portal. The images live in `docs/development/findings/images/`,
 // which Next does not serve — deliberately, so screenshots of real business
 // data are never publicly reachable.
@@ -21,7 +21,7 @@ const TYPES: Record<string, string> = {
 
 export async function GET(request: NextRequest) {
   try {
-    await ensureHydrated();
+    await ensureDevTeamWorkspaceHydrated();
     let session;
     try {
       session = await requireRole([...AGENCY_ROLES]);

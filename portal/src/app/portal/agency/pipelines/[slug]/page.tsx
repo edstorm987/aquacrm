@@ -27,10 +27,13 @@ import { BoardSwitcher, PipelineBoard } from "./_PipelineBoard";
 import { FulfilmentProductSwitcher } from "./_FulfilmentProductSwitcher";
 import { installPlugin, setPluginEnabled } from "@/built-ins/runtime/_runtime";
 import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
-import { agencyProductPipelineColumns, defaultAgencyProductPipelineStage } from "@/lib/products/fulfilmentProductPipelines";
+import { resolveClientProductStage } from "@/lib/products/clientProductStageTruth";
+import { agencyProductPipelineColumns } from "@/lib/products/fulfilmentProductPipelines";
 import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
 import { listTradingCompanies } from "@/server/tradingCompanies";
 import { isLeadJourneyEligible } from "@/lib/enquiries/enquiryClassification";
+import { getPortalFormFields } from "@/server/portalEditor";
+import { clientProductWorkspaces } from "@/server/productWorkspaces";
 
 interface RouteProps {
   params: Promise<{ slug: string }>;
@@ -208,6 +211,7 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
               brandName: activeBrands.find(brand => brand.id === (client?.companyId ?? lead.companyId ?? lead.companyIds?.[0]))?.name,
               serviceIds,
               serviceNames: serviceIds.map(id => services.find(service => service.id === id)?.name ?? agencyProducts.find(product => product.id === id)?.name ?? id),
+              customFields: lead.customFields ?? {},
               enquiryId: typeof lead.customFields?.enquiryId === "string" ? lead.customFields.enquiryId : undefined,
               enquiryClassification: lead.customFields?.enquiryClassification === "sales" ? "sales" : undefined,
             };
@@ -229,6 +233,7 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
             priceCents: product.priceCents,
             billingInterval: product.billingInterval,
           }))}
+          customFields={getPortalFormFields(agency.id, "leads")}
         />
       );
     }
@@ -326,24 +331,15 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
     const cards = clients.flatMap(client => {
       const products = resolvePortalProductAssignment(client.metadata ?? {}, productCatalogue).products;
       if (!products.some(product => product.id === productKey)) return [];
-      const storedStages = client.metadata?.productPipelineStages;
-      const productStages = storedStages && typeof storedStages === "object"
-        ? storedStages as Record<string, unknown>
-        : {};
-      const storedStage = typeof productStages[productKey] === "string"
-        ? productStages[productKey] as string
-        : selectedProduct.portalTemplateKey && typeof productStages[selectedProduct.portalTemplateKey] === "string"
-          ? productStages[selectedProduct.portalTemplateKey] as string
-          : "";
-      const columnId = columns.some(column => column.id === storedStage)
-        ? storedStage
-        : defaultAgencyProductPipelineStage(selectedProduct, client.stage);
+      const columnId = resolveClientProductStage(client, selectedProduct).stageId;
+      const revision = clientProductWorkspaces(client).find(workspace => workspace.productId === productKey)?.revision ?? 0;
       return [{
         id: client.id,
         label: client.name,
         sub: selectedProduct.name,
         href: `/portal/clients/${client.id}?tab=delivery`,
         columnId,
+        revision,
       }];
     });
 

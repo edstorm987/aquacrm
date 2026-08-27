@@ -27,13 +27,13 @@ beforeEach(() => {
 });
 
 function seedField(label = "Your name") {
-  return portalEditor.savePortalEditorField(AGENCY, "contacts", { id: "field-1", label, type: "text" }, ACTOR);
+  return portalEditor.savePortalEditorField(AGENCY, "tasks", { id: "field-1", label, type: "text" }, ACTOR);
 }
 
 describe("the portal form editor, on the shared loop", () => {
   it("edits a field", async () => {
     seedField();
-    const adapter = adapters.portalFormEditAdapter({ agencyId: AGENCY, entity: "contacts", actorUserId: ACTOR });
+    const adapter = adapters.portalFormEditAdapter({ agencyId: AGENCY, entity: "tasks", actorUserId: ACTOR });
     const document = await adapter.map();
     const target = document.targets[0];
     const outcome = await engine.runEdits({
@@ -42,7 +42,7 @@ describe("the portal form editor, on the shared loop", () => {
       confirm: true,
     });
     assert.equal(outcome.published, true);
-    assert.equal(portalEditor.getPortalEditorState(AGENCY).forms.contacts?.[0].label, "Full name");
+    assert.equal(portalEditor.getPortalEditorState(AGENCY).forms.tasks?.[0].label, "Full name");
   });
 
   it("refuses a second editor's stale change instead of erasing the first", async () => {
@@ -50,7 +50,7 @@ describe("the portal form editor, on the shared loop", () => {
     // write, and the second silently wins — with the save reporting success,
     // so nothing anywhere says the first edit is gone.
     seedField();
-    const adapter = adapters.portalFormEditAdapter({ agencyId: AGENCY, entity: "contacts", actorUserId: ACTOR });
+    const adapter = adapters.portalFormEditAdapter({ agencyId: AGENCY, entity: "tasks", actorUserId: ACTOR });
     const document = await adapter.map();
     const target = document.targets[0];
 
@@ -69,13 +69,13 @@ describe("the portal form editor, on the shared loop", () => {
     // is what actually holds the line when timestamps collide.
     assert.ok(["document-stale", "target-changed"].includes(outcome.rejected[0].reason),
       `unexpected rejection: ${outcome.rejected[0].reason}`);
-    assert.equal(portalEditor.getPortalEditorState(AGENCY).forms.contacts?.[0].label, "Changed by someone else",
+    assert.equal(portalEditor.getPortalEditorState(AGENCY).forms.tasks?.[0].label, "Changed by someone else",
       "the other person's edit must survive");
   });
 
   it("writes nothing at all on a dry run", async () => {
     seedField();
-    const adapter = adapters.portalFormEditAdapter({ agencyId: AGENCY, entity: "contacts", actorUserId: ACTOR });
+    const adapter = adapters.portalFormEditAdapter({ agencyId: AGENCY, entity: "tasks", actorUserId: ACTOR });
     const document = await adapter.map();
     const target = document.targets[0];
     const outcome = await engine.runEdits({
@@ -83,7 +83,7 @@ describe("the portal form editor, on the shared loop", () => {
       intents: [{ targetId: target.id, expectedFingerprint: target.fingerprint, value: "Full name" }],
     });
     assert.equal(outcome.published, false);
-    assert.equal(portalEditor.getPortalEditorState(AGENCY).forms.contacts?.[0].label, "Your name");
+    assert.equal(portalEditor.getPortalEditorState(AGENCY).forms.tasks?.[0].label, "Your name");
   });
 });
 
@@ -123,7 +123,7 @@ describe("every editor inherits the same guarantees", () => {
   it("requires a real boolean to publish, on every adapter", async () => {
     seedField();
     for (const adapter of [
-      adapters.portalFormEditAdapter({ agencyId: AGENCY, entity: "contacts", actorUserId: ACTOR }),
+      adapters.portalFormEditAdapter({ agencyId: AGENCY, entity: "tasks", actorUserId: ACTOR }),
       adapters.agencyWebsiteEditAdapter({ agencyId: AGENCY, actorUserId: ACTOR }),
     ]) {
       const document = await adapter.map();

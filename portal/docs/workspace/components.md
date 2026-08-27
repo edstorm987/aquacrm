@@ -2,11 +2,23 @@
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
 
-80 files of cross-cutting React UI (re-counted 2026-08-21 — `find src/components -type f | wc -l`; was written up as 68) — the app shell and reusable pieces the
+93 files of cross-cutting React UI (re-counted 2026-08-24 — `find src/components -type f | wc -l`; earlier counts were 68, then 80) — the app shell and reusable pieces the
 [portal screens](portal-ui.md) mount. **Reuse from here before writing new
 UI** (especially the `ui/` primitives).
 
-## `chrome/` (47 files) — the app shell (busiest edit zone)
+> **Published-block boundary (2026-08-25):** two website-editor blocks outside this folder still
+> violate the server/client first-render contract. Default Share Buttons encodes empty social URLs
+> on the server and auto Breadcrumb returns no markup, then both derive a different first client
+> render from `window.location`; installed React 19 says those mismatched attributes are not
+> patched. R017 tests only explicit props. Tracked as
+> [issue #143](../development/issues.md).
+>
+> The same published library has a separate P1 time-contract defect: Countdown Timer defaults to
+> `+7d`, but resolves that relative value from `Date.now()` on every render, so its one-second tick
+> also moves the deadline and the timer never expires. A direct component render reproduced the
+> frozen value; see [issue #146](../development/issues.md).
+
+## `chrome/` — the app shell (busiest edit zone)
 The frame every authenticated screen sits in:
 - **Nav:** Sidebar, Topbar, MobileNav.
 - **Notifications/attention:** `NotificationBell`, `NotificationCentre`, `NotificationAttentionProvider` (the context that feeds the bell).
@@ -18,6 +30,11 @@ The frame every authenticated screen sits in:
 - **Search/profile:** `PortalSearch`, `ProfileMenu`.
 - **Transitions:** workspace / command transitions.
 - **Session:** `WelcomeGate`, `SmartWorkSessionMonitor`.
+
+> **Response-order caveat (source-reviewed 2026-08-25):** the attention provider has no request
+> revision across refresh/PATCH and rolls failures back to a captured whole array. An older action
+> can repaint newer state; Team Chat shares the class and can overwrite the channel used by Send.
+> Tracked as [issue #147](../development/issues.md).
 
 ### The topbar-peek pattern (three buttons, one shape)
 `RadarQuickLookButton`, `NotificationCentreButton` and `DevConsoleButton` are the

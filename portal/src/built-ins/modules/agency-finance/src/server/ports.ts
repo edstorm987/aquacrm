@@ -17,12 +17,18 @@ import type {
   UserId,
   UserProjection,
 } from "../lib/tenancy";
+import type {
+  CompensationRateBasis,
+  Currency,
+  PayeeType,
+} from "../lib/domain";
 
 // ─── Storage (per-install plugin storage) ────────────────────────────────
 
 export interface StoragePort {
   get<T = unknown>(key: string): Promise<T | undefined>;
   set<T = unknown>(key: string, value: T): Promise<void>;
+  runExclusive?<T>(key: string, operation: () => Promise<T>): Promise<T>;
   del(key: string): Promise<void>;
   list(prefix?: string): Promise<string[]>;
 }
@@ -45,6 +51,8 @@ export interface UserPort {
 // ─── Activity log ────────────────────────────────────────────────────────
 
 export interface LogActivityInput {
+  /** Stable source-operation identity. Replays return the original entry. */
+  idempotencyKey?: string;
   agencyId: AgencyId;
   clientId?: ClientId;
   actorUserId?: UserId;
@@ -93,4 +101,30 @@ export interface EventBusPort {
 
 export interface PluginInstallStorePort {
   getInstall(scope: PluginInstallScope, pluginId: string): Promise<PluginInstall | null> | PluginInstall | null;
+}
+
+// ─── Canonical People compensation terms ────────────────────────────────
+
+export interface CanonicalCompensationTerms {
+  staffId: string;
+  compensationProfileId?: string;
+  name: string;
+  email: string;
+  title: string;
+  departmentName?: string;
+  payeeType: PayeeType;
+  currency: Currency;
+  rateBasis: CompensationRateBasis;
+  baseRateCents: number;
+  unitsPerWeek?: number;
+  annualBonusTargetCents: number;
+  activeCommissionRuleCount: number;
+  hasVariableCommission: boolean;
+  contractStartsAt?: number;
+  contractEndsAt?: number;
+}
+
+export interface CompensationTermsPort {
+  getTerms(agencyId: AgencyId, staffId: string): Promise<CanonicalCompensationTerms | null> | CanonicalCompensationTerms | null;
+  setProfileLink(agencyId: AgencyId, staffId: string, profileId: string | null, actor: UserId, expectedCurrentProfileId?: string): Promise<void> | void;
 }

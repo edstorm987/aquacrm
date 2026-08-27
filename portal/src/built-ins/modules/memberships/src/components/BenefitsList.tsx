@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
+
 import type { Benefit, BenefitCategory } from "../lib/domain";
 
 export interface BenefitsListProps {
@@ -67,18 +69,17 @@ export function BenefitsList({ benefits, apiBase, canMutate }: BenefitsListProps
             }
             setBusy(true);
             try {
-              const r = await fetch(`${apiBase}/benefits`, {
+              await checkedJsonMutation(`${apiBase}/benefits`, {
                 method: "POST",
                 headers: { "content-type": "application/json" },
                 body: JSON.stringify(body),
+              }, {
+                fallback: "The benefit could not be added.",
               });
-              const data = await r.json();
-              if (!r.ok || !data.ok) {
-                setError(data?.error ?? `Failed (${r.status})`);
-                return;
-              }
               (e.currentTarget as HTMLFormElement).reset();
               window.location.reload();
+            } catch (requestError) {
+              setError(mutationErrorMessage(requestError, "The benefit could not be added."));
             } finally {
               setBusy(false);
             }
@@ -96,7 +97,7 @@ export function BenefitsList({ benefits, apiBase, canMutate }: BenefitsListProps
             </select>
           </label>
           <label>% off (for discount only)<input name="percentOff" type="number" min="0" max="100" defaultValue={0} /></label>
-          {error && <p className="memberships-form-error">{error}</p>}
+          {error && <p role="alert" className="memberships-form-error">{error}</p>}
           <button type="submit" disabled={busy}>{busy ? "Adding…" : "Add"}</button>
         </form>
       )}

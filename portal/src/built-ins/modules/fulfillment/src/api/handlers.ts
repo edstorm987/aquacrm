@@ -104,6 +104,18 @@ export async function createClientHandler(req: Request, ctx: PluginCtx): Promise
       brand: body.brand as never,
       metadata: body.metadata,
     });
+    if (!result.complete) {
+      return json({
+        ok: false,
+        error: "client_lifecycle_incomplete",
+        message: result.failures.join("; "),
+        client: result.client,
+        phase: result.phase,
+        installs: result.installs,
+        variant: result.variant,
+        retryable: true,
+      }, 503);
+    }
     return json({ ok: true, ...result }, 201);
   } catch (err) {
     return serverError(err);
@@ -117,6 +129,7 @@ export interface AdvancePhaseBody {
   fromPhaseId: string;
   toPhaseId: string;
   reason?: string;
+  operationId?: string;
 }
 
 export async function advancePhaseHandler(req: Request, ctx: PluginCtx): Promise<Response> {
@@ -155,6 +168,7 @@ export async function advancePhaseHandler(req: Request, ctx: PluginCtx): Promise
       reason: typeof body.reason === "string" ? body.reason.trim().slice(0, 500) : undefined,
       directJump: stageDistance > 1,
       skippedStageCount: Math.max(0, stageDistance - 1),
+      operationId: typeof body.operationId === "string" ? body.operationId : undefined,
     });
     return json(result, result.ok ? 200 : 422);
   } catch (err) {
@@ -434,7 +448,19 @@ export async function listActivityHandler(req: Request, ctx: PluginCtx): Promise
 export async function listPhasePresetsHandler(_req: Request, ctx: PluginCtx): Promise<Response> {
   try {
     const c = container(ctx);
-    const presets = c.phaseService.describePresets();
+    let phases = await c.phaseService.listForAgency(ctx.agencyId);
+    if (phases.length === 0) phases = (await c.phaseService.seedDefaultPhases(ctx.agencyId)).phases;
+    const presets = phases
+      .filter(phase => phase.stage !== "churned")
+      .sort((left, right) => left.order - right.order)
+      .map(phase => ({
+        id: phase.id,
+        stage: phase.stage,
+        label: phase.label,
+        description: phase.description,
+        pluginPreset: phase.pluginPreset,
+        portalVariantId: phase.portalVariantId,
+      }));
     return json({ ok: true, presets });
   } catch (err) {
     return serverError(err);

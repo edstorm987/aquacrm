@@ -18,6 +18,21 @@ export function makePluginStorage(installId: string): PluginStorage {
         state.pluginData[installId][key] = value;
       });
     },
+    async setIfAbsent<T = unknown>(key: string, value: T): Promise<boolean> {
+      let inserted = false;
+      mutate(state => {
+        if (!state.pluginData[installId]) state.pluginData[installId] = {};
+        const slice = state.pluginData[installId];
+        if (Object.prototype.hasOwnProperty.call(slice, key)) return;
+        slice[key] = value;
+        inserted = true;
+      });
+      return inserted;
+    },
+    async runExclusive<T>(key: string, operation: () => Promise<T>): Promise<T> {
+      const { withPortalStateTransaction } = await import("@/server/productWorkspaceCoordinator");
+      return withPortalStateTransaction(`plugin:${installId}:${key}`, operation);
+    },
     async del(key: string): Promise<void> {
       mutate(state => {
         const slice = state.pluginData[installId];

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
+
 import type {
   Affiliate,
   Attribution,
@@ -21,9 +23,22 @@ export function MyAffiliatePanel({ affiliate, codes, attributions, payouts, apiB
   if (!affiliate) {
     return <EnrollForm apiBase={apiBase} />;
   }
-  const earnedPaid = attributions.filter(a => a.status === "paid").reduce((s, a) => s + a.amountCents, 0);
-  const earnedApproved = attributions.filter(a => a.status === "approved").reduce((s, a) => s + a.amountCents, 0);
-  const earnedPending = attributions.filter(a => a.status === "pending").reduce((s, a) => s + a.amountCents, 0);
+  const earnedPaid = affiliate.lifetimeEarningsByCurrency ?? totalsByCurrency(
+    attributions.filter(a => !!a.paidAt),
+    a => Math.max(0, (a.paidCommissionCents ?? a.amountCents) - (a.offsetAppliedCents ?? 0)),
+  );
+  const earnedApproved = totalsByCurrency(
+    attributions.filter(a => a.status === "approved" && !a.payoutId),
+    a => Math.max(0, a.amountCents - (a.reversedAmountCents ?? 0)),
+  );
+  const earnedPending = totalsByCurrency(
+    attributions.filter(a => a.status === "pending"),
+    a => Math.max(0, a.amountCents - (a.reversedAmountCents ?? 0)),
+  );
+  const futureOffsets = totalsByCurrency(
+    attributions.filter(a => (a.offsetAmountCents ?? 0) > (a.offsetAppliedCents ?? 0)),
+    a => (a.offsetAmountCents ?? 0) - (a.offsetAppliedCents ?? 0),
+  );
 
   return (
     <section className="affiliates-me">
@@ -33,9 +48,10 @@ export function MyAffiliatePanel({ affiliate, codes, attributions, payouts, apiB
       </header>
       <dl className="affiliates-stats">
         <div><dt>Total referred</dt><dd>{affiliate.totalReferred}</dd></div>
-        <div><dt>Lifetime paid</dt><dd>{(earnedPaid / 100).toFixed(2)}</dd></div>
-        <div><dt>Approved (next payout)</dt><dd>{(earnedApproved / 100).toFixed(2)}</dd></div>
-        <div><dt>Pending</dt><dd>{(earnedPending / 100).toFixed(2)}</dd></div>
+        <div><dt>Lifetime paid</dt><dd>{formatTotals(earnedPaid)}</dd></div>
+        <div><dt>Approved (next payout)</dt><dd>{formatTotals(earnedApproved)}</dd></div>
+        <div><dt>Pending</dt><dd>{formatTotals(earnedPending)}</dd></div>
+        <div><dt>Refund offsets</dt><dd>{formatTotals(futureOffsets)}</dd></div>
       </dl>
 
       <h2>Your codes</h2>
@@ -63,7 +79,8 @@ export function MyAffiliatePanel({ affiliate, codes, attributions, payouts, apiB
         {attributions.slice(0, 10).map(a => (
           <li key={a.id}>
             <article className="affiliates-attribution-card">
-              <p>Order {a.orderId} · {a.commissionPercentSnapshot}% · {(a.amountCents / 100).toFixed(2)}</p>
+              <p>Order {a.orderId} · {a.commissionPercentSnapshot}% · {formatMoney(a.amountCents, a.currency)}</p>
+              {(a.reversedAmountCents ?? 0) > 0 && <p className="affiliates-meta">{formatMoney(a.reversedAmountCents ?? 0, a.currency)} reversed</p>}
               <span className={`affiliates-pill affiliates-pill-attr-${a.status}`}>{a.status}</span>
             </article>
           </li>
@@ -78,7 +95,8 @@ export function MyAffiliatePanel({ affiliate, codes, attributions, payouts, apiB
               <header>
                 <span className={`affiliates-pill affiliates-pill-payout-${p.status}`}>{p.status}</span>
               </header>
-              <p>{(p.amountCents / 100).toFixed(2)} via {p.method}</p>
+              <p>{formatMoney(p.amountCents, p.currency)} via {p.method}</p>
+              {(p.adjustmentAmountCents ?? 0) > 0 && <p className="affiliates-meta">Includes {formatMoney(p.adjustmentAmountCents, p.currency)} refund offset</p>}
               {p.externalRef && <p className="affiliates-meta">Ref: {p.externalRef}</p>}
             </article>
           </li>
@@ -86,6 +104,33 @@ export function MyAffiliatePanel({ affiliate, codes, attributions, payouts, apiB
       </ul>
     </section>
   );
+}
+
+function totalsByCurrency(
+  attributions: Attribution[],
+  amountFor: (attribution: Attribution) => number,
+): Record<string, number> {
+  const totals: Record<string, number> = {};
+  for (const attribution of attributions) {
+    const currency = attribution.currency?.toLowerCase() || "unknown";
+    totals[currency] = (totals[currency] ?? 0) + amountFor(attribution);
+  }
+  return totals;
+}
+
+function formatTotals(totals: Record<string, number>): string {
+  const entries = Object.entries(totals).filter(([, amount]) => amount !== 0);
+  return entries.length === 0
+    ? "—"
+    : entries.map(([currency, amount]) => formatMoney(amount, currency)).join(" · ");
+}
+
+function formatMoney(cents: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat("en-GB", { style: "currency", currency: currency.toUpperCase() }).format(cents / 100);
+  } catch {
+    return `${(cents / 100).toFixed(2)} ${currency.toUpperCase()}`;
+  }
 }
 
 function EnrollForm({ apiBase }: { apiBase: string }) {
@@ -110,23 +155,23 @@ function EnrollForm({ apiBase }: { apiBase: string }) {
           }
           setBusy(true);
           try {
-            const r = await fetch(`${apiBase}/me/enroll`, {
+            await checkedJsonMutation<{ ok: boolean }>(`${apiBase}/me/enroll`, {
               method: "POST",
               headers: { "content-type": "application/json" },
               body: JSON.stringify(body),
+            }, {
+              fallback: "Affiliate enrolment could not be completed.",
+              validate: payload => payload.ok === true,
             });
-            const data = await r.json();
-            if (!r.ok || !data.ok) {
-              setError(data?.error ?? `Failed (${r.status})`);
-              return;
-            }
             window.location.reload();
+          } catch (requestError) {
+            setError(mutationErrorMessage(requestError, "Affiliate enrolment could not be completed."));
           } finally { setBusy(false); }
         }}
       >
         <label>Display name<input name="displayName" /></label>
         <label>Payout email<input name="payoutEmail" type="email" required /></label>
-        {error && <p className="affiliates-form-error">{error}</p>}
+        {error && <p role="alert" className="affiliates-form-error">{error}</p>}
         <button type="submit" disabled={busy}>{busy ? "Enrolling…" : "Enrol"}</button>
       </form>
     </section>
@@ -151,17 +196,17 @@ function StripeConnectPanel({ apiBase, affiliate }: { apiBase: string; affiliate
     setError(null);
     try {
       const returnUrl = typeof window !== "undefined" ? window.location.href : "/portal/customer/affiliates";
-      const r = await fetch(`${apiBase}/me/stripe/onboard`, {
+      const data = await checkedJsonMutation<{ ok: boolean; onboardingUrl?: string }>(`${apiBase}/me/stripe/onboard`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ returnUrl, refreshUrl: returnUrl }),
+      }, {
+        fallback: "Stripe onboarding could not be opened.",
+        validate: payload => payload.ok === true && Boolean(payload.onboardingUrl),
       });
-      const data = await r.json();
-      if (!r.ok || !data.ok || !data.onboardingUrl) {
-        setError(data?.error ?? `Failed (${r.status})`);
-        return;
-      }
-      window.location.href = data.onboardingUrl;
+      window.location.href = data.onboardingUrl!;
+    } catch (requestError) {
+      setError(mutationErrorMessage(requestError, "Stripe onboarding could not be opened."));
     } finally { setBusy(false); }
   }
 
@@ -169,13 +214,13 @@ function StripeConnectPanel({ apiBase, affiliate }: { apiBase: string; affiliate
     setBusy(true);
     setError(null);
     try {
-      const r = await fetch(`${apiBase}/me/stripe/refresh`, { method: "POST" });
-      const data = await r.json();
-      if (!r.ok || !data.ok) {
-        setError(data?.error ?? `Failed (${r.status})`);
-        return;
-      }
+      await checkedJsonMutation<{ ok: boolean }>(`${apiBase}/me/stripe/refresh`, { method: "POST" }, {
+        fallback: "Stripe payout status could not be refreshed.",
+        validate: payload => payload.ok === true,
+      });
       window.location.reload();
+    } catch (requestError) {
+      setError(mutationErrorMessage(requestError, "Stripe payout status could not be refreshed."));
     } finally { setBusy(false); }
   }
 
@@ -189,7 +234,7 @@ function StripeConnectPanel({ apiBase, affiliate }: { apiBase: string; affiliate
         <button type="button" onClick={refreshStatus} disabled={busy}>
           {busy ? "…" : "I'm done — refresh status"}
         </button>
-        {error && <p className="affiliates-form-error">{error}</p>}
+        {error && <p role="alert" className="affiliates-form-error">{error}</p>}
       </section>
     );
   }
@@ -204,7 +249,7 @@ function StripeConnectPanel({ apiBase, affiliate }: { apiBase: string; affiliate
         <button type="button" onClick={startOnboarding} disabled={busy}>
           {busy ? "…" : "Reopen Stripe onboarding"}
         </button>
-        {error && <p className="affiliates-form-error">{error}</p>}
+        {error && <p role="alert" className="affiliates-form-error">{error}</p>}
       </section>
     );
   }
@@ -216,26 +261,36 @@ function StripeConnectPanel({ apiBase, affiliate }: { apiBase: string; affiliate
       <button type="button" onClick={startOnboarding} disabled={busy}>
         {busy ? "…" : "Set up payouts via Stripe"}
       </button>
-      {error && <p className="affiliates-form-error">{error}</p>}
+      {error && <p role="alert" className="affiliates-form-error">{error}</p>}
     </section>
   );
 }
 
 function NewCodeForm({ apiBase }: { apiBase: string }) {
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   return (
-    <button
-      type="button"
-      disabled={busy}
-      onClick={async () => {
-        setBusy(true);
-        try {
-          await fetch(`${apiBase}/me/codes`, { method: "POST" });
-          window.location.reload();
-        } finally { setBusy(false); }
-      }}
-    >
-      {busy ? "…" : "+ Generate new code"}
-    </button>
+    <span>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          setError(null);
+          try {
+            await checkedJsonMutation<{ ok: boolean }>(`${apiBase}/me/codes`, { method: "POST" }, {
+              fallback: "A new referral code could not be generated.",
+              validate: payload => payload.ok === true,
+            });
+            window.location.reload();
+          } catch (requestError) {
+            setError(mutationErrorMessage(requestError, "A new referral code could not be generated."));
+          } finally { setBusy(false); }
+        }}
+      >
+        {busy ? "…" : "+ Generate new code"}
+      </button>
+      {error && <span role="alert" className="affiliates-form-error">{error}</span>}
+    </span>
   );
 }

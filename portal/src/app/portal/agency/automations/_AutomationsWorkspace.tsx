@@ -44,7 +44,9 @@ import type {
   CustomAIRecord,
   CustomAIStatus,
 } from "@/server/types";
+import { automationRunFeedback } from "@/lib/automationRunFeedback";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
+import { PortalViewportLoading } from "@/components/ui/PortalViewportLoading";
 
 type WorkspaceTab = "flows" | "runs" | "ais";
 export type BuilderNodeData = AutomationNodeConfig & { kind: AutomationNodeKind; [key: string]: unknown };
@@ -396,7 +398,10 @@ export function AutomationsWorkspace({
       const data = await api({ action: "test", workflowId: selected.id, eventData });
       if (data.run) setRuns(current => [data.run as AutomationRun, ...current.filter(run => run.id !== data.run?.id)]);
       if (data.workflows) setWorkflows(data.workflows);
-      setNotice(data.run?.status === "failed" ? "Test finished with an error. Open Run history for the detail." : "Dry run complete. No email or task was created.");
+      if (!data.run) throw new Error("The automation test returned no run record.");
+      const feedback = automationRunFeedback(data.run, "test");
+      if (feedback.kind === "error") setError(feedback.message);
+      else setNotice(feedback.message);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not test automation."); }
   }
 
@@ -405,7 +410,10 @@ export function AutomationsWorkspace({
     try {
       const data = await api({ action: "run", workflowId: selected.id, eventData: { source: "manual", requestedAt: Date.now() } });
       if (data.run) setRuns(current => [data.run as AutomationRun, ...current.filter(run => run.id !== data.run?.id)]);
-      setNotice(data.run?.status === "waiting" ? "Flow started and is waiting for its delay." : "Live flow completed.");
+      if (!data.run) throw new Error("The automation run returned no run record.");
+      const feedback = automationRunFeedback(data.run, "live");
+      if (feedback.kind === "error") setError(feedback.message);
+      else setNotice(feedback.message);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not run automation."); }
   }
 
@@ -639,27 +647,9 @@ function stripKind(data: BuilderNodeData): AutomationNodeConfig {
   return config;
 }
 
-/** Placeholder shown in the canvas box while the React Flow chunk downloads. */
+/** Intentional slow-path while the React Flow chunk downloads. */
 function CanvasSkeleton() {
-  return (
-    <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle,#d6dcdd_1px,transparent_1px)] [background-size:20px_20px]" role="status" aria-live="polite" aria-label="Loading the flow canvas">
-      <div className="flex items-center gap-6" aria-hidden="true">
-        {[0, 1, 2].map(index => (
-          <div key={index} className="h-[105px] w-[220px] animate-pulse rounded-md border border-black/10 border-l-4 border-l-black/15 bg-white/85 p-3.5 shadow-sm">
-            <div className="flex items-start gap-2.5">
-              <span className="h-8 w-8 shrink-0 rounded-md bg-black/10" />
-              <span className="min-w-0 flex-1">
-                <span className="block h-2 w-14 rounded bg-black/10" />
-                <span className="mt-2 block h-3 w-28 rounded bg-black/10" />
-                <span className="mt-2 block h-2 w-20 rounded bg-black/5" />
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-      <span className="sr-only">Loading the flow canvas</span>
-    </div>
-  );
+  return <PortalViewportLoading label="Preparing the automation canvas…" />;
 }
 
 function TabButton({ active, onClick, icon, label, count }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string; count?: number }) {

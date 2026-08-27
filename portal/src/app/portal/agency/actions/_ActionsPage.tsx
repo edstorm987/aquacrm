@@ -20,8 +20,10 @@ import { listClients } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
 import { listUsersForAgency } from "@/server/users";
 import { containerFor } from "@aqua/plugin-leads-pipeline/server";
+import { getPortalFormFields } from "@/server/portalEditor";
 
-import { ActionsWorkspace, type ActionsView, type GeneratedAction } from "./_ActionsWorkspace";
+import type { ActionsView, GeneratedAction } from "./_ActionsWorkspace";
+import { LazyActionsWorkspace } from "./_LazyActionsWorkspace";
 
 const WEEK = 7 * 24 * 60 * 60 * 1000;
 
@@ -166,7 +168,7 @@ export async function AgencyActionsPage({
     });
   }
 
-  return <ActionsWorkspace
+  return <LazyActionsWorkspace
     initialTasks={initialTasks}
     initialExternalProposals={listExternalAssistantActionProposals(session.agencyId)}
     generatedActions={actions.filter(action => !acceptedSourceIds.has(action.id)).sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority) || (a.dueAt ?? Number.MAX_SAFE_INTEGER) - (b.dueAt ?? Number.MAX_SAFE_INTEGER))}
@@ -179,6 +181,7 @@ export async function AgencyActionsPage({
     calendarEvents={calendarEvents}
     initialCalendarEntries={listCommandCalendarEntries(session.agencyId, session.userId)}
     initialCalendarIntegration={calendarIntegration}
+    taskCustomFields={getPortalFormFields(session.agencyId, "tasks")}
     initialView={initialView}
     heading={heading}
     description={description}

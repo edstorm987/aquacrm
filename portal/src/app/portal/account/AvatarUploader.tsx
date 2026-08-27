@@ -221,6 +221,7 @@ export function AvatarUploader({ initialAvatarUrl, displayInitials }: Props) {
       <input
         ref={inputRef}
         type="file"
+        aria-label="Upload profile photo"
         accept="image/png,image/jpeg,image/webp"
         className="sr-only"
         onChange={event => {

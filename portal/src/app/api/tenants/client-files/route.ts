@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ensureHydrated, flushPendingWrites } from "@/server/storage";
+import { ensureHydrated, flushPendingWrites, isSandboxDataRealm } from "@/server/storage";
 import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES, CLIENT_ROLES } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
@@ -11,6 +11,7 @@ import { deleteSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { cleanClientPaymentPlans } from "@/lib/clients/clientPaymentPlans";
 import { cleanClientRecordEntries } from "@/lib/clients/clientRelationshipRecord";
 import { removeClientRecordLedgerEvent, upsertClientFileLedgerEvent } from "@/lib/server/clients/clientRecordLedger";
+import { clientFileWorkspaceElementKey, requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 export const runtime = "nodejs";
 
@@ -104,6 +105,23 @@ export async function POST(req: Request) {
   const meta = (client.metadata ?? {}) as { files?: ClientFileRef[] };
   const files: ClientFileRef[] = Array.isArray(meta.files) ? [...meta.files] : [];
 
+  // Keep the existing role/action ceilings below, then apply canonical element
+  // policy to every governed collaborator. Entirely ungoverned client/customer
+  // identities retain the helper's documented legacy migration behaviour.
+  const target = "fileId" in body ? files.find(file => file.id === body.fileId) : undefined;
+  const descriptor = body.action === "add" ? body.file : target;
+  if (descriptor) {
+    try {
+      await requireCurrentClientWorkspaceElementAccess(
+        body.clientId,
+        clientFileWorkspaceElementKey(descriptor),
+        "use",
+      );
+    } catch (error) {
+      return authErrorResponse(error);
+    }
+  }
+
   if (body.action === "add") {
     if (!body.file?.name?.trim() || !body.file.url?.trim() || !CATEGORIES.includes(body.file.category)) {
       return NextResponse.json({ ok: false, error: "file.name + file.url + valid category required" }, { status: 400 });
@@ -162,17 +180,19 @@ export async function POST(req: Request) {
     const before = files.length;
     const next = files.filter(f => f.id !== body.fileId);
     if (next.length === before) return NextResponse.json({ ok: false, error: "file not found" }, { status: 404 });
-    if (target?.storageProvider === "supabase" && target.storageKey) {
-      await deleteSupabasePrivateUpload(target.storageKey).catch(() => false);
-    }
-    if (target?.storageProvider === "vercel-blob" && target.storageKey) {
-      await del(target.storageKey).catch(() => undefined);
-    }
-    if (target?.storageProvider === "local" && target.storageKey) {
-      const uploadRoot = resolve(process.cwd(), ".data", "client-uploads");
-      const targetPath = resolve(uploadRoot, target.storageKey);
-      if (targetPath.startsWith(`${uploadRoot}/`)) {
-        await unlink(targetPath).catch(() => undefined);
+    if (!isSandboxDataRealm()) {
+      if (target?.storageProvider === "supabase" && target.storageKey) {
+        await deleteSupabasePrivateUpload(target.storageKey).catch(() => false);
+      }
+      if (target?.storageProvider === "vercel-blob" && target.storageKey) {
+        await del(target.storageKey).catch(() => undefined);
+      }
+      if (target?.storageProvider === "local" && target.storageKey) {
+        const uploadRoot = resolve(process.cwd(), ".data", "client-uploads");
+        const targetPath = resolve(uploadRoot, target.storageKey);
+        if (targetPath.startsWith(`${uploadRoot}/`)) {
+          await unlink(targetPath).catch(() => undefined);
+        }
       }
     }
     const updated = updateClient(session.agencyId, body.clientId, { metadata: { files: next } });

@@ -8,7 +8,7 @@ import "server-only";
 // and is safe to call before re-seeding. Used by `?reset=1` on the
 // route handler and (eventually) a nightly cron.
 
-import { ensureHydrated, getState, mutate } from "@/server/storage";
+import { ensureHydrated, getActiveDataRealmId, getState, mutate } from "@/server/storage";
 import { bootstrapAgency } from "@/server/agencyBootstrap";
 import { createClient, getAgencyBySlug, listClients } from "@/server/tenants";
 import { createUser, getUser, markWelcomeComplete } from "@/server/users";
@@ -83,13 +83,15 @@ export interface SeedDemoResult {
 // calls hit the cached promise. Without this, each call re-walks every
 // plugin install + phase + permissions row even though every check is a
 // no-op.
-let _demoSeedPromise: Promise<SeedDemoResult> | null = null;
+const demoSeedPromises = new Map<string, Promise<SeedDemoResult>>();
 
 export async function seedDemoAgency(actor?: string): Promise<SeedDemoResult> {
-  if (_demoSeedPromise) return _demoSeedPromise;
+  const realmId = getActiveDataRealmId();
+  const existingPromise = demoSeedPromises.get(realmId);
+  if (existingPromise) return existingPromise;
   // Fast-path probe: if a snapshot exists, return a synthetic result
   // immediately. Skips the 300-line idempotent walk.
-  await ensureHydrated();
+  await ensureHydrated({ preserveExplicitRealm: true });
   const snap = getDemoSnapshot();
   if (snap) {
     const cached: SeedDemoResult = {
@@ -104,11 +106,16 @@ export async function seedDemoAgency(actor?: string): Promise<SeedDemoResult> {
       seededChecklist: null,
       seededExtraClients: [],
     };
-    _demoSeedPromise = Promise.resolve(cached);
-    return _demoSeedPromise;
+    const cachedPromise = Promise.resolve(cached);
+    demoSeedPromises.set(realmId, cachedPromise);
+    return cachedPromise;
   }
-  _demoSeedPromise = seedDemoAgencyImpl(actor);
-  return _demoSeedPromise;
+  const seedPromise = seedDemoAgencyImpl(actor).catch(error => {
+    demoSeedPromises.delete(realmId);
+    throw error;
+  });
+  demoSeedPromises.set(realmId, seedPromise);
+  return seedPromise;
 }
 
 async function seedDemoAgencyImpl(actor?: string): Promise<SeedDemoResult> {
@@ -409,7 +416,8 @@ export interface ResetDemoResult {
 }
 
 export async function resetDemo(): Promise<ResetDemoResult> {
-  await ensureHydrated();
+  await ensureHydrated({ preserveExplicitRealm: true });
+  demoSeedPromises.delete(getActiveDataRealmId());
 
   const agency = getAgencyBySlug(DEMO_AGENCY_SLUG);
   if (!agency) {

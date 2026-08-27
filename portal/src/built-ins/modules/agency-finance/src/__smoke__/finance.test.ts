@@ -27,6 +27,8 @@ import type {
   UserPort,
 } from "../server/ports";
 import { containerWithDeps } from "../server/foundationAdapter";
+import { savePortalEditorField } from "@/server/portalEditor";
+import { buildFinancePlanSchedule } from "@/lib/clients/clientPaymentPlans";
 
 const AGENCY_ID: AgencyId = "agency_fin_smoke";
 const CLIENT_ID: ClientId = "client_fin_smoke";
@@ -44,6 +46,9 @@ function buildWorld() {
     brand: { primaryColor: "#f80" }, stage: "live", status: "active",
     createdAt: 0, updatedAt: 0,
   };
+  const clients = new Map<ClientId, Client>(
+    [CLIENT_ID, "client_a", "client_b", "client_unlocked"].map(id => [id, { ...client, id }]),
+  );
   const profile: UserProjection = {
     id: STAFF_ID, email: "staff@smoke-fin.test", name: "Staff Member", agencyId: AGENCY_ID,
   };
@@ -63,8 +68,9 @@ function buildWorld() {
   };
   const tenant: TenantPort = {
     getAgency: id => (id === AGENCY_ID ? agency : null),
-    getClient: id => (id === CLIENT_ID ? client : null),
-    getClientForAgency: (a, id) => (a === AGENCY_ID && id === CLIENT_ID ? client : null),
+    getClient: id => clients.get(id) ?? null,
+    getClientForAgency: (a, id) => a === AGENCY_ID ? clients.get(id) ?? null : null,
+    listClients: a => a === AGENCY_ID ? [...clients.values()] : [],
   };
   const user: UserPort = {
     getUser: id => (id === STAFF_ID ? profile : null),
@@ -91,7 +97,7 @@ function buildWorld() {
   };
   return {
     storage, tenant, user, activity, events: eventBus, pluginInstalls,
-    inspect: { activityLog, events },
+    inspect: { activityLog, events, clients },
   };
 }
 
@@ -103,6 +109,9 @@ describe("agency-finance smoke", () => {
   let expenseId: string;
 
   before(() => {
+    savePortalEditorField(AGENCY_ID, "expenses", { id: "purchase-order", label: "Purchase order", type: "text" }, ACTOR);
+    savePortalEditorField(AGENCY_ID, "expenses", { id: "requires-follow-up", label: "Requires follow-up", type: "checkbox" }, ACTOR);
+    savePortalEditorField(AGENCY_ID, "expenses", { id: "cost-centres", label: "Cost centres", type: "multi-select", options: ["Hosting", "Client delivery"] }, ACTOR);
     world = buildWorld();
     services = containerWithDeps({
       agencyId: AGENCY_ID,
@@ -363,6 +372,7 @@ describe("agency-finance smoke", () => {
       description: "Professional indemnity insurance",
       reason: "Required business cover.",
       amountCents: 4_500,
+      incurredAt: Date.UTC(2026, 6, 1),
       recurrence: "monthly",
       nextDueAt: dueAt,
       paymentMethod: "direct-debit",
@@ -461,6 +471,31 @@ describe("agency-finance R007 — Payments / Plans / P&L", () => {
     return inv.id;
   }
 
+  function assignCanonicalSchedule(
+    w: ReturnType<typeof buildWorld>,
+    clientId: ClientId,
+    plan: { id: string; label: string; currency: string; monthlyAmountCents: number; lockInMonths: number; lockInFeeCents: number },
+    depositInvoiceId?: string,
+  ) {
+    const client = w.inspect.clients.get(clientId);
+    assert.ok(client, `fixture client ${clientId} exists`);
+    const schedule = buildFinancePlanSchedule({
+      terms: plan,
+      clientPaymentPlanId: `client-plan-${clientId}-${plan.id}`,
+      operationId: `assign-${clientId}-${plan.id}`,
+      firstDueAt: Date.UTC(2026, 7, 1),
+      customerVisible: true,
+      now: Date.UTC(2026, 6, 25),
+      makeMilestoneId: (kind, index) => `${kind}-${clientId}-${index}`,
+    });
+    if (depositInvoiceId) {
+      const deposit = schedule.milestones.find(milestone => milestone.kind === "deposit");
+      assert.ok(deposit, "deposit milestone exists");
+      deposit.invoiceId = depositInvoiceId;
+    }
+    client.metadata = { ...client.metadata, clientPaymentPlans: [schedule] };
+  }
+
   test("R007-1: PaymentService.record stores ciphertext-free payload + emits agency-finance.payment.recorded", async () => {
     const { w, c } = freshContainer();
     const invId = await makeInvoice(c, 5_000);
@@ -491,7 +526,7 @@ describe("agency-finance R007 — Payments / Plans / P&L", () => {
     assert.equal(r1.settled, false);
     assert.equal(r1.invoice.status, "sent");
     const r2 = await c.payments.record(ACTOR, {
-      invoiceId: invId, amountCents: 6_500, currency: "gbp", method: "manual",
+      invoiceId: invId, amountCents: 6_000, currency: "gbp", method: "manual",
     });
     assert.equal(r2.settled, true);
     assert.equal(r2.invoice.status, "paid");
@@ -542,11 +577,11 @@ describe("agency-finance R007 — Payments / Plans / P&L", () => {
     assert.equal(snap.topClients.length, 0);
   });
 
-  test("R007-8: founderSnapshot — MRR = sum(plan.monthlyAmountCents × clientIds.length); ARR = MRR × 12", async () => {
-    const { c } = freshContainer();
+  test("R007-8: founderSnapshot — MRR and ARR derive from canonical active client schedules", async () => {
+    const { w, c } = freshContainer();
     const growth = await c.plans.create(ACTOR, { tier: "growth", label: "G", monthlyAmountCents: 50_000 });
-    await c.plans.assignClient(ACTOR, "client_a", growth.id);
-    await c.plans.assignClient(ACTOR, "client_b", growth.id);
+    assignCanonicalSchedule(w, "client_a", growth);
+    assignCanonicalSchedule(w, "client_b", growth);
     const snap = await c.pnl.founderSnapshot(Date.now());
     assert.equal(snap.hasData, true);
     assert.equal(snap.mrrCents, 100_000);
@@ -594,8 +629,8 @@ describe("agency-finance R007 — Payments / Plans / P&L", () => {
     assert.ok(months.every(m => m.revenueCents === 0 && m.expensesCents === 0 && m.netCents === 0));
   });
 
-  test("R007-11: lockInRows surfaces clients on lock-in plans + paid status from notes/externalRef heuristic", async () => {
-    const { c } = freshContainer();
+  test("R007-11: lockInRows uses the schedule's explicit deposit invoice linkage", async () => {
+    const { w, c } = freshContainer();
     const lockPlan = await c.plans.create(ACTOR, {
       tier: "scale", label: "Scale 12mo", monthlyAmountCents: 150_000,
       lockInMonths: 12, lockInFeeCents: 100_000,
@@ -603,10 +638,9 @@ describe("agency-finance R007 — Payments / Plans / P&L", () => {
     const noLockPlan = await c.plans.create(ACTOR, {
       tier: "starter", label: "Free trial", monthlyAmountCents: 0,
     });
-    await c.plans.assignClient(ACTOR, CLIENT_ID, lockPlan.id);
-    await c.plans.assignClient(ACTOR, "client_unlocked", noLockPlan.id);
+    assignCanonicalSchedule(w, "client_unlocked", noLockPlan);
 
-    // Issue + pay a lock-in invoice tagged by externalRef prefix.
+    // Issue and pay the invoice, then link it from the canonical deposit milestone.
     const inv = await c.invoices.create({
       clientId: CLIENT_ID, issuedAt: Date.now(), dueAt: Date.now() + 7 * 86_400_000,
       lineItems: [{ description: "Lock-in fee", quantity: 1, unitCents: 100_000 }],
@@ -615,8 +649,9 @@ describe("agency-finance R007 — Payments / Plans / P&L", () => {
     await c.invoices.update(inv.id, { status: "sent" }, ACTOR);
     await c.payments.record(ACTOR, {
       invoiceId: inv.id, amountCents: 100_000, currency: "gbp", method: "stripe",
-      externalRef: "lockin_acme_2026",
+      externalRef: "ordinary-payment-reference",
     });
+    assignCanonicalSchedule(w, CLIENT_ID, lockPlan, inv.id);
 
     const rows = await c.pnl.lockInRows();
     assert.equal(rows.length, 1, "only the locked client surfaces");

@@ -8,34 +8,10 @@
 //   - the starter portal-variant id (T3 owns the variant content)
 //   - the checklist template (internal + client items)
 //
-// **Plugin catalogue mapping (R7 — consolidation pass)**
-//
-// The presets reflect the real plugin lifecycle a Felicia-shaped client
-// actually walks through:
-//
-// | Phase       | Plugins installed                                            | Why |
-// |-------------|--------------------------------------------------------------|-----|
-// | Discovery   | website-editor                                               | Brand exploration; pages but no commerce yet. |
-// | Design      | website-editor                                               | Mood-board / wireframe iteration. |
-// | Development | website-editor + ecommerce                                   | Build the storefront. |
-// | Onboarding  | website-editor + ecommerce + memberships                     | Add the member tier offering. |
-// | Live        | website-editor + ecommerce + memberships + affiliates        | Full customer-facing trio (shop · join · refer). |
-// | Churned     | (nothing — old installs flip to enabled:false, config preserved) | Per architecture §7 / Decisions log #4. |
-//
-// **Soft-fail policy.** Foundation today (R3 wire-up) only registers
-// `fulfillment` + `ecommerce` + `website-editor`. The four extra ids
-// memberships / affiliates / agency-hr / agency-finance / agency-marketing
-// are not yet in `_registry.ts`. Per R3a Bug A, an unregistered id
-// causes a hard 422 from the runtime — which would fail every phase
-// advance into Onboarding / Live until T1's mass-wire-up round lands.
-//
-// To prevent that, `TransitionService.advancePhase` and
-// `ClientLifecycleService.createWithPhase` treat "plugin not in
-// registry" as a SOFT-FAIL: log a WARN activity entry, emit
-// `phase.preset_plugin_skipped`, continue. Real registry-side errors
-// (auth, dependency, scope) still hard-fail. Same architectural spirit
-// as the variant-id soft-fail (Bug B). When T1 wires the new plugins,
-// re-running phase advance picks them up automatically.
+// The preset plugin ids all refer to manifests in the current first-party
+// registry. Client creation reports any missing install or starter variant as
+// incomplete and remains resumable; it never translates a partial preset into
+// success.
 
 import { makeId } from "../lib/ids";
 import type { AgencyId, PhaseDefinition, PhaseChecklistItem } from "../lib/tenancy";
@@ -61,8 +37,8 @@ export const DEFAULT_PHASE_PRESETS: readonly PhasePresetSeed[] = [
     label: "Epic Intro",
     description: "Collect the brief, contacts, content, and access needed to begin.",
     order: 10,
-    pluginPreset: [],
-    starterVariantId: "starter-epic-intro",
+    pluginPreset: ["website-editor"],
+    starterVariantId: "aqua-incubator",
     internalTasks: [
       "Send Epic Intro pack",
       "Schedule Blueprint call",

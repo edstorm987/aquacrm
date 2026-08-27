@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 
 import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { logActivity } from "@/server/activity";
 import {
-  createLinkedClientWorkspace,
   linkClientWorkspaces,
   listClientRelationshipWorkspaces,
+  prepareLinkedClientWorkspaceCreation,
   unlinkClientWorkspace,
 } from "@/server/clientRelationships";
 import { flushPendingWrites } from "@/server/storage";
@@ -16,6 +17,13 @@ import { ensureDefaultAgencyProducts } from "@/server/agencyProducts";
 import { resolveAgencyProductAssignment } from "@/lib/products/productAssignments";
 import { portalProductSelectionFromAgencyProduct } from "@/lib/portal/portalProducts";
 import { reconcileClientProductWorkspaces } from "@/server/productWorkspaces";
+import {
+  ClientLifecycleOperationConflictError,
+  ClientLifecyclePhaseNotFoundError,
+  createClientWithLifecycleOperation,
+  listAgencyLifecyclePhases,
+} from "@/lib/server/clients/clientLifecycle";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 type Body = {
   action?: unknown;
@@ -28,6 +36,7 @@ type Body = {
   carryContact?: unknown;
   carryServices?: unknown;
   productIds?: unknown;
+  operationId?: unknown;
 };
 
 function text(value: unknown, max = 160): string {
@@ -63,10 +72,12 @@ export async function POST(request: Request) {
 
   try {
     const session = await requireRoleForClient([...AGENCY_ROLES], sourceClientId);
+    await requireCurrentClientWorkspaceElementAccess(sourceClientId, "client.relationship", "manage");
     const source = getClientForAgency(session.agencyId, sourceClientId);
     if (!source) return NextResponse.json({ ok: false, error: "Client workspace not found." }, { status: 404 });
 
     if (action === "create") {
+      const operationId = text(body?.operationId, 160) || `linked-workspace:${randomUUID()}`;
       const name = text(body?.name);
       if (!name) return NextResponse.json({ ok: false, error: "Enter the company or workspace name." }, { status: 400 });
       const companyId = text(body?.companyId, 120);
@@ -88,7 +99,14 @@ export async function POST(request: Request) {
       if (hasExplicitProducts && assignment.inactiveIds.length) {
         return NextResponse.json({ ok: false, error: "Archived services cannot be assigned to a new workspace." }, { status: 409 });
       }
-      const created = createLinkedClientWorkspace(session.agencyId, {
+      const phases = await listAgencyLifecyclePhases(session.agencyId);
+      const lifecycleStage = phases.some(phase => phase.stage === source.stage)
+        ? source.stage
+        : phases[0]?.stage;
+      if (!lifecycleStage) {
+        return NextResponse.json({ ok: false, error: "No lifecycle phase is available for the new workspace." }, { status: 409 });
+      }
+      const createInput = prepareLinkedClientWorkspaceCreation(session.agencyId, {
         sourceClientId,
         name,
         workspaceLabel: text(body?.workspaceLabel, 120),
@@ -97,8 +115,51 @@ export async function POST(request: Request) {
         carryContact: body?.carryContact !== false,
         carryServices: !hasExplicitProducts && body?.carryServices === true,
         selectedProductIds: hasExplicitProducts ? assignment.selectedIds : undefined,
+        stage: lifecycleStage,
       });
+      const creation = await createClientWithLifecycleOperation({
+        agencyId: session.agencyId,
+        actor: session.userId,
+        operationId,
+        createInput,
+        requestFingerprint: {
+          sourceClientId,
+          name,
+          workspaceLabel: text(body?.workspaceLabel, 120),
+          websiteUrl,
+          companyId: companyId || undefined,
+          carryContact: body?.carryContact !== false,
+          carryServices: !hasExplicitProducts && body?.carryServices === true,
+          selectedProductIds: hasExplicitProducts ? assignment.selectedIds : undefined,
+          stage: createInput.stage,
+        },
+      });
+      const created = creation.client;
+      if (!creation.ok) {
+        return NextResponse.json({
+          ok: false,
+          error: creation.error ?? "Workspace lifecycle setup is incomplete.",
+          code: "client_lifecycle_incomplete",
+          clientId: created.id,
+          lifecycle: creation.lifecycle,
+          retryable: true,
+        }, { status: 503 });
+      }
       const assignedProducts = assignment.effectiveProducts.map(portalProductSelectionFromAgencyProduct);
+      const assignmentHistory = Array.isArray(created.metadata?.portalProductAssignmentHistory)
+        ? created.metadata.portalProductAssignmentHistory as Array<Record<string, unknown>>
+        : [];
+      const historyEntry = assignmentHistory.some(entry => entry.operationId === operationId)
+        ? assignmentHistory
+        : [...assignmentHistory, {
+          operationId,
+          selectedProductIds: assignment.selectedIds,
+          effectiveProductIds: assignment.effectiveIds,
+          products: assignedProducts,
+          assignedAt: Date.now(),
+          assignedBy: session.userId,
+          source: "linked-workspace-creation",
+        }];
       const workspace = hasExplicitProducts
         ? updateClient(session.agencyId, created.id, {
           metadata: {
@@ -106,19 +167,13 @@ export async function POST(request: Request) {
             portalProductIds: assignment.effectiveIds,
             portalProducts: assignedProducts,
             portalProductWorkspaces: reconcileClientProductWorkspaces(created, assignedProducts, "onboarding"),
-            portalProductAssignmentHistory: [{
-              selectedProductIds: assignment.selectedIds,
-              effectiveProductIds: assignment.effectiveIds,
-              products: assignedProducts,
-              assignedAt: Date.now(),
-              assignedBy: session.userId,
-              source: "linked-workspace-creation",
-            }],
+            portalProductAssignmentHistory: historyEntry,
             serviceAssignmentUpdatedAt: Date.now(),
           },
         }) ?? created
         : created;
       logActivity({
+        idempotencyKey: `client-workspace-created:${operationId}`,
         agencyId: session.agencyId,
         clientId: workspace.id,
         actorUserId: session.userId,
@@ -134,6 +189,10 @@ export async function POST(request: Request) {
 
     const targetClientId = text(body?.targetClientId, 120);
     if (!targetClientId) return NextResponse.json({ ok: false, error: "Choose a workspace." }, { status: 400 });
+    // Linking or detaching changes both workspace records, so an exact grant
+    // to only the source is deliberately insufficient.
+    await requireRoleForClient([...AGENCY_ROLES], targetClientId);
+    await requireCurrentClientWorkspaceElementAccess(targetClientId, "client.relationship", "manage");
     if (action === "link") {
       if (targetClientId === sourceClientId) return NextResponse.json({ ok: false, error: "Choose a different workspace." }, { status: 400 });
       const updated = linkClientWorkspaces(session.agencyId, sourceClientId, targetClientId);
@@ -173,6 +232,12 @@ export async function POST(request: Request) {
     await flushPendingWrites();
     return NextResponse.json({ ok: true, workspaces: listClientRelationshipWorkspaces(session.agencyId, sourceClientId) });
   } catch (error) {
+    if (error instanceof ClientLifecyclePhaseNotFoundError) {
+      return NextResponse.json({ ok: false, error: error.message, code: "phase_not_found" }, { status: 409 });
+    }
+    if (error instanceof ClientLifecycleOperationConflictError) {
+      return NextResponse.json({ ok: false, error: error.message, code: "operation_conflict" }, { status: 409 });
+    }
     try {
       return authErrorResponse(error);
     } catch {

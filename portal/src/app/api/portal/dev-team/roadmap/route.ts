@@ -7,10 +7,10 @@ import {
   addItem, updateItem, removeItem, linkPlan, buildRoadmap,
   type Horizon, type ItemStatus, type ItemSize,
 } from "@/lib/server/dev/devTeamRoadmap";
-import { ensureHydrated } from "@/server/storage";
+import { ensureDevTeamWorkspaceHydrated } from "@/lib/server/dev/devWorkspaceFiles";
 import { AGENCY_ROLES } from "@/server/types";
 
-// The roadmap's write surface. Founder + Dev Mode only, re-asserted here — a
+// The roadmap's write surface. Founder-only Dev Team access, re-asserted here — a
 // gate on the page protects the screen, not the write.
 //
 // Every handler answers an auth failure with `authErrorResponse` BEFORE the
@@ -23,7 +23,7 @@ import { AGENCY_ROLES } from "@/server/types";
 export const dynamic = "force-dynamic";
 
 async function gate() {
-  await ensureHydrated();
+    await ensureDevTeamWorkspaceHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
   return devDocsAccessible(session) ? session : null;
 }

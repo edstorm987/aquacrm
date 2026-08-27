@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { devTeamLinkPrefetch } from "@/lib/chrome/devTeamLinkPrefetch";
 
 // Shared design kit for the Dev Team portal — one visual language across every
 // section. Server-safe (no "use client": pure presentational components), so
@@ -148,6 +149,7 @@ export function NavCard({
   return (
     <Link
       href={href}
+      prefetch={devTeamLinkPrefetch(href)}
       style={{ ["--a-fg" as string]: a.fg, ["--a-bg" as string]: a.bg, ["--a-line" as string]: a.line, ["--a-glow" as string]: a.glow }}
       className="group relative flex items-start gap-3 overflow-hidden rounded-2xl border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] p-4 transition-all duration-200 hover:-translate-y-1 hover:border-[color:var(--a-line)] hover:shadow-[0_14px_30px_-12px_var(--a-glow)]"
     >
@@ -266,6 +268,7 @@ export function ViewTabs({ section, active }: { section: keyof typeof SECTION_VI
           <Link
             key={view.key}
             href={view.href}
+            prefetch={section === "library" ? false : undefined}
             aria-current={on ? "page" : undefined}
             className="rounded-full px-3 py-1 text-xs font-medium transition-colors"
             style={on

@@ -9,6 +9,12 @@ import {
 import { canUseDevMode } from "@/lib/server/dev/devModeAccess";
 import { devModeStatus } from "@/lib/server/dev/devMode";
 import { effectiveRole } from "@/lib/server/auth/effectiveRole";
+import {
+  SandboxEnvironmentError,
+  enterSandboxEnvironment,
+  exitSandboxEnvironment,
+  switchSandboxPersona,
+} from "@/lib/server/sandbox/sandboxEnvironment";
 import { seedDemoAgency, ensureDemoStaffEmployee, ensureDemoCustomerReady, ensureDemoFreelancer, DEMO_STAFF_EMAIL, DEMO_FREELANCER_EMAIL, type SeedDemoResult } from "@/lib/server/seeds/demoSeed";
 import type { ServerUser, SessionPayload } from "@/server/types";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
@@ -160,6 +166,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: "Choose enter, switch, or exit." }, { status: 400 });
     }
 
+    // Compatibility adapter: once a caller is on the canonical sandbox,
+    // legacy Dev Mode controls only change persona or leave that same realm.
+    if (session.sandbox) {
+      if (action === "exit") {
+        const result = await exitSandboxEnvironment(session);
+        return sessionResponse(result.token, result.redirect);
+      }
+      const persona = action === "switch" ? body?.persona : "owner";
+      if (persona !== "owner" && persona !== "staff" && persona !== "customer" && persona !== "freelancer") {
+        return NextResponse.json({ ok: false, error: "Choose owner, staff, customer, or freelancer." }, { status: 400 });
+      }
+      const result = session.sandbox.dataset === "demo"
+        ? await switchSandboxPersona(session, persona)
+        : await enterSandboxEnvironment(session, {
+          dataset: "demo",
+          access: "writable",
+          persona,
+        });
+      return sessionResponse(result.token, action === "enter" ? "/portal/dev-team" : result.redirect);
+    }
+
     if (action === "exit") {
       if (!isActiveDevSession(session)) {
         return NextResponse.json({ ok: false, error: "This session is not in Dev Mode." }, { status: 409 });
@@ -216,6 +243,14 @@ export async function POST(request: NextRequest) {
       if (persona !== "owner" && persona !== "staff" && persona !== "customer" && persona !== "freelancer") {
         return NextResponse.json({ ok: false, error: "Choose owner, staff, customer, or freelancer." }, { status: 400 });
       }
+      if (fromRealFounder) {
+        const result = await enterSandboxEnvironment(session, {
+          dataset: "demo",
+          access: "writable",
+          persona,
+        });
+        return sessionResponse(result.token, result.redirect);
+      }
       const seed = await seedDemoAgency(session.userId);
       // Guarantee each persona lands on a real workspace/portal (the memoised
       // seed may have run in a prior process, before these existed): staff
@@ -247,33 +282,19 @@ export async function POST(request: NextRequest) {
     if (session.role !== "agency-owner" || !effectiveRole(session).isFounder) {
       return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
     }
-    const seed = await seedDemoAgency(session.userId);
-    // Persist the seeded personas so a follow-up request on the file backend
-    // resolves them (mirrors app/dev/route.ts).
-    await flushPendingWrites();
-
-    // Keep the real return target when re-entering from an existing demo
-    // session, otherwise stash the current (real) agency + whether that origin
-    // session was itself demo/dev (so exit can restore an accepted session).
-    const returnAgencyId = session.devReturnAgencyId ?? session.agencyId;
-    const returnWasDemo = session.devReturnAgencyId
-      ? session.devReturnWasDemo === true
-      : session.isDemo === true;
-    // Stash the exact person entering, so exit restores THEM rather than
-    // whichever owner the agency lookup happens to find first.
-    const returnUserId = session.devReturnUserId ?? session.userId;
-    const token = mintPov(
-      { user: seed.ownerUser, landing: "/portal/agency" },
-      returnAgencyId,
-      seed.agency.id,
-      returnWasDemo,
-      returnUserId,
-    );
-    // Entering Dev Mode lands in the Dev Team portal — our own internal
-    // workspace (Library / Auditor / Profiles / Updates / Notes / Librarian).
-    // The cinematic load-in wraps this transition.
-    return sessionResponse(token, "/portal/dev-team");
+    const sandbox = await enterSandboxEnvironment(session, {
+      dataset: "demo",
+      access: "writable",
+      persona: "owner",
+    });
+    return sessionResponse(sandbox.token, "/portal/dev-team");
   } catch (error) {
+    if (error instanceof SandboxEnvironmentError) {
+      return NextResponse.json(
+        { ok: false, error: error.message },
+        { status: error.status, headers: { "cache-control": "no-store" } },
+      );
+    }
     return authErrorResponse(error);
   }
 }

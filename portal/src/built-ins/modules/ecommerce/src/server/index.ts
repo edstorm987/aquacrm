@@ -22,16 +22,24 @@ export {
 export type { EcommerceFoundation } from "./foundationAdapter";
 
 export { OrderService } from "./orders";
-export type { ServerOrder, ServerOrderItem, OrderStatus, UpdateOrderPatch } from "./orders";
+export { OrderTransitionError } from "./orders";
+export type {
+  ServerOrder,
+  ServerOrderItem,
+  OrderStatus,
+  OrderTransition,
+  OrderTransitionSource,
+  UpdateOrderPatch,
+} from "./orders";
 
 export { BillingService, PLANS } from "./billing";
 export type { Plan, PlanId, Subscription, SubscriptionStatus } from "./billing";
 
-export { ProductService } from "./productsStore";
+export { ProductService, ProductConflictError } from "./productsStore";
 export type { ProductListOptions } from "./productsStore";
 
 export { GiftCardService } from "./giftCards";
-export type { GiftCard } from "./giftCards";
+export type { GiftCard, GiftCardIssueInput } from "./giftCards";
 
 export { ReferralCodeService } from "./referralCodes";
 export type { ReferralCode } from "./referralCodes";
@@ -43,6 +51,17 @@ export type {
   DiscountType,
   PromoEntry,
 } from "./discounts";
+
+export { CheckoutService, CheckoutValidationError, parseCheckoutRequest } from "./checkout";
+export type {
+  CheckoutConfig,
+  CheckoutLineSnapshot,
+  CheckoutOperation,
+  CheckoutOperationStatus,
+  CheckoutQuote,
+  CheckoutRequest,
+  CheckoutRequestItem,
+} from "./checkout";
 
 export type {
   ActivityPort,
@@ -71,6 +90,7 @@ import { ProductService } from "./productsStore";
 import { GiftCardService } from "./giftCards";
 import { ReferralCodeService } from "./referralCodes";
 import { DiscountService } from "./discounts";
+import { CheckoutService } from "./checkout";
 
 export interface EcommerceDeps {
   storage: StoragePort;
@@ -91,6 +111,7 @@ export interface EcommerceContainer {
   giftCards: GiftCardService;
   referrals: ReferralCodeService;
   discounts: DiscountService;
+  checkout: CheckoutService;
   // Cross-cutting refs surfaced to handlers/pages so they don't reach
   // back into the deps bag separately.
   activity: ActivityPort;
@@ -106,6 +127,7 @@ export function buildEcommerceContainer(deps: EcommerceDeps): EcommerceContainer
   const giftCards = new GiftCardService(deps.storage);
   const referrals = new ReferralCodeService(deps.storage);
   const discounts = new DiscountService(deps.storage, giftCards, referrals, deps.membershipBenefits);
+  const checkout = new CheckoutService(deps.storage, products, discounts, giftCards);
   return {
     orders,
     billing,
@@ -113,6 +135,7 @@ export function buildEcommerceContainer(deps: EcommerceDeps): EcommerceContainer
     giftCards,
     referrals,
     discounts,
+    checkout,
     activity: deps.activity,
     events: deps.events,
     tenant: deps.tenant,

@@ -22,14 +22,14 @@
         <span class="brand-name" data-bos-niche-label>Business OS</span>
       </a>
       <nav class="bos-side-nav" data-bos-auto-nav data-bos-active="tools.html"></nav>
-      <a href="/" class="bos-back-to-site" title="Back to milesymedia.co">← Back to website</a>
+      <a href="/milesymedia" class="bos-back-to-site" title="Back to Milesymedia">← Back to website</a>
     </aside>
 
     <main class="bos-main">
       <section class="bos-tools-page">
         <span class="eyebrow">Toolbox</span>
         <h1>Free tools that move the needle.</h1>
-        <p class="lead">Every tool here is the same one we use on paying clients. The Health Check unlocks the rest — once we know where you're leaking, the other tools target the fix.</p>
+        <p class="lead">Every option below is live now. Run the Health Check, review the saved diagnostic, then use Quick Wins to act on what it found.</p>
 
         <div class="bos-tools-grid" id="bosToolsGrid"></div>
       </section>
@@ -38,104 +38,43 @@
 
   <script src="/business-os/bos.js"></script>
   <script>
-    /* The 6 tools shown in the BOS toolbox. Add more by appending —
-       the unlock rule is set per-tool. Today only the Health Check is
-       unconditionally unlocked; the rest unlock once the user has a
-       Health Check on file. SEO audit also branches on whether the
-       user has a website on file. */
+    /* Keep this list limited to destinations that are genuinely mounted. */
     var TOOLS = [
       {
         id: 'health-check',
         icon: '🩺',
         title: 'Health Check',
         excerpt: 'A 12-minute self-audit across 5 topics — visibility, website, customer flow, business basics, retention. Drives every other tool here.',
-        href: 'diagnostic.html',
-        unlocked: true,
+        href: '/health-check',
         primary: true
       },
       {
-        id: 'seo-audit',
-        icon: '🔎',
-        title: 'SEO audit',
-        excerpt: 'Where you rank, what\'s missing, the 3 fixes that\'ll move you fastest. Pulled from your live site if you have one.',
-        href: '/resources/seo-audit',
-        requiresHc: true,
-        requiresWebsite: true
+        id: 'diagnostic',
+        icon: '📊',
+        title: 'My Diagnostic',
+        excerpt: 'Review the Health Check results saved on this device, including previous runs and the evidence behind your next move.',
+        href: 'diagnostic.html'
       },
       {
-        id: 'site-speed',
+        id: 'quick-wins',
         icon: '⚡',
-        title: 'Site speed test',
-        excerpt: 'A Lighthouse-style read of your homepage with a plain-English fix list. We\'ll tell you which slowdowns actually cost you sales.',
-        href: '/resources/site-speed',
-        requiresHc: true
-      },
-      {
-        id: 'accessibility',
-        icon: '♿',
-        title: 'Accessibility audit',
-        excerpt: 'A WCAG quick scan of your site. Catches the issues that lose you sales AND open you up to compliance complaints.',
-        href: '/resources/accessibility-audit',
-        requiresHc: true
-      },
-      {
-        id: 'ux-orchestration',
-        icon: '🎯',
-        title: 'UX orchestration',
-        excerpt: 'Map your customer journey from first touch to checkout. We highlight every friction point that\'s quietly killing conversion.',
-        href: '/resources/ux-orchestration',
-        requiresHc: true
-      },
-      {
-        id: 'copy-clinic',
-        icon: '✍️',
-        title: 'Copy clinic',
-        excerpt: 'A 5-second hero rewrite. Paste your current copy, get a tighter version that survives the attention test.',
-        href: '/resources/copy-clinic',
-        requiresHc: true
+        title: 'Quick Wins',
+        excerpt: 'Short, practical guidance matched to the areas covered by the Health Check. Start with the weakest topic and take one useful action.',
+        href: 'quick-wins.html'
       }
     ];
 
     (function () {
       var grid = document.getElementById('bosToolsGrid');
-      var hcDone = false;
-      var hasWebsite = false;
-      try {
-        hcDone = !!localStorage.getItem('bos.healthCheck');
-        var company = JSON.parse(localStorage.getItem('bos.company') || '{}') || {};
-        hasWebsite = !!(company.website && String(company.website).trim());
-      } catch (e) {}
-
       grid.innerHTML = TOOLS.map(function (t) {
-        var locked = t.requiresHc && !hcDone;
-        var noSite = t.requiresWebsite && !hasWebsite;
         var cls = 'bos-tool-card';
         if (t.primary) cls += ' is-primary';
-        if (locked) cls += ' is-locked';
 
-        var bodyHref, ctaText, ctaSub;
-        if (locked) {
-          bodyHref = 'diagnostic.html';
-          ctaText = 'Complete the Health Check to unlock';
-          ctaSub  = '';
-        } else if (noSite) {
-          bodyHref = '/#contact';
-          ctaText = 'You don\'t have a website yet';
-          ctaSub  = 'Want us to build you one? →';
-        } else {
-          bodyHref = t.href;
-          ctaText  = t.primary
-            ? (hcDone ? 'Retake the Health Check →' : 'Start now →')
-            : 'Open tool →';
-          ctaSub   = '';
-        }
-
-        return '<a class="' + cls + '" href="' + bodyHref + '"' + (locked ? ' aria-disabled="true"' : '') + '>'
-          + (locked ? '<span class="bos-tool-lock" aria-hidden>🔒</span>' : '')
+        return '<a class="' + cls + '" href="' + t.href + '">'
           + '<div class="bos-tool-icon">' + t.icon + '</div>'
           + '<h2 class="bos-tool-title">' + t.title + '</h2>'
           + '<p class="bos-tool-excerpt">' + t.excerpt + '</p>'
-          + '<div class="bos-tool-cta">' + ctaText + (ctaSub ? '<span class="bos-tool-cta-sub">' + ctaSub + '</span>' : '') + '</div>'
+          + '<div class="bos-tool-cta">' + (t.primary ? 'Start or retake →' : 'Open →') + '</div>'
           + '</a>';
       }).join('');
     })();

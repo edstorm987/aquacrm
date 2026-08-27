@@ -2,11 +2,25 @@
 
 ← [todo.md](../todo.md) · [development.md](../../development.md) · **[HANDOFF »](../../context/archive/finance-command-surface-handoff.md)** (build record — problems, tests, decisions, what's left)
 
-**Status: ✅ COMPLETE — P1–P5 + the You-Deserve-It wire all shipped (2026-08-19)** — coherence,
+> **Current correction — updated 2026-08-26:** this is the dated delivery plan for the
+> 2026-08-19 P1–P5 batch, not a statement that Finance is production-complete.
+> The current review's source/behaviour work is complete through [issue #121](../issues.md).
+> Settings #120 and commercial-plan convergence #121 retain mounted browser acceptance. Client
+> Payment Plans are now canonical schedules and Finance Plans are pricing templates. Invoice identity #113,
+> collectible/outstanding payment allocation #114, complete Finance runtime validity #115,
+> recoverable plan assignment #116, exactly-once recurring posting #117, canonical
+> selected-currency reporting #118 and durable refund accounting #119 were resolved on
+> 2026-08-26 with cross-process transactions, mounted/Checkout balance guards, byte-identical
+> schema refusal and fault/race/reload proof; the current Finance gate passes 271/271. The current authority is
+> [checklist.md](../checklist.md).
+
+**Historical delivery status: ✅ P1–P5 + the You-Deserve-It wire shipped (2026-08-19)** — coherence,
 channel model + money-in view, Stripe (TEST-mode, unit-tested), one-button close (client + lead),
-AR/AP aging, and delight-spend → Finance. **Remaining is non-code:** Ed's **live Stripe
-verification** (`npm i stripe` + TEST keys + a webhook endpoint), and a `finance:refund`/
-`finance:chargeback` alert in `operationalAlerts.ts` (the client-health worker's file). See
+AR/AP aging, and delight-spend → Finance. `stripe@22.5.0` and the encrypted Finance
+settings path are now installed. **The original plan's remaining verification was:** Ed's
+real/test keys plus a signed HTTPS webhook walkthrough, and a `finance:refund`/
+`finance:chargeback` alert in `operationalAlerts.ts` (the client-health worker's file); the
+2026-08-24 correction above records the larger current backlog. See
 [updates.md](../updates.md) + [status.md](../status.md).
 Turn Finance from a real-but-sprawling *manual* money
 tracker into a **visibility + orchestration layer across every payment channel** —

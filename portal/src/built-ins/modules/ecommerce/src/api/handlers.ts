@@ -12,12 +12,13 @@ import {
   createBillingPortalSession,
   constructWebhookEvent,
   readStripeKeysFromInstall,
-  type StripeLineItem,
 } from "../lib/stripe/server";
-import type { ServerOrderItem, UpdateOrderPatch } from "../server/orders";
+import { OrderTransitionError, type ServerOrderItem, type UpdateOrderPatch } from "../server/orders";
+import { CheckoutValidationError, parseCheckoutRequest } from "../server/checkout";
+import { ProductConflictError } from "../server/productsStore";
 import type { Product } from "../lib/products";
 import type { CustomDiscountCode } from "../server/discounts";
-import type { GiftCard } from "../server/giftCards";
+import type { GiftCardIssueInput } from "../server/giftCards";
 import { formatUkDate } from "../lib/safeDate";
 import type { ShippingRate, ShippingZone } from "../lib/admin/shipping";
 import type { ProductCollection } from "../lib/admin/collections";
@@ -40,6 +41,7 @@ function json(body: unknown, status = 200, headers: Record<string, string> = {})
 }
 function badRequest(msg: string): Response { return json({ ok: false, error: msg }, 400); }
 function notFound(msg: string): Response { return json({ ok: false, error: msg }, 404); }
+function conflict(msg: string): Response { return json({ ok: false, error: msg }, 409); }
 function serverError(err: unknown): Response {
   const m = err instanceof Error ? err.message : String(err);
   return json({ ok: false, error: m }, 500);
@@ -74,7 +76,14 @@ export async function listProductsHandler(req: Request, ctx: PluginCtx): Promise
       includeHidden: url.searchParams.get("includeHidden") === "true",
       includeArchived: url.searchParams.get("includeArchived") === "true",
     });
-    return json({ ok: true, products });
+    const query = (url.searchParams.get("q") ?? "").trim().toLowerCase();
+    const requestedLimit = Number(url.searchParams.get("limit") ?? products.length);
+    const limit = Number.isSafeInteger(requestedLimit) ? Math.max(1, Math.min(100, requestedLimit)) : products.length;
+    const filtered = (query
+      ? products.filter(product => [product.name, product.slug, product.tagline, product.range]
+          .some(value => value?.toLowerCase().includes(query)))
+      : products).slice(0, limit);
+    return json({ ok: true, count: filtered.length, products: filtered });
   } catch (err) {
     return serverError(err);
   }
@@ -97,16 +106,33 @@ export async function getProductHandler(req: Request, ctx: PluginCtx): Promise<R
 export async function upsertProductHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   const guard = methodGuard(req, "POST"); if (guard) return guard;
   const scope = requireClientScope(ctx); if (typeof scope !== "string") return scope;
-  const body = await safeJson<Product>(req);
-  if (!body || typeof body.slug !== "string" || typeof body.name !== "string") {
-    return badRequest("slug + name required.");
+  const body = await safeJson<
+    | { command: "details"; product: Product; expectedVersion?: number; create?: boolean }
+    | { command: "variants"; productId: string; expectedVersion: number; options: Product["options"]; variants: Product["variants"] }
+  >(req);
+  if (!body || (body.command !== "details" && body.command !== "variants")) {
+    return badRequest("A versioned product command is required.");
   }
   try {
     const c = containerFor(ctx.storage);
-    const product = await c.products.upsertProduct(body);
-    c.events.emit({ agencyId: ctx.agencyId, clientId: scope }, "product.updated", { slug: body.slug });
+    const product = body.command === "details"
+      ? body.create
+        ? await c.products.createProduct(body.product)
+        : await c.products.saveProductDetails(body.product, body.expectedVersion)
+      : await c.products.saveProductVariants(
+          body.productId,
+          body.expectedVersion,
+          body.options,
+          body.variants,
+        );
+    c.events.emit(
+      { agencyId: ctx.agencyId, clientId: scope },
+      body.command === "details" && body.create ? "product.created" : "product.updated",
+      { slug: product.slug, id: product.id, version: product.version },
+    );
     return json({ ok: true, product }, 200);
   } catch (err) {
+    if (err instanceof ProductConflictError) return conflict(err.message);
     return serverError(err);
   }
 }
@@ -119,12 +145,13 @@ export async function deleteProductHandler(req: Request, ctx: PluginCtx): Promis
   if (!slug) return badRequest("slug required.");
   try {
     const c = containerFor(ctx.storage);
-    const removed = await c.products.deleteProduct(slug);
-    if (removed) {
-      c.events.emit({ agencyId: ctx.agencyId, clientId: scope }, "product.deleted", { slug });
+    const archived = await c.products.archiveProduct(slug);
+    if (archived) {
+      c.events.emit({ agencyId: ctx.agencyId, clientId: scope }, "product.updated", { slug, archived: true, version: archived.version });
     }
-    return json({ ok: removed });
+    return json({ ok: Boolean(archived), product: archived });
   } catch (err) {
+    if (err instanceof ProductConflictError) return conflict(err.message);
     return serverError(err);
   }
 }
@@ -159,11 +186,65 @@ export async function getOrderHandler(req: Request, ctx: PluginCtx): Promise<Res
   }
 }
 
+export async function getOrderBySessionHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const scope = requireClientScope(ctx); if (typeof scope !== "string") return scope;
+  const sessionId = new URL(req.url).searchParams.get("sessionId")?.trim();
+  if (!sessionId) return badRequest("sessionId required.");
+  try {
+    const c = containerFor(ctx.storage);
+    const order = await c.orders.getOrderByStripeSession(sessionId);
+    if (order) {
+      if (order.clientId !== scope) return notFound("Order not found.");
+      return json({ ok: true, state: "ready", order });
+    }
+    const operation = await c.checkout.getOperationBySession(sessionId);
+    if (operation) {
+      return json({ ok: true, state: "pending" }, 202, { "retry-after": "1" });
+    }
+    return notFound("Checkout session not found.");
+  } catch (err) {
+    return serverError(err);
+  }
+}
+
 export interface UpdateOrderStatusBody {
   id: string;
   status: "pending" | "paid" | "fulfilled" | "shipped" | "delivered" | "refunded" | "cancelled";
   trackingNumber?: string;
   trackingCarrier?: string;
+  operationId?: string;
+}
+
+function emitOrderLifecycle(
+  ctx: PluginCtx,
+  order: { id: string; status: UpdateOrderStatusBody["status"]; amountTotal: number; currency: string; refundedAmountCents?: number },
+  emit: ReturnType<typeof containerFor>["events"]["emit"],
+): void {
+  const eventName = order.status === "refunded"
+    ? "order.refunded"
+    : order.status === "cancelled"
+      ? "order.cancelled"
+      : order.status === "paid"
+        ? "order.paid"
+        : order.status === "shipped"
+          ? "order.shipped"
+          : order.status === "fulfilled" || order.status === "delivered"
+            ? "order.fulfilled"
+            : null;
+  if (!eventName) return;
+  emit(
+    { agencyId: ctx.agencyId, clientId: ctx.clientId },
+    eventName,
+    {
+      orderId: order.id,
+      status: order.status,
+      amountTotal: order.amountTotal,
+      currency: order.currency,
+      refundedAmountCents: order.status === "cancelled"
+        ? order.amountTotal
+        : order.refundedAmountCents,
+    },
+  );
 }
 
 export async function updateOrderStatusHandler(req: Request, ctx: PluginCtx): Promise<Response> {
@@ -178,11 +259,12 @@ export async function updateOrderStatusHandler(req: Request, ctx: PluginCtx): Pr
     const next = await c.orders.updateOrderStatus(body.id, body.status, {
       trackingNumber: body.trackingNumber,
       trackingCarrier: body.trackingCarrier,
-    });
+    }, body.operationId);
     if (!next) return notFound("Order not found.");
-    c.events.emit({ agencyId: ctx.agencyId, clientId: scope }, "order.shipped", { orderId: body.id, status: body.status });
+    emitOrderLifecycle(ctx, next, c.events.emit.bind(c.events));
     return json({ ok: true, order: next });
   } catch (err) {
+    if (err instanceof OrderTransitionError) return conflict(err.message);
     return serverError(err);
   }
 }
@@ -190,14 +272,17 @@ export async function updateOrderStatusHandler(req: Request, ctx: PluginCtx): Pr
 export async function updateOrderHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   const guard = methodGuard(req, "PATCH"); if (guard) return guard;
   const scope = requireClientScope(ctx); if (typeof scope !== "string") return scope;
-  const body = await safeJson<{ id: string; patch: UpdateOrderPatch }>(req);
+  const body = await safeJson<{ id: string; patch: UpdateOrderPatch; operationId?: string }>(req);
   if (!body?.id || !body.patch) return badRequest("id + patch required.");
   try {
     const c = containerFor(ctx.storage);
     const existing = await c.orders.getOrder(body.id);
     if (!existing || existing.clientId !== scope) return notFound("Order not found.");
-    const order = await c.orders.updateOrder(body.id, body.patch);
+    const order = await c.orders.updateOrder(body.id, body.patch, { operationId: body.operationId });
     if (!order) return notFound("Order not found.");
+    if (body.patch.status && body.patch.status !== existing.status) {
+      emitOrderLifecycle(ctx, order, c.events.emit.bind(c.events));
+    }
     await c.activity.logActivity({
       agencyId: ctx.agencyId,
       clientId: scope,
@@ -208,6 +293,7 @@ export async function updateOrderHandler(req: Request, ctx: PluginCtx): Promise<
     });
     return json({ ok: true, order });
   } catch (err) {
+    if (err instanceof OrderTransitionError) return conflict(err.message);
     return serverError(err);
   }
 }
@@ -259,46 +345,154 @@ function money(cents: number, currency: string): string {
 
 // ─── Stripe — checkout ────────────────────────────────────────────────────
 
-export interface CheckoutBody {
-  lineItems: StripeLineItem[];
-  customerEmail?: string;
-  metadata?: Record<string, string>;
-  discountAmount?: number;
-}
-
 export async function stripeCheckoutHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   const guard = methodGuard(req, "POST"); if (guard) return guard;
-  const body = await safeJson<CheckoutBody>(req);
-  if (!body || !Array.isArray(body.lineItems) || body.lineItems.length === 0) {
-    return badRequest("lineItems required.");
-  }
+  const scope = requireClientScope(ctx); if (typeof scope !== "string") return scope;
+  const rawBody = await safeJson<unknown>(req);
   try {
+    const body = parseCheckoutRequest(rawBody);
+    const c = containerFor(ctx.storage);
+    const config = ctx.install.config as Record<string, unknown>;
+    const operation = await c.checkout.prepare(body, checkoutServiceConfig(ctx, scope));
+    const origin = getOrigin(req);
+    const successUrl = checkoutReturnUrl(
+      body.successPath,
+      typeof config.successUrl === "string" ? config.successUrl : undefined,
+      "/checkout/success?session_id={CHECKOUT_SESSION_ID}",
+      origin,
+    );
+    const cancelUrl = checkoutReturnUrl(
+      body.cancelPath,
+      typeof config.cancelUrl === "string" ? config.cancelUrl : undefined,
+      "/cart",
+      origin,
+    );
+    const metadata = {
+      agencyId: ctx.agencyId,
+      clientId: scope,
+      installId: ctx.install.id,
+      checkoutOperationId: operation.id,
+      expectedAmountTotal: String(operation.amountTotal),
+      expectedCurrency: operation.currency,
+      expectedItemCount: String(operation.lines.length),
+      referralCodeId: body.referralCodeId ?? "",
+      endCustomerUserId: body.endCustomerUserId ?? "",
+    };
+    if (operation.amountTotal === 0) {
+      const sessionId = operation.providerSessionId ?? `zero_${operation.id}`;
+      const completedUrl = checkoutCompletionUrl(successUrl, sessionId);
+      if (!operation.providerSessionId) {
+        await c.checkout.recordProviderSession(operation.id, { id: sessionId, url: completedUrl });
+      }
+      const applied = await applyVerifiedEcommerceWebhookEvent({
+        id: `checkout-zero:${operation.id}`,
+        type: "checkout.session.completed",
+        data: { object: {
+          id: sessionId,
+          payment_status: "paid",
+          amount_total: 0,
+          currency: operation.currency,
+          customer_email: body.customerEmail,
+          metadata,
+        } },
+      }, ctx);
+      if (!applied.ok) return json({ ok: false, error: applied.error, retryable: true }, 503);
+      return json({ ok: true, id: sessionId, url: completedUrl, zeroBalance: true });
+    }
+    if (operation.providerSessionId && operation.providerUrl) {
+      const repaired = await c.checkout.recordProviderSession(operation.id, {
+        id: operation.providerSessionId,
+        url: operation.providerUrl,
+      });
+      return json({ ok: true, id: repaired.providerSessionId, url: repaired.providerUrl, replayed: true });
+    }
     const keys = readStripeKeysFromInstall(stripeConfig(ctx));
-    const config = ctx.install.config as Record<string, string>;
-    const successUrl = config.successUrl ?? `${getOrigin(req)}/checkout/success?session={CHECKOUT_SESSION_ID}`;
-    const cancelUrl = config.cancelUrl ?? `${getOrigin(req)}/cart`;
     const session = await createCheckoutSession(keys, {
-      lineItems: body.lineItems,
+      lineItems: c.checkout.providerLineItems(operation),
       customerEmail: body.customerEmail,
-      metadata: {
-        ...body.metadata,
-        agencyId: ctx.agencyId,
-        clientId: ctx.clientId ?? "",
-        installId: ctx.install.id,
-      },
+      metadata,
       successUrl,
       cancelUrl,
-      discountAmount: body.discountAmount,
+      discountAmount: operation.discountAmount,
+      idempotencyKey: `aqua-checkout-${ctx.install.id}-${operation.id}`,
+      expiresAt: operation.expiresAt,
+      collectShippingAddress: operation.lines.some(line => !line.digital),
+      allowedShippingCountries: operation.shipping.allowedCountries,
     });
-    return json({ ok: true, ...session });
+    const recorded = await c.checkout.recordProviderSession(operation.id, session);
+    return json({ ok: true, id: recorded.providerSessionId, url: recorded.providerUrl });
   } catch (err) {
+    if (err instanceof CheckoutValidationError) return badRequest(err.message);
+    return serverError(err);
+  }
+}
+
+export async function checkoutQuoteHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const guard = methodGuard(req, "POST"); if (guard) return guard;
+  const scope = requireClientScope(ctx); if (typeof scope !== "string") return scope;
+  try {
+    const body = parseCheckoutRequest(await safeJson<unknown>(req));
+    const quote = await containerFor(ctx.storage).checkout.quote(body, checkoutServiceConfig(ctx, scope));
+    return json({ ok: true, quote });
+  } catch (err) {
+    if (err instanceof CheckoutValidationError) return badRequest(err.message);
     return serverError(err);
   }
 }
 
 // ─── Stripe — webhook ─────────────────────────────────────────────────────
 
-const processedEventIds = new Set<string>();
+export interface EcommerceWebhookEvent {
+  id: string;
+  type: string;
+  data: { object: Record<string, unknown> };
+}
+
+interface EcommerceWebhookResult {
+  kind: "checkout" | "refund" | "expired" | "ignored";
+  orderId?: string;
+  isNew?: boolean;
+  ignoredType?: string;
+}
+
+interface EcommerceWebhookDelivery {
+  id: string;
+  type: string;
+  status: "processing" | "failed" | "completed";
+  attempts: number;
+  receivedAt: number;
+  updatedAt: number;
+  completedAt?: number;
+  lastError?: string;
+  result?: EcommerceWebhookResult;
+}
+
+export interface EcommerceWebhookApplyResult {
+  ok: boolean;
+  duplicate?: boolean;
+  retryable?: boolean;
+  orderId?: string;
+  ignored?: string;
+  error?: string;
+}
+
+const webhookDeliveryKey = (eventId: string): string =>
+  `ecommerce/webhook/delivery/${encodeURIComponent(eventId)}`;
+const webhookLocalTails = new Map<string, Promise<void>>();
+
+async function localWebhookExclusive<T>(key: string, operation: () => Promise<T>): Promise<T> {
+  const previous = webhookLocalTails.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const tail = previous.then(() => gate);
+  webhookLocalTails.set(key, tail);
+  await previous;
+  try { return await operation(); }
+  finally {
+    release();
+    if (webhookLocalTails.get(key) === tail) webhookLocalTails.delete(key);
+  }
+}
 
 export async function stripeWebhookHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   const guard = methodGuard(req, "POST"); if (guard) return guard;
@@ -309,133 +503,284 @@ export async function stripeWebhookHandler(req: Request, ctx: PluginCtx): Promis
 
   try {
     const keys = readStripeKeysFromInstall(stripeConfig(ctx));
-    const event = (await constructWebhookEvent(keys, rawBody, sig)) as {
-      id: string;
-      type: string;
-      data: { object: Record<string, unknown> };
-    };
-
-    // Idempotency cache (single-process). For HA, swap to a SETNX/Redis or
-    // a `processed_webhook_events` table with a unique index.
-    if (processedEventIds.has(event.id)) {
-      return json({ ok: true, deduped: true });
-    }
-    processedEventIds.add(event.id);
-
-    const c = containerFor(ctx.storage);
-
-    switch (event.type) {
-      case "checkout.session.completed": {
-        const sess = event.data.object as {
-          id: string;
-          payment_intent?: string;
-          amount_total?: number;
-          currency?: string;
-          customer_email?: string;
-          customer_details?: { name?: string };
-          shipping_details?: { address?: Record<string, string> };
-          metadata?: Record<string, string>;
-          line_items?: { data?: Array<{ description?: string; quantity?: number; amount_total?: number; currency?: string; price?: { metadata?: Record<string, string> } }> };
-        };
-        const items: ServerOrderItem[] = (sess.line_items?.data ?? []).map(li => ({
-          name: li.description ?? "Item",
-          quantity: li.quantity ?? 1,
-          unitAmount: li.amount_total ? Math.round(li.amount_total / (li.quantity ?? 1)) : 0,
-          currency: li.currency ?? "gbp",
-        }));
-        // R6 — `referralCodeId` and `endCustomerUserId` are stamped at
-        // checkout into the Stripe session metadata by the storefront's
-        // checkout API. Reading them here lets the order-creation event
-        // payload carry them downstream to affiliates + memberships.
-        const referralCodeId = sess.metadata?.referralCodeId || undefined;
-        const endCustomerUserId = sess.metadata?.endCustomerUserId || undefined;
-        const { order, isNew } = await c.orders.upsertOrderByStripeSession({
-          clientId: ctx.clientId ?? sess.metadata?.clientId ?? "",
-          stripeSessionId: sess.id,
-          paymentIntentId: sess.payment_intent,
-          amountTotal: sess.amount_total ?? 0,
-          currency: sess.currency ?? "gbp",
-          customerEmail: sess.customer_email,
-          customerName: sess.customer_details?.name,
-          shippingAddress: sess.shipping_details?.address as never,
-          items,
-          metadata: sess.metadata,
-          referralCodeId,
-          endCustomerUserId,
-        });
-        if (isNew) {
-          // R6 — emit order.created exactly once per order. Foundation
-          // routes this to affiliates' AttributionService when an
-          // affiliates install exists for the same client. The
-          // `referralCodeId` + `endCustomerUserId` fields are the
-          // load-bearing additions; `subtotal` is the pre-discount
-          // amount (falls back to amountTotal when no discount applied).
-          const subtotal = order.amountTotal + (order.discountAmount ?? 0);
-          c.events.emit(
-            { agencyId: ctx.agencyId, clientId: ctx.clientId },
-            "order.created",
-            {
-              orderId: order.id,
-              clientId: order.clientId,
-              amountTotal: order.amountTotal,
-              currency: order.currency,
-              subtotal,
-              referralCodeId: order.referralCodeId,
-              endCustomerUserId: order.endCustomerUserId,
-              discountSource: order.discountSource,
-            },
-          );
-          await c.activity.logActivity({
-            agencyId: ctx.agencyId,
-            clientId: ctx.clientId,
-            category: "ecommerce",
-            action: "order.created",
-            message: `Order ${order.id} created (${order.amountTotal / 100} ${order.currency})${order.referralCodeId ? ` via referral ${order.referralCodeId}` : ""}.`,
-            metadata: {
-              orderId: order.id,
-              sessionId: sess.id,
-              referralCodeId: order.referralCodeId,
-              endCustomerUserId: order.endCustomerUserId,
-            },
-          });
-        }
-        c.events.emit(
-          { agencyId: ctx.agencyId, clientId: ctx.clientId },
-          "order.paid",
-          { orderId: order.id, amountTotal: order.amountTotal, currency: order.currency },
-        );
-        await c.activity.logActivity({
-          agencyId: ctx.agencyId,
-          clientId: ctx.clientId,
-          category: "ecommerce",
-          action: "order.paid",
-          message: `Order ${order.id} paid (${order.amountTotal / 100} ${order.currency}).`,
-          metadata: { orderId: order.id, sessionId: sess.id },
-        });
-        return json({ ok: true, orderId: order.id });
-      }
-
-      case "charge.refunded": {
-        const charge = event.data.object as { payment_intent?: string };
-        if (charge.payment_intent) {
-          const refunded = await c.orders.markOrderRefunded(charge.payment_intent);
-          if (refunded) {
-            c.events.emit(
-              { agencyId: ctx.agencyId, clientId: ctx.clientId },
-              "order.refunded",
-              { orderId: refunded.id },
-            );
-          }
-        }
-        return json({ ok: true });
-      }
-
-      default:
-        return json({ ok: true, ignored: event.type });
-    }
+    const event = (await constructWebhookEvent(keys, rawBody, sig)) as EcommerceWebhookEvent;
+    const result = await applyVerifiedEcommerceWebhookEvent(event, ctx);
+    if (!result.ok) return json({ ok: false, error: result.error, retryable: true }, 503);
+    return json({ ok: true, deduped: result.duplicate, orderId: result.orderId, ignored: result.ignored });
   } catch (err) {
     return serverError(err);
   }
+}
+
+export async function applyVerifiedEcommerceWebhookEvent(
+  event: EcommerceWebhookEvent,
+  ctx: PluginCtx,
+): Promise<EcommerceWebhookApplyResult> {
+  const execute = async (): Promise<EcommerceWebhookApplyResult> => {
+    const stored = await ctx.storage.get<EcommerceWebhookDelivery>(webhookDeliveryKey(event.id));
+    if (stored?.status === "completed") {
+      return {
+        ok: true,
+        duplicate: true,
+        orderId: stored.result?.orderId,
+        ignored: stored.result?.ignoredType,
+      };
+    }
+    let delivery: EcommerceWebhookDelivery = {
+      id: event.id,
+      type: event.type,
+      status: "processing",
+      attempts: (stored?.attempts ?? 0) + 1,
+      receivedAt: stored?.receivedAt ?? Date.now(),
+      updatedAt: Date.now(),
+      result: stored?.result,
+    };
+    await ctx.storage.set(webhookDeliveryKey(event.id), delivery);
+    try {
+      const c = containerFor(ctx.storage);
+      if (!delivery.result) {
+        delivery = {
+          ...delivery,
+          result: await applyEcommerceWebhookState(event, ctx, c),
+          updatedAt: Date.now(),
+        };
+        await ctx.storage.set(webhookDeliveryKey(event.id), delivery);
+      }
+      const result = delivery.result;
+      if (!result) throw new Error(`Webhook ${event.id} did not persist an application result.`);
+      if (result.kind === "checkout" || result.kind === "refund") {
+        const order = result.orderId ? await c.orders.getOrder(result.orderId) : null;
+        if (!order) throw new Error(`Webhook ${event.id} lost its applied order result.`);
+        if (result.kind === "checkout") {
+          if (result.isNew) {
+            await c.activity.logActivity({
+              idempotencyKey: `ecommerce:webhook:${event.id}:order-created`,
+              agencyId: ctx.agencyId,
+              clientId: order.clientId,
+              category: "ecommerce",
+              action: "order.created",
+              message: `Order ${order.id} created (${order.amountTotal / 100} ${order.currency})${order.referralCodeId ? ` via referral ${order.referralCodeId}` : ""}.`,
+              metadata: {
+                orderId: order.id,
+                sessionId: order.stripeSessionId,
+                referralCodeId: order.referralCodeId,
+                endCustomerUserId: order.endCustomerUserId,
+              },
+            });
+            const subtotal = order.subtotal ?? order.amountTotal + (order.discountAmount ?? 0);
+            c.events.emit(
+              { agencyId: ctx.agencyId, clientId: order.clientId },
+              "order.created",
+              {
+                operationId: event.id,
+                orderId: order.id,
+                clientId: order.clientId,
+                amountTotal: order.amountTotal,
+                currency: order.currency,
+                subtotal,
+                referralCodeId: order.referralCodeId,
+                endCustomerUserId: order.endCustomerUserId,
+                discountSource: order.discountSource,
+              },
+            );
+          }
+          await c.activity.logActivity({
+            idempotencyKey: `ecommerce:webhook:${event.id}:order-paid`,
+            agencyId: ctx.agencyId,
+            clientId: order.clientId,
+            category: "ecommerce",
+            action: "order.paid",
+            message: `Order ${order.id} paid (${order.amountTotal / 100} ${order.currency}).`,
+            metadata: { orderId: order.id, sessionId: order.stripeSessionId },
+          });
+          c.events.emit(
+            { agencyId: ctx.agencyId, clientId: order.clientId },
+            "order.paid",
+            { operationId: event.id, orderId: order.id, amountTotal: order.amountTotal, currency: order.currency },
+          );
+        } else {
+          await c.activity.logActivity({
+            idempotencyKey: `ecommerce:webhook:${event.id}:order-refunded`,
+            agencyId: ctx.agencyId,
+            clientId: order.clientId,
+            category: "ecommerce",
+            action: "order.refunded",
+            message: `Order ${order.id} refund total is ${(order.refundedAmountCents ?? 0) / 100} ${order.currency}.`,
+            metadata: {
+              orderId: order.id,
+              paymentIntentId: order.paymentIntentId,
+              refundedAmountCents: order.refundedAmountCents,
+            },
+          });
+          c.events.emit(
+            { agencyId: ctx.agencyId, clientId: order.clientId },
+            "order.refunded",
+            {
+              operationId: event.id,
+              orderId: order.id,
+              status: order.status,
+              amountTotal: order.amountTotal,
+              currency: order.currency,
+              refundedAmountCents: order.refundedAmountCents,
+            },
+          );
+        }
+      }
+      delivery = {
+        ...delivery,
+        status: "completed",
+        completedAt: Date.now(),
+        updatedAt: Date.now(),
+        lastError: undefined,
+      };
+      await ctx.storage.set(webhookDeliveryKey(event.id), delivery);
+      return {
+        ok: true,
+        duplicate: false,
+        orderId: result.orderId,
+        ignored: result.ignoredType,
+      };
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      delivery = { ...delivery, status: "failed", lastError: error, updatedAt: Date.now() };
+      try { await ctx.storage.set(webhookDeliveryKey(event.id), delivery); }
+      catch (recordError) {
+        return {
+          ok: false,
+          retryable: true,
+          error: `${error}; failed to persist webhook retry state: ${recordError instanceof Error ? recordError.message : String(recordError)}`,
+        };
+      }
+      return { ok: false, retryable: true, error };
+    }
+  };
+  try {
+    if (ctx.storage.runExclusive) {
+      return await ctx.storage.runExclusive("ecommerce:webhook-collection", execute);
+    }
+    return await localWebhookExclusive(`${ctx.install.id}:webhook-collection`, execute);
+  } catch (err) {
+    return { ok: false, retryable: true, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+async function applyEcommerceWebhookState(
+  event: EcommerceWebhookEvent,
+  ctx: PluginCtx,
+  c: ReturnType<typeof containerFor>,
+): Promise<EcommerceWebhookResult> {
+  if (event.type === "checkout.session.completed") {
+    const sess = event.data.object as {
+      id?: string;
+      payment_status?: string;
+      payment_intent?: string;
+      amount_total?: number;
+      currency?: string;
+      customer_email?: string;
+      customer_details?: { name?: string };
+      shipping_details?: { address?: Record<string, string> };
+      metadata?: Record<string, string>;
+      line_items?: { data?: Array<{ description?: string; quantity?: number; amount_total?: number; currency?: string }> };
+    };
+    if (!sess.id) throw new Error("Checkout webhook session id is required.");
+    if (sess.payment_status !== "paid") {
+      throw new Error(`Checkout session ${sess.id} is ${sess.payment_status ?? "missing payment_status"}, not paid.`);
+    }
+    if (!Number.isSafeInteger(sess.amount_total) || (sess.amount_total ?? -1) < 0) {
+      throw new Error(`Checkout session ${sess.id} amount_total must be a non-negative integer.`);
+    }
+    const currency = sess.currency?.trim().toLowerCase();
+    if (!currency) throw new Error(`Checkout session ${sess.id} currency is required.`);
+    const clientId = ctx.clientId ?? sess.metadata?.clientId;
+    if (!clientId) throw new Error(`Checkout session ${sess.id} has no client scope.`);
+    if (ctx.clientId && sess.metadata?.clientId && sess.metadata.clientId !== ctx.clientId) {
+      throw new Error(`Checkout session ${sess.id} client scope does not match this install.`);
+    }
+    const operationId = sess.metadata?.checkoutOperationId;
+    if (!operationId) throw new Error(`Checkout session ${sess.id} has no authoritative checkout operation.`);
+    const checkout = await c.checkout.getOperation(operationId);
+    if (!checkout) throw new Error(`Checkout session ${sess.id} references unknown operation ${operationId}.`);
+    if (checkout.providerSessionId !== sess.id) {
+      throw new Error(`Checkout session ${sess.id} does not own operation ${operationId}.`);
+    }
+    if (checkout.amountTotal !== sess.amount_total || checkout.currency !== currency) {
+      throw new Error(`Checkout session ${sess.id} does not match its authoritative total or currency.`);
+    }
+    if (Number(sess.metadata?.expectedAmountTotal) !== checkout.amountTotal
+      || sess.metadata?.expectedCurrency?.toLowerCase() !== checkout.currency
+      || Number(sess.metadata?.expectedItemCount) !== checkout.lines.length) {
+      throw new Error(`Checkout session ${sess.id} metadata does not match operation ${operationId}.`);
+    }
+    const settledCheckout = await c.checkout.settle(operationId, sess.id, true);
+    const items: ServerOrderItem[] = checkout.lines.map(line => ({
+      sku: line.sku,
+      name: line.name,
+      description: line.description,
+      quantity: line.quantity,
+      unitAmount: line.unitAmount,
+      currency: line.currency,
+      digital: line.digital,
+      downloadUrl: line.downloadUrl,
+      licenseKey: line.kind === "gift_card_purchase" ? settledCheckout.issuedGiftCardCode : undefined,
+    }));
+    const { order, isNew } = await c.orders.upsertOrderByStripeSession({
+      clientId,
+      stripeSessionId: sess.id,
+      paymentIntentId: sess.payment_intent,
+      amountTotal: checkout.amountTotal,
+      subtotal: checkout.subtotal,
+      shippingAmount: checkout.shipping.amount,
+      taxAmount: checkout.taxAmount,
+      taxAddedAmount: checkout.taxAddedAmount,
+      shippingRateId: checkout.shipping.rateId,
+      checkoutOperationId: checkout.id,
+      currency: checkout.currency,
+      customerEmail: sess.customer_email,
+      customerName: sess.customer_details?.name,
+      shippingAddress: sess.shipping_details?.address as never,
+      items,
+      metadata: sess.metadata,
+      discountSource: checkout.discount?.type,
+      discountAmount: checkout.discountAmount || undefined,
+      discountCode: checkout.discount?.code,
+      discountSnapshot: checkout.discount?.membershipSnapshot,
+      referralCodeId: checkout.request.referralCodeId,
+      endCustomerUserId: checkout.request.endCustomerUserId,
+      providerEventId: event.id,
+    }, true);
+    return { kind: "checkout", orderId: order.id, isNew };
+  }
+  if (event.type === "checkout.session.expired") {
+    const sess = event.data.object as { id?: string; metadata?: Record<string, string> };
+    if (!sess.id) throw new Error("Expired checkout session id is required.");
+    const operationId = sess.metadata?.checkoutOperationId;
+    if (!operationId) throw new Error(`Expired checkout session ${sess.id} has no checkout operation.`);
+    const operation = await c.checkout.getOperation(operationId);
+    if (!operation || operation.providerSessionId !== sess.id) {
+      throw new Error(`Expired checkout session ${sess.id} does not match operation ${operationId}.`);
+    }
+    await c.checkout.release(operationId, true, true);
+    return { kind: "expired" };
+  }
+  if (event.type === "charge.refunded") {
+    const charge = event.data.object as { payment_intent?: string; amount_refunded?: number };
+    if (!charge.payment_intent) throw new Error("Refund webhook payment_intent is required.");
+    if (!Number.isSafeInteger(charge.amount_refunded) || (charge.amount_refunded ?? -1) < 0) {
+      throw new Error("Refund webhook amount_refunded must be a non-negative integer.");
+    }
+    const order = await c.orders.markOrderRefunded(
+      charge.payment_intent,
+      charge.amount_refunded,
+      event.id,
+      true,
+    );
+    if (!order) throw new Error(`Refund webhook ${event.id} arrived before its paid order.`);
+    if (order.status === "refunded" && order.checkoutOperationId) {
+      await c.checkout.restoreGiftCardAfterFullRefund(order.checkoutOperationId, true);
+    }
+    return { kind: "refund", orderId: order.id };
+  }
+  return { kind: "ignored", ignoredType: event.type };
 }
 
 // ─── Stripe — billing portal ──────────────────────────────────────────────
@@ -525,7 +870,7 @@ export async function listGiftCardsHandler(_req: Request, ctx: PluginCtx): Promi
 
 export async function issueGiftCardHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   const guard = methodGuard(req, "POST"); if (guard) return guard;
-  const body = await safeJson<Omit<GiftCard, "code" | "balance" | "createdAt" | "redemptions">>(req);
+  const body = await safeJson<GiftCardIssueInput>(req);
   if (!body || typeof body.amount !== "number") return badRequest("amount required.");
   try {
     const c = containerFor(ctx.storage);
@@ -551,20 +896,40 @@ export async function listInventoryHandler(_req: Request, ctx: PluginCtx): Promi
 export async function setInventoryHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   const guard = methodGuard(req, "POST"); if (guard) return guard;
   const scope = requireClientScope(ctx); if (typeof scope !== "string") return scope;
-  const body = await safeJson<{ sku: string; onHand: number; reserved?: number; lowAt?: number; unlimited?: boolean }>(req);
+  const body = await safeJson<{ sku: string; onHand: number; expectedVersion?: number; lowAt?: number; unlimited?: boolean }>(req);
   if (!body?.sku) return badRequest("sku required.");
+  if (!Number.isSafeInteger(body.onHand) || body.onHand < 0) return badRequest("onHand must be a non-negative integer.");
+  if (body.lowAt !== undefined && (!Number.isSafeInteger(body.lowAt) || body.lowAt < 0)) {
+    return badRequest("lowAt must be a non-negative integer.");
+  }
   try {
     const c = containerFor(ctx.storage);
-    await c.products.setInventory({
-      sku: body.sku,
-      onHand: body.onHand,
-      reserved: body.reserved ?? 0,
-      lowAt: body.lowAt ?? 5,
-      unlimited: body.unlimited,
-    });
+    const write = async () => {
+      const existing = await c.products.getInventory(body.sku);
+      if (existing && body.expectedVersion !== (existing.version ?? 1)) {
+        throw new ProductConflictError(`Inventory ${body.sku} changed while this adjustment was open. Reload before saving.`);
+      }
+      if (!body.unlimited && body.onHand < (existing?.reserved ?? 0)) {
+        throw new ProductConflictError(`On-hand stock cannot be lower than ${existing?.reserved ?? 0} active reserved units.`);
+      }
+      await c.products.setInventory({
+        sku: body.sku,
+        onHand: body.onHand,
+        // Reserved stock and operation markers belong to CheckoutService;
+        // an inventory form must never erase active customer reservations.
+        reserved: existing?.reserved ?? 0,
+        lowAt: body.lowAt ?? existing?.lowAt ?? 5,
+        unlimited: body.unlimited ?? existing?.unlimited,
+        checkoutOperations: existing?.checkoutOperations,
+        version: (existing?.version ?? 0) + 1,
+      });
+    };
+    if (ctx.storage.runExclusive) await ctx.storage.runExclusive("ecommerce:checkout-collection", write);
+    else await write();
     c.events.emit({ agencyId: ctx.agencyId, clientId: scope }, "inventory.updated", { sku: body.sku });
     return json({ ok: true });
   } catch (err) {
+    if (err instanceof ProductConflictError) return conflict(err.message);
     return serverError(err);
   }
 }
@@ -573,19 +938,8 @@ export async function reserveInventoryHandler(req: Request, ctx: PluginCtx): Pro
   const guard = methodGuard(req, "POST"); if (guard) return guard;
   const body = await safeJson<{ reservations: Record<string, number> }>(req);
   if (!body?.reservations) return badRequest("reservations required.");
-  try {
-    const c = containerFor(ctx.storage);
-    const errors: string[] = [];
-    for (const [sku, qty] of Object.entries(body.reservations)) {
-      const current = await c.products.getInventory(sku);
-      if (!current) continue;
-      // Mirror cart total: reserved = qty supplied
-      await c.products.setInventory({ ...current, reserved: qty });
-    }
-    return json({ ok: true, errors });
-  } catch (err) {
-    return serverError(err);
-  }
+  void ctx;
+  return conflict("Cart-level inventory mirroring is retired. Stock is reserved by an authoritative checkout operation.");
 }
 
 // ─── Shipping ──────────────────────────────────────────────────────────────
@@ -649,4 +1003,66 @@ function getOrigin(req: Request): string {
   } catch {
     return "";
   }
+}
+
+function checkoutReturnUrl(
+  requested: string | undefined,
+  configured: string | undefined,
+  fallbackPath: string,
+  origin: string,
+): string {
+  try {
+    if (requested) {
+      if (requested.startsWith("/") && !requested.startsWith("//")) return new URL(requested, origin).toString();
+      const parsed = new URL(requested);
+      if (parsed.origin !== origin) throw new CheckoutValidationError("Checkout return URLs must stay on this site.");
+      return parsed.toString();
+    }
+    if (configured) {
+      if (configured.startsWith("/") && !configured.startsWith("//")) return new URL(configured, origin).toString();
+      const parsed = new URL(configured);
+      if (parsed.protocol !== "https:" && parsed.origin !== origin) {
+        throw new CheckoutValidationError("Configured checkout return URL must use HTTPS.");
+      }
+      return parsed.toString();
+    }
+    return new URL(fallbackPath, origin).toString();
+  } catch (error) {
+    if (error instanceof CheckoutValidationError) throw error;
+    throw new CheckoutValidationError("Checkout return URL is invalid.");
+  }
+}
+
+function checkoutDenominations(value: unknown): number[] {
+  const values = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(",")
+      : [2500, 5000, 10000];
+  const parsed = values
+    .map(item => Number(typeof item === "string" ? item.trim() : item))
+    .filter(amount => Number.isSafeInteger(amount) && amount > 0);
+  return parsed.length > 0 ? [...new Set(parsed)] : [2500, 5000, 10000];
+}
+
+function checkoutCompletionUrl(successUrl: string, sessionId: string): string {
+  if (successUrl.includes("{CHECKOUT_SESSION_ID}")) {
+    return successUrl.replace("{CHECKOUT_SESSION_ID}", encodeURIComponent(sessionId));
+  }
+  const completed = new URL(successUrl);
+  completed.searchParams.set("session_id", sessionId);
+  return completed.toString();
+}
+
+function checkoutServiceConfig(ctx: PluginCtx, clientId: string) {
+  const config = ctx.install.config as Record<string, unknown>;
+  return {
+    agencyId: ctx.agencyId,
+    clientId,
+    defaultCurrency: typeof config.defaultCurrency === "string" ? config.defaultCurrency : "gbp",
+    taxRatePercent: typeof config.defaultTaxRatePercent === "number"
+      ? config.defaultTaxRatePercent
+      : Number(config.defaultTaxRatePercent ?? 0),
+    giftCardDenominations: checkoutDenominations(config.giftCardDenominations),
+  };
 }

@@ -17,6 +17,7 @@ import type {
   PeopleContract,
   PeopleContractKind,
   PeopleContractStatus,
+  PeopleCommissionRule,
   PeopleMessage,
   PeopleEmployee,
   PeopleEmploymentType,
@@ -24,6 +25,7 @@ import type {
   PeopleFeedbackSentiment,
   PeopleFreelancerJob,
   PeopleFreelancerJobStatus,
+  PeopleFreelancerSubmission,
   PeopleHiringStageConfig,
   PeopleLeaveRequest,
   PeopleOnboardingItem,
@@ -76,12 +78,166 @@ const DEFAULT_ONBOARDING_LABELS: Array<[string, "company" | "employee"]> = [
   ["Agree first-week outcome and manager check-in", "company"],
 ];
 
+const PEOPLE_EMPLOYMENT_TYPES = new Set<PeopleEmploymentType>(["full-time", "part-time", "contractor", "freelancer", "intern", "volunteer"]);
+const PEOPLE_EMPLOYEE_STATUSES = new Set<PeopleEmployee["status"]>(["preboarding", "active", "leave", "suspended", "alumni"]);
+const PEOPLE_PAY_BASES = new Set<PeopleEmployee["payBasis"]>(["salary", "hourly", "day-rate", "commission-only", "unpaid"]);
+const PEOPLE_CURRENCIES = new Set(["GBP", "EUR", "USD", "CAD", "AUD", "NZD", "CHF", "SEK", "NOK", "DKK", "JPY", "SGD", "HKD", "AED"]);
+const PEOPLE_LEAVE_TYPES = new Set<PeopleLeaveRequest["type"]>(["annual", "sick", "unpaid", "compassionate", "parental", "other"]);
+const PEOPLE_LEAVE_DECISIONS = new Set<PeopleLeaveRequest["status"]>(["approved", "rejected", "cancelled"]);
+const PEOPLE_SHIFT_STATUSES = new Set<PeopleShift["status"]>(["draft", "published", "completed", "cancelled"]);
+const PEOPLE_TRAINING_STATUSES = new Set<PeopleTrainingAssignment["status"]>(["assigned", "in-progress", "completed", "overdue"]);
+const COMMISSION_BASES = new Set<PeopleCommissionRule["basis"]>(["revenue", "gross-margin", "new-client", "product", "fixed-bonus"]);
+const COMMISSION_CADENCES = new Set<PeopleCommissionRule["cadence"]>(["per-event", "monthly", "quarterly"]);
+const COMMISSION_STATUSES = new Set<PeopleCommissionRule["status"]>(["draft", "active", "paused", "retired"]);
+const ONBOARDING_STATUSES = new Set<PeopleOnboardingItem["status"]>(["todo", "in-progress", "done", "blocked"]);
+
+export class PeopleIdentityConflictError extends Error {}
+
 function id(prefix: string): string {
   return `${prefix}_${crypto.randomBytes(8).toString("hex")}`;
 }
 
 function clean(value: unknown, max = 240): string {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
+}
+
+export function canonicalPeopleEmployeeEmail(value: unknown): string {
+  return clean(value, 254).toLowerCase();
+}
+
+function assertOptionalTimestamp(value: unknown, field: string): asserts value is number | undefined {
+  if (value === undefined) return;
+  if (!Number.isSafeInteger(value) || (value as number) <= 0) {
+    throw new Error(`${field} must be a valid positive timestamp.`);
+  }
+}
+
+function assertOptionalBoundedNumber(
+  value: unknown,
+  field: string,
+  minimum: number,
+  maximum: number,
+  integer = false,
+): asserts value is number | undefined {
+  if (value === undefined) return;
+  if (typeof value !== "number" || !Number.isFinite(value) || value < minimum || value > maximum || (integer && !Number.isInteger(value))) {
+    throw new Error(`${field} must be between ${minimum} and ${maximum}${integer ? " whole units" : ""}.`);
+  }
+}
+
+function cleanPeopleCommissionRules(value: unknown): PeopleCommissionRule[] {
+  if (!Array.isArray(value) || value.length > 100) throw new Error("Commission rules must be an array of at most 100 rules.");
+  const seen = new Set<string>();
+  return value.map((raw, index): PeopleCommissionRule => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error(`Commission rule ${index + 1} must be an object.`);
+    const item = raw as Record<string, unknown>;
+    const ruleId = clean(item.id, 120);
+    const label = clean(item.label, 200);
+    if (!ruleId || seen.has(ruleId)) throw new Error(`Commission rule ${index + 1} needs a unique id.`);
+    if (!label) throw new Error(`Commission rule ${index + 1} needs a label.`);
+    seen.add(ruleId);
+    if (!COMMISSION_BASES.has(item.basis as PeopleCommissionRule["basis"])) throw new Error(`Commission rule ${index + 1} has an invalid basis.`);
+    if (!COMMISSION_CADENCES.has(item.cadence as PeopleCommissionRule["cadence"])) throw new Error(`Commission rule ${index + 1} has an invalid cadence.`);
+    if (!COMMISSION_STATUSES.has(item.status as PeopleCommissionRule["status"])) throw new Error(`Commission rule ${index + 1} has an invalid status.`);
+    assertOptionalBoundedNumber(item.ratePercent, `Commission rule ${index + 1} rate`, 0, 100);
+    assertOptionalBoundedNumber(item.fixedAmountMinor, `Commission rule ${index + 1} fixed amount`, 0, Number.MAX_SAFE_INTEGER, true);
+    assertOptionalBoundedNumber(item.thresholdMinor, `Commission rule ${index + 1} threshold`, 0, Number.MAX_SAFE_INTEGER, true);
+    assertOptionalBoundedNumber(item.capMinor, `Commission rule ${index + 1} cap`, 0, Number.MAX_SAFE_INTEGER, true);
+    assertOptionalTimestamp(item.startsAt, `Commission rule ${index + 1} start`);
+    assertOptionalTimestamp(item.endsAt, `Commission rule ${index + 1} end`);
+    if (item.startsAt !== undefined && item.endsAt !== undefined && item.endsAt < item.startsAt) {
+      throw new Error(`Commission rule ${index + 1} end must follow its start.`);
+    }
+    if (item.ratePercent === undefined && item.fixedAmountMinor === undefined) {
+      throw new Error(`Commission rule ${index + 1} needs a percentage or fixed amount.`);
+    }
+    const productIds = item.productIds === undefined
+      ? undefined
+      : Array.isArray(item.productIds)
+        ? [...new Set(item.productIds.map(productId => clean(productId, 120)).filter(Boolean))].slice(0, 100)
+        : null;
+    if (productIds === null) throw new Error(`Commission rule ${index + 1} product ids must be an array.`);
+    if (item.basis === "product" && item.status === "active" && !productIds?.length) {
+      throw new Error(`Active product commission rule ${index + 1} needs at least one product.`);
+    }
+    return {
+      id: ruleId,
+      label,
+      basis: item.basis as PeopleCommissionRule["basis"],
+      ratePercent: item.ratePercent as number | undefined,
+      fixedAmountMinor: item.fixedAmountMinor as number | undefined,
+      thresholdMinor: item.thresholdMinor as number | undefined,
+      capMinor: item.capMinor as number | undefined,
+      productIds: productIds ?? undefined,
+      cadence: item.cadence as PeopleCommissionRule["cadence"],
+      status: item.status as PeopleCommissionRule["status"],
+      startsAt: item.startsAt as number | undefined,
+      endsAt: item.endsAt as number | undefined,
+    };
+  });
+}
+
+function cleanPeopleOnboardingItems(value: unknown): PeopleOnboardingItem[] {
+  if (!Array.isArray(value) || value.length > 100) throw new Error("Onboarding items must be an array of at most 100 items.");
+  const seen = new Set<string>();
+  return value.map((raw, index): PeopleOnboardingItem => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error(`Onboarding item ${index + 1} must be an object.`);
+    const item = raw as Record<string, unknown>;
+    const itemId = clean(item.id, 120);
+    const label = clean(item.label, 200);
+    if (!itemId || seen.has(itemId)) throw new Error(`Onboarding item ${index + 1} needs a unique id.`);
+    if (!label) throw new Error(`Onboarding item ${index + 1} needs a label.`);
+    seen.add(itemId);
+    if (!ONBOARDING_STATUSES.has(item.status as PeopleOnboardingItem["status"])) throw new Error(`Onboarding item ${index + 1} has an invalid status.`);
+    if (item.owner !== "company" && item.owner !== "employee") throw new Error(`Onboarding item ${index + 1} has an invalid owner.`);
+    assertOptionalTimestamp(item.dueAt, `Onboarding item ${index + 1} due date`);
+    assertOptionalTimestamp(item.completedAt, `Onboarding item ${index + 1} completion date`);
+    if (item.status !== "done" && item.completedAt !== undefined) throw new Error(`Onboarding item ${index + 1} can only have a completion date when done.`);
+    return {
+      id: itemId,
+      label,
+      detail: clean(item.detail, 1_000) || undefined,
+      status: item.status as PeopleOnboardingItem["status"],
+      owner: item.owner,
+      dueAt: item.dueAt as number | undefined,
+      completedAt: item.completedAt as number | undefined,
+      evidence: clean(item.evidence, 1_000) || undefined,
+    };
+  });
+}
+
+function validatePeopleEmployeeRecord(employee: PeopleEmployee): void {
+  if (!employee.name || employee.name.length < 2) throw new Error("Employee name is required.");
+  if (!employee.title) throw new Error("Employee title is required.");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(employee.email)) throw new Error("Employee email must be valid.");
+  if (!PEOPLE_EMPLOYMENT_TYPES.has(employee.employmentType)) throw new Error("Employee employment type is invalid.");
+  if (!PEOPLE_EMPLOYEE_STATUSES.has(employee.status)) throw new Error("Employee status is invalid.");
+  if (!PEOPLE_PAY_BASES.has(employee.payBasis)) throw new Error("Employee pay basis is invalid.");
+  if (!PEOPLE_CURRENCIES.has(employee.currency)) throw new Error("Employee currency is not supported.");
+  assertOptionalTimestamp(employee.startDate, "Employee start date");
+  assertOptionalTimestamp(employee.endDate, "Employee end date");
+  assertOptionalTimestamp(employee.probationEndsAt, "Employee probation end");
+  if (employee.startDate !== undefined && employee.endDate !== undefined && employee.endDate < employee.startDate) {
+    throw new Error("Employee end date must follow the start date.");
+  }
+  if (employee.startDate !== undefined && employee.probationEndsAt !== undefined && employee.probationEndsAt < employee.startDate) {
+    throw new Error("Employee probation end must follow the start date.");
+  }
+  if (employee.endDate !== undefined && employee.probationEndsAt !== undefined && employee.probationEndsAt > employee.endDate) {
+    throw new Error("Employee probation end cannot follow the employment end date.");
+  }
+  assertOptionalBoundedNumber(employee.weeklyHours, "Employee weekly hours", 0, 168);
+  assertOptionalBoundedNumber(employee.holidayAllowanceDays, "Employee holiday allowance", 0, 366);
+  assertOptionalBoundedNumber(employee.basePayMinor, "Employee base pay", 0, Number.MAX_SAFE_INTEGER, true);
+  if (employee.managerEmployeeId === employee.id) throw new Error("An employee cannot manage themselves.");
+  const conflicting = Object.values(getState().peopleEmployees).find(candidate =>
+    candidate.agencyId === employee.agencyId
+    && candidate.id !== employee.id
+    && candidate.status !== "alumni"
+    && employee.status !== "alumni"
+    && canonicalPeopleEmployeeEmail(candidate.email) === employee.email,
+  );
+  if (conflicting) throw new PeopleIdentityConflictError(`Employee email ${employee.email} already belongs to ${conflicting.name}.`);
 }
 
 export function hashPeopleStatusToken(token: string): string {
@@ -134,14 +290,21 @@ function persistProcessConfig(agencyId: string, patch: Partial<Pick<PeopleProces
 }
 
 export function savePeopleOnboardingTemplate(agencyId: string, steps: Array<{ id?: string; label: string; owner?: "company" | "employee"; detail?: string; requiresEvidence?: boolean }>, actorUserId: string): PeopleProcessConfig {
+  const seen = new Set<string>();
   const cleaned = steps
-    .map((step, index): PeopleOnboardingStep => ({
-      id: clean(step.id, 60) || `onboarding_${index + 1}`,
-      label: clean(step.label, 200),
-      owner: step.owner === "employee" ? "employee" : "company",
-      detail: clean(step.detail, 1_000) || undefined,
-      requiresEvidence: Boolean(step.requiresEvidence),
-    }))
+    .map((step, index): PeopleOnboardingStep => {
+      const stepId = clean(step.id, 60) || `onboarding_${index + 1}`;
+      if (seen.has(stepId)) throw new Error(`Onboarding step ${index + 1} needs a unique id.`);
+      if (step.owner !== undefined && step.owner !== "company" && step.owner !== "employee") throw new Error(`Onboarding step ${index + 1} has an invalid owner.`);
+      seen.add(stepId);
+      return {
+        id: stepId,
+        label: clean(step.label, 200),
+        owner: step.owner ?? "company",
+        detail: clean(step.detail, 1_000) || undefined,
+        requiresEvidence: Boolean(step.requiresEvidence),
+      };
+    })
     .filter(step => step.label);
   if (!cleaned.length) throw new Error("Keep at least one onboarding step.");
   return persistProcessConfig(agencyId, { onboardingSteps: cleaned.slice(0, 40) }, actorUserId);
@@ -297,6 +460,8 @@ export function canUsePeopleStation(agencyId: string, userId: string, stationId:
 }
 
 export function createPeopleEmployee(input: {
+  /** Pre-allocated by resumable hiring so a retry reuses one employee id. */
+  id?: string;
   agencyId: string;
   actorUserId: string;
   applicationId?: string;
@@ -313,12 +478,12 @@ export function createPeopleEmployee(input: {
   const now = Date.now();
   const application = input.applicationId ? getPeopleApplication(input.agencyId, input.applicationId) : null;
   const employee: PeopleEmployee = {
-    id: id("employee"),
+    id: input.id ?? id("employee"),
     agencyId: input.agencyId,
     applicationId: application?.id,
     userId: input.userId,
     name: clean(input.name, 120),
-    email: clean(input.email, 254).toLowerCase(),
+    email: canonicalPeopleEmployeeEmail(input.email),
     phone: clean(input.phone, 50) || undefined,
     title: clean(input.title, 160) || "Team member",
     department: clean(input.department, 120) || undefined,
@@ -341,8 +506,11 @@ export function createPeopleEmployee(input: {
     createdAt: now,
     updatedAt: now,
   };
-  if (!employee.name || !employee.email.includes("@")) throw new Error("Employee name and email are required.");
+  employee.commissionRules = cleanPeopleCommissionRules(employee.commissionRules);
+  employee.onboardingItems = cleanPeopleOnboardingItems(employee.onboardingItems);
+  validatePeopleEmployeeRecord(employee);
   mutate(state => {
+    if (state.peopleEmployees[employee.id]) throw new Error("That People employee already exists.");
     state.peopleEmployees[employee.id] = employee;
     if (application) {
       state.peopleApplications[application.id] = {
@@ -377,13 +545,16 @@ export function updatePeopleEmployee(
     ...existing,
     ...patch,
     name: clean(patch.name ?? existing.name, 120),
-    email: clean(patch.email ?? existing.email, 254).toLowerCase(),
+    email: canonicalPeopleEmployeeEmail(patch.email ?? existing.email),
     phone: patch.phone === "" ? undefined : clean(patch.phone ?? existing.phone, 50) || undefined,
     title: clean(patch.title ?? existing.title, 160),
     department: patch.department === "" ? undefined : clean(patch.department ?? existing.department, 120) || undefined,
+    commissionRules: cleanPeopleCommissionRules(patch.commissionRules ?? existing.commissionRules),
     workspaceAccess: patch.workspaceAccess ? normalizePeopleAccess(patch.workspaceAccess) : existing.workspaceAccess,
+    onboardingItems: cleanPeopleOnboardingItems(patch.onboardingItems ?? existing.onboardingItems),
     updatedAt: Date.now(),
   };
+  validatePeopleEmployeeRecord(updated);
   mutate(state => { state.peopleEmployees[employeeId] = updated; });
   logActivity({ agencyId, actorUserId, category: "settings", action: "people.employee_updated", message: `Updated ${updated.name}'s People profile.`, metadata: { employeeId } });
   return updated;
@@ -414,8 +585,11 @@ export function createPeopleLeaveRequest(input: {
   note?: string;
 }): PeopleLeaveRequest {
   if (!getPeopleEmployee(input.agencyId, input.employeeId)) throw new Error("Employee not found.");
+  if (!PEOPLE_LEAVE_TYPES.has(input.type)) throw new Error("Leave type is invalid.");
+  if (!isIsoCalendarDate(input.startsOn) || !isIsoCalendarDate(input.endsOn)) throw new Error("Leave dates must be real calendar dates in YYYY-MM-DD format.");
   const days = businessDays(input.startsOn, input.endsOn);
   if (days < 1) throw new Error("Choose a valid leave range.");
+  if (days > 366) throw new Error("Leave range cannot exceed 366 working days.");
   const now = Date.now();
   const request: PeopleLeaveRequest = {
     id: id("leave"),
@@ -443,14 +617,28 @@ export function decidePeopleLeaveRequest(input: {
 }): PeopleLeaveRequest | null {
   const existing = getState().peopleLeaveRequests[input.requestId];
   if (!existing || existing.agencyId !== input.agencyId) return null;
+  if (!PEOPLE_LEAVE_DECISIONS.has(input.status)) throw new Error("Leave decision status is invalid.");
+  const updatedAt = Date.now();
   const updated: PeopleLeaveRequest = {
     ...existing,
     status: input.status,
     reviewerUserId: input.actorUserId,
     decisionNote: clean(input.note, 1_000) || undefined,
-    updatedAt: Date.now(),
+    updatedAt,
   };
-  mutate(state => { state.peopleLeaveRequests[updated.id] = updated; });
+  mutate(state => {
+    state.peopleLeaveRequests[updated.id] = updated;
+    if (input.status === "approved") {
+      const employee = state.peopleEmployees[existing.employeeId];
+      if (employee?.agencyId === input.agencyId) {
+        state.peopleEmployees[employee.id] = {
+          ...employee,
+          status: "leave",
+          updatedAt,
+        };
+      }
+    }
+  });
   return updated;
 }
 
@@ -462,8 +650,12 @@ export function listPeopleShifts(agencyId: string, employeeId?: string): PeopleS
 
 export function savePeopleShift(input: Omit<PeopleShift, "id" | "createdAt" | "updatedAt"> & { id?: string }): PeopleShift {
   if (!getPeopleEmployee(input.agencyId, input.employeeId)) throw new Error("Employee not found.");
+  assertOptionalTimestamp(input.startsAt, "Shift start");
+  assertOptionalTimestamp(input.endsAt, "Shift end");
   if (input.endsAt <= input.startsAt) throw new Error("Shift end must follow its start.");
   const existing = input.id ? getState().peopleShifts[input.id] : null;
+  if (existing && existing.agencyId !== input.agencyId) throw new Error("Shift not found.");
+  if (!PEOPLE_SHIFT_STATUSES.has(input.status)) throw new Error("Shift status is invalid.");
   const now = Date.now();
   const shift: PeopleShift = {
     id: existing?.id ?? id("shift"),
@@ -491,6 +683,10 @@ export function listPeopleTraining(agencyId: string, employeeId?: string): Peopl
 export function savePeopleTraining(input: Omit<PeopleTrainingAssignment, "id" | "createdAt" | "updatedAt"> & { id?: string }): PeopleTrainingAssignment {
   if (!getPeopleEmployee(input.agencyId, input.employeeId)) throw new Error("Employee not found.");
   const existing = input.id ? getState().peopleTrainingAssignments[input.id] : null;
+  if (existing && existing.agencyId !== input.agencyId) throw new Error("Training assignment not found.");
+  if (!PEOPLE_TRAINING_STATUSES.has(input.status)) throw new Error("Training status is invalid.");
+  assertOptionalTimestamp(input.dueAt, "Training due date");
+  assertOptionalBoundedNumber(input.score, "Training score", 0, 100);
   const now = Date.now();
   const training: PeopleTrainingAssignment = {
     id: existing?.id ?? id("training"),
@@ -732,6 +928,71 @@ export function setPeopleFreelancerJobStatus(input: {
     action: "people.freelancer_job_status",
     message: `Freelancer job “${updated.title}” moved to ${updated.status}.`,
     metadata: { jobId: updated.id, status: updated.status },
+  });
+  return updated;
+}
+
+function safeFreelancerLink(value: string): string | null {
+  try {
+    const parsed = new URL(value.trim());
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+export function addPeopleFreelancerDeliverable(input: {
+  agencyId: string;
+  jobId: string;
+  actorUserId: string;
+  name: string;
+  url: string;
+}): PeopleFreelancerJob {
+  const existing = getState().peopleFreelancerJobs?.[input.jobId];
+  if (!existing || existing.agencyId !== input.agencyId) throw new Error("Freelancer job not found.");
+  const name = clean(input.name, 180);
+  const url = safeFreelancerLink(input.url);
+  if (!name || !url) throw new Error("Deliverables need a name and an http or https link.");
+  const now = Date.now();
+  const deliverable = { id: id("freelancerdeliverable"), name, url, addedByUserId: input.actorUserId, addedAt: now };
+  const updated: PeopleFreelancerJob = {
+    ...existing,
+    deliverables: [deliverable, ...(existing.deliverables ?? [])].slice(0, 100),
+    updatedAt: now,
+  };
+  mutate(state => { state.peopleFreelancerJobs[updated.id] = updated; });
+  logActivity({
+    agencyId: input.agencyId,
+    actorUserId: input.actorUserId,
+    category: "files",
+    action: "people.freelancer_deliverable_shared",
+    message: `Shared “${name}” on freelancer job “${updated.title}”.`,
+    metadata: { jobId: updated.id, deliverableId: deliverable.id },
+  });
+  return updated;
+}
+
+export function recordPeopleFreelancerSubmission(input: {
+  agencyId: string;
+  jobId: string;
+  actorUserId: string;
+  submission: PeopleFreelancerSubmission;
+}): PeopleFreelancerJob {
+  const existing = getState().peopleFreelancerJobs?.[input.jobId];
+  if (!existing || existing.agencyId !== input.agencyId) throw new Error("Freelancer job not found.");
+  const updated: PeopleFreelancerJob = {
+    ...existing,
+    submissions: [input.submission, ...(existing.submissions ?? [])].slice(0, 100),
+    updatedAt: Date.now(),
+  };
+  mutate(state => { state.peopleFreelancerJobs[updated.id] = updated; });
+  logActivity({
+    agencyId: input.agencyId,
+    actorUserId: input.actorUserId,
+    category: "files",
+    action: "people.freelancer_work_uploaded",
+    message: `Uploaded “${input.submission.name}” to freelancer job “${updated.title}”.`,
+    metadata: { jobId: updated.id, submissionId: input.submission.id, size: input.submission.size },
   });
   return updated;
 }
@@ -1528,4 +1789,10 @@ function businessDays(startsOn: string, endsOn: string): number {
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
   return count;
+}
+
+function isIsoCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T12:00:00Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }

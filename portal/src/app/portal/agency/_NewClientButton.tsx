@@ -9,11 +9,17 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { UserPlus } from "lucide-react";
+import { PortalCustomFields, type PortalCustomFieldValues } from "@/components/forms/PortalCustomFields";
+import { businessCalendarDate } from "@/lib/shared/formatDateTime";
+import type { PortalFormFieldDefinition } from "@/server/types";
 
 interface PhasePreset {
+  id?: string;
   stage: string;
   label: string;
+  description?: string;
   pluginPreset: readonly string[];
+  portalVariantId?: string;
 }
 
 interface FormState {
@@ -104,17 +110,12 @@ export interface NewClientBrandOption {
   primaryColor: string;
 }
 
-const FALLBACK_PRESETS: PhasePreset[] = [
-  { stage: "aqua-epic-intro",    label: "Onboarding",                   pluginPreset: [] },
-  { stage: "aqua-blueprint",     label: "Planning",                     pluginPreset: ["website-editor", "client-crm"] },
-  { stage: "aqua-diagnostics",   label: "Content & foundations",        pluginPreset: ["website-editor", "client-crm"] },
-  { stage: "aqua-brand-builder", label: "Design",                       pluginPreset: ["website-editor", "client-crm"] },
-  { stage: "aqua-traffic",       label: "Build & launch",               pluginPreset: ["website-editor", "client-crm", "ecommerce", "agency-marketing", "email-sender"] },
-  { stage: "aqua-mastery",       label: "Live care",                    pluginPreset: ["website-editor", "client-crm", "ecommerce", "agency-marketing", "email-sender", "memberships", "affiliates"] },
-];
-
 function slugify(s: string): string {
   return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function freshOperationId(): string {
+  return `new-client:${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
 }
 
 function composedDisplayName(state: FormState): string {
@@ -123,31 +124,48 @@ function composedDisplayName(state: FormState): string {
   return state.entityType === "company" ? p || t : t || p;
 }
 
-export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS, className, commandDeck = false }: { products?: NewClientProductOption[]; brands?: NewClientBrandOption[]; defaults?: NewClientDefaults; className?: string; commandDeck?: boolean }) {
+export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS, customFields = [], className, commandDeck = false }: { products?: NewClientProductOption[]; brands?: NewClientBrandOption[]; defaults?: NewClientDefaults; customFields?: PortalFormFieldDefinition[]; className?: string; commandDeck?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<FormState>(() => defaultState(defaults));
-  const [presets, setPresets] = useState<PhasePreset[]>(FALLBACK_PRESETS);
+  const [presets, setPresets] = useState<PhasePreset[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [customFieldValues, setCustomFieldValues] = useState<PortalCustomFieldValues>({});
   const slugTouched = useRef(false);
+  const operationId = useRef(freshOperationId());
 
   useEffect(() => {
     if (!open) return;
     setState(defaultState(defaults));
+    setPresets([]);
     setError(null);
+    setCustomFieldValues({});
     slugTouched.current = false;
+    operationId.current = freshOperationId();
     fetch("/api/portal/fulfillment/presets")
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data && Array.isArray(data.presets) && data.presets.length > 0) {
-          setPresets(data.presets);
-        }
+      .then(async r => {
+        const data = await r.json().catch(() => null) as { presets?: PhasePreset[]; error?: string } | null;
+        if (!r.ok) throw new Error(data?.error ?? "Could not load lifecycle phases.");
+        return data;
       })
-      .catch(() => undefined);
+      .then(data => {
+        if (!data || !Array.isArray(data.presets) || data.presets.length === 0) {
+          throw new Error("No lifecycle phases are available. Add one in Fulfilment settings first.");
+        }
+        setPresets(data.presets);
+        setState(current => ({
+          ...current,
+          stage: data.presets!.some(preset => preset.stage === current.stage)
+            ? current.stage
+            : data.presets![0]!.stage,
+        }));
+      })
+      .catch(err => setError(err instanceof Error ? err.message : String(err)));
   }, [open, defaults]);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
+    operationId.current = freshOperationId();
     setState(s => {
       const next = { ...s, [key]: value };
       if ((key === "contactName" || key === "businessName") && !slugTouched.current) {
@@ -165,6 +183,10 @@ export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS, cla
       setError(state.entityType === "company" ? "Business name is required." : "Person name is required.");
       return;
     }
+    if (!presets.some(preset => preset.stage === state.stage)) {
+      setError("Choose an available lifecycle phase before creating this client.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -173,6 +195,7 @@ export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS, cla
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
+          operationId: operationId.current,
           name: display,
           slug: state.slug.trim() || undefined,
           ownerEmail: state.email.trim() || undefined,
@@ -188,7 +211,7 @@ export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS, cla
             contactName: state.contactName.trim() || undefined,
             linkedContacts: state.contactName.trim()
               ? [{
-                  id: `contact_${Date.now()}`,
+                  id: `contact_${operationId.current.replace(/[^a-zA-Z0-9]/g, "_").slice(-80)}`,
                   name: state.contactName.trim(),
                   email: state.email.trim() || undefined,
                   phone: state.contactPhone.trim() || undefined,
@@ -210,6 +233,7 @@ export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS, cla
             whatsappLink:  state.whatsappLink.trim()  || undefined,
             stripeLink:    state.stripeLink.trim()    || undefined,
             portalWelcomeNote: defaults.clientWelcomeMessage || undefined,
+            customFields: customFieldValues,
           },
           ...(state.createPortal
             ? {
@@ -218,7 +242,7 @@ export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS, cla
                   planTier: helpingWith || "Custom work",
                   contactName: state.contactName.trim() || undefined,
                   businessName: state.businessName.trim() || undefined,
-                  onboardingStartedAt: new Date().toISOString().slice(0, 10),
+                  onboardingStartedAt: businessCalendarDate(),
                 },
               }
             : {}),
@@ -349,6 +373,17 @@ export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS, cla
                 <span className="text-[11px] leading-5 text-black/50">A simple internal brief. Products, billing and portal setup can be added from the client record later.</span>
               </label>
 
+              <PortalCustomFields
+                fields={customFields}
+                values={customFieldValues}
+                onChange={values => {
+                  operationId.current = freshOperationId();
+                  setCustomFieldValues(values);
+                }}
+                disabled={busy}
+                legend="Client custom fields"
+              />
+
               {brands.length ? (
                 <label className="flex flex-col gap-1">
                   <span className="text-xs font-medium text-black/70">Client-facing brand</span>
@@ -386,7 +421,8 @@ export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS, cla
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="flex flex-col gap-1">
                       <span className="text-xs font-medium text-black/70">Starting stage</span>
-                      <select value={state.stage} onChange={(e) => update("stage", e.target.value)} disabled={busy} className="rounded-md border border-black/15 px-3 py-2">
+                      <select value={state.stage} onChange={(e) => update("stage", e.target.value)} disabled={busy || presets.length === 0} className="rounded-md border border-black/15 px-3 py-2">
+                        {presets.length === 0 ? <option value="">Loading phases…</option> : null}
                         {presets.map(p => <option key={p.stage} value={p.stage}>{p.label}</option>)}
                       </select>
                       {selectedPreset ? (
@@ -439,7 +475,7 @@ export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS, cla
                 className="rounded-md px-3 py-2 text-sm text-black/70 hover:bg-black/5">
                 Cancel
               </button>
-              <button type="submit" disabled={busy}
+              <button type="submit" disabled={busy || presets.length === 0}
                 className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white shadow hover:opacity-90 disabled:opacity-60">
                 {busy ? "Creating…" : "Create client"}
               </button>

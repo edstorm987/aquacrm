@@ -25,6 +25,16 @@ import type {
   PluginInstallScope,
   UserId,
 } from "../lib/tenancy";
+import type {
+  CreateLeaveInput,
+  CreateStaffInput,
+  DecideLeaveInput,
+  LeaveFilter,
+  LeaveRequest,
+  Staff,
+  StaffFilter,
+  UpdateStaffPatch,
+} from "../lib/domain";
 
 // ─── Tenant port (agency metadata only — no client surface) ──────────────
 
@@ -87,4 +97,21 @@ export interface EventBusPort {
 
 export interface PluginInstallStorePort {
   getInstall(scope: PluginInstallScope, pluginId: string): Promise<PluginInstall | null> | PluginInstall | null;
+}
+
+// Canonical workforce bridge. The package keeps its private storage only as a
+// standalone fallback; the mounted portal supplies this port so Agency HR and
+// core People share one employee identity and one leave decision ledger.
+export interface WorkforcePort {
+  listStaff(agencyId: AgencyId, filter?: StaffFilter): Promise<Staff[]> | Staff[];
+  getStaff(agencyId: AgencyId, id: string): Promise<Staff | null> | Staff | null;
+  createStaff(agencyId: AgencyId, input: CreateStaffInput, actor: UserId): Promise<Staff> | Staff;
+  updateStaff(agencyId: AgencyId, id: string, patch: UpdateStaffPatch, actor: UserId): Promise<Staff | null> | Staff | null;
+  archiveStaff(agencyId: AgencyId, id: string, actor: UserId, leftAt: string): Promise<Staff | null> | Staff | null;
+  deleteStaff(agencyId: AgencyId, id: string, actor: UserId): Promise<boolean> | boolean;
+  listLeave(agencyId: AgencyId, filter?: LeaveFilter): Promise<LeaveRequest[]> | LeaveRequest[];
+  getLeave(agencyId: AgencyId, id: string): Promise<LeaveRequest | null> | LeaveRequest | null;
+  requestLeave(agencyId: AgencyId, input: CreateLeaveInput, actor: UserId): Promise<LeaveRequest> | LeaveRequest;
+  decideLeave(agencyId: AgencyId, id: string, decision: DecideLeaveInput): Promise<LeaveRequest | null> | LeaveRequest | null;
+  cancelLeave(agencyId: AgencyId, id: string, actor: UserId): Promise<boolean> | boolean;
 }

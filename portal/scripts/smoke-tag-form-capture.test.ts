@@ -36,8 +36,9 @@ function field(input: FakeField): FakeField {
   };
 }
 
-function runTag(form: Record<string, unknown>) {
+function runTag(form: Record<string, unknown>, options: { captureResults?: boolean[] } = {}) {
   const captures: Array<Record<string, unknown>> = [];
+  let captureAttempt = 0;
   const documentListeners = new Map<string, Array<(event: unknown) => void>>();
   class FakeCustomEvent { constructor(public type: string, public init: { detail?: unknown } = {}) {} get detail() { return this.init.detail; } }
   class FakeForm {}
@@ -53,7 +54,7 @@ function runTag(form: Record<string, unknown>) {
     document: {
       currentScript: { src: "https://aqua-crm.com/aqua-tag.js", dataset: { siteKey: "aqua_public_aquacrm_v1", property: "aquacrm" } },
       title: "AquaCRM", referrer: "", readyState: "complete",
-      createElement: () => ({ dataset: {}, textContent: "" }),
+      createElement: () => ({ dataset: {}, textContent: "", setAttribute() {} }),
       head: { appendChild() {} },
       querySelectorAll: () => [],
       querySelector: () => null,
@@ -68,8 +69,13 @@ function runTag(form: Record<string, unknown>) {
     performance: { getEntriesByType: () => [] },
     history: { pushState() {}, replaceState() {} },
     crypto: webcrypto,
-    fetch: (url: string, options: { body: string }) => {
-      if (String(url).includes("form-capture")) captures.push(JSON.parse(options.body));
+    fetch: (url: string, request: { body: string }) => {
+      if (String(url).includes("form-capture")) {
+        captures.push(JSON.parse(request.body));
+        const ok = options.captureResults?.[captureAttempt] ?? true;
+        captureAttempt += 1;
+        return Promise.resolve({ ok, json: async () => ({ ok }) });
+      }
       return Promise.resolve({ ok: true });
     },
     Blob, URL, JSON, Math, Date, Object, Boolean, String, Set, Map, Array, Number,
@@ -78,6 +84,7 @@ function runTag(form: Record<string, unknown>) {
     HTMLFormElement: FakeForm,
     Element: class {},
     queueMicrotask,
+    setTimeout: (callback: () => void) => { queueMicrotask(callback); return 1; },
   });
 
   Object.setPrototypeOf(form, FakeForm.prototype);
@@ -107,6 +114,27 @@ test("captures every answer the form actually collected", () => {
   assert.deepEqual((capture.fields as Array<{ key: string }>).map(f => f.key), ["name", "email", "salary"]);
   assert.equal(capture.formName, "Careers application");
   assert.equal(capture.pagePath, "/careers");
+  assert.match(String(capture.submissionId), /^aqua_sub_[a-z0-9]{12,100}$/);
+});
+
+test("stamps the same submission id into the host form before its handler runs", () => {
+  let hidden: Record<string, unknown> | null = null;
+  const form = enquiryForm({
+    querySelector: (selector: string) => selector.includes("aquaSubmissionId") ? hidden : null,
+    appendChild: (input: Record<string, unknown>) => { hidden = input; },
+  });
+  const [capture] = runTag(form);
+  assert.ok(hidden, "the capture-phase listener did not add the host form reference");
+  assert.equal(hidden?.name, "aquaSubmissionId");
+  assert.equal(hidden?.value, capture.submissionId);
+});
+
+test("retries a rejected capture with the exact same stable id", async () => {
+  const captures = runTag(enquiryForm(), { captureResults: [false, false, true] });
+  await new Promise<void>(resolve => setImmediate(resolve));
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(captures.length, 3);
+  assert.equal(new Set(captures.map(capture => capture.submissionId)).size, 1);
 });
 
 test("never sends a password, payment or token field", () => {

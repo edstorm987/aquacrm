@@ -96,6 +96,8 @@ export interface LiveErasureStub {
 }
 
 export interface ClientErasureResult {
+  /** True only when every required scrub completed and the local record is gone. */
+  completed: boolean;
   clientName: string;
   recordsErased: number;
   /** Per-area tally, for the confirmation summary and the audit note. Keys are
@@ -611,9 +613,53 @@ export async function eraseClientCompletely(input: {
   const collections: Record<string, number> = {};
   let recordsErased = 0;
 
+  // Live systems go first. Their operations are idempotent, while deleting the
+  // local client first used to remove the only normal route to retry a partial
+  // failure. A failed live attempt leaves the client and all local records in
+  // place and records only de-identified per-system outcomes for the retry.
+  let live: LiveErasureStub | undefined;
+  if (input.supabase) {
+    live = await scrubClientLiveTables(input.supabase, input.agencyId, input.clientId, collections);
+    if (live.errors?.length) {
+      const failedSystems = live.errors.map(error => error.split(":", 1)[0]);
+      logActivity({
+        agencyId: input.agencyId,
+        clientId: input.clientId,
+        actorUserId: input.actorUserId,
+        actorEmail: input.actorEmail,
+        category: "tenant",
+        action: "client.erasure_failed",
+        message: "Client erasure is incomplete and can be retried; no local client data was deleted.",
+        metadata: {
+          clientId: input.clientId,
+          failedSystems,
+          collections,
+          live: { ...live, errors: undefined },
+        },
+      });
+      return { completed: false, clientName, recordsErased: 0, collections, live };
+    }
+  }
+
   // Resolve dispositions + run bespoke plugin hooks first (async — they use
   // their own storage API), so a plugin can erase what the generic scan can't.
   const dispositions = await resolveDispositionsAndRunHooks(input.agencyId, input.clientId, collections);
+  const failedHooks = Object.keys(collections)
+    .filter(key => key.startsWith("hookError:"))
+    .map(key => key.slice("hookError:".length));
+  if (failedHooks.length) {
+    logActivity({
+      agencyId: input.agencyId,
+      clientId: input.clientId,
+      actorUserId: input.actorUserId,
+      actorEmail: input.actorEmail,
+      category: "tenant",
+      action: "client.erasure_failed",
+      message: "Client erasure is incomplete and can be retried; the local client record was retained.",
+      metadata: { clientId: input.clientId, failedSystems: failedHooks.map(id => `plugin:${id}`), collections, live },
+    });
+    return { completed: false, clientName, recordsErased: 0, collections, live };
+  }
 
   mutate(state => {
     // Plugin-owned storage — swept before the top-level pass so client-scoped
@@ -687,14 +733,6 @@ export async function eraseClientCompletely(input: {
     }
   });
 
-  // Live Supabase scrub (inbox delete + no-PII stub; enquiries anonymise).
-  // Runs after the memory wipe; a live failure is recorded, not thrown — the
-  // memory erasure has committed and the live ops are idempotent to retry.
-  let live: LiveErasureStub | undefined;
-  if (input.supabase) {
-    live = await scrubClientLiveTables(input.supabase, input.agencyId, input.clientId, collections);
-  }
-
   // Recorded AFTER the wipe so the audit trail survives it. Names no personal
   // data — only that an erasure occurred, by whom, the disposition per area,
   // and the no-PII live-scrub stub (counts + date span, never content).
@@ -704,11 +742,11 @@ export async function eraseClientCompletely(input: {
     actorEmail: input.actorEmail,
     category: "tenant",
     action: "client.erased",
-    message: `Permanently erased ${clientName} and all associated data (${recordsErased} records deleted). This cannot be undone.`,
+    message: `Permanently erased a client and associated data (${recordsErased} records deleted). This cannot be undone.`,
     metadata: { clientId: input.clientId, recordsErased, collections, live },
   });
 
-  return { clientName, recordsErased, collections, live };
+  return { completed: true, clientName, recordsErased, collections, live };
 }
 
 /**

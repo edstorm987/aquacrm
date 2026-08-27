@@ -99,6 +99,14 @@ describe("personal notepad surface", () => {
       assert.match(workspace, new RegExp(expected));
     }
     assert.match(workspace, /setTimeout\(\(\) =>/);
+    assert.match(workspace, /aquacrm:notepad-draft:/);
+    assert.match(workspace, /window\.localStorage\.setItem/);
+    assert.match(workspace, /window\.addEventListener\("beforeunload"/);
+    assert.match(workspace, /window\.addEventListener\("pagehide"/);
+    assert.match(workspace, /keepalive: true/);
+    assert.match(workspace, /Retry save/);
+    assert.match(workspace, /unsaved .* recovered from this browser/);
+    assert.match(workspace, /flushScheduled\(selectedId/);
     assert.match(workspace, /action: "update-note"/);
     assert.match(workspace, /action: "delete-folder"/);
     assert.match(page, /listNotepadNotes/);

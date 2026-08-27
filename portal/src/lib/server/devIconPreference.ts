@@ -7,7 +7,7 @@ import { DEV_ICON_COOKIE } from "@/lib/chrome/devIconPreference";
 // Server read of the dev-icon visibility preference. Default TRUE (shown): only
 // an explicit `aqua_dev_icon=0` cookie hides the topbar Dev Console icon.
 //
-// This sits UNDER the founder + Dev-Mode gate the layout already applies — it
+// This sits UNDER the founder-only Dev Team access gate the layout already applies — it
 // can only hide an icon the viewer is otherwise entitled to, never summon one.
 
 /** Pure parser — testable without a request context. Default true. */

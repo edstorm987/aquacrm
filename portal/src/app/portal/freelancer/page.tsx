@@ -1,13 +1,14 @@
-// Freelancer workspace — read-only list of the freelancer's OWN assigned jobs,
-// rendered only with the fields the (configurable) access policy permits. Never
-// the agency-side client workspace or any client internal record.
+// Freelancer workspace — the freelancer's OWN assigned jobs, shared
+// deliverables and policy-gated actions. It never renders the agency-side
+// client workspace or any client-internal record.
 
 import { redirect } from "next/navigation";
-import { Briefcase, CalendarClock, CheckCircle2 } from "lucide-react";
+import { Briefcase, CalendarClock, CheckCircle2, ExternalLink, FileUp } from "lucide-react";
 import { ensureHydrated } from "@/server/storage";
 import { requireRole } from "@/lib/server/auth/auth";
 import { freelancerWorkspace } from "@/server/freelancerWorkspace";
 import { FreelancerJobActions } from "./_FreelancerJobActions";
+import { FreelancerMessages } from "./_FreelancerMessages";
 
 export const dynamic = "force-dynamic";
 
@@ -55,10 +56,13 @@ export default async function FreelancerPage() {
               {job.feeLabel ? <span className="inline-flex items-center gap-1">Fee {job.feeLabel}</span> : null}
               {job.deliveredAt ? <span className="inline-flex items-center gap-1 text-emerald-600"><CheckCircle2 size={13} aria-hidden /> Delivered</span> : null}
             </div>
-            <FreelancerJobActions jobId={job.id} canSubmit={job.can.markSubmitted && job.status === "active"} />
+            {job.deliverables?.length ? <div className="mt-3 border-t border-[var(--mm-border)] pt-3"><p className="text-xs font-semibold uppercase text-[var(--mm-text-muted)]">Deliverables shared with you</p><div className="mt-2 flex flex-wrap gap-2">{job.deliverables.map(item => <a key={item.id} href={item.url} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-[var(--mm-border)] px-3 text-xs font-semibold text-[var(--mm-text)]"><ExternalLink size={13} />{item.name}</a>)}</div></div> : null}
+            {job.submissions.length ? <div className="mt-3 border-t border-[var(--mm-border)] pt-3"><p className="text-xs font-semibold uppercase text-[var(--mm-text-muted)]">Your uploaded work</p><div className="mt-2 flex flex-wrap gap-2">{job.submissions.map(item => <a key={item.id} href={item.url} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-[var(--mm-border)] px-3 text-xs font-semibold text-[var(--mm-text)]"><FileUp size={13} />{item.name}</a>)}</div></div> : null}
+            <FreelancerJobActions jobId={job.id} canSubmit={job.can.markSubmitted && job.status === "active"} canUpload={job.can.upload && (job.status === "active" || job.status === "delivered")} />
           </li>
         ))}
       </ul>
+      {workspace.canMessage ? <FreelancerMessages jobId={workspace.jobs.find(job => job.can.message)?.id ?? workspace.jobs[0]!.id} initial={workspace.messages} /> : null}
     </div>
   );
 }

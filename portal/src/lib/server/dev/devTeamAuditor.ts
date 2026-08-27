@@ -8,7 +8,7 @@ import "server-only";
 //
 // Three signals, composed by `scanDevTeamAudit`:
 //   • launch readiness  → reuse `inspectProductionReadiness` (the checklist)
-//   • launch blockers   → reuse `scanBlockers` (state.md's `## Blockers`)
+//   • launch blockers   → reuse `scanBlockers` (state.md + current checklist)
 //   • open audit findings → `parseAuditFindings` over docs/development/audits.md
 //
 // The audit log is written newest-first by the independent auditor. Two things
@@ -75,7 +75,7 @@ export interface AuditFinding {
 export interface DevTeamAudit {
   /** The launch-readiness checklist (reused, read-only). */
   readiness: ProductionReadiness;
-  /** Open launch blockers parsed from state.md (reused, read-only). */
+  /** Open launch blockers parsed from the current status docs (reused, read-only). */
   blockers: DevDocBlocker[];
   /** Open audit findings + the resolved banner ledger, newest-first. */
   findings: AuditFinding[];
@@ -420,7 +420,7 @@ export function readinessContextForAgency(agencyId: string): ReadinessContext {
 
 /**
  * Compose all three signals. Readiness is synchronous; the two disk scans run
- * in parallel. Gate-free — the page asserts founder + Dev Mode before calling.
+ * in parallel. Gate-free — the page asserts founder-only Dev Team access before calling.
  *
  * `context` carries the vault-connected providers and workspace counts (build it
  * with `readinessContextForAgency`). Omit it only where there is no agency in

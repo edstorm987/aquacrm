@@ -11,10 +11,12 @@ import {
   savePortalDesignDraft,
   type ClientPortalDesignScope,
 } from "@/server/clientPortalDesigns";
+import { routeTenantScope } from "@/lib/server/portal/apiTenantScope";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
-import { getClientForAgency, updateClient } from "@/server/tenants";
+import { updateClient } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 async function agencySession(request: NextRequest) {
   await ensureHydrated();
@@ -34,13 +36,18 @@ function cleanText(value: unknown, max = 160): string {
 export async function GET(request: NextRequest) {
   try {
     const session = await agencySession(request);
-    const agencyId = session.activeAgencyId ?? session.agencyId;
     const url = new URL(request.url);
     const scope = cleanScope(url.searchParams.get("scope"));
-    const clientId = cleanText(url.searchParams.get("clientId"), 120);
+    // `scope` in this file has always meant the DESIGN scope; the tenant one
+    // is `tenant`.
+    const tenant = routeTenantScope(session, { clientId: url.searchParams.get("clientId") });
+    const agencyId = tenant.agencyId;
     const templateId = cleanText(url.searchParams.get("templateId"), 220);
-    const client = clientId ? getClientForAgency(agencyId, clientId) : null;
+    const client = tenant.client;
     if (scope === "client" && !client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+    if (scope === "client" && client) {
+      await requireCurrentClientWorkspaceElementAccess(client.id, "client.portal", "view");
+    }
     const record = getPortalDesignRecord({
       agencyId,
       scope,
@@ -65,7 +72,6 @@ export async function POST(request: NextRequest) {
     if (session.role !== "agency-owner" && session.role !== "agency-manager") {
       return NextResponse.json({ ok: false, error: "manager access required" }, { status: 403 });
     }
-    const agencyId = session.activeAgencyId ?? session.agencyId;
     const body = await request.json().catch(() => null) as {
       action?: "save-draft" | "publish" | "checkpoint" | "restore" | "refresh-product" | "reset-client";
       scope?: ClientPortalDesignScope;
@@ -78,10 +84,18 @@ export async function POST(request: NextRequest) {
     } | null;
     if (!body?.action) return NextResponse.json({ ok: false, error: "action required" }, { status: 400 });
     const scope = cleanScope(body.scope);
-    const clientId = cleanText(body.clientId, 120);
+    const tenant = routeTenantScope(session, { clientId: body.clientId });
+    const agencyId = tenant.agencyId;
     const templateId = cleanText(body.templateId, 220);
-    const client = clientId ? getClientForAgency(agencyId, clientId) : null;
+    const client = tenant.client;
     if (scope === "client" && !client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+    if (scope === "client" && client) {
+      await requireCurrentClientWorkspaceElementAccess(
+        client.id,
+        "client.portal",
+        body.action === "save-draft" || body.action === "checkpoint" ? "use" : "manage",
+      );
+    }
     const initial = getPortalDesignRecord({
       agencyId,
       scope,

@@ -138,11 +138,15 @@ export interface SubscribeInput {
   billing: Billing;
   successUrl: string;
   cancelUrl: string;
+  /** Stable intent identity. Retries with the same target adopt the durable command. */
+  operationId?: string;
 }
 
 export interface CancelInput {
   endCustomerUserId: UserId;
   atPeriodEnd: boolean;
+  /** Stable intent identity. Retries with the same target adopt the durable command. */
+  operationId?: string;
 }
 
 // ─── Webhook event marker ────────────────────────────────────────────────
@@ -158,4 +162,27 @@ export interface WebhookEventSeen {
   id: string;
   type: string;
   receivedAt: number;
+}
+
+export interface MembershipWebhookDelivery extends WebhookEventSeen {
+  status: "processing" | "failed" | "completed";
+  attempts: number;
+  updatedAt: number;
+  applied?: boolean;
+  completedAt?: number;
+  lastError?: string;
+}
+
+export interface MembershipPaymentRecord {
+  agencyId: AgencyId;
+  clientId: ClientId;
+  invoiceId: string;
+  stripeCustomerId: string;
+  stripeSubscriptionId?: string;
+  status: "paid" | "failed";
+  amountCents: number;
+  currency?: string;
+  eventId: string;
+  occurredAt: number;
+  updatedAt: number;
 }

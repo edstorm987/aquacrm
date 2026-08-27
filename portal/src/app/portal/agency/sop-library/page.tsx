@@ -9,7 +9,8 @@ import { SopLibrary } from "./_SopLibrary";
 export default async function SopLibraryPage() {
   await ensureHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
-  const canManageGuides = session.role === "agency-owner" || session.role === "agency-manager";
+  const canManageGuides = !session.publicShowcase
+    && (session.role === "agency-owner" || session.role === "agency-manager");
   return (
     <SopLibrary
       initialSops={listSops(session.agencyId)}

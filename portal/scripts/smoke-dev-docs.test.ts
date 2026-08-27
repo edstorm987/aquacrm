@@ -1,22 +1,22 @@
-// Dev Docs smoke — the owner + Dev-Mode-only in-app docs browser (Phase 1).
+// Dev Docs smoke — the founder-only in-app docs browser and Dev Team gate.
 //
 // Behavioural, and hermetic by construction: the sidebar item is gated on an
-// INJECTED `devModeAvailable` flag (buildSidebar never reads env), so the
-// visibility contract needs no env mutation at all. Only the positive gate
-// path (`canUseDevMode()` true) briefly satisfies the Dev Mode env guards via
-// the same restore-in-finally shape as smoke-dev-mode.test.ts.
+// INJECTED `devTeamAvailable` flag (buildSidebar never reads env), so the
+// visibility contract needs no env mutation at all. Local fixtures still use
+// Dev Mode; production uses the deployment's one live FOUNDER_EMAIL account.
 //
 // Proves:
-//   1. the "Dev Docs" nav item appears ONLY for a founder in Dev Mode, and is
-//      absent for a normal owner, a non-founder, in production-like env, and in
-//      client scope — the #1 safety contract;
-//   2. `devDocsAccessible()` combines Dev Mode AND founder (both required);
+//   1. the "Dev Docs" nav item appears only when the authenticated caller
+//      injects Dev Team access, and never leaks into client scope;
+//   2. `devDocsAccessible()` accepts local founder fixtures in Dev Mode or the
+//      one live production founder, never another agency owner;
 //   3. the doc index reads live off disk: every dev *.md, newest-edited first,
 //      categorised, with a known plan present;
 //   4. `relativeAge` formats the last-edited stamp.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import { buildSidebar, type BuildSidebarInput, type NavPanel } from "../src/lib/chrome/sidebarLayout";
 import {
@@ -26,10 +26,13 @@ import {
   scanDevDocs,
   buildDocTree,
   parseBlockers,
+  parseChecklistBlockers,
   scanBlockers,
 } from "../src/lib/server/dev/devDocs";
 import { relativeAge } from "../src/lib/shared/formatDateTime";
 import { ensureHydrated } from "../src/server/storage";
+import { createAgency } from "../src/server/tenants";
+import { createUser } from "../src/server/users";
 import type { SessionPayload } from "../src/server/types";
 
 process.env.PORTAL_BACKEND ??= "memory";
@@ -82,24 +85,29 @@ function restore(key: string, value: string | undefined) {
 // --- 1. sidebar visibility (pure, no env) -----------------------------------
 
 describe("Dev Docs — sidebar gate", () => {
-  it("shows the item for a founder with Dev Mode available", () => {
-    const panels = buildSidebar(agencyInput({ isFounder: true, devModeAvailable: true }));
+  it("shows the item when the authenticated founder has Dev Team access", () => {
+    const panels = buildSidebar(agencyInput({ isFounder: true, devTeamAvailable: true }));
     const item = findItem(panels, "dev-docs");
     assert.ok(item, "expected a dev-docs nav item");
     assert.equal(item?.href, "/portal/agency/dev-docs");
   });
 
-  it("hides the item when Dev Mode is unavailable (the production-like case)", () => {
-    const panels = buildSidebar(agencyInput({ isFounder: true, devModeAvailable: false }));
+  it("hides the item when Dev Team access is unavailable", () => {
+    const panels = buildSidebar(agencyInput({ isFounder: true, devTeamAvailable: false }));
     assert.equal(findItem(panels, "dev-docs"), undefined);
   });
 
-  it("hides the item for a non-founder even with Dev Mode available", () => {
-    const panels = buildSidebar(agencyInput({ isFounder: false, devModeAvailable: true }));
+  it("hides the item for a non-founder even when access is mistakenly injected", () => {
+    const panels = buildSidebar(agencyInput({ isFounder: false, devTeamAvailable: true }));
     assert.equal(findItem(panels, "dev-docs"), undefined);
   });
 
-  it("defaults off — a normal owner build (no flag) never sees it", () => {
+  it("does not confuse the demo-persona switch with Dev Team availability", () => {
+    const panels = buildSidebar(agencyInput({ isFounder: true, devModeAvailable: true }));
+    assert.equal(findItem(panels, "dev-docs"), undefined);
+  });
+
+  it("defaults off when the caller supplies no access decision", () => {
     const panels = buildSidebar(agencyInput({ isFounder: true }));
     assert.equal(findItem(panels, "dev-docs"), undefined);
   });
@@ -110,7 +118,7 @@ describe("Dev Docs — sidebar gate", () => {
       scope: "client",
       installedPlugins: [],
       isFounder: true,
-      devModeAvailable: true,
+      devTeamAvailable: true,
       currentClient: { id: "cl_1" } as never,
     });
     assert.equal(findItem(panels, "dev-docs"), undefined);
@@ -128,15 +136,55 @@ describe("Dev Docs — access gate", () => {
     });
   });
 
-  it("refuses a founder when Dev Mode is off (default env)", () => {
-    // No env mutation: PORTAL_DEV_MODE is unset in the suite, so canUseDevMode() is false.
+  it("refuses an arbitrary agency owner when Dev Mode is off", () => {
     assert.equal(devDocsAccessible(sessionWithRole("agency-owner")), false);
   });
 
-  it("allows a founder only when Dev Mode is on", async () => {
+  it("allows a local founder fixture when Dev Mode is on", async () => {
     await withDevModeEnabled(async () => {
       assert.equal(devDocsAccessible(sessionWithRole("agency-owner")), true);
     });
+  });
+
+  it("allows the configured live founder without Dev Mode and refuses another owner", async () => {
+    await ensureHydrated();
+    const savedFounderEmail = process.env.FOUNDER_EMAIL;
+    const savedDevMode = process.env.PORTAL_DEV_MODE;
+    const savedNodeEnv = process.env.NODE_ENV;
+    const savedVercelEnv = process.env.VERCEL_ENV;
+    const unique = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const email = `production-founder-${unique}@example.test`;
+    const agency = createAgency({ name: `Production founder ${unique}`, slug: `production-founder-${unique}` });
+    const user = createUser({
+      email,
+      name: "Production Founder",
+      role: "agency-owner",
+      agencyId: agency.id,
+      password: "production-founder-test-pass",
+    });
+    const session = {
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      agencyId: agency.id,
+      agencyIds: [agency.id],
+      activeAgencyId: agency.id,
+      sessionRev: user.sessionRev ?? 0,
+    } as SessionPayload;
+
+    process.env.FOUNDER_EMAIL = email;
+    delete process.env.PORTAL_DEV_MODE;
+    process.env.NODE_ENV = "production";
+    process.env.VERCEL_ENV = "production";
+    try {
+      assert.equal(devDocsAccessible(session), true);
+      assert.equal(devDocsAccessible({ ...session, email: `other-${email}` }), false);
+    } finally {
+      restore("FOUNDER_EMAIL", savedFounderEmail);
+      restore("PORTAL_DEV_MODE", savedDevMode);
+      restore("NODE_ENV", savedNodeEnv);
+      restore("VERCEL_ENV", savedVercelEnv);
+    }
   });
 
   it("listDevDocs throws for a non-founder even in Dev Mode", async () => {
@@ -146,11 +194,30 @@ describe("Dev Docs — access gate", () => {
   });
 });
 
+describe("Dev Docs — production packaging", () => {
+  it("traces only runtime docs into production routes and leaves dev edits out of the compiler graph", () => {
+    const source = readFileSync("next.config.ts", "utf8");
+    assert.match(source, /const DEV_TEAM_RUNTIME_FILES = \[/);
+    assert.match(source, /"\.\/docs\/\*\*\/\*"/);
+    assert.match(source, /"\.\/scripts\/\*\*\/\*\.md"/);
+    assert.match(source, /"\.\/src\/\*\*\/\*\.md"/);
+    assert.doesNotMatch(source, /"\.\/scripts\/\*\*\/\*"/);
+    assert.doesNotMatch(source, /"\.\/src\/\*\*\/\*"/);
+    assert.match(source, /process\.env\.NODE_ENV === "production"/);
+    assert.match(source, /outputFileTracingIncludes: DEV_TEAM_OUTPUT_TRACING/);
+    assert.match(source, /"\/portal\/dev-team\/\*\*": DEV_TEAM_RUNTIME_FILES/);
+    assert.match(source, /"\/portal\/agency\/dev-docs": DEV_TEAM_RUNTIME_FILES/);
+    assert.match(source, /"\/api\/portal\/dev-team\/\*\*": DEV_TEAM_RUNTIME_FILES/);
+    assert.match(source, /"\/api\/portal\/dev\/\*\*": DEV_TEAM_RUNTIME_FILES/);
+    assert.doesNotMatch(source, /DEV_TEAM_RUNTIME_FILES\s*=\s*\[\s*"\.\/\*\*\/\*"/);
+  });
+});
+
 describe("Dev Docs — live index", () => {
   it("scans every project *.md off disk, newest-edited first, into a folder tree", async () => {
     const index = await scanDevDocs();
 
-    // Everything (Ed's call): the generated reference/ tree makes this large.
+    // Everything (Ed's call), including the consolidated generated references.
     assert.ok(index.total > 100, `expected a large index, got ${index.total}`);
 
     // Sorted strictly non-increasing by mtime.
@@ -161,11 +228,12 @@ describe("Dev Docs — live index", () => {
       );
     }
 
-    // Paths are project-root-relative; the docs/ folder dominates the tree.
+    // Paths are project-root-relative. The authored docs remain present while
+    // reference detail lives in a handful of large volumes, not 2,000 stubs.
     const docsNode = index.tree.find(n => n.isDir && n.name === "docs");
-    assert.ok(docsNode && docsNode.count > 500, "docs/ folder present and large");
+    assert.ok(docsNode && docsNode.count > 100, "docs/ folder present and substantial");
     const ref = docsNode.children!.find(n => n.isDir && n.name === "reference");
-    assert.ok(ref && ref.count > 500, "docs/reference/ dominates");
+    assert.ok(ref && ref.count >= 10 && ref.count <= 12, "docs/reference/ is consolidated");
 
     // Known docs indexed at their real (project-relative) paths, with real titles.
     const plan = index.entries.find(e => e.relPath === "docs/development/plans/dev-docs.md");
@@ -209,7 +277,7 @@ describe("Dev Docs — readDevDoc", () => {
     });
   });
 
-  it("refuses a founder when Dev Mode is off", async () => {
+  it("refuses an arbitrary owner when local Dev Mode is off", async () => {
     await assert.rejects(() => readDevDoc(sessionWithRole("agency-owner"), "docs/development.md"));
   });
 
@@ -248,7 +316,7 @@ describe("Dev Docs — readDevDoc", () => {
   });
 });
 
-// --- 3c. overview blockers (parsed from state.md) ---------------------------
+// --- 3c. overview blockers (parsed from current status docs) ----------------
 
 describe("Dev Docs — blockers", () => {
   it("parses only the Blockers section: open vs resolved, detail split", () => {
@@ -283,13 +351,38 @@ describe("Dev Docs — blockers", () => {
     assert.equal(only.resolved, false);
   });
 
-  it("scanBlockers reads live state.md and returns well-formed items", async () => {
+  it("parses open and closed checkbox items only from red checklist sections", () => {
+    const md = [
+      "## 🔴 Open defects",
+      "- [ ] **Finance role leak:** staff can read salaries",
+      "      through the SSR page.",
+      "- [x] **MFA:** implemented and verified.",
+      "## 🟠 Later work",
+      "- [ ] **Not a blocker:** this must stay out",
+    ].join("\n");
+
+    const blockers = parseChecklistBlockers(md);
+    assert.deepEqual(blockers.map(blocker => blocker.label), ["Finance role leak:", "MFA:"]);
+    assert.equal(blockers[0]?.resolved, false);
+    assert.match(blockers[0]?.detail ?? "", /through the SSR page/);
+    assert.equal(blockers[1]?.resolved, true);
+  });
+
+  it("scanBlockers reads the live status docs and returns well-formed items", async () => {
     const b = await scanBlockers();
     assert.ok(Array.isArray(b));
     for (const x of b) {
       assert.equal(typeof x.label, "string");
       assert.equal(typeof x.resolved, "boolean");
     }
+  });
+
+  it("the Auditor cannot call partial source evidence an all-clear launch verdict", () => {
+    const source = readFileSync("src/app/portal/dev-team/auditor/_Section.tsx", "utf8");
+    assert.match(source, /overallOpenCount = stillOpenCount \+ openBlockers\.length \+ requiredNotReady\.length/);
+    assert.match(source, /Source checks clear/);
+    assert.match(source, /Source readiness does not replace a current browser, authorisation, tenant-isolation, crash, public-flow and performance audit/);
+    assert.doesNotMatch(source, /nothing standing between us and launch/i);
   });
 });
 

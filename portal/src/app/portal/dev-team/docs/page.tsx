@@ -67,6 +67,7 @@ export default async function DevDocsEditPage({ searchParams }: { searchParams: 
           title={doc.title}
           initialContent={doc.content}
           mtimeMs={doc.mtimeMs}
+          contentSha256={doc.contentSha256}
           edits={history.edits}
           changedOutsideApp={history.changedOutsideApp}
           nowMs={nowMs}

@@ -16,7 +16,10 @@ import type {
   UpdateInvoicePatch,
 } from "../lib/domain";
 import { normaliseCurrency } from "../lib/currencies";
+import { assertKnownFields, assertNonEmptyText, assertTimestamp } from "../lib/runtimeValidation";
 import { resolveFinanceDefaultCurrency } from "@/lib/server/finance/financeCurrency";
+import { authErrorResponse } from "@/lib/server/auth/auth";
+import { requireCurrentClientWorkspaceElementAccess, type ClientWorkspaceElementLevel } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -41,6 +44,19 @@ const buildContainer = (ctx: PluginCtx) =>
 const defaultCurrency = (ctx: PluginCtx): Currency =>
   resolveFinanceDefaultCurrency(ctx.agencyId, ctx.install.config.defaultCurrency);
 
+async function clientCommercialGate(
+  clientId: string | null | undefined,
+  required: Exclude<ClientWorkspaceElementLevel, "hidden">,
+): Promise<Response | null> {
+  if (!clientId) return null;
+  try {
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.commercial", required);
+    return null;
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+}
+
 // ─── Invoices ────────────────────────────────────────────────────────────
 
 export async function listInvoicesHandler(req: Request, ctx: PluginCtx): Promise<Response> {
@@ -51,6 +67,8 @@ export async function listInvoicesHandler(req: Request, ctx: PluginCtx): Promise
     clientId: url.searchParams.get("clientId") ?? undefined,
     query: url.searchParams.get("q") ?? undefined,
   };
+  const denied = await clientCommercialGate(filter.clientId, "view");
+  if (denied) return denied;
   return json({ ok: true, invoices: await buildContainer(ctx).invoices.list(filter) });
 }
 
@@ -58,9 +76,11 @@ export async function createInvoiceHandler(req: Request, ctx: PluginCtx): Promis
   const guard = methodGuard(req, "POST");
   if (guard) return guard;
   const body = await safeJson<CreateInvoiceInput>(req);
-  if (!body || !body.clientId || !body.dueAt || !body.lineItems) {
-    return badRequest("clientId + dueAt + lineItems required.");
+  if (!body || !body.clientId || !body.lineItems) {
+    return badRequest("clientId + lineItems required.");
   }
+  const denied = await clientCommercialGate(body.clientId, "use");
+  if (denied) return denied;
   try {
     const inv = await buildContainer(ctx).invoices.create(body, ctx.actor, defaultCurrency(ctx));
     return json({ ok: true, invoice: inv }, 201);
@@ -75,7 +95,12 @@ export async function updateInvoiceHandler(req: Request, ctx: PluginCtx): Promis
   const body = await safeJson<{ id: string; patch: UpdateInvoicePatch }>(req);
   if (!body?.id) return badRequest("id required.");
   try {
-    const inv = await buildContainer(ctx).invoices.update(body.id, body.patch ?? {}, ctx.actor);
+    const invoices = buildContainer(ctx).invoices;
+    const existing = await invoices.get(body.id);
+    if (!existing) return notFound("invoice not found");
+    const denied = await clientCommercialGate(existing.clientId, "use");
+    if (denied) return denied;
+    const inv = await invoices.update(body.id, body.patch ?? {}, ctx.actor);
     return inv ? json({ ok: true, invoice: inv }) : notFound("invoice not found");
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
@@ -88,7 +113,12 @@ export async function deleteInvoiceHandler(req: Request, ctx: PluginCtx): Promis
   const id = new URL(req.url).searchParams.get("id");
   if (!id) return badRequest("id required.");
   try {
-    const ok = await buildContainer(ctx).invoices.delete(id, ctx.actor);
+    const invoices = buildContainer(ctx).invoices;
+    const existing = await invoices.get(id);
+    if (!existing) return notFound("invoice not found");
+    const denied = await clientCommercialGate(existing.clientId, "manage");
+    if (denied) return denied;
+    const ok = await invoices.delete(id, ctx.actor);
     return ok ? json({ ok: true }) : notFound("invoice not found");
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
@@ -104,6 +134,8 @@ export async function markInvoicePaidHandler(req: Request, ctx: PluginCtx): Prom
     const container = buildContainer(ctx);
     const inv = await container.invoices.get(body.id);
     if (!inv) return notFound("invoice not found");
+    const denied = await clientCommercialGate(inv.clientId, "manage");
+    if (denied) return denied;
     if (!["sent", "overdue", "paid"].includes(inv.status)) {
       return unprocessable(`Cannot mark ${inv.status} invoice as paid.`);
     }
@@ -149,6 +181,8 @@ export async function downloadInvoiceHandler(req: Request, ctx: PluginCtx): Prom
   const container = buildContainer(ctx);
   const invoice = await container.invoices.get(id);
   if (!invoice) return notFound("invoice not found");
+  const denied = await clientCommercialGate(invoice.clientId, "view");
+  if (denied) return denied;
   const body = await container.invoices.renderInvoiceHtml(id);
   const template = await container.invoices.getTemplate();
   if (!body) return notFound("invoice not found");
@@ -194,8 +228,12 @@ export async function invoiceTemplateHandler(req: Request, ctx: PluginCtx): Prom
     if (!validType) return badRequest("Upload a PNG, JPEG, or WebP template.");
     if (body.letterheadDataUrl.length > 2_000_000) return badRequest("Template image must be under 1.5 MB.");
   }
-  const template: InvoiceTemplate = await invoices.saveTemplate(body);
-  return json({ ok: true, template });
+  try {
+    const template: InvoiceTemplate = await invoices.saveTemplate(body);
+    return json({ ok: true, template });
+  } catch (err) {
+    return unprocessable(err instanceof Error ? err.message : String(err));
+  }
 }
 
 // ─── Expenses ────────────────────────────────────────────────────────────
@@ -209,6 +247,8 @@ export async function listExpensesHandler(req: Request, ctx: PluginCtx): Promise
     categoryId: url.searchParams.get("categoryId") ?? undefined,
     staffId: url.searchParams.get("staffId") ?? undefined,
   };
+  const denied = await clientCommercialGate(filter.clientId, "view");
+  if (denied) return denied;
   return json({ ok: true, expenses: await buildContainer(ctx).expenses.list(filter) });
 }
 
@@ -219,11 +259,13 @@ export async function createExpenseHandler(req: Request, ctx: PluginCtx): Promis
   if (!body || !body.categoryId || typeof body.amountCents !== "number") {
     return badRequest("categoryId + amountCents required.");
   }
+  const denied = await clientCommercialGate(body.clientId, "use");
+  if (denied) return denied;
   try {
     // `body.idempotencyKey` (typed on CreateExpenseInput) forwards straight
     // through: a double-clicked "Add expense" resubmits the same key and gets
     // the first expense back rather than a second row. See lib/idempotency.ts.
-    const { expense, deduped } = await buildContainer(ctx).expenses.createDetailed(body, ctx.actor, defaultCurrency(ctx));
+    const { expense, deduped } = await buildContainer(ctx).expenses.createDetailed({ ...body, customFields: body.customFields ?? {} }, ctx.actor, defaultCurrency(ctx));
     return json({ ok: true, expense, deduped }, 201);
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
@@ -236,7 +278,13 @@ export async function updateExpenseHandler(req: Request, ctx: PluginCtx): Promis
   const body = await safeJson<{ id: string; patch: UpdateExpensePatch }>(req);
   if (!body?.id) return badRequest("id required.");
   try {
-    const exp = await buildContainer(ctx).expenses.update(body.id, body.patch ?? {}, ctx.actor);
+    const expenses = buildContainer(ctx).expenses;
+    const existing = await expenses.get(body.id);
+    if (!existing) return notFound("expense not found");
+    const denied = await clientCommercialGate(existing.clientId, "use")
+      ?? await clientCommercialGate(body.patch?.clientId, "use");
+    if (denied) return denied;
+    const exp = await expenses.update(body.id, { ...(body.patch ?? {}), customFields: body.patch?.customFields ?? existing.customFields ?? {} }, ctx.actor);
     return exp ? json({ ok: true, expense: exp }) : notFound("expense not found");
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
@@ -248,8 +296,17 @@ export async function approveExpenseHandler(req: Request, ctx: PluginCtx): Promi
   if (guard) return guard;
   const body = await safeJson<{ id: string; decisionNote?: string }>(req);
   if (!body?.id) return badRequest("id required.");
-  const exp = await buildContainer(ctx).expenses.approve(body.id, ctx.actor, body.decisionNote);
-  return exp ? json({ ok: true, expense: exp }) : notFound("expense not found");
+  try {
+    const expenses = buildContainer(ctx).expenses;
+    const existing = await expenses.get(body.id);
+    if (!existing) return notFound("expense not found");
+    const denied = await clientCommercialGate(existing.clientId, "manage");
+    if (denied) return denied;
+    const exp = await expenses.approve(body.id, ctx.actor, body.decisionNote);
+    return exp ? json({ ok: true, expense: exp }) : notFound("expense not found");
+  } catch (err) {
+    return unprocessable(err instanceof Error ? err.message : String(err));
+  }
 }
 
 export async function rejectExpenseHandler(req: Request, ctx: PluginCtx): Promise<Response> {
@@ -257,8 +314,17 @@ export async function rejectExpenseHandler(req: Request, ctx: PluginCtx): Promis
   if (guard) return guard;
   const body = await safeJson<{ id: string; decisionNote?: string }>(req);
   if (!body?.id) return badRequest("id required.");
-  const exp = await buildContainer(ctx).expenses.reject(body.id, ctx.actor, body.decisionNote);
-  return exp ? json({ ok: true, expense: exp }) : notFound("expense not found");
+  try {
+    const expenses = buildContainer(ctx).expenses;
+    const existing = await expenses.get(body.id);
+    if (!existing) return notFound("expense not found");
+    const denied = await clientCommercialGate(existing.clientId, "manage");
+    if (denied) return denied;
+    const exp = await expenses.reject(body.id, ctx.actor, body.decisionNote);
+    return exp ? json({ ok: true, expense: exp }) : notFound("expense not found");
+  } catch (err) {
+    return unprocessable(err instanceof Error ? err.message : String(err));
+  }
 }
 
 export async function reimburseExpenseHandler(req: Request, ctx: PluginCtx): Promise<Response> {
@@ -267,7 +333,12 @@ export async function reimburseExpenseHandler(req: Request, ctx: PluginCtx): Pro
   const body = await safeJson<{ id: string }>(req);
   if (!body?.id) return badRequest("id required.");
   try {
-    const exp = await buildContainer(ctx).expenses.reimburse(body.id, ctx.actor);
+    const expenses = buildContainer(ctx).expenses;
+    const existing = await expenses.get(body.id);
+    if (!existing) return notFound("expense not found");
+    const denied = await clientCommercialGate(existing.clientId, "manage");
+    if (denied) return denied;
+    const exp = await expenses.reimburse(body.id, ctx.actor);
     return exp ? json({ ok: true, expense: exp }) : notFound("expense not found");
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
@@ -277,10 +348,18 @@ export async function reimburseExpenseHandler(req: Request, ctx: PluginCtx): Pro
 export async function postRecurringExpenseHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   const guard = methodGuard(req, "POST");
   if (guard) return guard;
-  const body = await safeJson<{ id: string }>(req);
-  if (!body?.id) return badRequest("id required.");
+  const body = await safeJson<Record<string, unknown>>(req);
+  if (!body) return badRequest("id + occurrenceAt required.");
   try {
-    const result = await buildContainer(ctx).expenses.postNextOccurrence(body.id, ctx.actor);
+    assertKnownFields(body, ["id", "occurrenceAt"]);
+    assertNonEmptyText(body.id, "id");
+    assertTimestamp(body.occurrenceAt, "occurrenceAt");
+    const expenses = buildContainer(ctx).expenses;
+    const existing = await expenses.get(body.id as string);
+    if (!existing) return notFound("expense not found");
+    const denied = await clientCommercialGate(existing.clientId, "use");
+    if (denied) return denied;
+    const result = await expenses.postNextOccurrence(body.id, ctx.actor, body.occurrenceAt);
     return result ? json({ ok: true, ...result }, 201) : notFound("expense not found");
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
@@ -325,9 +404,17 @@ export async function updateCategoryHandler(req: Request, ctx: PluginCtx): Promi
 export async function reportHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   if (req.method !== "GET") return json({ ok: false, error: "method_not_allowed" }, 405);
   const url = new URL(req.url);
-  const from = Number(url.searchParams.get("from") ?? 0);
-  const to = Number(url.searchParams.get("to") ?? Date.now());
+  const now = Date.now();
+  const from = Number(url.searchParams.get("from") ?? Date.UTC(new Date(now).getUTCFullYear(), 0, 1));
+  const to = Number(url.searchParams.get("to") ?? now);
   const currency = normaliseCurrency(url.searchParams.get("currency"), defaultCurrency(ctx));
-  const snapshot = await buildContainer(ctx).reports.revenueSnapshot({ from, to, currency });
-  return json({ ok: true, snapshot });
+  try {
+    assertTimestamp(from, "from");
+    assertTimestamp(to, "to");
+    if (from > to) return badRequest("from must not be after to");
+    const snapshot = await buildContainer(ctx).reports.revenueSnapshot({ from, to, currency });
+    return json({ ok: true, snapshot });
+  } catch (error) {
+    return badRequest(error instanceof Error ? error.message : "invalid_report_request");
+  }
 }

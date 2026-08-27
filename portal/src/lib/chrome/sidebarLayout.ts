@@ -13,7 +13,6 @@ import "server-only";
 // Plugin nav items are merged onto the default tree by their declared
 // `panelId`. Items without a panelId fall into the "main" panel.
 
-import { listPlugins } from "@/built-ins/runtime/_registry";
 import type { NavItem, PanelId } from "@/built-ins/runtime/_types";
 import { navItemAllowedRoles } from "@/built-ins/runtime/_types";
 import type { Client, PluginInstall, Role } from "@/server/types";
@@ -66,16 +65,22 @@ export interface BuildSidebarInput {
   scope: "agency" | "client" | "customer";
   currentClient?: Client;
   installedPlugins: PluginInstall[];
+  /** Pure navigation metadata supplied by the host; never executable manifests. */
+  pluginCatalog?: readonly { id: string; navItems: readonly NavItem[] }[];
   // Effective-role permission grid (T1 R7). When provided, the
   // sidebar additionally filters items declaring `requires:
   // PermissionKey[]` against this set. `isFounder: true` short-
   // circuits the filter so Founders never get gated.
   permissions?: readonly string[];
   isFounder?: boolean;
-  // Dev-only surfaces (Dev Docs). The caller injects `canUseDevMode()` — the
-  // env/backend gate is never read inside this pure assembly, so tests stay
-  // hermetic. Combined with `isFounder`, it guards the one dev-only nav item.
+  // Local demo-persona capability. The caller injects `canUseDevMode()` so
+  // this pure assembly never reads environment state. This is deliberately
+  // separate from the production-capable Dev Team access decision below.
   devModeAvailable?: boolean;
+  /** Internal Dev Team/Dev Docs access, independent of the demo-persona switch. */
+  devTeamAvailable?: boolean;
+  /** Public, credential-free showcase: replace configuration with its access summary. */
+  publicShowcase?: boolean;
 }
 
 // Default top-of-list nav items contributed by the foundation, role-aware.
@@ -141,7 +146,7 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
 
   // Plugin contributions — only for plugins installed AND enabled in this scope.
   const enabledIds = new Set(input.installedPlugins.filter(i => i.enabled).map(i => i.pluginId));
-  for (const plugin of listPlugins()) {
+  for (const plugin of input.pluginCatalog ?? []) {
     if (!enabledIds.has(plugin.id)) continue;
     for (const navItem of plugin.navItems) {
       // Role gate — accepts either `visibleToRoles` (T2 convention) or
@@ -185,10 +190,10 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
 
   // Settings — every scope sees a settings entry. Plugins can add more.
   if (input.scope === "agency" && isAgencyRole(input.role)) {
-    // Dev Docs — dev-only, founder-only. Never appears for a normal owner or in
-    // any production-like context (caller injects `canUseDevMode()`). Lives in
-    // the settings footer, which the AquaOasis override preserves intact.
-    if (input.isFounder && input.devModeAvailable) {
+    // Dev Team is the founder's internal control plane in local and production
+    // contexts. Its access predicate is injected by the authenticated caller;
+    // the pure sidebar builder never infers identity from NODE_ENV.
+    if (input.isFounder && input.devTeamAvailable) {
       appendIntoPanel(itemsByPanel, { id: "dev-team", label: "Dev Team", href: "/portal/dev-team", panelId: "settings", order: 93 });
       appendIntoPanel(itemsByPanel, { id: "dev-docs", label: "Dev Docs", href: "/portal/agency/dev-docs", panelId: "settings", order: 94 });
     }
@@ -199,7 +204,9 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
     if (input.isFounder && input.devModeAvailable) {
       appendIntoPanel(itemsByPanel, { id: "agency-phases", label: "Phases", href: "/portal/agency/phases", panelId: "settings", order: 95 });
     }
-    appendIntoPanel(itemsByPanel, { id: "agency-settings", label: "Agency settings", href: "/portal/agency/settings", panelId: "settings", order: 100 });
+    appendIntoPanel(itemsByPanel, input.publicShowcase
+      ? { id: "showcase-permissions", label: "Permissions", href: "/portal/account/permissions", panelId: "settings", order: 100 }
+      : { id: "agency-settings", label: "Agency settings", href: "/portal/agency/settings", panelId: "settings", order: 100 });
   } else if (input.scope === "client" && input.currentClient && (isAgencyRole(input.role) || isClientRole(input.role))) {
     appendIntoPanel(itemsByPanel, {
       id: "client-settings",
@@ -271,7 +278,7 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
     const logsItems: NavItem[] = [];
     for (const panel of sorted) {
       for (const item of panel.items) {
-        if (item.label.toLowerCase() === "logs") logsItems.push({ ...item, panelId: "settings" });
+        if (!input.publicShowcase && item.label.toLowerCase() === "logs") logsItems.push({ ...item, panelId: "settings" });
       }
     }
     const out: NavPanel[] = [];

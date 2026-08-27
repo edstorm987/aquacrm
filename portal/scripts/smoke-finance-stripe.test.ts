@@ -106,7 +106,7 @@ let invoiceId: string;
 before(async () => {
   world = buildWorld();
   services = containerWithDeps({ agencyId: AGENCY_ID, storage: world.storage, tenant: world.tenant, user: world.user, activity: world.activity, events: world.events, pluginInstalls: world.pluginInstalls });
-  const invoice = await services.invoices.create({ clientId: CLIENT_ID, dueAt: 1_000_000, lineItems: [{ description: "Website build", quantity: 1, unitCents: 50_000 }], currency: "gbp" }, ACTOR);
+  const invoice = await services.invoices.create({ clientId: CLIENT_ID, issuedAt: 0, dueAt: 1_000_000, lineItems: [{ description: "Website build", quantity: 1, unitCents: 50_000 }], currency: "gbp" }, ACTOR);
   invoiceId = invoice.id;
   await services.invoices.update(invoiceId, { status: "sent" }, ACTOR);
 });
@@ -232,7 +232,7 @@ test("readStripeKeysFromInstall / stripeConfigured read Ed's keys off the instal
 async function stripeWorld(totalCents = 50_000) {
   const w = buildWorld();
   const s = containerWithDeps({ agencyId: AGENCY_ID, storage: w.storage, tenant: w.tenant, user: w.user, activity: w.activity, events: w.events, pluginInstalls: w.pluginInstalls });
-  const invoice = await s.invoices.create({ clientId: CLIENT_ID, dueAt: 1_000_000, lineItems: [{ description: "Retainer", quantity: 1, unitCents: totalCents }], currency: "gbp" }, ACTOR);
+  const invoice = await s.invoices.create({ clientId: CLIENT_ID, issuedAt: 0, dueAt: 1_000_000, lineItems: [{ description: "Retainer", quantity: 1, unitCents: totalCents }], currency: "gbp" }, ACTOR);
   await s.invoices.update(invoice.id, { status: "sent" }, ACTOR);
   return { world: w, services: s, invoiceId: invoice.id };
 }
@@ -322,7 +322,7 @@ function blipOnFirstPaymentWrite(totalCents = 50_000) {
   };
   const services = containerWithDeps({ agencyId: AGENCY_ID, storage, tenant: w.tenant, user: w.user, activity: w.activity, events: w.events, pluginInstalls: w.pluginInstalls });
   return { services, seed: async () => {
-    const invoice = await services.invoices.create({ clientId: CLIENT_ID, dueAt: 1_000_000, lineItems: [{ description: "Build", quantity: 1, unitCents: totalCents }], currency: "gbp" }, ACTOR);
+    const invoice = await services.invoices.create({ clientId: CLIENT_ID, issuedAt: 0, dueAt: 1_000_000, lineItems: [{ description: "Build", quantity: 1, unitCents: totalCents }], currency: "gbp" }, ACTOR);
     await services.invoices.update(invoice.id, { status: "sent" }, ACTOR);
     return invoice.id;
   } };

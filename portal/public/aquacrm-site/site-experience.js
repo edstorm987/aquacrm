@@ -176,9 +176,12 @@
     if (!shell) return;
     const source = shell.dataset.youtubeUrl || window.AQUACRM_VSL_URL || "";
     const videoId = youtubeId(source);
+    // The public page must not promise a film until an approved, valid source
+    // exists. The HTML starts hidden so this also fails closed before JS runs.
+    if (!videoId) return;
+    shell.hidden = false;
     const poster = shell.querySelector("[data-vsl-poster]");
     const youtube = shell.querySelector("[data-vsl-youtube]");
-    const notice = shell.querySelector("[data-vsl-notice]");
     const toggle = shell.querySelector("[data-vsl-toggle]");
     const progress = shell.querySelector("[data-vsl-progress]");
     const current = shell.querySelector("[data-vsl-current]");
@@ -197,11 +200,6 @@
     }
 
     async function start() {
-      if (!videoId) {
-        notice.hidden = false;
-        notice.focus?.();
-        return;
-      }
       poster.hidden = true;
       youtube.hidden = false;
       if (player) {

@@ -7,7 +7,23 @@ export { DepartmentService, DEFAULT_DEPARTMENTS } from "./departments";
 export { LeaveService } from "./leave";
 export { RoleService, DEFAULT_ROLES, roleHasPermission, permissionGuard } from "./roles";
 export { ALL_PERMISSION_KEYS } from "../lib/domain";
-export type { PermissionKey, CustomRole } from "../lib/domain";
+export type {
+  ClientAssignment,
+  CreateLeaveInput,
+  CreateStaffInput,
+  CustomRole,
+  DecideLeaveInput,
+  LeaveFilter,
+  LeaveRequest,
+  LeaveStatus,
+  LeaveType,
+  PermissionKey,
+  Staff,
+  StaffFilter,
+  StaffLocationType,
+  StaffStatus,
+  UpdateStaffPatch,
+} from "../lib/domain";
 
 export type {
   ActivityLogPort,
@@ -17,6 +33,7 @@ export type {
   LogActivityInput,
   PluginInstallStorePort,
   TenantPort,
+  WorkforcePort,
 } from "./ports";
 
 export {
@@ -37,6 +54,7 @@ import type {
   EventBusPort,
   PluginInstallStorePort,
   TenantPort,
+  WorkforcePort,
 } from "./ports";
 import { StaffService } from "./staff";
 import { DepartmentService } from "./departments";
@@ -52,6 +70,9 @@ export interface AgencyHrDeps {
   events: EventBusPort;
   tenant: TenantPort;
   pluginInstalls: PluginInstallStorePort;
+  // Standalone package tests can omit this to exercise the legacy store. The
+  // real foundation registration requires the canonical People bridge.
+  workforce?: WorkforcePort;
 }
 
 export interface AgencyHrContainer {
@@ -62,9 +83,9 @@ export interface AgencyHrContainer {
 }
 
 export function buildAgencyHrContainer(deps: AgencyHrDeps): AgencyHrContainer {
-  const staff = new StaffService(deps.agencyId, deps.storage, deps.activity, deps.events);
+  const staff = new StaffService(deps.agencyId, deps.storage, deps.activity, deps.events, deps.workforce);
   const departments = new DepartmentService(deps.agencyId, deps.storage, deps.activity, deps.events);
-  const leave = new LeaveService(deps.agencyId, deps.storage, deps.activity, deps.events, staff);
+  const leave = new LeaveService(deps.agencyId, deps.storage, deps.activity, deps.events, staff, deps.workforce);
   const roles = new RoleService(deps.agencyId, deps.storage, deps.activity, deps.events);
   return { staff, departments, leave, roles };
 }

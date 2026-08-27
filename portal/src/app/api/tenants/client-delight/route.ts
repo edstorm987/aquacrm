@@ -4,6 +4,13 @@ import { createClientDelight, deleteClientDelight, listClientDelight, updateClie
 import { recordDelightExpense } from "@/lib/server/clients/clientDelightExpense";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES, type ClientDelightOccasion, type ClientDelightStatus, type ExperienceAudience, type ExperienceDeliveryMethod, type ExperienceFulfilmentStep } from "@/server/types";
+import {
+  clientWorkspaceElementAtLeast,
+  clientWorkspaceElementLevel,
+  currentClientWorkspaceElementAccess,
+  requireCurrentClientWorkspaceElementAccess,
+} from "@/lib/server/access/clientWorkspaceElementAccess";
+import { getClientForAgency } from "@/server/tenants";
 
 type Body = {
   action?: "create" | "update" | "delete";
@@ -37,7 +44,19 @@ export async function GET() {
   try {
     await ensureHydrated();
     const session = await requireRole([...AGENCY_ROLES]);
-    return NextResponse.json({ ok: true, records: listClientDelight(session.agencyId) });
+    const records = listClientDelight(session.agencyId);
+    const visible: typeof records = [];
+    for (const record of records) {
+      if (!record.clientId) {
+        visible.push(record);
+        continue;
+      }
+      const { access } = await currentClientWorkspaceElementAccess(record.clientId);
+      if (clientWorkspaceElementAtLeast(clientWorkspaceElementLevel(access, "client.relationship"), "view")) {
+        visible.push(record);
+      }
+    }
+    return NextResponse.json({ ok: true, records: visible });
   } catch (error) {
     return authErrorResponse(error);
   }
@@ -49,6 +68,26 @@ export async function POST(request: Request) {
     const session = await requireRole([...AGENCY_ROLES]);
     const body = await request.json().catch(() => null) as Body | null;
     if (!body?.action) return NextResponse.json({ ok: false, error: "action required" }, { status: 400 });
+    const existing = body.id
+      ? listClientDelight(session.agencyId).find(record => record.id === body.id)
+      : undefined;
+    const targetClientIds = [...new Set([existing?.clientId, body.clientId].filter((id): id is string => Boolean(id)))];
+    for (const clientId of targetClientIds) {
+      if (!getClientForAgency(session.agencyId, clientId)) {
+        return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+      }
+      await requireCurrentClientWorkspaceElementAccess(
+        clientId,
+        "client.relationship",
+        body.action === "delete" ? "manage" : "use",
+      );
+    }
+    const resultingClientId = body.clientId ?? existing?.clientId;
+    const resultingStatus = body.status ?? existing?.status;
+    const resultingCostCents = body.costCents ?? existing?.costCents ?? 0;
+    if (resultingClientId && resultingStatus === "delivered" && resultingCostCents > 0) {
+      await requireCurrentClientWorkspaceElementAccess(resultingClientId, "client.commercial", "use");
+    }
     if (body.action === "delete") {
       const ok = body.id ? deleteClientDelight(session.agencyId, body.id) : false;
       return NextResponse.json({ ok }, { status: ok ? 200 : 404 });

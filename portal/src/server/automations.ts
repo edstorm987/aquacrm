@@ -415,7 +415,7 @@ export async function triggerAutomations(
   agencyId: string,
   triggerType: string,
   eventData: Record<string, unknown> = {},
-  options: { mode?: "live" | "test"; workflowId?: string; initiatedBy?: string } = {},
+  options: { mode?: "live" | "test"; workflowId?: string; initiatedBy?: string; idempotencyKey?: string } = {},
 ): Promise<AutomationRun[]> {
   const eventName = cleanText(triggerType, 160);
   if (!eventName) return [];
@@ -430,7 +430,20 @@ export async function triggerAutomations(
   for (const workflow of workflows) {
     const workflowTrigger = workflow.nodes.find(node => node.kind === "trigger")?.config.triggerType;
     if (!workflowTrigger) continue;
-    const run = createRun(workflow, workflowTrigger, sanitiseEventData({ ...eventData, eventName }), options);
+    const idempotencyKey = cleanText(options.idempotencyKey, 500);
+    const existing = idempotencyKey
+      ? Object.values(getState().automationRuns).find(run => run.agencyId === agencyId
+        && run.workflowId === workflow.id
+        && run.idempotencyKey === idempotencyKey)
+      : undefined;
+    if (existing) {
+      runs.push(existing);
+      continue;
+    }
+    const run = createRun(workflow, workflowTrigger, sanitiseEventData({ ...eventData, eventName }), {
+      ...options,
+      idempotencyKey: idempotencyKey || undefined,
+    });
     runs.push(await executeRun(run.id));
   }
   return runs;
@@ -456,7 +469,7 @@ function createRun(
   workflow: AutomationWorkflow,
   triggerType: AutomationTriggerType,
   eventData: EventData,
-  options: { mode?: "live" | "test"; initiatedBy?: string },
+  options: { mode?: "live" | "test"; initiatedBy?: string; idempotencyKey?: string },
 ): AutomationRun {
   const trigger = workflow.nodes.find(node => node.kind === "trigger");
   if (!trigger) throw new Error("Automation trigger missing.");
@@ -473,6 +486,7 @@ function createRun(
     eventData,
     logs: [{ at: now, nodeId: trigger.id, level: "info", message: `${runModeLabel(options.mode)} run started by ${triggerType}.` }],
     initiatedBy: options.initiatedBy,
+    idempotencyKey: options.idempotencyKey,
     createdAt: now,
     updatedAt: now,
   };

@@ -3,15 +3,15 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireRole } from "@/lib/server/auth/auth";
 import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import { createPlan } from "@/lib/server/dev/devTeamPlans";
-import { ensureHydrated } from "@/server/storage";
+import { ensureDevTeamWorkspaceHydrated } from "@/lib/server/dev/devWorkspaceFiles";
 import { AGENCY_ROLES } from "@/server/types";
 
-// Create a plan from the Dev Team portal. Founder + Dev Mode only — the same
+// Create a plan from the Dev Team portal. Founder-only Dev Team access — the same
 // gate the portal itself asserts, re-asserted here so the endpoint can't be
-// reached directly in any production-like context.
+// reached directly by anyone outside the deployment-founder control plane.
 export async function POST(request: NextRequest) {
   try {
-    await ensureHydrated();
+    await ensureDevTeamWorkspaceHydrated();
 
     let session;
     try {

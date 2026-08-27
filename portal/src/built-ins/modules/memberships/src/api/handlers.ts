@@ -25,6 +25,7 @@ function json(body: unknown, status = 200): Response {
 const badRequest = (m: string): Response => json({ ok: false, error: m }, 400);
 const notFound = (m: string): Response => json({ ok: false, error: m }, 404);
 const unprocessable = (m: string): Response => json({ ok: false, error: m }, 422);
+const retryableFailure = (m: string): Response => json({ ok: false, error: m, retryable: true }, 503);
 
 function methodGuard(req: Request, expected: string): Response | null {
   return req.method === expected ? null : json({ ok: false, error: "method_not_allowed" }, 405);
@@ -165,13 +166,18 @@ export async function getSubscriberHandler(req: Request, ctx: PluginCtx): Promis
 export async function adminCancelSubscriberHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   const guard = methodGuard(req, "POST");
   if (guard) return guard;
-  const body = await safeJson<{ userId: string; atPeriodEnd?: boolean }>(req);
+  const body = await safeJson<{ userId: string; atPeriodEnd?: boolean; operationId?: string }>(req);
   if (!body?.userId) return badRequest("userId required.");
-  const sub = await buildContainer(ctx).subscriptions.cancel({
-    endCustomerUserId: body.userId,
-    atPeriodEnd: body.atPeriodEnd ?? true,
-  });
-  return sub ? json({ ok: true, subscription: sub }) : notFound("subscription not found");
+  try {
+    const sub = await buildContainer(ctx).subscriptions.cancel({
+      endCustomerUserId: body.userId,
+      atPeriodEnd: body.atPeriodEnd ?? true,
+      operationId: body.operationId,
+    });
+    return sub ? json({ ok: true, subscription: sub }) : notFound("subscription not found");
+  } catch (err) {
+    return retryableFailure(err instanceof Error ? err.message : String(err));
+  }
 }
 
 // ─── Stripe webhook (public) ────────────────────────────────────────────
@@ -187,7 +193,7 @@ export async function stripeWebhookHandler(req: Request, ctx: PluginCtx): Promis
   const signatureHeader = req.headers.get("stripe-signature") ?? "";
   if (!signatureHeader) return badRequest("missing stripe-signature header");
   const result = await buildContainer(ctx).webhook.handle({ rawBody, signatureHeader });
-  return json(result, result.ok ? 200 : 400);
+  return json(result, result.ok ? 200 : result.retryable ? 503 : 400);
 }
 
 // ─── Customer-facing routes ─────────────────────────────────────────────
@@ -205,7 +211,13 @@ export async function meHandler(req: Request, ctx: PluginCtx): Promise<Response>
 export async function meSubscribeHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   const guard = methodGuard(req, "POST");
   if (guard) return guard;
-  const body = await safeJson<{ planId: string; billing: "monthly" | "annual"; successUrl?: string; cancelUrl?: string }>(req);
+  const body = await safeJson<{
+    planId: string;
+    billing: "monthly" | "annual";
+    successUrl?: string;
+    cancelUrl?: string;
+    operationId?: string;
+  }>(req);
   if (!body?.planId || !body.billing) return badRequest("planId + billing required.");
   const successUrl = body.successUrl ?? `${appOrigin(req)}/portal/customer/memberships?subscribed=1`;
   const cancelUrl = body.cancelUrl ?? `${appOrigin(req)}/portal/customer/memberships?canceled=1`;
@@ -216,14 +228,25 @@ export async function meSubscribeHandler(req: Request, ctx: PluginCtx): Promise<
       billing: body.billing,
       successUrl,
       cancelUrl,
+      operationId: body.operationId,
     });
     if (!result.ok) return unprocessable(result.error);
     if (result.mode === "checkout") {
-      return json({ ok: true, mode: "checkout", checkoutUrl: result.checkoutUrl });
+      return json({
+        ok: true,
+        mode: "checkout",
+        checkoutUrl: result.checkoutUrl,
+        operationId: result.operationId,
+      });
     }
-    return json({ ok: true, mode: "free", subscription: result.subscription });
+    return json({
+      ok: true,
+      mode: result.mode,
+      subscription: result.subscription,
+      operationId: result.operationId,
+    });
   } catch (err) {
-    return unprocessable(err instanceof Error ? err.message : String(err));
+    return retryableFailure(err instanceof Error ? err.message : String(err));
   }
 }
 
@@ -232,11 +255,17 @@ export async function meCancelHandler(req: Request, ctx: PluginCtx): Promise<Res
   if (guard) return guard;
   const url = new URL(req.url);
   const immediate = url.searchParams.get("immediate") === "1";
-  const sub = await buildContainer(ctx).subscriptions.cancel({
-    endCustomerUserId: ctx.actor,
-    atPeriodEnd: !immediate,
-  });
-  return sub ? json({ ok: true, subscription: sub }) : notFound("subscription not found");
+  const body = await safeJson<{ operationId?: string }>(req);
+  try {
+    const sub = await buildContainer(ctx).subscriptions.cancel({
+      endCustomerUserId: ctx.actor,
+      atPeriodEnd: !immediate,
+      operationId: body?.operationId,
+    });
+    return sub ? json({ ok: true, subscription: sub }) : notFound("subscription not found");
+  } catch (err) {
+    return retryableFailure(err instanceof Error ? err.message : String(err));
+  }
 }
 
 export async function mePortalHandler(req: Request, ctx: PluginCtx): Promise<Response> {

@@ -167,10 +167,16 @@ describe("client-scoped adaptive Radar", () => {
       paymentPosition: {
         state: "missed-payment",
         label: "1 missed payment",
-        currency: "gbp",
-        agreedCents: 100_000,
-        paidCents: 40_000,
-        outstandingCents: 60_000,
+        currencyPositions: [{
+          currency: "gbp",
+          agreedCents: 100_000,
+          paidCents: 40_000,
+          outstandingCents: 60_000,
+          missedPayments: 1,
+          openInvoices: 1,
+          activePlans: 1,
+          completedPlans: 0,
+        }],
         missedPayments: 1,
         openInvoices: 1,
         activePlans: 1,
@@ -180,7 +186,7 @@ describe("client-scoped adaptive Radar", () => {
     const finance = radar.checks.find(check => check.id.endsWith(":payment-position"));
     assert.equal(finance?.status, "critical");
     assert.match(finance?.detail ?? "", /£600\.00 remains outstanding/);
-    assert.deepEqual(finance?.evidence.slice(0, 4), ["1 missed", "1 open invoices", "£400.00 collected", "£600.00 outstanding"]);
+    assert.deepEqual(finance?.evidence.slice(0, 3), ["1 missed", "1 open invoices", "GBP: £400.00 collected · £600.00 outstanding"]);
   });
 
   it("never shares check identities between client workspaces", () => {

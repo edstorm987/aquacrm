@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Archive, ArrowDown, ArrowRight, ArrowUp, Building2, Check, ChevronRight, FolderOpen, Grid2X2, Layers3, Lightbulb, ListChecks, Package, Plus, Rocket, RotateCcw, SlidersHorizontal, Trash2, X } from "lucide-react";
-import type { AgencyProduct, AgencyProductInternalWorkspace, AgencyProductKind, AgencyProductPortalMode, AgencyProductPortalRequirement, AgencyProductPortalTemplateKey, AgencyProductPricing, AgencyProductStatus, AgencyProductWorkspaceModule, AgencyProductWorkspaceStage, AgencyProductWorkspaceStep, SopDocument, TradingCompany } from "@/server/types";
+import type { AgencyProduct, AgencyProductInternalWorkspace, AgencyProductKind, AgencyProductPortalMode, AgencyProductPortalRequirement, AgencyProductPortalTemplateKey, AgencyProductPricing, AgencyProductStatus, AgencyProductWorkspaceModule, AgencyProductWorkspaceStage, AgencyProductWorkspaceStep, PortalFormFieldDefinition, PortalFormFieldValue, SopDocument, TradingCompany } from "@/server/types";
 import { AGENCY_PRODUCT_CATEGORIES } from "@/lib/products/agencyProductCategories";
 import { PORTAL_PRODUCT_CATALOG, PORTAL_PHASE_LABELS } from "@/lib/portal/portalProducts";
 import { defaultProductInternalWorkspace, PRODUCT_STAGE_PORTAL_MODES, PRODUCT_WORKSPACE_MODULES } from "@/lib/products/productInternalWorkspace";
+import { PortalCustomFields } from "@/components/forms/PortalCustomFields";
 
 export type Draft = {
   id?: string;
@@ -41,10 +42,11 @@ export type Draft = {
   sopIds: string[];
   sopCategories: string[];
   companyIds: string[];
+  customFields: Record<string, PortalFormFieldValue>;
   status: AgencyProductStatus;
 };
 
-export const EMPTY_PRODUCT_DRAFT: Draft = { kind: "product", name: "", category: "Digital", description: "", buyerHeadline: "", coverImageUrl: "", accentColor: "#8E7340", portalRequirement: "optional", portalTemplateKey: "", portalHeadline: "", portalWelcomeNote: "", portalStageFocus: { onboarding: "", designing: "", "developed-launch": "", maintenance: "" }, portalSupportCta: "Send request", includedProductIds: [], welcomePackItems: "", welcomePackNotes: "", pricing: "custom", price: "", billingInterval: "month", depositPercent: "0", taxRatePercent: "0", paymentTermsDays: "7", billingNotes: "", internalInfo: "", internalWorkspace: defaultProductInternalWorkspace({ name: "New service" }), deliverables: "", contractTitle: "", contractBody: "", sopIds: [], sopCategories: [], companyIds: [], status: "live" };
+export const EMPTY_PRODUCT_DRAFT: Draft = { kind: "product", name: "", category: "Digital", description: "", buyerHeadline: "", coverImageUrl: "", accentColor: "#8E7340", portalRequirement: "optional", portalTemplateKey: "", portalHeadline: "", portalWelcomeNote: "", portalStageFocus: { onboarding: "", designing: "", "developed-launch": "", maintenance: "" }, portalSupportCta: "Send request", includedProductIds: [], welcomePackItems: "", welcomePackNotes: "", pricing: "custom", price: "", billingInterval: "month", depositPercent: "0", taxRatePercent: "0", paymentTermsDays: "7", billingNotes: "", internalInfo: "", internalWorkspace: defaultProductInternalWorkspace({ name: "New service" }), deliverables: "", contractTitle: "", contractBody: "", sopIds: [], sopCategories: [], companyIds: [], customFields: {}, status: "live" };
 
 const AQUA_COMPANY_ID = "aqua-oasis-web";
 
@@ -57,7 +59,7 @@ type CompanyShelf = {
   products: AgencyProduct[];
 };
 
-export function ProductsWorkspace({ initialProducts, sops, companies, defaults = { taxRatePercent: 0, paymentTermsDays: 7 }, embedded = false, embeddedLabel = "Company catalogue" }: { initialProducts: AgencyProduct[]; sops: SopDocument[]; companies: TradingCompany[]; defaults?: { taxRatePercent: number; paymentTermsDays: number }; embedded?: boolean; embeddedLabel?: string }) {
+export function ProductsWorkspace({ initialProducts, sops, companies, customFields = [], defaults = { taxRatePercent: 0, paymentTermsDays: 7 }, embedded = false, embeddedLabel = "Company catalogue" }: { initialProducts: AgencyProduct[]; sops: SopDocument[]; companies: TradingCompany[]; customFields?: PortalFormFieldDefinition[]; defaults?: { taxRatePercent: number; paymentTermsDays: number }; embedded?: boolean; embeddedLabel?: string }) {
   const [products, setProducts] = useState(initialProducts);
   const [showArchived, setShowArchived] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -191,7 +193,7 @@ export function ProductsWorkspace({ initialProducts, sops, companies, defaults =
         {visible.length ? <ProductGrid products={visible} sops={sops} companies={companies} onToggle={toggle} /> : <EmptyCatalogue title="No products in this view." actionLabel="Create a product" onAction={() => openNewProduct()} />}
       </section>}
 
-      {draft ? <ProductEditor draft={draft} products={products} sops={sops} companies={companies} onClose={() => setDraft(null)} onSaved={product => { upsert(product); setDraft(null); }} /> : null}
+      {draft ? <ProductEditor draft={draft} products={products} sops={sops} companies={companies} customFields={customFields} onClose={() => setDraft(null)} onSaved={product => { upsert(product); setDraft(null); }} /> : null}
     </div>
   );
 }
@@ -270,7 +272,7 @@ function EmptyCatalogue({ title, actionLabel, onAction }: { title: string; actio
   return <div className="border-y border-dashed border-black/15 py-10 text-center"><p className="font-semibold text-black/70">{title}</p><button type="button" onClick={onAction} className="mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-semibold text-black/65"><Plus size={14} />{actionLabel}</button></div>;
 }
 
-export function ProductEditor({ draft, products, sops, companies, onClose, onSaved, clientContext, focusSection }: { draft: Draft; products: AgencyProduct[]; sops: SopDocument[]; companies: TradingCompany[]; onClose: () => void; onSaved: (product: AgencyProduct) => void; clientContext?: { clientId: string; clientName: string }; focusSection?: "stages" }) {
+export function ProductEditor({ draft, products, sops, companies, customFields = [], onClose, onSaved, clientContext, focusSection }: { draft: Draft; products: AgencyProduct[]; sops: SopDocument[]; companies: TradingCompany[]; customFields?: PortalFormFieldDefinition[]; onClose: () => void; onSaved: (product: AgencyProduct) => void; clientContext?: { clientId: string; clientName: string }; focusSection?: "stages" }) {
   const [form, setForm] = useState(draft);
   const [busy, setBusy] = useState(false);
   const stageSectionRef = useRef<HTMLDivElement>(null);
@@ -434,6 +436,7 @@ export function ProductEditor({ draft, products, sops, companies, onClose, onSav
         sopIds: form.sopIds,
         sopCategories: form.sopCategories,
         companyIds: form.companyIds,
+        customFields: clientContext ? undefined : form.customFields,
         status: form.status,
       }),
     });
@@ -465,6 +468,7 @@ export function ProductEditor({ draft, products, sops, companies, onClose, onSav
           {form.pricing !== "custom" ? <div className="grid gap-4 sm:grid-cols-2"><Field label="Price (£)"><input required type="number" min="0" step="0.01" value={form.price} onChange={event => setForm(value => ({ ...value, price: event.target.value }))} className={control} /></Field>{form.pricing === "recurring" ? <Field label="Bill every"><select value={form.billingInterval} onChange={event => setForm(value => ({ ...value, billingInterval: event.target.value as Draft["billingInterval"] }))} className={control}><option value="month">Month</option><option value="quarter">Quarter</option><option value="year">Year</option></select></Field> : null}</div> : null}
           <Field label="Customer-facing description"><textarea rows={3} value={form.description} onChange={event => setForm(value => ({ ...value, description: event.target.value }))} className={`${control} py-2`} /></Field>
           <Field label="Deliverables (one per line)"><textarea rows={5} value={form.deliverables} onChange={event => setForm(value => ({ ...value, deliverables: event.target.value }))} className={`${control} py-2`} placeholder={"Strategy session\nWebsite design\nLaunch support"} /></Field>
+          {!clientContext ? <PortalCustomFields fields={customFields} values={form.customFields} onChange={values => setForm(value => ({ ...value, customFields: values }))} legend="Product custom fields" /> : null}
 
           {!clientContext && form.kind === "package" ? <details className="border-t border-black/10 pt-4" open>
             <summary className="cursor-pointer text-sm font-semibold text-black/75">Products in this package</summary>
@@ -628,7 +632,7 @@ export function ProductEditor({ draft, products, sops, companies, onClose, onSav
 
 const control = "min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm";
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="grid gap-1 text-xs font-medium text-black/60">{label}{children}</label>; }
-export function toDraft(product: AgencyProduct): Draft { return { id: product.id, kind: product.kind ?? "product", name: product.name, category: product.category, description: product.description ?? "", buyerHeadline: product.buyerHeadline ?? "", coverImageUrl: product.coverImageUrl ?? "", accentColor: product.accentColor ?? "#8E7340", portalRequirement: product.portalRequirement ?? "optional", portalTemplateKey: product.portalTemplateKey ?? "", portalHeadline: product.portalHeadline ?? "", portalWelcomeNote: product.portalWelcomeNote ?? "", portalStageFocus: { onboarding: product.portalStageFocus?.onboarding ?? "", designing: product.portalStageFocus?.designing ?? "", "developed-launch": product.portalStageFocus?.["developed-launch"] ?? "", maintenance: product.portalStageFocus?.maintenance ?? "" }, portalSupportCta: product.portalSupportCta ?? "Send request", includedProductIds: product.includedProductIds ?? [], welcomePackItems: (product.welcomePackItems ?? []).join("\n"), welcomePackNotes: product.welcomePackNotes ?? "", pricing: product.pricing, price: product.priceCents === undefined ? "" : (product.priceCents / 100).toFixed(2), billingInterval: product.billingInterval ?? "month", depositPercent: String(product.depositPercent ?? 0), taxRatePercent: String(product.taxRatePercent ?? 0), paymentTermsDays: String(product.paymentTermsDays ?? 7), billingNotes: product.billingNotes ?? "", internalInfo: product.internalInfo ?? "", internalWorkspace: product.internalWorkspace ?? defaultProductInternalWorkspace(product), deliverables: product.deliverables.join("\n"), contractTitle: product.contractTitle ?? "", contractBody: product.contractBody ?? "", sopIds: product.sopIds ?? [], sopCategories: product.sopCategories ?? [], companyIds: product.companyIds ?? [], status: catalogueStatus(product) }; }
+export function toDraft(product: AgencyProduct): Draft { return { id: product.id, kind: product.kind ?? "product", name: product.name, category: product.category, description: product.description ?? "", buyerHeadline: product.buyerHeadline ?? "", coverImageUrl: product.coverImageUrl ?? "", accentColor: product.accentColor ?? "#8E7340", portalRequirement: product.portalRequirement ?? "optional", portalTemplateKey: product.portalTemplateKey ?? "", portalHeadline: product.portalHeadline ?? "", portalWelcomeNote: product.portalWelcomeNote ?? "", portalStageFocus: { onboarding: product.portalStageFocus?.onboarding ?? "", designing: product.portalStageFocus?.designing ?? "", "developed-launch": product.portalStageFocus?.["developed-launch"] ?? "", maintenance: product.portalStageFocus?.maintenance ?? "" }, portalSupportCta: product.portalSupportCta ?? "Send request", includedProductIds: product.includedProductIds ?? [], welcomePackItems: (product.welcomePackItems ?? []).join("\n"), welcomePackNotes: product.welcomePackNotes ?? "", pricing: product.pricing, price: product.priceCents === undefined ? "" : (product.priceCents / 100).toFixed(2), billingInterval: product.billingInterval ?? "month", depositPercent: String(product.depositPercent ?? 0), taxRatePercent: String(product.taxRatePercent ?? 0), paymentTermsDays: String(product.paymentTermsDays ?? 7), billingNotes: product.billingNotes ?? "", internalInfo: product.internalInfo ?? "", internalWorkspace: product.internalWorkspace ?? defaultProductInternalWorkspace(product), deliverables: product.deliverables.join("\n"), contractTitle: product.contractTitle ?? "", contractBody: product.contractBody ?? "", sopIds: product.sopIds ?? [], sopCategories: product.sopCategories ?? [], companyIds: product.companyIds ?? [], customFields: product.customFields ?? {}, status: catalogueStatus(product) }; }
 export function priceLabel(product: AgencyProduct): string { if (product.pricing === "custom" || product.priceCents === undefined) return "Custom quote"; const amount = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(product.priceCents / 100); if (product.pricing === "from") return `From ${amount}`; if (product.pricing === "recurring") return `${amount} / ${product.billingInterval ?? "month"}`; return amount; }
 export function linkedSopCount(product: AgencyProduct, sops: SopDocument[]): number { return new Set(sops.filter(sop => (product.sopIds ?? []).includes(sop.id) || Boolean(sop.category && (product.sopCategories ?? []).includes(sop.category))).map(sop => sop.id)).size; }
 export function portalLabel(requirement?: AgencyProductPortalRequirement): string { return requirement === "required" ? "required" : requirement === "none" ? "not needed" : "optional"; }

@@ -22,7 +22,7 @@ import {
   type DevelopmentResourceInput,
   type DevelopmentWorkflowInput,
 } from "@/server/developmentToolkit";
-import { ensureHydrated } from "@/server/storage";
+import { ensureHydrated, isSandboxDataRealm } from "@/server/storage";
 import type { DevelopmentResourceKind, Role } from "@/server/types";
 import { logActivity } from "@/server/activity";
 
@@ -114,12 +114,14 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: false, error: "You cannot delete this resource." }, { status: 403 });
       }
       const deleted = deleteDevelopmentResource(session.agencyId, body.resourceId);
-      if (deleted?.file?.storageProvider === "supabase") await deleteSupabasePrivateUpload(deleted.file.storageKey).catch(() => false);
-      if (deleted?.file?.storageProvider === "vercel-blob") await del(deleted.file.storageKey).catch(() => undefined);
-      if (deleted?.file?.storageProvider === "local") {
-        const root = resolve(process.cwd(), ".data", "development-uploads");
-        const path = resolve(root, deleted.file.storageKey);
-        if (path.startsWith(`${root}/`)) await rm(path, { force: true }).catch(() => undefined);
+      if (!isSandboxDataRealm()) {
+        if (deleted?.file?.storageProvider === "supabase") await deleteSupabasePrivateUpload(deleted.file.storageKey).catch(() => false);
+        if (deleted?.file?.storageProvider === "vercel-blob") await del(deleted.file.storageKey).catch(() => undefined);
+        if (deleted?.file?.storageProvider === "local") {
+          const root = resolve(process.cwd(), ".data", "development-uploads");
+          const path = resolve(root, deleted.file.storageKey);
+          if (path.startsWith(`${root}/`)) await rm(path, { force: true }).catch(() => undefined);
+        }
       }
       return NextResponse.json({ ok: true });
     }

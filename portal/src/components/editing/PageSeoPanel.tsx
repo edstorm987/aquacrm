@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Check, Globe2, Info, Layers, LoaderCircle, RefreshCw, Upload } from "lucide-react";
 
 import {
@@ -25,6 +25,7 @@ import {
   STRONG,
   accentStyle,
 } from "@/components/editing/editorAiSkin";
+import { apiResponseError } from "@/lib/client/apiResponseError";
 
 // ─── THE WEBSITE SURFACE'S SEO PANEL (phase 9) ───────────────────────────────
 //
@@ -167,6 +168,10 @@ export function PageSeoPanel({
   const [editingLayout, setEditingLayout] = useState(false);
   const pageFile = target.kind === "repository" ? target.path : "";
   const activePath = editingLayout && layoutFile ? layoutFile.path : pageFile;
+  const activeTargetKey = target.kind === "repository" ? `${target.projectId}:${activePath}` : target.kind;
+  const activeTargetKeyRef = useRef(activeTargetKey);
+  activeTargetKeyRef.current = activeTargetKey;
+  const loadAbortRef = useRef<AbortController | null>(null);
 
   // Moving to another page starts on that page, never on the layout the last
   // one happened to leave selected.
@@ -181,6 +186,10 @@ export function PageSeoPanel({
   // must never be confirmable after the operator has moved to `/pricing`.
   const loadRepo = useCallback(async () => {
     if (target.kind !== "repository") return;
+    loadAbortRef.current?.abort();
+    const controller = new AbortController();
+    loadAbortRef.current = controller;
+    const requestedTargetKey = `${target.projectId}:${activePath}`;
     setLoading(true);
     setError("");
     setPreview(null);
@@ -188,11 +197,13 @@ export function PageSeoPanel({
       const response = await fetch(REPO_WRITE_ENDPOINT, {
         method: "POST",
         headers: { "content-type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({ action: "seo-read", project: target.projectId, path: activePath }),
       });
       const payload = await response.json().catch(() => null);
+      if (controller.signal.aborted || activeTargetKeyRef.current !== requestedTargetKey) return;
       if (!payload?.ok) {
-        setError(payload?.error || "That page's head could not be read.");
+        setError(apiResponseError(payload, "That page's head could not be read."));
         setMechanism("unsupported");
         setDraft(EMPTY_PAGE_SEO);
         setSaved(EMPTY_PAGE_SEO);
@@ -206,9 +217,10 @@ export function PageSeoPanel({
       setConflict(payload.conflict ?? null);
       setFingerprint(payload.fingerprint ?? "");
     } catch {
+      if (controller.signal.aborted || activeTargetKeyRef.current !== requestedTargetKey) return;
       setError("That page's head could not be read.");
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted && activeTargetKeyRef.current === requestedTargetKey) setLoading(false);
     }
   }, [target, activePath]);
 
@@ -220,6 +232,8 @@ export function PageSeoPanel({
     // the editor would be a request storm on somebody's GitHub token.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [repoKey]);
+
+  useEffect(() => () => loadAbortRef.current?.abort(), []);
 
   // A portal page's values come from the document already in the editor.
   useEffect(() => {
@@ -256,6 +270,7 @@ export function PageSeoPanel({
 
   async function callWrite(confirm: boolean) {
     if (target.kind !== "repository") return;
+    const requestedTargetKey = `${target.projectId}:${activePath}`;
     setBusy(true);
     setError("");
     setNotice("");
@@ -274,8 +289,9 @@ export function PageSeoPanel({
         }),
       });
       const payload = await response.json().catch(() => null);
+      if (activeTargetKeyRef.current !== requestedTargetKey) return;
       if (!payload?.ok) {
-        setError(payload?.error || "That could not be written.");
+        setError(apiResponseError(payload, "That could not be written."));
         if (confirm) setPreview(null);
         return;
       }
@@ -295,9 +311,10 @@ export function PageSeoPanel({
       // branch, and the site has not changed until the PR is merged.
       setNotice(payload.summary ?? "Committed to the draft branch.");
     } catch {
+      if (activeTargetKeyRef.current !== requestedTargetKey) return;
       setError("That could not be written.");
     } finally {
-      setBusy(false);
+      if (activeTargetKeyRef.current === requestedTargetKey) setBusy(false);
     }
   }
 

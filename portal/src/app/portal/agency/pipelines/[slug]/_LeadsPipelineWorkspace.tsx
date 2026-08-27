@@ -22,6 +22,8 @@ import {
   inferLeadRelationshipCategory,
   type LeadRelationshipCategory,
 } from "@/built-ins/modules/leads-pipeline/src/lib/domain";
+import { PortalCustomFields, type PortalCustomFieldValues } from "@/components/forms/PortalCustomFields";
+import type { PortalFormFieldDefinition } from "@/server/types";
 
 interface PipelineColumnView {
   id: string;
@@ -83,6 +85,7 @@ interface LeadView {
   serviceNames: string[];
   enquiryId?: string;
   enquiryClassification?: WebsiteEnquiryClassification;
+  customFields: PortalCustomFieldValues;
 }
 
 interface LeadJourneyEventView {
@@ -113,6 +116,7 @@ interface LeadsPipelineWorkspaceProps {
   boards: Array<{ slug: string; label: string }>;
   brands: Array<{ id: string; name: string }>;
   products: AgencyProductOption[];
+  customFields: PortalFormFieldDefinition[];
 }
 
 interface AgencyProductOption {
@@ -141,6 +145,7 @@ const EMPTY_FORM = {
   relationshipCategory: "" as "" | LeadRelationshipCategory,
   brandId: "",
   serviceId: "",
+  customFields: {} as PortalCustomFieldValues,
 };
 
 const EMPTY_PROSPECT = {
@@ -206,6 +211,12 @@ interface LeadDetailsPatch {
   budgetRange?: string;
   designFeedback?: string;
   supportNotes?: string;
+  customFields?: PortalCustomFieldValues;
+}
+
+interface LeadSaveResult {
+  ok: boolean;
+  error?: string;
 }
 
 interface LeadMeetingDraft {
@@ -306,7 +317,7 @@ function CloseLeadDealModal({ target, onClose, onClosed }: { target: { clientId:
   );
 }
 
-export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, prospects, leads, importHref, campaignsHref, boards, brands, products }: LeadsPipelineWorkspaceProps) {
+export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, prospects, leads, importHref, campaignsHref, boards, brands, products, customFields }: LeadsPipelineWorkspaceProps) {
   const router = useRouter();
   const [clock, setClock] = useState(referenceNow);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -505,7 +516,10 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
           companyId: form.brandId || undefined,
           companyIds: form.brandId ? [form.brandId] : undefined,
           serviceLines: form.serviceId ? [form.serviceId] : undefined,
-          customFields: form.niche.trim() ? { niche: form.niche.trim() } : undefined,
+          customFields: {
+            ...form.customFields,
+            ...(form.niche.trim() ? { niche: form.niche.trim() } : {}),
+          },
         }),
       });
       const data = await res.json() as { ok: boolean; error?: string };
@@ -757,7 +771,7 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
     }
   }
 
-  async function saveLeadDetails(id: string, patch: LeadDetailsPatch, meeting: LeadMeetingDraft) {
+  async function saveLeadDetails(id: string, patch: LeadDetailsPatch, meeting: LeadMeetingDraft): Promise<LeadSaveResult> {
     setBusy(`details:${id}`);
     setError(null);
     setSuccess(null);
@@ -769,8 +783,8 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
         headers: { "content-type": "application/json" },
         body: JSON.stringify(patch),
       });
-      const detailsData = await detailsRes.json() as { ok: boolean; error?: string };
-      if (!detailsData.ok) throw new Error(detailsData.error ?? "Could not save lead.");
+      const detailsData = await detailsRes.json() as { ok: boolean; error?: string; message?: string };
+      if (!detailsData.ok) throw new Error(detailsData.message ?? detailsData.error ?? "Could not save lead.");
 
       const meetingRes = await fetch("/api/portal/leads-pipeline/leads/meeting", {
         method: "POST",
@@ -797,8 +811,11 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
       if (!meetingData.ok) throw new Error(meetingData.error ?? "Could not save meeting.");
       setSuccess("Sales record saved.");
       router.refresh();
+      return { ok: true };
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+      return { ok: false, error: message };
     } finally {
       setBusy(null);
     }
@@ -837,9 +854,10 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
           busy={busy}
           error={error}
           success={success}
+          customFields={customFields}
           onMove={(columnId) => void moveLead(focusedLeadId, columnId)}
           onContact={() => void markContacted(focusedLeadId)}
-          onSave={(patch, meeting) => void saveLeadDetails(focusedLeadId, patch, meeting)}
+          onSave={(patch, meeting) => saveLeadDetails(focusedLeadId, patch, meeting)}
           onCategoryChange={category => void updateLeadCategory(focusedLeadId, category)}
           onConvert={() => focusedLead && setConversionLead(focusedLead)}
           onArchive={() => focusedLead && void archiveLead(focusedLead.id, focusedLead.name || focusedLead.company || focusedLead.email || focusedLead.phone || "lead")}
@@ -1460,6 +1478,9 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
                   placeholder="What do they need, where did you find them, next step..."
                 />
               </label>
+              <div className="sm:col-span-2">
+                <PortalCustomFields fields={customFields} values={form.customFields} onChange={values => setForm(current => ({ ...current, customFields: values }))} legend="Lead custom fields" />
+              </div>
             </div>
             <footer className="flex justify-end gap-2 border-t border-black/10 px-5 py-4 sm:px-6">
               <button type="button" onClick={() => setShowLeadForm(false)} className="rounded-md border border-black/10 bg-white px-4 py-2 text-sm font-medium text-black/65">Cancel</button>
@@ -1481,6 +1502,7 @@ function LeadInternalWorkspace({
   busy,
   error,
   success,
+  customFields,
   onMove,
   onContact,
   onSave,
@@ -1494,9 +1516,10 @@ function LeadInternalWorkspace({
   busy: string | null;
   error: string | null;
   success: string | null;
+  customFields: PortalFormFieldDefinition[];
   onMove: (columnId: string) => void;
   onContact: () => void;
-  onSave: (patch: LeadDetailsPatch, meeting: LeadMeetingDraft) => void;
+  onSave: (patch: LeadDetailsPatch, meeting: LeadMeetingDraft) => Promise<LeadSaveResult>;
   onCategoryChange: (category: LeadRelationshipCategory) => void;
   onConvert: () => void;
   onArchive: () => void;
@@ -1628,6 +1651,7 @@ function LeadInternalWorkspace({
               meetingConfirmedAt={lead.meetingConfirmedAt} meetingReminderAt={lead.meetingReminderAt}
               meetingReminderSentAt={lead.meetingReminderSentAt} meetingAttempts={lead.meetingAttempts}
               salesPresentations={lead.salesPresentations} busy={busy === `details:${lead.id}`} onSave={onSave}
+              customFields={customFields} customFieldValues={lead.customFields}
             />
           </section>
         </div>
@@ -2142,6 +2166,8 @@ function DetailsEditor({
   meetingReminderSentAt,
   meetingAttempts,
   salesPresentations,
+  customFields,
+  customFieldValues,
   busy,
   onSave,
 }: {
@@ -2183,8 +2209,10 @@ function DetailsEditor({
   meetingReminderSentAt?: number;
   meetingAttempts?: MeetingAttempt[];
   salesPresentations?: SalesPresentation[];
+  customFields: PortalFormFieldDefinition[];
+  customFieldValues: PortalCustomFieldValues;
   busy: boolean;
-  onSave: (patch: LeadDetailsPatch, meeting: LeadMeetingDraft) => void;
+  onSave: (patch: LeadDetailsPatch, meeting: LeadMeetingDraft) => Promise<LeadSaveResult>;
 }) {
   const [draft, setDraft] = useState({
     email,
@@ -2214,14 +2242,16 @@ function DetailsEditor({
     attemptOutcome: "" as AttemptOutcome | "",
     attemptNotes: "",
     salesPresentations: salesPresentations ?? [],
+    customFields: customFieldValues,
   });
   const [open, setOpen] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   return (
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => { setSaveError(null); setOpen(true); }}
         className="mt-3 w-full rounded-md border border-black/10 bg-black/[0.02] px-3 py-2 text-left text-xs font-medium text-black/65 hover:bg-black/[0.04]"
       >
         {buttonLabel}
@@ -2244,7 +2274,7 @@ function DetailsEditor({
               </div>
               <button
                 type="button"
-                onClick={() => setOpen(false)}
+                onClick={() => { setSaveError(null); setOpen(false); }}
                 aria-label="Close sales record"
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-black/10 bg-white text-black/55"
               >
@@ -2275,6 +2305,7 @@ function DetailsEditor({
             className="mt-1 w-full rounded-md border border-black/10 bg-white px-2 py-1.5 text-xs text-black/75"
           />
         </label>
+        <PortalCustomFields fields={customFields} values={draft.customFields} onChange={values => setDraft(current => ({ ...current, customFields: values }))} legend="Lead custom fields" />
         <div className="mt-2 border-t border-black/8 pt-3">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-black/35">Meeting</p>
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -2486,8 +2517,9 @@ function DetailsEditor({
         </div>
         <button
           type="button"
-          onClick={() => {
-            onSave({
+          onClick={async () => {
+            setSaveError(null);
+            const result = await onSave({
               email: draft.email.trim(),
               name: draft.name.trim() || undefined,
               phone: draft.phone.trim() || undefined,
@@ -2503,6 +2535,7 @@ function DetailsEditor({
               budgetRange: draft.budgetRange.trim() || undefined,
               designFeedback: draft.designFeedback.trim() || undefined,
               supportNotes: draft.supportNotes.trim() || undefined,
+              customFields: draft.customFields,
             }, {
               date: draft.meetingDate,
               link: draft.meetingLink.trim(),
@@ -2523,13 +2556,15 @@ function DetailsEditor({
                 }))
                 .filter(presentation => presentation.title && presentation.url),
             });
-            setOpen(false);
+            if (result.ok) setOpen(false);
+            else setSaveError(result.error ?? "Could not save this sales record.");
           }}
           disabled={busy}
           className="mt-2 min-h-11 rounded-md bg-black px-4 text-sm font-medium text-white hover:bg-black/85 disabled:opacity-50"
         >
           {busy ? "Saving..." : "Save lead"}
         </button>
+        {saveError ? <p role="alert" className="mt-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">{saveError}</p> : null}
               </div>
             </div>
           </section>

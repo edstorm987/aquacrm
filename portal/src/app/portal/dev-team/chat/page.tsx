@@ -11,7 +11,7 @@ import { PageHeader } from "../_ui";
 
 // Dev Team → Team chat. v1 REUSES the existing TeamChat wholesale (the same
 // staff chat backed by /api/portal/team-chat, scoped by the session's agency +
-// user). This page only layers the Dev-Team gate (founder + Dev Mode) on top of
+// user). This page only layers the Dev-Team gate (founder-only Dev Team access) on top of
 // the agency-role gate; the chat itself is self-contained (it fetches its own
 // snapshot), so there is nothing to thread through.
 //
@@ -28,7 +28,7 @@ export default async function DevTeamChatPage() {
   } catch {
     redirect("/portal");
   }
-  // Founder + Dev Mode, or this section does not exist.
+  // Founder-only Dev Team access, or this section does not exist.
   if (!devDocsAccessible(session)) notFound();
 
   return (

@@ -18,6 +18,7 @@ import { listLegalDocuments } from "@/server/legalDocuments";
 import { listInboxSnapshot } from "@/lib/server/inbox/inboxStore";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { getRequestWebsiteEnquiries } from "@/lib/server/websiteEnquiries";
+import { getActiveDataRealmId } from "@/server/dataRealm";
 
 interface RadarSourceDataset extends RadarSourceDatasetSummary {
   records: Array<Record<string, unknown>>;
@@ -38,13 +39,19 @@ interface DatasetInput {
   unavailableReason?: string;
 }
 
+interface RadarSourceCacheEntry {
+  expiresAt: number;
+  datasets?: RadarSourceDataset[];
+  pending?: Promise<RadarSourceDataset[]>;
+}
+
 const SECRET_KEY = /^(?:password|passwordhash|secret|secrets|accessToken|refreshToken|apiKey|privateKey|tokenHash|encryptedSecret|encryptedSecrets|encryptedPassword|encryptedToken|signature|authorization|webhookVerifyToken|clientSecret|appSecret)$/i;
 const MAX_INSPECTION_DEPTH = 8;
 const MAX_STRING_LENGTH = 50_000;
 const EXTERNAL_SOURCE_TIMEOUT_MS = 4_000;
 const SOURCE_CACHE_TTL_MS = 15_000;
 
-const sourceCache = new Map<string, { expiresAt: number; datasets?: RadarSourceDataset[]; pending?: Promise<RadarSourceDataset[]> }>();
+const sourceCache = new Map<string, RadarSourceCacheEntry>();
 
 export async function inspectRadarSourceData(agencyId: string): Promise<RadarSourceDataIndex> {
   const datasets = await getRadarSourceDatasets(agencyId);
@@ -93,22 +100,32 @@ export async function exportRadarSourceData(agencyId: string, datasetId?: string
 }
 
 export function invalidateRadarSourceInspection(agencyId: string): void {
-  sourceCache.delete(agencyId);
+  const agencySuffix = `:${agencyId}`;
+  for (const key of sourceCache.keys()) {
+    if (key.endsWith(agencySuffix)) sourceCache.delete(key);
+  }
 }
 
 function getRadarSourceDatasets(agencyId: string): Promise<RadarSourceDataset[]> {
-  const cached = sourceCache.get(agencyId);
+  const realmId = getActiveDataRealmId();
+  const cacheKey = `${realmId}:${agencyId}`;
+  const cached = sourceCache.get(cacheKey);
   const now = Date.now();
   if (cached?.datasets && cached.expiresAt > now) return Promise.resolve(cached.datasets);
   if (cached?.pending) return cached.pending;
+
+  const entry: RadarSourceCacheEntry = { expiresAt: now + SOURCE_CACHE_TTL_MS };
   const pending = buildRadarSourceDatasets(agencyId).then(datasets => {
-    sourceCache.set(agencyId, { datasets, expiresAt: Date.now() + SOURCE_CACHE_TTL_MS });
+    if (sourceCache.get(cacheKey) === entry) {
+      sourceCache.set(cacheKey, { datasets, expiresAt: Date.now() + SOURCE_CACHE_TTL_MS });
+    }
     return datasets;
   }).catch(error => {
-    sourceCache.delete(agencyId);
+    if (sourceCache.get(cacheKey) === entry) sourceCache.delete(cacheKey);
     throw error;
   });
-  sourceCache.set(agencyId, { pending, expiresAt: now + SOURCE_CACHE_TTL_MS });
+  entry.pending = pending;
+  sourceCache.set(cacheKey, entry);
   return pending;
 }
 

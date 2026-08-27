@@ -23,7 +23,7 @@ import { AppConfigEditor } from "./_AppConfigEditor";
 // layout and anything needing a git write are deliberately out — they need Ed's
 // decision and a write policy that does not exist yet.
 //
-// Founder + Dev Mode only, the same layered gate as the layout and every other
+// Founder-only Dev Team access, the same layered gate as the layout and every other
 // section: role first, then `devDocsAccessible`. The API route asserts it again
 // — a gate on the page alone protects the screen, not the write.
 

@@ -106,11 +106,12 @@ export async function buildBrandPortfolioSnapshot(agencyId: string, now = Date.n
     try {
       ensureAgencyFinanceFoundationRegistered();
       const finance = financeContainerFor({ agencyId, storage: makePluginStorage(financeInstall.id) as never, install: financeInstall });
-      const [invoices, payments, income, plans] = await Promise.all([
+      const [invoices, payments, income, plans, commercialAssignments] = await Promise.all([
         finance.invoices.list(),
         finance.payments.list(),
         finance.income.list(),
         finance.plans.list(false),
+        finance.plans.listCommercialAssignments(),
       ]);
       financeConnected = true;
       currency = plans[0]?.currency ?? invoices[0]?.currency ?? income[0]?.currency ?? "gbp";
@@ -135,9 +136,9 @@ export async function buildBrandPortfolioSnapshot(agencyId: string, now = Date.n
         allocateRevenue(invoice.companyId ?? clientCompany.get(invoice.clientId), invoice.totalCents, invoice.paidAt ?? invoice.issuedAt);
       });
       income.forEach(entry => allocateRevenue(clientCompany.get(entry.clientId ?? ""), entry.amountCents, entry.receivedAt));
-      plans.filter(plan => plan.active).forEach(plan => plan.clientIds.forEach(clientId => {
-        rowFor(clientCompany.get(clientId)).mrrCents += plan.monthlyAmountCents;
-      }));
+      commercialAssignments.forEach(assignment => {
+        rowFor(clientCompany.get(assignment.clientId)).mrrCents += assignment.monthlyAmountCents;
+      });
     } catch {
       financeConnected = false;
     }

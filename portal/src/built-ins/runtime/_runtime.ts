@@ -42,6 +42,10 @@ function makeStorage(installId: string): PluginStorage {
         state.pluginData[installId][key] = value;
       });
     },
+    async runExclusive<T>(key: string, operation: () => Promise<T>): Promise<T> {
+      const { withPortalStateTransaction } = await import("@/server/productWorkspaceCoordinator");
+      return withPortalStateTransaction(`plugin:${installId}:${key}`, operation);
+    },
     async del(key: string): Promise<void> {
       mutate(state => {
         const slice = state.pluginData[installId];

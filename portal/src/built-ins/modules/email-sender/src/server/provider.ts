@@ -40,13 +40,21 @@ export class ProviderService {
 
   async update(input: UpdateProviderInput, actor: UserId): Promise<ProviderConfig> {
     const existing = await this.get();
+    const provider = input.provider ?? existing.provider;
+    const deliveryConfigChanged =
+      (input.provider !== undefined && input.provider !== existing.provider)
+      || input.apiKey !== undefined
+      || input.smtp !== undefined;
+    const resetReadiness = provider === "none" || deliveryConfigChanged;
     const next: ProviderConfig = {
       ...existing,
-      provider: input.provider ?? existing.provider,
+      provider,
       defaultFromIdentityId: input.defaultFromIdentityId ?? existing.defaultFromIdentityId,
       webhookSecret: input.webhookSecret ?? existing.webhookSecret,
       smtp: input.smtp ?? existing.smtp,
-      status: input.provider === "none" ? "unconfigured" : (input.apiKey ? "active" : existing.status),
+      status: resetReadiness ? "unconfigured" : existing.status,
+      testedAt: resetReadiness ? undefined : existing.testedAt,
+      errorMessage: resetReadiness ? undefined : existing.errorMessage,
       updatedAt: now(),
     };
     if (input.apiKey !== undefined) {
@@ -73,6 +81,7 @@ export class ProviderService {
   // fails for an authentication-style reason).
   async markError(reason: string): Promise<void> {
     const existing = await this.get();
+    if (existing.provider === "none") return;
     await this.storage.set(PROVIDER_KEY, {
       ...existing,
       status: "error",
@@ -83,6 +92,7 @@ export class ProviderService {
 
   async markActive(): Promise<void> {
     const existing = await this.get();
+    if (existing.provider === "none") return;
     if (existing.status === "active") return;
     await this.storage.set(PROVIDER_KEY, {
       ...existing,

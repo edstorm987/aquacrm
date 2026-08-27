@@ -23,6 +23,8 @@ import type {
 export interface StoragePort {
   get<T = unknown>(key: string): Promise<T | undefined>;
   set<T = unknown>(key: string, value: T): Promise<void>;
+  /** Serialize and durably flush a logical operation across application processes. */
+  runExclusive?<T>(key: string, operation: () => Promise<T>): Promise<T>;
   del(key: string): Promise<void>;
   list(prefix?: string): Promise<string[]>;
 }
@@ -43,6 +45,8 @@ export interface UserPort {
 // ─── Activity log ────────────────────────────────────────────────────────
 
 export interface LogActivityInput {
+  /** Stable source-operation identity. Replays return the original entry. */
+  idempotencyKey?: string;
   agencyId: AgencyId;
   clientId?: ClientId;
   actorUserId?: UserId;
@@ -115,6 +119,12 @@ export interface EcommerceOrderProjection {
   endCustomerUserId?: UserId;
   amountTotal: number;                 // cents
   currency: string;
+  status: "pending" | "paid" | "fulfilled" | "shipped" | "delivered" | "refunded" | "cancelled";
+  paidAt?: number;
+  refundedAt?: number;
+  // Cumulative source-order refund amount. Full cancellations use
+  // amountTotal even when the ecommerce provider has no refund row.
+  refundedAmountCents?: number;
   // Subtotal pre-discount, in cents. Falls back to amountTotal if
   // ecommerce doesn't ship a per-line subtotal sum.
   subtotal: number;

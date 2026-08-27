@@ -583,7 +583,7 @@ describe("Aqua Editor AI history — the endpoint", () => {
       "the other project's thread keeps its name");
   });
 
-  it("is behind the same gate as the rest of the dev surface — no Dev Mode, no history", async () => {
+  it("uses the owner's capability baseline without requiring Dev Mode", async () => {
     const { token, agencyId, userId } = await founder();
     const project = projectFor(agencyId, userId);
     // The same request, WITHOUT withDevMode.
@@ -595,8 +595,8 @@ describe("Aqua Editor AI history — the endpoint", () => {
         body: JSON.stringify({ action: "append", projectId: project.id, message: "Ungated" }),
       },
     )));
-    assert.equal(response.status, 403);
-    assert.deepEqual(allText(getEditorAiConversation(agencyId, project.id)), []);
+    assert.equal(response.status, 200);
+    assert.deepEqual(allText(getEditorAiConversation(agencyId, project.id)), ["Ungated"]);
   });
 
   it("refuses a cross-origin write", async () => {

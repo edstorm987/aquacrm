@@ -104,7 +104,7 @@ describe("the editor adapts to its target", () => {
 
   it("opens a repository at the depth where its tools actually are", () => {
     // "Design it" offers a repo nothing but the assistant.
-    assert.match(studio, /projectKind === "software" \? "developer" : "visual"/);
+    assert.match(studio, /projectKind === "software" && developerModeAvailable \? "developer" : "visual"/);
     // The browser is a toggle now, so a repo simply has no browser pane
     // (portalTarget is false); there is no canvas-view string to assert.
     // The browser is part of the ONE editor, not a portal privilege — it is

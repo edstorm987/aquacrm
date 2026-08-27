@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Activity, ArrowLeft, ArrowUpRight, BarChart3, Building2, Gauge, Globe2, LockKeyhole, MapPin, Megaphone, RadioTower, Star, Target, UserRoundSearch, Users, Workflow } from "lucide-react";
 
 import { CampaignsWorkspace } from "@/app/portal/agency/leads-pipeline/campaigns/_CampaignsWorkspace";
@@ -29,7 +30,7 @@ import { listTradingCompanies } from "@/server/tradingCompanies";
 import type { TradingCompany } from "@/server/types";
 import { containerFor as financeContainerFor } from "@aqua/plugin-agency-finance/server";
 import { containerFor as leadsContainerFor } from "@aqua/plugin-leads-pipeline/server";
-import { ensureAgencyWebsite, summarizeAgencyWebsite } from "@/server/agencyWebsite";
+import { ensureAgencyWebsite, readAgencyWebsite, summarizeAgencyWebsite } from "@/server/agencyWebsite";
 import { FIRST_PARTY_DEVELOPMENT_PROJECTS } from "@/lib/projects/firstPartyDevelopmentProjects";
 import { listInboxConnections } from "@/lib/server/inbox/inboxStore";
 import { metaInboxReadiness } from "@/lib/server/integrations/metaMessaging";
@@ -100,6 +101,9 @@ export default async function MarketingPage({
   const session = await requireRole([...AGENCY_ROLES]);
   const params = await searchParams;
   const { view, channel, section } = resolveMarketingView(params.view, params.channel, params.section);
+  const canManage = !session.publicShowcase
+    && (session.role === "agency-owner" || session.role === "agency-manager");
+  if (session.publicShowcase && view !== "pulse") redirect("/portal/agency/marketing");
 
   if (view === "automations") {
     const automationData = await automationWorkspaceData(session.agencyId, session.role);
@@ -126,38 +130,38 @@ export default async function MarketingPage({
   ensureLeadsPipelineFoundationRegistered();
 
   let install = getInstall({ agencyId: session.agencyId }, LEADS_PLUGIN);
-  if (!install) {
+  if (!install && canManage) {
     const result = await installPlugin(LEADS_PLUGIN, {
       scope: { agencyId: session.agencyId },
       installedBy: session.userId,
     });
     if (result.ok) install = result.install;
-  } else if (!install.enabled) {
+  } else if (install && !install.enabled && canManage) {
     await setPluginEnabled({ agencyId: session.agencyId }, LEADS_PLUGIN, true);
     install = getInstall({ agencyId: session.agencyId }, LEADS_PLUGIN);
   }
   if (!install) return <p className="text-sm text-red-700">Marketing records could not be opened.</p>;
 
   let emailInstall = getInstall({ agencyId: session.agencyId }, EMAIL_PLUGIN);
-  if (!emailInstall) {
+  if (!emailInstall && canManage) {
     const result = await installPlugin(EMAIL_PLUGIN, {
       scope: { agencyId: session.agencyId },
       installedBy: session.userId,
     });
     if (result.ok) emailInstall = result.install;
-  } else if (!emailInstall.enabled) {
+  } else if (emailInstall && !emailInstall.enabled && canManage) {
     await setPluginEnabled({ agencyId: session.agencyId }, EMAIL_PLUGIN, true);
     emailInstall = getInstall({ agencyId: session.agencyId }, EMAIL_PLUGIN);
   }
 
   let marketingInstall = getInstall({ agencyId: session.agencyId }, MARKETING_PLUGIN);
-  if (!marketingInstall) {
+  if (!marketingInstall && canManage) {
     const result = await installPlugin(MARKETING_PLUGIN, {
       scope: { agencyId: session.agencyId },
       installedBy: session.userId,
     });
     if (result.ok) marketingInstall = result.install;
-  } else if (!marketingInstall.enabled) {
+  } else if (marketingInstall && !marketingInstall.enabled && canManage) {
     await setPluginEnabled({ agencyId: session.agencyId }, MARKETING_PLUGIN, true);
     marketingInstall = getInstall({ agencyId: session.agencyId }, MARKETING_PLUGIN);
   }
@@ -229,8 +233,8 @@ export default async function MarketingPage({
       converted: rows.filter(lead => lead.tags.includes("converted")).length,
     };
   }).sort((a, b) => b.leads - a.leads);
-  const ownWebsite = ensureAgencyWebsite(session.agencyId);
-  const ownWebsiteSummary = summarizeAgencyWebsite(ownWebsite);
+  const ownWebsite = canManage ? ensureAgencyWebsite(session.agencyId) : readAgencyWebsite(session.agencyId);
+  const ownWebsiteSummary = ownWebsite ? summarizeAgencyWebsite(ownWebsite) : null;
   const companyOptions = companies.map(company => ({ id: company.id, name: company.name, slug: company.slug, colour: company.brand.primaryColor }));
   const defaultCompanyIds = selectedCompanyId ? [selectedCompanyId] : [];
   const selectedScopeLabel = selectedCompany?.name ?? (brandScope === "shared" ? "Group / shared" : "All brands");
@@ -376,9 +380,9 @@ export default async function MarketingPage({
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-black/90">Marketing across the business</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-black/55">Five places, not ten: how marketing is performing, where demand comes from, who it is for, the channels carrying it, and the automations behind it.</p>
           <div className="mt-3 flex flex-wrap items-center gap-4">
-            <Link href={marketingHref("client-services", "all")} className="inline-flex min-h-9 items-center gap-2 text-xs font-semibold text-brand hover:underline"><Users size={14} /> Client services</Link>
+            {canManage ? <Link href={marketingHref("client-services", "all")} className="inline-flex min-h-9 items-center gap-2 text-xs font-semibold text-brand hover:underline"><Users size={14} /> Client services</Link> : null}
             <Link href={MARKETING_KPI_BANK_HREF} className="inline-flex min-h-9 items-center gap-2 text-xs font-semibold text-brand hover:underline"><Gauge size={14} /> Explore in the KPI bank</Link>
-            <Link href="/portal/agency/agency-marketing" className="inline-flex min-h-9 items-center gap-2 text-xs font-semibold text-brand hover:underline"><ArrowUpRight size={14} /> Templates, reports and calendar</Link>
+            {canManage ? <Link href="/portal/agency/agency-marketing" className="inline-flex min-h-9 items-center gap-2 text-xs font-semibold text-brand hover:underline"><ArrowUpRight size={14} /> Templates, reports and calendar</Link> : null}
           </div>
         </div>
         <div className="flex items-center gap-3 rounded-md border border-black/10 bg-black/[0.025] px-4 py-3">
@@ -387,9 +391,9 @@ export default async function MarketingPage({
         </div>
       </header>
 
-      <BrandScopeNavigation companies={companies} view={view} activeScope={brandScope} />
+      <BrandScopeNavigation companies={companies} view={view} activeScope={brandScope} canManage={canManage} />
 
-      <MarketingWorkspaceNavigation view={view} brandScope={brandScope} />
+      <MarketingWorkspaceNavigation view={view} brandScope={brandScope} canManage={canManage} />
 
       {view === "pulse" || view === "demand" ? (
         <div className="space-y-7">
@@ -520,14 +524,20 @@ export default async function MarketingPage({
               </div>
               <Link href="/portal/agency/fulfilment/technical/website" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white">Open website control <ArrowUpRight size={15} /></Link>
             </div>
-            <div className="grid border-t border-black/10 sm:grid-cols-4">
-              <WebsiteMetric icon={<RadioTower size={15} />} label="Public mode" value={ownWebsite.status === "live" ? "Live" : ownWebsite.status === "maintenance" ? "Maintenance" : "Redesign gate"} />
-              {/* Unmeasured is "—", never 0. This tile used to print a measured-looking
-                  "0" directly beside the "Tag: Waiting" tile next to it. */}
-              <WebsiteMetric icon={<Activity size={15} />} label="Views today" value={measuredCountLabel(ownWebsiteSummary.pageviews24h, ownWebsite.telemetryLastSeenAt)} />
-              <WebsiteMetric icon={<Activity size={15} />} label="Load time" value={ownWebsiteSummary.averageLoadMs ? `${ownWebsiteSummary.averageLoadMs} ms` : "Waiting"} />
-              <WebsiteMetric icon={<RadioTower size={15} />} label="Tag" value={ownWebsite.telemetryLastSeenAt ? "Connected" : "Waiting"} />
-            </div>
+            {ownWebsite && ownWebsiteSummary ? (
+              <div className="grid border-t border-black/10 sm:grid-cols-4">
+                <WebsiteMetric icon={<RadioTower size={15} />} label="Public mode" value={ownWebsite.status === "live" ? "Live" : ownWebsite.status === "maintenance" ? "Maintenance" : "Redesign gate"} />
+                {/* Unmeasured is "—", never 0. This tile used to print a measured-looking
+                    "0" directly beside the "Tag: Waiting" tile next to it. */}
+                <WebsiteMetric icon={<Activity size={15} />} label="Views today" value={measuredCountLabel(ownWebsiteSummary.pageviews24h, ownWebsite.telemetryLastSeenAt)} />
+                <WebsiteMetric icon={<Activity size={15} />} label="Load time" value={ownWebsiteSummary.averageLoadMs ? `${ownWebsiteSummary.averageLoadMs} ms` : "Waiting"} />
+                <WebsiteMetric icon={<RadioTower size={15} />} label="Tag" value={ownWebsite.telemetryLastSeenAt ? "Connected" : "Waiting"} />
+              </div>
+            ) : (
+              <div className="border-t border-black/10 px-4 py-5 text-sm text-black/55">
+                Website not configured for this workspace.
+              </div>
+            )}
           </section> : null}
           <MarketingChannelsWorkspace
             kind="website"
@@ -628,12 +638,12 @@ function MarketingChannelNavigation({ channel, brandScope }: { channel: Marketin
   );
 }
 
-function BrandScopeNavigation({ companies, view, activeScope }: { companies: TradingCompany[]; view: MarketingView; activeScope: string }) {
+function BrandScopeNavigation({ companies, view, activeScope, canManage }: { companies: TradingCompany[]; view: MarketingView; activeScope: string; canManage: boolean }) {
   return (
     <section aria-labelledby="brand-scope-heading">
       <div className="flex items-center justify-between gap-4">
         <div><h2 id="brand-scope-heading" className="text-sm font-semibold text-black/75">Brand scope</h2><p className="mt-0.5 text-xs text-black/45">Switch the whole workspace without splitting the CRM.</p></div>
-        <Link href="/portal/agency/company?view=companies" className="shrink-0 text-xs font-medium text-brand hover:underline">Manage brands</Link>
+        <Link href="/portal/agency/company?view=companies" className="shrink-0 text-xs font-medium text-brand hover:underline">{canManage ? "Manage brands" : "View brands"}</Link>
       </div>
       <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
         <BrandScopeLink href={marketingHref(view, "all")} active={activeScope === "all"} label="All brands" colour="#111111" />
@@ -1036,15 +1046,15 @@ function MarketingTab({ href, active, icon: Icon, children }: { href: string; ac
  * header link now — while `?view=client-services` stays a live URL, and
  * Automations is agency-wide so it never carries a brand scope.
  */
-function MarketingWorkspaceNavigation({ view, brandScope }: { view: MarketingView; brandScope: string }) {
+function MarketingWorkspaceNavigation({ view, brandScope, canManage = true }: { view: MarketingView; brandScope: string; canManage?: boolean }) {
   return (
     <nav aria-label="Marketing view" className="flex gap-5 overflow-x-auto border-b border-black/10">
       <MarketingTab href={marketingHref("pulse", brandScope)} active={view === "pulse"} icon={Gauge}>Pulse</MarketingTab>
-      <MarketingTab href={marketingHref("demand", brandScope)} active={view === "demand"} icon={Megaphone}>Demand</MarketingTab>
-      <MarketingTab href={marketingHref("funnels", brandScope)} active={view === "funnels"} icon={Workflow}>Funnels</MarketingTab>
-      <MarketingTab href={marketingHref("customers", brandScope)} active={view === "customers"} icon={UserRoundSearch}>Customers</MarketingTab>
-      <MarketingTab href={marketingHref("channels", brandScope)} active={view === "channels"} icon={Globe2}>Channels</MarketingTab>
-      <MarketingTab href={marketingHref("automations", "all")} active={view === "automations"} icon={LockKeyhole}>Automations</MarketingTab>
+      {canManage ? <MarketingTab href={marketingHref("demand", brandScope)} active={view === "demand"} icon={Megaphone}>Demand</MarketingTab> : null}
+      {canManage ? <MarketingTab href={marketingHref("funnels", brandScope)} active={view === "funnels"} icon={Workflow}>Funnels</MarketingTab> : null}
+      {canManage ? <MarketingTab href={marketingHref("customers", brandScope)} active={view === "customers"} icon={UserRoundSearch}>Customers</MarketingTab> : null}
+      {canManage ? <MarketingTab href={marketingHref("channels", brandScope)} active={view === "channels"} icon={Globe2}>Channels</MarketingTab> : null}
+      {canManage ? <MarketingTab href={marketingHref("automations", "all")} active={view === "automations"} icon={LockKeyhole}>Automations</MarketingTab> : null}
     </nav>
   );
 }

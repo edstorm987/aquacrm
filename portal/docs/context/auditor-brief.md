@@ -8,9 +8,10 @@ It is a **different chat from every builder** (never self-audits), it is
 collide with a worker), and it writes **only** to
 [audits.md](../development/audits.md).
 
-Ed runs this on a **loop** (e.g. `/loop 20m <paste>`), so it self-manages through
-the docs: each tick it finds shipped-but-unaudited work, audits the oldest, logs a
-verdict. No relay needed until something fails.
+The recurring loop is currently stopped. Ed starts an audit on request; the
+auditor uses the docs to find shipped-but-unaudited work, audits it and logs a
+verdict. The template still supports a one-sweep-per-tick loop if Ed explicitly
+re-enables one later.
 
 > ⏸ **The recurring loop is currently STOPPED (Ed, 2026-08-19) — re-audits are ON-REQUEST.**
 > It does not auto-fire. When a fix lands, someone must re-run `/loop` in a fresh Auditor chat.
@@ -85,6 +86,17 @@ Run these against the entry you're auditing. Any **No** is a finding.
   facets** (changing what someone IS never deletes what they DID) · every action
   states its **kind** (in-app/off-system/judgement) + **what clears it** (no
   Resolve for off-system work) · live enquiry/erasure/inbox paths guarded.
+- **C1 · Session revocation is behavioural, not decorative.** Reuse the exact old
+  cookie after downgrade, password change and removal against the changed route
+  and representative central `requireRole()`/request-cookie paths. A stamped
+  `sessionRev` field or an isolated `isSessionFresh()` caller is not proof.
+- **C2 · Read-only means operation, not verb.** For showcase work enumerate
+  mutating `GET` handlers and OAuth callbacks; prove they are refused and that
+  concurrent visitors do not share/reset one fixture.
+- **C3 · Erasure failure is a first-class outcome.** Inject hosted-table failure;
+  require an incomplete response, a durable retry path after local deletion and a
+  permanent audit with no client name/identifier. Successful fake-client coverage
+  alone is insufficient.
 - **D · Reuse, not a third copy.** Did they build something that already exists?
   Cross-check [hazards-and-duplication.md](../workspace/hazards-and-duplication.md)
   + [feature-index.md](../workspace/feature-index.md).

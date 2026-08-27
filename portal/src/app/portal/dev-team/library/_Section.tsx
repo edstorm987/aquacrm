@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 // dev-docs BACKEND wholesale (`listDevDocs`/`readDevDoc` +
 // `devDocsAccessible`), rendered through Library-scoped view components so every
 // link stays inside the Dev Team hub. Mirrors the dev-docs page.tsx server logic
-// exactly: same layered gate (founder + Dev Mode) that the layout already
+// exactly: same layered gate (founder-only Dev Team access) that the layout already
 // asserts, re-asserted here, plus the `?doc=` viewer branch. Renders inside the
 // existing dev-team layout.
 
@@ -12,10 +12,8 @@ import { ensureHydrated } from "@/server/storage";
 import { requireRole } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES } from "@/server/types";
 import { devDocsAccessible, listDevDocs, readDevDoc } from "@/lib/server/dev/devDocs";
-import { LibraryIndexView, LibraryRecentView } from "./_LibraryIndex";
-import { LibraryDocViewer } from "./_LibraryDocViewer";
 
-// Always read the live files — never serve a cached snapshot of the docs.
+// The shared filesystem index has an explicit 15-second live-data bound.
 
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
 
@@ -29,7 +27,7 @@ export async function LibrarySection({ tabs, searchParams }: { tabs?: ReactNode;
     redirect("/portal");
   }
 
-  // Founder + Dev Mode, or this section does not exist.
+  // Founder-only Dev Team access, or this section does not exist.
   if (!devDocsAccessible(session)) notFound();
 
   const params = await searchParams;
@@ -38,7 +36,10 @@ export async function LibrarySection({ tabs, searchParams }: { tabs?: ReactNode;
   // ?doc=<relPath> → the viewer. A bad, missing, or escaping path 404s.
   if (docParam) {
     try {
-      const doc = await readDevDoc(session, docParam);
+      const [{ LibraryDocViewer }, doc] = await Promise.all([
+        import("./_LibraryDocViewer"),
+        readDevDoc(session, docParam),
+      ]);
       return <LibraryDocViewer doc={doc} nowMs={Date.now()} />;
     } catch {
       notFound();
@@ -49,7 +50,10 @@ export async function LibrarySection({ tabs, searchParams }: { tabs?: ReactNode;
   // stays light (5 rows) and never renders ~1,800 at once. The folder tree on
   // the index covers exhaustive browsing.
   if (typeof params.view === "string" && params.view === "recent") {
-    const recentIndex = await listDevDocs(session);
+    const [{ LibraryRecentView }, recentIndex] = await Promise.all([
+      import("./_LibraryIndex"),
+      listDevDocs(session),
+    ]);
     return <LibraryRecentView index={recentIndex} />;
   }
 
@@ -57,6 +61,9 @@ export async function LibrarySection({ tabs, searchParams }: { tabs?: ReactNode;
   // `_LibraryIndex`), and the `scanBlockers()` that fed it outlived it — every
   // Library load was reading + parsing state.md for a value that was thrown
   // away. Blockers live on the Dev Team Home now.
-  const index = await listDevDocs(session);
+  const [{ LibraryIndexView }, index] = await Promise.all([
+    import("./_LibraryIndex"),
+    listDevDocs(session),
+  ]);
   return <LibraryIndexView index={index} tabs={tabs} />;
 }

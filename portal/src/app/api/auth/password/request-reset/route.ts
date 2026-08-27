@@ -74,6 +74,7 @@ export async function POST(req: NextRequest) {
     to: user.email,
     agencyId: user.agencyId,
     externalRef: `password-reset:${user.id}`,
+    signal: req.signal,
     subject: `Reset your ${authBrand.name} password`,
     bodyText: `Use this secure link to reset your ${authBrand.name} password. It expires in 24 hours.\n\n${resetUrl}`,
     bodyHtml: `<p>Use the secure link below to reset your ${authBrand.name} password. It expires in 24 hours.</p><p><a href="${resetUrl}">Reset password</a></p>`,

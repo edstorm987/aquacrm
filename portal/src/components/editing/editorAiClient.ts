@@ -33,6 +33,7 @@ import type {
   EditorAiMessage,
   EditorAiStatus,
 } from "@/server/types";
+import { apiResponseError } from "@/lib/client/apiResponseError";
 
 export const EDITOR_AI_ENDPOINT = "/api/portal/dev/editor-ai";
 export const EDITOR_AI_HISTORY_ENDPOINT = "/api/portal/dev/editor-ai/history";
@@ -111,7 +112,7 @@ interface Envelope {
   vaultAvailable?: boolean;
   conversation?: EditorAiConversation | null;
   limits?: EditorAiHistoryLimits;
-  message?: EditorAiMessage;
+  message?: EditorAiMessage | string;
   threadId?: string;
 }
 
@@ -141,7 +142,7 @@ async function post(url: string, body: Json): Promise<Envelope> {
   }
   const payload = await response.json().catch(() => null) as Envelope | null;
   if (!response.ok || !payload?.ok) {
-    throw new Error(payload?.error || "That request could not be completed.");
+    throw new Error(apiResponseError(payload, "That request could not be completed."));
   }
   return payload;
 }
@@ -158,7 +159,7 @@ function historyResult(payload: Envelope): EditorAiHistoryResult {
   return {
     conversation: payload.conversation ?? null,
     limits: payload.limits ?? null,
-    message: payload.message,
+    message: typeof payload.message === "object" ? payload.message : undefined,
     threadId: payload.threadId,
   };
 }
@@ -326,10 +327,10 @@ export async function requestEditorAiReply(input: {
       signal: controller.signal,
     });
     const payload = await response.json().catch(() => null) as Envelope | null;
-    if (!response.ok || !payload?.ok || !payload.message) {
+    if (!response.ok || !payload?.ok || !payload.message || typeof payload.message !== "object") {
       return {
         ok: false,
-        error: payload?.error || "Aqua Editor AI could not reply. Your message is saved — try again.",
+        error: apiResponseError(payload, "Aqua Editor AI could not reply. Your message is saved — try again."),
         code: payload?.code,
       };
     }

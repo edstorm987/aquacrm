@@ -1,11 +1,11 @@
 // Server-side barrel — services + container builder + foundation
 // adapter exports. Same shape as agency-hr / public-funnel.
 
-export { LeadService } from "./leads";
+export { LeadIdentityConflictError, LeadService } from "./leads";
+export { CommercialPaymentConflictError, CommercialService } from "./commercial";
 export { ProspectService } from "./prospects";
 export { ContactService } from "./contacts";
 export { CampaignService, PLUGIN_ID } from "./campaigns";
-export { CommercialService } from "./commercial";
 export type {
   CommercialPack,
   CommercialPartyKind,

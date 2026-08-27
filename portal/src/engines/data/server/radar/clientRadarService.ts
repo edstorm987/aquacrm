@@ -35,7 +35,7 @@ interface RadarInvoice {
   id: string;
   number: string;
   clientId?: string;
-  status: "draft" | "sent" | "paid" | "overdue" | "void" | "refunded";
+  status: "draft" | "sent" | "paid" | "overdue" | "void" | "partially-refunded" | "refunded";
   dueAt: number;
   paidAt?: number;
   totalCents: number;

@@ -1,0 +1,306 @@
+import "server-only";
+
+import { access, readFile, realpath } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
+import { basename, delimiter, isAbsolute, relative, resolve, sep } from "node:path";
+
+import type { DevProject } from "@/server/types";
+
+export const LOCAL_PREVIEW_MANIFEST = "aqua-preview.config.json";
+export const LOCAL_PREVIEW_REGISTRY_ENV = "AQUA_DEV_PREVIEW_PROJECTS_JSON";
+export const LOCAL_PREVIEW_SAFE_ROOTS_ENV = "AQUA_DEV_PREVIEW_SAFE_ROOTS";
+
+const MAX_ARGS = 96;
+const MAX_ARG_LENGTH = 2_000;
+const MAX_ENV_VALUE = 8_000;
+const ALLOWED_NAMED_COMMANDS = new Set(["node", "npm", "npm.cmd", "pnpm", "yarn", "bun", "deno"]);
+
+export interface TrustedLocalRepositoryPreviewRecord {
+  /** Optional exact selectors. At least one selector must match. */
+  projectIds?: string[];
+  repositories?: string[];
+  allowBlankRepository?: boolean;
+  /** Absolute in server registry records; implicit process.cwd() in a manifest. */
+  worktreePath: string;
+  command: string;
+  args: string[];
+  healthPath?: string;
+  startupTimeoutMs?: number;
+  healthPollIntervalMs?: number;
+  env?: Record<string, string>;
+  source?: string;
+}
+
+export interface ResolvedLocalRepositoryPreviewConfig {
+  worktreePath: string;
+  command: string;
+  args: string[];
+  healthPath: string;
+  startupTimeoutMs: number;
+  healthPollIntervalMs: number;
+  env: Record<string, string>;
+  source: string;
+}
+
+interface ManifestShape {
+  version?: number;
+  projectIds?: unknown;
+  repositories?: unknown;
+  allowBlankRepository?: unknown;
+  command?: unknown;
+  args?: unknown;
+  healthPath?: unknown;
+  startupTimeoutMs?: unknown;
+  healthPollIntervalMs?: unknown;
+  env?: unknown;
+}
+
+export class LocalRepositoryPreviewConfigError extends Error {
+  constructor(public readonly code: string, message: string) {
+    super(message);
+    this.name = "LocalRepositoryPreviewConfigError";
+  }
+}
+
+function stringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
+function recordEnv(value: unknown): Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value)
+    .filter((entry): entry is [string, string] => typeof entry[1] === "string"));
+}
+
+function parseRecord(value: unknown, source: string, implicitWorktree?: string): TrustedLocalRepositoryPreviewRecord | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const item = value as ManifestShape & { worktreePath?: unknown };
+  if (typeof item.command !== "string" || !Array.isArray(item.args)) return null;
+  if (!item.args.every(arg => typeof arg === "string")) return null;
+  const worktreePath = implicitWorktree ?? (typeof item.worktreePath === "string" ? item.worktreePath.trim() : "");
+  if (!worktreePath) return null;
+  return {
+    projectIds: stringList(item.projectIds),
+    repositories: stringList(item.repositories).map(repository => repository.toLowerCase()),
+    allowBlankRepository: item.allowBlankRepository === true,
+    worktreePath,
+    command: item.command.trim(),
+    args: item.args as string[],
+    healthPath: typeof item.healthPath === "string" ? item.healthPath : undefined,
+    startupTimeoutMs: typeof item.startupTimeoutMs === "number" ? item.startupTimeoutMs : undefined,
+    healthPollIntervalMs: typeof item.healthPollIntervalMs === "number" ? item.healthPollIntervalMs : undefined,
+    env: recordEnv(item.env),
+    source,
+  };
+}
+
+function recordMatches(record: TrustedLocalRepositoryPreviewRecord, project: DevProject): boolean {
+  if (record.projectIds?.includes(project.id)) return true;
+  const repository = project.repository.trim().toLowerCase();
+  if (repository && record.repositories?.some(candidate => candidate === repository)) return true;
+  // Blank means "the local working tree" in legacy DevProject records. It is
+  // never a wildcard: only an exact project id may opt a blank record in.
+  return !repository
+    && record.allowBlankRepository === true
+    && Boolean(record.projectIds?.includes(project.id));
+}
+
+async function registryRecords(): Promise<TrustedLocalRepositoryPreviewRecord[]> {
+  const raw = process.env[LOCAL_PREVIEW_REGISTRY_ENV]?.trim();
+  if (!raw) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new LocalRepositoryPreviewConfigError(
+      "invalid-registry",
+      `${LOCAL_PREVIEW_REGISTRY_ENV} is not valid JSON.`,
+    );
+  }
+  const values = Array.isArray(parsed) ? parsed : [parsed];
+  const records = values.map((value, index) => parseRecord(value, `${LOCAL_PREVIEW_REGISTRY_ENV}[${index}]`));
+  if (records.some(record => !record)) {
+    throw new LocalRepositoryPreviewConfigError(
+      "invalid-registry",
+      `${LOCAL_PREVIEW_REGISTRY_ENV} contains a record without a worktree, command or argument list.`,
+    );
+  }
+  return records as TrustedLocalRepositoryPreviewRecord[];
+}
+
+async function currentWorktreeManifest(): Promise<TrustedLocalRepositoryPreviewRecord | null> {
+  const worktree = await realpath(process.cwd());
+  const manifestPath = resolve(worktree, LOCAL_PREVIEW_MANIFEST);
+  let raw: string;
+  try {
+    raw = await readFile(manifestPath, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw new LocalRepositoryPreviewConfigError("manifest-unreadable", "The local preview manifest could not be read.");
+  }
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    throw new LocalRepositoryPreviewConfigError("invalid-manifest", `${LOCAL_PREVIEW_MANIFEST} is not valid JSON.`);
+  }
+  const shape = value as ManifestShape;
+  if (shape?.version !== 1) {
+    throw new LocalRepositoryPreviewConfigError("invalid-manifest", `${LOCAL_PREVIEW_MANIFEST} must declare version 1.`);
+  }
+  const record = parseRecord(value, LOCAL_PREVIEW_MANIFEST, worktree);
+  if (!record) {
+    throw new LocalRepositoryPreviewConfigError(
+      "invalid-manifest",
+      `${LOCAL_PREVIEW_MANIFEST} must declare a command and argument list.`,
+    );
+  }
+  return record;
+}
+
+async function canonicalSafeRoots(additional: readonly string[] = []): Promise<string[]> {
+  const configured = (process.env[LOCAL_PREVIEW_SAFE_ROOTS_ENV] ?? "")
+    .split(delimiter)
+    .map(value => value.trim())
+    .filter(Boolean);
+  const candidates = [process.cwd(), ...configured, ...additional];
+  const roots: string[] = [];
+  for (const candidate of candidates) {
+    if (!isAbsolute(candidate)) {
+      throw new LocalRepositoryPreviewConfigError(
+        "invalid-safe-root",
+        `${LOCAL_PREVIEW_SAFE_ROOTS_ENV} accepts absolute paths only.`,
+      );
+    }
+    try {
+      roots.push(await realpath(candidate));
+    } catch {
+      throw new LocalRepositoryPreviewConfigError("invalid-safe-root", "A configured local preview safe root does not exist.");
+    }
+  }
+  return [...new Set(roots)];
+}
+
+function pathInside(root: string, target: string): boolean {
+  const child = relative(root, target);
+  return child === "" || (!child.startsWith(`..${sep}`) && child !== ".." && !isAbsolute(child));
+}
+
+async function validatedWorktree(worktreePath: string, safeRoots?: readonly string[]): Promise<string> {
+  if (!isAbsolute(worktreePath)) {
+    throw new LocalRepositoryPreviewConfigError("invalid-worktree", "The trusted preview worktree must be an absolute path.");
+  }
+  let worktree: string;
+  try {
+    worktree = await realpath(worktreePath);
+    await access(worktree, fsConstants.R_OK | fsConstants.X_OK);
+  } catch {
+    throw new LocalRepositoryPreviewConfigError("invalid-worktree", "The trusted preview worktree does not exist or is not readable.");
+  }
+  const roots = await canonicalSafeRoots(safeRoots);
+  if (!roots.some(root => pathInside(root, worktree))) {
+    throw new LocalRepositoryPreviewConfigError(
+      "unsafe-worktree",
+      "The project's local worktree is outside the configured preview safe roots.",
+    );
+  }
+  return worktree;
+}
+
+function validatedCommand(command: string): string {
+  if (!command || command.includes("\0") || /[\r\n]/.test(command)) {
+    throw new LocalRepositoryPreviewConfigError("untrusted-command", "The trusted preview command is invalid.");
+  }
+  if (command === "node") return process.execPath;
+  if (isAbsolute(command)) {
+    // Absolute executables are limited to the running Node binary. Arbitrary
+    // /bin/sh-style entries turn a trusted record into a general shell door.
+    if (resolve(command) !== resolve(process.execPath)) {
+      throw new LocalRepositoryPreviewConfigError(
+        "untrusted-command",
+        "Only the running Node executable or an approved package runner may start a preview.",
+      );
+    }
+    return process.execPath;
+  }
+  if (!ALLOWED_NAMED_COMMANDS.has(command) || basename(command) !== command) {
+    throw new LocalRepositoryPreviewConfigError(
+      "untrusted-command",
+      "Only Node or an approved package runner may start a preview.",
+    );
+  }
+  return command;
+}
+
+function validatedArgs(args: string[]): string[] {
+  if (args.length > MAX_ARGS || args.some(arg => typeof arg !== "string" || arg.length > MAX_ARG_LENGTH || arg.includes("\0"))) {
+    throw new LocalRepositoryPreviewConfigError("invalid-arguments", "The trusted preview argument list is invalid.");
+  }
+  return [...args];
+}
+
+function validatedHealthPath(value: string | undefined): string {
+  const healthPath = value?.trim() || "/";
+  if (!healthPath.startsWith("/") || healthPath.startsWith("//") || healthPath.includes("\0") || /[\r\n]/.test(healthPath)) {
+    throw new LocalRepositoryPreviewConfigError("invalid-health-path", "The preview health path must be a local absolute URL path.");
+  }
+  return healthPath.slice(0, 1_000);
+}
+
+function boundedInteger(value: number | undefined, fallback: number, min: number, max: number): number {
+  if (value === undefined) return fallback;
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(min, Math.min(max, Math.round(value)));
+}
+
+function safeEnvironment(value: Record<string, string> | undefined): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const [name, envValue] of Object.entries(value ?? {})) {
+    const allowedName = /^(?:NEXT_PUBLIC_|VITE_|PUBLIC_)[A-Z0-9_]+$/.test(name)
+      || ["NEXT_DIST_DIR", "BROWSER", "CI", "TURBO_TELEMETRY_DISABLED"].includes(name);
+    if (!allowedName || envValue.length > MAX_ENV_VALUE || envValue.includes("\0")) {
+      throw new LocalRepositoryPreviewConfigError(
+        "unsafe-environment",
+        `The trusted preview environment contains a disallowed variable (${name || "unnamed"}).`,
+      );
+    }
+    result[name] = envValue;
+  }
+  return result;
+}
+
+/**
+ * Resolve a stored DevProject to a trusted local launch record.
+ *
+ * The request never participates. A server environment registry wins; the
+ * committed manifest in the current worktree is the zero-config local path.
+ */
+export async function resolveTrustedLocalRepositoryPreview(
+  project: DevProject,
+  options: { records?: readonly TrustedLocalRepositoryPreviewRecord[]; safeRoots?: readonly string[] } = {},
+): Promise<ResolvedLocalRepositoryPreviewConfig> {
+  const records = options.records ? [...options.records] : await registryRecords();
+  const manifest = options.records ? null : await currentWorktreeManifest();
+  const record = records.find(candidate => recordMatches(candidate, project))
+    ?? (manifest && recordMatches(manifest, project) ? manifest : null);
+  if (!record) {
+    throw new LocalRepositoryPreviewConfigError(
+      "preview-not-configured",
+      `This project has no trusted local preview record. Add ${LOCAL_PREVIEW_MANIFEST} to its worktree or configure ${LOCAL_PREVIEW_REGISTRY_ENV}.`,
+    );
+  }
+  return {
+    worktreePath: await validatedWorktree(record.worktreePath, options.safeRoots),
+    command: validatedCommand(record.command),
+    args: validatedArgs(record.args),
+    healthPath: validatedHealthPath(record.healthPath),
+    startupTimeoutMs: boundedInteger(record.startupTimeoutMs, 45_000, 250, 120_000),
+    healthPollIntervalMs: boundedInteger(record.healthPollIntervalMs, 250, 20, 5_000),
+    env: safeEnvironment(record.env),
+    source: record.source || "trusted server record",
+  };
+}

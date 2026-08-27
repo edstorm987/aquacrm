@@ -11,7 +11,7 @@ import { ensureHydrated } from "@/server/storage";
 import { PageHeader } from "../_ui";
 import { InspectorClient, type Persona } from "./InspectorClient";
 
-// Dev Team → Inspector. Founder + Dev Mode only — the same layered gate the
+// Dev Team → Inspector. Founder-only Dev Team access — the same layered gate the
 // dev-team layout + home assert, so it is unreachable in any production-like
 // context. A card grid of the seeded demo POVs: clicking one switches the
 // session into that persona (via the fenced /api/auth/dev-mode mint route) so

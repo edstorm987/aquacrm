@@ -284,7 +284,7 @@ test("the worker script refuses to write over a damaged ledger", async () => {
 
 // ---- the route stays behind the founder gate --------------------------------
 
-test("the thoughts route keeps the founder + Dev Mode gate", async () => {
+test("the thoughts route keeps the shared founder-only Dev Team gate", async () => {
   const { PROJECT_ROOT } = await import("../src/lib/server/dev/devDocs");
   const source = await readFile(join(PROJECT_ROOT, "src/app/api/portal/dev-team/thoughts/route.ts"), "utf8");
   assert.match(source, /requireRole\(\[\.\.\.AGENCY_ROLES\]\)/, "the route must require an agency role");

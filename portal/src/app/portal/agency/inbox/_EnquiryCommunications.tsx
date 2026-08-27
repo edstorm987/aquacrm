@@ -32,7 +32,7 @@ export function EnquiryCommunications({ item, readiness, compact = false }: { it
   const router = useRouter();
   const preferredChannel = channelFromPreference(item.contactMethod, item);
   const [channel, setChannel] = useState<OutboundCommunicationChannel>(preferredChannel);
-  const [senderByChannel, setSenderByChannel] = useState<Partial<Record<OutboundCommunicationChannel, string>>>(() => defaultSenders(readiness.senders));
+  const [senderByChannel, setSenderByChannel] = useState<Partial<Record<OutboundCommunicationChannel, string>>>({});
   const [subject, setSubject] = useState(`Re: Your enquiry with ${item.brandName}`);
   const [message, setMessage] = useState("");
   const [attachments, setAttachments] = useState<InboxOutboundAttachment[]>([]);
@@ -69,9 +69,14 @@ export function EnquiryCommunications({ item, readiness, compact = false }: { it
     voiceStreamRef.current?.getTracks().forEach(track => track.stop());
   }, []);
 
-  const senders = readiness.senders.filter(sender => sender.channel === channel);
-  const selectedSenderId = senderByChannel[channel] ?? senders[0]?.id ?? "";
-  const selectedSender = senders.find(sender => sender.id === selectedSenderId);
+  const senders = readiness.senders.filter(sender =>
+    sender.channel === channel && (!sender.clientId || sender.clientId === item.clientId));
+  const preferredSenderId = senderByChannel[channel];
+  const selectedSender = senders.find(sender => sender.id === preferredSenderId)
+    ?? senders.find(sender => sender.isActive && Boolean(item.clientId) && sender.clientId === item.clientId)
+    ?? senders.find(sender => sender.isActive && !sender.clientId)
+    ?? senders[0];
+  const selectedSenderId = selectedSender?.id ?? "";
   const recipient = channel === "email" ? item.email : item.phone;
   const channelReady = channel === "call"
     ? Boolean(item.phone && selectedSender)
@@ -377,13 +382,6 @@ function CallHistory({ call }: { call: WebsiteEnquiryCall }) {
     {call.followUpAt ? <p className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-amber-700"><CalendarClock size={11} /> Follow up {formatDate(call.followUpAt)}</p> : null}
     {call.recording ? <div className="mt-2 flex items-center gap-2"><MicOff size={12} className="text-black/35" /><audio controls preload="metadata" src={call.recording.url} className="h-8 max-w-full" /></div> : null}
   </div>;
-}
-
-function defaultSenders(senders: CommunicationSenderIdentity[]): Partial<Record<OutboundCommunicationChannel, string>> {
-  return Object.fromEntries(CHANNELS.flatMap(channel => {
-    const sender = senders.find(item => item.channel === channel.id);
-    return sender ? [[channel.id, sender.id]] : [];
-  }));
 }
 
 function channelFromPreference(value: string | undefined, item: WebsiteEnquiry): OutboundCommunicationChannel {

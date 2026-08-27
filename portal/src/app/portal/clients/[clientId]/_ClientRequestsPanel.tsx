@@ -31,10 +31,12 @@ export function ClientRequestsPanel({
   clientId,
   initialRequests,
   providerName,
+  canManage = true,
 }: {
   clientId: string;
   initialRequests: ClientRequest[];
   providerName: string;
+  canManage?: boolean;
 }) {
   const router = useRouter();
   const [requests, setRequests] = useState(initialRequests);
@@ -129,7 +131,7 @@ export function ClientRequestsPanel({
         </span>
       </div>
 
-      <form onSubmit={submit} className="mt-4 grid gap-2 lg:grid-cols-[12rem_minmax(0,1fr)_minmax(0,18rem)_auto] lg:items-start">
+      {canManage ? <form onSubmit={submit} className="mt-4 grid gap-2 lg:grid-cols-[12rem_minmax(0,1fr)_minmax(0,18rem)_auto] lg:items-start">
         <select
           aria-label="Request type"
           value={type}
@@ -159,7 +161,7 @@ export function ClientRequestsPanel({
         >
           {busy ? "Sending..." : "Send"}
         </button>
-      </form>
+      </form> : <p className="mt-4 rounded-md bg-sky-50 px-3 py-2 text-xs font-medium text-sky-700">Read-only request history</p>}
       {error && <p role="alert" className="mt-2 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
 
       {requests.length > 0 && (
@@ -202,7 +204,7 @@ export function ClientRequestsPanel({
                   ))}
                 </div>
               ) : null}
-              {item.status !== "closed" && (
+              {canManage && item.status !== "closed" && (
                 <div className="mt-3 flex gap-2">
                   <textarea
                     value={replyDrafts[item.id] ?? ""}
@@ -222,7 +224,7 @@ export function ClientRequestsPanel({
                   </button>
                 </div>
               )}
-              <div className="mt-3 flex flex-wrap gap-2">
+              {canManage ? <div className="mt-3 flex flex-wrap gap-2">
                 {item.status === "open" && (
                   <button type="button" disabled={busy} onClick={() => void updateRequest(item.id, "reviewed")} className="rounded-md border border-black/12 bg-white px-3 py-1.5 text-xs font-medium">
                     Mark reviewed
@@ -238,7 +240,7 @@ export function ClientRequestsPanel({
                     Reopen
                   </button>
                 )}
-              </div>
+              </div> : null}
             </li>
           ))}
         </ul>

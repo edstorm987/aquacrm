@@ -55,7 +55,7 @@ import { MasterTagPanel, type MasterTagView } from "./_MasterTagPanel";
 // restated by hand, so this page cannot drift from the server it describes.
 //
 // GATE: identical to every sibling — the layout AND this page re-assert
-// `devDocsAccessible` (founder + Dev Mode). Note that `ExternalAiConnectionPanel`
+// `devDocsAccessible` (founder-only Dev Team access). Note that `ExternalAiConnectionPanel`
 // talks to `/api/portal/settings/external-ai`, which is gated to
 // owner/manager. That is deliberately NOT wrapped: `devDocsAccessible` requires
 // `effectiveRole(session).isFounder`, which only `agency-owner` ever gets, so

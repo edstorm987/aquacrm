@@ -9,6 +9,7 @@ import { createScopedSupabaseClient, type ScopedSupabaseClient } from "@/lib/sup
 import { loadOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
+import { getClientForAgency } from "@/server/tenants";
 import type { WebsiteEnquiryCall } from "@/lib/server/websiteEnquiries";
 
 type EnquiryRow = {
@@ -28,11 +29,13 @@ export async function POST(request: Request) {
     const enquiryId = clean(body?.enquiryId, 160);
     const senderId = clean(body?.senderId, 240);
     if (!enquiryId || !senderId) return NextResponse.json({ ok: false, error: "Enquiry and call identity are required." }, { status: 400 });
-    const sender = resolveCommunicationSender(session.agencyId, senderId, "call");
-    if (!sender) return NextResponse.json({ ok: false, error: "The selected call identity is not available." }, { status: 409 });
     const { supabase, enquiry } = await loadEnquiry(enquiryId, session.agencyId);
+    const storedClientId = typeof enquiry.metadata?.clientId === "string" ? enquiry.metadata.clientId : undefined;
+    const targetClientId = storedClientId && getClientForAgency(session.agencyId, storedClientId) ? storedClientId : undefined;
+    const sender = resolveCommunicationSender(session.agencyId, senderId, "call", targetClientId);
+    if (!sender) return NextResponse.json({ ok: false, error: "The selected call identity is not available for this client." }, { status: 409 });
     if (!enquiry.phone?.trim()) return NextResponse.json({ ok: false, error: "This enquiry has no phone number." }, { status: 400 });
-    const initiation = await initiatePhoneCall({ agencyId: session.agencyId, sender, customerPhone: enquiry.phone });
+    const initiation = await initiatePhoneCall({ agencyId: session.agencyId, clientId: targetClientId, sender, customerPhone: enquiry.phone, signal: request.signal });
     if (initiation.reason) return NextResponse.json({ ok: false, error: initiation.reason }, { status: 502 });
 
     const metadata = enquiry.metadata ?? {};
@@ -156,7 +159,7 @@ async function loadEnquiry(id: string, agencyId: string): Promise<{ supabase: Sc
   const supabase = await createScopedSupabaseClient();
   // Ownership-guarded: an enquiry outside this agency returns null exactly as a
   // missing one, so call mode can never be driven against another tenant's row.
-  const enquiry = await loadOwnedEnquiry<EnquiryRow>(supabase, { id, agencyId, columns: ["name", "phone"] });
+  const enquiry = await loadOwnedEnquiry<EnquiryRow>(supabase, { id, agencyId, columns: ["name", "phone", "metadata"] });
   if (!enquiry) throw new Error("website_enquiry_not_found");
   return { supabase, enquiry };
 }

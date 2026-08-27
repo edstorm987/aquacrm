@@ -3,7 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import type { ClientTelemetryEvent } from "@/lib/clients/clientTelemetry";
 import { fetchGoogleSearchConsoleEvents } from "@/lib/server/integrations/googleSearchConsole";
-import { getSessionFromRequest } from "@/lib/server/auth/auth";
+import { authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
+import { routeTenantScope } from "@/lib/server/portal/apiTenantScope";
 import {
   getIntegrationConnection,
   markIntegrationConnectionSynced,
@@ -12,7 +13,8 @@ import {
 import { logActivity } from "@/server/activity";
 import { replaceAgencyWebsiteSearchEvents } from "@/server/agencyWebsite";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
-import { getClientForAgency, updateClient } from "@/server/tenants";
+import { updateClient } from "@/server/tenants";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 const ROLES = new Set(["agency-owner", "agency-manager", "agency-staff"]);
 const MAX_SEARCH_EVENTS = 5_000;
@@ -33,12 +35,27 @@ export async function POST(request: NextRequest) {
   if (!connection || connection.provider !== "google-search-console") {
     return NextResponse.json({ ok: false, error: "That Search Console connection was not found." }, { status: 404 });
   }
+  // `aquaoasis-web` is the agency's OWN site, not a client — a synthetic id
+  // that names no record, which is exactly why the scope below tolerates ids
+  // that resolve to nothing instead of refusing them.
   const isAgency = !body.clientId || body.clientId === "aquaoasis-web";
   if (connection.clientId && (isAgency || connection.clientId !== body.clientId)) {
     return NextResponse.json({ ok: false, error: "That connection belongs to a different client." }, { status: 403 });
   }
-  const client = isAgency ? null : getClientForAgency(session.agencyId, body.clientId as string);
+  let client;
+  try {
+    client = isAgency ? null : routeTenantScope(session, { clientId: body.clientId }).client;
+  } catch (error) {
+    return authErrorResponse(error);
+  }
   if (!isAgency && !client) return NextResponse.json({ ok: false, error: "Client not found." }, { status: 404 });
+  if (client) {
+    try {
+      await requireCurrentClientWorkspaceElementAccess(client.id, "client.marketing", "use");
+    } catch (error) {
+      return authErrorResponse(error);
+    }
+  }
 
   try {
     const values = resolveIntegrationConnectionValues(session.agencyId, connection.id);

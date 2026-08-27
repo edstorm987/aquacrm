@@ -11,6 +11,7 @@ import {
 import type {
   Horizon, ItemStatus, Roadmap, RoadmapItemView,
 } from "@/lib/server/dev/devTeamRoadmap";
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 
 // The roadmap, made touchable.
 //
@@ -59,17 +60,22 @@ type SavedItem = { status?: ItemStatus; horizon?: Horizon; target?: string };
 async function send(
   method: "POST" | "PATCH" | "DELETE", body: unknown,
 ): Promise<{ ok: boolean; error?: string; item?: SavedItem }> {
-  const response = await fetch("/api/portal/dev-team/roadmap", {
-    method,
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const result = await response.json().catch(() => ({})) as { ok?: boolean; error?: string; item?: SavedItem };
-  if (!response.ok || !result.ok) return { ok: false, error: result.error || "That didn't save." };
-  // The server has the last word — it coerces the horizon to match the status.
-  // Handing that back lets the form show what was actually stored instead of
-  // sitting on a value that was overruled.
-  return { ok: true, item: result.item };
+  try {
+    const result = await checkedJsonMutation<{ ok?: boolean; item?: SavedItem }>("/api/portal/dev-team/roadmap", {
+      method,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }, {
+      fallback: "That didn't save.",
+      validate: value => value.ok === true,
+    });
+    // The server has the last word — it coerces the horizon to match the status.
+    // Handing that back lets the form show what was actually stored instead of
+    // sitting on a value that was overruled.
+    return { ok: true, item: result.item };
+  } catch (error) {
+    return { ok: false, error: mutationErrorMessage(error, "That didn't save.") };
+  }
 }
 
 function TaskDot({ state }: { state: string }) {

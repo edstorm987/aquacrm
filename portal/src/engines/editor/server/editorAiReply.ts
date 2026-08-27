@@ -1,8 +1,14 @@
 import "server-only";
 
 import type { EditorAiConversation, EditorAiMessage, EditorAiThread } from "@/server/types";
-import { OPENAI_RESPONSES_URL, extractOutputText } from "@/lib/server/assistants/openaiAssistant";
+import { extractOutputText } from "@/lib/server/assistants/openaiAssistant";
 import { scrubSecrets } from "@/lib/server/integrations/integrationConnections";
+import {
+  OpenAiResponseError,
+  requestOpenAiResponse,
+} from "@/lib/server/integrations/openaiResponses";
+import { RemoteOperationError } from "@/lib/server/remoteOperation";
+import { SandboxProviderBlockedError } from "@/lib/server/sandbox/providerPolicy";
 import { getDevProject } from "@/engines/editor/server/devProjects";
 import {
   EDITOR_AI_DEFAULT_MODEL,
@@ -16,6 +22,13 @@ import {
   getEditorAiConversation,
   getEditorAiThread,
 } from "@/engines/editor/server/editorAiHistory";
+import {
+  editorAiReplyClaimCoordinator,
+  editorAiReplyClaimHolder,
+  editorAiReplyClaimKey,
+  type EditorAiReplyClaimCoordinator,
+} from "@/engines/editor/server/editorAiReplyClaim";
+import { ensureHydrated, flushPendingWrites, getActiveDataRealmId } from "@/server/storage";
 
 // ─── AQUA EDITOR AI — THE REPLY. The one thing that was missing. ─────────────
 //
@@ -30,10 +43,10 @@ import {
 //
 // ── The transport is the Advisor's, the credential is not ────────────────────
 //
-// The wire call deliberately mirrors `askMilesymediaAssistant` in
-// `lib/server/assistants/openaiAssistant.ts` — same Responses endpoint
-// (imported, not re-declared), same header shape, same `store: false`, same
-// abort-on-timeout idiom — so the codebase has ONE way of speaking to OpenAI.
+// The wire call deliberately uses the same `requestOpenAiResponse` adapter as
+// `askMilesymediaAssistant` — same Responses endpoint, same `store: false`,
+// same hard deadline, and the same final Sandbox provider fence — so the
+// codebase has ONE way of speaking to OpenAI.
 //
 // What it must never mirror is the key lookup. The Advisor resolves the
 // AGENCY's `openai` connection with an environment fallback. This resolves
@@ -100,7 +113,9 @@ export type EditorAiReplyFailureCode =
   /** OpenAI answered with nothing usable. */
   | "empty"
   /** A newer user message arrived while this answer was being generated. */
-  | "stale";
+  | "stale"
+  /** Another production instance owns the durable claim for this message. */
+  | "in_progress";
 
 export type EditorAiReplyResult =
   | {
@@ -153,6 +168,10 @@ export interface GenerateEditorAiReplyInput {
   fetchImpl?: typeof fetch;
   /** Tests shrink this; production uses the limit above. */
   timeoutMs?: number;
+  /** Tests can drive the distributed claim state without a real database. */
+  replyClaimCoordinator?: EditorAiReplyClaimCoordinator;
+  /** Tests can prove a post-provider durability failure cannot spend twice. */
+  flushPendingWritesImpl?: typeof flushPendingWrites;
 }
 
 /** One model call per saved user message in this process. */
@@ -215,15 +234,16 @@ export async function generateEditorAiReply(input: GenerateEditorAiReplyInput): 
     : [...thread.messages].reverse().find(message => message.role === "user");
   if (!target || target.role !== "user") throw new Error("message_not_found");
 
-  const alreadyCompleted = completedResult(agencyId, project.id, thread, target.id);
-  if (alreadyCompleted) return alreadyCompleted;
-  if (thread.messages.at(-1)?.id !== target.id) throw new Error("message_not_latest");
-
-  const requestKey = `${agencyId}|${project.id}|${thread.id}|${target.id}`;
+  // Realm is captured before the first provider/claim await. Snapshot/demo
+  // realms deliberately reuse production-shaped ids, but they must never
+  // inherit a live in-flight promise (or its answer) just because those ids
+  // happen to match.
+  const realmId = getActiveDataRealmId();
+  const requestKey = `${realmId}\u0000${agencyId}|${project.id}|${thread.id}|${target.id}`;
   const existingRequest = replyRequests.get(requestKey);
   if (existingRequest) return existingRequest;
 
-  const request = generateEditorAiReplyOnce(input, {
+  const request = generateEditorAiReplyWithClaim(input, {
     agencyId,
     projectId: project.id,
     threadId: thread.id,
@@ -237,9 +257,97 @@ export async function generateEditorAiReply(input: GenerateEditorAiReplyInput): 
   }
 }
 
+async function generateEditorAiReplyWithClaim(
+  input: GenerateEditorAiReplyInput,
+  target: { agencyId: string; projectId: string; threadId: string; messageId: string },
+): Promise<EditorAiReplyResult> {
+  const coordinator = input.replyClaimCoordinator ?? editorAiReplyClaimCoordinator();
+  const claimKey = editorAiReplyClaimKey(target);
+  const holderId = editorAiReplyClaimHolder();
+  // Provider timeout + persistence headroom. The database caps this at five
+  // minutes, so a crashed instance can never strand a message permanently.
+  const leaseMs = (input.timeoutMs ?? EDITOR_AI_REPLY_LIMITS.timeoutMs) + 30_000;
+  const claim = await coordinator.claim(claimKey, holderId, leaseMs);
+
+  if (claim.state === "held") {
+    return {
+      ok: false,
+      code: "in_progress",
+      error: "Aqua Editor AI is already answering this message in another server process. Wait a moment and retry; a second model call was not started.",
+    };
+  }
+
+  if (claim.state === "complete") {
+    // A different warm process may still hold a pre-reply cache. Refresh the
+    // remote blob before returning the one durable answer.
+    await ensureHydrated({ fresh: true });
+    const thread = getEditorAiThread(target.agencyId, target.projectId, target.threadId);
+    if (thread) {
+      const completed = completedResult(target.agencyId, target.projectId, thread, target.messageId);
+      if (completed) return completed;
+    }
+    return {
+      ok: false,
+      code: "in_progress",
+      error: "Aqua Editor AI finished this message, but this server has not received the stored reply yet. Wait a moment and retry; a second model call was not started.",
+    };
+  }
+
+  // A newly acquired or expired claim must reconcile durable state before it
+  // can spend another non-idempotent generation. This catches replies written
+  // by a process that died after persistence but before claim completion.
+  let durableComplete = false;
+  let holdClaimUntilExpiry = false;
+  try {
+    await ensureHydrated({ fresh: true });
+    const claimedThread = getEditorAiThread(target.agencyId, target.projectId, target.threadId);
+    if (!claimedThread) throw new Error("thread_not_found");
+    const completed = completedResult(
+      target.agencyId,
+      target.projectId,
+      claimedThread,
+      target.messageId,
+    );
+    if (completed) {
+      await coordinator.complete(claimKey, holderId);
+      durableComplete = true;
+      return completed;
+    }
+    if (claimedThread.messages.at(-1)?.id !== target.messageId) {
+      return {
+        ok: false,
+        code: "stale",
+        error: "A newer message is waiting in that conversation. Reply to the newest message instead.",
+      };
+    }
+
+    const lifecycle = { holdClaimUntilExpiry: false };
+    const result = await generateEditorAiReplyOnce(input, target, lifecycle);
+    holdClaimUntilExpiry = lifecycle.holdClaimUntilExpiry;
+    if (!result.ok) return result;
+
+    // The answer must be durable before the claim becomes complete. A waiter
+    // can then refresh and return the same stored message without calling the
+    // provider or appending a second assistant line.
+    await (input.flushPendingWritesImpl ?? flushPendingWrites)();
+    await coordinator.complete(claimKey, holderId);
+    durableComplete = true;
+    return result;
+  } finally {
+    if (!durableComplete && !holdClaimUntilExpiry) {
+      // Provider/network/stale failures append nothing and should remain
+      // retryable. Outcome-unknown provider timeouts are the exception: their
+      // lease must expire naturally so an immediate retry cannot spend a
+      // second generation. Release is otherwise best-effort.
+      await coordinator.release(claimKey, holderId).catch(() => undefined);
+    }
+  }
+}
+
 async function generateEditorAiReplyOnce(
   input: GenerateEditorAiReplyInput,
   target: { agencyId: string; projectId: string; threadId: string; messageId: string },
+  lifecycle: { holdClaimUntilExpiry: boolean },
 ): Promise<EditorAiReplyResult> {
   const { agencyId, projectId, threadId, messageId } = target;
   const project = getDevProject(agencyId, projectId);
@@ -255,7 +363,13 @@ async function generateEditorAiReplyOnce(
 
   const thread = getEditorAiThread(agencyId, project.id, threadId);
   if (!thread || !thread.messages.length) throw new Error("thread_not_found");
-  if (thread.messages.at(-1)?.id !== messageId) throw new Error("message_not_latest");
+  if (thread.messages.at(-1)?.id !== messageId) {
+    return {
+      ok: false,
+      code: "stale",
+      error: "A newer message arrived before this answer started, so the older message was not sent to the model. Reply to the newest message instead.",
+    };
+  }
 
   const config = getEditorAiConfig(agencyId, project.id);
   const model = config?.model || EDITOR_AI_DEFAULT_MODEL;
@@ -290,62 +404,69 @@ async function generateEditorAiReplyOnce(
     "Reply to the operator's latest message.",
   ].join("\n");
 
-  // The same wire idiom as the Advisor: one POST, aborted into words rather
-  // than left hanging. `fetchImpl` exists so a test NEVER touches the real
-  // API; the default parameter resolves the global at call time, so a stubbed
-  // `globalThis.fetch` is honoured on the route path too.
-  const call = input.fetchImpl ?? fetch;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), input.timeoutMs ?? EDITOR_AI_REPLY_LIMITS.timeoutMs);
-  let response: Response;
+  // The Advisor's shared adapter owns the final provider fence and the hard
+  // deadline. `fetchImpl` remains injectable so a test NEVER touches the real
+  // API; omitting it still resolves the global fetch at adapter call time.
+  const timeoutMs = input.timeoutMs ?? EDITOR_AI_REPLY_LIMITS.timeoutMs;
+  let payload: Record<string, unknown>;
+  // From this point a transport failure may mean OpenAI accepted a
+  // non-idempotent generation. Hold the claim unless the shared adapter gives
+  // us a definite pre-provider fence or provider refusal.
+  lifecycle.holdClaimUntilExpiry = true;
   try {
-    response = await call(OPENAI_RESPONSES_URL, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${token}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
+    payload = await requestOpenAiResponse({
+      apiKey: token,
+      payload: {
         model,
         instructions,
         input: prompt,
-        store: false,
         max_output_tokens: EDITOR_AI_REPLY_LIMITS.maxOutputTokens,
-      }),
-      signal: controller.signal,
+      },
+      fetchImpl: input.fetchImpl,
+      timeoutMs,
     });
   } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") {
+    const timedOut = error instanceof RemoteOperationError && error.kind === "timeout";
+    const abortedAfterStart = error instanceof Error && error.name === "AbortError";
+    if (timedOut || abortedAfterStart) {
+      const outcomeUnknown = error instanceof RemoteOperationError
+        ? error.outcomeUnknown
+        : true;
+      lifecycle.holdClaimUntilExpiry = outcomeUnknown;
       return {
         ok: false,
         code: "timeout",
-        error: `Aqua Editor AI stopped waiting after ${Math.round((input.timeoutMs ?? EDITOR_AI_REPLY_LIMITS.timeoutMs) / 1000)} seconds without an answer from ${model}. Your message is saved — try again.`,
+        error: outcomeUnknown
+          ? `Aqua Editor AI stopped waiting after ${Math.round(timeoutMs / 1000)} seconds without an answer from ${model}. OpenAI may still have accepted the generation, so its outcome is unknown. Wait before checking the conversation again; Aqua will not start a second generation while this attempt's claim is active.`
+          : `Aqua Editor AI stopped waiting after ${Math.round(timeoutMs / 1000)} seconds without an answer from ${model}. Your message is saved — try again.`,
       };
     }
-    // No provider text exists on a network failure, so nothing to scrub.
+    if (error instanceof OpenAiResponseError) {
+      lifecycle.holdClaimUntilExpiry = false;
+      // OpenAI's 401 can echo the key that failed. THE key it was just handed
+      // goes to the scrubber as a known value before these words leave the
+      // server; provider failures are never appended to the thread.
+      const provider = scrubSecrets(clean(error.message, 2_000), [token]).slice(0, PROVIDER_TEXT_CHARS);
+      const refused = error.status === 401 || error.status === 403;
+      return {
+        ok: false,
+        code: "provider",
+        error: refused
+          ? `OpenAI refused this project's key (${error.status}).${provider ? ` It said: ${provider}` : ""} Check the key in the Key panel.`
+          : `${model} could not answer (${error.status}).${provider ? ` OpenAI said: ${provider}` : ""}`,
+      };
+    }
+    if (error instanceof SandboxProviderBlockedError) {
+      lifecycle.holdClaimUntilExpiry = false;
+      return { ok: false, code: "provider", error: error.message };
+    }
+    // A transport failure after dispatch has an unknown provider outcome. The
+    // bounded claim remains held, just like a deadline, so these words must
+    // not invite an immediate duplicate generation.
     return {
       ok: false,
       code: "network",
-      error: "OpenAI could not be reached from the server. Your message is saved — check the connection and try again.",
-    };
-  } finally {
-    clearTimeout(timeout);
-  }
-
-  const payload = await response.json().catch(() => ({})) as { error?: { message?: string } };
-  if (!response.ok) {
-    // OpenAI's 401 echoes the key that failed. THE key it was just handed goes
-    // to the scrubber as a known value, so the exact secret is removed as well
-    // as anything key-shaped, BEFORE this sentence goes anywhere — it is
-    // returned to the panel and never stored in the thread.
-    const provider = scrubSecrets(clean(payload.error?.message, 2_000), [token]).slice(0, PROVIDER_TEXT_CHARS);
-    const refused = response.status === 401 || response.status === 403;
-    return {
-      ok: false,
-      code: "provider",
-      error: refused
-        ? `OpenAI refused this project's key (${response.status}).${provider ? ` It said: ${provider}` : ""} Check the key in the Key panel.`
-        : `${model} could not answer (${response.status}).${provider ? ` OpenAI said: ${provider}` : ""}`,
+      error: "The OpenAI connection ended without a confirmed result. OpenAI may still have accepted the generation, so its outcome is unknown. Wait before checking the conversation again; Aqua will not start a second generation while this attempt's claim is active.",
     };
   }
 
@@ -361,6 +482,9 @@ async function generateEditorAiReplyOnce(
   // The provider wait is a concurrency window. If another user message landed
   // while it was open, this answer no longer belongs at the end of the thread.
   // If another worker already stored the same answer, return that one instead.
+  // Remote backends are shared across processes, so the warm process cache is
+  // not evidence here: refresh it before deciding which message is latest.
+  await ensureHydrated({ fresh: true });
   const freshThread = getEditorAiThread(agencyId, project.id, thread.id);
   if (!freshThread) throw new Error("thread_not_found");
   const completedElsewhere = completedResult(agencyId, project.id, freshThread, messageId);

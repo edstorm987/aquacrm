@@ -6,6 +6,7 @@ import { logActivity } from "@/server/activity";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 type Body = { clientId?: string; propertyId?: string };
 type StoredProperty = {
@@ -33,6 +34,7 @@ export async function POST(request: Request) {
     }
 
     const session = await requireRoleForClient([...AGENCY_ROLES], clientId);
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.systems", "manage");
     const client = getClientForAgency(session.agencyId, clientId);
     if (!client) return NextResponse.json({ ok: false, error: "Client not found." }, { status: 404 });
     const metadata = (client.metadata ?? {}) as { properties?: StoredProperty[] };

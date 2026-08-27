@@ -165,7 +165,7 @@ Per the project's own discipline (*a passing test ≠ working ≠ usable*):
 - **Browser-verify the injection loop** on the Commander's :3032 (in-app browser, agency session): Fulfilment → Aqua tags → the "Tools & injections" section; or drive the public loop directly — `POST /api/portal/website-sources {action:add,host}` → `POST /api/portal/website-injections {action:add,siteId,kind:"ga4",value:"G-…"}` → `GET /api/public/aqua-tag-config?key=<masterKey>&host=<host>` should return it → clean up.
 - **Add a radar family:** see memory `aquacrm-radar-catalogue-add-family` (the +16 math + which count-tests to update + regen `generate-radar-rules-reference.ts`).
 - **Runtime-verify an authed route in-process:** see memory `aquacrm-runtime-verify-route-handlers` (only for `getSessionFromRequest` routes).
-- **Regenerate references after code changes:** `node scripts/generate-symbol-reference.mjs`, `node scripts/generate-file-docs.mjs`, `npx tsx scripts/generate-radar-rules-reference.ts`.
+- **Regenerate references after code changes:** `node scripts/generate-symbol-reference.mjs`, plus `npx tsx scripts/generate-radar-rules-reference.ts` when Radar changes. The old file-doc command is only a compatibility alias for the unified generator.
 
 ---
 

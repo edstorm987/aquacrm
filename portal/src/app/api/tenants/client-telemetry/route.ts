@@ -3,10 +3,12 @@ import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth"
 import {
   clearClientTelemetry,
   ensureClientTelemetry,
+  readClientTelemetry,
   resetClientTelemetryKey,
 } from "@/lib/server/clients/clientTelemetryService";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 export async function GET(req: NextRequest) {
   try {
@@ -16,7 +18,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "clientId required" }, { status: 400 });
     }
     const session = await requireRoleForClient([...AGENCY_ROLES], clientId);
-    const telemetry = ensureClientTelemetry(
+    const { access } = await requireCurrentClientWorkspaceElementAccess(clientId, "client.systems", "view");
+    const mayProvision = access.levels["client.systems"] === "use" || access.levels["client.systems"] === "manage";
+    const telemetry = (mayProvision ? ensureClientTelemetry : readClientTelemetry)(
       session.agencyId,
       clientId,
     );
@@ -40,6 +44,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "clientId and action required" }, { status: 400 });
     }
     const session = await requireRoleForClient([...AGENCY_ROLES], body.clientId);
+    await requireCurrentClientWorkspaceElementAccess(body.clientId, "client.systems", "manage");
     const telemetry = body.action === "reset-key"
       ? resetClientTelemetryKey(session.agencyId, body.clientId)
       : body.action === "clear-events"

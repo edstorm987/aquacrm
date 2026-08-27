@@ -163,3 +163,129 @@ export function tenantScopeSession(session: SessionPayload): TenantScopeSession 
     clientId: session.clientId,
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE SAME RULE, FOR THE ROUTES THAT ARE NOT THE DISPATCHER
+// ─────────────────────────────────────────────────────────────────────────
+//
+// Everything above decides the tenant for ONE route file: the plugin API
+// catch-all. The ~133 concrete handlers under `src/app/api/portal/` never went
+// through it — each hand-rolls its own gate, and 22 of them read a client id
+// out of the request (query, body or path). Every one of those 22 happened to
+// pair it with `session.agencyId` on 22 Aug 2026, but "correct by hand in 22
+// places" is not a rule; it is 22 chances to get it wrong, and
+// `phases/apply` is what getting it wrong looked like — a client id and a
+// phase id from the body, checked against each other and never against the
+// caller.
+//
+// `routeTenantScope` is that rule as one call. It answers the two questions a
+// route must not answer for itself:
+//
+//   1. WHICH AGENCY am I acting in?  The signed session decides. A request may
+//      NAME an agency, but only one inside the session's own membership — the
+//      Topbar switcher — and naming anyone else is a 403, never a change of
+//      scope.
+//   2. MAY THIS CALLER NAME THIS CLIENT?  A client-side role is pinned to its
+//      own `session.clientId`. An agency-side role may name any client ITS OWN
+//      agency owns. A client that resolves to another agency is refused.
+//
+// It deliberately does NOT refuse a client id that resolves to nothing. That
+// is the dispatcher's shipped rule and the reason it survives contact with the
+// app: callers pass not-yet-created ids, synthetic ids (`aquaoasis-web` is the
+// agency's own site in the performance routes) and stale ids, and an
+// agency-scoped store filters them to nothing anyway. Refusing a stranger's
+// REAL client while letting an unknown id through also keeps the two
+// indistinguishable to a prober: `scope.client` is `null` for both, so a route
+// that needs a real client answers its own 404 with its own words and confirms
+// nothing.
+//
+// The refusal is an `AuthError(403)`, so any route already wrapped in
+// `try { … } catch (error) { return authErrorResponse(error) }` gets it for
+// free and the safe thing is genuinely the short thing:
+//
+//     const scope = routeTenantScope(session, { clientId: body.clientId });
+//     const client = scope.client;
+//     if (!client) return NextResponse.json({ ok: false, error: "…" }, { status: 404 });
+//
+// Enforced as a class by `scripts/smoke-app-route-tenancy.test.ts`: a route
+// under `src/app/api/portal/` that reads an id from the request and does not
+// go through this helper fails by name, and the exemptions are an explicit,
+// commented list rather than an implicit habit.
+
+import { AuthError, getActiveAgencyId, getSessionAgencyIds } from "@/lib/server/auth/auth";
+import { getClient, getClientForAgency } from "@/server/tenants";
+import type { Client } from "@/server/types";
+
+/** The ids a request offered. Anything non-string is treated as absent. */
+export interface RouteTenantRequest {
+  /** `?agencyId=`, a body field, or a path param. Almost always absent. */
+  agencyId?: unknown;
+  /** `?clientId=`, a body field, or a path param. */
+  clientId?: unknown;
+}
+
+export interface RouteTenantScope {
+  /** The agency to act in. From the SESSION, never from the request. */
+  agencyId: string;
+  /** The client the request named, once the caller is allowed to name it. */
+  clientId?: string;
+  /**
+   * That client's record when it exists inside `agencyId`, `null` otherwise —
+   * including when the id names nothing at all, which is why a route can 404
+   * on it without confirming anyone else's client exists.
+   */
+  client: Client | null;
+}
+
+function requestId(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed.slice(0, 200) : undefined;
+}
+
+/**
+ * Resolve the tenant scope of a portal API request from its SESSION.
+ *
+ * Throws `AuthError(403)` — `tenant_scope_mismatch` for a foreign agency,
+ * `forbidden` for a client the caller may not name — so it pairs directly with
+ * `authErrorResponse`.
+ */
+export function routeTenantScope(
+  session: SessionPayload,
+  request: RouteTenantRequest = {},
+): RouteTenantScope {
+  const namedAgency = requestId(request.agencyId);
+  const namedClient = requestId(request.clientId);
+
+  // ── The tenant ────────────────────────────────────────────────────────
+  // `getActiveAgencyId` reads the signed cookie, not the request, so it is not
+  // the thing being defended against; a REQUEST-named agency is, and it only
+  // passes inside the session's membership.
+  const mine = getSessionAgencyIds(session);
+  if (namedAgency && !mine.includes(namedAgency)) {
+    throw new AuthError(403, "tenant_scope_mismatch");
+  }
+  const agencyId = namedAgency ?? getActiveAgencyId(session);
+
+  // ── The client ────────────────────────────────────────────────────────
+  // Delegated to the same pure rule the plugin dispatcher runs, with the
+  // resolved agency substituted so a master user viewing their second agency
+  // is judged against the agency they are actually in.
+  const decision = resolveApiTenantScope({
+    session: { ...tenantScopeSession(session), agencyId },
+    queryClientId: namedClient,
+    isPublic: false,
+    clientOwner: clientId => getClient(clientId)?.agencyId ?? null,
+  });
+  if (!decision.ok) throw new AuthError(403, decision.error);
+
+  // No implicit fallback to `session.clientId`: a route that named no client
+  // gets no client. The dispatcher's fallback exists to pick a plugin INSTALL;
+  // here it would silently narrow a list a route meant to leave unfiltered.
+  const clientId = namedClient ? decision.clientId : undefined;
+  return {
+    agencyId,
+    clientId,
+    client: clientId ? getClientForAgency(agencyId, clientId) : null,
+  };
+}

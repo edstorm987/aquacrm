@@ -31,10 +31,18 @@ import { PortalRouteCanvas } from "@/components/chrome/PortalRouteCanvas";
 import { listOperationalAlerts } from "@/lib/server/inbox/operationalAlerts";
 import { listOperationalAlertViews } from "@/lib/server/inbox/operationalAlertPreferences";
 import { ClientRadarQuickLookControl } from "@/components/chrome/ClientRadarQuickLookControl";
-import { clientWorkspaceHref } from "@/lib/clients/clientWorkspace";
+import { clientWorkspaceHref, resolveClientWorkspaceTab } from "@/lib/clients/clientWorkspace";
 import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
 import { listAgencyProducts } from "@/server/agencyProducts";
 import { resolveClientPortalProvider } from "@/lib/server/clients/clientPortalProvider";
+import { listGrantedDevWorkspaceProjects } from "@/lib/server/dev/devProjectAccess";
+import {
+  CLIENT_TAB_ELEMENT_KEYS,
+  clientWorkspaceElementLevel,
+  clientWorkspaceHasAnyVisibleElement,
+  currentClientWorkspaceElementAccess,
+} from "@/lib/server/access/clientWorkspaceElementAccess";
+import type { AccessElementKey } from "@/server/types";
 
 export default async function ClientLayout({
   children,
@@ -69,6 +77,15 @@ export default async function ClientLayout({
 
   const client = getClientForAgency(session.agencyId, clientId);
   if (!client) notFound();
+  const { access: clientAccess } = await currentClientWorkspaceElementAccess(client.id);
+  if (!clientWorkspaceHasAnyVisibleElement(clientAccess)) redirect("/portal");
+  const clientElementVisible = (key: AccessElementKey) => clientWorkspaceElementLevel(clientAccess, key) !== "hidden";
+  const devProjects = await listGrantedDevWorkspaceProjects({
+    userId: session.userId,
+    agencyId: session.agencyId,
+    environment: session.sandbox ? "sandbox" : "live",
+    clientId: client.id,
+  });
   const serviceCatalogue = listAgencyProducts(session.agencyId, true);
   const assignedServices = resolvePortalProductAssignment(client.metadata ?? {}, serviceCatalogue).products;
   const agency = getAgency(client.agencyId);
@@ -88,36 +105,36 @@ export default async function ClientLayout({
     order: 0,
     items: [
       ...(canReturnToAgency ? [{ id: "back-to-agency", label: "← Back to agency", href: "/portal/agency", order: 0 }] : []),
-      { id: "client-overview", label: "Overview", href: clientWorkspaceHref(client.id, "overview"), order: 10 },
-      { id: "client-relationship", label: "Relationship", href: clientWorkspaceHref(client.id, "relationship"), order: 20 },
-      {
+      ...(clientElementVisible("client.overview") ? [{ id: "client-overview", label: "Overview", href: clientWorkspaceHref(client.id, "overview"), order: 10 }] : []),
+      ...(clientElementVisible("client.relationship") ? [{ id: "client-relationship", label: "Relationship", href: clientWorkspaceHref(client.id, "relationship"), order: 20 }] : []),
+      ...(clientElementVisible("client.fulfilment") ? [{
         id: "client-delivery",
         label: "Fulfilment",
         href: clientWorkspaceHref(client.id, "delivery"),
         badge: assignedServices.length || "Set up",
         order: 30,
-      },
-      { id: "client-finance", label: "Commercial", href: clientWorkspaceHref(client.id, "finance"), order: 40 },
-      { id: "client-notes", label: "Client record", href: clientWorkspaceHref(client.id, "notes"), order: 50 },
-      { id: "client-portal", label: "Client portal", href: clientWorkspaceHref(client.id, "portal"), order: 60 },
+      }] : []),
+      ...(clientElementVisible("client.commercial") ? [{ id: "client-finance", label: "Commercial", href: clientWorkspaceHref(client.id, "finance"), order: 40 }] : []),
+      ...(clientElementVisible("client.record") ? [{ id: "client-notes", label: "Client record", href: clientWorkspaceHref(client.id, "notes"), order: 50 }] : []),
+      ...(clientElementVisible("client.portal") ? [{ id: "client-portal", label: "Client portal", href: clientWorkspaceHref(client.id, "portal"), order: 60 }] : []),
     ],
   };
-  let panels: import("@/lib/chrome/sidebarLayout").NavPanel[] = [
-    workspacePanel,
-    {
+  let panels: import("@/lib/chrome/sidebarLayout").NavPanel[] = [workspacePanel];
+  if (clientElementVisible("client.settings")) {
+    panels.push({
       id: "settings",
       label: "Settings",
       order: 90,
       items: [
         {
-          id: "client-settings",
-          label: "Client settings",
-          href: `${overviewBase}/settings`,
+          id: session.publicShowcase ? "showcase-permissions" : "client-settings",
+          label: session.publicShowcase ? "Permissions" : "Client settings",
+          href: session.publicShowcase ? "/portal/account/permissions" : `${overviewBase}/settings`,
           order: 100,
         },
       ],
-    },
-  ];
+    });
+  }
 
   // Phase sidebar override — read AFTER activePhase resolved below.
   // Computed inline once `activePhase` is available (further down).
@@ -171,8 +188,30 @@ export default async function ClientLayout({
           href: item.href.replaceAll("[clientId]", client.id),
           order: item.order ?? (idx + 1) * 10,
         }))
+        .filter(item => {
+          const key = clientElementKeyForHref(item.href, client.id);
+          return !key || clientElementVisible(key);
+        })
         .sort((a, b) => a.order - b.order),
     }];
+  }
+  if (!session.publicShowcase && devProjects.length) {
+    panels.push({
+      id: "tools",
+      label: "Development",
+      order: 75,
+      items: [
+        { id: "dev-workspace", label: "Dev projects", href: "/portal/dev-workspace", panelId: "tools", order: 0, badge: devProjects.length },
+        ...devProjects.map(({ project, capabilities }, index) => ({
+          id: `dev-project-${project.id}`,
+          label: project.name,
+          href: `/portal/dev-workspace/${encodeURIComponent(project.id)}`,
+          panelId: "tools",
+          order: (index + 1) * 10,
+          badge: capabilities.includes("element.project.editor.view") ? undefined : "Request",
+        })),
+      ],
+    });
   }
 
   return (
@@ -208,6 +247,8 @@ export default async function ClientLayout({
             sidebarVariant="client"
             isDemo={session.isDemo}
             showcaseMode={Boolean(session.showcaseReturnAgencyId)}
+            sandboxMode={Boolean(session.sandbox)}
+            publicShowcase={session.publicShowcase}
             devModeActive={Boolean(session.devReturnAgencyId)}
             devConsole={devDocsAccessible(session) && (await devIconPreference())}
             privacyTerms={[
@@ -218,11 +259,11 @@ export default async function ClientLayout({
               typeof client.metadata?.phone === "string" ? client.metadata.phone : "",
             ]}
             previewActive={!!previewActive}
-            notifications={session.role.startsWith("agency-")
+            notifications={session.role.startsWith("agency-") && !session.publicShowcase
               ? <NotificationCentreButton includeProductUpdates={false} />
               : undefined}
-            radarControl={session.role === "agency-owner" || session.role === "agency-manager" ? <ClientRadarQuickLookControl agencyId={session.agencyId} clientId={client.id} /> : null}
-            advisorControl={session.role === "agency-owner" || session.role === "agency-manager" ? (
+            radarControl={!session.publicShowcase && (session.role === "agency-owner" || session.role === "agency-manager") ? <ClientRadarQuickLookControl agencyId={session.agencyId} clientId={client.id} /> : null}
+            advisorControl={!session.publicShowcase && (session.role === "agency-owner" || session.role === "agency-manager") ? (
               <AdvisorDrawerControl agencyId={session.agencyId} userId={session.userId} userName={sessionUser?.name || session.email} />
             ) : null}
           />
@@ -247,4 +288,15 @@ export default async function ClientLayout({
       )}
     </>
   );
+}
+
+function clientElementKeyForHref(href: string, clientId: string): AccessElementKey | null {
+  const base = `/portal/clients/${encodeURIComponent(clientId)}`;
+  if (!href.startsWith(base)) return null;
+  const relative = href.slice(base.length);
+  if (relative.startsWith("/settings")) return "client.settings";
+  if (relative.startsWith("/")) return "client.systems";
+  const query = href.includes("?") ? href.slice(href.indexOf("?") + 1).split("#", 1)[0] : "";
+  const rawTab = new URLSearchParams(query).get("tab") ?? undefined;
+  return CLIENT_TAB_ELEMENT_KEYS[resolveClientWorkspaceTab(rawTab)];
 }

@@ -63,9 +63,9 @@ export function EditorModeSwitch({
   mode: EditingMode;
   onChange: (next: EditingMode) => void;
   /**
-   * Optional narrowing. Deliberately unused by the editor: it is a UNIVERSAL
-   * editor, and hiding modes based on what we guess you are building is how it
-   * started refusing to show a browser to somebody making a game.
+   * Optional authorization narrowing. The editor remains universal for an
+   * operator; this is only used when a session is not allowed to open source
+   * and repository tooling at all (for example, the public showcase).
    */
   available?: EditingMode[];
 }) {

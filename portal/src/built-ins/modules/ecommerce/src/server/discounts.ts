@@ -58,6 +58,7 @@ export interface CustomDiscountCode {
   expiresAt?: number;
   maxUses?: number;
   uses: number;
+  appliedOperationIds?: string[];
   affiliateId?: string;
   createdAt: number;
 }
@@ -119,6 +120,18 @@ export class DiscountService {
     await this.storage.set(`${CUSTOM_PREFIX}${c.code}`, { ...c, uses: c.uses + 1 });
   }
 
+  async incrementCustomUseOnce(code: string, operationId: string): Promise<void> {
+    const c = await this.getCustomCode(code);
+    if (!c) throw new Error(`Discount code ${code} no longer exists.`);
+    if (c.appliedOperationIds?.includes(operationId)) return;
+    if (c.maxUses && c.uses >= c.maxUses) throw new Error(`Discount code ${c.code} has reached its usage limit.`);
+    await this.storage.set(`${CUSTOM_PREFIX}${c.code}`, {
+      ...c,
+      uses: c.uses + 1,
+      appliedOperationIds: [...(c.appliedOperationIds ?? []), operationId],
+    });
+  }
+
   // ─── Resolver ────────────────────────────────────────────────────────
 
   async resolveCode(
@@ -135,11 +148,11 @@ export class DiscountService {
     // 1. Gift card
     const gc = await this.giftCards.getCard(code);
     if (gc) {
-      const result = await this.giftCards.redeem(code, subtotal);
-      if (!result.ok) return { ok: false, reason: result.reason };
+      if (gc.balance <= 0) return { ok: false, reason: "This gift card has no balance left." };
+      const amountOff = Math.min(gc.balance, subtotal);
       return {
         ok: true,
-        discount: { code, type: "gift_card", label: "Gift card", amountOff: result.applied },
+        discount: { code, type: "gift_card", label: "Gift card", amountOff },
       };
     }
 

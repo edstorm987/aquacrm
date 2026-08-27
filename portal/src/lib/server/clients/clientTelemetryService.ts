@@ -52,39 +52,43 @@ export function newTelemetrySiteKey(): string {
   return `aqua_${crypto.randomBytes(24).toString("base64url")}`;
 }
 
-export function ensureClientTelemetry(
+/** Read the current telemetry snapshot without provisioning a new site key. */
+export function readClientTelemetry(
   agencyId: string,
   clientId: string,
 ): ClientTelemetrySnapshot | null {
   const client = getClientForAgency(agencyId, clientId);
   if (!client) return null;
   const metadata = client.metadata ?? {};
-  const existingKey = typeof metadata.telemetrySiteKey === "string"
-    ? metadata.telemetrySiteKey
-    : "";
-  const siteKey = existingKey || newTelemetrySiteKey();
   const events = Array.isArray(metadata.telemetryEvents)
     ? metadata.telemetryEvents as ClientTelemetryEvent[]
     : [];
-  const lastSeenAt = typeof metadata.telemetryLastSeenAt === "number"
-    ? metadata.telemetryLastSeenAt
-    : undefined;
+  return {
+    siteKey: typeof metadata.telemetrySiteKey === "string" ? metadata.telemetrySiteKey : "",
+    events,
+    lastSeenAt: typeof metadata.telemetryLastSeenAt === "number"
+      ? metadata.telemetryLastSeenAt
+      : undefined,
+    connected: events.length > 0,
+  };
+}
 
-  if (!existingKey) {
+export function ensureClientTelemetry(
+  agencyId: string,
+  clientId: string,
+): ClientTelemetrySnapshot | null {
+  const snapshot = readClientTelemetry(agencyId, clientId);
+  if (!snapshot) return null;
+  const siteKey = snapshot.siteKey || newTelemetrySiteKey();
+  if (!snapshot.siteKey) {
     updateClient(agencyId, clientId, {
       metadata: {
         telemetrySiteKey: siteKey,
-        telemetryEvents: events,
+        telemetryEvents: snapshot.events,
       },
     });
   }
-
-  return {
-    siteKey,
-    events,
-    lastSeenAt,
-    connected: events.length > 0,
-  };
+  return { ...snapshot, siteKey };
 }
 
 export function resetClientTelemetryKey(

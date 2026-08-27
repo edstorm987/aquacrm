@@ -7,11 +7,18 @@
 > to find out whether a capability is built; read the checklist to find out
 > whether it is finished, and [status.md](development/status.md) to find out whether it
 > actually works.
+>
+> **Verification limit (2026-08-24):** this inventory says a system or surface
+> exists; it does not upgrade source-shape coverage into runtime acceptance.
+> Current launch-safety gaps include P0 session revocation; P1 showcase and
+> erasure truth; incomplete Editor AI distributed coordination; file persistence,
+> editor transition/prefill, staff policy, data-truth and browser-acceptance work.
+> See the checklist before calling an implemented system production-ready.
 
-Last updated: 21 August 2026
-Baseline commit: `28bafd5` on branch `work/2026-08-20-parallel-session` (pushed to
+Last updated: 27 August 2026 (configurable access, repository preview and measured speed pass)
+Baseline commit: `1d46479` on branch `work/2026-08-20-parallel-session` (pushed to
 origin; NOT merged to `main` — merging is what deploys production).
-The previous baseline `b46d8ae` is 57 commits behind and no longer describes the tree.
+The previous baseline `b46d8ae` is 67 commits behind and no longer describes the tree.
 
 ## Current Release Summary
 
@@ -20,9 +27,84 @@ prototype. The current implementation includes real persisted domain models,
 server APIs, role-aware workspaces, client-scoped operating surfaces, Radar
 evidence, notification routing, and integration activation paths.
 
-This document records what is present now. It should be updated whenever a
+This document records what is present in the current source. It should be updated whenever a
 change alters a domain boundary, persisted model, primary workflow, external
 integration, or navigation contract.
+
+### Unified Environment And Sandbox Mode
+
+- **Settings → Environment** is the canonical operator surface. Sandbox can be
+  switched off for live data or on with Empty, Demo or Production snapshot data.
+- Sandbox access is explicitly writable or read-only. Demo data supports Owner,
+  Staff, Customer and Freelancer personas without another server or login.
+- The browser never chooses a database key. The server derives an opaque signed
+  realm from the returning live identity and selected dataset.
+- File and memory storage keep independent per-realm blobs; Supabase and generic
+  Postgres use realm-specific datastore keys. Public `/showcase` uses its own fixed
+  read-only realm.
+- Legacy private Showcase and Dev persona endpoints remain compatibility adapters
+  while new entries converge on the canonical sandbox service.
+- Shared provider boundaries refuse live communication, billing, OAuth/calendar,
+  connection-test, publishing and upload side effects from a sandbox realm.
+- Focused Sandbox/Showcase/provider proof passes 46/46, the request-realm isolation
+  regression passes 7/7 and TypeScript passes. A clean port-3032 browser walk entered
+  Demo as Owner and exited back to live Settings; an earlier full persona walk covered
+  Owner, Staff, Customer and Freelancer with the expected portal redirects.
+
+### Configurable Access And Workspace Elements
+
+- One canonical server evaluator resolves fresh identity and membership against
+  exact agency, workspace, project or client scope and live or Sandbox environment.
+- Roles are reusable templates, not blanket authority. Direct per-person grants,
+  expiry/revocation and attributable permission requests support approve, narrow,
+  deny, cancel and revoke without self-approval or delegation above the reviewer.
+- Settings, People and Fulfilment mount one shared manager with Hidden, View,
+  Use/Edit and Manage levels over stable `element.<key>` identifiers.
+- Staff station and Fulfilment view projections consume those levels for navigation,
+  direct pages and representative operations. Staff People page/API responses now use
+  element-specific projections rather than serialising the full people graph to every
+  visible Staff element. Fulfilment client list/create requires Services View/Manage.
+  The client workspace registers
+  11 exact-client elements: overview, relationship, fulfilment, marketing, systems,
+  commercial, communications, files, portal, record and settings.
+- A governed Staff/Fulfilment assignment cannot act as an implicit tunnel into every
+  client. Exact-client or explicit agency-wide client-element policy is required on
+  adopted paths. All tenant route files containing `clientId` are 35/36 canonical-
+  gated, with the dev-only empty-store seeder as the sole tenant exception; 28
+  completed mappings are source-pinned.
+- The remaining genuinely unclassified client associations are dynamic plugin
+  handlers for Fulfilment, Client CRM, Ecommerce, Memberships and Affiliates,
+  freelancer jobs, and generic tasks/task-template application. Customer/session/
+  relationship, Dev-project, workspace-create, website-source and output/derived
+  routes intentionally retain their more appropriate authority.
+- Governed client/end-customer collaboration branches for contracts, files, requests
+  and project briefs now intersect their existing relationship/role ceiling with the
+  matching Commercial, Files, Communications or Record element. Entirely ungoverned
+  identities retain the documented legacy migration fallback.
+- The access composer exposes only Workspace+Staff for exact Staff scope and only
+  Workspace+Fulfilment for exact Fulfilment scope; it prunes stale capabilities when
+  scope changes and sanitises grants/requests/review decisions again at submission.
+  The inert generic Development workspace option is removed; Development authority
+  continues through exact project scopes.
+- The focused client boundary passes 62/62 including six direct tests; separate
+  product-workspace cross-process proof passes 4/4; TypeScript and diff pass.
+  Browser proof covers the manager at seven widths, restricted Staff and
+  Fulfilment deep links, missing exact-client denial and responsive editor/preview
+  slices. No browser actions were added by the API-inventory subtask, and the full
+  grant/request decision mutation matrix remains open.
+- The final access repair passes 92/92 focused/adjacent checks plus 11/11 exact-scope
+  UI checks. A separate 32/32 regression proves `/dev` always provisions the explicit
+  live realm, tolerates an access-revision update and refuses a rotated session revision.
+  Full TypeScript and diff checks pass. On a clean restarted `:3032`, exact Staff and
+  Fulfilment scopes rendered only their own registered element sets; the 390px grid had
+  44px targets and no overflow, People Capacity fit at 390px, and browser warnings/errors
+  were empty. The new-role composer also showed Agency/Workspace/Client/Project,
+  Live/Sandbox and all 28 stable element groups; one `staff.pay` Hidden→View interaction
+  was restored without submit. This is representative acceptance, not a persisted
+  role/grant journey or the full mutation/persona matrix.
+- The settled relevant combined gate is 130/130: 86 core access/Dev/workspace/
+  client/People, 11 exact Access UI, 21 Dev Team performance and 12 Sandbox
+  environment/protection checks. This is not a complete repository-suite rerun.
 
 ## Major Implemented Systems
 
@@ -40,6 +122,46 @@ integration, or navigation contract.
 - Battle Table includes planning, projections, quarterly strategy, capacity,
   capital, ownership, investment, dividend, and governance concepts.
 - Focus protection reduces visible overload while retaining the full queue.
+- Performance Mode is the default server-readable lightweight path. It pauses Radar/
+  KPI intelligence until an explicit scan. Executive, Radar, Actions, Calendar and
+  Advisor server work is constructed only for the requested station, and the Executive
+  JSX lives outside the default page module.
+- Agency chrome uses a lightweight plugin metadata catalog instead of importing the
+  executable plugin registry. Search runs only after the user opens it and types at
+  least two characters; notification refreshes are stale-windowed and deduplicated.
+  Company switching and the work-session monitor hydrate their initial projections
+  from authenticated server state, eliminating their two automatic mount GETs.
+- The main port-3032 development scripts use Turbopack with a dedicated persistent
+  cache; explicit Webpack fallbacks remain and production builds stay on Webpack. A
+  post-clean cold `/dev` → Agency browser journey measured about 5.8 seconds and the
+  cold Agency server render 4.5 seconds. Once compiled, Agency server requests commonly
+  measured 10–118ms and a fresh browser default load after HMR measured 1.06 seconds.
+  The final settled command shell measured 497ms in browser / 442ms in the server log,
+  without busy/loading state or horizontal overflow. The default document is about
+  209–224KB rather than the earlier roughly 270KB.
+- The first contextual Executive open can still pay about 3.2 seconds of development
+  compilation. A full Radar scan completed in 476ms and retained all 2,967 checks across
+  subsequent lightweight RSC station navigation; removing the one-shot scan query does
+  not strand station state.
+- Dev Team Home uses a compact concurrent snapshot rather than loading the complete Dev
+  Docs graph. The static route graph fell from 104 to 54 modules, about 47% fewer source
+  bytes. A recurring 5.0–5.4-second post-TTL tail was traced to Home recursively reaching
+  `scanWorkerSignals()` through roadmap/task construction; it now reads active check-ins
+  directly. In the final expired-TTL probe, headers arrived in 329ms, the dashboard marker
+  in 430.4ms and the stream completed in 457.7ms. A fresh in-app browser Home visually
+  settled in 538ms without busy/loading state or overflow; the development access log
+  separately recorded the probe at 440ms and the browser's streamed app request at 916ms.
+  Those clocks are evidence from different layers, not interchangeable response metrics.
+  The intentional first drawer-open world load measured 967ms.
+- Shared development chrome suppresses speculative Link prefetch, loads Search only on
+  user intent, leaves the work-session monitor idle when no session exists and serves the
+  PWA descriptor from `public/manifest.webmanifest` instead of a dynamic route module.
+- The earlier `ENOSPC` incident remains cleared and guarded: approved generated-output
+  cleanup did not touch source/state/uploads/docs, every dev entry refuses startup below
+  2 GiB without deleting anything and TypeScript expansion remains narrowed from 6,869
+  to 1,796 files. This pass does not establish whole-app production speed. Pristine cold
+  starts, contextual station compilation, Library/Logs, Dev Docs, providers and the
+  complete role/responsive matrix remain open.
 
 ### Adaptive Radar
 
@@ -146,6 +268,11 @@ integration, or navigation contract.
 - Linked buyer workspaces can be read as one relationship history while their
   operational records remain isolated.
 - Client workspace entry/exit transitions respect Performance Mode.
+- The client layout, tabs, Settings, plugin catch-all and representative mutations
+  resolve the active person's level for the exact client. Files/contracts/payment/
+  finance/portal/properties/requests are classified across the first runtime pass.
+  Expense attachments do not carry client identity and therefore cannot honestly be
+  called exact-client gated; agency-wide/global branches remain agency surfaces.
 
 ### Portals And The Editor
 
@@ -166,11 +293,66 @@ integration, or navigation contract.
 - Separate client workspaces can produce separate portals for one buyer.
 - Customer portal records include only inherent or deliberately client-visible
   information.
+- The reusable `/portal/dev-workspace` lists only exactly granted projects and
+  separates view, code, AI, explorer, local preview and publication capabilities
+  from the founder-only Dev Team control plane.
+- A server-owned `aqua-preview.config.json` drives a local/test-only supervised
+  loopback preview. The browser cannot supply root, command, arguments, environment,
+  port or shell. The mounted browser has completed Start, Restart and Stop; responsive
+  Preview/Code panes switch correctly and `/aqua-tag.js` returned HTTP 200. Repository
+  preparation, authoring/AI/diff/check/PR, failure and dirty-state acceptance remain.
+
+### Ecommerce And Storefront Commerce
+
+- Ecommerce checkout accepts stable product/variant ids and quantity, rejects browser-authored
+  money, and resolves current price, currency, stock, discount, shipping and tax on the server.
+- One durable immutable checkout operation owns provider-session replay, inventory/value
+  reservations, paid settlement and expiry release. Gift-card/custom-code limits, paid-only card
+  issuance, exact-zero checkout and the full-refund restoration policy share that operation.
+- Configured fixed, weight and free shipping plus inclusive/exclusive tax produce one minor-unit
+  quote used by Checkout Summary, Stripe lines and the stored order; provider-side repricing is
+  disabled for this contract.
+- Orders use a durable retryable provider-delivery ledger, cumulative refund accounting and
+  constrained audited fulfilment transitions. Reporting groups gross/refund/net/cancelled/pending
+  and customer net spend by source currency.
+- Products have server-owned stable ids, archive-first retirement, scoped versioned details/
+  variants commands, recoverable slug/collection migration and lossless rich option metadata.
+- Website Editor commerce blocks share the catalogue/search/cart/variant/quote/by-session DTOs and
+  tenant/store/version cache keys. Guest/end-customer route authorization and literal two-store
+  browser/live-Stripe acceptance are still pending; source/service/package proof passes 39/39.
 
 ### Finance, Company, Staff, And Experience
 
 - Finance supports GBP-first multi-currency records, income, expenses,
   invoices, reports, budgets, allocations, operations, and planning.
+- Normal invoice collection is limited to sent/overdue balances; direct,
+  mark-paid, mounted Income and Stripe Checkout share the live outstanding
+  calculation, and coordinated partial writes cannot exceed it.
+- Finance create and post-patch services validate exact fields, supported currency/enums,
+  safe whole-cent money, bounded rates/quantities, coherent dates, recurrence, nested invoice
+  lines and expense attachments before persistence; invalid handler/import-shaped writes leave
+  the plugin store unchanged.
+- Finance plan assignment validates the agency client and target before mutation, serialises
+  competing moves across processes, and replays a durable versioned marker after interrupted
+  writes so plan membership and per-client reverse lookup converge on the next read.
+- Recurring Finance expenses use schedule ID plus due timestamp as one durable occurrence. A
+  recoverable per-schedule operation persists the deterministic child result before advancing,
+  so double-click, process race and retry/reload return one child without skipping a period.
+- Finance reporting uses one selected-currency accounting snapshot. Payment receipts and reimbursed
+  cash costs are distinct from invoiced/accrual revenue, approved commitments and pending costs;
+  partial receivables and receipt tax share the same ledger rules. Overview, Reports, Budgets,
+  Planning, P&L and report APIs use those named fields without implicit FX.
+- Finance refunds are immutable provider-identified negative allocations. Cumulative Stripe events
+  reconcile only their unrecorded delta; partial/full invoice state, net receivables, cash, tax,
+  Reports, P&L, Overview, Income and client summaries share those rows. Disputes persist separately.
+- Workspace Settings is the canonical source for invoice payment terms, default tax and seller/tax
+  identity. New invoice forms and service defaults consume it, and each invoice captures an issuer
+  snapshot so later business-detail changes do not rewrite historical HTML exports.
+- Client Payment Plans are the canonical per-client commercial schedule; Agency Finance Plans are
+  reusable editable multi-currency templates. Mounted Finance controls assign, move and cancel
+  clients, snapshot terms onto the client schedule and preserve old invoices. MRR/ARR, Planning,
+  portfolio and Deposits read active linked schedules; deposits use an explicit invoice link, and
+  replayed cancellation cannot cancel a later assignment.
 - Company health, projections, objectives, capacity, and executive plans feed
   Command Centre and Battle Table.
 - Hiring capacity intelligence uses evidence and area-specific constraints to
@@ -380,8 +562,9 @@ Branch `work/2026-08-20-parallel-session`, HEAD `28bafd5`. Not merged to `main`.
   same guards.
 - **Presence** marks files that moved under you, reusing the Dev Team's existing
   check-ins and mtime scan. Advisory; the fingerprint is the real protection.
-- **Aqua Editor AI** is a reskin of the SAME assistant engine as the Advisor and
-  the Librarian. It proposes; a person applies.
+- **Aqua Editor AI** has its own project-scoped provider/configuration and history
+  path. It proposes; a person applies. Claim/coordinator pieces exist, but the
+  cross-instance database/RPC contract is incomplete and not production-proven.
 - **PR management**: commit to a branch, then `openPullRequest()` and
   `mergePullRequest()` — two steps, so a preview exists before anything reaches
   main.

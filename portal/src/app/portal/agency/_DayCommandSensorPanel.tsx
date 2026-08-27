@@ -4,6 +4,7 @@ import { AlertTriangle, ArrowUpRight, Radar, RadioTower, ShieldCheck } from "luc
 
 import type { BusinessIssueRadar } from "@/engines/data/radar/businessRadar";
 import { COMMAND_PRIMARY_KPI_STATIONS, type CommandIntelligenceSnapshot, type CommandKpiStatus } from "@/lib/intelligence/commandIntelligence";
+import { dayRadarTruth, daySensorWatchState } from "./dayCommandTruth";
 
 const CONTACT_POSITIONS = [
   { left: "50%", top: "8%" },
@@ -13,9 +14,11 @@ const CONTACT_POSITIONS = [
   { left: "13%", top: "36%" },
 ];
 
-export function DayCommandSensorPanel({ radar, intelligence, onOpenRadar, onOpenIntelligence }: {
+export function DayCommandSensorPanel({ radar, intelligence, radarPaused = false, intelligencePaused = false, onOpenRadar, onOpenIntelligence }: {
   radar: BusinessIssueRadar;
   intelligence: CommandIntelligenceSnapshot;
+  radarPaused?: boolean;
+  intelligencePaused?: boolean;
   onOpenRadar: () => void;
   onOpenIntelligence: (kpiIds: string[]) => void;
 }) {
@@ -23,24 +26,26 @@ export function DayCommandSensorPanel({ radar, intelligence, onOpenRadar, onOpen
     const kpi = intelligence.kpis.find(item => item.id === station.kpiId);
     return kpi ? [{ ...station, kpi }] : [];
   });
-  const contacts = radar.summary.critical + radar.summary.warning;
-  const watchState = radar.summary.critical ? "critical" : radar.summary.warning ? "warning" : stations.some(station => station.kpi.status === "learning" || station.kpi.status === "blind") ? "learning" : "healthy";
+  const radarTruth = dayRadarTruth(radar.summary, radarPaused);
+  const contacts = radarTruth.contacts;
+  const watchState = daySensorWatchState(radar.summary, radarPaused, stations.map(station => station.kpi.status), intelligencePaused);
   const visual = sensorVisual(watchState);
+  const pausedLabel = radarPaused && intelligencePaused ? "Radar and KPI scan paused" : radarPaused ? "Radar paused · scan required" : "KPI intelligence paused · scan required";
 
   return <section data-watch-state={watchState} className="mm-day-sensor-panel mm-command-alert-surface overflow-hidden border border-[#62e8ff]/22 bg-[#020b11] text-white" aria-labelledby="day-sensor-heading">
     <div className={`flex min-h-8 items-center justify-between gap-3 border-b px-4 text-[8px] font-bold uppercase ${sensorBanner(watchState)}`} role="status" aria-live="polite">
-      <span className="inline-flex items-center gap-2">{watchState === "critical" ? <AlertTriangle size={11} className="animate-pulse motion-reduce:animate-none" /> : watchState === "healthy" ? <ShieldCheck size={11} /> : <RadioTower size={11} />}{watchState === "critical" ? `Red alert · ${radar.summary.critical} critical` : watchState === "warning" ? `Caution · ${radar.summary.warning} warnings` : watchState === "healthy" ? "Business watch clear" : "Instruments learning"}</span>
-      <span>{radar.summary.critical} critical · {radar.summary.warning} warning</span>
+      <span className="inline-flex items-center gap-2">{watchState === "critical" ? <AlertTriangle size={11} className="animate-pulse motion-reduce:animate-none" /> : watchState === "healthy" ? <ShieldCheck size={11} /> : <RadioTower size={11} />}{watchState === "critical" ? `Red alert · ${radar.summary.critical} critical` : watchState === "warning" ? `Caution · ${radar.summary.warning} warnings` : watchState === "unknown" ? pausedLabel : watchState === "healthy" ? "Business watch clear" : "Instruments learning"}</span>
+      <span>{radarPaused ? "Critical unknown · warning unknown" : `${radar.summary.critical} critical · ${radar.summary.warning} warning`}</span>
     </div>
     <header className={`flex items-start justify-between gap-3 border-b px-4 py-3 ${sensorHeader(watchState)}`}>
-      <div className="flex min-w-0 items-start gap-2.5"><span className={`grid size-8 shrink-0 place-items-center border ${sensorIcon(watchState)}`}><Radar size={14} /></span><div className="min-w-0"><p className="text-[8px] font-semibold uppercase text-[#76dff1]/62">DAY SENSOR · LIVE BUSINESS WATCH</p><h3 id="day-sensor-heading" className="mt-0.5 text-sm font-semibold text-white/92">Radar and primary instruments</h3><p className="mt-0.5 text-[9px] text-white/42">What changed while you work.</p></div></div>
+      <div className="flex min-w-0 items-start gap-2.5"><span className={`grid size-8 shrink-0 place-items-center border ${sensorIcon(watchState)}`}><Radar size={14} /></span><div className="min-w-0"><p className="text-[8px] font-semibold uppercase text-[#76dff1]/62">{radarPaused || intelligencePaused ? "DAY SENSOR · BUSINESS WATCH NOT SCANNED" : "DAY SENSOR · LIVE BUSINESS WATCH"}</p><h3 id="day-sensor-heading" className="mt-0.5 text-sm font-semibold text-white/92">Radar and primary instruments</h3><p className="mt-0.5 text-[9px] text-white/42">{radarPaused || intelligencePaused ? "Current state remains unknown until the deferred scan runs." : "What changed while you work."}</p></div></div>
       <button type="button" onClick={onOpenRadar} className={`inline-flex min-h-8 shrink-0 items-center gap-1.5 border px-2.5 text-[8px] font-semibold uppercase hover:text-white ${watchState === "critical" ? "border-red-400/36 bg-red-500/10 text-red-200 hover:bg-red-500/16" : "border-[#e5c479]/18 text-[#e5c479] hover:bg-[#e5c479]/[0.06]"}`}>Full plot <ArrowUpRight size={10} /></button>
     </header>
     <div className="grid min-w-0 lg:grid-cols-[210px_minmax(0,1fr)]">
-      <button type="button" onClick={onOpenRadar} className={`group grid min-h-[230px] place-items-center border-b p-4 lg:border-b-0 lg:border-r ${watchState === "critical" ? "border-red-400/24 bg-red-500/[0.035]" : "border-[#62e8ff]/12"}`} aria-label={`Open command radar with ${contacts} active alerts`}>
+      <button type="button" onClick={onOpenRadar} className={`group grid min-h-[230px] place-items-center border-b p-4 lg:border-b-0 lg:border-r ${watchState === "critical" ? "border-red-400/24 bg-red-500/[0.035]" : "border-[#62e8ff]/12"}`} aria-label={contacts === null ? "Open command radar; current alert count is unknown until scan" : `Open command radar with ${contacts} active alerts`}>
         <span className="relative block aspect-square w-full max-w-[178px] rounded-full border" style={{ borderColor: visual.border, boxShadow: visual.shadow, backgroundImage: `repeating-radial-gradient(circle, transparent 0 19%, ${visual.grid} 20% 20.6%, transparent 21% 39%), repeating-conic-gradient(from 0deg, ${visual.grid} 0deg .7deg, transparent .7deg 30deg)` }}>
           <span className="absolute inset-[8%] animate-[spin_8s_linear_infinite] rounded-full motion-reduce:animate-none" style={{ backgroundImage: `conic-gradient(from 0deg, transparent 0deg, ${visual.sweep} 30deg, transparent 66deg)` }} />
-          <span className="absolute inset-[28%] grid place-items-center rounded-full border bg-[#031018]" style={{ borderColor: visual.border, boxShadow: `0 0 22px ${visual.glow}` }}><span className="text-center"><strong className={`block text-2xl tabular-nums ${visual.text}`}>{contacts}</strong><span className="mt-0.5 block text-[6px] font-bold uppercase" style={{ color: visual.hex }}>active alerts</span><span className="mt-1 block text-[5px] uppercase text-white/38">{radar.summary.critical}C · {radar.summary.warning}W</span></span></span>
+          <span className="absolute inset-[28%] grid place-items-center rounded-full border bg-[#031018]" style={{ borderColor: visual.border, boxShadow: `0 0 22px ${visual.glow}` }}><span className="text-center"><strong className={`block text-2xl tabular-nums ${visual.text}`}>{contacts ?? "—"}</strong><span className="mt-0.5 block text-[6px] font-bold uppercase" style={{ color: visual.hex }}>{contacts === null ? "scan paused" : "active alerts"}</span><span className="mt-1 block text-[5px] uppercase text-white/38">{radarPaused ? "C ? · W ?" : `${radar.summary.critical}C · ${radar.summary.warning}W`}</span></span></span>
           {stations.map((station, index) => <span key={station.id} className={`absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[#020b11] shadow-[0_0_9px_currentColor] ${statusDot(station.kpi.status)}`} style={CONTACT_POSITIONS[index]} title={`${station.label}: ${station.kpi.display}`} />)}
           <span className="absolute left-1/2 top-1 -translate-x-1/2 text-[7px] font-semibold text-[#e5c479]/65">N</span>
         </span>

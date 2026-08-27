@@ -15,6 +15,8 @@
 // `editorAiClient.ts`: the route's response is the authority; this is its
 // shape.
 
+import { apiResponseError } from "@/lib/client/apiResponseError";
+
 export const LIBRARIAN_ENDPOINT = "/api/portal/dev/librarian";
 
 export type LibrarianSource = "repo" | "reference" | "docs";
@@ -60,7 +62,7 @@ export interface LibrarianFindResult {
 
 export type LibrarianFindResponse =
   | { ok: true; result: LibrarianFindResult }
-  | { ok: false; error: string };
+  | { ok: false; error: string; message?: string };
 
 /**
  * Ask the Librarian. Network and shape failures come back as `ok: false` with
@@ -81,7 +83,7 @@ export async function findViaLibrarian(input: {
     if (!body || typeof body !== "object" || typeof body.ok !== "boolean") {
       return { ok: false, error: "The Librarian did not answer." };
     }
-    if (!body.ok && !body.error) return { ok: false, error: "The Librarian could not search." };
+    if (!body.ok) return { ok: false, error: apiResponseError(body, "The Librarian could not search.") };
     return body;
   } catch {
     return { ok: false, error: "The Librarian could not be reached." };

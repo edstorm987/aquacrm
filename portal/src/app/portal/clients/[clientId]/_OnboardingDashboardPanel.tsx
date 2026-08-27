@@ -8,8 +8,13 @@
 // "advance →" button gated on `allComplete` that calls fulfillment's
 // existing `phase/advance` endpoint.
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import {
+  createPhaseTransitionOperationId,
+  phaseTransitionFailureMessage,
+  type PhaseTransitionApiResult,
+} from "@/built-ins/modules/fulfillment/src/lib/transitionFeedback";
 
 interface PhaseRow {
   id: string;        // foundation phase definition id (per-agency)
@@ -57,6 +62,7 @@ export function OnboardingDashboardPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+  const operationIdRef = useRef<string | null>(null);
 
   async function tick(phaseStage: string, milestoneId: string, done: boolean) {
     setBusy(true);
@@ -82,17 +88,21 @@ export function OnboardingDashboardPanel({
     setBusy(true);
     setError(null);
     try {
+      operationIdRef.current ??= createPhaseTransitionOperationId(clientId, from.id, to.id);
       const res = await fetch("/api/portal/fulfillment/phase/advance", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ clientId, fromPhaseId: from.id, toPhaseId: to.id }),
+        body: JSON.stringify({ clientId, fromPhaseId: from.id, toPhaseId: to.id, operationId: operationIdRef.current }),
       });
-      const data = await res.json() as { ok: boolean; error?: string };
+      const data = await res.json() as PhaseTransitionApiResult;
       if (!data.ok) {
-        setError(data.error ?? "Advance failed.");
+        setError(phaseTransitionFailureMessage(data));
         return;
       }
+      operationIdRef.current = null;
       startTransition(() => router.refresh());
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Advance failed.");
     } finally {
       setBusy(false);
     }

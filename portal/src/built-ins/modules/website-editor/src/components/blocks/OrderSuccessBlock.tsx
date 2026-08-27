@@ -8,7 +8,7 @@
 import { useEffect, useState } from "react";
 import type { BlockRenderProps } from "../blockRegistry";
 import { blockStylesToCss } from "../blockStyles";
-import { fetchOrderBySessionId, type OrderRecord } from "../ecommerceBridge";
+import { fetchOrderBySessionId, useCart, type OrderRecord } from "../ecommerceBridge";
 
 export default function OrderSuccessBlock({ block, editorMode }: BlockRenderProps) {
   const headline = (block.props.headline as string | undefined) ?? "Thanks for your order!";
@@ -19,6 +19,7 @@ export default function OrderSuccessBlock({ block, editorMode }: BlockRenderProp
   const [order, setOrder] = useState<OrderRecord | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const cart = useCart();
 
   useEffect(() => {
     if (editorMode || typeof window === "undefined") return;
@@ -31,7 +32,10 @@ export default function OrderSuccessBlock({ block, editorMode }: BlockRenderProp
       .then(o => {
         if (cancelled) return;
         if (!o) setError("Order not found yet — webhooks may still be processing.");
-        else setOrder(o);
+        else {
+          setOrder(o);
+          cart.clear();
+        }
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -118,7 +122,7 @@ export default function OrderSuccessBlock({ block, editorMode }: BlockRenderProp
                 </span>
                 <span>
                   {new Intl.NumberFormat("en-GB", { style: "currency", currency: order.currency }).format(
-                    (it.price * it.quantity) / 100,
+                    (it.unitAmount * it.quantity) / 100,
                   )}
                 </span>
               </li>

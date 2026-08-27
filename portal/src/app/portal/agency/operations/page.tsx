@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { requireRole } from "@/lib/server/auth/auth";
+import { AGENCY_ROLES } from "@/server/types";
 import {
   Banknote,
   BookOpen,
@@ -155,8 +157,21 @@ const OPS_GROUPS: OpsGroup[] = [
 ];
 
 const OPS_COUNT = OPS_GROUPS.reduce((total, group) => total + group.functions.length, 0);
+const PUBLIC_SHOWCASE_OPERATION_PATHS = new Set([
+  "/portal/clients?view=journey",
+  "/portal/agency/fulfilment",
+  "/portal/agency/marketing",
+  "/portal/agency/sop-library",
+]);
 
-export default function OperationsPage() {
+export default async function OperationsPage() {
+  const session = await requireRole([...AGENCY_ROLES]);
+  const operationGroups = session.publicShowcase
+    ? OPS_GROUPS.map(group => ({ ...group, functions: group.functions.filter(item => PUBLIC_SHOWCASE_OPERATION_PATHS.has(item.href)) })).filter(group => group.functions.length > 0)
+    : OPS_GROUPS;
+  const operationCount = session.publicShowcase
+    ? operationGroups.reduce((total, group) => total + group.functions.length, 0)
+    : OPS_COUNT;
   return (
     <div className="w-full space-y-6">
       <header className="border-b border-black/10 pb-5">
@@ -175,11 +190,11 @@ export default function OperationsPage() {
             <p className="text-xs font-semibold uppercase text-black/40">Business functions</p>
             <h2 id="ops-functions-heading" className="mt-1 text-lg font-semibold text-black/85">The operating surfaces</h2>
           </div>
-          <span className="text-xs font-medium text-black/40">{OPS_COUNT} functions</span>
+          <span className="text-xs font-medium text-black/40">{operationCount} functions</span>
         </div>
 
         <div className="mt-5 space-y-8">
-          {OPS_GROUPS.map(group => (
+          {operationGroups.map(group => (
             <div key={group.id} aria-labelledby={`ops-group-${group.id}`}>
               <div className="flex items-baseline justify-between gap-4">
                 <h3 id={`ops-group-${group.id}`} className="text-sm font-semibold text-black/70">{group.title}</h3>

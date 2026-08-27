@@ -19,7 +19,7 @@ import type {
   UpdateStaffPatch,
 } from "../lib/domain";
 import type { PluginStorage } from "../lib/aquaPluginTypes";
-import type { ActivityLogPort, EventBusPort } from "./ports";
+import type { ActivityLogPort, EventBusPort, WorkforcePort } from "./ports";
 
 const STAFF_INDEX_KEY = "staff/index";
 const staffKey = (id: string): string => `staff:${id}`;
@@ -30,9 +30,11 @@ export class StaffService {
     private storage: PluginStorage,
     private activity: ActivityLogPort,
     private events: EventBusPort,
+    private workforce?: WorkforcePort,
   ) {}
 
   async list(filter?: StaffFilter): Promise<Staff[]> {
+    if (this.workforce) return this.workforce.listStaff(this.agencyId, filter);
     const index = (await this.storage.get<string[]>(STAFF_INDEX_KEY)) ?? [];
     const rows: Staff[] = [];
     for (const id of index) {
@@ -50,6 +52,7 @@ export class StaffService {
   }
 
   async get(id: string): Promise<Staff | null> {
+    if (this.workforce) return this.workforce.getStaff(this.agencyId, id);
     const row = await this.storage.get<Staff>(staffKey(id));
     return row && row.agencyId === this.agencyId ? row : null;
   }
@@ -60,6 +63,19 @@ export class StaffService {
     if (!input.title.trim()) throw new Error("Staff title required.");
     if (!input.joinedAt.match(/^\d{4}-\d{2}-\d{2}$/)) {
       throw new Error("joinedAt must be a YYYY-MM-DD date.");
+    }
+    if (this.workforce) {
+      const row = await this.workforce.createStaff(this.agencyId, input, actor);
+      await this.activity.logActivity({
+        agencyId: this.agencyId,
+        actorUserId: actor,
+        category: "hr",
+        action: "hr.staff.created",
+        message: `Added ${row.name} (${row.title}) to the canonical People directory.`,
+        metadata: { staffId: row.id, role: row.role, departmentId: row.departmentId },
+      });
+      this.events.emit({ agencyId: this.agencyId }, "hr.staff.created", { staffId: row.id });
+      return row;
     }
     // Email uniqueness check — case-insensitive within the agency.
     const existing = await this.list();
@@ -132,6 +148,21 @@ export class StaffService {
       }
     }
 
+    if (this.workforce) {
+      const updated = await this.workforce.updateStaff(this.agencyId, id, patch, actor);
+      if (!updated) return null;
+      await this.activity.logActivity({
+        agencyId: this.agencyId,
+        actorUserId: actor,
+        category: "hr",
+        action: "hr.staff.updated",
+        message: `Updated ${updated.name} in the canonical People directory.`,
+        metadata: { staffId: id, fields: Object.keys(patch) },
+      });
+      this.events.emit({ agencyId: this.agencyId }, "hr.staff.updated", { staffId: id });
+      return updated;
+    }
+
     const updated: Staff = {
       ...existing,
       ...patch,
@@ -170,6 +201,7 @@ export class StaffService {
   // Hard delete — drops the row + removes from index. Use sparingly;
   // archive is the documented v1 path.
   async delete(id: string, actor: UserId): Promise<boolean> {
+    if (this.workforce) return this.workforce.deleteStaff(this.agencyId, id, actor);
     const existing = await this.get(id);
     if (!existing) return false;
     await this.storage.del(staffKey(id));

@@ -4,6 +4,7 @@ import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth"
 import { AGENCY_ROLES } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { logActivity } from "@/server/activity";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 const NOTE_KEYS = ["notes", "sessionNotes", "meetingNotes", "supportNotes"] as const;
 
@@ -15,6 +16,7 @@ export async function POST(request: Request) {
   let session;
   try {
     session = await requireRoleForClient([...AGENCY_ROLES], clientId);
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.record", "use");
   } catch (error) {
     return authErrorResponse(error);
   }

@@ -409,12 +409,12 @@ describe("phase lifecycle smoke", () => {
   test("step 0: agency seeds default phases", async () => {
     const result = await services.phaseService.seedDefaultPhases(AGENCY_ID);
     assert.equal(result.seeded, true);
-    assert.equal(result.phases.length, 6, "six default phases per architecture §7");
+    assert.equal(result.phases.length, 7, "six active phases plus churned");
     const stages = result.phases.map(p => p.stage);
     assert.deepEqual(
       stages,
-      ["discovery", "design", "development", "onboarding", "live", "churned"],
-      "default phases ordered discovery → churned",
+      ["aqua-epic-intro", "aqua-blueprint", "aqua-diagnostics", "aqua-brand-builder", "aqua-traffic", "aqua-mastery", "churned"],
+      "default Aqua phases are ordered Epic Intro → churned",
     );
 
     // Re-seed is idempotent.
@@ -422,22 +422,21 @@ describe("phase lifecycle smoke", () => {
     assert.equal(second.seeded, false, "re-seed skips when phases already exist");
   });
 
-  test("step 1: create fresh client at discovery phase", async () => {
+  test("step 1: create fresh client at Epic Intro", async () => {
     const result = await services.clientLifecycleService.createWithPhase({
       agencyId: AGENCY_ID,
       actor: ACTOR,
       name: "Smoke Test Co",
       ownerEmail: "owner@smoke.test",
-      stage: "discovery",
+      stage: "aqua-epic-intro",
     });
     clientId = result.client.id;
 
-    // Client persisted at discovery.
-    assert.equal(result.client.stage, "discovery");
-    assert.equal(world.state.clients.get(clientId)?.stage, "discovery");
+    assert.equal(result.client.stage, "aqua-epic-intro");
+    assert.equal(world.state.clients.get(clientId)?.stage, "aqua-epic-intro");
+    assert.equal(result.complete, true);
 
-    // Discovery preset = ['brand', 'forms']; both should be installed for client.
-    assert.equal(result.phase.stage, "discovery");
+    assert.equal(result.phase.stage, "aqua-epic-intro");
     assert.deepEqual(
       result.installs.filter(i => i.ok).map(i => i.pluginId).sort(),
       [...result.phase.pluginPreset].sort(),
@@ -454,7 +453,7 @@ describe("phase lifecycle smoke", () => {
       assert.equal(world.state.variantApplies.length, 1, "one variant apply on creation");
       const last = world.state.variantApplies.at(-1);
       assert.equal(last?.variantId, result.phase.portalVariantId);
-      assert.equal(last?.role, "login", "starter variant defaults to 'login' surface");
+      assert.equal(last?.role, "account", "client creation applies the account starter surface");
     }
 
     // Checklist initialised in storage.
@@ -473,8 +472,8 @@ describe("phase lifecycle smoke", () => {
     assert.equal(created[0]?.clientId, clientId);
   });
 
-  test("step 2: tick all checklist items in the discovery phase", async () => {
-    const phase = (await services.phaseService.getPhaseForStage(AGENCY_ID, "discovery"))!;
+  test("step 2: tick all checklist items in Epic Intro", async () => {
+    const phase = (await services.phaseService.getPhaseForStage(AGENCY_ID, "aqua-epic-intro"))!;
     for (const item of phase.checklist) {
       await services.checklistService.tickItem({
         agencyId: AGENCY_ID,
@@ -493,14 +492,15 @@ describe("phase lifecycle smoke", () => {
     assert.equal(completedEvents.length, phase.checklist.length, "tick fires one event per item");
   });
 
-  // The four real phase advances. Each row = (from, to) plus expected
+  // The five active phase advances. Each row = (from, to) plus expected
   // disable / enable diffs (computed live against the preset arrays so
   // the test stays in sync if presets change).
   const PHASE_HOPS: { from: ClientStage; to: ClientStage }[] = [
-    { from: "discovery", to: "design" },
-    { from: "design", to: "development" },
-    { from: "development", to: "onboarding" },
-    { from: "onboarding", to: "live" },
+    { from: "aqua-epic-intro", to: "aqua-blueprint" },
+    { from: "aqua-blueprint", to: "aqua-diagnostics" },
+    { from: "aqua-diagnostics", to: "aqua-brand-builder" },
+    { from: "aqua-brand-builder", to: "aqua-traffic" },
+    { from: "aqua-traffic", to: "aqua-mastery" },
   ];
 
   for (const hop of PHASE_HOPS) {
@@ -586,10 +586,10 @@ describe("phase lifecycle smoke", () => {
     });
   }
 
-  test("step 4: final state is live with the live preset", async () => {
+  test("step 4: final state is mastery with the mastery preset", async () => {
     const c = world.state.clients.get(clientId);
-    assert.equal(c?.stage, "live");
-    const livePhase = await services.phaseService.getPhaseForStage(AGENCY_ID, "live");
+    assert.equal(c?.stage, "aqua-mastery");
+    const livePhase = await services.phaseService.getPhaseForStage(AGENCY_ID, "aqua-mastery");
     assert.ok(livePhase);
 
     // Every plugin in the live preset is installed AND enabled.
@@ -608,16 +608,17 @@ describe("phase lifecycle smoke", () => {
       }
     }
 
-    // Variant trail: 1 (creation) + 4 (advances) = 5 applies, each
+    // Variant trail: 1 (creation) + 5 (advances) = 6 applies, each
     // pointing at the corresponding phase's starter variant.
-    assert.equal(world.state.variantApplies.length, 5, "one variant apply per lifecycle step");
+    assert.equal(world.state.variantApplies.length, 6, "one variant apply per lifecycle step");
     const variantTrail = world.state.variantApplies.map(v => v.variantId);
     assert.deepEqual(variantTrail, [
-      "starter-discovery",
-      "starter-design",
-      "starter-development",
-      "starter-onboarding",
-      "starter-live",
+      "aqua-incubator",
+      "aqua-incubator",
+      "aqua-incubator",
+      "aqua-incubator",
+      "aqua-incubator",
+      "aqua-incubator",
     ], "variant trail follows the phase sequence");
   });
 
@@ -636,51 +637,43 @@ describe("phase lifecycle smoke", () => {
       assert.equal(card.enabled, inst?.enabled ?? false, "card.enabled matches install state");
     }
 
-    // Activity log: client.created + 4 × phase.advanced minimum.
+    // Activity log: client.created + 5 × phase.advanced minimum.
     const log = await world.activity.listActivity({ agencyId: AGENCY_ID, clientId, limit: 100 });
     assert.ok(log.find(e => e.action === "client.created"), "client.created in log");
     const advanced = log.filter(e => e.action === "phase.advanced");
-    assert.equal(advanced.length, 4, "four phase.advanced log entries");
+    assert.equal(advanced.length, 5, "five phase.advanced log entries");
   });
 });
 
-// ─── R7 — per-phase install-set + soft-fail assertions ───────────────────
+// ─── Per-phase install-set + transition soft-fail assertions ─────────────
 //
-// Two things to prove:
-//   1. The R7 catalogue mapping is reflected in DEFAULT_PHASE_PRESETS:
-//      Discovery → [website-editor]
-//      Design → [website-editor]
-//      Development → [website-editor, ecommerce]
-//      Onboarding → [website-editor, ecommerce, memberships]
-//      Live → [website-editor, ecommerce, memberships, affiliates]
-//      Churned → []
-//   2. Soft-fail: when the registry doesn't carry a preset id, the phase
-//      advance still succeeds — the missing plugin lands in
-//      `result.skipped`, an activity entry + `phase.preset_plugin_skipped`
-//      event fires, and the rest of the preset still installs.
+// The catalogue assertions follow the current agency defaults. Creation treats
+// a missing preset dependency as incomplete; the separate transition service
+// retains its classified optional-plugin skip behavior for an existing client.
 
-describe("R7 — phase preset catalogue + soft-fail", () => {
-  test("catalogue: each phase preset matches the R7 plan", () => {
+describe("Aqua phase preset catalogue + transition incompleteness", () => {
+  test("catalogue: each phase preset matches the current Aqua plan", () => {
     const byStage = new Map(DEFAULT_PHASE_PRESETS.map(p => [p.stage, p.pluginPreset]));
-    assert.deepEqual(byStage.get("discovery"), ["website-editor"]);
-    assert.deepEqual(byStage.get("design"), ["website-editor"]);
-    assert.deepEqual(byStage.get("development"), ["website-editor", "ecommerce"]);
+    assert.deepEqual(byStage.get("aqua-epic-intro"), ["website-editor"]);
+    assert.deepEqual(byStage.get("aqua-blueprint"), ["website-editor", "client-crm"]);
+    assert.deepEqual(byStage.get("aqua-diagnostics"), ["website-editor", "client-crm"]);
     assert.deepEqual(
-      byStage.get("onboarding"),
-      ["website-editor", "ecommerce", "memberships"],
+      byStage.get("aqua-brand-builder"),
+      ["website-editor", "client-crm"],
     );
     assert.deepEqual(
-      byStage.get("live"),
-      ["website-editor", "ecommerce", "memberships", "affiliates"],
+      byStage.get("aqua-traffic"),
+      ["website-editor", "client-crm", "ecommerce", "agency-marketing", "email-sender"],
+    );
+    assert.deepEqual(
+      byStage.get("aqua-mastery"),
+      ["website-editor", "client-crm", "ecommerce", "agency-marketing", "email-sender", "memberships", "affiliates"],
     );
     assert.deepEqual(byStage.get("churned"), []);
   });
 
-  test("soft-fail: unregistered preset id is skipped, phase still advances", async () => {
-    // Registry only knows website-editor + ecommerce. Onboarding's
-    // preset references memberships — that id should land in `skipped`,
-    // not abort the advance.
-    const REGISTRY = ["website-editor", "ecommerce"];
+  test("transition keeps the old stage active when required preset plugins are unavailable", async () => {
+    const REGISTRY = ["website-editor", "client-crm", "ecommerce", "agency-marketing", "email-sender"];
     const w = buildSmokeWorld("agency_softfail", "user_softfail", REGISTRY);
     const services = buildFulfillmentContainer({
       clients: w.clients,
@@ -698,14 +691,14 @@ describe("R7 — phase preset catalogue + soft-fail", () => {
       agencyId: "agency_softfail",
       actor: "user_softfail",
       name: "Soft-fail Co",
-      stage: "discovery",
+      stage: "aqua-epic-intro",
     });
     const cid = created.client.id;
+    assert.equal(created.complete, true);
 
-    // Walk discovery → development (registers website-editor + ecommerce
-    // — both known). Tick checklist + advance.
+    // Walk through Traffic using only registered plugin ids.
     let current = created.phase;
-    for (const targetStage of ["design", "development"] as const) {
+    for (const targetStage of ["aqua-blueprint", "aqua-diagnostics", "aqua-brand-builder", "aqua-traffic"] as const) {
       for (const item of current.checklist) {
         await services.checklistService.tickItem({
           agencyId: "agency_softfail",
@@ -726,11 +719,11 @@ describe("R7 — phase preset catalogue + soft-fail", () => {
       });
       assert.equal(r.ok, true);
       if (!r.ok) return;
-      assert.deepEqual(r.skipped, [], "no skips expected through development (registry has website-editor + ecommerce)");
+      assert.deepEqual(r.skipped, [], "no skips expected through Traffic");
       current = target;
     }
 
-    // Now hop to onboarding — preset includes memberships (not in registry).
+    // Mastery adds memberships + affiliates, absent from this fixture registry.
     for (const item of current.checklist) {
       await services.checklistService.tickItem({
         agencyId: "agency_softfail",
@@ -741,63 +734,22 @@ describe("R7 — phase preset catalogue + soft-fail", () => {
         actor: "user_softfail",
       });
     }
-    const onboarding = (await services.phaseService.getPhaseForStage("agency_softfail", "onboarding"))!;
+    const mastery = (await services.phaseService.getPhaseForStage("agency_softfail", "aqua-mastery"))!;
     const result = await services.transitionService.advancePhase({
       agencyId: "agency_softfail",
       clientId: cid,
       fromPhase: current,
-      toPhase: onboarding,
+      toPhase: mastery,
       actor: "user_softfail",
     });
-    assert.equal(result.ok, true, "onboarding advance succeeds despite missing memberships");
-    if (!result.ok) return;
-
-    // memberships skipped; website-editor + ecommerce enabled.
-    assert.deepEqual(result.skipped.map(s => s.pluginId), ["memberships"]);
-    assert.deepEqual([...result.enabled].sort(), ["ecommerce", "website-editor"]);
-
-    // Skip-event fired. (Cast: `phase.preset_plugin_skipped` isn't yet
-    // in the canonical EventName union — same `as never` cast the
-    // service uses on emit. T1 extends the union when wiring the
-    // route in their next round.)
-    const skippedEvents = w.state.emittedEvents.filter(
-      e => (e.name as string) === "phase.preset_plugin_skipped",
-    );
-    assert.equal(skippedEvents.length, 1);
-
-    // Skip-activity entry written.
-    const skippedActivity = w.state.activityLog.filter(e => e.action === "phase.preset_plugin_skipped");
-    assert.equal(skippedActivity.length, 1);
-
-    // Client stage still moved.
-    assert.equal(w.state.clients.get(cid)?.stage, "onboarding");
-
-    // Live hop: preset includes memberships AND affiliates (both unregistered).
-    for (const item of onboarding.checklist) {
-      await services.checklistService.tickItem({
-        agencyId: "agency_softfail",
-        clientId: cid,
-        phase: onboarding,
-        itemId: item.id,
-        done: true,
-        actor: "user_softfail",
-      });
-    }
-    const live = (await services.phaseService.getPhaseForStage("agency_softfail", "live"))!;
-    const liveResult = await services.transitionService.advancePhase({
-      agencyId: "agency_softfail",
-      clientId: cid,
-      fromPhase: onboarding,
-      toPhase: live,
-      actor: "user_softfail",
-    });
-    assert.equal(liveResult.ok, true);
-    if (!liveResult.ok) return;
-    assert.deepEqual(
-      liveResult.skipped.map(s => s.pluginId).sort(),
-      ["affiliates", "memberships"],
-    );
-    assert.equal(w.state.clients.get(cid)?.stage, "live");
+    assert.equal(result.ok, false, "missing required plugins keep the transition incomplete");
+    if (result.ok) return;
+    assert.equal(result.status, "incomplete");
+    assert.equal(result.step, "enable");
+    assert.equal(result.retryable, true);
+    assert.deepEqual(result.skipped?.map(s => s.pluginId).sort(), ["affiliates", "memberships"]);
+    assert.equal(w.state.clients.get(cid)?.stage, "aqua-traffic", "the old stage remains truthful");
+    assert.equal(w.state.emittedEvents.some(e => e.name === "phase.advanced" && e.payload.to === mastery.id), false);
   });
 });
 
@@ -838,10 +790,16 @@ export async function runLifecycleSmoke(): Promise<LifecycleSmokeReport> {
     agencyId: AGENCY_ID,
     actor: ACTOR,
     name: "Smoke Test Co (programmatic)",
-    stage: "discovery",
+    stage: "aqua-epic-intro",
   });
 
-  const HOP_ORDER: ClientStage[] = ["design", "development", "onboarding", "live"];
+  const HOP_ORDER: ClientStage[] = [
+    "aqua-blueprint",
+    "aqua-diagnostics",
+    "aqua-brand-builder",
+    "aqua-traffic",
+    "aqua-mastery",
+  ];
   let current: PhaseDefinition = created.phase;
   for (const next of HOP_ORDER) {
     for (const item of current.checklist) {

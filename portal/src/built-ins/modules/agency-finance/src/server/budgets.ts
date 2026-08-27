@@ -3,11 +3,25 @@ import { now } from "../lib/time";
 import type { AgencyId, UserId } from "../lib/tenancy";
 import type { BudgetPot, CreateBudgetPotInput, Currency, UpdateBudgetPotPatch } from "../lib/domain";
 import type { ActivityLogPort, EventBusPort, StoragePort } from "./ports";
+import {
+  assertAllowedValue,
+  assertCurrency,
+  assertDateOrder,
+  assertKnownFields,
+  assertNonEmptyText,
+  assertOptionalAllowedValue,
+  assertOptionalStringArray,
+  assertOptionalText,
+  assertSafeInteger,
+} from "../lib/runtimeValidation";
 
 import { listRowIds } from "./rowIndex";
 
 const INDEX_KEY = "budget-pots/index";
 const potKey = (id: string): string => `budget-pots/by-id/${id}`;
+const BUDGET_PURPOSES = ["growth", "marketing", "gear", "equipment", "expansion", "operations", "team", "tax", "emergency", "client-delivery", "other"] as const;
+const BUDGET_PERIODS = ["one-off", "monthly", "quarterly", "annual", "custom"] as const;
+const BUDGET_STATUSES = ["active", "paused", "closed"] as const;
 
 export class BudgetService {
   constructor(
@@ -33,8 +47,15 @@ export class BudgetService {
   }
 
   async create(actor: UserId, input: CreateBudgetPotInput, defaultCurrency: Currency = "gbp"): Promise<BudgetPot> {
+    assertKnownFields(input, ["name", "purpose", "companyIds", "currency", "period", "allocatedCents", "fundedCents", "startAt", "endAt", "notes"]);
+    assertNonEmptyText(input.name, "name");
+    assertAllowedValue(input.purpose, BUDGET_PURPOSES, "purpose");
+    assertOptionalAllowedValue(input.period, BUDGET_PERIODS, "period");
+    assertOptionalStringArray(input.companyIds, "companyIds");
+    assertOptionalText(input.notes, "notes");
+    const currency = input.currency ?? defaultCurrency;
+    assertCurrency(currency);
     const name = input.name.trim().slice(0, 160);
-    if (!name) throw new Error("Budget pot name required.");
     validateAmounts(input.allocatedCents, input.fundedCents ?? 0);
     validateDates(input.startAt, input.endAt);
     const timestamp = now();
@@ -44,10 +65,10 @@ export class BudgetService {
       name,
       purpose: input.purpose,
       companyIds: cleanIds(input.companyIds),
-      currency: input.currency ?? defaultCurrency,
+      currency,
       period: input.period ?? "one-off",
-      allocatedCents: Math.round(input.allocatedCents),
-      fundedCents: Math.round(input.fundedCents ?? 0),
+      allocatedCents: input.allocatedCents,
+      fundedCents: input.fundedCents ?? 0,
       startAt: input.startAt,
       endAt: input.endAt,
       notes: input.notes?.trim().slice(0, 4_000) || undefined,
@@ -74,8 +95,15 @@ export class BudgetService {
   async update(actor: UserId, id: string, patch: UpdateBudgetPotPatch): Promise<BudgetPot | null> {
     const current = await this.get(id);
     if (!current) return null;
-    const allocatedCents = Math.round(patch.allocatedCents ?? current.allocatedCents);
-    const fundedCents = Math.round(patch.fundedCents ?? current.fundedCents);
+    assertKnownFields(patch, ["name", "purpose", "companyIds", "period", "allocatedCents", "fundedCents", "startAt", "endAt", "notes", "status"]);
+    if (patch.name !== undefined) assertNonEmptyText(patch.name, "name");
+    assertOptionalAllowedValue(patch.purpose, BUDGET_PURPOSES, "purpose");
+    assertOptionalAllowedValue(patch.period, BUDGET_PERIODS, "period");
+    assertOptionalAllowedValue(patch.status, BUDGET_STATUSES, "status");
+    assertOptionalStringArray(patch.companyIds, "companyIds");
+    if (patch.notes !== null) assertOptionalText(patch.notes, "notes");
+    const allocatedCents = patch.allocatedCents ?? current.allocatedCents;
+    const fundedCents = patch.fundedCents ?? current.fundedCents;
     validateAmounts(allocatedCents, fundedCents);
     const startAt = patch.startAt === null ? undefined : patch.startAt ?? current.startAt;
     const endAt = patch.endAt === null ? undefined : patch.endAt ?? current.endAt;
@@ -109,12 +137,12 @@ export class BudgetService {
 }
 
 function validateAmounts(allocatedCents: number, fundedCents: number): void {
-  if (!Number.isFinite(allocatedCents) || allocatedCents < 0) throw new Error("Allocated amount must be zero or more.");
-  if (!Number.isFinite(fundedCents) || fundedCents < 0) throw new Error("Funded amount must be zero or more.");
+  assertSafeInteger(allocatedCents, "allocatedCents", { min: 0 });
+  assertSafeInteger(fundedCents, "fundedCents", { min: 0 });
 }
 
 function validateDates(startAt?: number, endAt?: number): void {
-  if (startAt && endAt && endAt < startAt) throw new Error("Budget end date must be after its start date.");
+  assertDateOrder(startAt, endAt, "startAt", "endAt");
 }
 
 function cleanIds(values?: string[]): string[] | undefined {

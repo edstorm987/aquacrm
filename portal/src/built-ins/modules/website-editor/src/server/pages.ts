@@ -9,6 +9,7 @@ import type { PortalRole } from "../lib/portalRole";
 import { pageId as makePageId, slugify } from "../lib/ids";
 import { storageKeys } from "./storage-keys";
 import { promoteBlockTreeMedia } from "./publicMediaPromotion";
+import { stabiliseCountdownDeadlines } from "@/engines/editor/elements/countdownDeadline";
 import type {
   CreatePageInput,
   EditorPage,
@@ -45,7 +46,7 @@ export async function listPages(
   const pages = await Promise.all(
     ids.map((id) => storage.get<EditorPage>(storageKeys.page(agencyId, clientId, siteId, id))),
   );
-  return pages.filter((p): p is EditorPage => Boolean(p));
+  return pages.filter((p): p is EditorPage => Boolean(p)).map(stabiliseStoredPageCountdowns);
 }
 
 export async function getPage(
@@ -56,7 +57,7 @@ export async function getPage(
   id: string,
 ): Promise<EditorPage | null> {
   const page = await storage.get<EditorPage>(storageKeys.page(agencyId, clientId, siteId, id));
-  return page ?? null;
+  return page ? stabiliseStoredPageCountdowns(page) : null;
 }
 
 export async function getPageBySlug(
@@ -90,7 +91,7 @@ export async function createPage(
     portalRole: input.portalRole,
     isActivePortal: input.isActivePortal,
     variantId: input.variantId,
-    blocks: input.blocks ?? [],
+    blocks: stabiliseCountdownDeadlines(input.blocks ?? [], now),
     themeId: input.themeId,
     createdAt: now,
     updatedAt: now,
@@ -116,9 +117,27 @@ export async function updatePage(
 ): Promise<EditorPage | null> {
   const page = await getPage(storage, agencyId, clientId, siteId, id);
   if (!page) return null;
-  const next: EditorPage = { ...page, ...patch, updatedAt: Date.now() };
+  const now = Date.now();
+  const next: EditorPage = {
+    ...page,
+    ...patch,
+    blocks: patch.blocks ? stabiliseCountdownDeadlines(patch.blocks, now) : page.blocks,
+    draftBlocks: patch.draftBlocks ? stabiliseCountdownDeadlines(patch.draftBlocks, now) : patch.draftBlocks === undefined ? page.draftBlocks : undefined,
+    publishedBlocks: patch.publishedBlocks ? stabiliseCountdownDeadlines(patch.publishedBlocks, now) : page.publishedBlocks,
+    updatedAt: now,
+  };
   await storage.set(storageKeys.page(agencyId, clientId, siteId, id), next);
   return next;
+}
+
+function stabiliseStoredPageCountdowns(page: EditorPage): EditorPage {
+  const publishedAnchor = page.publishedAt ?? page.updatedAt ?? page.createdAt;
+  const draftAnchor = page.updatedAt ?? page.createdAt;
+  const blocks = stabiliseCountdownDeadlines(page.blocks, page.status === "published" ? publishedAnchor : draftAnchor);
+  const draftBlocks = page.draftBlocks ? stabiliseCountdownDeadlines(page.draftBlocks, draftAnchor) : undefined;
+  const publishedBlocks = page.publishedBlocks ? stabiliseCountdownDeadlines(page.publishedBlocks, publishedAnchor) : undefined;
+  if (blocks === page.blocks && draftBlocks === page.draftBlocks && publishedBlocks === page.publishedBlocks) return page;
+  return { ...page, blocks, draftBlocks, publishedBlocks };
 }
 
 export async function publishPage(
@@ -131,7 +150,9 @@ export async function publishPage(
 ): Promise<EditorPage | null> {
   const page = await getPage(storage, agencyId, clientId, siteId, id);
   if (!page) return null;
+  const now = Date.now();
   let blocks = page.draftBlocks ?? page.blocks;
+  blocks = stabiliseCountdownDeadlines(blocks, now);
   // Auto-public on publish: push inline data-URL media to the public CDN
   // bucket and rewrite the published blocks to the durable public URLs. Only
   // runs when the foundation wired the port; otherwise blocks publish as-is.
@@ -146,8 +167,8 @@ export async function publishPage(
     status: "published",
     blocks,
     draftBlocks: undefined,
-    publishedAt: Date.now(),
-    updatedAt: Date.now(),
+    publishedAt: now,
+    updatedAt: now,
   };
   await storage.set(storageKeys.page(agencyId, clientId, siteId, id), next);
   return next;

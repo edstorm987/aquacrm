@@ -33,7 +33,7 @@ import { FinanceTabClient } from "./_FinanceTabClient";
 import type { ClientContract, ClientContractTemplate } from "@/lib/clients/clientContracts";
 import type { ClientTelemetryEvent } from "@/lib/clients/clientTelemetry";
 import { listContractTemplates } from "@/server/contractTemplates";
-import { ensureDefaultAgencyProducts, productStatus } from "@/server/agencyProducts";
+import { ensureDefaultAgencyProducts, listAgencyProducts, productStatus } from "@/server/agencyProducts";
 import { PropertiesTabClient, type ClientProperty } from "./_PropertiesTabClient";
 import { ClientSystemsWorkspace } from "./_ClientSystemsWorkspace";
 import { ClientTagWorkspace } from "./_ClientTagWorkspace";
@@ -88,6 +88,13 @@ import { listAgencyTasks } from "@/server/tasks";
 import { listSops } from "@/engines/sop/server/sops";
 import { canUsePeopleStation, listPeopleEmployees } from "@/server/people";
 import { getUserById } from "@/server/users";
+import {
+  CLIENT_TAB_ELEMENT_KEYS,
+  clientWorkspaceElementAtLeast,
+  clientWorkspaceElementLevel,
+  currentClientWorkspaceElementAccess,
+  visibleClientWorkspaceTabs,
+} from "@/lib/server/access/clientWorkspaceElementAccess";
 import { buildClientRadar } from "@/engines/data/server/radar/clientRadarService";
 import { cleanClientOperationsBrief } from "@/lib/clients/clientOperations";
 import { clientVariationProductIds } from "@/lib/clients/clientProductVariations";
@@ -106,6 +113,7 @@ import {
   cleanClientPaymentPlans,
   reconcileClientPaymentPlan,
   summariseClientPaymentPosition,
+  summariseInvoicesByCurrency,
 } from "@/lib/clients/clientPaymentPlans";
 import type { ClientOperationOwnerOption } from "./_ClientOperationsControl";
 import { ClientMarketingServiceWorkspace } from "@/components/marketing/ClientMarketingServiceWorkspace";
@@ -141,9 +149,10 @@ const LIVE_RECOMMENDED_PLUGINS: readonly string[] = [
 // Repo root → `04-the-final-portal/clients/<slug>/` lives two levels
 // above `portal/`. We resolve from `process.cwd()` (= the portal app
 // root in dev + Vercel build) and walk up.
-function customPortalExists(slug: string): boolean {
+function customPortalExists(slug: unknown): boolean {
+  if (typeof slug !== "string" || !slug.trim()) return false;
   const root = process.cwd();
-  const path = join(root, "..", "clients", slug);
+  const path = join(root, "..", "clients", slug.trim());
   return existsSync(path);
 }
 
@@ -202,6 +211,20 @@ export default async function ClientHome({
 
   const rawTabInput = Array.isArray(sp.tab) ? sp.tab[0] : sp.tab;
   const tab: TabId = resolveClientWorkspaceTab(rawTabInput);
+  const { access: clientAccess } = await currentClientWorkspaceElementAccess(client.id);
+  const accessVisibleTabs = visibleClientWorkspaceTabs(clientAccess);
+  if (!accessVisibleTabs.includes(tab)) {
+    const fallback = accessVisibleTabs[0];
+    if (fallback) redirect(clientWorkspaceHref(client.id, fallback));
+    redirect("/portal");
+  }
+  const activeElementLevel = clientWorkspaceElementLevel(clientAccess, CLIENT_TAB_ELEMENT_KEYS[tab]);
+  const canManageClient = isAgencyRole(session.role)
+    && !session.publicShowcase
+    && clientWorkspaceElementAtLeast(activeElementLevel, "use");
+  const canConfigureClient = isAgencyRole(session.role)
+    && !session.publicShowcase
+    && clientWorkspaceElementAtLeast(activeElementLevel, "manage");
   const rawSystemView = Array.isArray(sp.systemView) ? sp.systemView[0] : sp.systemView;
   const systemView = rawSystemView === "properties" || rawSystemView === "website" ? rawSystemView : "monitoring";
   const rawProductId = Array.isArray(sp.product) ? sp.product[0] : sp.product;
@@ -211,7 +234,9 @@ export default async function ClientHome({
   const installs = listInstalledFor({ agencyId: client.agencyId, clientId: client.id });
   const installedIds = new Set(installs.map(i => i.pluginId));
   const recentActivity = listActivity({ agencyId: client.agencyId, clientId: client.id, limit: 8 });
-  const canManageOperations = isAgencyRole(session.role)
+  const canAccessActions = canManageClient
+    && (session.role !== "agency-staff" || canUsePeopleStation(session.agencyId, session.userId, "actions", false));
+  const canManageOperations = canManageClient
     && (session.role !== "agency-staff" || canUsePeopleStation(session.agencyId, session.userId, "actions", true));
   const acceptedOperationSourceIds = canManageOperations
     ? listAgencyTasks(session.agencyId)
@@ -321,11 +346,17 @@ export default async function ClientHome({
   };
   const planLabel = meta.planTier ? PLAN_LABELS[meta.planTier] : null;
   const servicePlanLabel = meta.portalServicePlan?.trim() || planLabel;
-  const agencyProducts = ensureDefaultAgencyProducts(session.agencyId);
+  const agencyProducts = session.publicShowcase
+    ? listAgencyProducts(session.agencyId)
+    : ensureDefaultAgencyProducts(session.agencyId);
   const tradingCompanies = listTradingCompanies(session.agencyId, true);
   const agencyName = getAgency(session.agencyId)?.name?.trim() || "AquaOasis-Web";
   const portalProviderName = resolveClientPortalProvider(client, { name: agencyName, mark: agencyName.charAt(0) }).name;
-  const canManageRelationship = isAgencyRole(session.role);
+  const canManageRelationship = canManageClient && (
+    clientAccess.source === "owner-baseline"
+    || clientAccess.source === "legacy"
+    || clientAccess.agencyWidePolicy
+  );
   const relationshipWorkspaces = canManageRelationship
     ? listClientRelationshipWorkspaces(session.agencyId, client.id)
     : [client];
@@ -410,9 +441,9 @@ export default async function ClientHome({
         contracts: workspaceContracts,
         telemetryEvents: Array.isArray(workspaceMeta.telemetryEvents) ? workspaceMeta.telemetryEvents as ClientTelemetryEvent[] : undefined,
       });
-    const outstandingCents = workspaceInvoices
-      .filter(invoice => invoice.status === "sent" || invoice.status === "overdue")
-      .reduce((sum, invoice) => sum + invoice.totalCents, 0);
+    const outstandingByCurrency = summariseInvoicesByCurrency(workspaceInvoices)
+      .filter(position => position.outstandingCents > 0)
+      .map(position => ({ currency: position.currency, cents: position.outstandingCents }));
     const portalAccessEmail = [workspaceMeta.portalLoginEmail, workspaceMeta.clientEmail, workspace.ownerEmail]
       .find(value => typeof value === "string" && Boolean(value.trim()));
     const portalAccessState = typeof workspaceMeta.portalBuiltAt !== "number"
@@ -426,8 +457,7 @@ export default async function ClientHome({
       healthScore: health.score,
       healthState: health.state,
       healthConfidence: health.confidence,
-      outstandingCents,
-      currency: workspaceInvoices[0]?.currency || "gbp",
+      outstandingByCurrency,
       portalAccessState,
     }] as const;
   })));
@@ -438,28 +468,38 @@ export default async function ClientHome({
     selectedProducts,
     inheritedClientServiceKeys(selectedProducts, agencyProducts),
   );
-  const visibleTabs: TabId[] = [
+  const productVisibleTabs: TabId[] = [
     "overview",
     "relationship",
     "delivery",
     ...(serviceCapabilities.marketing ? ["marketing" as const] : []),
-    ...(serviceCapabilities.systems ? ["systems" as const] : []),
+    // Systems is also the evidence destination for telemetry/availability
+    // alerts. Keep it reachable before a systems service is assigned so those
+    // deep links show the honest empty monitoring record.
+    "systems",
     "finance",
     "communications",
     "files",
     "portal",
     "notes",
   ];
-  if (!visibleTabs.includes(tab)) redirect(clientWorkspaceHref(client.id, "delivery"));
+  const visibleTabs: TabId[] = productVisibleTabs.filter(candidate => accessVisibleTabs.includes(candidate));
+  if (!visibleTabs.includes(tab)) {
+    const fallback = visibleTabs[0];
+    if (fallback) redirect(clientWorkspaceHref(client.id, fallback));
+    redirect("/portal");
+  }
+  const relationshipContextTabs: TabId[] = ["relationship", "communications"];
+  const deliveryContextTabs: TabId[] = [
+    "delivery",
+    ...(serviceCapabilities.marketing ? ["marketing" as const] : []),
+    "systems",
+    "files",
+  ];
   const contextualTabs: TabId[] | null = tab === "relationship" || tab === "communications"
-    ? ["relationship", "communications"]
+    ? relationshipContextTabs.filter(candidate => visibleTabs.includes(candidate))
     : tab === "delivery" || tab === "marketing" || tab === "systems" || tab === "files"
-      ? [
-          "delivery",
-          ...(serviceCapabilities.marketing ? ["marketing" as const] : []),
-          ...(serviceCapabilities.systems ? ["systems" as const] : []),
-          "files",
-        ]
+      ? deliveryContextTabs.filter(candidate => visibleTabs.includes(candidate))
       : null;
   const contextualNavLabel = tab === "relationship" || tab === "communications"
     ? "Relationship workspace"
@@ -522,6 +562,7 @@ export default async function ClientHome({
         }),
       })),
       advancedModules: workspace.advancedModules,
+      workspaceRevision: workspacesByProduct.get(product.id)?.revision ?? 0,
     };
   });
   const deliveryCommandProducts = deliveryProducts.map(product => {
@@ -598,10 +639,12 @@ export default async function ClientHome({
       href: `${clientWorkspaceHref(client.id, "notes")}#client-record`,
     })),
   ].sort((left, right) => right.occurredAt - left.occurredAt).slice(0, 8);
-  const linkedInbox = tab === "notes"
+  const linkedInbox = tab === "notes" && !session.isDemo
     ? await listInboxSnapshot(session.agencyId).catch(() => ({ connections: [], conversations: [], generatedAt: Date.now() }))
     : { connections: [], conversations: [], generatedAt: Date.now() };
-  const websiteEnquiriesRaw = tab === "notes" ? await listWebsiteEnquiries(session.agencyId, 500).catch(() => []) : [];
+  const websiteEnquiriesRaw = tab === "notes" && !session.isDemo
+    ? await listWebsiteEnquiries(session.agencyId, 500).catch(() => [])
+    : [];
   const websiteEnquiries = websiteEnquiriesRaw.length
     ? await synchroniseWebsiteEnquiryIdentities(session.agencyId, websiteEnquiriesRaw).catch(() => websiteEnquiriesRaw)
     : websiteEnquiriesRaw;
@@ -715,13 +758,14 @@ export default async function ClientHome({
     .map(plan => reconcileClientPaymentPlan(plan, issuedInvoices));
   const activePaymentPlans = clientPaymentPlans.filter(plan => plan.status === "active");
   const paymentPosition = summariseClientPaymentPosition(clientPaymentPlans, issuedInvoices, now);
+  const outstandingPaymentPositions = paymentPosition.currencyPositions.filter(position => position.outstandingCents > 0);
   const acceptedAgreement = customerPortalData.contracts.some(contract => contract.status === "accepted")
     || Boolean(commercialPack?.signedDocumentDataUrl);
   const commercialGaps = [
     issuedInvoices.length === 0 ? "Issued invoice missing" : null,
     !acceptedAgreement ? "Accepted agreement missing" : null,
-    paymentPosition.outstandingCents > 0
-      ? `Payment outstanding (${new Intl.NumberFormat("en-GB", { style: "currency", currency: paymentPosition.currency.toUpperCase() }).format(paymentPosition.outstandingCents / 100)})`
+    outstandingPaymentPositions.length > 0
+      ? `Payment outstanding (${outstandingPaymentPositions.map(position => new Intl.NumberFormat("en-GB", { style: "currency", currency: position.currency.toUpperCase() }).format(position.outstandingCents / 100)).join(" · ")})`
       : null,
     paymentPosition.missedPayments
       ? `${paymentPosition.missedPayments} missed payment${paymentPosition.missedPayments === 1 ? "" : "s"}`
@@ -798,7 +842,7 @@ export default async function ClientHome({
         ...clientRecordCanonicalEvents,
       ]
     : [];
-  if (tab === "notes") {
+  if (tab === "notes" && !session.publicShowcase) {
     synchroniseClientRecordLedger({
       agencyId: session.agencyId,
       clientId: client.id,
@@ -867,6 +911,7 @@ export default async function ClientHome({
         contactRow={(
           <CommsRow
             clientId={client.id}
+            canManage={canManageClient}
             initial={{
               whatsappLink: meta.whatsappLink ?? "",
               clientEmail: meta.clientEmail ?? "",
@@ -875,7 +920,8 @@ export default async function ClientHome({
           />
         )}
         relationshipSwitcher={relationshipSwitcher}
-        portalAction={selectedProducts.length ? (
+        canManage={canManageClient}
+        portalAction={canManageClient && selectedProducts.length ? (
           portalMaterialized ? (
             <a href={`/clients/${client.slug}/`} target="_blank" rel="noreferrer" className="mm-client-context-button">
               Open live experience ↗
@@ -902,7 +948,7 @@ export default async function ClientHome({
         tab={tab}
         clientName={client.name}
         relationshipSwitcher={relationshipSwitcher}
-        action={tab === "relationship" && selectedProducts.length === 0
+        action={canManageClient && tab === "relationship" && selectedProducts.length === 0
           ? <PhaseTransitionButton clientId={client.id} currentStage={client.stage} isFounder={session.role === "agency-owner"} />
           : undefined}
       />}
@@ -924,6 +970,7 @@ export default async function ClientHome({
         invoiceCount={customerPortalData.invoices.length}
         fileCount={customerPortalData.files.length}
         propertyCount={propertyRecords.length}
+        canManage={canManageClient}
       /> : null}
 
       {tab === "delivery" ? <ClientServiceAssignment
@@ -933,7 +980,7 @@ export default async function ClientHome({
         initialSelectedProductIds={productAssignment.selectedIds}
         initialCompanyId={client.companyId}
         defaultProviderName={agencyName}
-        canManage={session.role === "agency-owner" || session.role === "agency-manager"}
+        canManage={canManageClient && (session.role === "agency-owner" || session.role === "agency-manager")}
         variationProductIds={clientVariationProductIds(meta)}
         sops={agencySops}
         companies={tradingCompanies.map(company => ({ id: company.id, name: company.name, status: company.status }))}
@@ -979,8 +1026,7 @@ export default async function ClientHome({
               aquaHealthScore: workspaceSignals.healthScore,
               aquaHealthState: workspaceSignals.healthState,
               aquaHealthConfidence: workspaceSignals.healthConfidence,
-              outstandingCents: workspaceSignals.outstandingCents,
-              currency: workspaceSignals.currency,
+              outstandingByCurrency: workspaceSignals.outstandingByCurrency,
               portalAccessState: workspaceSignals.portalAccessState,
               current: workspace.id === client.id,
             };
@@ -1020,10 +1066,7 @@ export default async function ClientHome({
             totalPlans: clientPaymentPlans.length,
             paymentState: paymentPosition.state,
             paymentLabel: paymentPosition.label,
-            scheduledCents: paymentPosition.agreedCents,
-            paidCents: paymentPosition.paidCents,
-            outstandingCents: paymentPosition.outstandingCents,
-            currency: paymentPosition.currency,
+            currencyPositions: paymentPosition.currencyPositions,
             overdueMilestones: paymentPosition.missedPayments,
             nextDueAt: paymentPosition.nextDueAt,
             acceptedContracts: customerPortalData.contracts.filter(contract => contract.status === "accepted").length,
@@ -1036,11 +1079,11 @@ export default async function ClientHome({
           recentMovement={recentMovement}
           radar={clientRadar!}
           productPlans={clientProductPlans}
-          canManageProductPlans={isAgencyRole(session.role)}
+          canManageProductPlans={canManageClient}
         />
       )}
 
-      {tab === "relationship" && selectedProducts.length === 0 && isAquaStage(client.stage) && (() => {
+      {canManageClient && tab === "relationship" && selectedProducts.length === 0 && isAquaStage(client.stage) && (() => {
         const aquaPhases = phases.filter(p => AQUA_PHASE_ORDER.includes(p.stage));
         aquaPhases.sort((a, b) => AQUA_PHASE_ORDER.indexOf(a.stage) - AQUA_PHASE_ORDER.indexOf(b.stage));
         const currentIdx = AQUA_PHASE_ORDER.indexOf(client.stage);
@@ -1080,7 +1123,7 @@ export default async function ClientHome({
             <div className="mt-3 grid gap-2">
               {clientProductPlans.slice(0, 4).map(product => <div key={product.id} className="flex items-center justify-between gap-3 border-b border-black/[0.07] pb-2 text-sm last:border-0 last:pb-0"><span className="min-w-0 truncate font-medium text-black/72">{product.name}</span><span className="shrink-0 text-xs font-semibold text-[#315b85]">{product.lifecycleStages.find(stage => stage.id === product.currentStageId)?.label ?? "Set stage"}</span></div>)}
             </div>
-            <Link href={clientWorkspaceHref(client.id, "delivery")} className="mt-4 inline-flex text-xs font-semibold text-[#315b85]">Manage service stages →</Link>
+            <Link href={clientWorkspaceHref(client.id, "delivery")} className="mt-4 inline-flex text-xs font-semibold text-[#315b85]">{canManageClient ? "Manage" : "View"} service stages →</Link>
           </div> : <div className="rounded-xl border border-black/10 bg-white p-4">
             <h2 className="text-sm font-medium uppercase tracking-wide text-black/55">Legacy account setup phase</h2>
             <div className="mt-2 text-base font-semibold text-black/90">{phaseLabel(client.stage)}</div>
@@ -1090,8 +1133,8 @@ export default async function ClientHome({
           <div className="rounded-xl border border-black/10 bg-white p-4">
             <h2 className="text-sm font-medium uppercase tracking-wide text-black/55">Quick actions</h2>
             <div className="mt-3 flex flex-wrap gap-2">
-              {serviceCapabilities.keys.includes("website") ? <Link href={clientWorkspaceHref(client.id, "systems", { systemView: "website" })} className="rounded-md bg-brand px-3 py-2 text-xs font-medium text-white shadow hover:opacity-90">Edit website</Link> : null}
-              {serviceCapabilities.hasServices ? <Link href={clientWorkspaceHref(client.id, "portal")} className="rounded-md border border-black/15 px-3 py-2 text-xs hover:bg-black/5">{meta.portalBuiltAt ? "Portal preview" : "Create client portal"}</Link> : <Link href={`${clientWorkspaceHref(client.id, "delivery")}#service-assignment`} className="rounded-md bg-black px-3 py-2 text-xs font-semibold text-white">Assign services</Link>}
+              {canManageClient && serviceCapabilities.keys.includes("website") ? <Link href={clientWorkspaceHref(client.id, "systems", { systemView: "website" })} className="rounded-md bg-brand px-3 py-2 text-xs font-medium text-white shadow hover:opacity-90">Edit website</Link> : null}
+              {serviceCapabilities.hasServices ? <Link href={clientWorkspaceHref(client.id, "portal")} className="rounded-md border border-black/15 px-3 py-2 text-xs hover:bg-black/5">{meta.portalBuiltAt ? "Portal preview" : canManageClient ? "Create client portal" : "Portal status"}</Link> : canManageClient ? <Link href={`${clientWorkspaceHref(client.id, "delivery")}#service-assignment`} className="rounded-md bg-black px-3 py-2 text-xs font-semibold text-white">Assign services</Link> : null}
               {serviceCapabilities.systems ? <Link href={clientWorkspaceHref(client.id, "systems")} className="rounded-md border border-black/15 px-3 py-2 text-xs hover:bg-black/5">Open systems</Link> : null}
               {meta.whatsappLink && (
                 <a
@@ -1146,7 +1189,7 @@ export default async function ClientHome({
           />
           {deliveryAdvanced ? <section className="grid gap-7 border-t border-black/10 pt-6" aria-label="Advanced fulfilment tools">
           <div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-black/38">Advanced fulfilment</p><h2 className="mt-1 text-lg font-semibold text-black/82">Execution board and operating knowledge</h2><p className="mt-1 text-xs leading-5 text-black/45">Schedule, investigate and complete this client&apos;s work without leaving their workspace.</p></div>
-          <KanbanTabClient clientId={client.id} clientName={client.name} />
+          {canAccessActions ? <KanbanTabClient clientId={client.id} clientName={client.name} canManage={canManageOperations} /> : <p className="rounded-md border border-black/10 bg-white p-4 text-sm text-black/55">Actions access is required to view this client&apos;s shared execution board.</p>}
           {canAccessSops ? <ClientSopsTab
               clientId={client.id}
               families={familiesForStage(client.stage)}
@@ -1185,8 +1228,8 @@ export default async function ClientHome({
           clientId={client.id}
           clientName={client.name}
           initial={cleanClientMarketingService(meta.clientMarketingService)}
-          canManage={isAgencyRole(session.role)}
-          canApprove={!isAgencyRole(session.role)}
+          canManage={canManageClient}
+          canApprove={!session.publicShowcase && !isAgencyRole(session.role)}
         />
       )}
 
@@ -1227,13 +1270,14 @@ export default async function ClientHome({
             tagInstalledCount: customerPortalData.properties.filter(property => property.tagStatus === "installed").length,
             approvals: customerPortalData.approvals,
           }}
+          canManage={canConfigureClient}
         />
-        <ClientPortalConnections
+        {canConfigureClient ? <ClientPortalConnections
           clientId={client.id}
           clientName={client.name}
           initialConnections={portalConnections}
           suggestions={connectionSuggestions}
-        />
+        /> : null}
         </div>
       )}
 
@@ -1247,8 +1291,8 @@ export default async function ClientHome({
             </nav>
             {systemView === "monitoring" ? (
               <div className="grid gap-6">
-              <ClientSystemsWorkspace clientId={client.id} clientName={client.name} properties={propertyRecords} />
-              <ClientTagWorkspace clientId={client.id} clientName={client.name} />
+              <ClientSystemsWorkspace clientId={client.id} clientName={client.name} properties={propertyRecords} canManage={canManageClient} />
+              <ClientTagWorkspace clientId={client.id} clientName={client.name} canManage={canManageClient} />
               </div>
             ) : systemView === "properties" ? (
               <PropertiesTabClient
@@ -1257,13 +1301,15 @@ export default async function ClientHome({
                 initialProperties={propertyRecords}
                 githubPublishingConfigured={isGitHubPublishingConfiguredForAgency(session.agencyId, client.id)}
                 vercelDeploymentConfigured={isVercelProjectDeploymentConfiguredForAgency(session.agencyId, client.id)}
+                canManage={canManageClient}
+                canRelease={canConfigureClient}
               />
             ) : (
               <section className="border-y border-black/10 bg-white py-6">
                 <h2 className="text-lg font-medium text-black/90">Dev Editor Engine</h2>
                 <p className="mt-1 max-w-2xl text-sm leading-6 text-black/60">Visually build pages and responsive sections, add custom code, preview every device, and publish when {client.name} is ready.</p>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <WebsiteBuilderLauncher clientId={client.id} ready={installs.some(install => install.pluginId === "website-editor" && install.enabled)} />
+                  <WebsiteBuilderLauncher clientId={client.id} ready={installs.some(install => install.pluginId === "website-editor" && install.enabled)} canManage={canConfigureClient} />
                   {client.websiteUrl ? <a href={client.websiteUrl} target="_blank" rel="noreferrer" className="rounded-md border border-black/15 px-4 py-2 text-sm hover:bg-black/5">Open live site ↗</a> : null}
                 </div>
               </section>
@@ -1290,6 +1336,8 @@ export default async function ClientHome({
               lockInPaid: meta.lockInPaid,
               stripeLink: meta.stripeLink,
             }}
+            canManage={canManageClient}
+            canConfigure={canConfigureClient}
           />
           </div>
         </RequirePermission>
@@ -1301,6 +1349,7 @@ export default async function ClientHome({
             <div><p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-black/38">Relationship communications</p><h2 className="mt-2 text-2xl font-semibold text-black/88">Messages and requests</h2><p className="mt-1 text-sm text-black/55">Contact details, customer requests, replies and relationship history for this client only.</p></div>
             <CommsRow
               clientId={client.id}
+              canManage={canManageClient}
               initial={{
                 whatsappLink: meta.whatsappLink ?? "",
                 clientEmail: meta.clientEmail ?? "",
@@ -1308,15 +1357,16 @@ export default async function ClientHome({
               }}
             />
           </header>
-          <ClientRequestsPanel clientId={client.id} initialRequests={safeClientRequests} providerName={portalProviderName} />
+          <ClientRequestsPanel clientId={client.id} initialRequests={safeClientRequests} providerName={portalProviderName} canManage={canManageClient} />
         </div>
       )}
 
       {tab === "files" && (
         <div className="grid gap-5">
-          <header className="flex flex-wrap items-end justify-between gap-4 border-b border-black/10 pb-5"><div><p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-black/38">Shared evidence</p><h2 className="mt-2 text-2xl font-semibold text-black/88">Files and assets</h2><p className="mt-1 text-sm text-black/55">Working files, customer uploads, screenshots, brand assets, and delivery evidence in one lens.</p></div><Link href={`/portal/clients/${client.id}/assets`} className="rounded-md border border-black/12 bg-white px-4 py-2 text-sm font-semibold text-black/65">Open asset library</Link></header>
+          <header className="flex flex-wrap items-end justify-between gap-4 border-b border-black/10 pb-5"><div><p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-black/38">Shared evidence</p><h2 className="mt-2 text-2xl font-semibold text-black/88">Files and assets</h2><p className="mt-1 text-sm text-black/55">Working files, customer uploads, screenshots, brand assets, and delivery evidence in one lens.</p></div>{canManageClient ? <Link href={`/portal/clients/${client.id}/assets`} className="rounded-md border border-black/12 bg-white px-4 py-2 text-sm font-semibold text-black/65">Open asset library</Link> : <span className="rounded-full bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700">Read-only</span>}</header>
           <FilesTabClient
             clientId={client.id}
+            canManage={canManageClient}
             initialFiles={(((client.metadata ?? {}) as { files?: Array<{
               id: string; name: string; url: string;
               category: FileCategory; uploadedBy?: string; uploadedAt: number;
@@ -1333,7 +1383,7 @@ export default async function ClientHome({
               clientId={client.id}
               initialEntityType={meta.clientEntityType === "person" ? "person" : "company"}
               initialContacts={cleanClientContacts(meta.linkedContacts)}
-              canEdit={isAgencyRole(session.role)}
+              canEdit={canManageClient}
             />
             <CollapsibleSection
               title="Client information and useful links"
@@ -1368,14 +1418,13 @@ export default async function ClientHome({
                 {(meta.inspirationLinks ?? meta.buyingJourney?.inspirationLinks ?? []).map((href, index) => (
                   <ExternalPill key={`${href}:${index}`} href={href} label={`Inspiration ${index + 1}`} />
                 ))}
-                <Link href={`/portal/clients/${client.id}?tab=files`} className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-black/70 hover:bg-black/[0.03]">
-                  Add files / screenshots
-                </Link>
+                {canManageClient ? <Link href={`/portal/clients/${client.id}?tab=files`} className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-black/70 hover:bg-black/[0.03]">Add files / screenshots</Link> : null}
               </div>
             </CollapsibleSection>
           </section>
           <ClientNotesWorkspace
             clientId={client.id}
+            canManage={canManageClient}
             initial={{
               notes: meta.notes ?? meta.buyingJourney?.notes ?? "",
               sessionNotes: meta.sessionNotes ?? meta.buyingJourney?.sessionNotes ?? "",
@@ -1385,6 +1434,7 @@ export default async function ClientHome({
           />
           <ClientRecordWorkspace
             clientId={client.id}
+            canManage={canManageClient}
             initialPage={initialClientRecordLedgerPage}
             coverageWarnings={clientRecordCoverageWarnings}
             relatedWorkspaces={relationshipWorkspaces.map(workspace => ({

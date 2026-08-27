@@ -1,7 +1,7 @@
 // Server-side barrel — services + container builder + foundation adapter.
 
 export { CampaignService } from "./campaigns";
-export { LeadService } from "./leads";
+export { LeadService, MarketingLeadIdentityConflictError } from "./leads";
 export { TemplateService, DEFAULT_TEMPLATES } from "./templates";
 export { ReportService } from "./reports";
 export { ContentCalendarService } from "./content";

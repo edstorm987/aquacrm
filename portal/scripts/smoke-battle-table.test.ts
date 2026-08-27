@@ -2,6 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { before, test } from "node:test";
+import { buildPausedIntelligenceSnapshot } from "../src/app/portal/agency/commandPerformance";
+import {
+  createBattleNavigationState,
+  reconcileBattleNavigationState,
+} from "../src/app/portal/agency/battleNavigation";
 
 const require = createRequire(import.meta.url);
 const serverOnlyPath = require.resolve("server-only");
@@ -23,6 +28,47 @@ let storage: Storage;
 let tenants: Tenants;
 let company: Company;
 let tradingCompanies: TradingCompanies;
+
+test("Battle Table tolerates a paused or legacy scope-less intelligence snapshot", () => {
+  const paused = buildPausedIntelligenceSnapshot("GBP", 123);
+  assert.equal(paused.scopes[0]?.kind, "ecosystem", "new paused snapshots carry an aggregate scope");
+  const intelligenceScope = read("src/app/portal/agency/commandIntelligenceScope.ts");
+  const table = read("src/app/portal/agency/_BattleTableWorkspace.tsx");
+  assert.match(intelligenceScope, /if \(!scope \|\| scope\.kind === "ecosystem"\) return snapshot/);
+  assert.match(table, /intelligence\.scopes\[0\]\s*\n\s*\?\? fallbackIntelligenceScope\(selectedScope\)/);
+});
+
+test("a reused Battle subtree follows changed URL section/scope props without discarding plan drafts", () => {
+  const scopeIds = ["ecosystem", "company:alpha", "company:beta"];
+  let navigation = createBattleNavigationState<"warroom" | "capacity" | "systems">("warroom", "ecosystem", scopeIds);
+  navigation = { ...navigation, section: "capacity", scopeId: "company:alpha" };
+  const retainedProfiles = { "company:alpha": { unsavedPlan: "keep this draft" } };
+
+  const unrelatedRerender = reconcileBattleNavigationState(navigation, "warroom", "ecosystem", scopeIds);
+  assert.equal(unrelatedRerender, navigation, "unchanged query props preserve local Battle navigation");
+
+  const sectionOnlyRerender = reconcileBattleNavigationState(unrelatedRerender, "systems", "ecosystem", scopeIds);
+  assert.equal(sectionOnlyRerender.section, "systems");
+  assert.equal(sectionOnlyRerender.scopeId, "ecosystem", "one changed URL value applies the complete URL section/scope pair");
+
+  const locallyMovedAgain = { ...sectionOnlyRerender, section: "capacity" as const, scopeId: "company:alpha" };
+  const queryRerender = reconcileBattleNavigationState(locallyMovedAgain, "systems", "company:beta", scopeIds);
+  assert.deepEqual(queryRerender, {
+    section: "systems",
+    scopeId: "company:beta",
+    requestedSection: "systems",
+    requestedScopeId: "company:beta",
+  });
+  assert.equal(retainedProfiles["company:alpha"].unsavedPlan, "keep this draft", "navigation reconciliation does not remount or replace profile drafts");
+
+  const removedScopeRerender = reconcileBattleNavigationState(queryRerender, "systems", "company:beta", ["ecosystem"]);
+  assert.equal(removedScopeRerender.section, "systems");
+  assert.equal(removedScopeRerender.scopeId, "ecosystem", "a payload that removes the active scope falls back safely");
+
+  const table = read("src/app/portal/agency/_BattleTableWorkspace.tsx");
+  assert.match(table, /reconcileBattleNavigationState\(navigation, initialSection, initialScopeId, availableScopeIds\)/);
+  assert.match(table, /const \[profiles, setProfiles\] = useState/);
+});
 
 before(async () => {
   process.env.PORTAL_BACKEND = "memory";

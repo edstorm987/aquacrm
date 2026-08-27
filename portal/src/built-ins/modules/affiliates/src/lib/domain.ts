@@ -23,7 +23,10 @@ export interface Affiliate {
   defaultCommissionPercent?: number;
   payoutEmail: string;                // PayPal-style fallback; Stripe Connect when onboarded
   totalReferred: number;              // running counter — incremented on Attribution.recordOrder
-  lifetimeEarnings: number;           // cents — sum of paid-out attributions
+  // Legacy aggregate retained for existing consumers. Currency-aware UI must
+  // use `lifetimeEarningsByCurrency`; adding unlike currencies is not money.
+  lifetimeEarnings: number;
+  lifetimeEarningsByCurrency?: Record<string, number>;
   // Stripe Connect Express (R12). Absent until the affiliate clicks
   // "Set up payouts via Stripe" and completes the hosted flow.
   stripeAccountId?: string;
@@ -103,6 +106,13 @@ export interface Attribution {
   // Commission earned on this order, in cents. Computed as
   //   round(orderSubtotal * effectiveCommissionPercent / 100).
   amountCents: number;
+  currency: string;
+  // Immutable settlement snapshot from the source order. These values make
+  // later refund reconciliation independent of mutable order presentation.
+  orderAmountCents: number;
+  orderSubtotalCents: number;
+  orderStatusSnapshot: string;
+  orderPaidAt?: number;
   // Effective rate at the moment of the order, persisted so later
   // commission-rate changes don't retroactively alter past attributions.
   commissionPercentSnapshot: number;
@@ -111,6 +121,18 @@ export interface Attribution {
   approvedAt?: number;
   paidAt?: number;
   reversedAt?: number;
+  reversalReason?: "cancelled" | "refunded" | "manual";
+  orderRefundedAmountCents?: number;
+  // Commission revoked by the current cumulative refund/cancellation.
+  reversedAmountCents?: number;
+  // Actual commission settled when the owning payout completed. A reversal
+  // above this point becomes a future payout offset.
+  paidCommissionCents?: number;
+  offsetAmountCents?: number;
+  offsetAppliedCents?: number;
+  offsetClaimPayoutId?: string;
+  lastOffsetPayoutId?: string;
+  offsetAppliedAt?: number;
   payoutId?: string;                  // set when rolled into a Payout
 }
 
@@ -124,8 +146,14 @@ export interface Payout {
   agencyId: AgencyId;
   clientId: ClientId;
   affiliateId: string;
+  currency: string;
   amountCents: number;
+  grossAmountCents: number;
+  adjustmentAmountCents: number;
   attributionIds: string[];           // which orders this payout settles
+  attributionAmounts: Record<string, number>;
+  adjustmentAttributionIds: string[];
+  adjustmentAmounts: Record<string, number>;
   method: PayoutMethod;
   externalRef?: string;               // PayPal txn id, Stripe transfer id, etc.
   status: PayoutStatus;
@@ -137,8 +165,10 @@ export interface Payout {
 
 export interface SchedulePayoutInput {
   affiliateId: string;
+  currency?: string;
   method?: PayoutMethod;              // defaults to install setting
   scheduledFor?: number;              // epoch ms; defaults to now
+  operationId?: string;               // stable mounted intent identity
 }
 
 export interface MarkPayoutPaidInput {
@@ -168,4 +198,13 @@ export interface AttributionFilter {
 export interface PayoutFilter {
   affiliateId?: string;
   status?: PayoutStatus;
+  currency?: string;
+}
+
+export interface PayoutBalance {
+  affiliateId: string;
+  currency: string;
+  grossApprovedCents: number;
+  pendingAdjustmentCents: number;
+  availableCents: number;
 }

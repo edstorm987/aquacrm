@@ -7,9 +7,11 @@ import { useState } from "react";
 export function WebsiteBuilderLauncher({
   clientId,
   ready,
+  canManage = true,
 }: {
   clientId: string;
   ready: boolean;
+  canManage?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +27,10 @@ export function WebsiteBuilderLauncher({
         Open visual builder
       </Link>
     );
+  }
+
+  if (!canManage) {
+    return <span className="rounded-md border border-black/12 bg-black/[0.025] px-4 py-2 text-sm font-medium text-black/45">Visual builder unavailable</span>;
   }
 
   async function activate() {

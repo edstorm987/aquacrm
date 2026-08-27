@@ -12,7 +12,7 @@ import type {
   LeaveRequest,
 } from "../lib/domain";
 import type { PluginStorage } from "../lib/aquaPluginTypes";
-import type { ActivityLogPort, EventBusPort } from "./ports";
+import type { ActivityLogPort, EventBusPort, WorkforcePort } from "./ports";
 import type { StaffService } from "./staff";
 
 const LEAVE_INDEX_KEY = "leave/index";
@@ -25,9 +25,11 @@ export class LeaveService {
     private activity: ActivityLogPort,
     private events: EventBusPort,
     private staff: StaffService,
+    private workforce?: WorkforcePort,
   ) {}
 
   async list(filter?: LeaveFilter): Promise<LeaveRequest[]> {
+    if (this.workforce) return this.workforce.listLeave(this.agencyId, filter);
     const index = (await this.storage.get<string[]>(LEAVE_INDEX_KEY)) ?? [];
     const rows: LeaveRequest[] = [];
     for (const id of index) {
@@ -42,6 +44,7 @@ export class LeaveService {
   }
 
   async get(id: string): Promise<LeaveRequest | null> {
+    if (this.workforce) return this.workforce.getLeave(this.agencyId, id);
     const row = await this.storage.get<LeaveRequest>(leaveKey(id));
     return row && row.agencyId === this.agencyId ? row : null;
   }
@@ -53,6 +56,20 @@ export class LeaveService {
       throw new Error("startDate and endDate must be YYYY-MM-DD.");
     }
     if (input.endDate < input.startDate) throw new Error("endDate must be on or after startDate.");
+
+    if (this.workforce) {
+      const row = await this.workforce.requestLeave(this.agencyId, input, actor);
+      await this.activity.logActivity({
+        agencyId: this.agencyId,
+        actorUserId: actor,
+        category: "hr",
+        action: "hr.leave.requested",
+        message: `${member.name} requested ${row.type} (${row.days} day${row.days === 1 ? "" : "s"}) in People.`,
+        metadata: { leaveId: row.id, staffId: member.id, type: row.type, days: row.days },
+      });
+      this.events.emit({ agencyId: this.agencyId }, "hr.leave.requested", { leaveId: row.id });
+      return row;
+    }
 
     const days = daysBetween(input.startDate, input.endDate);
     const id = makeId("lv");
@@ -93,6 +110,21 @@ export class LeaveService {
       throw new Error(`Leave request ${id} already ${existing.status}.`);
     }
     const member = await this.staff.get(existing.staffId);
+    if (this.workforce) {
+      const updated = await this.workforce.decideLeave(this.agencyId, id, decision);
+      if (!updated) return null;
+      const action = decision.status === "approved" ? "hr.leave.approved" : "hr.leave.rejected";
+      await this.activity.logActivity({
+        agencyId: this.agencyId,
+        actorUserId: decision.approvedBy,
+        category: "hr",
+        action,
+        message: `${decision.status === "approved" ? "Approved" : "Rejected"} ${member?.name ?? "staff"}'s ${existing.type} request in People.`,
+        metadata: { leaveId: id, staffId: existing.staffId, decisionNote: decision.decisionNote },
+      });
+      this.events.emit({ agencyId: this.agencyId }, action, { leaveId: id });
+      return updated;
+    }
     const updated: LeaveRequest = {
       ...existing,
       status: decision.status,
@@ -123,6 +155,19 @@ export class LeaveService {
   async cancel(id: string, actor: UserId): Promise<boolean> {
     const existing = await this.get(id);
     if (!existing) return false;
+    if (this.workforce) {
+      const ok = await this.workforce.cancelLeave(this.agencyId, id, actor);
+      if (!ok) return false;
+      await this.activity.logActivity({
+        agencyId: this.agencyId,
+        actorUserId: actor,
+        category: "hr",
+        action: "hr.leave.cancelled",
+        message: `Cancelled canonical People leave request ${id}.`,
+        metadata: { leaveId: id, staffId: existing.staffId },
+      });
+      return true;
+    }
     await this.storage.del(leaveKey(id));
     const index = (await this.storage.get<string[]>(LEAVE_INDEX_KEY)) ?? [];
     await this.storage.set(LEAVE_INDEX_KEY, index.filter(x => x !== id));

@@ -1,11 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ensureHydrated } from "@/server/storage";
 import { getActiveAgencyId, requireRole } from "@/lib/server/auth/auth";
-import { createUser, getUser, getUserById, listUsersForAgency, updateUser } from "@/server/users";
+import { getUserById, listUsersForAgency, updateUser, validatePassword } from "@/server/users";
 import { logActivity } from "@/server/activity";
 import type { Role, ServerUser } from "@/server/types";
 import { getTradingCompany } from "@/server/tradingCompanies";
-import { provisionSupabaseIdentity } from "@/lib/supabase/admin";
+import { AGENCY_SETTINGS_MANAGER_ROLES } from "@/lib/agencySettingsCapabilities";
+import {
+  runStaffProvisioning,
+  StaffProvisioningConflictError,
+  StaffProvisioningRecoveryError,
+} from "@/server/staffProvisioning";
 
 const STAFF_ROLES: Role[] = ["agency-manager", "agency-staff"];
 
@@ -35,7 +40,7 @@ export async function GET() {
   await ensureHydrated();
   let session;
   try {
-    session = await requireRole(["agency-owner", "agency-manager"]);
+    session = await requireRole([...AGENCY_SETTINGS_MANAGER_ROLES]);
   } catch {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
@@ -53,7 +58,7 @@ export async function POST(req: NextRequest) {
   await ensureHydrated();
   let session;
   try {
-    session = await requireRole(["agency-owner", "agency-manager"]);
+    session = await requireRole([...AGENCY_SETTINGS_MANAGER_ROLES]);
   } catch {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
@@ -86,29 +91,28 @@ export async function POST(req: NextRequest) {
   if (session.role !== "agency-owner" && role === "agency-manager") {
     return NextResponse.json({ ok: false, error: "Only the owner can create managers." }, { status: 403 });
   }
-  if (getUser(email)) {
-    return NextResponse.json({ ok: false, error: "A user with that email already exists." }, { status: 409 });
+  const passwordCheck = validatePassword(password);
+  if (!passwordCheck.ok) {
+    return NextResponse.json({ ok: false, error: passwordCheck.error ?? "Choose a stronger password." }, { status: 400 });
   }
-
+  const staffRole = role as "agency-manager" | "agency-staff";
   try {
     const agencyId = getActiveAgencyId(session);
     const companyIds = requestedCompanyIds.filter(id => Boolean(getTradingCompany(agencyId, id))).slice(0, 30);
-    await provisionSupabaseIdentity({
+    const result = await runStaffProvisioning({
+      agencyId,
+      actorUserId: session.userId,
       email,
       password,
       name,
-      role: "staff",
-      agencyId,
+      localRole: staffRole,
+      target: {
+        kind: "agency-user",
+        companyIds,
+        username,
+      },
     });
-    const user = createUser({
-      name,
-      email,
-      username,
-      password,
-      role,
-      agencyId,
-    });
-    const assignedUser = companyIds.length ? updateUser(user.email, { companyIds }) ?? user : user;
+    const user = result.user;
 
     logActivity({
       agencyId,
@@ -120,18 +124,26 @@ export async function POST(req: NextRequest) {
       metadata: { userId: user.id, role },
     });
 
-    return NextResponse.json({ ok: true, user: publicUser(assignedUser) }, { status: 201 });
+    return NextResponse.json({ ok: true, user: publicUser(user), resumed: result.resumed }, { status: 201 });
   } catch (e) {
+    if (e instanceof StaffProvisioningRecoveryError) {
+      return NextResponse.json({
+        ok: false,
+        error: `${e.message} Retry the same account setup to resume safely.`,
+        retryable: true,
+        provisioningStage: e.stage,
+      }, { status: 503 });
+    }
     return NextResponse.json(
       { ok: false, error: e instanceof Error ? e.message : "Could not create user." },
-      { status: 400 },
+      { status: e instanceof StaffProvisioningConflictError ? 409 : 400 },
     );
   }
 }
 
 export async function PATCH(req: NextRequest) {
   await ensureHydrated();
-  const session = await requireRole(["agency-owner", "agency-manager"]);
+  const session = await requireRole([...AGENCY_SETTINGS_MANAGER_ROLES]);
   const body = await req.json().catch(() => null) as { userId?: string; companyIds?: string[] } | null;
   const target = body?.userId ? getUserById(body.userId) : null;
   if (!target || target.agencyId !== session.agencyId || !target.role.startsWith("agency-")) {

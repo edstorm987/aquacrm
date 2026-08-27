@@ -3,6 +3,7 @@
 import type { BlockRenderProps } from "../blockRegistry";
 import { blockStylesToCss } from "../blockStyles";
 import { useProductsByRange, formatPrice } from "../useProducts";
+import { useCart } from "../ecommerceBridge";
 
 // Live product grid. Reads the configured collection (range) and limit,
 // pulls products from the catalog API, and renders them through the
@@ -15,6 +16,7 @@ export default function ProductGridBlock({ block, editorMode }: BlockRenderProps
   const limit = Math.max(1, Math.min(48, Number(block.props.limit ?? 9) || 9));
 
   const { products, loading } = useProductsByRange(collection, limit);
+  const cart = useCart();
 
   const style: React.CSSProperties = {
     display: "grid",
@@ -52,9 +54,32 @@ export default function ProductGridBlock({ block, editorMode }: BlockRenderProps
           </p>
           <p style={{ fontSize: 11, opacity: 0.7, margin: 0 }}>
             {p.onSale && p.salePrice
-              ? <><span style={{ textDecoration: "line-through", opacity: 0.5, marginRight: 4 }}>{formatPrice(p.price)}</span><span style={{ color: "var(--brand-accent, #ff6b35)", fontWeight: 600 }}>{formatPrice(p.salePrice)}</span></>
-              : formatPrice(p.price)}
+              ? <><span style={{ textDecoration: "line-through", opacity: 0.5, marginRight: 4 }}>{formatPrice(p.price, p.currency)}</span><span style={{ color: "var(--brand-accent, #ff6b35)", fontWeight: 600 }}>{formatPrice(p.salePrice, p.currency)}</span></>
+              : formatPrice(p.price, p.currency)}
           </p>
+          <button
+            type="button"
+            disabled={editorMode}
+            onClick={() => {
+              if (editorMode) return;
+              if ((p.variants?.length ?? 0) > 0) {
+                window.location.href = `/products/${p.slug}`;
+                return;
+              }
+              cart.addItem({
+                id: p.id,
+                productId: p.id,
+                name: p.name,
+                price: p.onSale && p.salePrice !== undefined ? p.salePrice : p.price,
+                quantity: 1,
+                image: p.image,
+                productHandle: p.slug,
+              });
+            }}
+            style={{ marginTop: 8, width: "100%", padding: "8px 12px", border: 0, borderRadius: 8, background: "var(--brand-accent, #ff6b35)", color: "#fff", fontSize: 12, fontWeight: 600 }}
+          >
+            {(p.variants?.length ?? 0) > 0 ? "Choose options" : "Add to cart"}
+          </button>
         </article>
       ) : (
         <article

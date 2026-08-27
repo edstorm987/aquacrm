@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
-import { devDocsAccessible } from "@/lib/server/dev/devDocs";
+import { accessErrorResponse } from "@/server/accessControl";
+import { requireDevProjectAccess } from "@/lib/server/dev/devProjectAccess";
 import { EDITOR_AI_HISTORY_LIMITS } from "@/engines/editor/server/editorAiHistory";
 import { generateEditorAiReply } from "@/engines/editor/server/editorAiReply";
-import { ensureHydrated, flushPendingWrites } from "@/server/storage";
+import { flushPendingWrites } from "@/server/storage";
 
 // ─── AQUA EDITOR AI — the reply API, per project ─────────────────────────────
 //
@@ -16,7 +16,7 @@ import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 // ── Its own route, beside its siblings ───────────────────────────────────────
 //
 // Same family as `../route.ts` (the key) and `../history/route.ts` (the
-// transcript): POST only, same three gates, same tenant-then-project scoping,
+// transcript): POST only, the same project/AI-use capability checks and the
 // same refusal sentences — a foreign project id and an invented one are
 // indistinguishable. Separate file because this one WAITS ON A PROVIDER: it
 // holds a connection open for up to 45 seconds, and mixing that into the
@@ -82,15 +82,11 @@ const FAILURE_STATUS = {
   provider: 502,
   empty: 502,
   stale: 409,
+  in_progress: 409,
 } as const;
 
 export async function POST(request: Request) {
   try {
-    await ensureHydrated();
-    const session = await requireRole(["agency-owner", "agency-manager"]);
-    if (!devDocsAccessible(session)) {
-      return NextResponse.json({ ok: false, error: "Dev Mode is required." }, { status: 403 });
-    }
     if (!validOrigin(request)) {
       return NextResponse.json({ ok: false, error: "Invalid request origin." }, { status: 403 });
     }
@@ -100,6 +96,14 @@ export async function POST(request: Request) {
     if (!projectId) {
       return NextResponse.json({ ok: false, error: "Which project?" }, { status: 400 });
     }
+    // The canonical access check refreshes authoritative state before the
+    // provider is called, preserving cross-instance reply idempotency while
+    // enforcing this project's AI surface.
+    const access = await requireDevProjectAccess({
+      projectId,
+      capability: "project.ai",
+      elementCapability: "element.development.ai.use",
+    });
     const threadId = typeof body?.threadId === "string" ? body.threadId.trim() : "";
     if (!threadId) {
       return NextResponse.json({ ok: false, error: "Which conversation?" }, { status: 400 });
@@ -108,11 +112,11 @@ export async function POST(request: Request) {
 
     try {
       const result = await generateEditorAiReply({
-        agencyId: session.agencyId,
+        agencyId: access.resourceAgencyId,
         projectId,
         threadId,
         messageId,
-        actorUserId: session.userId,
+        actorUserId: access.user.id,
         context: typeof body?.context === "string" ? body.context : undefined,
       });
 
@@ -137,6 +141,6 @@ export async function POST(request: Request) {
       return failure(error);
     }
   } catch (error) {
-    return authErrorResponse(error);
+    return accessErrorResponse(error);
   }
 }

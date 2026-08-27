@@ -15,6 +15,7 @@ import { reconcileClientProductWorkspaces } from "@/server/productWorkspaces";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 type RolloutAction = "sync-catalogue" | "adopt-template";
 
@@ -60,6 +61,13 @@ export async function POST(request: Request) {
     });
     if (clients.length !== clientIds.length) {
       return NextResponse.json({ ok: false, error: "One or more clients are unavailable." }, { status: 409 });
+    }
+    for (const client of clients) {
+      await requireCurrentClientWorkspaceElementAccess(
+        client.id,
+        action === "sync-catalogue" ? "client.fulfilment" : "client.portal",
+        "manage",
+      );
     }
 
     let updated = 0;

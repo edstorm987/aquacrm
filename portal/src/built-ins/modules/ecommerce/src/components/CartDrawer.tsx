@@ -4,7 +4,7 @@
 // Lifted from `02 felicias aqua portal work/src/components/CartDrawer.tsx`,
 // stripped of brand-specific markup. Rendered via T3's editor block by id.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { useCart } from "../context/CartContext";
 
@@ -18,6 +18,7 @@ export function CartDrawer({ apiBase }: CartDrawerProps) {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const operationId = useRef(globalThis.crypto?.randomUUID?.() ?? `checkout-${Date.now()}`);
 
   if (!cart.isOpen) return null;
 
@@ -38,18 +39,14 @@ export function CartDrawer({ apiBase }: CartDrawerProps) {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          lineItems: cart.items.map(i => ({
-            name: i.name,
-            description: i.variant,
-            amount: i.price,
-            currency: "gbp",
+          version: 1,
+          operationId: operationId.current,
+          items: cart.items.map(i => ({
+            productId: i.productId,
+            variantId: i.variantId,
             quantity: i.quantity,
           })),
-          discountAmount: cart.subtotal - cart.total,
-          metadata: {
-            cartId: `cart_${Date.now()}`,
-            discountCodes: cart.discounts.map(d => d.code).join(","),
-          },
+          discountCode: cart.discounts[0]?.code,
         }),
       });
       const data = await res.json() as { ok: boolean; url?: string; error?: string };

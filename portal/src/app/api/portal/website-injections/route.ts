@@ -12,6 +12,7 @@ import {
 } from "@/server/websiteInjections";
 import { logActivity } from "@/server/activity";
 import { AGENCY_ROLES } from "@/server/types";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 
 /**
  * Managing the third-party tools the Aqua Tag injects on each site — the
@@ -33,12 +34,13 @@ const PROVIDER_CATALOGUE = INJECTION_PROVIDERS.map(provider => ({
 export async function GET() {
   try {
     await ensureHydrated();
-    const session = await requireRole([...AGENCY_ROLES]);
-    const sites = listWebsiteSources(session.agencyId).map(source => ({
+    await requireRole([...AGENCY_ROLES]);
+    const { actor } = await requireCurrentWorkspaceElementAccess("fulfilment", "fulfilment.tags", "view");
+    const sites = listWebsiteSources(actor.resourceAgencyId).map(source => ({
       id: source.id,
       host: source.host,
       label: source.label,
-      injections: listInjections(session.agencyId, source.id),
+      injections: listInjections(actor.resourceAgencyId, source.id),
     }));
     await flushPendingWrites();
     return NextResponse.json({ ok: true, sites, providers: PROVIDER_CATALOGUE });
@@ -51,6 +53,8 @@ export async function POST(request: NextRequest) {
   try {
     await ensureHydrated();
     const session = await requireRole([...AGENCY_ROLES]);
+    const { actor } = await requireCurrentWorkspaceElementAccess("fulfilment", "fulfilment.tags", "manage");
+    const agencyId = actor.resourceAgencyId;
     const body = await request.json().catch(() => null) as Record<string, unknown> | null;
     const action = typeof body?.action === "string" ? body.action : "";
     const str = (value: unknown) => typeof value === "string" ? value : undefined;
@@ -59,7 +63,7 @@ export async function POST(request: NextRequest) {
     if (action === "add") {
       try {
         const injection = addInjection({
-          agencyId: session.agencyId,
+          agencyId,
           websiteSourceId: siteId,
           kind: str(body?.kind) ?? "",
           value: str(body?.value) ?? "",
@@ -67,7 +71,7 @@ export async function POST(request: NextRequest) {
           label: str(body?.label),
         });
         logActivity({
-          agencyId: session.agencyId,
+          agencyId,
           actorUserId: session.userId,
           actorEmail: session.email,
           category: "integrations",
@@ -85,7 +89,7 @@ export async function POST(request: NextRequest) {
     if (action === "update") {
       try {
         const injection = updateInjection({
-          agencyId: session.agencyId,
+          agencyId,
           websiteSourceId: siteId,
           injectionId: str(body?.injectionId) ?? "",
           enabled: typeof body?.enabled === "boolean" ? body.enabled : undefined,
@@ -102,7 +106,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === "remove") {
-      const removed = removeInjection(session.agencyId, siteId, str(body?.injectionId) ?? "");
+      const removed = removeInjection(agencyId, siteId, str(body?.injectionId) ?? "");
       if (!removed) return NextResponse.json({ ok: false, error: "That tool was not found." }, { status: 404 });
       await flushPendingWrites();
       return NextResponse.json({ ok: true });

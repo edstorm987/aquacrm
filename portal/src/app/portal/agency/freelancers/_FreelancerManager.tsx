@@ -10,6 +10,7 @@ interface FreelancerRow {
   email: string;
   title: string;
   userId?: string;
+  setupPending: boolean;
   jobs: { id: string; title: string; status: string }[];
 }
 
@@ -21,28 +22,37 @@ export function FreelancerManager({ freelancers }: { freelancers: FreelancerRow[
   const [title, setTitle] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
+  const [outcome, setOutcome] = useState<{ message: string; setupUrl?: string } | null>(null);
   const [previewing, setPreviewing] = useState<string | null>(null);
 
   async function create() {
     if (creating) return;
     setCreating(true);
     setError("");
+    setOutcome(null);
     try {
       const res = await fetch("/api/portal/freelancers", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ name, email, title }),
       });
-      const json = await res.json() as { ok?: boolean; error?: string };
+      const json = await res.json() as { ok?: boolean; error?: string; retryable?: boolean; provisioningStage?: string; inviteDelivered?: boolean; setupUrl?: string };
       if (!res.ok || !json.ok) {
         throw new Error(
           json.error === "email_in_use" ? "That email is already in use." :
           json.error === "email_invalid" ? "Enter a valid email address." :
           json.error === "name_required" ? "A name is required." :
+          json.retryable ? `Setup paused at ${json.provisioningStage ?? "a saved step"}. Submit the same details to resume.` :
           "Could not add the freelancer.",
         );
       }
-      window.location.reload();
+      setOutcome({
+        message: json.inviteDelivered
+          ? "Freelancer created and setup email sent."
+          : "Freelancer created. Email delivery is not connected; use the setup link below.",
+        setupUrl: json.setupUrl,
+      });
+      setCreating(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not add the freelancer.");
       setCreating(false);
@@ -76,6 +86,7 @@ export function FreelancerManager({ freelancers }: { freelancers: FreelancerRow[
           <input className={inputCls} placeholder="Title (e.g. Illustrator)" value={title} onChange={e => setTitle(e.target.value)} />
         </div>
         {error ? <p className="text-sm text-red-600" role="alert">{error}</p> : null}
+        {outcome ? <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900" role="status"><p>{outcome.message}</p>{outcome.setupUrl ? <a className="mt-2 inline-block break-all font-semibold underline" href={outcome.setupUrl}>Open secure setup link</a> : null}<button type="button" className="ml-3 font-semibold underline" onClick={() => window.location.reload()}>Refresh list</button></div> : null}
         <button
           type="button"
           onClick={() => void create()}
@@ -96,7 +107,7 @@ export function FreelancerManager({ freelancers }: { freelancers: FreelancerRow[
               <li key={f.employeeId} className="flex items-center justify-between gap-3 rounded-lg border border-[var(--mm-border)] bg-[var(--mm-surface)] p-4">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-[var(--mm-text)]">{f.name}</p>
-                  <p className="truncate text-xs text-[var(--mm-text-muted)]">{f.title} · {f.email} · {f.jobs.length} job{f.jobs.length === 1 ? "" : "s"}</p>
+                  <p className="truncate text-xs text-[var(--mm-text-muted)]">{f.title} · {f.email} · {f.jobs.length} job{f.jobs.length === 1 ? "" : "s"} · {f.setupPending ? "setup pending" : "account active"}</p>
                 </div>
                 <button
                   type="button"

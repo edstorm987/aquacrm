@@ -1,5 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
+import { RemoteOperationError } from "../src/lib/server/remoteOperation";
 import { applyStoragePatch, diffStorageValue, type StoragePatchOperation } from "../src/server/storagePatch";
 
 test("the first record initializes a new remote collection", () => {
@@ -138,3 +139,54 @@ test("remote portal storage flushes writes and refreshes warm-process state", as
     process.env.PORTAL_STATE_KEY = originalStateKey;
   }
 });
+
+test("Supabase reads and full-state writes exit stalled adapters with typed recovery", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const originalServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "https://storage-timeout.supabase.test";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-timeout";
+  let lastSignal: AbortSignal | null = null;
+  globalThis.fetch = ((_input: RequestInfo | URL, init?: RequestInit) => {
+    lastSignal = init?.signal as AbortSignal;
+    return new Promise<Response>(() => undefined);
+  }) as typeof fetch;
+
+  try {
+    const storage = await import("../src/server/storageSupabase");
+    const readError = await rejectionOf(storage.loadBlob({ timeoutMs: 5 }));
+    assert.ok(readError instanceof RemoteOperationError);
+    assert.equal(readError.retry, "safe");
+    assert.equal(readError.outcomeUnknown, false);
+    assert.equal(lastSignal?.aborted, true);
+
+    const writeError = await rejectionOf(storage.saveBlob("{}", { timeoutMs: 5 }));
+    assert.ok(writeError instanceof RemoteOperationError);
+    assert.equal(writeError.retry, "reconcile-first");
+    assert.equal(writeError.outcomeUnknown, true);
+    assert.equal(lastSignal?.aborted, true);
+
+    const patchError = await rejectionOf(storage.applyPatch([
+      { op: "set", path: ["assistant", "deadline"], value: true },
+    ], { timeoutMs: 5 }));
+    assert.ok(patchError instanceof RemoteOperationError);
+    assert.equal(patchError.retry, "same-operation-key");
+    assert.equal(patchError.outcomeUnknown, true);
+    assert.equal(lastSignal?.aborted, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    else process.env.NEXT_PUBLIC_SUPABASE_URL = originalUrl;
+    if (originalServiceKey === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    else process.env.SUPABASE_SERVICE_ROLE_KEY = originalServiceKey;
+  }
+});
+
+async function rejectionOf(promise: Promise<unknown>): Promise<unknown> {
+  try {
+    await promise;
+  } catch (error) {
+    return error;
+  }
+  assert.fail("Expected the promise to reject.");
+}

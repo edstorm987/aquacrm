@@ -11,6 +11,7 @@ import type {
 } from "./src/lib/aquaPluginTypes";
 import { ROUTES } from "./src/api/routes";
 import { _containerFromCtx } from "./src/server/foundationAdapter";
+import { buildEmailSenderHealth } from "./src/server/health";
 
 const AGENCY_ADMINS = ["agency-owner", "agency-manager"] as const;
 const AGENCY_VIEWERS = ["agency-owner", "agency-manager", "agency-staff"] as const;
@@ -27,8 +28,9 @@ const manifest: AquaPlugin = {
     "across the agency portal. Plugins enqueue via the cross-plugin event " +
     "bus (forms.notification.requested, membership.subscription_changed, " +
     "affiliate.payout_completed, auth.bootstrap.signup) — this plugin's " +
-    "EmailService subscribes via foundation R6 router. Drivers: postmark + " +
-    "no-op (sendgrid/resend/smtp stubs flagged R11). Idempotency on " +
+    "EmailService subscribes via foundation R6 router. Drivers: Postmark + " +
+    "SMTP; provider none keeps messages queued without claiming delivery " +
+    "(SendGrid/Resend remain stubs). Idempotency on " +
     "(triggeredByPlugin, externalRef-or-payloadHash) prevents duplicate " +
     "sends across retries. Webhook ingest from Postmark closes the loop on " +
     "delivered / bounced / spam / opened.",
@@ -92,9 +94,9 @@ const manifest: AquaPlugin = {
               { value: "postmark", label: "Postmark" },
               { value: "sendgrid", label: "SendGrid (R11 stub)" },
               { value: "resend", label: "Resend (R11 stub)" },
-              { value: "smtp", label: "SMTP (R11 stub)" },
+              { value: "smtp", label: "SMTP" },
             ],
-            helpText: "Defaults to 'none' on install. Switch to postmark + supply API key to enable real send.",
+            helpText: "Defaults to 'none' on install, which keeps messages queued. Configure Postmark or SMTP and complete a successful test send to become active.",
           },
           {
             id: "webhookSecret",
@@ -128,7 +130,7 @@ const manifest: AquaPlugin = {
   },
 
   features: [
-    { id: "drivers", label: "Postmark + no-op drivers (sendgrid/resend/smtp stubs flagged R11)", default: true },
+    { id: "drivers", label: "Postmark + SMTP delivery; disabled-provider queueing; SendGrid/Resend stubs", default: true },
     { id: "idempotency", label: "Per-(plugin, externalRef) idempotency on enqueue", default: true },
     { id: "cross-plugin-subscribers", label: "Subscriber wiring for forms / membership / affiliate / auth events", default: true },
     { id: "webhook-ingest", label: "Postmark webhook ingest (delivered/bounced/spam/open)", default: true },
@@ -187,18 +189,7 @@ const manifest: AquaPlugin = {
       c.identities.list(),
       c.emails.list({}),
     ]);
-    const queued = messages.filter(m => m.status === "queued").length;
-    const failed = messages.filter(m => m.status === "failed" || m.status === "bounced").length;
-    const ok = provider.status !== "error";
-    return {
-      ok,
-      message: `provider=${provider.provider} (${provider.status}) · ${identities.length} identities · ${queued} queued · ${failed} failed`,
-      components: {
-        provider: { ok: provider.status !== "error", message: `${provider.provider}/${provider.status}` },
-        identities: { ok: identities.length > 0, message: `${identities.length} identities` },
-        outbox: { ok: failed === 0, message: `${queued} queued · ${failed} failed` },
-      },
-    };
+    return buildEmailSenderHealth(provider, identities, messages);
   },
 };
 

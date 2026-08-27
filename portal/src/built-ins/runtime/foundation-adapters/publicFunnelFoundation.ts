@@ -11,7 +11,11 @@ import "server-only";
 //   • idempotent `registered` flag — boot side-effect import calls
 //     `ensurePublicFunnelFoundationRegistered()` once
 
-import { registerFunnelFoundation } from "@aqua/plugin-public-funnel/server";
+import {
+  containerFor,
+  FunnelInputError,
+  registerFunnelFoundation,
+} from "@aqua/plugin-public-funnel/server";
 import {
   activityPort,
   eventBusPort,
@@ -20,6 +24,13 @@ import {
 import { leadUserPort, sessionPort } from "./leadFunnelPorts";
 
 let registered = false;
+
+// Build containers through the same imported module instance that owns the
+// registration. Some workspace runtimes give package exports and direct source
+// imports separate module identities; centralising both sides prevents a split
+// registry that silently drops otherwise-persisted funnel context.
+export const publicFunnelContainerFor = containerFor;
+export { FunnelInputError };
 
 export function ensurePublicFunnelFoundationRegistered(): void {
   if (registered) return;

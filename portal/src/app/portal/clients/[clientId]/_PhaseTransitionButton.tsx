@@ -10,8 +10,13 @@
 //     `transitionService` does the heavy lifting under the hood
 //     (disable old + enable new + activity log + archivedConfig).
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import {
+  createPhaseTransitionOperationId,
+  phaseTransitionFailureMessage,
+  type PhaseTransitionApiResult,
+} from "@/built-ins/modules/fulfillment/src/lib/transitionFeedback";
 
 interface Phase {
   id: string;        // PhaseDefinition.id (per-agency)
@@ -60,6 +65,11 @@ export function PhaseTransitionButton({
   const [error, setError] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [, startTransition] = useTransition();
+  const operationIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    operationIdRef.current = null;
+  }, [target?.id]);
 
   useEffect(() => {
     if (!isFounder) return;
@@ -101,6 +111,7 @@ export function PhaseTransitionButton({
     setBusy(true);
     setError(null);
     try {
+      operationIdRef.current ??= createPhaseTransitionOperationId(clientId, current.id, target.id);
       const res = await fetch("/api/portal/fulfillment/phase/advance", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -109,16 +120,20 @@ export function PhaseTransitionButton({
           fromPhaseId: current.id,
           toPhaseId: target.id,
           reason: reason.trim() || undefined,
+          operationId: operationIdRef.current,
         }),
       });
-      const data = await res.json() as { ok: boolean; error?: string };
+      const data = await res.json() as PhaseTransitionApiResult;
       if (!data.ok) {
-        setError(data.error ?? "Phase transition failed.");
+        setError(phaseTransitionFailureMessage(data));
         return;
       }
+      operationIdRef.current = null;
       setTarget(null);
       setReason("");
       startTransition(() => router.refresh());
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Phase transition failed.");
     } finally {
       setBusy(false);
     }

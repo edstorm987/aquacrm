@@ -50,6 +50,12 @@ test("Milesymedia website is a first-party project with release and page control
   assert.equal(website.websitePageIsUpdating(updating, "/client-centre")?.message, "Improving client access.");
 });
 
+test("an agency without a website stays visibly unconfigured on read", () => {
+  const agency = tenants.createAgency({ name: "Unconfigured", slug: "unconfigured" });
+  assert.equal(website.readAgencyWebsite(agency.id), null);
+  assert.equal(storage.getState().agencyWebsites[agency.id], undefined);
+});
+
 test("Aqua tag events are accepted and summarised separately from clients", () => {
   const agency = tenants.createAgency({ name: "Aqua Tag", slug: "aqua-tag" });
   const project = website.ensureAgencyWebsite(agency.id);

@@ -10,27 +10,27 @@
     'Visibility & Search': {
       leakHeadline: 'You\'re hard to find when people search.',
       suggestedAction: 'Read Core Principles — visibility comes first; everything else compounds on top.',
-      deepLinkTo: { kind: 'lesson', label: 'Open Core Principles', href: '../business-os/quick-wins.html' }
+      deepLinkTo: { kind: 'lesson', label: 'Open Core Principles', href: '/business-os/quick-wins.html' }
     },
     'Your Website': {
       leakHeadline: 'Visitors are landing but not converting.',
       suggestedAction: 'Read Super Sales — the page-by-page audit that turns lookers into leads.',
-      deepLinkTo: { kind: 'lesson', label: 'Open Super Sales', href: '../business-os/quick-wins.html' }
+      deepLinkTo: { kind: 'lesson', label: 'Open Super Sales', href: '/business-os/quick-wins.html' }
     },
     'Where Customers Come From': {
       leakHeadline: 'You\'re channel-dependent — too much from one place.',
-      suggestedAction: 'Open the Diagnostics phase to map every channel and rate the leak.',
-      deepLinkTo: { kind: 'phase', label: 'Open Diagnostics phase', href: 'phase-3-diagnostics.html' }
+      suggestedAction: 'Review My Diagnostic, then use the saved evidence to choose the next channel action.',
+      deepLinkTo: { kind: 'open', label: 'Open My Diagnostic', href: '/business-os/diagnostic.html' }
     },
     'My Business': {
       leakHeadline: 'Your foundations need shoring up before scale.',
-      suggestedAction: 'Open the Blueprint phase to fill in the structure first.',
-      deepLinkTo: { kind: 'phase', label: 'Open Blueprint phase', href: 'phase-2-blueprint.html' }
+      suggestedAction: 'Open Quick Wins and start with the smallest practical foundation fix.',
+      deepLinkTo: { kind: 'lesson', label: 'Open Quick Wins', href: '/business-os/quick-wins.html' }
     },
     'Keeping Them': {
       leakHeadline: 'Customers leave after the first sale.',
       suggestedAction: 'Read Referral Alchemy — turn one happy client into three.',
-      deepLinkTo: { kind: 'lesson', label: 'Open Referral Alchemy', href: '../business-os/quick-wins.html' }
+      deepLinkTo: { kind: 'lesson', label: 'Open Referral Alchemy', href: '/business-os/quick-wins.html' }
     }
   };
 
@@ -38,7 +38,7 @@
     topic: '_human',
     leakHeadline: 'A leak that bad is worth a 30-minute call.',
     suggestedAction: 'Book a free strategy call — we\'ll walk through your live data and leave you with a costed plan.',
-    deepLinkTo: { kind: 'human', label: 'Talk to a human', href: 'https://wa.me/' },
+    deepLinkTo: { kind: 'human', label: 'Talk to a human', href: 'https://wa.me/447707020250' },
     severity: 'critical',
     score: null
   };
@@ -83,7 +83,7 @@
         '<div>' +
           '<strong>No Health Check on file yet.</strong>' +
           '<p class="inc-hc-strip-sub">Run the 12-minute Health Check — it surfaces the real leaks and your next moves land here automatically.</p>' +
-          '<a class="inc-btn" href="../health-check/index.html">Run the Health Check →</a>' +
+          '<a class="inc-btn" href="/health-check">Run the Health Check →</a>' +
         '</div>' +
       '</div>';
   }
@@ -121,7 +121,7 @@
           '<span class="inc-grid-label" style="margin:0">Your next move — based on your Health Check</span>' +
           partial +
         '</div>' +
-        '<a class="inc-hc-relink" href="../health-check/index.html">Re-run the HC ↗</a>' +
+        '<a class="inc-hc-relink" href="/health-check">Re-run the HC ↗</a>' +
       '</div>' +
       '<div class="inc-hc-recs">' + rows + '</div>';
   }

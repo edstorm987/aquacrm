@@ -14,6 +14,8 @@ export interface PublicIntegrationConnection {
   lastTestedAt?: number;
   lastTestStatus?: "passed" | "failed";
   lastTestMessage?: string;
+  isActive: boolean;
+  activatedAt?: number;
   createdAt: number;
   updatedAt: number;
 }

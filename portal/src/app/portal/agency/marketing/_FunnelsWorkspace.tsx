@@ -59,6 +59,7 @@ type PreviewEnvironment = "preview" | "live";
 
 type FunnelDraft = {
   id?: string;
+  expectedUpdatedAt?: number;
   name: string;
   companyIds: string[];
   status: MarketingAssetStatus;
@@ -302,7 +303,7 @@ export function FunnelsWorkspace({
       const response = await fetch("/api/portal/agency-marketing/assets", {
         method: draft.id ? "PATCH" : "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(draft.id ? { id: draft.id, patch: payload } : { ...payload, kind: "funnel" }),
+        body: JSON.stringify(draft.id ? { id: draft.id, expectedUpdatedAt: draft.expectedUpdatedAt, patch: payload } : { ...payload, kind: "funnel" }),
       });
       const data = await response.json() as { ok?: boolean; error?: string; asset?: MarketingAsset };
       if (!response.ok || !data.ok || !data.asset) throw new Error(data.error ?? "Could not save this funnel.");
@@ -325,7 +326,7 @@ export function FunnelsWorkspace({
     setBusy("delete");
     setError("");
     try {
-      const response = await fetch(`/api/portal/agency-marketing/assets?id=${encodeURIComponent(draft.id)}`, { method: "DELETE" });
+      const response = await fetch(`/api/portal/agency-marketing/assets?id=${encodeURIComponent(draft.id)}&updatedAt=${draft.expectedUpdatedAt ?? ""}`, { method: "DELETE" });
       const data = await response.json() as { ok?: boolean; error?: string };
       if (!response.ok || !data.ok) throw new Error(data.error ?? "Could not delete this funnel.");
       const next = records.filter(asset => asset.id !== draft.id);
@@ -808,6 +809,7 @@ function assetToDraft(asset: MarketingAsset): FunnelDraft {
   const funnel = asset.funnel;
   return {
     id: asset.id,
+    expectedUpdatedAt: asset.updatedAt,
     name: asset.name,
     companyIds: asset.companyIds ?? [],
     status: asset.status,

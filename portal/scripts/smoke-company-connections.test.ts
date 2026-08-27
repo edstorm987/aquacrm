@@ -35,6 +35,9 @@ describe("company connections workspace", () => {
     assert.ok(assistant.includes("Configure OpenAI"));
     assert.ok(integrationPanel.includes("initialProvider"));
     assert.ok(integrationPanel.includes("setModal({ provider: initialProvider, connection: existing })"));
+    assert.ok(integrationPanel.includes("integrationSupportsClientScope"));
+    assert.ok(integrationPanel.includes("Make active"));
+    assert.ok(integrationPanel.includes('action: "activate"'));
   });
 
   it("removes the duplicate Settings integration tab and points work to Company", () => {

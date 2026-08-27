@@ -43,6 +43,10 @@ import {
   generateEditorAiReply,
 } from "../src/engines/editor/server/editorAiReply";
 import {
+  createMemoryEditorAiReplyClaimCoordinator,
+  editorAiReplyClaimKey,
+} from "../src/engines/editor/server/editorAiReplyClaim";
+import {
   editorAiReason,
   setEditorAiToken,
 } from "../src/engines/editor/server/editorAi";
@@ -56,7 +60,13 @@ import { saveDevProject } from "../src/engines/editor/server/devProjects";
 import * as replyRoute from "../src/app/api/portal/dev/editor-ai/reply/route";
 import * as historyRoute from "../src/app/api/portal/dev/editor-ai/history/route";
 import { issueSession } from "../src/lib/server/auth/auth";
-import { ensureHydrated, getState } from "../src/server/storage";
+import {
+  LIVE_DATA_REALM_ID,
+  cloneCurrentDataRealm,
+  ensureHydrated,
+  getState,
+  runInDataRealm,
+} from "../src/server/storage";
 import { createAgency } from "../src/server/tenants";
 import { createUser } from "../src/server/users";
 import type { EditorAiConversation, EditorAiMessage } from "../src/server/types";
@@ -319,6 +329,78 @@ describe("Aqua Editor AI reply — one saved message gets one answer", () => {
     assert.equal(getEditorAiThread(agencyId, project.id, threadId)?.messages.length, 2);
   });
 
+  it("does not coalesce identical live and snapshot ids or share their local claims/results", async () => {
+    const { agencyId, userId } = await runInDataRealm(LIVE_DATA_REALM_ID, founder);
+    const ready = await runInDataRealm(LIVE_DATA_REALM_ID, () => readyProject(agencyId, userId));
+    const snapshotRealm = `sandbox-editor-ai-realm-${Date.now()}-${seq}`;
+    await runInDataRealm(LIVE_DATA_REALM_ID, () => cloneCurrentDataRealm(snapshotRealm));
+
+    let releaseLive!: () => void;
+    let markLiveStarted!: () => void;
+    const liveGate = new Promise<void>(resolve => { releaseLive = resolve; });
+    const liveStarted = new Promise<void>(resolve => { markLiveStarted = resolve; });
+    let liveFetchCalls = 0;
+    let snapshotFetchCalls = 0;
+    const sharedInput = {
+      agencyId,
+      projectId: ready.project.id,
+      threadId: ready.threadId,
+      messageId: ready.messageId,
+      actorUserId: userId,
+    };
+
+    const liveReply = runInDataRealm(LIVE_DATA_REALM_ID, () => generateEditorAiReply({
+      ...sharedInput,
+      fetchImpl: (async () => {
+        liveFetchCalls += 1;
+        markLiveStarted();
+        await liveGate;
+        return new Response(JSON.stringify({ output_text: "Live realm answer." }), { status: 200 });
+      }) as typeof fetch,
+    }));
+    await liveStarted;
+
+    const snapshotReply = runInDataRealm(snapshotRealm, () => generateEditorAiReply({
+      ...sharedInput,
+      fetchImpl: (async () => {
+        snapshotFetchCalls += 1;
+        return new Response(JSON.stringify({ output_text: "Must never leave Sandbox." }), { status: 200 });
+      }) as typeof fetch,
+    }));
+
+    // Let the snapshot request reach both the in-process promise map and the
+    // local claim coordinator before the live provider is released.
+    await new Promise<void>(resolve => setImmediate(resolve));
+    releaseLive();
+    const [liveResult, snapshotResult] = await Promise.all([liveReply, snapshotReply]);
+
+    assert.equal(liveResult.ok, true);
+    assert.equal(!snapshotResult.ok ? snapshotResult.code : "", "provider",
+      "the snapshot reaches its own provider fence, not the live promise or claim");
+    assert.match(!snapshotResult.ok ? snapshotResult.error : "", /blocked in Sandbox Mode/);
+    assert.equal(liveFetchCalls, 1);
+    assert.equal(snapshotFetchCalls, 0, "a real-looking cloned key still causes zero snapshot network");
+
+    const liveMessages = runInDataRealm(LIVE_DATA_REALM_ID, () =>
+      getEditorAiThread(agencyId, ready.project.id, ready.threadId)?.messages ?? []);
+    const snapshotMessages = runInDataRealm(snapshotRealm, () =>
+      getEditorAiThread(agencyId, ready.project.id, ready.threadId)?.messages ?? []);
+    assert.equal(liveMessages.at(-1)?.content, "Live realm answer.");
+    assert.equal(snapshotMessages.filter(message => message.role === "assistant").length, 0,
+      "the live result never enters the cloned snapshot transcript");
+
+    const snapshotRetry = await runInDataRealm(snapshotRealm, () => generateEditorAiReply({
+      ...sharedInput,
+      fetchImpl: (async () => {
+        snapshotFetchCalls += 1;
+        return new Response(JSON.stringify({ output_text: "Still must not run." }), { status: 200 });
+      }) as typeof fetch,
+    }));
+    assert.equal(!snapshotRetry.ok ? snapshotRetry.code : "", "provider",
+      "live claim completion is not completion in the snapshot realm");
+    assert.equal(snapshotFetchCalls, 0);
+  });
+
   it("does not append an old answer after a newer user message arrives", async () => {
     const { agencyId, userId } = await founder();
     const { project, threadId, messageId } = readyProject(agencyId, userId);
@@ -408,6 +490,36 @@ describe("Aqua Editor AI reply — the key is the project's own, every time", ()
     const thread = getEditorAiThread(agencyId, project.id, appended.threadId);
     assert.equal(thread?.messages.length, 1, "a failed reply appends nothing");
   });
+
+  it("blocks a writable snapshot with its own real-looking project key before any network", async () => {
+    const realmId = `sandbox-editor-ai-provider-${Date.now()}-${seq}`;
+    await runInDataRealm(realmId, async () => {
+      await ensureHydrated();
+      const { agencyId, userId } = await founder();
+      const { project, threadId, messageId } = readyProject(agencyId, userId, {
+        apiKey: EDITOR_KEY,
+      });
+      let fetchCalls = 0;
+      const result = await generateEditorAiReply({
+        agencyId,
+        projectId: project.id,
+        threadId,
+        messageId,
+        actorUserId: userId,
+        fetchImpl: (async () => {
+          fetchCalls += 1;
+          return new Response(JSON.stringify({ output_text: "must never run" }), { status: 200 });
+        }) as typeof fetch,
+      });
+
+      assert.equal(result.ok, false);
+      assert.equal(!result.ok ? result.code : "", "provider");
+      assert.match(!result.ok ? result.error : "", /blocked in Sandbox Mode/);
+      assert.equal(fetchCalls, 0, "the shared adapter fences the provider before fetch");
+      assert.equal(getEditorAiThread(agencyId, project.id, threadId)?.messages.length, 1,
+        "the writable snapshot keeps the saved user message but gains no assistant result");
+    });
+  });
 });
 
 describe("Aqua Editor AI reply — failure is words, and the words are clean", () => {
@@ -447,6 +559,133 @@ describe("Aqua Editor AI reply — failure is words, and the words are clean", (
     assert.ok(!result.ok, "a hung provider is a failure, not a wait");
     assert.equal(result.code, "timeout");
     assert.match(result.error, /stopped waiting/, "the wait ends in a sentence");
+    assert.equal(getEditorAiThread(agencyId, project.id, threadId)?.messages.length, 1, "nothing was appended");
+  });
+
+  it("holds the claim after an outcome-unknown provider timeout instead of spending an immediate retry", async () => {
+    const { agencyId, userId } = await founder();
+    const { project, threadId, messageId } = readyProject(agencyId, userId);
+    const memory = createMemoryEditorAiReplyClaimCoordinator();
+    let releases = 0;
+    const coordinator = {
+      claim: memory.claim,
+      complete: memory.complete,
+      release: async (claimKey: string, holderId: string) => {
+        releases += 1;
+        await memory.release(claimKey, holderId);
+      },
+    };
+    const input = {
+      agencyId,
+      projectId: project.id,
+      threadId,
+      messageId,
+      actorUserId: userId,
+      timeoutMs: 25,
+      replyClaimCoordinator: coordinator,
+    };
+
+    const first = await generateEditorAiReply({ ...input, fetchImpl: hangingFetch });
+    assert.equal(!first.ok ? first.code : "", "timeout");
+    assert.match(!first.ok ? first.error : "", /outcome is unknown/i);
+    assert.doesNotMatch(!first.ok ? first.error : "", /try again/i,
+      "a non-idempotent unknown outcome must not invite a blind retry");
+    assert.equal(releases, 0, "the unknown provider outcome keeps its bounded claim");
+
+    let retryFetchCalls = 0;
+    const second = await generateEditorAiReply({
+      ...input,
+      fetchImpl: (async () => {
+        retryFetchCalls += 1;
+        return new Response(JSON.stringify({ output_text: "duplicate" }), { status: 200 });
+      }) as typeof fetch,
+    });
+    assert.equal(!second.ok ? second.code : "", "in_progress");
+    assert.equal(retryFetchCalls, 0, "the held claim prevents a duplicate generation");
+    assert.equal(releases, 0, "a non-holder cannot release the timed-out holder's claim");
+
+    const claimKey = editorAiReplyClaimKey({
+      agencyId,
+      projectId: project.id,
+      threadId,
+      messageId,
+    });
+    assert.equal((await memory.claim(claimKey, "independent-retry", 90_000)).state, "held");
+  });
+
+  it("does not trust a warm appended reply or release the claim when post-provider persistence fails", async () => {
+    const { agencyId, userId } = await founder();
+    const { project, threadId, messageId } = readyProject(agencyId, userId);
+    const memory = createMemoryEditorAiReplyClaimCoordinator();
+    let releases = 0;
+    const coordinator = {
+      claim: memory.claim,
+      complete: memory.complete,
+      release: async (claimKey: string, holderId: string) => {
+        releases += 1;
+        await memory.release(claimKey, holderId);
+      },
+    };
+    const input = {
+      agencyId,
+      projectId: project.id,
+      threadId,
+      messageId,
+      actorUserId: userId,
+      replyClaimCoordinator: coordinator,
+    };
+    let providerCalls = 0;
+    await assert.rejects(
+      generateEditorAiReply({
+        ...input,
+        fetchImpl: (async () => {
+          providerCalls += 1;
+          return new Response(JSON.stringify({ output_text: "Warm but not proven durable." }), { status: 200 });
+        }) as typeof fetch,
+        flushPendingWritesImpl: async () => { throw new Error("simulated_persistence_failure"); },
+      }),
+      /simulated_persistence_failure/,
+    );
+    assert.equal(providerCalls, 1);
+    assert.equal(releases, 0, "post-provider failure keeps the bounded claim");
+    assert.equal(getEditorAiThread(agencyId, project.id, threadId)?.messages.at(-1)?.role, "assistant",
+      "the regression includes the dangerous warm-cache assistant line");
+
+    let retryFetchCalls = 0;
+    const retry = await generateEditorAiReply({
+      ...input,
+      fetchImpl: (async () => {
+        retryFetchCalls += 1;
+        return new Response(JSON.stringify({ output_text: "duplicate" }), { status: 200 });
+      }) as typeof fetch,
+    });
+    assert.equal(!retry.ok ? retry.code : "", "in_progress",
+      "a warm unproven assistant line is not reported as durable success");
+    assert.equal(retryFetchCalls, 0);
+    assert.equal(releases, 0);
+  });
+
+  it("keeps the timeout active while a response body is read", async () => {
+    const { agencyId, userId } = await founder();
+    const { project, threadId } = readyProject(agencyId, userId);
+    const headersOnlyFetch = (async () => ({
+      ok: true,
+      status: 200,
+      // A real fetch can resolve on headers while the body keeps streaming.
+      // This deliberately ignores AbortSignal so only the explicit body race
+      // can end the wait.
+      json: () => new Promise(() => undefined),
+    }) as unknown as Response) as typeof fetch;
+
+    const result = await generateEditorAiReply({
+      agencyId, projectId: project.id, threadId, actorUserId: userId,
+      fetchImpl: headersOnlyFetch,
+      timeoutMs: 25,
+    });
+
+    assert.ok(!result.ok, "headers without a body are a timeout, not a wait");
+    assert.equal(result.code, "timeout");
+    assert.match(result.error, /stopped waiting/);
     assert.equal(getEditorAiThread(agencyId, project.id, threadId)?.messages.length, 1, "nothing was appended");
   });
 

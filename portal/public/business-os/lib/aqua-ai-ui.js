@@ -226,7 +226,7 @@
       '</form>' +
       '<div class="inc-ai-foot">' +
         '<a href="#" data-ai-clear>Clear conversation</a>' +
-        '<a href="https://wa.me/" target="_blank" rel="noopener">Talk to a human ↗</a>' +
+        '<a href="https://wa.me/447707020250" target="_blank" rel="noopener">Talk to a human ↗</a>' +
       '</div>';
     document.body.appendChild(panel);
 

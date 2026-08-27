@@ -10,9 +10,12 @@ export { PlanService } from "./plans";
 export { PnLService } from "./pnl";
 export { BudgetService } from "./budgets";
 export { FinanceOperationsService } from "./operations";
+export { AccountingService, calculateAccountingPeriod } from "./accounting";
 
 export type {
   ActivityLogPort,
+  CanonicalCompensationTerms,
+  CompensationTermsPort,
   EventBusPort,
   FinanceEventName,
   ListActivityFilter,
@@ -38,6 +41,7 @@ import type { AgencyId } from "../lib/tenancy";
 import type { PluginStorage } from "../lib/aquaPluginTypes";
 import type {
   ActivityLogPort,
+  CompensationTermsPort,
   EventBusPort,
   PluginInstallStorePort,
   StoragePort,
@@ -54,6 +58,7 @@ import { PlanService } from "./plans";
 import { PnLService } from "./pnl";
 import { BudgetService } from "./budgets";
 import { FinanceOperationsService } from "./operations";
+import { AccountingService } from "./accounting";
 
 // ─── Container ────────────────────────────────────────────────────────────
 
@@ -65,6 +70,9 @@ export interface AgencyFinanceDeps {
   tenant: TenantPort;
   user: UserPort;
   pluginInstalls: PluginInstallStorePort;
+  // Optional only for standalone package tests. The mounted portal foundation
+  // requires this bridge so linked staff terms always come from People.
+  compensation?: CompensationTermsPort;
 }
 
 export interface AgencyFinanceContainer {
@@ -79,19 +87,21 @@ export interface AgencyFinanceContainer {
   pnl: PnLService;
   budgets: BudgetService;
   operations: FinanceOperationsService;
+  accounting: AccountingService;
 }
 
 export function buildAgencyFinanceContainer(deps: AgencyFinanceDeps): AgencyFinanceContainer {
   const storage = deps.storage as StoragePort;
   const categories = new CategoryService(deps.agencyId, storage, deps.activity, deps.events);
   const budgets = new BudgetService(deps.agencyId, storage, deps.activity, deps.events);
-  const operations = new FinanceOperationsService(deps.agencyId, storage, deps.activity, deps.events, budgets);
+  const operations = new FinanceOperationsService(deps.agencyId, storage, deps.activity, deps.events, budgets, deps.compensation);
   const invoices = new InvoiceService(deps.agencyId, storage, deps.tenant, deps.activity, deps.events);
   const expenses = new ExpenseService(deps.agencyId, storage, deps.activity, deps.events, categories, budgets);
   const payments = new PaymentService(deps.agencyId, storage, deps.activity, deps.events, invoices);
   const income = new IncomeService(deps.agencyId, storage, deps.activity, deps.events);
-  const reports = new ReportService(deps.agencyId, invoices, expenses, categories, income);
-  const plans = new PlanService(deps.agencyId, storage, deps.activity, deps.events);
-  const pnl = new PnLService(deps.agencyId, invoices, payments, income, expenses, plans);
-  return { tenant: deps.tenant, invoices, expenses, categories, reports, payments, income, plans, pnl, budgets, operations };
+  const accounting = new AccountingService(invoices, payments, income, expenses);
+  const reports = new ReportService(invoices, expenses, categories, accounting);
+  const plans = new PlanService(deps.agencyId, storage, deps.tenant, deps.activity, deps.events);
+  const pnl = new PnLService(payments, plans, accounting);
+  return { tenant: deps.tenant, invoices, expenses, categories, reports, payments, income, plans, pnl, budgets, operations, accounting };
 }

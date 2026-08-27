@@ -1,24 +1,32 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getSessionFromRequest } from "@/lib/server/auth/auth";
+import { authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
 import { queryActivity, redactActivityValue } from "@/server/activity";
 import { ensureHydrated } from "@/server/storage";
 import { isoDateTimeValue } from "@/lib/shared/formatDateTime";
-
-const ALLOWED_ROLES = new Set(["agency-owner", "agency-manager"]);
+import { canUseAgencySettingsCapability } from "@/lib/agencySettingsCapabilities";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 export async function GET(req: NextRequest) {
   await ensureHydrated();
   const session = await getSessionFromRequest(req);
-  if (!session || !ALLOWED_ROLES.has(session.role)) {
+  if (!session || !canUseAgencySettingsCapability(session.role, "viewActivityLog")) {
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
 
   const params = req.nextUrl.searchParams;
+  const clientId = params.get("clientId") || undefined;
+  if (clientId) {
+    try {
+      await requireCurrentClientWorkspaceElementAccess(clientId, "client.record", "view");
+    } catch (error) {
+      return authErrorResponse(error);
+    }
+  }
   const from = parseDate(params.get("from"), false);
   const to = parseDate(params.get("to"), true);
   const result = queryActivity({
     agencyId: session.agencyId,
-    clientId: params.get("clientId") || undefined,
+    clientId,
     category: params.get("category") || undefined,
     action: params.get("action") || undefined,
     actor: params.get("actor") || undefined,
@@ -37,7 +45,7 @@ export async function GET(req: NextRequest) {
   if (format === "json") {
     const complete = queryActivity({
       agencyId: session.agencyId,
-      clientId: params.get("clientId") || undefined,
+      clientId,
       category: params.get("category") || undefined,
       action: params.get("action") || undefined,
       actor: params.get("actor") || undefined,
@@ -54,7 +62,7 @@ export async function GET(req: NextRequest) {
   if (format === "csv") {
     const complete = queryActivity({
       agencyId: session.agencyId,
-      clientId: params.get("clientId") || undefined,
+      clientId,
       category: params.get("category") || undefined,
       action: params.get("action") || undefined,
       actor: params.get("actor") || undefined,

@@ -9,9 +9,9 @@ import { requireRole } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES } from "@/server/types";
 import { getAgency, listClients } from "@/server/tenants";
 import { getUserById } from "@/server/users";
-import { getInstall, listInstalledFor } from "@/server/pluginInstalls";
-import { installPlugin, setPluginEnabled } from "@/built-ins/runtime/_runtime";
-import { buildSidebar } from "@/lib/chrome/sidebarLayout";
+import { listInstalledFor } from "@/server/pluginInstalls";
+import { buildSidebar, type NavPanel } from "@/lib/chrome/sidebarLayout";
+import { AGENCY_SIDEBAR_PLUGIN_CATALOG } from "@/lib/chrome/agencySidebarPluginCatalog";
 import { effectiveRole } from "@/lib/server/auth/effectiveRole";
 import { canUseDevMode } from "@/lib/server/dev/devModeAccess";
 import { devDocsAccessible } from "@/lib/server/dev/devDocs";
@@ -25,10 +25,9 @@ import { ResolutionSpotlight } from "@/components/attention/ResolutionSpotlight"
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { INTERNAL_WORKSPACE_NAME, INTERNAL_WORKSPACE_SUBTITLE } from "@/lib/shared/internalWorkspace";
 import { PortalRouteCanvas } from "@/components/chrome/PortalRouteCanvas";
-import { getRequestOperationalAlerts } from "@/lib/server/inbox/operationalAlerts";
 import { performanceModePreference } from "@/lib/server/performanceMode";
 import { devIconPreference } from "@/lib/server/devIconPreference";
-import type { OperationalAlert } from "@/lib/server/inbox/operationalAlerts";
+import type { OperationalAlert } from "@/lib/intelligence/operationalAttention";
 import { addSidebarAttention } from "@/lib/server/sidebarAttention";
 import { listOperationalAlertViews } from "@/lib/server/inbox/operationalAlertPreferences";
 import { NotificationAttentionProvider } from "@/components/chrome/NotificationAttentionProvider";
@@ -42,12 +41,19 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
   } catch {
     redirect("/portal");
   }
-  if (session.role === "agency-staff") redirect("/portal/team");
+  const h = await headers();
+  const currentPath = h.get("x-invoke-path") ?? h.get("x-pathname") ?? "/portal/agency";
+  // The proxy admits staff only to the explicitly delegated agency roots.
+  // Once inside that allow-list, render a reduced shell instead of bouncing
+  // them back to Team before the leaf element check can run.
+  const delegatedStaff = session.role === "agency-staff";
 
   const agency = getAgency(session.agencyId);
   if (!agency) redirect("/login");
   const currentUser = getUserById(session.userId);
-  const privacyTerms = listClients(agency.id, { includeArchived: true }).flatMap(client => {
+  const workspaceName = session.publicShowcase ? agency.name : INTERNAL_WORKSPACE_NAME;
+  const workspaceSubtitle = session.publicShowcase ? "Fictional demonstration workspace" : INTERNAL_WORKSPACE_SUBTITLE;
+  const privacyTerms = delegatedStaff ? [] : listClients(agency.id, { includeArchived: true }).flatMap(client => {
     const metadata = client.metadata ?? {};
     return [
       client.name,
@@ -58,36 +64,76 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
     ];
   });
 
-  let leadsInstall = getInstall({ agencyId: agency.id }, "leads-pipeline");
-  if (!leadsInstall) {
-    const result = await installPlugin("leads-pipeline", {
-      scope: { agencyId: agency.id },
-      installedBy: session.userId,
-    });
-    if (result.ok) leadsInstall = result.install;
-  } else if (!leadsInstall.enabled) {
-    await setPluginEnabled({ agencyId: agency.id }, "leads-pipeline", true);
+  let installs = listInstalledFor({ agencyId: agency.id });
+  // New agencies already carry this core install. Keep the legacy self-heal,
+  // but do not compile its executable foundation graph on every healthy shell
+  // render merely to rediscover that the enabled row exists.
+  if (!session.publicShowcase && !delegatedStaff && !installs.some(install => install.pluginId === "leads-pipeline" && install.enabled)) {
+    const { ensureLeadsPipelineInstall } = await import("@/lib/server/plugins/ensureLeadsPipelineInstall");
+    ensureLeadsPipelineInstall(agency.id, session.userId);
+    installs = listInstalledFor({ agencyId: agency.id });
   }
-
-  const installs = listInstalledFor({ agencyId: agency.id });
   const eff = effectiveRole(session);
-  const basePanels = buildSidebar({
+  let basePanels = buildSidebar({
     role: session.role,
     scope: "agency",
     installedPlugins: installs,
+    pluginCatalog: AGENCY_SIDEBAR_PLUGIN_CATALOG,
     permissions: eff.permissions,
     isFounder: eff.isFounder,
     devModeAvailable: canUseDevMode(),
+    devTeamAvailable: devDocsAccessible(session),
+    publicShowcase: session.publicShowcase,
   });
+  if (delegatedStaff) {
+    const [
+      { requireCurrentAccessActor },
+      {
+        FULFILMENT_VIEW_ELEMENT_KEYS,
+        resolveActorWorkspaceElementAccess,
+        STAFF_COMMAND_ELEMENT_KEYS,
+        workspaceElementLevel,
+      },
+    ] = await Promise.all([
+      import("@/server/accessControl"),
+      import("@/lib/server/access/workspaceElementAccess"),
+    ]);
+    const actor = await requireCurrentAccessActor();
+    const staffAccess = resolveActorWorkspaceElementAccess(actor, "staff");
+    const fulfilmentAccess = resolveActorWorkspaceElementAccess(actor, "fulfilment");
+    const hasPeople = Object.values(STAFF_COMMAND_ELEMENT_KEYS)
+      .some(key => workspaceElementLevel(staffAccess, key) !== "hidden");
+    const hasFulfilment = Object.values(FULFILMENT_VIEW_ELEMENT_KEYS)
+      .some(key => workspaceElementLevel(fulfilmentAccess, key) !== "hidden");
+    basePanels = [{
+      id: "main",
+      label: "",
+      order: 0,
+      items: [
+        { id: "team", label: "My workspace", href: "/portal/team", panelId: "main", order: 0 },
+        ...(hasPeople ? [{ id: "people", label: "Staff", href: "/portal/agency/people", panelId: "main" as const, order: 10 }] : []),
+        ...(hasFulfilment ? [{ id: "fulfilment", label: "Fulfilment", href: "/portal/agency/fulfilment", panelId: "main" as const, order: 20 }] : []),
+      ],
+    }, {
+      id: "settings",
+      label: "Settings",
+      order: 90,
+      items: [{ id: "account", label: "My profile", href: "/portal/account", panelId: "settings", order: 0 }],
+    }] satisfies NavPanel[];
+  }
   // Performance mode (server-read cookie): the sidebar attention sweep runs a
   // full portfolio scan + a live Supabase fetch on EVERY agency page. When perf
   // mode is on we skip it entirely — the sidebar still renders, badges simply
   // show nothing/paused rather than triggering that work per navigation.
   const perfMode = await performanceModePreference();
-  // Dev-icon visibility preference (server-read cookie). Sits UNDER the founder
-  // + Dev-Mode gate below: it can only hide an icon the founder already earns.
+  // Dev-icon visibility preference (server-read cookie). Sits under the shared
+  // founder-only Dev Team gate: it can only hide an icon the founder already earns.
   const devIconVisible = await devIconPreference();
-  const operationalAlerts: OperationalAlert[] = perfMode ? [] : await getRequestOperationalAlerts(agency.id);
+  let operationalAlerts: OperationalAlert[] = [];
+  if (!perfMode && !session.publicShowcase && !delegatedStaff) {
+    const { getRequestOperationalAlerts } = await import("@/lib/server/inbox/operationalAlerts");
+    operationalAlerts = await getRequestOperationalAlerts(agency.id);
+  }
   const alertViews = listOperationalAlertViews(agency.id, session.userId, operationalAlerts);
   const panels = addSidebarAttention(basePanels, alertViews.filter(alert =>
     alert.attention || (alert.persistentUntilResolved && alert.state !== "parked")
@@ -95,14 +141,11 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
 
   // Best-effort current path for "active" highlighting. Falls back to ""
   // when the header isn't present (some preview environments).
-  const h = await headers();
-  const currentPath = h.get("x-invoke-path") ?? h.get("x-pathname") ?? "/portal/agency";
-
   // T1 R13 Goal D — iframe embed mode strips Sidebar + Topbar so the
   // demo can render flush inside the marketing site's iframe. Cookie
   // is set by /demo?embed=1.
   const embed = h.get("cookie")?.includes("lk_demo_embed=1") ?? false;
-  const advisorEnabled = session.role === "agency-owner" || session.role === "agency-manager";
+  const advisorEnabled = !session.publicShowcase && (session.role === "agency-owner" || session.role === "agency-manager");
 
   if (embed) {
     return (
@@ -123,32 +166,33 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
       <div className="mm-portal-root flex h-dvh overflow-hidden">
         <Sidebar
           panels={panels}
-          tenantLabel={INTERNAL_WORKSPACE_NAME}
+          tenantLabel={workspaceName}
           currentPath={currentPath}
         />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <Topbar
             inspecting={Boolean(session.previewReturnUserId)}
-            title={INTERNAL_WORKSPACE_NAME}
-            subtitle={INTERNAL_WORKSPACE_SUBTITLE}
+            title={workspaceName}
+            subtitle={workspaceSubtitle}
             role={session.role}
             email={session.email}
             name={currentUser?.name}
             avatarUrl={currentUser?.avatarUrl}
             panels={panels}
-            tenantLabel={INTERNAL_WORKSPACE_NAME}
+            tenantLabel={workspaceName}
             currentPath={currentPath}
             isDemo={session.isDemo}
             showcaseMode={Boolean(session.showcaseReturnAgencyId)}
+            sandboxMode={Boolean(session.sandbox)}
             publicShowcase={session.publicShowcase}
             canUseDevMode={canUseDevMode() && eff.isFounder}
             devConsole={devDocsAccessible(session) && devIconVisible}
             devModeActive={Boolean(session.devReturnAgencyId)}
             privacyTerms={privacyTerms}
             notifications={<NotificationCentreButton />}
-            radarControl={advisorEnabled ? <RadarQuickLookControl agencyId={session.agencyId} /> : null}
+            radarControl={advisorEnabled ? <RadarQuickLookControl agencyId={session.agencyId} lightweight={perfMode} /> : null}
             advisorControl={advisorEnabled ? (
-              <AdvisorDrawerControl agencyId={session.agencyId} userId={session.userId} userName={currentUser?.name || session.email} />
+              <AdvisorDrawerControl agencyId={session.agencyId} userId={session.userId} userName={currentUser?.name || session.email} lightweight={perfMode} />
             ) : null}
           />
           <main id="main-content" className="mm-private-surface min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6 lg:px-8 lg:py-6">

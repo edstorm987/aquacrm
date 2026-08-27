@@ -1,12 +1,12 @@
 import "server-only";
-// Dev Docs — a read-only, Dev-Mode-gated index of the project's OWN markdown,
-// read LIVE off the local filesystem and presented as a browsable folder tree.
+// Dev Docs — a read-only index of the project's OWN markdown, presented as a
+// browsable folder tree. Local development reads the working tree. Production
+// reads the checked-in deployment snapshot included by Next output tracing.
 //
-// This is dev tooling. It only ever runs locally, because every reachable
-// surface (the sidebar item, the route, and the public entry points here)
-// gates on `canUseDevMode()` + `effectiveRole(session).isFounder`. That gate is
-// what makes reading the repo's docs off disk safe: there is no
-// durable/serverless filesystem in play, only a founder's local sandbox.
+// This is the founder's internal control plane, not a tenant feature. Every
+// reachable surface (sidebar, page and API/reader) delegates to the shared
+// `devTeamAccessible()` decision: local fixtures still require Dev Mode, while
+// production admits only the deployment's live FOUNDER_EMAIL account.
 //
 // Scope (Ed's call): EVERY markdown file in the portal — `docs/` (incl. the
 // generated `reference/` tree), the root handoff files (CLAUDE/AGENTS/README),
@@ -15,13 +15,24 @@ import "server-only";
 //
 // Read-only by contract: this module walks and reads markdown; it never writes.
 
-import { readdir, stat, open, readFile } from "node:fs/promises";
-import type { FileHandle } from "node:fs/promises";
 import { join, resolve, relative, basename, sep } from "node:path";
 
-import { memoiseByStat, readParsedFile } from "@/lib/server/dev/devMarkdownCache";
-import { canUseDevMode } from "@/lib/server/dev/devModeAccess";
-import { effectiveRole } from "@/lib/server/auth/effectiveRole";
+import {
+  createCoalescedRefreshCache,
+  memoiseByStat,
+  readParsedFile,
+} from "@/lib/server/dev/devMarkdownCache";
+import { devTeamAccessible } from "@/lib/server/dev/devTeamAccess";
+import {
+  readDevWorkspaceDirectory,
+  readDevWorkspaceHead,
+  readDevWorkspaceSnapshot,
+} from "@/lib/server/dev/devWorkspaceFiles";
+import {
+  CONSOLIDATED_AUTHORED_DOC_PATHS,
+  consolidatedDevDocsIndex,
+} from "@/lib/server/dev/devDocsConsolidation";
+import { getActiveDataRealmId } from "@/server/dataRealm";
 import type { SessionPayload } from "@/server/types";
 
 // The portal root. Server code here resolves disk paths from `process.cwd()`
@@ -35,10 +46,10 @@ const IGNORED_DIRS = new Set([
   ".cache", "coverage", "dist", "build", ".claude",
 ]);
 
-// The generated per-source-file docs (~1,700). Their titles come from the
-// filename (they mirror source paths, shown in full on the row) rather than a
-// file read, so the scan stays fast.
-const GENERATED_PREFIX = "docs/reference/files/";
+/** Exact and worker-suffixed build directories are never documentation. */
+export function isIgnoredDevDocsDirectory(name: string): boolean {
+  return IGNORED_DIRS.has(name) || name.startsWith(".next-");
+}
 
 export interface DevDocEntry {
   /** Posix path relative to the portal root, e.g. "docs/development/plans/dev-docs.md". The stable id. */
@@ -68,9 +79,9 @@ export interface DevDocsIndex {
 
 // ---- gate ------------------------------------------------------------------
 
-/** The one predicate every reachable Dev Docs surface asks. Dev Mode + founder. */
+/** The compatibility name every existing Dev Team surface imports. */
 export function devDocsAccessible(session: SessionPayload | null | undefined): boolean {
-  return canUseDevMode() && effectiveRole(session).isFounder;
+  return devTeamAccessible(session);
 }
 
 export function assertDevDocsAccess(session: SessionPayload | null | undefined): void {
@@ -95,12 +106,8 @@ function stripInline(s: string): string {
 
 /** Best-effort first ATX heading from the file's opening bytes; null if none. */
 async function firstHeadingTitle(absPath: string): Promise<string | null> {
-  let fh: FileHandle | undefined;
   try {
-    fh = await open(absPath, "r");
-    const buf = Buffer.alloc(2048);
-    const { bytesRead } = await fh.read(buf, 0, 2048, 0);
-    const text = buf.subarray(0, bytesRead).toString("utf8");
+    const text = (await readDevWorkspaceHead(absPath, 2048)).toString("utf8");
     for (const raw of text.split(/\r?\n/)) {
       const line = raw.trim();
       if (!line) continue;
@@ -110,8 +117,6 @@ async function firstHeadingTitle(absPath: string): Promise<string | null> {
     return null;
   } catch {
     return null;
-  } finally {
-    await fh?.close();
   }
 }
 
@@ -120,13 +125,13 @@ async function firstHeadingTitle(absPath: string): Promise<string | null> {
 async function walk(absDir: string, acc: string[]): Promise<void> {
   let dirents;
   try {
-    dirents = await readdir(absDir, { withFileTypes: true });
+    dirents = await readDevWorkspaceDirectory(absDir);
   } catch {
     return; // unreadable dir — skip, not fatal
   }
   for (const d of dirents) {
     if (d.isDirectory()) {
-      if (IGNORED_DIRS.has(d.name)) continue;
+      if (isIgnoredDevDocsDirectory(d.name)) continue;
       await walk(join(absDir, d.name), acc);
     } else if (d.isFile() && d.name.toLowerCase().endsWith(".md")) {
       acc.push(join(absDir, d.name));
@@ -135,16 +140,12 @@ async function walk(absDir: string, acc: string[]): Promise<void> {
 }
 
 async function buildEntry(abs: string, relPath: string): Promise<DevDocEntry | null> {
-  // Memoise by mtime: the cost is the `firstHeadingTitle` read on ~1,700 docs,
-  // and the tree is re-scanned on every Dev Docs request. The stat mtime/size
-  // that validated the cache doubles as the entry's own fields, so no second
-  // stat is needed.
+  // Memoise by mtime. Generated source references are consolidated into a few
+  // large volumes, so every doc can use its real first heading without the old
+  // filename-only shortcut for thousands of per-source stubs.
   return memoiseByStat("docEntry", abs, async ({ mtimeMs, size }) => {
     const bareName = basename(relPath).replace(/\.md$/i, "");
-    const derived = relPath.startsWith(GENERATED_PREFIX);
-    const title = derived
-      ? bareName
-      : (await firstHeadingTitle(abs)) ?? humaniseFilename(bareName);
+    const title = (await firstHeadingTitle(abs)) ?? humaniseFilename(bareName);
     return { relPath, title, mtimeMs, sizeBytes: size };
   });
 }
@@ -192,16 +193,20 @@ export function buildDocTree(entries: DevDocEntry[]): DevDocTreeNode[] {
  * a flat newest-first list plus the folder tree. Gate-free (the pure scan) —
  * the gate lives on the public entry `listDevDocs()` and on the route.
  */
-export async function scanDevDocs(): Promise<DevDocsIndex> {
-  const absFiles: string[] = [];
-  await walk(PROJECT_ROOT, absFiles);
+export const DEV_DOCS_INDEX_TTL_MS = 15_000;
+const devDocsIndexCache = createCoalescedRefreshCache<string, DevDocsIndex>(DEV_DOCS_INDEX_TTL_MS);
+const libraryDocsIndexCache = createCoalescedRefreshCache<string, DevDocsIndex>(DEV_DOCS_INDEX_TTL_MS);
 
+function docsIndexCacheKey(kind: "project" | "library"): string {
+  return `${getActiveDataRealmId()}:${kind}`;
+}
+
+async function buildIndex(absFiles: string[]): Promise<DevDocsIndex> {
   const built = await Promise.all(
-    absFiles.map(abs => buildEntry(abs, toPosix(relative(PROJECT_ROOT, abs)))),
+    [...new Set(absFiles)].map(abs => buildEntry(abs, toPosix(relative(PROJECT_ROOT, abs)))),
   );
-  const entries = built.filter((e): e is DevDocEntry => e !== null);
-  entries.sort((a, b) => b.mtimeMs - a.mtimeMs || a.relPath.localeCompare(b.relPath));
-
+  const entries = built.filter((entry): entry is DevDocEntry => entry !== null);
+  entries.sort((left, right) => right.mtimeMs - left.mtimeMs || left.relPath.localeCompare(right.relPath));
   return {
     entries,
     tree: buildDocTree(entries),
@@ -210,10 +215,54 @@ export async function scanDevDocs(): Promise<DevDocsIndex> {
   };
 }
 
-/** Gated public entry: the index of all docs. Founder + Dev Mode only. */
+export async function scanDevDocs(opts: { fresh?: boolean } = {}): Promise<DevDocsIndex> {
+  return devDocsIndexCache.get(docsIndexCacheKey("project"), async () => {
+    const absFiles: string[] = [];
+    await walk(PROJECT_ROOT, absFiles);
+    return buildIndex(absFiles);
+  }, opts);
+}
+
+/**
+ * The founder-facing Library contains nine authored volumes and the generated
+ * reference volumes. Do not walk the entire repository only to discard every
+ * other Markdown entry after the scan: resolve the nine exact files and walk
+ * the one generated reference directory instead.
+ */
+export async function scanLibraryDevDocs(opts: { fresh?: boolean } = {}): Promise<DevDocsIndex> {
+  return libraryDocsIndexCache.get(docsIndexCacheKey("library"), async () => {
+    const absFiles = CONSOLIDATED_AUTHORED_DOC_PATHS.map(relPath => join(PROJECT_ROOT, relPath));
+    await walk(join(PROJECT_ROOT, "docs", "reference"), absFiles);
+    return consolidatedDevDocsIndex(await buildIndex(absFiles));
+  }, opts);
+}
+
+/** Same-process writes call this so the next navigation cannot see stale data. */
+export function invalidateDevDocsIndex(): void {
+  // Production overlays are realm-specific; local realms can still share the
+  // working tree. Clearing every realm is the safe write contract for both.
+  devDocsIndexCache.clear();
+  libraryDocsIndexCache.clear();
+}
+
+/** Test-only observability for the warm/coalesced scan contract. */
+export function __devDocsIndexCacheStats() {
+  return devDocsIndexCache.stats();
+}
+
+export function __libraryDocsIndexCacheStats() {
+  return libraryDocsIndexCache.stats();
+}
+
+export function __resetDevDocsIndexCache(): void {
+  devDocsIndexCache.reset();
+  libraryDocsIndexCache.reset();
+}
+
+/** Gated public entry: the index of all docs. Founder-only Dev Team access. */
 export async function listDevDocs(session: SessionPayload | null | undefined): Promise<DevDocsIndex> {
   assertDevDocsAccess(session);
-  return scanDevDocs();
+  return scanLibraryDevDocs();
 }
 
 export interface DevDocContent {
@@ -222,11 +271,13 @@ export interface DevDocContent {
   content: string;
   mtimeMs: number;
   sizeBytes: number;
+  /** Exact version token used by the editor's optimistic save guard. */
+  contentSha256: string;
 }
 
 /**
  * Gated public entry: read one doc's live markdown for the in-app viewer.
- * Founder + Dev Mode only, and confined to the project — a caller-supplied
+ * Founder-only Dev Team access, and confined to the project — a caller-supplied
  * relPath cannot escape the portal root (traversal rejected), cannot dip into a
  * vendor/build dir, and must be `.md`.
  */
@@ -245,26 +296,31 @@ export async function readDevDoc(
     throw new Error("Not a markdown doc.");
   }
   const posixRel = toPosix(relative(PROJECT_ROOT, abs));
-  if (posixRel.split("/").some(seg => IGNORED_DIRS.has(seg))) {
+  if (posixRel.split("/").some(isIgnoredDevDocsDirectory)) {
     throw new Error("Outside the documentation set.");
   }
 
-  const st = await stat(abs); // throws for a missing path
-  if (!st.isFile()) throw new Error("Not a file.");
-
-  const content = await readFile(abs, "utf8");
+  // One snapshot keeps the bytes and optimistic-concurrency token together on
+  // both the local inode and the durable production overlay.
+  const snapshot = await readDevWorkspaceSnapshot(abs);
+  const content = snapshot.bytes.toString("utf8");
   const bareName = basename(posixRel).replace(/\.md$/i, "");
-  const derived = posixRel.startsWith(GENERATED_PREFIX);
-  const title = derived
-    ? bareName
-    : (await firstHeadingTitle(abs)) ?? humaniseFilename(bareName);
+  const title = (await firstHeadingTitle(abs)) ?? humaniseFilename(bareName);
 
-  return { relPath: posixRel, title, content, mtimeMs: st.mtimeMs, sizeBytes: st.size };
+  return {
+    relPath: posixRel,
+    title,
+    content,
+    mtimeMs: snapshot.version.mtimeMs,
+    sizeBytes: snapshot.version.size,
+    contentSha256: snapshot.version.sha256,
+  };
 }
 
 // ---- launch blockers (Phase 3) ---------------------------------------------
-// Ed's call: the overview's blocker strip is PARSED from state.md, not
-// hand-curated — so it self-updates as the shared brain does.
+// The overview's blocker strip is parsed from the current status documents,
+// not hand-curated in UI code. `state.md` supplies operational blockers while
+// the live checklist supplies current decisions and source defects.
 
 export interface DevDocBlocker {
   label: string;
@@ -310,7 +366,58 @@ export function parseBlockers(markdown: string): DevDocBlocker[] {
   return out;
 }
 
-/** Gate-free internal read of state.md's blockers (page gates before calling). */
+/** Parse checkbox items from every red (blocking) checklist section. */
+export function parseChecklistBlockers(markdown: string): DevDocBlocker[] {
+  const out: DevDocBlocker[] = [];
+  let inBlockingSection = false;
+  let current: { checked: boolean; body: string } | null = null;
+
+  const flush = () => {
+    if (!current) return;
+    const boldLabel = /\*\*(.+?)\*\*/.exec(current.body)?.[1];
+    const cleaned = cleanBlockerText(current.body);
+    const label = cleanBlockerText(boldLabel ?? cleaned.split(/\s*[—:]\s*/)[0] ?? cleaned);
+    const detail = boldLabel
+      ? cleanBlockerText(current.body.replace(/\*\*(.+?)\*\*/, "")).replace(/^[\s:—.–-]+/, "")
+      : cleanBlockerText(cleaned.slice(label.length)).replace(/^[\s:—.–-]+/, "");
+    if (label) out.push({ label, detail: detail || undefined, resolved: current.checked });
+    current = null;
+  };
+
+  for (const raw of markdown.split(/\r?\n/)) {
+    const heading = /^(#{2,4})\s+(.+?)\s*#*$/.exec(raw);
+    if (heading) {
+      flush();
+      inBlockingSection = heading[2].includes("🔴");
+      continue;
+    }
+
+    const item = /^\s*[-*]\s+\[([ xX])\]\s+(.+)$/.exec(raw);
+    if (item) {
+      flush();
+      if (inBlockingSection) current = { checked: item[1].toLowerCase() === "x", body: item[2] };
+      continue;
+    }
+
+    if (current && /^\s{2,}\S/.test(raw)) current.body += ` ${raw.trim()}`;
+  }
+  flush();
+  return out;
+}
+
+/** Gate-free internal read of current blocker sources (page gates before calling). */
 export async function scanBlockers(): Promise<DevDocBlocker[]> {
-  return (await readParsedFile("blockers", join(PROJECT_ROOT, "docs", "context", "state.md"), parseBlockers)) ?? [];
+  const [stateBlockers, checklistBlockers] = await Promise.all([
+    readParsedFile("blockers:state", join(PROJECT_ROOT, "docs", "context", "state.md"), parseBlockers),
+    readParsedFile(
+      "blockers:checklist",
+      join(PROJECT_ROOT, "docs", "development", "checklist.md"),
+      parseChecklistBlockers,
+    ),
+  ]);
+  const merged = new Map<string, DevDocBlocker>();
+  for (const blocker of [...(stateBlockers ?? []), ...(checklistBlockers ?? [])]) {
+    merged.set(blocker.label.toLocaleLowerCase(), blocker);
+  }
+  return [...merged.values()];
 }

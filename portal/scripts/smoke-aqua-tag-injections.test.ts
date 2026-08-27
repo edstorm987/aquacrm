@@ -124,12 +124,24 @@ describe("the public config endpoint serves the tag (real route handler)", () =>
     };
   };
 
-  it("returns a site's enabled injections for the right key+host, cached and CORS-open", async () => {
+  it("returns a site's enabled injections for the right key+host, uncached and CORS-open", async () => {
     const { status, body, cache, cors } = await call(`?key=${masterKey}&host=https://www.Zimante.com/pricing`);
     assert.equal(status, 200);
     assert.deepEqual(body.injections, [{ kind: "ga4", value: "G-SERVED11", consentCategory: "analytics" }], "enabled only; only kind/value/category, no internal ids");
-    assert.match(cache ?? "", /max-age=300/);
+    assert.equal(cache, "no-store, max-age=0");
     assert.equal(cors, "*");
+  });
+
+  it("serves a disable immediately to the next config request", async () => {
+    const before = await call(`?key=${masterKey}&host=zimante.com`);
+    assert.equal(before.body.injections.length, 1);
+    const site = sources.listWebsiteSources(agencyId).find(row => row.host === "zimante.com");
+    const active = site ? injections.listInjections(agencyId, site.id).find(row => row.enabled) : undefined;
+    assert.ok(site && active);
+    injections.updateInjection({ agencyId, websiteSourceId: site.id, injectionId: active.id, enabled: false });
+    const after = await call(`?key=${masterKey}&host=zimante.com`);
+    assert.deepEqual(after.body.injections, []);
+    assert.equal(after.cache, "no-store, max-age=0");
   });
 
   it("serves nothing for an unknown key or an unconfigured host — the safe default", async () => {
@@ -187,6 +199,10 @@ describe("the injection management route + workspace UI are wired", () => {
     assert.match(ui, /\/api\/portal\/website-injections/);
     assert.match(ui, /function ToolInjections/);
     assert.match(ui, /<ToolInjections \/>/);
+    assert.match(ui, /apply to new page loads immediately/);
+    assert.match(ui, /already loaded a[\s\S]*provider may keep it running until/);
+    assert.match(ui, /off for new loads/);
+    assert.doesNotMatch(ui, />paused</);
   });
 });
 

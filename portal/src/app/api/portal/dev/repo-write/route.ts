@@ -1,8 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
-import { devDocsAccessible } from "@/lib/server/dev/devDocs";
-import { getDevProject } from "@/engines/editor/server/devProjects";
+import { accessErrorResponse } from "@/server/accessControl";
+import { requireDevProjectAccess } from "@/lib/server/dev/devProjectAccess";
 import { SourceEditUnavailable } from "@/engines/editor/server/sourceEdit";
 import { normalisePageSeo } from "@/engines/editor/editing/pageSeo";
 import {
@@ -17,7 +16,7 @@ import {
   writePageSeoToRepo,
   type RepoWriteRefusal,
 } from "@/engines/editor/server/repoWrite";
-import { ensureHydrated } from "@/server/storage";
+import type { AccessCapability } from "@/server/types";
 
 /**
  * The write path for a repository-backed project: save, create, publish.
@@ -32,15 +31,17 @@ import { ensureHydrated } from "@/server/storage";
  *
  * ── The guards, and why each one ────────────────────────────────────────────
  *
- * FOUNDER + DEV MODE, the same layered gate the source-edit route and the
- * files route's write half use. Reading a repository is an agency-role
- * concern; committing to one is not.
+ * Project access is action-specific: repository reads require project/code
+ * view; content writes require project edit/code use; PR, revert and merge
+ * use their dedicated release capabilities plus the publish element. The
+ * owner keeps these through the canonical baseline; scoped collaborators
+ * receive only the project and actions they were granted.
  *
  * ORIGIN checked, like every other mutating portal route.
  *
  * The REPOSITORY, the REF and the TOKEN are never read from the body. All
- * three come off the `DevProject` looked up by `getDevProject(session.agencyId,
- * id)` — tenant first, then project — and the token resolves per-request from
+ * three come off the tenant-resolved `DevProject` — tenant first, then
+ * project — and the token resolves per-request from
  * the encrypted vault inside `devProjectGitHubToken`. Nothing secret is in the
  * request and nothing secret is in the response: the shapes below carry a
  * branch, a commit sha and a pull request URL, none of which is a credential.
@@ -135,13 +136,45 @@ function validOrigin(request: Request) {
   return !origin || origin === new URL(request.url).origin;
 }
 
+function accessForAction(action: Body["action"]): {
+  capability: AccessCapability;
+  elementCapability: AccessCapability;
+} {
+  if (action === "insert-targets" || action === "seo-read") {
+    return {
+      capability: "project.view",
+      elementCapability: "element.development.code.view",
+    };
+  }
+  if (action === "publish") {
+    return {
+      capability: "project.pull-request",
+      elementCapability: "element.development.publish.use",
+    };
+  }
+  if (action === "merge") {
+    // On this deployment merging the release PR is the deploy boundary.
+    return {
+      capability: "project.deploy",
+      elementCapability: "element.development.publish.use",
+    };
+  }
+  if (action === "revert") {
+    // Revert prepares a new release on the draft branch. It does not deploy
+    // until a later merge, but it is still a publish-level operation.
+    return {
+      capability: "project.publish",
+      elementCapability: "element.development.publish.use",
+    };
+  }
+  return {
+    capability: "project.edit",
+    elementCapability: "element.development.code.use",
+  };
+}
+
 export async function POST(request: NextRequest) {
   try {
-    await ensureHydrated();
-    const session = await requireRole(["agency-owner", "agency-manager"]);
-    if (!devDocsAccessible(session)) {
-      return NextResponse.json({ ok: false, error: "Dev Mode is required to write to a repository." }, { status: 403 });
-    }
     if (!validOrigin(request)) {
       return NextResponse.json({ ok: false, error: "Invalid request origin." }, { status: 403 });
     }
@@ -151,11 +184,14 @@ export async function POST(request: NextRequest) {
     if (!projectId) {
       return NextResponse.json({ ok: false, error: "A project is required." }, { status: 400 });
     }
-    // Tenant before project, everywhere.
-    const project = getDevProject(session.agencyId, projectId);
-    if (!project) {
-      return NextResponse.json({ ok: false, error: "That project could not be found." }, { status: 404 });
-    }
+    const requiredAccess = accessForAction(body?.action);
+    const access = await requireDevProjectAccess({
+      projectId,
+      ...requiredAccess,
+    });
+    const { project } = access;
+    const agencyId = access.resourceAgencyId;
+    const sourceDeps = { allowSharedCredentials: access.resolution.ownerBaseline };
 
     try {
       if (body?.action === "save") {
@@ -167,14 +203,14 @@ export async function POST(request: NextRequest) {
           }, { status: 400 });
         }
         const result = await saveRepoFile({
-          agencyId: session.agencyId,
+          agencyId,
           project,
           path,
           contents: body.contents,
           fingerprint: body.fingerprint.trim(),
           // Passed through, not coerced: `publishEdits` wants exactly `true`.
           confirm: body.confirm,
-        });
+        }, sourceDeps);
         if (!result.ok) return refusalResponse(result);
         return NextResponse.json(result);
       }
@@ -185,19 +221,19 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ ok: false, error: "A path and a kind — file or folder — are required." }, { status: 400 });
         }
         const result = await createRepoPath({
-          agencyId: session.agencyId,
+          agencyId,
           project,
           path,
           kind: body.kind,
           contents: typeof body.contents === "string" ? body.contents : undefined,
           confirm: body.confirm,
-        });
+        }, sourceDeps);
         if (!result.ok) return refusalResponse(result);
         return NextResponse.json(result);
       }
 
       if (body?.action === "publish") {
-        const result = await openProjectPullRequest({ agencyId: session.agencyId, project });
+        const result = await openProjectPullRequest({ agencyId, project }, sourceDeps);
         if (!result.ok) return refusalResponse(result);
         return NextResponse.json(result);
       }
@@ -213,21 +249,21 @@ export async function POST(request: NextRequest) {
 
       if (body?.action === "merge") {
         const result = await mergeProjectPullRequest({
-          agencyId: session.agencyId,
+          agencyId,
           project,
           // Passed through, not coerced: `mergePullRequest` wants exactly `true`.
           confirm: body.confirm,
-        });
+        }, sourceDeps);
         if (!result.ok) return refusalResponse(result);
         return NextResponse.json(result);
       }
 
       if (body?.action === "revert") {
         const result = await revertMergedDraft({
-          agencyId: session.agencyId,
+          agencyId,
           project,
           confirm: body.confirm,
-        });
+        }, sourceDeps);
         if (!result.ok) return refusalResponse(result);
         return NextResponse.json(result);
       }
@@ -240,7 +276,7 @@ export async function POST(request: NextRequest) {
       // rather than a commit nobody read.
 
       if (body?.action === "insert-targets") {
-        const result = await listInsertTargets({ agencyId: session.agencyId, project });
+        const result = await listInsertTargets({ agencyId, project }, sourceDeps);
         if (!result.ok) return refusalResponse(result);
         return NextResponse.json(result);
       }
@@ -266,7 +302,7 @@ export async function POST(request: NextRequest) {
           }, { status: 400 });
         }
         const result = await insertElementIntoRepo({
-          agencyId: session.agencyId,
+          agencyId,
           project,
           path,
           code,
@@ -275,7 +311,7 @@ export async function POST(request: NextRequest) {
           fingerprint: body.fingerprint?.trim() || undefined,
           // Passed through, not coerced: `publishEdits` wants exactly `true`.
           confirm: body.confirm,
-        });
+        }, sourceDeps);
         if (!result.ok) return refusalResponse(result);
         return NextResponse.json(result);
       }
@@ -292,7 +328,7 @@ export async function POST(request: NextRequest) {
         if (!path) {
           return NextResponse.json({ ok: false, error: "A page file is required." }, { status: 400 });
         }
-        const result = await readPageSeoFromRepo({ agencyId: session.agencyId, project, path });
+        const result = await readPageSeoFromRepo({ agencyId, project, path }, sourceDeps);
         if (!result.ok) return refusalResponse(result);
         return NextResponse.json(result);
       }
@@ -309,7 +345,7 @@ export async function POST(request: NextRequest) {
           }, { status: 400 });
         }
         const result = await writePageSeoToRepo({
-          agencyId: session.agencyId,
+          agencyId,
           project,
           path,
           // Shape-first: whatever arrived becomes a valid `PageSeo` here, so
@@ -318,7 +354,7 @@ export async function POST(request: NextRequest) {
           fingerprint: body.fingerprint?.trim() || undefined,
           // Passed through, not coerced: `publishEdits` wants exactly `true`.
           confirm: body.confirm,
-        });
+        }, sourceDeps);
         if (!result.ok) return refusalResponse(result);
         return NextResponse.json(result);
       }
@@ -340,6 +376,6 @@ export async function POST(request: NextRequest) {
       }, { status: 502 });
     }
   } catch (error) {
-    return authErrorResponse(error);
+    return accessErrorResponse(error);
   }
 }

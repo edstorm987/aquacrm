@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { requireRole } from "@/lib/server/auth/auth";
+import { AGENCY_ROLES } from "@/server/types";
 import {
   Activity,
   Banknote,
@@ -249,8 +251,25 @@ const WORKSPACE_GROUPS: WorkspaceGroup[] = [
 ];
 
 const WORKSPACE_COUNT = WORKSPACE_GROUPS.reduce((total, group) => total + group.tools.length, 0);
+const PUBLIC_SHOWCASE_TOOL_PATHS = new Set([
+  "/portal/agency",
+  "/portal/agency/operations",
+  "/portal/agency/inbox",
+  "/portal/clients?view=journey",
+  "/portal/agency/fulfilment",
+  "/portal/agency/marketing",
+  "/portal/agency/sop-library",
+]);
 
-export default function ToolsPage() {
+export default async function ToolsPage() {
+  const session = await requireRole([...AGENCY_ROLES]);
+  const quickTools = session.publicShowcase ? [] : QUICK_TOOLS;
+  const workspaceGroups = session.publicShowcase
+    ? WORKSPACE_GROUPS.map(group => ({ ...group, tools: group.tools.filter(tool => PUBLIC_SHOWCASE_TOOL_PATHS.has(tool.href)) })).filter(group => group.tools.length > 0)
+    : WORKSPACE_GROUPS;
+  const workspaceCount = session.publicShowcase
+    ? workspaceGroups.reduce((total, group) => total + group.tools.length, 0)
+    : WORKSPACE_COUNT;
   return (
     <div className="w-full space-y-6">
       <header className="border-b border-black/10 pb-5">
@@ -263,17 +282,17 @@ export default function ToolsPage() {
         </p>
       </header>
 
-      <section aria-labelledby="quick-tools-heading">
+      {quickTools.length ? <section aria-labelledby="quick-tools-heading">
         <div className="flex items-end justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase text-black/40">Utility deck</p>
             <h2 id="quick-tools-heading" className="mt-1 text-lg font-semibold text-black/85">Quick actions</h2>
           </div>
-          <span className="text-xs font-medium text-black/40">{QUICK_TOOLS.length} utilities</span>
+          <span className="text-xs font-medium text-black/40">{quickTools.length} utilities</span>
         </div>
 
         <div className="mt-4 grid gap-3 md:grid-cols-2">
-          {QUICK_TOOLS.map(tool => {
+          {quickTools.map(tool => {
             const Icon = tool.icon;
             return (
               <Link
@@ -296,7 +315,7 @@ export default function ToolsPage() {
             );
           })}
         </div>
-      </section>
+      </section> : null}
 
       <section aria-labelledby="workspace-tools-heading" className="border-t border-black/10 pt-6">
         <div className="flex items-end justify-between gap-4">
@@ -304,11 +323,11 @@ export default function ToolsPage() {
             <p className="text-xs font-semibold uppercase text-black/40">Workspace directory</p>
             <h2 id="workspace-tools-heading" className="mt-1 text-lg font-semibold text-black/85">All agency workspaces</h2>
           </div>
-          <span className="text-xs font-medium text-black/40">{WORKSPACE_COUNT} workspaces</span>
+          <span className="text-xs font-medium text-black/40">{workspaceCount} workspaces</span>
         </div>
 
         <div className="mt-5 space-y-8">
-          {WORKSPACE_GROUPS.map(group => (
+          {workspaceGroups.map(group => (
             <div key={group.id} aria-labelledby={`workspace-group-${group.id}`}>
               <div className="flex items-baseline justify-between gap-4">
                 <h3 id={`workspace-group-${group.id}`} className="text-sm font-semibold text-black/70">{group.title}</h3>

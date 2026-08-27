@@ -10,7 +10,7 @@ import { ACCENT, ACCENT_SOFT } from "../_ui";
 // Collapsed it's a single quiet button; open it's a title + a textarea where
 // EVERY LINE BECOMES A BULLET (the doc's format, so nothing has to be
 // reformatted later). Submits to /api/portal/dev-team/updates, which re-asserts
-// the founder + Dev Mode gate server-side and inserts the entry at the top of
+// the founder-only Dev Team access gate server-side and inserts the entry at the top of
 // docs/development/updates.md. On success we `router.refresh()` so the list
 // below re-reads the file — the page is the single source of truth, this
 // component never keeps its own copy of the changelog.

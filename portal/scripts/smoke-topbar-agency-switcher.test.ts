@@ -32,9 +32,10 @@ describe("AquaOasis-Web internal workspace", () => {
 
   it("uses the canonical identity throughout the owner chrome", () => {
     const src = read(AGENCY_LAYOUT);
-    assert.ok(src.includes("tenantLabel={INTERNAL_WORKSPACE_NAME}"));
-    assert.ok(src.includes("title={INTERNAL_WORKSPACE_NAME}"));
-    assert.ok(src.includes("subtitle={INTERNAL_WORKSPACE_SUBTITLE}"));
+    assert.ok(src.includes("tenantLabel={workspaceName}"));
+    assert.ok(src.includes("title={workspaceName}"));
+    assert.ok(src.includes("subtitle={workspaceSubtitle}"));
+    assert.ok(src.includes("session.publicShowcase ? agency.name : INTERNAL_WORKSPACE_NAME"));
     assert.ok(!src.includes("CompanyContextSwitcher"));
     assert.ok(!src.includes("activeCompany"));
   });

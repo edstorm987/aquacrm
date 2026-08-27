@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
+
 import type { Affiliate, ReferralCode } from "../lib/domain";
 
 export interface CodesListProps {
@@ -62,17 +64,17 @@ export function CodesList({ codes, affiliates, apiBase }: CodesListProps) {
           }
           setBusy(true);
           try {
-            const r = await fetch(`${apiBase}/codes`, {
+            await checkedJsonMutation<{ ok: boolean }>(`${apiBase}/codes`, {
               method: "POST",
               headers: { "content-type": "application/json" },
               body: JSON.stringify(body),
+            }, {
+              fallback: "The referral code could not be created.",
+              validate: payload => payload.ok === true,
             });
-            const data = await r.json();
-            if (!r.ok || !data.ok) {
-              setError(data?.error ?? `Failed (${r.status})`);
-              return;
-            }
             window.location.reload();
+          } catch (requestError) {
+            setError(mutationErrorMessage(requestError, "The referral code could not be created."));
           } finally {
             setBusy(false);
           }
@@ -90,7 +92,7 @@ export function CodesList({ codes, affiliates, apiBase }: CodesListProps) {
         <label>Code (leave blank to auto-generate)<input name="code" placeholder="FELICIA10" /></label>
         <label>Destination path<input name="destinationPath" placeholder="/" /></label>
         <label>% override<input name="commissionPercentOverride" type="number" min="0" max="100" /></label>
-        {error && <p className="affiliates-form-error">{error}</p>}
+        {error && <p role="alert" className="affiliates-form-error">{error}</p>}
         <button type="submit" disabled={busy}>{busy ? "Creating…" : "Create"}</button>
       </form>
     </section>

@@ -1,8 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ensureHydrated } from "@/server/storage";
-import { getActiveAgencyId, getSessionFromRequest } from "@/lib/server/auth/auth";
+import { authErrorResponse, getActiveAgencyId, getSessionFromRequest } from "@/lib/server/auth/auth";
 import { effectiveRole } from "@/lib/server/auth/effectiveRole";
 import { applyPhaseToClient } from "@/server/phaseApplier";
+import { getClientForAgency } from "@/server/tenants";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 // POST /api/portal/phases/apply — apply a phase preset to a client.
 // Founder / agency-owner / agency-manager only. Body: { clientId, phaseId }.
@@ -30,7 +32,16 @@ export async function POST(req: NextRequest) {
   // The caller's own agency, from the SESSION. Both ids above came from the
   // request body; without this the route applied a phase to any client whose
   // agency happened to match the phase's — including a stranger's.
-  const result = await applyPhaseToClient(clientId, phaseId, getActiveAgencyId(session));
+  const agencyId = getActiveAgencyId(session);
+  if (!getClientForAgency(agencyId, clientId)) {
+    return NextResponse.json({ ok: false, error: "client_not_found" }, { status: 404 });
+  }
+  try {
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.relationship", "manage");
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+  const result = await applyPhaseToClient(clientId, phaseId, agencyId);
   if (!result.ok) {
     return NextResponse.json(result, { status: result.error === "client_not_found" || result.error === "phase_not_found" ? 404 : 400 });
   }

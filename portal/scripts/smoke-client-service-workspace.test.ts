@@ -232,6 +232,7 @@ describe("adaptive internal client services", () => {
     const route = readFileSync(join(root, "src/app/api/tenants/client-products/route.ts"), "utf8");
     const layout = readFileSync(join(root, "src/app/portal/customer/layout.tsx"), "utf8");
     const views = readFileSync(join(root, "src/app/portal/customer/_CustomerPortalViews.tsx"), "utf8");
+    const requestContext = readFileSync(join(root, "src/app/portal/customer/_requestContext.ts"), "utf8");
     const preview = readFileSync(join(root, "src/app/client-preview/[clientId]/page.tsx"), "utf8");
 
     assert.match(assignment, /Save company & services/);
@@ -239,8 +240,9 @@ describe("adaptive internal client services", () => {
     assert.match(route, /effectiveCompanyId = hasCompanyAssignment \? requestedCompanyId : client\.companyId/);
     assert.match(route, /getTradingCompany\(session\.agencyId, effectiveCompanyId\)/);
     assert.match(route, /companyId: hasCompanyAssignment/);
-    assert.match(layout, /resolveClientPortalProvider\(client, authBrand\)/);
-    assert.match(views, /resolveClientPortalProvider\(client, authBrand\)\.name/);
+    assert.match(requestContext, /resolveClientPortalProvider\(client, authBrand\)/);
+    assert.match(layout, /loadCustomerPortalIdentity/);
+    assert.match(views, /loadCustomerPortalRequestContext/);
     assert.match(preview, /resolveClientPortalProvider\(client,/);
   });
 
@@ -345,10 +347,10 @@ describe("adaptive internal client services", () => {
     assert.match(productProcessRoute, /product is not assigned to this client/);
     assert.match(productProcessRoute, /step is not part of this product process/);
     assert.match(productProcessRoute, /stage is not part of this product lifecycle/);
-    assert.match(productProcessRoute, /portalWorkspace\.stage = stage\.portalMode/);
-    assert.match(portalWorkspaceRoute, /setClientProductStage/);
+    assert.match(productProcessRoute, /transitionClientProductStage/);
+    assert.match(portalWorkspaceRoute, /transitionClientProductStage/);
     assert.match(portalWorkspaceRoute, /stage => stage\.portalMode === portalMode/);
-    assert.match(portalWorkspaceRoute, /serviceStageId: syncedServiceStageId/);
+    assert.match(portalWorkspaceRoute, /serviceStageId: transition\.stageId/);
     assert.match(portalWorkspaceUi, /Portal experience/);
     assert.match(page, /portalMaterialized = customPortalExists\(client\.slug\)/);
     assert.doesNotMatch(page, /portalMaterialized = live &&/);
@@ -387,9 +389,9 @@ describe("adaptive internal client services", () => {
     assert.match(overview, /Latest retained events/);
     assert.match(overview, /label="Message"/);
     assert.match(overview, /label="Call"/);
-    assert.match(overview, /label="Add note"/);
+    assert.match(overview, /label=\{canManageProductPlans \? "Add note" : "View notes"\}/);
     assert.match(overview, /label="Review priorities"/);
-    assert.match(overview, /label="Upload file"/);
+    assert.match(overview, /label=\{canManageProductPlans \? "Upload file" : "Open files"\}/);
     assert.match(overview, /label="Payment"/);
     assert.match(overview, /title="Shared experience"/);
     assert.match(overview, /portal decision/);

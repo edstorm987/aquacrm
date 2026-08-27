@@ -31,3 +31,14 @@ export function compensationCostProjection(profile: CompensationProfile): Compen
 export function compensationPaymentTotal(payment: CompensationPayment): number {
   return payment.grossCents + payment.employerCostCents;
 }
+
+export function compensationPaymentDraftAmounts(profile: CompensationProfile): {
+  grossCents: number;
+  employerCostCents: number;
+} {
+  const projection = compensationCostProjection(profile);
+  return {
+    grossCents: projection.monthlyBaseCents + projection.monthlyBonusTargetCents,
+    employerCostCents: projection.monthlyEmployerCostCents,
+  };
+}

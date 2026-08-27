@@ -17,6 +17,7 @@ import { getClientForAgency, updateClient } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
 import { getUserById } from "@/server/users";
 import { listAgencyTasks, updateAgencyTask } from "@/server/tasks";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 interface OwnerOption {
   id: string;
@@ -52,6 +53,7 @@ export async function POST(request: Request) {
     if (!clientId) return NextResponse.json({ ok: false, error: "clientId is required" }, { status: 400 });
 
     const session = await requireRoleForClient([...AGENCY_ROLES], clientId);
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.overview", "use");
     if (session.role === "agency-staff" && !canUsePeopleStation(session.agencyId, session.userId, "actions", true)) {
       return NextResponse.json({ ok: false, error: "Actions access is required" }, { status: 403 });
     }

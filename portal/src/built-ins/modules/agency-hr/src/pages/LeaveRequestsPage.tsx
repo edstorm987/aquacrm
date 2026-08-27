@@ -1,5 +1,6 @@
 // Server-rendered Leave Requests page. Mounted at
-// `/portal/agency/agency-hr/leave`.
+// `/portal/agency/agency-hr/leave`; its service reads and writes the canonical
+// People leave ledger through the foundation workforce bridge.
 
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";

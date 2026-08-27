@@ -42,6 +42,10 @@ const safetyItems = [
 export function OceanBoulevardDemo() {
   const [mode, setMode] = useState<DemoMode>("website");
   const [cart, setCart] = useState<Record<string, number>>({});
+  const [lastDemoPayment, setLastDemoPayment] = useState<{
+    amount: number;
+    itemCount: number;
+  } | null>(null);
   const [clockedIn, setClockedIn] = useState(false);
   const [tasks, setTasks] = useState([false, false, true]);
   const [checks, setChecks] = useState([true, false, false, true]);
@@ -58,6 +62,7 @@ export function OceanBoulevardDemo() {
   const itemCount = Object.values(cart).reduce((sum, quantity) => sum + quantity, 0);
 
   function addProduct(productId: string) {
+    setLastDemoPayment(null);
     setCart((current) => ({
       ...current,
       [productId]: (current[productId] ?? 0) + 1,
@@ -69,6 +74,12 @@ export function OceanBoulevardDemo() {
       ...current,
       [productId]: Math.max(0, (current[productId] ?? 0) - 1),
     }));
+  }
+
+  function takeDemoPayment() {
+    if (itemCount === 0) return;
+    setLastDemoPayment({ amount: total, itemCount });
+    setCart({});
   }
 
   return (
@@ -232,11 +243,36 @@ export function OceanBoulevardDemo() {
                   <button
                     type="button"
                     disabled={itemCount === 0}
+                    onClick={takeDemoPayment}
                     className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-md bg-[#0B7F9B] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <CreditCard aria-hidden="true" className="h-4 w-4" />
                     Take payment
                   </button>
+                  <div className="mt-4 min-h-20" aria-live="polite">
+                    {lastDemoPayment ? (
+                      <div role="status" className="rounded-md border border-[#8CBEB5] bg-[#E4F1EE] p-4 text-sm text-[#173E39]">
+                        <p className="flex items-center gap-2 font-semibold">
+                          <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+                          Demo payment approved · £{lastDemoPayment.amount.toFixed(2)}
+                        </p>
+                        <p className="mt-1 leading-5">
+                          {lastDemoPayment.itemCount} {lastDemoPayment.itemCount === 1 ? "item" : "items"} cleared from the basket. This is an interactive demonstration; no card was charged.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setLastDemoPayment(null)}
+                          className="mt-3 font-semibold underline underline-offset-4"
+                        >
+                          Start another demo sale
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-xs leading-5 text-[#6A706A]">
+                        Interactive demo only. No real payment details are collected or charged.
+                      </p>
+                    )}
+                  </div>
                 </div>
               </aside>
             </div>

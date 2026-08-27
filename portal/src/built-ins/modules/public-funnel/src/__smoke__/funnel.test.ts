@@ -4,11 +4,17 @@ import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
 
 import type { ActivityEntry, AgencyId, UserId, UserProfile } from "../lib/tenancy";
-import type { PluginStorage } from "../lib/aquaPluginTypes";
+import type { PluginCtx, PluginStorage } from "../lib/aquaPluginTypes";
 import type {
   ActivityLogPort, EventBusPort, LeadUserPort, SessionPort,
 } from "../server/ports";
-import { containerWithDeps, FunnelInputError } from "../server/index";
+import {
+  clearFunnelFoundation,
+  containerWithDeps,
+  FunnelInputError,
+  registerFunnelFoundation,
+} from "../server/index";
+import { hcCompleteHandler } from "../api/handlers";
 import { now, setClock, resetClock } from "../lib/time";
 
 const AGENCY: AgencyId = "agency_milesy_master";
@@ -39,6 +45,11 @@ function buildWorld(): World {
   const storage: PluginStorage = {
     async get<T = unknown>(key: string): Promise<T | undefined> { return data.get(key) as T | undefined; },
     async set<T = unknown>(key: string, value: T): Promise<void> { data.set(key, value); },
+    async setIfAbsent<T = unknown>(key: string, value: T): Promise<boolean> {
+      if (data.has(key)) return false;
+      data.set(key, value);
+      return true;
+    },
     async del(key: string): Promise<void> { data.delete(key); },
     async list(prefix?: string): Promise<string[]> {
       const keys = [...data.keys()];
@@ -276,6 +287,143 @@ describe("@aqua/plugin-public-funnel smoke", () => {
     const all = await c.funnel.list();
     assert.equal(all[0]?.email, "ed@example.com");
     resetClock();
+  });
+
+  test("14. retrying one completion id reuses its capture and completion event", async () => {
+    setClock(() => T0);
+    const w = buildWorld();
+    const c = container(w);
+    const input = {
+      email: "ed@example.com",
+      completionId: "hc_result_0001",
+      slot: { slot: 3, summary: { headline: "Stored once" } },
+    };
+    const first = await c.funnel.captureHcCompletion(input);
+    const retry = await c.funnel.captureHcCompletion(input);
+    assert.equal(retry.capture.id, first.capture.id);
+    assert.equal(retry.created, false);
+    assert.equal((await c.funnel.list()).length, 1);
+    assert.equal(w.inspect.events.filter(e => e.name === "public-funnel.hc.completed").length, 1);
+    resetClock();
+  });
+
+  test("15. a session failure resumes without duplicating the durable completion", async () => {
+    setClock(() => T0);
+    const w = buildWorld();
+    let attempts = 0;
+    w.sessions.issueSession = (userId) => {
+      attempts++;
+      if (attempts === 1) throw new Error("session-down");
+      return `sess_${userId}_retry`;
+    };
+    const c = container(w);
+    const input = {
+      email: "resume@example.com",
+      completionId: "hc_result_resume",
+      slot: { slot: 2 },
+    };
+    await assert.rejects(() => c.funnel.captureHcCompletion(input), /session-down/);
+    const retry = await c.funnel.captureHcCompletion(input);
+    assert.equal(retry.session, `sess_${retry.leadUserId}_retry`);
+    assert.equal((await c.funnel.list()).length, 1);
+    assert.equal(w.inspect.events.filter(e => e.name === "public-funnel.hc.completed").length, 1);
+    resetClock();
+  });
+
+  test("16. concurrent retries of one completion id retain one authoritative row", async () => {
+    setClock(() => T0);
+    const w = buildWorld();
+    const c = container(w);
+    const input = {
+      email: "race@example.com",
+      completionId: "hc_result_race_01",
+      slot: { slot: 4 },
+    };
+    const [a, b] = await Promise.all([
+      c.funnel.captureHcCompletion(input),
+      c.funnel.captureHcCompletion(input),
+    ]);
+    assert.equal(a.capture.id, b.capture.id);
+    assert.equal((await c.funnel.list()).length, 1);
+    assert.equal(w.inspect.events.filter(e => e.name === "public-funnel.hc.completed").length, 1);
+    resetClock();
+  });
+
+  test("17. reads derive from capture rows rather than the legacy unlocked indexes", async () => {
+    setClock(() => T0);
+    const w = buildWorld();
+    const c = container(w);
+    await c.funnel.captureHcCompletion({
+      email: "truth@example.com",
+      completionId: "hc_result_truth_01",
+      slot: { slot: 5 },
+    });
+    await w.storage.set("captures/index", []);
+    await w.storage.set("captures/by-email/truth@example.com", []);
+    assert.equal((await c.funnel.list()).length, 1);
+    assert.equal((await c.funnel.listByEmail("truth@example.com")).length, 1);
+    resetClock();
+  });
+
+  test("18. the legacy HTTP handler classifies session failure as retryable and resumes", async () => {
+    setClock(() => T0);
+    const w = buildWorld();
+    let sessionAvailable = false;
+    w.sessions.issueSession = (userId) => {
+      if (!sessionAvailable) throw new Error("session-down");
+      return `sess_${userId}_retry`;
+    };
+    registerFunnelFoundation({
+      activity: w.activity,
+      events: w.events,
+      leadUsers: w.leadUsers,
+      sessions: w.sessions,
+    });
+    const ctx = {
+      agencyId: AGENCY,
+      actor: "anonymous",
+      storage: w.storage,
+      install: {
+        id: "install_public_funnel",
+        pluginId: "public-funnel",
+        agencyId: AGENCY,
+        enabled: true,
+        config: {},
+        features: {},
+        installedAt: T0,
+      },
+      services: {},
+    } as unknown as PluginCtx;
+    const request = () => new Request("https://portal.test/api/portal/public-funnel/hc-complete", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "handler-retry@example.com",
+        completionId: "hc_handler_retry_01",
+        slot: { slot: 3 },
+      }),
+    });
+    try {
+      const failed = await hcCompleteHandler(request(), ctx);
+      assert.equal(failed.status, 503);
+      assert.deepEqual(await failed.json(), {
+        ok: false,
+        error: "capture_unavailable",
+        message: "session-down",
+        retryable: true,
+      });
+
+      sessionAvailable = true;
+      const retried = await hcCompleteHandler(request(), ctx);
+      assert.equal(retried.status, 200);
+      const payload = await retried.json() as Record<string, unknown>;
+      assert.equal(payload.captureId, "lc_hc_hc_handler_retry_01");
+      assert.equal((await container(w).funnel.list()).length, 1);
+      assert.match(retried.headers.get("set-cookie") ?? "", /^lk_session_v1=/);
+    } finally {
+      clearFunnelFoundation();
+      resetClock();
+    }
   });
 });
 

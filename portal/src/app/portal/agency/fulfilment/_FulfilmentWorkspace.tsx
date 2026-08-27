@@ -12,6 +12,7 @@ import {
   FolderKanban,
   Gauge,
   Layers3,
+  KeyRound,
   Megaphone,
   MonitorCog,
   Pencil,
@@ -27,10 +28,13 @@ import { PipelineBoard } from "../pipelines/[slug]/_PipelineBoard";
 import { PortalsWorkspace, type PortalTemplateProductRecord, type PortalWorkspaceRecord } from "../portals/_PortalsWorkspace";
 import { AttentionDot } from "@/components/chrome/NotificationAttentionProvider";
 import { ProductsWorkspace } from "../products/_ProductsWorkspace";
-import type { AgencyProduct, SopDocument, TradingCompany } from "@/server/types";
+import type { AgencyProduct, PortalFormFieldDefinition, SopDocument, TradingCompany } from "@/server/types";
 import { clientWorkspaceDisplayName, clientWorkspaceHref } from "@/lib/clients/clientWorkspace";
+import { AccessControlPanel } from "@/components/access/AccessControlPanel";
+import type { AccessEnvironment, AccessPerson } from "@/components/access/accessModel";
+import type { WorkspaceElementLevel } from "@/lib/server/access/workspaceElementAccess";
 
-export type FulfilmentView = "overview" | "stages" | "services" | "technical" | "clients" | "portals" | "tags";
+export type FulfilmentView = "overview" | "stages" | "services" | "technical" | "clients" | "portals" | "tags" | "access";
 
 export interface FulfilmentProductRecord {
   id: string;
@@ -90,7 +94,7 @@ export interface FulfilmentStageBoard {
   focused: boolean;
   products: Array<{ key: string; label: string }>;
   columns: Array<{ id: string; label: string; color?: string }>;
-  cards: Array<{ id: string; label: string; sub?: string; href?: string; columnId: string }>;
+  cards: Array<{ id: string; label: string; sub?: string; href?: string; columnId: string; revision: number }>;
   overviews: Array<{
     key: string;
     label: string;
@@ -114,6 +118,7 @@ const VIEW_ITEMS: Array<{ id: FulfilmentView; label: string; icon: typeof Gauge 
   { id: "tags", label: "Aqua tags", icon: Radio },
   { id: "clients", label: "Client workspaces", icon: UsersRound },
   { id: "portals", label: "Portals", icon: PanelsTopLeft },
+  { id: "access", label: "Roles & access", icon: KeyRound },
 ];
 
 const GROUPS: Array<{ id: ServiceGroupKey; label: string; detail: string; icon: typeof Gauge }> = [
@@ -139,7 +144,10 @@ export function FulfilmentWorkspace({
   productEditor,
   technicalWorkspace,
   tagsWorkspace,
-  canManage,
+  viewAccess,
+  accessPeople,
+  accessEnvironment = "live",
+  canManageAccess = false,
 }: {
   view: FulfilmentView;
   products: FulfilmentProductRecord[];
@@ -155,12 +163,20 @@ export function FulfilmentWorkspace({
     initialProducts: AgencyProduct[];
     sops: SopDocument[];
     companies: TradingCompany[];
+    customFields: PortalFormFieldDefinition[];
     defaults: { taxRatePercent: number; paymentTermsDays: number };
   };
   technicalWorkspace?: ReactNode;
   tagsWorkspace?: ReactNode;
-  canManage: boolean;
+  viewAccess: Readonly<Record<FulfilmentView, WorkspaceElementLevel>>;
+  accessPeople?: AccessPerson[];
+  accessEnvironment?: AccessEnvironment;
+  canManageAccess?: boolean;
 }) {
+  const visibleViews = VIEW_ITEMS.filter(item => viewAccess[item.id] !== "hidden");
+  const canUseStages = viewAccess.stages === "use" || viewAccess.stages === "manage";
+  const canManageServices = viewAccess.services === "manage";
+  const canManagePortals = viewAccess.portals === "manage";
   const activeServices = clients.reduce((total, client) => total + client.products.length, 0);
   const portalReady = clients.filter(client => client.portalReady).length;
   const blocked = clients.reduce((total, client) => total + client.blockedMilestones, 0);
@@ -180,20 +196,20 @@ export function FulfilmentWorkspace({
             </p>
           </div>
           <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
-            <Link href="/portal/agency/fulfilment?view=clients" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/12 bg-white px-3 text-sm font-semibold text-black/65 hover:bg-black/[0.03]">
+            {viewAccess.clients !== "hidden" ? <Link href="/portal/agency/fulfilment?view=clients" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/12 bg-white px-3 text-sm font-semibold text-black/65 hover:bg-black/[0.03]">
               <PanelLeftOpen size={15} /> Client workspaces
-            </Link>
-            <Link href="/portal/agency/actions" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/12 bg-white px-3 text-sm font-semibold text-black/65 hover:bg-black/[0.03]">
+            </Link> : null}
+            {viewAccess.services !== "hidden" ? <Link href="/portal/agency/actions" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/12 bg-white px-3 text-sm font-semibold text-black/65 hover:bg-black/[0.03]">
               <CheckCircle2 size={15} /> Delivery tasks
-            </Link>
-            <Link href="/portal/agency/fulfilment?view=services" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85">
-              <Settings2 size={15} /> Manage services
-            </Link>
+            </Link> : null}
+            {viewAccess.services !== "hidden" ? <Link href="/portal/agency/fulfilment?view=services" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85">
+              <Settings2 size={15} /> {canManageServices ? "Manage services" : "View services"}
+            </Link> : null}
           </div>
         </div>
 
         <nav aria-label="Fulfilment workspace views" className="mt-5 grid w-full grid-cols-2 gap-1 rounded-md border border-black/10 bg-white p-1 sm:flex sm:overflow-x-auto">
-          {VIEW_ITEMS.map(item => {
+          {visibleViews.map(item => {
             const Icon = item.icon;
             const active = item.id === view;
             const href = item.id === "overview" ? "/portal/agency/fulfilment" : `/portal/agency/fulfilment?view=${item.id}`;
@@ -212,15 +228,18 @@ export function FulfilmentWorkspace({
         attention={attention}
         flow={flow}
         metrics={{ activeServices, portalReady, blocked, averageProgress }}
+        canManage={canManageServices}
+        viewAccess={viewAccess}
       /> : null}
-      {view === "stages" ? <StageBoard board={stageBoard} /> : null}
+      {view === "stages" ? <StageBoard board={stageBoard} canUse={canUseStages} canManage={viewAccess.stages === "manage"} /> : null}
       {view === "services" ? (
         <div className="pt-6">
-          {canManage ? (
+          {canManageServices ? (
             <ProductsWorkspace
               initialProducts={productEditor.initialProducts}
               sops={productEditor.sops}
               companies={productEditor.companies}
+              customFields={productEditor.customFields}
               defaults={productEditor.defaults}
               embedded
               embeddedLabel="Service workspaces"
@@ -233,7 +252,19 @@ export function FulfilmentWorkspace({
       {view === "clients" ? <ClientDelivery clients={clients} focusedClientId={focusedClientId} focusedProductId={focusedProductId} /> : null}
       {view === "portals" ? (
         <div className="pt-6">
-          <PortalsWorkspace portals={portals} products={portalProducts} initialView="library" canManage={canManage} embedded />
+          <PortalsWorkspace portals={portals} products={portalProducts} initialView="library" canManage={canManagePortals} embedded />
+        </div>
+      ) : null}
+      {view === "access" ? (
+        <div className="pt-6">
+          <AccessControlPanel
+            scope={{ kind: "workspace", id: "fulfilment", label: "Fulfilment workspace" }}
+            people={accessPeople}
+            canManage={canManageAccess && viewAccess.access === "manage"}
+            currentEnvironment={accessEnvironment}
+            title="Fulfilment roles and elements"
+            description="Assign people to Fulfilment and decide exactly which delivery views, services, projects, portals and Aqua Tag controls they can see or operate."
+          />
         </div>
       ) : null}
     </div>
@@ -246,13 +277,24 @@ function Overview({
   attention,
   flow,
   metrics,
+  canManage,
+  viewAccess,
 }: {
   products: FulfilmentProductRecord[];
   clients: FulfilmentClientRecord[];
   attention: FulfilmentAttentionItem[];
   flow: FlowSummary;
   metrics: { activeServices: number; portalReady: number; blocked: number; averageProgress: number };
+  canManage: boolean;
+  viewAccess: Readonly<Record<FulfilmentView, WorkspaceElementLevel>>;
 }) {
+  const canViewStages = viewAccess.stages !== "hidden";
+  const canViewServices = viewAccess.services !== "hidden";
+  const canViewClients = viewAccess.clients !== "hidden";
+  const canViewPortals = viewAccess.portals !== "hidden";
+  const canViewTechnical = viewAccess.technical !== "hidden";
+  const canViewToolkit = canViewServices || canViewPortals || canViewTechnical;
+
   return (
     <div className="space-y-7 pt-6">
       <section aria-label="Fulfilment summary" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
@@ -263,8 +305,8 @@ function Overview({
         <Metric label="Blocked" value={metrics.blocked} detail="Milestones needing action" icon={<CircleAlert size={17} />} tone={metrics.blocked ? "amber" : "emerald"} />
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(330px,.65fr)]">
-        <section className="min-w-0">
+      <div className={canViewClients ? "grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(330px,.65fr)]" : "min-w-0"}>
+        {canViewClients ? <section className="min-w-0">
           <SectionHeading eyebrow="Execution queue" title="What needs attention" detail="The delivery risks and missing setup that can stop work moving." action={{ label: "Open delivery tasks", href: "/portal/agency/actions" }} />
           <div className="mt-3 divide-y divide-black/[0.08] border-y border-black/10">
             {attention.slice(0, 8).map(item => <AttentionRow key={item.id} item={item} />)}
@@ -274,9 +316,9 @@ function Overview({
               </div>
             ) : null}
           </div>
-        </section>
+        </section> : null}
 
-        <section className="min-w-0 border-t border-black/10 pt-5 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0">
+        <section className={canViewClients ? "min-w-0 border-t border-black/10 pt-5 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0" : "min-w-0"}>
           <SectionHeading eyebrow="Portfolio flow" title="Where the work sits" detail="Every assigned service rolled into four practical states." />
           <div className="mt-5 space-y-4">
             <FlowRow label="Queued and brief" value={flow.queued} total={metrics.activeServices} color="#657487" />
@@ -284,13 +326,13 @@ function Overview({
             <FlowRow label="Review and approval" value={flow.review} total={metrics.activeServices} color="#b8751a" />
             <FlowRow label="Delivered or live" value={flow.delivered} total={metrics.activeServices} color="#23825f" />
           </div>
-          <Link href="/portal/agency/fulfilment?view=stages" className="mt-6 inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-brand hover:underline">
+          {canViewStages ? <Link href="/portal/agency/fulfilment?view=stages" className="mt-6 inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-brand hover:underline">
             Open drag-and-drop stage board <ArrowRight size={15} />
-          </Link>
+          </Link> : null}
         </section>
       </div>
 
-      <section>
+      {canViewServices ? <section>
         <SectionHeading eyebrow="Service architecture" title="Delivery departments" detail="Each service keeps its own stages, outputs and client workspace while remaining part of one fulfilment system." action={{ label: "View all workspaces", href: "/portal/agency/fulfilment?view=services" }} />
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {GROUPS.map(group => {
@@ -309,9 +351,9 @@ function Overview({
             );
           })}
         </div>
-      </section>
+      </section> : null}
 
-      <section className="border-t border-black/10 pt-6">
+      {canViewClients ? <section className="border-t border-black/10 pt-6">
         <SectionHeading
           eyebrow="Internal client access"
           title="Open a client workspace"
@@ -324,29 +366,29 @@ function Overview({
               <span className="mm-area-icon grid size-9 shrink-0 place-items-center rounded-md"><PanelLeftOpen size={17} /></span>
               <span className="min-w-0 flex-1">
                 <span className="flex min-w-0 items-center gap-1.5"><span className="truncate text-sm font-semibold text-black/72">{clientWorkspaceDisplayName(client)}</span>{client.relationshipWorkspaceCount > 1 ? <LinkedBuyerCount count={client.relationshipWorkspaceCount} /> : null}</span>
-                <span className="mt-0.5 block truncate text-xs text-black/42">{client.products.length ? `${client.products.length} service workspace${client.products.length === 1 ? "" : "s"} · ${client.progress}% complete` : "Assign the first service"}</span>
+                <span className="mt-0.5 block truncate text-xs text-black/42">{client.products.length ? `${client.products.length} service workspace${client.products.length === 1 ? "" : "s"} · ${client.progress}% complete` : canManage ? "Assign the first service" : "No service assigned"}</span>
               </span>
               <ArrowRight size={15} className="shrink-0 text-black/30" />
             </Link>
           ))}
           {!clients.length ? <p className="py-6 text-sm text-black/45">No active client workspaces are available yet.</p> : null}
         </div>
-      </section>
+      </section> : null}
 
-      <section className="border-t border-black/10 pt-6">
+      {canViewToolkit ? <section className="border-t border-black/10 pt-6">
         <SectionHeading eyebrow="Connected workspaces" title="Delivery toolkit" detail="Specialist tools stay focused while Fulfilment remains the control room." />
         <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          <ToolkitLink href="/portal/agency/fulfilment?view=portals" title="Client portals" detail="Preview, edit and launch the shared experience." icon={<PanelsTopLeft size={17} />} />
-          <ToolkitLink href="/portal/agency/fulfilment?view=technical" title="Technical delivery" detail="Projects, repositories, releases and performance." icon={<Code2 size={17} />} />
-          <ToolkitLink href="/portal/agency/sop-library" title="SOP library" detail="Open the procedure behind repeatable delivery." icon={<BriefcaseBusiness size={17} />} />
-          <ToolkitLink href="/portal/agency?station=battle&battle=capacity" title="Capacity" detail="Check whether the team can take on the work." icon={<Gauge size={17} />} />
+          {canViewPortals ? <ToolkitLink href="/portal/agency/fulfilment?view=portals" title="Client portals" detail={canManage ? "Preview, edit and launch the shared experience." : "Review shared workspace status."} icon={<PanelsTopLeft size={17} />} /> : null}
+          {canViewTechnical ? <ToolkitLink href="/portal/agency/fulfilment?view=technical" title="Technical delivery" detail="Projects, repositories, releases and performance." icon={<Code2 size={17} />} /> : null}
+          {canViewServices ? <ToolkitLink href="/portal/agency/sop-library" title="SOP library" detail="Open the procedure behind repeatable delivery." icon={<BriefcaseBusiness size={17} />} /> : null}
+          {canViewServices ? <ToolkitLink href="/portal/agency?station=battle&battle=capacity" title="Capacity" detail="Check whether the team can take on the work." icon={<Gauge size={17} />} /> : null}
         </div>
-      </section>
+      </section> : null}
     </div>
   );
 }
 
-function StageBoard({ board }: { board: FulfilmentStageBoard }) {
+function StageBoard({ board, canUse, canManage }: { board: FulfilmentStageBoard; canUse: boolean; canManage: boolean }) {
   if (!board.focused) return <StageBoardOverview boards={board.overviews} />;
   return (
     <div className="pt-6">
@@ -356,7 +398,7 @@ function StageBoard({ board }: { board: FulfilmentStageBoard }) {
           <p className="mt-1 text-sm text-black/48">Move clients through {board.productName}, or return to compare every service pipeline.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href={`/portal/agency/products/${encodeURIComponent(board.productKey)}?edit=stages#service-process`} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-black/62 hover:bg-black/[0.03]"><Pencil size={15} />Edit stages</Link>
+          {canManage ? <Link href={`/portal/agency/products/${encodeURIComponent(board.productKey)}?edit=stages#service-process`} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-black/62 hover:bg-black/[0.03]"><Pencil size={15} />Edit stages</Link> : null}
           <Link href="/portal/agency/fulfilment?view=stages" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-black/62 hover:bg-black/[0.03]"><ChevronLeft size={15} />All service boards</Link>
         </div>
       </div>
@@ -373,6 +415,7 @@ function StageBoard({ board }: { board: FulfilmentStageBoard }) {
         productBasePath="/portal/agency/fulfilment?view=stages"
         showProductOverview={false}
         embedded
+        editable={canUse}
       />
     </div>
   );

@@ -9,19 +9,42 @@ import { formatUkDate } from "@/lib/shared/formatDateTime";
 type RosterEntry = { userId: string; name: string; presence: { state: "online" | "idle" | "offline"; lastSeenAt?: number }; workingToday: boolean };
 type ChatSnapshot = { channels: PeopleChannel[]; activeChannelId: string; messages: PeopleMessage[]; roster: RosterEntry[]; selfUserId: string };
 
-export function TeamChat() {
+export function TeamChat({ canUse = true }: { canUse?: boolean }) {
   const [snap, setSnap] = useState<ChatSnapshot | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+  const requestSequence = useRef(0);
+  const appliedSequence = useRef(0);
+  const intentSequence = useRef(0);
+  const desiredChannel = useRef<string | null>(null);
 
-  const load = useCallback(async (channelId?: string) => {
+  const load = useCallback(async (channelId?: string, isSelection = false) => {
+    const previousDesired = desiredChannel.current;
+    if (isSelection && channelId) {
+      intentSequence.current += 1;
+      desiredChannel.current = channelId;
+    }
+    const requestId = ++requestSequence.current;
+    const intentId = intentSequence.current;
     try {
       const response = await fetch(`/api/portal/team-chat${channelId ? `?channel=${channelId}` : ""}`);
       const result = await response.json() as ChatSnapshot & { ok?: boolean; error?: string };
       if (!response.ok || result.ok === false) throw new Error(result.error || "Chat could not load.");
+      // A poll for the old channel, or any older request from before a user
+      // selection, must never repaint the conversation the operator chose.
+      if (intentId !== intentSequence.current) return;
+      if (channelId && desiredChannel.current && channelId !== desiredChannel.current) return;
+      if (requestId < appliedSequence.current) return;
+      appliedSequence.current = requestId;
+      desiredChannel.current = result.activeChannelId || desiredChannel.current;
+      setError("");
       setSnap(result);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Chat could not load."); }
+    } catch (cause) {
+      if (intentId !== intentSequence.current) return;
+      if (isSelection) desiredChannel.current = previousDesired;
+      setError(cause instanceof Error ? cause.message : "Chat could not load.");
+    }
   }, []);
 
   useEffect(() => { void load(); }, [load]);
@@ -36,14 +59,30 @@ export function TeamChat() {
   useEffect(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, [snap?.messages.length, snap?.activeChannelId]);
 
   async function send(action: string, payload: Record<string, unknown>) {
+    if (!canUse) return;
+    const requestId = ++requestSequence.current;
+    const intentId = ++intentSequence.current;
+    const postingChannel = action === "post" && typeof payload.channelId === "string"
+      ? payload.channelId
+      : null;
+    if (postingChannel) desiredChannel.current = postingChannel;
     setBusy(true); setError("");
     try {
       const response = await fetch("/api/portal/team-chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, ...payload }) });
       const result = await response.json() as ChatSnapshot & { ok?: boolean; error?: string };
       if (!response.ok || result.ok === false) throw new Error(result.error || "Message not sent.");
+      if (intentId !== intentSequence.current || requestId < appliedSequence.current) return;
+      if (postingChannel && result.activeChannelId !== postingChannel) return;
+      appliedSequence.current = requestId;
+      desiredChannel.current = result.activeChannelId || desiredChannel.current;
       setSnap(result);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Message not sent."); }
-    finally { setBusy(false); }
+    } catch (cause) {
+      if (intentId === intentSequence.current) {
+        setError(cause instanceof Error ? cause.message : "Message not sent.");
+      }
+    } finally {
+      if (intentId === intentSequence.current) setBusy(false);
+    }
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -73,7 +112,7 @@ export function TeamChat() {
         <section className="rounded-lg border border-black/10 bg-white p-3">
           <p className="px-2 py-1 text-xs font-semibold uppercase text-black/40">Channels</p>
           {snap.channels.map(channel => (
-            <button key={channel.id} onClick={() => void load(channel.id)} className={`flex min-h-10 w-full items-center gap-2 rounded-md px-2 text-left text-sm font-medium ${channel.id === snap.activeChannelId ? "bg-emerald-50 text-emerald-900" : "hover:bg-black/[0.03]"}`}>
+            <button key={channel.id} onClick={() => void load(channel.id, true)} className={`flex min-h-10 w-full items-center gap-2 rounded-md px-2 text-left text-sm font-medium ${channel.id === snap.activeChannelId ? "bg-emerald-50 text-emerald-900" : "hover:bg-black/[0.03]"}`}>
               {channel.kind === "team" ? <Hash size={15} className="text-black/40" /> : <MessageSquare size={15} className="text-black/40" />}
               <span className="truncate">{channel.kind === "team" ? "Team" : channelName(channel, snap.selfUserId, snap.roster)}</span>
             </button>
@@ -83,7 +122,7 @@ export function TeamChat() {
           <p className="flex items-center gap-1.5 px-2 py-1 text-xs font-semibold uppercase text-black/40"><Users size={13} /> Working today · {workingToday.length}</p>
           <div className="mt-1 space-y-0.5">
             {others.map(entry => (
-              <button key={entry.userId} onClick={() => void send("open-direct", { withUserId: entry.userId })} disabled={busy} className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm hover:bg-black/[0.03]">
+              <button key={entry.userId} onClick={() => void send("open-direct", { withUserId: entry.userId })} disabled={busy || !canUse} className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm hover:bg-black/[0.03] disabled:cursor-default disabled:opacity-70">
                 <span className={`inline-block size-2 shrink-0 rounded-full ${entry.presence.state === "online" ? "bg-emerald-500" : entry.presence.state === "idle" ? "bg-amber-400" : "bg-black/20"}`} />
                 <span className="truncate">{entry.name}</span>
                 {entry.workingToday ? <span className="ml-auto rounded bg-emerald-50 px-1.5 text-[10px] font-semibold text-emerald-700">in</span> : null}
@@ -115,10 +154,10 @@ export function TeamChat() {
           }) : <div className="grid h-full place-items-center text-center text-sm text-black/40"><div><MessageSquare className="mx-auto text-black/20" size={22} /><p className="mt-2">No messages yet — say hello.</p></div></div>}
         </div>
         {error ? <p className="border-t border-red-100 bg-red-50 px-4 py-2 text-xs text-red-700">{error}</p> : null}
-        <form onSubmit={submit} className="flex gap-2 border-t border-black/10 p-3">
+        {canUse ? <form onSubmit={submit} className="flex gap-2 border-t border-black/10 p-3">
           <input name="body" autoComplete="off" placeholder={active?.kind === "team" ? "Message the team… @name to notify someone" : "Message them…"} className="min-h-10 min-w-0 flex-1 rounded-md border border-black/15 px-3 text-sm" />
           <button disabled={busy} className="inline-flex min-h-10 items-center gap-1 rounded-md bg-emerald-800 px-4 text-sm font-semibold text-white">{busy ? <Loader2 className="animate-spin" size={15} /> : <Send size={15} />} Send</button>
-        </form>
+        </form> : <p className="border-t border-black/10 px-4 py-3 text-xs text-black/45">View-only chat access. Ask for Use access to send messages or open a new direct conversation.</p>}
       </section>
     </div>
   );

@@ -9,6 +9,7 @@ import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES, CLIENT_ROLES } from "@/server/types";
 import { getClientForAgency } from "@/server/tenants";
 import type { ClientFileRef } from "../route";
+import { clientFileWorkspaceElementKey, requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 export const runtime = "nodejs";
 
@@ -117,6 +118,11 @@ export async function GET(req: Request) {
   const file = files.find(item => item.id === fileId);
   if (!file?.storageProvider || !file.storageKey) {
     return NextResponse.json({ ok: false, error: "stored file not found" }, { status: 404 });
+  }
+  try {
+    await requireCurrentClientWorkspaceElementAccess(clientId, clientFileWorkspaceElementKey(file), "view");
+  } catch (error) {
+    return authErrorResponse(error);
   }
   if (session.role === "end-customer") {
     const metadata = client.metadata ?? {};

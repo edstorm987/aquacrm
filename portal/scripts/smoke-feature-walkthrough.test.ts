@@ -65,12 +65,14 @@ describe("Auth and account", () => {
   it("account pages expose skip-link landing landmarks", () => {
     for (const path of [
       join(PORTAL, "account", "page.tsx"),
-      join(PORTAL, "account", "preferences", "page.tsx"),
       join(PORTAL, "account", "permissions", "page.tsx"),
     ]) {
       assert.ok(has(path), `${path} missing`);
       assert.ok(read(path).includes('id="main-content"'), `${path} missing main-content`);
     }
+    const preferences = read(join(PORTAL, "account", "preferences", "page.tsx"));
+    assert.ok(preferences.includes('redirect("/portal/agency/settings#notifications")'), "agency preferences compatibility route should open Settings");
+    assert.ok(preferences.includes('redirect("/portal/account")'), "non-agency preferences compatibility route should return to Account");
   });
 });
 
@@ -219,7 +221,7 @@ describe("Sales, pipelines, finance, inbox, and systems", () => {
     const dashboard = read(join(PORTAL, "agency", "page.tsx"));
     const sopLibrary = read(join(PORTAL, "agency", "sop-library", "page.tsx"));
 
-    assert.ok(systems.includes('redirect("/portal/agency")'));
+    assert.ok(systems.includes('redirect("/portal/agency/sop-library")'));
     assert.ok(dashboard.includes("DashboardCommandCenter"));
     assert.ok(dashboard.includes("dashboardPlanningSnapshot"));
     assert.ok(!dashboard.includes('title="Business areas"'));

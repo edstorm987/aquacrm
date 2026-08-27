@@ -4,9 +4,19 @@ import { now } from "../lib/time";
 import type { AgencyId, UserId } from "../lib/tenancy";
 import type { CreateIncomeEntryInput, Currency, IncomeEntry, IncomeEntryFilter } from "../lib/domain";
 import type { ActivityLogPort, EventBusPort, StoragePort } from "./ports";
+import {
+  assertAllowedValue,
+  assertCurrency,
+  assertKnownFields,
+  assertNonEmptyText,
+  assertOptionalText,
+  assertOptionalTimestamp,
+  assertSafeInteger,
+} from "../lib/runtimeValidation";
 
 const INDEX_KEY = "income/index";
 const entryKey = (id: string) => `income/by-id/${id}`;
+const PAYMENT_METHODS = ["stripe", "bank-transfer", "cash", "manual", "other"] as const;
 
 export class IncomeService {
   constructor(
@@ -36,9 +46,20 @@ export class IncomeService {
   // Idempotent on `input.idempotencyKey`: a resubmit of the same intent returns
   // the first entry instead of double-recording income. See lib/idempotency.ts.
   async create(actor: UserId, input: CreateIncomeEntryInput, defaultCurrency: Currency = "gbp"): Promise<IncomeEntry> {
+    assertKnownFields(input, ["clientId", "title", "category", "description", "amountCents", "currency", "method", "receivedAt", "reference", "notes", "idempotencyKey"]);
+    assertNonEmptyText(input.title, "title");
+    assertSafeInteger(input.amountCents, "amountCents", { min: 1 });
+    assertAllowedValue(input.method, PAYMENT_METHODS, "method");
+    const currency = input.currency ?? defaultCurrency;
+    assertCurrency(currency);
+    assertOptionalTimestamp(input.receivedAt, "receivedAt");
+    assertOptionalText(input.clientId, "clientId");
+    assertOptionalText(input.category, "category");
+    assertOptionalText(input.description, "description");
+    assertOptionalText(input.reference, "reference");
+    assertOptionalText(input.notes, "notes");
+    assertOptionalText(input.idempotencyKey, "idempotencyKey");
     const title = input.title.trim().slice(0, 180);
-    if (!title) throw new Error("Income description is required.");
-    if (!Number.isFinite(input.amountCents) || input.amountCents <= 0) throw new Error("Income amount must be greater than zero.");
 
     const key = normaliseIdempotencyKey(input.idempotencyKey);
     const id = deriveRecordId("inc", key);
@@ -55,8 +76,8 @@ export class IncomeService {
       title,
       category: input.category?.trim().slice(0, 80) || undefined,
       description: input.description?.trim().slice(0, 2_000) || undefined,
-      amountCents: Math.round(input.amountCents),
-      currency: input.currency ?? defaultCurrency,
+      amountCents: input.amountCents,
+      currency,
       method: input.method,
       receivedAt: input.receivedAt ?? timestamp,
       reference: input.reference?.trim().slice(0, 180) || undefined,

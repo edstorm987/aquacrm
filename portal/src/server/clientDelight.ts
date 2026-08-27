@@ -10,6 +10,7 @@ import type { ClientDelightOccasion, ClientDelightRecord, ClientDelightStatus, E
 type FulfilmentStepInput = string | { id?: string; label?: string; completed?: boolean; completedAt?: number };
 
 export interface ClientDelightInput {
+  idempotencyKey?: string;
   clientId?: string;
   recipientUserId?: string;
   companyId?: string;
@@ -49,9 +50,17 @@ export function createClientDelight(agencyId: string, input: ClientDelightInput,
   if (!recipientName || !title) throw new Error("Recipient and experience are required.");
   const clientId = validClientId(agencyId, input.clientId);
   const recipientUserId = validUserId(agencyId, input.recipientUserId);
+  const idempotencyKey = clean(input.idempotencyKey, 500);
+  const stableId = idempotencyKey
+    ? `delight_${crypto.createHash("sha256").update(`${agencyId}\u0000${idempotencyKey}`).digest("hex").slice(0, 24)}`
+    : undefined;
+  if (stableId) {
+    const existing = getState().clientDelight[stableId];
+    if (existing?.agencyId === agencyId) return normalizeRecord(existing);
+  }
   const now = Date.now();
   const record: ClientDelightRecord = {
-    id: `delight_${crypto.randomBytes(8).toString("hex")}`,
+    id: stableId ?? `delight_${crypto.randomBytes(8).toString("hex")}`,
     agencyId,
     clientId,
     recipientUserId,
@@ -81,7 +90,7 @@ export function createClientDelight(agencyId: string, input: ClientDelightInput,
     updatedAt: now,
   };
   mutate(state => { state.clientDelight[record.id] = record; });
-  logActivity({ agencyId, clientId, actorUserId, category: "onboarding", action: "client_delight.created", message: `Planned “${record.title}” for ${recipientName}.`, metadata: { delightId: record.id, occasion: record.occasion } });
+  logActivity({ idempotencyKey: idempotencyKey ? `client-delight:${idempotencyKey}` : undefined, agencyId, clientId, actorUserId, category: "onboarding", action: "client_delight.created", message: `Planned “${record.title}” for ${recipientName}.`, metadata: { delightId: record.id, occasion: record.occasion } });
   return record;
 }
 

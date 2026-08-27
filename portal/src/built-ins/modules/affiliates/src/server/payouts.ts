@@ -13,6 +13,7 @@ import type {
   MarkPayoutPaidInput,
   Payout,
   PayoutFilter,
+  PayoutBalance,
   PayoutMethod,
   SchedulePayoutInput,
 } from "../lib/domain";
@@ -24,10 +25,72 @@ import type {
 } from "./ports";
 import type { AffiliateService } from "./affiliates";
 import type { AttributionService } from "./attributions";
+import {
+  assertMarkPayoutPaidInput,
+  assertPayout,
+  assertProviderId,
+  assertSchedulePayoutInput,
+} from "../lib/runtimeValidation";
 
 const PAYOUT_INDEX_KEY = "payouts/index";
 const payoutKey = (id: string): string => `payouts/by-id/${id}`;
 const byAffiliateKey = (aff: string): string => `payouts/by-affiliate/${aff}`;
+const scheduleOperationPrefix = (affiliateId: string): string => `payouts/schedule-operation/${affiliateId}/`;
+const scheduleOperationKey = (affiliateId: string, currency: string): string => `${scheduleOperationPrefix(affiliateId)}${currency}`;
+const completionOperationKey = (payoutId: string): string => `payouts/completion-operation/${payoutId}`;
+
+interface ScheduleOperation {
+  id: string;
+  affiliateId: string;
+  payout: Payout;
+  status: "pending" | "completed";
+  createdAt: number;
+  updatedAt: number;
+}
+
+interface CompletionOperation {
+  payoutId: string;
+  method: PayoutMethod;
+  externalRef: string;
+  status: "pending" | "attributions_paid" | "adjustments_applied" | "payout_completed" | "earnings_reconciled" | "completed";
+  actor?: UserId;
+  createdAt: number;
+  updatedAt: number;
+}
+
+const localTails = new Map<string, Promise<void>>();
+
+async function localExclusive<T>(key: string, operation: () => Promise<T>): Promise<T> {
+  const previous = localTails.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const tail = previous.then(() => gate);
+  localTails.set(key, tail);
+  await previous;
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (localTails.get(key) === tail) localTails.delete(key);
+  }
+}
+
+function cleanOperationId(value?: string): string {
+  const cleaned = value?.trim().replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 160);
+  return cleaned || makeId("payout_schedule_operation");
+}
+
+function normalizedCurrency(value?: string): string {
+  return value?.trim().toLowerCase() || "unknown";
+}
+
+function payableCommission(amountCents: number, reversedAmountCents = 0): number {
+  return Math.max(0, amountCents - reversedAmountCents);
+}
+
+function pendingOffset(offsetAmountCents = 0, offsetAppliedCents = 0): number {
+  return Math.max(0, offsetAmountCents - offsetAppliedCents);
+}
 
 export class PayoutService {
   constructor(
@@ -54,6 +117,7 @@ export class PayoutService {
     return out
       .filter(p => !filter?.affiliateId || p.affiliateId === filter.affiliateId)
       .filter(p => !filter?.status || p.status === filter.status)
+      .filter(p => !filter?.currency || normalizedCurrency(p.currency) === normalizedCurrency(filter.currency))
       .sort((a, b) => b.scheduledFor - a.scheduledFor);
   }
 
@@ -72,96 +136,127 @@ export class PayoutService {
     return out.sort((a, b) => b.scheduledFor - a.scheduledFor);
   }
 
+  async availableBalances(affiliateId?: string): Promise<PayoutBalance[]> {
+    return this.attributions.payoutBalances(affiliateId);
+  }
+
   // Rolls all of an affiliate's `approved` attributions into a single
   // `scheduled` Payout. Returns null when there are no approved
   // attributions outstanding (handler returns 422 with a clear message
   // — there's nothing to pay out).
   async schedule(input: SchedulePayoutInput, actor: UserId, defaultMethod: PayoutMethod = "manual"): Promise<Payout | null> {
-    const affiliate = await this.affiliates.get(input.affiliateId);
-    if (!affiliate) throw new Error(`Affiliate ${input.affiliateId} not found.`);
+    assertSchedulePayoutInput(input, defaultMethod);
+    return this.withLock("schedule-collection", async () => {
+      const affiliate = await this.affiliates.get(input.affiliateId);
+      if (!affiliate) throw new Error(`Affiliate ${input.affiliateId} not found.`);
 
-    const approvedAttributions = await this.attributions.list({
-      affiliateId: input.affiliateId,
-      status: "approved",
-    });
-    if (approvedAttributions.length === 0) return null;
+      const requestedCurrency = input.currency ? normalizedCurrency(input.currency) : undefined;
+      if (requestedCurrency === "unknown") throw new Error("A valid payout currency is required.");
+      const existingOperation = await this.findScheduleOperation(
+        input.affiliateId,
+        requestedCurrency,
+        input.operationId,
+      );
+      if (existingOperation?.status === "pending") {
+        return this.finishSchedule(existingOperation, affiliate.displayName, actor);
+      }
+      if (
+        existingOperation?.status === "completed" &&
+        input.operationId &&
+        existingOperation.id === input.operationId
+      ) {
+        return await this.get(existingOperation.payout.id) ?? existingOperation.payout;
+      }
 
-    const amountCents = approvedAttributions.reduce((sum, a) => sum + a.amountCents, 0);
-    const id = makeId("po");
-    const ts = now();
-    const row: Payout = {
-      id,
-      agencyId: this.agencyId,
-      clientId: this.clientId,
-      affiliateId: input.affiliateId,
-      amountCents,
-      attributionIds: approvedAttributions.map(a => a.id),
-      method: input.method ?? defaultMethod,
-      status: "scheduled",
-      scheduledFor: input.scheduledFor ?? ts,
-      createdAt: ts,
-    };
-    await this.storage.set(payoutKey(id), row);
-    const ix = (await this.storage.get<string[]>(PAYOUT_INDEX_KEY)) ?? [];
-    if (!ix.includes(id)) {
-      await this.storage.set(PAYOUT_INDEX_KEY, [...ix, id]);
-    }
-    const affIx = (await this.storage.get<string[]>(byAffiliateKey(input.affiliateId))) ?? [];
-    if (!affIx.includes(id)) {
-      await this.storage.set(byAffiliateKey(input.affiliateId), [...affIx, id]);
-    }
-    await this.activity.logActivity({
-      agencyId: this.agencyId,
-      clientId: this.clientId,
-      actorUserId: actor,
-      category: "affiliates",
-      action: "affiliate.payout_scheduled",
-      message: `Scheduled payout for ${affiliate.displayName} (${approvedAttributions.length} attributions, ${formatMoney(amountCents, "usd")}).`,
-      metadata: { payoutId: id, affiliateId: input.affiliateId, amountCents, count: approvedAttributions.length },
+      const balances = (await this.availableBalances(input.affiliateId))
+        .filter(balance => balance.grossApprovedCents > 0);
+      if (balances.length === 0) return null;
+      const currencies = [...new Set(balances.map(balance => balance.currency))];
+      if (!requestedCurrency && currencies.length > 1) {
+        throw new Error(`Currency required: approved balances exist in ${currencies.map(value => value.toUpperCase()).join(", ")}.`);
+      }
+      const currency = requestedCurrency ?? currencies[0]!;
+      if (currency === "unknown") {
+        throw new Error("Legacy attributions without currency must be reconciled to their source orders before payout.");
+      }
+      const balance = balances.find(row => row.currency === currency);
+      if (!balance) return null;
+      if (balance.availableCents <= 0) {
+        throw new Error(
+          `${currency.toUpperCase()} approved commission is fully offset by ${formatMoney(balance.pendingAdjustmentCents, currency)} of refunds/cancellations.`,
+        );
+      }
+
+      const affiliateAttributions = await this.attributions.listForAffiliate(input.affiliateId);
+      const approvedAttributions = affiliateAttributions.filter(attribution =>
+        attribution.status === "approved"
+        && !attribution.payoutId
+        && normalizedCurrency(attribution.currency) === currency
+        && payableCommission(attribution.amountCents, attribution.reversedAmountCents) > 0,
+      );
+      const adjustments = affiliateAttributions.filter(attribution =>
+        !attribution.offsetClaimPayoutId
+        && normalizedCurrency(attribution.currency) === currency
+        && pendingOffset(attribution.offsetAmountCents, attribution.offsetAppliedCents) > 0,
+      );
+
+      const attributionAmounts = Object.fromEntries(approvedAttributions.map(attribution => [
+        attribution.id,
+        payableCommission(attribution.amountCents, attribution.reversedAmountCents),
+      ]));
+      const adjustmentAmounts = Object.fromEntries(adjustments.map(attribution => [
+        attribution.id,
+        pendingOffset(attribution.offsetAmountCents, attribution.offsetAppliedCents),
+      ]));
+      const grossAmountCents = Object.values(attributionAmounts).reduce((sum, amount) => sum + amount, 0);
+      const adjustmentAmountCents = Object.values(adjustmentAmounts).reduce((sum, amount) => sum + amount, 0);
+      const amountCents = grossAmountCents - adjustmentAmountCents;
+      if (amountCents <= 0) {
+        throw new Error(
+          `${currency.toUpperCase()} approved commission is fully offset by refunds/cancellations; no transferable payout exists yet.`,
+        );
+      }
+      const ts = now();
+      const payout: Payout = {
+        id: makeId("po"),
+        agencyId: this.agencyId,
+        clientId: this.clientId,
+        affiliateId: input.affiliateId,
+        currency,
+        amountCents,
+        grossAmountCents,
+        adjustmentAmountCents,
+        attributionIds: approvedAttributions.map(attribution => attribution.id),
+        attributionAmounts,
+        adjustmentAttributionIds: adjustments.map(attribution => attribution.id),
+        adjustmentAmounts,
+        method: input.method ?? defaultMethod,
+        status: "scheduled",
+        scheduledFor: input.scheduledFor ?? ts,
+        createdAt: ts,
+      };
+      assertPayout(payout);
+      const operation: ScheduleOperation = {
+        id: cleanOperationId(input.operationId),
+        affiliateId: input.affiliateId,
+        payout,
+        status: "pending",
+        createdAt: ts,
+        updatedAt: ts,
+      };
+      await this.storage.set(scheduleOperationKey(input.affiliateId, currency), operation);
+      return this.finishSchedule(operation, affiliate.displayName, actor);
     });
-    this.events.emit(
-      { agencyId: this.agencyId, clientId: this.clientId },
-      "affiliate.payout_scheduled",
-      { payoutId: id, affiliateId: input.affiliateId, amountCents },
-    );
-    return row;
   }
 
   async markPaid(id: string, input: MarkPayoutPaidInput, actor: UserId): Promise<Payout | null> {
-    const existing = await this.get(id);
-    if (!existing) return null;
-    if (existing.status === "completed") return existing;        // idempotent
-    const next: Payout = {
-      ...existing,
-      status: "completed",
-      method: input.method ?? existing.method,
-      externalRef: input.externalRef,
-      completedAt: now(),
-    };
-    await this.storage.set(payoutKey(id), next);
-
-    // Flip the rolled attributions to paid + bump the affiliate's
-    // lifetime-earnings counter.
-    await this.attributions._markPaid(existing.attributionIds, id);
-    await this.affiliates._incrementCounters(existing.affiliateId, {
-      addEarningsCents: existing.amountCents,
-    });
-
-    await this.activity.logActivity({
-      agencyId: this.agencyId,
-      clientId: this.clientId,
-      actorUserId: actor,
-      category: "affiliates",
-      action: "affiliate.payout_completed",
-      message: `Paid affiliate payout ${id} (${input.externalRef}).`,
-      metadata: { payoutId: id, affiliateId: existing.affiliateId, amountCents: existing.amountCents, externalRef: input.externalRef },
-    });
-    this.events.emit(
-      { agencyId: this.agencyId, clientId: this.clientId },
-      "affiliate.payout_completed",
-      { payoutId: id, affiliateId: existing.affiliateId, amountCents: existing.amountCents },
+    assertMarkPayoutPaidInput(input);
+    return this.completePayout(
+      id,
+      input.method,
+      input.externalRef,
+      actor,
     );
-    return next;
   }
 
   // R12 — replaces manual `markPaid(externalRef)` with a real Stripe
@@ -188,6 +283,15 @@ export class PayoutService {
   ): Promise<Payout | null> {
     const existing = await this.get(id);
     if (!existing) return null;
+    const payoutCurrency = normalizedCurrency(existing.currency);
+    if (payoutCurrency === "unknown") {
+      throw new Error(`Payout ${id} has no currency and cannot be sent to a payment provider.`);
+    }
+    if (args.currency && normalizedCurrency(args.currency) !== payoutCurrency) {
+      throw new Error(
+        `Payout ${id} is locked to ${payoutCurrency.toUpperCase()}; caller currency overrides are not allowed.`,
+      );
+    }
     // Idempotent — already in flight or done.
     if (existing.status === "in_progress" || existing.status === "completed") {
       return existing;
@@ -213,11 +317,12 @@ export class PayoutService {
       transfer = await this.stripe.createTransfer({
         destinationAccountId: affiliate.stripeAccountId,
         amountCents: existing.amountCents,
-        currency: (args.currency ?? "usd").toLowerCase(),
+        currency: payoutCurrency,
         idempotencyKey: `payout:${existing.id}`,
         description: args.description ?? `Affiliate payout ${existing.id} for ${affiliate.displayName}`,
         transferGroup: `affiliate:${affiliate.id}`,
       });
+      assertProviderId(transfer.transferId, "transfer.id");
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       await this.markFailed(existing.id, reason, actor);
@@ -230,6 +335,7 @@ export class PayoutService {
       method: "stripe-connect",
       externalRef: transfer.transferId,
     };
+    assertPayout(next);
     await this.storage.set(payoutKey(id), next);
     await this.activity.logActivity({
       agencyId: this.agencyId,
@@ -237,11 +343,12 @@ export class PayoutService {
       actorUserId: actor,
       category: "affiliates",
       action: "affiliate.payout_processing",
-      message: `Submitted Stripe transfer ${transfer.transferId} for payout ${existing.id} (${affiliate.displayName}, ${formatMoney(existing.amountCents, args.currency ?? "usd")}).`,
+      message: `Submitted Stripe transfer ${transfer.transferId} for payout ${existing.id} (${affiliate.displayName}, ${formatMoney(existing.amountCents, existing.currency)}).`,
       metadata: {
         payoutId: id,
         affiliateId: existing.affiliateId,
         amountCents: existing.amountCents,
+        currency: existing.currency,
         externalRef: transfer.transferId,
         stripeAccountId: affiliate.stripeAccountId,
       },
@@ -249,7 +356,7 @@ export class PayoutService {
     this.events.emit(
       { agencyId: this.agencyId, clientId: this.clientId },
       "affiliate.payout_processing",
-      { payoutId: id, affiliateId: existing.affiliateId, amountCents: existing.amountCents, externalRef: transfer.transferId },
+      { payoutId: id, affiliateId: existing.affiliateId, amountCents: existing.amountCents, currency: existing.currency, externalRef: transfer.transferId },
     );
     return next;
   }
@@ -261,39 +368,189 @@ export class PayoutService {
   async confirmTransferPaid(transferId: string, actor?: UserId): Promise<Payout | null> {
     const payout = await this._findByExternalRef(transferId);
     if (!payout) return null;
-    if (payout.status === "completed") return payout;
-    const next: Payout = {
-      ...payout,
-      status: "completed",
-      method: "stripe-connect",
-      completedAt: now(),
-    };
-    await this.storage.set(payoutKey(payout.id), next);
-    await this.attributions._markPaid(payout.attributionIds, payout.id);
-    await this.affiliates._incrementCounters(payout.affiliateId, {
-      addEarningsCents: payout.amountCents,
-    });
+    return this.completePayout(payout.id, "stripe-connect", transferId, actor);
+  }
+
+  private async finishSchedule(
+    operation: ScheduleOperation,
+    affiliateName: string,
+    actor: UserId,
+  ): Promise<Payout> {
+    const payout = operation.payout;
+    assertPayout(payout);
+    await this.attributions._claimForPayout(payout.attributionIds, payout.id, payout.attributionAmounts);
+    await this.attributions._claimOffsets(payout.adjustmentAmounts, payout.id);
+    await this.storage.set(payoutKey(payout.id), payout);
+    const index = (await this.storage.get<string[]>(PAYOUT_INDEX_KEY)) ?? [];
+    if (!index.includes(payout.id)) {
+      await this.storage.set(PAYOUT_INDEX_KEY, [...index, payout.id]);
+    }
+    const affiliateIndex = (await this.storage.get<string[]>(byAffiliateKey(payout.affiliateId))) ?? [];
+    if (!affiliateIndex.includes(payout.id)) {
+      await this.storage.set(byAffiliateKey(payout.affiliateId), [...affiliateIndex, payout.id]);
+    }
     await this.activity.logActivity({
+      idempotencyKey: `affiliates:payout-schedule:${operation.id}`,
       agencyId: this.agencyId,
       clientId: this.clientId,
       actorUserId: actor,
       category: "affiliates",
-      action: "affiliate.payout_completed",
-      message: `Paid affiliate payout ${payout.id} via Stripe transfer ${transferId}.`,
+      action: "affiliate.payout_scheduled",
+      message: `Scheduled payout for ${affiliateName} (${payout.attributionIds.length} attributions, ${formatMoney(payout.amountCents, payout.currency)} after ${formatMoney(payout.adjustmentAmountCents, payout.currency)} adjustments).`,
       metadata: {
         payoutId: payout.id,
         affiliateId: payout.affiliateId,
         amountCents: payout.amountCents,
-        externalRef: transferId,
-        method: "stripe-connect",
+        grossAmountCents: payout.grossAmountCents,
+        adjustmentAmountCents: payout.adjustmentAmountCents,
+        currency: payout.currency,
+        count: payout.attributionIds.length,
+        operationId: operation.id,
       },
     });
     this.events.emit(
       { agencyId: this.agencyId, clientId: this.clientId },
-      "affiliate.payout_completed",
-      { payoutId: payout.id, affiliateId: payout.affiliateId, amountCents: payout.amountCents },
+      "affiliate.payout_scheduled",
+      {
+        payoutId: payout.id,
+        affiliateId: payout.affiliateId,
+        amountCents: payout.amountCents,
+        currency: payout.currency,
+        operationId: operation.id,
+      },
     );
+    await this.storage.set(scheduleOperationKey(payout.affiliateId, payout.currency), {
+      ...operation,
+      status: "completed",
+      updatedAt: now(),
+    } satisfies ScheduleOperation);
+    return payout;
+  }
+
+  private async completePayout(
+    id: string,
+    requestedMethod: PayoutMethod | undefined,
+    externalRef: string,
+    actor?: UserId,
+  ): Promise<Payout | null> {
+    return this.withLock(`complete:${id}`, async () => {
+      let payout = await this.get(id);
+      if (!payout) return null;
+      let operation = await this.storage.get<CompletionOperation>(completionOperationKey(id));
+      if (operation?.status === "completed") return payout;
+      if (!operation) {
+        const ts = now();
+        operation = {
+          payoutId: id,
+          method: requestedMethod ?? payout.method,
+          externalRef,
+          status: "pending",
+          actor,
+          createdAt: ts,
+          updatedAt: ts,
+        };
+        await this.storage.set(completionOperationKey(id), operation);
+      } else if (operation.externalRef !== externalRef) {
+        throw new Error(
+          `Payout ${id} is already completing under external reference ${operation.externalRef}.`,
+        );
+      }
+
+      if (operation.status === "pending") {
+        await this.attributions._markPaid(payout.attributionIds, payout.id, payout.attributionAmounts);
+        operation = await this.saveCompletion(operation, "attributions_paid");
+      }
+      if (operation.status === "attributions_paid") {
+        await this.attributions._markOffsetsApplied(payout.adjustmentAmounts, payout.id);
+        operation = await this.saveCompletion(operation, "adjustments_applied");
+      }
+      if (operation.status === "adjustments_applied") {
+        payout = {
+          ...payout,
+          status: "completed",
+          method: operation.method,
+          externalRef: operation.externalRef,
+          completedAt: payout.completedAt ?? now(),
+          failureReason: undefined,
+        };
+        assertPayout(payout);
+        await this.storage.set(payoutKey(id), payout);
+        operation = await this.saveCompletion(operation, "payout_completed");
+      }
+      if (operation.status === "payout_completed") {
+        const earnings = await this.attributions._totalPaidForAffiliateByCurrency(payout.affiliateId);
+        await this.affiliates._setLifetimeEarningsByCurrency(payout.affiliateId, earnings);
+        operation = await this.saveCompletion(operation, "earnings_reconciled");
+      }
+      if (operation.status === "earnings_reconciled") {
+        await this.activity.logActivity({
+          idempotencyKey: `affiliates:payout-complete:${id}`,
+          agencyId: this.agencyId,
+          clientId: this.clientId,
+          actorUserId: operation.actor,
+          category: "affiliates",
+          action: "affiliate.payout_completed",
+          message: operation.method === "stripe-connect"
+            ? `Paid affiliate payout ${id} via Stripe transfer ${operation.externalRef}.`
+            : `Paid affiliate payout ${id} (${operation.externalRef}).`,
+          metadata: {
+            payoutId: id,
+            affiliateId: payout.affiliateId,
+            amountCents: payout.amountCents,
+            currency: payout.currency,
+            externalRef: operation.externalRef,
+            method: operation.method,
+          },
+        });
+        this.events.emit(
+          { agencyId: this.agencyId, clientId: this.clientId },
+          "affiliate.payout_completed",
+          {
+            payoutId: id,
+            affiliateId: payout.affiliateId,
+            amountCents: payout.amountCents,
+            currency: payout.currency,
+            operationId: `payout-complete:${id}`,
+          },
+        );
+        operation = await this.saveCompletion(operation, "completed");
+      }
+      return await this.get(id) ?? payout;
+    });
+  }
+
+  private async saveCompletion(
+    operation: CompletionOperation,
+    status: CompletionOperation["status"],
+  ): Promise<CompletionOperation> {
+    const next = { ...operation, status, updatedAt: now() };
+    await this.storage.set(completionOperationKey(operation.payoutId), next);
     return next;
+  }
+
+  private async findScheduleOperation(
+    affiliateId: string,
+    currency?: string,
+    operationId?: string,
+  ): Promise<ScheduleOperation | undefined> {
+    if (currency) {
+      return this.storage.get<ScheduleOperation>(scheduleOperationKey(affiliateId, currency));
+    }
+    const keys = await this.storage.list(scheduleOperationPrefix(affiliateId));
+    let replay: ScheduleOperation | undefined;
+    for (const key of keys) {
+      const operation = await this.storage.get<ScheduleOperation>(key);
+      if (operation?.status === "pending") return operation;
+      if (operationId && operation?.id === operationId) replay = operation;
+    }
+    return replay;
+  }
+
+  private async withLock<T>(key: string, operation: () => Promise<T>): Promise<T> {
+    if (this.storage.runExclusive) {
+      return this.storage.runExclusive(`affiliate-payout:${key}`, operation);
+    }
+    return localExclusive(`${this.agencyId}:${this.clientId}:${key}`, operation);
   }
 
   private async _findByExternalRef(externalRef: string): Promise<Payout | null> {
@@ -315,6 +572,7 @@ export class PayoutService {
       status: "failed",
       failureReason: reason,
     };
+    assertPayout(next);
     await this.storage.set(payoutKey(id), next);
     await this.activity.logActivity({
       agencyId: this.agencyId,

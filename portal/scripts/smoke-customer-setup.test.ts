@@ -47,7 +47,7 @@ describe("a customer's first minutes", () => {
   it("sends a first-timer to setup rather than into a portal they cannot re-enter", () => {
     // They were signed in by a link and hold no password. Dropping them
     // straight in leaves somebody locked out once the link is spent.
-    assert.match(layout(), /!setupUser\.welcomeCompletedAt\) redirect\("\/setup"\)/);
+    assert.match(layout(), /user && !user\.welcomeCompletedAt\) redirect\("\/setup"\)/);
   });
 
   it("does not hold anybody on the welcome twice", () => {
@@ -68,10 +68,14 @@ describe("a customer's first minutes", () => {
   });
 
   it("ships a manifest, so installing gives an app and not a bookmark", () => {
-    const manifest = read("src", "app", "manifest.ts");
-    assert.match(manifest, /display: "standalone"/);
-    assert.match(manifest, /start_url: "\/portal\/customer"/);
-    assert.match(manifest, /purpose: "maskable"/);
+    const manifest = JSON.parse(read("public", "manifest.webmanifest")) as {
+      display?: string;
+      start_url?: string;
+      icons?: Array<{ purpose?: string }>;
+    };
+    assert.equal(manifest.display, "standalone");
+    assert.equal(manifest.start_url, "/portal/customer");
+    assert.ok(manifest.icons?.some(icon => icon.purpose === "maskable"));
   });
 
   it("leaves the video out rather than showing it broken", () => {

@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { put } from "@vercel/blob";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
 
 export type PrivateUploadStorageProvider = "supabase" | "vercel-blob" | "local";
 
@@ -54,6 +55,7 @@ export function durablePrivateUploadsRequired(env: NodeJS.ProcessEnv = process.e
 }
 
 export async function storePrivateUpload(input: StorePrivateUploadInput): Promise<StoredPrivateUpload> {
+  assertLiveProviderAccess("Private file storage");
   if (supabasePrivateUploadsConfigured()) {
     const bucket = process.env.NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET?.trim()
       || DEFAULT_SUPABASE_UPLOAD_BUCKET;
@@ -94,6 +96,7 @@ export async function readSupabasePrivateUpload(storageKey: string): Promise<Blo
 }
 
 export async function deleteSupabasePrivateUpload(storageKey: string): Promise<boolean> {
+  assertLiveProviderAccess("Private file deletion");
   if (!supabasePrivateUploadsConfigured() || !storageKey.trim()) return false;
   const bucket = process.env.NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET?.trim()
     || DEFAULT_SUPABASE_UPLOAD_BUCKET;

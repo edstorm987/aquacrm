@@ -1063,7 +1063,7 @@ describe("the endpoint", () => {
     assert.equal(result.status, 400, "a publish with no candidate is a bug, not a guess to be filled in");
   });
 
-  it("requires Dev Mode even for a founder", async () => {
+  it("keeps founder access through the owner capability baseline without Dev Mode", async () => {
     const { token, agency, userId } = await founder();
     const project = await localProject(agency.id, userId, { repository: "" });
     // Deliberately NOT wrapped in withDevMode.
@@ -1074,7 +1074,7 @@ describe("the endpoint", () => {
         "http://localhost/api/portal/dev/source-edit",
         { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "find", project: project.id, text: "abc" }) },
       ) as never));
-      assert.equal(response.status, 403);
+      assert.equal(response.status, 409);
     } finally {
       if (saved === undefined) delete process.env.PORTAL_DEV_MODE; else process.env.PORTAL_DEV_MODE = saved;
     }
@@ -1085,7 +1085,7 @@ describe("the endpoint", () => {
     for (const field of ["body.token", "body.repository", "body.ref", "body.agencyId"]) {
       assert.equal(source.includes(field), false, `${field} must never be read — the record and the vault are the only sources`);
     }
-    assert.match(source, /getDevProject\(session\.agencyId/, "tenant before project");
+    assert.match(source, /requireDevProjectAccess/, "tenant and project resolution use the canonical access helper");
     assert.equal(/export async function GET/.test(source), false, "POST only — a GET could be triggered cross-site");
   });
 });

@@ -5,7 +5,8 @@
 // the client's brand kit and verified tenant-scope match. Here we only
 // resolve the URL → plugin page and render it.
 
-import { notFound } from "next/navigation";
+import type { ComponentType } from "react";
+import { notFound, redirect } from "next/navigation";
 import { ensureHydrated } from "@/server/storage";
 import { requireRoleForClient } from "@/lib/server/auth/auth";
 import { getClientForAgency } from "@/server/tenants";
@@ -16,6 +17,11 @@ import { pageAllowsRoleAt } from "@/built-ins/runtime/_pageScope";
 import type { PluginPageProps } from "@/built-ins/runtime/_types";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
+import {
+  clientWorkspaceElementAtLeast,
+  clientWorkspaceElementLevel,
+  currentClientWorkspaceElementAccess,
+} from "@/lib/server/access/clientWorkspaceElementAccess";
 
 interface RouteProps {
   params: Promise<{ clientId: string; rest: string[] }>;
@@ -38,6 +44,10 @@ export default async function ClientPluginCatchAll({ params, searchParams }: Rou
   // happens to find nothing for a foreign client — that is an accident of
   // install scoping, not a rule, and this makes it one.
   if (!getClientForAgency(session.agencyId, clientId)) notFound();
+  const { access: clientAccess } = await currentClientWorkspaceElementAccess(clientId);
+  if (!clientWorkspaceElementAtLeast(clientWorkspaceElementLevel(clientAccess, "client.systems"), "view")) {
+    redirect("/portal");
+  }
 
   const resolved = resolveClientPluginPage({
     agencyId: session.agencyId,
@@ -59,6 +69,19 @@ export default async function ClientPluginCatchAll({ params, searchParams }: Rou
 
   const mod = await page.component();
   const Component = mod.default;
+  if (page.clientComponent) {
+    // A Client Component reference may cross the RSC boundary, but the
+    // function-bearing foundation services and plugin storage may not. These
+    // pages read route state with Next hooks and use their scoped HTTP APIs.
+    const ClientComponent = Component as ComponentType;
+    return (
+      <ErrorBoundary label={`${install.pluginId}${page.path ? `/${page.path}` : ""}`}>
+        <div className="plugin-page-shell" data-plugin-id={install.pluginId}>
+          <ClientComponent />
+        </div>
+      </ErrorBoundary>
+    );
+  }
   const props: PluginPageProps = {
     agencyId: session.agencyId,
     clientId,

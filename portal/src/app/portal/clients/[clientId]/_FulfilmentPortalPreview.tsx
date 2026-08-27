@@ -74,11 +74,13 @@ export function FulfilmentPortalPreview({
   clientName,
   providerName,
   initial,
+  canManage = true,
 }: {
   clientId: string;
   clientName: string;
   providerName: string;
   initial: CustomerPortalPreviewInitial;
+  canManage?: boolean;
 }) {
   const [mode, setMode] = useState<CustomerPortalMode>(initial.mode ?? "onboarding");
   const [loginEmail, setLoginEmail] = useState(initial.loginEmail ?? "");
@@ -112,8 +114,8 @@ export function FulfilmentPortalPreview({
   const [desktopScale, setDesktopScale] = useState(0.6);
   const desktopHostRef = useRef<HTMLDivElement | null>(null);
 
-  const previewHref = `/client-preview/${clientId}?manage=1`;
-  const embeddedPreviewHref = `/client-preview/${clientId}?embedded=1&manage=1`;
+  const previewHref = `/client-preview/${clientId}${canManage ? "?manage=1" : ""}`;
+  const embeddedPreviewHref = `/client-preview/${clientId}?embedded=1${canManage ? "&manage=1" : ""}`;
   const activeMode = useMemo(() => MODES.find(item => item.id === mode) ?? MODES[0], [mode]);
   const readiness = [
     { label: "Portal", ready: Boolean(portalBuiltAt), value: portalBuiltAt ? "Ready" : "Create it" },
@@ -265,7 +267,7 @@ export function FulfilmentPortalPreview({
             Create the client&apos;s {providerName} home, check the exact experience, and send access when it is ready.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        {canManage ? <div className="flex flex-wrap gap-2">
           {portalBuiltAt ? (
             <a
               href={`/portal/agency/portals/editor?scope=client&clientId=${encodeURIComponent(clientId)}&mode=${encodeURIComponent(mode)}&section=home&context=client-workspace`}
@@ -287,7 +289,7 @@ export function FulfilmentPortalPreview({
               <ArrowUpRight size={13} aria-hidden="true" />
             </a>
           ) : null}
-        </div>
+        </div> : <span className="rounded-full bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700">Read-only portal preview</span>}
       </header>
 
       <div className="grid gap-px overflow-hidden rounded-md border border-black/10 bg-black/10 sm:grid-cols-3">
@@ -333,7 +335,7 @@ export function FulfilmentPortalPreview({
                   <p className="mt-2 max-w-md text-sm leading-6 text-black/50">
                     This client can stay as a simple record. When they need a private home for updates, files, billing, or support, create it here.
                   </p>
-                  <button
+                  {canManage ? <button
                     type="button"
                     onClick={() => void submit("build-portal")}
                     disabled={busy !== null}
@@ -341,7 +343,7 @@ export function FulfilmentPortalPreview({
                   >
                     <Sparkles size={15} aria-hidden="true" />
                     {busy === "build" ? "Creating..." : "Create client portal"}
-                  </button>
+                  </button> : <p className="mt-5 rounded-md bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700">Portal creation is disabled in this showcase.</p>}
                 </div>
               ) : previewWidth === "desktop" ? (
                 <div
@@ -402,7 +404,7 @@ export function FulfilmentPortalPreview({
           </section>
         </div>
 
-        <aside className="h-fit rounded-md border border-black/10 bg-white xl:sticky xl:top-20">
+        <fieldset disabled={!canManage} className="h-fit rounded-md border border-black/10 bg-white disabled:opacity-80 xl:sticky xl:top-20">
           <div className="border-b border-black/10 px-5 py-4">
             <p className="text-[10px] uppercase tracking-[0.15em] text-black/38">Dev Editor Engine</p>
             <h3 className="mt-1 text-lg font-semibold text-black/85">Client experience</h3>
@@ -460,9 +462,9 @@ export function FulfilmentPortalPreview({
               ) : (
                 <p className="border-l-2 border-amber-500 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">Assign at least one service before creating this portal.</p>
               )}
-              <Link href={`/portal/clients/${encodeURIComponent(clientId)}?tab=delivery#service-assignment`} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/12 bg-white px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.03]">
+              {canManage ? <Link href={`/portal/clients/${encodeURIComponent(clientId)}?tab=delivery#service-assignment`} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/12 bg-white px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.03]">
                 <PackagePlus size={14} aria-hidden="true" /> Manage canonical services
-              </Link>
+              </Link> : null}
               <Field label="Customer portal headline" htmlFor="portal-experience-headline">
                 <input
                   id="portal-experience-headline"
@@ -663,7 +665,7 @@ export function FulfilmentPortalPreview({
               </div>
             )}
           </div>
-        </aside>
+        </fieldset>
       </div>
     </section>
   );

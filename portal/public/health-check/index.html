@@ -375,7 +375,7 @@
           <div class="hc-incubator-handoff-body">
             <span class="eyebrow">Where to next</span>
             <h2>Open your Business OS.</h2>
-            <p>The Health Check is the mirror. Business OS is where you act on it — your home dashboard, your customers, your numbers, your tasks. Inside you'll find the Incubator as a sidebar section: four templated setup phases (Epic Intro · Blueprint · Diagnostics · Brand Builder) that turn what surfaced above into a real, owned operating system. We seed your brand from the answers you just gave.</p>
+            <p>The Health Check is the mirror. Business OS is where you act on it — your home dashboard, your customers, your numbers, your tasks. If you saved with an email, these results are synced into your signed-in Business OS. If you skipped contact details, the free OS still opens with the browser copy you just created.</p>
             <a href="/business-os/app.html?from=hc" class="btn btn-primary btn-lg" data-hc-incubator-cta>Open my Business OS →</a>
           </div>
         </div>
@@ -435,15 +435,15 @@
           <div class="hc-gift-ribbon">🎁 Free gift</div>
           <div class="hc-gift-body">
             <span class="eyebrow">Your reward for finishing</span>
-            <h2 data-hc-gift-headline>Claim your free Business OS — on us.</h2>
+            <h2 data-hc-gift-headline>Open your free Business OS.</h2>
             <p>
               A complete operating system for growing your business. Manage everything
               in one place, unlock guides as you go, install only the add-ons you need,
               and watch your "money leak" shrink each week. Free for life. No card needed.
             </p>
             <ul class="hc-gift-bullets">
-              <li>📊 Your Health Check results, plugged in and tracked</li>
-              <li>🎯 A built-for-you OS — pick your niche on signup</li>
+              <li>📊 Your Health Check results here now; server-synced when you save with email</li>
+              <li>🎯 A built-for-you OS — pick your niche inside</li>
               <li>📚 Quick-win modules &amp; templates</li>
               <li>🤖 Aqua AI — context-aware, with free messages</li>
               <li>📞 Free strategy call any time you're stuck</li>
@@ -452,7 +452,7 @@
               <a href="/business-os/app.html?source=healthcheck" class="btn btn-primary btn-lg" data-hc-claim-bos>Open my free Business OS →</a>
               <a href="#" class="btn btn-secondary btn-lg" data-hc-bos-existing hidden>← Back to my Business OS</a>
             </div>
-            <p class="muted hc-gift-fineprint">Already have one? We'll spot it and just send you back in.</p>
+            <p class="muted hc-gift-fineprint" data-hc-bos-status>No email is required. Without one, these results remain in this browser only.</p>
           </div>
         </div>
 
@@ -481,12 +481,14 @@
             <button class="btn btn-secondary btn-lg" data-hc-action="restart">Start over</button>
           </div>
 
-          <!-- Email a copy / share UI (visible always, mock now) -->
+          <!-- Result sharing uses the same seven-day state-bearing resume URL as progress save. -->
           <div class="hc-share-row">
-            <button class="hc-share-btn" data-hc-share="email">📧 Email me a copy</button>
-            <button class="hc-share-btn" data-hc-share="link">🔗 Get a shareable link</button>
-            <button class="hc-share-btn" data-hc-share="pdf">📄 Download as PDF</button>
+            <button type="button" class="hc-share-btn" data-hc-share="email">📧 Open email draft</button>
+            <button type="button" class="hc-share-btn" data-hc-share="link">🔗 Copy result link</button>
+            <button type="button" class="hc-share-btn" data-hc-share="pdf">📄 Print / save as PDF</button>
           </div>
+          <p class="muted" data-hc-share-status role="status" aria-live="polite" hidden></p>
+          <input type="text" data-hc-share-manual aria-label="Result link for manual copying" readonly hidden style="width:100%;margin-top:10px" />
 
           <!-- R018 print-only watermark -->
           <div data-print-only class="print-watermark" style="display:none">
@@ -532,7 +534,10 @@
       } catch (e) {}
     })();
   </script>
-  <script defer src="/health-check/hc-questions.js"></script>
+  <!-- Parser-blocking by design: the inline application below constructs
+       AREAS immediately, so the pack must exist before that code executes. -->
+  <script src="/health-check/hc-questions.js"></script>
+  <script src="/health-check/hc-share.js"></script>
   <script>
   /* ─── DATA ──────────────────────────────────── */
   /* Each AREA has 3 tiers and a `quickwins` builder that takes the slot
@@ -574,6 +579,9 @@
     exerciseIdx: 0,
     answers: {}
   };
+  var activeCompletionSync = null;
+  var activeCompletionId = null;
+  var lastHealthCheckSummary = null;
 
   /* R017 — `?resume=<token>` consumer. Decodes base64 payload from
      R017's resume-link generator, validates 7d expiry, restores state.
@@ -1010,6 +1018,7 @@
 
   /* ─── RESULTS ───────────────────────────────── */
   function persistToBOS(pillars, moneyEstimate) {
+    var savedSummary = null;
     try {
       var iconByName = {
         'Visibility & Search': '⌕', 'Your Website': '◎',
@@ -1026,6 +1035,7 @@
         state: state,
         completedAt: new Date().toISOString()
       };
+      savedSummary = summary;
       localStorage.setItem('bos.healthCheck', JSON.stringify(summary));
       /* Append to history so the user can re-review past completions
          from inside Business OS. Keep the last 12, newest first. */
@@ -1053,6 +1063,92 @@
         localStorage.setItem('bos.progress', JSON.stringify(prog));
       }
     } catch (e) {}
+    return savedSummary;
+  }
+
+  function capturedHealthCheckEmail() {
+    try {
+      var contact = JSON.parse(localStorage.getItem('hc.contact') || 'null');
+      var candidate = contact && (contact.email || contact.contact);
+      candidate = typeof candidate === 'string' ? candidate.trim().toLowerCase() : '';
+      return candidate.indexOf('@') > 0 ? candidate : '';
+    } catch (e) { return ''; }
+  }
+
+  function completionIdFor(summary, email) {
+    var fingerprint = email + '|' + JSON.stringify(summary && summary.state ? summary.state.answers : {});
+    /* Deterministic across browsers: a seven-day resume link restores the same
+       email + answers, so it must retry the original capture instead of making
+       a second completion merely because localStorage is empty on that device. */
+    var h1 = 1779033703, h2 = 3144134277, h3 = 1013904242, h4 = 2773480762;
+    for (var i = 0; i < fingerprint.length; i++) {
+      var c = fingerprint.charCodeAt(i);
+      h1 = h2 ^ Math.imul(h1 ^ c, 597399067);
+      h2 = h3 ^ Math.imul(h2 ^ c, 2869860233);
+      h3 = h4 ^ Math.imul(h3 ^ c, 951274213);
+      h4 = h1 ^ Math.imul(h4 ^ c, 2716044179);
+    }
+    h1 = Math.imul(h3 ^ (h1 >>> 18), 597399067);
+    h2 = Math.imul(h4 ^ (h2 >>> 22), 2869860233);
+    h3 = Math.imul(h1 ^ (h3 >>> 17), 951274213);
+    h4 = Math.imul(h2 ^ (h4 >>> 19), 2716044179);
+    function hex(n) { return (n >>> 0).toString(16).padStart(8, '0'); }
+    var id = 'hc_' + hex(h1 ^ h2 ^ h3 ^ h4) + hex(h2 ^ h1) + hex(h3 ^ h1) + hex(h4 ^ h1);
+    try { localStorage.setItem('hc.completionOperation', JSON.stringify({ fingerprint: fingerprint, id: id })); }
+    catch (e) {}
+    return id;
+  }
+
+  function funnelSlotFor(summary) {
+    var scores = {};
+    var total = 0;
+    var count = 0;
+    (summary.topics || []).forEach(function (topic) {
+      var key = String(topic.name || 'topic').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      scores[key || ('topic-' + count)] = topic.score;
+      if (typeof topic.score === 'number') { total += topic.score; count++; }
+    });
+    var average = count ? total / count : 0;
+    var stage = average >= 80 ? 5 : average >= 65 ? 4 : average >= 50 ? 3 : average >= 35 ? 2 : 1;
+    return {
+      slot: stage,
+      scores: scores,
+      hcSchemaVersion: String(HC_SCHEMA_VERSION),
+      summary: summary
+    };
+  }
+
+  function syncHealthCheckCompletion(summary) {
+    var email = capturedHealthCheckEmail();
+    if (!email || !summary) return Promise.resolve({ synced: false, redirect: '/business-os/app.html?from=hc' });
+    var completionId = completionIdFor(summary, email);
+    if (activeCompletionSync && activeCompletionId === completionId) return activeCompletionSync;
+    activeCompletionId = completionId;
+    activeCompletionSync = fetch('/api/public/health-check/complete', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        email: email,
+        completionId: completionId,
+        slot: funnelSlotFor(summary),
+        sourceUrl: window.location.href
+      })
+    }).then(function (response) {
+      return response.json().catch(function () { return null; }).then(function (result) {
+        if (!response.ok || !result || !result.ok || !result.persisted) {
+          throw new Error((result && result.message) || 'Your Health Check could not be synced yet.');
+        }
+        var status = document.querySelector('[data-hc-bos-status]');
+        if (status) status.textContent = 'Saved to your signed-in Business OS. Opening it will restore these results on another browser.';
+        return { synced: true, redirect: result.redirect || '/business-os/app.html?from=hc' };
+      });
+    }).catch(function (error) {
+      activeCompletionSync = null;
+      activeCompletionId = null;
+      throw error;
+    });
+    return activeCompletionSync;
   }
 
   function buildResults() {
@@ -1109,7 +1205,13 @@
     var lowMonthly  = Math.round((room * confidence * 1500) / 100) * 100; // £100 step
     var highMonthly = Math.round((room * confidence * 5000) / 100) * 100;
     var moneyEstimate = Math.round((lowMonthly + highMonthly) / 2);
-    persistToBOS(pillars, moneyEstimate);
+    lastHealthCheckSummary = persistToBOS(pillars, moneyEstimate);
+    if (lastHealthCheckSummary && capturedHealthCheckEmail()) {
+      syncHealthCheckCompletion(lastHealthCheckSummary).catch(function () {
+        var status = document.querySelector('[data-hc-bos-status]');
+        if (status) status.textContent = 'Your browser copy is safe, but server sync failed. Use “Open my Business OS” to retry.';
+      });
+    }
 
     /* Mirror any captured HC contact into the BOS lead store too. */
     try {
@@ -1275,18 +1377,13 @@
     try { localStorage.setItem('hc.progressDismissed', '1'); } catch (e) {}
     document.querySelector('[data-hc-progress-modal]').setAttribute('hidden', '');
   });
-  /* R017 — generate a base64 `?resume=<token>` link from current state. */
+  /* Generate the same seven-day state-bearing URL for progress-save and final sharing. */
   function makeResumeToken(savedAtIso) {
-    var payload = { savedAt: savedAtIso, hcState: state };
-    try { return btoa(unescape(encodeURIComponent(JSON.stringify(payload)))); }
-    catch (e) { return null; }
+    return window.HCShare.makeResumeToken(state, savedAtIso, capturedHealthCheckEmail());
   }
   function makeResumeUrl() {
     var savedAt = new Date().toISOString();
-    var token = makeResumeToken(savedAt);
-    if (!token) return null;
-    var base = location.origin + location.pathname;
-    return base + '?resume=' + encodeURIComponent(token);
+    return window.HCShare.makeResumeUrl(location, state, savedAt, capturedHealthCheckEmail());
   }
   function appendLeadFromHcSave(email, name) {
     try {
@@ -1452,24 +1549,91 @@
       }
       try {
         localStorage.setItem('hc.contact', JSON.stringify({
-          name: fd.get('name'), contact: fd.get('contact'), capturedAt: 'results-grab'
+          name: fd.get('name'),
+          email: isEmail ? contactValue : '',
+          contact: contactValue,
+          capturedAt: 'results-grab'
         }));
       } catch (e) {}
+      if (isEmail && lastHealthCheckSummary) {
+        try { await syncHealthCheckCompletion(lastHealthCheckSummary); }
+        catch (error) {
+          alert(error && error.message ? error.message : 'Your browser results are safe, but server sync failed. Please retry.');
+          button.disabled = false;
+          return;
+        }
+      }
       document.querySelector('[data-hc-signup-grab]').setAttribute('hidden', '');
-      alert('Thanks — your request is safely inside AquaCRM.');
+      alert(isEmail
+        ? 'Thanks — your request and Health Check are safely inside AquaCRM.'
+        : 'Thanks — your request is safely inside AquaCRM. These Health Check results stay in this browser.');
       button.disabled = false;
     });
   }
+
+  document.querySelectorAll('[data-hc-incubator-cta], [data-hc-claim-bos]').forEach(function (link) {
+    link.addEventListener('click', function (event) {
+      if (!capturedHealthCheckEmail() || !lastHealthCheckSummary) return;
+      event.preventDefault();
+      var original = link.textContent;
+      link.setAttribute('aria-busy', 'true');
+      link.textContent = 'Saving your results…';
+      syncHealthCheckCompletion(lastHealthCheckSummary).then(function (result) {
+        window.location.href = result.redirect || link.href;
+      }).catch(function (error) {
+        link.removeAttribute('aria-busy');
+        link.textContent = original;
+        alert(error && error.message ? error.message : 'Your results could not be synced yet. Please try again.');
+      });
+    });
+  });
+
+  function showShareStatus(message, isError, manualUrl) {
+    var status = document.querySelector('[data-hc-share-status]');
+    var manual = document.querySelector('[data-hc-share-manual]');
+    if (status) {
+      status.textContent = message;
+      status.style.color = isError ? '#d05959' : '';
+      status.removeAttribute('hidden');
+    }
+    if (manual) {
+      if (manualUrl) {
+        manual.value = manualUrl;
+        manual.removeAttribute('hidden');
+        manual.focus();
+        manual.select();
+      } else {
+        manual.value = '';
+        manual.setAttribute('hidden', '');
+      }
+    }
+  }
+
   document.querySelectorAll('[data-hc-share]').forEach(function (b) {
-    b.addEventListener('click', function () {
+    b.addEventListener('click', async function () {
       var kind = b.getAttribute('data-hc-share');
       if (kind === 'email') {
-        var subj = encodeURIComponent('My Milesy Health Check results');
-        var body = encodeURIComponent('Saving my Health Check results — see attached / link below.\n\n[results URL placeholder]');
-        location.href = 'mailto:?subject=' + subj + '&body=' + body;
+        var emailUrl = makeResumeUrl();
+        if (!emailUrl) {
+          showShareStatus('Your result link could not be generated. Your answers remain in this browser.', true);
+          return;
+        }
+        location.href = window.HCShare.makeEmailDraftUrl(emailUrl);
       } else if (kind === 'link') {
-        navigator.clipboard && navigator.clipboard.writeText(location.href);
-        alert('Shareable link copied to your clipboard.');
+        var resultUrl = makeResumeUrl();
+        if (!resultUrl) {
+          showShareStatus('Your result link could not be generated. Your answers remain in this browser.', true);
+          return;
+        }
+        b.setAttribute('aria-busy', 'true');
+        try {
+          await window.HCShare.copyResultLink(resultUrl, navigator.clipboard);
+          showShareStatus('Result link copied. It restores these answers for seven days.', false);
+        } catch (error) {
+          showShareStatus('Clipboard access was blocked. Copy the selected result link manually.', true, resultUrl);
+        } finally {
+          b.removeAttribute('aria-busy');
+        }
       } else if (kind === 'pdf') {
         window.print();
       }

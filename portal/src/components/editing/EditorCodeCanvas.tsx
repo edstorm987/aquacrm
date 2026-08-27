@@ -5,6 +5,7 @@ import { Check, ChevronRight, FileCode2, Folder, FolderOpen, GitPullRequest, Loa
 
 import type { TreeDirectory, TreeFile } from "@/engines/editor/server/fileTree";
 import { DEV_PROJECTS_CHANGED_EVENT } from "@/app/portal/dev-team/editor/setup/_DevEditorSetup";
+import { apiResponseError } from "@/lib/client/apiResponseError";
 import { fileColour } from "./codeTheme";
 import { CodeSurface } from "./CodeSurface";
 
@@ -41,6 +42,9 @@ export function EditorCodeCanvas({
   repository,
   focus,
   onOpenFile,
+  onDirtyChange,
+  canEdit = true,
+  canPublish = true,
 }: {
   /** A Dev project — the server resolves repo, ref and token from it. */
   projectId?: string;
@@ -49,6 +53,12 @@ export function EditorCodeCanvas({
   /** A file (and line) to open, e.g. from clicking an element in the preview. */
   focus?: { path: string; line?: number } | null;
   onOpenFile?: (path: string) => void;
+  /** Every unsaved path, so the shell can guard target changes and tab exits. */
+  onDirtyChange?: (paths: string[]) => void;
+  /** UI projection of `project.edit` + `element.development.code.use`. */
+  canEdit?: boolean;
+  /** UI projection of `project.pull-request` + `element.development.publish.use`. */
+  canPublish?: boolean;
 }) {
   const [tree, setTree] = useState<TreeDirectory | null>(null);
   const [meta, setMeta] = useState<TreeResponse | null>(null);
@@ -71,6 +81,7 @@ export function EditorCodeCanvas({
   }
 
   function closeTab(path: string) {
+    if (dirtyPaths.has(path) && !window.confirm(`Discard the unsaved changes in ${path}?`)) return;
     setOpenPaths(current => {
       const next = current.filter(item => item !== path);
       if (path === open) {
@@ -156,7 +167,14 @@ export function EditorCodeCanvas({
     let cancelled = false;
     fetch(`/api/portal/site-editor/files${search}`, { cache: "no-store" })
       .then(response => response.json())
-      .then((payload: TreeResponse) => { if (!cancelled) { setMeta(payload); setTree(payload.tree ?? null); } })
+      .then((payload: TreeResponse) => {
+        if (cancelled) return;
+        const visible = payload?.ok === false
+          ? { ...payload, error: apiResponseError(payload, "The repository could not be read.") }
+          : payload;
+        setMeta(visible);
+        setTree(visible.tree ?? null);
+      })
       .catch(() => { if (!cancelled) setMeta({ error: "The repository could not be read." }); });
     return () => { cancelled = true; };
   }, [search, refresh]);
@@ -174,6 +192,8 @@ export function EditorCodeCanvas({
 
   useEffect(() => {
     if (!open) return;
+    let cancelled = false;
+    const controller = new AbortController();
     setSaveNote(null);
     // Already open in another tab — show what is held rather than refetching
     // and discarding whatever was typed in it.
@@ -181,14 +201,29 @@ export function EditorCodeCanvas({
     const path = open;
     setLoading(true);
     const separator = search ? "&" : "?";
-    fetch(`/api/portal/site-editor/files${search}${separator}path=${encodeURIComponent(path)}`, { cache: "no-store" })
-      .then(response => response.json())
+    fetch(`/api/portal/site-editor/files${search}${separator}path=${encodeURIComponent(path)}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async response => {
+        const payload = await response.json();
+        if (!response.ok || !payload?.ok) throw new Error(apiResponseError(payload, "That file could not be read."));
+        return payload;
+      })
       .then(payload => {
+        if (cancelled) return;
         setFiles(all => ({ ...all, [path]: payload }));
         if (typeof payload?.contents === "string") setBuffers(all => ({ ...all, [path]: payload.contents }));
       })
-      .catch(() => setFiles(all => ({ ...all, [path]: { editable: false, reason: "That file could not be read." } })))
-      .finally(() => setLoading(false));
+      .catch(error => {
+        if (cancelled || (error instanceof Error && error.name === "AbortError")) return;
+        setFiles(all => ({ ...all, [path]: { editable: false, reason: error instanceof Error ? error.message : "That file could not be read." } }));
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, [open, search, files]);
 
   // Changing repository/project invalidates everything that was open, then
@@ -234,9 +269,19 @@ export function EditorCodeCanvas({
   const file = open ? files[open] : undefined;
   const draft = open ? buffers[open] ?? null : null;
   const dirty = draft != null && file?.contents != null && draft !== file.contents;
-  const dirtyPaths = new Set(
-    Object.keys(buffers).filter(path => files[path]?.contents != null && buffers[path] !== files[path]?.contents),
-  );
+  const dirtyPathList = useMemo(() => Object.keys(buffers)
+    .filter(path => files[path]?.contents != null && buffers[path] !== files[path]?.contents)
+    .sort(), [buffers, files]);
+  const dirtyPaths = useMemo(() => new Set(dirtyPathList), [dirtyPathList]);
+  const dirtyPathSignature = JSON.stringify(dirtyPathList);
+
+  // The shell owns navigation, while this canvas owns the buffers. Report the
+  // actual paths across that boundary so a project switch can never erase a
+  // private child state the parent did not know existed.
+  useEffect(() => {
+    onDirtyChange?.(JSON.parse(dirtyPathSignature) as string[]);
+  }, [dirtyPathSignature, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.([]), [onDirtyChange]);
 
   // A Dev project whose tree came from GitHub saves as COMMITS on its draft
   // branch — never to this server's disk. The strip below and the save note
@@ -245,7 +290,7 @@ export function EditorCodeCanvas({
   const REPO_SAVED_NOTE = "On the draft branch — publish opens the pull request";
 
   async function save() {
-    if (!open || draft == null || !file?.fingerprint) return;
+    if (!canEdit || !open || draft == null || !file?.fingerprint) return;
     setSaving(true);
     setSaveNote(null);
     try {
@@ -262,7 +307,7 @@ export function EditorCodeCanvas({
       });
       const payload = await response.json();
       if (!payload.ok) {
-        setSaveNote(payload.error ?? "That file could not be saved.");
+        setSaveNote(apiResponseError(payload, "That file could not be saved."));
         return;
       }
       // Adopt the new fingerprint so a second save is judged against what is
@@ -279,7 +324,7 @@ export function EditorCodeCanvas({
   }
 
   async function publish() {
-    if (!projectId) return;
+    if (!canPublish || !projectId) return;
     setPublishing(true);
     setPublishNote(null);
     try {
@@ -290,7 +335,7 @@ export function EditorCodeCanvas({
       });
       const payload = await response.json();
       if (!payload.ok || !payload.pullRequest) {
-        setPublishNote(payload.error ?? "The pull request could not be opened.");
+        setPublishNote(apiResponseError(payload, "The pull request could not be opened."));
         return;
       }
       setPullRequest(payload.pullRequest);
@@ -390,16 +435,18 @@ export function EditorCodeCanvas({
                 PR #{pullRequest.number} · {pullRequest.merged ? "merged" : pullRequest.state}
               </a>
             ) : null}
-            <button
-              type="button"
-              onClick={() => void publish()}
-              disabled={publishing}
-              title="Open (or find) the pull request for the draft branch. Merging stays a separate decision."
-              className="inline-flex shrink-0 items-center gap-1 rounded border border-cyan-300/40 bg-cyan-300/10 px-2 py-0.5 font-semibold text-cyan-100 transition hover:bg-cyan-300/20 disabled:opacity-40"
-            >
-              {publishing ? <LoaderCircle size={10} className="animate-spin" aria-hidden /> : <GitPullRequest size={10} aria-hidden />}
-              {pullRequest ? "Re-open publish" : "Publish"}
-            </button>
+            {canPublish ? (
+              <button
+                type="button"
+                onClick={() => void publish()}
+                disabled={publishing}
+                title="Open (or find) the pull request for the draft branch. Merging stays a separate decision."
+                className="inline-flex shrink-0 items-center gap-1 rounded border border-cyan-300/40 bg-cyan-300/10 px-2 py-0.5 font-semibold text-cyan-100 transition hover:bg-cyan-300/20 disabled:opacity-40"
+              >
+                {publishing ? <LoaderCircle size={10} className="animate-spin" aria-hidden /> : <GitPullRequest size={10} aria-hidden />}
+                {pullRequest ? "Re-open publish" : "Publish"}
+              </button>
+            ) : <span className="shrink-0 text-white/30">Pull-request access required</span>}
           </div>
         ) : null}
 
@@ -474,7 +521,7 @@ export function EditorCodeCanvas({
               </button>
               <FileCode2 size={12} aria-hidden className="shrink-0" style={{ color: fileColour(open) }} />
               <span className="truncate font-mono text-white/70">{open}</span>
-              {file?.editable === false ? (
+              {file?.editable === false || !canEdit ? (
                 <span className="ml-auto inline-flex shrink-0 items-center gap-1 text-[10px] text-white/35" title={file?.reason}><Lock size={10} aria-hidden /> read-only</span>
               ) : null}
               {file?.truncatedContents ? (
@@ -493,7 +540,7 @@ export function EditorCodeCanvas({
               {saveNote ? (
                 <span className={`ml-auto shrink-0 text-[10px] ${saveNote === "Saved" || saveNote === REPO_SAVED_NOTE ? "text-emerald-300/80" : "text-amber-200/80"}`} role="status">{saveNote}</span>
               ) : null}
-              {file?.editable ? (
+              {file?.editable && canEdit ? (
                 <button
                   type="button"
                   onClick={() => void save()}
@@ -523,7 +570,7 @@ export function EditorCodeCanvas({
               <CodeSurface
                 path={open}
                 value={draft ?? ""}
-                editable={Boolean(file?.editable)}
+                editable={Boolean(file?.editable && canEdit)}
                 onChange={next => setBuffers(all => ({ ...all, [open]: next }))}
                 onSave={() => void save()}
               />

@@ -11,6 +11,7 @@ import {
   upsertClientContractLedgerEvent,
 } from "@/lib/server/clients/clientRecordLedger";
 import { sendTransactionalEmail, type TransactionalEmailResult } from "@/lib/server/email/transactionalEmail";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 type Action = "create" | "update" | "send" | "accept" | "decline" | "delete";
 
@@ -25,6 +26,7 @@ interface Body {
   documentName?: unknown;
   templateId?: unknown;
   amendmentNote?: unknown;
+  operationId?: unknown;
 }
 
 function cleanText(value: unknown, max: number): string {
@@ -57,6 +59,26 @@ function cleanUrl(value: unknown, clientId: string): string | undefined {
   }
 }
 
+function cleanOperationId(value: unknown): string {
+  const cleaned = cleanText(value, 180);
+  return cleaned && /^[a-zA-Z0-9._:-]+$/.test(cleaned) ? cleaned : "";
+}
+
+function creationFingerprint(input: {
+  title: string;
+  summary: string;
+  body: string;
+  documentUrl?: string;
+  documentName: string;
+  templateId: string;
+}): string {
+  return crypto.createHash("sha256").update(JSON.stringify(input)).digest("hex");
+}
+
+function contractIdFor(agencyId: string, clientId: string, operationId: string): string {
+  return `ctr_${crypto.createHash("sha256").update(`${agencyId}\u0000${clientId}\u0000${operationId}`).digest("hex").slice(0, 24)}`;
+}
+
 export async function POST(req: Request) {
   await ensureHydrated();
   const body = await req.json().catch(() => null) as Body | null;
@@ -79,6 +101,15 @@ export async function POST(req: Request) {
   if (!agencyUser && !["accept", "decline"].includes(action)) {
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
+  try {
+    await requireCurrentClientWorkspaceElementAccess(
+      clientId,
+      "client.commercial",
+      action === "delete" ? "manage" : "use",
+    );
+  } catch (error) {
+    return authErrorResponse(error);
+  }
 
   const meta = (client.metadata ?? {}) as { contracts?: ClientContract[] };
   const contracts = Array.isArray(meta.contracts) ? [...meta.contracts] : [];
@@ -86,6 +117,7 @@ export async function POST(req: Request) {
   let message = "";
   let activityAction = "";
   let contractForDelivery: ClientContract | null = null;
+  let replayed = false;
 
   if (action === "create") {
     const title = cleanText(body?.title, 180);
@@ -95,12 +127,39 @@ export async function POST(req: Request) {
     const documentUrl = cleanUrl(body?.documentUrl, clientId);
     const documentName = cleanText(body?.documentName, 200);
     const templateId = cleanText(body?.templateId, 120);
+    const operationId = cleanOperationId(body?.operationId);
     if (!title) return NextResponse.json({ ok: false, error: "agreement title required" }, { status: 400 });
+    if (!operationId) return NextResponse.json({ ok: false, error: "contract operation id required" }, { status: 400 });
     if (suppliedUrl && !documentUrl) {
       return NextResponse.json({ ok: false, error: "document link must use http or https" }, { status: 400 });
     }
+    const fingerprint = creationFingerprint({
+      title,
+      summary,
+      body: contractBody,
+      documentUrl,
+      documentName,
+      templateId,
+    });
+    const stableId = contractIdFor(session.agencyId, clientId, operationId);
+    const existing = contracts.find(contract =>
+      contract.id === stableId || contract.creationOperationId === operationId);
+    if (existing) {
+      if (existing.creationFingerprint !== fingerprint) {
+        return NextResponse.json({
+          ok: false,
+          error: "That contract save was already used for different terms. Start a new contract instead.",
+          contract: existing,
+          contracts,
+        }, { status: 409 });
+      }
+      await flushPendingWrites();
+      return NextResponse.json({ ok: true, replayed: true, contract: existing, contracts });
+    }
     const contract: ClientContract = {
-      id: `ctr_${crypto.randomBytes(8).toString("hex")}`,
+      id: stableId,
+      creationOperationId: operationId,
+      creationFingerprint: fingerprint,
       title,
       summary: summary || undefined,
       body: contractBody || undefined,
@@ -230,6 +289,9 @@ export async function POST(req: Request) {
   }
 
   logActivity({
+    idempotencyKey: action === "create"
+      ? `client-contract:${session.agencyId}:${clientId}:${cleanOperationId(body?.operationId)}`
+      : undefined,
     agencyId: session.agencyId,
     clientId,
     actorUserId: session.userId,
@@ -253,6 +315,7 @@ export async function POST(req: Request) {
         agencyId: session.agencyId,
         clientId,
         to: recipient,
+        signal: req.signal,
         fromName: "AquaCRM",
         subject: `Agreement ready for review · ${contractForDelivery.title}`,
         bodyText: [`Hello ${client.name},`, "", `Your agreement “${contractForDelivery.title}” is ready to review.`, contractForDelivery.summary || "", "", `Review the agreement: ${portalUrl}`].filter(Boolean).join("\n"),
@@ -276,7 +339,7 @@ export async function POST(req: Request) {
 
   await flushPendingWrites();
 
-  return NextResponse.json({ ok: true, contracts, delivery });
+  return NextResponse.json({ ok: true, replayed, contract: changedContract, contracts, delivery });
 }
 
 function escapeHtml(value: string): string {

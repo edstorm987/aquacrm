@@ -5,6 +5,7 @@ import type { AgencyId, PluginInstall } from "../lib/tenancy";
 import type { PluginStorage } from "../lib/aquaPluginTypes";
 import type {
   ActivityLogPort,
+  CompensationTermsPort,
   EventBusPort,
   PluginInstallStorePort,
   TenantPort,
@@ -19,6 +20,7 @@ export interface AgencyFinanceFoundation {
   activity: ActivityLogPort;
   events: EventBusPort;
   pluginInstalls: PluginInstallStorePort;
+  compensation: CompensationTermsPort;
 }
 
 let registered: AgencyFinanceFoundation | null = null;
@@ -60,6 +62,7 @@ export function containerFor(args: ContainerForArgs): AgencyFinanceContainer {
     tenant: f.tenant,
     user: f.user,
     pluginInstalls: f.pluginInstalls,
+    compensation: f.compensation,
   });
 }
 
@@ -71,6 +74,7 @@ export function containerWithDeps(args: {
   activity: ActivityLogPort;
   events: EventBusPort;
   pluginInstalls: PluginInstallStorePort;
+  compensation?: CompensationTermsPort;
 }): AgencyFinanceContainer {
   return buildAgencyFinanceContainer({
     agencyId: args.agencyId,
@@ -80,6 +84,7 @@ export function containerWithDeps(args: {
     tenant: args.tenant,
     user: args.user,
     pluginInstalls: args.pluginInstalls,
+    compensation: args.compensation,
   });
 }
 
@@ -98,5 +103,6 @@ export function _containerFromCtx(args: {
     tenant: registered.tenant,
     user: registered.user,
     pluginInstalls: registered.pluginInstalls,
+    compensation: registered.compensation,
   });
 }

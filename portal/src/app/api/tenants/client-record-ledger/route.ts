@@ -11,6 +11,12 @@ import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth"
 import { ensureHydrated } from "@/server/storage";
 import { listClientRelationshipWorkspaces } from "@/server/clientRelationships";
 import { AGENCY_ROLES } from "@/server/types";
+import {
+  clientWorkspaceElementAtLeast,
+  clientWorkspaceElementLevel,
+  currentClientWorkspaceElementAccess,
+  requireCurrentClientWorkspaceElementAccess,
+} from "@/lib/server/access/clientWorkspaceElementAccess";
 
 export const dynamic = "force-dynamic";
 
@@ -30,10 +36,21 @@ export async function GET(request: Request) {
     const clientId = url.searchParams.get("clientId")?.trim().slice(0, 120) ?? "";
     if (!clientId) return NextResponse.json({ ok: false, error: "clientId is required" }, { status: 400 });
     const session = await requireRoleForClient([...AGENCY_ROLES], clientId);
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.record", "view");
     const relationshipView = url.searchParams.get("relationship") === "1";
-    const clientIds = relationshipView
-      ? listClientRelationshipWorkspaces(session.agencyId, clientId).map(workspace => workspace.id)
+    const relationshipClientIds = relationshipView
+      ? [...new Set([clientId, ...listClientRelationshipWorkspaces(session.agencyId, clientId).map(workspace => workspace.id)])]
       : [clientId];
+    // A relationship can contain several independently governed workspaces.
+    // Never let access to the selected client become a read tunnel into its
+    // siblings; include only siblings whose own Record element is visible.
+    const clientIds: string[] = [];
+    for (const relationshipClientId of relationshipClientIds) {
+      const { access } = await currentClientWorkspaceElementAccess(relationshipClientId);
+      if (clientWorkspaceElementAtLeast(clientWorkspaceElementLevel(access, "client.record"), "view")) {
+        clientIds.push(relationshipClientId);
+      }
+    }
     const page = queryClientRecordLedger({
       agencyId: session.agencyId,
       clientId,

@@ -14,6 +14,39 @@ import type { ActivityLogPort, EmailEnqueuePort, EventBusPort } from "./ports";
 const partyKey = (kind: CommercialPartyKind, id: string) => `commercial/party/${kind}/${id}`;
 const tokenKey = (token: string) => `commercial/token/${token}`;
 const sequenceKey = (year: number) => `commercial/sequence/${year}`;
+const invoiceNumberPrefix = (year: number) => `commercial/invoice-number/${year}/`;
+const invoiceNumberKey = (year: number, sequence: number) => `${invoiceNumberPrefix(year)}${String(sequence).padStart(8, "0")}`;
+const partyInvoiceKey = (kind: CommercialPartyKind, id: string) => `commercial/invoice-party/${kind}/${id}`;
+const paymentPrefix = (packId: string) => `commercial/payment/${packId}/`;
+const paymentKey = (packId: string, canonicalReference: string) => `${paymentPrefix(packId)}${encodeURIComponent(canonicalReference)}`;
+
+const commercialQueues = new Map<AgencyId, Promise<void>>();
+
+async function withCommercialLock<T>(agencyId: AgencyId, work: () => Promise<T>): Promise<T> {
+  const previous = commercialQueues.get(agencyId) ?? Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const queued = previous.then(() => gate);
+  commercialQueues.set(agencyId, queued);
+  await previous;
+  try {
+    return await work();
+  } finally {
+    release();
+    if (commercialQueues.get(agencyId) === queued) commercialQueues.delete(agencyId);
+  }
+}
+
+function canonicalPaymentReference(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+export class CommercialPaymentConflictError extends Error {
+  constructor() {
+    super("That payment reference is already attached to a different amount or method.");
+    this.name = "CommercialPaymentConflictError";
+  }
+}
 
 export class CommercialService {
   constructor(
@@ -26,7 +59,21 @@ export class CommercialService {
 
   async get(kind: CommercialPartyKind, partyId: string): Promise<CommercialPack | null> {
     const pack = await this.storage.get<CommercialPack>(partyKey(kind, partyId));
-    return pack?.agencyId === this.agencyId ? pack : null;
+    if (pack?.agencyId !== this.agencyId) return null;
+    const ledgerKeys = await this.storage.list(paymentPrefix(pack.id));
+    if (!ledgerKeys.length) return pack;
+    const paymentsById = new Map(pack.payments.map(payment => [payment.id, payment]));
+    for (const key of ledgerKeys) {
+      const payment = await this.storage.get<CommercialPayment>(key);
+      if (payment) paymentsById.set(payment.id, payment);
+    }
+    const payments = [...paymentsById.values()].sort((a, b) => a.paidAt - b.paidAt || a.id.localeCompare(b.id));
+    const paid = payments.reduce((sum, payment) => sum + payment.amountCents, 0);
+    return {
+      ...pack,
+      payments,
+      invoiceStatus: paid >= pack.totalCents ? "paid" : pack.invoiceStatus,
+    };
   }
 
   async getByToken(token: string): Promise<CommercialPack | null> {
@@ -35,6 +82,10 @@ export class CommercialService {
   }
 
   async save(input: SaveCommercialPackInput, actor: UserId): Promise<CommercialPack> {
+    return withCommercialLock(this.agencyId, () => this.saveUnlocked(input, actor));
+  }
+
+  private async saveUnlocked(input: SaveCommercialPackInput, actor: UserId): Promise<CommercialPack> {
     if (!input.recipientEmail.trim()) throw new Error("Recipient email is required.");
     if (!input.lineItems.length) throw new Error("Add at least one invoice line.");
     if (!input.agreementBody.trim()) throw new Error("The service agreement cannot be empty.");
@@ -58,9 +109,7 @@ export class CommercialService {
     let invoiceNumber = existing?.invoiceNumber;
     if (!invoiceNumber) {
       const year = new Date(ts).getUTCFullYear();
-      const seq = ((await this.storage.get<number>(sequenceKey(year))) ?? 0) + 1;
-      await this.storage.set(sequenceKey(year), seq);
-      invoiceNumber = `MM-${year}-${String(seq).padStart(4, "0")}`;
+      invoiceNumber = await this.allocateInvoiceNumber(input.partyKind, input.partyId, year, ts);
     }
     const pack: CommercialPack = {
       id: existing?.id ?? makeId("com"),
@@ -115,6 +164,10 @@ export class CommercialService {
   }
 
   async attachStripe(kind: CommercialPartyKind, partyId: string, checkout: { id: string; url: string }): Promise<CommercialPack | null> {
+    return withCommercialLock(this.agencyId, () => this.attachStripeUnlocked(kind, partyId, checkout));
+  }
+
+  private async attachStripeUnlocked(kind: CommercialPartyKind, partyId: string, checkout: { id: string; url: string }): Promise<CommercialPack | null> {
     const pack = await this.get(kind, partyId);
     if (!pack) return null;
     const next = { ...pack, stripeCheckoutId: checkout.id, stripeCheckoutUrl: checkout.url, updatedAt: now() };
@@ -123,6 +176,10 @@ export class CommercialService {
   }
 
   async attachStripeSubscription(kind: CommercialPartyKind, partyId: string, subscriptionId: string): Promise<CommercialPack | null> {
+    return withCommercialLock(this.agencyId, () => this.attachStripeSubscriptionUnlocked(kind, partyId, subscriptionId));
+  }
+
+  private async attachStripeSubscriptionUnlocked(kind: CommercialPartyKind, partyId: string, subscriptionId: string): Promise<CommercialPack | null> {
     const pack = await this.get(kind, partyId);
     if (!pack) return null;
     const next = { ...pack, stripeSubscriptionId: subscriptionId, updatedAt: now() };
@@ -131,6 +188,10 @@ export class CommercialService {
   }
 
   async send(kind: CommercialPartyKind, partyId: string, baseUrl: string, actor: UserId): Promise<CommercialPack> {
+    return withCommercialLock(this.agencyId, () => this.sendUnlocked(kind, partyId, baseUrl, actor));
+  }
+
+  private async sendUnlocked(kind: CommercialPartyKind, partyId: string, baseUrl: string, actor: UserId): Promise<CommercialPack> {
     const pack = await this.get(kind, partyId);
     if (!pack) throw new Error("Create the invoice and agreement first.");
     if (!this.email) throw new Error("Email sending is not configured.");
@@ -178,6 +239,10 @@ export class CommercialService {
   }
 
   async accept(token: string, acceptedBy: string): Promise<CommercialPack | null> {
+    return withCommercialLock(this.agencyId, () => this.acceptUnlocked(token, acceptedBy));
+  }
+
+  private async acceptUnlocked(token: string, acceptedBy: string): Promise<CommercialPack | null> {
     const pack = await this.getByToken(token);
     if (!pack) return null;
     const ts = now();
@@ -199,62 +264,146 @@ export class CommercialService {
     reference?: string;
     paidAt?: number;
   }, actor: UserId): Promise<CommercialPack | null> {
+    return withCommercialLock(this.agencyId, () => this.recordPaymentUnlocked(kind, partyId, input, actor));
+  }
+
+  private async recordPaymentUnlocked(kind: CommercialPartyKind, partyId: string, input: {
+    amountCents: number;
+    method: CommercialPaymentMethod;
+    reference?: string;
+    paidAt?: number;
+  }, actor: UserId): Promise<CommercialPack | null> {
     const pack = await this.get(kind, partyId);
     if (!pack) return null;
-    if (input.amountCents <= 0) throw new Error("Payment amount must be positive.");
-    if (input.reference && pack.payments.some(payment => payment.reference === input.reference)) return pack;
-    const payment: CommercialPayment = {
+    const amountCents = Math.round(input.amountCents);
+    if (amountCents <= 0) throw new Error("Payment amount must be positive.");
+    const reference = input.reference?.trim() ?? "";
+    const canonicalReference = canonicalPaymentReference(reference);
+    if (!canonicalReference) throw new Error("A bank, receipt, cash-book, or provider reference is required.");
+    const existing = pack.payments.find(payment =>
+      canonicalPaymentReference(payment.reference ?? "") === canonicalReference);
+    if (existing) {
+      if (existing.amountCents !== amountCents || existing.method !== input.method) {
+        throw new CommercialPaymentConflictError();
+      }
+      const ledgerPayment = await this.storage.get<CommercialPayment>(paymentKey(pack.id, canonicalReference));
+      if (!ledgerPayment) {
+        const migrated = {
+          ...existing,
+          activityRecordedAt: existing.activityRecordedAt ?? now(),
+          eventEmittedAt: existing.eventEmittedAt ?? now(),
+        };
+        return this.persistPaymentState(pack, migrated);
+      }
+      return this.resumePaymentSideEffects(pack, ledgerPayment, actor);
+    }
+
+    let payment: CommercialPayment = {
       id: makeId("pay"),
-      amountCents: Math.round(input.amountCents),
+      amountCents,
       method: input.method,
-      reference: input.reference?.trim() || undefined,
+      reference,
       paidAt: input.paidAt ?? now(),
     };
-    const payments = [...pack.payments, payment];
-    const paid = payments.reduce((sum, item) => sum + item.amountCents, 0);
-    let next: CommercialPack = {
-      ...pack,
-      payments,
-      invoiceStatus: paid >= pack.totalCents ? "paid" : pack.invoiceStatus,
-      updatedAt: now(),
-    };
-    await this.persist(next);
-    if (this.email) {
+    const ledgerKey = paymentKey(pack.id, canonicalReference);
+    if (this.storage.setIfAbsent) {
+      const inserted = await this.storage.setIfAbsent(ledgerKey, payment);
+      if (!inserted) {
+        const claimed = await this.storage.get<CommercialPayment>(ledgerKey);
+        if (!claimed) throw new Error("Payment reference reservation could not be read. Retry safely.");
+        if (claimed.amountCents !== amountCents || claimed.method !== input.method) {
+          throw new CommercialPaymentConflictError();
+        }
+        payment = claimed;
+      }
+    } else {
+      await this.storage.set(ledgerKey, payment);
+    }
+    const persisted = await this.persistPaymentState(pack, payment);
+    return this.resumePaymentSideEffects(persisted, payment, actor);
+  }
+
+  private async resumePaymentSideEffects(
+    pack: CommercialPack,
+    originalPayment: CommercialPayment,
+    actor: UserId,
+  ): Promise<CommercialPack> {
+    let payment = originalPayment;
+    let current = pack;
+    const paid = current.payments.reduce((sum, item) => sum + item.amountCents, 0);
+    if (this.email && !payment.receiptSentAt) {
       try {
         const send = this.email.send ?? this.email.enqueue;
-        const receipt = await send.call(this.email, {
+        await send.call(this.email, {
           agencyId: this.agencyId,
-          to: pack.recipientEmail,
-          subject: `Payment receipt · ${pack.invoiceNumber}`,
-          bodyHtml: `<h1>Payment received</h1><p>We recorded ${(payment.amountCents / 100).toFixed(2)} ${pack.currency.toUpperCase()} against invoice ${pack.invoiceNumber}.</p><p>Method: ${payment.method}${payment.reference ? `<br>Reference: ${escapeHtml(payment.reference)}` : ""}</p><p>Remaining balance: ${(Math.max(0, pack.totalCents - paid) / 100).toFixed(2)} ${pack.currency.toUpperCase()}</p><p>Please keep this email for your records.</p>`,
-          bodyText: `Payment received: ${(payment.amountCents / 100).toFixed(2)} ${pack.currency.toUpperCase()} against ${pack.invoiceNumber}. Remaining balance: ${(Math.max(0, pack.totalCents - paid) / 100).toFixed(2)} ${pack.currency.toUpperCase()}.`,
+          to: current.recipientEmail,
+          subject: `Payment receipt · ${current.invoiceNumber}`,
+          bodyHtml: `<h1>Payment received</h1><p>We recorded ${(payment.amountCents / 100).toFixed(2)} ${current.currency.toUpperCase()} against invoice ${current.invoiceNumber}.</p><p>Method: ${payment.method}<br>Reference: ${escapeHtml(payment.reference ?? "")}</p><p>Remaining balance: ${(Math.max(0, current.totalCents - paid) / 100).toFixed(2)} ${current.currency.toUpperCase()}</p><p>Please keep this email for your records.</p>`,
+          bodyText: `Payment received: ${(payment.amountCents / 100).toFixed(2)} ${current.currency.toUpperCase()} against ${current.invoiceNumber}. Remaining balance: ${(Math.max(0, current.totalCents - paid) / 100).toFixed(2)} ${current.currency.toUpperCase()}.`,
           triggeredByPlugin: "leads-pipeline",
-          externalRef: `commercial-payment:${pack.id}:${payment.id}`,
+          externalRef: `commercial-payment:${current.id}:${payment.id}`,
         });
-        payment.receiptSentAt = now();
-        next = {
-          ...next,
-          payments: next.payments.map(item => item.id === payment.id ? payment : item),
-          updatedAt: now(),
-        };
-        await this.persist(next);
+        payment = { ...payment, receiptSentAt: now() };
+        current = await this.persistPaymentState(current, payment);
       } catch {
         // Payment evidence must persist even if the email provider is unavailable.
       }
     }
-    await this.activity.logActivity({
-      agencyId: this.agencyId,
-      actorUserId: actor,
-      category: "leads",
-      action: "commercial.payment.recorded",
-      message: `Recorded ${(payment.amountCents / 100).toFixed(2)} ${pack.currency.toUpperCase()} by ${payment.method} against ${pack.invoiceNumber}.`,
-      metadata: { commercialPackId: pack.id, paymentId: payment.id, method: payment.method },
-    });
-    this.events.emit({ agencyId: this.agencyId }, "commercial.payment.recorded", { commercialPackId: pack.id, payment });
+    if (!payment.activityRecordedAt) {
+      try {
+        await this.activity.logActivity({
+          agencyId: this.agencyId,
+          actorUserId: actor,
+          category: "leads",
+          action: "commercial.payment.recorded",
+          message: `Recorded ${(payment.amountCents / 100).toFixed(2)} ${current.currency.toUpperCase()} by ${payment.method} against ${current.invoiceNumber}.`,
+          metadata: { commercialPackId: current.id, paymentId: payment.id, method: payment.method },
+        });
+        payment = { ...payment, activityRecordedAt: now() };
+        current = await this.persistPaymentState(current, payment);
+      } catch {
+        // The payment remains durable and the stable reference can resume this work.
+      }
+    }
+    if (!payment.eventEmittedAt) {
+      try {
+        this.events.emit({ agencyId: this.agencyId }, "commercial.payment.recorded", {
+          commercialPackId: current.id,
+          payment,
+        });
+        payment = { ...payment, eventEmittedAt: now() };
+        current = await this.persistPaymentState(current, payment);
+      } catch {
+        // The payment remains durable and the stable reference can resume this work.
+      }
+    }
+    return current;
+  }
+
+  private async persistPaymentState(pack: CommercialPack, payment: CommercialPayment): Promise<CommercialPack> {
+    const reference = canonicalPaymentReference(payment.reference ?? "");
+    if (!reference) throw new Error("A durable payment reference is required.");
+    await this.storage.set(paymentKey(pack.id, reference), payment);
+    const latest = await this.get(pack.partyKind, pack.partyId) ?? pack;
+    const payments = latest.payments.some(item => item.id === payment.id)
+      ? latest.payments.map(item => item.id === payment.id ? payment : item)
+      : [...latest.payments, payment];
+    const paid = payments.reduce((sum, item) => sum + item.amountCents, 0);
+    const next: CommercialPack = {
+      ...latest,
+      payments,
+      invoiceStatus: paid >= latest.totalCents ? "paid" : latest.invoiceStatus,
+      updatedAt: now(),
+    };
+    await this.persist(next);
     return next;
   }
 
   async setFinanceInvoiceId(kind: CommercialPartyKind, partyId: string, financeInvoiceId: string): Promise<void> {
+    return withCommercialLock(this.agencyId, () => this.setFinanceInvoiceIdUnlocked(kind, partyId, financeInvoiceId));
+  }
+
+  private async setFinanceInvoiceIdUnlocked(kind: CommercialPartyKind, partyId: string, financeInvoiceId: string): Promise<void> {
     const pack = await this.get(kind, partyId);
     if (pack) await this.persist({ ...pack, financeInvoiceId, updatedAt: now() });
   }
@@ -271,11 +420,69 @@ export class CommercialService {
   // either may still name the recipient; that is a legal-hold record, not a
   // handle the erasure sweep should rewrite.
   async stripIdentityForErasure(kind: CommercialPartyKind, partyId: string): Promise<boolean> {
+    return withCommercialLock(this.agencyId, () => this.stripIdentityForErasureUnlocked(kind, partyId));
+  }
+
+  private async stripIdentityForErasureUnlocked(kind: CommercialPartyKind, partyId: string): Promise<boolean> {
     const pack = await this.get(kind, partyId);
     if (!pack) return false;
     if (!pack.recipientEmail && !pack.recipientName) return false;
     await this.persist({ ...pack, recipientEmail: "", recipientName: undefined, updatedAt: now() });
     return true;
+  }
+
+  private async allocateInvoiceNumber(
+    kind: CommercialPartyKind,
+    partyId: string,
+    year: number,
+    allocatedAt: number,
+  ): Promise<string> {
+    const claimKey = partyInvoiceKey(kind, partyId);
+    const existingClaim = await this.storage.get<string>(claimKey);
+    if (existingClaim) return existingClaim;
+
+    let highest = (await this.storage.get<number>(sequenceKey(year))) ?? 0;
+    for (const key of await this.storage.list(invoiceNumberPrefix(year))) {
+      const parsed = Number(key.slice(invoiceNumberPrefix(year).length));
+      if (Number.isInteger(parsed)) highest = Math.max(highest, parsed);
+    }
+    for (const key of await this.storage.list("commercial/party/")) {
+      const pack = await this.storage.get<CommercialPack>(key);
+      const match = pack?.invoiceNumber.match(new RegExp(`^MM-${year}-(\\d+)$`));
+      if (match) highest = Math.max(highest, Number(match[1]));
+    }
+
+    let sequence = highest + 1;
+    let invoiceNumber = `MM-${year}-${String(sequence).padStart(4, "0")}`;
+    if (this.storage.setIfAbsent) {
+      while (!await this.storage.setIfAbsent(invoiceNumberKey(year, sequence), {
+        agencyId: this.agencyId,
+        kind,
+        partyId,
+        invoiceNumber,
+        allocatedAt,
+      })) {
+        sequence += 1;
+        invoiceNumber = `MM-${year}-${String(sequence).padStart(4, "0")}`;
+      }
+      const claimed = await this.storage.setIfAbsent(claimKey, invoiceNumber);
+      if (!claimed) {
+        const winner = await this.storage.get<string>(claimKey);
+        if (winner) return winner;
+      }
+    } else {
+      await this.storage.set(invoiceNumberKey(year, sequence), {
+        agencyId: this.agencyId,
+        kind,
+        partyId,
+        invoiceNumber,
+        allocatedAt,
+      });
+      await this.storage.set(claimKey, invoiceNumber);
+    }
+    const storedSequence = (await this.storage.get<number>(sequenceKey(year))) ?? 0;
+    if (sequence > storedSequence) await this.storage.set(sequenceKey(year), sequence);
+    return invoiceNumber;
   }
 
   private async persist(pack: CommercialPack): Promise<void> {

@@ -154,7 +154,8 @@ describe("@aqua/plugin-email-sender SMTP driver smoke (T2 R024)", () => {
     assert.equal(cfg.smtp?.host, "smtp.postmarkapp.com");
     assert.equal(cfg.smtp?.port, 587);
     assert.equal(cfg.apiKeyMasked, "cr3t");
-    assert.equal(cfg.status, "active");
+    assert.equal(cfg.status, "unconfigured");
+    assert.equal(cfg.testedAt, undefined);
   });
 
   test("4. provider 'smtp' without smtp config → SmtpDriver returns guidance failure (no silent drop)", async () => {
@@ -230,6 +231,9 @@ describe("@aqua/plugin-email-sender SMTP driver smoke (T2 R024)", () => {
     assert.ok(observed);
     assert.equal((observed as SmtpDialOptions).host, "smtp.example");
     assert.equal((observed as SmtpDialOptions).pass, "passw0rd");
+    const ready = await c.provider.get();
+    assert.equal(ready.status, "active");
+    assert.ok(ready.testedAt);
   });
 
   test("8. transport failure → delivery marks message failed + propagates reason", async () => {
@@ -341,6 +345,8 @@ describe("@aqua/plugin-email-sender SMTP driver smoke (T2 R024)", () => {
     await c.provider.update({ provider: "none" }, ACTOR);
     const cfg = await c.provider.get();
     assert.equal(cfg.provider, "none");
+    assert.equal(cfg.status, "unconfigured");
+    assert.equal(cfg.testedAt, undefined);
     assert.equal(cfg.smtp?.host, "h");
   });
 

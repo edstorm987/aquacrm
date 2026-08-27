@@ -1,12 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { BlockRenderProps } from "../blockRegistry";
 import { blockStylesToCss } from "../blockStyles";
-import { useCart } from "../ecommerceBridge";
+import { quoteCheckout, useCart, type CheckoutQuoteRecord } from "../ecommerceBridge";
 import { formatPrice } from "../useProducts";
-
-const SHIPPING_FLAT = 350; // pence
-const TAX_RATE = 0.20;
 
 export default function CheckoutSummaryBlock({ block, editorMode }: BlockRenderProps) {
   const showLineItems = block.props.showLineItems !== false;
@@ -16,15 +14,34 @@ export default function CheckoutSummaryBlock({ block, editorMode }: BlockRenderP
   const cart = useCart();
   const items = cart.items;
   const subtotal = cart.subtotal;
+  const [quote, setQuote] = useState<CheckoutQuoteRecord | null>(null);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (editorMode || items.length === 0) {
+      setQuote(null);
+      setQuoteError(null);
+      return;
+    }
+    let cancelled = false;
+    void quoteCheckout(items.map(item => ({
+      productId: item.productId,
+      variantId: item.variantId,
+      quantity: item.quantity,
+    }))).then(result => {
+      if (cancelled) return;
+      setQuote(result.quote ?? null);
+      setQuoteError(result.error ?? null);
+    });
+    return () => { cancelled = true; };
+  }, [editorMode, items]);
 
   const previewItems = (editorMode && items.length === 0)
-    ? [{ id: "demo1", name: "Sample item 1", price: 12.5, quantity: 1, variant: "" }, { id: "demo2", name: "Sample item 2", price: 25, quantity: 1, variant: "" }]
+    ? [{ id: "demo1", name: "Sample item 1", price: 1250, quantity: 1, variant: "" }, { id: "demo2", name: "Sample item 2", price: 2500, quantity: 1, variant: "" }]
     : items;
 
-  const previewSubtotal = editorMode && items.length === 0 ? 37.5 : subtotal;
-  const shippingCost = showShipping ? SHIPPING_FLAT / 100 : 0;
-  const taxCost = showTax ? previewSubtotal * TAX_RATE : 0;
-  const total = previewSubtotal + shippingCost + taxCost;
+  const previewSubtotal = editorMode && items.length === 0 ? 3750 : subtotal;
+  const currency = quote?.currency ?? "gbp";
 
   const style: React.CSSProperties = {
     width: "100%",
@@ -51,25 +68,26 @@ export default function CheckoutSummaryBlock({ block, editorMode }: BlockRenderP
       <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 12, display: "flex", flexDirection: "column", gap: 8, fontSize: 13 }}>
         <div style={{ display: "flex", justifyContent: "space-between" }}>
           <span style={{ opacity: 0.7 }}>Subtotal</span>
-          <span>{formatPrice(previewSubtotal)}</span>
+          <span>{formatPrice(quote?.subtotal ?? previewSubtotal, currency)}</span>
         </div>
         {showShipping && (
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span style={{ opacity: 0.7 }}>Shipping</span>
-            <span>{formatPrice(shippingCost)}</span>
+            <span>{quote ? formatPrice(quote.shipping.amount, currency) : "Calculated at secure checkout"}</span>
           </div>
         )}
         {showTax && (
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ opacity: 0.7 }}>Tax (20%)</span>
-            <span>{formatPrice(taxCost)}</span>
+            <span style={{ opacity: 0.7 }}>Tax</span>
+            <span>{quote ? formatPrice(quote.taxAmount, currency) : "Calculated at secure checkout"}</span>
           </div>
         )}
       </div>
       <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 16 }}>
         <span>Total</span>
-        <span>{formatPrice(total)}</span>
+        <span>{quote ? formatPrice(quote.amountTotal, currency) : `${formatPrice(previewSubtotal)} + delivery/tax`}</span>
       </div>
+      {quoteError && <p role="status" style={{ marginTop: 10, fontSize: 11, opacity: 0.65 }}>{quoteError} Final pricing will be checked before payment.</p>}
     </section>
   );
 }

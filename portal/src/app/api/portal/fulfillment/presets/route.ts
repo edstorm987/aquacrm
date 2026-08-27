@@ -1,27 +1,35 @@
-// GET /api/portal/fulfillment/presets
-//
-// Returns the Aqua phase preset list consumed by the "+ New client"
-// modal (src/app/portal/agency/_NewClientButton.tsx). The modal also
-// has a FALLBACK_PRESETS copy hard-coded for offline/dev — this route
-// is the canonical source.
+import { NextResponse, type NextRequest } from "next/server";
 
-import { NextResponse } from "next/server";
+import { getSessionFromRequest } from "@/lib/server/auth/auth";
+import { listAgencyLifecyclePhases } from "@/lib/server/clients/clientLifecycle";
+import { ensureHydrated } from "@/server/storage";
+import { getAgency } from "@/server/tenants";
 
-interface PhasePreset {
-  stage: string;
-  label: string;
-  pluginPreset: readonly string[];
-}
+// Agency-owned phase rows are the only source for the New Client selector.
+// Deleted/customised phases therefore appear exactly as they do in Fulfilment
+// settings; this route never overlays a stale hard-coded catalogue.
+export async function GET(req: NextRequest) {
+  await ensureHydrated();
+  const session = await getSessionFromRequest(req);
+  if (!session) {
+    return NextResponse.json({ ok: false, error: "unauthenticated" }, { status: 401 });
+  }
+  const agencyId = session.activeAgencyId ?? session.agencyId;
+  if (!agencyId || !getAgency(agencyId)) {
+    return NextResponse.json({ ok: false, error: "no active agency" }, { status: 403 });
+  }
 
-const PRESETS: PhasePreset[] = [
-  { stage: "aqua-epic-intro",    label: "Onboarding",                   pluginPreset: [] },
-  { stage: "aqua-blueprint",     label: "Planning",                     pluginPreset: ["website-editor", "client-crm"] },
-  { stage: "aqua-diagnostics",   label: "Content & foundations",        pluginPreset: ["website-editor", "client-crm"] },
-  { stage: "aqua-brand-builder", label: "Design",                       pluginPreset: ["website-editor", "client-crm"] },
-  { stage: "aqua-traffic",       label: "Build & launch",               pluginPreset: ["website-editor", "client-crm", "ecommerce", "agency-marketing", "email-sender"] },
-  { stage: "aqua-mastery",       label: "Live care",                    pluginPreset: ["website-editor", "client-crm", "ecommerce", "agency-marketing", "email-sender", "memberships", "affiliates"] },
-];
-
-export async function GET() {
-  return NextResponse.json({ ok: true, presets: PRESETS });
+  const phases = await listAgencyLifecyclePhases(agencyId);
+  const presets = phases
+    .filter(phase => phase.stage !== "churned")
+    .sort((left, right) => left.order - right.order)
+    .map(phase => ({
+      id: phase.id,
+      stage: phase.stage,
+      label: phase.label,
+      description: phase.description,
+      pluginPreset: phase.pluginPreset,
+      portalVariantId: phase.portalVariantId,
+    }));
+  return NextResponse.json({ ok: true, presets });
 }

@@ -40,6 +40,7 @@ interface Coverage {
   recentActivity: number;
   modules: string[];
   radar: AdvisorRadarDigest;
+  radarPaused?: boolean;
 }
 
 interface Props {
@@ -53,6 +54,25 @@ interface Props {
   onAssistantDone?: () => void;
   /** Question text to load into the composer, e.g. from an alert. */
   prefill?: string;
+}
+
+interface AssistantActionResponse {
+  ok: boolean;
+  error?: string;
+  code?: string;
+  retryable?: boolean;
+  operationId?: string;
+  threadId?: string;
+  turnStatus?: string;
+  workspace?: AssistantWorkspaceState;
+  thread?: AssistantThread;
+}
+
+class AssistantActionError extends Error {
+  constructor(message: string, readonly response?: AssistantActionResponse) {
+    super(message);
+    this.name = "AssistantActionError";
+  }
 }
 
 type SpeechRecognitionInstance = {
@@ -115,6 +135,23 @@ export function AssistantWorkspace({
   const [voiceAvailable, setVoiceAvailable] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const pendingTurnRef = useRef<{ id: string; message: string; threadId?: string; skillId?: string } | null>(null);
+
+  useEffect(() => {
+    const unfinished = initialWorkspace.turnOperations?.find(operation => operation.status !== "completed");
+    if (!unfinished) return;
+    pendingTurnRef.current = {
+      id: unfinished.id,
+      message: unfinished.message,
+      threadId: unfinished.sourceThreadId,
+      skillId: unfinished.skillId,
+    };
+    if (unfinished.sourceThreadId) setActiveThreadId(unfinished.sourceThreadId);
+    if (!prefill) setDraft(unfinished.message);
+    setError(unfinished.status === "provider-complete"
+      ? "A completed provider answer was recovered. Send the restored message to finish this turn without generating it again."
+      : "An unfinished Advisor turn was recovered. Retry the restored message to continue the same turn.");
+  }, [initialWorkspace, prefill]);
 
   const activeThread = useMemo(
     () => workspace.threads.find(thread => thread.id === activeThreadId) ?? null,
@@ -135,14 +172,10 @@ export function AssistantWorkspace({
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const data = await response.json() as {
-      ok: boolean;
-      error?: string;
-      workspace?: AssistantWorkspaceState;
-      thread?: AssistantThread;
-    };
-    if (!response.ok || !data.ok) throw new Error(data.error || "The assistant request failed.");
+    const data = await response.json().catch(() => null) as AssistantActionResponse | null;
+    if (!data) throw new AssistantActionError("The assistant returned an unreadable response.");
     if (data.workspace) setWorkspace(data.workspace);
+    if (!response.ok || !data.ok) throw new AssistantActionError(data.error || "The assistant request failed.", data);
     return data;
   }
 
@@ -151,6 +184,7 @@ export function AssistantWorkspace({
     try {
       const data = await action({ action: "new-thread" });
       if (data.thread) setActiveThreadId(data.thread.id);
+      pendingTurnRef.current = null;
       setShowHistory(false);
       setDraft("");
     } catch (cause) {
@@ -175,10 +209,20 @@ export function AssistantWorkspace({
     setBusy(true);
     setError(null);
     setDraft("");
+    const requestedThreadId = activeThreadId || undefined;
+    const pending = pendingTurnRef.current;
+    const operation = pending
+      && pending.message === clean
+      && pending.threadId === requestedThreadId
+      && pending.skillId === skillId
+      ? pending
+      : { id: `advisor_${crypto.randomUUID()}`, message: clean, threadId: requestedThreadId, skillId };
+    pendingTurnRef.current = operation;
     try {
       const data = await action({
         action: "message",
-        threadId: activeThreadId || undefined,
+        operationId: operation.id,
+        threadId: requestedThreadId,
         message: clean,
         skillId,
       });
@@ -186,8 +230,10 @@ export function AssistantWorkspace({
       if (nextWorkspace && !activeThreadId) {
         setActiveThreadId(nextWorkspace.threads[0]?.id ?? "");
       }
+      pendingTurnRef.current = null;
       onAssistantDone?.();
     } catch (cause) {
+      if (cause instanceof AssistantActionError && cause.response && cause.response.retryable !== true) pendingTurnRef.current = null;
       setDraft(clean);
       setError(cause instanceof Error ? cause.message : "The assistant could not respond.");
     } finally {
@@ -314,7 +360,7 @@ export function AssistantWorkspace({
           </div>
         </header>
 
-        <RadarBar radar={coverage.radar} configured={configured} onReview={() => void sendMessage("Review every current business radar issue, explain the evidence, and prioritise what I should do now.")} busy={busy} />
+        <RadarBar radar={coverage.radar} paused={coverage.radarPaused} configured={configured} onReview={() => void sendMessage("Review every current business radar issue, explain the evidence, and prioritise what I should do now.")} busy={busy} />
 
         <div className="mm-assistant-content flex-1 overflow-y-auto px-4 py-6 sm:px-6">
           {coverage.radar.topIssues.length ? <div className="mx-auto w-full max-w-3xl pb-4"><RadarIssues issues={coverage.radar.topIssues} /></div> : null}
@@ -494,7 +540,7 @@ function Welcome({
         <CoverageItem value={coverage.radar.connectedSources} label="Sources checked" />
         <CoverageItem value={coverage.radar.blindSpots} label="Blind spots" />
       </div>
-      {!coverage.radar.topIssues.length ? <div className="mt-6 flex items-center gap-2 border-y border-black/10 py-4 text-sm font-medium text-emerald-700"><CircleCheck size={16} />No critical or warning issues are currently detected.</div> : null}
+      {!coverage.radar.topIssues.length ? <div className={`mt-6 flex items-center gap-2 border-y border-black/10 py-4 text-sm font-medium ${coverage.radarPaused ? "text-amber-700" : "text-emerald-700"}`}>{coverage.radarPaused ? <AlertTriangle size={16} /> : <CircleCheck size={16} />}{coverage.radarPaused ? "Radar is paused until you request a scan." : "No critical or warning issues are currently detected."}</div> : null}
       <div className="mt-7 grid gap-2 sm:grid-cols-2">
         {STARTERS.map(starter => (
           <button
@@ -517,7 +563,7 @@ function Welcome({
   );
 }
 
-function RadarBar({ radar, configured, onReview, busy }: { radar: AdvisorRadarDigest; configured: boolean; onReview: () => void; busy: boolean }) {
+function RadarBar({ radar, paused = false, configured, onReview, busy }: { radar: AdvisorRadarDigest; paused?: boolean; configured: boolean; onReview: () => void; busy: boolean }) {
   const attention = radar.critical + radar.warning;
   const speed = radar.speedToLead;
   const speedDisplay = speed.medianResponseMs !== null
@@ -528,8 +574,8 @@ function RadarBar({ radar, configured, onReview, busy }: { radar: AdvisorRadarDi
   return (
     <div className="mm-assistant-radar-bar flex flex-wrap items-center justify-between gap-3 border-b border-black/10 bg-black/[0.018] px-4 py-2.5 sm:px-6">
       <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
-        <span className={`inline-flex items-center gap-1.5 font-semibold ${radar.critical ? "text-red-700" : radar.warning ? "text-amber-700" : "text-emerald-700"}`}>
-          {attention ? <AlertTriangle size={13} /> : <CircleCheck size={13} />}{attention ? `${attention} need attention` : "Radar clear"}
+        <span className={`inline-flex items-center gap-1.5 font-semibold ${paused ? "text-amber-700" : radar.critical ? "text-red-700" : radar.warning ? "text-amber-700" : "text-emerald-700"}`}>
+          {paused || attention ? <AlertTriangle size={13} /> : <CircleCheck size={13} />}{paused ? "Radar paused" : attention ? `${attention} need attention` : "Radar clear"}
         </span>
         <span className="text-black/45">Speed to lead <strong className="font-semibold text-black/65">{speedDisplay}</strong></span>
         <span className="text-black/45">{radar.connectedSources}/{radar.totalSources} sources checked</span>

@@ -1,23 +1,31 @@
 # Plan — The Aqua Tag as the backbone (the full system)
 
+> **Scope superseded in part on 2026-08-26:** “backbone” means consented
+> marketing/analytics telemetry, managed tag injection, form/event routing and
+> optional remote inspection. It does not mean editable code authority. A
+> repository-backed Dev Workspace uses its isolated branch/worktree as source
+> of truth and starts a supervised local preview without requiring Aqua Tag.
+> This plan remains authoritative for the Tag capabilities it actually owns.
+
 ← [todo.md](../todo.md) · [development.md](../../development.md) · reference: [aqua-tag dossier](../../workspace/aqua-tag.md)
 
 > **📋 Current state / handoff record: [aqua-tag-handoff.md](aqua-tag-handoff.md)** — what's built across all 6 phases, verification levels, problems, decisions, coordination, and what's next. Read that for "where are we now."
 
-**Status: ✅ SHIPPED — all 6 phases (2026-08-19); auditor FULLY PASSED (consent gating sound + catalogue growth guarded).** _(Was mislabelled "PLAN (not built)" long after it shipped.)_ The most important piece — maximum care to get it
+**Status: ✅ SHIPPED in-lane backbone (2026-08-19); auditor FULLY PASSED the consent-gating and catalogue-growth scope.** All six phases have a working shipped slice; the deferred edges are tracked separately: Radar health/firing findings, own/company-site editor scope, a company-facing enquiry view, per-client injection keys and a fuller site-state registry. _(Was mislabelled "PLAN (not built)" long after it shipped.)_ The most important piece — maximum care to get it
 right and fit it in. One tag on a site becomes the spine that captures
 enquiries, tracks behaviour (with consent), **injects every other tool you'd
 normally paste in**, feeds the CRM + Radar, and tells you what's happening — per
 company and per client.
 
 ## Why this is the backbone
-The Aqua Tag is the **source of truth** for a site: its forms, its visitors, its
-tools, its enquiries. Set it up per company and real data flows in; without it,
-everything downstream is **guessing** (the enquiry card guesses fields, Radar
-guesses coverage, routing guesses the destination, analytics are blank). "Run it
-all through the Aqua Tag" means one thing to install, one consent gate, one place
-to manage — instead of pasting GA + GTM + PostHog + a chat widget + a search-console
-tag + a form handler into every site by hand.
+The Aqua Tag is the **observed marketing and telemetry evidence spine** for a
+site: its captured forms, consented visitors/events, managed tools and enquiries.
+The repository remains code truth when one exists. Set the Tag up per company and
+real evidence flows in; without it, the enquiry card, Radar coverage, routing and
+analytics have less evidence. "Run it all through the Aqua Tag" means one thing to
+install, one consent gate and one managed marketing surface — instead of pasting
+GA + GTM + PostHog + a chat widget + a search-console tag + a form handler into
+every site by hand.
 
 ## Everything the Aqua Tag can do (the accounting — "how much I made of it")
 **Already built today** (verified in the [dossier](../../workspace/aqua-tag.md)):
@@ -121,8 +129,8 @@ Radar so enquiries, routing, and health are **watched**:
 2. ✅ **Import forms → enquiry layouts** ([enquiry-detail-card](enquiry-detail-card.md)).
 3. ✅ **The workspace registry** (Part 1) — every tagged site + state + management.
 4. ✅ **Injection layer** (Part 3) — start with the safe, high-value ones (GSC verification + GA/PostHog IDs), then GTM/pixels, then arbitrary snippets (behind the security decision).
-5. ✅ **Radar link** (Part 4) — enquiry-flow + routing findings first (the "know to route" bit), then site + injection health.
-6. ✅ **Editor seed + repo link** (wizard 4–5).
+5. ✅ **Radar link, shipped slice** (Part 4) — enquiry-routing and injection-coverage evidence are live; gone-silent, not-firing and should-route flagging remain deferred.
+6. ✅ **Editor seed + repo link, shipped client-site slice** (wizard 4–5) — own/company-site editor scope remains deferred.
 
 ## Decisions
 - ✅ **Routing model — RESOLVED (Ed): add `destinationCompanyId`** — a site routes to inbox / client / **company**. The keystone.

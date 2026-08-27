@@ -2,6 +2,21 @@
 
 ← Back to [development.md](../development.md) (the law) · Auditor how-to: [auditor-brief.md](../context/auditor-brief.md)
 
+> ## 🚨 CURRENT CHECKPOINT — P0/P1 source + runtime review 2026-08-24
+> The authoritative current position is [checklist.md](checklist.md). The last
+> documented whole-suite run remains **3,621 pass / 0 fail / 1 skip on
+> 2026-08-23**; it was not rerun by this documentation pass. The 2026-08-24
+> review now has a **P0:** a stale owner cookie created a working external-AI API
+> token after the live user was downgraded to staff because central role helpers
+> do not enforce current `sessionRev`/role. P1s: mutating showcase GET/OAuth paths;
+> erasure false-success/non-retry/audit-name; Editor AI distributed coordination;
+> unsafe file persistence; editor transitions/prefill; staff-policy drift; data
+> truth and browser acceptance. See issues #16–#25. The same-day **98/98** focused
+> run remains useful source/memory evidence but closes none of these runtime
+> boundaries by itself.
+> Every verdict below is preserved dated evidence, including claims later
+> narrowed or superseded.
+
 > ## 🟡 SUITE effectively green — 2382 pass / 0 fail · `tsc` 0 errors (2026-08-20, commander-verified) — **but one red observed since**
 > **No open 🔴 findings.** The three items that were briefed as
 > "🔴 launch blockers" are all **fixed in source** — freelancer preview escalation

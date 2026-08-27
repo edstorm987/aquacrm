@@ -9,7 +9,20 @@ data (auth records + real `brand_enquiries` leads + Storage buckets).
 
 > **This chapter groups the endpoints by area for orientation.** For the
 > exhaustive one-row-per-endpoint table — every path, its HTTP methods, purpose,
-> scope/auth, and live-data flag — see the **[full API reference](api-reference.md)**.
+> scope/auth, and live-data flag at its last checkpoint — see the
+> **[hand-maintained API reference](api-reference.md)**. The source currently has
+> 222 route files; that table has 206 rows and is not exhaustive.
+
+> **Read-path warning (source-reviewed 2026-08-24):** not every `GET` is a pure
+> read. Automations, products, team chat, client design, website sources and
+> development paths include sweep/seed/mark-read/materialisation behaviour. On
+> the file backend those can trigger a full-state rewrite and should be included
+> in slow-page diagnosis (issues #16 and #21).
+
+> **Private-media delivery warning (source-reviewed 2026-08-25):** inbox media, website-call
+> recordings and SOP content ignore HTTP `Range` and return full `200` objects; several provider
+> paths also buffer the whole object. This affects mounted audio metadata/seek behavior and large
+> training media. The shared `206`/`416` acceptance contract is [issue #144](../development/issues.md).
 
 ## `api/` — the endpoints
 
@@ -49,8 +62,8 @@ switcher — membership-only, session ∩ live record), `showcase-mode`, `dev-mo
 - **Freelancers:** `freelancers` (list/create), `freelancer-access` (policy + per-job overrides), `freelancer/submit`.
 - **Compliance:** `compliance/posture` (read-only, never a verdict), `compliance/frameworks` (the optional per-company HIPAA checklist).
 - **Tenancy:** `agency/companies/[companyId]/promote` (preview + promote a trading company into its own agency — **moves no records**).
-- **Dev Console (founder + Dev Mode, 404 otherwise):** `dev-team/{console,docs,editor,plans,updates,workers,findings,findings/image,roadmap,thoughts}`, `team-chat`.
-- **Connections/customer [new]:** `connections`, `connections/accept`, `customer/connections`, `customer/setup` **[LIVE]**, `customer/workspace`.
+- **Dev Console (deployment founder; local Dev Mode fixtures also pass; 404 otherwise):** `dev-team/{console,docs,editor,plans,updates,workers,findings,findings/image,roadmap,thoughts}`, `team-chat`.
+- **Connections/customer [new]:** `connections`, `connections/accept`, `customer/connections`, `customer/setup` **[LIVE]**, `customer/workspace`. Current setup caveat: password success marks the whole welcome complete before installation; repeat `/setup` visits redirect away and the promised Support install help is absent ([issue #134](../development/issues.md)).
 - **Enquiries [LIVE `brand_enquiries`]:** `website-enquiries/{lead,status,classification,reply,communications,calls,calls/recording,erase}`, `identity-resolution`. (`erase` = **[new]**.)
 - **Website routing [new]:** `website-sources` (routing + master tag), `website`.
 - **Inbox:** `inbox/{conversations,messages,connections,media[LIVE],meta/*}`, `master-inbox/message`, `activity-inbox/list`, `notifications`.

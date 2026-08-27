@@ -17,6 +17,8 @@ import { logActivity } from "@/server/activity";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
+import { ProductWorkspaceBusyError, withClientMetadataLedgerTransaction } from "@/server/productWorkspaceCoordinator";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 type AddBody = {
   clientId?: unknown;
@@ -67,6 +69,8 @@ export async function POST(request: Request) {
     }
 
     const session = await requireRoleForClient([...AGENCY_ROLES], clientId);
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.record", "use");
+    return await withClientMetadataLedgerTransaction({ agencyId: session.agencyId, clientId, ledger: "record" }, async () => {
     const client = getClientForAgency(session.agencyId, clientId);
     if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
 
@@ -163,7 +167,11 @@ export async function POST(request: Request) {
     });
     await flushPendingWrites();
     return NextResponse.json({ ok: true, entry: changed, ledgerEvent, entries: next, files: nextFiles });
+    });
   } catch (error) {
+    if (error instanceof ProductWorkspaceBusyError) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 409 });
+    }
     return authErrorResponse(error);
   }
 }

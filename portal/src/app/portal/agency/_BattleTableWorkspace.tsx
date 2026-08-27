@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
 import {
   ArrowUpRight,
@@ -34,12 +35,11 @@ import {
   Zap,
 } from "lucide-react";
 
-import { COMMAND_PRIMARY_KPI_STATIONS, type CommandIntelligenceSnapshot, type CommandKpi } from "@/lib/intelligence/commandIntelligence";
+import { COMMAND_PRIMARY_KPI_STATIONS, type CommandIntelligenceScope, type CommandIntelligenceSnapshot, type CommandKpi } from "@/lib/intelligence/commandIntelligence";
 import { buildHiringCapacityAnalysis, emptyHiringCapacitySignals, HIRING_CAPACITY_AREA_META, type HiringCapacityAreaAnalysis, type HiringCapacitySignals } from "@/lib/performance/hiringCapacity";
 import type { CompanyCapacityAreaId, CompanyCapacityAreaPlan, CompanyObjective, CompanyPlan, CompanyProfile, CompanyQuarterlyEvidenceSnapshot } from "@/server/types";
-import { applyIntelligenceScope, KpiComparisonWorkspace } from "./_CommandIntelligenceWorkspace";
-import { CapitalOwnershipWorkspace } from "./_CapitalOwnershipWorkspace";
-import { QuarterlyStrategyReview } from "./_QuarterlyStrategyReview";
+import { applyIntelligenceScope } from "./commandIntelligenceScope";
+import { createBattleNavigationState, reconcileBattleNavigationState } from "./battleNavigation";
 import {
   buildBattlefield,
   buildWarRoomDecisions,
@@ -52,6 +52,23 @@ import {
   type WarRoomScopeInput,
   type WarRoomTargetState,
 } from "./_battleWarRoom";
+
+const KpiComparisonWorkspace = dynamic(
+  () => import("./_CommandIntelligenceWorkspace").then(module => module.KpiComparisonWorkspace),
+  { loading: () => <BattleSectionLoading label="KPI intelligence" /> },
+);
+const CapitalOwnershipWorkspace = dynamic(
+  () => import("./_CapitalOwnershipWorkspace").then(module => module.CapitalOwnershipWorkspace),
+  { loading: () => <BattleSectionLoading label="Capital and ownership" /> },
+);
+const QuarterlyStrategyReview = dynamic(
+  () => import("./_QuarterlyStrategyReview").then(module => module.QuarterlyStrategyReview),
+  { loading: () => <BattleSectionLoading label="Quarterly reviews" /> },
+);
+
+function BattleSectionLoading({ label }: { label: string }) {
+  return <div className="grid min-h-[24rem] place-items-center text-sm text-[#d7b56d]/70" role="status">Loading {label}…</div>;
+}
 
 export type BattleTableSection = "warroom" | "overview" | "intelligence" | "strategy" | "projections" | "objectives" | "capacity" | "plans" | "capital" | "reviews" | "systems";
 
@@ -120,14 +137,19 @@ const sections: Array<{ id: BattleTableSection; label: string; icon: React.React
 
 export function BattleTableWorkspace({ payload, intelligence, onOpenIntelligence, radarIncidents = [], initialSection = "warroom", initialScopeId = "ecosystem" }: { payload: BattleTablePayload; intelligence: CommandIntelligenceSnapshot; onOpenIntelligence: (kpiIds?: string[], scopeId?: string) => void; radarIncidents?: WarRoomIncident[]; initialSection?: BattleTableSection; initialScopeId?: string }) {
   const scopes = payload.scopes?.length ? payload.scopes : [fallbackBattleScope(payload)];
-  const [scopeId, setScopeId] = useState(scopes.some(scope => scope.id === initialScopeId) ? initialScopeId : scopes[0]!.id);
+  const availableScopeIds = scopes.map(scope => scope.id);
+  const [navigation, setNavigation] = useState(() => createBattleNavigationState(initialSection, initialScopeId, availableScopeIds));
+  const reconciledNavigation = reconcileBattleNavigationState(navigation, initialSection, initialScopeId, availableScopeIds);
+  if (reconciledNavigation !== navigation) setNavigation(reconciledNavigation);
+  const { scopeId, section } = reconciledNavigation;
   const selectedScope = scopes.find(scope => scope.id === scopeId) ?? scopes[0]!;
-  const intelligenceScope = intelligence.scopes.find(scope => scope.id === selectedScope.id) ?? intelligence.scopes[0]!;
+  const intelligenceScope = intelligence.scopes.find(scope => scope.id === selectedScope.id)
+    ?? intelligence.scopes[0]
+    ?? fallbackIntelligenceScope(selectedScope);
   const scopedIntelligence = useMemo(() => applyIntelligenceScope(intelligence, intelligenceScope), [intelligence, intelligenceScope]);
   const [profiles, setProfiles] = useState<Record<string, CompanyProfile>>(() => Object.fromEntries(scopes.map(scope => [scope.id, scope.initial])));
   const company = profiles[selectedScope.id] ?? selectedScope.initial;
   const activePayload: BattleTablePayload = { ...payload, companyName: selectedScope.label, initial: company, actuals: selectedScope.actuals, healthScore: selectedScope.healthScore, staffCount: selectedScope.staffCount, productCount: selectedScope.productCount, legalCount: selectedScope.legalCount, capacitySignals: selectedScope.capacitySignals };
-  const [section, setSection] = useState<BattleTableSection>(initialSection);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -183,7 +205,7 @@ export function BattleTableWorkspace({ payload, intelligence, onOpenIntelligence
   }
 
   function selectSection(next: BattleTableSection) {
-    setSection(next);
+    setNavigation(current => ({ ...current, section: next }));
     window.requestAnimationFrame(() => document.getElementById("battle-table-body")?.scrollTo({ top: 0, behavior: "smooth" }));
   }
 
@@ -196,7 +218,7 @@ export function BattleTableWorkspace({ payload, intelligence, onOpenIntelligence
   // Drilling in from the war room moves scope AND section in one move, so a
   // decision opens on the exact company it was raised against.
   function drillInto(nextScopeId: string, next: BattleTableSection) {
-    if (scopes.some(scope => scope.id === nextScopeId)) setScopeId(nextScopeId);
+    if (scopes.some(scope => scope.id === nextScopeId)) setNavigation(current => ({ ...current, scopeId: nextScopeId }));
     setMessage("");
     setError("");
     selectSection(next);
@@ -222,7 +244,7 @@ export function BattleTableWorkspace({ payload, intelligence, onOpenIntelligence
     <section className="relative grid border-b border-[#d7b56d]/20 bg-[#050d11]/96 lg:grid-cols-[minmax(240px,.55fr)_minmax(0,1fr)_auto] lg:items-stretch" aria-label="Battle Table scope">
       <label className="border-b border-[#d7b56d]/14 p-3 lg:border-b-0 lg:border-r sm:px-5">
         <span className="flex items-center gap-2 text-[8px] font-semibold uppercase text-[#e4c783]/60"><Building2 size={12} /> Projection scope</span>
-        <select value={selectedScope.id} onChange={event => { setScopeId(event.target.value); setMessage(""); setError(""); }} className="mt-2 min-h-10 w-full border border-[#d7b56d]/24 bg-[#071116] px-3 text-xs font-semibold text-white outline-none focus:border-[#d7b56d]/60">
+        <select value={selectedScope.id} onChange={event => { setNavigation(current => ({ ...current, scopeId: event.target.value })); setMessage(""); setError(""); }} className="mt-2 min-h-10 w-full border border-[#d7b56d]/24 bg-[#071116] px-3 text-xs font-semibold text-white outline-none focus:border-[#d7b56d]/60">
           <optgroup label="Combined"><option value="ecosystem">Whole Aqua ecosystem</option></optgroup>
           {scopes.some(scope => scope.kind === "company") ? <optgroup label="Trading brands">{scopes.filter(scope => scope.kind === "company").map(scope => <option key={scope.id} value={scope.id}>{scope.label}</option>)}</optgroup> : null}
         </select>
@@ -256,6 +278,19 @@ export function BattleTableWorkspace({ payload, intelligence, onOpenIntelligence
       {section === "systems" ? <ExecutiveSystems payload={activePayload} /> : null}
     </div>
   </section>;
+}
+
+function fallbackIntelligenceScope(scope: BattleTableScopePayload): CommandIntelligenceScope {
+  return {
+    id: scope.id,
+    label: scope.label,
+    kind: scope.kind === "aggregate" ? "ecosystem" : "company",
+    detail: scope.detail || "No scoped KPI evidence has been computed yet.",
+    href: "/portal/agency?station=battle",
+    propertyCount: 0,
+    inheritGlobalKpis: scope.kind === "aggregate",
+    readings: [],
+  };
 }
 
 // ─── The war room — the Battle Table's front door ─────────────────────────────

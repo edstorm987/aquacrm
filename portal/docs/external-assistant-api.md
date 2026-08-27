@@ -11,6 +11,14 @@ transports that share one credential**:
 Both are **tenant-scoped, permission-gated, rate-limited and fully audited**.
 Neither can change a business record.
 
+> 🚨 **Management-path P0, 2026-08-24:** the bearer-token API enforces the scope
+> stored on an issued key, but the portal route that creates/rotates/revokes those
+> keys is not safely revocable. A stale owner cookie created a working key after
+> that user was downgraded to staff because
+> `/api/portal/settings/external-ai` trusts the cookie role through
+> `getSessionFromRequest()`. Do not treat key management as production-safe until
+> development issue #22 is closed and old-cookie behaviourally tested.
+
 > **Corrected 2026-08-19.** This page previously said the API was
 > "intentionally read-only" with "no write operations" and documented only an
 > environment token. That is out of date on three counts: **managed keys**,

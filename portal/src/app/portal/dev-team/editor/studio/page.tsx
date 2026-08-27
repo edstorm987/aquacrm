@@ -19,7 +19,7 @@ import { DevEditor } from "@/engines/editor/DevEditor";
 // add) a project, open it here, and leaving returns you to the list — which is
 // what makes several projects at once workable.
 //
-// Founder + Dev Mode only: role first, then `devDocsAccessible`. The studio's
+// Founder-only Dev Team access: role first, then `devDocsAccessible`. The studio's
 // own API routes assert their scope again.
 export const dynamic = "force-dynamic";
 

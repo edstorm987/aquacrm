@@ -39,6 +39,33 @@ const phonePtrKey = (phone: string): string => `leads/phone/${phone}`;
 const PLAUSIBLE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PLAUSIBLE_PHONE = /^\+?\d{7,15}$/;
 
+const identityQueues = new Map<AgencyId, Promise<void>>();
+
+async function withLeadIdentityLock<T>(agencyId: AgencyId, work: () => Promise<T>): Promise<T> {
+  const previous = identityQueues.get(agencyId) ?? Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const queued = previous.then(() => gate);
+  identityQueues.set(agencyId, queued);
+  await previous;
+  try {
+    return await work();
+  } finally {
+    release();
+    if (identityQueues.get(agencyId) === queued) identityQueues.delete(agencyId);
+  }
+}
+
+export class LeadIdentityConflictError extends Error {
+  readonly field: "email" | "phone";
+
+  constructor(field: "email" | "phone") {
+    super(`Another lead already uses this ${field}. Review that record instead of merging people silently.`);
+    this.name = "LeadIdentityConflictError";
+    this.field = field;
+  }
+}
+
 function canonPhone(raw: string): string {
   const trimmed = raw.trim();
   const digits = trimmed.replace(/\D/g, "");
@@ -167,6 +194,10 @@ export class LeadService {
   // Create-or-update on canonical email. Returns `{lead, created}` so
   // CSV import can tell whether a row was new or merged.
   async upsert(input: CreateLeadInput, actor: UserId): Promise<{ lead: Lead; created: boolean }> {
+    return withLeadIdentityLock(this.agencyId, () => this.upsertUnlocked(input, actor));
+  }
+
+  private async upsertUnlocked(input: CreateLeadInput, actor: UserId): Promise<{ lead: Lead; created: boolean }> {
     if (input.relationshipCategory !== undefined && !isLeadRelationshipCategory(input.relationshipCategory)) {
       throw new Error("Choose a valid lead relationship category.");
     }
@@ -185,7 +216,7 @@ export class LeadService {
       if (existing) {
         const incomingEnquiryId = enquiryIdFrom(input);
         const isNewEnquiry = Boolean(incomingEnquiryId && !(existing.enquiryIds ?? []).includes(incomingEnquiryId));
-        const patched = await this.update(existing.id, {
+        const patched = await this.updateUnlocked(existing.id, {
           // Only fill blanks — never clobber existing notes/tags from a re-import.
           email: existing.email || email,
           name: existing.name ?? input.name,
@@ -296,7 +327,7 @@ export class LeadService {
         source: lead.source,
       });
       if (card) {
-        await this.update(id, { pipelineCardId: card.cardId }, actor);
+        await this.updateUnlocked(id, { pipelineCardId: card.cardId }, actor);
       }
     }
 
@@ -304,6 +335,10 @@ export class LeadService {
   }
 
   async update(id: string, patch: UpdateLeadPatch, actor: UserId): Promise<Lead | null> {
+    return withLeadIdentityLock(this.agencyId, () => this.updateUnlocked(id, patch, actor));
+  }
+
+  private async updateUnlocked(id: string, patch: UpdateLeadPatch, actor: UserId): Promise<Lead | null> {
     const existing = await this.get(id);
     if (!existing) return null;
     if (patch.relationshipCategory !== undefined && !isLeadRelationshipCategory(patch.relationshipCategory)) {
@@ -315,6 +350,17 @@ export class LeadService {
     if (!email && !PLAUSIBLE_PHONE.test(canonPhone(phone ?? ""))) {
       throw new Error("A valid email address or phone number is required.");
     }
+    const emailOwnerId = email ? await this.storage.get<string>(emailPtrKey(email)) : undefined;
+    if (emailOwnerId && emailOwnerId !== id && await this.get(emailOwnerId)) {
+      throw new LeadIdentityConflictError("email");
+    }
+    const canonicalPhone = canonPhone(phone ?? "");
+    const phoneOwnerId = canonicalPhone
+      ? await this.storage.get<string>(phonePtrKey(canonicalPhone))
+      : undefined;
+    if (phoneOwnerId && phoneOwnerId !== id && await this.get(phoneOwnerId)) {
+      throw new LeadIdentityConflictError("phone");
+    }
     const updated: Lead = {
       ...existing,
       ...patch,
@@ -323,11 +369,17 @@ export class LeadService {
       tags: patch.tags ?? existing.tags,
     };
     await this.storage.set(leadKey(id), updated);
-    if (existing.email && existing.email !== updated.email) await this.storage.del(emailPtrKey(existing.email));
+    if (existing.email && existing.email !== updated.email) {
+      const oldEmailOwner = await this.storage.get<string>(emailPtrKey(existing.email));
+      if (oldEmailOwner === id) await this.storage.del(emailPtrKey(existing.email));
+    }
     if (updated.email) await this.storage.set(emailPtrKey(updated.email), id);
     const existingPhone = canonPhone(existing.phone ?? "");
     const updatedPhone = canonPhone(updated.phone ?? "");
-    if (existingPhone && existingPhone !== updatedPhone) await this.storage.del(phonePtrKey(existingPhone));
+    if (existingPhone && existingPhone !== updatedPhone) {
+      const oldPhoneOwner = await this.storage.get<string>(phonePtrKey(existingPhone));
+      if (oldPhoneOwner === id) await this.storage.del(phonePtrKey(existingPhone));
+    }
     if (updatedPhone) await this.storage.set(phonePtrKey(updatedPhone), id);
     await this.activity.logActivity({
       agencyId: this.agencyId,
@@ -491,12 +543,20 @@ export class LeadService {
   }
 
   async delete(id: string, actor: UserId): Promise<boolean> {
+    return withLeadIdentityLock(this.agencyId, () => this.deleteUnlocked(id, actor));
+  }
+
+  private async deleteUnlocked(id: string, actor: UserId): Promise<boolean> {
     const existing = await this.get(id);
     if (!existing) return false;
     await this.storage.del(leadKey(id));
-    if (existing.email) await this.storage.del(emailPtrKey(existing.email));
+    if (existing.email && await this.storage.get<string>(emailPtrKey(existing.email)) === id) {
+      await this.storage.del(emailPtrKey(existing.email));
+    }
     const phone = canonPhone(existing.phone ?? "");
-    if (phone) await this.storage.del(phonePtrKey(phone));
+    if (phone && await this.storage.get<string>(phonePtrKey(phone)) === id) {
+      await this.storage.del(phonePtrKey(phone));
+    }
     const index = (await this.storage.get<string[]>(LEAD_INDEX_KEY)) ?? [];
     await this.storage.set(LEAD_INDEX_KEY, index.filter(x => x !== id));
     await this.activity.logActivity({
@@ -529,11 +589,19 @@ export class LeadService {
   // be captured phone-only (`upsert` requires an email OR a phone), and
   // campaign sends already skip leads with no email address.
   async anonymiseForErasure(id: string, actor: UserId): Promise<Lead | null> {
+    return withLeadIdentityLock(this.agencyId, () => this.anonymiseForErasureUnlocked(id, actor));
+  }
+
+  private async anonymiseForErasureUnlocked(id: string, actor: UserId): Promise<Lead | null> {
     const existing = await this.get(id);
     if (!existing) return null;
-    if (existing.email) await this.storage.del(emailPtrKey(existing.email));
+    if (existing.email && await this.storage.get<string>(emailPtrKey(existing.email)) === id) {
+      await this.storage.del(emailPtrKey(existing.email));
+    }
     const phone = canonPhone(existing.phone ?? "");
-    if (phone) await this.storage.del(phonePtrKey(phone));
+    if (phone && await this.storage.get<string>(phonePtrKey(phone)) === id) {
+      await this.storage.del(phonePtrKey(phone));
+    }
     const alreadyAnonymised = !existing.email && !existing.phone && !existing.name && !existing.company;
     const anonymised: Lead = {
       ...existing,
@@ -574,7 +642,8 @@ export class LeadService {
     defaultTags?: string[];
     defaultRelationshipCategory?: LeadRelationshipCategory;
     mapping?: Record<string, string>;
-    customFieldTypes?: Record<string, "text" | "number" | "date" | "url" | "select" | "multi-select" | "checkbox">;
+    customFieldTypes?: Record<string, "text" | "textarea" | "number" | "date" | "url" | "email" | "select" | "multi-select" | "checkbox">;
+    validateCustomFields?: (values: Record<string, CustomFieldValue>, existing?: Record<string, CustomFieldValue>) => Record<string, CustomFieldValue>;
   }): Promise<CsvImportResult> {
     const parsed = parseCsv(args.text);
     const mappedColumns = Object.entries(args.mapping ?? {})
@@ -622,7 +691,11 @@ export class LeadService {
           else if (type === "multi-select") customFieldEntries.push([id, raw.split(/[,;|]/).map(item => item.trim()).filter(Boolean)]);
           else customFieldEntries.push([id, raw]);
         }
-        const customFields = Object.fromEntries(customFieldEntries);
+        const submittedCustomFields = Object.fromEntries(customFieldEntries);
+        const existing = await this.getByEmail(email);
+        const customFields = args.validateCustomFields
+          ? args.validateCustomFields(submittedCustomFields, existing?.customFields)
+          : submittedCustomFields;
         const rowRelationshipCategory = cell("relationshipCategory");
         const result = await this.upsert(
           {

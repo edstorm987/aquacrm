@@ -129,10 +129,16 @@
     }
     if (window.Notify && typeof window.Notify.push === 'function') {
       var nextLbl = next ? phaseLabel(next) : 'completed all phases';
+      var currentDestinations = {
+        'epic-intro': '/business-os/app.html',
+        'blueprint': '/business-os/quick-wins.html',
+        'diagnostics': '/business-os/diagnostic.html',
+        'brand-builder': '/business-os/tools.html'
+      };
       window.Notify.push('phase',
         'You completed ' + phaseLabel(phaseId) + '!',
-        next ? 'Onwards to ' + nextLbl + '. Check the new lessons available for this phase.' : 'All phases done. Onwards.',
-        { ctaHref: next ? '../incubator/' + (function (id) { return ({'epic-intro':'phase-1-epic-intro.html','blueprint':'phase-2-blueprint.html','diagnostics':'phase-3-diagnostics.html','brand-builder':'phase-4-brand-builder.html'})[id]; })(next) : '../incubator/index.html' }
+        next ? 'Onwards to ' + nextLbl + '. Open the matching current Business OS surface.' : 'All phases done. Return to Business OS.',
+        { ctaHref: next ? currentDestinations[next] : '/business-os/app.html' }
       );
     }
     fireConfetti();

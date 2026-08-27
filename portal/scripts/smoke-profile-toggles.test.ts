@@ -13,8 +13,8 @@ const read = (path: string) => readFileSync(path, "utf8");
 describe("Profile menu toggles — Cinematic / Performance / Dev icon", () => {
   // === 1) CINEMATIC MODE: default ON, migrates the old performance-mode key ===
   describe("Cinematic mode", () => {
-    it("defaults to ON (cutscenes play) when nothing is stored", () => {
-      assert.equal(resolveCinematicPreference(null, null), true);
+    it("defaults to OFF so a fresh workspace opens immediately", () => {
+      assert.equal(resolveCinematicPreference(null, null), false);
     });
 
     it("honours an explicit cinematic preference over anything legacy", () => {
@@ -59,14 +59,14 @@ describe("Profile menu toggles — Cinematic / Performance / Dev icon", () => {
     });
   });
 
-  // === 2) PERFORMANCE MODE: real, server-readable cookie, default OFF ===
+  // === 2) PERFORMANCE MODE: real, server-readable cookie, default ON ===
   describe("Performance mode (server-readable)", () => {
-    it("parses the cookie: only '1' is ON, everything else OFF (default)", () => {
+    it("defaults ON and honours an explicit '0' opt-out", () => {
       assert.equal(parsePerformanceModeCookie("1"), true);
       assert.equal(parsePerformanceModeCookie("0"), false);
-      assert.equal(parsePerformanceModeCookie(undefined), false);
-      assert.equal(parsePerformanceModeCookie(null), false);
-      assert.equal(parsePerformanceModeCookie(""), false);
+      assert.equal(parsePerformanceModeCookie(undefined), true);
+      assert.equal(parsePerformanceModeCookie(null), true);
+      assert.equal(parsePerformanceModeCookie(""), true);
     });
 
     it("names a non-httpOnly cookie the client can set", () => {
@@ -74,6 +74,7 @@ describe("Profile menu toggles — Cinematic / Performance / Dev icon", () => {
       const client = read("src/lib/chrome/performanceMode.ts");
       assert.match(client, /setPerformanceModeCookie/);
       assert.match(client, /path=\//);
+      assert.match(client, /PERFORMANCE_MODE_COOKIE}=0/);
       assert.match(client, /window\.location\.reload\(\)/); // reload so the next server render reflects it
     });
 
@@ -86,16 +87,19 @@ describe("Profile menu toggles — Cinematic / Performance / Dev icon", () => {
     it("the agency layout SKIPS the operational-alerts sweep under perf mode", () => {
       const layout = read("src/app/portal/agency/layout.tsx");
       assert.match(layout, /performanceModePreference\(\)/);
-      // The sweep is conditional: empty set when perf mode is on.
-      assert.match(layout, /perfMode\s*\?\s*\[\]\s*:\s*await getRequestOperationalAlerts/);
+      // The sweep and its large server graph are requested only after every
+      // lightweight-shell condition has been ruled out.
+      assert.match(layout, /if \(!perfMode && !session\.publicShowcase && !delegatedStaff\) \{\s*const \{ getRequestOperationalAlerts \} = await import\("@\/lib\/server\/inbox\/operationalAlerts"\)/);
+      assert.doesNotMatch(layout, /^import \{ getRequestOperationalAlerts \}/m);
     });
 
     it("the Command Centre keeps the alerts sweep and the dev-team board scan off the critical path under perf mode", () => {
       const page = read("src/app/portal/agency/page.tsx");
       assert.match(page, /performanceModePreference\(\)/);
-      assert.match(page, /perfMode\s*\?\s*Promise\.resolve<OperationalAlert\[\]>\(\[\]\)\s*:\s*getRequestOperationalAlerts/);
+      assert.match(page, /const lightweightMode = perfMode \|\| Boolean\(session\.publicShowcase\)/);
+      assert.match(page, /lightweightMode\s*\? Promise\.resolve<OperationalAlert\[\]>\(\[\]\)\s*:\s*import\("@\/lib\/server\/inbox\/operationalAlerts"\)/);
       // scanDevTeamBoard (a disk read feeding the station badge) is gated off.
-      assert.match(page, /devTeamVisible && !perfMode \? composeLanes\(await scanDevTeamBoard\(\)\)/);
+      assert.match(page, /if \(devTeamVisible && !lightweightMode\) \{\s*const \{ composeLanes, scanDevTeamBoard \} = await import\("@\/lib\/server\/dev\/devTeamBoard"\)/);
     });
   });
 

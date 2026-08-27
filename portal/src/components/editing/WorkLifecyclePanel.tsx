@@ -17,6 +17,7 @@ import {
   STRONG,
   accentStyle,
 } from "@/components/editing/editorAiSkin";
+import { apiResponseError } from "@/lib/client/apiResponseError";
 
 // ─── THE WORK LIFECYCLE — drafts, history, notes (phase 14) ──────────────────
 //
@@ -96,9 +97,9 @@ async function callLifecycle<T>(body: Record<string, unknown>): Promise<{ ok: tr
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
     });
-    const payload = await response.json().catch(() => null) as (T & { ok?: boolean; error?: string }) | null;
+    const payload = await response.json().catch(() => null) as (T & { ok?: boolean; error?: string; message?: string }) | null;
     if (!response.ok || !payload?.ok) {
-      return { ok: false, error: payload?.error ?? "That could not be read." };
+      return { ok: false, error: apiResponseError(payload, "That could not be read.") };
     }
     return { ok: true, payload };
   } catch {
@@ -188,8 +189,8 @@ export function DraftsPanel({ projectId, onOpenFile }: {
     setActing("publish");
     setNote("");
     const payload = await repoWrite({ action: "publish", project: projectId }) as
-      | { ok?: boolean; error?: string; pullRequest?: { existing?: boolean } } | null;
-    if (!payload?.ok) setNote(payload?.error ?? "The pull request could not be opened.");
+      | { ok?: boolean; error?: string; message?: string; pullRequest?: { existing?: boolean } } | null;
+    if (!payload?.ok) setNote(apiResponseError(payload, "The pull request could not be opened."));
     else if (payload.pullRequest?.existing) setNote("Already open — that is the pull request.");
     await load();
     setActing("");
@@ -205,7 +206,7 @@ export function DraftsPanel({ projectId, onOpenFile }: {
     setNote("");
     const payload = await repoWrite({ action: "merge", project: projectId, confirm: true }) as
       | { ok?: boolean; error?: string; merged?: boolean; message?: string } | null;
-    if (!payload?.ok) setNote(payload?.error ?? "The merge did not happen.");
+    if (!payload?.ok) setNote(apiResponseError(payload, "The merge did not happen."));
     else setNote(payload.message ?? "");
     setConfirmingMerge(false);
     await load();
@@ -222,9 +223,9 @@ export function DraftsPanel({ projectId, onOpenFile }: {
     setNote("");
     const payload = await repoWrite({
       action: "revert", project: projectId, ...(confirmed ? { confirm: true } : {}),
-    }) as { ok?: boolean; error?: string; published?: boolean; summary?: string; files?: Array<{ path: string; action: string; note: string }> } | null;
+    }) as { ok?: boolean; error?: string; message?: string; published?: boolean; summary?: string; files?: Array<{ path: string; action: string; note: string }> } | null;
     if (!payload?.ok) {
-      setNote(payload?.error ?? "The revert could not be read.");
+      setNote(apiResponseError(payload, "The revert could not be read."));
       setRevertPlan(null);
     } else if (!confirmed) {
       setRevertPlan(payload.files ?? []);

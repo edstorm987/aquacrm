@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import {
   AreaChart,
@@ -43,8 +44,23 @@ import type {
 } from "@/lib/intelligence/commandIntelligence";
 import { dateInputValue, formatUkDate } from "@/lib/shared/formatDateTime";
 import { describeCommandKpis, describeCommercialFormulas, describeCustomKpis, searchKpiDescriptors, suggestKpiTarget, type KpiDescriptor } from "@/lib/performance/kpiRegistry";
+import {
+  KpiTargetRequestError,
+  kpiPlanOverridesFromConfig,
+  submitKpiTargetMutation,
+  type KpiPlanOverride,
+  type KpiPlanOverrides,
+} from "@/lib/performance/kpiTargetClient";
 import type { CustomKpiDefinition, CustomKpiOp, KpiTargetsConfig } from "@/server/types";
-import { CommercialIntelligenceWorkspace } from "./_CommercialIntelligenceWorkspace";
+import { applyIntelligenceScope } from "./commandIntelligenceScope";
+import { PortalViewportLoading } from "@/components/ui/PortalViewportLoading";
+
+export { applyIntelligenceScope };
+
+const CommercialIntelligenceWorkspace = dynamic(
+  () => import("./_CommercialIntelligenceWorkspace").then(module => module.CommercialIntelligenceWorkspace),
+  { loading: () => <PortalViewportLoading label="Preparing commercial intelligence…" /> },
+);
 
 export type IntelligenceView = "overview" | "lifecycle" | "campaigns" | "audiences" | "kpis" | "compare";
 type KpiDomainFilter = string;
@@ -144,65 +160,6 @@ function IntelligenceScopeBar({ scopes, selected, availableKpis, onSelect }: { s
     </div>
     {!availableKpis ? <div className="border-t border-amber-300/15 bg-amber-300/[0.035] px-4 py-2 text-[9px] leading-4 text-amber-100/60 lg:col-span-3">No KPI evidence is linked to this scope yet. Its company or client record is real, but Radar will not borrow Aqua-wide figures and present them as local truth.</div> : null}
   </section>;
-}
-
-export function applyIntelligenceScope(snapshot: CommandIntelligenceSnapshot, scope: CommandIntelligenceScope): CommandIntelligenceSnapshot {
-  if (scope.kind === "ecosystem") return snapshot;
-  const readings = new Map(scope.readings.map(reading => [reading.kpiId, reading]));
-  const kpis = snapshot.kpis.flatMap(kpi => {
-    const reading = readings.get(kpi.id);
-    if (!scope.inheritGlobalKpis && !reading) return [];
-    return [{
-      ...kpi,
-      ...(reading ?? {}),
-      scope: { id: scope.id, label: scope.label, kind: scope.kind },
-    }];
-  });
-  const readingValue = (id: string) => kpis.find(kpi => kpi.id === id)?.value ?? 0;
-  // Preserves "unmeasured" (`null`) instead of minting a zero for scopes without a reading.
-  const readingValueOrNull = (id: string) => kpis.find(kpi => kpi.id === id)?.value ?? null;
-  const scopedPortfolio = scope.inheritGlobalKpis;
-  const campaigns = scopedPortfolio ? snapshot.campaigns : [];
-  const audienceProfiles = scopedPortfolio ? snapshot.audienceProfiles : [];
-  const audienceLocations = scopedPortfolio ? snapshot.audienceLocations : [];
-  const audienceSignals = scopedPortfolio ? snapshot.audienceSignals : [];
-  const audienceDemographics = scopedPortfolio ? snapshot.audienceDemographics : [];
-  const sourceCohorts = scopedPortfolio ? snapshot.sourceCohorts : [];
-  const campaignSpendCents = campaigns.reduce((sum, campaign) => sum + campaign.spendCents, 0);
-  const campaignRevenueCents = campaigns.reduce((sum, campaign) => sum + campaign.attributedRevenueCents, 0);
-  return {
-    ...snapshot,
-    kpis,
-    campaigns,
-    audienceProfiles,
-    audienceLocations,
-    audienceSignals,
-    audienceDemographics,
-    sourceCohorts,
-    demandFlow: {
-      pageviews: readingValueOrNull("traffic-7d"),
-      forms: readingValueOrNull("forms-7d"),
-      leads: scopedPortfolio ? snapshot.demandFlow.leads : 0,
-      convertedLeads: scopedPortfolio ? snapshot.demandFlow.convertedLeads : 0,
-      activeClients: scope.kind === "client" ? readingValue("active-clients") : scopedPortfolio ? snapshot.demandFlow.activeClients : 0,
-    },
-    summary: {
-      ...snapshot.summary,
-      connectedKpis: kpis.filter(kpi => kpi.status !== "blind").length,
-      learningKpis: kpis.filter(kpi => kpi.status === "learning").length,
-      blindKpis: kpis.filter(kpi => kpi.status === "blind").length,
-      criticalKpis: kpis.filter(kpi => kpi.status === "critical").length,
-      warningKpis: kpis.filter(kpi => kpi.status === "warning").length,
-      activeCampaigns: campaigns.filter(campaign => ["active", "scheduled", "sending"].includes(campaign.status)).length,
-      campaignSpendCents,
-      campaignRevenueCents,
-      portfolioRoas: campaignSpendCents ? campaignRevenueCents / campaignSpendCents : null,
-      audienceProfiles: audienceProfiles.length,
-      validatedProfiles: audienceProfiles.filter(profile => profile.confidence === "validated").length,
-      mappedLocations: audienceLocations.filter(location => location.mapped).length,
-      unmappedLocations: audienceLocations.filter(location => !location.mapped).length,
-    },
-  };
 }
 
 function fallbackIntelligenceScope(): CommandIntelligenceScope {
@@ -349,15 +306,25 @@ function TopKpisView({ snapshot, rows, domainFilter, statusFilter, query, sort, 
 type ComparisonMode = "plan" | "indexed" | "change" | "raw";
 type KpiChartType = "line" | "area" | "bar";
 export type ComparisonRange = "24h" | "7d" | "30d" | "90d" | "quarter" | "ytd" | "12m" | "all" | "custom";
-type KpiPlanOverride = { baselineValue?: number; targetValue?: number };
-type KpiPlanOverrides = Record<string, KpiPlanOverride>;
-type SavedComparisonView = { id: string; name: string; kpiIds: string[]; mode: ComparisonMode; range: ComparisonRange; start: string; end: string; plans?: KpiPlanOverrides };
+type SavedComparisonView = { id: string; name: string; kpiIds: string[]; mode: ComparisonMode; range: ComparisonRange; start: string; end: string };
 /** The shared half of saved views — agency-scoped rows from `/api/portal/kpi-registry/views`. */
 type SharedKpiViewRow = { id: string; name: string; kpiIds: string[]; mode: ComparisonMode; range: ComparisonRange; start?: string; end?: string };
+type KpiPlanDraft = {
+  operationId: string;
+  expectedUpdatedAt: number;
+  action: "set" | "clear";
+  override?: KpiPlanOverride;
+  status: "pending" | "error";
+  error?: string;
+};
 
 const COMPARISON_COLOURS = ["#62e8ff", "#68f5d0", "#fcd34d", "#f87171", "#a78bfa", "#fb7185", "#38bdf8", "#4ade80", "#f59e0b", "#c084fc", "#2dd4bf", "#fda4af", "#93c5fd", "#bef264", "#fdba74", "#e879f9", "#67e8f9", "#86efac", "#fde047", "#fca5a5"];
 const SAVED_COMPARISON_KEY = "aqua:kpi-comparison-views:v1";
-const KPI_PLAN_OVERRIDES_KEY = "aqua:kpi-plan-overrides:v1";
+
+function kpiPlanOperationId(kpiId: string): string {
+  const nonce = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `kpi-plan:${kpiId}:${nonce}`;
+}
 
 export function KpiComparisonWorkspace({ snapshot, initialKpiIds = [], initialRange = "30d", context = "operational", onInspect }: { snapshot: CommandIntelligenceSnapshot; initialKpiIds?: string[]; initialRange?: ComparisonRange; context?: "operational" | "strategic"; onInspect: (kpi: CommandKpi) => void }) {
   const [evidenceDescriptors, setEvidenceDescriptors] = useState<KpiDescriptor[]>([]);
@@ -381,6 +348,11 @@ export function KpiComparisonWorkspace({ snapshot, initialKpiIds = [], initialRa
   const [sharedViews, setSharedViews] = useState<SharedKpiViewRow[]>([]);
   const [savedScope, setSavedScope] = useState<"private" | "shared">("private");
   const [planOverrides, setPlanOverrides] = useState<KpiPlanOverrides>({});
+  const [planConfigUpdatedAt, setPlanConfigUpdatedAt] = useState(0);
+  const [planDrafts, setPlanDrafts] = useState<Record<string, KpiPlanDraft>>({});
+  const [planLoadState, setPlanLoadState] = useState<"loading" | "ready" | "error">("loading");
+  const [planReloadToken, setPlanReloadToken] = useState(0);
+  const [planMessage, setPlanMessage] = useState("");
   const [viewName, setViewName] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
   const availableKpiKey = descriptors.map(descriptor => descriptor.id).join("|");
@@ -389,29 +361,35 @@ export function KpiComparisonWorkspace({ snapshot, initialKpiIds = [], initialRa
     try {
       const parsed = JSON.parse(window.localStorage.getItem(SAVED_COMPARISON_KEY) || "[]") as SavedComparisonView[];
       if (Array.isArray(parsed)) setSavedViews(parsed.filter(view => view && typeof view.name === "string" && Array.isArray(view.kpiIds)));
-      const storedPlans = JSON.parse(window.localStorage.getItem(KPI_PLAN_OVERRIDES_KEY) || "{}") as KpiPlanOverrides;
-      if (storedPlans && typeof storedPlans === "object" && !Array.isArray(storedPlans)) setPlanOverrides(storedPlans);
     } catch {
       setSavedViews([]);
-      setPlanOverrides({});
     }
   }, []);
 
   useEffect(() => {
     let cancelled = false;
-    void fetch("/api/portal/kpi-registry/targets").then(response => response.json()).then((data: { ok?: boolean; config?: KpiTargetsConfig }) => {
-      if (cancelled || !data.ok || !data.config?.byKpi) return;
-      const byKpi = data.config.byKpi;
-      setPlanOverrides(current => {
-        const merged = { ...current };
-        for (const [id, override] of Object.entries(byKpi)) {
-          merged[id] = { baselineValue: override.baselineValue ?? undefined, targetValue: override.targetValue ?? undefined };
+    setPlanLoadState("loading");
+    setPlanMessage("");
+    void fetch("/api/portal/kpi-registry/targets")
+      .then(async response => {
+        const data = await response.json() as { ok?: boolean; config?: KpiTargetsConfig };
+        if (!response.ok || !data.ok || !data.config || !Number.isFinite(data.config.updatedAt)) {
+          throw new Error("targets unavailable");
         }
-        return merged;
+        if (cancelled) return;
+        setPlanOverrides(kpiPlanOverridesFromConfig(data.config));
+        setPlanConfigUpdatedAt(data.config.updatedAt);
+        setPlanDrafts({});
+        setPlanLoadState("ready");
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPlanLoadState("error");
+          setPlanMessage("The agency KPI plan could not be loaded. Existing targets are unavailable until you retry.");
+        }
       });
-    }).catch(() => {});
     return () => { cancelled = true; };
-  }, []);
+  }, [planReloadToken]);
 
   useEffect(() => {
     setSelectedIds(current => {
@@ -497,7 +475,7 @@ export function KpiComparisonWorkspace({ snapshot, initialKpiIds = [], initialRa
       }
       return;
     }
-    const next = [...savedViews.filter(view => view.name.toLowerCase() !== name.toLowerCase()), { id: `comparison-${Date.now()}`, name, kpiIds: selectedIds, mode, range, start: customStart, end: customEnd, plans: planOverrides }];
+    const next = [...savedViews.filter(view => view.name.toLowerCase() !== name.toLowerCase()), { id: `comparison-${Date.now()}`, name, kpiIds: selectedIds, mode, range, start: customStart, end: customEnd }];
     setSavedViews(next);
     window.localStorage.setItem(SAVED_COMPARISON_KEY, JSON.stringify(next));
     setViewName("");
@@ -510,10 +488,6 @@ export function KpiComparisonWorkspace({ snapshot, initialKpiIds = [], initialRa
     setRange(view.range);
     setCustomStart(view.start ?? customStart);
     setCustomEnd(view.end ?? customEnd);
-    if ("plans" in view && view.plans) {
-      setPlanOverrides(view.plans);
-      window.localStorage.setItem(KPI_PLAN_OVERRIDES_KEY, JSON.stringify(view.plans));
-    }
     setSaveMessage(`Loaded ${view.name}.`);
   }
 
@@ -531,31 +505,106 @@ export function KpiComparisonWorkspace({ snapshot, initialKpiIds = [], initialRa
     window.localStorage.setItem(SAVED_COMPARISON_KEY, JSON.stringify(next));
   }
 
+  const planMutationPending = Object.values(planDrafts).some(draft => draft.status === "pending");
+
+  function adoptPlanConfig(config: KpiTargetsConfig) {
+    setPlanOverrides(kpiPlanOverridesFromConfig(config));
+    setPlanConfigUpdatedAt(config.updatedAt);
+  }
+
+  async function commitPlanDraft(kpiId: string, draft: KpiPlanDraft) {
+    if (planLoadState !== "ready" || planMutationPending) return;
+    const pending = { ...draft, status: "pending" as const, error: undefined };
+    setPlanDrafts(current => ({ ...current, [kpiId]: pending }));
+    setPlanMessage(`Saving ${kpiId} to the agency plan…`);
+    try {
+      const result = await submitKpiTargetMutation({
+        operationId: pending.operationId,
+        expectedUpdatedAt: pending.expectedUpdatedAt,
+        kpiId,
+        action: pending.action,
+        baselineValue: pending.action === "set" ? pending.override?.baselineValue ?? null : undefined,
+        targetValue: pending.action === "set" ? pending.override?.targetValue ?? null : undefined,
+      });
+      adoptPlanConfig(result.config);
+      setPlanDrafts(current => {
+        const next = { ...current };
+        delete next[kpiId];
+        return next;
+      });
+      setPlanMessage(result.replayed ? "The saved agency plan was recovered from the original operation." : "Agency KPI plan saved.");
+    } catch (error) {
+      const requestError = error instanceof KpiTargetRequestError ? error : null;
+      if (requestError?.config) adoptPlanConfig(requestError.config);
+      const conflict = requestError?.status === 409;
+      setPlanDrafts(current => ({
+        ...current,
+        [kpiId]: {
+          ...pending,
+          expectedUpdatedAt: requestError?.config?.updatedAt ?? pending.expectedUpdatedAt,
+          status: "error",
+          error: conflict
+            ? "The agency plan changed in another session. Review this unsaved edit, then retry or discard it."
+            : "This edit was not confirmed. The agency plan is unchanged here; retry the same operation.",
+        },
+      }));
+      setPlanMessage(conflict
+        ? "A newer agency plan was loaded. Your edit remains unsaved for review."
+        : "The KPI edit was not confirmed. It remains visible as an unsaved draft.");
+    }
+  }
+
   function updatePlan(kpi: KpiDescriptor, field: keyof KpiPlanOverride, displayValue: string) {
+    if (planLoadState !== "ready" || planMutationPending) return;
     const rawValue = displayValue.trim() === "" ? undefined : planningStoredValue(Number(displayValue), kpi.format);
-    const next = { ...planOverrides, [kpi.id]: { ...planOverrides[kpi.id], [field]: Number.isFinite(rawValue) ? rawValue : undefined } };
-    if (next[kpi.id]?.baselineValue === undefined && next[kpi.id]?.targetValue === undefined) delete next[kpi.id];
-    setPlanOverrides(next);
-    window.localStorage.setItem(KPI_PLAN_OVERRIDES_KEY, JSON.stringify(next));
-    const override = next[kpi.id];
-    void fetch("/api/portal/kpi-registry/targets", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(override ? { kpiId: kpi.id, baselineValue: override.baselineValue ?? null, targetValue: override.targetValue ?? null } : { kpiId: kpi.id, action: "clear" }) }).catch(() => {});
+    const priorDraft = planDrafts[kpi.id];
+    const base = priorDraft?.action === "set" ? priorDraft.override ?? {} : planOverrides[kpi.id] ?? {};
+    const override = { ...base, [field]: Number.isFinite(rawValue) ? rawValue : undefined };
+    const empty = override.baselineValue === undefined && override.targetValue === undefined;
+    void commitPlanDraft(kpi.id, {
+      operationId: kpiPlanOperationId(kpi.id),
+      expectedUpdatedAt: planConfigUpdatedAt,
+      action: empty ? "clear" : "set",
+      override: empty ? undefined : override,
+      status: "pending",
+    });
   }
 
   function resetPlan(kpiId: string) {
-    const next = { ...planOverrides };
-    delete next[kpiId];
-    setPlanOverrides(next);
-    window.localStorage.setItem(KPI_PLAN_OVERRIDES_KEY, JSON.stringify(next));
-    void fetch("/api/portal/kpi-registry/targets", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kpiId, action: "clear" }) }).catch(() => {});
+    if (planLoadState !== "ready" || planMutationPending) return;
+    void commitPlanDraft(kpiId, {
+      operationId: kpiPlanOperationId(kpiId),
+      expectedUpdatedAt: planConfigUpdatedAt,
+      action: "clear",
+      status: "pending",
+    });
   }
 
   function applySuggestion(kpi: KpiDescriptor) {
+    if (planLoadState !== "ready" || planMutationPending) return;
     const suggestion = suggestKpiTarget(kpi);
     if (!suggestion) return;
-    const next = { ...planOverrides, [kpi.id]: { baselineValue: suggestion.baseline, targetValue: suggestion.target } };
-    setPlanOverrides(next);
-    window.localStorage.setItem(KPI_PLAN_OVERRIDES_KEY, JSON.stringify(next));
-    void fetch("/api/portal/kpi-registry/targets", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kpiId: kpi.id, baselineValue: suggestion.baseline, targetValue: suggestion.target }) }).catch(() => {});
+    void commitPlanDraft(kpi.id, {
+      operationId: kpiPlanOperationId(kpi.id),
+      expectedUpdatedAt: planConfigUpdatedAt,
+      action: "set",
+      override: { baselineValue: suggestion.baseline, targetValue: suggestion.target },
+      status: "pending",
+    });
+  }
+
+  function retryPlan(kpiId: string) {
+    const draft = planDrafts[kpiId];
+    if (draft?.status === "error") void commitPlanDraft(kpiId, draft);
+  }
+
+  function discardPlanDraft(kpiId: string) {
+    setPlanDrafts(current => {
+      const next = { ...current };
+      delete next[kpiId];
+      return next;
+    });
+    setPlanMessage("Unsaved KPI edit discarded. The agency plan was not changed.");
   }
 
   return <div>
@@ -576,7 +625,7 @@ export function KpiComparisonWorkspace({ snapshot, initialKpiIds = [], initialRa
 
         <section className="p-3 sm:p-5" aria-labelledby="comparison-chart-heading"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[8px] font-semibold uppercase text-[#76dff1]/50">TIME PLOT · {formatDateTime(bounds.start)} TO {formatDateTime(bounds.end)}</p><h3 id="comparison-chart-heading" className="mt-1 text-sm font-semibold">{mode === "plan" ? "Actual progress against required pace and forecast" : mode === "indexed" ? "Relative movement from index 100" : mode === "change" ? "Change from each KPI's first retained point" : "Raw values on a shared scale"}</h3></div><div className="flex items-center gap-2">{mode !== "plan" ? <fieldset className="flex" aria-label="Chart type"><legend className="sr-only">Chart type</legend>{([["line", LineChart], ["area", AreaChart], ["bar", BarChart3]] as const).map(([value, Icon]) => <button key={value} type="button" onClick={() => setChartType(value)} aria-pressed={chartType === value} title={`${value} chart`} className={`grid size-7 place-items-center border ${chartType === value ? "border-[#62e8ff]/40 bg-[#62e8ff]/12 text-[#8ef1ff]" : "border-[#62e8ff]/12 text-white/34 hover:text-white/60"}`}><Icon size={12} /></button>)}</fieldset> : null}<span className="inline-flex items-center gap-1.5 text-[8px] text-white/30"><CalendarRange size={11} /> {comparisonDuration(bounds.start, bounds.end)}</span></div></div><ComparisonChart kpis={selectedDescriptors} mode={mode} chartType={chartType} start={bounds.start} end={bounds.end} planOverrides={planOverrides} /></section>
 
-        {mode === "plan" ? <PlanningAssumptions kpis={selectedDescriptors} overrides={planOverrides} start={bounds.start} end={bounds.end} currency={snapshot.currency} onChange={updatePlan} onReset={resetPlan} onSuggest={applySuggestion} /> : null}
+        {mode === "plan" ? <PlanningAssumptions kpis={selectedDescriptors} overrides={planOverrides} drafts={planDrafts} loadState={planLoadState} mutationPending={planMutationPending} message={planMessage} start={bounds.start} end={bounds.end} currency={snapshot.currency} onChange={updatePlan} onReset={resetPlan} onSuggest={applySuggestion} onRetry={retryPlan} onDiscard={discardPlanDraft} onReload={() => setPlanReloadToken(value => value + 1)} /> : null}
 
         <section className="border-t border-[#62e8ff]/14"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#62e8ff]/10 px-4 py-3 sm:px-5"><div><p className="text-[8px] font-semibold uppercase text-[#76dff1]/50">SELECTED INSTRUMENTS</p><h3 className="mt-1 text-xs font-semibold">Range statistics, projected gaps and evidence coverage</h3></div><span className="text-[8px] uppercase text-white/24">Click one to inspect its source</span></div><div className="grid sm:grid-cols-2 2xl:grid-cols-4">{selectedDescriptors.map((kpi, index) => <ComparisonStatistic key={kpi.id} kpi={kpi} currency={snapshot.currency} colour={COMPARISON_COLOURS[index % COMPARISON_COLOURS.length]} start={bounds.start} end={bounds.end} mode={mode} planOverride={planOverrides[kpi.id]} onClick={() => { const command = snapshot.kpis.find(item => item.id === kpi.id); if (command) onInspect(command); }} />)}{!selectedDescriptors.length ? <div className="p-10 text-center text-xs text-white/32 sm:col-span-2 2xl:col-span-4">Select at least one KPI from the instrument bank.</div> : null}</div></section>
       </div>
@@ -690,15 +739,28 @@ function PlanGapChart({ kpis, start, end, overrides }: { kpis: KpiDescriptor[]; 
   </div>;
 }
 
-function PlanningAssumptions({ kpis, overrides, start, end, currency, onChange, onReset, onSuggest }: { kpis: KpiDescriptor[]; overrides: KpiPlanOverrides; start: number; end: number; currency: string; onChange: (kpi: KpiDescriptor, field: keyof KpiPlanOverride, value: string) => void; onReset: (kpiId: string) => void; onSuggest: (kpi: KpiDescriptor) => void }) {
+function PlanningAssumptions({ kpis, overrides, drafts, loadState, mutationPending, message, start, end, currency, onChange, onReset, onSuggest, onRetry, onDiscard, onReload }: { kpis: KpiDescriptor[]; overrides: KpiPlanOverrides; drafts: Record<string, KpiPlanDraft>; loadState: "loading" | "ready" | "error"; mutationPending: boolean; message: string; start: number; end: number; currency: string; onChange: (kpi: KpiDescriptor, field: keyof KpiPlanOverride, value: string) => void; onReset: (kpiId: string) => void; onSuggest: (kpi: KpiDescriptor) => void; onRetry: (kpiId: string) => void; onDiscard: (kpiId: string) => void; onReload: () => void }) {
+  const disabled = loadState !== "ready" || mutationPending;
   return <section className="border-t border-[#62e8ff]/14" aria-labelledby="planning-assumptions-heading">
-    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#62e8ff]/10 px-4 py-3 sm:px-5"><div><p className="text-[8px] font-semibold uppercase text-[#76dff1]/50">PLAN CONTROL · BASELINE TO OBJECTIVE</p><h3 id="planning-assumptions-heading" className="mt-1 text-xs font-semibold">Planning assumptions and target sources</h3></div><span className="text-[8px] uppercase text-white/24">Overrides persist in this workspace</span></div>
-    <div className="divide-y divide-[#62e8ff]/10">{kpis.map(kpi => { const plan = resolveKpiPlan(kpi, overrides[kpi.id], start, end); const overridden = Boolean(overrides[kpi.id]); const suggestion = suggestKpiTarget(kpi); return <div key={kpi.id} className="grid gap-3 px-4 py-3 sm:px-5 lg:grid-cols-[minmax(150px,1fr)_130px_130px_minmax(180px,.8fr)_auto] lg:items-end"><div className="min-w-0"><p className="truncate text-[10px] font-semibold text-white/65">{kpi.shortLabel}</p><p className="mt-1 truncate text-[7px] uppercase text-white/24">{kpi.direction} is better · {kpi.cadence}</p></div><PlanNumberInput label={`Baseline${kpi.format === "currency" ? ` (${currency})` : ""}`} value={plan.baselineValue} kpi={kpi} onCommit={value => onChange(kpi, "baselineValue", value)} /><PlanNumberInput label={`Target${kpi.format === "currency" ? ` (${currency})` : ""}`} value={plan.targetValue} kpi={kpi} onCommit={value => onChange(kpi, "targetValue", value)} /><div className="min-w-0"><p className="text-[7px] font-semibold uppercase text-white/25">Authority</p><p className="mt-1 truncate text-[9px] text-[#8ec9d5]/52" title={kpi.planSource}>{overridden ? `Workspace override · ${kpi.planSource}` : kpi.planSource}</p></div><div className="flex items-center gap-1"><button type="button" onClick={() => onSuggest(kpi)} disabled={!suggestion} title={suggestion ? `Suggest a target — ${suggestion.basis}` : "Not enough retained history to suggest a target yet"} aria-label={`Suggest a target for ${kpi.shortLabel}`} className="grid size-8 place-items-center border border-[#62e8ff]/12 text-[#8ef1ff]/70 enabled:hover:bg-[#62e8ff]/[0.06] enabled:hover:text-white disabled:opacity-25"><Sparkles size={11} /></button><button type="button" onClick={() => onReset(kpi.id)} disabled={!overridden} title={`Reset ${kpi.shortLabel} planning assumptions`} className="grid size-8 place-items-center border border-[#62e8ff]/12 text-white/30 enabled:hover:bg-[#62e8ff]/[0.06] enabled:hover:text-white disabled:opacity-25"><Trash2 size={11} /></button></div></div>; })}{!kpis.length ? <p className="p-8 text-center text-[10px] text-white/28">Select KPIs to configure their planning assumptions.</p> : null}</div>
+    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#62e8ff]/10 px-4 py-3 sm:px-5"><div><p className="text-[8px] font-semibold uppercase text-[#76dff1]/50">PLAN CONTROL · BASELINE TO OBJECTIVE</p><h3 id="planning-assumptions-heading" className="mt-1 text-xs font-semibold">Planning assumptions and target sources</h3><p className={`mt-1 text-[9px] ${loadState === "error" ? "text-red-300/80" : "text-white/30"}`}>{message || (loadState === "loading" ? "Loading the agency-approved plan…" : "Values become authoritative only after the agency store confirms them.")}</p></div><div className="flex items-center gap-2"><span className={`text-[8px] uppercase ${loadState === "error" ? "text-red-300/70" : mutationPending ? "text-amber-200/70" : "text-white/24"}`}>{loadState === "error" ? "Plan unavailable" : mutationPending ? "Saving confirmation…" : loadState === "loading" ? "Loading…" : "Agency plan confirmed"}</span>{loadState === "error" ? <button type="button" onClick={onReload} className="min-h-8 border border-red-300/25 px-2.5 text-[8px] font-semibold uppercase text-red-200 hover:bg-red-300/10">Retry load</button> : null}</div></div>
+    <div className="divide-y divide-[#62e8ff]/10">{kpis.map(kpi => {
+      const draft = drafts[kpi.id];
+      const visibleOverride = draft ? draft.action === "set" ? draft.override : undefined : overrides[kpi.id];
+      const plan = resolveKpiPlan(kpi, visibleOverride, start, end);
+      const overridden = Boolean(overrides[kpi.id]);
+      const suggestion = suggestKpiTarget(kpi);
+      const authority = draft?.status === "pending"
+        ? "Pending confirmation · agency plan not promoted yet"
+        : draft?.status === "error"
+          ? draft.error ?? "Unsaved edit · agency plan unchanged"
+          : overridden ? `Agency override · ${kpi.planSource}` : kpi.planSource;
+      return <div key={kpi.id} className="grid gap-3 px-4 py-3 sm:px-5 lg:grid-cols-[minmax(150px,1fr)_130px_130px_minmax(180px,.8fr)_auto] lg:items-end"><div className="min-w-0"><p className="truncate text-[10px] font-semibold text-white/65">{kpi.shortLabel}</p><p className="mt-1 truncate text-[7px] uppercase text-white/24">{kpi.direction} is better · {kpi.cadence}</p></div><PlanNumberInput label={`Baseline${kpi.format === "currency" ? ` (${currency})` : ""}`} value={plan.baselineValue} kpi={kpi} disabled={disabled} onCommit={value => onChange(kpi, "baselineValue", value)} /><PlanNumberInput label={`Target${kpi.format === "currency" ? ` (${currency})` : ""}`} value={plan.targetValue} kpi={kpi} disabled={disabled} onCommit={value => onChange(kpi, "targetValue", value)} /><div className="min-w-0"><p className="text-[7px] font-semibold uppercase text-white/25">Authority</p><p className={`mt-1 text-[9px] leading-4 ${draft?.status === "error" ? "text-red-300/80" : draft?.status === "pending" ? "text-amber-200/70" : "truncate text-[#8ec9d5]/52"}`} title={authority}>{authority}</p></div><div className="flex items-center gap-1">{draft?.status === "error" ? <><button type="button" onClick={() => onRetry(kpi.id)} disabled={disabled} title={`Retry the unsaved ${kpi.shortLabel} edit`} aria-label={`Retry the unsaved ${kpi.shortLabel} edit`} className="grid size-8 place-items-center border border-amber-200/25 text-amber-200/80 enabled:hover:bg-amber-200/10 disabled:opacity-25"><Save size={11} /></button><button type="button" onClick={() => onDiscard(kpi.id)} disabled={mutationPending} title={`Discard the unsaved ${kpi.shortLabel} edit`} aria-label={`Discard the unsaved ${kpi.shortLabel} edit`} className="grid size-8 place-items-center border border-white/12 text-white/45 enabled:hover:bg-white/[0.06] disabled:opacity-25"><X size={11} /></button></> : <><button type="button" onClick={() => onSuggest(kpi)} disabled={disabled || !suggestion} title={suggestion ? `Suggest a target — ${suggestion.basis}` : "Not enough retained history to suggest a target yet"} aria-label={`Suggest a target for ${kpi.shortLabel}`} className="grid size-8 place-items-center border border-[#62e8ff]/12 text-[#8ef1ff]/70 enabled:hover:bg-[#62e8ff]/[0.06] enabled:hover:text-white disabled:opacity-25"><Sparkles size={11} /></button><button type="button" onClick={() => onReset(kpi.id)} disabled={disabled || !overridden} title={`Reset ${kpi.shortLabel} planning assumptions`} className="grid size-8 place-items-center border border-[#62e8ff]/12 text-white/30 enabled:hover:bg-[#62e8ff]/[0.06] enabled:hover:text-white disabled:opacity-25"><Trash2 size={11} /></button></>}</div></div>;
+    })}{!kpis.length ? <p className="p-8 text-center text-[10px] text-white/28">Select KPIs to configure their planning assumptions.</p> : null}</div>
   </section>;
 }
 
-function PlanNumberInput({ label, value, kpi, onCommit }: { label: string; value: number | null; kpi: KpiDescriptor; onCommit: (value: string) => void }) {
-  return <label className="text-[7px] font-semibold uppercase text-white/25">{label}<input key={`${kpi.id}:${label}:${value ?? "empty"}`} type="number" step={kpi.format === "number" ? "1" : "0.1"} defaultValue={value === null ? "" : planningDisplayValue(value, kpi.format)} onBlur={event => onCommit(event.currentTarget.value)} placeholder="Not set" className="mt-1 min-h-8 w-full border border-[#62e8ff]/14 bg-[#020b11] px-2 text-[9px] normal-case text-white outline-none focus:border-[#62e8ff]/45" /></label>;
+function PlanNumberInput({ label, value, kpi, disabled, onCommit }: { label: string; value: number | null; kpi: KpiDescriptor; disabled: boolean; onCommit: (value: string) => void }) {
+  return <label className="text-[7px] font-semibold uppercase text-white/25">{label}<input key={`${kpi.id}:${label}:${value ?? "empty"}`} type="number" step={kpi.format === "number" ? "1" : "0.1"} defaultValue={value === null ? "" : planningDisplayValue(value, kpi.format)} disabled={disabled} onBlur={event => onCommit(event.currentTarget.value)} placeholder="Not set" className="mt-1 min-h-8 w-full border border-[#62e8ff]/14 bg-[#020b11] px-2 text-[9px] normal-case text-white outline-none focus:border-[#62e8ff]/45 disabled:cursor-not-allowed disabled:opacity-45" /></label>;
 }
 
 function resolveKpiPlan(kpi: KpiDescriptor, override: KpiPlanOverride | undefined, start: number, end: number): ResolvedKpiPlan {

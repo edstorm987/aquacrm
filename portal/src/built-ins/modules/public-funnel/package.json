@@ -2,7 +2,7 @@
   "name": "@aqua/plugin-public-funnel",
   "version": "0.1.0",
   "private": true,
-  "description": "Aqua portal public funnel — wires Health Check (and future Resources tools) completion to a `lead` user creation + auto-signin + drop into Business OS. Idempotent on email; captures source metadata (HC slot, tool input) for BOS personalisation.",
+  "description": "Aqua portal public funnel — wires Health Check (and future Resources tools) completion to lead identity, session handoff and Business OS context. Lead identity is reused by canonical email and stable completion IDs make capture retries idempotent.",
   "type": "module",
   "main": "index.ts",
   "exports": {

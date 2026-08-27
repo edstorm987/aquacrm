@@ -19,7 +19,7 @@ const ROLE_LABEL: Record<TeamUser["role"], string> = {
   "agency-staff": "Staff",
 };
 
-export function TeamUsersPanel({ initialUsers, canCreateManagers, companies }: { initialUsers: TeamUser[]; canCreateManagers: boolean; companies: Array<{ id: string; name: string }> }) {
+export function TeamUsersPanel({ initialUsers, canManage, canCreateManagers, companies }: { initialUsers: TeamUser[]; canManage: boolean; canCreateManagers: boolean; companies: Array<{ id: string; name: string }> }) {
   const [users, setUsers] = useState<TeamUser[]>(initialUsers);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -87,7 +87,7 @@ export function TeamUsersPanel({ initialUsers, canCreateManagers, companies }: {
       <div className="rounded-xl border border-black/10 bg-white/70">
         <div className="border-b border-black/10 px-5 py-3">
           <h3 className="text-sm font-semibold text-black/85">Team access</h3>
-          <p className="mt-1 text-xs text-black/50">Create staff accounts for the AquaOasis-Web workspace.</p>
+          <p className="mt-1 text-xs text-black/50">{canManage ? "Create staff accounts and manage service-brand access for the AquaOasis-Web workspace." : "Workspace membership is read-only for staff."}</p>
         </div>
         <ul className="divide-y divide-black/10">
           {users.map(user => (
@@ -103,7 +103,7 @@ export function TeamUsersPanel({ initialUsers, canCreateManagers, companies }: {
               </div>
               {companies.length ? <div className="mt-2 flex flex-wrap gap-1.5">
                 <span className="py-1 text-[10px] font-medium text-black/35">Service brands:</span>
-                {companies.map(company => <button type="button" key={company.id} onClick={() => void toggleCompany(user, company.id)} className={`rounded-full px-2 py-1 text-[10px] font-medium ${user.companyIds.includes(company.id) ? "bg-brand/10 text-brand" : "bg-black/[0.04] text-black/45"}`}>{company.name}</button>)}
+                {canManage ? companies.map(company => <button type="button" key={company.id} onClick={() => void toggleCompany(user, company.id)} className={`rounded-full px-2 py-1 text-[10px] font-medium ${user.companyIds.includes(company.id) ? "bg-brand/10 text-brand" : "bg-black/[0.04] text-black/45"}`}>{company.name}</button>) : user.companyIds.map(companyId => <span key={companyId} className="rounded-full bg-brand/10 px-2 py-1 text-[10px] font-medium text-brand">{companies.find(company => company.id === companyId)?.name ?? "Assigned service"}</span>)}
                 {!user.companyIds.length ? <span className="rounded-full bg-black/[0.04] px-2 py-1 text-[10px] text-black/45">All services</span> : null}
               </div> : null}
             </li>
@@ -111,7 +111,7 @@ export function TeamUsersPanel({ initialUsers, canCreateManagers, companies }: {
         </ul>
       </div>
 
-      <form onSubmit={submit} className="rounded-xl border border-black/10 bg-white/70 p-5 shadow-sm">
+      {canManage ? <form onSubmit={submit} className="rounded-xl border border-black/10 bg-white/70 p-5 shadow-sm">
         <h3 className="text-sm font-semibold text-black/85">Add staff user</h3>
         <div className="mt-4 grid gap-3">
           <label className="grid gap-1 text-xs font-medium text-black/60">
@@ -147,7 +147,7 @@ export function TeamUsersPanel({ initialUsers, canCreateManagers, companies }: {
         <button disabled={busy} className="mt-4 w-full rounded-md bg-black px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-black/85 disabled:opacity-60">
           {busy ? "Creating..." : "Create user"}
         </button>
-      </form>
+      </form> : <div className="rounded-xl border border-black/10 bg-black/[0.02] p-5"><h3 className="text-sm font-semibold text-black/75">Team management</h3><p role="status" className="mt-2 text-sm leading-6 text-black/50">Only an owner or manager can create users or change service-brand access. Ask one of them if you need a team change.</p></div>}
     </div>
   );
 }

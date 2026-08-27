@@ -9,6 +9,7 @@ import { getClientForAgency, updateClient } from "@/server/tenants";
 import { logActivity } from "@/server/activity";
 import type { ClientFileRef, FileCategory } from "../route";
 import { upsertClientFileLedgerEvent } from "@/lib/server/clients/clientRecordLedger";
+import { clientFileWorkspaceElementKey, requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 export const runtime = "nodejs";
 
@@ -76,6 +77,16 @@ export async function POST(req: Request) {
   let session;
   try {
     session = await requireRoleForClient([...AGENCY_ROLES, ...CLIENT_ROLES, "end-customer"], clientId);
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+  try {
+    await requireCurrentClientWorkspaceElementAccess(clientId, clientFileWorkspaceElementKey({
+      category,
+      productId,
+      workspacePageId,
+      recordEntryId,
+    }), "use");
   } catch (error) {
     return authErrorResponse(error);
   }

@@ -7,8 +7,9 @@ import { listEnabledInjectionsForHost } from "@/server/websiteInjections";
 /**
  * The Aqua Tag fetches its site's injection config here — keyed by its
  * `data-site-key` + the host it is installed on — and injects each tool when its
- * consent category is granted. Cached like `/aqua-tag.js` and CORS-open because
- * the tag calls it cross-origin from whatever site it lives on.
+ * consent category is granted. The response is deliberately not cached: a new
+ * page load must see an operator's latest on/off decision. It is CORS-open
+ * because the tag calls it cross-origin from whatever site it lives on.
  *
  * Returns only what the tag needs to inject and gate: `{kind, value,
  * consentCategory}`. The values are the providers' **public** ids/keys (they ship
@@ -21,7 +22,8 @@ import { listEnabledInjectionsForHost } from "@/server/websiteInjections";
  */
 
 const CONFIG_HEADERS = {
-  "cache-control": "public, max-age=300, stale-while-revalidate=3600",
+  "cache-control": "no-store, max-age=0",
+  pragma: "no-cache",
   "access-control-allow-origin": "*",
 } as const;
 

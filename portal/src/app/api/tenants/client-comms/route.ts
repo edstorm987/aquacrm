@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { ensureHydrated } from "@/server/storage";
-import { requireRoleForClient } from "@/lib/server/auth/auth";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 interface CommsBody {
   clientId: string;
@@ -38,7 +39,13 @@ export async function POST(req: Request) {
   if (!body?.clientId || !body.patch) {
     return NextResponse.json({ ok: false, error: "clientId + patch required" }, { status: 400 });
   }
-  const session = await requireRoleForClient([...AGENCY_ROLES], body.clientId);
+  let session;
+  try {
+    session = await requireRoleForClient([...AGENCY_ROLES], body.clientId);
+    await requireCurrentClientWorkspaceElementAccess(body.clientId, "client.communications", "use");
+  } catch (error) {
+    return authErrorResponse(error);
+  }
   const client = getClientForAgency(session.agencyId, body.clientId);
   if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
 

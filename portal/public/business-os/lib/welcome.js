@@ -34,6 +34,16 @@
     return m[1].replace(/^epic-intro$/, 'epic-intro');
   }
 
+  function currentDestination(page) {
+    var phase = phaseFromPage(page);
+    return ({
+      'epic-intro': '/business-os/app.html',
+      'blueprint': '/business-os/quick-wins.html',
+      'diagnostics': '/business-os/diagnostic.html',
+      'brand-builder': '/business-os/tools.html'
+    })[phase] || '/business-os/app.html';
+  }
+
   function readName() {
     var n = getStr('incubator.userName');
     if (n) return n;
@@ -67,7 +77,7 @@
             '<div class="inc-welcome-greet">' + greet + '</div>' +
             '<p class="inc-welcome-lead">' + lead + '</p>' +
             '<div class="inc-welcome-actions">' +
-              '<a class="inc-btn" href="phase-1-epic-intro.html">Open Epic Intro →</a>' +
+              '<a class="inc-btn" href="/business-os/app.html">Open Business OS home →</a>' +
               '<button type="button" class="inc-welcome-dismiss" data-inc-welcome-dismiss>Got it · don\'t show again</button>' +
             '</div>' +
           '</div>' +
@@ -81,7 +91,7 @@
       var label = phaseLabel(slug || 'epic-intro');
       host.hidden = false;
       host.innerHTML =
-        '<a class="inc-welcome-card inc-welcome-card--resume" href="' + escape(last) + '">' +
+        '<a class="inc-welcome-card inc-welcome-card--resume" href="' + currentDestination(last) + '">' +
           '<div class="inc-welcome-icon">↩︎</div>' +
           '<div class="inc-welcome-body">' +
             '<div class="inc-welcome-greet">Pick up where you left off.</div>' +

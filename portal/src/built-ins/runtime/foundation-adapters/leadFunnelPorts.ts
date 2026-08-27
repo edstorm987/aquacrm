@@ -99,9 +99,9 @@ export const funnelMePort = {
     };
 
     try {
-      const [{ containerFor }, { listAgencies }, { getInstall }, { makePluginStorage }] =
+      const [{ publicFunnelContainerFor }, { listAgencies }, { getInstall }, { makePluginStorage }] =
         await Promise.all([
-          import("@aqua/plugin-public-funnel/server"),
+          import("./publicFunnelFoundation"),
           import("@/server/tenants"),
           import("@/server/pluginInstalls"),
           import("@/lib/server/pluginStorage"),
@@ -110,10 +110,10 @@ export const funnelMePort = {
         const install = getInstall({ agencyId: agency.id }, "public-funnel");
         if (!install) continue;
         const storage = makePluginStorage(install.id);
-        const container = containerFor({
+        const container = publicFunnelContainerFor({
           agencyId: agency.id,
-          storage: storage as unknown as Parameters<typeof containerFor>[0]["storage"],
-          install: install as unknown as Parameters<typeof containerFor>[0]["install"],
+          storage: storage as unknown as Parameters<typeof publicFunnelContainerFor>[0]["storage"],
+          install: install as unknown as Parameters<typeof publicFunnelContainerFor>[0]["install"],
         });
         const ctx = await container.funnel.meContext(u.id);
         if (ctx) {

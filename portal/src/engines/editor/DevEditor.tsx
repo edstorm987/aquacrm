@@ -103,6 +103,7 @@ import { LibrarianPanel } from "@/components/editing/LibrarianPanel";
 import { NetworkThrottleControl } from "@/components/editing/NetworkThrottleControl";
 import { DraftsPanel, HistoryPanel, NotesPanel } from "@/components/editing/WorkLifecyclePanel";
 import { EditorCodeCanvas } from "@/components/editing/EditorCodeCanvas";
+import { GovernedRepositoryPreviewControl } from "@/components/editing/RepositoryPreviewControl";
 import { DEV_PROJECTS_CHANGED_EVENT, DevEditorProjectSettings } from "@/app/portal/dev-team/editor/setup/_DevEditorSetup";
 import { AddMenu, fileAddOptions, type AddOption } from "@/components/editing/AddMenu";
 import { ElementInsertPanel } from "@/components/editing/ElementInsertPanel";
@@ -128,6 +129,12 @@ import { elementSource, repoRelativePath } from "@/engines/editor/editing/elemen
 import { PORTAL_SCOPE, scopeForSection } from "@/engines/editor/editing/fileRelevance";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
 import { devProjectDoorFamily } from "@/lib/shared/devProjectGrouping";
+import { apiResponseError } from "@/lib/client/apiResponseError";
+import { editorDiscardPrompt, type UnsavedEditorWork } from "@/engines/editor/unsavedEditorWork";
+import {
+  RESPONSIVE_CANVAS_PANE_CSS,
+  responsiveCanvasPaneAttributes,
+} from "@/engines/editor/editing/responsiveCanvasPanes";
 import type {
   ClientPortalDesignDocument,
   ClientPortalDesignVersion,
@@ -272,11 +279,18 @@ export function DevEditor({
   backLabel = "Back to portals",
   lockToClient = false,
   assistant,
+  assistantCanUse = true,
+  assistantCanManage = true,
+  canManageProjectConnections = true,
+  canRebindProjectConnections = true,
   initialProjectId = "",
   projectName,
   projectKind,
   projectTagged = false,
   projectBrowserUrl = "",
+  developerModeAvailable = true,
+  repositoryPreviewAvailable = false,
+  accessCapabilities,
 }: {
   clients: PortalStudioClient[];
   templates: PortalStudioTemplate[];
@@ -291,6 +305,14 @@ export function DevEditor({
   lockToClient?: boolean;
   /** Aqua Editor AI's server payload. Absent = the tab is not offered. */
   assistant?: EditorAssistantProps;
+  /** Exact AI element Use at this project; false keeps history read-only. */
+  assistantCanUse?: boolean;
+  /** Exact AI element Manage at this project; false hides key/config UI. */
+  assistantCanManage?: boolean;
+  /** Exact project connection-management authority for repository bindings. */
+  canManageProjectConnections?: boolean;
+  /** Agency governance authority to replace the repository or saved connection. */
+  canRebindProjectConnections?: boolean;
   /** Opened FOR a Dev project — its repo/token drive Code and Repo. */
   initialProjectId?: string;
   /** Shown in the identity block, so you can see which project you are in. */
@@ -328,6 +350,16 @@ export function DevEditor({
    * was then rejected as untrusted.
    */
   projectBrowserUrl?: string;
+  /** Whether source, repository and internal Dev tooling may be mounted. */
+  developerModeAvailable?: boolean;
+  /** Mount the supervised loopback preview for this exact governed project. */
+  repositoryPreviewAvailable?: boolean;
+  /**
+   * Optional exact-project access snapshot. Existing founder/portal doors omit
+   * it and retain their current tabs; governed workspace doors use it to hide
+   * elements that are not part of the mounted grant.
+   */
+  accessCapabilities?: readonly string[];
 }) {
   const [scope, setScope] = useState<Scope>(initialScope);
   const [clientId, setClientId] = useState(initialClientId);
@@ -347,12 +379,27 @@ export function DevEditor({
   // Open by default wherever a browser is actually possible: an Aqua-hosted
   // portal, or a project with a tag mapped.
   const [showBrowser, setShowBrowser] = useState(projectKind !== "software" || projectTagged);
+  // Below a wide desktop the live page and the code canvas cannot honestly
+  // share the remaining width. A phone/tablet gets one complete canvas at a
+  // time, selected by the explicit Preview/Code switch rendered above it;
+  // `xl` and wider keeps the draggable side-by-side workspace.
+  const [compactCanvasPane, setCompactCanvasPane] = useState<"preview" | "code">("code");
+  const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
   const [splitBrowsers, setSplitBrowsers] = useState(false);
   // Where the browser points when there is no client portal behind it. Seeded
   // from the page the tag actually ANSWERS on (the mapped `finalUrl`), because
   // that is both the page you want to look at and the one origin this editor
   // will trust — see `aquaTagBrowserUrl`.
   const [browserUrl, setBrowserUrl] = useState(projectBrowserUrl);
+  const [localPreviewReady, setLocalPreviewReady] = useState(false);
+  // Typing an address must not navigate the iframe once per keystroke. The
+  // loaded URL changes only when the form is submitted; this draft follows
+  // programmatic project/page navigation when the loaded URL changes.
+  const [browserUrlInput, setBrowserUrlInput] = useState(projectBrowserUrl);
+  function loadBrowserUrl(next: string) {
+    setBrowserUrl(next);
+    setBrowserUrlInput(next);
+  }
   // How the split is divided, as a fraction of the canvas given to the LEFT
   // pane. Dragged, not fixed — sometimes you want a sliver of preview beside
   // a wide file, sometimes the reverse.
@@ -367,12 +414,15 @@ export function DevEditor({
   // tool rather than a developer's.
   // A repository's tools (code, repo) live at the developer depth, so opening
   // one in "Design it" left a rail with nothing but the assistant in it.
-  const [editingModeId, setEditingModeId] = useState<EditingMode>(projectKind === "software" ? "developer" : "visual");
+  const [editingModeId, setEditingModeId] = useState<EditingMode>(!canManage
+    ? "visual"
+    : projectKind === "software" && developerModeAvailable ? "developer" : "visual");
   const [repository, setRepository] = useState("");
   // The Dev Editor Engine project being worked on. Selecting one points the
   // Code/Repo inspectors at THAT repository, read through that project's own
   // connection — "plug in any repo" without the browser holding a token.
   const [projectId, setProjectId] = useState(initialProjectId);
+  useEffect(() => { setLocalPreviewReady(false); }, [projectId]);
   const [projects, setProjects] = useState<StudioDevProject[]>([]);
   const [projectStatuses, setProjectStatuses] = useState<Record<string, StudioProjectStatus>>({});
   const selectedProject = projects.find(item => item.id === projectId) ?? null;
@@ -473,7 +523,18 @@ export function DevEditor({
   // and it reports selections through the portal-block protocol below — the
   // tag's job, done by our own renderer. That is why it needs no tag, and it is
   // the ONLY exemption.
-  const browserAvailable = portalTarget || tagMapped;
+  const browserElementAvailable = !accessCapabilities
+    || accessCapabilities.includes("element.development.preview.view");
+  const canEditCode = !accessCapabilities || (
+    accessCapabilities.includes("project.edit")
+    && accessCapabilities.includes("element.development.code.use")
+  );
+  const canPublishCode = !accessCapabilities || (
+    accessCapabilities.includes("project.pull-request")
+    && accessCapabilities.includes("element.development.publish.use")
+  );
+  const browserAvailable = (portalTarget || tagMapped || localPreviewReady)
+    && (portalTarget || browserElementAvailable);
 
   // ── A THIRD question, and the one this editor used to get wrong ────────────
   //
@@ -564,6 +625,7 @@ export function DevEditor({
   // brought in or put away on top of that — where there is one to bring in.
   const codePane = editingModeId === "developer";
   const browserPane = showBrowser && browserAvailable;
+  const compactCanvasSwitching = browserPane && codePane && !splitBrowsers;
 
   // The Settings tab (`DevEditorProjectSettings`) mutates projects from INSIDE this
   // editor and announces every successful mutation on `window`
@@ -579,6 +641,7 @@ export function DevEditor({
   useEffect(() => { projectIdRef.current = projectId; }, [projectId]);
   const projectStatusesRef = useRef<Record<string, StudioProjectStatus>>({});
   useEffect(() => {
+    if (!developerModeAvailable) return;
     let cancelled = false;
     const load = (fromChange: boolean) => {
       fetch("/api/portal/dev/projects", { cache: "no-store" })
@@ -597,7 +660,7 @@ export function DevEditor({
             const wasVerified = projectStatusesRef.current[openId]?.tagVerified ?? false;
             const isVerified = nextStatuses[openId]?.tagVerified ?? false;
             const openProject = nextProjects.find(item => item.id === openId);
-            if (!wasVerified && isVerified && openProject) setBrowserUrl(aquaTagBrowserUrl(openProject));
+            if (!wasVerified && isVerified && openProject) loadBrowserUrl(aquaTagBrowserUrl(openProject));
           }
           projectStatusesRef.current = nextStatuses;
           setProjects(nextProjects);
@@ -618,8 +681,12 @@ export function DevEditor({
       cancelled = true;
       window.removeEventListener(DEV_PROJECTS_CHANGED_EVENT, onProjectsChanged);
     };
-  }, []);
+  }, [developerModeAvailable]);
   const [sourceFocus, setSourceFocus] = useState<{ path: string; line?: number } | null>(null);
+  // The code canvas owns its buffers, but this shell owns every way out. The
+  // child reports exact dirty paths so switching mode/project cannot erase
+  // work the shell could not otherwise see.
+  const [sourceDirtyPaths, setSourceDirtyPaths] = useState<string[]>([]);
   /**
    * "Resume" (phase 14) and the Librarian's Open: put a file in front of the
    * operator. Focusing the path is what opens it in the code canvas, and the
@@ -630,6 +697,8 @@ export function DevEditor({
   function openFileInCanvas(path: string) {
     setSourceFocus({ path });
     setSplitBrowsers(false);
+    setCompactCanvasPane("code");
+    setMobileInspectorOpen(false);
   }
   const [picking, setPicking] = useState(false);
   const previewRef = useRef<HTMLIFrameElement | null>(null);
@@ -673,8 +742,30 @@ export function DevEditor({
    * `tagElement.text` (what the tag reports now, which the preview patch has
    * already changed). Only this one is the needle the source search uses, and
    * only it stays still while somebody types.
-   */
+  */
   const [wordsOriginal, setWordsOriginal] = useState("");
+  /**
+   * Preview patches that have not been committed anywhere durable, by element.
+   * A selection can move while several patched elements remain on the loaded
+   * page, so one boolean tied only to the current textarea is not sufficient.
+   */
+  const [tagPreviewChanges, setTagPreviewChanges] = useState<Record<string, { words: boolean; presentation: boolean }>>({});
+  const tagPreviewDirty = Object.keys(tagPreviewChanges).length > 0;
+
+  function setTagPreviewChange(elementId: string, kind: "words" | "presentation", changed: boolean) {
+    if (!elementId) return;
+    setTagPreviewChanges(current => {
+      const previous = current[elementId] ?? { words: false, presentation: false };
+      const next = { ...previous, [kind]: changed };
+      if (!next.words && !next.presentation) {
+        if (!current[elementId]) return current;
+        const copy = { ...current };
+        delete copy[elementId];
+        return copy;
+      }
+      return { ...current, [elementId]: next };
+    });
+  }
   const tagPingId = useRef("");
   const tagTimeout = useRef<number | null>(null);
   /**
@@ -748,7 +839,7 @@ export function DevEditor({
       body: JSON.stringify({ action: "insert-targets", project: projectId }),
     })
       .then(response => response.json())
-      .then((payload: { ok?: boolean; files?: string[]; truncated?: boolean; error?: string }) => {
+      .then((payload: { ok?: boolean; files?: string[]; truncated?: boolean; error?: string; message?: string }) => {
         if (cancelled) return;
         if (payload?.ok && Array.isArray(payload.files)) {
           setRepoFiles(payload.files);
@@ -760,7 +851,7 @@ export function DevEditor({
         setRepoFilesTruncated(false);
         // The server's own sentence, not a rewrite of it — it is the one that
         // knows whether this was a missing token, a 404 or a refusal.
-        setRepoFilesError(payload?.error || "the repository could not be read");
+        setRepoFilesError(apiResponseError(payload, "the repository could not be read"));
       })
       .catch(() => { if (!cancelled) { setRepoFiles(null); setRepoFilesError("the repository could not be reached"); } })
       .finally(() => { if (!cancelled) setRepoFilesLoading(false); });
@@ -771,6 +862,24 @@ export function DevEditor({
   // Element tab's gate on `tagMapped` rather than `browserAvailable`) lives in
   // `inspectorTabsFor`, where it can be tested.
   const allowedTabs = inspectorTabsFor(editingModeId, { portalTarget, tagMapped, surface })
+    .filter(id => {
+      if (!accessCapabilities || portalTarget) return true;
+      if (id === "settings") {
+        return accessCapabilities.includes("project.manage")
+          && accessCapabilities.includes("element.project.overview.manage");
+      }
+      if (id === "assistant") {
+        return accessCapabilities.includes("project.ai")
+          && accessCapabilities.includes("element.development.ai.view");
+      }
+      if (id === "librarian") {
+        return accessCapabilities.includes("element.development.explorer.view");
+      }
+      if (id === "code" || id === "repository") {
+        return accessCapabilities.includes("element.development.code.view");
+      }
+      return accessCapabilities.includes("element.project.editor.view");
+    })
     .map(id => ({ id, ...TAB_META[id] }));
 
   // A tab can stop being offered underneath you — switching mode, or opening a
@@ -852,7 +961,15 @@ export function DevEditor({
   }, [picking]);
 
   function changeMode(next: EditingMode) {
+    if (!canManage && next !== "visual") return;
+    if (next === "developer" && !developerModeAvailable) return;
+    if (next === editingModeId) return;
+    if (!confirmDiscard({
+      seoFields: seoDirty,
+      repositoryFiles: editingModeId === "developer" && next !== "developer" ? sourceDirtyPaths.length : 0,
+    })) return;
     setEditingModeId(next);
+    if (next === "developer") setCompactCanvasPane("code");
     // Switching to a shallower depth while sitting on the code tab must land
     // somewhere real rather than on a blank panel.
     setTab(tabForMode(next, tab) as InspectorTab);
@@ -881,6 +998,7 @@ export function DevEditor({
    * lands on the depth's own first tab rather than a panel with no rail entry.
    */
   function changeSurface(next: EditorSurface) {
+    if (next === surface || !confirmDiscard({ seoFields: seoDirty })) return;
     setSurfaceChoice(next);
     saveSurfaceChoice(next, surfaceScope);
     setTab(tabForSurface(next, editingModeId, tab) as InspectorTab);
@@ -894,7 +1012,6 @@ export function DevEditor({
   const [checkpointLabel, setCheckpointLabel] = useState("");
   const [selectedBlockId, setSelectedBlockId] = useState("");
   const [notice, setNotice] = useState("Loading...");
-  const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
 
   const selectedClient = clients.find(client => client.id === clientId) ?? clients[0];
   const selectedTemplate = templates.find(template => template.id === templateId) ?? templates[0];
@@ -1005,7 +1122,7 @@ export function DevEditor({
                 ? payload.created === "folder"
                   ? `Created ${payload.committedPath} on the draft branch — git only keeps a folder that has a file in it, so it holds a .gitkeep.`
                   : `Created ${payload.path} on the draft branch — publish opens the pull request.`
-                : payload.error ?? "That could not be created.");
+                : apiResponseError(payload, "That could not be created."));
               // The same announcement a landed GitHub connection makes — the
               // code canvas listens and re-reads the tree, so the new path
               // appears without a reload.
@@ -1028,7 +1145,7 @@ export function DevEditor({
         })
           .then(response => response.json())
           .then(payload => {
-            setNotice(payload.ok ? `Created ${path}` : payload.error ?? "That could not be created.");
+            setNotice(payload.ok ? `Created ${path}` : apiResponseError(payload, "That could not be created."));
             // Nudge the code canvas to re-read the tree. The event is what it
             // actually listens for — `setFrameKey` only remounts the preview
             // iframe, so bumping it here never refreshed the tree at all.
@@ -1213,7 +1330,7 @@ export function DevEditor({
         : `${destination.label} is a route in the repository — point the browser at the site first and it can be opened.`);
       return;
     }
-    setBrowserUrl(href);
+    loadBrowserUrl(href);
   }
 
   // ── What the SEO panel is pointed at (phase 9) ──────────────────────────────
@@ -1416,6 +1533,7 @@ export function DevEditor({
     setTagElement(null);
     setWordsDraft("");
     setWordsOriginal("");
+    setTagPreviewChanges({});
     // The link list belonged to the page that has just been replaced. Cleared
     // rather than kept: offering the OLD page's links from the new page is the
     // same class of lie as a stale address in the browser box.
@@ -1461,11 +1579,15 @@ export function DevEditor({
    */
   function editWords(next: string) {
     setWordsDraft(next);
-    if (tagElement) sendToTag(aquaTagPatchMessage(tagElement.id, { text: next }));
+    if (tagElement) {
+      setTagPreviewChange(tagElement.id, "words", next !== wordsOriginal);
+      sendToTag(aquaTagPatchMessage(tagElement.id, { text: next }));
+    }
   }
 
   function editStyle(property: AquaTagStyleProperty, value: string) {
     if (!tagElement) return;
+    setTagPreviewChange(tagElement.id, "presentation", true);
     // Optimistic locally so the field does not lag a round trip behind typing;
     // the tag's own report confirms it.
     setTagElement({ ...tagElement, styles: { ...tagElement.styles, [property]: value } });
@@ -1474,6 +1596,7 @@ export function DevEditor({
 
   function editImage(patch: { src?: string; alt?: string }) {
     if (!tagElement) return;
+    setTagPreviewChange(tagElement.id, "presentation", true);
     setTagElement({ ...tagElement, ...patch });
     sendToTag(aquaTagPatchMessage(tagElement.id, patch));
   }
@@ -1481,6 +1604,8 @@ export function DevEditor({
   /** Put every previewed change back. The tag remembers the originals. */
   function resetTagPreview() {
     sendToTag(aquaTagReset());
+    setWordsDraft(wordsOriginal);
+    setTagPreviewChanges({});
   }
 
   // Where a selection goes at this depth, and what the panel may do with it
@@ -1506,6 +1631,10 @@ export function DevEditor({
     repository: selectedProject?.repository ?? "",
     portalTarget,
     originalWords: wordsOriginal,
+    onWordsSaved: (savedWords: string) => {
+      setWordsOriginal(savedWords);
+      if (tagElement) setTagPreviewChange(tagElement.id, "words", false);
+    },
   };
 
   useEffect(() => {
@@ -1551,14 +1680,12 @@ export function DevEditor({
 
   useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => {
-      // Unsaved SEO fields are unsaved work too — closing the tab loses them
-      // exactly as it loses a portal draft.
-      if (!dirty && !seoDirty) return;
+      if (!dirty && !seoDirty && !sourceDirtyPaths.length && !tagPreviewDirty) return;
       event.preventDefault();
     };
     window.addEventListener("beforeunload", beforeUnload);
     return () => window.removeEventListener("beforeunload", beforeUnload);
-  }, [dirty, seoDirty]);
+  }, [dirty, seoDirty, sourceDirtyPaths.length, tagPreviewDirty]);
 
   useEffect(() => {
     if (!mobileInspectorOpen) return;
@@ -1809,20 +1936,19 @@ export function DevEditor({
     }
   }
 
-  /**
-   * The gate in front of anything that leaves this target behind.
-   *
-   * Both kinds of unsaved work are NAMED, separately: a portal draft and a
-   * page's SEO fields are different things to lose, and a prompt that names
-   * the wrong one teaches people to click through prompts. With only the draft
-   * dirty the sentence is exactly the one it has always been.
-   */
-  function confirmDraftDiscard() {
-    const losing: string[] = [];
-    if (dirty) losing.push("the unsaved changes in this draft");
-    if (seoDirty) losing.push("the SEO fields you have filled in for this page");
-    if (!losing.length) return true;
-    return window.confirm(`Discard ${losing.join(", and ")}?`);
+  function confirmDiscard(work: UnsavedEditorWork) {
+    const prompt = editorDiscardPrompt(work);
+    return !prompt || window.confirm(prompt);
+  }
+
+  /** The gate in front of anything that leaves this target behind. */
+  function confirmDraftDiscard(includeRepository = true) {
+    return confirmDiscard({
+      portalDraft: dirty,
+      seoFields: seoDirty,
+      repositoryFiles: includeRepository ? sourceDirtyPaths.length : 0,
+      pagePreview: tagPreviewDirty,
+    });
   }
 
   /**
@@ -1831,27 +1957,44 @@ export function DevEditor({
    * it here would be asking about work that is not at risk.
    */
   function confirmSeoDiscard() {
-    return !seoDirty || window.confirm("Discard the SEO fields you have filled in for this page?");
+    return confirmDiscard({ seoFields: seoDirty, pagePreview: tagPreviewDirty });
   }
 
   function changeScope(nextScope: Scope) {
     if (lockToClient) return;
-    if (scope === nextScope || !confirmDraftDiscard()) return;
+    if (scope === nextScope || !confirmDraftDiscard(false)) return;
     setScope(nextScope);
   }
 
   function changeClient(nextClientId: string) {
     if (lockToClient) return;
-    if (clientId === nextClientId || !confirmDraftDiscard()) return;
+    if (clientId === nextClientId || !confirmDraftDiscard(false)) return;
     const nextClient = clients.find(client => client.id === nextClientId);
     setClientId(nextClientId);
     setMode(nextClient?.mode ?? "onboarding");
   }
 
   function changeTemplate(nextTemplateId: string) {
-    if (templateId === nextTemplateId || !confirmDraftDiscard()) return;
+    if (templateId === nextTemplateId || !confirmDraftDiscard(false)) return;
     setTemplateId(nextTemplateId);
     setPreviewProductIds([]);
+  }
+
+  function changeLifecycleMode(nextMode: ClientPortalMode) {
+    if (mode === nextMode || !confirmDiscard({ seoFields: seoDirty, pagePreview: tagPreviewDirty })) return;
+    setMode(nextMode);
+  }
+
+  function toggleBrowser() {
+    if (showBrowser && !confirmDiscard({ pagePreview: tagPreviewDirty })) return;
+    const opening = !showBrowser;
+    setShowBrowser(opening);
+    if (opening) setCompactCanvasPane("preview");
+  }
+
+  function refreshPreview() {
+    if (!confirmDiscard({ seoFields: seoDirty, pagePreview: tagPreviewDirty })) return;
+    setFrameKey(value => value + 1);
   }
 
   function togglePreviewProduct(productId: string) {
@@ -1918,6 +2061,11 @@ export function DevEditor({
               onChange={event => {
                 const next = event.target.value;
                 if (!confirmDraftDiscard()) return;
+                // The confirmed work belongs to the old target. Clear the
+                // shell's mirrors immediately; keyed children below remount
+                // with empty project-local state in the same commit.
+                setSourceDirtyPaths([]);
+                setTagPreviewChanges({});
                 setProjectId(next);
                 const project = availableProjects.find(item => item.id === next);
                 // Keep the typed field in step so the Repo tab shows what it reads.
@@ -1928,7 +2076,7 @@ export function DevEditor({
                 // how somebody edits the wrong website. The MAPPED address, not
                 // the typed one, so a redirecting site still lands on the origin
                 // the editor trusts.
-                setBrowserUrl(aquaTagBrowserUrl(project));
+                loadBrowserUrl(aquaTagBrowserUrl(project));
                 // Every one of these belongs to the old target. Carrying one
                 // across can point an edit or an AI request at project B using
                 // project A's selected element.
@@ -1958,13 +2106,15 @@ export function DevEditor({
           </div>
         ) : null}
 
-        {/* How deep you want to go: the single most important choice in the
-            editor, and it used to be a small select buried in the right rail. */}
-        <span aria-hidden className="mx-1 hidden h-7 w-px shrink-0 bg-white/10 xl:block" />
-        <EditorModeSwitch
-          mode={editingModeId}
-          onChange={next => changeMode(next)}
-        />
+        <div className="col-span-3 col-start-1 row-start-2 flex min-w-0 flex-wrap items-center gap-2 border-t border-white/10 py-2 sm:flex-nowrap sm:overflow-x-auto sm:[scrollbar-width:none] xl:contents">
+          {/* How deep you want to go: the single most important choice in the
+              editor, and it used to be a small select buried in the right rail. */}
+          <span aria-hidden className="mx-1 hidden h-7 w-px shrink-0 bg-white/10 xl:block" />
+          <EditorModeSwitch
+            mode={editingModeId}
+            onChange={next => changeMode(next)}
+            available={!canManage ? ["visual"] : developerModeAvailable ? undefined : ["assist", "visual"]}
+          />
 
         {/* The primary switch is what the CANVAS shows — the live thing, its
             code, or both. Template vs Client is a narrower question (which
@@ -1972,13 +2122,13 @@ export function DevEditor({
         {/* The browser is a TOGGLE, not a mode. Dev with the page beside it is
             the same Dev — it should not need a mode called "Both". */}
         {(
-          <div className="col-start-2 row-start-1 inline-flex shrink-0 items-center gap-0.5 justify-self-start rounded-md border border-white/10 bg-black/25 p-1 xl:col-auto xl:row-auto">
+          <div className="inline-flex shrink-0 items-center gap-0.5 rounded-md border border-white/10 bg-black/25 p-1">
             {/* Gated on the Aqua Tag, not on what kind of thing this is.
                 Disabled rather than hidden: "there is no browser here and this
                 is why" is information; a missing control is a mystery. */}
             <button
               type="button"
-              onClick={() => setShowBrowser(value => !value)}
+              onClick={toggleBrowser}
               aria-pressed={browserPane}
               disabled={!browserAvailable}
               title={browserAvailable
@@ -2022,7 +2172,14 @@ export function DevEditor({
             {portalTarget ? (
               <button
                 type="button"
-                onClick={() => { setSplitBrowsers(value => !value); setShowBrowser(true); }}
+                onClick={() => {
+                  if (!confirmDiscard({
+                    repositoryFiles: !splitBrowsers && codePane ? sourceDirtyPaths.length : 0,
+                    pagePreview: tagPreviewDirty,
+                  })) return;
+                  setSplitBrowsers(value => !value);
+                  setShowBrowser(true);
+                }}
                 aria-pressed={splitBrowsers}
                 title={splitBrowsers ? "One browser" : "Two browsers side by side"}
                 aria-label={splitBrowsers ? "One browser" : "Two browsers side by side"}
@@ -2034,8 +2191,9 @@ export function DevEditor({
             ) : null}
           </div>
         )}
+        </div>
 
-        <div className="col-span-3 col-start-1 row-start-2 grid min-w-0 grid-cols-2 items-center gap-2 border-t border-white/10 py-2 sm:flex sm:overflow-x-auto sm:[scrollbar-width:none] xl:col-auto xl:row-auto xl:flex-1 xl:border-t-0">
+        <div className="col-span-3 col-start-1 row-start-3 grid min-w-0 grid-cols-1 items-center gap-2 border-t border-white/10 py-2 sm:grid-cols-2 xl:col-auto xl:row-auto xl:flex xl:flex-1 xl:overflow-x-auto xl:border-t-0 xl:[scrollbar-width:none]">
           {portalTarget && browserPane && !lockToClient ? (
             <div className="inline-flex shrink-0 rounded-md border border-white/10 bg-black/25 p-1" aria-label="Editing scope">
               <TopToggle active={scope === "template"} disabled={busy} onClick={() => changeScope("template")} label="Template" />
@@ -2056,7 +2214,7 @@ export function DevEditor({
               {clients.map(client => <option key={client.id} value={client.id} className="bg-[#1a1c1a]">{client.name}{client.built ? "" : " (not built)"}</option>)}
             </select>
           )}
-          {portalTarget ? <select aria-label="Lifecycle stage" value={mode} onChange={event => setMode(event.target.value as ClientPortalMode)} className="h-10 w-full min-w-0 rounded-md border border-white/10 bg-white/[0.06] px-3 text-xs font-medium text-white outline-none sm:min-w-40 sm:shrink-0">
+          {portalTarget ? <select aria-label="Lifecycle stage" value={mode} onChange={event => changeLifecycleMode(event.target.value as ClientPortalMode)} className="h-10 w-full min-w-0 rounded-md border border-white/10 bg-white/[0.06] px-3 text-xs font-medium text-white outline-none sm:min-w-40 sm:shrink-0">
             {CLIENT_PORTAL_MODES.map(item => <option key={item} value={item} className="bg-[#1a1c1a]">{portalDocument?.stages[item].label || MODE_LABELS[item]}</option>)}
           </select> : null}
           {/* THE NAVIGATOR — Ed's second switcher, and the answer to "if i put
@@ -2078,14 +2236,18 @@ export function DevEditor({
               decides whether the SEO panel is reachable at all cannot be one
               that disappears at 1279px. Before the navigator, because "what
               is this" is the wider question and reads first. */}
-          <SurfaceSwitch resolved={resolvedSurface} onChange={changeSurface} disabled={busy} />
-          <PageNavigator plan={pageNavigator} value={navigatorValue} onPick={goToPage} disabled={busy} />
+          <div className="min-w-0 xl:contents">
+            <SurfaceSwitch resolved={resolvedSurface} onChange={changeSurface} disabled={busy} />
+          </div>
+          <div className="min-w-0 xl:contents">
+            <PageNavigator plan={pageNavigator} value={navigatorValue} onPick={goToPage} disabled={busy} />
+          </div>
           {/* The project switcher used to sit here as a `w-full` select over
               EVERY project in the agency — it now leads the top bar, compact
               and scoped to the project this editor is in. */}
-          <div className="flex min-w-0 items-center justify-end gap-2 sm:justify-start">
+          <div className="col-span-full flex min-w-0 items-center justify-start gap-2 xl:col-auto">
             {browserPane ? <DeviceControl value={deviceState} onChange={setDeviceState} /> : null}
-            <button type="button" onClick={() => setFrameKey(value => value + 1)} title="Refresh preview" aria-label="Refresh preview" className="hidden size-10 shrink-0 place-items-center rounded-md border border-white/10 text-white/65 hover:bg-white/5 hover:text-white sm:grid"><RefreshCw size={16} /></button>
+            <button type="button" onClick={refreshPreview} title="Refresh preview" aria-label="Refresh preview" className="hidden size-10 shrink-0 place-items-center rounded-md border border-white/10 text-white/65 hover:bg-white/5 hover:text-white sm:grid"><RefreshCw size={16} /></button>
             {openInTabUrl ? <Link href={openInTabUrl} target="_blank" rel="noreferrer" title="Open preview in new tab" aria-label="Open preview in new tab" className="grid size-10 shrink-0 place-items-center rounded-md border border-white/10 text-white/65 hover:bg-white/5 hover:text-white"><ExternalLink size={16} /></Link> : null}
             {/* Live product workspaces belong to a client's portal — a
                 repository has no client, and `scope` still defaults to
@@ -2105,6 +2267,30 @@ export function DevEditor({
         ) : null}
       </header>
 
+      {repositoryPreviewAvailable && projectId ? (
+        <div className="shrink-0 border-b border-white/10 bg-[#111311] px-3 py-2 xl:px-4">
+          <GovernedRepositoryPreviewControl
+            projectId={projectId}
+            projectName={selectedProject?.name || projectName}
+            onPreviewReady={url => {
+              setLocalPreviewReady(true);
+              loadBrowserUrl(url);
+              setShowBrowser(true);
+              setCompactCanvasPane("preview");
+              setFrameKey(value => value + 1);
+            }}
+            onPreviewUnavailable={() => {
+              if (!localPreviewReady) return;
+              setLocalPreviewReady(false);
+              loadBrowserUrl(tagMapped && selectedProject
+                ? aquaTagBrowserUrl(selectedProject)
+                : projectBrowserUrl);
+              setFrameKey(value => value + 1);
+            }}
+          />
+        </div>
+      ) : null}
+
       <div className="flex min-h-0 flex-1">
         <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[#242724]">
           <div className="flex min-h-11 shrink-0 items-center gap-3 border-b border-white/8 bg-[#1b1e1b] px-3 text-[11px] text-white/45">
@@ -2112,11 +2298,11 @@ export function DevEditor({
                 looking at: blocks and saved components in a visual view, files
                 and folders in the code view. Every future "add" belongs here
                 rather than as another control elsewhere in the chrome. */}
-            <AddMenu
+            {canManage ? <AddMenu
               options={addOptions}
               label={addMenuTitle}
               title={addMenuTitle}
-            />
+            /> : <span className="text-[10px] font-semibold uppercase tracking-wide text-white/45">Read-only preview</span>}
             <p className="min-w-0 flex-1 truncate" role="status" aria-live="polite">{notice}{dirty ? " · save the draft to refresh preview" : ""}</p>
             {/* Template / Client override is a PORTAL scope. A repository has
                 no such scope, so this used to sit over a game's preview
@@ -2133,18 +2319,50 @@ export function DevEditor({
             </p>
           </div>
 
+          {/* A phone or tablet cannot use two half-width editor panes. Keep
+              both mounted (so neither the iframe nor code buffers reset), but
+              put one complete canvas on screen at a time until `xl`, where the
+              draggable split becomes useful again. */}
+          {compactCanvasSwitching ? (
+            <nav
+              aria-label="Canvas pane"
+              className="grid shrink-0 grid-cols-2 gap-1 border-b border-white/8 bg-[#171a17] p-1.5 xl:hidden"
+            >
+              <button
+                type="button"
+                onClick={() => setCompactCanvasPane("preview")}
+                aria-pressed={compactCanvasPane === "preview"}
+                className={`min-h-9 rounded-md px-3 text-xs font-semibold transition ${compactCanvasPane === "preview" ? "bg-white/10 text-white" : "text-white/45 hover:bg-white/5 hover:text-white/75"}`}
+              >
+                Preview
+              </button>
+              <button
+                type="button"
+                onClick={() => setCompactCanvasPane("code")}
+                aria-pressed={compactCanvasPane === "code"}
+                className={`min-h-9 rounded-md px-3 text-xs font-semibold transition ${compactCanvasPane === "code" ? "bg-white/10 text-white" : "text-white/45 hover:bg-white/5 hover:text-white/75"}`}
+              >
+                Code
+              </button>
+            </nav>
+          ) : null}
+
           {/* The canvas is DYNAMIC: live, code, both (with a divider you drag),
               or two live views compared. Nothing here is a fixed proportion —
               sometimes you want a sliver of preview beside a wide file, and
               sometimes the reverse. */}
           <div ref={splitRef} className="flex min-h-0 flex-1">
+            <style>{RESPONSIVE_CANVAS_PANE_CSS}</style>
             {/* Browser pane(s). Present at any mode when the browser is on —
                 in Dev it sits beside the code, which is what the old "Both"
                 view was for. */}
             {browserPane ? (
               <div
-                className="min-h-0 overflow-auto p-4 lg:p-6"
-                style={codePane || splitBrowsers ? { width: `${splitRatio * 100}%`, flexShrink: 0 } : { flex: 1 }}
+                {...responsiveCanvasPaneAttributes(compactCanvasPane, "preview", compactCanvasSwitching)}
+                className={`block min-h-0 min-w-0 overflow-auto p-3 sm:p-4 xl:p-6 ${codePane || splitBrowsers ? "flex-1 xl:w-[var(--editor-preview-width)] xl:flex-none" : "flex-1"}`}
+                style={codePane || splitBrowsers
+                  ? ({ ["--editor-preview-width" as string]: `${splitRatio * 100}%` } as React.CSSProperties)
+                  : undefined}
               >
                 {portalTarget ? (
                   /* NO tag handshake here, deliberately. This frame shows
@@ -2174,18 +2392,31 @@ export function DevEditor({
                         URL. So the browser just asks where to point, and never
                         assumes what you are making. */}
                     <form
-                      className="flex items-center gap-1.5"
-                      onSubmit={event => { event.preventDefault(); setFrameKey(value => value + 1); }}
+                      className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5"
+                      onSubmit={event => {
+                        event.preventDefault();
+                        if (!confirmDiscard({ seoFields: seoDirty, pagePreview: tagPreviewDirty })) return;
+                        loadBrowserUrl(browserUrlInput.trim());
+                        setFrameKey(value => value + 1);
+                      }}
                     >
                       <Globe size={13} aria-hidden className="shrink-0 text-white/30" />
                       <input
-                        value={browserUrl}
-                        onChange={event => setBrowserUrl(event.target.value)}
+                        value={browserUrlInput}
+                        onChange={event => setBrowserUrlInput(event.target.value)}
                         placeholder="http://localhost:3000 — anything you are running"
                         aria-label="Preview URL"
                         className="h-8 min-w-0 flex-1 rounded-md border border-white/12 bg-white/[0.05] px-2.5 text-[11px] text-white/85 outline-none placeholder:text-white/25 focus:border-cyan-300/40"
                       />
-                      <TagBridgeBadge state={tagBridge} />
+                      <button
+                        type="submit"
+                        className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md border border-white/12 px-2 text-[10px] font-semibold text-white/65 hover:bg-white/[0.06] hover:text-white"
+                      >
+                        <RefreshCw size={11} aria-hidden /> Load
+                      </button>
+                      <span className="col-span-2 col-start-2 flex min-w-0">
+                        <TagBridgeBadge state={tagBridge} />
+                      </span>
                     </form>
                     {browserUrl.trim() ? (
                       <PreviewFrame
@@ -2234,7 +2465,7 @@ export function DevEditor({
                   window.addEventListener("pointermove", move);
                   window.addEventListener("pointerup", up);
                 }}
-                className="group relative w-1.5 shrink-0 cursor-col-resize bg-white/8 transition hover:bg-cyan-300/40 focus:bg-cyan-300/50 focus:outline-none"
+                className="group relative hidden w-1.5 shrink-0 cursor-col-resize bg-white/8 transition hover:bg-cyan-300/40 focus:bg-cyan-300/50 focus:outline-none xl:block"
               >
                 <span aria-hidden className="absolute inset-y-0 -left-1.5 -right-1.5" />
               </div>
@@ -2258,8 +2489,19 @@ export function DevEditor({
 
             {/* Dev's code canvas. */}
             {codePane && !splitBrowsers ? (
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                <EditorCodeCanvas projectId={projectId || undefined} repository={repository} focus={sourceFocus} />
+              <div
+                {...responsiveCanvasPaneAttributes(compactCanvasPane, "code", compactCanvasSwitching)}
+                className="flex min-h-0 min-w-0 flex-1 flex-col"
+              >
+                <EditorCodeCanvas
+                  key={projectId || `repository:${repository || "workspace"}`}
+                  projectId={projectId || undefined}
+                  repository={repository}
+                  focus={sourceFocus}
+                  onDirtyChange={setSourceDirtyPaths}
+                  canEdit={canEditCode}
+                  canPublish={canPublishCode}
+                />
               </div>
             ) : null}
 
@@ -2281,14 +2523,14 @@ export function DevEditor({
                     Dev mode works right now without one: it reads the repository files directly.
                   </p>
                   <div className="mt-4 flex items-center justify-center gap-2">
-                    <button
+                    {developerModeAvailable ? <button
                       type="button"
                       onClick={() => { changeMode("developer"); setInspectorOpen(true); }}
                       className="inline-flex min-h-9 items-center gap-2 rounded-md px-3 text-xs font-bold text-[#0d120f]"
                       style={{ background: "var(--mode-accent)" }}
                     >
                       <Code2 size={14} aria-hidden /> Open Dev
-                    </button>
+                    </button> : null}
                     <button
                       type="button"
                       onClick={() => { setTab("settings"); setInspectorOpen(true); }}
@@ -2309,7 +2551,7 @@ export function DevEditor({
                   <p className="mt-2 text-xs text-white/40">The browser is hidden.</p>
                   <button
                     type="button"
-                    onClick={() => setShowBrowser(true)}
+                    onClick={() => { setShowBrowser(true); setCompactCanvasPane("preview"); }}
                     className="mt-2 text-[11px] font-semibold"
                     style={{ color: "var(--mode-accent)" }}
                   >
@@ -2367,6 +2609,10 @@ export function DevEditor({
             {(portalDocument && record) || !portalTarget ? (
               <Inspector
                 assistant={assistant}
+                assistantCanUse={assistantCanUse}
+                assistantCanManage={assistantCanManage}
+                canManageProjectConnections={canManageProjectConnections}
+                canRebindProjectConnections={canRebindProjectConnections}
                 assistantTarget={assistantTarget}
                 repository={repository}
                 projectId={projectId}
@@ -2425,13 +2671,15 @@ export function DevEditor({
               the inspector is open, and a control that exists in one corner of
               a full-screen editor is a control that gets lost. `align="end"`
               so the panel opens INTO the canvas rather than off-screen. */}
-          <AddMenu
-            options={addOptions}
-            label={addMenuTitle}
-            title={addMenuTitle}
-            align="end"
-          />
-          <span aria-hidden className="my-1 h-px w-6 bg-white/10" />
+          {canManage ? <>
+            <AddMenu
+              options={addOptions}
+              label={addMenuTitle}
+              title={addMenuTitle}
+              align="end"
+            />
+            <span aria-hidden className="my-1 h-px w-6 bg-white/10" />
+          </> : null}
           {allowedTabs.map(item => {
             const Icon = item.icon;
             const active = inspectorOpen && tab === item.id;
@@ -2468,16 +2716,18 @@ export function DevEditor({
         <button type="button" onClick={() => setMobileInspectorOpen(true)} aria-expanded={mobileInspectorOpen} className="fixed bottom-4 right-4 z-30 inline-flex min-h-11 items-center gap-2 rounded-md bg-cyan-300 px-4 text-xs font-bold text-[#102124] shadow-lg lg:hidden"><FileText size={16} /> Inspector</button>
         {mobileInspectorOpen ? (
           <aside className="fixed inset-0 z-50 flex flex-col bg-[#141614] lg:hidden" aria-label="Dev Editor Engine inspector">
-            <div className="grid shrink-0 border-b border-white/10" style={{ gridTemplateColumns: `repeat(${allowedTabs.length}, 1fr) 44px` }}>
-              {allowedTabs.map(item => {
-                const Icon = item.icon;
-                return <button key={item.id} type="button" onClick={() => setTab(item.id)} className={`flex min-h-14 flex-col items-center justify-center gap-1 text-[9px] font-semibold ${tab === item.id ? "bg-white/[0.07] text-cyan-300" : "text-white/42"}`}><Icon size={15} /><span>{item.label}</span></button>;
-              })}
-              <button type="button" onClick={() => setMobileInspectorOpen(false)} aria-label="Close the inspector" className="grid place-items-center border-l border-white/10 text-white/55"><X size={17} /></button>
+            <div className="flex shrink-0 border-b border-white/10 bg-[#141614]">
+              <div className="flex min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {allowedTabs.map(item => {
+                  const Icon = item.icon;
+                  return <button key={item.id} type="button" onClick={() => setTab(item.id)} aria-current={tab === item.id ? "page" : undefined} title={item.label} className={`flex min-h-14 w-16 shrink-0 flex-col items-center justify-center gap-1 px-1 text-[9px] font-semibold ${tab === item.id ? "bg-white/[0.07] text-cyan-300" : "text-white/42"}`}><Icon size={15} /><span className="max-w-full truncate">{item.label}</span></button>;
+                })}
+              </div>
+              <button type="button" onClick={() => setMobileInspectorOpen(false)} aria-label="Close the inspector" className="grid min-h-14 w-11 shrink-0 place-items-center border-l border-white/10 bg-[#141614] text-white/55 shadow-[-8px_0_16px_rgba(20,22,20,.9)]"><X size={17} /></button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-5">
               {(portalDocument && record) || !portalTarget ? (
-                <Inspector assistant={assistant} assistantTarget={assistantTarget} repository={repository} projectId={projectId} onRepositoryChange={setRepository} sourceFocus={sourceFocus} onOpenFile={openFileInCanvas} picking={picking} onPickElement={() => setPicking(value => !value)} tagPanel={tagPanel} tab={tab} scope={scope} mode={mode} section={section} customPageId={customPageId} document={portalDocument} record={record} canManage={canManage} busy={busy} checkpointLabel={checkpointLabel} setCheckpointLabel={setCheckpointLabel} edit={edit} checkpoint={checkpoint} restore={restore} refreshProductTemplate={refreshProductTemplate} resetClient={resetClient} latestMasterVersionId={selectedTemplate?.latestMasterVersionId} compositionTemplates={templates.filter(template => template.active && Boolean(template.productId) && template.id !== selectedTemplate?.id)} productOptions={templates.filter(template => Boolean(template.productId))} previewProductIds={previewProductIds} togglePreviewProduct={togglePreviewProduct} selectCustomPage={setCustomPageId} selectedBlockId={selectedBlockId} selectBlock={setSelectedBlockId} elementSurface={elementSurface} paletteGroups={paletteGroups} paletteCount={paletteItems.length} selectedElementType={selectedElementType} selectElementType={setSelectedElementType} tagMapped={tagMapped} seoTarget={seoTarget} portalPageSeo={portalPageSeo} onPortalSeoChange={setPortalPageSeo} onSeoDirtyChange={setSeoDirty} />
+                <Inspector assistant={assistant} assistantCanUse={assistantCanUse} assistantCanManage={assistantCanManage} canManageProjectConnections={canManageProjectConnections} canRebindProjectConnections={canRebindProjectConnections} assistantTarget={assistantTarget} repository={repository} projectId={projectId} onRepositoryChange={setRepository} sourceFocus={sourceFocus} onOpenFile={openFileInCanvas} picking={picking} onPickElement={() => setPicking(value => !value)} tagPanel={tagPanel} tab={tab} scope={scope} mode={mode} section={section} customPageId={customPageId} document={portalDocument} record={record} canManage={canManage} busy={busy} checkpointLabel={checkpointLabel} setCheckpointLabel={setCheckpointLabel} edit={edit} checkpoint={checkpoint} restore={restore} refreshProductTemplate={refreshProductTemplate} resetClient={resetClient} latestMasterVersionId={selectedTemplate?.latestMasterVersionId} compositionTemplates={templates.filter(template => template.active && Boolean(template.productId) && template.id !== selectedTemplate?.id)} productOptions={templates.filter(template => Boolean(template.productId))} previewProductIds={previewProductIds} togglePreviewProduct={togglePreviewProduct} selectCustomPage={setCustomPageId} selectedBlockId={selectedBlockId} selectBlock={setSelectedBlockId} elementSurface={elementSurface} paletteGroups={paletteGroups} paletteCount={paletteItems.length} selectedElementType={selectedElementType} selectElementType={setSelectedElementType} tagMapped={tagMapped} seoTarget={seoTarget} portalPageSeo={portalPageSeo} onPortalSeoChange={setPortalPageSeo} onSeoDirtyChange={setSeoDirty} />
               ) : <p className="text-sm text-white/45">{notice}</p>}
             </div>
             {/* The same gate as the desktop pair above: a repository has no
@@ -2498,6 +2748,10 @@ export function DevEditor({
 
 function Inspector({
   assistant,
+  assistantCanUse,
+  assistantCanManage,
+  canManageProjectConnections,
+  canRebindProjectConnections,
   assistantTarget,
   repository,
   projectId,
@@ -2543,6 +2797,10 @@ function Inspector({
   onSeoDirtyChange,
 }: {
   assistant?: EditorAssistantProps;
+  assistantCanUse: boolean;
+  assistantCanManage: boolean;
+  canManageProjectConnections: boolean;
+  canRebindProjectConnections: boolean;
   assistantTarget: string;
   repository: string;
   projectId?: string;
@@ -2618,6 +2876,8 @@ function Inspector({
         <DevEditorProjectSettings
           projectId={projectId ?? ""}
           aiConfigured={assistant && assistant.projectId === projectId ? assistant.configured : undefined}
+          canManageConnections={canManageProjectConnections}
+          canRebindConnections={canRebindProjectConnections}
         />
       </div>
     );
@@ -2642,6 +2902,8 @@ function Inspector({
         reason={assistant.reason}
         configured={assistant.configured}
         model={assistant.model}
+        canUse={assistantCanUse}
+        canManage={assistantCanManage}
         // The greeting is "What do you need, {first word}?" — it wants the
         // PERSON, not the thing being edited. Handing it the target rendered
         // "What do you need, a?" (from "a client portal"), so it now reads the
@@ -3681,6 +3943,8 @@ interface TagPanelProps {
   portalTarget: boolean;
   /** The words as the page had them at selection — the needle, held still while typing. */
   originalWords: string;
+  /** The source commit landed, so these words are no longer unsaved work. */
+  onWordsSaved: (value: string) => void;
 }
 
 const STYLE_LABELS: Record<AquaTagStyleProperty, string> = {
@@ -3707,7 +3971,7 @@ const STYLE_LABELS: Record<AquaTagStyleProperty, string> = {
 function TagElementInspector({
   element, bridge, selecting, onSelectingChange, words, onWordsChange,
   onStyleChange, onImageChange, onReset, route, sourceFocus,
-  projectId, repository, portalTarget, originalWords,
+  projectId, repository, portalTarget, originalWords, onWordsSaved,
 }: TagPanelProps) {
   if (!element) {
     return (
@@ -3770,6 +4034,7 @@ function TagElementInspector({
             portalTarget={portalTarget}
             originalWords={originalWords}
             newWords={words}
+            onSaved={onWordsSaved}
           />
         </div>
       ) : (
@@ -3894,12 +4159,13 @@ interface SavedWords {
   pullRequestUrl?: string;
 }
 
-function WordsSourceSave({ projectId, repository, portalTarget, originalWords, newWords }: {
+function WordsSourceSave({ projectId, repository, portalTarget, originalWords, newWords, onSaved }: {
   projectId: string;
   repository: string;
   portalTarget: boolean;
   originalWords: string;
   newWords: string;
+  onSaved: (value: string) => void;
 }) {
   const [busy, setBusy] = useState<"" | "find" | "preview" | "save">("");
   const [found, setFound] = useState<FoundWords | null>(null);
@@ -3942,7 +4208,7 @@ function WordsSourceSave({ projectId, repository, portalTarget, originalWords, n
     setBusy("find"); setProblem(""); setFound(null); setChosen(null); setPreview(null); setSaved(null);
     try {
       const payload = await call({ action: "find", text: originalWords });
-      if (!payload.ok) { setProblem(payload.error ?? "Those words could not be looked for."); return; }
+      if (!payload.ok) { setProblem(apiResponseError(payload, "Those words could not be looked for.")); return; }
       if (!payload.candidates?.length) { setProblem(payload.detail ?? "Those words are not in the source."); return; }
       setFound({
         commitSha: payload.commitSha,
@@ -3972,7 +4238,7 @@ function WordsSourceSave({ projectId, repository, portalTarget, originalWords, n
         originalText: originalWords,
         newText: newWords,
       });
-      if (!payload.ok) { setProblem(payload.error ?? "That line could not be prepared."); return; }
+      if (!payload.ok) { setProblem(apiResponseError(payload, "That line could not be prepared.")); return; }
       if (payload.refusal) { setProblem(payload.refusal.detail); return; }
       const file = payload.outcome?.files?.[0];
       if (!file) {
@@ -4002,7 +4268,7 @@ function WordsSourceSave({ projectId, repository, portalTarget, originalWords, n
         newText: newWords,
         confirm: true,
       });
-      if (!payload.ok) { setProblem(payload.error ?? "That could not be saved."); return; }
+      if (!payload.ok) { setProblem(apiResponseError(payload, "That could not be saved.")); return; }
       if (payload.refusal) { setProblem(payload.refusal.detail); return; }
       if (!payload.outcome?.published) {
         setProblem(payload.outcome?.rejected?.[0]?.rejection?.detail ?? payload.outcome?.summary ?? "Nothing was saved.");
@@ -4015,6 +4281,7 @@ function WordsSourceSave({ projectId, repository, portalTarget, originalWords, n
         commitSha: payload.outcome.commitSha,
         pullRequestUrl: payload.pullRequest?.url,
       });
+      onSaved(newWords);
     } catch {
       setProblem("That could not be saved.");
     } finally {

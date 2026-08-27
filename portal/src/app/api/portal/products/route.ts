@@ -4,6 +4,12 @@ import { createAgencyProduct, ensureDefaultAgencyProducts, listAgencyProducts, u
 import { ensureProductPortalTemplate } from "@/server/clientPortalDesigns";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES, type AgencyProductInternalWorkspace, type AgencyProductKind, type AgencyProductPortalMode, type AgencyProductPortalRequirement, type AgencyProductPortalTemplateKey, type AgencyProductPricing, type AgencyProductStatus } from "@/server/types";
+import { PortalFormValidationError } from "@/lib/forms/portalFormValues";
+import {
+  requireCurrentWorkspaceElementAccess,
+  workspaceElementAtLeast,
+  workspaceElementLevel,
+} from "@/lib/server/access/workspaceElementAccess";
 
 type Body = {
   action?: "create" | "update";
@@ -41,16 +47,20 @@ type Body = {
   active?: boolean;
   status?: AgencyProductStatus;
   companyIds?: string[];
+  customFields?: Record<string, unknown>;
 };
 
 export async function GET() {
   try {
     await ensureHydrated();
-    const session = await requireRole([...AGENCY_ROLES]);
-    ensureDefaultAgencyProducts(session.agencyId);
+    await requireRole([...AGENCY_ROLES]);
+    const { actor, access } = await requireCurrentWorkspaceElementAccess("fulfilment", "fulfilment.services", "view");
+    if (workspaceElementAtLeast(workspaceElementLevel(access, "fulfilment.services"), "manage")) {
+      ensureDefaultAgencyProducts(actor.resourceAgencyId);
+    }
     return NextResponse.json({
       ok: true,
-      products: listAgencyProducts(session.agencyId, true),
+      products: listAgencyProducts(actor.resourceAgencyId, true),
     });
   } catch (error) {
     return authErrorResponse(error);
@@ -61,8 +71,13 @@ export async function POST(request: Request) {
   try {
     await ensureHydrated();
     const session = await requireRole([...AGENCY_ROLES]);
+    const { actor } = await requireCurrentWorkspaceElementAccess("fulfilment", "fulfilment.services", "manage");
+    const agencyId = actor.resourceAgencyId;
     const body = await request.json().catch(() => null) as Body | null;
     if (!body?.action) return NextResponse.json({ ok: false, error: "action required" }, { status: 400 });
+    const existing = body.productId
+      ? listAgencyProducts(agencyId, true).find(product => product.id === body.productId)
+      : undefined;
     const input = {
       kind: body.kind,
       name: body.name ?? "",
@@ -97,15 +112,16 @@ export async function POST(request: Request) {
       active: body.active,
       status: body.status,
       companyIds: body.companyIds,
+      customFields: body.customFields ?? existing?.customFields ?? {},
     };
     const product = body.action === "create"
-      ? createAgencyProduct(session.agencyId, input, session.userId)
+      ? createAgencyProduct(agencyId, input, session.userId)
       : body.productId
-        ? updateAgencyProduct(session.agencyId, body.productId, input, session.userId)
+        ? updateAgencyProduct(agencyId, body.productId, input, session.userId)
         : null;
     if (!product) return NextResponse.json({ ok: false, error: "product not found" }, { status: 404 });
     const portalTemplate = product.status !== "archived" && product.portalRequirement !== "none"
-      ? ensureProductPortalTemplate(session.agencyId, product, session.userId)
+      ? ensureProductPortalTemplate(agencyId, product, session.userId)
       : null;
     return NextResponse.json({ ok: true, product, portalTemplate: portalTemplate ? {
       id: portalTemplate.id,
@@ -113,6 +129,9 @@ export async function POST(request: Request) {
       productSourceUpdatedAt: portalTemplate.productSourceUpdatedAt,
     } : null });
   } catch (error) {
+    if (error instanceof PortalFormValidationError) {
+      return NextResponse.json({ ok: false, error: error.message, fieldId: error.fieldId }, { status: 422 });
+    }
     return authErrorResponse(error);
   }
 }

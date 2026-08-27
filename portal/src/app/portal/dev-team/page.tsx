@@ -1,29 +1,27 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import type { ReactNode } from "react";
+import { cache, Suspense, type ReactNode } from "react";
 import {
   CalendarClock, CircleDot, Hammer, Library as LibraryIcon, MessageSquare,
   NotebookPen, Route, ScanEye, Wrench,
 } from "lucide-react";
 
 import { requireRole } from "@/lib/server/auth/auth";
+import { PortalViewportLoading } from "@/components/ui/PortalViewportLoading";
 import { AGENCY_ROLES } from "@/server/types";
-import { devDocsAccessible, scanBlockers } from "@/lib/server/dev/devDocs";
-import { inspectProductionReadiness } from "@/lib/server/productionReadiness";
-import { listFindings } from "@/lib/server/dev/devTeamFindings";
-import { buildRoadmap } from "@/lib/server/dev/devTeamRoadmap";
-import { unacknowledgedCount } from "@/lib/server/dev/devTeamThoughts";
-import { scanWorkerSignals } from "@/lib/server/dev/devTeamWorkers";
+import { devTeamAccessible } from "@/lib/server/dev/devTeamAccess";
+import type { DevTeamHomeSnapshot } from "@/lib/server/dev/devTeamHomeSnapshot";
 import { ensureHydrated } from "@/server/storage";
+import { devTeamLinkPrefetch } from "@/lib/chrome/devTeamLinkPrefetch";
 import { PageHeader, Panel, NavCard, Pill, EmptyState } from "./_ui";
 
 // Dev Team home — the dashboard.
 //
-// It used to be a wall of links to twelve screens. Those screens are now six
-// sections, so home has room to do the job you actually open it for: what is
-// due, who is working, what is blocked, what is waiting on me. Every number
-// here is read from the same sources the sections read — nothing is stored
-// twice, so home can never disagree with the page it links to.
+// The authenticated shell and workspace destinations stream first. All live
+// status readers sit behind one Suspense boundary and one compact snapshot, so
+// an authored-file walk or a cold scanner module can never hold back the first
+// useful frame. The snapshot adds no new TTL: each underlying reader keeps its
+// existing freshness/invalidation contract.
 export const dynamic = "force-dynamic";
 
 const SECTIONS: { href: string; label: string; hint: string; icon: ReactNode; accent: string }[] = [
@@ -70,6 +68,7 @@ function Stat({
   return (
     <Link
       href={href}
+      prefetch={devTeamLinkPrefetch(href)}
       className="group rounded-2xl border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_30px_-16px_rgba(0,0,0,0.28)]"
     >
       <div className="text-[11px] font-medium uppercase tracking-wide text-[color:var(--dt-faint)]">{label}</div>
@@ -79,66 +78,59 @@ function Stat({
   );
 }
 
-export default async function DevTeamHomePage() {
-  await ensureHydrated();
-  let session;
-  try {
-    session = await requireRole([...AGENCY_ROLES]);
-  } catch {
-    redirect("/portal");
-  }
-  if (!devDocsAccessible(session)) notFound();
+// React request memoisation lets the header badge and dashboard body share the
+// exact same in-flight snapshot without introducing a cross-request stale copy.
+const homeSnapshot = cache(async (): Promise<DevTeamHomeSnapshot> => {
+  const { readDevTeamHomeSnapshot } = await import("@/lib/server/dev/devTeamHomeSnapshot");
+  return readDevTeamHomeSnapshot();
+});
 
-  // The REAL launch verdict, read from env and the live backend — not from
-  // prose. state.md said RLS and the email sender were outstanding while both
-  // had been done for days, and this dashboard repeated it. Synchronous, so it
-  // stays out of the Promise.all.
-  let readiness: ReturnType<typeof inspectProductionReadiness> | null = null;
+async function LaunchMeta() {
+  const { openBlockers } = await homeSnapshot();
+  return openBlockers.length > 0
+    ? <Pill tone="danger">{openBlockers.length} open launch blocker{openBlockers.length === 1 ? "" : "s"}</Pill>
+    : <Pill tone="ok">On track</Pill>;
+}
+
+function DashboardFallback() {
+  return <PortalViewportLoading label="Preparing Dev Team status…" />;
+}
+
+async function LiveDashboard() {
+  const [snapshot, readinessModule] = await Promise.all([
+    homeSnapshot(),
+    import("@/lib/server/productionReadiness"),
+  ]);
+
+  let readiness: ReturnType<typeof readinessModule.inspectProductionReadiness> | null = null;
   try {
-    readiness = inspectProductionReadiness();
+    readiness = readinessModule.inspectProductionReadiness();
   } catch {
     readiness = null;
   }
 
-  const [blockers, roadmap, findings, signals, waiting] = await Promise.all([
-    scanBlockers(),
-    buildRoadmap(),
-    listFindings().catch(() => []),
-    scanWorkerSignals().catch(() => null),
-    unacknowledgedCount().catch(() => 0),
-  ]);
-
-  const open = blockers.filter(b => !b.resolved);
-  const openFindings = findings.filter(f => f.status === "open");
-  const live = roadmap.byHorizon.now;
-  const upcoming = roadmap.schedule.slice(0, 5);
-  // A worker that has signed off ("done") is history, not activity.
-  const active = (signals?.checkIns ?? []).filter(c => !/^(done|complete|routed)/i.test(c.phase ?? c.status ?? ""));
-  const tasksDone = roadmap.items.reduce((n, i) => n + i.done, 0);
-  const tasksTotal = roadmap.items.reduce((n, i) => n + i.total, 0);
+  const {
+    openBlockers: open,
+    inFlight: live,
+    upcoming,
+    tasksDone,
+    tasksTotal,
+    openFindings,
+    activeWorkers: active,
+    waitingThoughts: waiting,
+  } = snapshot;
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-6">
-      <PageHeader
-        icon={<Hammer size={20} />}
-        title="Dev Team"
-        subtitle="Where the build stands right now."
-        meta={
-          open.length > 0
-            ? <Pill tone="danger">{open.length} open launch blocker{open.length === 1 ? "" : "s"}</Pill>
-            : <Pill tone="ok">On track</Pill>
-        }
-      />
-
+    <>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat
           label="In flight" value={live.length}
-          hint={live.length ? live.map(i => i.title).join(" · ").slice(0, 60) : "nothing being built"}
+          hint={live.length ? live.map(item => item.title).join(" · ").slice(0, 60) : "nothing being built"}
           href="/portal/dev-team/roadmap" tone="accent"
         />
         <Stat
           label="Workers" value={active.length}
-          hint={active.length ? active.map(w => w.name).join(", ") : "none checked in"}
+          hint={active.length ? active.map(worker => worker.name).join(", ") : "none checked in"}
           href="/portal/dev-team/roadmap?view=now" tone={active.length ? "ok" : "muted"}
         />
         <Stat
@@ -147,9 +139,9 @@ export default async function DevTeamHomePage() {
           href="/portal/dev-team/roadmap?view=tasks"
         />
         <Stat
-          label="Open findings" value={openFindings.length}
-          hint={openFindings.length ? "waiting to be turned into plans" : "all reviewed"}
-          href="/portal/dev-team/findings" tone={openFindings.length ? "warn" : "ok"}
+          label="Open findings" value={openFindings}
+          hint={openFindings ? "waiting to be turned into plans" : "all reviewed"}
+          href="/portal/dev-team/findings" tone={openFindings ? "warn" : "ok"}
         />
       </div>
 
@@ -223,14 +215,14 @@ export default async function DevTeamHomePage() {
         title="Launch readiness"
         hint="Checked against this environment, not the notes"
         right={readiness ? (
-          <Link href="/portal/dev-team/findings?view=auditor" className="text-[11px] text-[color:var(--dt-faint)] hover:text-[color:var(--dev-danger)]">
+          <Link href="/portal/dev-team/findings?view=auditor" prefetch={false} className="text-[11px] text-[color:var(--dt-faint)] hover:text-[color:var(--dev-danger)]">
             full audit →
           </Link>
         ) : null}
       >
         {readiness ? (
           <ul className="mb-4 flex flex-col divide-y divide-[color:var(--dt-hairline)]">
-            {readiness.items.filter(i => i.required || i.status === "needs-setup").map(item => {
+            {readiness.items.filter(item => item.required || item.status === "needs-setup").map(item => {
               const ok = item.status === "ready";
               return (
                 <li key={item.id} className="flex items-start gap-3 py-2 first:pt-0">
@@ -258,30 +250,66 @@ export default async function DevTeamHomePage() {
           Hand-written, so treat it as a reminder rather than a verdict — the list above is the measured one.
         </p>
         {open.length === 0 ? (
-          <EmptyState>No open blockers — nothing standing between us and launch.</EmptyState>
+          <EmptyState>No open blockers in the current status documents.</EmptyState>
         ) : (
           <ul className="flex flex-col divide-y divide-[color:var(--dt-hairline)]">
-            {open.map((b, i) => (
-              <li key={i} className="flex items-start gap-3 py-2.5 first:pt-0 last:pb-0">
+            {open.map((blocker, index) => (
+              <li key={index} className="flex items-start gap-3 py-2.5 first:pt-0 last:pb-0">
                 <span aria-hidden className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[color:var(--dev-danger)]" />
                 <span className="text-sm">
-                  <span className="font-medium text-[color:var(--dt-ink)]">{b.label}</span>
-                  {b.detail ? <span className="text-[color:var(--dt-muted)]"> — {b.detail}</span> : null}
+                  <span className="font-medium text-[color:var(--dt-ink)]">{blocker.label}</span>
+                  {blocker.detail ? <span className="text-[color:var(--dt-muted)]"> — {blocker.detail}</span> : null}
                 </span>
               </li>
             ))}
           </ul>
         )}
       </Panel>
+    </>
+  );
+}
 
-      <div>
-        <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-[color:var(--dt-faint)]">Workspace</h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {SECTIONS.map(s => (
-            <NavCard key={s.href} href={s.href} icon={s.icon} label={s.label} hint={s.hint} accent={s.accent} />
-          ))}
-        </div>
+function WorkspaceNav() {
+  return (
+    <div>
+      <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-[color:var(--dt-faint)]">Workspace</h2>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {SECTIONS.map(section => (
+          <NavCard key={section.href} href={section.href} icon={section.icon} label={section.label} hint={section.hint} accent={section.accent} />
+        ))}
       </div>
+    </div>
+  );
+}
+
+export default async function DevTeamHomePage() {
+  await ensureHydrated();
+  let session;
+  try {
+    session = await requireRole([...AGENCY_ROLES]);
+  } catch {
+    redirect("/portal");
+  }
+  if (!devTeamAccessible(session)) notFound();
+
+  return (
+    <div className="mx-auto flex max-w-5xl flex-col gap-6">
+      <PageHeader
+        icon={<Hammer size={20} />}
+        title="Dev Team"
+        subtitle="Where the build stands right now."
+        meta={
+          <Suspense fallback={<Pill tone="muted">Refreshing status…</Pill>}>
+            <LaunchMeta />
+          </Suspense>
+        }
+      />
+
+      <Suspense fallback={<DashboardFallback />}>
+        <LiveDashboard />
+      </Suspense>
+
+      <WorkspaceNav />
     </div>
   );
 }

@@ -220,10 +220,12 @@ describe("affiliates smoke", () => {
     assert.ok(found);
     assert.equal(found?.id, code.id);
 
-    // Collision rejected.
+    // An identical retry adopts the durable claim; a conflicting payload is rejected.
+    const retry = await services.codes.create({ affiliateId: aliceAffiliateId, code: "ALICE10" }, ACTOR);
+    assert.equal(retry.id, code.id);
     await assert.rejects(
-      services.codes.create({ affiliateId: aliceAffiliateId, code: "ALICE10" }, ACTOR),
-      /already exists/i,
+      services.codes.create({ affiliateId: aliceAffiliateId, code: "ALICE10", destinationPath: "/other" }, ACTOR),
+      /already exists|already claimed/i,
     );
 
     // Archived code not returned by findByCode.
@@ -242,6 +244,7 @@ describe("affiliates smoke", () => {
       endCustomerUserId: BOB_BUYER,
       amountTotal: 4500,           // post-discount
       currency: "usd",
+      status: "paid",
       subtotal: 5000,              // pre-discount
       referralCodeId: codeId,
       createdAt: Date.now(),
@@ -276,7 +279,7 @@ describe("affiliates smoke", () => {
   test("step 3: recordOrder skipped when no code", async () => {
     world.inspect.orders.set("ord_no_code", {
       id: "ord_no_code", agencyId: AGENCY_ID, clientId: CLIENT_ID,
-      amountTotal: 3000, currency: "usd", subtotal: 3000,
+      amountTotal: 3000, currency: "usd", status: "paid", subtotal: 3000,
       createdAt: Date.now(),
     });
     const attr = await services.attributions.recordOrder({
@@ -301,7 +304,7 @@ describe("affiliates smoke", () => {
     world.inspect.orders.set("ord_002", {
       id: "ord_002", agencyId: AGENCY_ID, clientId: CLIENT_ID,
       endCustomerUserId: BOB_BUYER,
-      amountTotal: 2000, currency: "usd", subtotal: 2000,
+      amountTotal: 2000, currency: "usd", status: "paid", subtotal: 2000,
       referralCodeId: codeId,
       createdAt: Date.now(),
     });
@@ -452,7 +455,7 @@ describe("affiliates smoke", () => {
     world.inspect.orders.set("ord_003", {
       id: "ord_003", agencyId: AGENCY_ID, clientId: CLIENT_ID,
       endCustomerUserId: BOB_BUYER,
-      amountTotal: 8000, currency: "usd", subtotal: 8000,
+      amountTotal: 8000, currency: "usd", status: "paid", subtotal: 8000,
       referralCodeId: codeId,
       createdAt: Date.now(),
     });
@@ -537,7 +540,7 @@ describe("affiliates smoke", () => {
     // Approved attribution for Charlie.
     world.inspect.orders.set("ord_charlie_1", {
       id: "ord_charlie_1", agencyId: AGENCY_ID, clientId: CLIENT_ID,
-      amountTotal: 1000, currency: "usd", subtotal: 1000,
+      amountTotal: 1000, currency: "usd", status: "paid", subtotal: 1000,
       referralCodeId: codeId,    // doesn't matter for this test — point is we have an approved attr
       endCustomerUserId: BOB_BUYER,
       createdAt: Date.now(),
@@ -546,7 +549,7 @@ describe("affiliates smoke", () => {
     const charlieCode = await services.codes.create({ affiliateId: charlie.id, code: "CHARLIE10" }, ACTOR);
     world.inspect.orders.set("ord_charlie_2", {
       id: "ord_charlie_2", agencyId: AGENCY_ID, clientId: CLIENT_ID,
-      amountTotal: 1000, currency: "usd", subtotal: 1000,
+      amountTotal: 1000, currency: "usd", status: "paid", subtotal: 1000,
       referralCodeId: charlieCode.id,
       endCustomerUserId: BOB_BUYER,
       createdAt: Date.now(),

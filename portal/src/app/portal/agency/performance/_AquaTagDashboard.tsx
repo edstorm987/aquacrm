@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   CalendarDays,
@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 import type { PublicIntegrationConnection } from "@/lib/integrations/types";
 import type { MonthlyPerformanceReport } from "@/lib/performance/performanceReports";
 import { GrowthPerformance, type PerformanceClient } from "./_PerformanceWorkspace";
@@ -83,46 +84,68 @@ export function AquaTagDashboard({
 
 function SearchConsolePanel({ client }: { client: PerformanceClient }) {
   const [connections, setConnections] = useState<PublicIntegrationConnection[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [busyId, setBusyId] = useState<string>();
   const [message, setMessage] = useState<string>();
   const [connecting, setConnecting] = useState(false);
   const scopedConnections = useMemo(() => connections.filter(connection => connection.provider === "google-search-console" && (!connection.clientId || connection.clientId === client.id)), [client.id, connections]);
 
-  useEffect(() => {
-    let active = true;
-
-    async function loadConnections() {
-      setBusyId("load");
-      setLoaded(false);
-      setMessage(undefined);
-      const response = await fetch("/api/portal/settings/integrations", { cache: "no-store" });
-      const payload = await response.json().catch(() => null) as { connections?: PublicIntegrationConnection[]; error?: string } | null;
-      if (!active) return;
-      if (response.ok) setConnections(payload?.connections ?? []);
-      else setMessage(payload?.error || "Connections could not be loaded.");
-      setLoaded(true);
-      setBusyId(undefined);
+  const loadConnections = useCallback(async (signal?: AbortSignal) => {
+    setBusyId("load");
+    setLoadState("loading");
+    setMessage(undefined);
+    try {
+      const payload = await checkedJsonMutation<{ ok?: boolean; connections?: PublicIntegrationConnection[] }>(
+        "/api/portal/settings/integrations",
+        { method: "GET", cache: "no-store", signal },
+        {
+          fallback: "Search Console connections could not be loaded.",
+          validate: value => value.ok === true && Array.isArray(value.connections),
+        },
+      );
+      if (signal?.aborted) return;
+      setConnections(payload.connections ?? []);
+      setLoadState("ready");
+    } catch (nextError) {
+      if (!signal?.aborted) {
+        setLoadState("error");
+        setMessage(mutationErrorMessage(nextError, "Search Console connections could not be loaded."));
+      }
+    } finally {
+      if (!signal?.aborted) setBusyId(undefined);
     }
+  }, []);
 
-    void loadConnections();
-    return () => { active = false; };
-  }, [client.id]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadConnections(controller.signal);
+    return () => controller.abort();
+  }, [client.id, loadConnections]);
 
   async function sync(connection: PublicIntegrationConnection) {
     setBusyId(connection.id);
     setMessage(undefined);
-    const response = await fetch("/api/portal/performance/search-console", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ connectionId: connection.id, clientId: client.id }),
-    });
-    const payload = await response.json().catch(() => null) as { count?: number; connection?: PublicIntegrationConnection; error?: string } | null;
-    if (response.ok && payload?.connection) {
-      setConnections(current => current.map(item => item.id === payload.connection?.id ? payload.connection as PublicIntegrationConnection : item));
+    try {
+      const payload = await checkedJsonMutation<{ ok?: boolean; count?: number; connection?: PublicIntegrationConnection }>(
+        "/api/portal/performance/search-console",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ connectionId: connection.id, clientId: client.id }),
+        },
+        {
+          fallback: "Search Console could not be synced.",
+          validate: value => value.ok === true && Boolean(value.connection),
+        },
+      );
+      const nextConnection = payload.connection!;
+      setConnections(current => current.map(item => item.id === nextConnection.id ? nextConnection : item));
       setMessage(`Synced ${payload.count ?? 0} search rows. Refresh this page to see the updated charts.`);
-    } else setMessage(payload?.error || "Search Console could not be synced.");
-    setBusyId(undefined);
+    } catch (nextError) {
+      setMessage(mutationErrorMessage(nextError, "Search Console could not be synced."));
+    } finally {
+      setBusyId(undefined);
+    }
   }
 
   return (
@@ -130,19 +153,20 @@ function SearchConsolePanel({ client }: { client: PerformanceClient }) {
       <div className="flex flex-col gap-4 border-b border-black/10 p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6">
         <div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-md bg-[#eef6f4] text-[#17675f]"><Search size={17} /></span><div><h2 className="font-semibold text-black/85">Google Search Console</h2><p className="mt-1 max-w-2xl text-sm leading-6 text-black/50">Pull clicks, impressions, queries and landing pages server-side, then merge them with the matching Aqua property. Google credentials never enter the public tag.</p></div></div>
         <div className="flex shrink-0 flex-wrap gap-2">
-          {!loaded ? <span className="inline-flex min-h-10 items-center gap-2 px-2 text-sm font-medium text-black/45"><RefreshCw size={14} className="animate-spin" />Checking connection</span> : null}
+          {loadState === "loading" ? <span className="inline-flex min-h-10 items-center gap-2 px-2 text-sm font-medium text-black/45"><RefreshCw size={14} className="animate-spin" />Checking connection</span> : null}
+          {loadState === "error" ? <button type="button" onClick={() => void loadConnections()} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 text-sm font-semibold text-red-800"><RefreshCw size={14} />Retry connection check</button> : null}
           <button type="button" onClick={() => setConnecting(true)} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white"><KeyRound size={15} />Connect</button>
         </div>
       </div>
-      {message ? <p className="border-b border-black/10 bg-black/[0.025] px-5 py-3 text-sm text-black/65 sm:px-6">{message}</p> : null}
-      {loaded ? (scopedConnections.length ? <div className="divide-y divide-black/10">{scopedConnections.map(connection => (
+      {message ? <p role={loadState === "error" ? "alert" : "status"} className="border-b border-black/10 bg-black/[0.025] px-5 py-3 text-sm text-black/65 sm:px-6">{message}</p> : null}
+      {loadState === "ready" ? (scopedConnections.length ? <div className="divide-y divide-black/10">{scopedConnections.map(connection => (
         <div key={connection.id} className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold text-black/80">{connection.label}</p><ConnectionStatus connection={connection} /></div><p className="mt-1 truncate text-xs text-black/45">{connection.config.siteUrl || "Property not named"} · Aqua property {connection.config.propertyId || "not mapped"}</p><p className="mt-1 text-xs text-black/40">Last sync: {connection.config.lastSyncAt ? relativeTime(Number(connection.config.lastSyncAt)) : "Never"}</p></div>
           <button type="button" onClick={() => void sync(connection)} disabled={busyId === connection.id} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/15 px-3 text-sm font-semibold text-black/65 hover:bg-black/[0.03]"><RefreshCw size={14} className={busyId === connection.id ? "animate-spin" : ""} />{busyId === connection.id ? "Syncing..." : "Sync 90 days"}</button>
         </div>
-      ))}</div> : <div className="p-8 text-center"><p className="font-semibold text-black/70">No Search Console connection for this account</p><p className="mt-1 text-sm text-black/45">Connect the exact Google property and map it to an Aqua property.</p></div>) : <div className="p-6 text-sm text-black/45">Checking the current search setup...</div>}
+      ))}</div> : <div className="p-8 text-center"><p className="font-semibold text-black/70">No Search Console connection for this account</p><p className="mt-1 text-sm text-black/45">Connect the exact Google property and map it to an Aqua property.</p></div>) : loadState === "error" ? <div className="p-6 text-sm text-red-700">Connection status is unavailable. Retry the check; no empty-state assumption was made.</div> : <div className="p-6 text-sm text-black/45">Checking the current search setup...</div>}
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-black/10 px-5 py-4 text-xs text-black/45 sm:px-6"><span className="inline-flex items-center gap-2"><ShieldCheck size={14} />Encrypted credentials · read-only Google scope</span><Link href="/portal/agency/company?view=connections" className="inline-flex items-center gap-1 font-semibold text-black/60 hover:text-black">Manage all connections <ExternalLink size={12} /></Link></div>
-      {connecting ? <SearchConsoleModal client={client} onClose={() => setConnecting(false)} onSaved={next => { setConnections(next); setLoaded(true); setConnecting(false); setMessage("Search Console connection saved. Test or sync it when ready."); }} /> : null}
+      {connecting ? <SearchConsoleModal client={client} onClose={() => setConnecting(false)} onSaved={next => { setConnections(next); setLoadState("ready"); setConnecting(false); setMessage("Search Console connection saved. Test or sync it when ready."); }} /> : null}
     </section>
   );
 }
@@ -156,25 +180,35 @@ function SearchConsoleModal({ client, onClose, onSaved }: { client: PerformanceC
     setBusy(true);
     setError(undefined);
     const data = new FormData(event.currentTarget);
-    const response = await fetch("/api/portal/settings/integrations", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        action: "save",
-        provider: "google-search-console",
-        label: data.get("label"),
-        clientId: client.scope === "client" ? client.id : undefined,
-        values: {
-          siteUrl: data.get("siteUrl"),
-          propertyId: data.get("propertyId"),
-          serviceAccountJson: data.get("serviceAccountJson"),
+    try {
+      const payload = await checkedJsonMutation<{ ok?: boolean; connections?: PublicIntegrationConnection[] }>(
+        "/api/portal/settings/integrations",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            action: "save",
+            provider: "google-search-console",
+            label: data.get("label"),
+            clientId: client.scope === "client" ? client.id : undefined,
+            values: {
+              siteUrl: data.get("siteUrl"),
+              propertyId: data.get("propertyId"),
+              serviceAccountJson: data.get("serviceAccountJson"),
+            },
+          }),
         },
-      }),
-    });
-    const payload = await response.json().catch(() => null) as { connections?: PublicIntegrationConnection[]; error?: string } | null;
-    if (response.ok) onSaved(payload?.connections ?? []);
-    else setError(payload?.error || "Connection could not be saved.");
-    setBusy(false);
+        {
+          fallback: "Connection could not be saved.",
+          validate: value => value.ok === true && Array.isArray(value.connections),
+        },
+      );
+      onSaved(payload.connections ?? []);
+    } catch (nextError) {
+      setError(mutationErrorMessage(nextError, "Connection could not be saved."));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4" role="presentation"><form onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby="search-console-title" className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-lg border border-black/10 bg-white p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase text-brand">Organic search</p><h2 id="search-console-title" className="mt-1 text-xl font-semibold">Connect Search Console</h2><p className="mt-2 text-sm leading-6 text-black/50">Create a Google service account, add its email as a user on the Search Console property, then paste the downloaded JSON key below.</p></div><button type="button" onClick={onClose} aria-label="Close" className="grid size-9 shrink-0 place-items-center rounded-md hover:bg-black/[0.04]"><X size={17} /></button></div><div className="mt-5 grid gap-4"><Field label="Connection name"><input name="label" required defaultValue={`${client.name} Search Console`} className="min-h-11 rounded-md border border-black/15 px-3 text-sm" /></Field><Field label="Exact Search Console property" help="For a domain property use sc-domain:example.com"><input name="siteUrl" required className="min-h-11 rounded-md border border-black/15 px-3 text-sm" placeholder="sc-domain:example.com" /></Field><Field label="Matching Aqua property"><select name="propertyId" required className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm"><option value="">Choose property</option>{client.properties.map(property => <option key={property.id} value={property.id}>{property.label} · {property.id}</option>)}</select></Field><Field label="Service account JSON" help="Stored encrypted in the integration vault and never returned to the browser."><textarea name="serviceAccountJson" required rows={7} spellCheck={false} className="rounded-md border border-black/15 px-3 py-2 font-mono text-xs" placeholder={'{"type":"service_account", ...}'} /></Field>{error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}</div><div className="mt-6 flex justify-end gap-2"><button type="button" onClick={onClose} className="min-h-10 px-3 text-sm font-medium">Cancel</button><button disabled={busy} className="min-h-10 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving..." : "Save connection"}</button></div></form></div>;
@@ -186,25 +220,35 @@ function MonthlyReportsPanel({ client, selectedPropertyId, onReportsChange }: { 
   const [busy, setBusy] = useState<string>();
   const [message, setMessage] = useState<string>();
 
-  async function action(actionName: "generate" | "publish" | "delete", reportId?: string) {
+  async function action(actionName: "generate" | "publish" | "withdraw" | "delete", reportId?: string, withdrawalReason?: string) {
     setBusy(reportId || actionName);
     setMessage(undefined);
-    const response = await fetch("/api/portal/performance/reports", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: actionName, clientId: client.id, reportId, propertyId: actionName === "generate" ? selectedPropertyId : undefined, month }) });
+    const response = await fetch("/api/portal/performance/reports", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: actionName, clientId: client.id, reportId, propertyId: actionName === "generate" ? selectedPropertyId : undefined, month, withdrawalReason }) });
     const payload = await response.json().catch(() => null) as { reports?: MonthlyPerformanceReport[]; error?: string } | null;
     if (response.ok) {
       const next = payload?.reports ?? [];
       setReports(next);
       onReportsChange(next);
-      setMessage(actionName === "generate" ? "Draft generated from the selected month." : actionName === "publish" ? "Report published in the client portal." : "Report deleted.");
+      setMessage(actionName === "generate" ? "A new draft revision was generated from the selected month." : actionName === "publish" ? "Report published in the client portal." : actionName === "withdraw" ? "Report withdrawn from the client portal; its history was retained." : "Draft deleted.");
     } else setMessage(payload?.error || "The report could not be updated.");
     setBusy(undefined);
   }
 
-  return <section className="rounded-lg border border-black/10 bg-white"><div className="flex flex-col gap-4 border-b border-black/10 p-5 lg:flex-row lg:items-end lg:justify-between sm:p-6"><div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-md bg-[#f6f1e8] text-[#7c6032]"><FileBarChart size={18} /></span><div><h2 className="font-semibold text-black/85">Monthly client reports</h2><p className="mt-1 max-w-2xl text-sm leading-6 text-black/50">Generate a factual draft, check it, then publish it into {client.name}&apos;s Results area.</p></div></div><div className="flex flex-col gap-2 sm:flex-row"><label className="grid gap-1 text-[10px] font-semibold uppercase text-black/45">Report month<input type="month" value={month} max={new Date().toISOString().slice(0, 7)} onChange={event => setMonth(event.target.value)} className="min-h-10 rounded-md border border-black/15 px-3 text-sm font-medium normal-case" /></label><button type="button" onClick={() => void action("generate")} disabled={Boolean(busy)} className="mt-auto inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50"><CalendarDays size={15} />{busy === "generate" ? "Generating..." : "Generate draft"}</button></div></div>{message ? <p className="border-b border-black/10 bg-black/[0.025] px-5 py-3 text-sm text-black/60 sm:px-6">{message}</p> : null}{reports.length ? <div className="divide-y divide-black/10">{reports.map(report => <ReportRow key={report.id} report={report} propertyLabel={client.properties.find(item => item.id === report.propertyId)?.label} busy={busy === report.id} onPublish={() => void action("publish", report.id)} onDelete={() => void action("delete", report.id)} />)}</div> : <div className="p-9 text-center"><FileBarChart className="mx-auto text-black/20" /><p className="mt-3 font-semibold text-black/70">No monthly reports yet</p><p className="mt-1 text-sm text-black/45">Generate the first draft when the reporting month is ready.</p></div>}</section>;
+  function deleteDraft(report: MonthlyPerformanceReport) {
+    if (window.confirm(`Delete draft revision ${report.revision} of ${report.label}? This cannot be undone.`)) void action("delete", report.id);
+  }
+
+  function withdraw(report: MonthlyPerformanceReport) {
+    const reason = window.prompt(`Why is ${report.label} revision ${report.revision} being withdrawn from the client portal?`);
+    if (reason?.trim()) void action("withdraw", report.id, reason);
+  }
+
+  return <section className="rounded-lg border border-black/10 bg-white"><div className="flex flex-col gap-4 border-b border-black/10 p-5 lg:flex-row lg:items-end lg:justify-between sm:p-6"><div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-md bg-[#f6f1e8] text-[#7c6032]"><FileBarChart size={18} /></span><div><h2 className="font-semibold text-black/85">Monthly client reports</h2><p className="mt-1 max-w-2xl text-sm leading-6 text-black/50">Generate a factual draft, check it, then publish it into {client.name}&apos;s Results area. Published revisions stay in the audit history.</p></div></div><div className="flex flex-col gap-2 sm:flex-row"><label className="grid gap-1 text-[10px] font-semibold uppercase text-black/45">Report month<input type="month" value={month} max={new Date().toISOString().slice(0, 7)} onChange={event => setMonth(event.target.value)} className="min-h-10 rounded-md border border-black/15 px-3 text-sm font-medium normal-case" /></label><button type="button" onClick={() => void action("generate")} disabled={Boolean(busy)} className="mt-auto inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50"><CalendarDays size={15} />{busy === "generate" ? "Generating..." : "Generate draft"}</button></div></div>{message ? <p className="border-b border-black/10 bg-black/[0.025] px-5 py-3 text-sm text-black/60 sm:px-6">{message}</p> : null}{reports.length ? <div className="divide-y divide-black/10">{reports.map(report => <ReportRow key={report.id} report={report} propertyLabel={client.properties.find(item => item.id === report.propertyId)?.label} busy={busy === report.id} onPublish={() => void action("publish", report.id)} onWithdraw={() => withdraw(report)} onDelete={() => deleteDraft(report)} />)}</div> : <div className="p-9 text-center"><FileBarChart className="mx-auto text-black/20" /><p className="mt-3 font-semibold text-black/70">No monthly reports yet</p><p className="mt-1 text-sm text-black/45">Generate the first draft when the reporting month is ready.</p></div>}</section>;
 }
 
-function ReportRow({ report, propertyLabel, busy, onPublish, onDelete }: { report: MonthlyPerformanceReport; propertyLabel?: string; busy: boolean; onPublish: () => void; onDelete: () => void }) {
-  return <div className="p-5 sm:p-6"><div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div><div className="flex flex-wrap items-center gap-2"><p className="font-semibold text-black/80">{report.label}</p><span className={`rounded px-2 py-0.5 text-[10px] font-semibold uppercase ${report.status === "published" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{report.status}</span></div><p className="mt-1 text-xs text-black/42">{propertyLabel || "All properties"} · generated {formatUkDate(report.generatedAt, { dateStyle: "medium" })}</p></div><div className="grid grid-cols-3 gap-4 text-center lg:min-w-80"><ReportMetric label="Views" value={report.analytics.current.views} /><ReportMetric label="Enquiries" value={report.analytics.current.conversions} /><ReportMetric label="Search clicks" value={report.analytics.current.searchClicks} /></div><div className="flex gap-2">{report.status === "draft" ? <button type="button" onClick={onPublish} disabled={busy} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white"><Send size={14} />Publish</button> : <span className="inline-flex min-h-10 items-center gap-2 px-2 text-sm font-semibold text-emerald-700"><Check size={14} />In portal</span>}<button type="button" onClick={onDelete} disabled={busy} className="min-h-10 rounded-md border border-black/10 px-3 text-sm text-black/50 hover:text-red-700">Delete</button></div></div><details className="mt-4 border-t border-black/8 pt-4"><summary className="cursor-pointer text-sm font-semibold text-black/60">Preview report summary</summary><div className="mt-4 grid gap-5 md:grid-cols-2"><ReportList title="Highlights" rows={report.highlights} /><ReportList title="Next steps" rows={report.nextSteps} /></div></details></div>;
+function ReportRow({ report, propertyLabel, busy, onPublish, onWithdraw, onDelete }: { report: MonthlyPerformanceReport; propertyLabel?: string; busy: boolean; onPublish: () => void; onWithdraw: () => void; onDelete: () => void }) {
+  const statusTone = report.status === "published" ? "bg-emerald-50 text-emerald-700" : report.status === "draft" ? "bg-amber-50 text-amber-700" : "bg-black/[0.05] text-black/45";
+  return <div className="p-5 sm:p-6"><div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div><div className="flex flex-wrap items-center gap-2"><p className="font-semibold text-black/80">{report.label}</p><span className={`rounded px-2 py-0.5 text-[10px] font-semibold uppercase ${statusTone}`}>{report.status}</span><span className="text-[10px] font-medium text-black/35">revision {report.revision}</span></div><p className="mt-1 text-xs text-black/42">{propertyLabel || "All properties"} · generated {formatUkDate(report.generatedAt, { dateStyle: "medium" })}</p></div><div className="grid grid-cols-3 gap-4 text-center lg:min-w-80"><ReportMetric label="Views" value={report.analytics.current.views} /><ReportMetric label="Enquiries" value={report.analytics.current.conversions} /><ReportMetric label="Search clicks" value={report.analytics.current.searchClicks} /></div><div className="flex gap-2">{report.status === "draft" ? <><button type="button" onClick={onPublish} disabled={busy} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white"><Send size={14} />Publish</button><button type="button" onClick={onDelete} disabled={busy} className="min-h-10 rounded-md border border-black/10 px-3 text-sm text-black/50 hover:text-red-700">Delete draft</button></> : report.status === "published" ? <><span className="inline-flex min-h-10 items-center gap-2 px-2 text-sm font-semibold text-emerald-700"><Check size={14} />In portal</span><button type="button" onClick={onWithdraw} disabled={busy} className="min-h-10 rounded-md border border-black/10 px-3 text-sm text-black/50 hover:text-red-700">Withdraw</button></> : <span className="inline-flex min-h-10 items-center px-2 text-sm font-semibold text-black/40">History retained</span>}</div></div><details className="mt-4 border-t border-black/8 pt-4"><summary className="cursor-pointer text-sm font-semibold text-black/60">Preview report summary</summary><div className="mt-4 grid gap-5 md:grid-cols-2"><ReportList title="Highlights" rows={report.highlights} /><ReportList title="Next steps" rows={report.nextSteps} /></div></details></div>;
 }
 
 function StatusMetric({ label, value, detail, good }: { label: string; value: string; detail: string; good?: boolean }) { return <div className="min-h-24 p-4 sm:p-5"><p className="text-[10px] font-semibold uppercase text-black/40">{label}</p><p className={`mt-2 text-lg font-semibold ${good ? "text-emerald-700" : "text-black/75"}`}>{value}</p><p className="mt-1 text-xs text-black/40">{detail}</p></div>; }

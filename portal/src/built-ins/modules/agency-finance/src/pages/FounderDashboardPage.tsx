@@ -3,12 +3,15 @@ import { ArrowDownToLine, ArrowRight, CircleAlert, CircleGauge, CreditCard, Land
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
 import { FinanceNav } from "../components/FinanceNav";
+import { FinanceCurrencyNav } from "../components/FinanceCurrencyNav";
 import { buildBudgetPotSnapshots } from "../lib/budgetHealth";
+import { normaliseCurrency } from "../lib/currencies";
 import { taxPosition } from "../lib/taxPosition";
 import { formatUkDate } from "../lib/safeDate";
+import { invoiceNetPaidCents } from "../lib/paymentAllocation";
 import { listAgencyCampaignBudgetRecords } from "@/lib/server/finance/financeBudgetCampaigns";
 import { resolveFinanceDefaultCurrency } from "@/lib/server/finance/financeCurrency";
-import { cleanClientPaymentPlans, summariseClientPaymentPosition } from "@/lib/clients/clientPaymentPlans";
+import { cleanClientPaymentPlans, summariseClientPaymentPosition, type ClientPaymentCurrencyPosition } from "@/lib/clients/clientPaymentPlans";
 import { summariseClientServiceExpansion } from "@/lib/clients/clientCommercialIntelligence";
 import { cleanClientProductProcessState, longestActiveClientProductStage } from "@/lib/clients/clientProductProcess";
 
@@ -19,50 +22,47 @@ function money(cents: number, currency = "gbp"): string {
   }).format(cents / 100);
 }
 
+function paymentPositionMoney(
+  positions: readonly ClientPaymentCurrencyPosition[],
+  field: "agreedCents" | "paidCents" | "outstandingCents",
+): string {
+  const retained = positions.filter(position => position.agreedCents > 0);
+  return retained.length ? retained.map(position => money(position[field], position.currency)).join(" · ") : "—";
+}
+
 export default async function FounderDashboardPage(props: PluginPageProps) {
   const c = containerFor({
     agencyId: props.agencyId,
     storage: props.storage,
     install: props.install,
   });
-  const [invoices, expenses, payments, otherIncome, plans, clients, budgetPots, campaignBudgets, workforcePayments] = await Promise.all([
+  const defaultCurrency = resolveFinanceDefaultCurrency(props.agencyId, props.install.config.defaultCurrency);
+  const requestedCurrency = typeof props.searchParams.currency === "string" ? props.searchParams.currency : undefined;
+  const currency = normaliseCurrency(requestedCurrency, defaultCurrency);
+  const now = Date.now();
+  const [invoices, expenses, payments, refunds, otherIncome, accounting, clients, budgetPots, campaignBudgets, workforcePayments] = await Promise.all([
     c.invoices.list(),
     c.expenses.list(),
     c.payments.list(),
+    c.payments.listRefunds(),
     c.income.list(),
-    c.plans.list(false),
+    c.accounting.snapshot({ from: 0, to: now, currency }),
     Promise.resolve(c.tenant.listClients?.(props.agencyId) ?? []),
     c.budgets.list(),
     listAgencyCampaignBudgetRecords(props.agencyId),
     c.operations.listCompensationPayments(),
   ]);
 
-  // The agency's CONFIGURED default, not "whatever record happened to sort
-  // first". The old line was `invoices[0]?.currency ?? expenses[0]?.currency ??
-  // plans[0]?.currency ?? "gbp"`, and since every aggregate below filters to
-  // this value, one stray USD invoice sorting first flipped the whole dashboard
-  // to USD and silently dropped every GBP figure with no indicator at all.
-  // Reports / Operations / Settings already resolve it this way.
-  const currency = resolveFinanceDefaultCurrency(props.agencyId, props.install.config.defaultCurrency);
   const paidExpenses = expenses.filter(expense => expense.status === "reimbursed" && expense.currency === currency);
   const paymentInvoiceIds = new Set(payments.map(payment => payment.invoiceId));
   const legacyPaidInvoices = invoices.filter(invoice =>
     invoice.currency === currency && invoice.status === "paid" && !paymentInvoiceIds.has(invoice.id),
   );
-  const incomeCents = payments
-    .filter(payment => payment.currency === currency)
-    .reduce((sum, payment) => sum + payment.amountCents, 0)
-    + legacyPaidInvoices.reduce((sum, invoice) => sum + invoice.totalCents, 0)
-    + otherIncome.filter(entry => entry.currency === currency).reduce((sum, entry) => sum + entry.amountCents, 0);
-  const expenseCents = paidExpenses.reduce((sum, expense) => sum + expense.amountCents, 0);
-  const netCents = incomeCents - expenseCents;
-  const outputTaxCents = invoices
-    .filter(invoice => invoice.status === "paid" && invoice.currency === currency)
-    .reduce((sum, invoice) => sum + invoice.taxCents, 0);
-  const inputTaxCents = paidExpenses.reduce(
-    (sum, expense) => sum + (expense.taxDeductible === false ? 0 : (expense.taxCents ?? 0)),
-    0,
-  );
+  const incomeCents = accounting.cashRevenueCents;
+  const expenseCents = accounting.cashExpenseCents;
+  const netCents = accounting.cashNetCents;
+  const outputTaxCents = accounting.outputTaxCents;
+  const inputTaxCents = accounting.inputTaxCents;
   // The SIGNED position, in the direction it actually points.
   //
   // This row rendered `Math.max(0, outputTaxCents - inputTaxCents)`. When
@@ -75,10 +75,8 @@ export default async function FounderDashboardPage(props: PluginPageProps) {
   const tax = taxPosition(outputTaxCents, inputTaxCents);
   const taxReserveRate = Number(props.install.config.taxReserveRate ?? 20);
   const indicativeTaxReserveCents = Math.max(0, Math.round(netCents * taxReserveRate / 100));
-  const outstandingCents = invoices
-    .filter(invoice => invoice.currency === currency && ["sent", "overdue"].includes(invoice.status))
-    .reduce((sum, invoice) => sum + invoice.totalCents, 0);
-  const missingReceipts = paidExpenses.filter(expense => !expense.receiptUrl && !expense.attachments?.length).length;
+  const outstandingCents = accounting.outstandingReceivableCents;
+  const missingReceipts = accounting.missingReceiptCount;
   const budgetSnapshots = buildBudgetPotSnapshots(budgetPots, campaignBudgets, expenses, workforcePayments)
     .filter(pot => pot.currency === currency && pot.status !== "closed");
   const allocatedBudgetCents = budgetSnapshots.reduce((sum, pot) => sum + pot.allocatedCents, 0);
@@ -88,7 +86,7 @@ export default async function FounderDashboardPage(props: PluginPageProps) {
   const spendableBalanceCents = netCents - indicativeTaxReserveCents;
   const unallocatedBalanceCents = spendableBalanceCents - fundedBudgetCents;
   const fundingCoverage = allocatedBudgetCents > 0 ? fundedBudgetCents / allocatedBudgetCents : 1;
-  const hasFinancialBaseline = incomeCents + expenseCents > 0 || budgetSnapshots.length > 0;
+  const hasFinancialBaseline = accounting.hasData || budgetSnapshots.length > 0;
   const calculatedBalanceHealthScore = Math.max(0, Math.min(100,
     100
     - (netCents < 0 ? 40 : 0)
@@ -103,27 +101,29 @@ export default async function FounderDashboardPage(props: PluginPageProps) {
     const clientInvoices = invoices.filter(invoice => invoice.clientId === client.id);
     const payment = summariseClientPaymentPosition(
       cleanClientPaymentPlans(client.metadata?.clientPaymentPlans),
-      clientInvoices,
+      clientInvoices.map(invoice => ({
+        ...invoice,
+        netPaidCents: invoiceNetPaidCents(invoice.id, payments, refunds),
+      })),
     );
     const expansion = summariseClientServiceExpansion(client.metadata?.portalProductAssignmentHistory);
     const longestStage = longestActiveClientProductStage(cleanClientProductProcessState(client.metadata?.clientProductProcess));
     return { client, payment, expansion, longestStage };
   }).sort((left, right) =>
     right.payment.missedPayments - left.payment.missedPayments
-    || right.payment.outstandingCents - left.payment.outstandingCents
+    || right.payment.currencyPositions.filter(position => position.outstandingCents > 0).length - left.payment.currencyPositions.filter(position => position.outstandingCents > 0).length
+    || right.payment.openInvoices - left.payment.openInvoices
     || (right.longestStage?.elapsedMs ?? 0) - (left.longestStage?.elapsedMs ?? 0),
   );
   const missedPaymentCount = clientCommercialRows.reduce((sum, row) => sum + row.payment.missedPayments, 0);
   const clientsPaidInFull = clientCommercialRows.filter(row => row.payment.state === "paid-in-full").length;
 
   const clientNameById = new Map(clients.map(client => [client.id, client.name]));
+  const clientCashById = new Map(accounting.byClient.map(row => [row.clientId, row]));
   const profitability = clients.map(client => {
-    const revenueCents = invoices
-      .filter(invoice => invoice.clientId === client.id && invoice.status === "paid" && invoice.currency === currency)
-      .reduce((sum, invoice) => sum + invoice.totalCents, 0);
-    const costCents = paidExpenses
-      .filter(expense => expense.clientId === client.id)
-      .reduce((sum, expense) => sum + expense.amountCents, 0);
+    const cash = clientCashById.get(client.id);
+    const revenueCents = cash?.cashRevenueCents ?? 0;
+    const costCents = cash?.cashExpenseCents ?? 0;
     return {
       clientId: client.id,
       name: client.name,
@@ -134,22 +134,37 @@ export default async function FounderDashboardPage(props: PluginPageProps) {
   }).filter(row => row.revenueCents > 0 || row.costCents > 0)
     .sort((a, b) => b.profitCents - a.profitCents);
 
+  const invoiceById = new Map(invoices.map(invoice => [invoice.id, invoice]));
   const recent = [
     ...paidExpenses.map(expense => ({
       id: expense.id,
-      at: expense.incurredAt,
+      at: expense.reimbursedAt ?? expense.incurredAt,
       label: expense.vendor || expense.description || "Expense",
       detail: expense.clientId ? clientNameById.get(expense.clientId) ?? "Client cost" : "Business overhead",
       amountCents: -expense.amountCents,
     })),
-    ...invoices.filter(invoice => invoice.status === "paid").map(invoice => ({
+    ...payments.filter(payment => payment.currency === currency).map(payment => ({
+      id: payment.id,
+      at: payment.paidAt,
+      label: invoiceById.get(payment.invoiceId)?.number ?? payment.invoiceId,
+      detail: clientNameById.get(payment.clientId) ?? "Client payment",
+      amountCents: payment.amountCents,
+    })),
+    ...refunds.filter(refund => refund.currency === currency).map(refund => ({
+      id: refund.id,
+      at: refund.refundedAt,
+      label: `Refund · ${invoiceById.get(refund.invoiceId)?.number ?? refund.invoiceId}`,
+      detail: clientNameById.get(refund.clientId) ?? "Client refund",
+      amountCents: -refund.amountCents,
+    })),
+    ...legacyPaidInvoices.map(invoice => ({
       id: invoice.id,
       at: invoice.paidAt ?? invoice.issuedAt,
       label: invoice.number,
       detail: clientNameById.get(invoice.clientId) ?? "Client payment",
       amountCents: invoice.totalCents,
     })),
-    ...otherIncome.map(entry => ({
+    ...otherIncome.filter(entry => entry.currency === currency).map(entry => ({
       id: entry.id,
       at: entry.receivedAt,
       label: entry.title,
@@ -173,10 +188,18 @@ export default async function FounderDashboardPage(props: PluginPageProps) {
         </div>
       </header>
 
-      <dl className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
-        <Metric label="Income received" value={money(incomeCents, currency)} icon={ArrowDownToLine} tone="income" />
-        <Metric label="Paid expenses" value={money(expenseCents, currency)} icon={ReceiptText} tone="expense" />
-        <Metric label="Operating profit" value={money(netCents, currency)} icon={PoundSterling} tone={netCents < 0 ? "bad" : "good"} />
+      <FinanceCurrencyNav
+        active={currency}
+        available={[...accounting.availableCurrencies, ...budgetPots.map(pot => pot.currency)]}
+        path="/portal/agency/agency-finance"
+        label="Overview currency"
+      />
+
+      <dl className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+        <Metric label="Cash received (net of refunds)" value={money(incomeCents, currency)} icon={ArrowDownToLine} tone="income" />
+        <Metric label="Cash paid" value={money(expenseCents, currency)} icon={ReceiptText} tone="expense" />
+        <Metric label="Cash net" value={money(netCents, currency)} icon={PoundSterling} tone={netCents < 0 ? "bad" : "good"} />
+        <Metric label="Committed costs" value={money(accounting.committedExpenseCents, currency)} icon={ReceiptText} tone="expense" />
         <Metric label="Outstanding invoices" value={money(outstandingCents, currency)} icon={Landmark} tone="outstanding" />
         <Metric label={`Tax reserve (${taxReserveRate}%)`} value={money(indicativeTaxReserveCents, currency)} icon={CircleAlert} tone="reserve" />
         <Metric label="Missed payments" value={String(missedPaymentCount)} icon={CreditCard} tone={missedPaymentCount ? "bad" : "good"} />
@@ -212,9 +235,9 @@ export default async function FounderDashboardPage(props: PluginPageProps) {
             <tbody>{clientCommercialRows.map(row => <tr key={row.client.id} className="border-b border-black/[0.07] align-top">
               <td className="py-3 pr-3"><a className="font-medium text-black/80 hover:underline" href={`/portal/clients/${row.client.id}?tab=finance`}>{row.client.name}</a></td>
               <td className="py-3"><span className={`inline-flex rounded-full px-2 py-1 text-[10px] font-semibold uppercase ${paymentPositionClass(row.payment.state)}`}>{row.payment.label}</span><p className="mt-1 text-[10px] text-black/40">{row.payment.activePlans} active plan{row.payment.activePlans === 1 ? "" : "s"} · {row.payment.openInvoices} open invoice{row.payment.openInvoices === 1 ? "" : "s"}</p></td>
-              <td className="py-3 text-right font-mono">{row.payment.agreedCents ? money(row.payment.agreedCents, row.payment.currency) : "—"}</td>
-              <td className="py-3 text-right font-mono text-emerald-800">{row.payment.agreedCents ? money(row.payment.paidCents, row.payment.currency) : "—"}</td>
-              <td className={`py-3 text-right font-mono font-semibold ${row.payment.outstandingCents ? "text-amber-800" : "text-black/45"}`}>{row.payment.agreedCents ? money(row.payment.outstandingCents, row.payment.currency) : "—"}</td>
+              <td className="py-3 text-right font-mono">{paymentPositionMoney(row.payment.currencyPositions, "agreedCents")}</td>
+              <td className="py-3 text-right font-mono text-emerald-800">{paymentPositionMoney(row.payment.currencyPositions, "paidCents")}</td>
+              <td className={`py-3 text-right font-mono font-semibold ${row.payment.currencyPositions.some(position => position.outstandingCents > 0) ? "text-amber-800" : "text-black/45"}`}>{paymentPositionMoney(row.payment.currencyPositions, "outstandingCents")}</td>
               <td className={`py-3 text-center font-semibold ${row.payment.missedPayments ? "text-red-700" : "text-emerald-700"}`}>{row.payment.missedPayments}</td>
               <td className="py-3 text-xs text-black/55">{row.payment.nextDueAt ? formatUkDate(row.payment.nextDueAt, { day: "numeric", month: "short", year: "numeric" }) : "—"}</td>
               <td className="py-3 text-xs text-black/55">{row.longestStage ? <><span className="font-semibold text-black/70">{humaniseId(row.longestStage.stageId)}</span><br />{duration(row.longestStage.elapsedMs)} in stage</> : "No stage timing"}</td>
@@ -259,7 +282,7 @@ export default async function FounderDashboardPage(props: PluginPageProps) {
           <div className="flex items-start gap-3"><span className="mm-area-icon grid size-9 shrink-0 place-items-center rounded-md"><Landmark size={16} /></span><div><h2 className="text-base font-semibold text-black/85">Tax record</h2>
           <p className="mt-1 text-sm text-black/45">Recorded tax only. Filing treatment depends on your registration and accountant.</p></div></div>
           <dl className="mt-4 divide-y divide-black/10 border-y border-black/10 text-sm">
-            <Row label="Tax charged on paid invoices" value={money(outputTaxCents, currency)} />
+            <Row label="Tax attributed to cash receipts" value={money(outputTaxCents, currency)} />
             <Row label="Recoverable tax on costs" value={money(inputTaxCents, currency)} />
             <Row label={tax.recordedLabel} value={money(tax.displayCents, currency)} strong />
           </dl>

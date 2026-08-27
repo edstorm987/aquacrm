@@ -10,6 +10,7 @@ import type {
 export interface StoragePort {
   get<T = unknown>(key: string): Promise<T | undefined>;
   set<T = unknown>(key: string, value: T): Promise<void>;
+  setIfAbsent?<T = unknown>(key: string, value: T): Promise<boolean>;
   del(key: string): Promise<void>;
   list(prefix?: string): Promise<string[]>;
 }

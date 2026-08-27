@@ -11,7 +11,7 @@ import {
   type WebsiteEnquiryClassification,
 } from "@/lib/enquiries/enquiryClassification";
 import { formatUkDateTime } from "@/lib/shared/formatDateTime";
-import type { IdentityResolutionReview } from "@/server/types";
+import type { IdentityResolutionReview, PortalFormFieldDefinition } from "@/server/types";
 import { IdentityReviewWorkspace } from "./_IdentityReviewWorkspace";
 import {
   LEAD_RELATIONSHIP_CATEGORIES,
@@ -97,6 +97,8 @@ export function PeopleHub({
   clientDefaults,
   journeyWorkspace,
   identityReviews,
+  canManage,
+  clientCustomFields,
 }: {
   clients: HubClient[];
   contacts: HubContact[];
@@ -106,6 +108,8 @@ export function PeopleHub({
   clientDefaults: NewClientDefaults;
   journeyWorkspace: React.ReactNode;
   identityReviews: IdentityResolutionReview[];
+  canManage: boolean;
+  clientCustomFields: PortalFormFieldDefinition[];
 }) {
   const [contactRows, setContactRows] = useState(contacts);
   const [view, setView] = useState<View>(initialView);
@@ -183,12 +187,14 @@ export function PeopleHub({
           <h1 className="mt-1 text-2xl font-semibold text-black/90">Journey, leads, clients & contacts</h1>
           <p className="mt-1 max-w-2xl text-sm text-black/55">Trace campaigns and enquiries into categorised leads, contacts and clients without forcing every person to become a customer.</p>
         </div>
-        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
-          <button type="button" onClick={() => setAddingContact(true)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium text-black/75 hover:bg-black/[0.03]">
-            <Plus size={16} /> Add contact
-          </button>
-          <NewClientButton products={products} brands={brands} defaults={clientDefaults} />
-        </div>
+        {canManage ? (
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
+            <button type="button" onClick={() => setAddingContact(true)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium text-black/75 hover:bg-black/[0.03]">
+              <Plus size={16} /> Add contact
+            </button>
+            <NewClientButton products={products} brands={brands} defaults={clientDefaults} customFields={clientCustomFields} />
+          </div>
+        ) : <span className="rounded-full bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700 ring-1 ring-inset ring-sky-200">Read-only showcase</span>}
       </header>
 
       <div className="mt-6 border-b border-black/10">
@@ -197,7 +203,7 @@ export function PeopleHub({
           <Tab active={view === "leads"} onClick={() => selectView("leads")} label="Leads" count={leadRows.length} icon={UserSearch} attentionPrefixHref="/portal/agency/pipelines/leads" />
           <Tab active={view === "journey"} onClick={() => selectView("journey")} label="Journey" count={journeyRows.length} icon={Route} attentionPrefixHref="/portal/agency/pipelines" />
           <Tab active={view === "contacts"} onClick={() => selectView("contacts")} label="Contacts" count={clients.length + contactRows.length} icon={UserRound} />
-          <Tab active={view === "identity"} onClick={() => selectView("identity")} label="Identity review" count={identityReviews.filter(review => review.status === "pending").length} icon={Fingerprint} />
+          {canManage ? <Tab active={view === "identity"} onClick={() => selectView("identity")} label="Identity review" count={identityReviews.filter(review => review.status === "pending").length} icon={Fingerprint} /> : null}
           <Tab active={view === "staff"} onClick={() => selectView("staff")} label="Staff" count={staffCount} icon={UsersRound} />
         </div>
       </div>
@@ -243,25 +249,25 @@ export function PeopleHub({
 
       {view === "contacts" || view === "clients" ? (
         <PeopleSection title="Clients" count={filteredClients.length} attentionCount={filteredClients.filter(client => client.health === "attention").length} hidden={view === "contacts" && filteredClients.length === 0}>
-          {filteredClients.map(client => <ClientRow key={client.id} client={client} />)}
+          {filteredClients.map(client => <ClientRow key={client.id} client={client} canManage={canManage} />)}
           {filteredClients.length === 0 ? <Empty text={clients.length ? "No clients match this search." : "No clients yet."} /> : null}
         </PeopleSection>
       ) : null}
 
       {view === "contacts" || view === "leads" ? (
         <PeopleSection title="Leads" count={filteredLeads.length} attentionCount={filteredLeads.filter(leadNeedsAttention).length} hidden={view === "contacts" && filteredLeads.length === 0} attentionLabel="need a response">
-          {filteredLeads.map(lead => <LeadRow key={`${lead.recordKind}:${lead.id}`} lead={lead} onReview={setReviewing} />)}
+          {filteredLeads.map(lead => <LeadRow key={`${lead.recordKind}:${lead.id}`} lead={lead} onReview={canManage ? setReviewing : undefined} />)}
           {filteredLeads.length === 0 ? <Empty text={leadRows.length ? "No leads match these filters." : "No leads yet."} /> : null}
         </PeopleSection>
       ) : null}
 
-      {view === "journey" ? <div className="mt-6 min-w-0">{journeyWorkspace}</div> : null}
+      {view === "journey" ? <div className="mt-6 min-w-0">{canManage ? journeyWorkspace : <JourneySection rows={journeyRows} canManage={false} />}</div> : null}
 
       {view === "identity" ? <IdentityReviewWorkspace initialReviews={identityReviews} clients={clients.map(client => ({ id: client.id, name: client.name, ownerEmail: client.ownerEmail, stage: client.stageLabel, relationshipId: client.relationshipId, workspaceLabel: client.workspaceLabel, providerName: client.brandName }))} /> : null}
 
       {view === "contacts" || view === "staff" ? (
         <PeopleSection title={view === "staff" ? "Staff" : "Other contacts"} count={filteredContacts.length} hidden={view === "contacts" && filteredContacts.length === 0}>
-          {filteredContacts.map(contact => <ContactRow key={`${contact.recordKind}:${contact.id}`} contact={contact} onReview={setReviewing} />)}
+          {filteredContacts.map(contact => <ContactRow key={`${contact.recordKind}:${contact.id}`} contact={contact} onReview={canManage ? setReviewing : undefined} />)}
           {filteredContacts.length === 0 ? (
             <Empty text={view === "staff" ? (staffCount ? "No staff match this search." : "No staff added yet.") : (contactRows.length ? "No contacts match these filters." : "No contacts yet.")} />
           ) : null}
@@ -270,8 +276,8 @@ export function PeopleHub({
 
       {view === "contacts" && filteredClients.length === 0 && filteredLeads.length === 0 && filteredContacts.length === 0 ? <Empty text="No contacts match this search." /> : null}
 
-      {addingContact ? <AddContactModal onClose={() => setAddingContact(false)} /> : null}
-      {reviewing ? <ContactScratchpad contact={reviewing} onClose={() => setReviewing(null)} onSaved={updated => {
+      {canManage && addingContact ? <AddContactModal onClose={() => setAddingContact(false)} /> : null}
+      {canManage && reviewing ? <ContactScratchpad contact={reviewing} onClose={() => setReviewing(null)} onSaved={updated => {
         setContactRows(current => current.map(row => row.id === updated.id && row.recordKind === updated.recordKind ? updated : row));
         setReviewing(updated);
       }} /> : null}
@@ -304,7 +310,7 @@ function PeopleSection({ title, count, attentionCount = 0, attentionLabel = "nee
   );
 }
 
-function ClientRow({ client }: { client: HubClient }) {
+function ClientRow({ client, canManage }: { client: HubClient; canManage: boolean }) {
   const initials = client.name.split(/\s+/).slice(0, 2).map(word => word[0]?.toUpperCase()).join("") || "C";
   const needsAttention = client.health === "attention";
   const healthDetail = client.healthNotes.length ? client.healthNotes.join(" · ") : "Details are complete and contact is current.";
@@ -320,15 +326,15 @@ function ClientRow({ client }: { client: HubClient }) {
         {needsAttention ? <p className="mt-1 flex items-center gap-1.5 text-xs font-medium text-red-700"><HeartPulse size={12} className="shrink-0" aria-hidden="true" /><span className="truncate" title={healthDetail}>{healthDetail}</span></p> : null}
       </div>
       <div className="col-start-2 flex w-fit flex-wrap items-center gap-2 sm:col-start-auto">
-        {needsAttention ? <Link href={`/portal/clients/${client.id}?tab=relationship`} title={healthDetail} className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100">Review health</Link> : null}
-        <Link
+        {canManage && needsAttention ? <Link href={`/portal/clients/${client.id}?tab=relationship`} title={healthDetail} className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100">Review health</Link> : null}
+        {canManage ? <Link
           href={`/portal/clients/${client.id}?tab=notes`}
           aria-label={`Open ${client.name} client record`}
           title={`Open ${client.name} internal client record`}
           className="grid size-9 place-items-center rounded-md border border-black/15 bg-white text-black/60 hover:bg-black/[0.04] hover:text-black"
         >
           <Settings size={15} aria-hidden="true" />
-        </Link>
+        </Link> : null}
         <Link href={`/portal/clients/${client.id}`} title={`Open ${client.name} internal workspace`} className="rounded-md border border-black/15 bg-white px-3 py-2 text-xs font-semibold text-black/70 hover:bg-black/[0.03]">Open workspace</Link>
       </div>
     </div>
@@ -355,7 +361,7 @@ function leadSortTime(lead: HubContact): number {
   return lead.lastEnquiryAt ?? lead.nextMeetingAt ?? lead.lastContactedAt ?? lead.capturedAt ?? lead.createdAt ?? 0;
 }
 
-function LeadRow({ lead, onReview }: { lead: HubContact; onReview: (lead: HubContact) => void }) {
+function LeadRow({ lead, onReview }: { lead: HubContact; onReview?: (lead: HubContact) => void }) {
   const needsAttention = leadNeedsAttention(lead);
   const category = leadCategory(lead);
   const pipelineLeadId = lead.recordKind === "lead" ? lead.id : lead.promotedFromLeadId;
@@ -390,8 +396,8 @@ function LeadRow({ lead, onReview }: { lead: HubContact; onReview: (lead: HubCon
       <div className="col-start-2 flex w-fit flex-wrap items-center gap-1.5 sm:col-start-auto">
         {lead.phone ? <a href={`tel:${lead.phone}`} title="Call lead" aria-label={`Call ${lead.name || lead.email}`} className="grid size-9 place-items-center rounded-md border border-black/10 bg-white text-black/50 hover:bg-black/[0.03]"><Phone size={15} /></a> : null}
         <a href={`mailto:${lead.email}`} title="Email lead" aria-label={`Email ${lead.name || lead.email}`} className="grid size-9 place-items-center rounded-md border border-black/10 bg-white text-black/50 hover:bg-black/[0.03]"><Mail size={15} /></a>
-        <button type="button" onClick={() => onReview(lead)} title="Review lead notes" aria-label={`Review ${lead.name || lead.email}`} className="grid size-9 place-items-center rounded-md border border-black/10 bg-white text-black/50 hover:bg-black/[0.03]"><ClipboardPenLine size={15} /></button>
-        <Link href={workspaceHref} className="rounded-md border border-black/15 bg-white px-3 py-2 text-xs font-semibold text-black/70 hover:bg-black/[0.03]">Open workspace</Link>
+        {onReview ? <button type="button" onClick={() => onReview(lead)} title="Review lead notes" aria-label={`Review ${lead.name || lead.email}`} className="grid size-9 place-items-center rounded-md border border-black/10 bg-white text-black/50 hover:bg-black/[0.03]"><ClipboardPenLine size={15} /></button> : null}
+        {onReview ? <Link href={workspaceHref} className="rounded-md border border-black/15 bg-white px-3 py-2 text-xs font-semibold text-black/70 hover:bg-black/[0.03]">Open workspace</Link> : null}
       </div>
     </div>
   );
@@ -466,7 +472,7 @@ function journeySortTime(row: JourneyRow): number {
   return 0;
 }
 
-function ContactRow({ contact, onReview }: { contact: HubContact; onReview: (contact: HubContact) => void }) {
+function ContactRow({ contact, onReview }: { contact: HubContact; onReview?: (contact: HubContact) => void }) {
   return (
     <div className="mm-interactive-row grid min-h-16 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 px-4 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-5">
       <div className="grid size-10 place-items-center rounded-md bg-black/[0.04] text-black/45"><UserRound size={18} /></div>
@@ -485,8 +491,8 @@ function ContactRow({ contact, onReview }: { contact: HubContact; onReview: (con
       <div className="col-start-2 flex flex-wrap items-center gap-1 sm:col-start-auto">
         {contact.phone ? <a href={`tel:${contact.phone}`} title="Call" aria-label={`Call ${contact.name || contact.email}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/[0.03]"><Phone size={15} /></a> : null}
         <a href={`mailto:${contact.email}`} title="Email" aria-label={`Email ${contact.name || contact.email}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/[0.03]"><Mail size={15} /></a>
-        <button type="button" onClick={() => onReview(contact)} title="Review notes" aria-label={`Review ${contact.name || contact.email}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/[0.03]"><ClipboardPenLine size={15} /></button>
-        <Link href="/portal/agency/leads-pipeline/contacts" className="rounded-md border border-black/15 px-3 py-2 text-xs font-medium text-black/70 hover:bg-black/[0.03]">Manage</Link>
+        {onReview ? <button type="button" onClick={() => onReview(contact)} title="Review notes" aria-label={`Review ${contact.name || contact.email}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/[0.03]"><ClipboardPenLine size={15} /></button> : null}
+        {onReview ? <Link href="/portal/agency/leads-pipeline/contacts" className="rounded-md border border-black/15 px-3 py-2 text-xs font-medium text-black/70 hover:bg-black/[0.03]">Manage</Link> : null}
       </div>
     </div>
   );
@@ -516,7 +522,7 @@ const journeyColumns: Array<{ id: JourneyRow["status"]; label: string; descripti
   { id: "manual", label: "Other relationships", description: "Partners, suppliers, staff and wider contacts." },
 ];
 
-function JourneySection({ rows, onReview }: { rows: JourneyRow[]; onReview: (contact: HubContact) => void }) {
+function JourneySection({ rows, onReview, canManage = true }: { rows: JourneyRow[]; onReview?: (contact: HubContact) => void; canManage?: boolean }) {
   const [mode, setMode] = useState<JourneyMode>("list");
   const totals = {
     enquiries: rows.filter(row => row.status === "enquiry").length,
@@ -543,20 +549,20 @@ function JourneySection({ rows, onReview }: { rows: JourneyRow[]; onReview: (con
               <Columns3 size={14} /> Kanban
             </button>
           </div>
-          <Link href="/portal/agency/marketing" className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/15 px-3 py-2 text-xs font-medium text-black/70 hover:bg-black/[0.03]"><Megaphone size={14} /> Open marketing</Link>
+          {canManage ? <Link href="/portal/agency/marketing" className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/15 px-3 py-2 text-xs font-medium text-black/70 hover:bg-black/[0.03]"><Megaphone size={14} /> Open marketing</Link> : null}
         </div>
       </div>
 
       {mode === "list" ? (
         <div className="mm-surface-card mt-4 overflow-hidden rounded-lg border">
-          <JourneyList rows={rows} onReview={onReview} />
+          <JourneyList rows={rows} onReview={onReview} canManage={canManage} />
         </div>
-      ) : <JourneyKanban rows={rows} onReview={onReview} />}
+      ) : <JourneyKanban rows={rows} onReview={onReview} canManage={canManage} />}
     </section>
   );
 }
 
-function JourneyList({ rows, onReview }: { rows: JourneyRow[]; onReview: (contact: HubContact) => void }) {
+function JourneyList({ rows, onReview, canManage }: { rows: JourneyRow[]; onReview?: (contact: HubContact) => void; canManage: boolean }) {
   return (
     <div className="divide-y divide-black/[0.07]">
       {rows.map(row => (
@@ -569,8 +575,8 @@ function JourneyList({ rows, onReview }: { rows: JourneyRow[]; onReview: (contac
           <div><p className="text-[10px] font-semibold uppercase text-black/35">Trace source</p><p className="mt-1 truncate text-xs font-medium text-black/62">{sourceLabel(row.source)}</p></div>
           <div><p className="text-[10px] font-semibold uppercase text-black/35">Stage</p><p className="mt-1 text-xs font-medium text-black/62">{row.stage}</p></div>
           <div className="flex flex-wrap gap-1 lg:justify-end">
-            {row.contact ? <button type="button" onClick={() => onReview(row.contact!)} className="min-h-9 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/62 hover:bg-black/[0.03]">Review</button> : null}
-            <Link href={row.href} className="min-h-9 rounded-md bg-black px-3 py-2 text-xs font-semibold text-white hover:bg-black/85">Open</Link>
+            {row.contact && onReview ? <button type="button" onClick={() => onReview(row.contact!)} className="min-h-9 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/62 hover:bg-black/[0.03]">Review</button> : null}
+            {canManage || row.client ? <Link href={row.href} className="min-h-9 rounded-md bg-black px-3 py-2 text-xs font-semibold text-white hover:bg-black/85">Open</Link> : null}
           </div>
         </article>
       ))}
@@ -579,7 +585,7 @@ function JourneyList({ rows, onReview }: { rows: JourneyRow[]; onReview: (contac
   );
 }
 
-function JourneyKanban({ rows, onReview }: { rows: JourneyRow[]; onReview: (contact: HubContact) => void }) {
+function JourneyKanban({ rows, onReview, canManage }: { rows: JourneyRow[]; onReview?: (contact: HubContact) => void; canManage: boolean }) {
   return (
     <div className="mt-4 overflow-x-auto pb-2" aria-label="Journey kanban board">
       <div className="grid min-w-max grid-flow-col auto-cols-[280px] gap-3 lg:min-w-0 lg:grid-flow-row lg:grid-cols-4">
@@ -595,7 +601,7 @@ function JourneyKanban({ rows, onReview }: { rows: JourneyRow[]; onReview: (cont
                 <p className="mt-1 text-xs leading-5 text-black/45">{column.description}</p>
               </header>
               <div className="mt-3 grid gap-2.5">
-                {columnRows.map(row => <JourneyKanbanCard key={row.id} row={row} onReview={onReview} />)}
+                {columnRows.map(row => <JourneyKanbanCard key={row.id} row={row} onReview={onReview} canManage={canManage} />)}
                 {!columnRows.length ? <p className="py-8 text-center text-xs text-black/35">No records here.</p> : null}
               </div>
             </section>
@@ -606,7 +612,7 @@ function JourneyKanban({ rows, onReview }: { rows: JourneyRow[]; onReview: (cont
   );
 }
 
-function JourneyKanbanCard({ row, onReview }: { row: JourneyRow; onReview: (contact: HubContact) => void }) {
+function JourneyKanbanCard({ row, onReview, canManage }: { row: JourneyRow; onReview?: (contact: HubContact) => void; canManage: boolean }) {
   const needsReview = Boolean(row.notes || row.client?.health === "attention");
   return (
     <article className="rounded-lg border border-black/10 bg-white p-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
@@ -623,8 +629,8 @@ function JourneyKanbanCard({ row, onReview }: { row: JourneyRow; onReview: (cont
       </dl>
       {needsReview ? <p className="mt-3 rounded-md bg-amber-50 px-2 py-1.5 text-[11px] font-medium text-amber-800">Notes ready for review</p> : null}
       <div className="mt-3 flex items-center justify-end gap-1.5">
-        {row.contact ? <button type="button" onClick={() => onReview(row.contact!)} className="min-h-8 rounded-md border border-black/10 px-2.5 text-xs font-semibold text-black/58 hover:bg-black/[0.03]">Review</button> : null}
-        <Link href={row.href} className="min-h-8 rounded-md bg-black px-2.5 py-2 text-xs font-semibold text-white hover:bg-black/85">Open</Link>
+        {row.contact && onReview ? <button type="button" onClick={() => onReview(row.contact!)} className="min-h-8 rounded-md border border-black/10 px-2.5 text-xs font-semibold text-black/58 hover:bg-black/[0.03]">Review</button> : null}
+        {canManage || row.client ? <Link href={row.href} className="min-h-8 rounded-md bg-black px-2.5 py-2 text-xs font-semibold text-white hover:bg-black/85">Open</Link> : null}
       </div>
     </article>
   );

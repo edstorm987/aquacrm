@@ -178,8 +178,10 @@ describe("a chosen device is EXACTLY that size", () => {
     // really render, so "does this headline fit an iPhone" is answered
     // honestly. Auto-zoom shrinks the view to fit and quietly changes that
     // answer. Zoom exists — in the toolbar, as the operator's own choice.
-    assert.match(editor, /className="min-h-0 overflow-auto p-4 lg:p-6"/, "the pane is the scroll container");
-    assert.match(editor, /overflow-auto p-4 lg:p-6"\n {16}style=\{codePane \|\| splitBrowsers \? \{ width: `\$\{splitRatio \* 100\}%`, flexShrink: 0 \} : \{ flex: 1 \}\}/);
+    assert.match(editor, /min-h-0 min-w-0 overflow-auto p-3 sm:p-4 xl:p-6/, "the pane is the scroll container");
+    assert.match(editor, /--editor-preview-width[\s\S]*splitRatio \* 100/);
+    assert.match(editor, /xl:w-\[var\(--editor-preview-width\)\] xl:flex-none/,
+      "only a wide desktop applies the split width; compact screens get the full pane");
   });
 
   it("the size label states TRUE device pixels, zoom beside them", () => {

@@ -5,10 +5,13 @@ so edits land in the right place and nothing gets built twice. The detail lives
 in per-area **chapters** in [`docs/workspace/`](workspace/) — this page is the
 table of contents and the shared rules.
 
-**1,640** `.ts`/`.tsx` files in `src` (720 of them in plugins), **242** `scripts/*.test.ts`.
+**1,733** `.ts`/`.tsx` files in `src` (722 under `src/built-ins`), **308** `scripts/*.test.ts`.
 Big, but every concern has one owning place — the chapters tell you where.
-Counts re-taken 2026-08-20; re-take them rather than trusting them:
+Counts re-taken 2026-08-24; re-take them rather than trusting them:
 `find src -type f \( -name '*.ts' -o -name '*.tsx' \) | wc -l`.
+
+> This map was reconciled for non-security structure only. Current delivery and
+> reliability live in [development/checklist.md](development/checklist.md).
 
 ---
 
@@ -56,13 +59,13 @@ The owning layer, by kind of change:
 
 ## The chapters
 
-1. **[State layer](workspace/state-layer.md)** — `src/server/` (57 files). The `PortalState` store and every CRUD/domain function over it. Start here to understand the data.
-2. **[Shared logic](workspace/shared-logic.md)** — `src/lib/` + `src/lib/server/` (256). Services, integrations, auth, the Aqua Tag. The client-safe vs server-only split. ⚠ **The engines moved out of `src/lib/` and now live in `src/engines/`** (no chapter of their own yet): `src/engines/{editor,data,sop}/`. The editor is `src/engines/editor/**` (incl. `elements/` — the block vocabulary, which left the website-editor plugin 2026-08-20 and is **not** at `lib/elements/`); Radar is `src/engines/data/radar/**`.
+1. **[State layer](workspace/state-layer.md)** — `src/server/` (56 TypeScript files). The `PortalState` store and every CRUD/domain function over it. Start here to understand the data.
+2. **[Shared logic](workspace/shared-logic.md)** — `src/lib/` + `src/lib/server/` (219 TypeScript files). Services, integrations, auth, the Aqua Tag. The client-safe vs server-only split. ⚠ **The engines moved out of `src/lib/` and now live in `src/engines/`**: `src/engines/{editor,data,sop}/` (85 TypeScript files). The editor is `src/engines/editor/**` (incl. `elements/` — the block vocabulary, which left the website-editor plugin 2026-08-20 and is **not** at `lib/elements/`); Radar is `src/engines/data/radar/**`.
 3. **[Portal UI](workspace/portal-ui.md)** — `src/app/portal/` (agency / clients / customer / team). Every screen, its tabs, and the load-bearing components.
 4. **[API & routes](workspace/api-and-routes.md)** — `src/app/api/**` + the non-portal routes, grouped by area with the **live-Supabase** ones flagged. For the exhaustive one-row-per-endpoint version (path · methods · purpose · scope · live), see the **[full API reference](workspace/api-reference.md)**.
-5. **[Plugins](workspace/plugins.md)** — `src/built-ins/` (720). The 13 feature modules and the runtime that installs them, mapped internally.
-6. **[Components](workspace/components.md)** — `src/components/` (68). The app shell (chrome), attention surface, and reusable primitives.
-7. **[Scripts, config & docs](workspace/scripts-config-docs.md)** — root config, the 242 test scripts, and the prose docs. Includes the canonical full-suite command.
+5. **[Plugins](workspace/plugins.md)** — `src/built-ins/` (722 TypeScript files). The 13 feature modules and the runtime that installs them, mapped internally.
+6. **[Components](workspace/components.md)** — `src/components/` (93 TypeScript files). The app shell (chrome), attention surface, and reusable primitives.
+7. **[Scripts, config & docs](workspace/scripts-config-docs.md)** — root config, the 308 test files, and the prose docs. Includes the canonical full-suite command.
 8. **[Feature → files index](workspace/feature-index.md)** — the conflict-avoider: "where does X live?" across all layers, per feature.
 9. **[Hazards & duplication](workspace/hazards-and-duplication.md)** — live-data risks, confirmed duplicates, drift-prone twins, dead/alias code, and the standing rules. **Read before editing.**
 10. ~~Recent changes (Aug 2026)~~ — **archived 2026-08-21**; it was a dated session narrative, not a chapter of the map. The running record of every change is **[updates.md](development/updates.md)** (the one log); the file itself is on the [history shelf](context/archive/README.md).
@@ -95,12 +98,14 @@ in all 1,649 source files, with its **real signature and doc-comment**.
 node scripts/generate-symbol-reference.mjs
 ```
 
-For the deepest layer — **one doc per source file** (1,650 of them, each with
-its API, dependencies, and who-uses-it), browse the
-**[file-by-file reference](reference/files-index.md)**:
+For the deepest layer, browse the **[source-file index](reference/files-index.md)**.
+Every source path jumps to an anchored entry in one of the eight large reference
+volumes, where its purpose, API, dependencies and dependants stay together. The
+old one-Markdown-file-per-source tree was consolidated because it created more
+than 2,000 tiny docs with the same information.
 
 ```bash
-node scripts/generate-file-docs.mjs
+node scripts/generate-symbol-reference.mjs
 ```
 
 For endpoints specifically, the [full API reference](workspace/api-reference.md)
@@ -113,20 +118,21 @@ adds purpose + scope + live-data flag per route.
 ```
 aquaCRM/portal/
 ├── src/
-│   ├── app/            Next.js App Router — routes, pages, API (534 files)
+│   ├── app/            Next.js App Router — routes, pages, API (558 TypeScript files)
 │   │   ├── api/            HTTP endpoints (portal, public, tenants, auth, v1…)
 │   │   ├── portal/         Authenticated UI (agency / clients / customer / team)
 │   │   ├── connect/ setup/ login/ dev/ …   public + auth flows
 │   │   ├── (website)/      Public marketing site route group
 │   │   └── aqua-tag.js/    Serves the Aqua Tag script
-│   ├── lib/            Shared logic — client-safe + server-only (256 files)
+│   ├── lib/            Shared logic — client-safe + server-only (219 TypeScript files)
 │   │   └── server/         server-only services (Supabase, radar, enquiries…)
-│   ├── server/         State/store layer — the source of truth (57 files)
-│   ├── components/     Shared UI (chrome, attention, editing, auth) (68 files)
-│   └── built-ins/      Plugin/module system (720 files)
+│   ├── server/         State/store layer (56 TypeScript files)
+│   ├── components/     Shared UI (chrome, attention, editing, auth) (93 TypeScript files)
+│   ├── engines/        Editor, Data and SOP engines (85 TypeScript files)
+│   └── built-ins/      Plugin/module system (722 TypeScript files)
 │       ├── runtime/        registry + foundation adapters
 │       └── modules/        one folder per plugin (website-editor, finance…)
-├── scripts/            242 smoke tests + tooling
+├── scripts/            308 test files + tooling (344 top-level files total)
 ├── docs/               handoffs, architecture, this map
 │   └── workspace/          the chapters this page indexes
 └── .data/              local state file (git-ignored — NOT a sandbox: see below)

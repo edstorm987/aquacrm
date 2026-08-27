@@ -76,6 +76,7 @@ export function ContactCard({
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [conflictingPersonId, setConflictingPersonId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [companyQuery, setCompanyQuery] = useState("");
   const [showCompanySearch, setShowCompanySearch] = useState(false);
@@ -96,9 +97,10 @@ export function ContactCard({
       .slice(0, 8);
   }, [companyQuery, allOrganisations]);
 
-  async function send(payload: Record<string, unknown>, key: string, successMessage: string) {
+  async function send(payload: Record<string, unknown>, key: string, successMessage: string): Promise<boolean> {
     setBusy(key);
     setError(null);
+    setConflictingPersonId(null);
     setNotice(null);
     try {
       const response = await fetch(`/api/portal/persons/${encodeURIComponent(person.id)}`, {
@@ -106,12 +108,18 @@ export function ContactCard({
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const result = await response.json() as { ok: boolean; error?: string };
-      if (!result.ok) throw new Error(result.error ?? "That did not save.");
+      const result = await response.json() as { ok: boolean; error?: string; conflictingPersonId?: string };
+      if (!result.ok) {
+        setError(result.error ?? "That did not save.");
+        setConflictingPersonId(result.conflictingPersonId ?? null);
+        return false;
+      }
       setNotice(successMessage);
       router.refresh();
+      return true;
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : String(nextError));
+      return false;
     } finally {
       setBusy(null);
     }
@@ -140,7 +148,7 @@ export function ContactCard({
                   type="button"
                   disabled={busy !== null}
                   onClick={() => void send({ action: "update", name: nameDraft }, "name", "Name saved.")
-                    .then(() => setEditingName(false))}
+                    .then(saved => { if (saved) setEditingName(false); })}
                   className="inline-flex h-11 items-center rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-45"
                 >
                   Save
@@ -214,7 +222,15 @@ export function ContactCard({
 
       {error ? (
         <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
+          <span>{error}</span>
+          {conflictingPersonId ? (
+            <Link
+              href={`/portal/agency/contacts/${encodeURIComponent(conflictingPersonId)}`}
+              className="ml-2 font-semibold underline underline-offset-2"
+            >
+              Open existing contact
+            </Link>
+          ) : null}
         </div>
       ) : null}
       {notice ? (
@@ -327,7 +343,8 @@ export function ContactCard({
                 <button
                   type="button"
                   disabled={!newEmail.trim() || busy !== null}
-                  onClick={() => void send({ action: "add-email", value: newEmail }, "email", "Email added.").then(() => setNewEmail(""))}
+                  onClick={() => void send({ action: "add-email", value: newEmail }, "email", "Email added.")
+                    .then(saved => { if (saved) setNewEmail(""); })}
                   className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md border border-black/15 px-3 text-sm font-semibold text-black/70 disabled:opacity-40"
                 >
                   <Plus size={15} aria-hidden /> Add
@@ -344,7 +361,8 @@ export function ContactCard({
                 <button
                   type="button"
                   disabled={!newPhone.trim() || busy !== null}
-                  onClick={() => void send({ action: "add-phone", value: newPhone }, "phone", "Number added.").then(() => setNewPhone(""))}
+                  onClick={() => void send({ action: "add-phone", value: newPhone }, "phone", "Number added.")
+                    .then(saved => { if (saved) setNewPhone(""); })}
                   className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md border border-black/15 px-3 text-sm font-semibold text-black/70 disabled:opacity-40"
                 >
                   <Plus size={15} aria-hidden /> Add
@@ -610,10 +628,10 @@ function IdentityRow({
   onRemove,
 }: {
   kind: "email" | "phone";
-  entry: { value: string; raw?: string; label?: string; isPrimary?: boolean };
+  entry: { value: string; raw?: string; label?: string; isPrimary?: boolean; shared?: boolean };
   busy: boolean;
-  onSave: (patch: { value?: string; label?: string; isPrimary?: boolean }) => Promise<void>;
-  onRemove: () => Promise<void>;
+  onSave: (patch: { value?: string; label?: string; isPrimary?: boolean }) => Promise<boolean>;
+  onRemove: () => Promise<boolean>;
 }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(entry.raw ?? entry.value);
@@ -643,7 +661,7 @@ function IdentityRow({
           <button
             type="button"
             disabled={busy || !value.trim()}
-            onClick={() => void onSave({ value, label }).then(() => setEditing(false))}
+            onClick={() => void onSave({ value, label }).then(saved => { if (saved) setEditing(false); })}
             className="inline-flex h-9 items-center rounded-md bg-black px-3.5 text-sm font-semibold text-white disabled:opacity-45"
           >
             Save
@@ -659,7 +677,7 @@ function IdentityRow({
             <button
               type="button"
               disabled={busy}
-              onClick={() => void onSave({ isPrimary: true }).then(() => setEditing(false))}
+              onClick={() => void onSave({ isPrimary: true }).then(saved => { if (saved) setEditing(false); })}
               className="text-xs font-medium text-black/55 underline underline-offset-2 disabled:opacity-45"
             >
               Make primary
@@ -668,7 +686,7 @@ function IdentityRow({
           <button
             type="button"
             disabled={busy}
-            onClick={() => void onRemove().then(() => setEditing(false))}
+            onClick={() => void onRemove().then(saved => { if (saved) setEditing(false); })}
             className="ml-auto inline-flex h-9 items-center gap-1.5 rounded-md px-2.5 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-45"
           >
             <Trash2 size={14} aria-hidden /> Remove
@@ -684,6 +702,11 @@ function IdentityRow({
       <span className="truncate text-black/80">{entry.raw ?? entry.value}</span>
       {entry.label ? (
         <span className="shrink-0 rounded bg-black/6 px-1.5 py-0.5 text-[11px] text-black/55">{entry.label}</span>
+      ) : null}
+      {kind === "phone" && entry.shared ? (
+        <span className="shrink-0 rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">
+          shared line
+        </span>
       ) : null}
       {entry.isPrimary ? (
         <span className="shrink-0 text-[11px] font-semibold text-brand">primary</span>

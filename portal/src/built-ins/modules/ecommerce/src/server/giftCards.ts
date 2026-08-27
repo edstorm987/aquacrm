@@ -15,10 +15,24 @@ export interface GiftCard {
   senderName: string;
   message: string;
   createdAt: number;
-  redemptions: { amount: number; at: number }[];
+  redemptions: { amount: number; at: number; operationId?: string }[];
+  issuanceOperationId?: string;
+  refunds?: { amount: number; at: number; operationId: string }[];
+}
+
+export type GiftCardIssueInput = Pick<
+  GiftCard,
+  "amount" | "recipientName" | "recipientEmail" | "senderName" | "message"
+>;
+
+interface GiftCardIssuance {
+  operationId: string;
+  code: string;
+  createdAt: number;
 }
 
 const KEY_PREFIX = "giftcard:";
+const ISSUANCE_PREFIX = "giftcard-issuance:";
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";  // no ambiguous 0/O/I/1
 
 function generateCode(): string {
@@ -40,7 +54,7 @@ export class GiftCardService {
     return `${KEY_PREFIX}${code.trim().toUpperCase()}`;
   }
 
-  async issue(input: Omit<GiftCard, "code" | "balance" | "createdAt" | "redemptions">): Promise<GiftCard> {
+  async issue(input: GiftCardIssueInput): Promise<GiftCard> {
     let code = generateCode();
     while (await this.storage.get(this.key(code))) code = generateCode();
     const card: GiftCard = {
@@ -51,6 +65,37 @@ export class GiftCardService {
       ...input,
     };
     await this.storage.set(this.key(code), card);
+    return card;
+  }
+
+  async issueOnce(
+    input: GiftCardIssueInput,
+    operationId: string,
+  ): Promise<GiftCard> {
+    const issuanceKey = `${ISSUANCE_PREFIX}${encodeURIComponent(operationId)}`;
+    let issuance = await this.storage.get<GiftCardIssuance>(issuanceKey);
+    if (!issuance) {
+      let code = generateCode();
+      while (await this.storage.get(this.key(code))) code = generateCode();
+      issuance = { operationId, code, createdAt: now() };
+      await this.storage.set(issuanceKey, issuance);
+    }
+    const existing = await this.getCard(issuance.code);
+    if (existing) {
+      if (existing.issuanceOperationId !== operationId) {
+        throw new Error(`Gift-card issuance ${operationId} collided with an existing card.`);
+      }
+      return existing;
+    }
+    const card: GiftCard = {
+      code: issuance.code,
+      balance: input.amount,
+      createdAt: issuance.createdAt,
+      redemptions: [],
+      issuanceOperationId: operationId,
+      ...input,
+    };
+    await this.storage.set(this.key(card.code), card);
     return card;
   }
 
@@ -73,12 +118,42 @@ export class GiftCardService {
     return { ok: true, card: next, applied };
   }
 
+  async redeemOnce(
+    code: string,
+    amount: number,
+    operationId: string,
+  ): Promise<{ ok: true; card: GiftCard; applied: number } | { ok: false; reason: string }> {
+    const card = await this.getCard(code);
+    if (!card) return { ok: false, reason: "We couldn't find that gift card." };
+    const existing = card.redemptions.find(redemption => redemption.operationId === operationId);
+    if (existing) return { ok: true, card, applied: existing.amount };
+    if (card.balance < amount) return { ok: false, reason: "This gift card no longer has enough balance." };
+    const next: GiftCard = {
+      ...card,
+      balance: card.balance - amount,
+      redemptions: [...card.redemptions, { amount, at: now(), operationId }],
+    };
+    await this.storage.set(this.key(code), next);
+    return { ok: true, card: next, applied: amount };
+  }
+
   async refund(code: string, amount: number): Promise<void> {
     const card = await this.getCard(code);
     if (!card) return;
     await this.storage.set(this.key(code), {
       ...card,
       balance: card.balance + amount,
+    });
+  }
+
+  async refundOnce(code: string, amount: number, operationId: string): Promise<void> {
+    const card = await this.getCard(code);
+    if (!card) throw new Error(`Gift card ${code} no longer exists.`);
+    if (card.refunds?.some(refund => refund.operationId === operationId)) return;
+    await this.storage.set(this.key(code), {
+      ...card,
+      balance: card.balance + amount,
+      refunds: [...(card.refunds ?? []), { amount, at: now(), operationId }],
     });
   }
 

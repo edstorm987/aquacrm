@@ -7,12 +7,11 @@
 > name; they were archived 2026-08-21 to the
 > [history shelf](context/archive/README.md).
 >
-> ⚠ Two known staleness points in the text below, flagged rather than silently
-> rewritten: the install line still says `npm install --legacy-peer-deps`, and
-> this file's own "last updated" predates several environment changes. Verify
-> against `package.json` before trusting a command.
+> **Refreshed 2026-08-24 for current runtime facts.** Commands below are checked
+> against `package.json`. A later same-day review reopened session revocation,
+> showcase and erasure safety; use the checklist as the current gate.
 
-Last updated: 17 August 2026
+Last updated: 24 August 2026
 
 ## Repository And Runtime
 
@@ -28,11 +27,21 @@ Last updated: 17 August 2026
 Install and run:
 
 ```bash
-npm install --legacy-peer-deps
+npm install
 npm run dev
 ```
 
 Open `http://localhost:3032`.
+
+For an isolated verification server with its own state file, build directory and
+port, use `npm run sandbox:fork`. The normal port-3032 file-backed sandbox is
+`npm run dev:sandbox:real`.
+
+> **File-backend reliability warning (source-reviewed 2026-08-24):** the current
+> mutation path can acknowledge a detached failed write, rewrites the full state
+> blob non-atomically, and treats malformed JSON as an empty writable workspace.
+> Do not use the file backend as evidence of durable persistence until issues
+> #16–#17 in [development/issues.md](development/issues.md) are closed.
 
 ## Required Reading
 
@@ -256,8 +265,10 @@ Before calling a deployment healthy, verify:
 - login is the real authenticated flow, not Showcase Mode;
 - production is not using file or memory persistence.
 
-Showcase Mode is intentionally read-only fictional data. It must never block a
-real database login or be presented as the client authentication path.
+Showcase Mode is intended to be read-only fictional data, but that contract is
+not currently complete: mutating `GET`/OAuth callbacks bypass the proxy's
+non-GET block and every visit resets one shared fixture. Do not expose it as a
+security boundary or client authentication path until issues #21/#23 are closed.
 
 ## Integration Documents
 

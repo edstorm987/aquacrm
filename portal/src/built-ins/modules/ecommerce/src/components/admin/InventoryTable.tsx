@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
+
 import type { InventoryItem } from "../../lib/admin/inventory";
 import { filterInventory, inventoryStats } from "../../lib/admin/inventory";
 
@@ -14,6 +16,7 @@ export function InventoryTable({ items, apiBase }: InventoryTableProps) {
   const [query, setQuery] = useState("");
   const [showOnlyLow, setShowOnlyLow] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const stats = useMemo(() => inventoryStats(items), [items]);
   const filtered = useMemo(
@@ -21,15 +24,21 @@ export function InventoryTable({ items, apiBase }: InventoryTableProps) {
     [items, query, showOnlyLow],
   );
 
-  async function setOnHand(sku: string, onHand: number): Promise<void> {
+  async function setOnHand(sku: string, onHand: number, expectedVersion: number): Promise<void> {
     setBusy(sku);
+    setError(null);
     try {
-      await fetch(`${apiBase}/inventory`, {
+      await checkedJsonMutation<{ ok: boolean }>(`${apiBase}/inventory`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ sku, onHand }),
+        body: JSON.stringify({ sku, onHand, expectedVersion }),
+      }, {
+        fallback: `Inventory for ${sku} could not be saved.`,
+        validate: payload => payload.ok === true,
       });
       if (typeof window !== "undefined") window.location.reload();
+    } catch (requestError) {
+      setError(mutationErrorMessage(requestError, `Inventory for ${sku} could not be saved.`));
     } finally {
       setBusy(null);
     }
@@ -53,6 +62,7 @@ export function InventoryTable({ items, apiBase }: InventoryTableProps) {
           <label><input type="checkbox" checked={showOnlyLow} onChange={(e) => setShowOnlyLow(e.target.checked)} /> Low stock only</label>
         </div>
       </header>
+      {error && <p role="alert" className="ecom-error">{error}</p>}
       <table className="ecom-table">
         <thead>
           <tr>
@@ -77,7 +87,7 @@ export function InventoryTable({ items, apiBase }: InventoryTableProps) {
                     defaultValue={it.onHand}
                     onBlur={(e) => {
                       const next = Number(e.target.value);
-                      if (next !== it.onHand) setOnHand(it.sku, next);
+                      if (next !== it.onHand) setOnHand(it.sku, next, it.version ?? 1);
                     }}
                     disabled={busy === it.sku}
                   />

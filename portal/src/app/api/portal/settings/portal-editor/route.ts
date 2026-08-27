@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     const editor = savePortalEditorField(session.agencyId, body.entity, body.field, session.userId);
     return NextResponse.json({ ok: true, editor });
   } catch (error) {
-    if (error instanceof Error && (error.message === "Unknown form." || error.message === "Field label required.")) {
+    if (error instanceof Error && (error.message === "Unknown form." || error.message === "Contacts fields use the Leads Pipeline contact configuration." || error.message === "Field label required." || error.message === "Select fields need at least one option.")) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
     }
     return authErrorResponse(error);
@@ -47,6 +47,9 @@ export async function DELETE(request: Request) {
     const editor = deletePortalEditorField(session.agencyId, body.entity, body.fieldId, session.userId);
     return NextResponse.json({ ok: true, editor });
   } catch (error) {
+    if (error instanceof Error && (error.message === "Unknown form." || error.message === "Contacts fields use the Leads Pipeline contact configuration.")) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
+    }
     return authErrorResponse(error);
   }
 }

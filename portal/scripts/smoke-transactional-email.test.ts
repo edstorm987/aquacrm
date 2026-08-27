@@ -14,13 +14,16 @@ require.cache[serverOnlyPath] = {
 } as never;
 
 type TransactionalEmail = typeof import("../src/lib/server/email/transactionalEmail");
+type Settings = typeof import("../src/server/agencySettings");
 
 let sendTransactionalEmail: TransactionalEmail["sendTransactionalEmail"];
+let updateAgencyWorkspaceSettings: Settings["updateAgencyWorkspaceSettings"];
 
 before(async () => {
   process.env.PORTAL_BACKEND = "memory";
   process.env.PORTAL_VAULT_ENCRYPTION_KEY = "transactional-email-smoke-vault-key-longer-than-thirty-two-characters";
   ({ sendTransactionalEmail } = await import("../src/lib/server/email/transactionalEmail"));
+  ({ updateAgencyWorkspaceSettings } = await import("../src/server/agencySettings"));
 });
 
 const input = {
@@ -76,6 +79,40 @@ test("system email sends through Resend when deployment credentials exist", asyn
     const body = JSON.parse(String(request?.init?.body)) as { to: string[]; from: string };
     assert.deepEqual(body.to, ["client@example.com"]);
     assert.match(body.from, /portal@milesymedia\.co\.uk/);
+  } finally {
+    globalThis.fetch = oldFetch;
+    if (oldToken === undefined) delete process.env.RESEND_API_KEY;
+    else process.env.RESEND_API_KEY = oldToken;
+    if (oldFrom === undefined) delete process.env.MILESYMEDIA_FROM_EMAIL;
+    else process.env.MILESYMEDIA_FROM_EMAIL = oldFrom;
+  }
+});
+
+test("workspace identity supplies the fallback sender name and reply address", async () => {
+  const oldFetch = globalThis.fetch;
+  const oldToken = process.env.RESEND_API_KEY;
+  const oldFrom = process.env.MILESYMEDIA_FROM_EMAIL;
+  process.env.RESEND_API_KEY = "test-token";
+  process.env.MILESYMEDIA_FROM_EMAIL = "verified-sender@example.com";
+  updateAgencyWorkspaceSettings("milesymedia", {
+    legalName: "Truthful Trading Ltd",
+    supportEmail: "support@truthful.example",
+  }, "owner");
+  let request: { init?: RequestInit } | null = null;
+  globalThis.fetch = async (_url, init) => {
+    request = { init };
+    return new Response(JSON.stringify({ id: "re_identity" }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+
+  try {
+    const result = await sendTransactionalEmail(input);
+    assert.equal(result.delivered, true);
+    const body = JSON.parse(String(request?.init?.body)) as { from: string; reply_to?: string };
+    assert.match(body.from, /^Truthful Trading Ltd <verified-sender@example\.com>$/);
+    assert.equal(body.reply_to, "support@truthful.example");
   } finally {
     globalThis.fetch = oldFetch;
     if (oldToken === undefined) delete process.env.RESEND_API_KEY;

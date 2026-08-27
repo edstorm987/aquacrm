@@ -83,6 +83,8 @@ export interface PortalWorkspaceCollection {
 
 export interface PortalProductWorkspace {
   schemaVersion: 1;
+  /** Monotonic compare-and-swap revision for shared workspace mutations. */
+  revision: number;
   productId: string;
   productName: string;
   stage: PortalProductMode;
@@ -168,6 +170,7 @@ export function createPortalProductWorkspace(
   const collectionTitle = isMediaProduct(product) ? `${product.name} gallery` : `${product.name} delivery`;
   return {
     schemaVersion: 1,
+    revision: 0,
     productId: product.id,
     productName: product.name,
     stage,
@@ -360,6 +363,9 @@ export function cleanPortalProductWorkspace(
   const seedCollections = seed.collections.filter(item => !storedCollections.some(stored => stored.id === item.id));
   return {
     ...seed,
+    revision: typeof source.revision === "number" && Number.isSafeInteger(source.revision) && source.revision >= 0
+      ? source.revision
+      : 0,
     productName: product.name,
     stage: STAGES.includes(source.stage as PortalProductMode) ? source.stage as PortalProductMode : fallbackStage,
     pages,

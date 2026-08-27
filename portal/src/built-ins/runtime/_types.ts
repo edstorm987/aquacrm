@@ -140,6 +140,8 @@ export interface PluginRegistryPort {
 }
 
 export interface LogActivityInput {
+  /** Stable source-operation identity. Replays return the original entry. */
+  idempotencyKey?: string;
   agencyId: string;
   clientId?: string;
   actorUserId?: string;
@@ -303,6 +305,10 @@ export interface PluginCtx {
 export interface PluginStorage {
   get<T = unknown>(key: string): Promise<T | undefined>;
   set<T = unknown>(key: string, value: T): Promise<void>;
+  /** Atomically create a key within this runtime process. Returns false when it already exists. */
+  setIfAbsent?<T = unknown>(key: string, value: T): Promise<boolean>;
+  /** Refresh, serialize and durably flush one logical mutation across application processes. */
+  runExclusive?<T>(key: string, operation: () => Promise<T>): Promise<T>;
   del(key: string): Promise<void>;
   list(prefix?: string): Promise<string[]>;
 }
@@ -385,6 +391,10 @@ export interface PluginPage {
   // captured value is exposed via `segments[0]`/etc.
   path: string;
   component: () => Promise<{ default: ComponentType<PluginPageProps> }>;
+  // Client Component entry points cannot receive the server-only service and
+  // storage ports. The route host renders these entries without plugin props;
+  // client pages obtain route state from Next and data through HTTP APIs.
+  clientComponent?: boolean;
   requiresFeature?: string;
   title?: string;
   visibleToRoles?: Role[];

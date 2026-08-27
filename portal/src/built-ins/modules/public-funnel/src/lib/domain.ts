@@ -42,12 +42,15 @@ export interface LeadCapture {
 export interface CaptureHcInput {
   email: string;
   slot: HCSlot;
+  /** Stable per-results operation id. Retrying it reuses the original capture. */
+  completionId?: string;
   sourceMeta?: Record<string, unknown>;
 }
 
 export interface CaptureToolInput {
   email: string;
   toolId: string;                // e.g. "rank-my-website"
+  completionId?: string;
   input?: Record<string, unknown>;
   output?: Record<string, unknown>;
   sourceMeta?: Record<string, unknown>;
@@ -88,8 +91,8 @@ export function bucketHcSlot(slot?: HCSlot): HcScoreBucket | undefined {
   return "scaling";
 }
 
-// Email canonicalisation — trim + lowercase. Used as the
-// idempotency key.
+// Email canonicalisation — trim + lowercase. Used to reuse lead identity;
+// capture retry identity comes from the optional stable completion id.
 export function canonEmail(raw: string): string {
   return raw.trim().toLowerCase();
 }

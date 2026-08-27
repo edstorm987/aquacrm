@@ -15,6 +15,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -23,11 +24,12 @@ import {
   paymentPlanTotal,
   reconcileClientPaymentPlan,
   summariseClientPaymentPosition,
+  type ClientPaymentCurrencyPosition,
   type ClientPaymentMilestone,
   type ClientPaymentPlan,
   type PaymentPlanInvoiceEvidence,
 } from "@/lib/clients/clientPaymentPlans";
-import { formatUkDate } from "@/lib/shared/formatDateTime";
+import { addBusinessCalendarDays, dateInputValue, formatUkDate } from "@/lib/shared/formatDateTime";
 
 interface ProductOption {
   id: string;
@@ -61,9 +63,7 @@ const CURRENCIES = ["gbp", "eur", "usd", "cad", "aud", "nzd", "chf", "sek", "nok
 const CONTROL = "min-h-10 rounded-md border border-black/15 bg-white px-3 text-sm text-black outline-none focus:border-brand/60 focus:ring-2 focus:ring-brand/10";
 
 function firstDueDate(): string {
-  const value = new Date();
-  value.setDate(value.getDate() + 14);
-  return value.toISOString().slice(0, 10);
+  return addBusinessCalendarDays(14);
 }
 
 function createDraft(): CreateDraft {
@@ -85,9 +85,16 @@ function money(cents: number, currency: string): string {
   return new Intl.NumberFormat("en-GB", { style: "currency", currency: currency.toUpperCase() }).format(cents / 100);
 }
 
+function positionMoney(
+  positions: readonly ClientPaymentCurrencyPosition[],
+  field: "agreedCents" | "paidCents" | "outstandingCents",
+): string {
+  const retained = positions.filter(position => position.agreedCents > 0);
+  return retained.length ? retained.map(position => money(position[field], position.currency)).join(" · ") : "—";
+}
+
 function dateInput(timestamp: number): string {
-  const date = new Date(timestamp);
-  return Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 10) : "";
+  return dateInputValue(timestamp);
 }
 
 function statusClass(status: ClientPaymentPlan["status"] | ClientPaymentMilestone["status"]): string {
@@ -106,6 +113,8 @@ export function PaymentPlansPanel({
   initialFiles,
   invoices,
   onInvoiceCreated,
+  canManage = true,
+  canConfigure = canManage,
 }: {
   clientId: string;
   clientName?: string;
@@ -115,6 +124,8 @@ export function PaymentPlansPanel({
   initialFiles: PaymentPlanEvidenceFile[];
   invoices: PaymentPlanInvoiceEvidence[];
   onInvoiceCreated: () => Promise<void>;
+  canManage?: boolean;
+  canConfigure?: boolean;
 }) {
   const [plans, setPlans] = useState(() => cleanClientPaymentPlans(initialPlans));
   const [draft, setDraft] = useState(createDraft);
@@ -140,9 +151,9 @@ export function PaymentPlansPanel({
       body: JSON.stringify({ clientId, ...body }),
     });
     const payload = await response.json().catch(() => null) as { ok?: boolean; plans?: ClientPaymentPlan[]; files?: PaymentPlanEvidenceFile[]; invoice?: { id: string; status: string }; error?: string } | null;
+    if (payload?.plans) setPlans(cleanClientPaymentPlans(payload.plans));
+    if (payload?.files) setEvidenceFiles(payload.files.filter(file => file.category === "payment-plan" || file.category === "payment-proof"));
     if (!response.ok || !payload?.ok) throw new Error(payload?.error || "Payment plan update failed.");
-    if (payload.plans) setPlans(cleanClientPaymentPlans(payload.plans));
-    if (payload.files) setEvidenceFiles(payload.files.filter(file => file.category === "payment-plan" || file.category === "payment-proof"));
     return payload;
   }
 
@@ -220,6 +231,7 @@ export function PaymentPlansPanel({
       await request({
         action: "update",
         planId: plan.id,
+        expectedRevision: plan.revision,
         title: plan.title,
         summary: plan.summary,
         currency: plan.currency,
@@ -240,7 +252,7 @@ export function PaymentPlansPanel({
     setBusy(plan.id);
     setNotice(null);
     try {
-      await request({ action: "status", planId: plan.id, status });
+      await request({ action: "status", planId: plan.id, status, expectedRevision: plan.revision });
       setNotice(status === "active"
         ? plan.customerVisible ? "Payment plan is live in the customer portal." : "Payment plan is active internally and remains private."
         : `Payment plan marked ${status}.`);
@@ -256,7 +268,7 @@ export function PaymentPlansPanel({
     setBusy(plan.id);
     setNotice(null);
     try {
-      await request({ action: "delete", planId: plan.id });
+      await request({ action: "delete", planId: plan.id, expectedRevision: plan.revision });
       if (evidencePlanId === plan.id) setEvidencePlanId("");
       setNotice("Payment plan deleted.");
     } catch (error) {
@@ -270,7 +282,7 @@ export function PaymentPlansPanel({
     setBusy(milestone.id);
     setNotice(null);
     try {
-      const payload = await request({ action: "create-invoice", planId: plan.id, milestoneId: milestone.id, issue: true });
+      const payload = await request({ action: "create-invoice", planId: plan.id, milestoneId: milestone.id, issue: true, expectedRevision: plan.revision });
       if (payload.invoice) {
         const delivery = await fetch("/api/portal/journey/payment-request", {
           method: "POST",
@@ -386,21 +398,21 @@ export function PaymentPlansPanel({
             <p className="mt-1 text-xs text-black/45">Plan the agreement here; each issued milestone becomes a real Finance invoice.</p>
           </div>
         </div>
-        <button type="button" onClick={() => setCreating(value => !value)} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white">
+        {canManage ? <button type="button" onClick={() => setCreating(value => !value)} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white">
           {creating ? <X size={14} /> : <Plus size={14} />} {creating ? "Cancel" : "New payment plan"}
-        </button>
+        </button> : <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">Read-only</span>}
       </header>
 
       <dl className="grid grid-cols-2 divide-x divide-y divide-black/10 border-b border-black/10 bg-black/[0.015] sm:grid-cols-3 xl:grid-cols-6">
         <div className={`p-4 ${paymentPosition.state === "missed-payment" ? "bg-red-50" : paymentPosition.state === "paid-in-full" ? "bg-emerald-50" : paymentPosition.state === "payment-due" ? "bg-amber-50" : ""}`}><dt className="text-[10px] uppercase tracking-wide text-black/40">Payment position</dt><dd className={`mt-1 text-sm font-semibold ${paymentPosition.state === "missed-payment" ? "text-red-800" : paymentPosition.state === "paid-in-full" ? "text-emerald-800" : paymentPosition.state === "payment-due" ? "text-amber-900" : "text-black/85"}`}>{paymentPosition.label}</dd>{paymentPosition.nextDueAt ? <p className="mt-1 text-[10px] text-black/45">Next due {formatUkDate(paymentPosition.nextDueAt, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}</p> : null}</div>
         <div className="p-4"><dt className="text-[10px] uppercase tracking-wide text-black/40">Active plans</dt><dd className="mt-1 text-lg font-semibold text-black/85">{paymentPosition.activePlans}</dd></div>
-        <div className="p-4"><dt className="text-[10px] uppercase tracking-wide text-black/40">Agreed</dt><dd className="mt-1 text-lg font-semibold text-black/85">{paymentPosition.agreedCents ? money(paymentPosition.agreedCents, paymentPosition.currency) : "—"}</dd></div>
-        <div className="p-4"><dt className="text-[10px] uppercase tracking-wide text-black/40">Collected</dt><dd className="mt-1 text-lg font-semibold text-emerald-800">{paymentPosition.agreedCents ? money(paymentPosition.paidCents, paymentPosition.currency) : "—"}</dd></div>
-        <div className="p-4"><dt className="text-[10px] uppercase tracking-wide text-black/40">Outstanding</dt><dd className={`mt-1 text-lg font-semibold ${paymentPosition.outstandingCents ? "text-amber-800" : "text-black/85"}`}>{paymentPosition.agreedCents ? money(paymentPosition.outstandingCents, paymentPosition.currency) : "—"}</dd></div>
+        <div className="p-4"><dt className="text-[10px] uppercase tracking-wide text-black/40">Agreed</dt><dd className="mt-1 text-lg font-semibold text-black/85">{positionMoney(paymentPosition.currencyPositions, "agreedCents")}</dd></div>
+        <div className="p-4"><dt className="text-[10px] uppercase tracking-wide text-black/40">Collected</dt><dd className="mt-1 text-lg font-semibold text-emerald-800">{positionMoney(paymentPosition.currencyPositions, "paidCents")}</dd></div>
+        <div className="p-4"><dt className="text-[10px] uppercase tracking-wide text-black/40">Outstanding</dt><dd className={`mt-1 text-lg font-semibold ${paymentPosition.currencyPositions.some(position => position.outstandingCents > 0) ? "text-amber-800" : "text-black/85"}`}>{positionMoney(paymentPosition.currencyPositions, "outstandingCents")}</dd></div>
         <div className={paymentPosition.missedPayments ? "bg-red-50 p-4" : "p-4"}><dt className="text-[10px] uppercase tracking-wide text-black/40">Missed payments</dt><dd className={`mt-1 text-lg font-semibold ${paymentPosition.missedPayments ? "text-red-800" : "text-emerald-800"}`}>{paymentPosition.missedPayments}</dd></div>
       </dl>
 
-      {creating ? (
+      {canManage && creating ? (
         <form onSubmit={event => { event.preventDefault(); void createPlan(); }} className="grid gap-3 border-b border-black/10 bg-black/[0.015] p-4 sm:grid-cols-2 lg:grid-cols-4">
           <label className="grid gap-1 text-xs font-medium text-black/60 sm:col-span-2">Plan name<input value={draft.title} onChange={event => setDraft(current => ({ ...current, title: event.target.value }))} placeholder="Website build payment schedule" className={CONTROL} autoFocus /></label>
           <label className="grid gap-1 text-xs font-medium text-black/60">Total amount<div className="flex"><select aria-label="Currency" value={draft.currency} onChange={event => setDraft(current => ({ ...current, currency: event.target.value }))} className={`${CONTROL} w-24 rounded-r-none border-r-0 uppercase`}>{CURRENCIES.map(currency => <option key={currency}>{currency}</option>)}</select><input type="number" min="0.01" step="0.01" value={draft.amount} onChange={event => setDraft(current => ({ ...current, amount: event.target.value }))} className={`${CONTROL} min-w-0 flex-1 rounded-l-none`} placeholder="0.00" /></div></label>
@@ -421,7 +433,8 @@ export function PaymentPlansPanel({
       ) : (
         <div className="divide-y divide-black/10">
           {plans.map(plan => {
-            const editing = editingId === plan.id;
+            const financeManaged = Boolean(plan.financePlanId);
+            const editing = canManage && !financeManaged && editingId === plan.id;
             const total = paymentPlanTotal(plan);
             const paid = paymentPlanPaid(plan);
             const linkedEvidence = evidenceFiles.filter(file => file.collectionId === plan.id);
@@ -430,35 +443,34 @@ export function PaymentPlansPanel({
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     {editing ? <input value={plan.title} onChange={event => updateLocal(plan.id, { title: event.target.value })} className={`${CONTROL} w-full max-w-md font-semibold`} /> : <h3 className="font-semibold text-black/85">{plan.title}</h3>}
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-black/45"><span className={`rounded-full px-2 py-0.5 font-semibold uppercase ${statusClass(plan.status)}`}>{plan.status}</span><span>{money(paid, plan.currency)} of {money(total, plan.currency)} collected</span><span>{plan.milestones.length} milestone{plan.milestones.length === 1 ? "" : "s"}</span>{plan.productIds.length ? <span>{plan.productIds.map(id => products.find(product => product.id === id)?.name).filter(Boolean).join(", ")}</span> : <span>Whole relationship</span>}</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-black/45"><span className={`rounded-full px-2 py-0.5 font-semibold uppercase ${statusClass(plan.status)}`}>{plan.status}</span>{financeManaged ? <span className="rounded-full bg-blue-50 px-2 py-0.5 font-semibold text-blue-700">Finance managed</span> : null}<span>{money(paid, plan.currency)} of {money(total, plan.currency)} collected</span><span>{plan.milestones.length} milestone{plan.milestones.length === 1 ? "" : "s"}</span>{plan.productIds.length ? <span>{plan.productIds.map(id => products.find(product => product.id === id)?.name).filter(Boolean).join(", ")}</span> : <span>Whole relationship</span>}</div>
                     {editing ? <div className="mt-3 grid max-w-3xl gap-3 sm:grid-cols-[9rem_1fr]">
-                      <label className="grid gap-1 text-[10px] font-semibold uppercase tracking-wide text-black/40">Currency<select value={plan.currency} disabled={plan.milestones.some(milestone => Boolean(milestone.invoiceId))} onChange={event => updateLocal(plan.id, { currency: event.target.value })} className={`${CONTROL} uppercase disabled:opacity-50`}>{CURRENCIES.map(currency => <option key={currency}>{currency}</option>)}</select></label>
+                      <label className="grid gap-1 text-[10px] font-semibold uppercase tracking-wide text-black/40">Currency<select value={plan.currency} disabled={plan.milestones.some(milestone => Boolean(milestone.invoiceId || milestone.invoiceOperationId))} onChange={event => updateLocal(plan.id, { currency: event.target.value })} className={`${CONTROL} uppercase disabled:opacity-50`}>{CURRENCIES.map(currency => <option key={currency}>{currency}</option>)}</select></label>
                       <label className="grid gap-1 text-[10px] font-semibold uppercase tracking-wide text-black/40">Client-facing summary<textarea rows={2} value={plan.summary ?? ""} onChange={event => updateLocal(plan.id, { summary: event.target.value })} className={`${CONTROL} py-2 normal-case tracking-normal`} placeholder="What this schedule covers" /></label>
                       <label className="flex min-h-10 items-center gap-2 rounded-md border border-black/10 bg-black/[0.025] px-3 text-xs font-medium text-black/60 sm:col-span-2"><input type="checkbox" checked={plan.customerVisible} onChange={event => updateLocal(plan.id, { customerVisible: event.target.checked })} /> Share active schedule in the customer portal</label>
                       <label className="grid gap-1 text-[10px] font-semibold uppercase tracking-wide text-black/40 sm:col-span-2">Internal notes<textarea rows={2} value={plan.internalNotes ?? ""} onChange={event => updateLocal(plan.id, { internalNotes: event.target.value })} className={`${CONTROL} py-2 normal-case tracking-normal`} placeholder="Private context for your team" /></label>
                     </div> : plan.summary ? <p className="mt-2 max-w-2xl text-xs leading-5 text-black/55">{plan.summary}</p> : null}
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  {canManage && financeManaged ? <div className="flex flex-wrap gap-2"><Link href="/portal/agency/agency-finance/plans" className="inline-flex min-h-9 items-center rounded-md border border-black/15 px-3 text-xs font-semibold">Manage in Finance Plans</Link></div> : canManage ? <div className="flex flex-wrap gap-2">
                     {editing ? <button type="button" onClick={() => void savePlan(plan)} disabled={busy === plan.id} className="inline-flex min-h-9 items-center gap-1 rounded-md bg-black px-3 text-xs font-semibold text-white"><Save size={13} /> Save</button> : <button type="button" onClick={() => setEditingId(plan.id)} className="min-h-9 rounded-md border border-black/15 px-3 text-xs font-semibold">Edit schedule</button>}
                     {plan.status === "draft" ? <button type="button" onClick={() => void setStatus(plan, "active")} disabled={Boolean(busy)} className="inline-flex min-h-9 items-center gap-1 rounded-md bg-brand px-3 text-xs font-semibold text-white"><Send size={13} /> {plan.customerVisible ? "Publish" : "Activate privately"}</button> : null}
                     {plan.status === "active" ? <button type="button" onClick={() => void setStatus(plan, "cancelled")} disabled={Boolean(busy)} className="min-h-9 rounded-md border border-black/15 px-3 text-xs font-semibold">Cancel plan</button> : null}
-                    {!plan.milestones.some(milestone => milestone.invoiceId) ? <button type="button" onClick={() => void removePlan(plan)} disabled={Boolean(busy)} title="Delete plan" className="grid h-9 w-9 place-items-center rounded-md border border-red-200 text-red-700"><Trash2 size={14} /></button> : null}
-                  </div>
+                    {canConfigure && !plan.milestones.some(milestone => milestone.invoiceId || milestone.invoiceOperationId) ? <button type="button" onClick={() => void removePlan(plan)} disabled={Boolean(busy)} title="Delete plan" className="grid h-9 w-9 place-items-center rounded-md border border-red-200 text-red-700"><Trash2 size={14} /></button> : null}
+                  </div> : null}
                 </div>
 
                 <div className="mt-4 border-y border-black/[0.07] bg-black/[0.015] px-3 py-2.5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-black/42"><FileText size={13} /> Linked evidence · {linkedEvidence.length}</p>
-                    <button type="button" onClick={() => { setEvidencePlanId(plan.id); document.getElementById("payment-plan-evidence-upload")?.scrollIntoView({ behavior: "smooth", block: "center" }); }} className="text-[11px] font-semibold text-black/58 hover:text-black">Attach document</button>
+                    {canManage ? <button type="button" onClick={() => { setEvidencePlanId(plan.id); document.getElementById("payment-plan-evidence-upload")?.scrollIntoView({ behavior: "smooth", block: "center" }); }} className="text-[11px] font-semibold text-black/58 hover:text-black">Attach document</button> : null}
                   </div>
                   {linkedEvidence.length ? <ul className="mt-2 grid gap-1.5 sm:grid-cols-2">
                     {linkedEvidence.map(file => <li key={file.id} className="flex min-w-0 items-center gap-2 rounded-md border border-black/8 bg-white px-2.5 py-2">
                       <FileText size={13} className="shrink-0 text-black/38" />
                       <a href={file.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate text-xs font-medium text-black/68 hover:text-black">{file.name}</a>
-                      <select aria-label={`Move ${file.name}`} value={file.collectionId ?? ""} onChange={event => void moveEvidence(file, event.target.value)} disabled={busy === file.id} className="min-h-7 max-w-32 rounded-md border border-black/10 bg-white px-1.5 text-[10px] text-black/55 disabled:opacity-40"><option value="">General</option>{plans.map(option => <option key={option.id} value={option.id}>{option.title}</option>)}</select>
+                      {canManage ? <select aria-label={`Move ${file.name}`} value={file.collectionId ?? ""} onChange={event => void moveEvidence(file, event.target.value)} disabled={busy === file.id} className="min-h-7 max-w-32 rounded-md border border-black/10 bg-white px-1.5 text-[10px] text-black/55 disabled:opacity-40"><option value="">General</option>{plans.map(option => <option key={option.id} value={option.id}>{option.title}</option>)}</select> : null}
                       <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase ${file.customerVisible ? "bg-emerald-50 text-emerald-700" : "bg-black/5 text-black/42"}`}>{file.customerVisible ? "Shared" : "Internal"}</span>
-                      <button type="button" onClick={() => void setEvidenceVisibility(file)} disabled={busy === file.id} title={file.customerVisible ? "Make internal" : "Share with client"} className="grid size-7 shrink-0 place-items-center rounded-md border border-black/10 text-black/48 hover:text-black disabled:opacity-40">{file.customerVisible ? <EyeOff size={12} /> : <Eye size={12} />}</button>
-                      <button type="button" onClick={() => void removeEvidence(file)} disabled={busy === file.id} title="Remove document" className="grid size-7 shrink-0 place-items-center rounded-md border border-red-100 text-red-600 hover:bg-red-50 disabled:opacity-40"><Trash2 size={12} /></button>
+                      {canManage ? <><button type="button" onClick={() => void setEvidenceVisibility(file)} disabled={busy === file.id} title={file.customerVisible ? "Make internal" : "Share with client"} className="grid size-7 shrink-0 place-items-center rounded-md border border-black/10 text-black/48 hover:text-black disabled:opacity-40">{file.customerVisible ? <EyeOff size={12} /> : <Eye size={12} />}</button><button type="button" onClick={() => void removeEvidence(file)} disabled={busy === file.id} title="Remove document" className="grid size-7 shrink-0 place-items-center rounded-md border border-red-100 text-red-600 hover:bg-red-50 disabled:opacity-40"><Trash2 size={12} /></button></> : null}
                     </li>)}
                   </ul> : <p className="mt-1.5 text-xs text-black/38">No document is attached to this schedule yet.</p>}
                 </div>
@@ -469,15 +481,16 @@ export function PaymentPlansPanel({
                     <thead className="bg-black/[0.025] text-[10px] uppercase tracking-wide text-black/40"><tr><th className="px-3 py-2 text-left">Milestone</th><th className="px-3 py-2 text-left">Service</th><th className="px-3 py-2 text-left">Due</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2 text-left">State</th><th className="px-3 py-2 text-right">Control</th></tr></thead>
                     <tbody className="divide-y divide-black/[0.07]">
                       {plan.milestones.map(milestone => {
-                        const locked = Boolean(milestone.invoiceId);
+                        const invoicePending = Boolean(milestone.invoiceOperationId && !milestone.invoiceId);
+                        const locked = Boolean(milestone.invoiceId || invoicePending);
                         const missed = plan.status === "active" && milestone.status !== "paid" && milestone.status !== "waived" && milestone.dueAt < Date.now();
                         return <tr key={milestone.id}>
                           <td className="px-3 py-3">{editing && !locked ? <input value={milestone.title} onChange={event => updateMilestone(plan.id, milestone.id, { title: event.target.value })} className={`${CONTROL} w-64`} /> : <><p className="font-medium text-black/80">{milestone.title}</p>{milestone.invoiceNumber ? <p className="mt-0.5 text-[10px] text-black/40">{milestone.invoiceNumber}</p> : null}</>}</td>
                           <td className="px-3 py-3 text-xs text-black/55">{editing && !locked ? <select value={milestone.productId ?? ""} onChange={event => { const product = products.find(item => item.id === event.target.value); updateMilestone(plan.id, milestone.id, { productId: product?.id, productName: product?.name }); }} className={`${CONTROL} w-44`}><option value="">Whole relationship</option>{products.map(product => <option key={product.id} value={product.id}>{product.name}</option>)}</select> : milestone.productName ?? "Whole relationship"}</td>
                           <td className="px-3 py-3 text-xs text-black/55">{editing && !locked ? <input type="date" value={dateInput(milestone.dueAt)} onChange={event => updateMilestone(plan.id, milestone.id, { dueAt: Date.parse(event.target.value) })} className={CONTROL} /> : formatUkDate(milestone.dueAt, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}</td>
                           <td className="px-3 py-3 text-right">{editing && !locked ? <input type="number" min="0.01" step="0.01" value={(milestone.amountCents / 100).toFixed(2)} onChange={event => updateMilestone(plan.id, milestone.id, { amountCents: Math.round(Number(event.target.value) * 100) })} className={`${CONTROL} w-28 text-right`} /> : <span className="font-mono font-semibold text-black/80">{money(milestone.amountCents, plan.currency)}</span>}</td>
-                          <td className="px-3 py-3"><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${missed ? "bg-red-50 text-red-800" : statusClass(milestone.status)}`}>{missed ? "Missed" : milestone.status}</span></td>
-                          <td className="px-3 py-3 text-right">{editing && !locked ? <div className="inline-flex items-center gap-1"><button type="button" onClick={() => updateMilestone(plan.id, milestone.id, { status: milestone.status === "waived" ? "planned" : "waived" })} className="min-h-9 rounded-md border border-black/15 px-2 text-[11px] font-semibold">{milestone.status === "waived" ? "Restore" : "Waive"}</button><button type="button" title="Remove milestone" onClick={() => removeMilestone(plan, milestone.id)} className="grid h-9 w-9 place-items-center rounded-md border border-red-200 text-red-700"><Trash2 size={13} /></button></div> : !locked && milestone.status !== "waived" ? <button type="button" onClick={() => void invoiceMilestone(plan, milestone)} disabled={Boolean(busy)} className="inline-flex min-h-9 items-center gap-1 rounded-md border border-black/15 px-3 text-xs font-semibold hover:bg-black/5 disabled:opacity-50"><ReceiptText size={13} /> Issue invoice</button> : milestone.status === "paid" ? <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700"><Check size={13} /> Paid</span> : <span className="text-xs text-black/40">{milestone.status === "waived" ? "Waived" : "Linked"}</span>}</td>
+                          <td className="px-3 py-3"><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${missed ? "bg-red-50 text-red-800" : statusClass(milestone.status)}`}>{invoicePending ? "Invoice recovery" : missed ? "Missed" : milestone.status}</span></td>
+                          <td className="px-3 py-3 text-right">{editing && !locked ? <div className="inline-flex items-center gap-1"><button type="button" onClick={() => updateMilestone(plan.id, milestone.id, { status: milestone.status === "waived" ? "planned" : "waived" })} className="min-h-9 rounded-md border border-black/15 px-2 text-[11px] font-semibold">{milestone.status === "waived" ? "Restore" : "Waive"}</button><button type="button" title="Remove milestone" onClick={() => removeMilestone(plan, milestone.id)} className="grid h-9 w-9 place-items-center rounded-md border border-red-200 text-red-700"><Trash2 size={13} /></button></div> : canManage && !milestone.invoiceId && milestone.status !== "waived" ? <button type="button" onClick={() => void invoiceMilestone(plan, milestone)} disabled={Boolean(busy)} className="inline-flex min-h-9 items-center gap-1 rounded-md border border-black/15 px-3 text-xs font-semibold hover:bg-black/5 disabled:opacity-50"><ReceiptText size={13} /> {invoicePending ? "Retry invoice" : "Issue invoice"}</button> : milestone.status === "paid" ? <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700"><Check size={13} /> Paid</span> : <span className="text-xs text-black/40">{milestone.status === "waived" ? "Waived" : "Linked"}</span>}</td>
                         </tr>;
                       })}
                     </tbody>
@@ -489,10 +502,10 @@ export function PaymentPlansPanel({
         </div>
       )}
 
-      <footer id="payment-plan-evidence-upload" className="grid gap-3 border-t border-black/10 bg-black/[0.015] p-4 lg:grid-cols-[1fr_auto] lg:items-end">
+      {canManage ? <footer id="payment-plan-evidence-upload" className="grid gap-3 border-t border-black/10 bg-black/[0.015] p-4 lg:grid-cols-[1fr_auto] lg:items-end">
         <div><p className="text-xs font-semibold text-black/70">Upload commercial evidence</p><p className="mt-1 text-xs text-black/42">Signed schedules, direct-debit mandates, funding confirmations, and payment-plan PDFs stay in the client file room.</p><div className="mt-3 flex flex-wrap items-center gap-2"><select aria-label="Attach document to" value={evidencePlanId} onChange={event => setEvidencePlanId(event.target.value)} className={`${CONTROL} max-w-64`}><option value="">General commercial record</option>{plans.map(plan => <option key={plan.id} value={plan.id}>{plan.title}</option>)}</select><input type="file" onChange={event => setEvidenceFile(event.target.files?.[0] ?? null)} className="min-h-10 max-w-full rounded-md border border-black/15 bg-white px-2 py-1 text-xs" /><label className="flex items-center gap-2 text-xs text-black/55"><input type="checkbox" checked={evidenceShared} onChange={event => setEvidenceShared(event.target.checked)} /> Share in customer portal</label></div>{evidenceFiles.some(file => !file.collectionId || !plans.some(plan => plan.id === file.collectionId)) ? <div className="mt-3 border-t border-black/8 pt-3"><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-black/38">General commercial evidence</p><div className="mt-2 flex flex-wrap gap-2">{evidenceFiles.filter(file => !file.collectionId || !plans.some(plan => plan.id === file.collectionId)).map(file => <label key={file.id} className="flex max-w-full items-center gap-2 rounded-md border border-black/10 bg-white px-2 py-1.5 text-xs"><a href={file.url} target="_blank" rel="noreferrer" className="max-w-48 truncate font-medium text-black/65">{file.name}</a><select aria-label={`Attach ${file.name}`} value="" onChange={event => void moveEvidence(file, event.target.value)} disabled={busy === file.id} className="min-h-7 max-w-36 rounded-md border border-black/10 px-1 text-[10px]"><option value="">Not attached</option>{plans.map(plan => <option key={plan.id} value={plan.id}>{plan.title}</option>)}</select></label>)}</div></div> : null}</div>
         <div className="flex flex-wrap gap-2"><a href={`/portal/clients/${clientId}?tab=files`} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/15 bg-white px-3 text-xs font-semibold"><FileUp size={14} /> Open all files</a><button type="button" onClick={() => void uploadEvidence()} disabled={!evidenceFile || busy === "evidence"} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white disabled:opacity-40"><FileUp size={14} /> {busy === "evidence" ? "Uploading..." : "Upload document"}</button></div>
-      </footer>
+      </footer> : null}
     </section>
   );
 }

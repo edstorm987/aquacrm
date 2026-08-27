@@ -86,15 +86,18 @@ export function ClientSystemsWorkspace({
   clientId,
   clientName,
   properties,
+  canManage = true,
 }: {
   clientId: string;
   clientName: string;
   properties: SystemProperty[];
+  canManage?: boolean;
 }) {
   const [telemetry, setTelemetry] = useState<ClientTelemetrySnapshot | null>(null);
   const [origin, setOrigin] = useState("");
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const monitorableProperties = properties.filter(property =>
     property.kind === "website"
@@ -140,9 +143,15 @@ export function ClientSystemsWorkspace({
 
   async function copySnippet() {
     if (!snippet) return;
-    await navigator.clipboard.writeText(snippet);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1_800);
+    setCopied(false);
+    setCopyError(null);
+    try {
+      await navigator.clipboard.writeText(snippet);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1_800);
+    } catch {
+      setCopyError("The tag could not be copied. Select the snippet above and copy it manually.");
+    }
   }
 
   async function testConnection() {
@@ -319,7 +328,7 @@ export function ClientSystemsWorkspace({
             <code>{snippet || "Preparing secure connection…"}</code>
           </pre>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <button
+            {canManage ? <button
               type="button"
               disabled={!snippet}
               onClick={() => void copySnippet()}
@@ -327,8 +336,8 @@ export function ClientSystemsWorkspace({
             >
               {copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
               {copied ? "Copied" : "Copy tag"}
-            </button>
-            <button
+            </button> : <span className="inline-flex h-9 items-center justify-center rounded-md border border-black/12 px-3 text-xs font-semibold text-black/45">Read-only</span>}
+            {canManage ? <button
               type="button"
               disabled={!telemetry || busy}
               onClick={() => void testConnection()}
@@ -336,8 +345,9 @@ export function ClientSystemsWorkspace({
             >
               <CircleDot size={14} aria-hidden="true" />
               {busy ? "Testing…" : "Test"}
-            </button>
+            </button> : null}
           </div>
+          {copyError ? <p role="alert" className="mt-3 text-xs leading-5 text-red-700">{copyError}</p> : null}
           <p className="mt-3 text-[11px] leading-5 text-black/36">
             Page URLs are stored without query strings or hashes. No form values, names, email addresses, or typed content are collected.
           </p>

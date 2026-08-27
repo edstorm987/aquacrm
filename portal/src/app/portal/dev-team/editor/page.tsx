@@ -21,7 +21,7 @@ import { DevEditorSetup } from "./setup/_DevEditorSetup";
 // portals route (/portal/agency/portals/editor) still opens the studio
 // directly, because there a portal is already chosen before you arrive.
 //
-// Founder + Dev Mode only — role first, then `devDocsAccessible`.
+// Founder-only Dev Team access — role first, then `devDocsAccessible`.
 export const dynamic = "force-dynamic";
 
 export default async function DevEditorProjectsPage() {

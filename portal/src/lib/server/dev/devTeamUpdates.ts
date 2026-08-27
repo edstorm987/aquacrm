@@ -18,23 +18,22 @@ import "server-only";
 //     mangled by our round-trip.
 //   • Serialised + optimistic. Two guards, because there are two kinds of
 //     concurrent writer:
-//       – OURS. Every append in this process queues on one promise chain, so a
-//         double-submit or two open tabs can never both read the same snapshot.
-//         (Before that chain existed, N concurrent calls all returned 201 and
-//         N-1 entries were silently overwritten.)
-//       – THEIRS. A sibling worker writes this doc straight off disk and takes
-//         no lock of ours, so all we can do is narrow the window: the file is
-//         stat'd before the read AND again immediately before the write, and
-//         the attempt is dropped + retried if either stat moved. A change that
-//         lands inside the last few microseconds before `writeFile` still wins;
-//         nothing short of an OS lock closes that, and the other side would
-//         have to cooperate.
+//       – OURS. A filesystem-visible lock serialises every app/worker process,
+//         so the next append re-reads the first process's committed bytes.
+//       – THEIRS. A direct editor may not honour Aqua's lock, so the atomic
+//         replacement compares mtime, size AND content hash immediately before
+//         rename and retries rather than overwriting a moved snapshot.
 
-import { readFile, stat, writeFile } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 
 import { PROJECT_ROOT } from "@/lib/server/dev/devDocs";
 import { invalidatePath, readParsedFile } from "@/lib/server/dev/devMarkdownCache";
+import {
+  atomicReplaceDevFile,
+  DevFileConflictError,
+  withDevFileTransaction,
+} from "@/lib/server/dev/devFileTransaction";
+import { readDevWorkspaceSnapshot } from "@/lib/server/dev/devWorkspaceFiles";
 
 /** The running record. Repo-relative — also the Library link target. */
 export const UPDATES_DOC_REL = "docs/development/updates.md";
@@ -344,7 +343,7 @@ export function buildUpdateEntry(input: NewUpdateInput, nowMs: number = Date.now
 // ---- write serialisation ---------------------------------------------------
 
 /**
- * One promise chain for every append this process makes.
+ * One filesystem transaction for every append across every process.
  *
  * The read-modify-write below is not atomic: two callers that read the same
  * bytes both splice their own entry into that same snapshot, and the second
@@ -357,20 +356,8 @@ export function buildUpdateEntry(input: NewUpdateInput, nowMs: number = Date.now
  * A rejected run must not poison the chain, so failures are swallowed here —
  * the caller still sees its own rejection through `run`.
  */
-let updatesWriteChain: Promise<unknown> = Promise.resolve();
-
 function withUpdatesWriteLock<T>(fn: () => Promise<T>): Promise<T> {
-  const run = updatesWriteChain.then(fn, fn);
-  updatesWriteChain = run.then(
-    () => undefined,
-    () => undefined,
-  );
-  return run;
-}
-
-/** Same bytes, untouched since we last looked? (mtime + size, the cheap pair.) */
-function sameFile(a: { mtimeMs: number; size: number }, b: { mtimeMs: number; size: number }): boolean {
-  return a.mtimeMs === b.mtimeMs && a.size === b.size;
+  return withDevFileTransaction(updatesDocPath(), fn);
 }
 
 /**
@@ -393,12 +380,9 @@ export async function appendUpdateEntry(
 
   return withUpdatesWriteLock(async () => {
     for (let attempt = 0; attempt < 3; attempt++) {
-      const before = await stat(abs);
-      const raw = await readFile(abs, "utf8");
-      const afterRead = await stat(abs);
-      // Someone else wrote between our stat and our read — drop this copy and
-      // re-read, so we never write back a stale snapshot of their entry.
-      if (!sameFile(before, afterRead)) continue;
+      const snapshot = await readDevWorkspaceSnapshot(abs);
+      const before = snapshot.version;
+      const raw = snapshot.bytes.toString("utf8");
 
       const next = insertUpdateBlock(raw, block);
 
@@ -406,10 +390,12 @@ export async function appendUpdateEntry(
       // it is still time in which a sibling worker's editor can land — and
       // writing `next` would erase it. Re-stat, and bail to a fresh read if the
       // file moved at all since we read it.
-      const justBefore = await stat(abs);
-      if (!sameFile(before, justBefore)) continue;
-
-      await writeFile(abs, next, "utf8");
+      try {
+        await atomicReplaceDevFile(abs, next, before);
+      } catch (error) {
+        if (error instanceof DevFileConflictError) continue;
+        throw error;
+      }
       // The next read must see the new entry even within the same mtime tick.
       invalidatePath(abs);
       return entry;

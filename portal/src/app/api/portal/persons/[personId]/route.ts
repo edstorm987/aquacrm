@@ -20,10 +20,14 @@ import {
   removePersonPhone,
   updatePerson,
 } from "@/server/persons";
-import { createClient } from "@/server/tenants";
 import { seedClientFromPerson } from "@/lib/server/seeds/seedClientFromPerson";
 import { getOrganisation, upsertOrganisation } from "@/server/organisations";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
+import {
+  ClientLifecycleOperationConflictError,
+  createClientWithLifecycleOperation,
+  listAgencyLifecyclePhases,
+} from "@/lib/server/clients/clientLifecycle";
 
 const WRITE_ROLES = ["agency-owner", "agency-manager", "agency-staff"] as const;
 
@@ -80,28 +84,36 @@ export async function PATCH(
 
       case "add-email": {
         const value = typeof body?.value === "string" ? body.value : "";
-        const updated = addPersonEmail(session.agencyId, personId, value, {
-          label: typeof body?.label === "string" ? body.label : undefined,
-          isPrimary: body?.isPrimary === true,
-        });
-        if (!updated) {
-          return NextResponse.json({ ok: false, error: "That email address could not be read." }, { status: 400 });
+        try {
+          const updated = addPersonEmail(session.agencyId, personId, value, {
+            label: typeof body?.label === "string" ? body.label : undefined,
+            isPrimary: body?.isPrimary === true,
+          });
+          if (!updated) {
+            return NextResponse.json({ ok: false, error: "That email address could not be read." }, { status: 400 });
+          }
+          await flushPendingWrites();
+          return NextResponse.json({ ok: true, person: updated });
+        } catch (error) {
+          return identityWriteErrorResponse(error);
         }
-        await flushPendingWrites();
-        return NextResponse.json({ ok: true, person: updated });
       }
 
       case "add-phone": {
         const value = typeof body?.value === "string" ? body.value : "";
-        const updated = addPersonPhone(session.agencyId, personId, value, {
-          label: typeof body?.label === "string" ? body.label : undefined,
-          isPrimary: body?.isPrimary === true,
-        });
-        if (!updated) {
-          return NextResponse.json({ ok: false, error: "That phone number could not be read." }, { status: 400 });
+        try {
+          const updated = addPersonPhone(session.agencyId, personId, value, {
+            label: typeof body?.label === "string" ? body.label : undefined,
+            isPrimary: body?.isPrimary === true,
+          });
+          if (!updated) {
+            return NextResponse.json({ ok: false, error: "That phone number could not be read." }, { status: 400 });
+          }
+          await flushPendingWrites();
+          return NextResponse.json({ ok: true, person: updated });
+        } catch (error) {
+          return identityWriteErrorResponse(error);
         }
-        await flushPendingWrites();
-        return NextResponse.json({ ok: true, person: updated });
       }
 
       case "edit-email":
@@ -117,16 +129,7 @@ export async function PATCH(
           await flushPendingWrites();
           return NextResponse.json({ ok: true, person: updated });
         } catch (error) {
-          // A collision is the operator's to resolve, not a server fault —
-          // tell them whose card holds it so they can merge or correct.
-          const conflictingPersonId = error instanceof IdentityInUseError
-            ? error.conflictingPersonId
-            : undefined;
-          return NextResponse.json({
-            ok: false,
-            error: error instanceof Error ? error.message : "That value could not be saved.",
-            conflictingPersonId,
-          }, { status: 409 });
+          return identityWriteErrorResponse(error);
         }
       }
 
@@ -194,17 +197,49 @@ export async function PATCH(
           return NextResponse.json({ ok: false, error: "A workspace name is required." }, { status: 400 });
         }
 
-        const client = createClient(session.agencyId, {
-          name,
-          ownerEmail: primaryEmail(person),
-          stage: "discovery",
-          metadata: {
-            clientEmail: primaryEmail(person),
-            phone: primaryPhone(person),
-            // Kept so the workspace can trace back to the person it came from.
-            convertedFromPersonId: person.id,
-          },
-        });
+        const lifecyclePhases = await listAgencyLifecyclePhases(session.agencyId);
+        const stage = lifecyclePhases.find(phase => phase.stage === "aqua-epic-intro")?.stage
+          ?? lifecyclePhases[0]?.stage;
+        if (!stage) {
+          return NextResponse.json({ ok: false, error: "No lifecycle phase is available for this client." }, { status: 409 });
+        }
+        const metadata = {
+          clientEmail: primaryEmail(person),
+          phone: primaryPhone(person),
+          // Kept so the workspace can trace back to the person it came from.
+          convertedFromPersonId: person.id,
+        };
+        let creation;
+        try {
+          creation = await createClientWithLifecycleOperation({
+            agencyId: session.agencyId,
+            actor: session.userId,
+            operationId: `person-lifecycle:${person.id}`,
+            createInput: {
+              name,
+              ownerEmail: primaryEmail(person),
+              stage,
+              metadata,
+            },
+            requestFingerprint: { personId: person.id, name, stage, metadata },
+          });
+        } catch (error) {
+          if (error instanceof ClientLifecycleOperationConflictError) {
+            return NextResponse.json({ ok: false, error: error.message, code: "operation_conflict" }, { status: 409 });
+          }
+          throw error;
+        }
+        const client = creation.client;
+        if (!creation.ok) {
+          return NextResponse.json({
+            ok: false,
+            error: creation.error ?? "Client lifecycle setup is incomplete.",
+            code: "client_lifecycle_incomplete",
+            clientId: client.id,
+            lifecycle: creation.lifecycle,
+            retryable: true,
+          }, { status: 503 });
+        }
 
         // Link both directions, then carry the history across. Seeding also
         // runs on the `client.created` event; both paths upsert, so a double
@@ -273,6 +308,17 @@ export async function PATCH(
       return NextResponse.json({ ok: false, error: "The contact could not be updated." }, { status: 500 });
     }
   }
+}
+
+function identityWriteErrorResponse(error: unknown) {
+  // A collision is the operator's to resolve, not a server fault. Return the
+  // owning card for both Add and Edit so the mounted UI can take them there.
+  const isConflict = error instanceof IdentityInUseError;
+  return NextResponse.json({
+    ok: false,
+    error: error instanceof Error ? error.message : "That value could not be saved.",
+    conflictingPersonId: isConflict ? error.conflictingPersonId : undefined,
+  }, { status: isConflict ? 409 : 400 });
 }
 
 function isStringRecord(value: unknown): value is Record<string, string> {

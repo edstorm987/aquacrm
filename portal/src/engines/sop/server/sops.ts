@@ -4,8 +4,14 @@ import crypto from "node:crypto";
 import { getState, mutate } from "@/server/storage";
 import { logActivity } from "@/server/activity";
 import type { SopDocument } from "@/server/types";
-import { elementSchema, getElementDefinition, validateElementProps } from "@/engines/editor/elements";
-import type { Block, BlockTreeJSON } from "@/engines/editor/elements";
+// Keep the server SOP store on the element engine's leaf modules. Importing the
+// public barrel also exposes `websiteElements`, whose on-demand vocabulary
+// reaches the website editor's 78 client block renderers. Next registers those
+// client references even when this server module is reached through a dynamic
+// station import, which made the default agency page ship the editor.
+import type { Block, BlockTreeJSON } from "@/engines/editor/elements/block";
+import { getElementDefinition } from "@/engines/editor/elements/registry";
+import { elementSchema, validateElementProps } from "@/engines/editor/elements/schema";
 
 export function listSops(agencyId: string): SopDocument[] {
   return Object.values(getState().sops)

@@ -3,6 +3,13 @@
 Ed's model, written down 18 August 2026 so it can be argued with rather than
 carried around in one head.
 
+> **Implementation checkpoint updated 2026-08-24.** The
+> universal Editor now saves/creates repository files on a draft branch, opens a
+> pull request and can merge it; that path was exercised against a real client
+> repository on 2026-08-22. Client-tier modelling and mounting the whole Editor
+> in a client portal remain open. Current status lives in
+> [development/checklist.md](development/checklist.md).
+
 ## The idea
 
 Every client starts with a portal inside Aqua. Some clients level up: a
@@ -78,26 +85,58 @@ nobody else's.
 
 - `provisionClientProject` — starter → repository, tokens replaced, git initialised
 - `publishProjectToGitHub` — real commits (currently refuses paths outside the provisioned workspace)
-- Registry, patch, hash checking, branch publish — built and tested, never run against a real repository
+- Registry, patch, hash checking and branch publish — built and tested; real
+  repository create/save/PR was exercised against `edstorm987/Beast-marks`
 - `EditAdapter` engine — one editing loop; conflict detection, dry runs, all-or-nothing publishing
-- Repository browser and element-to-source picker, inside the Studio
-- Three editing modes, gating the inspector by depth
+- Universal repository browser, source/visual surfaces and project-family navigation inside `DevEditor`
 - Editing leases and the client-blocking overlay — built, not mounted
+
+## Access and Fulfilment parity
+
+The same editor engine can appear in Dev Team, a client's portal or a Fulfilment
+project, but the surrounding authority is always the selected canonical grant.
+Developer, staff, freelancer, client and AI labels are reusable templates rather
+than blanket access. Ed assigns a person the exact client, product workspace,
+project, environment and capabilities; that assignment decides which portal and
+workspace navigation appears. The internal Dev Team control plane remains separate:
+a client or developer on Project A does not inherit Roadmap, findings, workers,
+repository-wide docs, Project B, credentials, CRM finance or deployment authority.
+
+Fractal Fulfilment means reuse of the same project/workspace IDs, data and evaluator,
+not permission copies. Agency Fulfilment is an explicitly granted cross-client macro
+view; client Fulfilment is the named client's micro view; each service/product and
+technical project can have its own team and capabilities. Staff/People, the Team
+portal, client portals and the project surface all project those grants through UI
+suited to their audience.
+
+If a person reaches a legitimate boundary without the required capability, they may
+request the exact permission with a reason and duration. The request grants nothing
+until Ed or a delegated in-scope approver approves it, narrows it or denies it. No
+self-approval or authority widening is possible; decisions, expiry and revocation are
+audited and take effect on the current session. The canonical kernel and shared
+management UI are now implemented, and the exact-project Dev Workspace consumes
+them. The full request-decision mutation browser matrix and client-portal placement
+remain open; implemented source/tests are not evidence those user actions were run.
 
 ## What is missing
 
 1. **A tier on the client record.** Nothing currently says which of the three a
    client is on, so nothing can behave differently. This is the smallest change
    and everything else depends on it.
-2. **Saving from the editor.** The commit path has never run against a real
-   repository. Until it has, the editor is a viewer.
+2. ✅ **Saving from the editor is built.** Repository-backed create/save writes
+   the draft branch, Publish opens/reuses a PR, and the real-repository path has
+   been walked. The full browser lifecycle, unsaved-work transition matrix and
+   production durability proof are still open; this is no longer a viewer-only
+   system.
 3. **An application starter.** The only starter is a marketing site, and Ed's
    Tier 2 shape is an application with a sidebar. The link also needs
    `target="_blank"` so Aqua opens in a new tab rather than navigating away
    from the product.
-4. **Scoping the editor to a client's repository.** The registry takes a
-   repository already; what is missing is the permission model — a Tier 3
-   client editing their repository and nobody else's.
+4. **Scoping the editor to a client's repository.** The canonical grant kernel,
+   exact-project Dev Workspace and direct Dev API gates now exist. What remains is
+   the positive Tier 3 client-owner/client-staff browser journey: one authorised
+   repository, only granted editor elements, edit/reload retained and no unrelated
+   client/project, finance, secrets or internal Dev Team access.
 5. **Deploy feedback.** A client editing their site needs to see the build
    succeed or fail. Without it, publishing is a coin toss.
 6. **Simple mode as a real surface.** Today it is the Content tab with the
@@ -106,9 +145,11 @@ nobody else's.
 
 ## Order
 
-Tier field first — it is small and unblocks conditional behaviour. Then prove
-the commit path on a scratch repository, because everything editor-shaped is
-theoretical until that works once. Then the embed decision, since it shapes
-authentication and cannot be retrofitted cheaply. Simple mode and deploy
-feedback follow, as they are the client-facing half and should be built once
-the mechanics underneath them are known to work.
+Tier field first — it is small and unblocks conditional behaviour. The scratch
+repository proof, project grant kernel, role-template/per-person manager and first
+Staff/Fulfilment/exact-client projections exist. Next close the Editor reliability/
+authoring/failure matrix and settle the embed/client-mount work. Then finish shared
+client and legacy portal/API adoption and run the full create/grant/request/approve/
+revoke plus responsive/accessibility matrix. Simple mode and deployment
+feedback are the client-facing half and should be built once those mechanics are
+dependable.

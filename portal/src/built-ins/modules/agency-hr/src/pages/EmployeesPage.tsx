@@ -1,6 +1,6 @@
 // EmployeesPage — Employee HQ surface (chapter #59 §9). Mounted via the
-// manifest at `/portal/agency/agency-hr/employees`. Reads the staff
-// directory + roles through the per-request container, filters down to
+// manifest at `/portal/agency/agency-hr/employees`. Reads the canonical
+// People workforce projection + HR roles through the per-request container, filters down to
 // rows flagged `agencyEmployee:true` (or any row with a customRoleId,
 // to surface bootstrap migrations), and renders a flat table with
 // inline-expandable per-row profile (NDA / payroll / assignments).

@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { LoaderCircle } from "lucide-react";
 
 import { emitElementCode, emitKindForFile } from "@/engines/editor/elements/emit";
 import { getElementDefinition } from "@/engines/editor/elements/registry";
+import { apiResponseError } from "@/lib/client/apiResponseError";
 
 // ─── DEV EDITOR — inserting an element writes real code (phase 7) ───────────
 //
@@ -63,6 +64,12 @@ export function ElementInsertPanel({ projectId, repository, elementType, sourceF
   const [preview, setPreview] = useState<InsertPreview | null>(null);
   const [committed, setCommitted] = useState<Committed | null>(null);
   const [problem, setProblem] = useState("");
+  const targetKey = `${projectId}:${repository}:${elementType}`;
+  const targetKeyRef = useRef(targetKey);
+  targetKeyRef.current = targetKey;
+  const insertContextKey = `${targetKey}:${file}:${mode}:${lineInput}`;
+  const insertContextKeyRef = useRef(insertContextKey);
+  insertContextKeyRef.current = insertContextKey;
 
   // A different element is a different insert. Everything downstream of the
   // choice resets — a stale preview next to a new element is how somebody
@@ -102,10 +109,12 @@ export function ElementInsertPanel({ projectId, repository, elementType, sourceF
   }
 
   async function loadTargets() {
+    const requestedTargetKey = targetKey;
     setBusy("targets"); setProblem("");
     try {
       const payload = await call({ action: "insert-targets" });
-      if (!payload.ok) { setProblem(payload.error ?? "The repository's files could not be listed."); return; }
+      if (targetKeyRef.current !== requestedTargetKey) return;
+      if (!payload.ok) { setProblem(apiResponseError(payload, "The repository's files could not be listed.")); return; }
       const files: string[] = payload.files ?? [];
       setTargets({ branch: payload.branch, readFrom: payload.readFrom, files, truncated: Boolean(payload.truncated) });
       // The selection's file is the likeliest destination when it is offered.
@@ -113,9 +122,10 @@ export function ElementInsertPanel({ projectId, repository, elementType, sourceF
       setFile(focus?.path ?? files[0] ?? "");
       if (focus?.line) { setMode("after"); setLineInput(String(focus.line)); }
     } catch {
+      if (targetKeyRef.current !== requestedTargetKey) return;
       setProblem("The repository's files could not be listed.");
     } finally {
-      setBusy("");
+      if (targetKeyRef.current === requestedTargetKey) setBusy("");
     }
   }
 
@@ -124,10 +134,12 @@ export function ElementInsertPanel({ projectId, repository, elementType, sourceF
   }
 
   async function previewIt() {
+    const requestedContextKey = insertContextKey;
     setBusy("preview"); setProblem(""); setPreview(null); setCommitted(null);
     try {
       const payload = await call({ action: "insert", path: file, code, anchor: anchorPayload(), label: definition?.label });
-      if (!payload.ok) { setProblem(payload.error ?? "That spot could not be prepared."); return; }
+      if (insertContextKeyRef.current !== requestedContextKey) return;
+      if (!payload.ok) { setProblem(apiResponseError(payload, "That spot could not be prepared.")); return; }
       setPreview({
         line: payload.line,
         insertedLines: payload.insertedLines ?? [],
@@ -136,15 +148,17 @@ export function ElementInsertPanel({ projectId, repository, elementType, sourceF
         fingerprint: payload.fingerprint,
       });
     } catch {
+      if (insertContextKeyRef.current !== requestedContextKey) return;
       setProblem("That spot could not be prepared.");
     } finally {
-      setBusy("");
+      if (insertContextKeyRef.current === requestedContextKey) setBusy("");
     }
   }
 
   /** The one call that writes. `confirm: true` literally, never a coerced value. */
   async function commitIt() {
     if (!preview) return;
+    const requestedContextKey = insertContextKey;
     setBusy("commit"); setProblem("");
     try {
       const payload = await call({
@@ -156,12 +170,14 @@ export function ElementInsertPanel({ projectId, repository, elementType, sourceF
         fingerprint: preview.fingerprint,
         confirm: true,
       });
-      if (!payload.ok) { setProblem(payload.error ?? "That could not be committed."); return; }
+      if (insertContextKeyRef.current !== requestedContextKey) return;
+      if (!payload.ok) { setProblem(apiResponseError(payload, "That could not be committed.")); return; }
       setCommitted({ branch: payload.branch, commitSha: payload.commitSha, summary: payload.summary });
     } catch {
+      if (insertContextKeyRef.current !== requestedContextKey) return;
       setProblem("That could not be committed.");
     } finally {
-      setBusy("");
+      if (insertContextKeyRef.current === requestedContextKey) setBusy("");
     }
   }
 

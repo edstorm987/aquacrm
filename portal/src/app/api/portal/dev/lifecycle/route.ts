@@ -1,13 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
-import { devDocsAccessible } from "@/lib/server/dev/devDocs";
+import { accessErrorResponse } from "@/server/accessControl";
+import { requireDevProjectAccess } from "@/lib/server/dev/devProjectAccess";
 import { addThought, listThoughtsForProject } from "@/lib/server/dev/devTeamThoughts";
-import { getDevProject } from "@/engines/editor/server/devProjects";
 import { SourceEditUnavailable } from "@/engines/editor/server/sourceEdit";
 import { readDraftStatus, readWorkHistory } from "@/engines/editor/server/workLifecycle";
-import { ensureHydrated } from "@/server/storage";
-import { getUserById } from "@/server/users";
 
 /**
  * The work lifecycle on the right side (dev-editor-finish.md phase 14): what
@@ -20,13 +17,13 @@ import { getUserById } from "@/server/users";
  * second one is the mistake the plan names. The single write here is a note,
  * which touches the local thoughts ledger and never GitHub.
  *
- * ── The guards — the same layered gate as every dev-team surface ────────────
+ * ── The guards ──────────────────────────────────────────────────────────────
  *
- * FOUNDER + DEV MODE, then ORIGIN, then TENANT-BEFORE-PROJECT: the project id
- * comes from the body, the agency NEVER does, and a foreign project id
- * answers word-for-word like an invented one. The repository, ref and token
- * all come off the `DevProject` record server-side; no response carries a
- * credential.
+ * ORIGIN, then tenant-resolved PROJECT + EDITOR ELEMENT capability: reads use
+ * view, while adding a note uses edit/use. The project id comes from the body,
+ * the agency NEVER does, and a foreign project id answers word-for-word like
+ * an invented one. The repository, ref and token all come off the `DevProject`
+ * record server-side; no response carries a credential.
  *
  * POST only, like the Librarian: a draft's file list names unshipped work,
  * and the safest way to keep it out of logs is no GET to widen.
@@ -46,11 +43,6 @@ function validOrigin(request: Request) {
 
 export async function POST(request: NextRequest) {
   try {
-    await ensureHydrated();
-    const session = await requireRole(["agency-owner", "agency-manager"]);
-    if (!devDocsAccessible(session)) {
-      return NextResponse.json({ ok: false, error: "Dev Mode is required." }, { status: 403 });
-    }
     if (!validOrigin(request)) {
       return NextResponse.json({ ok: false, error: "Invalid request origin." }, { status: 403 });
     }
@@ -60,20 +52,24 @@ export async function POST(request: NextRequest) {
     if (!projectId) {
       return NextResponse.json({ ok: false, error: "A project is required." }, { status: 400 });
     }
-    // Tenant before project, everywhere.
-    const project = getDevProject(session.agencyId, projectId);
-    if (!project) {
-      return NextResponse.json({ ok: false, error: "That project could not be found." }, { status: 404 });
-    }
+    const writes = body?.action === "add-note";
+    const access = await requireDevProjectAccess({
+      projectId,
+      capability: writes ? "project.edit" : "project.view",
+      elementCapability: writes ? "element.project.editor.use" : "element.project.editor.view",
+    });
+    const { project } = access;
+    const agencyId = access.resourceAgencyId;
+    const sourceDeps = { allowSharedCredentials: access.resolution.ownerBaseline };
 
     try {
       if (body?.action === "status") {
-        const status = await readDraftStatus({ agencyId: session.agencyId, project });
+        const status = await readDraftStatus({ agencyId, project }, sourceDeps);
         return NextResponse.json({ ok: true, status }, { headers: { "cache-control": "private, no-store" } });
       }
 
       if (body?.action === "history") {
-        const history = await readWorkHistory({ agencyId: session.agencyId, project });
+        const history = await readWorkHistory({ agencyId, project }, sourceDeps);
         return NextResponse.json({ ok: true, history }, { headers: { "cache-control": "private, no-store" } });
       }
 
@@ -91,7 +87,7 @@ export async function POST(request: NextRequest) {
         // does not get to sign somebody else's name to a note.
         const note = await addThought({
           text,
-          author: getUserById(session.userId)?.name || session.email,
+          author: access.user.name || access.session.email,
           projectId: project.id,
         });
         return NextResponse.json({ ok: true, note });
@@ -110,6 +106,6 @@ export async function POST(request: NextRequest) {
       }, { status: 502 });
     }
   } catch (error) {
-    return authErrorResponse(error);
+    return accessErrorResponse(error);
   }
 }

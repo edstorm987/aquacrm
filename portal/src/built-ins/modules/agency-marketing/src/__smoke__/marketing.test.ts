@@ -170,7 +170,7 @@ describe("agency-marketing smoke", () => {
     // Duplicate email rejected.
     await assert.rejects(
       services.leads.create({ email: "marie@example.com", name: "Different" }, ACTOR),
-      /already exists/i,
+      /already uses this email/i,
     );
 
     // recordContact bumps new → contacted + records history.
@@ -235,8 +235,9 @@ describe("agency-marketing smoke", () => {
     const to = Date.now() + 86400_000;
     const camps = await services.reports.campaignSnapshot({ from, to });
     assert.equal(camps.totalCampaigns, 1, "throwaway was deleted, only Spring remains");
-    assert.equal(camps.totalBudgetCents, 50000);
-    const emailRow = camps.byChannel.find(r => r.channel === "email");
+    assert.equal(camps.windowBasis, "createdAt");
+    assert.deepEqual(camps.totalBudgetByCurrency, [{ currency: "usd", budgetCents: 50000 }]);
+    const emailRow = camps.byChannelCurrency.find(r => r.channel === "email" && r.currency === "usd");
     assert.equal(emailRow?.count, 1);
 
     const funnel = await services.reports.leadFunnel({ from, to });
@@ -269,6 +270,202 @@ describe("agency-marketing smoke", () => {
     assert.ok(eventNames.includes("campaign.created"));
     assert.ok(eventNames.includes("lead.created"));
     assert.ok(eventNames.includes("lead.converted"));
+  });
+});
+
+describe("agency-marketing lead identity", () => {
+  function freshLeads() {
+    const world = buildWorld();
+    return containerWithDeps({
+      agencyId: AGENCY_ID,
+      storage: world.storage,
+      tenant: world.tenant,
+      user: world.user,
+      activity: world.activity,
+      events: world.events,
+      pluginInstalls: world.pluginInstalls,
+    }).leads;
+  }
+
+  test("email changes stay canonical and reachable", async () => {
+    const leads = freshLeads();
+    const lead = await leads.create({ email: "  Canonical.Case@Example.COM  ", name: "Canonical lead" }, ACTOR);
+    assert.equal(lead.email, "canonical.case@example.com");
+    assert.equal((await leads.getByEmail(" CANONICAL.CASE@example.com "))?.id, lead.id);
+
+    const updated = await leads.update(lead.id, { email: "  Canonical.Renamed@Example.COM " }, ACTOR);
+    assert.equal(updated?.email, "canonical.renamed@example.com");
+    assert.equal(await leads.getByEmail("canonical.case@example.com"), null);
+    assert.equal((await leads.getByEmail(" CANONICAL.RENAMED@example.com "))?.id, lead.id);
+  });
+
+  test("an email edit cannot steal another lead's identity", async () => {
+    const leads = freshLeads();
+    const owner = await leads.create({ email: "identity.owner@example.com" }, ACTOR);
+    const other = await leads.create({ email: "identity.other@example.com" }, ACTOR);
+    await assert.rejects(
+      leads.update(other.id, { email: " IDENTITY.OWNER@example.com " }, ACTOR),
+      /already uses this email/i,
+    );
+    assert.equal((await leads.getByEmail("identity.owner@example.com"))?.id, owner.id);
+    assert.equal((await leads.getByEmail("identity.other@example.com"))?.id, other.id);
+  });
+
+  test("simultaneous creates and edits leave one canonical owner", async () => {
+    const leads = freshLeads();
+    const createResults = await Promise.allSettled([
+      leads.create({ email: " race.create@example.com " }, ACTOR),
+      leads.create({ email: "RACE.CREATE@example.com" }, ACTOR),
+    ]);
+    assert.equal(createResults.filter(result => result.status === "fulfilled").length, 1);
+    assert.equal(createResults.filter(result => result.status === "rejected").length, 1);
+
+    const first = await leads.create({ email: "race.edit.first@example.com" }, ACTOR);
+    const second = await leads.create({ email: "race.edit.second@example.com" }, ACTOR);
+    const editResults = await Promise.allSettled([
+      leads.update(first.id, { email: " race.edit.shared@example.com " }, ACTOR),
+      leads.update(second.id, { email: "RACE.EDIT.SHARED@example.com" }, ACTOR),
+    ]);
+    assert.equal(editResults.filter(result => result.status === "fulfilled").length, 1);
+    assert.equal(editResults.filter(result => result.status === "rejected").length, 1);
+    const shared = await leads.getByEmail("race.edit.shared@example.com");
+    assert.ok(shared?.id === first.id || shared?.id === second.id);
+    assert.equal((await leads.list()).filter(row => row.email === "race.edit.shared@example.com").length, 1);
+  });
+
+  test("a simultaneous contact and edit preserve both changes", async () => {
+    const leads = freshLeads();
+    const lead = await leads.create({ email: "contact.edit@example.com", name: "Before edit" }, ACTOR);
+    await Promise.all([
+      leads.recordContact(lead.id, "Concurrent contact", ACTOR),
+      leads.update(lead.id, { name: "After edit" }, ACTOR),
+    ]);
+    const stored = await leads.get(lead.id);
+    assert.equal(stored?.name, "After edit");
+    assert.equal(stored?.status, "contacted");
+    assert.deepEqual(stored?.contactHistory.map(entry => entry.note), ["Concurrent contact"]);
+  });
+});
+
+describe("agency-marketing campaign truth", () => {
+  function freshCampaignServices() {
+    const world = buildWorld();
+    const services = containerWithDeps({
+      agencyId: AGENCY_ID,
+      storage: world.storage,
+      tenant: world.tenant,
+      user: world.user,
+      activity: world.activity,
+      events: world.events,
+      pluginInstalls: world.pluginInstalls,
+    });
+    return services;
+  }
+
+  test("validates the complete resulting record before an update", async () => {
+    const { campaigns } = freshCampaignServices();
+    const campaign = await campaigns.create({
+      name: "Validated campaign",
+      channel: "email",
+      startAt: 100,
+      endAt: 200,
+      budgetCents: 1_000,
+      currency: "gbp",
+    }, ACTOR);
+
+    const invalidPatches: Array<[string, Record<string, unknown>]> = [
+      ["blank name", { name: "   " }],
+      ["retained end date", { startAt: 300 }],
+      ["negative budget", { budgetCents: -1 }],
+      ["fractional minor unit", { budgetCents: 1.5 }],
+      ["non-finite goal", { goalTarget: Number.POSITIVE_INFINITY }],
+      ["invalid channel", { channel: "telepathy" }],
+      ["invalid currency", { currency: "btc" }],
+      ["invalid status", { status: "sent" }],
+      ["invalid KPI", { goalKpi: "clickbait" }],
+    ];
+    for (const [label, patch] of invalidPatches) {
+      await assert.rejects(
+        () => campaigns.update(campaign.id, patch as never, ACTOR),
+        label,
+      );
+    }
+    const unchanged = await campaigns.get(campaign.id);
+    assert.equal(unchanged?.name, "Validated campaign");
+    assert.equal(unchanged?.startAt, 100);
+    assert.equal(unchanged?.endAt, 200);
+    assert.equal(unchanged?.budgetCents, 1_000);
+    assert.equal(unchanged?.channel, "email");
+    assert.equal(unchanged?.currency, "gbp");
+    assert.equal(unchanged?.status, "draft");
+  });
+
+  test("keeps budgets and measured results separated by currency and KPI", async () => {
+    const services = freshCampaignServices();
+    const gbpLeads = await services.campaigns.create({
+      name: "GBP leads",
+      channel: "paid",
+      budgetCents: 10_000,
+      currency: "gbp",
+      goalKpi: "leads",
+    }, ACTOR);
+    const gbpRevenue = await services.campaigns.create({
+      name: "GBP revenue",
+      channel: "paid",
+      budgetCents: 5_000,
+      currency: "gbp",
+      goalKpi: "revenue",
+    }, ACTOR);
+    const usdLeads = await services.campaigns.create({
+      name: "USD leads",
+      channel: "paid",
+      budgetCents: 20_000,
+      currency: "usd",
+      goalKpi: "leads",
+    }, ACTOR);
+    await services.campaigns.setResult(gbpLeads.id, 7, ACTOR);
+    await services.campaigns.setResult(gbpRevenue.id, 1_250, ACTOR);
+    await services.campaigns.setResult(usdLeads.id, 11, ACTOR);
+
+    const snapshot = await services.reports.campaignSnapshot({ from: 0, to: Date.now() + 1_000 });
+    assert.equal(snapshot.windowBasis, "createdAt");
+    assert.deepEqual(snapshot.totalBudgetByCurrency, [
+      { currency: "usd", budgetCents: 20_000 },
+      { currency: "gbp", budgetCents: 15_000 },
+    ]);
+    assert.deepEqual(snapshot.byChannelCurrency, [
+      {
+        channel: "paid",
+        currency: "usd",
+        count: 1,
+        budgetCents: 20_000,
+        resultsByKpi: [{ kpi: "leads", campaignCount: 1, total: 11 }],
+      },
+      {
+        channel: "paid",
+        currency: "gbp",
+        count: 2,
+        budgetCents: 15_000,
+        resultsByKpi: [
+          { kpi: "leads", campaignCount: 1, total: 7 },
+          { kpi: "revenue", campaignCount: 1, total: 1_250 },
+        ],
+      },
+    ]);
+  });
+
+  test("preserves every acknowledged simultaneous campaign create in-process", async () => {
+    const { campaigns } = freshCampaignServices();
+    const created = await Promise.all([
+      campaigns.create({ name: "Concurrent alpha", channel: "social" }, ACTOR),
+      campaigns.create({ name: "Concurrent bravo", channel: "social" }, ACTOR),
+    ]);
+    assert.equal(new Set(created.map(campaign => campaign.id)).size, 2);
+    assert.deepEqual((await campaigns.list()).map(campaign => campaign.name).sort(), [
+      "Concurrent alpha",
+      "Concurrent bravo",
+    ]);
+    assert.equal((await campaigns.listForChannel("social")).length, 2);
   });
 });
 

@@ -141,13 +141,17 @@ export function PrivacyModeControl({
   async function enterShowcase() {
     setBusy(true);
     try {
-      const response = await fetch("/api/auth/showcase-mode", {
+      const response = await fetch("/api/auth/sandbox-mode", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "enter" }),
+        body: JSON.stringify({
+          action: "enter",
+          dataset: "demo",
+          access: "read-only",
+        }),
       });
       const result = await response.json().catch(() => null) as { ok?: boolean; redirect?: string } | null;
-      if (!response.ok || !result?.ok) throw new Error("Showcase Mode could not be opened.");
+      if (!response.ok || !result?.ok) throw new Error("The sandbox demo could not be opened.");
       applyPrivacy(false);
       window.location.assign(result.redirect || "/portal/agency");
     } catch {
@@ -166,7 +170,7 @@ export function PrivacyModeControl({
   const title = showcaseMode
     ? privateMode ? "Show sensitive information" : "Hide sensitive information"
     : canEnterShowcase
-      ? `${privateMode ? "Show" : "Hide"} sensitive information. Hold for Showcase Mode.`
+      ? `${privateMode ? "Show" : "Hide"} sensitive information. Hold for a read-only Sandbox demo.`
       : `${privateMode ? "Show" : "Hide"} sensitive information`;
 
   return (

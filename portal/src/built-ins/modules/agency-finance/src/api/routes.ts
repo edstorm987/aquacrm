@@ -22,7 +22,6 @@ import {
   updateInvoiceHandler,
 } from "./handlers";
 import {
-  assignPlanHandler,
   createIncomeHandler,
   createPaymentHandler,
   createPlanHandler,
@@ -75,7 +74,6 @@ export const ROUTES: PluginApiRoute[] = [
   { path: "plans", methods: ["GET"], handler: listPlansHandler, visibleToRoles: [...AGENCY_VIEWERS] },
   { path: "plans/create", methods: ["POST"], handler: createPlanHandler, visibleToRoles: [...AGENCY_ADMINS] },
   { path: "plans/update", methods: ["PATCH"], handler: updatePlanHandler, visibleToRoles: [...AGENCY_ADMINS] },
-  { path: "plans/assign", methods: ["POST"], handler: assignPlanHandler, visibleToRoles: [...AGENCY_ADMINS] },
   { path: "pnl", methods: ["GET"], handler: pnlSummaryHandler, visibleToRoles: [...AGENCY_ADMINS] },
   // FINANCE_ADMIN only, matching `sections.ts` and the Budgets page gate.
   // This read used to answer 200 to agency-staff while the documented

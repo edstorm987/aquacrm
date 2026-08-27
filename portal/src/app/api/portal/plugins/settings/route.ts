@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { routeTenantScope } from "@/lib/server/portal/apiTenantScope";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { logActivity } from "@/server/activity";
 import {
@@ -8,6 +9,7 @@ import {
   describePluginSettings,
   writePluginSettings,
 } from "@/lib/server/plugins/pluginSettingsSurface";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 /**
  * The one endpoint behind the generic plugin settings surface.
@@ -27,11 +29,10 @@ import {
 
 const SETTINGS_ADMINS = ["agency-owner", "agency-manager"] as const;
 
-function scopeFrom(url: URL | Record<string, unknown>, agencyId: string) {
-  const clientId = url instanceof URL
+function requestedClientId(url: URL | Record<string, unknown>) {
+  return url instanceof URL
     ? url.searchParams.get("clientId")?.trim()
     : typeof url.clientId === "string" ? url.clientId.trim() : "";
-  return { agencyId, ...(clientId ? { clientId } : {}) };
 }
 
 export async function GET(request: NextRequest) {
@@ -42,7 +43,18 @@ export async function GET(request: NextRequest) {
     const pluginId = url.searchParams.get("pluginId")?.trim() ?? "";
     if (!pluginId) return NextResponse.json({ ok: false, error: "pluginId is required." }, { status: 400 });
 
-    const settings = describePluginSettings(pluginId, scopeFrom(url, session.agencyId));
+    const clientId = requestedClientId(url);
+    const tenant = routeTenantScope(session, { clientId });
+    if (clientId && !tenant.client) {
+      return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+    }
+    if (tenant.clientId) {
+      await requireCurrentClientWorkspaceElementAccess(tenant.clientId, "client.settings", "view");
+    }
+    const settings = describePluginSettings(pluginId, {
+      agencyId: tenant.agencyId,
+      ...(tenant.clientId ? { clientId: tenant.clientId } : {}),
+    });
     if (!settings) return NextResponse.json({ ok: false, error: "unknown_plugin" }, { status: 404 });
     return NextResponse.json({ ok: true, settings });
   } catch (error) {
@@ -62,7 +74,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: "values is required." }, { status: 400 });
     }
 
-    const scope = scopeFrom(body ?? {}, session.agencyId);
+    const clientId = requestedClientId(body ?? {});
+    const tenant = routeTenantScope(session, { clientId });
+    if (clientId && !tenant.client) {
+      return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+    }
+    if (tenant.clientId) {
+      await requireCurrentClientWorkspaceElementAccess(tenant.clientId, "client.settings", "manage");
+    }
+    const scope = {
+      agencyId: tenant.agencyId,
+      ...(tenant.clientId ? { clientId: tenant.clientId } : {}),
+    };
     const result = writePluginSettings({
       pluginId,
       scope,

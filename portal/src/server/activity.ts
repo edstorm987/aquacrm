@@ -13,6 +13,8 @@ import type { ActivityCategory, ActivityEntry } from "./types";
 const ACTIVITY_HARD_CAP = 50_000;
 
 export interface LogActivityInput {
+  /** Stable source-operation identity. Replays return the original entry. */
+  idempotencyKey?: string;
   agencyId: string;
   clientId?: string;
   actorUserId?: string;
@@ -24,8 +26,16 @@ export interface LogActivityInput {
 }
 
 export function logActivity(input: LogActivityInput): ActivityEntry {
+  const idempotencyKey = input.idempotencyKey?.trim().slice(0, 500);
+  const stableId = idempotencyKey
+    ? `act_${crypto.createHash("sha256").update(`${input.agencyId}\u0000${idempotencyKey}`).digest("hex").slice(0, 24)}`
+    : undefined;
+  if (stableId) {
+    const existing = getState().activity.find(entry => entry.id === stableId);
+    if (existing) return existing;
+  }
   const entry: ActivityEntry = {
-    id: `act_${crypto.randomBytes(6).toString("hex")}`,
+    id: stableId ?? `act_${crypto.randomBytes(6).toString("hex")}`,
     ts: Date.now(),
     agencyId: input.agencyId,
     clientId: input.clientId,

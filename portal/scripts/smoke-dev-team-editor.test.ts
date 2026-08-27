@@ -111,11 +111,11 @@ describe("Dev Team Editor — the gate on the WRITE", () => {
     assert.equal(result.body.ok, false);
   });
 
-  it("outside Dev Mode even the founder gets 404", async () => {
+  it("an arbitrary owner outside local Dev Mode gets 404", async () => {
     const { agency, user, token } = await founder();
     const targets = await currentDocument(agency.id, user.id);
     const before = getAgency(agency.id)?.brand?.primaryColor;
-    // No withDevMode — PORTAL_DEV_MODE is not set, so devDocsAccessible is false.
+    // No withDevMode and this generated account is not FOUNDER_EMAIL.
     const response = await withSession(token, () => POST(new Request(
       "http://localhost/api/portal/dev-team/editor",
       {

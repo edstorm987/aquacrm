@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
-  AlertTriangle, Boxes, Building2, Check, Code2, Copy, FileSearch, Globe, Link2, Loader2, Plus, Radio,
+  AlertTriangle, Boxes, Building2, Check, Code2, Copy, FileSearch, Globe, Inbox, Link2, Loader2, Plus, Radio,
   ScanLine, Sparkles, PencilRuler, Trash2,
 } from "lucide-react";
 
@@ -41,7 +41,17 @@ interface Detection {
   error?: string;
 }
 
-export function AquaTagsWorkspace({ snippet, siteKey }: { snippet: string; siteKey: string }) {
+export function AquaTagsWorkspace({
+  snippet,
+  siteKey,
+  canUse,
+  canManage,
+}: {
+  snippet: string;
+  siteKey: string;
+  canUse: boolean;
+  canManage: boolean;
+}) {
   const [copied, setCopied] = useState(false);
   const [domain, setDomain] = useState("");
   const [checking, setChecking] = useState(false);
@@ -57,6 +67,7 @@ export function AquaTagsWorkspace({ snippet, siteKey }: { snippet: string; siteK
   }
 
   async function detect() {
+    if (!canUse) return;
     const url = domain.trim();
     if (!url || checking) return;
     setChecking(true);
@@ -144,6 +155,7 @@ export function AquaTagsWorkspace({ snippet, siteKey }: { snippet: string; siteK
             </p>
           </div>
         </div>
+        <fieldset disabled={!canUse} className="contents">
         <form
           className="mt-4 flex flex-wrap items-center gap-2"
           onSubmit={event => { event.preventDefault(); void detect(); }}
@@ -171,6 +183,9 @@ export function AquaTagsWorkspace({ snippet, siteKey }: { snippet: string; siteK
             {checking ? "Checking…" : "Check domain"}
           </button>
         </form>
+        </fieldset>
+
+        {!canUse ? <p className="mt-3 text-xs text-black/45">View-only access. Use access is required to run a live domain check.</p> : null}
 
         {error && (
           <p className="mt-3 flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-xs leading-5 text-rose-800">
@@ -182,9 +197,12 @@ export function AquaTagsWorkspace({ snippet, siteKey }: { snippet: string; siteK
         {result && <DetectionResult result={result} />}
       </section>
 
-      <CompanyRouting />
+      <fieldset disabled={!canManage} className="contents">
+        <CompanyRouting />
 
-      <ToolInjections />
+        <ToolInjections />
+      </fieldset>
+      {!canManage ? <p className="text-xs text-black/45">Manage access is required to change company routing or tool injections.</p> : null}
 
       <section>
         <div className="flex items-center gap-2 border-b border-black/10 pb-3">
@@ -375,15 +393,23 @@ function CompanyRouting() {
     }
   }
 
-  async function unlink(id: string) {
+  async function routeToInbox(id: string) {
+    setSaveError(null);
     try {
       const response = await fetch("/api/portal/website-sources", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "remove", id }),
+        body: JSON.stringify({ action: "route-to-inbox", id }),
       });
-      if (response.ok) await load();
-    } catch { /* leave the row; the next load reconciles it */ }
+      const data = await response.json().catch(() => null) as { ok?: boolean; error?: string } | null;
+      if (!response.ok || !data?.ok) {
+        setSaveError(data?.error ?? "That site could not be routed back to the agency inbox.");
+        return;
+      }
+      await load();
+    } catch {
+      setSaveError("That site could not be routed back to the agency inbox.");
+    }
   }
 
   const companyName = (id?: string) => companies.find(company => company.id === id)?.name ?? "a company";
@@ -474,11 +500,12 @@ function CompanyRouting() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => void unlink(source.id)}
-                    aria-label={`Stop routing ${source.host}`}
-                    className="inline-flex size-8 items-center justify-center rounded-md text-black/40 hover:bg-black/[0.05] hover:text-rose-700"
+                    onClick={() => void routeToInbox(source.id)}
+                    aria-label={`Route ${source.host} back to the agency inbox`}
+                    title="Keep the registered site and its tools; only change where new enquiries go"
+                    className="inline-flex size-8 items-center justify-center rounded-md text-black/40 hover:bg-black/[0.05] hover:text-brand"
                   >
-                    <Trash2 size={15} aria-hidden />
+                    <Inbox size={15} aria-hidden />
                   </button>
                 </li>
               ))}
@@ -578,12 +605,26 @@ function ToolInjections() {
   }
 
   async function toggle(injection: InjectionRecord, enabled: boolean) {
-    try { await post({ action: "update", siteId, injectionId: injection.id, enabled }); } catch { /* reload reconciles */ }
+    setSaveError(null);
+    try {
+      await post({ action: "update", siteId, injectionId: injection.id, enabled });
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "That tool could not be changed.");
+    }
     await load();
   }
 
   async function remove(injectionId: string) {
-    try { await post({ action: "remove", siteId, injectionId }); await load(); } catch { /* leave the row; next load reconciles */ }
+    const injection = selectedSite?.injections.find(item => item.id === injectionId);
+    const label = injection ? providerLabel(injection.kind) : "this tool";
+    if (!window.confirm(`Remove ${label} from new page loads? A visitor page that already loaded it may keep running it until refreshed.`)) return;
+    setSaveError(null);
+    try {
+      await post({ action: "remove", siteId, injectionId });
+      await load();
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "That tool could not be removed.");
+    }
   }
 
   return (
@@ -596,6 +637,11 @@ function ToolInjections() {
             Run analytics and pixels <em>through</em> the tag: configure a tool once and it&rsquo;s injected on the
             site, held until the visitor grants its consent category. One tag, one consent gate, no separate CMP.
             Known providers by id/key only — no pasted scripts.
+          </p>
+          <p className="mt-2 text-xs leading-5 text-amber-800">
+            On/off and removal changes apply to new page loads immediately. A visitor page that already loaded a
+            provider may keep it running until that page is refreshed; Aqua cannot safely unload third-party code
+            after it has executed.
           </p>
         </div>
       </div>
@@ -633,12 +679,17 @@ function ToolInjections() {
                     <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-black/80">
                       {providerLabel(injection.kind)}
                       <span className="rounded-full bg-brand/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-brand">{CONSENT_LABELS[injection.consentCategory] ?? injection.consentCategory}</span>
-                      {!injection.enabled ? <span className="text-[10px] font-medium uppercase tracking-wide text-black/35">paused</span> : null}
+                      {!injection.enabled ? <span className="text-[10px] font-medium uppercase tracking-wide text-black/35">off for new loads</span> : null}
                     </p>
                     <p className="truncate font-mono text-[11px] text-black/45">{injection.value}</p>
                   </div>
                   <label className="flex items-center gap-1.5 text-[11px] text-black/55">
-                    <input type="checkbox" checked={injection.enabled} onChange={event => void toggle(injection, event.target.checked)} /> On
+                    <input
+                      type="checkbox"
+                      checked={injection.enabled}
+                      onChange={event => void toggle(injection, event.target.checked)}
+                      aria-label={`${injection.enabled ? "Disable" : "Enable"} ${providerLabel(injection.kind)} on new page loads`}
+                    /> On for new loads
                   </label>
                   <button
                     type="button"

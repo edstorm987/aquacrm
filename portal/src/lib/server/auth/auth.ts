@@ -15,30 +15,23 @@ import "server-only";
 // keeps things working without env config (intentional — production
 // deploys MUST set the env or the warning is logged at every sign-in).
 
-import crypto from "crypto";
 import { cookies } from "next/headers";
 import type { NextRequest } from "next/server";
-import type { Role, ServerUser, SessionPayload } from "@/server/types";
+import type { Role, SandboxSessionEnvironment, ServerUser, SessionPayload } from "@/server/types";
 import { getUserById } from "@/server/users";
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
 import { getAuthenticatedSupabaseUser } from "@/lib/supabase/server";
+import {
+  SESSION_COOKIE_MAX_AGE,
+  SESSION_COOKIE_NAME,
+  signSessionPayload,
+  verifySessionToken,
+} from "@/lib/server/auth/sessionToken";
 
-const COOKIE_NAME = "lk_session_v1";
-const COOKIE_MAX_AGE = 60 * 60 * 24 * 30;       // 30 days
+const COOKIE_NAME = SESSION_COOKIE_NAME;
+const COOKIE_MAX_AGE = SESSION_COOKIE_MAX_AGE;
 
-export const SESSION_COOKIE_NAME = COOKIE_NAME;
-export const SESSION_COOKIE_MAX_AGE = COOKIE_MAX_AGE;
-
-function getSecret(): string {
-  const secret = process.env.PORTAL_SESSION_SECRET;
-  if (secret && secret.length > 0) return secret;
-  if (process.env.NODE_ENV === "production") {
-    console.warn(
-      "[auth] PORTAL_SESSION_SECRET is unset — sessions are signing with the dev fallback. Production deploys MUST set this.",
-    );
-  }
-  return "dev-secret-do-not-use-in-prod";
-}
+export { SESSION_COOKIE_NAME, SESSION_COOKIE_MAX_AGE };
 
 interface IssueSessionInput {
   userId: string;
@@ -52,6 +45,7 @@ interface IssueSessionInput {
   // (defaults to `agencyId`).
   activeAgencyId?: string;
   clientId?: string;
+  sandbox?: SandboxSessionEnvironment;
   // Mark the session as a sandboxed demo. The chrome layer reads this to
   // render the demo banner + POV toggle; the seed/reset endpoints use it
   // to scope writes to the demo agency only.
@@ -75,6 +69,9 @@ interface IssueSessionInput {
   // here so the cookie gets stamped — later rotations bump the user record's
   // value and stale tokens fail freshness checks at the lookup layer.
   sessionRev?: number;
+  // Resource-access revision. Omitted callers are stamped from the current
+  // authoritative user so a fresh login never inherits a stale policy epoch.
+  accessRev?: number;
   // Which assurance level this sign-in proved (mirrors `SessionPayload.aal`).
   // Flows that verified a second factor pass "aal2"; single-factor flows pass
   // "aal1". Optional so existing callers (demo / dev / preview mints) are
@@ -99,6 +96,7 @@ export function issueSession(input: IssueSessionInput): string {
     agencyIds,
     activeAgencyId,
     clientId: input.clientId,
+    sandbox: input.sandbox,
     isDemo: input.isDemo === true ? true : undefined,
     showcaseReturnAgencyId: input.showcaseReturnAgencyId,
     devReturnAgencyId: input.devReturnAgencyId,
@@ -109,38 +107,16 @@ export function issueSession(input: IssueSessionInput): string {
     previewReturnUserId: input.previewReturnUserId,
     publicShowcase: input.publicShowcase === true ? true : undefined,
     sessionRev: input.sessionRev ?? 0,
+    accessRev: input.accessRev ?? getUserById(input.userId)?.accessRev ?? 0,
     aal: input.aal,
     iat: now,
     exp: now + COOKIE_MAX_AGE,
   };
-  const json = JSON.stringify(payload);
-  const b64 = Buffer.from(json, "utf8").toString("base64url");
-  const sig = crypto.createHmac("sha256", getSecret()).update(b64).digest("base64url");
-  return `${b64}.${sig}`;
+  return signSessionPayload(payload);
 }
 
 export function verifyToken(token: string | undefined): SessionPayload | null {
-  if (!token) return null;
-  const dot = token.indexOf(".");
-  if (dot <= 0) return null;
-  const b64 = token.slice(0, dot);
-  const sig = token.slice(dot + 1);
-  if (!b64 || !sig) return null;
-  const expected = crypto.createHmac("sha256", getSecret()).update(b64).digest("base64url");
-  // Constant-time compare. Buffers must be equal-length; HMAC outputs
-  // are always the same width so equality of `expected.length === sig.length`
-  // is a safe pre-check.
-  const expectedBuf = Buffer.from(expected, "utf8");
-  const sigBuf = Buffer.from(sig, "utf8");
-  if (expectedBuf.length !== sigBuf.length) return null;
-  if (!crypto.timingSafeEqual(expectedBuf, sigBuf)) return null;
-  try {
-    const payload = JSON.parse(Buffer.from(b64, "base64url").toString("utf8")) as SessionPayload;
-    if (payload.exp < Math.floor(Date.now() / 1000)) return null;
-    return payload;
-  } catch {
-    return null;
-  }
+  return verifySessionToken(token);
 }
 
 // ─── Read helpers ─────────────────────────────────────────────────────────
@@ -182,9 +158,13 @@ export async function getCurrentUser(): Promise<ServerUser | null> {
 // R021: helper for routes that already loaded the user — keeps `verifyToken`
 // (sync, hot-path) cheap while still enforcing rotation at the lookup layer.
 export function isSessionFresh(session: SessionPayload, user: ServerUser): boolean {
-  const stamped = session.sessionRev ?? 0;
-  const current = user.sessionRev ?? 0;
-  return stamped >= current;
+  const stampedSession = session.sessionRev ?? 0;
+  const currentSession = user.sessionRev ?? 0;
+  // Access policy is deliberately resolved from authoritative grants on every
+  // capability check. `accessRev` is a cache/invalidation epoch, not a reason
+  // to log somebody out: approvals must become usable in the existing session
+  // while revocations disappear from that same session immediately.
+  return stampedSession >= currentSession;
 }
 
 // ─── Role gate ────────────────────────────────────────────────────────────

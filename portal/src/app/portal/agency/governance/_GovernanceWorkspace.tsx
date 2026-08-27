@@ -17,6 +17,7 @@ import {
 import { useCallback, useState } from "react";
 
 import type { ControlStatus } from "@/lib/compliance/compliancePosture";
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
 import type {
   GovernanceSnapshot,
@@ -373,15 +374,18 @@ function LegalCreateForm({ companyId, onDone }: { companyId: string; onDone: () 
     if (!title.trim()) { setError("Give the record a title."); return; }
     setBusy(true);
     setError("");
-    const response = await fetch("/api/portal/governance/legal", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ title, category, status, counterparty: counterparty || undefined, companyId: companyId || null }),
-    });
-    const body = await response.json().catch(() => null) as { ok?: boolean; error?: string } | null;
-    setBusy(false);
-    if (body?.ok) onDone();
-    else setError(body?.error ?? "The record could not be added.");
+    try {
+      await checkedJsonMutation<{ ok?: boolean }>("/api/portal/governance/legal", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title, category, status, counterparty: counterparty || undefined, companyId: companyId || null }),
+      }, {
+        fallback: "The record could not be added.",
+        validate: value => value.ok === true,
+      });
+      onDone();
+    } catch (cause) { setError(mutationErrorMessage(cause, "The record could not be added.")); }
+    finally { setBusy(false); }
   }
 
   return (

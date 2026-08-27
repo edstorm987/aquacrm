@@ -22,6 +22,7 @@ export function DocEditor({
   title,
   initialContent,
   mtimeMs,
+  contentSha256,
   edits,
   changedOutsideApp,
   nowMs,
@@ -30,6 +31,7 @@ export function DocEditor({
   title: string;
   initialContent: string;
   mtimeMs: number;
+  contentSha256: string;
   edits: DocEdit[];
   changedOutsideApp: boolean;
   nowMs: number;
@@ -41,6 +43,7 @@ export function DocEditor({
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [baseMtime, setBaseMtime] = useState(mtimeMs);
+  const [baseSha256, setBaseSha256] = useState(contentSha256);
 
   const hasChanges = content !== initialContent;
 
@@ -53,11 +56,17 @@ export function DocEditor({
       const response = await fetch("/api/portal/dev-team/docs", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ relPath, content, note, expectedMtimeMs: baseMtime }),
+        body: JSON.stringify({ relPath, content, note, expectedMtimeMs: baseMtime, expectedSha256: baseSha256 }),
       });
-      const result = await response.json() as { ok?: boolean; error?: string; mtimeMs?: number };
+      const result = await response.json() as {
+        ok?: boolean;
+        error?: string;
+        mtimeMs?: number;
+        contentSha256?: string;
+      };
       if (!response.ok || !result.ok) throw new Error(result.error || "Could not save.");
       setBaseMtime(result.mtimeMs ?? baseMtime);
+      setBaseSha256(result.contentSha256 ?? baseSha256);
       setSaved(true);
       setNote("");
       router.refresh();

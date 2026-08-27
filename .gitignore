@@ -17,6 +17,7 @@ coverage
 # next.js — including per-worker isolated build dirs (.next-verify, .next-alpha, ...)
 .next
 .next-*
+portal/.aqua-preview-config/
 out
 
 # production

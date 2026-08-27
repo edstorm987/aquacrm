@@ -6,6 +6,8 @@ export { WebhookService } from "./webhook";
 export type { WebhookHandleResult } from "./webhook";
 export { IdentityService } from "./identities";
 export { ProviderService } from "./provider";
+export { buildEmailSenderHealth } from "./health";
+export type { DeliveryFailureCode, DeliveryResult } from "./delivery";
 
 export type {
   ActivityLogPort,

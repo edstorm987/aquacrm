@@ -11,7 +11,7 @@ import { NotepadWorkspace } from "@/app/portal/agency/notepad/_NotepadWorkspace"
 // Dev Team → Notes. Reuses the built personal notepad wholesale: the same store
 // (`listNotepadNotes`/`listNotepadFolders`, scoped by agencyId + owner userId)
 // and the same client workspace as `/portal/agency/notepad`. This page only
-// layers the Dev-Team gate (founder + Dev Mode) on top of the agency-role gate;
+// layers the Dev-Team gate (founder-only Dev Team access) on top of the agency-role gate;
 // the notes themselves are the SAME per-user notepad, surfaced in both places.
 // Renders inside the existing dev-team layout (its <main id="main-content"> is
 // what the workspace scrolls to on mobile).
@@ -25,7 +25,7 @@ export default async function DevTeamNotesPage({ searchParams }: { searchParams:
   } catch {
     redirect("/portal");
   }
-  // Founder + Dev Mode, or this section does not exist.
+  // Founder-only Dev Team access, or this section does not exist.
   if (!devDocsAccessible(session)) notFound();
 
   const query = await searchParams;

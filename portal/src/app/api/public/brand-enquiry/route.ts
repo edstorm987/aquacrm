@@ -12,13 +12,20 @@ import { getAgencyBySlug } from "@/server/tenants";
 import { getUser } from "@/server/users";
 import { ensureZimanteTradingCompanies } from "@/server/zimanteTradingCompanies";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { isMissingAgencyIdColumn } from "@/lib/supabase/enquiryAgencyColumn";
+import { isMissingAgencyIdColumn, isMissingAgencyIdColumnRead } from "@/lib/supabase/enquiryAgencyColumn";
 import { notifyBrandEnquiry } from "@/lib/server/email/enquiryNotifications";
 import { PUBLIC_AQUA_SITES, resolvePublicAquaSite } from "@/lib/public/publicSites";
 import { triggerAutomations } from "@/server/automations";
 import { resolveContactIdentity, upsertIdentityResolutionReview } from "@/lib/server/identityResolution";
 import { upsertClientRecordLedgerEvent } from "@/lib/server/clients/clientRecordLedger";
 import { resolveWebsiteSourceRouting } from "@/server/websiteSources";
+import { enquiryBelongsToAgency } from "@/lib/supabase/ownedEnquiry";
+import {
+  enquiryIngestionComplete,
+  enquirySubmissionId,
+  normaliseAquaSubmissionId,
+} from "@/lib/enquiries/submissionIdentity";
+import { withEnquirySubmissionOperation } from "@/lib/server/enquirySubmissionOperation";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE = /^[+()\d\s.-]{7,40}$/;
@@ -53,6 +60,7 @@ interface BrandEnquiryBody {
   campaign?: unknown;
   consent?: unknown;
   website?: unknown;
+  submissionId?: unknown;
 }
 
 type EnquiryChannel = "form" | "chatbot" | "support";
@@ -202,6 +210,8 @@ export async function POST(req: NextRequest) {
   const message = clean(body.message, 4_000);
   const sourceUrl = cleanPublicUrl(body.sourceUrl, origin);
   const campaign = clean(body.campaign, 120);
+  const suppliedSubmissionId = clean(body.submissionId, 120);
+  const submissionId = normaliseAquaSubmissionId(suppliedSubmissionId);
   const hasEmail = EMAIL.test(email);
   const hasPhone = PHONE.test(phone);
 
@@ -216,6 +226,9 @@ export async function POST(req: NextRequest) {
       ok: false,
       error: "Please add your name, a valid email or phone number, contact preference and consent.",
     }, 400, origin);
+  }
+  if (suppliedSubmissionId && !submissionId) {
+    return response({ ok: false, error: "The submission reference is invalid." }, 400, origin);
   }
 
   const publicSite = resolvePublicAquaSite(brand, origin);
@@ -247,6 +260,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  return withEnquirySubmissionOperation(submissionId, async () => {
   try {
     await ensureHydrated();
     await seedFounder();
@@ -280,24 +294,55 @@ export async function POST(req: NextRequest) {
     const capturedAt = new Date().toISOString();
     const supabase = createSupabaseAdminClient();
 
-    // Idempotency: if an enquiry with this contact detail already landed on
-    // this brand moments ago, return it rather than inserting a duplicate (and
-    // creating a second lead). This is what stopped a single submission
-    // becoming three.
+    type ExistingEnquiry = {
+      id: string;
+      agency_id?: string | null;
+      metadata: Record<string, unknown> | null;
+    };
+    let existingEnquiry: ExistingEnquiry | undefined;
+
+    // Stable-id reconciliation comes first. Contact-window matching remains a
+    // compatibility fallback for forms that have not picked up the new hidden
+    // id yet, but it can only claim an un-keyed capture-only row. A DIFFERENT
+    // stable id is always a different submission even when the contact repeats.
     if (hasEmail || hasPhone) {
       const since = new Date(Date.now() - DEDUPE_WINDOW_MS).toISOString();
-      const recent = supabase
-        .from("brand_enquiries")
-        .select("id")
-        .eq("brand_slug", brand)
-        .gte("created_at", since)
-        .order("created_at", { ascending: false })
-        .limit(1);
-      const { data: existing } = hasEmail
-        ? await recent.eq("email", email)
-        : await recent.eq("phone", phone);
-      if (existing?.[0]?.id) {
-        return response({ ok: true, submissionId: existing[0].id, deduped: true }, 200, origin);
+      const loadRecent = (withAgencyColumn: boolean) => {
+        const recent = supabase
+          .from("brand_enquiries")
+          .select(withAgencyColumn ? "id, agency_id, metadata" : "id, metadata")
+          .eq("brand_slug", brand)
+          .gte("created_at", since)
+          .order("created_at", { ascending: false })
+          .limit(10);
+        return hasEmail ? recent.eq("email", email) : recent.eq("phone", phone);
+      };
+      let { data: recentRows, error: recentError } = await loadRecent(true);
+      if (recentError && isMissingAgencyIdColumnRead(recentError)) {
+        ({ data: recentRows, error: recentError } = await loadRecent(false));
+      }
+      if (recentError) throw new Error(`Could not reconcile recent enquiry: ${recentError.message}`);
+
+      const ownedRows = ((recentRows ?? []) as unknown as ExistingEnquiry[])
+        .filter(row => enquiryBelongsToAgency(row, agency.id)
+          || (row.metadata?.captureOnly === true
+            && !row.agency_id
+            && !row.metadata?.agencyId
+            && row.metadata?.siteKey === publicSite?.siteKey));
+      if (submissionId) {
+        existingEnquiry = ownedRows.find(row => enquirySubmissionId(row.metadata) === submissionId)
+          ?? ownedRows.find(row => row.metadata?.captureOnly === true && !enquirySubmissionId(row.metadata));
+      } else {
+        existingEnquiry = ownedRows[0];
+      }
+
+      if (existingEnquiry && (!submissionId || enquiryIngestionComplete(existingEnquiry.metadata))) {
+        return response({
+          ok: true,
+          enquiryId: existingEnquiry.id,
+          submissionId: submissionId || existingEnquiry.id,
+          deduped: true,
+        }, 200, origin);
       }
     }
 
@@ -305,6 +350,27 @@ export async function POST(req: NextRequest) {
     // scopes on once the agency_scope migration is applied; `metadata.agencyId`
     // is what the existing `.from` sites still route by, and what the
     // migration's backfill and trigger read for rows created before it ran.
+    const initialMetadata: Record<string, unknown> = {
+      ...(existingEnquiry?.metadata ?? {}),
+      agencyId: agency.id,
+      consentPurpose: "reply-to-enquiry",
+      consentVersion: 1,
+      consentCapturedAt: capturedAt,
+      origin: origin || "same-origin",
+      channel,
+      siteKey: publicSite?.siteKey ?? null,
+      propertyId: publicSite?.propertyId ?? brand,
+      siteName: publicSite?.siteName ?? brandDefinition.name,
+      pagePath,
+      ...(submissionId ? { submissionId } : {}),
+      ...(routedCompanyId ? { routedCompanyId } : {}),
+      inboxStatus: "open",
+      enquiryClassification: "unclassified",
+      notification: "pending",
+      ingestionState: "processing",
+    };
+    delete initialMetadata.captureOnly;
+
     const enquiryRow = {
       brand_slug: brand,
       name,
@@ -317,39 +383,19 @@ export async function POST(req: NextRequest) {
       campaign: campaign || null,
       consent: true,
       agency_id: agency.id,
-      metadata: {
-        agencyId: agency.id,
-        consentPurpose: "reply-to-enquiry",
-        consentVersion: 1,
-        consentCapturedAt: capturedAt,
-        origin: origin || "same-origin",
-        channel,
-        siteKey: publicSite?.siteKey ?? null,
-        propertyId: publicSite?.propertyId ?? brand,
-        siteName: publicSite?.siteName ?? brandDefinition.name,
-        pagePath,
-        ...(routedCompanyId ? { routedCompanyId } : {}),
-        inboxStatus: "open",
-        enquiryClassification: "unclassified",
-        notification: "pending",
-      },
+      metadata: initialMetadata,
     };
-    let { data: captured, error: captureError } = await supabase
-      .from("brand_enquiries")
-      .insert(enquiryRow)
-      .select("id")
-      .single();
+    const persistEnquiry = (row: typeof enquiryRow, existingId?: string) => existingId
+      ? supabase.from("brand_enquiries").update(row).eq("id", existingId).select("id").single()
+      : supabase.from("brand_enquiries").insert(row).select("id").single();
+    let { data: captured, error: captureError } = await persistEnquiry(enquiryRow, existingEnquiry?.id);
     if (captureError && isMissingAgencyIdColumn(captureError)) {
       // The migration is applied by hand (Ed runs `supabase db push`), so this
       // code can be live against the old schema. A visitor's enquiry must not
       // be lost while the schema catches up — retry without the column;
       // metadata.agencyId still records the tenant for the backfill.
       const { agency_id: _pendingMigration, ...legacyRow } = enquiryRow;
-      ({ data: captured, error: captureError } = await supabase
-        .from("brand_enquiries")
-        .insert(legacyRow)
-        .select("id")
-        .single());
+      ({ data: captured, error: captureError } = await persistEnquiry(legacyRow as typeof enquiryRow, existingEnquiry?.id));
     }
     if (captureError || !captured?.id) {
       throw new Error(`Supabase enquiry capture failed: ${captureError?.message || "no record returned"}`);
@@ -431,6 +477,7 @@ export async function POST(req: NextRequest) {
     }
 
     logActivity({
+      idempotencyKey: `brand-enquiry:${captured.id}`,
       agencyId: agency.id,
       actorEmail: hasEmail ? email : undefined,
       category: "public-funnel",
@@ -485,41 +532,10 @@ export async function POST(req: NextRequest) {
       notification = "failed";
       console.error("[brand-enquiry] notification failed", notificationError instanceof Error ? notificationError.message : "Unknown error");
     }
-    await supabase
-      .from("brand_enquiries")
-      .update({ metadata: {
-        agencyId: agency.id,
-        consentPurpose: "reply-to-enquiry",
-        consentVersion: 1,
-        consentCapturedAt: capturedAt,
-        origin: origin || "same-origin",
-        channel,
-        siteKey: publicSite?.siteKey ?? null,
-        propertyId: publicSite?.propertyId ?? brand,
-        siteName: publicSite?.siteName ?? brandDefinition.name,
-        pagePath,
-        inboxStatus: "open",
-        enquiryClassification: "unclassified",
-        notification,
-        source: `website:${brand}`,
-        leadId: leadId ?? null,
-        leadCreated: Boolean(leadId),
-        leadLinkedAt: leadId ? new Date().toISOString() : null,
-        clientId: identityResolution.clientId ?? null,
-        clientLinkedAt: identityResolution.clientId ? new Date(identityResolution.resolvedAt).toISOString() : null,
-        identityResolution: {
-          status: identityResolution.status,
-          confidence: identityResolution.confidence,
-          explanation: identityResolution.explanation,
-          clientId: identityResolution.clientId ?? null,
-          clientName: identityResolution.clientName ?? null,
-          resolvedAt: new Date(identityResolution.resolvedAt).toISOString(),
-        },
-      } })
-      .eq("id", captured.id);
 
+    let automation = "not-configured";
     try {
-      await triggerAutomations(agency.id, "website-enquiry.received", {
+      const runs = await triggerAutomations(agency.id, "website-enquiry.received", {
         enquiryId: captured.id,
         leadId: leadId ?? null,
         name,
@@ -532,18 +548,65 @@ export async function POST(req: NextRequest) {
         sourceUrl: sourceUrl || null,
         message: message || null,
         awaitingResponse: true,
-      });
+      }, { idempotencyKey: `brand-enquiry:${captured.id}` });
+      automation = runs.length
+        ? (runs.some(run => run.status === "failed") ? "failed" : "triggered")
+        : "not-configured";
       await flushPendingWrites();
     } catch (automationError) {
+      automation = "failed";
       console.error("[brand-enquiry] automation trigger failed", automationError instanceof Error ? automationError.message : "Unknown error");
     }
 
-    return response({ ok: true, submissionId: captured.id }, 200, origin);
+    // Re-read immediately before completion so a form-capture request handled
+    // by another process cannot have its richer fields erased by a stale
+    // whole-metadata replacement.
+    const { data: latest, error: latestError } = await supabase
+      .from("brand_enquiries")
+      .select("metadata")
+      .eq("id", captured.id)
+      .maybeSingle();
+    if (latestError) throw new Error(`Could not reload enquiry metadata: ${latestError.message}`);
+    const latestMetadata = (latest?.metadata ?? {}) as Record<string, unknown>;
+    const completedAt = new Date().toISOString();
+    const { error: completionError } = await supabase
+      .from("brand_enquiries")
+      .update({ metadata: {
+        ...latestMetadata,
+        ...initialMetadata,
+        notification,
+        automation,
+        source: `website:${brand}`,
+        leadId: leadId ?? null,
+        leadCreated: Boolean(leadId),
+        leadLinkedAt: leadId ? completedAt : null,
+        clientId: identityResolution.clientId ?? null,
+        clientLinkedAt: identityResolution.clientId ? new Date(identityResolution.resolvedAt).toISOString() : null,
+        identityResolution: {
+          status: identityResolution.status,
+          confidence: identityResolution.confidence,
+          explanation: identityResolution.explanation,
+          clientId: identityResolution.clientId ?? null,
+          clientName: identityResolution.clientName ?? null,
+          resolvedAt: new Date(identityResolution.resolvedAt).toISOString(),
+        },
+        ingestionState: "complete",
+        ingestionCompletedAt: completedAt,
+      } })
+      .eq("id", captured.id);
+    if (completionError) throw new Error(`Could not complete enquiry ingestion: ${completionError.message}`);
+
+    return response({
+      ok: true,
+      enquiryId: captured.id,
+      submissionId: submissionId || captured.id,
+    }, 200, origin);
   } catch (cause) {
     console.error("[brand-enquiry] failed to capture enquiry", cause);
     return response({
       ok: false,
       error: "We could not save your message. Please try again.",
-    }, 500, origin);
+    }, 503, origin, 2);
   }
+  });
 }

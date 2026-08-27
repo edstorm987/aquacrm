@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, PanelLeft, PanelTop, Pin, Star, Trash2, X } from "lucide-react";
 
 import { findPin, isPinned, pinsAt, usePinnedTabs, type PinLocation } from "./pinnedTabsStore";
+import { sharedChromeLinkPrefetch } from "@/lib/chrome/sharedChromeLinkPrefetch";
 
 // The full current location (path + query) — a pin must remember ?tab=…/?view=…
 // so it returns you to the exact working view, not just the base route.
@@ -141,7 +142,7 @@ function PinnedChip({ href, label, active, moveTo, onMove, onRemove }: {
         active ? "border-brand/40 bg-brand/10 text-brand" : "border-black/10 bg-white/60 text-black/70 hover:border-black/20 hover:bg-white hover:text-black",
       ].join(" ")}
     >
-      <Link href={href} className="max-w-[12rem] truncate font-medium" title={label}>{label}</Link>
+      <Link href={href} prefetch={sharedChromeLinkPrefetch()} className="max-w-[12rem] truncate font-medium" title={label}>{label}</Link>
       <button
         type="button"
         onClick={onMove}
@@ -215,6 +216,7 @@ export function SidebarPinnedTabs() {
             <li key={item.href} className="group relative">
               <Link
                 href={item.href}
+                prefetch={sharedChromeLinkPrefetch()}
                 data-nav-tone="amber"
                 aria-current={active ? "page" : undefined}
                 title={item.label}

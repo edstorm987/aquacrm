@@ -89,6 +89,7 @@ export async function POST(request: NextRequest) {
       to: session.email,
       agencyId: connection.agencyId,
       clientId: connection.clientId,
+      signal: request.signal,
       // The expiry is part of the key so a resend is a genuinely new send
       // rather than a suppressed duplicate.
       externalRef: `connect-code:${connectionId}:${issued.expiresAt}`,

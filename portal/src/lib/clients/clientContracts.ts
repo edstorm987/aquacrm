@@ -15,6 +15,10 @@ export interface ClientContractRevision {
 
 export interface ClientContract {
   id: string;
+  /** Stable browser command identity so a lost response can be retried safely. */
+  creationOperationId?: string;
+  /** Guards an operation id from being reused for different contract terms. */
+  creationFingerprint?: string;
   title: string;
   summary?: string;
   body?: string;
@@ -36,6 +40,10 @@ export interface ClientContract {
 export interface ClientContractTemplate {
   id: string;
   agencyId: string;
+  /** Contract this reusable template was deliberately created from, if any. */
+  sourceContractId?: string;
+  /** Stable command identity used to converge a retried source-contract save. */
+  creationOperationId?: string;
   title: string;
   summary?: string;
   body: string;

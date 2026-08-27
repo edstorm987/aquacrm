@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { BookOpen, ChevronRight, LoaderCircle, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 import { CLAIMABLE_FAMILIES, fillTemplateTitle } from "@/lib/tasks/taskTemplates";
 import type { AgencyTask, AgencyTaskPriority, AgencyTaskTemplateStep, SopDocument } from "@/server/types";
 
@@ -53,14 +54,36 @@ export function TaskTemplateModal({
   const [editing, setEditing] = useState<TaskTemplateView | "new" | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadingTemplates, setLoadingTemplates] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  async function load() {
-    const response = await fetch("/api/portal/tasks/templates", { cache: "no-store" });
-    const result = await response.json() as { ok: boolean; templates?: TaskTemplateView[] };
-    setTemplates(result.templates ?? []);
+  async function load(signal?: AbortSignal) {
+    setLoadingTemplates(true);
+    setLoadError(null);
+    try {
+      const result = await checkedJsonMutation<{ ok: boolean; templates?: TaskTemplateView[] }>(
+        "/api/portal/tasks/templates",
+        { method: "GET", cache: "no-store", signal },
+        {
+          fallback: "Task templates could not be loaded.",
+          validate: payload => payload.ok === true && Array.isArray(payload.templates),
+        },
+      );
+      if (!signal?.aborted) setTemplates(result.templates ?? []);
+    } catch (nextError) {
+      if (!signal?.aborted) {
+        setLoadError(mutationErrorMessage(nextError, "Task templates could not be loaded."));
+      }
+    } finally {
+      if (!signal?.aborted) setLoadingTemplates(false);
+    }
   }
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
+  }, []);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -78,16 +101,17 @@ export function TaskTemplateModal({
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch("/api/portal/tasks/templates", {
+      const result = await checkedJsonMutation<{ ok: boolean; task?: AgencyTask }>("/api/portal/tasks/templates", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: "apply", templateId: selected.id, subject }),
+      }, {
+        fallback: "The task could not be created.",
+        validate: payload => payload.ok === true && Boolean(payload.task),
       });
-      const result = await response.json() as { ok: boolean; task?: AgencyTask; error?: string };
-      if (!result.ok || !result.task) throw new Error(result.error ?? "The task could not be created.");
-      onCreated(result.task);
+      onCreated(result.task!);
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : String(nextError));
+      setError(mutationErrorMessage(nextError, "The task could not be created."));
     } finally {
       setBusy(false);
     }
@@ -95,14 +119,23 @@ export function TaskTemplateModal({
 
   async function remove(template: TaskTemplateView) {
     setBusy(true);
-    await fetch("/api/portal/tasks/templates", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ action: "delete", id: template.id }),
-    });
-    if (selectedId === template.id) setSelectedId(null);
-    await load();
-    setBusy(false);
+    setError(null);
+    try {
+      await checkedJsonMutation<{ ok: boolean }>("/api/portal/tasks/templates", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "delete", id: template.id }),
+      }, {
+        fallback: "The task template could not be deleted.",
+        validate: payload => payload.ok === true,
+      });
+      if (selectedId === template.id) setSelectedId(null);
+      await load();
+    } catch (nextError) {
+      setError(mutationErrorMessage(nextError, "The task template could not be deleted."));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -153,10 +186,23 @@ export function TaskTemplateModal({
               </button>
             </div>
 
-            {templates === null ? (
+            {loadingTemplates ? (
               <p className="flex items-center gap-2 py-6 text-xs text-black/45">
                 <LoaderCircle size={13} className="animate-spin" aria-hidden />Loading templates…
               </p>
+            ) : null}
+
+            {loadError && !loadingTemplates ? (
+              <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                <span>{loadError}</span>
+                <button
+                  type="button"
+                  onClick={() => void load()}
+                  className="rounded-md border border-red-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-800"
+                >
+                  Retry templates
+                </button>
+              </div>
             ) : null}
 
             {templates && !visible.length ? (
@@ -298,7 +344,7 @@ function TemplateBuilder({
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch("/api/portal/tasks/templates", {
+      await checkedJsonMutation<{ ok: boolean }>("/api/portal/tasks/templates", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -310,12 +356,13 @@ function TemplateBuilder({
           steps: steps.filter(step => step.label.trim()),
           appliesTo,
         }),
+      }, {
+        fallback: "The task template could not be saved.",
+        validate: payload => payload.ok === true,
       });
-      const result = await response.json() as { ok: boolean; error?: string };
-      if (!result.ok) throw new Error(result.error ?? "That could not be saved.");
       await onSaved();
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : String(nextError));
+      setError(mutationErrorMessage(nextError, "The task template could not be saved."));
     } finally {
       setBusy(false);
     }

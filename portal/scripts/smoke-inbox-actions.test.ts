@@ -66,8 +66,8 @@ describe("inbox + actions unification", () => {
     );
     assert.match(
       INBOX_PAGE,
-      /actionsSlot=\{<AgencyActionsPage\s*\/>\}/,
-      "inbox page must pass <AgencyActionsPage/> as the actionsSlot",
+      /actionsSlot=\{session\.publicShowcase \? null : <AgencyActionsPage\s*\/>\}/,
+      "inbox page must pass AgencyActionsPage outside the read-only public showcase",
     );
   });
 

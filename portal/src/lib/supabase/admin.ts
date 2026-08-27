@@ -35,7 +35,7 @@ export async function findSupabaseUserByEmail(email: string): Promise<User | nul
   return null;
 }
 
-interface ProvisionIdentityInput {
+export interface ProvisionIdentityInput {
   email: string;
   password: string;
   name?: string;
@@ -49,6 +49,33 @@ interface ProvisionIdentityInput {
    * it, and the profile is created without the column exactly as before.
    */
   agencyId?: string;
+  /** Durable local operation that is allowed to adopt this exact remote result. */
+  operationId?: string;
+}
+
+async function upsertSupabaseProfile(
+  admin: ReturnType<typeof createSupabaseAdminClient>,
+  userId: string,
+  input: ProvisionIdentityInput,
+  email: string,
+): Promise<void> {
+  const agencyId = input.agencyId?.trim() || undefined;
+  const baseProfile = {
+    id: userId,
+    email,
+    full_name: input.name?.trim() || email.split("@")[0],
+    role: input.role,
+  };
+  const stampedProfile = { ...baseProfile, agency_id: agencyId };
+  let { error: profileError } = await admin
+    .from("profiles")
+    .upsert((agencyId ? stampedProfile : baseProfile) as never);
+  if (profileError && agencyId && isMissingAgencyIdColumn(profileError)) {
+    ({ error: profileError } = await admin.from("profiles").upsert(baseProfile));
+  }
+  if (profileError) {
+    throw new Error(`Could not create the account profile: ${profileError.message}`);
+  }
 }
 
 export async function provisionSupabaseIdentity(input: ProvisionIdentityInput) {
@@ -63,41 +90,66 @@ export async function provisionSupabaseIdentity(input: ProvisionIdentityInput) {
     email,
     password: input.password,
     email_confirm: true,
-    user_metadata: { full_name: input.name?.trim() || email.split("@")[0] },
+    user_metadata: {
+      full_name: input.name?.trim() || email.split("@")[0],
+      ...(input.operationId ? {
+        aqua_provisioning_operation_id: input.operationId,
+        aqua_agency_id: input.agencyId?.trim() || null,
+        aqua_profile_role: input.role,
+      } : {}),
+    },
   });
   if (error || !data.user) {
     throw new Error(error?.message ?? "Could not create the Supabase sign-in.");
   }
 
-  const agencyId = input.agencyId?.trim() || undefined;
-  const baseProfile = {
-    id: data.user.id,
-    email,
-    full_name: input.name?.trim() || email.split("@")[0],
-    role: input.role,
-  };
-
-  // `agency_id` is added to `profiles` by the hand-applied migration, so the
-  // generated Supabase types (which brand the row to reject unknown columns)
-  // do not know it yet — hence the cast. The runtime column check below covers
-  // the pre-migration window where the column genuinely is not there.
-  const stampedProfile = { ...baseProfile, agency_id: agencyId };
-  let { error: profileError } = await admin
-    .from("profiles")
-    .upsert((agencyId ? stampedProfile : baseProfile) as never);
-  if (profileError && agencyId && isMissingAgencyIdColumn(profileError)) {
-    // `profiles.agency_id` is added by the same hand-applied migration as
-    // `brand_enquiries.agency_id`. Before it runs, provisioning must not break:
-    // retry without the column. The tenant scoping it enables simply switches on
-    // once Ed applies the migration and this path stops being taken.
-    ({ error: profileError } = await admin.from("profiles").upsert(baseProfile));
-  }
-  if (profileError) {
+  try {
+    await upsertSupabaseProfile(admin, data.user.id, input, email);
+  } catch (error) {
     await admin.auth.admin.deleteUser(data.user.id);
-    throw new Error(`Could not create the account profile: ${profileError.message}`);
+    throw error;
   }
 
   return data.user;
+}
+
+/**
+ * Resumable staff provisioning. An existing Supabase user is adopted only when
+ * it carries the marker written by this exact durable operation; unrelated
+ * identities with the same email keep the original hard refusal.
+ */
+export async function provisionOrAdoptSupabaseIdentity(input: ProvisionIdentityInput): Promise<{
+  user: User;
+  adopted: boolean;
+}> {
+  if (!input.operationId) throw new Error("A durable provisioning operation id is required.");
+  const email = input.email.trim().toLowerCase();
+  const existing = await findSupabaseUserByEmail(email);
+  if (!existing) {
+    return { user: await provisionSupabaseIdentity(input), adopted: false };
+  }
+
+  const metadata = existing.user_metadata ?? {};
+  if (
+    metadata.aqua_provisioning_operation_id !== input.operationId
+    || metadata.aqua_agency_id !== (input.agencyId?.trim() || null)
+    || metadata.aqua_profile_role !== input.role
+  ) {
+    throw new Error("A Supabase sign-in already exists for that email and was not created by this provisioning operation.");
+  }
+
+  const admin = createSupabaseAdminClient();
+  const { data, error } = await admin.auth.admin.updateUserById(existing.id, {
+    password: input.password,
+    email_confirm: true,
+    user_metadata: {
+      ...metadata,
+      full_name: input.name?.trim() || email.split("@")[0],
+    },
+  });
+  if (error || !data.user) throw new Error(error?.message ?? "Could not adopt the Supabase sign-in.");
+  await upsertSupabaseProfile(admin, existing.id, input, email);
+  return { user: data.user, adopted: true };
 }
 
 export async function updateSupabasePassword(email: string, password: string) {

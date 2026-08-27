@@ -77,6 +77,13 @@ export interface SourceEditDeps {
    * except by planting a real encrypted connection. Production passes none.
    */
   githubToken?: string;
+  /**
+   * False for delegated HTTP requests. In that mode the project's explicitly
+   * bound credential is the only credential source; an agency default or
+   * process environment token must never widen an exact-project grant.
+   * Direct owner/server callers retain the historical fallback by default.
+   */
+  allowSharedCredentials?: boolean;
   now?: number;
 }
 
@@ -106,8 +113,9 @@ export function sourceEditTarget(agencyId: string, project: DevProject, deps: So
   }
   const token = deps.githubToken
     || devProjectGitHubToken(agencyId, project)
-    || resolveIntegrationValues(agencyId, "github").token
-    || process.env.GITHUB_TOKEN?.trim();
+    || (deps.allowSharedCredentials === false
+      ? undefined
+      : resolveIntegrationValues(agencyId, "github").token || process.env.GITHUB_TOKEN?.trim());
   if (!token) throw new SourceEditUnavailable("no-token", new GitHubNotConfigured().message);
   return { repository: project.repository, ref: project.ref || "main", token };
 }

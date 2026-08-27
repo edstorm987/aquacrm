@@ -327,16 +327,40 @@ test("two invoices created concurrently: both are listed, agency-wide AND on the
   const { services } = racingWorld();
   const line = (unitCents: number) => [{ description: "Work", quantity: 1, unitCents }];
 
-  await Promise.all([
+  const created = await Promise.all([
     services.invoices.create({ clientId: CLIENT_ID, dueAt: 1_800_000_000_000, lineItems: line(10_000), currency: "gbp" }, ACTOR),
     services.invoices.create({ clientId: CLIENT_ID, dueAt: 1_800_000_000_000, lineItems: line(20_000), currency: "gbp" }, ACTOR),
   ]);
 
+  assert.notEqual(created[0].number, created[1].number, "distinct concurrent invoices reserve distinct human numbers");
   const all = await services.invoices.list();
   assert.equal(all.length, 2, "neither invoice fell out of the agency list");
   assert.equal(all.reduce((s, i) => s + i.totalCents, 0), 30_000, "the full amount is on the books");
   // The client tab reads its own index — the more confusing place to lose one.
   assert.equal((await services.invoices.listForClient(CLIENT_ID)).length, 2, "and both show on the client's own tab");
+});
+
+test("the same invoice intent adopts one row and does not burn another number", async () => {
+  const { services } = racingWorld();
+  const input = {
+    clientId: CLIENT_ID,
+    issuedAt: Date.parse("2026-08-26T09:00:00Z"),
+    dueAt: Date.parse("2026-09-09T09:00:00Z"),
+    lineItems: [{ description: "Retry-safe work", quantity: 1, unitCents: 30_000 }],
+    currency: "gbp" as const,
+    idempotencyKey: "invoice-form-operation-1",
+  };
+
+  const [first, retry] = await Promise.all([
+    services.invoices.create(input, ACTOR),
+    services.invoices.create(input, ACTOR),
+  ]);
+  assert.equal(retry.id, first.id);
+  assert.equal(retry.number, first.number);
+  assert.equal((await services.invoices.list()).length, 1);
+
+  const next = await services.invoices.create({ ...input, idempotencyKey: "invoice-form-operation-2" }, ACTOR);
+  assert.equal(Number(next.number.slice(-4)), Number(first.number.slice(-4)) + 1, "the retry did not consume a sequence slot");
 });
 
 test("two income entries recorded concurrently: neither is lost", async () => {
@@ -391,7 +415,7 @@ async function payrollProfile(services: ReturnType<typeof containerWithDeps>): P
   const profile = await services.operations.createCompensationProfile(ACTOR, {
     name: "Sam Contractor", payeeType: "freelancer", currency: "gbp",
     rateBasis: "daily", baseRateCents: 40_000, employerCostPercent: 0,
-    annualBonusTargetCents: 0, status: "active",
+    annualBonusTargetCents: 0,
   });
   return profile.id;
 }
@@ -525,7 +549,7 @@ test("no page in the finance plugin posts a native form into a JSON handler", as
 
 test("expenses and categories created concurrently are all listed, and by category too", async () => {
   const { services } = racingWorld();
-  const category = await services.categories.create({ name: "Software", kind: "operating" }, ACTOR);
+  const category = await services.categories.create({ name: "Software" }, ACTOR);
 
   await Promise.all([
     services.expenses.create({ categoryId: category.id, amountCents: 12_000, currency: "gbp", description: "Editor", incurredAt: 1_700_000_000_000 }, ACTOR),
@@ -541,7 +565,7 @@ test("expenses and categories created concurrently are all listed, and by catego
 
 test("recording an expense writes only the row + the index — no unread secondary indexes", async () => {
   const { services, storage } = racingWorld();
-  const category = await services.categories.create({ name: "Travel", kind: "operating" }, ACTOR);
+  const category = await services.categories.create({ name: "Travel" }, ACTOR);
   await services.expenses.create({ categoryId: category.id, amountCents: 5_000, currency: "gbp", description: "Train", incurredAt: 1_700_000_000_000 }, ACTOR);
 
   const areas = [...new Set((await storage.list("expenses/")).map(k => k.split("/").slice(0, 2).join("/")))].sort();
@@ -562,7 +586,7 @@ import { createExpenseHandler } from "../src/built-ins/modules/agency-finance/sr
 import { createPaymentHandler, createIncomeHandler } from "../src/built-ins/modules/agency-finance/src/api/handlers-r007";
 
 async function expenseCategory(services: ReturnType<typeof containerWithDeps>, name = "Contractors"): Promise<string> {
-  return (await services.categories.create({ name, kind: "operating" }, ACTOR)).id;
+  return (await services.categories.create({ name }, ACTOR)).id;
 }
 
 test("a double-clicked expense records ONCE", async () => {

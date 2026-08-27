@@ -1,9 +1,9 @@
 import "server-only";
 
-import { writeFile } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 
-import { PROJECT_ROOT } from "@/lib/server/dev/devDocs";
+import { invalidateDevDocsIndex, PROJECT_ROOT } from "@/lib/server/dev/devDocs";
+import { createDevFileExclusive } from "@/lib/server/dev/devFileTransaction";
 import { invalidatePath } from "@/lib/server/dev/devMarkdownCache";
 import { localDay } from "@/lib/server/dev/devLocalTime";
 
@@ -33,6 +33,11 @@ export interface NewPlanResult {
   slug: string;
   relPath: string;
   absPath: string;
+}
+
+export interface PreparedPlan extends NewPlanResult {
+  title: string;
+  markdown: string;
 }
 
 /** Filesystem-safe slug from a human title. */
@@ -175,26 +180,37 @@ not "done" — browser-verify the UI (see [worker-brief.md](../../context/worker
 `;
 }
 
-/**
- * Create a new plan file. Refuses to overwrite an existing plan, refuses any
- * path that would escape the plans directory.
- */
-export async function createPlan(input: NewPlanInput, now = Date.now()): Promise<NewPlanResult> {
+/** Validate, confine and render a plan without writing it. */
+export function preparePlan(input: NewPlanInput, now = Date.now()): PreparedPlan {
   const title = clean(input.title, 120);
   if (!title) throw new Error("A plan needs a title.");
   if (!cleanBlock(input.goal, 2000)) throw new Error("A plan needs a goal — what should be true when it's done?");
 
   const slug = planSlug(title);
   if (!slug) throw new Error("That title has no usable letters or numbers for a filename.");
-
   const absPath = resolve(PLANS_DIR, `${slug}.md`);
-  // Confinement: the resolved path must sit inside the plans directory.
   if (absPath !== PLANS_DIR && !absPath.startsWith(PLANS_DIR + sep)) {
     throw new Error("Refusing to write outside the plans directory.");
   }
   if (!absPath.toLowerCase().endsWith(".md")) {
     throw new Error("Plans must be markdown files.");
   }
+  return {
+    title,
+    slug,
+    relPath: `docs/development/plans/${slug}.md`,
+    absPath,
+    markdown: renderPlanMarkdown({ ...input, title }, now),
+  };
+}
+
+/**
+ * Create a new plan file. Refuses to overwrite an existing plan, refuses any
+ * path that would escape the plans directory.
+ */
+export async function createPlan(input: NewPlanInput, now = Date.now()): Promise<NewPlanResult> {
+  const prepared = preparePlan(input, now);
+  const { slug, absPath } = prepared;
 
   // Never clobber an existing plan — a worker may already be building it.
   //
@@ -204,7 +220,7 @@ export async function createPlan(input: NewPlanInput, now = Date.now()): Promise
   // error anywhere — the API said ok to both callers. `flag: "wx"` makes the
   // create-or-fail one atomic kernel operation, so exactly one caller can win.
   try {
-    await writeFile(absPath, renderPlanMarkdown({ ...input, title }, now), { encoding: "utf-8", flag: "wx" });
+    await createDevFileExclusive(absPath, prepared.markdown);
   } catch (error) {
     if ((error as NodeJS.ErrnoException)?.code === "EEXIST") {
       throw new Error(`A plan called "${slug}.md" already exists. Pick a different title.`);
@@ -215,6 +231,7 @@ export async function createPlan(input: NewPlanInput, now = Date.now()): Promise
   // Drop any entry a prior same-slug file left cached (tasks/planStatus), so the
   // new plan is parsed fresh on the next board/tasks read.
   invalidatePath(absPath);
+  invalidateDevDocsIndex();
 
-  return { slug, relPath: `docs/development/plans/${slug}.md`, absPath };
+  return { slug, relPath: prepared.relPath, absPath };
 }

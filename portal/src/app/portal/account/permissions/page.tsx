@@ -40,6 +40,8 @@ export default async function PermissionsPage() {
     redirect("/login?next=/portal/account/permissions");
   }
   const eff = effectiveRole(session);
+  const publicShowcase = Boolean(session.publicShowcase);
+  const isAgencyStaff = session.role === "agency-staff";
 
   return (
     <main id="main-content" data-portal-area="account" className="mm-portal-root mm-route-canvas relative flex min-h-screen w-full justify-center px-4 py-16 sm:px-6 sm:py-20">
@@ -63,19 +65,27 @@ export default async function PermissionsPage() {
           <div className="flex items-center justify-between gap-4 border-b border-black/6 pb-4">
             <div>
               <div className="text-xs uppercase tracking-wider text-black/45">Role</div>
-              <div className="mt-1 text-lg font-semibold text-black/90">{ROLE_LABEL[session.role] ?? permissionLabel(session.role)}</div>
+              <div className="mt-1 text-lg font-semibold text-black/90">{publicShowcase ? eff.roleLabel : ROLE_LABEL[session.role] ?? permissionLabel(session.role)}</div>
             </div>
-            {eff.isFounder && (
+            {publicShowcase ? (
+              <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-200">
+                Read-only
+              </span>
+            ) : eff.isFounder ? (
               <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">
                 Account owner
               </span>
-            )}
+            ) : null}
           </div>
 
           <ul className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {eff.permissions.length === 0 ? (
+            {publicShowcase ? (
+              <li className="col-span-full text-sm leading-6 text-black/55">
+                This public showcase can view its isolated fictional workspace. It cannot create, edit, publish, delete, or open internal development tools.
+              </li>
+            ) : eff.permissions.length === 0 ? (
               <li className="col-span-full text-sm italic text-black/55">
-                Your account owner permissions include every area of this workspace.
+                This role has no agency workspace permissions.
               </li>
             ) : (
               eff.permissions.map(p => (
@@ -87,10 +97,18 @@ export default async function PermissionsPage() {
           </ul>
         </section>
 
-        <p className="mt-4 text-xs text-black/45">
-          Permissions are based on each person&apos;s role. The business owner
-          can update access in <Link href="/portal/agency/settings#team" className="font-medium text-black/65 underline decoration-black/25 underline-offset-2 hover:text-black">Team settings</Link>.
-        </p>
+        {publicShowcase ? (
+          <p className="mt-4 text-xs text-black/45">The showcase session is temporary and contains sample data only.</p>
+        ) : isAgencyStaff ? (
+          <p className="mt-4 text-xs text-black/45">
+            Permissions are based on your role. An owner or manager manages your workspace access.
+          </p>
+        ) : (
+          <p className="mt-4 text-xs text-black/45">
+            Permissions are based on each person&apos;s role. The business owner
+            can update access in <Link href="/portal/agency/settings#team" className="font-medium text-black/65 underline decoration-black/25 underline-offset-2 hover:text-black">Team settings</Link>.
+          </p>
+        )}
       </div>
     </main>
   );

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { AuthError, authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { routeTenantScope } from "@/lib/server/portal/apiTenantScope";
 import {
   decideIdentityResolutionReview,
   getIdentityResolutionReview,
@@ -17,6 +18,7 @@ import {
 import { upsertClientSocialMessageLedgerEvent } from "@/lib/server/clients/clientRecordLedger";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { listClients } from "@/server/tenants";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 export const dynamic = "force-dynamic";
 
@@ -87,11 +89,24 @@ export async function PATCH(request: Request) {
     if (!reviewId || !action) return NextResponse.json({ ok: false, error: "reviewId and action are required" }, { status: 400 });
     const current = getIdentityResolutionReview(session.agencyId, reviewId);
     if (!current) return NextResponse.json({ ok: false, error: "identity review not found" }, { status: 404 });
+    // Linking writes a client id onto a review and then onto that client's own
+    // ledger. The id comes from the body, so it is proven to be this agency's
+    // before either write.
+    const tenant = routeTenantScope(session, { clientId: body?.clientId });
+    if (action === "link" && !tenant.client) {
+      return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+    }
+    if (action === "link") {
+      const clientIds = [...new Set([current.selectedClientId, tenant.clientId].filter((id): id is string => Boolean(id)))];
+      for (const clientId of clientIds) {
+        await requireCurrentClientWorkspaceElementAccess(clientId, "client.record", "use");
+      }
+    }
     const review = decideIdentityResolutionReview({
-      agencyId: session.agencyId,
+      agencyId: tenant.agencyId,
       reviewId,
       action,
-      clientId: clean(body?.clientId, 160),
+      clientId: tenant.clientId ?? "",
       note: clean(body?.note, 1_000),
       parkedUntil: typeof body?.parkedUntil === "number" && Number.isFinite(body.parkedUntil) ? body.parkedUntil : undefined,
       actorUserId: session.userId,
@@ -133,6 +148,7 @@ export async function PATCH(request: Request) {
     await flushPendingWrites();
     return NextResponse.json({ ok: true, review });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     if (error instanceof Error && !error.message.toLowerCase().includes("auth")) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
     }

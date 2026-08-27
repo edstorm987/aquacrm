@@ -15,6 +15,7 @@ import type { CustomerProjectBrief } from "@/app/api/tenants/customer-project-br
 import type { ClientApproval } from "@/app/api/tenants/client-approvals/route";
 import { portalProductSelectionFromAgencyProduct, type PortalProductSelection } from "@/lib/portal/portalProducts";
 import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
+import { resolveClientProductStage } from "@/lib/products/clientProductStageTruth";
 import { PORTAL_PROGRAMME_LIFECYCLE, portalProductLifecycle } from "@/lib/portal/portalProductModules";
 import { cleanPortalProductWorkspaces, type PortalProductWorkspace } from "@/lib/portal/portalProductWorkspaces";
 import { cleanClientRecordEntries, type ClientRecordEntryKind } from "@/lib/clients/clientRelationshipRecord";
@@ -639,12 +640,18 @@ export async function loadCustomerPortalData(
   }));
 
   const mode = portalMode(meta.portalMode);
-  const workspaces = cleanPortalProductWorkspaces(meta.portalProductWorkspaces, products, mode).map(workspace => options.audience === "agency"
-    ? workspace
-    : {
-        ...workspace,
-        collections: workspace.collections.filter(collection => collection.status !== "draft" && collection.status !== "archived"),
-      });
+  const workspaces = cleanPortalProductWorkspaces(meta.portalProductWorkspaces, products, mode).map(workspace => {
+    const definition = options.scope === "template" ? null : getAgencyProduct(client.agencyId, workspace.productId);
+    const staged = definition
+      ? { ...workspace, stage: resolveClientProductStage(client, definition).portalMode }
+      : workspace;
+    return options.audience === "agency"
+      ? staged
+      : {
+          ...staged,
+          collections: staged.collections.filter(collection => collection.status !== "draft" && collection.status !== "archived"),
+        };
+  });
 
   return {
     clientId: client.id,

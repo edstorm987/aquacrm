@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import {
   Hammer,
   ScanEye,
@@ -14,18 +14,16 @@ import {
 
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { DevTeamTransition } from "@/components/chrome/DevTeamTransition";
-import { LibrarianDrawerControl } from "@/components/chrome/LibrarianDrawerControl";
+import { DeferredLibrarianDrawerControl } from "@/components/chrome/DeferredLibrarianDrawerControl";
 import { PortalRouteCanvas } from "@/components/chrome/PortalRouteCanvas";
 import { Sidebar } from "@/components/chrome/Sidebar";
 import { ThemeInjector } from "@/components/chrome/ThemeInjector";
-import { Topbar } from "@/components/chrome/Topbar";
-import { NotificationCentreButton } from "@/components/chrome/NotificationCentreButton";
 import { requireRole } from "@/lib/server/auth/auth";
 import { resolvePostLoginPath } from "@/lib/server/auth/postLoginRedirect";
 import type { NavPanel } from "@/lib/chrome/sidebarLayout";
-import { devDocsAccessible } from "@/lib/server/dev/devDocs";
-import { devIconPreference } from "@/lib/server/devIconPreference";
-import { AGENCY_ROLES } from "@/server/types";
+import { devTeamAccessible } from "@/lib/server/dev/devTeamAccess";
+import { usesDurableDevTeamWorkspace } from "@/lib/server/dev/devWorkspaceFiles";
+import { AGENCY_ROLES, type Role } from "@/server/types";
 import { ensureHydrated } from "@/server/storage";
 import { getAgency } from "@/server/tenants";
 import { getUserById } from "@/server/users";
@@ -40,21 +38,93 @@ const ico = (Comp: typeof Hammer, accent: keyof typeof ACCENTS) => (
   <Comp size={16} strokeWidth={1.8} color={ACCENTS[accent].fg} />
 );
 
-// The Dev Team portal — our own internal workspace, founder + Dev-Mode only.
-// Same layered gate as dev-docs: the layout AND every page re-assert
-// `devDocsAccessible` (founder + Dev Mode), so it is unreachable in any
-// production-like context. Its own sidebar + chrome, mirroring the `team/`
-// scope pattern (inline panels → the shared <Sidebar>/<Topbar>).
+async function DevTeamTopbar(props: {
+  role: Role;
+  email: string;
+  name?: string;
+  avatarUrl?: string;
+  panels: NavPanel[];
+  currentPath: string;
+  agencyId: string;
+  userId: string;
+  inspecting: boolean;
+  homeHref: string;
+  isDemo?: boolean;
+  sandboxMode: boolean;
+  devModeActive: boolean;
+}) {
+  // Topbar owns the Dev Console, search, pins, notifications and Librarian
+  // client islands. Loading it as one streamed child keeps those unrelated
+  // graphs out of the route's first server chunk while preserving the exact
+  // shared Topbar once ready.
+  const [{ Topbar }, { NotificationCentreButton }, { devIconPreference }] = await Promise.all([
+    import("@/components/chrome/Topbar"),
+    import("@/components/chrome/NotificationCentreButton"),
+    import("@/lib/server/devIconPreference"),
+  ]);
+  return (
+    <Topbar
+      inspecting={props.inspecting}
+      notifications={<NotificationCentreButton />}
+      title="Dev Team"
+      subtitle="Internal workspace"
+      role={props.role}
+      email={props.email}
+      name={props.name}
+      avatarUrl={props.avatarUrl}
+      panels={props.panels}
+      tenantLabel="Dev Team"
+      currentPath={props.currentPath}
+      searchRecordsEnabled={false}
+      advisorControl={
+        <DeferredLibrarianDrawerControl
+          agencyId={props.agencyId}
+          userId={props.userId}
+          userName={props.name ?? props.email}
+        />
+      }
+      homeHref={props.homeHref}
+      homeLabel="Back to home"
+      devConsole={await devIconPreference()}
+      isDemo={props.isDemo}
+      sandboxMode={props.sandboxMode}
+      devModeActive={props.devModeActive}
+    />
+  );
+}
+
+function DevTeamTopbarFallback() {
+  return (
+    <header
+      data-testid="dev-team-topbar-loading"
+      className="flex min-h-14 shrink-0 items-center justify-between border-b border-[color:var(--dev-line)] bg-[color:var(--dev-surface-raised)] px-4"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <span>
+        <strong className="block text-sm text-[color:var(--dev-ink)]">Dev Team</strong>
+        <span className="block text-[11px] text-[color:var(--dev-ink-muted)]">Preparing workspace…</span>
+      </span>
+      <span className="aqua-inline-loading-spinner" aria-hidden="true" />
+    </header>
+  );
+}
+
+// The Dev Team portal — our own internal workspace. The layout AND every page
+// re-assert the same founder-only access predicate. In a local sandbox that
+// predicate accepts Dev Mode fixtures; in production it accepts only the live
+// FOUNDER_EMAIL account. Its own sidebar + chrome mirrors the `team/` scope.
 export default async function DevTeamLayout({ children }: { children: ReactNode }) {
-  await ensureHydrated();
+  await ensureHydrated({ fresh: usesDurableDevTeamWorkspace() });
   let session;
   try {
     session = await requireRole([...AGENCY_ROLES]);
   } catch {
     redirect("/portal");
   }
-  // Founder + Dev Mode, or this portal does not exist.
-  if (!devDocsAccessible(session)) notFound();
+  // Founder-only Dev Team access, or this portal does not exist.
+  if (!devTeamAccessible(session)) notFound();
 
   const agency = getAgency(session.agencyId);
   if (!agency) redirect("/login");
@@ -686,34 +756,25 @@ html[data-cinematic-mode="false"] .mm-dev-transition { display: none !important;
         <DevTeamTransition />
         <Sidebar panels={panels} tenantLabel="Dev Team" currentPath={currentPath} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <Topbar
-            inspecting={Boolean(session.previewReturnUserId)}
-            notifications={<NotificationCentreButton />}
-            title="Dev Team"
-            subtitle="Internal workspace"
-            role={session.role}
-            email={session.email}
-            name={user?.name}
-            avatarUrl={user?.avatarUrl}
-            panels={panels}
-            tenantLabel="Dev Team"
-            currentPath={currentPath}
-            searchRecordsEnabled={false}
-            // The Dev Team's assistant is the LIBRARIAN — its own find surface
-            // (the file-finding skill) over the SAME side-panel drawer. Passing
-            // it here stops the Topbar falling through to the full-page
-            // /portal/agency/assistant link (the "full page + glitches back to
-            // agency" bug).
-            advisorControl={<LibrarianDrawerControl agencyId={session.agencyId} userId={session.userId} userName={user?.name ?? session.email} />}
-            // Role-dependent way out: land on the operator's OWN portal home
-            // (owner → agency, hired staff → their staff portal), never the
-            // marketing site or a hardcoded agency route.
-            homeHref={resolvePostLoginPath(session)}
-            homeLabel="Back to home"
-            devConsole={devDocsAccessible(session) && (await devIconPreference())}
-            isDemo={session.isDemo}
-            devModeActive={Boolean(session.devReturnAgencyId)}
-          />
+          <Suspense fallback={<DevTeamTopbarFallback />}>
+            <DevTeamTopbar
+              inspecting={Boolean(session.previewReturnUserId)}
+              role={session.role}
+              email={session.email}
+              name={user?.name}
+              avatarUrl={user?.avatarUrl}
+              panels={panels}
+              currentPath={currentPath}
+              agencyId={session.agencyId}
+              userId={session.userId}
+              // Role-dependent way out: land on the operator's OWN portal home
+              // (owner → agency, hired staff → their staff portal).
+              homeHref={resolvePostLoginPath(session)}
+              isDemo={session.isDemo}
+              sandboxMode={Boolean(session.sandbox)}
+              devModeActive={Boolean(session.devReturnAgencyId)}
+            />
+          </Suspense>
           <main id="main-content" className="mm-private-surface min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain bg-[color:var(--dt-bg)] px-4 py-5 text-[color:var(--dt-ink)] sm:px-6 lg:px-8 lg:py-6">
             <ErrorBoundary label="dev team workspace"><PortalRouteCanvas>{children}</PortalRouteCanvas></ErrorBoundary>
           </main>

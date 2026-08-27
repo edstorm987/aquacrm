@@ -8,8 +8,12 @@ import type {
   PortalFormFieldDefinition,
   PortalFormFieldType,
 } from "./types";
+import { validatePortalFormValues } from "@/lib/forms/portalFormValues";
 
-const ENTITIES = new Set<PortalFormEntity>(["contacts", "expenses", "clients", "leads", "tasks", "products"]);
+// Contacts deliberately keep the Leads Pipeline contact schema because tags, imports and
+// promotions share that contract. The mounted Portal Editor delegates Contacts to that
+// API; refusing a second `portalEditor.forms.contacts` document prevents split-brain fields.
+const ENTITIES = new Set<PortalFormEntity>(["expenses", "clients", "leads", "tasks", "products"]);
 const TYPES = new Set<PortalFormFieldType>(["text", "textarea", "number", "date", "url", "email", "select", "multi-select", "checkbox"]);
 
 export function getPortalEditorState(agencyId: string): PortalFormEditorState {
@@ -21,16 +25,40 @@ export function getPortalEditorState(agencyId: string): PortalFormEditorState {
   };
 }
 
+export function getPortalFormFields(agencyId: string, entity: PortalFormEntity): PortalFormFieldDefinition[] {
+  assertPortalEditorEntity(entity);
+  return getPortalEditorState(agencyId).forms[entity] ?? [];
+}
+
+export function validatePortalEntityFields(
+  agencyId: string,
+  entity: PortalFormEntity,
+  values: unknown,
+  existing?: Record<string, unknown>,
+  allowedUnknownKeys?: Iterable<string>,
+) {
+  return validatePortalFormValues({
+    fields: getPortalFormFields(agencyId, entity),
+    values,
+    existing,
+    allowedUnknownKeys,
+  });
+}
+
 export function savePortalEditorField(
   agencyId: string,
   entity: PortalFormEntity,
   value: Partial<PortalFormFieldDefinition>,
   actorUserId: string,
 ): PortalFormEditorState {
-  if (!ENTITIES.has(entity)) throw new Error("Unknown form.");
+  assertPortalEditorEntity(entity);
   const label = cleanText(value.label, 80);
   if (!label) throw new Error("Field label required.");
   const type = TYPES.has(value.type as PortalFormFieldType) ? value.type as PortalFormFieldType : "text";
+  const options = cleanOptions(value.options);
+  if ((type === "select" || type === "multi-select") && options.length === 0) {
+    throw new Error("Select fields need at least one option.");
+  }
   const now = Date.now();
   const id = cleanId(value.id) || `field-${now.toString(36)}`;
   const current = getPortalEditorState(agencyId);
@@ -40,7 +68,7 @@ export function savePortalEditorField(
     id,
     label,
     type,
-    options: cleanOptions(value.options),
+    options,
     section: cleanText(value.section, 80) || "Extra details",
     required: value.required === true,
     active: value.active !== false,
@@ -74,7 +102,7 @@ export function deletePortalEditorField(
   fieldId: string,
   actorUserId: string,
 ): PortalFormEditorState {
-  if (!ENTITIES.has(entity)) throw new Error("Unknown form.");
+  assertPortalEditorEntity(entity);
   const current = getPortalEditorState(agencyId);
   const fields = current.forms[entity] ?? [];
   const removed = fields.find(field => field.id === fieldId);
@@ -113,4 +141,11 @@ function cleanOptions(value: unknown): string[] {
     .filter((item): item is string => typeof item === "string")
     .map(item => item.trim().slice(0, 80))
     .filter(Boolean))).slice(0, 40);
+}
+
+function assertPortalEditorEntity(entity: PortalFormEntity): void {
+  if (entity === "contacts") {
+    throw new Error("Contacts fields use the Leads Pipeline contact configuration.");
+  }
+  if (!ENTITIES.has(entity)) throw new Error("Unknown form.");
 }

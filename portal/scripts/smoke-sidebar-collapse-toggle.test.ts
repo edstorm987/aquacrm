@@ -108,15 +108,18 @@ describe("Sidebar wires the toggle (R035)", () => {
 });
 
 describe("Root layout hydration (R035)", () => {
-  it("layout.tsx mounts the sidebar hydration script inside <head>", () => {
+  it("layout.tsx mounts the sidebar bootstrap through Next beforeInteractive in <head>", () => {
     const src = readFileSync(LAYOUT, "utf8");
     assert.ok(src.includes("SIDEBAR_COLLAPSE_HYDRATION_SCRIPT"));
+    assert.ok(src.includes('import Script from "next/script"'));
     assert.ok(src.includes("<head>"));
     // Must be inside <head> (script before <body> so it runs pre-paint).
     const headIdx = src.indexOf("<head>");
-    const scriptIdx = src.indexOf("__html: SIDEBAR_COLLAPSE_HYDRATION_SCRIPT");
+    const scriptIdx = src.indexOf('id="aqua-sidebar-collapse-bootstrap"');
     const bodyIdx = src.indexOf("<body>");
     assert.ok(headIdx > -1 && scriptIdx > headIdx && scriptIdx < bodyIdx);
+    assert.match(src, /id="aqua-sidebar-collapse-bootstrap" strategy="beforeInteractive"/);
+    assert.doesNotMatch(src, /<script\s+dangerouslySetInnerHTML/);
   });
 });
 

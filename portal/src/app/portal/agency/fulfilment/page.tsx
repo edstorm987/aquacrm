@@ -10,17 +10,28 @@ import { clientProductWorkspaces } from "@/server/productWorkspaces";
 import { listClients } from "@/server/tenants";
 import { portalProductSelectionFromAgencyProduct } from "@/lib/portal/portalProducts";
 import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
+import { resolveClientProductStage } from "@/lib/products/clientProductStageTruth";
 import { portalProductModule } from "@/lib/portal/portalProductModules";
 import { portalWorkspaceProgress } from "@/lib/portal/portalProductWorkspaces";
-import { agencyProductPipelineColumns, defaultAgencyProductPipelineStage } from "@/lib/products/fulfilmentProductPipelines";
+import { agencyProductPipelineColumns } from "@/lib/products/fulfilmentProductPipelines";
 import { portalWorkspaceData } from "../portals/_portalWorkspaceData";
 import { listSops } from "@/engines/sop/server/sops";
 import { listTradingCompanies } from "@/server/tradingCompanies";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
+import { listUsersForAgency } from "@/server/users";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
 import { clientRelationshipId } from "@/server/clientRelationships";
-import { ensureAgencyMasterSiteKey, masterTagSnippet } from "@/server/websiteSources";
+import { ensureAgencyMasterSiteKey, getAgencyMasterSiteKey, masterTagSnippet } from "@/server/websiteSources";
+import { requireCurrentAccessActor } from "@/server/accessControl";
+import {
+  FULFILMENT_VIEW_ELEMENT_KEYS,
+  resolveActorWorkspaceElementAccess,
+  workspaceElementAtLeast,
+  workspaceElementLevel,
+  type WorkspaceElementLevel,
+} from "@/lib/server/access/workspaceElementAccess";
 import { connectionLinkOrigin } from "@/lib/server/portal/portalConnections";
+import { getPortalFormFields } from "@/server/portalEditor";
 import DevelopmentPage from "../development/page";
 import { AquaTagsWorkspace } from "./_AquaTagsWorkspace";
 import {
@@ -41,7 +52,7 @@ interface SearchParams {
   status?: string;
 }
 
-const VALID_VIEWS: readonly FulfilmentView[] = ["overview", "stages", "services", "technical", "clients", "portals", "tags"];
+const VALID_VIEWS: readonly FulfilmentView[] = ["overview", "stages", "services", "technical", "clients", "portals", "tags", "access"];
 
 export default async function FulfilmentPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   await ensureHydrated();
@@ -52,11 +63,26 @@ export default async function FulfilmentPage({ searchParams }: { searchParams: P
     redirect("/portal");
   }
 
-  const agencyId = session.activeAgencyId ?? session.agencyId;
+  const actor = await requireCurrentAccessActor();
+  const agencyId = actor.resourceAgencyId;
+  const access = resolveActorWorkspaceElementAccess(actor, "fulfilment");
+  const viewAccess = Object.fromEntries(VALID_VIEWS.map(viewId => [
+    viewId,
+    workspaceElementLevel(access, FULFILMENT_VIEW_ELEMENT_KEYS[viewId]),
+  ])) as Record<FulfilmentView, WorkspaceElementLevel>;
   const requested = await searchParams;
-  if (requested.view === "products") redirect("/portal/agency/fulfilment?view=services");
-  const view = VALID_VIEWS.includes(requested.view as FulfilmentView) ? requested.view as FulfilmentView : "overview";
-  ensureDefaultAgencyProducts(agencyId);
+  const requestedView = requested.view === "products" ? "services" : requested.view;
+  const view = VALID_VIEWS.includes(requestedView as FulfilmentView) ? requestedView as FulfilmentView : "overview";
+  if (session.publicShowcase && (view === "technical" || view === "tags")) redirect("/portal/agency/fulfilment");
+  if (session.publicShowcase && view === "access") redirect("/portal/agency/fulfilment");
+  if (viewAccess[view] === "hidden") {
+    const first = VALID_VIEWS.find(viewId => viewAccess[viewId] !== "hidden");
+    redirect(first ? (first === "overview" ? "/portal/agency/fulfilment" : `/portal/agency/fulfilment?view=${first}`) : "/portal/agency");
+  }
+  const canManage = !session.publicShowcase;
+  const canUseServices = canManage && workspaceElementAtLeast(viewAccess.services, "use");
+  const canManageServices = canManage && viewAccess.services === "manage";
+  if (canManageServices) ensureDefaultAgencyProducts(agencyId);
   const allAgencyProducts = listAgencyProducts(agencyId, true);
   const agencyProducts = allAgencyProducts.filter(product => product.active);
   const clientDirectory = listClients(agencyId);
@@ -70,10 +96,12 @@ export default async function FulfilmentPage({ searchParams }: { searchParams: P
   const milestoneMap = groupMilestones(milestones);
   const clientRecords = clients.map(client => clientRecord(client, agencyProducts, milestoneMap.get(client.id) ?? [], relationshipWorkspaceCounts));
   const productRecords = agencyProducts.map(product => productRecord(product, clients, agencyProducts, relationshipWorkspaceCounts));
-  const attention = attentionItems(clientRecords, milestoneMap);
+  const attention = attentionItems(clientRecords, milestoneMap, canUseServices);
   const flow = flowSummary(clientRecords);
   const stageBoard = buildStageBoard(requested.product, clients, agencyProducts, relationshipWorkspaceCounts);
-  const { portals, products: portalProducts } = portalWorkspaceData(agencyId, session.userId);
+  const portalData = viewAccess.portals === "hidden"
+    ? { portals: [], products: [] }
+    : portalWorkspaceData(agencyId, actor.session.userId);
   const settings = getAgencyWorkspaceSettings(agencyId);
 
   // The Aqua Tags control tower lives here as a Fulfilment view — technical
@@ -81,9 +109,15 @@ export default async function FulfilmentPage({ searchParams }: { searchParams: P
   // shown, mirroring `technical` below; the master key is generate-once.
   let tagsWorkspace: ReactNode;
   if (view === "tags") {
-    const tagKey = ensureAgencyMasterSiteKey(agencyId);
-    await flushPendingWrites();
-    tagsWorkspace = <AquaTagsWorkspace snippet={masterTagSnippet(connectionLinkOrigin(), tagKey)} siteKey={tagKey} />;
+    const canUseTags = workspaceElementAtLeast(viewAccess.tags, "use");
+    const tagKey = getAgencyMasterSiteKey(agencyId) ?? (canUseTags ? ensureAgencyMasterSiteKey(agencyId) : "");
+    if (canUseTags) await flushPendingWrites();
+    tagsWorkspace = <AquaTagsWorkspace
+      snippet={tagKey ? masterTagSnippet(connectionLinkOrigin(), tagKey) : "A master tag has not been provisioned yet."}
+      siteKey={tagKey}
+      canUse={canManage && canUseTags}
+      canManage={canManage && viewAccess.tags === "manage"}
+    />;
   }
 
   return <FulfilmentWorkspace
@@ -93,14 +127,15 @@ export default async function FulfilmentPage({ searchParams }: { searchParams: P
     attention={attention}
     flow={flow}
     stageBoard={stageBoard}
-    portals={portals}
-    portalProducts={portalProducts}
+    portals={portalData.portals}
+    portalProducts={portalData.products}
     focusedClientId={requested.client}
     focusedProductId={requested.product}
     productEditor={{
-      initialProducts: allAgencyProducts,
-      sops: listSops(agencyId),
-      companies: listTradingCompanies(agencyId, true),
+      initialProducts: viewAccess.services === "hidden" ? [] : allAgencyProducts,
+      sops: canManageServices ? listSops(agencyId) : [],
+      companies: canManageServices ? listTradingCompanies(agencyId, true) : [],
+      customFields: canManageServices ? getPortalFormFields(agencyId, "products") : [],
       defaults: { taxRatePercent: settings.defaultTaxRatePercent, paymentTermsDays: settings.defaultPaymentTermsDays },
     }}
     technicalWorkspace={view === "technical" ? (
@@ -110,7 +145,10 @@ export default async function FulfilmentPage({ searchParams }: { searchParams: P
       })} />
     ) : undefined}
     tagsWorkspace={tagsWorkspace}
-    canManage={session.role === "agency-owner" || session.role === "agency-manager"}
+    viewAccess={viewAccess}
+    accessPeople={viewAccess.access === "hidden" ? [] : listUsersForAgency(agencyId).map(person => ({ id: person.id, name: person.name, email: person.email, detail: person.role }))}
+    accessEnvironment={session.sandbox ? "sandbox" : "live"}
+    canManageAccess={viewAccess.access === "manage"}
   />;
 }
 
@@ -129,22 +167,13 @@ function clientRecord(client: Client, agencyProducts: AgencyProduct[], milestone
   const agencyProductById = new Map(agencyProducts.map(product => [product.id, product]));
   const agencyProductByTemplate = new Map(agencyProducts.flatMap(product => product.portalTemplateKey ? [[product.portalTemplateKey, product] as const] : []));
   const workspaces = new Map(clientProductWorkspaces(client).map(workspace => [workspace.productId, workspace]));
-  const storedStages = client.metadata?.productPipelineStages && typeof client.metadata.productPipelineStages === "object"
-    ? client.metadata.productPipelineStages as Record<string, unknown>
-    : {};
-
   const products = selections.map(selection => {
     const agencyProduct = agencyProductById.get(selection.id) ?? (selection.catalogKey ? agencyProductByTemplate.get(selection.catalogKey) : undefined);
     const workspace = workspaces.get(selection.id);
     const columns = agencyProduct ? agencyProductPipelineColumns(agencyProduct) : undefined;
-    const storedStage = typeof storedStages[selection.id] === "string"
-      ? storedStages[selection.id] as string
-      : selection.catalogKey && typeof storedStages[selection.catalogKey] === "string"
-        ? storedStages[selection.catalogKey] as string
-        : "";
-    const stageId = columns?.some(column => column.id === storedStage)
-      ? storedStage
-      : agencyProduct ? defaultAgencyProductPipelineStage(agencyProduct, client.stage) : workspace?.stage ?? "onboarding";
+    const stageId = agencyProduct
+      ? resolveClientProductStage(client, agencyProduct).stageId
+      : workspace?.stage ?? "onboarding";
     const stageLabel = columns?.find(column => column.id === stageId)?.label ?? titleCase(String(stageId));
     return {
       id: selection.id,
@@ -223,15 +252,8 @@ function buildStageBoard(requestedProduct: string | undefined, clients: Client[]
     return clients.flatMap(client => {
       const assigned = resolvePortalProductAssignment(client.metadata ?? {}, products).products.some(selection => selection.id === product.id);
       if (!assigned) return [];
-      const stages = client.metadata?.productPipelineStages && typeof client.metadata.productPipelineStages === "object"
-        ? client.metadata.productPipelineStages as Record<string, unknown>
-        : {};
-      const stored = typeof stages[product.id] === "string"
-        ? stages[product.id] as string
-        : product.portalTemplateKey && typeof stages[product.portalTemplateKey] === "string"
-          ? stages[product.portalTemplateKey] as string
-          : "";
-      const columnId = productColumns.some(column => column.id === stored) ? stored : defaultAgencyProductPipelineStage(product, client.stage);
+      const columnId = resolveClientProductStage(client, product).stageId;
+      const revision = clientProductWorkspaces(client).find(workspace => workspace.productId === product.id)?.revision ?? 0;
       const linkedCount = relationshipWorkspaceCounts.get(clientRelationshipId(client)) ?? 1;
       return [{
         id: client.id,
@@ -239,6 +261,7 @@ function buildStageBoard(requestedProduct: string | undefined, clients: Client[]
         sub: linkedCount > 1 ? `${product.name} · linked buyer (${linkedCount})` : product.name,
         href: `/portal/clients/${client.id}?tab=delivery`,
         columnId,
+        revision,
       }];
     });
   };
@@ -266,7 +289,7 @@ function buildStageBoard(requestedProduct: string | undefined, clients: Client[]
   };
 }
 
-function attentionItems(clients: FulfilmentClientRecord[], milestoneMap: Map<string, ClientMilestone[]>): FulfilmentAttentionItem[] {
+function attentionItems(clients: FulfilmentClientRecord[], milestoneMap: Map<string, ClientMilestone[]>, canManage: boolean): FulfilmentAttentionItem[] {
   const now = Date.now();
   const items: FulfilmentAttentionItem[] = [];
   for (const client of clients) {
@@ -278,9 +301,9 @@ function attentionItems(clients: FulfilmentClientRecord[], milestoneMap: Map<str
     for (const milestone of milestones.filter(item => item.status !== "complete" && item.status !== "blocked" && item.targetAt && item.targetAt < now)) {
       items.push({ id: `overdue:${milestone.id}`, title: `${clientLabel}: ${milestone.title}`, detail: `Target date passed ${formatDate(milestone.targetAt!)}. Move it, complete it, or reset the expectation.`, href: `/portal/clients/${client.id}?tab=delivery`, level: "urgent", label: "Overdue" });
     }
-    if (!client.products.length) items.push({ id: `service:${client.id}`, title: `Assign a service to ${clientLabel}`, detail: "The client has no product workspace, delivery stages, or defined outputs yet.", href: `/portal/clients/${client.id}?tab=delivery`, level: "high", label: "Setup" });
-    if (client.portalRequired && !client.portalReady) items.push({ id: `portal:${client.id}`, title: `Create ${clientLabel}'s portal`, detail: "At least one assigned product requires a portal, but the shared client workspace is not ready.", href: `/portal/clients/${client.id}?tab=portal`, level: "high", label: "Portal" });
-    if (!client.ownerEmail) items.push({ id: `email:${client.id}`, title: `Add a primary contact for ${clientLabel}`, detail: "Delivery updates and portal access cannot be sent without a client email.", href: `/portal/clients/${client.id}?tab=relationship`, level: "normal", label: "Contact" });
+    if (!client.products.length) items.push({ id: `service:${client.id}`, title: canManage ? `Assign a service to ${clientLabel}` : `${clientLabel}: service assignment missing`, detail: "The client has no product workspace, delivery stages, or defined outputs yet.", href: `/portal/clients/${client.id}?tab=delivery`, level: "high", label: canManage ? "Setup" : "Status" });
+    if (client.portalRequired && !client.portalReady) items.push({ id: `portal:${client.id}`, title: canManage ? `Create ${clientLabel}'s portal` : `${clientLabel}: portal not created`, detail: "At least one assigned product requires a portal, but the shared client workspace is not ready.", href: `/portal/clients/${client.id}?tab=portal`, level: "high", label: "Portal" });
+    if (!client.ownerEmail) items.push({ id: `email:${client.id}`, title: canManage ? `Add a primary contact for ${clientLabel}` : `${clientLabel}: primary contact missing`, detail: "Delivery updates and portal access cannot be sent without a client email.", href: `/portal/clients/${client.id}?tab=relationship`, level: "normal", label: "Contact" });
   }
   const rank = { urgent: 0, high: 1, normal: 2 } as const;
   return items.sort((left, right) => rank[left.level] - rank[right.level] || left.title.localeCompare(right.title));

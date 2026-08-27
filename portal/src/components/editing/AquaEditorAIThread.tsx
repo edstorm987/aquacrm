@@ -87,6 +87,8 @@ export function AquaEditorAIThread({
   initialConversation,
   initialLimits,
   prefill,
+  canUse,
+  canManage,
   contextText,
   composerTools,
   onConfigure,
@@ -108,6 +110,10 @@ export function AquaEditorAIThread({
   initialLimits: EditorAiHistoryLimits | null;
   /** Text the shell has loaded into the composer — a captured selection. */
   prefill: string;
+  /** AI element Use: message, thread and history mutations. */
+  canUse: boolean;
+  /** AI element Manage: offers the route to key/configuration controls. */
+  canManage: boolean;
   /**
    * What the editor is pointing at right now — target, clicked words, source
    * focus — in the shell's words. Sent WITH a message as the model's editor
@@ -141,8 +147,8 @@ export function AquaEditorAIThread({
   // A captured selection arrives as text for the box, never as a sent message —
   // spending a request on somebody's behalf is not this panel's to spend.
   useEffect(() => {
-    if (prefill) setDraft(prefill);
-  }, [prefill]);
+    if (canUse && prefill) setDraft(prefill);
+  }, [canUse, prefill]);
 
   // THIS project's history. Refetched whenever the project changes, because the
   // editor can change project without a navigation and the seeded copy is then
@@ -209,7 +215,7 @@ export function AquaEditorAIThread({
 
   async function send() {
     const message = draft.trim();
-    if (!message || busy || !configured) return;
+    if (!canUse || !message || busy || !configured) return;
     // Cleared optimistically; restored below if the SAVE failed, because
     // losing what somebody typed is the worse of the two failures. A failed
     // REPLY does not restore it — the message is saved by then, and putting a
@@ -276,7 +282,7 @@ export function AquaEditorAIThread({
           <MessagesSquare size={12} aria-hidden />
           {threads.length ? `${threads.length} conversation${threads.length === 1 ? "" : "s"}` : "No conversations"}
         </button>
-        <div className="flex items-center gap-1.5">
+        {canUse ? <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={() => void run(() => startEditorAiThread(projectId), result => {
@@ -292,7 +298,7 @@ export function AquaEditorAIThread({
           >
             <Plus size={14} aria-hidden />
           </button>
-        </div>
+        </div> : <span className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${MUTED}`}>Read-only</span>}
       </div>
 
       {/* ── The thread rail, folded away by default ──────────────────────── */}
@@ -344,7 +350,7 @@ export function AquaEditorAIThread({
                           {thread.messages.length} message{thread.messages.length === 1 ? "" : "s"} · {ago(now, thread.updatedAt)}
                         </span>
                       </button>
-                      <button
+                      {canUse ? <button
                         type="button"
                         onClick={() => { setRenaming(thread.id); setRenameDraft(thread.title); }}
                         aria-label={`Rename ${thread.title}`}
@@ -352,8 +358,8 @@ export function AquaEditorAIThread({
                         className={`${ICON_BUTTON} ${FOCUS_RING} size-7`}
                       >
                         <Pencil size={12} aria-hidden />
-                      </button>
-                      <button
+                      </button> : null}
+                      {canUse ? <button
                         type="button"
                         onClick={() => void run(
                           () => deleteEditorAiThread({ projectId, threadId: thread.id }),
@@ -370,7 +376,7 @@ export function AquaEditorAIThread({
                         className={`${ICON_BUTTON} ${FOCUS_RING} size-7 border-red-300/25 text-red-200/80 hover:bg-red-300/10 hover:text-red-100`}
                       >
                         <Trash2 size={12} aria-hidden />
-                      </button>
+                      </button> : null}
                     </div>
                   )}
                 </li>
@@ -384,7 +390,7 @@ export function AquaEditorAIThread({
 
           {/* Clear, and only for this project. Two steps, because there is no
               undo — the record is removed rather than emptied. */}
-          <div className="mt-1 border-t border-white/10 pt-2">
+          {canUse ? <div className="mt-1 border-t border-white/10 pt-2">
             {confirmClear ? (
               <div className="flex flex-wrap items-center gap-2 px-1">
                 <span className={`text-[11px] leading-5 ${BODY}`}>
@@ -416,7 +422,7 @@ export function AquaEditorAIThread({
                 <Trash2 size={12} aria-hidden /> Clear this project&apos;s history
               </button>
             )}
-          </div>
+          </div> : null}
         </div>
       ) : null}
 
@@ -436,10 +442,12 @@ export function AquaEditorAIThread({
               <strong className={`font-semibold ${STRONG}`}>{projectName || "this project"}</strong> and stays with it.
               Open another project and you get that project&apos;s history — never this one.
             </p>
-            {!configured ? (
+            {!configured && canManage ? (
               <button type="button" onClick={onConfigure} className={`${CHIP_BUTTON} ${FOCUS_RING} justify-self-start`}>
                 <KeyRound size={12} aria-hidden /> Set this project&apos;s key
               </button>
+            ) : !configured ? (
+              <p className={`text-[10px] leading-4 ${MUTED}`}>A project AI manager must configure this project before messages can be sent.</p>
             ) : null}
           </div>
         ) : (
@@ -476,8 +484,8 @@ export function AquaEditorAIThread({
       ) : null}
 
       {/* ── The composer ─────────────────────────────────────────────────── */}
-      {composerTools}
-      <div className="grid gap-1.5">
+      {canUse ? composerTools : null}
+      {canUse ? <div className="grid gap-1.5">
         <label className="sr-only" htmlFor="aqua-editor-ai-composer">
           Describe the change you want on {projectName || "this project"}
         </label>
@@ -520,7 +528,11 @@ export function AquaEditorAIThread({
             Send
           </button>
         </div>
-      </div>
+      </div> : (
+        <p className={`rounded-md border border-white/10 bg-white/[0.035] px-2.5 py-2 text-[11px] leading-5 ${BODY}`}>
+          History is read-only at your current AI access level. Request Use to start, rename, delete or clear conversations and send messages.
+        </p>
+      )}
 
       {/* Failure, in words — the server's sentence, already scrubbed of
           anything secret-shaped. When the reason is "no key on this project",
@@ -530,7 +542,7 @@ export function AquaEditorAIThread({
           <span className="block rounded-md border border-red-300/30 bg-red-300/[0.08] px-2.5 py-2 text-[11px] leading-5 text-red-100">
             <TriangleAlert size={11} aria-hidden className="mr-1.5 inline-block align-[-1px]" />
             {error}
-            {needsKey ? (
+            {needsKey && canManage ? (
               <button
                 type="button"
                 onClick={onConfigure}

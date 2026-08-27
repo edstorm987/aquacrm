@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
+
 import type { CustomDiscountCode } from "../../server/discounts";
 import { describeDiscount } from "../../lib/admin/marketing";
 
@@ -30,16 +32,14 @@ export function DiscountsEditor({ codes: initial, apiBase }: DiscountsEditorProp
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${apiBase}/discounts`, {
+      const data = await checkedJsonMutation<{ ok: boolean; code?: CustomDiscountCode }>(`${apiBase}/discounts`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(c),
+      }, {
+        fallback: "The discount code could not be saved.",
+        validate: payload => payload.ok === true && Boolean(payload.code),
       });
-      const data = await res.json() as { ok: boolean; code?: CustomDiscountCode; error?: string };
-      if (!data.ok) {
-        setError(data.error ?? "Could not save.");
-        return;
-      }
       if (data.code) {
         setCodes(cs => {
           const idx = cs.findIndex(x => x.code === data.code!.code);
@@ -47,8 +47,8 @@ export function DiscountsEditor({ codes: initial, apiBase }: DiscountsEditorProp
           return cs.map((x, i) => i === idx ? data.code! : x);
         });
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+    } catch (requestError) {
+      setError(mutationErrorMessage(requestError, "The discount code could not be saved."));
     } finally {
       setBusy(false);
     }
@@ -57,10 +57,19 @@ export function DiscountsEditor({ codes: initial, apiBase }: DiscountsEditorProp
   async function remove(code: string): Promise<void> {
     if (!confirm(`Delete code ${code}?`)) return;
     setBusy(true);
+    setError(null);
     try {
-      const res = await fetch(`${apiBase}/discounts?code=${encodeURIComponent(code)}`, { method: "DELETE" });
-      const data = await res.json() as { ok: boolean };
-      if (data.ok) setCodes(cs => cs.filter(c => c.code !== code));
+      await checkedJsonMutation<{ ok: boolean }>(
+        `${apiBase}/discounts?code=${encodeURIComponent(code)}`,
+        { method: "DELETE" },
+        {
+          fallback: `${code} could not be deleted.`,
+          validate: payload => payload.ok === true,
+        },
+      );
+      setCodes(cs => cs.filter(c => c.code !== code));
+    } catch (requestError) {
+      setError(mutationErrorMessage(requestError, `${code} could not be deleted.`));
     } finally {
       setBusy(false);
     }

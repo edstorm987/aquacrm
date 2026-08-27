@@ -125,7 +125,7 @@ test("the Command Centre exposes twenty source-backed decision KPIs and dedicate
   assert.match(workspace, /PlanningAssumptions/);
   assert.match(workspace, /Actual progress against required pace and forecast/);
   assert.match(workspace, /directionalShortfall/);
-  assert.match(workspace, /KPI_PLAN_OVERRIDES_KEY/);
+  assert.doesNotMatch(workspace, /KPI_PLAN_OVERRIDES_KEY|kpi-plan-overrides/, "KPI targets converge through the server API, not a browser-only override ledger");
   assert.match(workspace, /SAVED_COMPARISON_KEY/);
   assert.match(workspace, /type="date"/);
   assert.match(workspace, /data-kpi-id=\{kpi\.id\}/);
@@ -188,16 +188,16 @@ test("the Command Centre exposes twenty source-backed decision KPIs and dedicate
 });
 
 test("the command Radar shows its last full run and can force a complete persisted scan", () => {
-  const page = read("src/app/portal/agency/page.tsx");
+  const executive = read("src/app/portal/agency/_ExecutiveCommandWorkspace.tsx");
   const console = read("src/app/portal/agency/_DynamicRadarConsole.tsx");
   const control = read("src/app/portal/agency/_RadarScanControl.tsx");
   const route = read("src/app/api/portal/advisor/radar/route.ts");
   // The full-scan orchestration lives in the sweep scheduler (radar upgrade Stage 1);
   // the route delegates to runRadarFullSweep. Same behaviour, relocated home.
   const sweeps = read("src/engines/data/server/radar/radarSweeps.ts");
-  assert.match(page, /DynamicRadarConsole/);
+  assert.match(executive, /DynamicRadarConsole/);
   assert.match(console, /RadarScanControl/);
-  assert.match(page, /initialLastRunAt=\{businessRadar\.memory\.lastSweepAt\}/);
+  assert.match(executive, /initialLastRunAt=\{businessRadar\.memory\.lastSweepAt\}/);
   assert.match(control, /Last full scan/);
   assert.match(control, /Never · Run one now/);
   assert.match(control, /Run full scan/);

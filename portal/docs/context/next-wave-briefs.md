@@ -1,6 +1,6 @@
 # Next wave — ready-to-spin briefs + launch checklist
 
-← [state.md](state.md) · Written 2026-08-19 · **corrected against source 2026-08-20.**
+← [state.md](state.md) · Written 2026-08-19 · **P0/P1 queue corrected against source/runtime evidence 2026-08-24.**
 
 > 🛑 **READ THIS BEFORE YOU PASTE ANYTHING FROM THIS FILE.**
 > This file holds paste-ready worker briefs. **A stale brief is worse than a stale doc** — it sends a
@@ -12,14 +12,25 @@
 > that proves it.** Before pasting any brief, open the files it names and confirm the bug is still
 > there.
 >
-> **What is actually left (2026-08-20):** ONE narrow code fix (published-site **signup** — the
-> login half is already done), Ed's external bits, and some browser walks. Not three blockers.
+> **What is actually left (2026-08-24):** P0 central session revocation first;
+> then P1 erasure completion/retry/audit truth and capability-based showcase
+> read-only/isolation. The remaining engineering queue is file persistence/recovery,
+> Editor AI distributed contract/proof, Editor transition/prefill guards, staff
+> policy, unresolved references/truthful empty states, read-path performance and
+> browser acceptance. External/live-account work remains separate in
+> [checklist.md](../development/checklist.md).
 
 ---
 
 > ⚠ **RE-AUDITS ARE NOW ON-REQUEST** — the recurring auditor loop was **stopped by Ed (2026-08-19)**. The auditor does NOT auto-fire anymore. When a 🔴 fix lands, whoever's driving must **re-run `/loop` in the Auditor chat** (or point it at the changed files) to get the re-verify — do NOT wait for an automatic tick. All existing verdicts + the 3 🔴s carry over in [audits.md](../development/audits.md).
 
 ## ✅ ~~The 3 blocker-fixes~~ — ALL THREE ARE FIXED. DO NOT SPIN THESE. (verified 2026-08-20)
+
+> **Current override:** those three historical fixes remain fixed, but they no
+> longer mean there are no launch blockers. Issues #22 (P0 session revocation),
+> #23 (showcase mutation bypass) and #24 (erasure false-success/retry/audit PII)
+> were found on 2026-08-24. In particular, the old erasure brief below closed a
+> plugin-log leak, not the new end-to-end erasure failure.
 
 | Was | Now | Proof in source |
 |---|---|---|
@@ -49,7 +60,16 @@
 
 ---
 
-## 🟠 THE ONE LIVE BRIEF — published-site **SIGNUP** block still 400s (login half already fixed)
+## ✅ CLOSED 2026-08-23 — published-site signup form transport
+
+`src/app/api/auth/signup/route.ts` now accepts both native form posts and JSON,
+returns the form flow with a 303 redirect, and preserves rate limiting. The real
+form-encoding regression is in `scripts/smoke-auth-form-encoding.test.ts`. Do not
+dispatch this brief again.
+
+<details>
+<summary>Historical brief — kept only to explain the fix</summary>
+
 **Narrowed 2026-08-20.** The original finding covered **both** the login and signup blocks. The
 **login half has since been fixed** — `src/app/api/auth/login/route.ts:124` now reads `req.formData()`
 and 303-redirects, and [checklist.md](../development/checklist.md) lists "published-site login" as
@@ -101,16 +121,40 @@ all-uncommitted — a push triggers Vercel → production, and `git checkout <fi
 workers' unshipped work; back up to the scratchpad and restore with cp).
 ```
 
+</details>
+
+## Ready non-security work — source-verified 2026-08-24
+
+1. **Storage reliability (issues #16–#17).** Make persistence acknowledgement
+   await the real write, make `flush()` truthful, write the blob atomically, and
+   fail into an explicit recovery state when JSON is malformed. Add failure-path
+   tests that reproduce an unwritable target and corrupt input before changing code.
+2. **Editor completion (issues #18–#19).** Treat local replay as already built.
+   The migration, adapters, coordinator, project dirty-state reporting and AI
+   project remount are now built and focused-tested. Add the claim DDL to the
+   optional direct-Postgres schema, refresh state after the provider wait, apply
+   and live-prove the migration, then cover browser hide, surface, lifecycle,
+   refresh and project switching in one browser matrix.
+3. **Truthful data and fast reads (issues #20–#21).** Reject or resolve orphan
+   client references, remove fabricated website defaults, inventory `GET` routes
+   that mutate, profile the whole-state rewrite cost, and isolate the showcase
+   fixture. The broader showcase purge regression is green; visitor isolation is not.
+
+These are independent workstreams only where their file ownership does not
+overlap. Re-read [state.md](state.md) before dispatching because workers are active.
+
 ## 🧑‍💼 Launch checklist — Ed's external bits (not code)
 - [x] ~~**Connect an email sender**~~ ✅ **ALREADY DONE — corrected 2026-08-20.** Resend is configured (`RESEND_API_KEY` is set) and `inspectProductionReadiness()` reports email READY. This sat unticked here for days while it was already live.
 - [ ] **Create a Meta Developer app** + HTTPS deploy + register the webhook (`/api/webhooks/meta`) + verify token — to test the Meta inbox live (localhost can't complete OAuth by design).
-- [x] ~~**Enable RLS** in the Supabase dashboard~~ ✅ **ALREADY ON — corrected 2026-08-20.** Verified across 14 tables with the public anon key. What remains is **engineering, not an Ed task**: the RLS policies ARE version-controlled — 14 migrations in `aquaCRM/supabase/migrations/`, 13 of them predating 2026-08-20. An earlier note here said there were none; that was wrong, written by looking inside `portal/` only (policies live only in the dashboard, so nothing reproduces them if the project is rebuilt), `brand_enquiries` has no `agency_id`, and ~37 service-role refs bypass it — see [rls-enable](../development/plans/rls-enable.md). *(The old link `plans/rls-enable.md` was broken from this file — fixed.)*
-- [ ] **Live-Stripe verify** — ⚠ partly pre-done: `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` are **already in `.env.local`**; what is genuinely missing is the package (`stripe` is **not** in `package.json` dependencies). So: `npm i stripe` → confirm/replace the keys in Finance settings → point a Stripe webhook at `…/api/portal/agency-finance/stripe/webhook?agencyId=<id>` → test a payment + refund.
+- [x] ~~**Enable RLS** in the Supabase dashboard~~ ✅ **ALREADY ON — corrected 2026-08-23.** Verified across 14 live tables with the public anon key on 2026-08-20. The RLS policies are version-controlled in 16 migrations under `aquaCRM/supabase/migrations/`; the newest pending migrations still need to be applied before production rollout. Open engineering residue: `brand_enquiries` has no `agency_id`, and service-role call sites bypass RLS — measure the current count before acting. See [rls-enable](../development/plans/rls-enable.md).
+- [ ] **Live-Stripe verify** — `stripe@22.5.0` is now installed and the in-app Finance settings/vault path is wired. What remains is live-account proof: confirm or replace the real keys in Finance settings, point a signed HTTPS webhook at `…/api/portal/agency-finance/stripe/webhook?agencyId=<id>`, then test Checkout, payment reconciliation and a refund. Never copy key values into this brief.
 - [ ] **Erasure:** staged live run vs a throwaway seeded client (dev/staging Supabase) + **DPO/solicitor sign-off** on the retention schedule, then wire retained-data expiry.
-- [ ] **First git commit** — increasingly needed: enables per-worker **worktrees** (fixes the verify bottleneck + clobber risk), lets us bisect the flaky suite. Ed's call.
+- [x] ~~**First git commit**~~ ✅ **DONE 2026-08-21.** The branch was committed and pushed; merging it to `main` remains Ed's deployment decision.
 - [ ] **`PORTAL_SESSION_SECRET`** set in every environment (prod especially) — the connect codes are signed with it. *(It IS set in local `.env.local`; the open part is prod.)*
 - [ ] **Walk the onboarding chain once** on your own data — client → connection link → they sign in → they see their portal. Everything is built; **the code step has never been clicked.** ([checklist.md](../development/checklist.md) calls this the thing standing between you and the waiting clients.)
-- [ ] **Decide: is a "company" an Agency or a TradingCompany?** The switcher was built on **Agency**. Say so before anything else builds on it.
+- [x] ~~**Decide: is a "company" an Agency or a TradingCompany?**~~ **SETTLED
+  2026-08-20:** agency is the holding group; trading companies remain companies
+  and receive portals. Company-promotion phases 1–3 use this model.
 
 ---
 
@@ -136,14 +180,17 @@ workers' unshipped work; back up to the scratchpad and restore with cp).
 - **Small follow-ups:** kpiViews server-persisted saved views (Ed said "both", built local-only) · public-bucket refcount-aware unpublish cleanup · aqua-tag remainders (P5 flagging findings need the radar probe pipeline; company enquiry surface; per-client injection keys) · Staff's agency-hr `Staff` retirement (cleanup) · enquiry-card's Person-on-conversion + leads-pipeline re-linking.
 
 ## 🤔 Decisions Ed owes (unblock parked plans) — pruned 2026-08-20
-Advisor Omega **vision** · Operations **sidebar name + GDPR-first vs HIPAA** · Marketing **fixed KPIs vs explorer** · **kpiViews** park-or-build · **You-Deserve-It** when · **is a "company" an Agency or a TradingCompany?** (the switcher was built on Agency — say so before more builds on it).
+Advisor Omega **vision** · Operations **sidebar name + GDPR-first vs HIPAA** · Marketing **fixed KPIs vs explorer** · **kpiViews** park-or-build · **You-Deserve-It** when.
 ~~Marketing **consolidate 12 views?**~~ ✅ **DECIDED AND DONE** — marketing consolidated **10 views → 5**, every old `?view=` still resolving.
 
 ---
 
-## The one-line status (rewritten 2026-08-20)
-**All three 🔴 blockers are FIXED. Suite 2382 · 0 fail · tsc 0.** What is left: **one narrow code fix**
-(published-site signup), Ed's external bits (Meta app · `npm i stripe` · **first git commit** · DPO
-sign-off · walk the onboarding chain once), and some browser walks. Finishing, not building.
+## The one-line status (corrected 2026-08-24, P0/P1 scope)
+**Last whole-suite proof (2026-08-23): 3,621 pass · 0 fail · 1 live-Postgres skip · typecheck clean.**
+The product is broadly built; P0 session revocation is first, followed by P1
+erasure/showcase truth and the remaining runtime reliability work (storage,
+Editor, staff policy, data truth and slow read paths), then the unwalked browser
+journeys and external setup owned by
+[checklist.md](../development/checklist.md).
 
 ~~Engine built + auditor-verified. 3 narrow fixes + Ed's external bits + a verify sweep = launch-ready.~~

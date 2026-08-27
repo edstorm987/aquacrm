@@ -9,7 +9,7 @@ import { useState } from "react";
 import type { BlockRenderProps } from "../blockRegistry";
 import { blockStylesToCss } from "../blockStyles";
 import { useProductByHandle, formatPrice } from "../useProducts";
-import ProductVariantPicker, { type Product, type ResolvedVariant } from "../ecommerceBridge";
+import ProductVariantPicker, { useCart, type Product, type ResolvedVariant } from "../ecommerceBridge";
 
 export default function VariantPickerBlock({ block, editorMode }: BlockRenderProps) {
   const handle = (block.props.productHandle as string | undefined) ?? "";
@@ -19,6 +19,7 @@ export default function VariantPickerBlock({ block, editorMode }: BlockRenderPro
 
   const { product, loading } = useProductByHandle(handle);
   const [resolved, setResolved] = useState<ResolvedVariant | null>(null);
+  const cart = useCart();
 
   const style: React.CSSProperties = { width: "100%", ...blockStylesToCss(block.styles) };
 
@@ -43,7 +44,10 @@ export default function VariantPickerBlock({ block, editorMode }: BlockRenderPro
   }
 
   const fullProduct = product as unknown as Product;
-  const price = resolved?.price ?? fullProduct.price;
+  const selectedVariant = resolved?.variant ?? fullProduct.variants?.[0] ?? null;
+  const price = selectedVariant
+    ? (fullProduct.onSale && selectedVariant.salePrice !== undefined ? selectedVariant.salePrice : selectedVariant.price)
+    : (fullProduct.onSale && fullProduct.salePrice !== undefined ? fullProduct.salePrice : fullProduct.price);
 
   return (
     <div data-block-type="variant-picker" style={style}>
@@ -64,9 +68,22 @@ export default function VariantPickerBlock({ block, editorMode }: BlockRenderPro
       {showCta && (
         <button
           type="button"
-          disabled={editorMode}
-          data-portal-add-to-cart={handle}
-          data-variant-id={resolved?.variant?.id ?? ""}
+          disabled={editorMode || !selectedVariant}
+          onClick={() => {
+            if (editorMode || !selectedVariant) return;
+            cart.addItem({
+              id: `${fullProduct.id}:${selectedVariant.id}`,
+              productId: fullProduct.id,
+              variantId: selectedVariant.id,
+              name: fullProduct.name,
+              price,
+              quantity: 1,
+              variant: Object.values(selectedVariant.optionValues).join(" · "),
+              image: selectedVariant.image ?? fullProduct.image,
+              productHandle: fullProduct.slug,
+            });
+          }}
+          data-variant-id={selectedVariant?.id ?? ""}
           data-custom-hex={resolved?.customHex ?? ""}
           style={{ marginTop: 12, padding: "12px 20px", borderRadius: 12, border: "none", background: "var(--brand-accent, #ff6b35)", color: "#fff", fontSize: 14, fontWeight: 600, cursor: editorMode ? "default" : "pointer", width: "100%" }}
         >

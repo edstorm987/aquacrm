@@ -260,8 +260,12 @@ test("the Dev Team gate is strictly narrower than the external-AI endpoint it mo
   // the page is an agency-owner — which the endpoint already admits.
   const devDocs = require("node:fs").readFileSync("src/lib/server/dev/devDocs.ts", "utf8");
   assert.match(devDocs, /canUseDevMode\(\) && effectiveRole\(session\)\.isFounder/);
+  const { getAgencySettingsCapabilities } = await import("../src/lib/agencySettingsCapabilities");
+  assert.equal(getAgencySettingsCapabilities("agency-owner").manageExternalAi, true);
+  assert.equal(getAgencySettingsCapabilities("agency-manager").manageExternalAi, true);
+  assert.equal(getAgencySettingsCapabilities("agency-staff").manageExternalAi, false);
   const endpoint = require("node:fs").readFileSync("src/app/api/portal/settings/external-ai/route.ts", "utf8");
-  assert.match(endpoint, /ALLOWED_ROLES = new Set\(\["agency-owner", "agency-manager"\]\)/);
+  assert.match(endpoint, /canUseAgencySettingsCapability\(session\.role, "manageExternalAi"\)/);
 
   // And the surface re-asserts the gate itself rather than inheriting the
   // layout's. API & MCP is now a VIEW of the Tools section: the body lives in

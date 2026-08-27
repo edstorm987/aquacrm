@@ -1,10 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { routeTenantScope } from "@/lib/server/portal/apiTenantScope";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
-import { getClientForAgency } from "@/server/tenants";
 import { eraseClientCompletely, type LiveScrubClient } from "@/server/clientErasure";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 /**
  * Permanently erase a client and all its data.
@@ -21,8 +22,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const session = await requireRole("agency-owner");
     const { clientId } = await params;
 
-    const client = getClientForAgency(session.agencyId, clientId);
+    const scope = routeTenantScope(session, { clientId });
+    const client = scope.client;
     if (!client) return NextResponse.json({ ok: false, error: "That client was not found." }, { status: 404 });
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.settings", "manage");
 
     const body = await request.json().catch(() => null) as { confirmName?: string } | null;
     const confirmName = typeof body?.confirmName === "string" ? body.confirmName.trim() : "";
@@ -36,8 +39,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // The admin client scrubs the live `inbox_*` + `brand_enquiries` tables —
     // same live boundary as the website-enquiries hard-delete path.
     const result = await eraseClientCompletely({
-      agencyId: session.agencyId,
-      clientId,
+      agencyId: scope.agencyId,
+      clientId: client.id,
       actorUserId: session.userId,
       actorEmail: session.email,
       supabase: createSupabaseAdminClient() as unknown as LiveScrubClient,
@@ -45,6 +48,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!result) return NextResponse.json({ ok: false, error: "That client was not found." }, { status: 404 });
 
     await flushPendingWrites();
+    if (!result.completed) {
+      return NextResponse.json({
+        ok: false,
+        retryable: true,
+        error: "Erasure is incomplete. The client record was kept so you can retry safely.",
+        ...result,
+      }, { status: 502 });
+    }
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
     return authErrorResponse(error);

@@ -373,8 +373,8 @@ describe("Dev Mode — isolation hardening (Phase 4)", () => {
     // The agency inbox never reads live website enquiries / inbox for a demo
     // session — the demo POV cannot surface real people's data.
     const inbox = read("src/app/portal/agency/inbox/page.tsx");
-    assert.match(inbox, /session\.isDemo \? Promise\.resolve\(\[\]\)/);
-    assert.match(inbox, /session\.isDemo \? Promise\.resolve\(\{ connections: \[\]/);
+    assert.match(inbox, /session\.isDemo \|\| session\.publicShowcase \? Promise\.resolve\(\[\]\)/);
+    assert.match(inbox, /session\.isDemo \|\| session\.publicShowcase \? Promise\.resolve\(\{ connections: \[\]/);
   });
 });
 
@@ -662,7 +662,7 @@ describe("Dev Mode — cinematic load-in (Phase 3)", () => {
     // `devDocsAccessible` is `canUseDevMode() && isFounder`, and canUseDevMode()
     // is false in anything production-like — so outside dev this collapses back
     // to exactly `session.isDemo`. It cannot widen who sees the overlay.
-    assert.match(layout, /session\.isDemo \|\| devDocsAccessible\(session\) \? <DevModeLoadIn \/> : null/);
+    assert.match(layout, /\(session\.isDemo && !session\.publicShowcase\) \|\| devDocsAccessible\(session\) \? <DevModeLoadIn \/> : null/);
     assert.match(layout, /import \{ devDocsAccessible \} from "@\/lib\/server\/dev\/devDocs"/);
     // The property that actually matters: it is never mounted unconditionally.
     assert.doesNotMatch(layout, /^\s*<DevModeLoadIn \/>\s*$/m, "must stay behind a gate");
@@ -881,7 +881,7 @@ describe("Freelancer management — create + preview (real system)", () => {
     assert.match(manager, /Preview workspace/);
     // create route: owner/manager only
     const createRoute = read("src/app/api/portal/freelancers/route.ts");
-    assert.match(createRoute, /createFreelancer/);
+    assert.match(createRoute, /inviteFreelancer/);
     assert.match(createRoute, /requireRole\(\["agency-owner", "agency-manager"\]\)/);
     // preview route: getSessionFromRequest + owner/manager gate + isDemo mint
     const previewRoute = read("src/app/api/auth/preview-as-freelancer/route.ts");

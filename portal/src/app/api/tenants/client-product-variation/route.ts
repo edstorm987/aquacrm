@@ -8,6 +8,7 @@ import { logActivity } from "@/server/activity";
 import { reconcileClientProductWorkspaces } from "@/server/productWorkspaces";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getClientForAgency, updateClient } from "@/server/tenants";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 type Body = Record<string, unknown> & {
   action?: "save" | "reset";
@@ -26,6 +27,7 @@ export async function POST(request: Request) {
     }
 
     const session = await requireRoleForClient(["agency-owner", "agency-manager"], clientId);
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.fulfilment", "manage");
     const client = getClientForAgency(session.agencyId, clientId);
     if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
     const catalogue = ensureDefaultAgencyProducts(session.agencyId);

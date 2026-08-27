@@ -4,12 +4,14 @@ import { useMemo, useState } from "react";
 import { Download, FileImage, Plus, X } from "lucide-react";
 import Link from "next/link";
 
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
+
 import type { Invoice, InvoiceStatus, InvoiceTemplate } from "../lib/domain";
 import type { Client } from "../lib/tenancy";
 import { SUPPORTED_CURRENCIES } from "../lib/currencies";
 import { InvoiceTemplateEditor } from "./InvoiceTemplateEditor";
 import { FinanceNav } from "./FinanceNav";
-import { dateInputValue, formatUkDate } from "../lib/safeDate";
+import { addBusinessCalendarDays, dateInputValue, formatUkDate } from "../lib/safeDate";
 
 export interface InvoicesListProps {
   invoices: Invoice[];
@@ -18,14 +20,21 @@ export interface InvoicesListProps {
   canMutate: boolean;
   template: InvoiceTemplate;
   defaultCurrency: string;
+  defaultPaymentTermsDays: number;
+  defaultTaxRatePercent: number;
 }
 
 const STATUS_LABEL: Record<InvoiceStatus, string> = {
   draft: "Draft", sent: "Sent", paid: "Paid", overdue: "Overdue",
-  void: "Void", refunded: "Refunded",
+  void: "Void", "partially-refunded": "Partially refunded", refunded: "Refunded",
 };
 
-export function InvoicesList({ invoices, clients, apiBase, canMutate, template, defaultCurrency }: InvoicesListProps) {
+function freshIdempotencyKey(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return `idem_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+}
+
+export function InvoicesList({ invoices, clients, apiBase, canMutate, template, defaultCurrency, defaultPaymentTermsDays, defaultTaxRatePercent }: InvoicesListProps) {
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | "all">("all");
   const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(false);
@@ -100,7 +109,7 @@ export function InvoicesList({ invoices, clients, apiBase, canMutate, template, 
         <div className="fixed inset-0 z-50 grid items-end bg-black/35 p-0 sm:items-center sm:p-6" role="presentation">
           <button type="button" aria-label="Close invoice form" className="absolute inset-0 cursor-default" onClick={() => setAdding(false)} />
           <div role="dialog" aria-modal="true" aria-labelledby="new-invoice-heading" className="relative mx-auto max-h-[100dvh] w-full max-w-4xl overflow-y-auto rounded-t-lg bg-white shadow-2xl sm:max-h-[92dvh] sm:rounded-lg">
-            <NewInvoiceForm apiBase={apiBase} clients={clients} busy={busy} defaultCurrency={defaultCurrency} onBusy={setBusy} onError={setError} onClose={() => setAdding(false)} />
+            <NewInvoiceForm apiBase={apiBase} clients={clients} busy={busy} defaultCurrency={defaultCurrency} defaultPaymentTermsDays={defaultPaymentTermsDays} defaultTaxRatePercent={defaultTaxRatePercent} onBusy={setBusy} onError={setError} onClose={() => setAdding(false)} />
           </div>
         </div>
       ) : null}
@@ -155,28 +164,44 @@ export function InvoicesList({ invoices, clients, apiBase, canMutate, template, 
 
 function IssueButton({ apiBase, invoiceId }: { apiBase: string; invoiceId: string }) {
   const [busy, setBusy] = useState(false);
-  return <button type="button" disabled={busy} onClick={async () => {
-    setBusy(true);
-    try {
-      const response = await fetch(`${apiBase}/invoices`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id: invoiceId, patch: { status: "sent" } }),
-      });
-      if (response.ok) window.location.reload();
-    } finally { setBusy(false); }
-  }} className="rounded-md border border-black/15 px-2 py-1 text-xs font-medium">{busy ? "Issuing…" : "Issue"}</button>;
+  const [error, setError] = useState<string | null>(null);
+  return <span>
+    <button type="button" disabled={busy} onClick={async () => {
+      setBusy(true);
+      setError(null);
+      try {
+        await checkedJsonMutation<{ ok: boolean }>(`${apiBase}/invoices`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ id: invoiceId, patch: { status: "sent" } }),
+        }, {
+          fallback: "The invoice could not be issued.",
+          validate: payload => payload.ok === true,
+        });
+        window.location.reload();
+      } catch (requestError) {
+        setError(mutationErrorMessage(requestError, "The invoice could not be issued."));
+      } finally { setBusy(false); }
+    }} className="rounded-md border border-black/15 px-2 py-1 text-xs font-medium">{busy ? "Issuing…" : "Issue"}</button>
+    {error ? <span role="alert" className="ml-2 text-xs text-red-700">{error}</span> : null}
+  </span>;
 }
 
-function NewInvoiceForm({ apiBase, clients, busy, defaultCurrency, onBusy, onError, onClose }: {
+function NewInvoiceForm({ apiBase, clients, busy, defaultCurrency, defaultPaymentTermsDays, defaultTaxRatePercent, onBusy, onError, onClose }: {
   apiBase: string;
   clients: Client[];
   busy: boolean;
   defaultCurrency: string;
+  defaultPaymentTermsDays: number;
+  defaultTaxRatePercent: number;
   onBusy: (value: boolean) => void;
   onError: (value: string | null) => void;
   onClose: () => void;
 }) {
+  // One operation id lives for the complete mounted form. Network retries and
+  // double-clicks reuse it; closing and reopening creates a genuinely new
+  // invoice intent. The optional issue PATCH follows the adopted invoice id.
+  const [idempotencyKey] = useState(freshIdempotencyKey);
   const control = "min-h-10 w-full rounded-md border border-black/15 bg-white px-3 text-sm";
   return (
     <form className="p-5 sm:p-6" onSubmit={async event => {
@@ -193,35 +218,47 @@ function NewInvoiceForm({ apiBase, clients, busy, defaultCurrency, onBusy, onErr
       onBusy(true);
       onError(null);
       try {
-        const response = await fetch(`${apiBase}/invoices`, {
+        const result = await checkedJsonMutation<{ ok: boolean; invoice?: Invoice }>(`${apiBase}/invoices`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             clientId: String(data.get("clientId")),
-            dueAt: Date.parse(String(data.get("dueAt"))) || Date.now() + 14 * 86_400_000,
+            dueAt: Date.parse(String(data.get("dueAt"))) || undefined,
             lineItems: [{ description: String(data.get("description")).trim(), quantity: 1, unitCents: netCents }],
             taxCents,
             currency: String(data.get("currency") ?? defaultCurrency),
             notes: String(data.get("notes") ?? "").trim() || undefined,
+            idempotencyKey,
           }),
+        }, {
+          fallback: "The invoice could not be created.",
+          validate: payload => payload.ok === true && Boolean(payload.invoice),
         });
-        const result = await response.json() as { ok?: boolean; error?: string; invoice?: Invoice };
-        if (!response.ok || !result.ok) {
-          onError(result.error ?? "Could not create invoice.");
-          return;
-        }
         if (data.get("issueNow") === "on" && result.invoice) {
-          await fetch(`${apiBase}/invoices`, {
-            method: "PATCH",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ id: result.invoice.id, patch: { status: "sent" } }),
-          });
+          try {
+            await checkedJsonMutation<{ ok: boolean }>(`${apiBase}/invoices`, {
+              method: "PATCH",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ id: result.invoice.id, patch: { status: "sent" } }),
+            }, {
+              fallback: "The invoice was created as a draft but could not be issued. Retry Save to issue the same invoice.",
+              validate: payload => payload.ok === true,
+            });
+          } catch (requestError) {
+            onError(mutationErrorMessage(
+              requestError,
+              "The invoice was created as a draft but could not be issued. Retry Save to issue the same invoice.",
+            ));
+            return;
+          }
         }
         window.location.reload();
+      } catch (requestError) {
+        onError(mutationErrorMessage(requestError, "The invoice could not be created."));
       } finally { onBusy(false); }
     }}>
       <div className="flex items-start justify-between gap-4">
-        <div><h2 id="new-invoice-heading" className="text-lg font-semibold text-black/85">New invoice</h2><p className="mt-1 text-sm text-black/45">Create a private draft or issue it to the client now.</p></div>
+        <div><h2 id="new-invoice-heading" className="text-lg font-semibold text-black/85">New invoice</h2><p className="mt-1 text-sm text-black/45">Create a private draft or issue it now. Workspace defaults: {defaultPaymentTermsDays} day terms and {defaultTaxRatePercent}% tax.</p></div>
         <button type="button" onClick={onClose} aria-label="Close" title="Close" className="grid size-9 shrink-0 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/5"><X size={16} /></button>
       </div>
       <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -229,8 +266,8 @@ function NewInvoiceForm({ apiBase, clients, busy, defaultCurrency, onBusy, onErr
         <label className="grid gap-1 text-xs font-medium text-black/60 sm:col-span-2">Service or product<input name="description" required className={control} placeholder="Website design and development" /></label>
         <label className="grid gap-1 text-xs font-medium text-black/60">Currency<select name="currency" defaultValue={defaultCurrency} className={control}>{SUPPORTED_CURRENCIES.map(currency => <option key={currency.code} value={currency.code}>{currency.label}</option>)}</select></label>
         <label className="grid gap-1 text-xs font-medium text-black/60">Net amount<input name="netAmount" type="number" min="0.01" step="0.01" required className={control} /></label>
-        <label className="grid gap-1 text-xs font-medium text-black/60">Tax rate<select name="taxRate" defaultValue="20" className={control}><option value="0">No tax</option><option value="5">5%</option><option value="20">20% VAT</option></select></label>
-        <label className="grid gap-1 text-xs font-medium text-black/60">Payment due<input name="dueAt" type="date" defaultValue={new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10)} className={control} /></label>
+        <label className="grid gap-1 text-xs font-medium text-black/60">Tax rate (%)<input name="taxRate" type="number" min="0" max="100" step="0.01" defaultValue={defaultTaxRatePercent} className={control} /></label>
+        <label className="grid gap-1 text-xs font-medium text-black/60">Payment due<input name="dueAt" type="date" defaultValue={addBusinessCalendarDays(defaultPaymentTermsDays)} className={control} /></label>
         <label className="grid gap-1 text-xs font-medium text-black/60 sm:col-span-2">Internal note<input name="notes" className={control} /></label>
       </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
@@ -243,25 +280,35 @@ function NewInvoiceForm({ apiBase, clients, busy, defaultCurrency, onBusy, onErr
 
 function MarkPaidButton({ apiBase, invoiceId }: { apiBase: string; invoiceId: string }) {
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   return (
-    <button
-      type="button"
-      disabled={busy}
-      className="rounded-md bg-black px-2 py-1 text-xs font-semibold text-white disabled:opacity-50"
-      onClick={async () => {
-        const ref = window.prompt("External payment reference (e.g. bank txn id):") ?? undefined;
-        setBusy(true);
-        try {
-          await fetch(`${apiBase}/invoices/mark-paid`, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ id: invoiceId, externalRef: ref }),
-          });
-          window.location.reload();
-        } finally { setBusy(false); }
-      }}
-    >
-      {busy ? "…" : "Mark paid"}
-    </button>
+    <span>
+      <button
+        type="button"
+        disabled={busy}
+        className="rounded-md bg-black px-2 py-1 text-xs font-semibold text-white disabled:opacity-50"
+        onClick={async () => {
+          const ref = window.prompt("External payment reference (e.g. bank txn id):") ?? undefined;
+          setBusy(true);
+          setError(null);
+          try {
+            await checkedJsonMutation<{ ok: boolean }>(`${apiBase}/invoices/mark-paid`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ id: invoiceId, externalRef: ref }),
+            }, {
+              fallback: "The invoice could not be marked paid.",
+              validate: payload => payload.ok === true,
+            });
+            window.location.reload();
+          } catch (requestError) {
+            setError(mutationErrorMessage(requestError, "The invoice could not be marked paid."));
+          } finally { setBusy(false); }
+        }}
+      >
+        {busy ? "…" : "Mark paid"}
+      </button>
+      {error ? <span role="alert" className="ml-2 text-xs text-red-700">{error}</span> : null}
+    </span>
   );
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
-import { devDocsAccessible } from "@/lib/server/dev/devDocs";
+import { accessErrorResponse } from "@/server/accessControl";
+import { requireDevProjectAccess } from "@/lib/server/dev/devProjectAccess";
 import {
   EDITOR_AI_HISTORY_LIMITS,
   appendEditorAiMessage,
@@ -11,7 +11,7 @@ import {
   renameEditorAiThread,
   startEditorAiThread,
 } from "@/engines/editor/server/editorAiHistory";
-import { ensureHydrated, flushPendingWrites } from "@/server/storage";
+import { flushPendingWrites } from "@/server/storage";
 
 // ─── AQUA EDITOR AI — the chat history API, per project ──────────────────────
 //
@@ -39,11 +39,9 @@ import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 //
 // ── The gate ─────────────────────────────────────────────────────────────────
 //
-// Role, then Dev Mode, then origin — the same three layers as every dev-team
-// surface. The tenant check is deeper still: `editorAiHistory` resolves every
-// project through `getDevProject(session.agencyId, id)` BEFORE it builds a
-// storage key, so another agency's project id is a 404 here and reaches no
-// conversation.
+// Every action requires project AI access. Reading requires the AI element's
+// view level; all transcript mutations require its use level. Tenant and
+// project resolution happen before a conversation key is constructed.
 
 type Body = {
   action?: "read" | "new-thread" | "append" | "rename-thread" | "delete-thread" | "clear";
@@ -82,11 +80,6 @@ const NO_STORE = { "cache-control": "private, no-store" } as const;
 
 export async function POST(request: Request) {
   try {
-    await ensureHydrated();
-    const session = await requireRole(["agency-owner", "agency-manager"]);
-    if (!devDocsAccessible(session)) {
-      return NextResponse.json({ ok: false, error: "Dev Mode is required." }, { status: 403 });
-    }
     if (!validOrigin(request)) {
       return NextResponse.json({ ok: false, error: "Invalid request origin." }, { status: 403 });
     }
@@ -99,11 +92,19 @@ export async function POST(request: Request) {
     if (!projectId) {
       return NextResponse.json({ ok: false, error: "Which project?" }, { status: 400 });
     }
+    const access = await requireDevProjectAccess({
+      projectId,
+      capability: "project.ai",
+      elementCapability: body.action === "read"
+        ? "element.development.ai.view"
+        : "element.development.ai.use",
+    });
+    const agencyId = access.resourceAgencyId;
 
     // Read. Mutates nothing. `null` means the project is not this agency's —
     // answered identically to an id that never existed.
     if (body.action === "read") {
-      const conversation = getEditorAiConversation(session.agencyId, projectId);
+      const conversation = getEditorAiConversation(agencyId, projectId);
       if (!conversation) {
         return NextResponse.json({ ok: false, error: "That project could not be found." }, { status: 404 });
       }
@@ -127,12 +128,12 @@ export async function POST(request: Request) {
           );
         }
         const result = appendEditorAiMessage({
-          agencyId: session.agencyId,
+          agencyId,
           projectId,
           threadId: body.threadId,
           role: "user",
           content: body.message ?? "",
-          actorUserId: session.userId,
+          actorUserId: access.user.id,
         });
         await flushPendingWrites();
         return NextResponse.json({
@@ -146,23 +147,23 @@ export async function POST(request: Request) {
 
       if (body.action === "new-thread") {
         const thread = startEditorAiThread({
-          agencyId: session.agencyId,
+          agencyId,
           projectId,
           title: body.title,
-          actorUserId: session.userId,
+          actorUserId: access.user.id,
         });
         await flushPendingWrites();
         return NextResponse.json({
           ok: true,
           threadId: thread.id,
-          conversation: getEditorAiConversation(session.agencyId, projectId),
+          conversation: getEditorAiConversation(agencyId, projectId),
           limits: EDITOR_AI_HISTORY_LIMITS,
         }, { headers: NO_STORE });
       }
 
       if (body.action === "rename-thread") {
         const conversation = renameEditorAiThread({
-          agencyId: session.agencyId,
+          agencyId,
           projectId,
           threadId: body.threadId ?? "",
           title: body.title ?? "",
@@ -173,7 +174,7 @@ export async function POST(request: Request) {
 
       if (body.action === "delete-thread") {
         const conversation = deleteEditorAiThread({
-          agencyId: session.agencyId,
+          agencyId,
           projectId,
           threadId: body.threadId ?? "",
         });
@@ -185,7 +186,7 @@ export async function POST(request: Request) {
         // This project's history and nothing else. It cannot reach the agency
         // assistant's store — that is a different collection behind a
         // different endpoint.
-        const conversation = clearEditorAiHistory({ agencyId: session.agencyId, projectId });
+        const conversation = clearEditorAiHistory({ agencyId, projectId });
         await flushPendingWrites();
         return NextResponse.json({ ok: true, conversation, limits: EDITOR_AI_HISTORY_LIMITS }, { headers: NO_STORE });
       }
@@ -195,6 +196,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: false, error: "Choose a history action." }, { status: 400 });
   } catch (error) {
-    return authErrorResponse(error);
+    return accessErrorResponse(error);
   }
 }

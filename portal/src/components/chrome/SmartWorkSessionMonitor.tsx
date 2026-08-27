@@ -33,23 +33,24 @@ interface PlanningPayload {
 
 type ActivityChoice = Exclude<DashboardWorkActivityMode, "unconfirmed">;
 
-export function SmartWorkSessionMonitor({ userName }: { userName?: string }) {
-  const [session, setSession] = useState<DashboardWorkSession | null>(null);
-  const [open, setOpen] = useState(false);
+export function SmartWorkSessionMonitor({ userName, initialSession, initialNow }: { userName?: string; initialSession: DashboardWorkSession | null; initialNow: number }) {
+  const [session, setSession] = useState<DashboardWorkSession | null>(initialSession);
+  const [open, setOpen] = useState(Boolean(initialSession?.needsActivityConfirmation));
   const [choice, setChoice] = useState<ActivityChoice>("aqua");
   const [focus, setFocus] = useState("");
   const [note, setNote] = useState("");
   const [checkInMinutes, setCheckInMinutes] = useState(30);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(initialNow);
   const [snoozedUntil, setSnoozedUntil] = useState(0);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unavailable">("unavailable");
-  const sessionRef = useRef<DashboardWorkSession | null>(null);
+  const sessionRef = useRef<DashboardWorkSession | null>(initialSession);
   const lastInteractionRef = useRef(Date.now());
   const requestBusyRef = useRef(false);
   const lastDesktopPingRef = useRef("");
   const mountedRef = useRef(false);
+  const monitoringActive = session !== null;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -68,18 +69,18 @@ export function SmartWorkSessionMonitor({ userName }: { userName?: string }) {
     if (broadcast) window.dispatchEvent(new CustomEvent("aqua-work-session:planning", { detail: planning }));
   }, [snoozedUntil]);
 
-  const requestPlanning = useCallback(async (body?: Record<string, unknown>) => {
+  const requestPlanning = useCallback(async (body: Record<string, unknown>) => {
     if (requestBusyRef.current) return null;
     requestBusyRef.current = true;
     try {
-      const response = await fetch(body ? "/api/portal/dashboard-planning" : `/api/portal/dashboard-planning?date=${encodeURIComponent(localDate())}`, body ? {
+      const response = await fetch("/api/portal/dashboard-planning", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
-      } : { cache: "no-store" });
+      });
       const result = await response.json().catch(() => null) as { ok?: boolean; error?: string; planning?: PlanningPayload } | null;
       if (!response.ok || !result?.ok || !result.planning) throw new Error(result?.error || "Work-session evidence could not update.");
-      acceptPlanning(result.planning, Boolean(body));
+      acceptPlanning(result.planning);
       return result.planning;
     } finally {
       requestBusyRef.current = false;
@@ -102,11 +103,12 @@ export function SmartWorkSessionMonitor({ userName }: { userName?: string }) {
   }, [requestPlanning]);
 
   useEffect(() => {
-    void requestPlanning().catch(() => undefined);
+    if (!monitoringActive) return;
     setNotificationPermission("Notification" in window ? Notification.permission : "unavailable");
-  }, [requestPlanning]);
+  }, [monitoringActive]);
 
   useEffect(() => {
+    if (!monitoringActive) return;
     const markActive = () => { lastInteractionRef.current = Date.now(); };
     const events: Array<keyof WindowEventMap> = ["pointerdown", "keydown", "scroll", "touchstart"];
     events.forEach(event => window.addEventListener(event, markActive, { passive: true }));
@@ -118,9 +120,10 @@ export function SmartWorkSessionMonitor({ userName }: { userName?: string }) {
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("focus", markActive);
     };
-  }, [heartbeat]);
+  }, [heartbeat, monitoringActive]);
 
   useEffect(() => {
+    if (!monitoringActive) return;
     const interval = window.setInterval(() => {
       const stamp = Date.now();
       setNow(stamp);
@@ -131,7 +134,7 @@ export function SmartWorkSessionMonitor({ userName }: { userName?: string }) {
       void heartbeat();
     }, HEARTBEAT_MS);
     return () => window.clearInterval(interval);
-  }, [heartbeat, snoozedUntil]);
+  }, [heartbeat, monitoringActive, snoozedUntil]);
 
   useEffect(() => {
     function planningUpdated(event: Event) {

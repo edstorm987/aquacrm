@@ -1,8 +1,8 @@
 // Reconcile a verified Stripe event against the finance records.
 //
 // Record + surface only: the money has already moved into Ed's own Stripe
-// account. This reflects that — records the payment, settles the invoice, flows
-// a refund/chargeback back to its status — and never moves money itself.
+// account. This reflects that — records the payment, settles the invoice, and
+// stores provider-identified refund/dispute rows — and never moves money itself.
 //
 // Kept separate from the webhook HANDLER (which does the signature check + raw
 // body) so this logic is unit-testable with fake events + an in-memory
@@ -43,10 +43,9 @@ export interface ReconcileResult {
 // Stripe keeps retrying. Answering 200 on a failure is how a payment goes
 // missing.
 //
-// Why keep an in-process cache at all now that payments dedup durably (on the
-// PaymentIntent, see `reconcileStripeEvent`)? Because refunds and disputes do
-// NOT: a redelivered `charge.refunded` would log and emit a second time. This
-// cache is what keeps those quiet within a process.
+  // The durable payment/refund/dispute identities below are the correctness
+  // boundary across processes. This cache remains only as a cheap warm-process
+  // short circuit.
 //
 // `seen` is injectable so tests get their own cache instead of sharing (and
 // poisoning) the module-level one.
@@ -127,21 +126,64 @@ export async function reconcileStripeEvent(
     }
 
     case "charge.refunded": {
-      const charge = event.data.object as { payment_intent?: string; amount_refunded?: number };
+      const charge = event.data.object as {
+        payment_intent?: string;
+        amount_refunded?: number;
+        refunds?: { data?: Array<{ id?: string; amount?: number; created?: number; reason?: string | null }> };
+      };
       if (!charge.payment_intent) {
         return { handled: false, type: event.type, action: "ignored", message: "no payment_intent on charge" };
       }
-      const result = await container.payments.markRefunded(charge.payment_intent, actor);
-      if (!result) {
+      const payment = await container.payments.findByExternalRef(charge.payment_intent);
+      if (!payment) {
         return { handled: false, type: event.type, action: "ignored", message: "no matching Stripe payment" };
       }
-      return { handled: true, type: event.type, action: "refunded", invoiceId: result.payment.invoiceId };
+      let created = false;
+      const providerRefunds = charge.refunds?.data ?? [];
+      for (const providerRefund of providerRefunds) {
+        if (!providerRefund.id || !Number.isSafeInteger(providerRefund.amount) || (providerRefund.amount ?? 0) <= 0) continue;
+        const result = await container.payments.recordRefund(actor, {
+          paymentId: payment.id,
+          amountCents: providerRefund.amount!,
+          currency: payment.currency,
+          provider: "stripe",
+          providerId: providerRefund.id,
+          providerEventId: event.id,
+          refundedAt: Number.isSafeInteger(providerRefund.created) ? providerRefund.created! * 1_000 : undefined,
+          reason: providerRefund.reason ?? undefined,
+        });
+        if (!result.deduped) created = true;
+      }
+      const refundTotal = Number.isSafeInteger(charge.amount_refunded)
+        ? charge.amount_refunded!
+        : providerRefunds.reduce((sum, refund) => sum + (Number.isSafeInteger(refund.amount) ? refund.amount! : 0), 0);
+      const cumulative = await container.payments.reconcileCumulativeRefund(actor, {
+        externalRef: charge.payment_intent,
+        totalRefundedCents: refundTotal,
+        providerId: providerRefunds.length ? `${event.id}:remainder` : event.id,
+        providerEventId: event.id,
+      });
+      if (cumulative?.refund && !cumulative.deduped) created = true;
+      return {
+        handled: true,
+        type: event.type,
+        action: created ? "refunded" : "deduped",
+        invoiceId: payment.invoiceId,
+        message: created ? "refund recorded" : "refund already recorded",
+      };
     }
 
     case "charge.dispute.created": {
-      const dispute = event.data.object as { payment_intent?: string; amount?: number };
-      const payment = await container.payments.markDisputed(dispute.payment_intent, actor);
-      return { handled: true, type: event.type, action: "chargeback", invoiceId: payment?.invoiceId };
+      const dispute = event.data.object as { id?: string; payment_intent?: string; amount?: number; created?: number };
+      const payment = await container.payments.markDisputed(dispute.payment_intent, actor, {
+        providerId: dispute.id ?? event.id,
+        providerEventId: event.id,
+        amountCents: dispute.amount,
+        openedAt: Number.isSafeInteger(dispute.created) ? dispute.created! * 1_000 : undefined,
+      });
+      return payment
+        ? { handled: true, type: event.type, action: "chargeback", invoiceId: payment.invoiceId }
+        : { handled: false, type: event.type, action: "ignored", message: "no matching Stripe payment" };
     }
 
     default:

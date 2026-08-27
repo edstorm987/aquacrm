@@ -3,11 +3,13 @@
 import { ArrowUpRight, BarChart3 } from "lucide-react";
 
 import { COMMAND_PRIMARY_KPI_STATIONS, type CommandIntelligenceSnapshot, type CommandKpi } from "@/lib/intelligence/commandIntelligence";
+import { intelligenceAttentionTruth } from "./dayCommandTruth";
 
 const COLOURS = ["#68f5d0", "#62e8ff", "#e5c479", "#9bb9ff", "#f87171"];
 
-export function DayKpiIntelligencePanel({ intelligence, onOpen }: {
+export function DayKpiIntelligencePanel({ intelligence, paused = false, onOpen }: {
   intelligence: CommandIntelligenceSnapshot;
+  paused?: boolean;
   onOpen: (kpiIds: string[]) => void;
 }) {
   const stations = COMMAND_PRIMARY_KPI_STATIONS.flatMap((station, index) => {
@@ -16,11 +18,12 @@ export function DayKpiIntelligencePanel({ intelligence, onOpen }: {
   });
   const allKpiIds = stations.flatMap(station => [...station.openIds]);
   const attention = stations.filter(station => station.kpi.status === "critical" || station.kpi.status === "warning").length;
+  const attentionTruth = intelligenceAttentionTruth(attention, paused);
 
   return <section className="overflow-hidden border border-[#62e8ff]/22 bg-[#020b11] text-white" aria-labelledby="day-kpi-intelligence-heading">
     <header className="flex flex-wrap items-start justify-between gap-3 border-b border-[#62e8ff]/14 bg-[#031018] px-4 py-3">
       <div className="flex min-w-0 items-start gap-2.5"><span className="grid size-8 shrink-0 place-items-center border border-[#62e8ff]/25 bg-[#62e8ff]/[0.06] text-[#62e8ff]"><BarChart3 size={14} /></span><div className="min-w-0"><p className="text-[8px] font-semibold uppercase text-[#76dff1]/52">KPI INTELLIGENCE · DECISION TRACE</p><h3 id="day-kpi-intelligence-heading" className="mt-0.5 text-sm font-semibold text-white/82">Five-station trajectory</h3><p className="mt-0.5 text-[9px] text-white/30">Retained movement against approved targets.</p></div></div>
-      <div className="flex items-center gap-2"><span className={`text-[8px] font-semibold uppercase ${attention ? "text-amber-300" : "text-[#68f5d0]"}`}>{attention} on watch</span><button type="button" onClick={() => onOpen(allKpiIds)} className="inline-flex min-h-8 items-center gap-1.5 border border-[#e5c479]/18 px-2.5 text-[8px] font-semibold uppercase text-[#e5c479] hover:bg-[#e5c479]/[0.06] hover:text-white">Open intelligence <ArrowUpRight size={10} /></button></div>
+      <div className="flex items-center gap-2"><span className={`text-[8px] font-semibold uppercase ${attentionTruth.tone === "warning" ? "text-amber-300" : attentionTruth.tone === "info" ? "text-sky-300" : "text-[#68f5d0]"}`}>{attentionTruth.label}</span><button type="button" onClick={() => onOpen(allKpiIds)} className="inline-flex min-h-8 items-center gap-1.5 border border-[#e5c479]/18 px-2.5 text-[8px] font-semibold uppercase text-[#e5c479] hover:bg-[#e5c479]/[0.06] hover:text-white">Open intelligence <ArrowUpRight size={10} /></button></div>
     </header>
 
     <button type="button" onClick={() => onOpen(allKpiIds)} className="block w-full px-4 py-4 text-left hover:bg-[#62e8ff]/[0.018]" aria-label="Open all five primary KPI stations in KPI Intelligence">
@@ -48,7 +51,7 @@ export function DayKpiIntelligencePanel({ intelligence, onOpen }: {
         <div className="mt-2 flex items-center justify-between gap-2"><span className={statusColour(station.kpi.status)}>{station.kpi.status}</span><span className="truncate text-right text-[7px] text-white/22">{targetGap(station.kpi, intelligence.currency)}</span></div>
       </button>)}
     </div>
-    <footer className="border-t border-[#62e8ff]/9 px-4 py-2 text-[7px] text-white/18">Lines are independently indexed to reveal direction. Actual units and target gaps remain authoritative below.</footer>
+    <footer className="border-t border-[#62e8ff]/9 px-4 py-2 text-[7px] text-white/18">{paused ? "KPI evidence is not loaded; run the deferred scan before reading this as a clear trajectory." : "Lines are independently indexed to reveal direction. Actual units and target gaps remain authoritative below."}</footer>
   </section>;
 }
 

@@ -26,6 +26,7 @@ export function ClientFulfilmentHub({
   invoiceCount,
   fileCount,
   propertyCount,
+  canManage = true,
 }: {
   clientId: string;
   selectedProductId?: string;
@@ -36,6 +37,7 @@ export function ClientFulfilmentHub({
   invoiceCount: number;
   fileCount: number;
   propertyCount: number;
+  canManage?: boolean;
 }) {
   const simpleHref = clientWorkspaceHref(clientId, "delivery", { product: selectedProductId });
   const advancedHref = clientWorkspaceHref(clientId, "delivery", { product: selectedProductId, mode: "advanced" });
@@ -57,7 +59,7 @@ export function ClientFulfilmentHub({
         <HubLink href={simpleHref} active={!advanced} icon={<BookOpenCheck size={16} />} label="Service command" detail="Stage and next move" />
         <HubLink href={advancedHref} active={advanced} icon={<FolderKanban size={16} />} label="Board & SOPs" detail="Tasks and procedures" />
         <HubLink href={clientWorkspaceHref(clientId, "finance")} icon={<Landmark size={16} />} label="Contracts & finance" detail={`${contractCount} contracts · ${invoiceCount} invoices`} />
-        <HubLink href={portalBuilt ? portalStudioHref : portalHref} icon={<PanelTop size={16} />} label={portalBuilt ? "Edit client portal" : "Prepare client portal"} detail={portalBuilt ? "Pages, brand, code and versions" : "Create and configure access"} />
+        <HubLink href={canManage && portalBuilt ? portalStudioHref : portalHref} icon={<PanelTop size={16} />} label={portalBuilt ? (canManage ? "Edit client portal" : "View client portal") : (canManage ? "Prepare client portal" : "Portal status")} detail={portalBuilt ? (canManage ? "Pages, brand, code and versions" : "Read-only client experience") : (canManage ? "Create and configure access" : "No portal created") } />
       </nav>
 
       <details className="group border-t border-black/[0.08] bg-black/[0.018]">
@@ -66,7 +68,7 @@ export function ClientFulfilmentHub({
           <span><span className="group-open:hidden">Show</span><span className="hidden group-open:inline">Hide</span></span>
         </summary>
         <div className="grid gap-px border-t border-black/[0.08] bg-black/[0.08] sm:grid-cols-2 xl:grid-cols-3">
-          <HubLink href={`${simpleHref}#service-assignment`} icon={<Settings2 size={15} />} label="Company & services" detail="Assign products, packages and provider" compact />
+          <HubLink href={`${simpleHref}#service-assignment`} icon={<Settings2 size={15} />} label="Company & services" detail={canManage ? "Assign products, packages and provider" : "Read assigned services and provider"} compact />
           <HubLink href={clientWorkspaceHref(clientId, "files")} icon={<FileArchive size={15} />} label="Files & evidence" detail={`${fileCount} retained files`} compact />
           <HubLink href={clientWorkspaceHref(clientId, "systems")} icon={<Boxes size={15} />} label="Systems & properties" detail={`${propertyCount} connected properties`} compact />
           <HubLink href={clientWorkspaceHref(clientId, "communications")} icon={<MessageSquareText size={15} />} label="Messages & support" detail="Requests and unified contact" compact />

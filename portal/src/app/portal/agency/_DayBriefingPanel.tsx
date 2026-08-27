@@ -5,6 +5,7 @@ import { ArrowUpRight, Bot, CheckCircle2, LoaderCircle, Plus, Radar, RefreshCw, 
 import type { AdvisorActionSuggestion } from "@/lib/advisor/advisorActions";
 import type { BusinessIssueRadar } from "@/engines/data/radar/businessRadar";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
+import { dayRadarTruth } from "./dayCommandTruth";
 
 export type DayTaskGenerationSummary = {
   generatedAt: number;
@@ -13,8 +14,9 @@ export type DayTaskGenerationSummary = {
   contacts: number;
 };
 
-export function DayBriefingPanel({ radar, recommendations, counts, reviewedAt, advisorConfigured, advisorBusy, taskSummary, taskBusyId, onGenerate, onAccept, onOpenAdvisor }: {
+export function DayBriefingPanel({ radar, radarPaused = false, recommendations, counts, reviewedAt, advisorConfigured, advisorBusy, taskSummary, taskBusyId, onGenerate, onAccept, onOpenAdvisor }: {
   radar: BusinessIssueRadar;
+  radarPaused?: boolean;
   recommendations: AdvisorActionSuggestion[];
   counts: { activeClients: number; leads: number; delivery: number; products: number };
   reviewedAt: number | null;
@@ -27,7 +29,8 @@ export function DayBriefingPanel({ radar, recommendations, counts, reviewedAt, a
   onOpenAdvisor: () => void;
 }) {
   const primary = recommendations[0] ?? null;
-  const watch = radar.summary.critical ? "Red" : radar.summary.warning ? "Amber" : "Clear";
+  const radarTruth = dayRadarTruth(radar.summary, radarPaused);
+  const watch = radarTruth.watchLabel;
 
   return <section className="mm-day-briefing overflow-hidden border border-[#62e8ff]/22 bg-[#020b11] text-white" aria-labelledby="day-briefing-heading">
     <header className="flex flex-wrap items-start justify-between gap-3 border-b border-[#62e8ff]/14 bg-[#031018] px-4 py-3">
@@ -36,8 +39,8 @@ export function DayBriefingPanel({ radar, recommendations, counts, reviewedAt, a
     </header>
 
     <div className="grid grid-cols-3 border-b border-[#62e8ff]/12">
-      <BriefReadout label="Watch" value={watch} tone={watch === "Red" ? "red" : watch === "Amber" ? "amber" : "green"} />
-      <BriefReadout label="Confidence" value={`${radar.adaptive.confidencePercent}%`} tone={radar.adaptive.confidencePercent < 40 ? "red" : radar.adaptive.confidencePercent < 70 ? "amber" : "cyan"} />
+      <BriefReadout label="Watch" value={watch} tone={watch === "Red" ? "red" : watch === "Amber" ? "amber" : watch === "Unknown" ? "cyan" : "green"} />
+      <BriefReadout label="Confidence" value={radarPaused ? "Unknown" : `${radar.adaptive.confidencePercent}%`} tone={radarPaused ? "cyan" : radar.adaptive.confidencePercent < 40 ? "red" : radar.adaptive.confidencePercent < 70 ? "amber" : "cyan"} />
       <BriefReadout label="Orders" value={reviewedAt ? String(recommendations.length) : "-"} tone={reviewedAt && recommendations.length ? "cyan" : "muted"} />
     </div>
 
@@ -56,7 +59,7 @@ export function DayBriefingPanel({ radar, recommendations, counts, reviewedAt, a
         <div className="mt-3 border-l-2 border-[#e5c479]/40 pl-3"><p className="text-[7px] font-semibold uppercase text-[#e5c479]/55">Evidence basis</p><p className="mt-1 line-clamp-3 text-[9px] leading-4 text-white/30">{primary.evidence || "No additional evidence summary was supplied."}</p></div>
       </div>
       <ol className="divide-y divide-[#62e8ff]/9">{recommendations.map((action, index) => <li key={action.id} className="grid grid-cols-[26px_minmax(0,1fr)_auto] items-start gap-2.5 px-4 py-3"><span className={`grid size-6 place-items-center border text-[8px] font-bold ${action.priority === "urgent" ? "border-red-300/24 bg-red-400/10 text-red-300" : action.priority === "high" ? "border-amber-300/20 bg-amber-300/[0.07] text-amber-200" : "border-[#62e8ff]/20 text-[#62e8ff]"}`}>{String(index + 1).padStart(2, "0")}</span><span className="min-w-0"><strong className="block truncate text-[10px] font-semibold text-white/68">{action.title}</strong><span className="mt-0.5 block text-[7px] uppercase text-white/24">{action.category} · due {shortDate(action.dueAt)}</span></span><span className="flex gap-1"><button type="button" onClick={() => onAccept(action)} disabled={taskBusyId === action.id} className="grid size-7 place-items-center border border-[#68f5d0]/18 text-[#68f5d0]/65 hover:bg-[#68f5d0]/[0.06] hover:text-white disabled:opacity-35" title={`Accept ${action.title} into tasks`} aria-label={`Accept ${action.title} into tasks`}>{taskBusyId === action.id ? <LoaderCircle size={11} className="animate-spin" /> : <Plus size={11} />}</button><a href={action.href} className="grid size-7 place-items-center border border-white/8 text-white/25 hover:bg-white/[0.04] hover:text-white" title={`Open evidence for ${action.title}`} aria-label={`Open evidence for ${action.title}`}><ArrowUpRight size={11} /></a></span></li>)}</ol>
-    </> : <div className="px-4 py-8 text-center"><CheckCircle2 className="mx-auto text-[#68f5d0]/55" size={24} /><p className="mt-3 text-xs font-semibold text-white/60">No new orders require acceptance</p><p className="mx-auto mt-1 max-w-sm text-[9px] leading-4 text-white/28">The current evidence was reviewed and its actionable recommendations are already represented in your task queue.</p></div> : <div className="px-4 py-8 text-center"><Radar className="mx-auto text-[#62e8ff]/45" size={24} /><p className="mt-3 text-xs font-semibold text-white/60">Your briefing has not been generated yet</p><p className="mx-auto mt-1 max-w-sm text-[9px] leading-4 text-white/28">Generate it from the daily controls above. Advisor will rank the current Radar picture without hiding mandatory evidence-backed work.</p></div>}
+    </> : radarPaused ? <div className="px-4 py-8 text-center"><Radar className="mx-auto text-sky-300/60" size={24} /><p className="mt-3 text-xs font-semibold text-sky-200/75">Current Radar evidence is not loaded</p><p className="mx-auto mt-1 max-w-sm text-[9px] leading-4 text-white/32">Run a scan before treating an empty order list as a clear watch.</p></div> : <div className="px-4 py-8 text-center"><CheckCircle2 className="mx-auto text-[#68f5d0]/55" size={24} /><p className="mt-3 text-xs font-semibold text-white/60">No new orders require acceptance</p><p className="mx-auto mt-1 max-w-sm text-[9px] leading-4 text-white/28">The current evidence was reviewed and its actionable recommendations are already represented in your task queue.</p></div> : <div className="px-4 py-8 text-center"><Radar className="mx-auto text-[#62e8ff]/45" size={24} /><p className="mt-3 text-xs font-semibold text-white/60">Your briefing has not been generated yet</p><p className="mx-auto mt-1 max-w-sm text-[9px] leading-4 text-white/28">{radarPaused ? "Run a scan to load current Radar evidence before generating evidence-ranked orders." : "Generate it from the daily controls above. Advisor will rank the current Radar picture without hiding mandatory evidence-backed work."}</p></div>}
 
     {taskSummary ? <div className="flex items-start gap-2.5 border-t border-[#68f5d0]/12 bg-[#68f5d0]/[0.025] px-4 py-3"><CheckCircle2 size={13} className="mt-0.5 shrink-0 text-[#68f5d0]" /><div><p className="text-[9px] font-semibold text-[#68f5d0]/78">Task scan reconciled</p><p className="mt-0.5 text-[8px] leading-4 text-white/28">{taskSummary.newTasks} new · {taskSummary.activeRadarTasks} active Radar tasks · {taskSummary.contacts} live contacts · {shortTime(taskSummary.generatedAt)}</p></div></div> : null}
 
@@ -64,7 +67,7 @@ export function DayBriefingPanel({ radar, recommendations, counts, reviewedAt, a
       <button type="button" onClick={onGenerate} disabled={advisorBusy} className="inline-flex min-h-9 items-center justify-center gap-2 border border-[#62e8ff]/18 bg-[#62e8ff]/[0.055] px-3 text-[9px] font-semibold text-[#8ef1ff] hover:bg-[#62e8ff]/[0.1] disabled:opacity-40">{advisorBusy ? <LoaderCircle size={12} className="animate-spin" /> : <RefreshCw size={12} />}{reviewedAt ? "Regenerate briefing" : "Generate briefing"}</button>
       <button type="button" onClick={onOpenAdvisor} className="inline-flex min-h-9 items-center justify-center gap-2 border border-[#e5c479]/16 px-3 text-[9px] font-semibold text-[#e5c479] hover:bg-[#e5c479]/[0.05] hover:text-white"><ShieldCheck size={12} />Open Advisor</button>
     </footer>
-    <div className="border-t border-[#62e8ff]/9 px-4 py-2 text-[7px] uppercase text-white/18">Generated {reviewedAt ? shortTime(reviewedAt) : "on command"} · {advisorConfigured ? "AI review connected" : "deterministic Radar fallback active"} · {radar.summary.blindChecks} blind checks declared</div>
+    <div className="border-t border-[#62e8ff]/9 px-4 py-2 text-[7px] uppercase text-white/18">Generated {reviewedAt ? shortTime(reviewedAt) : "on command"} · {radarPaused ? "Radar evidence not loaded · run scan for current watch" : `${advisorConfigured ? "AI review connected" : "deterministic Radar fallback active"} · ${radar.summary.blindChecks} blind checks declared`}</div>
   </section>;
 }
 

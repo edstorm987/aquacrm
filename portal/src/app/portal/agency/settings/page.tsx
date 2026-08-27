@@ -18,6 +18,12 @@ import type { Role } from "@/server/types";
 import { listTradingCompanies } from "@/server/tradingCompanies";
 import { listExternalAssistantApiKeys } from "@/lib/server/assistants/externalAssistantKeys";
 import { Settings2 } from "lucide-react";
+import { getAgencySettingsCapabilities } from "@/lib/agencySettingsCapabilities";
+import {
+  actorHasGovernanceCapability,
+  requireCurrentAccessActor,
+} from "@/server/accessControl";
+import { listDevProjects } from "@/engines/editor/server/devProjects";
 
 type AgencyTeamRole = Extract<Role, "agency-owner" | "agency-manager" | "agency-staff">;
 
@@ -33,11 +39,30 @@ export default async function AgencySettingsPage() {
   } catch {
     redirect("/portal");
   }
+  if (session.publicShowcase) redirect("/portal/agency");
 
   const agency = getAgency(session.agencyId);
   if (!agency) redirect("/login");
 
   const user = getUserById(session.userId);
+  const accessActor = await requireCurrentAccessActor().catch(() => null);
+  const accessPeople = accessActor
+    ? Object.values(accessActor.governanceState.users)
+      .filter(candidate => {
+        const memberships = candidate.agencyIds.length > 0
+          ? candidate.agencyIds
+          : candidate.agencyId ? [candidate.agencyId] : [];
+        return memberships.includes(accessActor.agencyId)
+          && candidate.role !== "lead"
+          && candidate.role !== "end-customer";
+      })
+      .map(candidate => ({
+        id: candidate.id,
+        name: candidate.name || candidate.email,
+        email: candidate.email,
+        role: candidate.role,
+      }))
+    : [];
   const clients = listClients(agency.id);
   const activeClients = clients.filter(client => client.status === "active");
   const billingConfiguredClientCount = activeClients.filter(client => {
@@ -71,10 +96,20 @@ export default async function AgencySettingsPage() {
       managedIntegrationProviders: listManagedIntegrationProviders(agency.id),
     }),
     settings: getAgencyWorkspaceSettings(agency.id),
-    canManageSettings: session.role === "agency-owner" || session.role === "agency-manager",
-    isShowcase: Boolean(session.showcaseReturnAgencyId),
+    capabilities: getAgencySettingsCapabilities(session.role),
+    sandbox: session.sandbox,
+    access: {
+      agencyId: accessActor?.agencyId ?? agency.id,
+      canManage: accessActor ? (["live", "sandbox"] as const).some(environment => (
+        actorHasGovernanceCapability(accessActor, environment, "access.grant.manage")
+      )) : false,
+      people: accessPeople,
+    },
     tradingCompanies: listTradingCompanies(agency.id).map(company => ({ id: company.id, name: company.name })),
     clients: clients.map(client => ({ id: client.id, name: client.name })),
+    devProjects: session.role === "agency-owner"
+      ? listDevProjects(agency.id).map(project => ({ id: project.id, name: project.name }))
+      : [],
     team: listUsersForAgency(agency.id)
       .filter((teamUser): teamUser is typeof teamUser & { role: AgencyTeamRole } => isAgencyTeamRole(teamUser.role))
       .map(teamUser => ({

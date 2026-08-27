@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BookOpenText, Check, Copy, LoaderCircle, Search } from "lucide-react";
 
 import {
@@ -68,6 +68,7 @@ export function LibrarianPanel({
   projectName = "",
   projects,
   world = null,
+  loadWorld = false,
   onOpenFile,
 }: {
   /** The project this panel is fixed to (the editor mount). Wins over the picker. */
@@ -81,6 +82,8 @@ export function LibrarianPanel({
   projects?: Array<{ id: string; name: string; repo: string }>;
   /** The skill's view of the world, when the host rendered one (the drawer). */
   world?: { docsTotal: number; referencePages: number } | null;
+  /** Load the drawer's agency-wide world only after this panel first mounts. */
+  loadWorld?: boolean;
   /** The editor's open-a-file mechanism. Absent → path + copy control only. */
   onOpenFile?: (path: string) => void;
 }) {
@@ -89,8 +92,52 @@ export function LibrarianPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<LibrarianFindResult | null>(null);
+  const [loadedProjects, setLoadedProjects] = useState(projects);
+  const [loadedWorld, setLoadedWorld] = useState(world);
+  const [worldLoading, setWorldLoading] = useState(loadWorld && !world);
+  const [worldError, setWorldError] = useState("");
+
+  useEffect(() => {
+    if (!loadWorld || loadedWorld) return;
+    const controller = new AbortController();
+    setWorldLoading(true);
+    void fetch("/api/portal/dev/librarian", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "world" }),
+      signal: controller.signal,
+    })
+      .then(async response => {
+        const payload = await response.json().catch(() => null) as {
+          ok?: boolean;
+          error?: string;
+          message?: string;
+          world?: {
+            docsTotal: number;
+            referencePages: number;
+            projects: Array<{ id: string; name: string; repo: string }>;
+          };
+        } | null;
+        if (!response.ok || !payload?.ok || !payload.world) {
+          throw new Error(payload?.message ?? payload?.error ?? "The library map could not load.");
+        }
+        setLoadedProjects(payload.world.projects);
+        setLoadedWorld({ docsTotal: payload.world.docsTotal, referencePages: payload.world.referencePages });
+        setWorldError("");
+      })
+      .catch(error => {
+        if (controller.signal.aborted) return;
+        setWorldError(error instanceof Error ? error.message : "The library map could not load.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setWorldLoading(false);
+      });
+    return () => controller.abort();
+  }, [loadWorld, loadedWorld]);
 
   const effectiveProjectId = projectId || scope;
+  const availableProjects = projects ?? loadedProjects;
+  const availableWorld = world ?? loadedWorld;
 
   async function submit() {
     const asked = query.trim();
@@ -121,11 +168,15 @@ export function LibrarianPanel({
           ) : null}
           <span>Finds files, docs and symbols. It never edits — that is the editor&apos;s job.</span>
         </p>
-        {world ? (
+        {availableWorld ? (
           <p className={`mt-1 text-[10px] ${MUTED}`}>
-            Can see {world.docsTotal} docs · {world.referencePages} reference pages
-            {projects ? ` · ${projects.length} project${projects.length === 1 ? "" : "s"}` : ""}.
+            Can see {availableWorld.docsTotal} docs · {availableWorld.referencePages} reference pages
+            {availableProjects ? ` · ${availableProjects.length} project${availableProjects.length === 1 ? "" : "s"}` : ""}.
           </p>
+        ) : worldLoading ? (
+          <p className={`mt-1 text-[10px] ${MUTED}`}>Loading the library map…</p>
+        ) : worldError ? (
+          <p role="alert" className="mt-1 text-[10px] text-red-300">{worldError}</p>
         ) : null}
       </div>
 
@@ -135,7 +186,7 @@ export function LibrarianPanel({
         onSubmit={event => { event.preventDefault(); void submit(); }}
       >
         {/* The drawer host offers a scope; the editor host has one already. */}
-        {!projectId && projects?.length ? (
+        {!projectId && availableProjects?.length ? (
           <label className={`grid gap-1 text-[10px] font-semibold ${MUTED}`}>
             Search in
             <select
@@ -144,7 +195,7 @@ export function LibrarianPanel({
               className={`${FIELD} ${FOCUS_RING}`}
             >
               <option value="">Docs + reference only (no project)</option>
-              {projects.map(project => (
+              {availableProjects.map(project => (
                 <option key={project.id} value={project.id}>
                   {project.name} — {project.repo}
                 </option>

@@ -36,7 +36,8 @@ import "server-only";
 //
 // Like `scanDevDocs`, the retrieval itself is gate-free and the PUBLIC surface
 // gates: whichever route or assistant calls this must hold its own gate
-// (founder + Dev Mode for the Librarian; the editor AI route's own checks).
+// (project/explorer access for a project search, or local-owner access for the
+// whole-tree Librarian; the editor AI route's own checks).
 // What IS enforced here — because it is tenant data, not presentation — is the
 // project boundary, in the order `devProjects.ts` uses everywhere: tenant
 // first, then project. A project id from another agency throws the SAME
@@ -53,11 +54,11 @@ import "server-only";
 // local. Never a silent fallback — the `searched.repo.status` names which of
 // the four levels the answer came from.
 
-import { readdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 
 import { memoiseByStat } from "./devMarkdownCache";
 import { PROJECT_ROOT, scanDevDocs, type DevDocsIndex } from "./devDocs";
+import { readDevWorkspaceDirectory, readDevWorkspaceFile } from "./devWorkspaceFiles";
 import { devProjectGitHubToken, getDevProject, listDevProjects } from "@/engines/editor/server/devProjects";
 import { readRepoTree } from "@/engines/editor/server/githubSource";
 import { readWorkspaceFiles } from "@/engines/editor/server/workspaceFiles";
@@ -143,9 +144,15 @@ export interface FileFindingDeps {
   workspaceRoot?: string;
   /** Overrides vault/env token resolution. */
   githubToken?: string;
+  /** False for delegated requests: require this project's bound connection. */
+  allowSharedCredentials?: boolean;
   scanDocs?: () => Promise<DevDocsIndex>;
   /** Overrides the `docs/reference` directory, for fixture pages. */
   referenceDir?: string;
+  /** False on delegated project surfaces: never fall through to process.cwd(). */
+  allowWorkspace?: boolean;
+  /** False on delegated project surfaces: Aqua's own docs/reference are internal. */
+  includeInternalSources?: boolean;
 }
 
 // ─── Tuning ──────────────────────────────────────────────────────────────────
@@ -332,8 +339,9 @@ function assertProject(agencyId: string, projectId: string): DevProject {
 function resolveRepoToken(agencyId: string, project: DevProject, deps: FileFindingDeps): string | undefined {
   return deps.githubToken
     || devProjectGitHubToken(agencyId, project)
-    || resolveIntegrationValues(agencyId, "github").token
-    || process.env.GITHUB_TOKEN?.trim()
+    || (deps.allowSharedCredentials === false
+      ? undefined
+      : resolveIntegrationValues(agencyId, "github").token || process.env.GITHUB_TOKEN?.trim())
     || undefined;
 }
 
@@ -356,11 +364,14 @@ async function listRepoFiles(
   }
   const repoMap = project.map?.repo;
   if (!repoMap || repoMap.error) {
+    const internalFallback = deps.includeInternalSources === false
+      ? "No project repository files were searched."
+      : "Docs and the reference were still searched.";
     return {
       status: "none",
       detail: repoMap?.error
-        ? `The last Map could not read the repository (${repoMap.error}), so only docs and the reference were searched.`
-        : "This project has no repository map yet — press Map. Docs and the reference were still searched.",
+        ? `The last Map could not read the repository (${repoMap.error}). ${internalFallback}`
+        : `This project has no repository map yet — press Map. ${internalFallback}`,
       paths: [],
       directories: [],
     };
@@ -369,6 +380,14 @@ async function listRepoFiles(
   // A blank repository IS the local working tree — the same rule the editor
   // uses. Local disk, never the network.
   if (repoMap.source === "workspace" || !project.repository) {
+    if (deps.allowWorkspace === false) {
+      return {
+        status: "none",
+        detail: "This project uses the local working tree, which is available only in the owner's local workspace.",
+        paths: [],
+        directories: [],
+      };
+    }
     const files = await (deps.readWorkspace ?? readWorkspaceFiles)(deps.workspaceRoot ?? process.cwd())
       .catch(() => null);
     if (!files) {
@@ -437,9 +456,9 @@ const REFERENCE_SKIP = new Set(["00-index.md"]);
 
 /**
  * Parse one generated reference page into greppable entries. Two shapes exist
- * and both are handled: the bucket pages (` ### `path` ` headings over
- * ``- `symbol(...)` — summary`` lines) and `files-index.md`
- * (``- [`path`](./files/…) — summary`` rows). Anything else contributes
+ * and both are handled: the consolidated volume pages (` ### `path` ` headings
+ * over ``- `symbol(...)` — summary`` lines) and `files-index.md`
+ * (``- [`path`](volume.md#anchor) — summary`` rows). Anything else contributes
  * nothing rather than erroring — the pages are generated, and a format drift
  * should degrade retrieval, not break it.
  */
@@ -480,7 +499,7 @@ async function readReferenceEntries(deps: FileFindingDeps): Promise<{ entries: R
   const dir = deps.referenceDir ?? join(PROJECT_ROOT, "docs", "reference");
   let names: string[];
   try {
-    const dirents = await readdir(dir, { withFileTypes: true });
+    const dirents = await readDevWorkspaceDirectory(dir);
     names = dirents
       .filter(d => d.isFile() && d.name.toLowerCase().endsWith(".md") && !REFERENCE_SKIP.has(d.name))
       .map(d => d.name)
@@ -493,7 +512,7 @@ async function readReferenceEntries(deps: FileFindingDeps): Promise<{ entries: R
   for (const name of names) {
     // Memoised by mtime — ~1MB of generated markdown parses once, not per query.
     const parsed = await memoiseByStat("fileFindingReference", join(dir, name), async () =>
-      parseReferencePage(await readFile(join(dir, name), "utf8")));
+      parseReferencePage(await readDevWorkspaceFile(join(dir, name), "utf8")));
     if (!parsed) continue;
     pages += 1;
     entries.push(...parsed);
@@ -572,30 +591,36 @@ export async function findFiles(input: FindFilesInput, deps: FileFindingDeps = {
 
   // ── Docs library ──
   let docsReport: FileFindingResult["searched"]["docs"];
-  try {
-    const index = await (deps.scanDocs ?? scanDevDocs)();
-    for (const entry of index.entries) {
-      const title = entry.title.toLowerCase();
-      const relPath = entry.relPath.toLowerCase();
-      for (const term of terms) {
-        if (title.includes(term)) {
-          candidates.record("docs", entry.relPath, term, "doc-title", WEIGHTS.docTitle, entry.title, entry.title);
-        } else if (relPath.includes(term)) {
-          candidates.record("docs", entry.relPath, term, "path", WEIGHTS.docPath, entry.relPath, entry.title);
+  if (deps.includeInternalSources === false) {
+    docsReport = { searched: false, total: 0, detail: "Aqua's internal docs are outside this project grant." };
+  } else {
+    try {
+      const index = await (deps.scanDocs ?? scanDevDocs)();
+      for (const entry of index.entries) {
+        const title = entry.title.toLowerCase();
+        const relPath = entry.relPath.toLowerCase();
+        for (const term of terms) {
+          if (title.includes(term)) {
+            candidates.record("docs", entry.relPath, term, "doc-title", WEIGHTS.docTitle, entry.title, entry.title);
+          } else if (relPath.includes(term)) {
+            candidates.record("docs", entry.relPath, term, "path", WEIGHTS.docPath, entry.relPath, entry.title);
+          }
         }
       }
+      docsReport = { searched: true, total: index.total };
+    } catch (error) {
+      docsReport = {
+        searched: false,
+        total: 0,
+        detail: `The docs library could not be scanned (${error instanceof Error ? error.message : "unknown error"}).`,
+      };
     }
-    docsReport = { searched: true, total: index.total };
-  } catch (error) {
-    docsReport = {
-      searched: false,
-      total: 0,
-      detail: `The docs library could not be scanned (${error instanceof Error ? error.message : "unknown error"}).`,
-    };
   }
 
   // ── Generated reference ──
-  const reference = await readReferenceEntries(deps);
+  const reference = deps.includeInternalSources === false
+    ? { entries: [] as ReferenceEntry[], pages: 0, detail: "Aqua's internal reference is outside this project grant." }
+    : await readReferenceEntries(deps);
   const referencePathsMatched = new Set<string>();
   for (const entry of reference.entries) {
     const symbol = entry.symbol?.toLowerCase() ?? "";

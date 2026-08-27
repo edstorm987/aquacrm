@@ -20,6 +20,7 @@ test("every business upload route fails closed through the shared boundary", () 
     "src/app/api/portal/company/legal/upload/route.ts",
     "src/app/api/portal/sops/upload/route.ts",
     "src/app/api/portal/development/upload/route.ts",
+    "src/app/api/portal/freelancer/work/route.ts",
   ]) {
     const source = read(route);
     assert.match(source, /storePrivateUpload/);

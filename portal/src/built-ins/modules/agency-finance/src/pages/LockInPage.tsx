@@ -2,7 +2,6 @@ import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
 import { FinanceNav } from "../components/FinanceNav";
 import { formatMoney } from "../lib/currencies";
-import { resolveFinanceDefaultCurrency } from "@/lib/server/finance/financeCurrency";
 
 export default async function LockInPage(props: PluginPageProps) {
   const c = containerFor({
@@ -10,9 +9,8 @@ export default async function LockInPage(props: PluginPageProps) {
     storage: props.storage,
     install: props.install,
   });
-  const [rows, plans, clients] = await Promise.all([
+  const [rows, clients] = await Promise.all([
     c.pnl.lockInRows(),
-    c.plans.list(true),
     Promise.resolve(c.tenant.listClients?.(props.agencyId) ?? []),
   ]);
 
@@ -21,10 +19,6 @@ export default async function LockInPage(props: PluginPageProps) {
   // and how much arrived". Every other finance surface formats through
   // `formatMoney`; so does this one now. The plan carries the currency it was
   // priced in; the agency default only fills a gap.
-  const defaultCurrency = resolveFinanceDefaultCurrency(props.agencyId, props.install.config.defaultCurrency);
-  const planCurrency = new Map(plans.map(plan => [plan.id, plan.currency]));
-  const currencyFor = (planId: string) => planCurrency.get(planId) ?? defaultCurrency;
-
   // …and the client column used to print the raw `cli_…` id. Nobody who reads
   // this page knows those by sight.
   const clientName = new Map(clients.map(client => [client.id, client.name]));
@@ -33,7 +27,7 @@ export default async function LockInPage(props: PluginPageProps) {
   // stated per currency rather than added into one meaningless number.
   const byCurrency = new Map<string, { due: number; paid: number }>();
   for (const row of rows) {
-    const code = currencyFor(row.planId);
+    const code = row.currency;
     const bucket = byCurrency.get(code) ?? { due: 0, paid: 0 };
     bucket.due += row.lockInFeeCents;
     bucket.paid += row.paidCents;
@@ -71,7 +65,7 @@ export default async function LockInPage(props: PluginPageProps) {
             <tr><td colSpan={6} style={{ padding: 12, color: "rgba(0,0,0,0.5)" }}>No client deposits yet.</td></tr>
           )}
           {rows.map(r => {
-            const code = currencyFor(r.planId);
+            const code = r.currency;
             const name = clientName.get(r.clientId);
             return (
               <tr key={`${r.clientId}-${r.planId}`} style={{ borderBottom: "1px solid rgba(0,0,0,0.05)" }}>

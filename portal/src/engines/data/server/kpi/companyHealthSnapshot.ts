@@ -14,6 +14,7 @@ import { getInstall } from "@/server/pluginInstalls";
 import { listAgencyTasks } from "@/server/tasks";
 import { listClients } from "@/server/tenants";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
+import { resolveFinanceDefaultCurrency } from "@/lib/server/finance/financeCurrency";
 
 export interface CompanyHealthActuals {
   monthRevenueCents: number;
@@ -91,7 +92,8 @@ export async function buildCompanyHealthSnapshot(agencyId: string, now = Date.no
         storage: makePluginStorage(financeInstall.id) as never,
         install: financeInstall,
       });
-      const snapshot = await finance.pnl.founderSnapshot(now);
+      const currency = resolveFinanceDefaultCurrency(agencyId, financeInstall.config.defaultCurrency);
+      const snapshot = await finance.pnl.founderSnapshot(now, 30, currency);
       const currentMonth = snapshot.trailingMonths.at(-1);
       const previousMonth = snapshot.trailingMonths.at(-2);
       actuals.monthRevenueCents = currentMonth?.revenueCents ?? 0;

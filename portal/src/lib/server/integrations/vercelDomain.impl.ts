@@ -25,12 +25,23 @@
 //
 // Reference: https://vercel.com/docs/rest-api/endpoints/projects#add-a-domain
 
+import {
+  isRemoteOperationError,
+  withRemoteOperationDeadline,
+  type RemoteOperationRetry,
+} from "@/lib/server/remoteOperation";
+
 const VERCEL_API_BASE = "https://api.vercel.com";
 
 export interface VercelDomainConfig {
   token: string;
   projectId: string;
   teamId?: string;
+}
+
+export interface VercelDomainCallOptions {
+  signal?: AbortSignal;
+  timeoutMs?: number;
 }
 
 export interface DnsRequirement {
@@ -46,6 +57,8 @@ export interface VercelDomainResult {
   hostname: string;
   pending: DnsRequirement[];
   error?: string;
+  outcomeUnknown?: boolean;
+  retry?: RemoteOperationRetry;
   vercelProjectId: string;
   vercelTeamId?: string;
 }
@@ -123,16 +136,38 @@ async function call(
   cfg: VercelDomainConfig,
   path: string,
   init: RequestInit,
-): Promise<Response> {
-  return fetch(`${VERCEL_API_BASE}${path}${teamScope(cfg.teamId)}`, {
-    ...init,
-    headers: {
-      authorization: `Bearer ${cfg.token}`,
-      "content-type": "application/json",
-      ...(init.headers ?? {}),
-    },
-    cache: "no-store",
+  options: VercelDomainCallOptions,
+): Promise<{ ok: boolean; status: number; body: string }> {
+  return withRemoteOperationDeadline({
+    operation: `Vercel domain ${init.method?.toUpperCase() ?? "request"}`,
+    budget: "providerWrite",
+    outcome: "idempotent-write",
+    signal: options.signal,
+    timeoutMs: options.timeoutMs,
+  }, async signal => {
+    const response = await fetch(`${VERCEL_API_BASE}${path}${teamScope(cfg.teamId)}`, {
+      ...init,
+      headers: {
+        authorization: `Bearer ${cfg.token}`,
+        "content-type": "application/json",
+        ...(init.headers ?? {}),
+      },
+      cache: "no-store",
+      signal,
+    });
+    return { ok: response.ok, status: response.status, body: await response.text() };
   });
+}
+
+function failureFor(error: unknown): { error: string; outcomeUnknown?: boolean; retry?: RemoteOperationRetry } {
+  if (!isRemoteOperationError(error)) {
+    return { error: error instanceof Error ? error.message : "vercel-network-error" };
+  }
+  return {
+    error: error.message,
+    outcomeUnknown: error.outcomeUnknown,
+    retry: error.retry,
+  };
 }
 
 function projectionFor(
@@ -169,6 +204,7 @@ function projectVerification(
 export async function attachDomain(
   cfg: VercelDomainConfig,
   rawHostname: string,
+  options: VercelDomainCallOptions = {},
 ): Promise<VercelDomainResult> {
   const hostname = normaliseHostname(rawHostname);
   if (!hostname) {
@@ -182,25 +218,26 @@ export async function attachDomain(
       ...(cfg.teamId ? { vercelTeamId: cfg.teamId } : {}),
     };
   }
-  let res: Response;
+  let res: { ok: boolean; status: number; body: string };
   try {
     res = await call(
       cfg,
       `/v10/projects/${encodeURIComponent(cfg.projectId)}/domains`,
       { method: "POST", body: JSON.stringify({ name: hostname }) },
+      options,
     );
   } catch (e) {
     return {
       ok: false,
       verified: false,
       pending: [],
-      error: e instanceof Error ? e.message : "vercel-network-error",
+      ...failureFor(e),
       ...projectionFor(hostname, cfg),
     };
   }
   let data: VercelResponseBody;
   try {
-    data = (await res.json()) as VercelResponseBody;
+    data = JSON.parse(res.body) as VercelResponseBody;
   } catch {
     return {
       ok: false,
@@ -239,6 +276,7 @@ export async function attachDomain(
 export async function verifyDomain(
   cfg: VercelDomainConfig,
   rawHostname: string,
+  options: VercelDomainCallOptions = {},
 ): Promise<VercelDomainResult> {
   const hostname = normaliseHostname(rawHostname);
   if (!hostname) {
@@ -252,25 +290,26 @@ export async function verifyDomain(
       ...(cfg.teamId ? { vercelTeamId: cfg.teamId } : {}),
     };
   }
-  let res: Response;
+  let res: { ok: boolean; status: number; body: string };
   try {
     res = await call(
       cfg,
       `/v9/projects/${encodeURIComponent(cfg.projectId)}/domains/${encodeURIComponent(hostname)}/verify`,
       { method: "POST" },
+      options,
     );
   } catch (e) {
     return {
       ok: false,
       verified: false,
       pending: [],
-      error: e instanceof Error ? e.message : "vercel-network-error",
+      ...failureFor(e),
       ...projectionFor(hostname, cfg),
     };
   }
   let data: VercelResponseBody;
   try {
-    data = (await res.json()) as VercelResponseBody;
+    data = JSON.parse(res.body) as VercelResponseBody;
   } catch {
     return {
       ok: false,
@@ -304,27 +343,30 @@ export async function verifyDomain(
 export async function removeDomain(
   cfg: VercelDomainConfig,
   rawHostname: string,
-): Promise<{ ok: boolean; hostname: string; error?: string }> {
+  options: VercelDomainCallOptions = {},
+): Promise<{ ok: boolean; hostname: string; error?: string; outcomeUnknown?: boolean; retry?: RemoteOperationRetry }> {
   const hostname = normaliseHostname(rawHostname);
   if (!hostname) return { ok: false, hostname: "", error: "missing-hostname" };
-  let res: Response;
+  let res: { ok: boolean; status: number; body: string };
   try {
     res = await call(
       cfg,
       `/v9/projects/${encodeURIComponent(cfg.projectId)}/domains/${encodeURIComponent(hostname)}`,
       { method: "DELETE" },
+      options,
     );
   } catch (e) {
     return {
       ok: false,
       hostname,
-      error: e instanceof Error ? e.message : "vercel-network-error",
+      ...failureFor(e),
     };
   }
+  if (res.status === 404) return { ok: true, hostname };
   if (!res.ok) {
     let message = `Vercel ${res.status}`;
     try {
-      const data = (await res.json()) as VercelResponseBody;
+      const data = JSON.parse(res.body) as VercelResponseBody;
       if (data.error?.message) message = data.error.message;
     } catch {
       /* keep status fallback */

@@ -3,14 +3,15 @@ import { NextResponse } from "next/server";
 import { ensureAgencyFinanceFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/agencyFinanceFoundation";
 import { containerFor as financeContainerFor } from "@/built-ins/modules/agency-finance/src/server/foundationAdapter";
 import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
+import { routeTenantScope } from "@/lib/server/portal/apiTenantScope";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { sendTransactionalEmail } from "@/lib/server/email/transactionalEmail";
 import { logActivity } from "@/server/activity";
 import { getInstall } from "@/server/pluginInstalls";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
-import { getClientForAgency } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 export async function POST(request: Request) {
   try {
@@ -21,7 +22,8 @@ export async function POST(request: Request) {
     if (!clientId || !invoiceId) return NextResponse.json({ ok: false, error: "Client and invoice are required." }, { status: 400 });
 
     const session = await requireRoleForClient([...AGENCY_ROLES], clientId);
-    const client = getClientForAgency(session.agencyId, clientId);
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.commercial", "use");
+    const client = routeTenantScope(session, { clientId }).client;
     if (!client) return NextResponse.json({ ok: false, error: "Client not found." }, { status: 404 });
     const install = getInstall({ agencyId: session.agencyId }, "agency-finance");
     if (!install?.enabled) return NextResponse.json({ ok: false, error: "Agency Finance is not connected." }, { status: 409 });
@@ -46,6 +48,7 @@ export async function POST(request: Request) {
       agencyId: session.agencyId,
       clientId,
       to: recipient,
+      signal: request.signal,
       fromName: "AquaCRM",
       subject: `Payment request ${invoice.number} · ${amount}`,
       bodyText: [

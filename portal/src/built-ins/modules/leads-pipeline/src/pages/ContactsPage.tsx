@@ -5,6 +5,7 @@ import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
 import { ContactsWorkspace } from "@/app/portal/agency/leads-pipeline/contacts/_ContactsWorkspace";
 import type { CustomFieldDefinition } from "../lib/domain";
+import { getPortalFormFields } from "@/server/portalEditor";
 
 export default async function ContactsPage(props: PluginPageProps) {
   const { contacts, leads } = containerFor({
@@ -24,6 +25,7 @@ export default async function ContactsPage(props: PluginPageProps) {
       contacts={contactList}
       leads={leadList}
       initialCustomFields={customFields ?? []}
+      initialLeadFields={getPortalFormFields(props.agencyId, "leads")}
       initialCustomTags={customTags ?? []}
       initialImportOpen={props.searchParams.import === "1"}
     />
