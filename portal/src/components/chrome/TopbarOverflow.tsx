@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MoreHorizontal, Pin, PinOff, X } from "lucide-react";
+import { GripVertical, MoreHorizontal, Pencil, X } from "lucide-react";
 
 import {
   MAX_TOPBAR_CONTROLS,
@@ -75,7 +75,12 @@ import {
 // topbar and out of the drawer so if I really need something it can be one
 // click away and I think the space would allow for two slots on mobile."*
 //
-// Two things make that work, and the second is the one that is easy to skip:
+// Arranging is initiated by a PENCIL, and imitates what the sidebar already
+// does — Ed, on being asked: *"the pencil icon ... initiates"* that. See the
+// arrange block further down for why it borrows `SidebarReorder`'s model but
+// not its mechanism.
+//
+// Two things make it work, and the second is the one that is easy to skip:
 //
 //   1. A pinned control renders in the row instead of in the panel. The pin is
 //      an id on the ACCOUNT (`UserChromeLayout.topbarControls`), read on the
@@ -126,8 +131,13 @@ export function TopbarOverflow({
   pinned?: TopbarControlId[];
 }) {
   const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState(false);
   const [attention, setAttention] = useState(0);
+  /** Arrange mode — see the block below the measurement for what it is and why. */
+  const [arranging, setArranging] = useState(false);
+  const [dragging, setDragging] = useState<TopbarControlId | null>(null);
+  const [ghost, setGhost] = useState<{ x: number; y: number } | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+  const dragOrigin = useRef<{ x: number; y: number; id: TopbarControlId; moved: boolean } | null>(null);
   const [pinned, setPinned] = useState<TopbarControlId[]>(() => normaliseTopbarControls(storedPins));
   /** How many pinned controls the row can actually carry right now. */
   const [slots, setSlots] = useState(() => normaliseTopbarControls(storedPins).length);
@@ -178,6 +188,10 @@ export function TopbarOverflow({
     const lead = document.querySelector<HTMLElement>("[data-topbar-lead]");
     if (!lead) return;
     const measure = () => {
+      // Frozen while arranging. The promoted controls have moved into the sheet,
+      // so the row is temporarily empty and would report room for everything —
+      // and the sheet would then offer a capacity the closed bar cannot keep.
+      if (arranging) return;
       // Above the breakpoint every control is inline anyway: nothing to hold back.
       if (!window.matchMedia("(max-width: 639px)").matches) {
         setSlots(MAX_TOPBAR_CONTROLS);
@@ -200,7 +214,7 @@ export function TopbarOverflow({
       observer.disconnect();
       window.removeEventListener("resize", measure);
     };
-  }, [wantedCount, promotedCount]);
+  }, [wantedCount, promotedCount, arranging]);
 
   // Sum whatever the hidden controls are trying to say, and step aside the
   // moment one of them opens a surface. Both are re-checked on any DOM change
@@ -231,7 +245,7 @@ export function TopbarOverflow({
 
   const close = useCallback(() => {
     setOpen(false);
-    setEditing(false);
+    setArranging(false);
   }, []);
 
   // The controls that open nothing. Capture phase so the panel is already on
@@ -244,12 +258,12 @@ export function TopbarOverflow({
   // pressed), and a pin toggle, which is a tap ABOUT a control rather than a
   // tap on it.
   const onItemsClickCapture = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    if (editing) return;
+    if (arranging) return;
     const target = event.target as HTMLElement | null;
     if (target?.closest(`[${CHROME_SURFACE_ATTRIBUTE}]`)) return;
     if (target?.closest(".mm-topbar-overflow-edit, .mm-topbar-pin-toggle")) return;
     setOpen(false);
-  }, [editing]);
+  }, [arranging]);
 
   const persist = useCallback((next: TopbarControlId[]) => {
     // Optimistic, and only this field is sent. The layout route treats an
@@ -261,25 +275,6 @@ export function TopbarOverflow({
       body: JSON.stringify({ topbarControls: next }),
     }).catch(() => { /* best-effort: a reload shows what the server still holds */ });
   }, []);
-
-  // Computed outside the updater on purpose. Saving and setting a second piece
-  // of state from inside a `setPinned` callback made both run twice under
-  // StrictMode's double-invoke, and the slot bump was lost — the second pin
-  // stored fine and never appeared.
-  const togglePin = useCallback((id: TopbarControlId) => {
-    const current = pinned;
-    const next = current.includes(id)
-      ? current.filter(entry => entry !== id)
-      : normaliseTopbarControls([...current, id]);
-    // At the cap, pinning another is refused rather than silently evicting the
-    // one already there — which one would it drop?
-    if (!current.includes(id) && !next.includes(id)) return;
-    setPinned(next);
-    // Offer the slot straight away so the tap feels immediate; the measurement
-    // above still gets the last word on a row that cannot carry it.
-    setSlots(count => Math.min(MAX_TOPBAR_CONTROLS, Math.max(count, next.length)));
-    persist(next);
-  }, [pinned, persist]);
 
   useEffect(() => {
     if (!open) return;
@@ -297,26 +292,127 @@ export function TopbarOverflow({
 
   const atCap = wanted.length >= MAX_TOPBAR_CONTROLS;
 
-  const pinToggle = (control: TopbarControl, isPinned: boolean) => (
-    <button
-      type="button"
-      onClick={event => { event.preventDefault(); event.stopPropagation(); togglePin(control.id); }}
-      aria-pressed={isPinned}
-      disabled={!isPinned && atCap}
-      className="mm-topbar-pin-toggle"
-      aria-label={
-        isPinned
-          ? `${control.label}: put back in the More menu`
-          : atCap
-            ? `${control.label}: the bar is full, take one off first`
-            : `${control.label}: keep on the bar`
+  // ── Arranging ───────────────────────────────────────────────────────────
+  //
+  // Ed, 2026-08-29: *"why don't we just have a pencil icon when pressed allows
+  // us to move things around instead"*, and then: the pencil *initiates* what
+  // the sidebar already does. So this imitates `SidebarReorder`'s model — enter
+  // a mode, drag things into the order you want, with a keyboard path and a
+  // live region — and deliberately not its mechanism.
+  //
+  // `SidebarReorder` uses HTML5 drag and drop, whose own note records that it
+  // is mouse-only. That is survivable for a sidebar somebody mostly arranges at
+  // a desk; it is fatal here, because arranging the phone bar IS the feature.
+  // `dragstart` never fires from a finger. So the drag below is built on
+  // pointer events, which are the same for a mouse, a finger and a pen.
+  //
+  // While arranging, BOTH zones live inside the sheet — promoted controls move
+  // into the "On the bar" strip rather than staying up in the real bar. Two
+  // reasons: a control is rendered exactly once, so it cannot be in both; and
+  // making the row grow and shrink under your finger while you drag into it
+  // fights the width measurement above. You arrange in the sheet, and it
+  // applies when you close it.
+
+  /** Put a control on the bar, or back in the menu, and say so. */
+  const moveControl = useCallback((id: TopbarControlId, toBar: boolean) => {
+    const control = controls.find(entry => entry.id === id);
+    const current = pinned;
+    if (toBar && current.includes(id)) return;
+    if (!toBar && !current.includes(id)) return;
+    const next = toBar ? normaliseTopbarControls([...current, id]) : current.filter(entry => entry !== id);
+    // At the cap, taking another is refused rather than silently evicting the
+    // one already there — which one would it drop?
+    if (toBar && !next.includes(id)) {
+      setAnnouncement(`The bar is full. Take one off before adding ${control?.label ?? id}.`);
+      return;
+    }
+    setPinned(next);
+    // Only outside arrange mode. There, a tap should show the control at once;
+    // in the sheet the capacity is deliberately frozen at what the CLOSED bar
+    // can carry, and bumping it here would make the "no room" note disappear
+    // exactly when it is true.
+    if (!arranging) setSlots(count => Math.min(MAX_TOPBAR_CONTROLS, Math.max(count, next.length)));
+    persist(next);
+    // Said out loud: the control moving between two zones is invisible to a
+    // screen reader, exactly as a sidebar row moving is.
+    setAnnouncement(
+      toBar
+        ? `${control?.label ?? id} moved to the bar, ${next.length} of ${MAX_TOPBAR_CONTROLS}.`
+        : `${control?.label ?? id} moved back to the More menu.`,
+    );
+  }, [arranging, controls, pinned, persist]);
+
+  /** Swap the two bar positions. With a cap of two, a drop onto the other is a swap. */
+  const swapOnBar = useCallback((id: TopbarControlId) => {
+    const current = pinned;
+    if (current.length < 2 || !current.includes(id)) return;
+    const next = [...current].reverse();
+    setPinned(next);
+    persist(next);
+    const control = controls.find(entry => entry.id === id);
+    setAnnouncement(`${control?.label ?? id}, position ${next.indexOf(id) + 1} of ${next.length} on the bar.`);
+  }, [controls, pinned, persist, setPinned]);
+
+  const endDrag = useCallback((event: React.PointerEvent) => {
+    const start = dragOrigin.current;
+    dragOrigin.current = null;
+    setDragging(null);
+    setGhost(null);
+    if (!start) return;
+    // A press that never moved is a TAP, and a tap moves the control to the
+    // other zone. That is the fast path, and it is what keyboard activation
+    // does too — so arranging is never drag-only.
+    if (!start.moved) {
+      moveControl(start.id, !pinned.includes(start.id));
+      return;
+    }
+    // The ghost is `pointer-events: none`, so this hit-tests what is underneath.
+    const under = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null;
+    const zone = under?.closest<HTMLElement>("[data-arrange-zone]")?.dataset.arrangeZone;
+    if (!zone) return;
+    const onto = under?.closest<HTMLElement>("[data-topbar-control]")?.dataset.topbarControl;
+    if (zone === "bar") {
+      if (pinned.includes(start.id)) {
+        if (onto && onto !== start.id) swapOnBar(start.id);
+      } else {
+        moveControl(start.id, true);
       }
-    >
-      <span className="mm-topbar-pin-chip">
-        {isPinned ? <PinOff size={9} aria-hidden="true" /> : <Pin size={9} aria-hidden="true" />}
-      </span>
-    </button>
-  );
+    } else if (zone === "menu") {
+      moveControl(start.id, false);
+    }
+  }, [moveControl, pinned, swapOnBar]);
+
+  const startDrag = useCallback((event: React.PointerEvent, id: TopbarControlId) => {
+    dragOrigin.current = { x: event.clientX, y: event.clientY, id, moved: false };
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  }, []);
+
+  const moveDrag = useCallback((event: React.PointerEvent) => {
+    const start = dragOrigin.current;
+    if (!start) return;
+    // A few pixels of slop, so a tap with a slightly unsteady finger is still a
+    // tap rather than a one-pixel drag that lands nowhere.
+    if (!start.moved && Math.hypot(event.clientX - start.x, event.clientY - start.y) < 6) return;
+    start.moved = true;
+    setDragging(start.id);
+    setGhost({ x: event.clientX, y: event.clientY });
+  }, []);
+
+  /**
+   * Alt+Arrow moves the focused control, the same shortcut and for the same
+   * reason as the sidebar: bare arrows are how somebody scrolls a menu and how
+   * assistive technology walks it, and stealing them would break reading the
+   * menu in order to allow rearranging it.
+   */
+  const onArrangeKeyDown = useCallback((event: React.KeyboardEvent) => {
+    if (!arranging || !event.altKey) return;
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+    const id = (event.target as HTMLElement | null)
+      ?.closest<HTMLElement>("[data-topbar-control]")?.dataset.topbarControl as TopbarControlId | undefined;
+    if (!id) return;
+    event.preventDefault();
+    moveControl(id, event.key === "ArrowUp");
+  }, [arranging, moveControl]);
 
   // The authored position, handed to CSS rather than applied here. `order` is
   // wanted only above the breakpoint, where it restores the desktop sequence;
@@ -326,12 +422,43 @@ export function TopbarOverflow({
   const orderStyle = (id: TopbarControlId) =>
     ({ "--mm-control-order": controls.findIndex(entry => entry.id === id) } as React.CSSProperties);
 
+  /**
+   * The drag handle, which covers its control.
+   *
+   * Covering it rather than sitting beside it is not a style choice: these are
+   * 44px touch targets with no room for a second one inside, and Playwright
+   * caught the first attempt — a corner chip — losing its taps to the Dev
+   * Console's own hammer underneath. Covering also means arranging can never
+   * fire the control it is arranging.
+   */
+  const grip = (control: TopbarControl, onBar: boolean) => (
+    <button
+      type="button"
+      className="mm-topbar-arrange-grip"
+      data-on-bar={onBar ? "yes" : "no"}
+      onPointerDown={event => startDrag(event, control.id)}
+      onPointerMove={moveDrag}
+      onPointerUp={endDrag}
+      onPointerCancel={() => { dragOrigin.current = null; setDragging(null); setGhost(null); }}
+      onClick={event => event.preventDefault()}
+      aria-label={
+        onBar
+          ? `${control.label}, on the bar. Drag to move, or press to put it back in the More menu.`
+          : atCap
+            ? `${control.label}, in the More menu. The bar is full — take one off first.`
+            : `${control.label}, in the More menu. Drag to move, or press to keep it on the bar.`
+      }
+    >
+      <GripVertical size={11} aria-hidden="true" />
+    </button>
+  );
+
   return (
     <>
       {/* Promoted controls sit before the drawer in the DOM. Above the
           breakpoint `order` puts every control back in its authored place, so
           a pin made on a phone cannot reorder the same person's desktop bar. */}
-      {promoted.map(control => (
+      {(arranging ? [] : promoted).map(control => (
         <span
           key={control.id}
           className="mm-topbar-control mm-topbar-control-promoted"
@@ -339,7 +466,6 @@ export function TopbarOverflow({
           style={orderStyle(control.id)}
         >
           {control.node}
-          {editing ? pinToggle(control, true) : null}
         </span>
       ))}
 
@@ -347,11 +473,11 @@ export function TopbarOverflow({
         ref={wrapRef}
         className="mm-topbar-overflow"
         data-open={open ? "yes" : "no"}
-        data-editing={editing ? "yes" : "no"}
+        data-arranging={arranging ? "yes" : "no"}
       >
         <button
           type="button"
-          onClick={() => { setOpen(value => !value); setEditing(false); }}
+          onClick={() => { setOpen(value => !value); setArranging(false); }}
           aria-expanded={open}
           aria-label={
             attention > 0
@@ -371,43 +497,97 @@ export function TopbarOverflow({
           ) : null}
         </button>
 
-        <div ref={itemsRef} className="mm-topbar-overflow-items" onClickCapture={onItemsClickCapture}>
-          {collapsed.map(control => (
-            <span
-              key={control.id}
-              className="mm-topbar-control"
-              data-topbar-control={control.id}
-              style={orderStyle(control.id)}
-            >
-              {control.node}
-              {editing ? pinToggle(control, false) : null}
-            </span>
-          ))}
+        <div
+          ref={itemsRef}
+          className="mm-topbar-overflow-items"
+          onClickCapture={onItemsClickCapture}
+          onKeyDown={onArrangeKeyDown}
+        >
+          {/* While arranging, the sheet shows both zones: what is on the bar,
+              and what is in the menu. Controls are dragged between them, and a
+              drop onto the other bar position swaps the two. */}
+          {arranging ? (
+            <div className="mm-topbar-arrange" data-arrange-zone="bar">
+              <p className="mm-topbar-arrange-label">On the bar</p>
+              {/* Everything CHOSEN, not everything that fits. A pin the row has
+                  no space for still belongs on the bar as far as the account is
+                  concerned — it comes back on a wider screen — so hiding it here
+                  would look like the tap had failed. It is marked instead. */}
+              <div className="mm-topbar-arrange-slots">
+                {wanted.map((id, index) => {
+                  const control = controls.find(entry => entry.id === id);
+                  if (!control) return null;
+                  return (
+                    <span
+                      key={control.id}
+                      className="mm-topbar-control"
+                      data-topbar-control={control.id}
+                      data-dragging={dragging === control.id ? "yes" : undefined}
+                      data-waiting={index >= slots ? "yes" : undefined}
+                    >
+                      {control.node}
+                      {grip(control, true)}
+                    </span>
+                  );
+                })}
+                {wanted.length < MAX_TOPBAR_CONTROLS ? (
+                  <span className="mm-topbar-arrange-empty" aria-hidden="true">
+                    {wanted.length ? "" : "Drag one here"}
+                  </span>
+                ) : null}
+              </div>
+              {wanted.length > slots ? (
+                <p className="mm-topbar-arrange-note">
+                  {wanted.length - slots === 1 ? "The faded one has" : `${wanted.length - slots} have`} no room at this
+                  width — kept for a wider screen.
+                </p>
+              ) : null}
+              <p className="mm-topbar-arrange-label">In the More menu</p>
+            </div>
+          ) : null}
+
+          <div
+            className={arranging ? "mm-topbar-arrange-menu" : "contents"}
+            data-arrange-zone={arranging ? "menu" : undefined}
+          >
+            {(arranging ? controls.filter(control => !wanted.includes(control.id)) : collapsed).map(control => (
+              <span
+                key={control.id}
+                className="mm-topbar-control"
+                data-topbar-control={control.id}
+                data-dragging={dragging === control.id ? "yes" : undefined}
+                style={arranging ? undefined : orderStyle(control.id)}
+              >
+                {control.node}
+                {arranging ? grip(control, false) : null}
+              </span>
+            ))}
+          </div>
           {/* The edit row, inside the panel so it is part of the same surface,
               and last in DOM order so it never takes the first tab stop from
               the controls people actually opened the menu for. */}
           <div className="mm-topbar-overflow-edit">
             <button
               type="button"
-              onClick={() => setEditing(value => !value)}
-              aria-pressed={editing}
+              onClick={() => setArranging(value => !value)}
+              aria-pressed={arranging}
               className="mm-topbar-overflow-edit-toggle"
+              aria-label={arranging ? "Finish arranging" : "Arrange which controls sit on the bar"}
             >
-              <Pin size={11} aria-hidden="true" />
-              {editing ? "Done" : "Keep on the bar"}
+              {arranging ? <><X size={11} aria-hidden="true" />Done</> : <Pencil size={12} aria-hidden="true" />}
             </button>
-            {/* Says what is actually happening. A pin the row has no space for
-                is still stored — it comes back on a wider screen — and a
-                counter reading "2/2" beside a bar showing one would look like
-                a bug rather than a decision. */}
             <span className="mm-topbar-overflow-edit-count">
-              {wanted.length}/{MAX_TOPBAR_CONTROLS} on the bar
-              {promoted.length < wanted.length
-                ? ` · no room for ${wanted.length - promoted.length} here`
-                : ""}
+              {arranging ? "Drag a control between the two, or press one to move it" : `${wanted.length}/${MAX_TOPBAR_CONTROLS} on the bar`}
             </span>
           </div>
         </div>
+
+        {/* The thing under the finger. `pointer-events: none` so the drop
+            hit-test reads what is beneath it rather than the ghost itself. */}
+        {ghost && dragging ? (
+          <span className="mm-topbar-arrange-ghost" style={{ left: ghost.x, top: ghost.y }} aria-hidden="true" />
+        ) : null}
+        <span role="status" aria-live="polite" className="sr-only">{announcement}</span>
       </div>
     </>
   );

@@ -2,7 +2,7 @@
 
 > The append-only change record, dated handoffs and superseded historical summaries.
 >
-> Consolidated 2026-08-29 from **18** source documents / **128,999 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-29 from **18** source documents / **129,283 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -23,7 +23,7 @@
 - [`docs/context/archive/website-editor-and-migration.md`](#source-docs-context-archive-website-editor-and-migration-md) — 1,159 words · `235e8af731b6`
 - [`docs/context/archive/WHERE-WE-ARE-2026-08-18.md`](#source-docs-context-archive-where-we-are-2026-08-18-md) — 2,192 words · `4056e9a347cb`
 - [`docs/context/archive/WHERE-WE-STAND-2026-08-20.md`](#source-docs-context-archive-where-we-stand-2026-08-20-md) — 2,482 words · `26bf4442580e`
-- [`docs/development/updates.md`](#source-docs-development-updates-md) — 98,843 words · `201e142bb4c7`
+- [`docs/development/updates.md`](#source-docs-development-updates-md) — 99,127 words · `1a6cedaafa2f`
 
 ---
 
@@ -3318,7 +3318,7 @@ Being straight with you about the edges.
 
 ## Source document — `docs/development/updates.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="201e142bb4c7196aa6828f76096f4216b89e377b60945f00ba7f40a1ae4af109" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="1a6cedaafa2fe59285400a6be1aa03b1375dc70b72d5b2a00a65b6fd39303a4d" -->
 # Updates log
 
 ← Back to [development.md](../development.md) (the law)
@@ -3399,8 +3399,37 @@ row cannot show is still stored**: the same account opens on a bigger screen.
 - The drawer's aggregated badge **stops counting a promoted control**: it is on
   the bar showing its own badge, and summing it twice overstates what is hidden.
   Browser-checked: promoting the Dev Console took the toggle from 20 to 1.
-- Pinning is an explicit **edit mode** in the drawer, not a long-press — the
-  privacy control already owns that gesture for entering the sandbox demo.
+
+### Arranging: a pencil, imitating the sidebar
+
+Asked whether a pin toggle was the right affordance, Ed: *"why don't we just
+have a pencil icon when pressed allows us to move things around instead"* — and
+then, on what the pencil relates to: it **initiates** what the sidebar already
+does. So arranging borrows `SidebarReorder`'s MODEL — enter a mode, drag things
+into the order you want, with a keyboard path and a live region — and
+deliberately **not its mechanism**.
+
+`SidebarReorder` uses HTML5 drag and drop, whose own note records that it is
+mouse-only. Survivable for a sidebar somebody mostly arranges at a desk; fatal
+here, because arranging the phone bar *is* the feature and `dragstart` never
+fires from a finger. So this drag is built on **pointer events**, which behave
+the same for a mouse, a finger and a pen.
+
+While arranging, **both zones live in the sheet** — "On the bar" and "In the
+More menu" — and the promoted controls move out of the real row into it. Two
+reasons: a control is rendered exactly once, so it cannot be in both; and a row
+that grows and shrinks under your finger fights the width measurement.
+
+Three fallbacks keep it from being drag-only: a **press** moves the control to
+the other zone, **Alt+Arrow** moves the focused one (Alt, not a bare arrow, for
+the same reason the sidebar gives), and every move is **announced** through a
+live region.
+
+The capacity is **frozen while arranging**. The row is empty at that moment, so
+measuring it would report room for everything and the sheet would offer a
+capacity the closed bar cannot keep. A choice beyond capacity is shown **faded
+with a note** rather than hidden — it is on the bar as far as the account is
+concerned, and removing it would read as the tap having failed.
 
 ### Three defects the browser found that review would not have
 

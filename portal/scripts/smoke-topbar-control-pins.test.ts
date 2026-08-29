@@ -162,18 +162,19 @@ test("a phone pin cannot resequence the desktop bar", () => {
   assert.doesNotMatch(mobile, /\.mm-topbar-control \{[^}]*order:/, "no order below the breakpoint");
 });
 
-test("edit mode cannot fire the control it is pinning", () => {
+test("arranging cannot fire the control it is moving", () => {
   // Found by Playwright, not by review: the Dev Console's own hammer was
-  // intercepting the pin's taps, so tapping to pin opened the console instead.
-  // The wrapper isolates each control's stacking context so the overlay only
-  // has to beat its own control, not whatever the next author picks.
+  // intercepting the handle's taps, so tapping to move opened the console
+  // instead. The wrapper isolates each control's stacking context so the
+  // handle only has to beat its own control, not whatever the next author picks.
   const css = stripComments(read("src/app/globals.css"));
   const control = css.split(".mm-topbar-control {")[1]?.split("}")[0] ?? "";
   assert.match(control, /isolation: isolate/, "each control needs its own stacking context");
-  const pin = css.split(".mm-topbar-pin-toggle {")[1]?.split("}")[0] ?? "";
-  assert.match(pin, /position: absolute/);
-  assert.match(pin, /inset: 0/, "the pin target must cover its control, not sit beside it");
-  assert.match(pin, /z-index: 90/, "…and paint above it");
+  const grip = css.split(".mm-topbar-arrange-grip {")[1]?.split("}")[0] ?? "";
+  assert.match(grip, /position: absolute/);
+  assert.match(grip, /inset: 0/, "the handle must cover its control, not sit beside it");
+  assert.match(grip, /z-index: 90/, "…and paint above it");
+  assert.match(grip, /touch-action: none/, "a drag must not scroll the page out from under itself");
 
   // The sheet also has to stay open while you use it: the row that arranges
   // the menu is part of the menu.
@@ -181,6 +182,41 @@ test("edit mode cannot fire the control it is pinning", () => {
   assert.match(
     overflow,
     /closest\("\.mm-topbar-overflow-edit, \.mm-topbar-pin-toggle"\)\) return;/,
-    "the edit row and pin targets must not be mistaken for a menu choice",
+    "the edit row and handles must not be mistaken for a menu choice",
   );
+});
+
+test("a pencil initiates arranging, and it works with a finger", () => {
+  // Ed asked for a pencil that "allows us to move things around", imitating the
+  // sidebar. This borrows SidebarReorder's MODEL and deliberately not its
+  // mechanism: that one uses HTML5 drag and drop, whose own note records it is
+  // mouse-only, and `dragstart` never fires from a finger. Arranging the phone
+  // bar with a mouse would be no feature at all.
+  const overflow = stripComments(read("src/components/chrome/TopbarOverflow.tsx"));
+  assert.match(overflow, /<Pencil size=/, "the pencil is what initiates it");
+  assert.match(overflow, /onPointerDown=\{event => startDrag\(event, control\.id\)\}/, "drag must be built on pointer events");
+  assert.doesNotMatch(overflow, /onDragStart|draggable=/, "HTML5 drag and drop never fires on touch");
+  assert.match(overflow, /setPointerCapture/, "the drag must follow the finger once it leaves the control");
+  assert.match(overflow, /pointer-events: none|elementFromPoint/, "the drop must hit-test what is under the finger");
+});
+
+test("dragging is an enhancement, never the only way", () => {
+  // A drag-only arrangement is unreachable from a keyboard and hard work with a
+  // tremor. Both fallbacks are the same ones the sidebar offers.
+  const overflow = stripComments(read("src/components/chrome/TopbarOverflow.tsx"));
+  assert.match(overflow, /if \(!start\.moved\) \{/, "a press that never moved must still move the control");
+  assert.match(overflow, /event\.key !== "ArrowUp" && event\.key !== "ArrowDown"/, "Alt+Arrow must move the focused control");
+  assert.match(overflow, /event\.altKey/, "…with Alt, so bare arrows still scroll and read the menu");
+  assert.match(overflow, /role="status" aria-live="polite"/, "a control moving between zones is invisible without an announcement");
+});
+
+test("the sheet does not offer room the closed bar will not keep", () => {
+  // While arranging, the promoted controls move into the sheet and the real row
+  // is empty — so measuring it would report room for everything. The capacity
+  // is frozen instead, and the over-capacity ones are shown faded with a note
+  // rather than hidden, because they ARE on the bar as far as the account goes.
+  const overflow = stripComments(read("src/components/chrome/TopbarOverflow.tsx"));
+  assert.match(overflow, /if \(arranging\) return;/, "the measurement must freeze while arranging");
+  assert.match(overflow, /if \(!arranging\) setSlots/, "…and the optimistic bump must not thaw it");
+  assert.match(overflow, /data-waiting=\{index >= slots \? "yes" : undefined\}/, "an over-capacity choice must be marked, not dropped");
 });

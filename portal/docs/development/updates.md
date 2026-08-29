@@ -78,8 +78,37 @@ row cannot show is still stored**: the same account opens on a bigger screen.
 - The drawer's aggregated badge **stops counting a promoted control**: it is on
   the bar showing its own badge, and summing it twice overstates what is hidden.
   Browser-checked: promoting the Dev Console took the toggle from 20 to 1.
-- Pinning is an explicit **edit mode** in the drawer, not a long-press — the
-  privacy control already owns that gesture for entering the sandbox demo.
+
+### Arranging: a pencil, imitating the sidebar
+
+Asked whether a pin toggle was the right affordance, Ed: *"why don't we just
+have a pencil icon when pressed allows us to move things around instead"* — and
+then, on what the pencil relates to: it **initiates** what the sidebar already
+does. So arranging borrows `SidebarReorder`'s MODEL — enter a mode, drag things
+into the order you want, with a keyboard path and a live region — and
+deliberately **not its mechanism**.
+
+`SidebarReorder` uses HTML5 drag and drop, whose own note records that it is
+mouse-only. Survivable for a sidebar somebody mostly arranges at a desk; fatal
+here, because arranging the phone bar *is* the feature and `dragstart` never
+fires from a finger. So this drag is built on **pointer events**, which behave
+the same for a mouse, a finger and a pen.
+
+While arranging, **both zones live in the sheet** — "On the bar" and "In the
+More menu" — and the promoted controls move out of the real row into it. Two
+reasons: a control is rendered exactly once, so it cannot be in both; and a row
+that grows and shrinks under your finger fights the width measurement.
+
+Three fallbacks keep it from being drag-only: a **press** moves the control to
+the other zone, **Alt+Arrow** moves the focused one (Alt, not a bare arrow, for
+the same reason the sidebar gives), and every move is **announced** through a
+live region.
+
+The capacity is **frozen while arranging**. The row is empty at that moment, so
+measuring it would report room for everything and the sheet would offer a
+capacity the closed bar cannot keep. A choice beyond capacity is shown **faded
+with a note** rather than hidden — it is on the bar as far as the account is
+concerned, and removing it would read as the tap having failed.
 
 ### Three defects the browser found that review would not have
 
