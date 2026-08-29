@@ -2,7 +2,7 @@
 
 ← Back to [the reference index](00-index.md) · [the map](../WORKSPACE-FILE-TREE.md) · [development.md](../development.md)
 
-Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2388 source files; 0 per-source stubs.**
+Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2400 source files; 0 per-source stubs.**
 
 ## Engines — `src/engines/` (83)
 
@@ -159,7 +159,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
 - [`src/server/zimanteTradingCompanies.ts`](server.md#file-src-server-zimantetradingcompanies-ts-ef9a41c5a6)
 
-## Shared logic — `src/lib/` (282)
+## Shared logic — `src/lib/` (284)
 
 - [`src/lib/a11y/contrastValidator.ts`](lib.md#file-src-lib-a11y-contrastvalidator-ts-7c6889cfca) — components. We default to 4.5 for the strictest check.
 - [`src/lib/a11y/isEmbedded.ts`](lib.md#file-src-lib-a11y-isembedded-ts-e91cac9938)
@@ -247,6 +247,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/performance/performanceAnalytics.ts`](lib.md#file-src-lib-performance-performanceanalytics-ts-27d7ba0bbe)
 - [`src/lib/performance/performanceReports.ts`](lib.md#file-src-lib-performance-performancereports-ts-dc7feb76be)
 - [`src/lib/performance/telemetryDisplay.ts`](lib.md#file-src-lib-performance-telemetrydisplay-ts-5be221a37e) — The dash every honest surface in this codebase uses for "no reading".
+- [`src/lib/plugins/unwiredSettings.ts`](lib.md#file-src-lib-plugins-unwiredsettings-ts-2bbb67e7f7) — been removed from here.
 - [`src/lib/portal/clientPortalBuilder.ts`](lib.md#file-src-lib-portal-clientportalbuilder-ts-efd225ebe5)
 - [`src/lib/portal/clientPortalDesign.ts`](lib.md#file-src-lib-portal-clientportaldesign-ts-99f227974c)
 - [`src/lib/portal/customerAccountActivity.ts`](lib.md#file-src-lib-portal-customeraccountactivity-ts-eae6fc884e)
@@ -399,6 +400,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/server/plugins/ensureLeadsPipelineInstall.ts`](lib.md#file-src-lib-server-plugins-ensureleadspipelineinstall-ts-bc1dba2897)
 - [`src/lib/server/plugins/pluginSecretConfig.ts`](lib.md#file-src-lib-server-plugins-pluginsecretconfig-ts-8cb887a277)
 - [`src/lib/server/plugins/pluginSettingsSurface.ts`](lib.md#file-src-lib-server-plugins-pluginsettingssurface-ts-f5a8104127)
+- [`src/lib/server/plugins/readOnlyPluginStorage.ts`](lib.md#file-src-lib-server-plugins-readonlypluginstorage-ts-2e4e793f30)
 - [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112)
 - [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) — pre-fix `peeked ?? …` rule) can be written out and shown to leak.
 - [`src/lib/server/portal/pluginClientElement.ts`](lib.md#file-src-lib-server-portal-pluginclientelement-ts-08e08be258)
@@ -444,7 +446,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/tasks/clientTaskBoard.ts`](lib.md#file-src-lib-tasks-clienttaskboard-ts-2a03b8e0ea)
 - [`src/lib/tasks/taskTemplates.ts`](lib.md#file-src-lib-tasks-tasktemplates-ts-6aee71d67c)
 
-## Shared components — `src/components/` (113)
+## Shared components — `src/components/` (114)
 
 - [`src/components/access/AccessBoundary.tsx`](components.md#file-src-components-access-accessboundary-tsx-5d487a86d6)
 - [`src/components/access/AccessControlPanel.tsx`](components.md#file-src-components-access-accesscontrolpanel-tsx-62b7a8e0aa)
@@ -499,6 +501,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/components/chrome/RadarQuickLookControl.tsx`](components.md#file-src-components-chrome-radarquicklookcontrol-tsx-08e3954c6c)
 - [`src/components/chrome/SafeSandboxEntry.tsx`](components.md#file-src-components-chrome-safesandboxentry-tsx-7e157df10d)
 - [`src/components/chrome/SandboxModeSwitcher.tsx`](components.md#file-src-components-chrome-sandboxmodeswitcher-tsx-1ba9f0802a)
+- [`src/components/chrome/SandboxTopBar.tsx`](components.md#file-src-components-chrome-sandboxtopbar-tsx-6fb0a8000c) — it. Exit survives at every width, down to 320px.
 - [`src/components/chrome/savedSpot.ts`](components.md#file-src-components-chrome-savedspot-ts-3267e497e1) — more ways to be wrong.
 - [`src/components/chrome/SavedSpotArrival.tsx`](components.md#file-src-components-chrome-savedspotarrival-tsx-38ab9d5a7f)
 - [`src/components/chrome/SavedTabIconPicker.tsx`](components.md#file-src-components-chrome-savedtabiconpicker-tsx-85198ea1e1)
@@ -1310,7 +1313,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/built-ins/runtime/foundation-adapters/publicFunnelFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-publicfunnelfoundation-ts-18280e9710)
 - [`src/built-ins/runtime/foundation-adapters/publicMediaAdapter.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-publicmediaadapter-ts-4b47d9ab84)
 
-## App routes & UI — `src/app/` (611)
+## App routes & UI — `src/app/` (612)
 
 - [`src/app/(seeds)/aquaOasisDemoContent.ts`](app.md#file-src-app-seeds-aquaoasisdemocontent-ts-f2e90ac84c) — agency record (so a prod tenant flip doesn't spawn fake data).
 - [`src/app/(website)/business-os/page.tsx`](app.md#file-src-app-website-business-os-page-tsx-0cbb0528df)
@@ -1473,6 +1476,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/api/portal/phases/delete/route.ts`](app.md#file-src-app-api-portal-phases-delete-route-ts-0e84cca9f6)
 - [`src/app/api/portal/phases/upsert/route.ts`](app.md#file-src-app-api-portal-phases-upsert-route-ts-3f26ab3d33)
 - [`src/app/api/portal/pipelines/move-client/route.ts`](app.md#file-src-app-api-portal-pipelines-move-client-route-ts-801eb8a7c1)
+- [`src/app/api/portal/plugins/health/route.ts`](app.md#file-src-app-api-portal-plugins-health-route-ts-e01f64510d)
 - [`src/app/api/portal/plugins/settings/route.ts`](app.md#file-src-app-api-portal-plugins-settings-route-ts-5efc5b2279)
 - [`src/app/api/portal/products/rollout/route.ts`](app.md#file-src-app-api-portal-products-rollout-route-ts-e011401b3b)
 - [`src/app/api/portal/products/route.ts`](app.md#file-src-app-api-portal-products-route-ts-a2529d7af1)
@@ -1924,7 +1928,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/showcase/exit/route.ts`](app.md#file-src-app-showcase-exit-route-ts-2297ba275f)
 - [`src/app/showcase/route.ts`](app.md#file-src-app-showcase-route-ts-4c24dd82df)
 
-## Scripts — `scripts/` (481)
+## Scripts — `scripts/` (489)
 
 - [`scripts/attention-protection.test.ts`](scripts.md#file-scripts-attention-protection-test-ts-d64d01714c)
 - [`scripts/audit-actions.ts`](scripts.md#file-scripts-audit-actions-ts-862ea31175) — What state Actions is actually in — measured, not remembered. For every alert the checks currently …
@@ -2139,6 +2143,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-element-insert.test.ts`](scripts.md#file-scripts-smoke-element-insert-test-ts-f323eac974) — returned `published: true` would pass while the real code lost an edit.
 - [`scripts/smoke-element-source.test.ts`](scripts.md#file-scripts-smoke-element-source-test-ts-2fc52c57b8)
 - [`scripts/smoke-email-sender-foundation.test.ts`](scripts.md#file-scripts-smoke-email-sender-foundation-test-ts-0e2479e62a) — plugin's `emails` queue and surface via `emails.list({})`).
+- [`scripts/smoke-email-subscriber-wiring.test.ts`](scripts.md#file-scripts-smoke-email-subscriber-wiring-test-ts-91e3313a98) — stops the notes going stale in either direction.
 - [`scripts/smoke-end-customer-portal.test.ts`](scripts.md#file-scripts-smoke-end-customer-portal-test-ts-03ca6023ff) — - Layout.tsx contains the embed cookie branch.
 - [`scripts/smoke-engines-editor.test.ts`](scripts.md#file-scripts-smoke-engines-editor-test-ts-a5389db247) — contract: it imports a moved module by its NEW path and asserts an expected export.
 - [`scripts/smoke-engines-sop-data.test.ts`](scripts.md#file-scripts-smoke-engines-sop-data-test-ts-b5f6256928)
@@ -2230,6 +2235,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-local-repository-preview-route.test.ts`](scripts.md#file-scripts-smoke-local-repository-preview-route-test-ts-1fda48c87f)
 - [`scripts/smoke-local-repository-preview-ui.test.ts`](scripts.md#file-scripts-smoke-local-repository-preview-ui-test-ts-959efc4c5f)
 - [`scripts/smoke-local-repository-preview.test.ts`](scripts.md#file-scripts-smoke-local-repository-preview-test-ts-d0e3b0997a)
+- [`scripts/smoke-manifest-fields-consumed.test.ts`](scripts.md#file-scripts-smoke-manifest-fields-consumed-test-ts-a94aa6c77f) — tells them so.
 - [`scripts/smoke-marketing-customer-profiles.test.ts`](scripts.md#file-scripts-smoke-marketing-customer-profiles-test-ts-4fb1c2808f)
 - [`scripts/smoke-marketing-funnel-builder.test.ts`](scripts.md#file-scripts-smoke-marketing-funnel-builder-test-ts-a4ff34125e)
 - [`scripts/smoke-marketing-intelligence.test.ts`](scripts.md#file-scripts-smoke-marketing-intelligence-test-ts-8ad1452c3b)
@@ -2282,6 +2288,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-plugin-api-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-api-host-gates-test-ts-a532a714e3) — ARM 4 Mutation checks. A guard nobody has watched fail is a guess.
 - [`scripts/smoke-plugin-api-tenancy.test.ts`](scripts.md#file-scripts-smoke-plugin-api-tenancy-test-ts-8bbf35181d) — ARM 7 Mutation checks — the guard watched failing.
 - [`scripts/smoke-plugin-client-element.test.ts`](scripts.md#file-scripts-smoke-plugin-client-element-test-ts-27f6a3b76a) — `requireCurrentClientWorkspaceElementAccess`.
+- [`scripts/smoke-plugin-health-route.test.ts`](scripts.md#file-scripts-smoke-plugin-health-route-test-ts-e71d45300f) — • a summary that disagrees with the rows it summarises.
 - [`scripts/smoke-plugin-page-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-page-host-gates-test-ts-a2690cdf7e) — ARM 4 Mutation checks. A guard nobody has watched fail is a guess.
 - [`scripts/smoke-plugin-settings-surface.test.ts`](scripts.md#file-scripts-smoke-plugin-settings-surface-test-ts-2205532d69) — record that page props hand to the browser, not in the activity log.
 - [`scripts/smoke-portal-connections.test.ts`](scripts.md#file-scripts-smoke-portal-connections-test-ts-1df1229e13)
@@ -2332,6 +2339,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-radar-inspection.test.ts`](scripts.md#file-scripts-smoke-radar-inspection-test-ts-aea00380e0)
 - [`scripts/smoke-radar-kpi-scorecard.test.ts`](scripts.md#file-scripts-smoke-radar-kpi-scorecard-test-ts-25aa3404d9)
 - [`scripts/smoke-radar-realm-cache.test.ts`](scripts.md#file-scripts-smoke-radar-realm-cache-test-ts-a4e0b3a767)
+- [`scripts/smoke-radar-retention.test.ts`](scripts.md#file-scripts-smoke-radar-retention-test-ts-8a4a0c1229) — normal", and it can only do that against history it still has.
 - [`scripts/smoke-radar-source-inspection.test.ts`](scripts.md#file-scripts-smoke-radar-source-inspection-test-ts-f2bb4001e9)
 - [`scripts/smoke-radar-summary-drilldowns.test.ts`](scripts.md#file-scripts-smoke-radar-summary-drilldowns-test-ts-85bf1f411e)
 - [`scripts/smoke-radar-sweep-isolation.test.ts`](scripts.md#file-scripts-smoke-radar-sweep-isolation-test-ts-b6c016409f)
@@ -2354,6 +2362,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-sandbox-access-governance.test.ts`](scripts.md#file-scripts-smoke-sandbox-access-governance-test-ts-b9a31169e4)
 - [`scripts/smoke-sandbox-environment.test.ts`](scripts.md#file-scripts-smoke-sandbox-environment-test-ts-99a8655e6d)
 - [`scripts/smoke-sandbox-protection.test.ts`](scripts.md#file-scripts-smoke-sandbox-protection-test-ts-56f89a60e9)
+- [`scripts/smoke-sandbox-topbar.test.ts`](scripts.md#file-scripts-smoke-sandbox-topbar-test-ts-6a2acff759) — bare `h-dvh` in a shell, not just on the eight known ones.
 - [`scripts/smoke-scouting-niche.test.ts`](scripts.md#file-scripts-smoke-scouting-niche-test-ts-b0571d11ad)
 - [`scripts/smoke-search-access.test.ts`](scripts.md#file-scripts-smoke-search-access-test-ts-7a50d2d5f3)
 - [`scripts/smoke-search-realm-cache.test.ts`](scripts.md#file-scripts-smoke-search-realm-cache-test-ts-af64249a9e)
@@ -2377,12 +2386,14 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-staff-provisioning-recovery.test.ts`](scripts.md#file-scripts-smoke-staff-provisioning-recovery-test-ts-ad32d66715)
 - [`scripts/smoke-stage-jump.test.ts`](scripts.md#file-scripts-smoke-stage-jump-test-ts-6a377866ae)
 - [`scripts/smoke-state-roundtrip.test.ts`](scripts.md#file-scripts-smoke-state-roundtrip-test-ts-2768997d46)
+- [`scripts/smoke-storage-sidecars.test.ts`](scripts.md#file-scripts-smoke-storage-sidecars-test-ts-42cb683e8c) — file".
 - [`scripts/smoke-subject-access-export.test.ts`](scripts.md#file-scripts-smoke-subject-access-export-test-ts-ae8fcc2ef2) — tenant's records in a response handed to a member of the public.
 - [`scripts/smoke-subject-requests.test.ts`](scripts.md#file-scripts-smoke-subject-requests-test-ts-d947d9008f) — fulfilment is refused until identity has been checked — a rule, not a prompt.
 - [`scripts/smoke-tag-form-capture.test.ts`](scripts.md#file-scripts-smoke-tag-form-capture-test-ts-a77cd0eb6b)
 - [`scripts/smoke-task-checklist.test.ts`](scripts.md#file-scripts-smoke-task-checklist-test-ts-92a59afc9b)
 - [`scripts/smoke-task-templates.test.ts`](scripts.md#file-scripts-smoke-task-templates-test-ts-bda0882f1d)
 - [`scripts/smoke-template-preview-sample.test.ts`](scripts.md#file-scripts-smoke-template-preview-sample-test-ts-26ba23fdd7) — ever written.
+- [`scripts/smoke-templates-sidecar.test.ts`](scripts.md#file-scripts-smoke-templates-sidecar-test-ts-bb4da10563) — the second thing to move rather than the client records.
 - [`scripts/smoke-today-view.test.ts`](scripts.md#file-scripts-smoke-today-view-test-ts-636087248b)
 - [`scripts/smoke-tools-directory.test.ts`](scripts.md#file-scripts-smoke-tools-directory-test-ts-65a70ca0c9) — (Freelancers). If any of those go missing, this fails.
 - [`scripts/smoke-topbar-agency-switcher.test.ts`](scripts.md#file-scripts-smoke-topbar-agency-switcher-test-ts-010a81e653) — CI commands keep working after retiring the agency/company switchers.
@@ -2394,6 +2405,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-unified-internal-workspace.test.ts`](scripts.md#file-scripts-smoke-unified-internal-workspace-test-ts-e63c18f9cb)
 - [`scripts/smoke-unified-master-inbox.test.ts`](scripts.md#file-scripts-smoke-unified-master-inbox-test-ts-f246a2f7b5)
 - [`scripts/smoke-universal-search.test.ts`](scripts.md#file-scripts-smoke-universal-search-test-ts-adce40e488)
+- [`scripts/smoke-unwired-settings.test.ts`](scripts.md#file-scripts-smoke-unwired-settings-test-ts-acfbdd281e) — known-wired field as wired, or it is measuring nothing.
 - [`scripts/smoke-utility-action-settling.test.ts`](scripts.md#file-scripts-smoke-utility-action-settling-test-ts-58a1503e21)
 - [`scripts/smoke-vendored-plugin-contract.test.ts`](scripts.md#file-scripts-smoke-vendored-plugin-contract-test-ts-919f5b9d2f) — happen to agree" and "they cannot disagree".
 - [`scripts/smoke-vercel-domain.test.ts`](scripts.md#file-scripts-smoke-vercel-domain-test-ts-dbeb5271ac) — npx tsx --test scripts/smoke-vercel-domain.test.ts

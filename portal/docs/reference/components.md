@@ -761,9 +761,23 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `SandboxModeSwitcher({ environment, role, }: { environment: SandboxSessionEnvironment; role: Role; })`
+- `SandboxModeSwitcher({ environment, role, variant = "pill", }: { environment: SandboxSessionEnvironment; role: Role; /** * `pill` is the original free-floating control. `bar` is the same control * inside `SandboxTopBar`,…`
 
 **Depends on (3):** [`src/lib/chrome/devModeLoadIn.ts`](lib.md#file-src-lib-chrome-devmodeloadin-ts-dcaae38ef2) · [`src/lib/client/sandboxModeRequest.ts`](lib.md#file-src-lib-client-sandboxmoderequest-ts-467a28c1db) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by (1):** [`src/components/chrome/SandboxTopBar.tsx`](#file-src-components-chrome-sandboxtopbar-tsx-6fb0a8000c)
+
+<a id="file-src-components-chrome-sandboxtopbar-tsx-6fb0a8000c"></a>
+
+### `src/components/chrome/SandboxTopBar.tsx`
+
+**What it is:** it. Exit survives at every width, down to 320px.
+
+**Exports (1):**
+
+- `SandboxTopBar({ environment, role, }: { environment: SandboxSessionEnvironment; role: Role; })`
+
+**Depends on (2):** [`src/components/chrome/SandboxModeSwitcher.tsx`](#file-src-components-chrome-sandboxmodeswitcher-tsx-1ba9f0802a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (1):** [`src/app/portal/layout.tsx`](app.md#file-src-app-portal-layout-tsx-5b7a2a284d)
 
@@ -1773,7 +1787,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface PluginSettingsGroupView (4 members)`
 - `interface PluginSettingsView (4 members)`
 
-**Depends on:** _No internal imports._
+**Depends on (1):** [`src/lib/plugins/unwiredSettings.ts`](lib.md#file-src-lib-plugins-unwiredsettings-ts-2bbb67e7f7)
 
 **Used by (1):** [`src/built-ins/modules/agency-finance/src/pages/SettingsPage.tsx`](built-ins.md#file-src-built-ins-modules-agency-finance-src-pages-settingspage-tsx-37294c59ec)
 

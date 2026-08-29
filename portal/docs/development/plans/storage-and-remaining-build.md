@@ -14,7 +14,7 @@ Grounded in measurements against the LIVE datastore, not the local file.
 | --- | --- | --- | --- |
 | `devTeamWorkspaceFiles` | 967 KB (29.0%) | **own row** | ✅ split, lossless, tested |
 | Radar (memory + evidence) | 974 KB (29.2%) | ~350 KB projected | ✅ retention fixed |
-| `clientPortalTemplates` | 615 KB (18.5%) | 615 KB | ⬜ next |
+| `clientPortalTemplates` | 615 KB (18.5%) | **own row** | ✅ split, lossless, tested |
 | `clients` + client records | 181 KB (5.4%) | 181 KB | ⬜ the real one |
 | everything else | ~500 KB | ~500 KB | fine |
 
@@ -67,20 +67,26 @@ It is the right destination, not an emergency.
 
 ## The order
 
-### 1. `clientPortalTemplates` → sidecar *(Move A)*
+### 1. ✅ `clientPortalTemplates` → sidecar *(Move A)* — DONE 2026-08-29
 
-615 KB, 18.5%, **no personal data**. Exactly the same shape as the one just
-done, so it is mostly a second use of a proven mechanism rather than new
-thinking.
+615 KB, 18.5%, no personal data.
 
-One difference to handle: `devTeamWorkspaceFiles` had a dedicated RPC that made
-the write path separate already. Templates are written through ordinary
-`mutate()`, so the sidecar needs its own save path rather than borrowing one.
+The difference from the first one turned out to matter: `devTeamWorkspaceFiles`
+had a dedicated row-locking RPC, so its write path was already separate.
+Templates are written through ordinary `mutate()`, so the FLUSH owns that row —
+and that is where **write order** became load-bearing. The main document write
+is what clears the collection out of it, so a sidecar written afterwards would
+lose everything on a network blip between the two. Sidecars are now written
+first, always.
 
-**Unblocks:** the main document drops to roughly **1.2 MB** — a third of where
-it started — which is what makes every remaining write cheap.
+Rather than add a second special case, the mechanism was generalised into
+`SIDECAR_COLLECTIONS` — a list with a `dedicatedWriter` flag, so a collection
+with its own RPC is not also written by the flush (which would race its lock).
+The third one will be a one-line addition.
 
-### 2. Plugin-health screen
+**Result:** the main document drops from 3.25 MB to roughly **1.2 MB**.
+
+### 2. Plugin-health screen — NEXT
 
 The route exists (`/api/portal/plugins/health`, built 2026-08-28) and ten
 modules answer it. Nothing displays it.

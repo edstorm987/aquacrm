@@ -23,7 +23,7 @@ earlier line said 4,827 tests and 286 pages, which is now history:*
 
 | | |
 | --- | --- |
-| Suite | **4,940 tests / 4,938 pass / 0 fail / 2 skip** (the 2 are optional live-Postgres) |
+| Suite | **4,981 tests / 4,979 pass / 0 fail / 2 skip** (the 2 are optional live-Postgres) |
 | Types | `tsc --noEmit` clean |
 | Production build | **287/287 pages, 0 errors** |
 | Breakpoints | 320×568 · 375×812 · 812×375 · 768×1024 · 1024×768 · 1280×800 · 1920×1080 — no page-level horizontal overflow at any size |

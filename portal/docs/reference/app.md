@@ -2858,6 +2858,23 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 
+## `src/app/api/portal/plugins/health/`
+
+<a id="file-src-app-api-portal-plugins-health-route-ts-e01f64510d"></a>
+
+### `src/app/api/portal/plugins/health/route.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `async GET(request: NextRequest)` — Health for every module installed in the caller's scope. `?clientId=` asks a client's installs; without it, the agency's own. A `?pluginId=` narrows to one module.
+
+**Depends on (9):** [`src/built-ins/runtime/_registry.ts`](built-ins.md#file-src-built-ins-runtime-registry-ts-504f0b067d) · [`src/built-ins/runtime/_runtime.ts`](built-ins.md#file-src-built-ins-runtime-runtime-ts-d2a0efb5ed) · [`src/built-ins/runtime/_types.ts`](built-ins.md#file-src-built-ins-runtime-types-ts-bae4cd6b2a) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/plugins/readOnlyPluginStorage.ts`](lib.md#file-src-lib-server-plugins-readonlypluginstorage-ts-2e4e793f30) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by (1):** [`scripts/smoke-plugin-health-route.test.ts`](scripts.md#file-scripts-smoke-plugin-health-route-test-ts-e71d45300f)
+
+
 ## `src/app/api/portal/plugins/settings/`
 
 <a id="file-src-app-api-portal-plugins-settings-route-ts-5efc5b2279"></a>
@@ -9983,7 +10000,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default PortalLayout({ children }: { children: ReactNode })`
 
-**Depends on (16):** [`src/components/chrome/ClientWorkspaceTransition.tsx`](components.md#file-src-components-chrome-clientworkspacetransition-tsx-c6dec0c3b1) · [`src/components/chrome/CommandCenterTransition.tsx`](components.md#file-src-components-chrome-commandcentertransition-tsx-7a5ebf9aef) · [`src/components/chrome/CompanySwitcher.tsx`](components.md#file-src-components-chrome-companyswitcher-tsx-606f77eb01) · [`src/components/chrome/DevModeLoadIn.tsx`](components.md#file-src-components-chrome-devmodeloadin-tsx-6f2d532159) · [`src/components/chrome/DevModeSwitcher.tsx`](components.md#file-src-components-chrome-devmodeswitcher-tsx-c267d44d77) · [`src/components/chrome/SandboxModeSwitcher.tsx`](components.md#file-src-components-chrome-sandboxmodeswitcher-tsx-1ba9f0802a) · [`src/components/chrome/SmartWorkSessionMonitor.tsx`](components.md#file-src-components-chrome-smartworksessionmonitor-tsx-4a1bafbb63) · [`src/components/ui/PortalLoadingCoordinator.tsx`](components.md#file-src-components-ui-portalloadingcoordinator-tsx-ab67a66ae6) · [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/companySwitcherState.ts`](lib.md#file-src-lib-server-auth-companyswitcherstate-ts-df33027a74) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/server/dashboardPlanning.ts`](server.md#file-src-server-dashboardplanning-ts-e7312f445b) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (16):** [`src/components/chrome/ClientWorkspaceTransition.tsx`](components.md#file-src-components-chrome-clientworkspacetransition-tsx-c6dec0c3b1) · [`src/components/chrome/CommandCenterTransition.tsx`](components.md#file-src-components-chrome-commandcentertransition-tsx-7a5ebf9aef) · [`src/components/chrome/CompanySwitcher.tsx`](components.md#file-src-components-chrome-companyswitcher-tsx-606f77eb01) · [`src/components/chrome/DevModeLoadIn.tsx`](components.md#file-src-components-chrome-devmodeloadin-tsx-6f2d532159) · [`src/components/chrome/DevModeSwitcher.tsx`](components.md#file-src-components-chrome-devmodeswitcher-tsx-c267d44d77) · [`src/components/chrome/SandboxTopBar.tsx`](components.md#file-src-components-chrome-sandboxtopbar-tsx-6fb0a8000c) · [`src/components/chrome/SmartWorkSessionMonitor.tsx`](components.md#file-src-components-chrome-smartworksessionmonitor-tsx-4a1bafbb63) · [`src/components/ui/PortalLoadingCoordinator.tsx`](components.md#file-src-components-ui-portalloadingcoordinator-tsx-ab67a66ae6) · [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/companySwitcherState.ts`](lib.md#file-src-lib-server-auth-companyswitcherstate-ts-df33027a74) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/server/dashboardPlanning.ts`](server.md#file-src-server-dashboardplanning-ts-e7312f445b) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 

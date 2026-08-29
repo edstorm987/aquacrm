@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-29T07:29:26.945Z",
+  "generatedAt": "2026-08-29T07:40:33.676Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -679,7 +679,7 @@
       "path": "docs/development/plans/launch-order-and-blockers.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-launch-order-and-blockers-md",
-      "sha256": "eb61ac5b4a86843b25d7f3cbdc19d03470bd7206c587dc1a9c8b8ec9d5bda77b",
+      "sha256": "e78a3cdc480d7232689811801b515669cee53e8d8982d7a6dcad47fe92f568d0",
       "words": 21117,
       "bytes": 133121
     },
@@ -799,9 +799,9 @@
       "path": "docs/development/plans/storage-and-remaining-build.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-storage-and-remaining-build-md",
-      "sha256": "492d3161884509b487040b70ff06746605d0483a5af74048869e1e14319a0369",
-      "words": 1007,
-      "bytes": 6379
+      "sha256": "381dedef44f230f140bd7b158f3e2f9cdd6aefc18e0d690f4c5db69a9f348a14",
+      "words": 1068,
+      "bytes": 6768
     },
     {
       "path": "docs/development/plans/supabase-cutover-and-policy-drafts.md",

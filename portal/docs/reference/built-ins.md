@@ -173,7 +173,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** unifies via a one-line re-export later.
 
-**Exports (22):**
+**Exports (21):**
 
 - `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment" | "growth"`
 - `type PluginStatus = "stable" | "beta" | "alpha"`
@@ -184,7 +184,6 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface PluginServices (11 members)` — Other slots are unknown.
 - `interface SetupStep (6 members)`
 - `interface SetupField (7 members)`
-- `interface NavGroup (3 members)`
 - `interface NavItem (11 members)`
 - `interface PluginPage (6 members)`
 - `interface PluginPageProps (8 members)`
@@ -196,7 +195,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface BlockDescriptor (5 members)`
 - `interface HealthStatus (3 members)`
 - `interface ErasureSubject (3 members)` — Who is being erased — supplied to `onEraseClient` so a hook does not have to re-derive it through its own tenant port. Added to this copy 2026-08-28. It was already in the canonic…
-- `interface AquaPlugin (28 members)`
+- `interface AquaPlugin (27 members)`
 
 **Depends on (2):** [`src/built-ins/modules/affiliates/src/lib/tenancy.ts`](#file-src-built-ins-modules-affiliates-src-lib-tenancy-ts-c6cd4f86ab) · [`src/built-ins/modules/affiliates/src/server/ports.ts`](#file-src-built-ins-modules-affiliates-src-server-ports-ts-725ff423ff)
 
@@ -984,7 +983,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** Vendored AquaPlugin contract.
 
-**Exports (21):**
+**Exports (20):**
 
 - `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment" | "growth"`
 - `type PluginStatus = "stable" | "beta" | "alpha"`
@@ -995,7 +994,6 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface PluginServices (10 members)` — canonical PluginServices shape).
 - `interface SetupStep (6 members)`
 - `interface SetupField (7 members)`
-- `interface NavGroup (3 members)`
 - `interface NavItem (11 members)`
 - `interface PluginPage (6 members)`
 - `interface PluginPageProps (8 members)`
@@ -1006,7 +1004,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface SettingsField (8 members)`
 - `interface PluginFeature (5 members)`
 - `interface HealthStatus (3 members)`
-- `interface AquaPlugin (26 members)`
+- `interface AquaPlugin (25 members)`
 
 **Depends on (2):** [`src/built-ins/modules/agency-finance/src/lib/tenancy.ts`](#file-src-built-ins-modules-agency-finance-src-lib-tenancy-ts-b0727e7982) · [`src/built-ins/modules/agency-finance/src/server/ports.ts`](#file-src-built-ins-modules-agency-finance-src-server-ports-ts-915a5d5a35)
 
@@ -2087,18 +2085,17 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** foundation package.
 
-**Exports (20):**
+**Exports (19):**
 
 - `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment" | "growth"` — ─── Plugin identity ───────────────────────────────────────────────────────
 - `type PluginStatus = "stable" | "beta" | "alpha"`
-- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28: the canonical `Role` in src/server/types.ts has alw…`
+- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28: the canonical `Role` in src/server/types.ts has alw…` — ─── Sidebar contributions ─────────────────────────────────────────────────
 - `type PluginScopePolicy = "agency" | "client" | "either"` — the canonical — and the majority was the divergent side.
 - `interface PluginCtx (6 members)` — ─── Runtime context handed to lifecycle hooks + handlers ─────────────────
 - `interface PluginStorage (4 members)`
 - `interface PluginServices (9 members)` — structurally identical to the canonical type.
 - `interface SetupStep (6 members)` — ─── Setup wizard ──────────────────────────────────────────────────────────
 - `interface SetupField (7 members)`
-- `interface NavGroup (3 members)` — ─── Sidebar contributions ─────────────────────────────────────────────────
 - `interface NavItem (11 members)`
 - `interface PluginPage (6 members)` — ─── Admin pages ───────────────────────────────────────────────────────────
 - `interface PluginPageProps (8 members)`
@@ -2108,7 +2105,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface SettingsField (7 members)`
 - `interface PluginFeature (5 members)` — ─── Feature toggles ───────────────────────────────────────────────────────
 - `interface HealthStatus (3 members)` — ─── Health check ──────────────────────────────────────────────────────────
-- `interface AquaPlugin (25 members)` — ─── The plugin manifest ───────────────────────────────────────────────────
+- `interface AquaPlugin (24 members)` — ─── The plugin manifest ───────────────────────────────────────────────────
 
 **Depends on (2):** [`src/built-ins/modules/agency-hr/src/lib/tenancy.ts`](#file-src-built-ins-modules-agency-hr-src-lib-tenancy-ts-4bf4103529) · [`src/built-ins/modules/agency-hr/src/server/ports.ts`](#file-src-built-ins-modules-agency-hr-src-server-ports-ts-dabe4f4a0a)
 
@@ -2630,7 +2627,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** Vendored AquaPlugin contract.
 
-**Exports (21):**
+**Exports (20):**
 
 - `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment" | "growth"`
 - `type PluginStatus = "stable" | "beta" | "alpha"`
@@ -2641,7 +2638,6 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface PluginServices (10 members)`
 - `interface SetupStep (6 members)`
 - `interface SetupField (7 members)`
-- `interface NavGroup (3 members)`
 - `interface NavItem (11 members)`
 - `interface PluginPage (6 members)`
 - `interface PluginPageProps (8 members)`
@@ -2652,7 +2648,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface PluginFeature (5 members)`
 - `interface HealthStatus (3 members)`
 - `interface ErasureSubject (3 members)` — Who is being erased. Mirrors `built-ins/runtime/_types.ts`.
-- `interface AquaPlugin (26 members)`
+- `interface AquaPlugin (25 members)`
 
 **Depends on (2):** [`src/built-ins/modules/agency-marketing/src/lib/tenancy.ts`](#file-src-built-ins-modules-agency-marketing-src-lib-tenancy-ts-c28ff933dc) · [`src/built-ins/modules/agency-marketing/src/server/ports.ts`](#file-src-built-ins-modules-agency-marketing-src-server-ports-ts-60112d22e3)
 
@@ -3191,7 +3187,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** Vendored AquaPlugin contract.
 
-**Exports (21):**
+**Exports (20):**
 
 - `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment" | "growth"`
 - `type PluginStatus = "stable" | "beta" | "alpha"`
@@ -3202,7 +3198,6 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface PluginServices (10 members)`
 - `interface SetupStep (6 members)`
 - `interface SetupField (7 members)`
-- `interface NavGroup (3 members)`
 - `interface NavItem (11 members)`
 - `interface PluginPage (4 members)`
 - `interface PluginPageProps (8 members)`
@@ -3213,7 +3208,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface PluginFeature (5 members)`
 - `interface BlockDescriptor (5 members)`
 - `interface HealthStatus (3 members)`
-- `interface AquaPlugin (26 members)`
+- `interface AquaPlugin (25 members)`
 
 **Depends on (2):** [`src/built-ins/modules/bos-auth-gate/src/lib/tenancy.ts`](#file-src-built-ins-modules-bos-auth-gate-src-lib-tenancy-ts-3d5de24bb6) · [`src/built-ins/modules/bos-auth-gate/src/server/ports.ts`](#file-src-built-ins-modules-bos-auth-gate-src-server-ports-ts-1432646f6b)
 
@@ -3487,7 +3482,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** Vendored AquaPlugin contract.
 
-**Exports (21):**
+**Exports (20):**
 
 - `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment" | "growth"`
 - `type PluginStatus = "stable" | "beta" | "alpha"`
@@ -3498,7 +3493,6 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface PluginServices (10 members)`
 - `interface SetupStep (6 members)`
 - `interface SetupField (7 members)`
-- `interface NavGroup (3 members)`
 - `interface NavItem (11 members)`
 - `interface PluginPage (7 members)`
 - `interface PluginPageProps (8 members)`
@@ -3509,7 +3503,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface PluginFeature (5 members)`
 - `interface BlockDescriptor (5 members)`
 - `interface HealthStatus (3 members)`
-- `interface AquaPlugin (26 members)`
+- `interface AquaPlugin (25 members)`
 
 **Depends on (2):** [`src/built-ins/modules/client-crm/src/lib/tenancy.ts`](#file-src-built-ins-modules-client-crm-src-lib-tenancy-ts-68feaab432) · [`src/built-ins/modules/client-crm/src/server/ports.ts`](#file-src-built-ins-modules-client-crm-src-server-ports-ts-650fd8da05)
 
@@ -4546,19 +4540,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** the foundation.
 
-**Exports (27):**
+**Exports (26):**
 
 - `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment" | "growth"` — ─── Plugin identity ──────────────────────────────────────────────────────
 - `type PluginStatus = "stable" | "beta" | "alpha"`
 - `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" | "lead"` — has always had. Same members as every other copy now.
 - `type PlanId = "free" | "starter" | "pro" | "enterprise"`
-- `type PanelId = | "main" | "fulfillment" | "store" | "content" | "marketing" | "settings" | "ops" | "tools"`
+- `type PanelId = | "main" | "fulfillment" | "store" | "content" | "marketing" | "settings" | "ops" | "tools"` — ─── Sidebar contributions ────────────────────────────────────────────────
 - `type PluginScopePolicy = "client" | "agency" | "either"` — ─── Install scope policy ─────────────────────────────────────────────────
 - `interface PluginCtx (4 members)` — its services in via a separate adapter (see `src/server/foundationAdapter.ts`).
 - `interface PluginStorage (5 members)`
 - `interface SetupStep (6 members)` — ─── Setup wizard ─────────────────────────────────────────────────────────
 - `interface SetupField (7 members)`
-- `interface NavGroup (3 members)` — ─── Sidebar contributions ────────────────────────────────────────────────
 - `interface NavItem (10 members)`
 - `interface PluginPage (5 members)` — ─── Admin pages ──────────────────────────────────────────────────────────
 - `interface PluginPageProps (5 members)`
@@ -4573,7 +4566,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface PluginFeature (6 members)` — ─── Feature toggles ──────────────────────────────────────────────────────
 - `interface HealthStatus (3 members)` — ─── Health check ─────────────────────────────────────────────────────────
 - `interface ErasureSubject (3 members)` — Who is being erased — supplied to `onEraseClient` so a hook does not have to re-derive it through its own tenant port. Added to this copy 2026-08-28. It was already in the canonic…
-- `interface AquaPlugin (29 members)`
+- `interface AquaPlugin (28 members)`
 - `{ PluginInstall } from "./tenancy"`
 
 **Depends on (1):** [`src/built-ins/modules/ecommerce/src/lib/tenancy.ts`](#file-src-built-ins-modules-ecommerce-src-lib-tenancy-ts-9db8e1633b)
@@ -5351,7 +5344,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** Vendored AquaPlugin contract.
 
-**Exports (21):**
+**Exports (20):**
 
 - `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment" | "growth"`
 - `type PluginStatus = "stable" | "beta" | "alpha"`
@@ -5362,7 +5355,6 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface PluginServices (9 members)`
 - `interface SetupStep (6 members)`
 - `interface SetupField (7 members)`
-- `interface NavGroup (3 members)`
 - `interface NavItem (11 members)`
 - `interface PluginPage (6 members)`
 - `interface PluginPageProps (8 members)`
@@ -5373,7 +5365,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface PluginFeature (5 members)`
 - `interface HealthStatus (3 members)`
 - `interface ErasureSubject (3 members)` — Who is being erased — resolved by the sweep from the client record, which is deleted moments later. Mirrors `built-ins/runtime/_types.ts`.
-- `interface AquaPlugin (26 members)`
+- `interface AquaPlugin (25 members)`
 
 **Depends on (2):** [`src/built-ins/modules/email-sender/src/lib/tenancy.ts`](#file-src-built-ins-modules-email-sender-src-lib-tenancy-ts-40262249aa) · [`src/built-ins/modules/email-sender/src/server/ports.ts`](#file-src-built-ins-modules-email-sender-src-server-ports-ts-d83f489d16)
 
@@ -5684,7 +5676,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `containerFor(args: ContainerForArgs): EmailSenderContainer`
 - `containerWithDeps(args: { agencyId: AgencyId; storage: PluginStorage; tenant: TenantPort; activity: ActivityLogPort; events: EventBusPort; pluginInstalls: PluginInstallStorePort; marketingTemplates?: MarketingTemplatePo…`
 - `_containerFromCtx(args: { agencyId: AgencyId; storage: PluginStorage; }): EmailSenderContainer | null`
-- `EVENT_SUBSCRIPTIONS = [` — subscriber is a one-line append here + one method on EmailService.
+- `EVENT_SUBSCRIPTIONS = [` — above cannot quietly go stale.
 - `interface EmailSenderFoundation (6 members)`
 - `interface ContainerForArgs (3 members)`
 
@@ -6052,17 +6044,16 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** to `PluginInstall` (agency + optional client scoped) per `04-architecture.md`.
 
-**Exports (19):**
+**Exports (18):**
 
 - `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment" | "growth"` — ─── Plugin identity ───────────────────────────────────────────────────────
 - `type PluginStatus = "stable" | "beta" | "alpha"`
-- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28: the canonical `Role` in src/server/types.ts has alw…`
+- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28: the canonical `Role` in src/server/types.ts has alw…` — ─── Sidebar contributions ─────────────────────────────────────────────────
 - `interface PluginCtx (6 members)` — ─── Runtime context handed to plugin lifecycle hooks + handlers ───────────
 - `interface PluginStorage (5 members)`
 - `interface PluginServices (8 members)` — (here: the fulfillment plugin uses every service).
 - `interface SetupStep (6 members)` — ─── Setup wizard ──────────────────────────────────────────────────────────
 - `interface SetupField (7 members)`
-- `interface NavGroup (3 members)` — ─── Sidebar contributions ─────────────────────────────────────────────────
 - `interface NavItem (11 members)`
 - `interface PluginPage (6 members)` — ─── Admin pages ───────────────────────────────────────────────────────────
 - `interface PluginPageProps (8 members)`
@@ -6072,7 +6063,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface SettingsField (7 members)`
 - `interface PluginFeature (5 members)` — ─── Feature toggles ───────────────────────────────────────────────────────
 - `interface HealthStatus (3 members)` — ─── Health check ──────────────────────────────────────────────────────────
-- `interface AquaPlugin (25 members)` — ─── The plugin manifest ───────────────────────────────────────────────────
+- `interface AquaPlugin (24 members)` — ─── The plugin manifest ───────────────────────────────────────────────────
 
 **Depends on (2):** [`src/built-ins/modules/fulfillment/src/lib/tenancy.ts`](#file-src-built-ins-modules-fulfillment-src-lib-tenancy-ts-000f2aa59a) · [`src/built-ins/modules/fulfillment/src/server/ports.ts`](#file-src-built-ins-modules-fulfillment-src-server-ports-ts-5ef187b7f7)
 
@@ -6564,7 +6555,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** Vendored copy of the Aqua plugin contract — same as agency-hr.
 
-**Exports (21):**
+**Exports (20):**
 
 - `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment" | "growth"`
 - `type PluginStatus = "stable" | "beta" | "alpha"`
@@ -6575,7 +6566,6 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface PluginServices (9 members)`
 - `interface SetupStep (6 members)`
 - `interface SetupField (7 members)`
-- `interface NavGroup (3 members)`
 - `interface NavItem (11 members)`
 - `interface PluginPage (6 members)`
 - `interface PluginPageProps (8 members)`
@@ -6586,7 +6576,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface PluginFeature (5 members)`
 - `interface HealthStatus (3 members)`
 - `interface ErasureSubject (3 members)` — Who is being erased — resolved by the sweep from the client record, which is deleted moments later. Mirrors `built-ins/runtime/_types.ts`.
-- `interface AquaPlugin (26 members)`
+- `interface AquaPlugin (25 members)`
 
 **Depends on (2):** [`src/built-ins/modules/leads-pipeline/src/lib/tenancy.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-tenancy-ts-7c7be8ab2d) · [`src/built-ins/modules/leads-pipeline/src/server/ports.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-ports-ts-3da7bed047)
 
@@ -7217,18 +7207,17 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** re-export later.
 
-**Exports (21):**
+**Exports (20):**
 
 - `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment" | "growth"` — ─── Plugin identity ───────────────────────────────────────────────────────
 - `type PluginStatus = "stable" | "beta" | "alpha"`
 - `type PluginScopePolicy = "agency" | "client" | "either"` — the canonical — and the majority was the divergent side.
-- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28: the canonical `Role` in src/server/types.ts has alw…`
+- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28: the canonical `Role` in src/server/types.ts has alw…` — ─── Sidebar contributions ─────────────────────────────────────────────────
 - `interface PluginCtx (6 members)` — ─── Runtime context handed to lifecycle hooks + handlers ─────────────────
 - `interface PluginStorage (5 members)`
 - `interface PluginServices (11 members)` — ecommerce's cross-package surface)
 - `interface SetupStep (6 members)` — ─── Setup wizard ──────────────────────────────────────────────────────────
 - `interface SetupField (7 members)`
-- `interface NavGroup (3 members)` — ─── Sidebar contributions ─────────────────────────────────────────────────
 - `interface NavItem (11 members)`
 - `interface PluginPage (6 members)` — ─── Admin pages ───────────────────────────────────────────────────────────
 - `interface PluginPageProps (8 members)`
@@ -7239,7 +7228,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface PluginFeature (5 members)` — ─── Feature toggles ───────────────────────────────────────────────────────
 - `interface BlockDescriptor (5 members)` — ─── Storefront block contributions (delegated render — T3) ───────────────
 - `interface HealthStatus (3 members)` — ─── Health check ──────────────────────────────────────────────────────────
-- `interface AquaPlugin (27 members)` — ─── The plugin manifest ───────────────────────────────────────────────────
+- `interface AquaPlugin (26 members)` — ─── The plugin manifest ───────────────────────────────────────────────────
 
 **Depends on (2):** [`src/built-ins/modules/memberships/src/lib/tenancy.ts`](#file-src-built-ins-modules-memberships-src-lib-tenancy-ts-cc5efd3e52) · [`src/built-ins/modules/memberships/src/server/ports.ts`](#file-src-built-ins-modules-memberships-src-server-ports-ts-25661d85b4)
 
@@ -7729,7 +7718,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** Vendored AquaPlugin contract.
 
-**Exports (22):**
+**Exports (21):**
 
 - `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment" | "growth"`
 - `type PluginStatus = "stable" | "beta" | "alpha"`
@@ -7740,7 +7729,6 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface PluginServices (10 members)`
 - `interface SetupStep (6 members)`
 - `interface SetupField (7 members)`
-- `interface NavGroup (3 members)`
 - `interface NavItem (11 members)`
 - `interface PluginPage (4 members)`
 - `interface PluginPageProps (8 members)`
@@ -7752,7 +7740,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface BlockDescriptor (5 members)`
 - `interface HealthStatus (3 members)`
 - `interface ErasureSubject (3 members)` — Who is being erased. Mirrors `built-ins/runtime/_types.ts`.
-- `interface AquaPlugin (27 members)`
+- `interface AquaPlugin (26 members)`
 
 **Depends on (2):** [`src/built-ins/modules/public-funnel/src/lib/tenancy.ts`](#file-src-built-ins-modules-public-funnel-src-lib-tenancy-ts-fede09310d) · [`src/built-ins/modules/public-funnel/src/server/ports.ts`](#file-src-built-ins-modules-public-funnel-src-server-ports-ts-0d7058fb16)
 
@@ -11047,12 +11035,12 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** merge.
 
-**Exports (27):**
+**Exports (26):**
 
 - `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment" | "growth"` — ─── Plugin identity ───────────────────────────────────────────────────────
 - `type PluginStatus = "stable" | "beta" | "alpha"`
 - `type PlanId = "free" | "starter" | "pro" | "enterprise"`
-- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28: the canonical `Role` in src/server/types.ts has alw…`
+- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28: the canonical `Role` in src/server/types.ts has alw…` — ─── Sidebar contributions ─────────────────────────────────────────────────
 - `type BlockCategory = ElementCategory` — is part of the shared element vocabulary now, not a plugin-local enum.
 - `interface PluginCtx (6 members)` — ─── Runtime context ───────────────────────────────────────────────────────
 - `interface PluginStorage (4 members)`
@@ -11062,7 +11050,6 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface PluginServices (9 members)`
 - `interface SetupStep (6 members)` — ─── Setup wizard ──────────────────────────────────────────────────────────
 - `interface SetupField (7 members)`
-- `interface NavGroup (3 members)` — ─── Sidebar contributions ─────────────────────────────────────────────────
 - `interface NavItem (11 members)`
 - `interface PluginPage (5 members)` — ─── Admin pages ───────────────────────────────────────────────────────────
 - `interface PluginPageProps (8 members)`
@@ -11075,7 +11062,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface BlockDescriptor (9 members)` — install order (later plugins override earlier ones — rare, by design).
 - `interface HeadInjection (4 members)` — Aligned to the canonical shape 2026-08-28. This copy had diverged twice over: `render` took a `{ clientId, agencyId }` context and could return a `ReactNode`, where the canonical …
 - `interface StorefrontContributions (2 members)`
-- `interface AquaPlugin (25 members)` — ─── The plugin manifest ───────────────────────────────────────────────────
+- `interface AquaPlugin (24 members)` — ─── The plugin manifest ───────────────────────────────────────────────────
 
 **Depends on (3):** [`src/built-ins/modules/website-editor/src/lib/tenancy.ts`](#file-src-built-ins-modules-website-editor-src-lib-tenancy-ts-9b7092e47a) · [`src/built-ins/modules/website-editor/src/server/ports.ts`](#file-src-built-ins-modules-website-editor-src-server-ports-ts-39d325888a) · [`src/engines/editor/elements/definition.ts`](engines.md#file-src-engines-editor-elements-definition-ts-c524490719)
 
@@ -13407,7 +13394,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (13):** [`src/built-ins/runtime/_types.ts`](#file-src-built-ins-runtime-types-ts-bae4cd6b2a) · [`src/built-ins/runtime/_validate.ts`](#file-src-built-ins-runtime-validate-ts-7537e6b17c) · [`src/built-ins/runtime/foundation-adapters/_eventSubscribers.ts`](#file-src-built-ins-runtime-foundation-adapters-eventsubscribers-ts-6334555da4) · [`src/built-ins/runtime/foundation-adapters/affiliatesFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-affiliatesfoundation-ts-bab72f48dc) · [`src/built-ins/runtime/foundation-adapters/agencyFinanceFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-agencyfinancefoundation-ts-8c3647e20e) · [`src/built-ins/runtime/foundation-adapters/agencyHrFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-agencyhrfoundation-ts-f82a67d656) · [`src/built-ins/runtime/foundation-adapters/agencyMarketingFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-agencymarketingfoundation-ts-5b00836f2d) · [`src/built-ins/runtime/foundation-adapters/clientCrmFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-clientcrmfoundation-ts-49db2e4fd5) · [`src/built-ins/runtime/foundation-adapters/ecommerceFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-ecommercefoundation-ts-96609f2fd3) · [`src/built-ins/runtime/foundation-adapters/emailSenderFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-emailsenderfoundation-ts-5aa21ab460) · [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-leadspipelinefoundation-ts-a0444ffabc) · [`src/built-ins/runtime/foundation-adapters/membershipsFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-membershipsfoundation-ts-f01e9eeeea) · [`src/built-ins/runtime/foundation-adapters/publicFunnelFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-publicfunnelfoundation-ts-18280e9710)
 
-**Used by (18):** [`scripts/smoke-app-route-tenancy.test.ts`](scripts.md#file-scripts-smoke-app-route-tenancy-test-ts-c2561f3f7d) · [`scripts/smoke-client-portal-placement.test.ts`](scripts.md#file-scripts-smoke-client-portal-placement-test-ts-1e85efb390) · [`scripts/smoke-client-sidebar-catalog.test.ts`](scripts.md#file-scripts-smoke-client-sidebar-catalog-test-ts-2fe38ae86b) · [`scripts/smoke-finance-section-gates.test.ts`](scripts.md#file-scripts-smoke-finance-section-gates-test-ts-bb835c5a2c) · [`scripts/smoke-plugin-api-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-api-host-gates-test-ts-a532a714e3) · [`scripts/smoke-plugin-api-tenancy.test.ts`](scripts.md#file-scripts-smoke-plugin-api-tenancy-test-ts-8bbf35181d) · [`scripts/smoke-plugin-page-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-page-host-gates-test-ts-a2690cdf7e) · [`scripts/smoke-plugin-settings-surface.test.ts`](scripts.md#file-scripts-smoke-plugin-settings-surface-test-ts-2205532d69) · [`src/app/portal/agency/[...rest]/page.tsx`](app.md#file-src-app-portal-agency-rest-page-tsx-27d1ad6afa) · [`src/app/portal/agency/marketing/page.tsx`](app.md#file-src-app-portal-agency-marketing-page-tsx-e2b361f4ba) · [`src/app/portal/clients/[clientId]/page.tsx`](app.md#file-src-app-portal-clients-clientid-page-tsx-f2587fcff8) · [`src/app/portal/customer/layout.tsx`](app.md#file-src-app-portal-customer-layout-tsx-51035d393e) · [`src/built-ins/runtime/_pathMapping.ts`](#file-src-built-ins-runtime-pathmapping-ts-4b40ea0169) · [`src/built-ins/runtime/_routeResolver.ts`](#file-src-built-ins-runtime-routeresolver-ts-bbf700f5cc) · [`src/built-ins/runtime/_runtime.ts`](#file-src-built-ins-runtime-runtime-ts-d2a0efb5ed) · [`src/built-ins/runtime/foundation-adapters/pluginRegistryAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-pluginregistryadapter-ts-8a92b62f94) · [`src/lib/server/plugins/pluginSecretConfig.ts`](lib.md#file-src-lib-server-plugins-pluginsecretconfig-ts-8cb887a277) · [`src/lib/server/plugins/pluginSettingsSurface.ts`](lib.md#file-src-lib-server-plugins-pluginsettingssurface-ts-f5a8104127)
+**Used by (20):** [`scripts/smoke-app-route-tenancy.test.ts`](scripts.md#file-scripts-smoke-app-route-tenancy-test-ts-c2561f3f7d) · [`scripts/smoke-client-portal-placement.test.ts`](scripts.md#file-scripts-smoke-client-portal-placement-test-ts-1e85efb390) · [`scripts/smoke-client-sidebar-catalog.test.ts`](scripts.md#file-scripts-smoke-client-sidebar-catalog-test-ts-2fe38ae86b) · [`scripts/smoke-finance-section-gates.test.ts`](scripts.md#file-scripts-smoke-finance-section-gates-test-ts-bb835c5a2c) · [`scripts/smoke-plugin-api-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-api-host-gates-test-ts-a532a714e3) · [`scripts/smoke-plugin-api-tenancy.test.ts`](scripts.md#file-scripts-smoke-plugin-api-tenancy-test-ts-8bbf35181d) · [`scripts/smoke-plugin-page-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-page-host-gates-test-ts-a2690cdf7e) · [`scripts/smoke-plugin-settings-surface.test.ts`](scripts.md#file-scripts-smoke-plugin-settings-surface-test-ts-2205532d69) · [`scripts/smoke-unwired-settings.test.ts`](scripts.md#file-scripts-smoke-unwired-settings-test-ts-acfbdd281e) · [`src/app/api/portal/plugins/health/route.ts`](app.md#file-src-app-api-portal-plugins-health-route-ts-e01f64510d) · [`src/app/portal/agency/[...rest]/page.tsx`](app.md#file-src-app-portal-agency-rest-page-tsx-27d1ad6afa) · [`src/app/portal/agency/marketing/page.tsx`](app.md#file-src-app-portal-agency-marketing-page-tsx-e2b361f4ba) · [`src/app/portal/clients/[clientId]/page.tsx`](app.md#file-src-app-portal-clients-clientid-page-tsx-f2587fcff8) · [`src/app/portal/customer/layout.tsx`](app.md#file-src-app-portal-customer-layout-tsx-51035d393e) · [`src/built-ins/runtime/_pathMapping.ts`](#file-src-built-ins-runtime-pathmapping-ts-4b40ea0169) · [`src/built-ins/runtime/_routeResolver.ts`](#file-src-built-ins-runtime-routeresolver-ts-bbf700f5cc) · [`src/built-ins/runtime/_runtime.ts`](#file-src-built-ins-runtime-runtime-ts-d2a0efb5ed) · [`src/built-ins/runtime/foundation-adapters/pluginRegistryAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-pluginregistryadapter-ts-8a92b62f94) · [`src/lib/server/plugins/pluginSecretConfig.ts`](lib.md#file-src-lib-server-plugins-pluginsecretconfig-ts-8cb887a277) · [`src/lib/server/plugins/pluginSettingsSurface.ts`](lib.md#file-src-lib-server-plugins-pluginsettingssurface-ts-f5a8104127)
 
 <a id="file-src-built-ins-runtime-routeresolver-ts-bbf700f5cc"></a>
 
@@ -13454,7 +13441,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (7):** [`src/built-ins/runtime/_registry.ts`](#file-src-built-ins-runtime-registry-ts-504f0b067d) · [`src/built-ins/runtime/_types.ts`](#file-src-built-ins-runtime-types-ts-bae4cd6b2a) · [`src/built-ins/runtime/foundation-adapters/index.ts`](#file-src-built-ins-runtime-foundation-adapters-index-ts-dcf532e6f2) · [`src/server/eventBus.ts`](server.md#file-src-server-eventbus-ts-0d11c56fb0) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (11):** [`src/app/portal/agency/[...rest]/page.tsx`](app.md#file-src-app-portal-agency-rest-page-tsx-27d1ad6afa) · [`src/app/portal/agency/marketing/page.tsx`](app.md#file-src-app-portal-agency-marketing-page-tsx-e2b361f4ba) · [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspaceServer.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspaceserver-tsx-90294b0e08) · [`src/app/portal/agency/pipelines/[slug]/page.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-page-tsx-6d47eb0c95) · [`src/built-ins/modules/leads-pipeline/src/pages/CampaignsPage.tsx`](#file-src-built-ins-modules-leads-pipeline-src-pages-campaignspage-tsx-706988f838) · [`src/built-ins/runtime/foundation-adapters/pluginRuntimeAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-pluginruntimeadapter-ts-ad61c52b09) · [`src/lib/server/auth/showcaseMode.ts`](lib.md#file-src-lib-server-auth-showcasemode-ts-20762473eb) · [`src/lib/server/embedAllowResolver.ts`](lib.md#file-src-lib-server-embedallowresolver-ts-c444b1bd8b) · [`src/lib/server/seeds/demoSeed.ts`](lib.md#file-src-lib-server-seeds-demoseed-ts-8b209d4159) · [`src/lib/server/seeds/founderSeed.ts`](lib.md#file-src-lib-server-seeds-founderseed-ts-a8d60a4bd5) · [`src/server/agencyBootstrap.ts`](server.md#file-src-server-agencybootstrap-ts-7ff459b170)
+**Used by (12):** [`src/app/api/portal/plugins/health/route.ts`](app.md#file-src-app-api-portal-plugins-health-route-ts-e01f64510d) · [`src/app/portal/agency/[...rest]/page.tsx`](app.md#file-src-app-portal-agency-rest-page-tsx-27d1ad6afa) · [`src/app/portal/agency/marketing/page.tsx`](app.md#file-src-app-portal-agency-marketing-page-tsx-e2b361f4ba) · [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspaceServer.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspaceserver-tsx-90294b0e08) · [`src/app/portal/agency/pipelines/[slug]/page.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-page-tsx-6d47eb0c95) · [`src/built-ins/modules/leads-pipeline/src/pages/CampaignsPage.tsx`](#file-src-built-ins-modules-leads-pipeline-src-pages-campaignspage-tsx-706988f838) · [`src/built-ins/runtime/foundation-adapters/pluginRuntimeAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-pluginruntimeadapter-ts-ad61c52b09) · [`src/lib/server/auth/showcaseMode.ts`](lib.md#file-src-lib-server-auth-showcasemode-ts-20762473eb) · [`src/lib/server/embedAllowResolver.ts`](lib.md#file-src-lib-server-embedallowresolver-ts-c444b1bd8b) · [`src/lib/server/seeds/demoSeed.ts`](lib.md#file-src-lib-server-seeds-demoseed-ts-8b209d4159) · [`src/lib/server/seeds/founderSeed.ts`](lib.md#file-src-lib-server-seeds-founderseed-ts-a8d60a4bd5) · [`src/server/agencyBootstrap.ts`](server.md#file-src-server-agencybootstrap-ts-7ff459b170)
 
 <a id="file-src-built-ins-runtime-types-ts-bae4cd6b2a"></a>
 
@@ -13462,7 +13449,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** 4. Done. Sidebar nav, API routes and pages mount from the manifest.
 
-**Exports (57):**
+**Exports (56):**
 
 - `assertPortalRole(v: unknown): PortalRole` — foundation routes that receive a portalRole from request bodies.
 - `isPortalRole(v: unknown): v is PortalRole`
@@ -13475,7 +13462,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type PlanId = "free" | "starter" | "pro" | "enterprise"`
 - `type EventName = | "agency.created" | "client.created" | "client.updated" | "client.archived" | "client.stage_changed" | "user.signed_up" | "user.signed_in" | "user.password_reset" | "plugin.installed" | "plugin.uninsta…`
 - `type PortalRole = | "login" | "affiliates" | "orders" | "account" | "customer" | "member" | "start-here" | "other"` — for tenant-specific custom variants). Existing roles preserved.
-- `type PanelId = | "main" | "fulfillment" | "store" | "content" | "marketing" | "settings" | "ops" | "tools" // End-customer surface (Felicia's shoppers / members / affiliates). // Plugins set `panelId: "customer"` on nav…`
+- `type PanelId = | "main" | "fulfillment" | "store" | "content" | "marketing" | "settings" | "ops" | "tools" // End-customer surface (Felicia's shoppers / members / affiliates). // Plugins set `panelId: "customer"` on nav…` — ─── Sidebar contributions ────────────────────────────────────────────────
 - `type PluginScopePolicy = "client" | "agency" | "either"` — ─── Install scope policy (optional, defaults to "either") ────────────────
 - `type PluginDataDisposition = "delete" | "retain"` — deliverable proof) — excluded from the sweep so it survives erasure.
 - `interface CreateClientInput (7 members)` — surface. Implementations live in `src/plugins/foundation-adapters/`.
@@ -13501,7 +13488,6 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface PluginStorage (6 members)`
 - `interface SetupStep (6 members)` — ─── Setup wizard ─────────────────────────────────────────────────────────
 - `interface SetupField (7 members)`
-- `interface NavGroup (3 members)` — ─── Sidebar contributions ────────────────────────────────────────────────
 - `interface NavItem (14 members)`
 - `interface PluginPage (7 members)` — ─── Admin pages ──────────────────────────────────────────────────────────
 - `interface PluginPageProps (8 members)`
@@ -13516,7 +13502,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface PluginFeature (6 members)` — ─── Feature toggles ──────────────────────────────────────────────────────
 - `interface HealthStatus (3 members)` — ─── Health check ─────────────────────────────────────────────────────────
 - `interface ErasureSubject (3 members)` — lead, an email to a lead who converted later) can only match on it.
-- `interface AquaPlugin (29 members)` — ─── The plugin manifest ──────────────────────────────────────────────────
+- `interface AquaPlugin (28 members)` — ─── The plugin manifest ──────────────────────────────────────────────────
 - `interface AquaPreset (7 members)` — ─── Presets ──────────────────────────────────────────────────────────────
 - `interface PresetPluginEntry (3 members)`
 - `{ PluginInstall, PluginInstallScope } from "@/server/types"`
@@ -13524,7 +13510,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (1):** [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (33):** [`scripts/smoke-client-sidebar-catalog.test.ts`](scripts.md#file-scripts-smoke-client-sidebar-catalog-test-ts-2fe38ae86b) · [`scripts/smoke-finance-section-gates.test.ts`](scripts.md#file-scripts-smoke-finance-section-gates-test-ts-bb835c5a2c) · [`scripts/smoke-plugin-api-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-api-host-gates-test-ts-a532a714e3) · [`scripts/smoke-plugin-api-tenancy.test.ts`](scripts.md#file-scripts-smoke-plugin-api-tenancy-test-ts-8bbf35181d) · [`scripts/smoke-plugin-page-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-page-host-gates-test-ts-a2690cdf7e) · [`scripts/smoke-portal-role-brandkit.test.ts`](scripts.md#file-scripts-smoke-portal-role-brandkit-test-ts-0d497171f7) · [`src/app/api/portal/[module]/[...rest]/route.ts`](app.md#file-src-app-api-portal-module-rest-route-ts-b2456019c9) · [`src/app/portal/agency/[...rest]/page.tsx`](app.md#file-src-app-portal-agency-rest-page-tsx-27d1ad6afa) · [`src/app/portal/clients/[clientId]/[...rest]/page.tsx`](app.md#file-src-app-portal-clients-clientid-rest-page-tsx-f215f5ac0f) · [`src/app/portal/customer/[...rest]/page.tsx`](app.md#file-src-app-portal-customer-rest-page-tsx-88df60b027) · [`src/built-ins/modules/website-editor/src/pages/EditorRoutePage.tsx`](#file-src-built-ins-modules-website-editor-src-pages-editorroutepage-tsx-d7e8b2f724) · [`src/built-ins/runtime/_pageScope.ts`](#file-src-built-ins-runtime-pagescope-ts-3cc574306e) · [`src/built-ins/runtime/_presets.ts`](#file-src-built-ins-runtime-presets-ts-91b4e14e96) · [`src/built-ins/runtime/_registry.ts`](#file-src-built-ins-runtime-registry-ts-504f0b067d) · [`src/built-ins/runtime/_routeResolver.ts`](#file-src-built-ins-runtime-routeresolver-ts-bbf700f5cc) · [`src/built-ins/runtime/_runtime.ts`](#file-src-built-ins-runtime-runtime-ts-d2a0efb5ed) · [`src/built-ins/runtime/_validate.ts`](#file-src-built-ins-runtime-validate-ts-7537e6b17c) · [`src/built-ins/runtime/foundation-adapters/activityLogAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-activitylogadapter-ts-83c88f8691) · [`src/built-ins/runtime/foundation-adapters/clientStoreAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-clientstoreadapter-ts-d9f633b076) · [`src/built-ins/runtime/foundation-adapters/eventBusAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-eventbusadapter-ts-7779dab897) · [`src/built-ins/runtime/foundation-adapters/index.ts`](#file-src-built-ins-runtime-foundation-adapters-index-ts-dcf532e6f2) · [`src/built-ins/runtime/foundation-adapters/phaseStoreAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-phasestoreadapter-ts-8ef086bb47) · [`src/built-ins/runtime/foundation-adapters/pluginInstallStoreAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-plugininstallstoreadapter-ts-2a7e1c6e0d) · [`src/built-ins/runtime/foundation-adapters/pluginRegistryAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-pluginregistryadapter-ts-8a92b62f94) · [`src/built-ins/runtime/foundation-adapters/pluginRuntimeAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-pluginruntimeadapter-ts-ad61c52b09) · [`src/built-ins/runtime/foundation-adapters/portalVariantAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-portalvariantadapter-ts-8738bd92b5) · [`src/built-ins/runtime/foundation-adapters/publicMediaAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-publicmediaadapter-ts-4b47d9ab84) · [`src/lib/chrome/agencySidebarPluginCatalog.ts`](lib.md#file-src-lib-chrome-agencysidebarplugincatalog-ts-73941e68df) · [`src/lib/chrome/clientSidebarPluginCatalog.ts`](lib.md#file-src-lib-chrome-clientsidebarplugincatalog-ts-a302bba740) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/server/plugins/pluginSecretConfig.ts`](lib.md#file-src-lib-server-plugins-pluginsecretconfig-ts-8cb887a277) · [`src/lib/server/plugins/pluginSettingsSurface.ts`](lib.md#file-src-lib-server-plugins-pluginsettingssurface-ts-f5a8104127)
+**Used by (36):** [`scripts/smoke-client-sidebar-catalog.test.ts`](scripts.md#file-scripts-smoke-client-sidebar-catalog-test-ts-2fe38ae86b) · [`scripts/smoke-finance-section-gates.test.ts`](scripts.md#file-scripts-smoke-finance-section-gates-test-ts-bb835c5a2c) · [`scripts/smoke-plugin-api-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-api-host-gates-test-ts-a532a714e3) · [`scripts/smoke-plugin-api-tenancy.test.ts`](scripts.md#file-scripts-smoke-plugin-api-tenancy-test-ts-8bbf35181d) · [`scripts/smoke-plugin-page-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-page-host-gates-test-ts-a2690cdf7e) · [`scripts/smoke-portal-role-brandkit.test.ts`](scripts.md#file-scripts-smoke-portal-role-brandkit-test-ts-0d497171f7) · [`scripts/smoke-unwired-settings.test.ts`](scripts.md#file-scripts-smoke-unwired-settings-test-ts-acfbdd281e) · [`src/app/api/portal/[module]/[...rest]/route.ts`](app.md#file-src-app-api-portal-module-rest-route-ts-b2456019c9) · [`src/app/api/portal/plugins/health/route.ts`](app.md#file-src-app-api-portal-plugins-health-route-ts-e01f64510d) · [`src/app/portal/agency/[...rest]/page.tsx`](app.md#file-src-app-portal-agency-rest-page-tsx-27d1ad6afa) · [`src/app/portal/clients/[clientId]/[...rest]/page.tsx`](app.md#file-src-app-portal-clients-clientid-rest-page-tsx-f215f5ac0f) · [`src/app/portal/customer/[...rest]/page.tsx`](app.md#file-src-app-portal-customer-rest-page-tsx-88df60b027) · [`src/built-ins/modules/website-editor/src/pages/EditorRoutePage.tsx`](#file-src-built-ins-modules-website-editor-src-pages-editorroutepage-tsx-d7e8b2f724) · [`src/built-ins/runtime/_pageScope.ts`](#file-src-built-ins-runtime-pagescope-ts-3cc574306e) · [`src/built-ins/runtime/_presets.ts`](#file-src-built-ins-runtime-presets-ts-91b4e14e96) · [`src/built-ins/runtime/_registry.ts`](#file-src-built-ins-runtime-registry-ts-504f0b067d) · [`src/built-ins/runtime/_routeResolver.ts`](#file-src-built-ins-runtime-routeresolver-ts-bbf700f5cc) · [`src/built-ins/runtime/_runtime.ts`](#file-src-built-ins-runtime-runtime-ts-d2a0efb5ed) · [`src/built-ins/runtime/_validate.ts`](#file-src-built-ins-runtime-validate-ts-7537e6b17c) · [`src/built-ins/runtime/foundation-adapters/activityLogAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-activitylogadapter-ts-83c88f8691) · [`src/built-ins/runtime/foundation-adapters/clientStoreAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-clientstoreadapter-ts-d9f633b076) · [`src/built-ins/runtime/foundation-adapters/eventBusAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-eventbusadapter-ts-7779dab897) · [`src/built-ins/runtime/foundation-adapters/index.ts`](#file-src-built-ins-runtime-foundation-adapters-index-ts-dcf532e6f2) · [`src/built-ins/runtime/foundation-adapters/phaseStoreAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-phasestoreadapter-ts-8ef086bb47) · [`src/built-ins/runtime/foundation-adapters/pluginInstallStoreAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-plugininstallstoreadapter-ts-2a7e1c6e0d) · [`src/built-ins/runtime/foundation-adapters/pluginRegistryAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-pluginregistryadapter-ts-8a92b62f94) · [`src/built-ins/runtime/foundation-adapters/pluginRuntimeAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-pluginruntimeadapter-ts-ad61c52b09) · [`src/built-ins/runtime/foundation-adapters/portalVariantAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-portalvariantadapter-ts-8738bd92b5) · [`src/built-ins/runtime/foundation-adapters/publicMediaAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-publicmediaadapter-ts-4b47d9ab84) · [`src/lib/chrome/agencySidebarPluginCatalog.ts`](lib.md#file-src-lib-chrome-agencysidebarplugincatalog-ts-73941e68df) · [`src/lib/chrome/clientSidebarPluginCatalog.ts`](lib.md#file-src-lib-chrome-clientsidebarplugincatalog-ts-a302bba740) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/server/plugins/pluginSecretConfig.ts`](lib.md#file-src-lib-server-plugins-pluginsecretconfig-ts-8cb887a277) · [`src/lib/server/plugins/pluginSettingsSurface.ts`](lib.md#file-src-lib-server-plugins-pluginsettingssurface-ts-f5a8104127) · [`src/lib/server/plugins/readOnlyPluginStorage.ts`](lib.md#file-src-lib-server-plugins-readonlypluginstorage-ts-2e4e793f30)
 
 <a id="file-src-built-ins-runtime-validate-ts-7537e6b17c"></a>
 

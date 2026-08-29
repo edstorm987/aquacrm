@@ -2,7 +2,7 @@
 
 > Every active, completed and archived phased implementation plan and handoff.
 >
-> Consolidated 2026-08-29 from **54** source documents / **112,909 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-29 from **54** source documents / **112,970 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -41,7 +41,7 @@
 - [`docs/development/plans/information-architecture-v2.md`](#source-docs-development-plans-information-architecture-v2-md) — 893 words · `d2d34f2ce729`
 - [`docs/development/plans/internal-chat-attention.md`](#source-docs-development-plans-internal-chat-attention-md) — 434 words · `9122b0c133ea`
 - [`docs/development/plans/kpi-intelligence-overhaul.md`](#source-docs-development-plans-kpi-intelligence-overhaul-md) — 1,995 words · `73829e039f86`
-- [`docs/development/plans/launch-order-and-blockers.md`](#source-docs-development-plans-launch-order-and-blockers-md) — 21,117 words · `eb61ac5b4a86`
+- [`docs/development/plans/launch-order-and-blockers.md`](#source-docs-development-plans-launch-order-and-blockers-md) — 21,117 words · `e78a3cdc480d`
 - [`docs/development/plans/marketing-workspace-overhaul.md`](#source-docs-development-plans-marketing-workspace-overhaul-md) — 1,849 words · `bd9978c633e9`
 - [`docs/development/plans/meta-inbox-connect.md`](#source-docs-development-plans-meta-inbox-connect-md) — 1,197 words · `d6cced05adb9`
 - [`docs/development/plans/mfa-login.md`](#source-docs-development-plans-mfa-login-md) — 1,513 words · `0fd93f642387`
@@ -56,7 +56,7 @@
 - [`docs/development/plans/security-hardening.md`](#source-docs-development-plans-security-hardening-md) — 1,001 words · `473530125c79`
 - [`docs/development/plans/sop-engine.md`](#source-docs-development-plans-sop-engine-md) — 607 words · `6db77e50137b`
 - [`docs/development/plans/staff-team-system.md`](#source-docs-development-plans-staff-team-system-md) — 2,305 words · `7931339ee018`
-- [`docs/development/plans/storage-and-remaining-build.md`](#source-docs-development-plans-storage-and-remaining-build-md) — 1,007 words · `492d31618845`
+- [`docs/development/plans/storage-and-remaining-build.md`](#source-docs-development-plans-storage-and-remaining-build-md) — 1,068 words · `381dedef44f2`
 - [`docs/development/plans/supabase-cutover-and-policy-drafts.md`](#source-docs-development-plans-supabase-cutover-and-policy-drafts-md) — 2,976 words · `31f7d543ae10`
 - [`docs/development/plans/you-deserve-it-upgrade.md`](#source-docs-development-plans-you-deserve-it-upgrade-md) — 1,191 words · `b6fb7d73e876`
 - [`public/health-check/DELIVERY-PLAN.md`](#source-public-health-check-delivery-plan-md) — 642 words · `623e142b3266`
@@ -6512,7 +6512,7 @@ plan in flight._
 
 ## Source document — `docs/development/plans/launch-order-and-blockers.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/launch-order-and-blockers.md" sha256="eb61ac5b4a86843b25d7f3cbdc19d03470bd7206c587dc1a9c8b8ec9d5bda77b" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/launch-order-and-blockers.md" sha256="e78a3cdc480d7232689811801b515669cee53e8d8982d7a6dcad47fe92f568d0" -->
 # Launch: the order, and what is stopping us
 
 **Written 2026-08-27** for Ed's ask: *"i need everything working complete
@@ -6538,7 +6538,7 @@ earlier line said 4,827 tests and 286 pages, which is now history:*
 
 | | |
 | --- | --- |
-| Suite | **4,940 tests / 4,938 pass / 0 fail / 2 skip** (the 2 are optional live-Postgres) |
+| Suite | **4,981 tests / 4,979 pass / 0 fail / 2 skip** (the 2 are optional live-Postgres) |
 | Types | `tsc --noEmit` clean |
 | Production build | **287/287 pages, 0 errors** |
 | Breakpoints | 320×568 · 375×812 · 812×375 · 768×1024 · 1024×768 · 1280×800 · 1920×1080 — no page-level horizontal overflow at any size |
@@ -11223,7 +11223,7 @@ plan in flight._
 
 ## Source document — `docs/development/plans/storage-and-remaining-build.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/storage-and-remaining-build.md" sha256="492d3161884509b487040b70ff06746605d0483a5af74048869e1e14319a0369" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/storage-and-remaining-build.md" sha256="381dedef44f230f140bd7b158f3e2f9cdd6aefc18e0d690f4c5db69a9f348a14" -->
 # What's left, and the order to build it
 
 **Written 2026-08-29.** Ed: *"continue get it done — write a plan docs first
@@ -11240,7 +11240,7 @@ Grounded in measurements against the LIVE datastore, not the local file.
 | --- | --- | --- | --- |
 | `devTeamWorkspaceFiles` | 967 KB (29.0%) | **own row** | ✅ split, lossless, tested |
 | Radar (memory + evidence) | 974 KB (29.2%) | ~350 KB projected | ✅ retention fixed |
-| `clientPortalTemplates` | 615 KB (18.5%) | 615 KB | ⬜ next |
+| `clientPortalTemplates` | 615 KB (18.5%) | **own row** | ✅ split, lossless, tested |
 | `clients` + client records | 181 KB (5.4%) | 181 KB | ⬜ the real one |
 | everything else | ~500 KB | ~500 KB | fine |
 
@@ -11293,20 +11293,26 @@ It is the right destination, not an emergency.
 
 ## The order
 
-### 1. `clientPortalTemplates` → sidecar *(Move A)*
+### 1. ✅ `clientPortalTemplates` → sidecar *(Move A)* — DONE 2026-08-29
 
-615 KB, 18.5%, **no personal data**. Exactly the same shape as the one just
-done, so it is mostly a second use of a proven mechanism rather than new
-thinking.
+615 KB, 18.5%, no personal data.
 
-One difference to handle: `devTeamWorkspaceFiles` had a dedicated RPC that made
-the write path separate already. Templates are written through ordinary
-`mutate()`, so the sidecar needs its own save path rather than borrowing one.
+The difference from the first one turned out to matter: `devTeamWorkspaceFiles`
+had a dedicated row-locking RPC, so its write path was already separate.
+Templates are written through ordinary `mutate()`, so the FLUSH owns that row —
+and that is where **write order** became load-bearing. The main document write
+is what clears the collection out of it, so a sidecar written afterwards would
+lose everything on a network blip between the two. Sidecars are now written
+first, always.
 
-**Unblocks:** the main document drops to roughly **1.2 MB** — a third of where
-it started — which is what makes every remaining write cheap.
+Rather than add a second special case, the mechanism was generalised into
+`SIDECAR_COLLECTIONS` — a list with a `dedicatedWriter` flag, so a collection
+with its own RPC is not also written by the flush (which would race its lock).
+The third one will be a one-line addition.
 
-### 2. Plugin-health screen
+**Result:** the main document drops from 3.25 MB to roughly **1.2 MB**.
+
+### 2. Plugin-health screen — NEXT
 
 The route exists (`/api/portal/plugins/health`, built 2026-08-28) and ten
 modules answer it. Nothing displays it.
