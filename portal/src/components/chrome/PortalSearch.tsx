@@ -214,8 +214,13 @@ export function PortalSearch({ items, recordsEnabled = false, initiallyOpen = fa
 
       {open ? (
         <>
-          <div className="fixed inset-0 z-40 bg-black/15 backdrop-blur-[1px]" aria-hidden="true" onMouseDown={closeSearch} />
+          {/* `data-chrome-surface` on both halves: on a phone this control
+              lives inside the topbar overflow, and the attribute is what tells
+              that panel to close underneath the surface it just opened while
+              keeping the surface itself painted. See TopbarOverflow. */}
+          <div data-chrome-surface className="fixed inset-0 z-40 bg-black/15 backdrop-blur-[1px]" aria-hidden="true" onMouseDown={closeSearch} />
           <section
+            data-chrome-surface
             id="aqua-workspace-search"
             aria-label="Workspace search"
             className="fixed inset-x-3 top-[4.5rem] z-50 flex max-h-[calc(100dvh-5.25rem)] flex-col overflow-hidden rounded-md border border-black/12 bg-white shadow-[0_24px_70px_rgba(0,0,0,0.24)] sm:left-1/2 sm:right-auto sm:top-20 sm:w-[min(48rem,calc(100vw-2rem))] sm:-translate-x-1/2"

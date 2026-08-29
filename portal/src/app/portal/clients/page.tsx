@@ -14,6 +14,7 @@ import { effectiveRole, hasAllPermissions } from "@/lib/server/auth/effectiveRol
 import { ThemeInjector } from "@/components/chrome/ThemeInjector";
 import { Sidebar } from "@/components/chrome/Sidebar";
 import { Topbar } from "@/components/chrome/Topbar";
+import { PortalRouteCanvas } from "@/components/chrome/PortalRouteCanvas";
 import { NotificationCentreButton } from "@/components/chrome/NotificationCentreButton";
 import { AdvisorDrawerControl } from "@/components/chrome/AdvisorDrawerControl";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
@@ -437,75 +438,87 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
             ) : null}
           />
           <main id="main-content" className="mm-private-surface min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
+            {/* Every other workspace renders through PortalRouteCanvas; this
+                page built its own shell and did not, so it was the one portal
+                surface outside `.mm-route-canvas` and therefore outside the
+                whole responsive foundation in globals.css — min-width:0 on
+                flex/grid children, image and control max-widths, the tab-strip
+                scroll rules, and the edge fade added on 2026-08-29. Measured at
+                390x844: its Clients/Leads/Journey/Contacts row hid 277px with
+                nothing on screen saying so. The <main> around it already
+                carries the same classes as the agency layout's, so the canvas
+                lands exactly as it does there. */}
             <ErrorBoundary label="clients index">
-              <PeopleHub
-                canManage={!session.publicShowcase}
-                clientCustomFields={getPortalFormFields(session.agencyId, "clients")}
-                initialView={initialView}
-                identityReviews={identityReviews}
-                clientDefaults={workspaceSettings}
-                brands={serviceBrands.map(company => ({
-                  id: company.id,
-                  name: company.name,
-                  primaryColor: company.brand.primaryColor,
-                }))}
-                products={products.map(product => ({
-                  id: product.id, kind: product.kind, name: product.name, category: product.category,
-                  description: product.description ?? "", deliverables: product.deliverables,
-                  buyerHeadline: product.buyerHeadline, coverImageUrl: product.coverImageUrl,
-                  accentColor: product.accentColor, portalRequirement: product.portalRequirement,
-                  portalHeadline: product.portalHeadline, portalWelcomeNote: product.portalWelcomeNote,
-                  includedProductIds: product.includedProductIds, welcomePackItems: product.welcomePackItems,
-                  welcomePackNotes: product.welcomePackNotes, pricing: product.pricing,
-                  priceCents: product.priceCents, billingInterval: product.billingInterval,
-                  depositPercent: product.depositPercent, taxRatePercent: product.taxRatePercent,
-                  paymentTermsDays: product.paymentTermsDays, billingNotes: product.billingNotes,
-                  internalInfo: product.internalInfo, contractTitle: product.contractTitle,
-                  contractBody: product.contractBody, sopIds: product.sopIds,
-                  sopCategories: product.sopCategories, companyIds: product.companyIds,
-                }))}
-                journeyWorkspace={session.publicShowcase ? null : <JourneyCommercialWorkspace
-                  pipeline={<LeadsPipelineWorkspaceServer agencyId={agency.id} userId={session.userId} />}
-                  meetingPeople={journeyMeetingPeople}
-                  referenceNow={Date.now()}
-                  clients={journeyClients}
-                  contractTemplates={contractTemplates}
-                  canViewFinance={canViewFinance}
-                />}
-                clients={clients.map(client => {
-	                  const metadata = client.metadata as JourneyClientMetadata | undefined;
-                  const services = resolvePortalProductAssignment(metadata ?? {}, products).products;
-                  const healthNotes = [
-                    !client.ownerEmail ? "Account email missing" : null,
-                    !metadata?.leadSource ? "Acquisition source missing" : null,
-                    metadata?.lastContactedAt && Date.now() - metadata.lastContactedAt > 1000 * 60 * 60 * 24 * 14 ? "No contact in 14+ days" : null,
-                  ].filter((note): note is string => Boolean(note));
-                  return {
-                  id: client.id,
-                  name: client.name,
-                  ownerEmail: client.ownerEmail,
-                  websiteUrl: client.websiteUrl,
-                  stageLabel: phaseLabel(client.stage),
-                  status: client.status,
-	                  primaryColor: client.brand.primaryColor,
-	                  source: metadata?.leadSource ?? "Unknown",
-	                  leadId: metadata?.leadId,
-	                  contactId: metadata?.contactId,
-	                  promotedFromLeadId: metadata?.promotedFromLeadId,
-	                  niche: metadata?.niche ?? (typeof metadata?.customFields?.niche === "string" ? metadata.customFields.niche : undefined),
-                  lastContactedAt: metadata?.lastContactedAt,
-                  health: healthNotes.length ? "attention" as const : "healthy" as const,
-                  healthNotes,
-                  brandId: client.companyId,
-                  brandName: client.companyId ? brandById.get(client.companyId) ?? "Unknown brand" : undefined,
-                  relationshipId: clientRelationshipId(client),
-                  relationshipWorkspaceCount: relationshipWorkspaceCounts.get(clientRelationshipId(client)) ?? 1,
-                  workspaceLabel: client.workspaceLabel,
-                  serviceIds: services.map(service => service.id),
-                  serviceNames: services.map(service => service.name),
-                };})}
-                contacts={contacts}
-              />
+              <PortalRouteCanvas>
+                <PeopleHub
+                  canManage={!session.publicShowcase}
+                  clientCustomFields={getPortalFormFields(session.agencyId, "clients")}
+                  initialView={initialView}
+                  identityReviews={identityReviews}
+                  clientDefaults={workspaceSettings}
+                  brands={serviceBrands.map(company => ({
+                    id: company.id,
+                    name: company.name,
+                    primaryColor: company.brand.primaryColor,
+                  }))}
+                  products={products.map(product => ({
+                    id: product.id, kind: product.kind, name: product.name, category: product.category,
+                    description: product.description ?? "", deliverables: product.deliverables,
+                    buyerHeadline: product.buyerHeadline, coverImageUrl: product.coverImageUrl,
+                    accentColor: product.accentColor, portalRequirement: product.portalRequirement,
+                    portalHeadline: product.portalHeadline, portalWelcomeNote: product.portalWelcomeNote,
+                    includedProductIds: product.includedProductIds, welcomePackItems: product.welcomePackItems,
+                    welcomePackNotes: product.welcomePackNotes, pricing: product.pricing,
+                    priceCents: product.priceCents, billingInterval: product.billingInterval,
+                    depositPercent: product.depositPercent, taxRatePercent: product.taxRatePercent,
+                    paymentTermsDays: product.paymentTermsDays, billingNotes: product.billingNotes,
+                    internalInfo: product.internalInfo, contractTitle: product.contractTitle,
+                    contractBody: product.contractBody, sopIds: product.sopIds,
+                    sopCategories: product.sopCategories, companyIds: product.companyIds,
+                  }))}
+                  journeyWorkspace={session.publicShowcase ? null : <JourneyCommercialWorkspace
+                    pipeline={<LeadsPipelineWorkspaceServer agencyId={agency.id} userId={session.userId} />}
+                    meetingPeople={journeyMeetingPeople}
+                    referenceNow={Date.now()}
+                    clients={journeyClients}
+                    contractTemplates={contractTemplates}
+                    canViewFinance={canViewFinance}
+                  />}
+                  clients={clients.map(client => {
+                    const metadata = client.metadata as JourneyClientMetadata | undefined;
+                    const services = resolvePortalProductAssignment(metadata ?? {}, products).products;
+                    const healthNotes = [
+                      !client.ownerEmail ? "Account email missing" : null,
+                      !metadata?.leadSource ? "Acquisition source missing" : null,
+                      metadata?.lastContactedAt && Date.now() - metadata.lastContactedAt > 1000 * 60 * 60 * 24 * 14 ? "No contact in 14+ days" : null,
+                    ].filter((note): note is string => Boolean(note));
+                    return {
+                    id: client.id,
+                    name: client.name,
+                    ownerEmail: client.ownerEmail,
+                    websiteUrl: client.websiteUrl,
+                    stageLabel: phaseLabel(client.stage),
+                    status: client.status,
+                    primaryColor: client.brand.primaryColor,
+                    source: metadata?.leadSource ?? "Unknown",
+                    leadId: metadata?.leadId,
+                    contactId: metadata?.contactId,
+                    promotedFromLeadId: metadata?.promotedFromLeadId,
+                    niche: metadata?.niche ?? (typeof metadata?.customFields?.niche === "string" ? metadata.customFields.niche : undefined),
+                    lastContactedAt: metadata?.lastContactedAt,
+                    health: healthNotes.length ? "attention" as const : "healthy" as const,
+                    healthNotes,
+                    brandId: client.companyId,
+                    brandName: client.companyId ? brandById.get(client.companyId) ?? "Unknown brand" : undefined,
+                    relationshipId: clientRelationshipId(client),
+                    relationshipWorkspaceCount: relationshipWorkspaceCounts.get(clientRelationshipId(client)) ?? 1,
+                    workspaceLabel: client.workspaceLabel,
+                    serviceIds: services.map(service => service.id),
+                    serviceNames: services.map(service => service.name),
+                  };})}
+                  contacts={contacts}
+                />
+              </PortalRouteCanvas>
             </ErrorBoundary>
           </main>
         </div>

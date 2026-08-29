@@ -2,7 +2,7 @@
 
 ← Back to [the reference index](00-index.md) · [the map](../WORKSPACE-FILE-TREE.md) · [development.md](../development.md)
 
-Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2400 source files; 0 per-source stubs.**
+Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2401 source files; 0 per-source stubs.**
 
 ## Engines — `src/engines/` (83)
 
@@ -1928,7 +1928,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/showcase/exit/route.ts`](app.md#file-src-app-showcase-exit-route-ts-2297ba275f)
 - [`src/app/showcase/route.ts`](app.md#file-src-app-showcase-route-ts-4c24dd82df)
 
-## Scripts — `scripts/` (489)
+## Scripts — `scripts/` (490)
 
 - [`scripts/attention-protection.test.ts`](scripts.md#file-scripts-attention-protection-test-ts-d64d01714c)
 - [`scripts/audit-actions.ts`](scripts.md#file-scripts-audit-actions-ts-862ea31175) — What state Actions is actually in — measured, not remembered. For every alert the checks currently …
@@ -2253,6 +2253,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-meta-webhook-leases.test.ts`](scripts.md#file-scripts-smoke-meta-webhook-leases-test-ts-f2d8a778f6)
 - [`scripts/smoke-mfa-doors.test.ts`](scripts.md#file-scripts-smoke-mfa-doors-test-ts-fd58cf015f) — shape in a source file — it is that no cookie comes back.
 - [`scripts/smoke-mfa.test.ts`](scripts.md#file-scripts-smoke-mfa-test-ts-246b24e7ad)
+- [`scripts/smoke-mobile-scroll-affordance.test.ts`](scripts.md#file-scripts-smoke-mobile-scroll-affordance-test-ts-fca0591b80) — looks right in review.
 - [`scripts/smoke-multi-agency-users.test.ts`](scripts.md#file-scripts-smoke-multi-agency-users-test-ts-d8134be8b7) — agencyIds + activeAgencyId, auth.ts exports the new helpers.
 - [`scripts/smoke-nav-audit.test.ts`](scripts.md#file-scripts-smoke-nav-audit-test-ts-d32b505d03) — fulfilment client-list UI leaking back into the sidebar.
 - [`scripts/smoke-navigation-theme.test.ts`](scripts.md#file-scripts-smoke-navigation-theme-test-ts-875620894c)
@@ -2397,7 +2398,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-today-view.test.ts`](scripts.md#file-scripts-smoke-today-view-test-ts-636087248b)
 - [`scripts/smoke-tools-directory.test.ts`](scripts.md#file-scripts-smoke-tools-directory-test-ts-65a70ca0c9) — (Freelancers). If any of those go missing, this fails.
 - [`scripts/smoke-topbar-agency-switcher.test.ts`](scripts.md#file-scripts-smoke-topbar-agency-switcher-test-ts-010a81e653) — CI commands keep working after retiring the agency/company switchers.
-- [`scripts/smoke-topbar-overflow.test.ts`](scripts.md#file-scripts-smoke-topbar-overflow-test-ts-f3f11c9049) — produces something that looks fine and is not.
+- [`scripts/smoke-topbar-overflow.test.ts`](scripts.md#file-scripts-smoke-topbar-overflow-test-ts-f3f11c9049) — something that looks fine in review and is not.
 - [`scripts/smoke-topbar-radar.test.ts`](scripts.md#file-scripts-smoke-topbar-radar-test-ts-36f6cda2d7)
 - [`scripts/smoke-trading-companies.test.ts`](scripts.md#file-scripts-smoke-trading-companies-test-ts-4c0ca048ab)
 - [`scripts/smoke-transactional-email.test.ts`](scripts.md#file-scripts-smoke-transactional-email-test-ts-21ba833cb2)

@@ -69,6 +69,12 @@ export function CommandStationNav({
 }
 
 function StationButton({ active, attention, disabled = false, pending = false, onClick, icon, label, detail, tone = "cyan" }: { active: boolean; attention: CommandStationAttention; disabled?: boolean; pending?: boolean; onClick: () => void; icon: React.ReactNode; label: string; detail: string; tone?: "cyan" | "aqua" | "gold" }) {
+  // Alignment and the badge gutter are set in globals.css, NOT here. The
+  // unlayered `[class*="-button"]` plugin default matches this class and beats
+  // every Tailwind utility on it, because Tailwind's utilities are layered and
+  // unlayered CSS wins outright. Measured 2026-08-29: `px-4 pr-12` was served
+  // as `8px 16px`, and a `justify-start` written here computed to `center`.
+  // See `.mm-command-station-button` in globals.css.
   return <button type="button" aria-pressed={active} aria-busy={pending || undefined} aria-label={`${label}. ${pending ? "Loading station." : attention.label}`} title={pending ? `Loading ${label}` : attention.label} data-active={active} data-tone={tone} data-attention-tone={attention.tone} onClick={onClick} disabled={disabled} className="mm-command-station-button group relative flex min-h-[76px] items-center gap-3 border-b border-r border-[#62e8ff]/10 px-4 pr-12 text-left text-white/72 transition hover:bg-[#62e8ff]/[0.07] hover:text-white disabled:cursor-wait disabled:opacity-60 xl:border-b-0">
     <span className="mm-command-station-icon shrink-0">{pending ? <LoaderCircle size={18} className="animate-spin" /> : icon}</span>
     <span className="min-w-0"><span className="mm-command-station-label block text-sm font-semibold">{label}</span><span className="mm-command-station-detail mt-0.5 block text-[11px]">{pending ? "Loading station…" : detail}</span></span>

@@ -3910,6 +3910,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-mobile-scroll-affordance-test-ts-fca0591b80"></a>
+
+### `scripts/smoke-mobile-scroll-affordance.test.ts`
+
+**What it is:** looks right in review.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-multi-agency-users-test-ts-d8134be8b7"></a>
 
 ### `scripts/smoke-multi-agency-users.test.ts`
@@ -5645,7 +5657,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ### `scripts/smoke-topbar-overflow.test.ts`
 
-**What it is:** produces something that looks fine and is not.
+**What it is:** something that looks fine in review and is not.
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 

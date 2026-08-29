@@ -99,6 +99,7 @@ export function NotificationCentreButton({
 
       {open ? (
         <section
+          data-chrome-surface
           role="dialog"
           aria-label="Notification centre"
           className="mm-popover mm-notification-centre fixed right-3 top-14 z-50 flex max-h-[min(42rem,calc(100dvh-4.5rem))] w-[min(29rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-lg border border-black/10 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:absolute sm:right-0 sm:top-11"

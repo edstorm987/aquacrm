@@ -2099,7 +2099,16 @@ svg[class*="-card"] {
     right: 0;
     top: calc(100% + 8px);
     z-index: 200;
-    display: none;
+    display: grid;
+    /* Hidden with `visibility`, NOT `display: none`. Found 2026-08-29: every
+       surface these controls open — workspace search, the notification centre,
+       Radar, the Dev Console — is a DOM DESCENDANT of this panel, so removing
+       the panel from the layout takes the open surface with it. `visibility`
+       hides the panel and its own controls (and drops them out of the tab
+       order and the accessibility tree) while leaving a box the open surface
+       can still paint out of. The surface re-declares `visible` below. */
+    visibility: hidden;
+    pointer-events: none;
     /* A fixed three-column grid rather than a wrapping row. Left to wrap, six
        controls came out as five across and one stranded underneath, which
        reads as a mistake rather than a menu. Three columns gives two even rows
@@ -2123,7 +2132,23 @@ svg[class*="-card"] {
     color: inherit;
     box-shadow: 0 18px 40px rgb(0 0 0 / 0.28);
   }
-  .mm-topbar-overflow[data-open="yes"] .mm-topbar-overflow-items { display: grid; }
+  .mm-topbar-overflow[data-open="yes"] .mm-topbar-overflow-items {
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  /* The one thing that outlives the panel. A control tapped in the overflow
+     opens its own full-width surface, and the panel closes underneath it —
+     otherwise the two stack, and the panel's icons punch through the surface
+     because several of them carry a higher z-index than it does (the privacy
+     eye is `z-[70]`, search is `z-50`). Reported by Ed on 2026-08-29 with the
+     Dev Console open and three chrome buttons floating across its header.
+     `visibility` is inherited, so the surface says `visible` for itself and
+     everything inside it comes back with it. */
+  .mm-topbar-overflow-items [data-chrome-surface] {
+    visibility: visible;
+    pointer-events: auto;
+  }
 
   /* Anything inside that hid itself for small screens is wanted here — the
      panel IS the small screen's home for these. Without this, a control marked
@@ -3115,6 +3140,75 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
 .mm-route-canvas :is([role="tablist"], nav.overflow-x-auto) {
   overscroll-behavior-inline: contain;
   scroll-snap-type: inline proximity;
+}
+
+/* …and the row has to SAY there is more of it.
+   ─────────────────────────────────────────────────────────────────────────
+   Ed, 2026-08-29: *"it isn't very usable on mobile."* A walk of every static
+   portal route at 390x844 found no clipped or unreachable content at all —
+   the shell above already holds the line — but almost every page has one of
+   these strips, and a strip that scrolls in silence is a strip most people
+   never scroll. The Master Inbox is the worst case measured: its tab row hides
+   860px of itself, seven tabs out of ten, behind an edge with no mark on it.
+   The 4px scrollbar below only appears while a scroll is already happening,
+   which is no use to somebody who does not know to try.
+
+   So the edge with more content behind it fades, and the fade follows the
+   scroll position — full at the end you have not reached, gone at the end you
+   have. The selector covers `[role="tablist"]` and `nav.overflow-x-auto`, and
+   then any other `.overflow-x-auto` as well, because the strip that started
+   this — the Clients/Leads/Journey/Contacts row on `/portal/clients` — is a
+   plain `<div class="flex overflow-x-auto">` and a nav-only selector walked
+   straight past it. A scroller holding a TABLE is left alone: fading the edge
+   of a data grid dims values rather than hinting at them, and those already
+   carry their own visible scrollbar. `pre` is untouched too — the code-block
+   rule above sets `overflow-x` as a property, not as this class.
+
+   The whole thing is a scroll-driven animation behind `@supports`, and the
+   NON-animated values are the no-fade ones. That ordering is the load-bearing
+   part: a strip whose content fits has no scrollable overflow, so its timeline
+   is inactive and the animation contributes nothing — which must leave a
+   clean, unfaded row, not one permanently faded on the right. Verified both
+   ways in Chromium at 390px (short strip: no mask; Inbox: fades and tracks). */
+@property --mm-strip-fade-start {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --mm-strip-fade-end {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@supports (animation-timeline: scroll(self inline)) {
+  @media (max-width: 1023px) {
+    .mm-route-canvas :is([role="tablist"], nav.overflow-x-auto, .overflow-x-auto:not(:has(table))) {
+      /* Base = no fade. See the note above; this is not a stylistic default. */
+      --mm-strip-fade-start: 0px;
+      --mm-strip-fade-end: 0px;
+      mask-image: linear-gradient(
+        to right,
+        transparent 0,
+        #000 var(--mm-strip-fade-start),
+        #000 calc(100% - var(--mm-strip-fade-end)),
+        transparent 100%
+      );
+      animation: mm-strip-edge-fade linear both;
+      animation-timeline: scroll(self inline);
+    }
+  }
+
+  /* Held flat through the middle so both edges stay faded while there is
+     content either way; only the first and last quarter of the travel resolve
+     an edge, which is where "you have reached the end" actually means
+     something. */
+  @keyframes mm-strip-edge-fade {
+    0% { --mm-strip-fade-start: 0px; --mm-strip-fade-end: 32px; }
+    25% { --mm-strip-fade-start: 32px; --mm-strip-fade-end: 32px; }
+    75% { --mm-strip-fade-start: 32px; --mm-strip-fade-end: 32px; }
+    100% { --mm-strip-fade-start: 32px; --mm-strip-fade-end: 0px; }
+  }
 }
 
 .mm-route-canvas .overflow-x-auto,
@@ -6697,6 +6791,42 @@ html[data-portal-shell="command"] .mm-color-mode-toggle {
   isolation: isolate;
   background: rgb(3 16 24 / 0.62);
   transition: color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+
+  /* Padding restated here because the component cannot win it back.
+     ───────────────────────────────────────────────────────────────────────
+     `[class*="-button"]` further up this file is a plugin default that ships
+     UNLAYERED, and Tailwind's utilities live in `@layer utilities` — so that
+     block beats every utility this component writes, whatever the specificity.
+     Same layering trap as smoke-portal-control-targets.test.ts documents; it is
+     the only app class that block reaches on the routes walked on 2026-08-29,
+     so the block itself is left alone rather than restyling every plugin page.
+
+     What it was taking: the component asks for `px-4 pr-12` and was served
+     `8px 16px`. That `pr-12` is the gutter the attention badge sits in
+     (`absolute right-3`), so losing it put the badge on top of the detail text
+     — visible as the yellow "4" over "…record progress" in Ed's phone
+     screenshot. Restored at every width because the overlap is a defect, not a
+     phone-only one.
+
+     Only the RIGHT side is restored. The component's `min-h-[76px]` is taken by
+     the same block (served 36px, or 44px under the coarse-pointer rule), so
+     dropping the block's 8px vertical padding to match `px-4` left the two-line
+     detail overflowing a row the panel then clips — measured at 1440px, where
+     "…record progress" and "…the library" lost their second line. Keeping the
+     vertical padding as it is today fixes the overlap and changes nothing else.
+     The swallowed `min-h-[76px]` and the 6px radius are recorded rather than
+     restored: both are a visual decision, not this defect. */
+  padding-right: 3rem;
+}
+
+/* Left-aligned once these stack. `grid-cols-1` at this width turns the row of
+   stations into a full-width LIST, and centring each row's icon+label pair on
+   its own width put the three icons at x=62, 83 and 34 — a list whose bullets
+   do not line up. The `sm:` grid keeps the centred columns it has today. */
+@media (max-width: 639px) {
+  .mm-command-station-button {
+    justify-content: flex-start;
+  }
 }
 
 .mm-command-center-workspace .mm-command-station-button {

@@ -35,6 +35,33 @@ import { MoreHorizontal, X } from "lucide-react";
 // notification bells, two open panels. Instead the children are rendered once
 // and the CONTAINER changes: `display: contents` above the breakpoint, so they
 // lay out exactly as they do today, and a positioned panel below it.
+//
+// ── Why the panel closes itself ──────────────────────────────────────────
+//
+// Ed, 2026-08-29, with a phone screenshot: the Dev Console open on
+// `/portal/agency/operations` with the privacy eye, Radar and the notification
+// bell floating across its header. Two surfaces were on screen at once, and
+// the panel's icons won the paint order because several of them carry a
+// higher z-index than the surface (the privacy eye is `z-[70]`, workspace
+// search is `z-50`).
+//
+// The panel is what has to give way: a menu closes when you choose from it.
+// It cannot close by leaving the layout, though — every one of those surfaces
+// is a DOM descendant of this container — so `data-open="no"` hides it with
+// `visibility` and the surface re-declares itself visible. See the
+// `.mm-topbar-overflow-items` block in globals.css.
+//
+// Closing is driven from two places because the controls come in two shapes.
+// A control that OPENS something is caught by the observer below, which is the
+// case that matters and the only one that can be detected after the fact. A
+// control that just DOES something — the colour-mode toggle, the privacy eye —
+// never mounts a surface, so the click handler covers it; that is also plain
+// menu behaviour, and it is scoped to clicks that did not come from inside an
+// already-open surface so tapping about inside one cannot reopen the panel.
+
+/** Marks a surface a topbar control has opened. Kept in one place because the
+ *  CSS above and the observer below have to agree on it. */
+export const CHROME_SURFACE_ATTRIBUTE = "data-chrome-surface";
 
 export function TopbarOverflow({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -42,13 +69,14 @@ export function TopbarOverflow({ children }: { children: React.ReactNode }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const itemsRef = useRef<HTMLDivElement | null>(null);
 
-  // Sum whatever the hidden controls are trying to say. Re-counted on any DOM
-  // change beneath them, because these badges arrive from live data long after
-  // first paint.
+  // Sum whatever the hidden controls are trying to say, and step aside the
+  // moment one of them opens a surface. Both are re-checked on any DOM change
+  // beneath the panel: badges arrive from live data long after first paint,
+  // and a surface mounts on a tap.
   useEffect(() => {
     const items = itemsRef.current;
     if (!items) return;
-    const count = () => {
+    const sync = () => {
       let total = 0;
       let marks = 0;
       for (const badge of items.querySelectorAll(".mm-attention-badge")) {
@@ -59,14 +87,25 @@ export function TopbarOverflow({ children }: { children: React.ReactNode }) {
       // A badge with no number (a plain dot) still counts as something worth
       // surfacing, so fall back to the number of marks rather than showing 0.
       setAttention(total || marks);
+
+      if (items.querySelector(`[${CHROME_SURFACE_ATTRIBUTE}]`)) setOpen(false);
     };
-    count();
-    const observer = new MutationObserver(count);
+    sync();
+    const observer = new MutationObserver(sync);
     observer.observe(items, { childList: true, subtree: true, characterData: true });
     return () => observer.disconnect();
   }, []);
 
   const close = useCallback(() => setOpen(false), []);
+
+  // The controls that open nothing. Capture phase so the panel is already on
+  // its way out by the time the control's own handler runs, and ignored for
+  // clicks that came from inside a surface the panel is deliberately outliving.
+  const onItemsClickCapture = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest(`[${CHROME_SURFACE_ATTRIBUTE}]`)) return;
+    setOpen(false);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -106,7 +145,7 @@ export function TopbarOverflow({ children }: { children: React.ReactNode }) {
         ) : null}
       </button>
 
-      <div ref={itemsRef} className="mm-topbar-overflow-items">
+      <div ref={itemsRef} className="mm-topbar-overflow-items" onClickCapture={onItemsClickCapture}>
         {children}
       </div>
     </div>

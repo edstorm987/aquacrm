@@ -265,7 +265,12 @@ export function DevConsolePanel({
         >
           <div className="flex items-center justify-between gap-2 pb-2">
             <p className="text-[10px] font-semibold uppercase text-black/45">Capture what you just saw</p>
-            <span className="inline-flex items-center gap-1 text-[10px] text-black/35"><Camera size={11} aria-hidden="true" /> paste or drop a screenshot</span>
+            {/* Hidden on a phone. It is advice nobody there can act on — there
+                is no clipboard paste and no drag-and-drop — and it was the half
+                of this row that forced both labels onto two lines each in the
+                366px panel, which is what Ed's 2026-08-29 screenshot shows.
+                "Add screenshot" below is the control that works on a phone. */}
+            <span className="hidden items-center gap-1 text-[10px] text-black/35 sm:inline-flex"><Camera size={11} aria-hidden="true" /> paste or drop a screenshot</span>
           </div>
 
           <input

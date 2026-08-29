@@ -638,7 +638,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (3):** [`src/components/ui/PortalLoadingCoordinator.tsx`](#file-src-components-ui-portalloadingcoordinator-tsx-ab67a66ae6) · [`src/lib/chrome/colorMode.ts`](lib.md#file-src-lib-chrome-colormode-ts-b235b19f62) · [`src/lib/chrome/commandCenter.ts`](lib.md#file-src-lib-chrome-commandcenter-ts-1a2427ded7)
 
-**Used by (5):** [`src/app/portal/agency/layout.tsx`](app.md#file-src-app-portal-agency-layout-tsx-47dd48700a) · [`src/app/portal/clients/[clientId]/layout.tsx`](app.md#file-src-app-portal-clients-clientid-layout-tsx-2e7f1d7ce2) · [`src/app/portal/dev-team/layout.tsx`](app.md#file-src-app-portal-dev-team-layout-tsx-ceef463ed4) · [`src/app/portal/freelancer/layout.tsx`](app.md#file-src-app-portal-freelancer-layout-tsx-cbfadd4dfa) · [`src/app/portal/team/layout.tsx`](app.md#file-src-app-portal-team-layout-tsx-f6dab38395)
+**Used by (6):** [`src/app/portal/agency/layout.tsx`](app.md#file-src-app-portal-agency-layout-tsx-47dd48700a) · [`src/app/portal/clients/[clientId]/layout.tsx`](app.md#file-src-app-portal-clients-clientid-layout-tsx-2e7f1d7ce2) · [`src/app/portal/clients/page.tsx`](app.md#file-src-app-portal-clients-page-tsx-bffc1e671f) · [`src/app/portal/dev-team/layout.tsx`](app.md#file-src-app-portal-dev-team-layout-tsx-ceef463ed4) · [`src/app/portal/freelancer/layout.tsx`](app.md#file-src-app-portal-freelancer-layout-tsx-cbfadd4dfa) · [`src/app/portal/team/layout.tsx`](app.md#file-src-app-portal-team-layout-tsx-f6dab38395)
 
 <a id="file-src-components-chrome-portalsearch-tsx-be5ced7683"></a>
 
@@ -999,9 +999,10 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (1):**
+**Exports (2):**
 
-- `TopbarOverflow({ children }: { children: React.ReactNode })` — lay out exactly as they do today, and a positioned panel below it.
+- `TopbarOverflow({ children }: { children: React.ReactNode })`
+- `CHROME_SURFACE_ATTRIBUTE = "data-chrome-surface"` — Marks a surface a topbar control has opened. Kept in one place because the CSS above and the observer below have to agree on it.
 
 **Depends on:** _No internal imports._
 

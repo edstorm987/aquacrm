@@ -98,6 +98,7 @@ export function RadarQuickLookButton({ initialRadar, paused = false }: { initial
 
       {open ? (
         <section
+          data-chrome-surface
           role="dialog"
           aria-label="Business Radar quick look"
           className="mm-popover mm-radar-popover fixed right-3 top-14 z-50 flex max-h-[min(42rem,calc(100dvh-4.5rem))] w-[min(29rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-lg border border-black/10 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.2)] sm:absolute sm:right-0 sm:top-11"

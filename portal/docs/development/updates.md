@@ -36,6 +36,100 @@ map stays trustworthy.
 
 
 
+## 2026-08-29 — Mobile: the overflow menu stops fighting what it opens, and silent scroll strips speak up
+
+Ed, with a phone screenshot of `/portal/agency/operations`: *"let's get the
+responsiveness sorted because it isn't very usable on mobile."* The Dev Console
+was open with the privacy eye, Radar and the notification bell floating across
+its header.
+
+### What the browser walk actually found
+
+Every static `/portal/**` route walked at **390x844** in Chromium, signed in
+through `/dev` (56 reached; the `dev-team/*` subtree was cut short by a
+compile stall in this sandbox and is **not** covered).
+
+**No clipped content and no unreachable content anywhere.** The responsive
+foundation in `globals.css` is doing its job. The mobile problem is not that
+the layouts break — it is that things are *hidden without saying so*:
+
+| | |
+| --- | --- |
+| Routes with a silent horizontally-scrolling strip | **24** |
+| Worst: `/portal/agency/actions` | 1337px hidden across 2 strips |
+| `/portal/agency/company` | 1164px |
+| `/portal/agency/people` | 1103px |
+| `/portal/agency/inbox` | 860px — **7 of its 10 tabs** |
+
+### Two overlapping surfaces (the screenshot)
+
+Reproduced at 390x812 with workspace search, which fails the same way: the
+mobile topbar overflow panel stayed open behind whatever its controls opened,
+and its icons punched through — several carry a higher z-index than the surface
+does (the privacy eye is `z-[70]`, search `z-50`).
+
+The panel now closes when a control inside it opens something. It cannot close
+by leaving the layout — every one of those surfaces is a DOM *descendant* of
+it — so the closed state hides with `visibility`, and a surface marked
+`data-chrome-surface` re-declares itself visible. Five components carry the
+marker; the test asserts the list so a new popover cannot quietly rejoin the pile.
+
+### The affordance
+
+Tab strips (and other non-table horizontal scrollers) inside the route canvas
+now fade the edge that still has content behind it, tracking scroll position, as
+a scroll-driven animation behind `@supports`. The **unanimated** values are the
+no-fade ones on purpose: a strip whose content fits has an inactive timeline, so
+it must render clean rather than permanently half-faded. Verified both ways —
+Master Inbox fades, Settings (fits) has no mask at all. Scoped to =1023px.
+
+### Also
+
+- Command Centre station rows are left-aligned when they stack on a phone, and
+  the attention badge gets its gutter back. Both had to be written in
+  `globals.css`, not on the component: the **unlayered** `[class*="-button"]`
+  plugin default matches `mm-command-station-button` and beats every Tailwind
+  utility on it, because Tailwind's utilities are layered. It was serving
+  `px-4 pr-12` as `8px 16px`, which put the badge on the detail text (the yellow
+  "4" over "…record progress" in Ed's screenshot), and it swallowed a
+  `justify-start` written on the component outright. Same layering trap
+  `smoke-portal-control-targets.test.ts` documents; it reaches no other app
+  class on the routes walked, so the block itself was left alone. Its
+  `min-h-[76px]` (served 36px, 44px on touch) and 6px radius are still
+  swallowed — recorded, not restored, because both are a visual decision.
+- The Dev Console's "paste or drop a screenshot" hint is hidden below `sm` — it
+  is advice a phone cannot act on, and it was the half of that row forcing both
+  labels onto two lines in Ed's screenshot.
+
+### The one route outside the foundation
+
+A sweep for `.mm-route-canvas` across every non-`dev-team` portal route found
+exactly two without one, and only one that matters: **`/portal/clients`** builds
+its own shell and never wrapped its content in `PortalRouteCanvas`, so it was
+the single portal surface outside the whole responsive foundation in
+`globals.css` — the min-width:0 cascades, image and control max-widths, the
+tab-strip scroll rules, the new fade. Its Clients/Leads/Journey/Contacts row hid
+277px with nothing saying so. It now wraps like every other workspace; its
+`<main>` already carried the agency layout's exact classes, so the canvas lands
+the same way it does there — including that layout's area accent band, which is
+a visible change to that page.
+
+`/portal/dev-workspace` is the other one and is deliberately left alone: it is a
+standalone gateway with no portal chrome at all, and the walk found no overflow
+on it.
+
+### Recorded, not fixed
+
+- Those strips still overflow at **1440px** (Inbox 82px, People 325px, Settings
+  278px). Desktop has a scrollbar and a wheel, and this was asked for as a
+  mobile fix, so the fade stops at 1023px.
+- The `dev-team/*` subtree was never reached — `/portal/dev-team/findings`
+  stalled in compilation in this sandbox and took the rest of the subtree with
+  it. **19 routes are unwalked**, and nothing here should be read as covering
+  them.
+
+Docs updated: this log.
+
 ## 2026-08-29 — Storage split, Radar retention, the sandbox bar, and two near-misses
 
 Ed: *"get it done"* — against the list of what was left after the launch audit.
