@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Building2, Code2, FileSearch, Globe2, LoaderCircle, Plus, Trash2 } from "lucide-react";
+import { mapScannedForm } from "@/lib/enquiries/clientFormMapping";
 
 /**
  * Where each tagged website's submissions land.
@@ -32,20 +33,128 @@ interface WebsiteSource {
 }
 interface ClientOption { id: string; name: string }
 interface CompanyOption { id: string; name: string }
-interface FormSummary { label: string; capturable: boolean; fieldCount: number }
+interface ScannedField { name: string; label?: string }
+interface FormSummary { label: string; capturable: boolean; fieldCount: number; fields: ScannedField[] }
 
-// The API returns full field schemas; the panel only needs each form's name, its
-// field count and whether the tag would capture it.
+// The API returns full field schemas. The chips only need a count — but the
+// FIELDS are kept now too, because the mapping below is computed from them
+// right here rather than through another round trip. `mapScannedForm` has no
+// server dependency (it imports only `isCoreField`), so asking the server to
+// run it would be a request whose whole purpose is to call a pure function.
 function toSummaries(schemas: unknown): FormSummary[] {
   if (!Array.isArray(schemas)) return [];
   return schemas.map(schema => {
     const s = schema as { label?: unknown; capturable?: unknown; fields?: unknown };
+    const fields = Array.isArray(s.fields)
+      ? s.fields.flatMap(field => {
+          const f = field as { name?: unknown; label?: unknown };
+          return typeof f.name === "string" && f.name
+            ? [{ name: f.name, label: typeof f.label === "string" ? f.label : undefined }]
+            : [];
+        })
+      : [];
     return {
       label: typeof s.label === "string" ? s.label : "Form",
       capturable: s.capturable === true,
-      fieldCount: Array.isArray(s.fields) ? s.fields.length : 0,
+      fieldCount: fields.length,
+      fields,
     };
   });
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  name: "Name",
+  email: "Email",
+  phone: "Phone",
+  message: "Message",
+  submittedAt: "Submitted",
+};
+
+/**
+ * What the Tag scanned, mapped onto Aqua's own enquiry fields.
+ *
+ * Ed, 2026-08-27: *"press a button instant mapping."* The mapping is shown
+ * rather than applied — it is a proposal, and the fields it could NOT place are
+ * listed beside it. A preview that quietly dropped three questions is how
+ * somebody approves a mapping that loses them.
+ */
+function FormMapping({ fields, clientId }: { fields: ScannedField[]; clientId?: string }) {
+  const [saving, setSaving] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const mapped = mapScannedForm(fields);
+  const placed = (Object.entries(mapped.roles) as Array<[string, { column?: string; source: string }]>)
+    .filter(([, role]) => Boolean(role.column) && role.source !== "absent");
+
+  async function keep() {
+    if (!clientId) return;
+    setSaving(true);
+    setNote(null);
+    try {
+      const roles = mapped.roles as Record<string, { column?: string } | undefined>;
+      const response = await fetch("/api/portal/website-sources/mapping", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          clientId,
+          columnName: roles.name?.column ?? "",
+          columnEmail: roles.email?.column ?? "",
+          columnPhone: roles.phone?.column ?? "",
+          columnMessage: roles.message?.column ?? "",
+          columnSubmittedAt: roles.submittedAt?.column ?? "",
+        }),
+      });
+      const payload = await response.json().catch(() => null) as { ok?: boolean; message?: string } | null;
+      // 409 is the ordinary case of "no Supabase connected yet", and the server
+      // sends the sentence to say so. Anything else gets a generic line rather
+      // than an internal error string.
+      setNote(payload?.ok
+        ? "Saved. Enquiries from this form will be read with these columns."
+        : payload?.message || "Could not save this mapping.");
+    } catch {
+      setNote("Could not save this mapping.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!placed.length && !mapped.unmapped.length) return null;
+  return (
+    <div className="mt-2 rounded-md border border-black/10 bg-black/[0.02] p-2 text-[10px]">
+      <p className="mb-1 font-semibold uppercase tracking-wide text-black/45">Detected mapping</p>
+      <ul className="grid gap-0.5">
+        {placed.map(([role, detail]) => (
+          <li key={role} className="flex items-center gap-1.5 text-black/70">
+            <span className="font-medium">{ROLE_LABELS[role] ?? role}</span>
+            <span className="text-black/35">←</span>
+            <code className="rounded bg-black/[0.06] px-1">{detail.column}</code>
+          </li>
+        ))}
+      </ul>
+      {mapped.unmapped.length ? (
+        <p className="mt-1.5 text-black/45">
+          Kept as extra answers: {mapped.unmapped.map((field: ScannedField) => field.name).join(", ")}
+        </p>
+      ) : null}
+      {/* Only for a site routed to a CLIENT. The mapping is stored on that
+          client's own Supabase connection, so there is nowhere to put one for a
+          site that goes to our own inbox — those merge into the internal fields
+          instead, which is the distinction Ed drew on 2026-08-27. */}
+      {clientId ? (
+        <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-black/8 pt-2">
+          <button
+            type="button"
+            onClick={() => void keep()}
+            disabled={saving}
+            className="inline-flex min-h-6 items-center gap-1 rounded border border-black/15 bg-white px-2 py-0.5 font-medium text-black/70 transition hover:bg-black/[0.04] disabled:opacity-50"
+          >
+            {saving ? <LoaderCircle size={11} className="animate-spin" aria-hidden="true" /> : null}
+            {saving ? "Saving…" : "Use this mapping"}
+          </button>
+          {note ? <span className="text-black/50" role="status">{note}</span> : null}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 const AGENCY = "__agency__";
@@ -313,6 +422,12 @@ export function WebsiteSourcesConfig() {
                   ))}
                 </ul>
               ) : null}
+              {/* Only for forms the Tag would actually capture — mapping a
+                  login or a search box is noise about something that will never
+                  produce an enquiry. */}
+              {formsBySource[source.id]?.filter(form => form.capturable && form.fields.length).map((form, index) => (
+                <FormMapping key={`map-${index}`} fields={form.fields} clientId={source.destinationClientId} />
+              ))}
             </li>
           ))}
         </ul>

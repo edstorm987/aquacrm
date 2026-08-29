@@ -491,3 +491,76 @@ function restoreEnv(key: string, value: string | undefined) {
   if (value === undefined) delete process.env[key];
   else process.env[key] = value;
 }
+
+test("testing a client's Supabase refuses a table the public key can read", async () => {
+  // The safety check behind the client-owned form data design.
+  //
+  // An exported site posts to this table from the visitor's browser with the
+  // ANON key in the page source. That is correct — the anon key is public and
+  // RLS is the control. But if the same policy also allows SELECT, every
+  // enquiry the client has ever received is readable by anyone who opens their
+  // homepage and reads the source.
+  //
+  // The exported README has always said "keep that policy to INSERT only".
+  // Prose is not a check. This is the check.
+  const agency = tenants.createAgency({ name: "RLS Co", slug: `rls-${Math.floor(performance.now())}` });
+  const client = tenants.createClient(agency.id, { name: "Formful" });
+  const saved = connections.saveIntegrationConnection({
+    agencyId: agency.id,
+    provider: "client-supabase",
+    clientId: client.id,
+    values: {
+      projectUrl: "https://formful.supabase.co",
+      anonKey: "anon_public_key_value",
+      submissionsTable: "form_submissions",
+    },
+    actorUserId: "owner",
+  });
+
+  const calls: Array<{ url: string; method: string }> = [];
+  const fetchWith = (status: number, body: unknown) => (async (input: RequestInfo | URL, init?: RequestInit) => {
+    calls.push({ url: String(input), method: init?.method ?? "GET" });
+    return new Response(body === undefined ? null : JSON.stringify(body), {
+      status,
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  // ── The dangerous case: anon CAN read. Must fail. ──────────────────────
+  const exposed = await connections.testIntegrationConnection(
+    agency.id, saved.id, { userId: "owner" }, fetchWith(200, [{ id: 1, email: "someone@example.com" }]),
+  );
+  assert.equal(exposed.lastTestStatus, "failed", "a publicly readable enquiry table must fail the test");
+  assert.match(String(exposed.lastTestMessage), /every enquiry in it is exposed/i);
+  assert.match(String(exposed.lastTestMessage), /INSERT/, "the message must say what to change");
+
+  // An EMPTY array is exactly as dangerous — the policy still permits the read,
+  // there simply are no enquiries yet. This is the case a naive check misses.
+  const exposedButEmpty = await connections.testIntegrationConnection(
+    agency.id, saved.id, { userId: "owner" }, fetchWith(200, []),
+  );
+  assert.equal(exposedButEmpty.lastTestStatus, "failed", "an empty result still proves anon may read");
+
+  // ── The good case: RLS refuses anon. ───────────────────────────────────
+  const locked = await connections.testIntegrationConnection(
+    agency.id, saved.id, { userId: "owner" }, fetchWith(401, { message: "permission denied" }),
+  );
+  assert.equal(locked.lastTestStatus, "passed", "a table that refuses public reads must pass");
+  assert.match(String(locked.lastTestMessage), /refuses public reads/i);
+
+  // ── A missing table is its own problem, not a security verdict. ────────
+  const missing = await connections.testIntegrationConnection(
+    agency.id, saved.id, { userId: "owner" }, fetchWith(404, { message: "not found" }),
+  );
+  assert.equal(missing.lastTestStatus, "failed");
+  assert.match(String(missing.lastTestMessage), /could not find a table/i);
+
+  // It must probe THAT project's table with the anon key, and never write.
+  assert.ok(calls.every(call => call.method === "GET"), "the test must never write into a client's table");
+  assert.ok(
+    calls.every(call => call.url.startsWith("https://formful.supabase.co/rest/v1/form_submissions")),
+    `expected only PostgREST reads of the configured table, saw ${calls.map(c => c.url).join(", ")}`,
+  );
+  // The old fall-through sent every unknown provider to OpenAI.
+  assert.ok(!calls.some(call => call.url.includes("openai")), "a client's Supabase must not be tested against OpenAI");
+});

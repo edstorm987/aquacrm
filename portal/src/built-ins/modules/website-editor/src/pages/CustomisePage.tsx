@@ -84,7 +84,27 @@ function AdminCustomisePageInner() {
   async function exportCode() {
     setExporting(true);
     try {
-      const res = await fetch("/api/admin/export-code");
+      // `/api/admin/export-code` was never a route in this app — this button
+      // answered 404 for every client who pressed it. The real export handler
+      // was written, tested (r033, r046) and simply never mounted; it is now
+      // registered at `/api/portal/website-editor/export` (issue #30).
+      //
+      // The site has to be looked up first. This page is one of the legacy
+      // admin islands (#31): it takes no props and knows nothing about the
+      // tenant, so there is no `siteId` in scope to pass. The client comes
+      // from the URL, and the export handler's own `requireClientScope` is
+      // what actually authorises the call — this only picks WHICH site.
+      const clientId = window.location.pathname.split("/")[3] ?? "";
+      const sitesRes = await fetch(`/api/portal/website-editor/sites?clientId=${encodeURIComponent(clientId)}`);
+      const sites = sitesRes.ok ? await sitesRes.json().catch(() => null) : null;
+      const siteId = sites?.sites?.[0]?.id ?? sites?.[0]?.id ?? "";
+      if (!siteId) {
+        notify({ tone: "error", title: "Export failed", message: "No website found to export yet." });
+        return;
+      }
+      const res = await fetch(
+        `/api/portal/website-editor/export?clientId=${encodeURIComponent(clientId)}&siteId=${encodeURIComponent(siteId)}`,
+      );
       if (!res.ok) {
         notify({ tone: "error", title: "Export failed", message: res.statusText });
         return;

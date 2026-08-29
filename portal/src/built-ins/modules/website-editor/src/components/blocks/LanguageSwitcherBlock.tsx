@@ -46,6 +46,15 @@ export default function LanguageSwitcherBlock({ block }: BlockRenderProps) {
           <button
             key={l}
             type="button"
+            // The pills said which language was active with COLOUR alone, which
+            // is invisible to a screen reader and to anybody who cannot pick
+            // the accent out. `aria-pressed` states it.
+            aria-pressed={l === current}
+            // The accessible name keeps the visible "FR" and adds the language
+            // it stands for. That ordering matters: WCAG 2.5.3 wants the name
+            // to CONTAIN the visible label, so "FR — Français" is right where a
+            // bare "Français" would break speech-input users saying "click FR".
+            aria-label={`${l.toUpperCase()} — ${LOCALE_NAMES[l] ?? l}`}
             onClick={() => switchTo(l)}
             style={{
               padding: "4px 10px",
@@ -67,6 +76,11 @@ export default function LanguageSwitcherBlock({ block }: BlockRenderProps) {
   return (
     <select
       data-block-type="language-switcher"
+      // A bare <select> announces as "combo box" and nothing else, so a screen
+      // reader user is told there is a chooser but not what it chooses
+      // (2026-08-27 accessible-name sweep). This block is publishable to a
+      // client's own visitors, which is why it is worth the two attributes.
+      aria-label="Choose a language"
       value={current}
       onChange={e => switchTo(e.target.value)}
       style={{

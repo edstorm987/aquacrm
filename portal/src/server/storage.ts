@@ -88,6 +88,8 @@ const empty = (): PortalState => ({
   externalAssistantApiKeys: {},
   externalAssistantActionProposals: {},
   integrationConnections: {},
+  clientFormNotices: {},
+  subjectRequests: {},
   devProjects: {},
   editorAiConfigs: {},
   editorAiConversations: {},
@@ -131,6 +133,7 @@ const empty = (): PortalState => ({
   radarEvidence: {},
   customKpis: {},
   operationalAlertPreferences: {},
+  userChromeLayouts: {},
   peopleApplications: {},
   peopleEmployees: {},
   peopleLeaveRequests: {},
@@ -165,6 +168,18 @@ interface Backend {
   loadBlob(realmId: string): Promise<string | null>;
   saveBlob(content: string, realmId: string): Promise<void>;
   applyPatch?(operations: StoragePatchOperation[], realmId: string): Promise<string>;
+  /**
+   * Load the Dev Team workspace files from their own datastore row.
+   *
+   * Its PRESENCE is what tells the rest of this file that the sidecar is real.
+   * Backends without it (memory, local file) keep the files inside the main
+   * document exactly as before — which is why the exclusions below are all
+   * conditional. Stripping unconditionally would delete a founder's workspace
+   * on every backend that has nowhere else to put it.
+   */
+  loadSidecarBlob?(slug: string, realmId: string): Promise<string | null>;
+  /** Write one sidecar row. Also used to seed it from the main document. */
+  saveSidecarBlob?(slug: string, content: string, realmId: string): Promise<void>;
   applyDevTeamWorkspaceFiles?(operations: DevTeamWorkspaceFileMutation[], realmId: string): Promise<string>;
 }
 
@@ -286,6 +301,14 @@ const supabaseBackend: Backend = {
     const { applyPatch } = await import("./storageSupabase");
     return applyPatch(operations, {}, realmId);
   },
+  async loadSidecarBlob(slug, realmId) {
+    const { loadSidecarBlob } = await import("./storageSupabase");
+    return loadSidecarBlob(slug, {}, realmId);
+  },
+  async saveSidecarBlob(slug, content, realmId) {
+    const { saveSidecarBlob } = await import("./storageSupabase");
+    return saveSidecarBlob(slug, content, {}, realmId);
+  },
   async applyDevTeamWorkspaceFiles(operations, realmId) {
     const { applyDevTeamWorkspaceFiles } = await import("./storageSupabase");
     return applyDevTeamWorkspaceFiles(operations, {}, realmId);
@@ -375,6 +398,60 @@ const backend = pickBackend();
 
 // ─── Cache + hydration + flush ────────────────────────────────────────────
 
+/**
+ * Collections that live in their OWN datastore row rather than in the portal
+ * document.
+ *
+ * ── Why ──────────────────────────────────────────────────────────────────
+ *
+ * Measured on the live project 2026-08-29: the document was **3.25 MB across 59
+ * collections**, of which the actual business data (`clients`) was 181 KB —
+ * 5.4%. PostgreSQL applies each `jsonb_set` against the COMPLETE value and the
+ * patch RPC returns the whole saved document to be re-parsed, so marking one
+ * enquiry as seen paid for every megabyte of machinery twice over.
+ *
+ * ── What a sidecar does and does not fix ─────────────────────────────────
+ *
+ * It fixes SIZE — write amplification and payload. It does **not** give
+ * row-level security: the collection is still one JSON value and no policy can
+ * address anything inside it. That needs real rows, which is a different and
+ * much larger move. See `docs/development/plans/storage-and-remaining-build.md`.
+ *
+ * ── The two traps, both hit while building the first one ─────────────────
+ *
+ *  1. **Excluding new writes is not removing the old copy.** A document written
+ *     before the split keeps its copy for ever unless something clears it — the
+ *     bytes the split exists to remove, plus a second answer to the same
+ *     question. Hence the explicit clear on every patched flush.
+ *  2. **Clearing before the sidecar holds anything deletes the data.** Hydrate
+ *     falls back to the main copy, so the first ordinary write would clear a
+ *     collection that had nowhere else to be. Hence `sidecarPopulated`: the
+ *     main copy is only ever cleared once the sidecar is CONFIRMED to hold it.
+ *
+ * Everything here is conditional on `backend.loadSidecarBlob` existing. Memory
+ * and file backends have nowhere else to put these, and an unconditional strip
+ * would delete a founder's workspace or a client's portal templates.
+ */
+interface SidecarCollection {
+  /** The `PortalState` key that moves out. */
+  key: "devTeamWorkspaceFiles" | "clientPortalTemplates";
+  /** Suffix of the row's `app_key`. */
+  slug: string;
+  /**
+   * True when the collection already has its own atomic write path and this
+   * file must not write the row itself. `devTeamWorkspaceFiles` is committed by
+   * a row-locking RPC; writing it from the flush as well would race that lock.
+   */
+  dedicatedWriter: boolean;
+}
+
+const SIDECAR_COLLECTIONS: readonly SidecarCollection[] = [
+  { key: "devTeamWorkspaceFiles", slug: "dev-workspace-files", dedicatedWriter: true },
+  // 615 KB, 18.5% of the live document, and no personal data — the reason it is
+  // second. Written through ordinary `mutate()`, so the flush owns its row.
+  { key: "clientPortalTemplates", slug: "client-portal-templates", dedicatedWriter: false },
+];
+
 interface RealmRuntime {
   cache: PortalState | null;
   writable: boolean;
@@ -389,6 +466,22 @@ interface RealmRuntime {
   hydratePromise: Promise<void> | null;
   remoteRefreshPromise: Promise<void> | null;
   devTeamWorkspaceMutationQueue: Promise<void>;
+  /**
+   * Has the Dev Team workspace sidecar row been seen holding files?
+   *
+   * This gates clearing the copy in the main document, and it exists because
+   * the first version of this split lost data. The sequence was: hydrate finds
+   * no sidecar and falls back to the main copy (correct), then the very next
+   * ordinary write clears the main copy (as designed) — while the sidecar row
+   * still does not exist. The files were gone, and the next commit would have
+   * written only the file it was given, not the ones it never saw.
+   *
+   * So the main copy is only ever cleared once the sidecar is CONFIRMED to
+   * hold something. Until then the two coexist, which costs 967 KB and loses
+   * nothing — the right way round for a migration.
+   */
+  /** Sidecar slugs confirmed to hold their collection. See `SIDECAR_COLLECTIONS`. */
+  sidecarPopulated: Set<string>;
 }
 
 const realmRuntimes = new Map<string, RealmRuntime>();
@@ -413,6 +506,7 @@ function realmRuntime(realmId = getActiveDataRealmId()): RealmRuntime {
     hydratePromise: null,
     remoteRefreshPromise: null,
     devTeamWorkspaceMutationQueue: Promise.resolve(),
+    sidecarPopulated: new Set<string>(),
   };
   realmRuntimes.set(valid, created);
   return created;
@@ -530,6 +624,40 @@ export async function ensureHydrated(options?: {
           }
         }
         runtime.cache = raw ? parseBlob(raw) : empty();
+        // The Dev Team workspace files live in their own row on backends that
+        // support it — 967 KB of a 3.25 MB document when this was measured.
+        //
+        // The sidecar WINS where it exists, and the main document is the
+        // fallback where it does not. That ordering is what makes the move
+        // safe on a project that has not been migrated yet: the files are
+        // still read from wherever they actually are, and the first commit
+        // writes them to the sidecar. A missing sidecar row is the normal
+        // state before the first commit, never an error.
+        if (backend.loadSidecarBlob && runtime.cache) {
+          try {
+            for (const sidecarCollection of SIDECAR_COLLECTIONS) {
+              const sidecar = await backend.loadSidecarBlob(sidecarCollection.slug, realmId);
+              if (!sidecar) continue;
+              const parsed = JSON.parse(sidecar) as Record<string, Record<string, unknown> | undefined>;
+              const held = parsed[sidecarCollection.key];
+              if (held && Object.keys(held).length > 0) {
+                // The sidecar WINS where it exists; the main document is the
+                // fallback where it does not. That ordering is what makes the
+                // move safe on a project that has not been migrated: the data
+                // is read from wherever it actually is.
+                (runtime.cache as unknown as Record<string, unknown>)[sidecarCollection.key] = held;
+                runtime.sidecarPopulated.add(sidecarCollection.slug);
+              }
+            }
+          } catch (error) {
+            // A sidecar that cannot be read must not stop the portal booting:
+            // the main document still carries the files until they are moved,
+            // and every other collection is unaffected either way.
+            if (process.env.NODE_ENV !== "test") {
+              console.warn("[portal] a sidecar row was unreadable; using the main document:", error);
+            }
+          }
+        }
         runtime.mutationVersion = 0;
         runtime.persistedVersion = 0;
         runtime.pendingPatchOperations = [];
@@ -609,6 +737,8 @@ function parseBlob(raw: string): PortalState {
       externalAssistantApiKeys: parsed.externalAssistantApiKeys ?? {},
       externalAssistantActionProposals: parsed.externalAssistantActionProposals ?? {},
       integrationConnections: parsed.integrationConnections ?? {},
+      clientFormNotices: parsed.clientFormNotices ?? {},
+      subjectRequests: parsed.subjectRequests ?? {},
       devProjects: parsed.devProjects ?? {},
       editorAiConfigs: parsed.editorAiConfigs ?? {},
       editorAiConversations: parsed.editorAiConversations ?? {},
@@ -653,6 +783,7 @@ function parseBlob(raw: string): PortalState {
       customKpis: parsed.customKpis ?? {},
       radarInfraHealth: parsed.radarInfraHealth,
       operationalAlertPreferences: parsed.operationalAlertPreferences ?? {},
+      userChromeLayouts: parsed.userChromeLayouts ?? {},
       peopleApplications: parsed.peopleApplications ?? {},
       peopleEmployees: parsed.peopleEmployees ?? {},
       peopleLeaveRequests: parsed.peopleLeaveRequests ?? {},
@@ -689,12 +820,74 @@ async function flushRealm(
   if (runtime.persistedVersion === runtime.mutationVersion) return;
 
   const targetVersion = runtime.mutationVersion;
-  const snapshot = JSON.stringify(runtime.cache);
+  // Where the sidecar is real, the main document must stop carrying these —
+  // otherwise the split doubles the storage instead of halving it, and two
+  // rows disagree about which copy is current.
+  //
+  // Conditional on the backend, deliberately: memory and file backends have
+  // nowhere else to put them, and excluding them there would delete a
+  // founder's workspace on save.
+  // Only collections whose sidecar is CONFIRMED populated are held back — see
+  // trap 2 on `SIDECAR_COLLECTIONS`.
+  const splitOut = backend.loadSidecarBlob
+    ? SIDECAR_COLLECTIONS.filter(entry => runtime.sidecarPopulated.has(entry.slug))
+    : [];
+  const snapshot = JSON.stringify(
+    splitOut.length > 0
+      ? { ...runtime.cache, ...Object.fromEntries(splitOut.map(entry => [entry.key, {}])) }
+      : runtime.cache,
+  );
   const operationCount = runtime.pendingPatchOperations.length;
-  const operations = runtime.pendingPatchOperations.slice(0, operationCount);
+  const operations = runtime.pendingPatchOperations
+    .slice(0, operationCount)
+    .filter(operation => !splitOut.some(entry => entry.key === operation.path[0]));
+  // Excluding NEW operations is not enough on its own: a document written
+  // before the split still holds its own copy of the files, and nothing would
+  // ever remove it. It would sit there for ever — the 967 KB the split exists
+  // to remove, plus a second answer to "what is in this file" that drifts the
+  // moment anyone commits.
+  //
+  // So the clear is asserted on every patched flush rather than done once. It
+  // is idempotent, it costs one tiny operation, and it needs no migration step
+  // that somebody has to remember to run. The sidecar row is a different row,
+  // so this can never race a commit in flight against it.
+  if (operations.length > 0) {
+    for (const entry of splitOut) {
+      operations.push({ op: "set", path: [entry.key], value: {} });
+    }
+  }
+  // Sidecars this file OWNS the writing of. `devTeamWorkspaceFiles` is excluded
+  // because its own row-locking RPC commits it; writing it here as well would
+  // race that lock.
+  const ownedSidecars = backend.saveSidecarBlob
+    ? SIDECAR_COLLECTIONS.filter(entry => !entry.dedicatedWriter)
+    : [];
   const dataFile = dataFileForRealm(realmId);
   runtime.flushInFlight = (async () => {
     try {
+      // ── Sidecars are written BEFORE the main document, always ───────────
+      //
+      // The main write is what clears the collection from the portal
+      // document. Doing that first and then failing to write the sidecar
+      // would destroy the data — and a network blip between two writes is an
+      // ordinary event, not a hypothetical. This order means the worst case is
+      // a duplicate copy for one flush, which the next clear removes.
+      //
+      // A sidecar is written when its collection CHANGED, and once at the
+      // start when it has never been written — the latter is the seeding step
+      // that lets `sidecarPopulated` become true at all, and therefore the
+      // thing that allows the clear above to ever fire.
+      for (const entry of ownedSidecars) {
+        const held = (runtime.cache as unknown as Record<string, unknown>)[entry.key] ?? {};
+        const changed = runtime.pendingPatchOperations
+          .slice(0, operationCount)
+          .some(operation => operation.path[0] === entry.key);
+        const seeding = !runtime.sidecarPopulated.has(entry.slug) && Object.keys(held as object).length > 0;
+        if (!changed && !seeding) continue;
+        await backend.saveSidecarBlob!(entry.slug, JSON.stringify({ [entry.key]: held }), realmId);
+        runtime.sidecarPopulated.add(entry.slug);
+      }
+
       const savedBlob = backend.applyPatch && operations.length > 0
         ? await backend.applyPatch(operations, realmId)
         : (await backend.saveBlob(snapshot, realmId), null);
@@ -768,15 +961,49 @@ async function commitDevTeamWorkspaceFilesNow(
     return;
   }
 
+  // ── Seed the sidecar before the first commit ever reaches it ───────────
+  //
+  // The RPC writes only the operations it is handed, against whatever the
+  // sidecar row already holds. On a project that has not been split yet that
+  // row is empty, so the first commit would leave it holding one file while
+  // the main document — which still has all of them — is cleared on the next
+  // flush. Every other workspace file would be gone.
+  //
+  // Seeding first makes the move lossless without a migration step anyone has
+  // to remember. It runs once: after this the sidecar is populated and the
+  // flag stays set for the life of the process.
+  const devSidecar = SIDECAR_COLLECTIONS.find(entry => entry.key === "devTeamWorkspaceFiles")!;
+  if (backend.saveSidecarBlob && !runtime.sidecarPopulated.has(devSidecar.slug)) {
+    const existing = runtime.cache?.devTeamWorkspaceFiles ?? {};
+    if (Object.keys(existing).length > 0) {
+      await backend.saveSidecarBlob(devSidecar.slug, JSON.stringify({ devTeamWorkspaceFiles: existing }), realmId);
+      runtime.sidecarPopulated.add(devSidecar.slug);
+    }
+  }
+
   try {
     const savedBlob = await backend.applyDevTeamWorkspaceFiles(operations, realmId);
     const remoteState = parseBlob(savedBlob);
-    // A normal domain mutation may have landed while the database RPC was in
-    // flight. Reapply those still-pending patches over the returned snapshot;
-    // their own flush remains responsible for persistence.
-    runtime.cache = runtime.pendingPatchOperations.length > 0
-      ? parseBlob(JSON.stringify(applyStoragePatch(remoteState, runtime.pendingPatchOperations)))
-      : remoteState;
+    if (backend.loadSidecarBlob) {
+      // The RPC now writes the SIDECAR row, so what comes back describes only
+      // the workspace files — not the whole portal. Replacing the cache with it
+      // would wipe every other collection, which is the single worst thing this
+      // change could do. Merge the one collection instead.
+      const current = runtime.cache ?? empty();
+      current.devTeamWorkspaceFiles = remoteState.devTeamWorkspaceFiles ?? {};
+      runtime.cache = current;
+      // The sidecar now holds files, so the main document's copy may be cleared.
+      if (Object.keys(current.devTeamWorkspaceFiles).length > 0) {
+        runtime.sidecarPopulated.add(devSidecar.slug);
+      }
+    } else {
+      // A normal domain mutation may have landed while the database RPC was in
+      // flight. Reapply those still-pending patches over the returned snapshot;
+      // their own flush remains responsible for persistence.
+      runtime.cache = runtime.pendingPatchOperations.length > 0
+        ? parseBlob(JSON.stringify(applyStoragePatch(remoteState, runtime.pendingPatchOperations)))
+        : remoteState;
+    }
     runtime.hydrated = true;
   } catch (error) {
     throw workspaceConflictFrom(error) ?? error;

@@ -29,7 +29,7 @@ import { installPlugin, setPluginEnabled } from "@/built-ins/runtime/_runtime";
 import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
 import { resolveClientProductStage } from "@/lib/products/clientProductStageTruth";
 import { agencyProductPipelineColumns } from "@/lib/products/fulfilmentProductPipelines";
-import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
+import { agencyProductsForRead, listAgencyProducts } from "@/server/agencyProducts";
 import { listTradingCompanies } from "@/server/tradingCompanies";
 import { isLeadJourneyEligible } from "@/lib/enquiries/enquiryClassification";
 import { getPortalFormFields } from "@/server/portalEditor";
@@ -47,7 +47,7 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
   if (!agency) redirect("/login");
   const { slug } = await params;
   const query = await searchParams;
-  ensureDefaultAgencyProducts(agency.id);
+  agencyProductsForRead(agency.id);
   const productCatalogue = listAgencyProducts(agency.id, true);
   const agencyProducts = productCatalogue.filter(product => product.active);
   const activeBrands = listTradingCompanies(agency.id).filter(company => company.status !== "archived");
@@ -83,7 +83,13 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
     if (install?.enabled) {
       const storage = makePluginStorage(install.id);
       const { leads, prospects } = leadsContainerFor({ agencyId: agency.id, storage: storage as never });
-      const [leadList, prospectList] = await Promise.all([leads.list(), prospects.list()]);
+      const [leadList, prospectList, archivedList] = await Promise.all([
+        leads.list(),
+        prospects.list(),
+        // Archived leads are fetched separately and stay out of every count and
+        // column on this screen — they belong to one view (issue #62).
+        leads.list({ archived: "only" }),
+      ]);
       const journeyLeadList = leadList.filter(isLeadJourneyEligible);
       const clients = listClients(agency.id);
       const cards = listCards(pipeline.id);
@@ -137,6 +143,16 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
             notes: prospect.notes,
             capturedAt: prospect.capturedAt,
             updatedAt: prospect.updatedAt,
+          }))}
+          archivedLeads={archivedList.map(lead => ({
+            id: lead.id,
+            email: lead.email,
+            name: lead.name,
+            phone: lead.phone,
+            company: lead.company,
+            tags: lead.tags,
+            capturedAt: lead.capturedAt,
+            archivedAt: lead.archivedAt,
           }))}
           leads={journeyLeadList.map(lead => {
             const client = clients.find(candidate => {

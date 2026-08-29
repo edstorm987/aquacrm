@@ -932,7 +932,14 @@ describe("a customer disconnecting their own software", () => {
     const route = (require("node:fs").readFileSync(
       require("node:path").join(__dirname, "..", "src", "app", "api", "portal", "customer", "connections", "route.ts"), "utf-8") as string)
       .replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
-    assert.match(route, /session\.role !== "end-customer"/);
+    // The gate widened to the whole client-portal audience on 2026-08-27
+    // (`CUSTOMER_PORTAL_ROLES`). What this test is actually about is unchanged:
+    // the customer's disconnect goes through THEIR endpoint, refuses anyone
+    // outside the portal audience, and is scoped by the session's own client.
+    assert.match(route, /CUSTOMER_PORTAL_ROLES\.includes\(session\.role\)/,
+      "the customer disconnect no longer gates on the client-portal audience");
+    assert.doesNotMatch(route, /session\.role !== "end-customer"/,
+      "back to an end-customer-only gate — a client role cannot disconnect their own software");
     assert.match(route, /withdrawOwnPortalConnection\(/);
   });
 });

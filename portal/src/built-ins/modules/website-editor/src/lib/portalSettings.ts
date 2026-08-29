@@ -4,10 +4,27 @@
 // re-pointed at the plugin-namespaced API and trimmed to the surface
 // SitesPage actually consumes.
 //
-// Round-4 status: API endpoint not yet wired by foundation; calls
-// silently fall back to in-memory defaults so the SitesPage UI renders.
-// When T1 ships `/api/portal/website-editor/settings`, swap the
-// fallbacks for real responses (single-file change).
+// Round-4 status: `/api/portal/website-editor/settings` is NOT among the
+// routes this plugin declares (see `src/api/routes.ts`), so every call here
+// 404s.
+//
+// ── READS fall back; WRITES must not (2026-08-28 audit) ──────────────────
+//
+// `loadSettings` returning defaults is fine and is what SitesPage relies on:
+// it renders, and `githubReady` correctly computes false because the default
+// repo URL is empty. Nothing is claimed that is not true.
+//
+// `saveSettings` used to do something else entirely. On the 404 it caught the
+// error and did an "optimistic local apply" — merged the patch into the
+// in-memory cache, notified listeners, and returned the merged object. The
+// caller could not tell a real save from a failed one. Since the shape it
+// saves includes `github.token` and `github.pat`, that meant somebody could
+// enter a personal access token, watch it "save", and have it live only in a
+// client-side variable until the next reload.
+//
+// It has no caller today — SitesPage imports only the read side — so this was
+// never reachable. It is fixed rather than deleted because dead code with a
+// pretend-success path in it is a trap for whoever wires the endpoint up.
 
 export type DatabaseBackend = "file" | "memory" | "kv";
 
@@ -92,9 +109,14 @@ export async function saveSettings(patch: PortalSettingsPatch): Promise<PortalSe
     if (!res.ok) throw new Error(`save failed: ${res.status}`);
     const data = await res.json() as { settings: PortalSettings };
     cache = data.settings;
-  } catch {
-    // Optimistic local apply when API unavailable
-    cache = mergePatch(cache ?? DEFAULT_SETTINGS, patch);
+  } catch (cause) {
+    // Deliberately NOT an optimistic local apply. A save that reports success
+    // without persisting is worse than one that fails: the operator believes a
+    // credential is stored. Fail loudly and let the caller say so.
+    throw new Error(
+      "Portal settings cannot be saved: this plugin declares no /settings route, so there is nowhere to store them. "
+      + `(${cause instanceof Error ? cause.message : String(cause)})`,
+    );
   }
   notify();
   return cache;
@@ -115,6 +137,9 @@ export async function resetSettings(): Promise<PortalSettings> {
     const data = await res.json() as { settings: PortalSettings };
     cache = data.settings;
   } catch {
+    // Unlike `saveSettings`, this one is honest as-is. Nothing is persisted
+    // anywhere, so the in-memory cache IS the whole of the state — clearing it
+    // to defaults is a complete and truthful reset, not a pretence.
     cache = DEFAULT_SETTINGS;
   }
   notify();

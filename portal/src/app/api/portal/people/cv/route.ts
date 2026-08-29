@@ -7,6 +7,7 @@ import { authErrorResponse, getSessionFromRequest, AuthError } from "@/lib/serve
 import { readSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { getPeopleApplication } from "@/server/people";
 import { ensureHydrated } from "@/server/storage";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 
 export const runtime = "nodejs";
 
@@ -25,6 +26,12 @@ export async function GET(request: NextRequest) {
     await ensureHydrated();
     const session = await getSessionFromRequest(request);
     if (!session || (session.role !== "agency-owner" && session.role !== "agency-manager")) throw new AuthError(401, "unauthorized");
+    // A candidate's CV is HR recruitment data. Every other application action in
+    // the People route answers to `staff.people`; this one was still deciding on
+    // the role alone, so a governed manager restricted out of People could read
+    // applicants' CVs. It is a read, so `view` — the same level that shows the
+    // application it belongs to.
+    await requireCurrentWorkspaceElementAccess("staff", "staff.people", "view");
     const applicationId = request.nextUrl.searchParams.get("applicationId")?.trim() ?? "";
     const application = getPeopleApplication(session.agencyId, applicationId);
     if (!application) return NextResponse.json({ ok: false, error: "Application not found." }, { status: 404 });

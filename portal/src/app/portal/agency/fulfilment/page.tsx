@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { requireRole } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES, type AgencyProduct, type Client, type ClientMilestone } from "@/server/types";
-import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
+import { agencyProductsForRead, listAgencyProducts } from "@/server/agencyProducts";
 import { listClientMilestones } from "@/server/clientMilestones";
 import { phaseLabel } from "@/server/phases";
 import { clientProductWorkspaces } from "@/server/productWorkspaces";
@@ -50,6 +50,15 @@ interface SearchParams {
   client?: string;
   technical?: string;
   status?: string;
+  /**
+   * Which Portals sub-view to open (`library` | `templates`).
+   *
+   * Without this the Portals element could only ever show its library, so the
+   * Demo templates half was unreachable from Fulfilment — the one thing the
+   * standalone `/portal/agency/portals` address still did that its Fulfilment
+   * home could not.
+   */
+  portalView?: string;
 }
 
 const VALID_VIEWS: readonly FulfilmentView[] = ["overview", "stages", "services", "technical", "clients", "portals", "tags", "access"];
@@ -71,8 +80,14 @@ export default async function FulfilmentPage({ searchParams }: { searchParams: P
     workspaceElementLevel(access, FULFILMENT_VIEW_ELEMENT_KEYS[viewId]),
   ])) as Record<FulfilmentView, WorkspaceElementLevel>;
   const requested = await searchParams;
-  const requestedView = requested.view === "products" ? "services" : requested.view;
-  const view = VALID_VIEWS.includes(requestedView as FulfilmentView) ? requestedView as FulfilmentView : "overview";
+  // The legacy `?view=products` is REDIRECTED, not quietly mapped. Mapping in
+  // place showed Services while leaving `view=products` in the address bar, so
+  // the dead view name kept getting bookmarked and shared. The three sibling
+  // surfaces that were part of the same move — `agency/products`, the product
+  // detail workspace and `agency/company` — all redirect; this one is the odd
+  // one out, and consistency here is what makes the old URL actually die.
+  if (requested.view === "products") redirect("/portal/agency/fulfilment?view=services");
+  const view = VALID_VIEWS.includes(requested.view as FulfilmentView) ? requested.view as FulfilmentView : "overview";
   if (session.publicShowcase && (view === "technical" || view === "tags")) redirect("/portal/agency/fulfilment");
   if (session.publicShowcase && view === "access") redirect("/portal/agency/fulfilment");
   if (viewAccess[view] === "hidden") {
@@ -82,7 +97,7 @@ export default async function FulfilmentPage({ searchParams }: { searchParams: P
   const canManage = !session.publicShowcase;
   const canUseServices = canManage && workspaceElementAtLeast(viewAccess.services, "use");
   const canManageServices = canManage && viewAccess.services === "manage";
-  if (canManageServices) ensureDefaultAgencyProducts(agencyId);
+  if (canManageServices) agencyProductsForRead(agencyId);
   const allAgencyProducts = listAgencyProducts(agencyId, true);
   const agencyProducts = allAgencyProducts.filter(product => product.active);
   const clientDirectory = listClients(agencyId);
@@ -121,6 +136,7 @@ export default async function FulfilmentPage({ searchParams }: { searchParams: P
   }
 
   return <FulfilmentWorkspace
+    portalView={requested.portalView === "templates" ? "templates" : "library"}
     view={view}
     products={productRecords}
     clients={clientRecords}

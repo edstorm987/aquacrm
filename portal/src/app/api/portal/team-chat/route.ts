@@ -38,12 +38,15 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   await ensureHydrated();
-  const session = await requireRole([...TEAM_ROLES]);
-  const agencyId = getActiveAgencyId(session);
-  const body = await req.json().catch(() => null) as Record<string, unknown> | null;
-  if (!body) return NextResponse.json({ ok: false, error: "Invalid request." }, { status: 400 });
-  const action = text(body.action, 40);
+  // Inside the try — see the same fix in `api/portal/people`. The catch below
+  // already turns AuthError into a 401; with `requireRole` above the try the
+  // throw escaped and Next.js answered 500 to every unauthenticated POST.
   try {
+    const session = await requireRole([...TEAM_ROLES]);
+    const agencyId = getActiveAgencyId(session);
+    const body = await req.json().catch(() => null) as Record<string, unknown> | null;
+    if (!body) return NextResponse.json({ ok: false, error: "Invalid request." }, { status: 400 });
+    const action = text(body.action, 40);
     await requireCurrentWorkspaceElementAccess("staff", "staff.chat", "use");
     if (action === "post") {
       postPeopleMessage({ agencyId, channelId: text(body.channelId, 120), authorUserId: session.userId, body: text(body.body, 4_000) });

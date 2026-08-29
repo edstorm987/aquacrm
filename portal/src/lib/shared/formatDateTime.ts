@@ -123,6 +123,19 @@ export function addBusinessCalendarDays(
 }
 
 export function dateInputValue(value: unknown, timeZone = BUSINESS_TIME_ZONE): string {
+  // A MISSING date stays missing. `businessCalendarDate`'s `value` parameter
+  // defaults to `Date.now()`, which is right for its own callers — writing
+  // `addBusinessCalendarDays(7)` means "seven days from today". But this
+  // function formats a value that is supposed to already exist, and a JS
+  // default fires on `undefined`, so `dateInputValue(undefined)` was returning
+  // TODAY.
+  //
+  // That is not cosmetic. These 34 call sites are mostly Finance: an
+  // `<input type="date">` with no value silently pre-filled today, so the next
+  // save wrote a date nobody chose; and the invoice HTML export printed today
+  // as the "Issued" date for an invoice that had never been issued. Money
+  // documents do not get to invent their own dates.
+  if (value === undefined || value === null) return "";
   return businessCalendarDate(value, timeZone);
 }
 

@@ -394,6 +394,12 @@ function privateValues(connection: IntegrationConnection): Record<string, string
 
 function environmentValues(provider: IntegrationProvider): Record<string, string> {
   const mappings: Record<IntegrationProvider, Record<string, string | undefined>> = {
+    // No environment fallback, on purpose. Every other provider here is OUR
+    // account, so an env var is a sensible default for the whole install. A
+    // client's Supabase belongs to that client, and there is no such thing as
+    // a default one — an env fallback could only ever point every client at
+    // somebody else's database.
+    "client-supabase": {},
     resend: {
       apiKey: process.env.RESEND_API_KEY,
       fromEmail: process.env.MILESYMEDIA_FROM_EMAIL,
@@ -520,6 +526,61 @@ async function testProvider(
   }
   if (provider === "google-search-console") {
     return testGoogleSearchConsole(values, fetchImpl, signal);
+  }
+  if (provider === "client-supabase") {
+    // Testing a CLIENT's database, and the interesting question is not "does
+    // the key work" — it is "is the table locked down".
+    //
+    // ── Why this is the check that matters ───────────────────────────────
+    //
+    // An exported site posts to this table straight from the visitor's browser,
+    // carrying the ANON key in the page source. That is how Supabase is meant
+    // to be used: the anon key is public, and the row-level-security policy is
+    // the actual control. The README we ship says "keep that policy to INSERT
+    // only" — but that was prose, and nobody had ever verified it.
+    //
+    // If the table also allows anon SELECT, then every enquiry that client has
+    // ever received is readable by anyone who views their homepage source.
+    // That is the whole point of the client-owned data design failing open.
+    //
+    // So: ask, with the anon key, to read one row.
+    //   • 200 with an ARRAY  → anon may read. Refuse the test and say so.
+    //                          An EMPTY array is just as bad: the policy
+    //                          permits the read, there simply are no rows yet.
+    //   • 401 / 403          → RLS is denying anon. This is the good case.
+    //   • 404                → the table is missing or not exposed by PostgREST.
+    //
+    // Deliberately read-only. Proving INSERT works would mean writing a test
+    // row into a client's live table, and no diagnostic is worth that.
+    const base = (values.projectUrl || "").trim().replace(/\/+$/, "");
+    const table = (values.submissionsTable || "").trim();
+    const anonKey = (values.anonKey || "").trim();
+    if (!base || !table || !anonKey) {
+      throw new Error("Add the project URL, the anon key and the submissions table before testing.");
+    }
+    const probe = await fetchImpl(`${base}/rest/v1/${encodeURIComponent(table)}?select=*&limit=1`, {
+      headers: { apikey: anonKey, authorization: `Bearer ${anonKey}` },
+      cache: "no-store",
+      signal,
+    });
+    if (probe.status === 404) {
+      throw new Error(`Supabase could not find a table called "${table}". Check the name, and that it is exposed through the API.`);
+    }
+    if (probe.ok) {
+      const rows = await probe.json().catch(() => null);
+      if (Array.isArray(rows)) {
+        throw new Error(
+          `Anyone can READ "${table}" with this site's public key, so every enquiry in it is exposed. ` +
+          "Restrict the table's row-level-security policy to INSERT for the anon role, then test again.",
+        );
+      }
+    }
+    if (probe.status === 401 || probe.status === 403) {
+      return `Connected. "${table}" refuses public reads, so enquiries can be submitted but not read back from the site.`;
+    }
+    // Anything else: reachable, not obviously wrong, but not a clean refusal
+    // either — say exactly what came back rather than implying it is fine.
+    return `Connected to "${table}". Supabase answered ${probe.status} to a public read test — confirm that policy allows INSERT only.`;
   }
   if (provider === "aqua-editor-ai") {
     // Same wire call as `openai` — a different CREDENTIAL, not a different

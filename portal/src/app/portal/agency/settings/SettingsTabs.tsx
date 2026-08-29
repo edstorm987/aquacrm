@@ -631,6 +631,14 @@ function LaunchPane({ readiness, canManageExternalAi }: { readiness: ProductionR
     <>
     <Section eyebrow="External AI">
       {canManageExternalAi ? <ExternalAiConnectionPanel /> : <SettingsPermissionNotice capability="manage external AI access" />}
+      {/* Settings used to carry a second Integrations tab; connections now live in
+          one place. Anyone configuring External AI here is a step away from
+          looking for the rest, so say where they went rather than leaving them
+          to hunt. */}
+      <p className="mt-4 text-xs leading-5 text-black/45">
+        Every other integration — email and messaging senders, GitHub, Vercel, analytics — lives in{" "}
+        <Link href="/portal/agency/company?view=connections" className="font-semibold text-black/60 underline underline-offset-2 hover:text-black">Company → Connections</Link>.
+      </p>
     </Section>
     <section aria-labelledby="launch-readiness-title" className="border-y border-black/10">
       <header className="flex flex-col gap-3 border-b border-black/10 py-5 sm:flex-row sm:items-end sm:justify-between">

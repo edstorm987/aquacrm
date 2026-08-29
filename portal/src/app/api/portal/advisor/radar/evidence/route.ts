@@ -3,11 +3,15 @@ import { NextResponse } from "next/server";
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { inspectRadarEvidence, inspectRadarEvidenceSeries } from "@/engines/data/server/radar/radarEvidenceVault";
 import { ensureHydrated } from "@/server/storage";
+import { requireAssistantElement } from "@/lib/server/assistants/assistantContextScope";
 
 export async function GET(request: Request) {
   try {
     await ensureHydrated();
-    const session = await requireRole(["agency-owner", "agency-manager"]);
+    // Issue #182 — an element, not a role. A role check passes a manager whose
+    // element access has been narrowed, and the AI then answers from data the
+    // UI hides from them; that is the confused deputy one level in.
+    const session = await requireAssistantElement("workspace.overview");
     const params = new URL(request.url).searchParams;
     const seriesId = params.get("seriesId")?.trim();
     if (params.get("format") === "json") {

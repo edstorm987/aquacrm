@@ -345,6 +345,38 @@ export class EmailService {
     });
   }
 
+  /**
+   * A client's journey automation asked for an email.
+   *
+   * Added 2026-08-28 with the client-crm journey pipelines add-on. The rule
+   * that triggers this is built by the CLIENT, on their own board, so the
+   * subject and body are theirs — this composes nothing and adds no wording of
+   * its own beyond falling back to a plain greeting when the body is empty.
+   *
+   * `externalRef` is the automation and card together: the same rule firing for
+   * the same card twice (a retry, a double-submitted move) collapses to one
+   * message, while the same rule firing for a DIFFERENT person does not.
+   */
+  async onCrmAutomationEmailRequested(payload: {
+    automationId: string;
+    cardId: string;
+    contactEmail: string;
+    contactName?: string;
+    subject: string;
+    bodyText: string;
+    clientId?: string;
+  }): Promise<EmailMessage | null> {
+    if (!payload.contactEmail || !payload.subject) return null;
+    return this.enqueue({
+      to: payload.contactEmail,
+      subject: payload.subject,
+      bodyText: payload.bodyText || `Hi ${payload.contactName ?? "there"},`,
+      triggeredByPlugin: "client-crm",
+      externalRef: `${payload.automationId}:${payload.cardId}`,
+      clientId: payload.clientId,
+    });
+  }
+
   // ─── Helpers ─────────────────────────────────────────────────────────
 
   private async transition(

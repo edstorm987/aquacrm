@@ -10,6 +10,8 @@ import { logActivity } from "./activity";
 import { seedDefaultPipelines, migrateClientsToFulfilment } from "./pipelines";
 import { getState, mutate } from "./storage";
 import type { Agency } from "./types";
+import { ensureDefaultAgencyProducts } from "./agencyProducts";
+import { ensureDefaultDevelopmentWorkflow } from "./developmentToolkit";
 
 export interface BootstrapAgencyResult {
   agency: Agency;
@@ -74,6 +76,14 @@ export async function bootstrapAgency(
   // installing core plugins so kanban-aware plugins find a fulfilment
   // pipeline to attach to. Idempotent — safe to call from re-bootstrap.
   seedDefaultPipelines(agency.id);
+  // The one default product (Website) is seeded HERE from 2026-08-27, not on
+  // the first page view. It used to be a write reachable from eight rendered
+  // surfaces and from `/api/portal/search` — issue #21's widest one — and a new
+  // tenant's other defaults already live in this function.
+  ensureDefaultAgencyProducts(agency.id);
+  // The default Development workflow, for the same reason: it used to be
+  // created by whichever Development page somebody opened first (issue #21).
+  ensureDefaultDevelopmentWorkflow(agency.id, installedBy ?? "system");
   migrateClientsToFulfilment(agency.id);
   await installCorePluginsForScope({ agencyId: agency.id }, installedBy);
   // Snapshot which core plugins ended up installed (mostly diagnostic).

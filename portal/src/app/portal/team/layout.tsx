@@ -19,6 +19,7 @@ import {
   staffStationAccessEntries,
 } from "@/lib/server/access/workspaceElementAccess";
 import { requireCurrentAccessActor } from "@/server/accessControl";
+import { withPersonalChrome } from "@/lib/server/chrome/personalPanels";
 
 export default async function TeamLayout({ children }: { children: ReactNode }) {
   await ensureHydrated();
@@ -70,13 +71,14 @@ export default async function TeamLayout({ children }: { children: ReactNode }) 
     order: 90,
     items: [{ id: "account", label: "My profile", href: "/portal/account", panelId: "settings", order: 100 }],
   }];
+  const personalPanels = await withPersonalChrome(panels);
   const h = await headers();
   const currentPath = h.get("x-invoke-path") ?? h.get("x-pathname") ?? "/portal/team";
   return (
     <>
       <ThemeInjector brand={agency.brand} scope="agency" />
-      <div className="mm-portal-root flex h-dvh overflow-hidden">
-        <Sidebar panels={panels} tenantLabel={`${agency.name} Team`} currentPath={currentPath} />
+      <div className="mm-portal-root flex h-[var(--aqua-shell-h,100dvh)] overflow-hidden">
+        <Sidebar panels={personalPanels} tenantLabel={`${agency.name} Team`} currentPath={currentPath} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <Topbar
             inspecting={Boolean(session.previewReturnUserId)}
@@ -86,7 +88,7 @@ export default async function TeamLayout({ children }: { children: ReactNode }) 
             email={session.email}
             name={user?.name}
             avatarUrl={user?.avatarUrl}
-            panels={panels}
+            panels={personalPanels}
             tenantLabel={`${agency.name} Team`}
             currentPath={currentPath}
             searchRecordsEnabled={false}

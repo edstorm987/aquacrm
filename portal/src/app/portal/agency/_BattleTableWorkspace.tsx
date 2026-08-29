@@ -459,14 +459,14 @@ function StrategicOverview({ payload, company, calculations, onSelect }: { paylo
         <button type="button" onClick={() => onSelect("strategy")} className="mt-4 inline-flex min-h-8 items-center gap-2 text-[10px] font-semibold uppercase text-[#62e8ff] hover:text-white"><Flag size={13} /> Set direction</button>
       </div>
       <div className="border-b border-[#d7b56d]/16 p-5">
-        <div className="flex items-center justify-between"><p className="text-[9px] font-semibold uppercase text-[#e4c783]/60">Objectives on the table</p><button type="button" onClick={() => onSelect("objectives")} className="text-[9px] font-semibold uppercase text-[#62e8ff]">Open all</button></div>
+        <div className="flex items-center justify-between"><p className="text-[9px] font-semibold uppercase text-[#e4c783]/60">Objectives on the table</p><button type="button" onClick={() => onSelect("objectives")} className="inline-flex min-h-6 items-center text-[9px] font-semibold uppercase text-[#62e8ff]">Open all</button></div>
         <div className="mt-3 divide-y divide-white/8 border-y border-white/8">
           {activeObjectives.slice(0, 4).map(item => <ObjectiveReadout key={item.id} item={item} />)}
           {!activeObjectives.length ? <p className="py-6 text-xs text-white/32">No measurable objectives are active yet.</p> : null}
         </div>
       </div>
       <div className="p-5">
-        <div className="flex items-center justify-between"><p className="text-[9px] font-semibold uppercase text-[#e4c783]/60">Decision lanes</p><button type="button" onClick={() => onSelect("plans")} className="text-[9px] font-semibold uppercase text-[#62e8ff]">Plan room</button></div>
+        <div className="flex items-center justify-between"><p className="text-[9px] font-semibold uppercase text-[#e4c783]/60">Decision lanes</p><button type="button" onClick={() => onSelect("plans")} className="inline-flex min-h-6 items-center text-[9px] font-semibold uppercase text-[#62e8ff]">Plan room</button></div>
         <div className="mt-3 grid grid-cols-3 border border-white/10">
           {(["now", "next", "later"] as const).map(horizon => <button key={horizon} type="button" onClick={() => onSelect("plans")} className="border-r border-white/10 px-2 py-4 text-center last:border-r-0"><strong className="block text-xl text-[#f1dba9]">{company.plans.filter(item => item.horizon === horizon && item.status !== "complete").length}</strong><span className="mt-1 block text-[8px] font-semibold uppercase text-white/35">{horizon}</span></button>)}
         </div>

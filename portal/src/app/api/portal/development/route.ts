@@ -51,7 +51,13 @@ export async function GET(request: Request) {
   try {
     await ensureHydrated();
     const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
-    ensureDefaultDevelopmentWorkflow(session.agencyId, session.userId);
+    // NO SEED OR MIGRATION HERE (issue #21, 2026-08-27).
+    //
+    // This called `ensureDefaultDevelopmentWorkflow(...)` and DISCARDED the
+    // result — it was here purely for the side effect, which both creates the
+    // default workflow and runs `migrateLegacyStageRefs`, a data migration, while
+    // rendering. The seed moved to `bootstrapAgency`; the migration is
+    // self-extinguishing and still runs from the write paths.
     const params = new URL(request.url).searchParams;
     const mode = params.get("mode");
     const query = params.get("q")?.trim().toLowerCase() ?? "";

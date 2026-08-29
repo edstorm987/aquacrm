@@ -23,6 +23,9 @@ import { getSupabasePublicConfig } from "@/lib/supabase/config";
  * hand-maintained-but-honest statement about what the code does and does not do.
  */
 
+import { listSubjectRequests, subjectRequestClock, type SubjectRequestClock } from "@/lib/server/compliance/subjectRequests";
+import { previewRetentionSweep, retentionPolicy, RETENTION_CATEGORIES } from "@/lib/server/compliance/retention";
+
 export type SecurityStatus = "in-code" | "configured" | "partial" | "not-verified" | "blind";
 
 export interface SecurityControl {
@@ -92,6 +95,33 @@ export interface GovernanceSnapshot {
   subprocessors: SubprocessorRow[];
   security: SecurityControl[];
   erasureClients: ErasureClientRow[];
+  /**
+   * The DSAR register and its statutory clock.
+   *
+   * `compliancePosture` named the gap as "no screen surfaces the clock, so an
+   * overdue request is only visible to somebody who goes looking". Governance
+   * is where somebody looks.
+   */
+  subjectRequests: SubjectRequestRow[];
+  subjectRequestClock: SubjectRequestClock;
+  /**
+   * What the retention policy WOULD remove, right now. Counting only — the
+   * sweep is never run as a side effect of opening a page.
+   */
+  retentionPreview: { total: number; removed: Record<string, number>; unset: string[] };
+  retentionCategories: Array<{ id: string; label: string; describes: string; days?: number }>;
+}
+
+export interface SubjectRequestRow {
+  id: string;
+  kind: string;
+  subjectLabel: string;
+  receivedAt: number;
+  dueAt: number;
+  identityVerified: boolean;
+  closed: boolean;
+  overdue: boolean;
+  extended: boolean;
 }
 
 export interface BuildGovernanceOptions {
@@ -156,6 +186,29 @@ export async function buildGovernanceSnapshot(options: BuildGovernanceOptions): 
     subprocessors,
     security,
     erasureClients,
+    subjectRequests: listSubjectRequests(agencyId).map(request => ({
+      id: request.id,
+      kind: request.kind,
+      subjectLabel: request.subjectLabel,
+      receivedAt: request.receivedAt,
+      dueAt: request.dueAt,
+      identityVerified: Boolean(request.identityVerifiedAt),
+      closed: Boolean(request.fulfilledAt || request.refusedAt),
+      // Computed here rather than in the component: "late" is a fact about a
+      // moment, and the server's `now` is the one the rest of this snapshot
+      // was built against.
+      overdue: !request.fulfilledAt && !request.refusedAt && request.dueAt < now,
+      extended: Boolean(request.extendedAt),
+    })),
+    subjectRequestClock: subjectRequestClock(agencyId, now),
+    // Counting only. Opening a compliance page must never delete anything.
+    retentionPreview: previewRetentionSweep(agencyId, now),
+    retentionCategories: RETENTION_CATEGORIES.map(category => ({
+      id: category.id,
+      label: category.label,
+      describes: category.describes,
+      days: retentionPolicy(agencyId)[category.id],
+    })),
   };
 }
 

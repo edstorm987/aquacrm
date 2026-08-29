@@ -70,6 +70,23 @@ const INTENDED_DIFFERENCES: Array<{ key: string; reason: string }> = [
   // media block's empty-state hint names the editor, so the client-visible copy
   // changed with it. Baseline re-captured for this reason.
   { key: "media", reason: "empty-state hint copy: 'Aqua Engine' → 'Dev Editor Engine'" },
+
+  // 2026-08-27 billing metrics — an empty state stopped presenting itself as a
+  // confident number. Both changes are in `_PortalPageComposition.tsx`:
+  //
+  //  • "Recorded" showed `£0` for a client with NO invoices at all. It now shows
+  //    `—`. Checked before accepting: `invoiceTotals(..., "recordedCents")`
+  //    filters on `invoiceCount > 0`, so a client who genuinely has invoices
+  //    totalling zero still sees `£0`. The dash means "nothing shared", not "a
+  //    zero we are hiding" — which is the house rule that missing evidence is a
+  //    visible blind spot, never a healthy pass.
+  //  • the Outstanding tile's detail line reads "Issued and still due" instead
+  //    of "Still due", naming what the figure counts.
+  //
+  // Baseline re-captured for these two reasons and nothing else: the diff was
+  // five blocks but only these two distinct strings, with no structural, data,
+  // or visibility change.
+  { key: "metrics", reason: "empty billing metrics: '£0' → '—' (no invoices at all), and 'Still due' → 'Issued and still due'" },
 ];
 
 interface Capture {

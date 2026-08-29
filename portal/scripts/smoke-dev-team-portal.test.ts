@@ -314,29 +314,53 @@ describe("dev team auditor — open vs historical is evidence, not a guess", () 
 
 describe("command centre — the Dev Team station tells the truth", () => {
   it("badges the board's Blocked lane and deep-links only for a founder", async () => {
-    const [dashboard, page] = await Promise.all([
+    const [dashboard, page, attention] = await Promise.all([
       read("src/app/portal/agency/_DashboardCommandCenter.tsx"),
       read("src/app/portal/agency/page.tsx"),
+      read("src/app/portal/agency/commandStationAttention.ts"),
     ]);
 
     // The count is computed server-side from the SAME model the station renders,
     // so the nav badge and the station's "Blocked" tile cannot disagree.
+    // Four PROPERTIES, not one expression's shape. These used to be pinned as a
+    // single `?.`-and-`??` ternary; the page has since hoisted the counts into
+    // `let`s guarded by an `if`, which is the same behaviour written more
+    // plainly. Pinning the old shape reported that clearer code as a
+    // regression, so pin what actually has to be true:
+    //
+    //   1. the lanes come from the same model the station renders;
+    //   2. the badge count is the Blocked lane's length;
+    //   3. the launch-blocker count is the `kind === "blocker"` subset;
+    //   4. both DEFAULT TO ZERO, and are only computed for a founder outside
+    //      lightweight mode — so nobody else triggers the scan or sees a number.
     assert.match(page, /composeLanes\(await scanDevTeamBoard\(\)\)/);
-    assert.match(page, /devTeamBlockedCount = devTeamLanes\?\.blocked\.length \?\? 0/);
-    assert.match(page, /devTeamLaunchBlockerCount = devTeamLanes\?\.blocked\.filter\(item => item\.kind === "blocker"\)\.length/);
+    assert.match(page, /devTeamBlockedCount\s*=\s*devTeamLanes[?.]*\.blocked\.length/);
+    assert.match(page, /devTeamLaunchBlockerCount\s*=\s*devTeamLanes[?.]*\.blocked\.filter\(item => item\.kind === "blocker"\)\.length/);
+    assert.match(page, /let devTeamBlockedCount = 0;/, "the badge count must default to zero, not to undefined");
+    assert.match(page, /let devTeamLaunchBlockerCount = 0;/);
     // Still founder-gated (and skipped in the shared lightweight mode): no
     // count or station-badge scan for anyone else, Performance mode, or the
     // public showcase.
-    assert.match(page, /devTeamVisible && !lightweightMode \? composeLanes/);
+    assert.match(page, /devTeamVisible && !lightweightMode(\s*\)\s*\{|\s*\?)/,
+      "the board scan is no longer gated on founder-visible + non-lightweight");
     assert.doesNotMatch(page, /devTeamBlockerCount/, "the old hardcoded-zero-era prop is gone");
 
+    // The badge shape moved into its own module (`commandStationAttention.ts`)
+    // where it can be reasoned about without the 1,200-line client component
+    // around it. Assert the CHAIN — the dashboard delegates, the module decides
+    // — rather than re-pinning the old inline literals, which is what broke.
+    assert.match(dashboard, /devTeamStationAttention\(devTeamAttentionLoaded, devTeamBlockedCount, devTeamLaunchBlockerCount\)/,
+      "the dashboard stopped delegating its Dev Team badge to commandStationAttention");
+
     // The badge is the real number, and never a bare hardcoded literal again.
-    assert.match(dashboard, /count: devTeamBlockedCount,/);
-    assert.doesNotMatch(dashboard, /devTeamAttention[\s\S]{0,120}count: 0,/);
+    assert.match(attention, /count: blockedCount,/);
     // Tone follows the other stations: a launch blocker is critical, stalled work is a warning.
-    assert.match(dashboard, /tone: devTeamLaunchBlockerCount \? "critical" : devTeamBlockedCount \? "warning" : "clear"/);
+    assert.match(attention, /tone: launchBlockerCount \? "critical" : blockedCount \? "warning" : "clear"/);
     // The label breaks the number down rather than asserting a bare count.
-    assert.match(dashboard, /blocked on the Dev Team board/);
+    assert.match(attention, /blocked on the Dev Team board/);
+    // Not-yet-loaded is stated as unknown, never rendered as a confident zero.
+    assert.match(attention, /if \(!loaded\)[\s\S]{0,160}Blocked status loads with the Dev Team station/,
+      "an unloaded board must say so, not badge a clear zero");
 
     // Phase 3 — `?station=devteam` resolves ONLY when the station is visible.
     assert.match(dashboard, /function commandStationMode\(value: string \| null, devTeamVisible = false\)/);

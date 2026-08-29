@@ -826,7 +826,26 @@ through → write its phased plan → blitz). Trivial one-liners don't need a pl
       scoped compare-and-swap commands, recoverable slug/collection migration, graph
       validation and lossless rich option/variant fields are source/service complete.
       Literal two-tab conflict/rename/reload proof remains. → [issues #71 and #77](issues.md)
-- [ ] 🟠 **Remove hidden read-time work from slow pages** — profile first, then
+- [~] 🟠 **Remove hidden read-time work from slow pages** — **the enumeration and
+  the classification exist as of 2026-08-27**: `npm run smoke:read-path-mutations`
+  re-derives the list from source every run and fails when it disagrees with
+  `scripts/read-path-mutation-inventory.ts`. Today: **19 GET-only routes and 38
+  renders** → after ruling every cause, **16 routes and 27 renders**, with the
+  unruled backlog at **zero**. What remains is the REMOVALS, in this order:
+  (1) ✅ **DONE 2026-08-27** — `listPeopleChannels` no longer creates the Team
+  channel; the id is deterministic per agency, a read gets it unsaved, and the
+  first post persists it. The chain re-resolved one hop along to
+  `releaseExpiredParks`, which is ruled and left as a product question.
+  (2) ✅ **DONE 2026-08-27** — `ensureDefaultAgencyProducts` no longer runs on a
+  read: the repair is applied in memory by `agencyProductsForRead`, the seed
+  moved to `bootstrapAgency`, and three dead showcase guards went with it. It
+  exposed seven causes hiding behind it, reducing to three roots — the next
+  seeder is `ensureProductPortalTemplate` (identical shape) and the next
+  migration-on-render is `upgradeLegacyLeadsPipeline`. (3) The Marketing render runs `processAutomationSweep`,
+  the cron function, and three Development pages run `migrateLegacyStageRefs`, a
+  migration. (4) `ensurePrimaryAgencyWebsite` is the only one a STRANGER can
+  trigger, from the public website layout. The original
+  wording follows: profile first, then
   classify the **28 non-auth API GETs and 26 rendered page/layout files** with a
   reachable mutation path; explicitly isolate intentional cron/OAuth effects;
   separate product/workflow/key/portal materialisation, plugin provisioning,
@@ -949,6 +968,18 @@ through → write its phased plan → blitz). Trivial one-liners don't need a pl
 - [ ] **Aqua Tag form-capture consent** — field-value capture isn't consent-gated (telemetry is). Deliberate legitimate-interest call, or gate it. → [issues #2](issues.md)
 - [ ] **`.env.example` missing 3 Supabase creds** — a fresh copy fails the boot check. Trivial fix. → [issues #4](issues.md)
 - [x] ~~**First git commit**~~ — completed and pushed 2026-08-21; merging to `main` remains Ed's deployment decision.
+- [ ] ⏳ **Ed's GitHub credentials for the Dev Editor publish walk — PROMISED, NOT YET SUPPLIED (noted 2026-08-27).**
+  Everything up to the publish boundary is now proven: the supervised preview lifecycle is
+  browser-accepted on an isolated worktree, and the commit/PR/merge engine exists
+  (`repoWrite` → `openProjectPullRequest` / `mergeProjectPullRequest`, two steps on purpose).
+  What cannot be walked without a real connection is the last leg — **commit → open PR →
+  review → merge** — against a real repository. Ed said he will supply the credentials later.
+  **When they arrive:** connect GitHub in the editor (Settings tab, one vault — do not fork a
+  second connection store), then walk save → diff → commit → PR → merge on a throwaway branch
+  BEFORE any real client repository, and record the result in
+  [dev-editor-finish](plans/dev-editor-finish.md) phase 17. **Never enter a real key yourself** —
+  build the inputs and let Ed fill them in (this plan's own guard rail).
+  → [dev-editor-finish](plans/dev-editor-finish.md), [issues #161](issues.md)
 
 ## 4. Prove — runtime verification (the honest gap)
 - [ ] 🔴 **Free a server + verify the critical flows for real** — enquiry ingestion (tag → `brand-enquiry` → inbox), customer portal loading, connect + setup, Aqua Tags detect. Most features are coded + static-tested only. → [status.md](status.md), [tests.md](tests.md) · **[plan »](plans/runtime-verification.md)**

@@ -65,7 +65,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `WebsitePageUpdating({ label, message }: { label: string; message?: string })`
 
-**Depends on:** _No internal imports._
+**Depends on (1):** [`src/lib/public/milesymediaRoutes.ts`](lib.md#file-src-lib-public-milesymediaroutes-ts-52388356af)
 
 **Used by (1):** [`src/app/(website)/client-centre/page.tsx`](#file-src-app-website-client-centre-page-tsx-c1544eaf13)
 
@@ -79,9 +79,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `WebsiteShell({ children, compact = false, }: { children: ReactNode; compact?: boolean; })`
 
-**Depends on:** _No internal imports._
+**Depends on (1):** [`src/lib/public/milesymediaRoutes.ts`](lib.md#file-src-lib-public-milesymediaroutes-ts-52388356af)
 
-**Used by (5):** [`src/app/(website)/health-check/page.tsx`](#file-src-app-website-health-check-page-tsx-8deb062ed1) · [`src/app/(website)/portfolio/beast-commerce/page.tsx`](#file-src-app-website-portfolio-beast-commerce-page-tsx-78949d0ea5) · [`src/app/(website)/portfolio/ocean-boulevard/page.tsx`](#file-src-app-website-portfolio-ocean-boulevard-page-tsx-55062bc5c3) · [`src/app/(website)/portfolio/page.tsx`](#file-src-app-website-portfolio-page-tsx-81e4241f25) · [`src/app/(website)/tools/page.tsx`](#file-src-app-website-tools-page-tsx-61b38f2ec9)
+**Used by (7):** [`src/app/(website)/health-check/page.tsx`](#file-src-app-website-health-check-page-tsx-8deb062ed1) · [`src/app/(website)/milesymedia/contact/page.tsx`](#file-src-app-website-milesymedia-contact-page-tsx-242a67c0b6) · [`src/app/(website)/milesymedia/page.tsx`](#file-src-app-website-milesymedia-page-tsx-5a4829a926) · [`src/app/(website)/portfolio/beast-commerce/page.tsx`](#file-src-app-website-portfolio-beast-commerce-page-tsx-78949d0ea5) · [`src/app/(website)/portfolio/ocean-boulevard/page.tsx`](#file-src-app-website-portfolio-ocean-boulevard-page-tsx-55062bc5c3) · [`src/app/(website)/portfolio/page.tsx`](#file-src-app-website-portfolio-page-tsx-81e4241f25) · [`src/app/(website)/tools/page.tsx`](#file-src-app-website-tools-page-tsx-61b38f2ec9)
 
 
 ## `src/app/(website)/business-os/`
@@ -115,7 +115,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `default async ClientCentrePage({ searchParams, }: { searchParams: Promise<{ preview?: string }>; })`
 - `metadata = {`
 
-**Depends on (4):** [`src/app/(website)/WebsitePageUpdating.tsx`](#file-src-app-website-websitepageupdating-tsx-e2eeb4b372) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/agencyWebsite.ts`](server.md#file-src-server-agencywebsite-ts-eb7ef721d2) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (5):** [`src/app/(website)/WebsitePageUpdating.tsx`](#file-src-app-website-websitepageupdating-tsx-e2eeb4b372) · [`src/lib/public/milesymediaRoutes.ts`](lib.md#file-src-lib-public-milesymediaroutes-ts-52388356af) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/agencyWebsite.ts`](server.md#file-src-server-agencywebsite-ts-eb7ef721d2) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -155,6 +155,42 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 
+## `src/app/(website)/milesymedia/contact/`
+
+<a id="file-src-app-website-milesymedia-contact-page-tsx-242a67c0b6"></a>
+
+### `src/app/(website)/milesymedia/contact/page.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `default MilesymediaContactPage()`
+- `metadata = {`
+
+**Depends on (1):** [`src/app/(website)/WebsiteShell.tsx`](#file-src-app-website-websiteshell-tsx-68245cf6be)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
+## `src/app/(website)/milesymedia/`
+
+<a id="file-src-app-website-milesymedia-page-tsx-5a4829a926"></a>
+
+### `src/app/(website)/milesymedia/page.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `default MilesymediaPage()`
+- `metadata = {`
+
+**Depends on (1):** [`src/app/(website)/WebsiteShell.tsx`](#file-src-app-website-websiteshell-tsx-68245cf6be)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
 ## `src/app/(website)/portfolio/beast-commerce/`
 
 <a id="file-src-app-website-portfolio-beast-commerce-beastcommercedemo-tsx-7f725674d1"></a>
@@ -182,7 +218,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `default BeastCommercePage()`
 - `metadata = {`
 
-**Depends on (2):** [`src/app/(website)/WebsiteShell.tsx`](#file-src-app-website-websiteshell-tsx-68245cf6be) · [`src/app/(website)/portfolio/beast-commerce/BeastCommerceDemo.tsx`](#file-src-app-website-portfolio-beast-commerce-beastcommercedemo-tsx-7f725674d1)
+**Depends on (3):** [`src/app/(website)/WebsiteShell.tsx`](#file-src-app-website-websiteshell-tsx-68245cf6be) · [`src/app/(website)/portfolio/beast-commerce/BeastCommerceDemo.tsx`](#file-src-app-website-portfolio-beast-commerce-beastcommercedemo-tsx-7f725674d1) · [`src/lib/public/milesymediaRoutes.ts`](lib.md#file-src-lib-public-milesymediaroutes-ts-52388356af)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -214,7 +250,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `default OceanBoulevardPage()`
 - `metadata = {`
 
-**Depends on (2):** [`src/app/(website)/WebsiteShell.tsx`](#file-src-app-website-websiteshell-tsx-68245cf6be) · [`src/app/(website)/portfolio/ocean-boulevard/OceanBoulevardDemo.tsx`](#file-src-app-website-portfolio-ocean-boulevard-oceanboulevarddemo-tsx-dd65570450)
+**Depends on (3):** [`src/app/(website)/WebsiteShell.tsx`](#file-src-app-website-websiteshell-tsx-68245cf6be) · [`src/app/(website)/portfolio/ocean-boulevard/OceanBoulevardDemo.tsx`](#file-src-app-website-portfolio-ocean-boulevard-oceanboulevarddemo-tsx-dd65570450) · [`src/lib/public/milesymediaRoutes.ts`](lib.md#file-src-lib-public-milesymediaroutes-ts-52388356af)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -232,7 +268,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `default PortfolioPage()`
 - `metadata = {`
 
-**Depends on (1):** [`src/app/(website)/WebsiteShell.tsx`](#file-src-app-website-websiteshell-tsx-68245cf6be)
+**Depends on (2):** [`src/app/(website)/WebsiteShell.tsx`](#file-src-app-website-websiteshell-tsx-68245cf6be) · [`src/lib/public/milesymediaRoutes.ts`](lib.md#file-src-lib-public-milesymediaroutes-ts-52388356af)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -285,7 +321,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET(req: NextRequest)`
 - `async POST(req: NextRequest)`
 
-**Depends on (13):** [`src/lib/server/assistants/advisorContext.ts`](lib.md#file-src-lib-server-assistants-advisorcontext-ts-ca2184cd70) · [`src/lib/server/assistants/advisorSkillContext.ts`](lib.md#file-src-lib-server-assistants-advisorskillcontext-ts-ca45c8b25b) · [`src/lib/server/assistants/advisorSkillsService.ts`](lib.md#file-src-lib-server-assistants-advisorskillsservice-ts-9c1a9d539a) · [`src/lib/server/assistants/assistantBusinessContext.ts`](lib.md#file-src-lib-server-assistants-assistantbusinesscontext-ts-022a1a1e3a) · [`src/lib/server/assistants/assistantStore.ts`](lib.md#file-src-lib-server-assistants-assistantstore-ts-15d0058af9) · [`src/lib/server/assistants/openaiAssistant.ts`](lib.md#file-src-lib-server-assistants-openaiassistant-ts-43bfde0f5e) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/rateLimit.ts`](lib.md#file-src-lib-server-ratelimit-ts-4b02277298) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tasks.ts`](server.md#file-src-server-tasks-ts-875282c006) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (14):** [`src/lib/server/assistants/advisorContext.ts`](lib.md#file-src-lib-server-assistants-advisorcontext-ts-ca2184cd70) · [`src/lib/server/assistants/advisorSkillContext.ts`](lib.md#file-src-lib-server-assistants-advisorskillcontext-ts-ca45c8b25b) · [`src/lib/server/assistants/advisorSkillsService.ts`](lib.md#file-src-lib-server-assistants-advisorskillsservice-ts-9c1a9d539a) · [`src/lib/server/assistants/assistantBusinessContext.ts`](lib.md#file-src-lib-server-assistants-assistantbusinesscontext-ts-022a1a1e3a) · [`src/lib/server/assistants/assistantContextScope.ts`](lib.md#file-src-lib-server-assistants-assistantcontextscope-ts-94c69e3f23) · [`src/lib/server/assistants/assistantStore.ts`](lib.md#file-src-lib-server-assistants-assistantstore-ts-15d0058af9) · [`src/lib/server/assistants/openaiAssistant.ts`](lib.md#file-src-lib-server-assistants-openaiassistant-ts-43bfde0f5e) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/rateLimit.ts`](lib.md#file-src-lib-server-ratelimit-ts-4b02277298) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tasks.ts`](server.md#file-src-server-tasks-ts-875282c006) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -319,7 +355,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: NextRequest)`
 
-**Depends on (9):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/effectiveRole.ts`](lib.md#file-src-lib-server-auth-effectiverole-ts-800cbe7bd9) · [`src/lib/server/dev/devMode.ts`](lib.md#file-src-lib-server-dev-devmode-ts-d0b2acc96f) · [`src/lib/server/dev/devModeAccess.ts`](lib.md#file-src-lib-server-dev-devmodeaccess-ts-7a01dac06e) · [`src/lib/server/seeds/demoSeed.ts`](lib.md#file-src-lib-server-seeds-demoseed-ts-8b209d4159) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (10):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/effectiveRole.ts`](lib.md#file-src-lib-server-auth-effectiverole-ts-800cbe7bd9) · [`src/lib/server/dev/devMode.ts`](lib.md#file-src-lib-server-dev-devmode-ts-d0b2acc96f) · [`src/lib/server/dev/devModeAccess.ts`](lib.md#file-src-lib-server-dev-devmodeaccess-ts-7a01dac06e) · [`src/lib/server/sandbox/sandboxEnvironment.ts`](lib.md#file-src-lib-server-sandbox-sandboxenvironment-ts-719cbc6a25) · [`src/lib/server/seeds/demoSeed.ts`](lib.md#file-src-lib-server-seeds-demoseed-ts-8b209d4159) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by (2):** [`scripts/smoke-dev-mode-identity.test.ts`](scripts.md#file-scripts-smoke-dev-mode-identity-test-ts-1c1ae1393b) · [`scripts/smoke-dev-mode.test.ts`](scripts.md#file-scripts-smoke-dev-mode-test-ts-4dab7423e5)
 
@@ -580,6 +616,23 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 
+## `src/app/api/auth/sandbox-mode/`
+
+<a id="file-src-app-api-auth-sandbox-mode-route-ts-f6db1655c2"></a>
+
+### `src/app/api/auth/sandbox-mode/route.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `async POST(request: NextRequest)`
+
+**Depends on (4):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/sandbox/sandboxEnvironment.ts`](lib.md#file-src-lib-server-sandbox-sandboxenvironment-ts-719cbc6a25) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
 ## `src/app/api/auth/showcase-mode/`
 
 <a id="file-src-app-api-auth-showcase-mode-route-ts-4687627f8e"></a>
@@ -592,7 +645,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: Request)`
 
-**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/showcaseMode.ts`](lib.md#file-src-lib-server-auth-showcasemode-ts-20762473eb) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/showcaseMode.ts`](lib.md#file-src-lib-server-auth-showcasemode-ts-20762473eb) · [`src/lib/server/sandbox/sandboxEnvironment.ts`](lib.md#file-src-lib-server-sandbox-sandboxenvironment-ts-719cbc6a25) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -627,7 +680,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET(request: NextRequest)`
 - `async POST(request: NextRequest)`
 
-**Depends on (7):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/postLoginRedirect.ts`](lib.md#file-src-lib-server-auth-postloginredirect-ts-17fc4de17b) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (7):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/companySwitcherState.ts`](lib.md#file-src-lib-server-auth-companyswitcherstate-ts-df33027a74) · [`src/lib/server/auth/postLoginRedirect.ts`](lib.md#file-src-lib-server-auth-postloginredirect-ts-17fc4de17b) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by (2):** [`scripts/smoke-company-portal.test.ts`](scripts.md#file-scripts-smoke-company-portal-test-ts-4386def7f3) · [`scripts/smoke-company-switcher.test.ts`](scripts.md#file-scripts-smoke-company-switcher-test-ts-3eb9ba8fe9)
 
@@ -737,9 +790,152 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async PUT(req: NextRequest, { params }: RouteParams)`
 - `async DELETE(req: NextRequest, { params }: RouteParams)`
 
-**Depends on (10):** [`src/built-ins/runtime/_pageScope.ts`](built-ins.md#file-src-built-ins-runtime-pagescope-ts-3cc574306e) · [`src/built-ins/runtime/_routeResolver.ts`](built-ins.md#file-src-built-ins-runtime-routeresolver-ts-bbf700f5cc) · [`src/built-ins/runtime/_types.ts`](built-ins.md#file-src-built-ins-runtime-types-ts-bae4cd6b2a) · [`src/built-ins/runtime/foundation-adapters/index.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-index-ts-dcf532e6f2) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/pluginRequestScope.ts`](lib.md#file-src-lib-server-pluginrequestscope-ts-e0445d2dd4) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
+**Depends on (13):** [`src/built-ins/runtime/_pageScope.ts`](built-ins.md#file-src-built-ins-runtime-pagescope-ts-3cc574306e) · [`src/built-ins/runtime/_routeResolver.ts`](built-ins.md#file-src-built-ins-runtime-routeresolver-ts-bbf700f5cc) · [`src/built-ins/runtime/_types.ts`](built-ins.md#file-src-built-ins-runtime-types-ts-bae4cd6b2a) · [`src/built-ins/runtime/foundation-adapters/index.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-index-ts-dcf532e6f2) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/pluginRequestScope.ts`](lib.md#file-src-lib-server-pluginrequestscope-ts-e0445d2dd4) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/lib/server/portal/pluginClientElement.ts`](lib.md#file-src-lib-server-portal-pluginclientelement-ts-08e08be258) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
+## `src/app/api/portal/access/`
+
+<a id="file-src-app-api-portal-access-shared-ts-a8da6acae6"></a>
+
+### `src/app/api/portal/access/_shared.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (3):**
+
+- `async readAccessJson(request: Request): Promise<Record<string, unknown>>`
+- `optionalString(value: unknown): string | undefined`
+- `optionalNumber(value: unknown): number | undefined`
+
+**Depends on (1):** [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201)
+
+**Used by (6):** [`src/app/api/portal/access/grants/[grantId]/route.ts`](#file-src-app-api-portal-access-grants-grantid-route-ts-18f25d4709) · [`src/app/api/portal/access/grants/route.ts`](#file-src-app-api-portal-access-grants-route-ts-e72bd3c174) · [`src/app/api/portal/access/requests/[requestId]/route.ts`](#file-src-app-api-portal-access-requests-requestid-route-ts-cc550d7292) · [`src/app/api/portal/access/requests/route.ts`](#file-src-app-api-portal-access-requests-route-ts-6e5b7397b0) · [`src/app/api/portal/access/templates/[templateId]/route.ts`](#file-src-app-api-portal-access-templates-templateid-route-ts-ec87c94e31) · [`src/app/api/portal/access/templates/route.ts`](#file-src-app-api-portal-access-templates-route-ts-a90de8d1c6)
+
+
+## `src/app/api/portal/access/effective/`
+
+<a id="file-src-app-api-portal-access-effective-route-ts-c565c9e9e3"></a>
+
+### `src/app/api/portal/access/effective/route.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `async GET(request: Request): Promise<Response>`
+
+**Depends on (1):** [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
+## `src/app/api/portal/access/grants/[grantId]/`
+
+<a id="file-src-app-api-portal-access-grants-grantid-route-ts-18f25d4709"></a>
+
+### `src/app/api/portal/access/grants/[grantId]/route.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `PATCH = revoke`
+- `DELETE = revoke`
+
+**Depends on (2):** [`src/app/api/portal/access/_shared.ts`](#file-src-app-api-portal-access-shared-ts-a8da6acae6) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
+## `src/app/api/portal/access/grants/`
+
+<a id="file-src-app-api-portal-access-grants-route-ts-e72bd3c174"></a>
+
+### `src/app/api/portal/access/grants/route.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `async GET(request: Request): Promise<Response>`
+- `async POST(request: Request): Promise<Response>`
+
+**Depends on (3):** [`src/app/api/portal/access/_shared.ts`](#file-src-app-api-portal-access-shared-ts-a8da6acae6) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by (2):** [`scripts/smoke-dev-access-session.test.ts`](scripts.md#file-scripts-smoke-dev-access-session-test-ts-27bc623a29) · [`scripts/smoke-sandbox-access-governance.test.ts`](scripts.md#file-scripts-smoke-sandbox-access-governance-test-ts-b9a31169e4)
+
+
+## `src/app/api/portal/access/requests/[requestId]/`
+
+<a id="file-src-app-api-portal-access-requests-requestid-route-ts-cc550d7292"></a>
+
+### `src/app/api/portal/access/requests/[requestId]/route.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `async PATCH(request: Request, context: Context): Promise<Response>`
+
+**Depends on (2):** [`src/app/api/portal/access/_shared.ts`](#file-src-app-api-portal-access-shared-ts-a8da6acae6) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
+## `src/app/api/portal/access/requests/`
+
+<a id="file-src-app-api-portal-access-requests-route-ts-6e5b7397b0"></a>
+
+### `src/app/api/portal/access/requests/route.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `async GET(request: Request): Promise<Response>`
+- `async POST(request: Request): Promise<Response>`
+
+**Depends on (3):** [`src/app/api/portal/access/_shared.ts`](#file-src-app-api-portal-access-shared-ts-a8da6acae6) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by (1):** [`scripts/smoke-dev-access-session.test.ts`](scripts.md#file-scripts-smoke-dev-access-session-test-ts-27bc623a29)
+
+
+## `src/app/api/portal/access/templates/[templateId]/`
+
+<a id="file-src-app-api-portal-access-templates-templateid-route-ts-ec87c94e31"></a>
+
+### `src/app/api/portal/access/templates/[templateId]/route.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `async PATCH(request: Request, context: Context): Promise<Response>`
+- `async DELETE(_request: Request, context: Context): Promise<Response>`
+
+**Depends on (2):** [`src/app/api/portal/access/_shared.ts`](#file-src-app-api-portal-access-shared-ts-a8da6acae6) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
+## `src/app/api/portal/access/templates/`
+
+<a id="file-src-app-api-portal-access-templates-route-ts-a90de8d1c6"></a>
+
+### `src/app/api/portal/access/templates/route.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `async GET(): Promise<Response>`
+- `async POST(request: Request): Promise<Response>`
+
+**Depends on (2):** [`src/app/api/portal/access/_shared.ts`](#file-src-app-api-portal-access-shared-ts-a8da6acae6) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201)
+
+**Used by (1):** [`scripts/smoke-dev-access-session.test.ts`](scripts.md#file-scripts-smoke-dev-access-session-test-ts-27bc623a29)
 
 
 ## `src/app/api/portal/activity-inbox/list/`
@@ -754,7 +950,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async GET(req: NextRequest)`
 
-**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (6):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -771,7 +967,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async GET(request: Request)`
 
-**Depends on (3):** [`src/engines/data/server/radar/radarEvidenceVault.ts`](engines.md#file-src-engines-data-server-radar-radarevidencevault-ts-b2576f422c) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (4):** [`src/engines/data/server/radar/radarEvidenceVault.ts`](engines.md#file-src-engines-data-server-radar-radarevidencevault-ts-b2576f422c) · [`src/lib/server/assistants/assistantContextScope.ts`](lib.md#file-src-lib-server-assistants-assistantcontextscope-ts-94c69e3f23) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -790,7 +986,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async POST()`
 - `async PATCH(request: Request)`
 
-**Depends on (6):** [`src/engines/data/server/radar/businessIssueRadar.ts`](engines.md#file-src-engines-data-server-radar-businessissueradar-ts-df308875cc) · [`src/engines/data/server/radar/radarSweeps.ts`](engines.md#file-src-engines-data-server-radar-radarsweeps-ts-f7254dc20d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/agencySettings.ts`](server.md#file-src-server-agencysettings-ts-6d31afe153) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (7):** [`src/engines/data/server/radar/businessIssueRadar.ts`](engines.md#file-src-engines-data-server-radar-businessissueradar-ts-df308875cc) · [`src/engines/data/server/radar/radarSweeps.ts`](engines.md#file-src-engines-data-server-radar-radarsweeps-ts-f7254dc20d) · [`src/lib/server/assistants/assistantContextScope.ts`](lib.md#file-src-lib-server-assistants-assistantcontextscope-ts-94c69e3f23) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/agencySettings.ts`](server.md#file-src-server-agencysettings-ts-6d31afe153) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -807,7 +1003,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async GET(request: Request)`
 
-**Depends on (3):** [`src/engines/data/server/radar/radarSourceInspection.ts`](engines.md#file-src-engines-data-server-radar-radarsourceinspection-ts-18f2227fe9) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (4):** [`src/engines/data/server/radar/radarSourceInspection.ts`](engines.md#file-src-engines-data-server-radar-radarsourceinspection-ts-18f2227fe9) · [`src/lib/server/assistants/assistantContextScope.ts`](lib.md#file-src-lib-server-assistants-assistantcontextscope-ts-94c69e3f23) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -825,7 +1021,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET()`
 - `async POST(req: NextRequest)`
 
-**Depends on (6):** [`src/lib/advisor/advisorSkills.ts`](lib.md#file-src-lib-advisor-advisorskills-ts-7aa68b16ab) · [`src/lib/server/assistants/advisorSkillsService.ts`](lib.md#file-src-lib-server-assistants-advisorskillsservice-ts-9c1a9d539a) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/rateLimit.ts`](lib.md#file-src-lib-server-ratelimit-ts-4b02277298) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (8):** [`src/lib/advisor/advisorSkills.ts`](lib.md#file-src-lib-advisor-advisorskills-ts-7aa68b16ab) · [`src/lib/server/assistants/advisorSkillsService.ts`](lib.md#file-src-lib-server-assistants-advisorskillsservice-ts-9c1a9d539a) · [`src/lib/server/assistants/assistantContextScope.ts`](lib.md#file-src-lib-server-assistants-assistantcontextscope-ts-94c69e3f23) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/rateLimit.ts`](lib.md#file-src-lib-server-ratelimit-ts-4b02277298) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -864,7 +1060,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (8):** [`src/lib/agencySettingsCapabilities.ts`](lib.md#file-src-lib-agencysettingscapabilities-ts-7bbdc779dd) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/staffProvisioning.ts`](server.md#file-src-server-staffprovisioning-ts-affcacba17) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
-**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+**Used by (1):** [`scripts/smoke-session-revocation.test.ts`](scripts.md#file-scripts-smoke-session-revocation-test-ts-bb12bdf6e9)
 
 
 ## `src/app/api/portal/aqua-tags/detect/`
@@ -879,7 +1075,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: NextRequest)` — Prove the master tag is live on one of the agency's own domains, and count the forms it would capture. Detection runs against this agency's master key, never a key the caller supp…
 
-**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/integrations/aquaTagDetection.ts`](lib.md#file-src-lib-server-integrations-aquatagdetection-ts-49f9d17f58) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
+**Depends on (6):** [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/integrations/aquaTagDetection.ts`](lib.md#file-src-lib-server-integrations-aquatagdetection-ts-49f9d17f58) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1045,6 +1241,43 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 
+## `src/app/api/portal/chrome/layout/`
+
+<a id="file-src-app-api-portal-chrome-layout-route-ts-690e046bec"></a>
+
+### `src/app/api/portal/chrome/layout/route.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (3):**
+
+- `async GET()`
+- `async PUT(request: Request)`
+- `async DELETE()` — Put the sidebar back the way it ships. Saved tabs survive — they are not an arrangement.
+
+**Depends on (4):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/chrome/userChromeLayout.ts`](lib.md#file-src-lib-server-chrome-userchromelayout-ts-e39b7711f4) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
+## `src/app/api/portal/client-forms/[noticeId]/`
+
+<a id="file-src-app-api-portal-client-forms-noticeid-route-ts-00274d8b18"></a>
+
+### `src/app/api/portal/client-forms/[noticeId]/route.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `async GET(_req: NextRequest, context: { params: Promise<{ noticeId: string }> })` — Open one enquiry that lives in a client's own database. The notice in our store is a pointer; the values come from the client's Supabase at the moment somebody looks, and are retu…
+- `runtime = "nodejs"`
+
+**Depends on (6):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clientForms/clientFormNotices.ts`](lib.md#file-src-lib-server-clientforms-clientformnotices-ts-3b9510cd5f) · [`src/lib/server/clientForms/clientFormReader.ts`](lib.md#file-src-lib-server-clientforms-clientformreader-ts-5b653fb8bb) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
 ## `src/app/api/portal/client-portal-design/`
 
 <a id="file-src-app-api-portal-client-portal-design-route-ts-14495a1437"></a>
@@ -1058,9 +1291,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET(request: NextRequest)`
 - `async POST(request: NextRequest)`
 
-**Depends on (7):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/clientPortalDesigns.ts`](server.md#file-src-server-clientportaldesigns-ts-a391c1a4b9) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (9):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/clientPortalDesigns.ts`](server.md#file-src-server-clientportaldesigns-ts-a391c1a4b9) · [`src/server/clientPortalTemplateUpdate.ts`](server.md#file-src-server-clientportaltemplateupdate-ts-0bcbf2d359) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+**Used by (1):** [`scripts/smoke-portal-update-route.test.ts`](scripts.md#file-scripts-smoke-portal-update-route-test-ts-366fc43e6d)
 
 
 ## `src/app/api/portal/clients/[clientId]/erase/`
@@ -1075,7 +1308,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: NextRequest, { params }: { params: Promise<{ clientId: string }> })` — Permanently erase a client and all its data. Owner-only: erasure is irreversible, so it is not something a client-scoped user or ordinary staff can trigger. The client's name must…
 
-**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/lib/supabase/admin.ts`](lib.md#file-src-lib-supabase-admin-ts-4eb1bf0db0) · [`src/server/clientErasure.ts`](server.md#file-src-server-clienterasure-ts-551ffd3571) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (6):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/lib/supabase/admin.ts`](lib.md#file-src-lib-supabase-admin-ts-4eb1bf0db0) · [`src/server/clientErasure.ts`](server.md#file-src-server-clienterasure-ts-551ffd3571) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1093,7 +1326,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET(_request: Request, context: RouteContext)`
 - `async POST(_request: Request, context: RouteContext)`
 
-**Depends on (9):** [`src/engines/data/server/radar/businessIssueRadar.ts`](engines.md#file-src-engines-data-server-radar-businessissueradar-ts-df308875cc) · [`src/engines/data/server/radar/clientRadarService.ts`](engines.md#file-src-engines-data-server-radar-clientradarservice-ts-8e96620551) · [`src/engines/data/server/radar/radarEvidenceVault.ts`](engines.md#file-src-engines-data-server-radar-radarevidencevault-ts-b2576f422c) · [`src/engines/data/server/radar/radarMemory.ts`](engines.md#file-src-engines-data-server-radar-radarmemory-ts-15fa89c0b7) · [`src/engines/data/server/radar/radarSyntheticProbes.ts`](engines.md#file-src-engines-data-server-radar-radarsyntheticprobes-ts-9544ca0ec2) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (10):** [`src/engines/data/server/radar/businessIssueRadar.ts`](engines.md#file-src-engines-data-server-radar-businessissueradar-ts-df308875cc) · [`src/engines/data/server/radar/clientRadarService.ts`](engines.md#file-src-engines-data-server-radar-clientradarservice-ts-8e96620551) · [`src/engines/data/server/radar/radarEvidenceVault.ts`](engines.md#file-src-engines-data-server-radar-radarevidencevault-ts-b2576f422c) · [`src/engines/data/server/radar/radarMemory.ts`](engines.md#file-src-engines-data-server-radar-radarmemory-ts-15fa89c0b7) · [`src/engines/data/server/radar/radarSyntheticProbes.ts`](engines.md#file-src-engines-data-server-radar-radarsyntheticprobes-ts-9544ca0ec2) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1252,7 +1485,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET(request: NextRequest)` — Portal connections from the agency's side. The client's half — the consent page and the accept endpoint — was built first. This is the half Ed uses: naming a piece of a client's s…
 - `async POST(request: NextRequest)`
 
-**Depends on (7):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/lib/server/portal/portalConnections.ts`](lib.md#file-src-lib-server-portal-portalconnections-ts-2e1e525a6f) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/portalConnectionStore.ts`](server.md#file-src-server-portalconnectionstore-ts-53f23012a8) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (8):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/lib/server/portal/portalConnections.ts`](lib.md#file-src-lib-server-portal-portalconnections-ts-2e1e525a6f) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/portalConnectionStore.ts`](server.md#file-src-server-portalconnectionstore-ts-53f23012a8) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1270,7 +1503,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET()`
 - `async POST(request: Request)`
 
-**Depends on (3):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/contractTemplates.ts`](server.md#file-src-server-contracttemplates-ts-b2d4ba6c70) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (6):** [`src/lib/clients/clientContracts.ts`](lib.md#file-src-lib-clients-clientcontracts-ts-e0bc41d74d) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/contractTemplates.ts`](server.md#file-src-server-contracttemplates-ts-b2d4ba6c70) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1288,7 +1521,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET()`
 - `async POST(request: Request)`
 
-**Depends on (3):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/customAIs.ts`](server.md#file-src-server-customais-ts-453d25614f) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (4):** [`src/lib/server/assistants/assistantContextScope.ts`](lib.md#file-src-lib-server-assistants-assistantcontextscope-ts-94c69e3f23) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/customAIs.ts`](server.md#file-src-server-customais-ts-453d25614f) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1305,7 +1538,25 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: NextRequest)` — A customer managing the software connected to their own portal. The agency route next door is for Ed. This is the other side of the same promise, the one the connect screen makes …
 
-**Depends on (4):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/portalConnectionStore.ts`](server.md#file-src-server-portalconnectionstore-ts-53f23012a8) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/portalConnectionStore.ts`](server.md#file-src-server-portalconnectionstore-ts-53f23012a8) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
+## `src/app/api/portal/customer/enquiries/seen/`
+
+<a id="file-src-app-api-portal-customer-enquiries-seen-route-ts-9666c161cf"></a>
+
+### `src/app/api/portal/customer/enquiries/seen/route.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `async POST(req: NextRequest)` — "I have read this enquiry" — from the client's own portal. A POST rather than a side-effect of the render, because writing during a render is the pattern issue #21 removed and the…
+- `runtime = "nodejs"`
+
+**Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clientForms/clientFormNotices.ts`](lib.md#file-src-lib-server-clientforms-clientformnotices-ts-3b9510cd5f) · [`src/lib/server/clientForms/clientFormReader.ts`](lib.md#file-src-lib-server-clientforms-clientformreader-ts-5b653fb8bb) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1322,7 +1573,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: NextRequest)` — A customer choosing their own password, on their way in for the first time. They arrive here holding an Aqua session minted by the setup link, and no Supabase one — the magic-link…
 
-**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/supabase/admin.ts`](lib.md#file-src-lib-supabase-admin-ts-4eb1bf0db0) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/supabase/admin.ts`](lib.md#file-src-lib-supabase-admin-ts-4eb1bf0db0) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1339,7 +1590,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: Request)`
 
-**Depends on (3):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/clientRelationships.ts`](server.md#file-src-server-clientrelationships-ts-25562cf9d9) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (4):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/clientRelationships.ts`](server.md#file-src-server-clientrelationships-ts-25562cf9d9) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1357,7 +1608,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET(request: NextRequest)`
 - `async POST(request: NextRequest)`
 
-**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/dashboardPlanning.ts`](server.md#file-src-server-dashboardplanning-ts-e7312f445b) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (5):** [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/dashboardPlanning.ts`](server.md#file-src-server-dashboardplanning-ts-e7312f445b) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1375,7 +1626,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET(request: NextRequest)`
 - `dynamic = "force-dynamic"` — the icon is a UI choice, not a security boundary).
 
-**Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devConsoleStatus.ts`](lib.md#file-src-lib-server-dev-devconsolestatus-ts-f02de5665f) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devTeamWorkers.ts`](lib.md#file-src-lib-server-dev-devteamworkers-ts-86ad4dc3ce) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devConsoleStatus.ts`](lib.md#file-src-lib-server-dev-devconsolestatus-ts-f02de5665f) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devTeamWorkers.ts`](lib.md#file-src-lib-server-dev-devteamworkers-ts-86ad4dc3ce) · [`src/lib/server/dev/devWorkspaceFiles.ts`](lib.md#file-src-lib-server-dev-devworkspacefiles-ts-f62a900a74) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1390,9 +1641,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `async POST(request: NextRequest)` — directly in any production-like context.
+- `async POST(request: NextRequest)` — directly by anyone outside the deployment-founder control plane.
 
-**Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocEdits.ts`](lib.md#file-src-lib-server-dev-devdocedits-ts-f9b7bbe202) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocEdits.ts`](lib.md#file-src-lib-server-dev-devdocedits-ts-f9b7bbe202) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devWorkspaceFiles.ts`](lib.md#file-src-lib-server-dev-devworkspacefiles-ts-f62a900a74) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1410,7 +1661,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async POST(request: Request)`
 - `dynamic = "force-dynamic"` — a fetch and the agency's persisted brand.
 
-**Depends on (7):** [`src/engines/editor/editing/engine.ts`](engines.md#file-src-engines-editor-editing-engine-ts-e212c5b4f7) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/editing/appConfigAdapter.ts`](lib.md#file-src-lib-server-editing-appconfigadapter-ts-08b2bf3338) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (7):** [`src/engines/editor/editing/engine.ts`](engines.md#file-src-engines-editor-editing-engine-ts-e212c5b4f7) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devWorkspaceFiles.ts`](lib.md#file-src-lib-server-dev-devworkspacefiles-ts-f62a900a74) · [`src/lib/server/editing/appConfigAdapter.ts`](lib.md#file-src-lib-server-editing-appconfigadapter-ts-08b2bf3338) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (1):** [`scripts/smoke-dev-team-editor.test.ts`](scripts.md#file-scripts-smoke-dev-team-editor-test-ts-1fb1e2d66a)
 
@@ -1428,7 +1679,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET(request: NextRequest)`
 - `dynamic = "force-dynamic"` — data are never publicly reachable.
 
-**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devTeamFindings.ts`](lib.md#file-src-lib-server-dev-devteamfindings-ts-e4af23d1a3) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devTeamFindings.ts`](lib.md#file-src-lib-server-dev-devteamfindings-ts-e4af23d1a3) · [`src/lib/server/dev/devWorkspaceFiles.ts`](lib.md#file-src-lib-server-dev-devworkspacefiles-ts-f62a900a74) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1445,9 +1696,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async GET()`
 - `async POST(request: NextRequest)`
-- `dynamic = "force-dynamic"` — into a plan. Founder + Dev Mode only, same gate as the rest of the portal.
+- `dynamic = "force-dynamic"` — into a plan. Founder-only Dev Team access, same gate as the rest of the portal.
 
-**Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devConsoleStatus.ts`](lib.md#file-src-lib-server-dev-devconsolestatus-ts-f02de5665f) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devTeamFindings.ts`](lib.md#file-src-lib-server-dev-devteamfindings-ts-e4af23d1a3) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devConsoleStatus.ts`](lib.md#file-src-lib-server-dev-devconsolestatus-ts-f02de5665f) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devTeamFindings.ts`](lib.md#file-src-lib-server-dev-devteamfindings-ts-e4af23d1a3) · [`src/lib/server/dev/devWorkspaceFiles.ts`](lib.md#file-src-lib-server-dev-devworkspacefiles-ts-f62a900a74) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1462,9 +1713,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `async POST(request: NextRequest)` — reached directly in any production-like context.
+- `async POST(request: NextRequest)` — reached directly by anyone outside the deployment-founder control plane.
 
-**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devTeamPlans.ts`](lib.md#file-src-lib-server-dev-devteamplans-ts-cbf934fb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devTeamPlans.ts`](lib.md#file-src-lib-server-dev-devteamplans-ts-cbf934fb37) · [`src/lib/server/dev/devWorkspaceFiles.ts`](lib.md#file-src-lib-server-dev-devworkspacefiles-ts-f62a900a74) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1485,7 +1736,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async DELETE(request: NextRequest)`
 - `dynamic = "force-dynamic"` — hide. It also mislabelled an expired session as a client bad-request.
 
-**Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devTeamPlans.ts`](lib.md#file-src-lib-server-dev-devteamplans-ts-cbf934fb37) · [`src/lib/server/dev/devTeamRoadmap.ts`](lib.md#file-src-lib-server-dev-devteamroadmap-ts-5914d96d81) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devTeamPlans.ts`](lib.md#file-src-lib-server-dev-devteamplans-ts-cbf934fb37) · [`src/lib/server/dev/devTeamRoadmap.ts`](lib.md#file-src-lib-server-dev-devteamroadmap-ts-5914d96d81) · [`src/lib/server/dev/devWorkspaceFiles.ts`](lib.md#file-src-lib-server-dev-devworkspacefiles-ts-f62a900a74) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1504,7 +1755,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async POST(request: NextRequest)`
 - `dynamic = "force-dynamic"` — only, same gate as the rest of the console.
 
-**Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devTeamThoughts.ts`](lib.md#file-src-lib-server-dev-devteamthoughts-ts-b534e78e87) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devTeamThoughts.ts`](lib.md#file-src-lib-server-dev-devteamthoughts-ts-b534e78e87) · [`src/lib/server/dev/devWorkspaceFiles.ts`](lib.md#file-src-lib-server-dev-devworkspacefiles-ts-f62a900a74) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1523,7 +1774,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `runtime = "nodejs"` — shapes the JSON body and maps errors to statuses.
 - `dynamic = "force-dynamic"`
 
-**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devTeamUpdates.ts`](lib.md#file-src-lib-server-dev-devteamupdates-ts-e74bad569f) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devTeamUpdates.ts`](lib.md#file-src-lib-server-dev-devteamupdates-ts-e74bad569f) · [`src/lib/server/dev/devWorkspaceFiles.ts`](lib.md#file-src-lib-server-dev-devworkspacefiles-ts-f62a900a74) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1539,9 +1790,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports (2):**
 
 - `async GET()`
-- `dynamic = "force-dynamic"` — Dev Mode only, same gate as the portal.
+- `dynamic = "force-dynamic"` — founder-only Dev Team gate protects it in local and production contexts.
 
-**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devTeamWorkers.ts`](lib.md#file-src-lib-server-dev-devteamworkers-ts-86ad4dc3ce) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devTeamWorkers.ts`](lib.md#file-src-lib-server-dev-devteamworkers-ts-86ad4dc3ce) · [`src/lib/server/dev/devWorkspaceFiles.ts`](lib.md#file-src-lib-server-dev-devworkspacefiles-ts-f62a900a74) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1575,9 +1826,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: Request)`
 
-**Depends on (4):** [`src/engines/editor/server/editorAiHistory.ts`](engines.md#file-src-engines-editor-server-editoraihistory-ts-bb96b2bda3) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (4):** [`src/engines/editor/server/editorAiHistory.ts`](engines.md#file-src-engines-editor-server-editoraihistory-ts-bb96b2bda3) · [`src/lib/server/dev/devProjectAccess.ts`](lib.md#file-src-lib-server-dev-devprojectaccess-ts-74c76f5deb) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
 
-**Used by (2):** [`scripts/smoke-aqua-editor-ai-history.test.ts`](scripts.md#file-scripts-smoke-aqua-editor-ai-history-test-ts-de42c06074) · [`scripts/smoke-aqua-editor-ai-reply.test.ts`](scripts.md#file-scripts-smoke-aqua-editor-ai-reply-test-ts-571fd5cd5e)
+**Used by (3):** [`scripts/smoke-aqua-editor-ai-history.test.ts`](scripts.md#file-scripts-smoke-aqua-editor-ai-history-test-ts-de42c06074) · [`scripts/smoke-aqua-editor-ai-reply.test.ts`](scripts.md#file-scripts-smoke-aqua-editor-ai-reply-test-ts-571fd5cd5e) · [`scripts/smoke-dev-project-api-access.test.ts`](scripts.md#file-scripts-smoke-dev-project-api-access-test-ts-1fa057a72e)
 
 
 ## `src/app/api/portal/dev/editor-ai/reply/`
@@ -1592,9 +1843,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: Request)`
 
-**Depends on (5):** [`src/engines/editor/server/editorAiHistory.ts`](engines.md#file-src-engines-editor-server-editoraihistory-ts-bb96b2bda3) · [`src/engines/editor/server/editorAiReply.ts`](engines.md#file-src-engines-editor-server-editoraireply-ts-e536212189) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (5):** [`src/engines/editor/server/editorAiHistory.ts`](engines.md#file-src-engines-editor-server-editoraihistory-ts-bb96b2bda3) · [`src/engines/editor/server/editorAiReply.ts`](engines.md#file-src-engines-editor-server-editoraireply-ts-e536212189) · [`src/lib/server/dev/devProjectAccess.ts`](lib.md#file-src-lib-server-dev-devprojectaccess-ts-74c76f5deb) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
 
-**Used by (1):** [`scripts/smoke-aqua-editor-ai-reply.test.ts`](scripts.md#file-scripts-smoke-aqua-editor-ai-reply-test-ts-571fd5cd5e)
+**Used by (2):** [`scripts/smoke-aqua-editor-ai-reply.test.ts`](scripts.md#file-scripts-smoke-aqua-editor-ai-reply-test-ts-571fd5cd5e) · [`scripts/smoke-dev-project-api-access.test.ts`](scripts.md#file-scripts-smoke-dev-project-api-access-test-ts-1fa057a72e)
 
 
 ## `src/app/api/portal/dev/editor-ai/`
@@ -1609,9 +1860,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: Request)`
 
-**Depends on (5):** [`src/engines/editor/server/editorAi.ts`](engines.md#file-src-engines-editor-server-editorai-ts-ccfe8ed71d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/integrations/integrationConnections.ts`](lib.md#file-src-lib-server-integrations-integrationconnections-ts-0ca61152db) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (5):** [`src/engines/editor/server/editorAi.ts`](engines.md#file-src-engines-editor-server-editorai-ts-ccfe8ed71d) · [`src/lib/server/dev/devProjectAccess.ts`](lib.md#file-src-lib-server-dev-devprojectaccess-ts-74c76f5deb) · [`src/lib/server/integrations/integrationConnections.ts`](lib.md#file-src-lib-server-integrations-integrationconnections-ts-0ca61152db) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
 
-**Used by (1):** [`scripts/smoke-aqua-editor-ai-token.test.ts`](scripts.md#file-scripts-smoke-aqua-editor-ai-token-test-ts-38936410da)
+**Used by (2):** [`scripts/smoke-aqua-editor-ai-token.test.ts`](scripts.md#file-scripts-smoke-aqua-editor-ai-token-test-ts-38936410da) · [`scripts/smoke-dev-project-api-access.test.ts`](scripts.md#file-scripts-smoke-dev-project-api-access-test-ts-1fa057a72e)
 
 
 ## `src/app/api/portal/dev/librarian/`
@@ -1626,9 +1877,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: Request)`
 
-**Depends on (4):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/fileFinding.ts`](lib.md#file-src-lib-server-dev-filefinding-ts-a5d1c99dbc) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (4):** [`src/lib/server/dev/devPathScope.ts`](lib.md#file-src-lib-server-dev-devpathscope-ts-65afe0eb96) · [`src/lib/server/dev/devProjectAccess.ts`](lib.md#file-src-lib-server-dev-devprojectaccess-ts-74c76f5deb) · [`src/lib/server/dev/fileFinding.ts`](lib.md#file-src-lib-server-dev-filefinding-ts-a5d1c99dbc) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201)
 
-**Used by (1):** [`scripts/smoke-librarian.test.ts`](scripts.md#file-scripts-smoke-librarian-test-ts-83768b6b09)
+**Used by (2):** [`scripts/smoke-dev-project-api-access.test.ts`](scripts.md#file-scripts-smoke-dev-project-api-access-test-ts-1fa057a72e) · [`scripts/smoke-librarian.test.ts`](scripts.md#file-scripts-smoke-librarian-test-ts-83768b6b09)
 
 
 ## `src/app/api/portal/dev/lifecycle/`
@@ -1643,9 +1894,28 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: NextRequest)`
 
-**Depends on (8):** [`src/engines/editor/server/devProjects.ts`](engines.md#file-src-engines-editor-server-devprojects-ts-4c77ac891a) · [`src/engines/editor/server/sourceEdit.ts`](engines.md#file-src-engines-editor-server-sourceedit-ts-4d4ccc6966) · [`src/engines/editor/server/workLifecycle.ts`](engines.md#file-src-engines-editor-server-worklifecycle-ts-01d1111550) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devTeamThoughts.ts`](lib.md#file-src-lib-server-dev-devteamthoughts-ts-b534e78e87) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (5):** [`src/engines/editor/server/sourceEdit.ts`](engines.md#file-src-engines-editor-server-sourceedit-ts-4d4ccc6966) · [`src/engines/editor/server/workLifecycle.ts`](engines.md#file-src-engines-editor-server-worklifecycle-ts-01d1111550) · [`src/lib/server/dev/devProjectAccess.ts`](lib.md#file-src-lib-server-dev-devprojectaccess-ts-74c76f5deb) · [`src/lib/server/dev/devTeamThoughts.ts`](lib.md#file-src-lib-server-dev-devteamthoughts-ts-b534e78e87) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201)
 
-**Used by (1):** [`scripts/smoke-work-lifecycle.test.ts`](scripts.md#file-scripts-smoke-work-lifecycle-test-ts-be6965c054)
+**Used by (2):** [`scripts/smoke-dev-project-api-access.test.ts`](scripts.md#file-scripts-smoke-dev-project-api-access-test-ts-1fa057a72e) · [`scripts/smoke-work-lifecycle.test.ts`](scripts.md#file-scripts-smoke-work-lifecycle-test-ts-be6965c054)
+
+
+## `src/app/api/portal/dev/preview/`
+
+<a id="file-src-app-api-portal-dev-preview-route-ts-4823664982"></a>
+
+### `src/app/api/portal/dev/preview/route.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (3):**
+
+- `async POST(request: Request)`
+- `runtime = "nodejs"`
+- `dynamic = "force-dynamic"`
+
+**Depends on (6):** [`src/lib/server/dev/devProjectAccess.ts`](lib.md#file-src-lib-server-dev-devprojectaccess-ts-74c76f5deb) · [`src/lib/server/dev/localRepositoryPreviewSupervisor.ts`](lib.md#file-src-lib-server-dev-localrepositorypreviewsupervisor-ts-3567a3f606) · [`src/lib/shared/localRepositoryPreview.ts`](lib.md#file-src-lib-shared-localrepositorypreview-ts-36d3f935c9) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/dataRealm.ts`](server.md#file-src-server-datarealm-ts-144f158da0) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by (2):** [`scripts/smoke-client-dev-workspace.test.ts`](scripts.md#file-scripts-smoke-client-dev-workspace-test-ts-3fe4ffcd02) · [`scripts/smoke-sandbox-access-governance.test.ts`](scripts.md#file-scripts-smoke-sandbox-access-governance-test-ts-b9a31169e4)
 
 
 ## `src/app/api/portal/dev/projects/`
@@ -1661,9 +1931,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET(request: NextRequest)`
 - `async POST(request: Request)`
 
-**Depends on (13):** [`src/engines/editor/server/devProjects.ts`](engines.md#file-src-engines-editor-server-devprojects-ts-4c77ac891a) · [`src/engines/editor/server/editorAi.ts`](engines.md#file-src-engines-editor-server-editorai-ts-ccfe8ed71d) · [`src/engines/editor/server/editorAiHistory.ts`](engines.md#file-src-engines-editor-server-editoraihistory-ts-bb96b2bda3) · [`src/engines/editor/server/mapProject.ts`](engines.md#file-src-engines-editor-server-mapproject-ts-3a1c12905f) · [`src/lib/public/publicOrigin.ts`](lib.md#file-src-lib-public-publicorigin-ts-ccb00c7487) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/integrations/integrationConnections.ts`](lib.md#file-src-lib-server-integrations-integrationconnections-ts-0ca61152db) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/lib/server/portal/portalConnections.ts`](lib.md#file-src-lib-server-portal-portalconnections-ts-2e1e525a6f) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
+**Depends on (13):** [`src/engines/editor/server/devProjects.ts`](engines.md#file-src-engines-editor-server-devprojects-ts-4c77ac891a) · [`src/engines/editor/server/editorAi.ts`](engines.md#file-src-engines-editor-server-editorai-ts-ccfe8ed71d) · [`src/engines/editor/server/editorAiHistory.ts`](engines.md#file-src-engines-editor-server-editoraihistory-ts-bb96b2bda3) · [`src/engines/editor/server/mapProject.ts`](engines.md#file-src-engines-editor-server-mapproject-ts-3a1c12905f) · [`src/lib/public/publicOrigin.ts`](lib.md#file-src-lib-public-publicorigin-ts-ccb00c7487) · [`src/lib/server/dev/devPathScope.ts`](lib.md#file-src-lib-server-dev-devpathscope-ts-65afe0eb96) · [`src/lib/server/integrations/integrationConnections.ts`](lib.md#file-src-lib-server-integrations-integrationconnections-ts-0ca61152db) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/lib/server/portal/portalConnections.ts`](lib.md#file-src-lib-server-portal-portalconnections-ts-2e1e525a6f) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
 
-**Used by (4):** [`scripts/smoke-aqua-editor-ai-history.test.ts`](scripts.md#file-scripts-smoke-aqua-editor-ai-history-test-ts-de42c06074) · [`scripts/smoke-dev-editor-aqua-tag.test.ts`](scripts.md#file-scripts-smoke-dev-editor-aqua-tag-test-ts-cd0adfe158) · [`scripts/smoke-dev-project-map.test.ts`](scripts.md#file-scripts-smoke-dev-project-map-test-ts-0f1985407f) · [`scripts/smoke-dev-project-nesting.test.ts`](scripts.md#file-scripts-smoke-dev-project-nesting-test-ts-dd3f5b2305)
+**Used by (7):** [`scripts/smoke-aqua-editor-ai-history.test.ts`](scripts.md#file-scripts-smoke-aqua-editor-ai-history-test-ts-de42c06074) · [`scripts/smoke-client-dev-workspace.test.ts`](scripts.md#file-scripts-smoke-client-dev-workspace-test-ts-3fe4ffcd02) · [`scripts/smoke-client-project-access.test.ts`](scripts.md#file-scripts-smoke-client-project-access-test-ts-bfb6eb6d30) · [`scripts/smoke-dev-editor-aqua-tag.test.ts`](scripts.md#file-scripts-smoke-dev-editor-aqua-tag-test-ts-cd0adfe158) · [`scripts/smoke-dev-project-access-control.test.ts`](scripts.md#file-scripts-smoke-dev-project-access-control-test-ts-639fd2368d) · [`scripts/smoke-dev-project-map.test.ts`](scripts.md#file-scripts-smoke-dev-project-map-test-ts-0f1985407f) · [`scripts/smoke-dev-project-nesting.test.ts`](scripts.md#file-scripts-smoke-dev-project-nesting-test-ts-dd3f5b2305)
 
 
 ## `src/app/api/portal/dev/repo-write/`
@@ -1678,9 +1948,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: NextRequest)`
 
-**Depends on (7):** [`src/engines/editor/editing/pageSeo.ts`](engines.md#file-src-engines-editor-editing-pageseo-ts-6b10826dc4) · [`src/engines/editor/server/devProjects.ts`](engines.md#file-src-engines-editor-server-devprojects-ts-4c77ac891a) · [`src/engines/editor/server/repoWrite.ts`](engines.md#file-src-engines-editor-server-repowrite-ts-cc145150fd) · [`src/engines/editor/server/sourceEdit.ts`](engines.md#file-src-engines-editor-server-sourceedit-ts-4d4ccc6966) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (7):** [`src/engines/editor/editing/pageSeo.ts`](engines.md#file-src-engines-editor-editing-pageseo-ts-6b10826dc4) · [`src/engines/editor/server/repoWrite.ts`](engines.md#file-src-engines-editor-server-repowrite-ts-cc145150fd) · [`src/engines/editor/server/sourceEdit.ts`](engines.md#file-src-engines-editor-server-sourceedit-ts-4d4ccc6966) · [`src/lib/server/dev/devPathScope.ts`](lib.md#file-src-lib-server-dev-devpathscope-ts-65afe0eb96) · [`src/lib/server/dev/devProjectAccess.ts`](lib.md#file-src-lib-server-dev-devprojectaccess-ts-74c76f5deb) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (3):** [`scripts/smoke-editor-surface-modes.test.ts`](scripts.md#file-scripts-smoke-editor-surface-modes-test-ts-dbd9c60d53) · [`scripts/smoke-element-insert.test.ts`](scripts.md#file-scripts-smoke-element-insert-test-ts-f323eac974) · [`scripts/smoke-repo-write.test.ts`](scripts.md#file-scripts-smoke-repo-write-test-ts-938e040d8b)
+**Used by (4):** [`scripts/smoke-dev-project-api-access.test.ts`](scripts.md#file-scripts-smoke-dev-project-api-access-test-ts-1fa057a72e) · [`scripts/smoke-editor-surface-modes.test.ts`](scripts.md#file-scripts-smoke-editor-surface-modes-test-ts-dbd9c60d53) · [`scripts/smoke-element-insert.test.ts`](scripts.md#file-scripts-smoke-element-insert-test-ts-f323eac974) · [`scripts/smoke-repo-write.test.ts`](scripts.md#file-scripts-smoke-repo-write-test-ts-938e040d8b)
 
 
 ## `src/app/api/portal/dev/source-edit/`
@@ -1695,9 +1965,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: NextRequest)`
 
-**Depends on (5):** [`src/engines/editor/server/devProjects.ts`](engines.md#file-src-engines-editor-server-devprojects-ts-4c77ac891a) · [`src/engines/editor/server/sourceEdit.ts`](engines.md#file-src-engines-editor-server-sourceedit-ts-4d4ccc6966) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (4):** [`src/engines/editor/server/sourceEdit.ts`](engines.md#file-src-engines-editor-server-sourceedit-ts-4d4ccc6966) · [`src/lib/server/dev/devPathScope.ts`](lib.md#file-src-lib-server-dev-devpathscope-ts-65afe0eb96) · [`src/lib/server/dev/devProjectAccess.ts`](lib.md#file-src-lib-server-dev-devprojectaccess-ts-74c76f5deb) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201)
 
-**Used by (1):** [`scripts/smoke-editor-words-publish.test.ts`](scripts.md#file-scripts-smoke-editor-words-publish-test-ts-8a0e2a86d4)
+**Used by (2):** [`scripts/smoke-dev-project-api-access.test.ts`](scripts.md#file-scripts-smoke-dev-project-api-access-test-ts-1fa057a72e) · [`scripts/smoke-editor-words-publish.test.ts`](scripts.md#file-scripts-smoke-editor-words-publish-test-ts-8a0e2a86d4)
 
 
 ## `src/app/api/portal/development/content/`
@@ -1822,7 +2092,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET()` — override (`jobId`), or clear one (`jobId` + `clear`). Owner/manager to write.
 - `async POST(request: Request)`
 
-**Depends on (4):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/freelancerWorkspace.ts`](server.md#file-src-server-freelancerworkspace-ts-f31c25464f) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (5):** [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/freelancerWorkspace.ts`](server.md#file-src-server-freelancerworkspace-ts-f31c25464f) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1910,7 +2180,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET()` — the remote/local identity, People record and password-setup invitation.
 - `async POST(request: Request)`
 
-**Depends on (4):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/freelancerAdmin.ts`](server.md#file-src-server-freelanceradmin-ts-0700d77e70) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (5):** [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/freelancerAdmin.ts`](server.md#file-src-server-freelanceradmin-ts-0700d77e70) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1925,10 +2195,10 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (2):**
 
-- `async GET(req: NextRequest)`
+- `async GET()`
 - `async POST(req: NextRequest)`
 
-**Depends on (10):** [`src/lib/forms/portalFormValues.ts`](lib.md#file-src-lib-forms-portalformvalues-ts-ec8da8cace) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientLifecycle.ts`](lib.md#file-src-lib-server-clients-clientlifecycle-ts-68f3ffa5f8) · [`src/lib/server/clients/customerPortalProvisioning.ts`](lib.md#file-src-lib-server-clients-customerportalprovisioning-ts-9842a84345) · [`src/server/clientDelight.ts`](server.md#file-src-server-clientdelight-ts-85d52eb038) · [`src/server/clientPortalSetup.ts`](server.md#file-src-server-clientportalsetup-ts-71e6828ad0) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (11):** [`src/lib/forms/portalFormValues.ts`](lib.md#file-src-lib-forms-portalformvalues-ts-ec8da8cace) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientLifecycle.ts`](lib.md#file-src-lib-server-clients-clientlifecycle-ts-68f3ffa5f8) · [`src/lib/server/clients/customerPortalProvisioning.ts`](lib.md#file-src-lib-server-clients-customerportalprovisioning-ts-9842a84345) · [`src/server/clientDelight.ts`](server.md#file-src-server-clientdelight-ts-85d52eb038) · [`src/server/clientPortalSetup.ts`](server.md#file-src-server-clientportalsetup-ts-71e6828ad0) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1962,7 +2232,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: Request)` — The right-to-erasure PREVIEW — how many records an erasure WOULD remove, without removing anything. This is the KNOW step of a DPO erasure: you see the blast radius before you dec…
 
-**Depends on (4):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/server/clientErasure.ts`](server.md#file-src-server-clienterasure-ts-551ffd3571) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (5):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/server/clientErasure.ts`](server.md#file-src-server-clienterasure-ts-551ffd3571) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -2001,6 +2271,24 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 
+## `src/app/api/portal/governance/retention/`
+
+<a id="file-src-app-api-portal-governance-retention-route-ts-ee0b5bb2fb"></a>
+
+### `src/app/api/portal/governance/retention/route.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `async POST(request: Request)` — Set the retention periods. The mechanism to expire data already existed and was inert, because no period could be entered anywhere — the number was the missing half and there was …
+- `runtime = "nodejs"`
+
+**Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/compliance/retention.ts`](lib.md#file-src-lib-server-compliance-retention-ts-ba422f7289) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/agencySettings.ts`](server.md#file-src-server-agencysettings-ts-6d31afe153) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
 ## `src/app/api/portal/governance/`
 
 <a id="file-src-app-api-portal-governance-route-ts-e3ca8e530f"></a>
@@ -2014,6 +2302,24 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET(request: Request)` — The whole Governance workspace snapshot for one company (or agency-wide). Read-only, owner/manager only. It reports what the app can see and what it cannot — it never returns a co…
 
 **Depends on (4):** [`src/app/portal/agency/governance/_governanceData.ts`](#file-src-app-portal-agency-governance-governancedata-ts-ecdaa49f02) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
+## `src/app/api/portal/governance/subject-access/`
+
+<a id="file-src-app-api-portal-governance-subject-access-route-ts-2dbcab7186"></a>
+
+### `src/app/api/portal/governance/subject-access/route.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `async POST(request: Request)` — Subject access and portability — hand a person everything held about them. GDPR Articles 15 and 20. Until now erasure was the only subject right this app could perform: you could …
+- `runtime = "nodejs"`
+
+**Depends on (4):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/compliance/subjectAccessExport.ts`](lib.md#file-src-lib-server-compliance-subjectaccessexport-ts-0cf0955bd6) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -2033,7 +2339,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async PATCH(request: Request)`
 - `dynamic = "force-dynamic"`
 
-**Depends on (9):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientRecordLedger.ts`](lib.md#file-src-lib-server-clients-clientrecordledger-ts-634ccdb8f7) · [`src/lib/server/identityResolution.ts`](lib.md#file-src-lib-server-identityresolution-ts-7b1487fea4) · [`src/lib/server/inbox/inboxService.ts`](lib.md#file-src-lib-server-inbox-inboxservice-ts-1c9968c293) · [`src/lib/server/inbox/inboxStore.ts`](lib.md#file-src-lib-server-inbox-inboxstore-ts-e9d74d18ec) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/lib/server/websiteEnquiries.ts`](lib.md#file-src-lib-server-websiteenquiries-ts-e00ecfd23b) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
+**Depends on (10):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientRecordLedger.ts`](lib.md#file-src-lib-server-clients-clientrecordledger-ts-634ccdb8f7) · [`src/lib/server/identityResolution.ts`](lib.md#file-src-lib-server-identityresolution-ts-7b1487fea4) · [`src/lib/server/inbox/inboxService.ts`](lib.md#file-src-lib-server-inbox-inboxservice-ts-1c9968c293) · [`src/lib/server/inbox/inboxStore.ts`](lib.md#file-src-lib-server-inbox-inboxstore-ts-e9d74d18ec) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/lib/server/websiteEnquiries.ts`](lib.md#file-src-lib-server-websiteenquiries-ts-e00ecfd23b) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -2070,7 +2376,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET()`
 - `async PATCH(request: NextRequest)`
 
-**Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientRecordLedger.ts`](lib.md#file-src-lib-server-clients-clientrecordledger-ts-634ccdb8f7) · [`src/lib/server/identityResolution.ts`](lib.md#file-src-lib-server-identityresolution-ts-7b1487fea4) · [`src/lib/server/inbox/inboxStore.ts`](lib.md#file-src-lib-server-inbox-inboxstore-ts-e9d74d18ec) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (7):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientRecordLedger.ts`](lib.md#file-src-lib-server-clients-clientrecordledger-ts-634ccdb8f7) · [`src/lib/server/identityResolution.ts`](lib.md#file-src-lib-server-identityresolution-ts-7b1487fea4) · [`src/lib/server/inbox/inboxStore.ts`](lib.md#file-src-lib-server-inbox-inboxstore-ts-e9d74d18ec) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -2174,7 +2480,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: Request)`
 
-**Depends on (11):** [`src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-server-foundationadapter-ts-e614648c40) · [`src/built-ins/runtime/foundation-adapters/agencyFinanceFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-agencyfinancefoundation-ts-8c3647e20e) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/email/transactionalEmail.ts`](lib.md#file-src-lib-server-email-transactionalemail-ts-778ef382d4) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (12):** [`src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-server-foundationadapter-ts-e614648c40) · [`src/built-ins/runtime/foundation-adapters/agencyFinanceFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-agencyfinancefoundation-ts-8c3647e20e) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/email/transactionalEmail.ts`](lib.md#file-src-lib-server-email-transactionalemail-ts-778ef382d4) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -2228,7 +2534,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET(): Promise<Response>` — KPI target overrides (Phase 4) — the server-persisted replacement for the explorer's browser-only planning overrides. GET → the agency's resolved KpiTargetsConfig. POST → set (or,…
 - `async POST(request: Request): Promise<Response>`
 
-**Depends on (4):** [`src/engines/data/server/kpi/kpiTargets.ts`](engines.md#file-src-engines-data-server-kpi-kpitargets-ts-05e8c86b01) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (5):** [`src/engines/data/server/kpi/kpiTargets.ts`](engines.md#file-src-engines-data-server-kpi-kpitargets-ts-05e8c86b01) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -2353,9 +2659,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET()`
 - `async POST(request: Request)`
 
-**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/notepad.ts`](server.md#file-src-server-notepad-ts-bf33f74a4d) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (5):** [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/notepad.ts`](server.md#file-src-server-notepad-ts-bf33f74a4d) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+**Used by (1):** [`scripts/smoke-session-revocation.test.ts`](scripts.md#file-scripts-smoke-session-revocation-test-ts-bb12bdf6e9)
 
 
 ## `src/app/api/portal/notifications/`
@@ -2389,7 +2695,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET(request: NextRequest)`
 - `runtime = "nodejs"`
 
-**Depends on (4):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/privateUploadStorage.ts`](lib.md#file-src-lib-server-privateuploadstorage-ts-80d5415fe8) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (5):** [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/privateUploadStorage.ts`](lib.md#file-src-lib-server-privateuploadstorage-ts-80d5415fe8) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -2408,7 +2714,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async POST(req: NextRequest)`
 - `runtime = "nodejs"`
 
-**Depends on (7):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/staffProvisioning.ts`](server.md#file-src-server-staffprovisioning-ts-affcacba17) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (11):** [`src/lib/server/access/clientAssociationElement.ts`](lib.md#file-src-lib-server-access-clientassociationelement-ts-141ea1a836) · [`src/lib/server/access/peopleWorkspaceProjection.ts`](lib.md#file-src-lib-server-access-peopleworkspaceprojection-ts-0758fbe18a) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/staffProvisioning.ts`](server.md#file-src-server-staffprovisioning-ts-affcacba17) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -2427,7 +2733,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async POST(req: NextRequest)`
 - `async DELETE(req: NextRequest)`
 
-**Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/server/performanceExperiments.ts`](server.md#file-src-server-performanceexperiments-ts-074cf348a4) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
+**Depends on (7):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/server/performanceExperiments.ts`](server.md#file-src-server-performanceexperiments-ts-074cf348a4) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -2445,7 +2751,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET(request: NextRequest)`
 - `async POST(request: NextRequest)`
 
-**Depends on (9):** [`src/lib/clients/clientTelemetry.ts`](lib.md#file-src-lib-clients-clienttelemetry-ts-d3462b0e3b) · [`src/lib/performance/performanceAnalytics.ts`](lib.md#file-src-lib-performance-performanceanalytics-ts-27d7ba0bbe) · [`src/lib/performance/performanceReports.ts`](lib.md#file-src-lib-performance-performancereports-ts-dc7feb76be) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
+**Depends on (10):** [`src/lib/clients/clientTelemetry.ts`](lib.md#file-src-lib-clients-clienttelemetry-ts-d3462b0e3b) · [`src/lib/performance/performanceAnalytics.ts`](lib.md#file-src-lib-performance-performanceanalytics-ts-27d7ba0bbe) · [`src/lib/performance/performanceReports.ts`](lib.md#file-src-lib-performance-performancereports-ts-dc7feb76be) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -2462,7 +2768,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: NextRequest)`
 
-**Depends on (9):** [`src/lib/clients/clientTelemetry.ts`](lib.md#file-src-lib-clients-clienttelemetry-ts-d3462b0e3b) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/integrations/googleSearchConsole.ts`](lib.md#file-src-lib-server-integrations-googlesearchconsole-ts-eb99f1443a) · [`src/lib/server/integrations/integrationConnections.ts`](lib.md#file-src-lib-server-integrations-integrationconnections-ts-0ca61152db) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/agencyWebsite.ts`](server.md#file-src-server-agencywebsite-ts-eb7ef721d2) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
+**Depends on (10):** [`src/lib/clients/clientTelemetry.ts`](lib.md#file-src-lib-clients-clienttelemetry-ts-d3462b0e3b) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/integrations/googleSearchConsole.ts`](lib.md#file-src-lib-server-integrations-googlesearchconsole-ts-eb99f1443a) · [`src/lib/server/integrations/integrationConnections.ts`](lib.md#file-src-lib-server-integrations-integrationconnections-ts-0ca61152db) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/agencyWebsite.ts`](server.md#file-src-server-agencywebsite-ts-eb7ef721d2) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -2496,7 +2802,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(req: NextRequest)` — Founder / agency-owner / agency-manager only. Body: { clientId, phaseId }.
 
-**Depends on (4):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/effectiveRole.ts`](lib.md#file-src-lib-server-auth-effectiverole-ts-800cbe7bd9) · [`src/server/phaseApplier.ts`](server.md#file-src-server-phaseapplier-ts-d9401c8078) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (6):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/effectiveRole.ts`](lib.md#file-src-lib-server-auth-effectiverole-ts-800cbe7bd9) · [`src/server/phaseApplier.ts`](server.md#file-src-server-phaseapplier-ts-d9401c8078) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -2547,7 +2853,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(req: Request)`
 
-**Depends on (12):** [`src/lib/products/clientProductStageTruth.ts`](lib.md#file-src-lib-products-clientproductstagetruth-ts-d3dc49116c) · [`src/lib/products/fulfilmentProductPipelines.ts`](lib.md#file-src-lib-products-fulfilmentproductpipelines-ts-6cd47b1bfb) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/pipelines.ts`](server.md#file-src-server-pipelines-ts-b3d01c6a82) · [`src/server/productStageTransitions.ts`](server.md#file-src-server-productstagetransitions-ts-10f6812790) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (14):** [`src/lib/products/clientProductStageTruth.ts`](lib.md#file-src-lib-products-clientproductstagetruth-ts-d3dc49116c) · [`src/lib/products/fulfilmentProductPipelines.ts`](lib.md#file-src-lib-products-fulfilmentproductpipelines-ts-6cd47b1bfb) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/pipelines.ts`](server.md#file-src-server-pipelines-ts-b3d01c6a82) · [`src/server/productStageTransitions.ts`](server.md#file-src-server-productstagetransitions-ts-10f6812790) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -2565,7 +2871,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET(request: NextRequest)`
 - `async POST(request: NextRequest)`
 
-**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/plugins/pluginSettingsSurface.ts`](lib.md#file-src-lib-server-plugins-pluginsettingssurface-ts-f5a8104127) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (6):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/plugins/pluginSettingsSurface.ts`](lib.md#file-src-lib-server-plugins-pluginsettingssurface-ts-f5a8104127) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -2582,7 +2888,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: Request)`
 
-**Depends on (10):** [`src/lib/portal/portalProducts.ts`](lib.md#file-src-lib-portal-portalproducts-ts-7c7e423e18) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/clientPortalDesigns.ts`](server.md#file-src-server-clientportaldesigns-ts-a391c1a4b9) · [`src/server/productWorkspaces.ts`](server.md#file-src-server-productworkspaces-ts-c20e49f8a5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (11):** [`src/lib/portal/portalProducts.ts`](lib.md#file-src-lib-portal-portalproducts-ts-7c7e423e18) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/clientPortalDesigns.ts`](server.md#file-src-server-clientportaldesigns-ts-a391c1a4b9) · [`src/server/productWorkspaces.ts`](server.md#file-src-server-productworkspaces-ts-c20e49f8a5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -2600,7 +2906,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET()`
 - `async POST(request: Request)`
 
-**Depends on (6):** [`src/lib/forms/portalFormValues.ts`](lib.md#file-src-lib-forms-portalformvalues-ts-ec8da8cace) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/clientPortalDesigns.ts`](server.md#file-src-server-clientportaldesigns-ts-a391c1a4b9) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (7):** [`src/lib/forms/portalFormValues.ts`](lib.md#file-src-lib-forms-portalformvalues-ts-ec8da8cace) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/clientPortalDesigns.ts`](server.md#file-src-server-clientportaldesigns-ts-a391c1a4b9) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -2618,7 +2924,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET(request: Request)`
 - `interface GlobalSearchResult (8 members)`
 
-**Depends on (30):** [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-leadspipelinefoundation-ts-a0444ffabc) · [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/engines/data/server/radar/businessIssueRadar.ts`](engines.md#file-src-engines-data-server-radar-businessissueradar-ts-df308875cc) · [`src/engines/data/server/radar/radarEvidenceVault.ts`](engines.md#file-src-engines-data-server-radar-radarevidencevault-ts-b2576f422c) · [`src/engines/data/server/radar/radarSourceInspection.ts`](engines.md#file-src-engines-data-server-radar-radarsourceinspection-ts-18f2227fe9) · [`src/engines/sop/server/sops.ts`](engines.md#file-src-engines-sop-server-sops-ts-8c9bee0d0c) · [`src/lib/clients/clientMarketingService.ts`](lib.md#file-src-lib-clients-clientmarketingservice-ts-106c46e6a9) · [`src/lib/clients/clientPaymentPlans.ts`](lib.md#file-src-lib-clients-clientpaymentplans-ts-e2f45163b3) · [`src/lib/inbox/types.ts`](lib.md#file-src-lib-inbox-types-ts-6a30cf2d14) · [`src/lib/intelligence/commandIntelligence.ts`](lib.md#file-src-lib-intelligence-commandintelligence-ts-365dc38397) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/commandIntelligenceService.ts`](lib.md#file-src-lib-server-commandintelligenceservice-ts-8aba485964) · [`src/lib/server/inbox/inboxStore.ts`](lib.md#file-src-lib-server-inbox-inboxstore-ts-e9d74d18ec) · [`src/lib/server/inbox/operationalAlerts.ts`](lib.md#file-src-lib-server-inbox-operationalalerts-ts-564a396d10) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/server/websiteEnquiries.ts`](lib.md#file-src-lib-server-websiteenquiries-ts-e00ecfd23b) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/clientRelationships.ts`](server.md#file-src-server-clientrelationships-ts-25562cf9d9) · [`src/server/company.ts`](server.md#file-src-server-company-ts-c3dc827a65) · [`src/server/developmentToolkit.ts`](server.md#file-src-server-developmenttoolkit-ts-1cb950d315) · [`src/server/legalDocuments.ts`](server.md#file-src-server-legaldocuments-ts-9db835baaf) · [`src/server/notepad.ts`](server.md#file-src-server-notepad-ts-bf33f74a4d) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tasks.ts`](server.md#file-src-server-tasks-ts-875282c006) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (33):** [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-leadspipelinefoundation-ts-a0444ffabc) · [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/engines/data/server/radar/businessIssueRadar.ts`](engines.md#file-src-engines-data-server-radar-businessissueradar-ts-df308875cc) · [`src/engines/data/server/radar/radarEvidenceVault.ts`](engines.md#file-src-engines-data-server-radar-radarevidencevault-ts-b2576f422c) · [`src/engines/data/server/radar/radarSourceInspection.ts`](engines.md#file-src-engines-data-server-radar-radarsourceinspection-ts-18f2227fe9) · [`src/engines/sop/server/sops.ts`](engines.md#file-src-engines-sop-server-sops-ts-8c9bee0d0c) · [`src/lib/clients/clientMarketingService.ts`](lib.md#file-src-lib-clients-clientmarketingservice-ts-106c46e6a9) · [`src/lib/clients/clientPaymentPlans.ts`](lib.md#file-src-lib-clients-clientpaymentplans-ts-e2f45163b3) · [`src/lib/inbox/types.ts`](lib.md#file-src-lib-inbox-types-ts-6a30cf2d14) · [`src/lib/intelligence/commandIntelligence.ts`](lib.md#file-src-lib-intelligence-commandintelligence-ts-365dc38397) · [`src/lib/server/access/searchCandidateAccess.ts`](lib.md#file-src-lib-server-access-searchcandidateaccess-ts-fd83a2341f) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/commandIntelligenceService.ts`](lib.md#file-src-lib-server-commandintelligenceservice-ts-8aba485964) · [`src/lib/server/inbox/inboxStore.ts`](lib.md#file-src-lib-server-inbox-inboxstore-ts-e9d74d18ec) · [`src/lib/server/inbox/operationalAlerts.ts`](lib.md#file-src-lib-server-inbox-operationalalerts-ts-564a396d10) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/server/websiteEnquiries.ts`](lib.md#file-src-lib-server-websiteenquiries-ts-e00ecfd23b) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/clientRelationships.ts`](server.md#file-src-server-clientrelationships-ts-25562cf9d9) · [`src/server/company.ts`](server.md#file-src-server-company-ts-c3dc827a65) · [`src/server/dataRealm.ts`](server.md#file-src-server-datarealm-ts-144f158da0) · [`src/server/developmentToolkit.ts`](server.md#file-src-server-developmenttoolkit-ts-1cb950d315) · [`src/server/legalDocuments.ts`](server.md#file-src-server-legaldocuments-ts-9db835baaf) · [`src/server/notepad.ts`](server.md#file-src-server-notepad-ts-bf33f74a4d) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tasks.ts`](server.md#file-src-server-tasks-ts-875282c006) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -2635,7 +2941,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async GET(req: NextRequest)`
 
-**Depends on (5):** [`src/lib/agencySettingsCapabilities.ts`](lib.md#file-src-lib-agencysettingscapabilities-ts-7bbdc779dd) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (6):** [`src/lib/agencySettingsCapabilities.ts`](lib.md#file-src-lib-agencysettingscapabilities-ts-7bbdc779dd) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -2656,7 +2962,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (7):** [`src/lib/agencySettingsCapabilities.ts`](lib.md#file-src-lib-agencysettingscapabilities-ts-7bbdc779dd) · [`src/lib/server/assistants/externalAssistantApi.ts`](lib.md#file-src-lib-server-assistants-externalassistantapi-ts-ed0003cedc) · [`src/lib/server/assistants/externalAssistantKeys.ts`](lib.md#file-src-lib-server-assistants-externalassistantkeys-ts-0301a6f6a2) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+**Used by (1):** [`scripts/smoke-session-revocation.test.ts`](scripts.md#file-scripts-smoke-session-revocation-test-ts-bb12bdf6e9)
 
 
 ## `src/app/api/portal/settings/integrations/`
@@ -2672,9 +2978,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET()`
 - `async POST(request: Request)`
 
-**Depends on (5):** [`src/lib/integrations/catalog.ts`](lib.md#file-src-lib-integrations-catalog-ts-1b19d0b1c0) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/integrations/integrationConnections.ts`](lib.md#file-src-lib-server-integrations-integrationconnections-ts-0ca61152db) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
+**Depends on (6):** [`src/lib/integrations/catalog.ts`](lib.md#file-src-lib-integrations-catalog-ts-1b19d0b1c0) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/integrations/integrationConnections.ts`](lib.md#file-src-lib-server-integrations-integrationconnections-ts-0ca61152db) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
 
-**Used by (1):** [`scripts/smoke-aqua-editor-ai-token.test.ts`](scripts.md#file-scripts-smoke-aqua-editor-ai-token-test-ts-38936410da)
+**Used by (2):** [`scripts/smoke-aqua-editor-ai-token.test.ts`](scripts.md#file-scripts-smoke-aqua-editor-ai-token-test-ts-38936410da) · [`scripts/smoke-dev-project-access-control.test.ts`](scripts.md#file-scripts-smoke-dev-project-access-control-test-ts-639fd2368d)
 
 
 ## `src/app/api/portal/settings/portal-editor/`
@@ -2725,11 +3031,11 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports (2):**
 
 - `async GET(request: NextRequest)`
-- `async POST(request: NextRequest)` — Write a file back. This is the one genuinely dangerous thing the editor does, so every guard is deliberate: • FOUNDER + DEV MODE only. Reading the repository is an agency-role con…
+- `async POST(request: NextRequest)` — Write a file back. This is the one genuinely dangerous thing the editor does, so every guard is deliberate: • OWNER + LOCAL DEV MODE only. Project repository writes use repo-write…
 
-**Depends on (11):** [`src/engines/editor/server/codeAdapter.ts`](engines.md#file-src-engines-editor-server-codeadapter-ts-2c7a9d668d) · [`src/engines/editor/server/devProjects.ts`](engines.md#file-src-engines-editor-server-devprojects-ts-4c77ac891a) · [`src/engines/editor/server/fileTree.ts`](engines.md#file-src-engines-editor-server-filetree-ts-2ed4d221cd) · [`src/engines/editor/server/githubSource.ts`](engines.md#file-src-engines-editor-server-githubsource-ts-6179773deb) · [`src/engines/editor/server/sourceEdit.ts`](engines.md#file-src-engines-editor-server-sourceedit-ts-4d4ccc6966) · [`src/engines/editor/server/workspaceFiles.ts`](engines.md#file-src-engines-editor-server-workspacefiles-ts-6ad425998f) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/integrations/integrationConnections.ts`](lib.md#file-src-lib-server-integrations-integrationconnections-ts-0ca61152db) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (11):** [`src/engines/editor/server/codeAdapter.ts`](engines.md#file-src-engines-editor-server-codeadapter-ts-2c7a9d668d) · [`src/engines/editor/server/devProjects.ts`](engines.md#file-src-engines-editor-server-devprojects-ts-4c77ac891a) · [`src/engines/editor/server/fileTree.ts`](engines.md#file-src-engines-editor-server-filetree-ts-2ed4d221cd) · [`src/engines/editor/server/githubSource.ts`](engines.md#file-src-engines-editor-server-githubsource-ts-6179773deb) · [`src/engines/editor/server/sourceEdit.ts`](engines.md#file-src-engines-editor-server-sourceedit-ts-4d4ccc6966) · [`src/engines/editor/server/workspaceFiles.ts`](engines.md#file-src-engines-editor-server-workspacefiles-ts-6ad425998f) · [`src/lib/server/dev/devPathScope.ts`](lib.md#file-src-lib-server-dev-devpathscope-ts-65afe0eb96) · [`src/lib/server/dev/devProjectAccess.ts`](lib.md#file-src-lib-server-dev-devprojectaccess-ts-74c76f5deb) · [`src/lib/server/integrations/integrationConnections.ts`](lib.md#file-src-lib-server-integrations-integrationconnections-ts-0ca61152db) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+**Used by (2):** [`scripts/smoke-client-dev-workspace.test.ts`](scripts.md#file-scripts-smoke-client-dev-workspace-test-ts-3fe4ffcd02) · [`scripts/smoke-dev-project-api-access.test.ts`](scripts.md#file-scripts-smoke-dev-project-api-access-test-ts-1fa057a72e)
 
 
 ## `src/app/api/portal/sop-guides/`
@@ -2862,7 +3168,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async PATCH(request: NextRequest)`
 - `async DELETE(request: NextRequest)`
 
-**Depends on (7):** [`src/lib/forms/portalFormValues.ts`](lib.md#file-src-lib-forms-portalformvalues-ts-ec8da8cace) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/completedActions.ts`](server.md#file-src-server-completedactions-ts-93ff9c085e) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tasks.ts`](server.md#file-src-server-tasks-ts-875282c006) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (9):** [`src/lib/forms/portalFormValues.ts`](lib.md#file-src-lib-forms-portalformvalues-ts-ec8da8cace) · [`src/lib/server/access/clientAssociationElement.ts`](lib.md#file-src-lib-server-access-clientassociationelement-ts-141ea1a836) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/completedActions.ts`](server.md#file-src-server-completedactions-ts-93ff9c085e) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tasks.ts`](server.md#file-src-server-tasks-ts-875282c006) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -2880,7 +3186,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET()`
 - `async POST(request: Request)` — Applying, writing and deleting saved task sequences. `apply` is separate from the ordinary task-create route because a template has to land as one thing: a task carrying three of …
 
-**Depends on (4):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/taskTemplates.ts`](server.md#file-src-server-tasktemplates-ts-1d1fc5b65d) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (5):** [`src/lib/server/access/clientAssociationElement.ts`](lib.md#file-src-lib-server-access-clientassociationelement-ts-141ea1a836) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/taskTemplates.ts`](server.md#file-src-server-tasktemplates-ts-1d1fc5b65d) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -2899,7 +3205,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async POST(req: NextRequest)`
 - `runtime = "nodejs"`
 
-**Depends on (3):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (4):** [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3126,7 +3432,25 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET()`
 - `async POST(request: NextRequest)`
 
-**Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/websiteInjections.ts`](server.md#file-src-server-websiteinjections-ts-c64595949c) · [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
+**Depends on (7):** [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/websiteInjections.ts`](server.md#file-src-server-websiteinjections-ts-c64595949c) · [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
+## `src/app/api/portal/website-sources/mapping/`
+
+<a id="file-src-app-api-portal-website-sources-mapping-route-ts-b27548b76e"></a>
+
+### `src/app/api/portal/website-sources/mapping/route.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `async POST(req: NextRequest)` — Accept a detected form mapping for one client. The website-sources panel works out which column plays which role and shows it; this is the button that keeps it. What lands is five…
+- `runtime = "nodejs"`
+
+**Depends on (7):** [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clientForms/clientSupabaseMapping.ts`](lib.md#file-src-lib-server-clientforms-clientsupabasemapping-ts-e95dd7fa52) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3144,7 +3468,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET(request: NextRequest)` — Managing where tagged websites route their submissions. The list comes back with the agency's clients too, so the destination picker never has to make a second call to know who a …
 - `async POST(request: NextRequest)`
 
-**Depends on (9):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/portal/portalConnections.ts`](lib.md#file-src-lib-server-portal-portalconnections-ts-2e1e525a6f) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/websiteFormSchemas.ts`](server.md#file-src-server-websiteformschemas-ts-e744d82d66) · [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
+**Depends on (10):** [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/portal/portalConnections.ts`](lib.md#file-src-lib-server-portal-portalconnections-ts-2e1e525a6f) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/websiteFormSchemas.ts`](server.md#file-src-server-websiteformschemas-ts-e744d82d66) · [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3239,6 +3563,24 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 
+## `src/app/api/public/client-forms/[connectionId]/`
+
+<a id="file-src-app-api-public-client-forms-connectionid-route-ts-5021581ef1"></a>
+
+### `src/app/api/public/client-forms/[connectionId]/route.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `async POST(req: NextRequest, context: { params: Promise<{ connectionId: string }> })`
+- `runtime = "nodejs"`
+
+**Depends on (6):** [`src/lib/server/clientForms/clientFormConfirmation.ts`](lib.md#file-src-lib-server-clientforms-clientformconfirmation-ts-8dacba60c2) · [`src/lib/server/clientForms/clientFormNotices.ts`](lib.md#file-src-lib-server-clientforms-clientformnotices-ts-3b9510cd5f) · [`src/lib/server/clientForms/clientSupabaseConnection.ts`](lib.md#file-src-lib-server-clientforms-clientsupabaseconnection-ts-3144125fbc) · [`src/lib/server/rateLimit.ts`](lib.md#file-src-lib-server-ratelimit-ts-4b02277298) · [`src/server/automations.ts`](server.md#file-src-server-automations-ts-3e92d448c5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
 ## `src/app/api/public/contact/`
 
 <a id="file-src-app-api-public-contact-route-ts-08a246b9bd"></a>
@@ -3287,7 +3629,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async POST(request: NextRequest)`
 - `runtime = "nodejs"`
 
-**Depends on (7):** [`src/built-ins/runtime/foundation-adapters/publicFunnelFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-publicfunnelfoundation-ts-18280e9710) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/server/seeds/founderSeed.ts`](lib.md#file-src-lib-server-seeds-founderseed-ts-a8d60a4bd5) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
+**Depends on (8):** [`src/built-ins/runtime/foundation-adapters/publicFunnelFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-publicfunnelfoundation-ts-18280e9710) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/server/rateLimit.ts`](lib.md#file-src-lib-server-ratelimit-ts-4b02277298) · [`src/lib/server/seeds/founderSeed.ts`](lib.md#file-src-lib-server-seeds-founderseed-ts-a8d60a4bd5) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3304,7 +3646,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(req: Request, context: { params: Promise<{ token: string }> })`
 
-**Depends on (1):** [`src/lib/server/commercialProposal.ts`](lib.md#file-src-lib-server-commercialproposal-ts-3cca2c10db)
+**Depends on (2):** [`src/lib/server/commercialProposal.ts`](lib.md#file-src-lib-server-commercialproposal-ts-3cca2c10db) · [`src/lib/server/rateLimit.ts`](lib.md#file-src-lib-server-ratelimit-ts-4b02277298)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3342,7 +3684,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type ClientApprovalStatus = "pending" | "approved" | "changes-requested"`
 - `interface ClientApproval (10 members)`
 
-**Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (7):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (6):** [`scripts/smoke-client-journey.test.ts`](scripts.md#file-scripts-smoke-client-journey-test-ts-4687798ba0) · [`src/app/portal/clients/[clientId]/_FulfilmentPortalPreview.tsx`](#file-src-app-portal-clients-clientid-fulfilmentportalpreview-tsx-5241712cd3) · [`src/app/portal/clients/[clientId]/page.tsx`](#file-src-app-portal-clients-clientid-page-tsx-f2587fcff8) · [`src/app/portal/customer/_CustomerPortalActions.tsx`](#file-src-app-portal-customer-customerportalactions-tsx-05a3c8b5ae) · [`src/app/portal/customer/_PortalInteractionBlocks.tsx`](#file-src-app-portal-customer-portalinteractionblocks-tsx-392b00a1c4) · [`src/app/portal/customer/_portalData.ts`](#file-src-app-portal-customer-portaldata-ts-2f1995696c)
 
@@ -3359,7 +3701,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(req: Request)`
 
-**Depends on (4):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (5):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3376,7 +3718,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(req: Request)`
 
-**Depends on (6):** [`src/lib/clients/clientContacts.ts`](lib.md#file-src-lib-clients-clientcontacts-ts-b78a3dff30) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (7):** [`src/lib/clients/clientContacts.ts`](lib.md#file-src-lib-clients-clientcontacts-ts-b78a3dff30) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3393,7 +3735,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(req: Request)`
 
-**Depends on (8):** [`src/lib/clients/clientContracts.ts`](lib.md#file-src-lib-clients-clientcontracts-ts-e0bc41d74d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientRecordLedger.ts`](lib.md#file-src-lib-server-clients-clientrecordledger-ts-634ccdb8f7) · [`src/lib/server/email/transactionalEmail.ts`](lib.md#file-src-lib-server-email-transactionalemail-ts-778ef382d4) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (9):** [`src/lib/clients/clientContracts.ts`](lib.md#file-src-lib-clients-clientcontracts-ts-e0bc41d74d) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientRecordLedger.ts`](lib.md#file-src-lib-server-clients-clientrecordledger-ts-634ccdb8f7) · [`src/lib/server/email/transactionalEmail.ts`](lib.md#file-src-lib-server-email-transactionalemail-ts-778ef382d4) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3410,7 +3752,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async PATCH(request: Request)`
 
-**Depends on (5):** [`src/lib/forms/portalFormValues.ts`](lib.md#file-src-lib-forms-portalformvalues-ts-ec8da8cace) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (6):** [`src/lib/forms/portalFormValues.ts`](lib.md#file-src-lib-forms-portalformvalues-ts-ec8da8cace) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3428,7 +3770,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET()`
 - `async POST(request: Request)`
 
-**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientDelightExpense.ts`](lib.md#file-src-lib-server-clients-clientdelightexpense-ts-f9a2b763b1) · [`src/server/clientDelight.ts`](server.md#file-src-server-clientdelight-ts-85d52eb038) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (7):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientDelightExpense.ts`](lib.md#file-src-lib-server-clients-clientdelightexpense-ts-f9a2b763b1) · [`src/server/clientDelight.ts`](server.md#file-src-server-clientdelight-ts-85d52eb038) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3445,7 +3787,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(req: Request)`
 
-**Depends on (6):** [`src/lib/public/publicUrl.ts`](lib.md#file-src-lib-public-publicurl-ts-41cb714770) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (7):** [`src/lib/public/publicUrl.ts`](lib.md#file-src-lib-public-publicurl-ts-41cb714770) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3463,7 +3805,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET(req: Request)`
 - `runtime = "nodejs"`
 
-**Depends on (6):** [`src/app/api/tenants/client-files/route.ts`](#file-src-app-api-tenants-client-files-route-ts-862e6284ae) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/privateUploadStorage.ts`](lib.md#file-src-lib-server-privateuploadstorage-ts-80d5415fe8) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (7):** [`src/app/api/tenants/client-files/route.ts`](#file-src-app-api-tenants-client-files-route-ts-862e6284ae) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/privateUploadStorage.ts`](lib.md#file-src-lib-server-privateuploadstorage-ts-80d5415fe8) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3483,7 +3825,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type FileCategory = "brand" | "brief" | "recording" | "inspiration" | "design-feedback" | "preview" | "deliverable" | "invoice" | "contract" | "payment-plan" | "payment-proof" | "proposal" | "legal" | "misc"`
 - `interface ClientFileRef (15 members)`
 
-**Depends on (9):** [`src/lib/clients/clientPaymentPlans.ts`](lib.md#file-src-lib-clients-clientpaymentplans-ts-e2f45163b3) · [`src/lib/clients/clientRelationshipRecord.ts`](lib.md#file-src-lib-clients-clientrelationshiprecord-ts-4cd971820b) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientRecordLedger.ts`](lib.md#file-src-lib-server-clients-clientrecordledger-ts-634ccdb8f7) · [`src/lib/server/privateUploadStorage.ts`](lib.md#file-src-lib-server-privateuploadstorage-ts-80d5415fe8) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (10):** [`src/lib/clients/clientPaymentPlans.ts`](lib.md#file-src-lib-clients-clientpaymentplans-ts-e2f45163b3) · [`src/lib/clients/clientRelationshipRecord.ts`](lib.md#file-src-lib-clients-clientrelationshiprecord-ts-4cd971820b) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientRecordLedger.ts`](lib.md#file-src-lib-server-clients-clientrecordledger-ts-634ccdb8f7) · [`src/lib/server/privateUploadStorage.ts`](lib.md#file-src-lib-server-privateuploadstorage-ts-80d5415fe8) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (3):** [`src/app/api/tenants/client-files/content/route.ts`](#file-src-app-api-tenants-client-files-content-route-ts-3c6fd1e002) · [`src/app/api/tenants/client-files/upload/route.ts`](#file-src-app-api-tenants-client-files-upload-route-ts-ff6fa1a278) · [`src/app/api/tenants/product-workspaces/route.ts`](#file-src-app-api-tenants-product-workspaces-route-ts-2b3809383d)
 
@@ -3501,7 +3843,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async POST(req: Request)`
 - `runtime = "nodejs"`
 
-**Depends on (8):** [`src/app/api/tenants/client-files/route.ts`](#file-src-app-api-tenants-client-files-route-ts-862e6284ae) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientRecordLedger.ts`](lib.md#file-src-lib-server-clients-clientrecordledger-ts-634ccdb8f7) · [`src/lib/server/privateUploadStorage.ts`](lib.md#file-src-lib-server-privateuploadstorage-ts-80d5415fe8) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (9):** [`src/app/api/tenants/client-files/route.ts`](#file-src-app-api-tenants-client-files-route-ts-862e6284ae) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientRecordLedger.ts`](lib.md#file-src-lib-server-clients-clientrecordledger-ts-634ccdb8f7) · [`src/lib/server/privateUploadStorage.ts`](lib.md#file-src-lib-server-privateuploadstorage-ts-80d5415fe8) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3518,7 +3860,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: Request)`
 
-**Depends on (6):** [`src/lib/clients/clientMarketingService.ts`](lib.md#file-src-lib-clients-clientmarketingservice-ts-106c46e6a9) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (7):** [`src/lib/clients/clientMarketingService.ts`](lib.md#file-src-lib-clients-clientmarketingservice-ts-106c46e6a9) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3536,7 +3878,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET(request: Request)`
 - `async POST(request: Request)`
 
-**Depends on (4):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/clientMilestones.ts`](server.md#file-src-server-clientmilestones-ts-08c5910472) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (5):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/clientMilestones.ts`](server.md#file-src-server-clientmilestones-ts-08c5910472) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3553,7 +3895,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: Request)`
 
-**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (6):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3570,7 +3912,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: Request)`
 
-**Depends on (7):** [`src/lib/clients/clientRelationshipRecord.ts`](lib.md#file-src-lib-clients-clientrelationshiprecord-ts-4cd971820b) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tasks.ts`](server.md#file-src-server-tasks-ts-875282c006) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (8):** [`src/lib/clients/clientRelationshipRecord.ts`](lib.md#file-src-lib-clients-clientrelationshiprecord-ts-4cd971820b) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tasks.ts`](server.md#file-src-server-tasks-ts-875282c006) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3587,7 +3929,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: Request)`
 
-**Depends on (11):** [`src/lib/clients/clientOperations.ts`](lib.md#file-src-lib-clients-clientoperations-ts-35602e4928) · [`src/lib/clients/clientRelationshipRecord.ts`](lib.md#file-src-lib-clients-clientrelationshiprecord-ts-4cd971820b) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tasks.ts`](server.md#file-src-server-tasks-ts-875282c006) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (12):** [`src/lib/clients/clientOperations.ts`](lib.md#file-src-lib-clients-clientoperations-ts-35602e4928) · [`src/lib/clients/clientRelationshipRecord.ts`](lib.md#file-src-lib-clients-clientrelationshiprecord-ts-4cd971820b) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tasks.ts`](server.md#file-src-server-tasks-ts-875282c006) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3604,7 +3946,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: Request)`
 
-**Depends on (15):** [`src/built-ins/modules/agency-finance/src/lib/currencies.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-currencies-ts-d92fdc906d) · [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/server/index.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-server-index-ts-ad7d7dcdb6) · [`src/lib/clients/clientPaymentPlans.ts`](lib.md#file-src-lib-clients-clientpaymentplans-ts-e2f45163b3) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientRecordLedger.ts`](lib.md#file-src-lib-server-clients-clientrecordledger-ts-634ccdb8f7) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (16):** [`src/built-ins/modules/agency-finance/src/lib/currencies.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-currencies-ts-d92fdc906d) · [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/server/index.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-server-index-ts-ad7d7dcdb6) · [`src/lib/clients/clientPaymentPlans.ts`](lib.md#file-src-lib-clients-clientpaymentplans-ts-e2f45163b3) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientRecordLedger.ts`](lib.md#file-src-lib-server-clients-clientrecordledger-ts-634ccdb8f7) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3621,7 +3963,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: Request)`
 
-**Depends on (13):** [`src/lib/clients/clientProductProcess.ts`](lib.md#file-src-lib-clients-clientproductprocess-ts-6a5fafe81b) · [`src/lib/clients/clientRelationshipRecord.ts`](lib.md#file-src-lib-clients-clientrelationshiprecord-ts-4cd971820b) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/products/productInternalWorkspace.ts`](lib.md#file-src-lib-products-productinternalworkspace-ts-1544d53955) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/productStageTransitions.ts`](server.md#file-src-server-productstagetransitions-ts-10f6812790) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/productWorkspaces.ts`](server.md#file-src-server-productworkspaces-ts-c20e49f8a5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (14):** [`src/lib/clients/clientProductProcess.ts`](lib.md#file-src-lib-clients-clientproductprocess-ts-6a5fafe81b) · [`src/lib/clients/clientRelationshipRecord.ts`](lib.md#file-src-lib-clients-clientrelationshiprecord-ts-4cd971820b) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/products/productInternalWorkspace.ts`](lib.md#file-src-lib-products-productinternalworkspace-ts-1544d53955) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/productStageTransitions.ts`](server.md#file-src-server-productstagetransitions-ts-10f6812790) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/productWorkspaces.ts`](server.md#file-src-server-productworkspaces-ts-c20e49f8a5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3638,7 +3980,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: Request)`
 
-**Depends on (8):** [`src/lib/clients/clientProductVariations.ts`](lib.md#file-src-lib-clients-clientproductvariations-ts-aa915e2e49) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/productWorkspaces.ts`](server.md#file-src-server-productworkspaces-ts-c20e49f8a5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
+**Depends on (9):** [`src/lib/clients/clientProductVariations.ts`](lib.md#file-src-lib-clients-clientproductvariations-ts-aa915e2e49) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/productWorkspaces.ts`](server.md#file-src-server-productworkspaces-ts-c20e49f8a5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3655,7 +3997,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: Request)`
 
-**Depends on (10):** [`src/lib/clients/clientProductVariations.ts`](lib.md#file-src-lib-clients-clientproductvariations-ts-aa915e2e49) · [`src/lib/portal/portalProducts.ts`](lib.md#file-src-lib-portal-portalproducts-ts-7c7e423e18) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/productWorkspaces.ts`](server.md#file-src-server-productworkspaces-ts-c20e49f8a5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8)
+**Depends on (11):** [`src/lib/clients/clientProductVariations.ts`](lib.md#file-src-lib-clients-clientproductvariations-ts-aa915e2e49) · [`src/lib/portal/portalProducts.ts`](lib.md#file-src-lib-portal-portalproducts-ts-7c7e423e18) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/productWorkspaces.ts`](server.md#file-src-server-productworkspaces-ts-c20e49f8a5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3672,7 +4014,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: Request)`
 
-**Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/integrations/vercelProjectDeployer.ts`](lib.md#file-src-lib-server-integrations-vercelprojectdeployer-ts-1e9a2020e5) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (7):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/integrations/vercelProjectDeployer.ts`](lib.md#file-src-lib-server-integrations-vercelprojectdeployer-ts-1e9a2020e5) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3689,7 +4031,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: Request)`
 
-**Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientProjectProvisioner.ts`](lib.md#file-src-lib-server-clients-clientprojectprovisioner-ts-e53c89eab4) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (7):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientProjectProvisioner.ts`](lib.md#file-src-lib-server-clients-clientprojectprovisioner-ts-e53c89eab4) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3706,7 +4048,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: Request)`
 
-**Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/integrations/githubProjectPublisher.ts`](lib.md#file-src-lib-server-integrations-githubprojectpublisher-ts-37fcc43e66) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (7):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/integrations/githubProjectPublisher.ts`](lib.md#file-src-lib-server-integrations-githubprojectpublisher-ts-37fcc43e66) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3727,7 +4069,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type ClientPropertyTagStatus = "planned" | "installed" | "missing" | "broken" | "not-needed"`
 - `interface ClientProperty (22 members)`
 
-**Depends on (6):** [`src/lib/public/publicUrl.ts`](lib.md#file-src-lib-public-publicurl-ts-41cb714770) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (7):** [`src/lib/public/publicUrl.ts`](lib.md#file-src-lib-public-publicurl-ts-41cb714770) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (2):** [`src/app/api/tenants/client-requests/route.ts`](#file-src-app-api-tenants-client-requests-route-ts-24f94f6395) · [`src/app/client-site-preview/[clientId]/[propertyId]/[[...assetPath]]/route.ts`](#file-src-app-client-site-preview-clientid-propertyid-assetpath-route-ts-58ec62d75c)
 
@@ -3745,7 +4087,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET(request: Request)`
 - `dynamic = "force-dynamic"`
 
-**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientRecordLedger.ts`](lib.md#file-src-lib-server-clients-clientrecordledger-ts-634ccdb8f7) · [`src/server/clientRelationships.ts`](server.md#file-src-server-clientrelationships-ts-25562cf9d9) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (6):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientRecordLedger.ts`](lib.md#file-src-lib-server-clients-clientrecordledger-ts-634ccdb8f7) · [`src/server/clientRelationships.ts`](server.md#file-src-server-clientrelationships-ts-25562cf9d9) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3762,7 +4104,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: Request)`
 
-**Depends on (8):** [`src/lib/clients/clientRelationshipRecord.ts`](lib.md#file-src-lib-clients-clientrelationshiprecord-ts-4cd971820b) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientRecordLedger.ts`](lib.md#file-src-lib-server-clients-clientrecordledger-ts-634ccdb8f7) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (9):** [`src/lib/clients/clientRelationshipRecord.ts`](lib.md#file-src-lib-clients-clientrelationshiprecord-ts-4cd971820b) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientRecordLedger.ts`](lib.md#file-src-lib-server-clients-clientrecordledger-ts-634ccdb8f7) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3783,7 +4125,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface ClientRequestReply (5 members)`
 - `interface ClientRequest (19 members)`
 
-**Depends on (13):** [`src/app/api/tenants/client-properties/route.ts`](#file-src-app-api-tenants-client-properties-route-ts-92dbfbfa76) · [`src/lib/clients/clientRequests.ts`](lib.md#file-src-lib-clients-clientrequests-ts-402e6c331e) · [`src/lib/inbox/media.ts`](lib.md#file-src-lib-inbox-media-ts-699ea4c966) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientRecordLedger.ts`](lib.md#file-src-lib-server-clients-clientrecordledger-ts-634ccdb8f7) · [`src/lib/server/inbox/inboxMedia.ts`](lib.md#file-src-lib-server-inbox-inboxmedia-ts-4dccec2f91) · [`src/lib/server/websiteEnquiries.ts`](lib.md#file-src-lib-server-websiteenquiries-ts-e00ecfd23b) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/automations.ts`](server.md#file-src-server-automations-ts-3e92d448c5) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (14):** [`src/app/api/tenants/client-properties/route.ts`](#file-src-app-api-tenants-client-properties-route-ts-92dbfbfa76) · [`src/lib/clients/clientRequests.ts`](lib.md#file-src-lib-clients-clientrequests-ts-402e6c331e) · [`src/lib/inbox/media.ts`](lib.md#file-src-lib-inbox-media-ts-699ea4c966) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientRecordLedger.ts`](lib.md#file-src-lib-server-clients-clientrecordledger-ts-634ccdb8f7) · [`src/lib/server/inbox/inboxMedia.ts`](lib.md#file-src-lib-server-inbox-inboxmedia-ts-4dccec2f91) · [`src/lib/server/websiteEnquiries.ts`](lib.md#file-src-lib-server-websiteenquiries-ts-e00ecfd23b) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/automations.ts`](server.md#file-src-server-automations-ts-3e92d448c5) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (7):** [`scripts/smoke-client-journey.test.ts`](scripts.md#file-scripts-smoke-client-journey-test-ts-4687798ba0) · [`src/app/portal/clients/[clientId]/_ClientRequestsPanel.tsx`](#file-src-app-portal-clients-clientid-clientrequestspanel-tsx-22e29cdced) · [`src/app/portal/clients/[clientId]/page.tsx`](#file-src-app-portal-clients-clientid-page-tsx-f2587fcff8) · [`src/app/portal/customer/_CustomerPortalActions.tsx`](#file-src-app-portal-customer-customerportalactions-tsx-05a3c8b5ae) · [`src/app/portal/customer/_PortalInteractionBlocks.tsx`](#file-src-app-portal-customer-portalinteractionblocks-tsx-392b00a1c4) · [`src/app/portal/customer/_portalData.ts`](#file-src-app-portal-customer-portaldata-ts-2f1995696c) · [`src/lib/clients/clientRequests.ts`](lib.md#file-src-lib-clients-clientrequests-ts-402e6c331e)
 
@@ -3800,7 +4142,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(req: Request)`
 
-**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (6):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3820,7 +4162,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async PATCH(request: NextRequest)`
 - `async DELETE(request: NextRequest)`
 
-**Depends on (8):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/tasks/clientTaskBoard.ts`](lib.md#file-src-lib-tasks-clienttaskboard-ts-2a03b8e0ea) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tasks.ts`](server.md#file-src-server-tasks-ts-875282c006) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (9):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/tasks/clientTaskBoard.ts`](lib.md#file-src-lib-tasks-clienttaskboard-ts-2a03b8e0ea) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tasks.ts`](server.md#file-src-server-tasks-ts-875282c006) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3838,7 +4180,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET(req: NextRequest)`
 - `async POST(req: NextRequest)`
 
-**Depends on (4):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientTelemetryService.ts`](lib.md#file-src-lib-server-clients-clienttelemetryservice-ts-92d317a118) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (5):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientTelemetryService.ts`](lib.md#file-src-lib-server-clients-clienttelemetryservice-ts-92d317a118) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3855,7 +4197,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: Request)`
 
-**Depends on (12):** [`src/lib/portal/portalProducts.ts`](lib.md#file-src-lib-portal-portalproducts-ts-7c7e423e18) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientLifecycle.ts`](lib.md#file-src-lib-server-clients-clientlifecycle-ts-68f3ffa5f8) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/clientRelationships.ts`](server.md#file-src-server-clientrelationships-ts-25562cf9d9) · [`src/server/productWorkspaces.ts`](server.md#file-src-server-productworkspaces-ts-c20e49f8a5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (13):** [`src/lib/portal/portalProducts.ts`](lib.md#file-src-lib-portal-portalproducts-ts-7c7e423e18) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientLifecycle.ts`](lib.md#file-src-lib-server-clients-clientlifecycle-ts-68f3ffa5f8) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/clientRelationships.ts`](server.md#file-src-server-clientrelationships-ts-25562cf9d9) · [`src/server/productWorkspaces.ts`](server.md#file-src-server-productworkspaces-ts-c20e49f8a5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3872,7 +4214,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: Request)`
 
-**Depends on (16):** [`src/built-ins/modules/agency-finance/src/lib/channels.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-channels-ts-c136216113) · [`src/built-ins/modules/agency-finance/src/lib/currencies.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-currencies-ts-d92fdc906d) · [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/lib/stripe.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-stripe-ts-3832f7b0e6) · [`src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-server-foundationadapter-ts-e614648c40) · [`src/built-ins/runtime/foundation-adapters/agencyFinanceFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-agencyfinancefoundation-ts-8c3647e20e) · [`src/lib/clients/clientContracts.ts`](lib.md#file-src-lib-clients-clientcontracts-ts-e0bc41d74d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/closeDeal.ts`](lib.md#file-src-lib-server-closedeal-ts-c7389d41c7) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/server/plugins/pluginSecretConfig.ts`](lib.md#file-src-lib-server-plugins-pluginsecretconfig-ts-8cb887a277) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (17):** [`src/built-ins/modules/agency-finance/src/lib/channels.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-channels-ts-c136216113) · [`src/built-ins/modules/agency-finance/src/lib/currencies.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-currencies-ts-d92fdc906d) · [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/lib/stripe.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-stripe-ts-3832f7b0e6) · [`src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-server-foundationadapter-ts-e614648c40) · [`src/built-ins/runtime/foundation-adapters/agencyFinanceFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-agencyfinancefoundation-ts-8c3647e20e) · [`src/lib/clients/clientContracts.ts`](lib.md#file-src-lib-clients-clientcontracts-ts-e0bc41d74d) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/closeDeal.ts`](lib.md#file-src-lib-server-closedeal-ts-c7389d41c7) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/server/plugins/pluginSecretConfig.ts`](lib.md#file-src-lib-server-plugins-pluginsecretconfig-ts-8cb887a277) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3889,7 +4231,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(req: NextRequest)`
 
-**Depends on (10):** [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/magicLink.ts`](lib.md#file-src-lib-server-auth-magiclink-ts-6a72fcbb7b) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/clientPortalDesigns.ts`](server.md#file-src-server-clientportaldesigns-ts-a391c1a4b9) · [`src/server/productWorkspaces.ts`](server.md#file-src-server-productworkspaces-ts-c20e49f8a5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (11):** [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/magicLink.ts`](lib.md#file-src-lib-server-auth-magiclink-ts-6a72fcbb7b) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/clientPortalDesigns.ts`](server.md#file-src-server-clientportaldesigns-ts-a391c1a4b9) · [`src/server/productWorkspaces.ts`](server.md#file-src-server-productworkspaces-ts-c20e49f8a5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3907,7 +4249,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async POST(req: Request)`
 - `interface CustomerProjectBrief (8 members)`
 
-**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (6):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (2):** [`src/app/portal/customer/_CustomerPortalActions.tsx`](#file-src-app-portal-customer-customerportalactions-tsx-05a3c8b5ae) · [`src/app/portal/customer/_portalData.ts`](#file-src-app-portal-customer-portaldata-ts-2f1995696c)
 
@@ -3942,7 +4284,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(req: Request)`
 
-**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/onboardingMilestones.ts`](lib.md#file-src-lib-server-onboardingmilestones-ts-36940c3016) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (6):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/onboardingMilestones.ts`](lib.md#file-src-lib-server-onboardingmilestones-ts-36940c3016) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3961,7 +4303,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async POST(req: Request)`
 - `runtime = "nodejs"`
 
-**Depends on (14):** [`src/app/api/tenants/client-files/route.ts`](#file-src-app-api-tenants-client-files-route-ts-862e6284ae) · [`src/lib/portal/portalProductWorkspaces.ts`](lib.md#file-src-lib-portal-portalproductworkspaces-ts-e82f470a50) · [`src/lib/portal/portalProducts.ts`](lib.md#file-src-lib-portal-portalproducts-ts-7c7e423e18) · [`src/lib/products/clientProductStageTruth.ts`](lib.md#file-src-lib-products-clientproductstagetruth-ts-d3dc49116c) · [`src/lib/products/productInternalWorkspace.ts`](lib.md#file-src-lib-products-productinternalworkspace-ts-1544d53955) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/productStageTransitions.ts`](server.md#file-src-server-productstagetransitions-ts-10f6812790) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/productWorkspaces.ts`](server.md#file-src-server-productworkspaces-ts-c20e49f8a5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (15):** [`src/app/api/tenants/client-files/route.ts`](#file-src-app-api-tenants-client-files-route-ts-862e6284ae) · [`src/lib/portal/portalProductWorkspaces.ts`](lib.md#file-src-lib-portal-portalproductworkspaces-ts-e82f470a50) · [`src/lib/portal/portalProducts.ts`](lib.md#file-src-lib-portal-portalproducts-ts-7c7e423e18) · [`src/lib/products/clientProductStageTruth.ts`](lib.md#file-src-lib-products-clientproductstagetruth-ts-d3dc49116c) · [`src/lib/products/productInternalWorkspace.ts`](lib.md#file-src-lib-products-productinternalworkspace-ts-1544d53955) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/productStageTransitions.ts`](server.md#file-src-server-productstagetransitions-ts-10f6812790) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/productWorkspaces.ts`](server.md#file-src-server-productworkspaces-ts-c20e49f8a5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -4254,7 +4596,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default async ClientPreviewPage({ params, searchParams, }: { params: Promise<{ clientId: string }>; searchParams: Promise<Record<string, string | string[] | undefined>>; })`
 
-**Depends on (12):** [`src/app/portal/customer/_CustomerPortalChrome.tsx`](#file-src-app-portal-customer-customerportalchrome-tsx-ec588f2c59) · [`src/app/portal/customer/_CustomerPortalViews.tsx`](#file-src-app-portal-customer-customerportalviews-tsx-d55a5b8f78) · [`src/app/portal/customer/_portalData.ts`](#file-src-app-portal-customer-portaldata-ts-2f1995696c) · [`src/components/chrome/ThemeInjector.tsx`](components.md#file-src-components-chrome-themeinjector-tsx-60b2716099) · [`src/lib/portal/customerPortalAttention.ts`](lib.md#file-src-lib-portal-customerportalattention-ts-93a213021f) · [`src/lib/portal/portalProducts.ts`](lib.md#file-src-lib-portal-portalproducts-ts-7c7e423e18) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientPortalProvider.ts`](lib.md#file-src-lib-server-clients-clientportalprovider-ts-9c224098b6) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (14):** [`src/app/portal/customer/_CustomerPortalChrome.tsx`](#file-src-app-portal-customer-customerportalchrome-tsx-ec588f2c59) · [`src/app/portal/customer/_CustomerPortalViews.tsx`](#file-src-app-portal-customer-customerportalviews-tsx-d55a5b8f78) · [`src/app/portal/customer/_portalData.ts`](#file-src-app-portal-customer-portaldata-ts-2f1995696c) · [`src/components/chrome/ThemeInjector.tsx`](components.md#file-src-components-chrome-themeinjector-tsx-60b2716099) · [`src/lib/portal/customerPortalAttention.ts`](lib.md#file-src-lib-portal-customerportalattention-ts-93a213021f) · [`src/lib/portal/portalProducts.ts`](lib.md#file-src-lib-portal-portalproducts-ts-7c7e423e18) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clientForms/clientFormNotices.ts`](lib.md#file-src-lib-server-clientforms-clientformnotices-ts-3b9510cd5f) · [`src/lib/server/clients/clientPortalProvider.ts`](lib.md#file-src-lib-server-clients-clientportalprovider-ts-9c224098b6) · [`src/lib/server/clients/samplePreviewClient.ts`](lib.md#file-src-lib-server-clients-samplepreviewclient-ts-8ab964f098) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -4339,9 +4681,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async GET(request: Request)` — Dev mode entry. Signs you into the `Bare Co` dev tenant with a fully writable session so the real UI can be driven end to end without production credentials and without touching p…
 
-**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devMode.ts`](lib.md#file-src-lib-server-dev-devmode-ts-d0b2acc96f) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devMode.ts`](lib.md#file-src-lib-server-dev-devmode-ts-d0b2acc96f) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
-**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+**Used by (1):** [`scripts/smoke-dev-access-session.test.ts`](scripts.md#file-scripts-smoke-dev-access-session-test-ts-27bc623a29)
 
 
 ## `src/app/embed/account/`
@@ -4572,23 +4914,6 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 
-## `src/app/`
-
-<a id="file-src-app-manifest-ts-279032e701"></a>
-
-### `src/app/manifest.ts`
-
-_No file-level doc-comment; purpose is inferred from the path and exports._
-
-**Exports (1):**
-
-- `default manifest(): MetadataRoute.Manifest` — The web app manifest. Without this, "add to home screen" produces a bookmark: it opens in the browser with its chrome, and it does not feel like the customer's app. With it, the p…
-
-**Depends on:** _No internal imports._
-
-**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
-
-
 ## `src/app/milesy-tag.js/`
 
 <a id="file-src-app-milesy-tag-js-route-ts-d97f1ddce6"></a>
@@ -4782,9 +5107,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type BattleTablePayload = { companyName: string; initial: CompanyProfile; actuals: BattleTableActuals; healthScore: number; staffCount: number; brandCount: number; productCount: number; legalCount: number; connectedSour…`
 - `type BattleTableScopePayload = { id: string; companyId: string | null; label: string; kind: "aggregate" | "company"; detail: string; initial: CompanyProfile; actuals: BattleTableActuals; healthScore: number; staffCount:…`
 
-**Depends on (7):** [`src/app/portal/agency/_CapitalOwnershipWorkspace.tsx`](#file-src-app-portal-agency-capitalownershipworkspace-tsx-14032638a6) · [`src/app/portal/agency/_CommandIntelligenceWorkspace.tsx`](#file-src-app-portal-agency-commandintelligenceworkspace-tsx-0d26b4df14) · [`src/app/portal/agency/_QuarterlyStrategyReview.tsx`](#file-src-app-portal-agency-quarterlystrategyreview-tsx-1b2137f5f9) · [`src/app/portal/agency/_battleWarRoom.ts`](#file-src-app-portal-agency-battlewarroom-ts-31aacabefb) · [`src/lib/intelligence/commandIntelligence.ts`](lib.md#file-src-lib-intelligence-commandintelligence-ts-365dc38397) · [`src/lib/performance/hiringCapacity.ts`](lib.md#file-src-lib-performance-hiringcapacity-ts-4ee70b26aa) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (6):** [`src/app/portal/agency/_battleWarRoom.ts`](#file-src-app-portal-agency-battlewarroom-ts-31aacabefb) · [`src/app/portal/agency/battleNavigation.ts`](#file-src-app-portal-agency-battlenavigation-ts-482a1e0083) · [`src/app/portal/agency/commandIntelligenceScope.ts`](#file-src-app-portal-agency-commandintelligencescope-ts-d8108408df) · [`src/lib/intelligence/commandIntelligence.ts`](lib.md#file-src-lib-intelligence-commandintelligence-ts-365dc38397) · [`src/lib/performance/hiringCapacity.ts`](lib.md#file-src-lib-performance-hiringcapacity-ts-4ee70b26aa) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (2):** [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff) · [`src/app/portal/agency/page.tsx`](#file-src-app-portal-agency-page-tsx-35a1d5c98a)
+**Used by (3):** [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff) · [`src/app/portal/agency/battleTablePayload.server.ts`](#file-src-app-portal-agency-battletablepayload-server-ts-d11c64d29d) · [`src/app/portal/agency/page.tsx`](#file-src-app-portal-agency-page-tsx-35a1d5c98a)
 
 <a id="file-src-app-portal-agency-brandportfolioinstrument-tsx-f4cc6a6f0f"></a>
 
@@ -4798,7 +5123,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (1):** [`src/lib/brands/brandPortfolio.ts`](lib.md#file-src-lib-brands-brandportfolio-ts-85e5ae26f9)
 
-**Used by (1):** [`src/app/portal/agency/page.tsx`](#file-src-app-portal-agency-page-tsx-35a1d5c98a)
+**Used by (1):** [`src/app/portal/agency/_ExecutiveCommandWorkspace.tsx`](#file-src-app-portal-agency-executivecommandworkspace-tsx-bac840fa46)
 
 <a id="file-src-app-portal-agency-capitalownershipworkspace-tsx-14032638a6"></a>
 
@@ -4812,7 +5137,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (2):** [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (1):** [`src/app/portal/agency/_BattleTableWorkspace.tsx`](#file-src-app-portal-agency-battletableworkspace-tsx-ec652c2c58)
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 <a id="file-src-app-portal-agency-clientsneedingattention-tsx-854f87726b"></a>
 
@@ -4822,9 +5147,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `ClientsNeedingAttention({ items }: { items: ClientAttentionItem[] })` — Command Centre roll-up: which clients need attention, how bad, and the single top reason — never a bare count. Each row links into the client's Fulfilment workspace, where the ful…
+- `ClientsNeedingAttention({ items, radarPaused = false }: { items: ClientAttentionItem[]; radarPaused?: boolean })` — Command Centre roll-up: which clients need attention, how bad, and the single top reason — never a bare count. Each row links into the client's Fulfilment workspace, where the ful…
 
-**Depends on (1):** [`src/lib/server/clients/clientAttention.ts`](lib.md#file-src-lib-server-clients-clientattention-ts-cadbc44f73)
+**Depends on (2):** [`src/app/portal/agency/dayCommandTruth.ts`](#file-src-app-portal-agency-daycommandtruth-ts-382dd10f5c) · [`src/lib/server/clients/clientAttention.ts`](lib.md#file-src-lib-server-clients-clientattention-ts-cadbc44f73)
 
 **Used by (1):** [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff)
 
@@ -4855,7 +5180,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (1):** [`src/lib/intelligence/commandIntelligence.ts`](lib.md#file-src-lib-intelligence-commandintelligence-ts-365dc38397)
 
-**Used by (1):** [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff)
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 <a id="file-src-app-portal-agency-commanddeckpopup-tsx-9e57b40464"></a>
 
@@ -4872,7 +5197,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on:** _No internal imports._
 
-**Used by (2):** [`src/app/portal/agency/_DynamicRadarConsole.tsx`](#file-src-app-portal-agency-dynamicradarconsole-tsx-b6d1c7a05a) · [`src/app/portal/agency/page.tsx`](#file-src-app-portal-agency-page-tsx-35a1d5c98a)
+**Used by (2):** [`src/app/portal/agency/_DynamicRadarConsole.tsx`](#file-src-app-portal-agency-dynamicradarconsole-tsx-b6d1c7a05a) · [`src/app/portal/agency/_ExecutiveCommandWorkspace.tsx`](#file-src-app-portal-agency-executivecommandworkspace-tsx-bac840fa46)
 
 <a id="file-src-app-portal-agency-commandintelligenceworkspace-tsx-0d26b4df14"></a>
 
@@ -4883,14 +5208,14 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports (5):**
 
 - `CommandIntelligenceWorkspace({ snapshot, initialView = "overview", initialKpiIds = [], initialScopeId = "ecosystem", initialCommercialFocus }: { snapshot: CommandIntelligenceSnapshot; initialView?: IntelligenceView; ini…`
-- `applyIntelligenceScope(snapshot: CommandIntelligenceSnapshot, scope: CommandIntelligenceScope | null | undefined): CommandIntelligenceSnapshot`
 - `KpiComparisonWorkspace({ snapshot, initialKpiIds = [], initialRange = "30d", context = "operational", onInspect }: { snapshot: CommandIntelligenceSnapshot; initialKpiIds?: string[]; initialRange?: ComparisonRange; conte…`
 - `type IntelligenceView = "overview" | "lifecycle" | "campaigns" | "audiences" | "kpis" | "compare"`
 - `type ComparisonRange = "24h" | "7d" | "30d" | "90d" | "quarter" | "ytd" | "12m" | "all" | "custom"`
+- `{ applyIntelligenceScope }`
 
-**Depends on (5):** [`src/app/portal/agency/_CommercialIntelligenceWorkspace.tsx`](#file-src-app-portal-agency-commercialintelligenceworkspace-tsx-3ebaf9ec01) · [`src/lib/intelligence/commandIntelligence.ts`](lib.md#file-src-lib-intelligence-commandintelligence-ts-365dc38397) · [`src/lib/performance/kpiRegistry.ts`](lib.md#file-src-lib-performance-kpiregistry-ts-a844c71e33) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (7):** [`src/app/portal/agency/commandIntelligenceScope.ts`](#file-src-app-portal-agency-commandintelligencescope-ts-d8108408df) · [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d) · [`src/lib/intelligence/commandIntelligence.ts`](lib.md#file-src-lib-intelligence-commandintelligence-ts-365dc38397) · [`src/lib/performance/kpiRegistry.ts`](lib.md#file-src-lib-performance-kpiregistry-ts-a844c71e33) · [`src/lib/performance/kpiTargetClient.ts`](lib.md#file-src-lib-performance-kpitargetclient-ts-8133355a3e) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (2):** [`src/app/portal/agency/_BattleTableWorkspace.tsx`](#file-src-app-portal-agency-battletableworkspace-tsx-ec652c2c58) · [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff)
+**Used by (1):** [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff)
 
 <a id="file-src-app-portal-agency-commandstationnav-tsx-053095e614"></a>
 
@@ -4900,13 +5225,13 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (3):**
 
-- `CommandStationNav({ attention, activeMode, attentionProtection, onAttentionProtectionChange, onSelect, showDevTeam = false, canManage = true, }: { attention: Record<CommandStationMode, CommandStationAttention>; activeMo…`
+- `CommandStationNav({ attention, activeMode, attentionProtection, onAttentionProtectionChange, onSelect, showDevTeam = false, canManage = true, navigationPending = false, pendingMode, }: { attention: Record<CommandStation…`
 - `type CommandStationMode = "executive" | "day" | "battle" | "devteam"`
 - `type CommandStationAttention = { count: number; tone: "critical" | "warning" | "info" | "clear"; label: string; }`
 
 **Depends on:** _No internal imports._
 
-**Used by (1):** [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff)
+**Used by (2):** [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff) · [`src/app/portal/agency/commandStationAttention.ts`](#file-src-app-portal-agency-commandstationattention-ts-933606bc3a)
 
 <a id="file-src-app-portal-agency-commercialintelligenceworkspace-tsx-3ebaf9ec01"></a>
 
@@ -4920,7 +5245,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (2):** [`src/lib/intelligence/commandIntelligence.ts`](lib.md#file-src-lib-intelligence-commandintelligence-ts-365dc38397) · [`src/lib/intelligence/commercialIntelligence.ts`](lib.md#file-src-lib-intelligence-commercialintelligence-ts-c3611e436c)
 
-**Used by (1):** [`src/app/portal/agency/_CommandIntelligenceWorkspace.tsx`](#file-src-app-portal-agency-commandintelligenceworkspace-tsx-0d26b4df14)
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 <a id="file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff"></a>
 
@@ -4934,7 +5259,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type DashboardSignal = { id: string; title: string; detail: string; href: string; kind: string; priority: "normal" | "high" | "urgent"; dueAt?: number; }`
 - `type DashboardPlanningPayload = { today: string; weekStart: string; weekPlan: DashboardWeekPlan | null; dayPlan: DashboardDayPlan | null; weekPlans: DashboardDayPlan[]; sessions: DashboardWorkSession[]; activeSession: D…`
 
-**Depends on (23):** [`src/app/portal/agency/_BattleTableWorkspace.tsx`](#file-src-app-portal-agency-battletableworkspace-tsx-ec652c2c58) · [`src/app/portal/agency/_ClientsNeedingAttention.tsx`](#file-src-app-portal-agency-clientsneedingattention-tsx-854f87726b) · [`src/app/portal/agency/_ClockOutReviewDialog.tsx`](#file-src-app-portal-agency-clockoutreviewdialog-tsx-aa97724b87) · [`src/app/portal/agency/_CommandCentreKpiTrajectory.tsx`](#file-src-app-portal-agency-commandcentrekpitrajectory-tsx-e95a853a46) · [`src/app/portal/agency/_CommandIntelligenceWorkspace.tsx`](#file-src-app-portal-agency-commandintelligenceworkspace-tsx-0d26b4df14) · [`src/app/portal/agency/_CommandStationNav.tsx`](#file-src-app-portal-agency-commandstationnav-tsx-053095e614) · [`src/app/portal/agency/_DayBriefingPanel.tsx`](#file-src-app-portal-agency-daybriefingpanel-tsx-722cdc61f0) · [`src/app/portal/agency/_DayCommandSensorPanel.tsx`](#file-src-app-portal-agency-daycommandsensorpanel-tsx-862e7d8831) · [`src/app/portal/agency/_DayKpiIntelligencePanel.tsx`](#file-src-app-portal-agency-daykpiintelligencepanel-tsx-8ca2970690) · [`src/app/portal/agency/_FindingGroupBar.tsx`](#file-src-app-portal-agency-findinggroupbar-tsx-edd191eb45) · [`src/app/portal/agency/_InfraHealthPanel.tsx`](#file-src-app-portal-agency-infrahealthpanel-tsx-6e3790f895) · [`src/app/portal/agency/_RadarPolicyPanel.tsx`](#file-src-app-portal-agency-radarpolicypanel-tsx-6559104210) · [`src/app/portal/agency/_WeeklyReviewWorkspace.tsx`](#file-src-app-portal-agency-weeklyreviewworkspace-tsx-325853ffef) · [`src/app/portal/agency/_battleWarRoom.ts`](#file-src-app-portal-agency-battlewarroom-ts-31aacabefb) · [`src/app/portal/agency/radar/RadarInspectionWorkspace.tsx`](#file-src-app-portal-agency-radar-radarinspectionworkspace-tsx-ada28e340f) · [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/lib/advisor/advisorActions.ts`](lib.md#file-src-lib-advisor-advisoractions-ts-5bfe1090c9) · [`src/lib/intelligence/attentionProtection.ts`](lib.md#file-src-lib-intelligence-attentionprotection-ts-ee09220b9a) · [`src/lib/intelligence/businessRecommendedActions.ts`](lib.md#file-src-lib-intelligence-businessrecommendedactions-ts-b89f9ec998) · [`src/lib/intelligence/commandIntelligence.ts`](lib.md#file-src-lib-intelligence-commandintelligence-ts-365dc38397) · [`src/lib/server/clients/clientAttention.ts`](lib.md#file-src-lib-server-clients-clientattention-ts-cadbc44f73) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (24):** [`src/app/portal/agency/_BattleTableWorkspace.tsx`](#file-src-app-portal-agency-battletableworkspace-tsx-ec652c2c58) · [`src/app/portal/agency/_ClientsNeedingAttention.tsx`](#file-src-app-portal-agency-clientsneedingattention-tsx-854f87726b) · [`src/app/portal/agency/_ClockOutReviewDialog.tsx`](#file-src-app-portal-agency-clockoutreviewdialog-tsx-aa97724b87) · [`src/app/portal/agency/_CommandIntelligenceWorkspace.tsx`](#file-src-app-portal-agency-commandintelligenceworkspace-tsx-0d26b4df14) · [`src/app/portal/agency/_CommandStationNav.tsx`](#file-src-app-portal-agency-commandstationnav-tsx-053095e614) · [`src/app/portal/agency/_DayBriefingPanel.tsx`](#file-src-app-portal-agency-daybriefingpanel-tsx-722cdc61f0) · [`src/app/portal/agency/_DayCommandSensorPanel.tsx`](#file-src-app-portal-agency-daycommandsensorpanel-tsx-862e7d8831) · [`src/app/portal/agency/_DayKpiIntelligencePanel.tsx`](#file-src-app-portal-agency-daykpiintelligencepanel-tsx-8ca2970690) · [`src/app/portal/agency/_battleWarRoom.ts`](#file-src-app-portal-agency-battlewarroom-ts-31aacabefb) · [`src/app/portal/agency/commandPerformance.ts`](#file-src-app-portal-agency-commandperformance-ts-4c3c4f6dfd) · [`src/app/portal/agency/commandStationAttention.ts`](#file-src-app-portal-agency-commandstationattention-ts-933606bc3a) · [`src/app/portal/agency/commandStationRouting.ts`](#file-src-app-portal-agency-commandstationrouting-ts-1348113223) · [`src/app/portal/agency/radar/RadarInspectionWorkspace.tsx`](#file-src-app-portal-agency-radar-radarinspectionworkspace-tsx-ada28e340f) · [`src/app/portal/agency/serverStationNavigation.ts`](#file-src-app-portal-agency-serverstationnavigation-ts-a2741da569) · [`src/app/portal/agency/weeklyReviewDraft.ts`](#file-src-app-portal-agency-weeklyreviewdraft-ts-7af990eaf4) · [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d) · [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/lib/advisor/advisorActions.ts`](lib.md#file-src-lib-advisor-advisoractions-ts-5bfe1090c9) · [`src/lib/intelligence/attentionProtection.ts`](lib.md#file-src-lib-intelligence-attentionprotection-ts-ee09220b9a) · [`src/lib/intelligence/businessRecommendedActions.ts`](lib.md#file-src-lib-intelligence-businessrecommendedactions-ts-b89f9ec998) · [`src/lib/intelligence/commandIntelligence.ts`](lib.md#file-src-lib-intelligence-commandintelligence-ts-365dc38397) · [`src/lib/server/clients/clientAttention.ts`](lib.md#file-src-lib-server-clients-clientattention-ts-cadbc44f73) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (1):** [`src/app/portal/agency/page.tsx`](#file-src-app-portal-agency-page-tsx-35a1d5c98a)
 
@@ -4946,10 +5271,10 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (2):**
 
-- `DayBriefingPanel({ radar, recommendations, counts, reviewedAt, advisorConfigured, advisorBusy, taskSummary, taskBusyId, onGenerate, onAccept, onOpenAdvisor }: { radar: BusinessIssueRadar; recommendations: AdvisorActionS…`
+- `DayBriefingPanel({ radar, radarPaused = false, recommendations, counts, reviewedAt, advisorConfigured, advisorBusy, taskSummary, taskBusyId, onGenerate, onAccept, onOpenAdvisor }: { radar: BusinessIssueRadar; radarPause…`
 - `type DayTaskGenerationSummary = { generatedAt: number; newTasks: number; activeRadarTasks: number; contacts: number; }`
 
-**Depends on (3):** [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/lib/advisor/advisorActions.ts`](lib.md#file-src-lib-advisor-advisoractions-ts-5bfe1090c9) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
+**Depends on (4):** [`src/app/portal/agency/dayCommandTruth.ts`](#file-src-app-portal-agency-daycommandtruth-ts-382dd10f5c) · [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/lib/advisor/advisorActions.ts`](lib.md#file-src-lib-advisor-advisoractions-ts-5bfe1090c9) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 
 **Used by (1):** [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff)
 
@@ -4961,9 +5286,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `DayCommandSensorPanel({ radar, intelligence, onOpenRadar, onOpenIntelligence }: { radar: BusinessIssueRadar; intelligence: CommandIntelligenceSnapshot; onOpenRadar: () => void; onOpenIntelligence: (kpiIds: string[]) => …`
+- `DayCommandSensorPanel({ radar, intelligence, radarPaused = false, intelligencePaused = false, onOpenRadar, onOpenIntelligence }: { radar: BusinessIssueRadar; intelligence: CommandIntelligenceSnapshot; radarPaused?: bool…`
 
-**Depends on (2):** [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/lib/intelligence/commandIntelligence.ts`](lib.md#file-src-lib-intelligence-commandintelligence-ts-365dc38397)
+**Depends on (3):** [`src/app/portal/agency/dayCommandTruth.ts`](#file-src-app-portal-agency-daycommandtruth-ts-382dd10f5c) · [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/lib/intelligence/commandIntelligence.ts`](lib.md#file-src-lib-intelligence-commandintelligence-ts-365dc38397)
 
 **Used by (1):** [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff)
 
@@ -4975,9 +5300,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `DayKpiIntelligencePanel({ intelligence, onOpen }: { intelligence: CommandIntelligenceSnapshot; onOpen: (kpiIds: string[]) => void; })`
+- `DayKpiIntelligencePanel({ intelligence, paused = false, onOpen }: { intelligence: CommandIntelligenceSnapshot; paused?: boolean; onOpen: (kpiIds: string[]) => void; })`
 
-**Depends on (1):** [`src/lib/intelligence/commandIntelligence.ts`](lib.md#file-src-lib-intelligence-commandintelligence-ts-365dc38397)
+**Depends on (2):** [`src/app/portal/agency/dayCommandTruth.ts`](#file-src-app-portal-agency-daycommandtruth-ts-382dd10f5c) · [`src/lib/intelligence/commandIntelligence.ts`](lib.md#file-src-lib-intelligence-commandintelligence-ts-365dc38397)
 
 **Used by (1):** [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff)
 
@@ -4993,7 +5318,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (4):** [`src/lib/server/dev/devConsoleStatus.ts`](lib.md#file-src-lib-server-dev-devconsolestatus-ts-f02de5665f) · [`src/lib/server/dev/devTeamBoard.ts`](lib.md#file-src-lib-server-dev-devteamboard-ts-20125cdfd8) · [`src/lib/server/dev/devTeamFindings.ts`](lib.md#file-src-lib-server-dev-devteamfindings-ts-e4af23d1a3) · [`src/lib/server/dev/devTeamWorkers.ts`](lib.md#file-src-lib-server-dev-devteamworkers-ts-86ad4dc3ce)
 
-**Used by (1):** [`src/app/portal/agency/page.tsx`](#file-src-app-portal-agency-page-tsx-35a1d5c98a)
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 <a id="file-src-app-portal-agency-dynamicradarconsole-tsx-b6d1c7a05a"></a>
 
@@ -5009,7 +5334,21 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (3):** [`src/app/portal/agency/_CommandDeckPopup.tsx`](#file-src-app-portal-agency-commanddeckpopup-tsx-9e57b40464) · [`src/app/portal/agency/_RadarScanControl.tsx`](#file-src-app-portal-agency-radarscancontrol-tsx-79dd03deaf) · [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95)
 
-**Used by (1):** [`src/app/portal/agency/page.tsx`](#file-src-app-portal-agency-page-tsx-35a1d5c98a)
+**Used by (1):** [`src/app/portal/agency/_ExecutiveCommandWorkspace.tsx`](#file-src-app-portal-agency-executivecommandworkspace-tsx-bac840fa46)
+
+<a id="file-src-app-portal-agency-executivecommandworkspace-tsx-bac840fa46"></a>
+
+### `src/app/portal/agency/_ExecutiveCommandWorkspace.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `ExecutiveCommandWorkspace({ agencyId, workspaceName, greet, publicShowcase, businessRadar, brandPortfolio, openTaskCount, activeClientCount, workspaceSettings, serviceBrands, products, }: ExecutiveCommandWorkspaceProps)` — The Executive Command Centre is a server-backed station, not part of the Day Command landing payload. Keeping its sizeable markup and interactive client references in this module …
+
+**Depends on (9):** [`src/app/portal/agency/_BrandPortfolioInstrument.tsx`](#file-src-app-portal-agency-brandportfolioinstrument-tsx-f4cc6a6f0f) · [`src/app/portal/agency/_CommandDeckPopup.tsx`](#file-src-app-portal-agency-commanddeckpopup-tsx-9e57b40464) · [`src/app/portal/agency/_DynamicRadarConsole.tsx`](#file-src-app-portal-agency-dynamicradarconsole-tsx-b6d1c7a05a) · [`src/app/portal/agency/_NewClientButton.tsx`](#file-src-app-portal-agency-newclientbutton-tsx-933174699b) · [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/lib/brands/brandPortfolio.ts`](lib.md#file-src-lib-brands-brandportfolio-ts-85e5ae26f9) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/portalEditor.ts`](server.md#file-src-server-portaleditor-ts-f825920491) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 <a id="file-src-app-portal-agency-findinggroupbar-tsx-edd191eb45"></a>
 
@@ -5023,7 +5362,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (1):** [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95)
 
-**Used by (1):** [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff)
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 <a id="file-src-app-portal-agency-founderdashboardkpis-tsx-0068dbe993"></a>
 
@@ -5051,7 +5390,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (1):** [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95)
 
-**Used by (1):** [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff)
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 <a id="file-src-app-portal-agency-newclientbutton-tsx-933174699b"></a>
 
@@ -5068,7 +5407,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (3):** [`src/components/forms/PortalCustomFields.tsx`](components.md#file-src-components-forms-portalcustomfields-tsx-c3122bba6b) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (2):** [`src/app/portal/agency/page.tsx`](#file-src-app-portal-agency-page-tsx-35a1d5c98a) · [`src/app/portal/clients/_PeopleHub.tsx`](#file-src-app-portal-clients-peoplehub-tsx-62c6426811)
+**Used by (2):** [`src/app/portal/agency/_ExecutiveCommandWorkspace.tsx`](#file-src-app-portal-agency-executivecommandworkspace-tsx-bac840fa46) · [`src/app/portal/clients/_PeopleHub.tsx`](#file-src-app-portal-clients-peoplehub-tsx-62c6426811)
 
 <a id="file-src-app-portal-agency-quarterlystrategyreview-tsx-1b2137f5f9"></a>
 
@@ -5082,7 +5421,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (2):** [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (1):** [`src/app/portal/agency/_BattleTableWorkspace.tsx`](#file-src-app-portal-agency-battletableworkspace-tsx-ec652c2c58)
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 <a id="file-src-app-portal-agency-radarpolicypanel-tsx-6559104210"></a>
 
@@ -5096,7 +5435,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (3):** [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (1):** [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff)
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 <a id="file-src-app-portal-agency-radarscancontrol-tsx-79dd03deaf"></a>
 
@@ -5120,13 +5459,13 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (3):**
 
-- `weeklyReviewDraftFromPlan(plan: DashboardWeekPlan | null): WeeklyReviewDraft`
 - `WeeklyReviewWorkspace({ draft, evidence, dirty, saving, onChange, onSave, }: { draft: WeeklyReviewDraft; evidence: DashboardWeeklyEvidenceSnapshot; dirty: boolean; saving: boolean; onChange: (patch: Partial<WeeklyReview…`
-- `type WeeklyReviewDraft = { outcome: string; reviewNotes: string; wins: string; misses: string; lessons: string; decisions: string; risks: string; startDoing: string; stopDoing: string; continueDoing: string; nextWeekPri…`
+- `{ weeklyReviewDraftFromPlan } from "./weeklyReviewDraft"`
+- `{ WeeklyReviewDraft } from "./weeklyReviewDraft"`
 
-**Depends on (1):** [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (2):** [`src/app/portal/agency/weeklyReviewDraft.ts`](#file-src-app-portal-agency-weeklyreviewdraft-ts-7af990eaf4) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (1):** [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff)
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 <a id="file-src-app-portal-agency-battlewarroom-ts-31aacabefb"></a>
 
@@ -5172,9 +5511,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async AgencyActionsPage({ initialView = "list", heading = "Actions", description, }: { initialView?: ActionsView; heading?: string; description?: string; })`
 
-**Depends on (23):** [`src/app/portal/agency/actions/_ActionsWorkspace.tsx`](#file-src-app-portal-agency-actions-actionsworkspace-tsx-3feedac0a1) · [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-leadspipelinefoundation-ts-a0444ffabc) · [`src/engines/data/server/radar/businessIssueRadar.ts`](engines.md#file-src-engines-data-server-radar-businessissueradar-ts-df308875cc) · [`src/engines/sop/server/sops.ts`](engines.md#file-src-engines-sop-server-sops-ts-8c9bee0d0c) · [`src/lib/inbox/resolutionContext.ts`](lib.md#file-src-lib-inbox-resolutioncontext-ts-f21513ba4f) · [`src/lib/inbox/resolutionFocus.ts`](lib.md#file-src-lib-inbox-resolutionfocus-ts-6aab5ca8a9) · [`src/lib/intelligence/businessRecommendedActions.ts`](lib.md#file-src-lib-intelligence-businessrecommendedactions-ts-b89f9ec998) · [`src/lib/server/assistants/externalAssistantProposals.ts`](lib.md#file-src-lib-server-assistants-externalassistantproposals-ts-0cb34ef763) · [`src/lib/server/assistants/openaiAssistant.ts`](lib.md#file-src-lib-server-assistants-openaiassistant-ts-43bfde0f5e) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/inbox/operationalAlertPreferences.ts`](lib.md#file-src-lib-server-inbox-operationalalertpreferences-ts-6586a73a1d) · [`src/lib/server/inbox/operationalAlerts.ts`](lib.md#file-src-lib-server-inbox-operationalalerts-ts-564a396d10) · [`src/lib/server/integrations/googleCalendar.ts`](lib.md#file-src-lib-server-integrations-googlecalendar-ts-457297d4a6) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/server/commandCalendar.ts`](server.md#file-src-server-commandcalendar-ts-70cef8d658) · [`src/server/dashboardPlanning.ts`](server.md#file-src-server-dashboardplanning-ts-e7312f445b) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/portalEditor.ts`](server.md#file-src-server-portaleditor-ts-f825920491) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tasks.ts`](server.md#file-src-server-tasks-ts-875282c006) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (24):** [`src/app/portal/agency/actions/_ActionsWorkspace.tsx`](#file-src-app-portal-agency-actions-actionsworkspace-tsx-3feedac0a1) · [`src/app/portal/agency/actions/_LazyActionsWorkspace.tsx`](#file-src-app-portal-agency-actions-lazyactionsworkspace-tsx-01a7a18ff2) · [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-leadspipelinefoundation-ts-a0444ffabc) · [`src/engines/data/server/radar/businessIssueRadar.ts`](engines.md#file-src-engines-data-server-radar-businessissueradar-ts-df308875cc) · [`src/engines/sop/server/sops.ts`](engines.md#file-src-engines-sop-server-sops-ts-8c9bee0d0c) · [`src/lib/inbox/resolutionContext.ts`](lib.md#file-src-lib-inbox-resolutioncontext-ts-f21513ba4f) · [`src/lib/inbox/resolutionFocus.ts`](lib.md#file-src-lib-inbox-resolutionfocus-ts-6aab5ca8a9) · [`src/lib/intelligence/businessRecommendedActions.ts`](lib.md#file-src-lib-intelligence-businessrecommendedactions-ts-b89f9ec998) · [`src/lib/server/assistants/externalAssistantProposals.ts`](lib.md#file-src-lib-server-assistants-externalassistantproposals-ts-0cb34ef763) · [`src/lib/server/assistants/openaiAssistant.ts`](lib.md#file-src-lib-server-assistants-openaiassistant-ts-43bfde0f5e) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/inbox/operationalAlertPreferences.ts`](lib.md#file-src-lib-server-inbox-operationalalertpreferences-ts-6586a73a1d) · [`src/lib/server/inbox/operationalAlerts.ts`](lib.md#file-src-lib-server-inbox-operationalalerts-ts-564a396d10) · [`src/lib/server/integrations/googleCalendar.ts`](lib.md#file-src-lib-server-integrations-googlecalendar-ts-457297d4a6) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/server/commandCalendar.ts`](server.md#file-src-server-commandcalendar-ts-70cef8d658) · [`src/server/dashboardPlanning.ts`](server.md#file-src-server-dashboardplanning-ts-e7312f445b) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/portalEditor.ts`](server.md#file-src-server-portaleditor-ts-f825920491) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tasks.ts`](server.md#file-src-server-tasks-ts-875282c006) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
-**Used by (3):** [`src/app/portal/agency/calendar/page.tsx`](#file-src-app-portal-agency-calendar-page-tsx-b2e803aa9b) · [`src/app/portal/agency/inbox/page.tsx`](#file-src-app-portal-agency-inbox-page-tsx-4d64a629ec) · [`src/app/portal/agency/page.tsx`](#file-src-app-portal-agency-page-tsx-35a1d5c98a)
+**Used by (2):** [`src/app/portal/agency/calendar/page.tsx`](#file-src-app-portal-agency-calendar-page-tsx-b2e803aa9b) · [`src/app/portal/agency/inbox/page.tsx`](#file-src-app-portal-agency-inbox-page-tsx-4d64a629ec)
 
 <a id="file-src-app-portal-agency-actions-actionsworkspace-tsx-3feedac0a1"></a>
 
@@ -5192,7 +5531,21 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (15):** [`src/app/portal/agency/actions/_TodayView.tsx`](#file-src-app-portal-agency-actions-todayview-tsx-05fe111052) · [`src/components/attention/AttentionControls.tsx`](components.md#file-src-components-attention-attentioncontrols-tsx-afcc81a4ad) · [`src/components/attention/CompletedRegister.tsx`](components.md#file-src-components-attention-completedregister-tsx-a8e3ab99f5) · [`src/components/attention/DeferralNote.tsx`](components.md#file-src-components-attention-deferralnote-tsx-93889a91b0) · [`src/components/attention/EvidenceCard.tsx`](components.md#file-src-components-attention-evidencecard-tsx-11cd2b3c7b) · [`src/components/attention/TaskChecklist.tsx`](components.md#file-src-components-attention-taskchecklist-tsx-5a580cd7c4) · [`src/components/attention/TaskTemplates.tsx`](components.md#file-src-components-attention-tasktemplates-tsx-de2f75c5e4) · [`src/components/chrome/NotificationAttentionProvider.tsx`](components.md#file-src-components-chrome-notificationattentionprovider-tsx-51754b1c61) · [`src/components/forms/PortalCustomFields.tsx`](components.md#file-src-components-forms-portalcustomfields-tsx-c3122bba6b) · [`src/lib/advisor/advisorActions.ts`](lib.md#file-src-lib-advisor-advisoractions-ts-5bfe1090c9) · [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1) · [`src/lib/inbox/resolutionExplain.ts`](lib.md#file-src-lib-inbox-resolutionexplain-ts-66c88b777a) · [`src/lib/intelligence/attentionProtection.ts`](lib.md#file-src-lib-intelligence-attentionprotection-ts-ee09220b9a) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (2):** [`src/app/portal/agency/actions/_ActionsPage.tsx`](#file-src-app-portal-agency-actions-actionspage-tsx-66b9e510e2) · [`src/app/portal/agency/actions/_TodayView.tsx`](#file-src-app-portal-agency-actions-todayview-tsx-05fe111052)
+**Used by (3):** [`src/app/portal/agency/actions/_ActionsPage.tsx`](#file-src-app-portal-agency-actions-actionspage-tsx-66b9e510e2) · [`src/app/portal/agency/actions/_LazyActionsWorkspace.tsx`](#file-src-app-portal-agency-actions-lazyactionsworkspace-tsx-01a7a18ff2) · [`src/app/portal/agency/actions/_TodayView.tsx`](#file-src-app-portal-agency-actions-todayview-tsx-05fe111052)
+
+<a id="file-src-app-portal-agency-actions-lazyactionsworkspace-tsx-01a7a18ff2"></a>
+
+### `src/app/portal/agency/actions/_LazyActionsWorkspace.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `LazyActionsWorkspace(props: ActionsWorkspaceProps)`
+
+**Depends on (2):** [`src/app/portal/agency/actions/_ActionsWorkspace.tsx`](#file-src-app-portal-agency-actions-actionsworkspace-tsx-3feedac0a1) · [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d)
+
+**Used by (1):** [`src/app/portal/agency/actions/_ActionsPage.tsx`](#file-src-app-portal-agency-actions-actionspage-tsx-66b9e510e2)
 
 <a id="file-src-app-portal-agency-actions-todayview-tsx-05fe111052"></a>
 
@@ -5254,7 +5607,21 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (5):** [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/lib/advisor/advisorSkills.ts`](lib.md#file-src-lib-advisor-advisorskills-ts-7aa68b16ab) · [`src/lib/enquiries/leadTiming.ts`](lib.md#file-src-lib-enquiries-leadtiming-ts-82b306bf2c) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (2):** [`src/app/portal/agency/assistant/page.tsx`](#file-src-app-portal-agency-assistant-page-tsx-91c7145a6d) · [`src/app/portal/agency/page.tsx`](#file-src-app-portal-agency-page-tsx-35a1d5c98a)
+**Used by (2):** [`src/app/portal/agency/assistant/_LazyAssistantWorkspace.tsx`](#file-src-app-portal-agency-assistant-lazyassistantworkspace-tsx-e9b2f2bd21) · [`src/app/portal/agency/assistant/page.tsx`](#file-src-app-portal-agency-assistant-page-tsx-91c7145a6d)
+
+<a id="file-src-app-portal-agency-assistant-lazyassistantworkspace-tsx-e9b2f2bd21"></a>
+
+### `src/app/portal/agency/assistant/_LazyAssistantWorkspace.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `LazyAssistantWorkspace(props: AssistantWorkspaceProps)`
+
+**Depends on (2):** [`src/app/portal/agency/assistant/AssistantWorkspace.tsx`](#file-src-app-portal-agency-assistant-assistantworkspace-tsx-0c7ca53569) · [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 <a id="file-src-app-portal-agency-assistant-page-tsx-91c7145a6d"></a>
 
@@ -5266,7 +5633,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default async AssistantPage()`
 
-**Depends on (9):** [`src/app/portal/agency/assistant/AssistantWorkspace.tsx`](#file-src-app-portal-agency-assistant-assistantworkspace-tsx-0c7ca53569) · [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/engines/data/server/radar/businessIssueRadar.ts`](engines.md#file-src-engines-data-server-radar-businessissueradar-ts-df308875cc) · [`src/lib/server/assistants/assistantBusinessContext.ts`](lib.md#file-src-lib-server-assistants-assistantbusinesscontext-ts-022a1a1e3a) · [`src/lib/server/assistants/assistantStore.ts`](lib.md#file-src-lib-server-assistants-assistantstore-ts-15d0058af9) · [`src/lib/server/assistants/openaiAssistant.ts`](lib.md#file-src-lib-server-assistants-openaiassistant-ts-43bfde0f5e) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (10):** [`src/app/portal/agency/assistant/AssistantWorkspace.tsx`](#file-src-app-portal-agency-assistant-assistantworkspace-tsx-0c7ca53569) · [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/engines/data/server/radar/businessIssueRadar.ts`](engines.md#file-src-engines-data-server-radar-businessissueradar-ts-df308875cc) · [`src/lib/server/assistants/assistantBusinessContext.ts`](lib.md#file-src-lib-server-assistants-assistantbusinesscontext-ts-022a1a1e3a) · [`src/lib/server/assistants/assistantContextScope.ts`](lib.md#file-src-lib-server-assistants-assistantcontextscope-ts-94c69e3f23) · [`src/lib/server/assistants/assistantStore.ts`](lib.md#file-src-lib-server-assistants-assistantstore-ts-15d0058af9) · [`src/lib/server/assistants/openaiAssistant.ts`](lib.md#file-src-lib-server-assistants-openaiassistant-ts-43bfde0f5e) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -5301,7 +5668,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type BuilderNodeData = AutomationNodeConfig & { kind: AutomationNodeKind; [key: string]: unknown }`
 - `type BuilderNode = Node<BuilderNodeData, "automation">`
 
-**Depends on (2):** [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (4):** [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d) · [`src/lib/automationRunFeedback.ts`](lib.md#file-src-lib-automationrunfeedback-ts-4f042a0671) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (2):** [`src/app/portal/agency/automations/_AutomationsCanvas.tsx`](#file-src-app-portal-agency-automations-automationscanvas-tsx-292ceb32de) · [`src/app/portal/agency/marketing/page.tsx`](#file-src-app-portal-agency-marketing-page-tsx-e2b361f4ba)
 
@@ -5330,6 +5697,39 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `default AutomationsPage()`
 
 **Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
+## `src/app/portal/agency/`
+
+<a id="file-src-app-portal-agency-battlenavigation-ts-482a1e0083"></a>
+
+### `src/app/portal/agency/battleNavigation.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (3):**
+
+- `createBattleNavigationState<Section extends string>(requestedSection: Section, requestedScopeId: string, availableScopeIds: readonly string[]): BattleNavigationState<Section>`
+- `reconcileBattleNavigationState<Section extends string>(current: BattleNavigationState<Section>, requestedSection: Section, requestedScopeId: string, availableScopeIds: readonly string[]): BattleNavigationState<Section>` — Reconcile a reused Battle client subtree with a new same-page RSC request. Local section/scope choices survive unrelated payload refreshes. When either URL-controlled value change…
+- `type BattleNavigationState<Section extends string> = { section: Section; scopeId: string; requestedSection: Section; requestedScopeId: string; }`
+
+**Depends on:** _No internal imports._
+
+**Used by (2):** [`scripts/smoke-battle-table.test.ts`](scripts.md#file-scripts-smoke-battle-table-test-ts-c74a9e6a9b) · [`src/app/portal/agency/_BattleTableWorkspace.tsx`](#file-src-app-portal-agency-battletableworkspace-tsx-ec652c2c58)
+
+<a id="file-src-app-portal-agency-battletablepayload-server-ts-d11c64d29d"></a>
+
+### `src/app/portal/agency/battleTablePayload.server.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `async buildBattleTablePayload(input: { agencyId: string; companyName: string; tasks: AgencyTask[]; productCount: number; businessRadar: BusinessIssueRadar; canEdit: boolean; now: number; }): Promise<BattleTablePayload>`
+
+**Depends on (13):** [`src/app/portal/agency/_BattleTableWorkspace.tsx`](#file-src-app-portal-agency-battletableworkspace-tsx-ec652c2c58) · [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/engines/data/server/kpi/companyHealthSnapshot.ts`](engines.md#file-src-engines-data-server-kpi-companyhealthsnapshot-ts-efcfa02aef) · [`src/lib/brands/brandPortfolio.ts`](lib.md#file-src-lib-brands-brandportfolio-ts-85e5ae26f9) · [`src/lib/performance/companyHealth.ts`](lib.md#file-src-lib-performance-companyhealth-ts-c24e507af4) · [`src/lib/performance/hiringCapacity.ts`](lib.md#file-src-lib-performance-hiringcapacity-ts-4ee70b26aa) · [`src/lib/server/brandPortfolioService.ts`](lib.md#file-src-lib-server-brandportfolioservice-ts-76537b2419) · [`src/server/company.ts`](server.md#file-src-server-company-ts-c3dc827a65) · [`src/server/legalDocuments.ts`](server.md#file-src-server-legaldocuments-ts-9db835baaf) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -5370,22 +5770,69 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ## `src/app/portal/agency/`
 
+<a id="file-src-app-portal-agency-commandintelligencescope-ts-d8108408df"></a>
+
+### `src/app/portal/agency/commandIntelligenceScope.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `applyIntelligenceScope(snapshot: CommandIntelligenceSnapshot, scope: CommandIntelligenceScope | null | undefined): CommandIntelligenceSnapshot` — Project the aggregate intelligence snapshot onto one company/property scope. Kept outside the large visual intelligence workspace so Battle Table's default war-room chunk does not…
+
+**Depends on (1):** [`src/lib/intelligence/commandIntelligence.ts`](lib.md#file-src-lib-intelligence-commandintelligence-ts-365dc38397)
+
+**Used by (2):** [`src/app/portal/agency/_BattleTableWorkspace.tsx`](#file-src-app-portal-agency-battletableworkspace-tsx-ec652c2c58) · [`src/app/portal/agency/_CommandIntelligenceWorkspace.tsx`](#file-src-app-portal-agency-commandintelligenceworkspace-tsx-0d26b4df14)
+
 <a id="file-src-app-portal-agency-commandperformance-ts-4c3c4f6dfd"></a>
 
 ### `src/app/portal/agency/commandPerformance.ts`
 
-**What it is:** runs exactly as before.
+**What it is:** the eager build on every navigation.
 
-**Exports (4):**
+**Exports (6):**
 
 - `shouldRunHeavyPanels(perfMode: boolean, scanRequested: boolean): boolean` — Whether to build the heavy radar + KPI-intelligence panels for this render. - Performance mode OFF → always `true` (behaviour is byte-for-byte today). - Performance mode ON → `fal…
 - `normalizeScanFlag(value: string | string[] | undefined): boolean` — Parse the one-shot `?scan=1` search param (string | string[] | undefined).
+- `reconcileBusinessRadarSnapshot(current: BusinessIssueRadar, previousServer: BusinessIssueRadar, nextServer: BusinessIssueRadar, previousServerWasPaused: boolean, nextServerIsPaused: boolean): BusinessIssueRadar` — Accept a new server Radar snapshot after an RSC navigation without erasing a fresher scan that the client already applied locally. Object identity tells us the client is still sho…
+- `reconcileCommandIntelligenceSnapshot(current: CommandIntelligenceSnapshot, previousServer: CommandIntelligenceSnapshot, nextServer: CommandIntelligenceSnapshot, previousServerWasPaused: boolean, nextServerIsPaused: bool…` — Keep a completed KPI-intelligence build across same-page RSC navigations. Performance-mode placeholders are stamped at render time, so comparing only `generatedAt` would let a new…
 - `buildPausedBusinessRadar(policy: RadarPolicyConfiguration, now: number): BusinessIssueRadar` — A type-complete but empty `BusinessIssueRadar` used while Performance mode has paused the real sweep. Every count is zero and every collection empty — the same shape a brand-new a…
 - `buildPausedIntelligenceSnapshot(currency: string, now: number): CommandIntelligenceSnapshot` — A type-complete but empty `CommandIntelligenceSnapshot` used while Performance mode has paused the real build. `commercialIntelligence` is the genuine empty-input result of the pu…
 
 **Depends on (5):** [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/lib/intelligence/commandIntelligence.ts`](lib.md#file-src-lib-intelligence-commandintelligence-ts-365dc38397) · [`src/lib/intelligence/commercialIntelligence.ts`](lib.md#file-src-lib-intelligence-commercialintelligence-ts-c3611e436c) · [`src/lib/intelligence/commercialLifecycle.ts`](lib.md#file-src-lib-intelligence-commerciallifecycle-ts-ae5c69a672) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (3):** [`scripts/smoke-battle-table.test.ts`](scripts.md#file-scripts-smoke-battle-table-test-ts-c74a9e6a9b) · [`scripts/smoke-command-center-perf.test.ts`](scripts.md#file-scripts-smoke-command-center-perf-test-ts-03d7758302) · [`src/app/portal/agency/page.tsx`](#file-src-app-portal-agency-page-tsx-35a1d5c98a)
+**Used by (6):** [`scripts/smoke-battle-table.test.ts`](scripts.md#file-scripts-smoke-battle-table-test-ts-c74a9e6a9b) · [`scripts/smoke-command-center-perf.test.ts`](scripts.md#file-scripts-smoke-command-center-perf-test-ts-03d7758302) · [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff) · [`src/app/portal/agency/page.tsx`](#file-src-app-portal-agency-page-tsx-35a1d5c98a) · [`src/components/chrome/AdvisorDrawerControl.tsx`](components.md#file-src-components-chrome-advisordrawercontrol-tsx-2c1a086faf) · [`src/components/chrome/RadarQuickLookControl.tsx`](components.md#file-src-components-chrome-radarquicklookcontrol-tsx-08e3954c6c)
+
+<a id="file-src-app-portal-agency-commandstationattention-ts-933606bc3a"></a>
+
+### `src/app/portal/agency/commandStationAttention.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `radarStationAttention(summary: { critical: number; warning: number }, paused: boolean): CommandStationAttention`
+- `devTeamStationAttention(loaded: boolean, blockedCount: number, launchBlockerCount: number): CommandStationAttention`
+
+**Depends on (1):** [`src/app/portal/agency/_CommandStationNav.tsx`](#file-src-app-portal-agency-commandstationnav-tsx-053095e614)
+
+**Used by (2):** [`scripts/smoke-command-center-perf.test.ts`](scripts.md#file-scripts-smoke-command-center-perf-test-ts-03d7758302) · [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff)
+
+<a id="file-src-app-portal-agency-commandstationrouting-ts-1348113223"></a>
+
+### `src/app/portal/agency/commandStationRouting.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (3):**
+
+- `resolveServerCommandStation(value: SearchParamValue, devTeamVisible = false): ServerCommandStation | null` — Only these stations need a server-rendered workspace. Dev Team remains founder-gated even when somebody hand-types its query parameter.
+- `serverCommandStationHref(pathname: string, currentQuery: string, station: ServerCommandStation | null, continueCompletedScan = false): string` — Preserve every unrelated query parameter while selecting or clearing the one server-backed station.
+- `type ServerCommandStation = "executive" | "battle" | "calendar" | "actions" | "advisor" | "devteam"`
+
+**Depends on:** _No internal imports._
+
+**Used by (4):** [`scripts/smoke-command-center-perf.test.ts`](scripts.md#file-scripts-smoke-command-center-perf-test-ts-03d7758302) · [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff) · [`src/app/portal/agency/page.tsx`](#file-src-app-portal-agency-page-tsx-35a1d5c98a) · [`src/app/portal/agency/serverStationNavigation.ts`](#file-src-app-portal-agency-serverstationnavigation-ts-a2741da569)
 
 
 ## `src/app/portal/agency/company/`
@@ -5573,6 +6020,29 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 
+## `src/app/portal/agency/`
+
+<a id="file-src-app-portal-agency-daycommandtruth-ts-382dd10f5c"></a>
+
+### `src/app/portal/agency/dayCommandTruth.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (7):**
+
+- `dayRadarTruth(summary: RadarSummary, paused: boolean): DayRadarTruth` — A zero-shaped paused placeholder is not a successful Radar result. Known incidents still win if a caller ever supplies them alongside a paused flag, but an unscanned zero can only…
+- `daySensorWatchState(summary: RadarSummary, radarPaused: boolean, instrumentStatuses: string[], intelligencePaused: boolean): DaySensorWatchState`
+- `clientAttentionTruth(count: number, riskCount: number, radarPaused: boolean): AttentionTruth` — Known client risks remain visible; an empty deferred fleet cannot say clear.
+- `intelligenceAttentionTruth(attention: number, paused: boolean): AttentionTruth` — A zero KPI count is clear only after the deferred intelligence scan loaded.
+- `type DayRadarTruth = { state: "critical" | "warning" | "unknown" | "clear"; watchLabel: "Red" | "Amber" | "Unknown" | "Clear"; criticalLabel: string; warningLabel: string; contacts: number | null; }`
+- `type DaySensorWatchState = "critical" | "warning" | "unknown" | "learning" | "healthy"`
+- `type AttentionTruth = { tone: "critical" | "warning" | "info" | "clear"; label: string; }`
+
+**Depends on:** _No internal imports._
+
+**Used by (5):** [`scripts/smoke-day-command-paused-truth.test.ts`](scripts.md#file-scripts-smoke-day-command-paused-truth-test-ts-4df966bede) · [`src/app/portal/agency/_ClientsNeedingAttention.tsx`](#file-src-app-portal-agency-clientsneedingattention-tsx-854f87726b) · [`src/app/portal/agency/_DayBriefingPanel.tsx`](#file-src-app-portal-agency-daybriefingpanel-tsx-722cdc61f0) · [`src/app/portal/agency/_DayCommandSensorPanel.tsx`](#file-src-app-portal-agency-daycommandsensorpanel-tsx-862e7d8831) · [`src/app/portal/agency/_DayKpiIntelligencePanel.tsx`](#file-src-app-portal-agency-daykpiintelligencepanel-tsx-8ca2970690)
+
+
 ## `src/app/portal/agency/dev-docs/`
 
 <a id="file-src-app-portal-agency-dev-docs-devdocviewer-tsx-725810c1d0"></a>
@@ -5718,7 +6188,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `DevelopmentToolkitWorkspace({ mode, initialResources, initialTotal, initialCategories, initialWorkflows, sops, role, }: { mode: Mode; initialResources: PublicResource[]; initialTotal: number; initialCategories: string[]…`
 
-**Depends on (1):** [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (2):** [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (3):** [`src/app/portal/agency/development/toolkit/page.tsx`](#file-src-app-portal-agency-development-toolkit-page-tsx-3f9f2b4bdf) · [`src/app/portal/agency/development/vault/page.tsx`](#file-src-app-portal-agency-development-vault-page-tsx-9d76127a4e) · [`src/app/portal/agency/development/workflow/page.tsx`](#file-src-app-portal-agency-development-workflow-page-tsx-d39a89eefc)
 
@@ -5749,7 +6219,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `CodeWorkspace({ initialRepository = "" }: { initialRepository?: string })`
 
-**Depends on (1):** [`src/engines/editor/server/fileTree.ts`](engines.md#file-src-engines-editor-server-filetree-ts-2ed4d221cd)
+**Depends on (2):** [`src/engines/editor/server/fileTree.ts`](engines.md#file-src-engines-editor-server-filetree-ts-2ed4d221cd) · [`src/lib/client/apiResponseError.ts`](lib.md#file-src-lib-client-apiresponseerror-ts-b93c08834c)
 
 **Used by (1):** [`src/app/portal/agency/development/code/page.tsx`](#file-src-app-portal-agency-development-code-page-tsx-7e73344f73)
 
@@ -5989,7 +6459,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `AquaTagsWorkspace({ snippet, siteKey }: { snippet: string; siteKey: string })`
+- `AquaTagsWorkspace({ snippet, siteKey, canUse, canManage, }: { snippet: string; siteKey: string; canUse: boolean; canManage: boolean; })`
 
 **Depends on:** _No internal imports._
 
@@ -5999,12 +6469,12 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ### `src/app/portal/agency/fulfilment/_FulfilmentWorkspace.tsx`
 
-_No file-level doc-comment; purpose is inferred from the path and exports._
+**What it is:** user is actually looking at.
 
 **Exports (8):**
 
-- `FulfilmentWorkspace({ view, products, clients, attention, flow, stageBoard, portals, portalProducts, focusedClientId, focusedProductId, productEditor, technicalWorkspace, tagsWorkspace, canManage, }: { view: FulfilmentV…`
-- `type FulfilmentView = "overview" | "stages" | "services" | "technical" | "clients" | "portals" | "tags"`
+- `FulfilmentWorkspace({ view, products, clients, attention, flow, stageBoard, portals, portalView = "library", portalProducts, focusedClientId, focusedProductId, productEditor, technicalWorkspace, tagsWorkspace, viewAcces…`
+- `type FulfilmentView = "overview" | "stages" | "services" | "technical" | "clients" | "portals" | "tags" | "access"`
 - `type ServiceGroupKey = "creative" | "growth" | "digital" | "systems" | "care" | "custom"`
 - `interface FulfilmentProductRecord (12 members)`
 - `interface FulfilmentClientProductRecord (6 members)`
@@ -6012,7 +6482,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface FulfilmentAttentionItem (6 members)`
 - `interface FulfilmentStageBoard (7 members)`
 
-**Depends on (6):** [`src/app/portal/agency/pipelines/[slug]/_PipelineBoard.tsx`](#file-src-app-portal-agency-pipelines-slug-pipelineboard-tsx-a12d247779) · [`src/app/portal/agency/portals/_PortalsWorkspace.tsx`](#file-src-app-portal-agency-portals-portalsworkspace-tsx-98e4936ea5) · [`src/app/portal/agency/products/_ProductsWorkspace.tsx`](#file-src-app-portal-agency-products-productsworkspace-tsx-e5310b5705) · [`src/components/chrome/NotificationAttentionProvider.tsx`](components.md#file-src-components-chrome-notificationattentionprovider-tsx-51754b1c61) · [`src/lib/clients/clientWorkspace.ts`](lib.md#file-src-lib-clients-clientworkspace-ts-90fa37f756) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (9):** [`src/app/portal/agency/pipelines/[slug]/_PipelineBoard.tsx`](#file-src-app-portal-agency-pipelines-slug-pipelineboard-tsx-a12d247779) · [`src/app/portal/agency/portals/_PortalsWorkspace.tsx`](#file-src-app-portal-agency-portals-portalsworkspace-tsx-98e4936ea5) · [`src/app/portal/agency/products/_ProductsWorkspace.tsx`](#file-src-app-portal-agency-products-productsworkspace-tsx-e5310b5705) · [`src/components/access/AccessControlPanel.tsx`](components.md#file-src-components-access-accesscontrolpanel-tsx-62b7a8e0aa) · [`src/components/access/accessModel.ts`](components.md#file-src-components-access-accessmodel-ts-87afdaff76) · [`src/components/chrome/NotificationAttentionProvider.tsx`](components.md#file-src-components-chrome-notificationattentionprovider-tsx-51754b1c61) · [`src/lib/clients/clientWorkspace.ts`](lib.md#file-src-lib-clients-clientworkspace-ts-90fa37f756) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (1):** [`src/app/portal/agency/fulfilment/page.tsx`](#file-src-app-portal-agency-fulfilment-page-tsx-e7c5ecf81c)
 
@@ -6026,7 +6496,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default async FulfilmentPage({ searchParams }: { searchParams: Promise<SearchParams> })`
 
-**Depends on (26):** [`src/app/portal/agency/development/page.tsx`](#file-src-app-portal-agency-development-page-tsx-717a2c096f) · [`src/app/portal/agency/fulfilment/_AquaTagsWorkspace.tsx`](#file-src-app-portal-agency-fulfilment-aquatagsworkspace-tsx-99647d6bdb) · [`src/app/portal/agency/fulfilment/_FulfilmentWorkspace.tsx`](#file-src-app-portal-agency-fulfilment-fulfilmentworkspace-tsx-efb66537d4) · [`src/app/portal/agency/portals/_portalWorkspaceData.ts`](#file-src-app-portal-agency-portals-portalworkspacedata-ts-a60554da8d) · [`src/engines/sop/server/sops.ts`](engines.md#file-src-engines-sop-server-sops-ts-8c9bee0d0c) · [`src/lib/portal/portalProductModules.ts`](lib.md#file-src-lib-portal-portalproductmodules-ts-4c2c99cb26) · [`src/lib/portal/portalProductWorkspaces.ts`](lib.md#file-src-lib-portal-portalproductworkspaces-ts-e82f470a50) · [`src/lib/portal/portalProducts.ts`](lib.md#file-src-lib-portal-portalproducts-ts-7c7e423e18) · [`src/lib/products/clientProductStageTruth.ts`](lib.md#file-src-lib-products-clientproductstagetruth-ts-d3dc49116c) · [`src/lib/products/fulfilmentProductPipelines.ts`](lib.md#file-src-lib-products-fulfilmentproductpipelines-ts-6cd47b1bfb) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/portal/portalConnections.ts`](lib.md#file-src-lib-server-portal-portalconnections-ts-2e1e525a6f) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/agencySettings.ts`](server.md#file-src-server-agencysettings-ts-6d31afe153) · [`src/server/clientMilestones.ts`](server.md#file-src-server-clientmilestones-ts-08c5910472) · [`src/server/clientRelationships.ts`](server.md#file-src-server-clientrelationships-ts-25562cf9d9) · [`src/server/phases.ts`](server.md#file-src-server-phases-ts-fd96131909) · [`src/server/portalEditor.ts`](server.md#file-src-server-portaleditor-ts-f825920491) · [`src/server/productWorkspaces.ts`](server.md#file-src-server-productworkspaces-ts-c20e49f8a5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
+**Depends on (29):** [`src/app/portal/agency/development/page.tsx`](#file-src-app-portal-agency-development-page-tsx-717a2c096f) · [`src/app/portal/agency/fulfilment/_AquaTagsWorkspace.tsx`](#file-src-app-portal-agency-fulfilment-aquatagsworkspace-tsx-99647d6bdb) · [`src/app/portal/agency/fulfilment/_FulfilmentWorkspace.tsx`](#file-src-app-portal-agency-fulfilment-fulfilmentworkspace-tsx-efb66537d4) · [`src/app/portal/agency/portals/_portalWorkspaceData.ts`](#file-src-app-portal-agency-portals-portalworkspacedata-ts-a60554da8d) · [`src/engines/sop/server/sops.ts`](engines.md#file-src-engines-sop-server-sops-ts-8c9bee0d0c) · [`src/lib/portal/portalProductModules.ts`](lib.md#file-src-lib-portal-portalproductmodules-ts-4c2c99cb26) · [`src/lib/portal/portalProductWorkspaces.ts`](lib.md#file-src-lib-portal-portalproductworkspaces-ts-e82f470a50) · [`src/lib/portal/portalProducts.ts`](lib.md#file-src-lib-portal-portalproducts-ts-7c7e423e18) · [`src/lib/products/clientProductStageTruth.ts`](lib.md#file-src-lib-products-clientproductstagetruth-ts-d3dc49116c) · [`src/lib/products/fulfilmentProductPipelines.ts`](lib.md#file-src-lib-products-fulfilmentproductpipelines-ts-6cd47b1bfb) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/portal/portalConnections.ts`](lib.md#file-src-lib-server-portal-portalconnections-ts-2e1e525a6f) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/agencySettings.ts`](server.md#file-src-server-agencysettings-ts-6d31afe153) · [`src/server/clientMilestones.ts`](server.md#file-src-server-clientmilestones-ts-08c5910472) · [`src/server/clientRelationships.ts`](server.md#file-src-server-clientrelationships-ts-25562cf9d9) · [`src/server/phases.ts`](server.md#file-src-server-phases-ts-fd96131909) · [`src/server/portalEditor.ts`](server.md#file-src-server-portaleditor-ts-f825920491) · [`src/server/productWorkspaces.ts`](server.md#file-src-server-productworkspaces-ts-c20e49f8a5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78) · [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -6155,19 +6625,20 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (9):**
+**Exports (10):**
 
 - `async buildGovernanceSnapshot(options: BuildGovernanceOptions): Promise<GovernanceSnapshot>`
-- `type SecurityStatus = "in-code" | "configured" | "partial" | "not-verified" | "blind"` — The Governance workspace snapshot — everything the KNOW-first surface shows, built ONCE from real state so the server page and the GET route return the same shape. The honesty dis…
+- `type SecurityStatus = "in-code" | "configured" | "partial" | "not-verified" | "blind"`
 - `interface SecurityControl (7 members)`
 - `interface LegalRegisterRow (10 members)`
 - `interface DeclarationRow (6 members)`
 - `interface SubprocessorRow (7 members)`
 - `interface ErasureClientRow (4 members)`
-- `interface GovernanceSnapshot (12 members)`
+- `interface GovernanceSnapshot (16 members)`
+- `interface SubjectRequestRow (9 members)`
 - `interface BuildGovernanceOptions (3 members)`
 
-**Depends on (6):** [`src/lib/compliance/compliancePosture.ts`](lib.md#file-src-lib-compliance-complianceposture-ts-e3798eba46) · [`src/lib/server/compliancePostureSource.ts`](lib.md#file-src-lib-server-complianceposturesource-ts-5dd4c4aa77) · [`src/lib/supabase/config.ts`](lib.md#file-src-lib-supabase-config-ts-bce56de604) · [`src/server/legalDocuments.ts`](server.md#file-src-server-legaldocuments-ts-9db835baaf) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8)
+**Depends on (8):** [`src/lib/compliance/compliancePosture.ts`](lib.md#file-src-lib-compliance-complianceposture-ts-e3798eba46) · [`src/lib/server/compliance/retention.ts`](lib.md#file-src-lib-server-compliance-retention-ts-ba422f7289) · [`src/lib/server/compliance/subjectRequests.ts`](lib.md#file-src-lib-server-compliance-subjectrequests-ts-dfa2bdbaf1) · [`src/lib/server/compliancePostureSource.ts`](lib.md#file-src-lib-server-complianceposturesource-ts-5dd4c4aa77) · [`src/lib/supabase/config.ts`](lib.md#file-src-lib-supabase-config-ts-bce56de604) · [`src/server/legalDocuments.ts`](server.md#file-src-server-legaldocuments-ts-9db835baaf) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8)
 
 **Used by (3):** [`src/app/api/portal/governance/route.ts`](#file-src-app-api-portal-governance-route-ts-e3ca8e530f) · [`src/app/portal/agency/governance/_GovernanceWorkspace.tsx`](#file-src-app-portal-agency-governance-governanceworkspace-tsx-a8bc5a021b) · [`src/app/portal/agency/governance/page.tsx`](#file-src-app-portal-agency-governance-page-tsx-47fb0f419b)
 
@@ -6270,7 +6741,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `WebsiteSourcesConfig()`
 
-**Depends on:** _No internal imports._
+**Depends on (1):** [`src/lib/enquiries/clientFormMapping.ts`](lib.md#file-src-lib-enquiries-clientformmapping-ts-cc30be8fce)
 
 **Used by (1):** [`src/app/portal/agency/inbox/_MasterInbox.tsx`](#file-src-app-portal-agency-inbox-masterinbox-tsx-2323adcb4b)
 
@@ -6301,7 +6772,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default async AgencyLayout({ children }: { children: ReactNode })`
 
-**Depends on (28):** [`src/built-ins/runtime/_runtime.ts`](built-ins.md#file-src-built-ins-runtime-runtime-ts-d2a0efb5ed) · [`src/components/attention/ResolutionBanner.tsx`](components.md#file-src-components-attention-resolutionbanner-tsx-079c792ea5) · [`src/components/attention/ResolutionSpotlight.tsx`](components.md#file-src-components-attention-resolutionspotlight-tsx-ae5d8281fd) · [`src/components/chrome/AdvisorDrawerControl.tsx`](components.md#file-src-components-chrome-advisordrawercontrol-tsx-2c1a086faf) · [`src/components/chrome/NotificationAttentionProvider.tsx`](components.md#file-src-components-chrome-notificationattentionprovider-tsx-51754b1c61) · [`src/components/chrome/NotificationCentreButton.tsx`](components.md#file-src-components-chrome-notificationcentrebutton-tsx-aafe1b47bf) · [`src/components/chrome/PortalRouteCanvas.tsx`](components.md#file-src-components-chrome-portalroutecanvas-tsx-0b7aff101e) · [`src/components/chrome/RadarQuickLookControl.tsx`](components.md#file-src-components-chrome-radarquicklookcontrol-tsx-08e3954c6c) · [`src/components/chrome/Sidebar.tsx`](components.md#file-src-components-chrome-sidebar-tsx-a3b761358c) · [`src/components/chrome/ThemeInjector.tsx`](components.md#file-src-components-chrome-themeinjector-tsx-60b2716099) · [`src/components/chrome/Topbar.tsx`](components.md#file-src-components-chrome-topbar-tsx-9a91269432) · [`src/components/ui/ErrorBoundary.tsx`](components.md#file-src-components-ui-errorboundary-tsx-27181f6f14) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/effectiveRole.ts`](lib.md#file-src-lib-server-auth-effectiverole-ts-800cbe7bd9) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devModeAccess.ts`](lib.md#file-src-lib-server-dev-devmodeaccess-ts-7a01dac06e) · [`src/lib/server/devIconPreference.ts`](lib.md#file-src-lib-server-deviconpreference-ts-ecd5778c16) · [`src/lib/server/inbox/operationalAlertPreferences.ts`](lib.md#file-src-lib-server-inbox-operationalalertpreferences-ts-6586a73a1d) · [`src/lib/server/inbox/operationalAlerts.ts`](lib.md#file-src-lib-server-inbox-operationalalerts-ts-564a396d10) · [`src/lib/server/performanceMode.ts`](lib.md#file-src-lib-server-performancemode-ts-4cd4548229) · [`src/lib/server/sidebarAttention.ts`](lib.md#file-src-lib-server-sidebarattention-ts-5ea8532d70) · [`src/lib/shared/internalWorkspace.ts`](lib.md#file-src-lib-shared-internalworkspace-ts-469a3bb9e7) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (29):** [`src/components/attention/ResolutionBanner.tsx`](components.md#file-src-components-attention-resolutionbanner-tsx-079c792ea5) · [`src/components/attention/ResolutionSpotlight.tsx`](components.md#file-src-components-attention-resolutionspotlight-tsx-ae5d8281fd) · [`src/components/chrome/AdvisorDrawerControl.tsx`](components.md#file-src-components-chrome-advisordrawercontrol-tsx-2c1a086faf) · [`src/components/chrome/NotificationAttentionProvider.tsx`](components.md#file-src-components-chrome-notificationattentionprovider-tsx-51754b1c61) · [`src/components/chrome/NotificationCentreButton.tsx`](components.md#file-src-components-chrome-notificationcentrebutton-tsx-aafe1b47bf) · [`src/components/chrome/PortalRouteCanvas.tsx`](components.md#file-src-components-chrome-portalroutecanvas-tsx-0b7aff101e) · [`src/components/chrome/RadarQuickLookControl.tsx`](components.md#file-src-components-chrome-radarquicklookcontrol-tsx-08e3954c6c) · [`src/components/chrome/Sidebar.tsx`](components.md#file-src-components-chrome-sidebar-tsx-a3b761358c) · [`src/components/chrome/ThemeInjector.tsx`](components.md#file-src-components-chrome-themeinjector-tsx-60b2716099) · [`src/components/chrome/Topbar.tsx`](components.md#file-src-components-chrome-topbar-tsx-9a91269432) · [`src/components/ui/ErrorBoundary.tsx`](components.md#file-src-components-ui-errorboundary-tsx-27181f6f14) · [`src/lib/chrome/agencySidebarPluginCatalog.ts`](lib.md#file-src-lib-chrome-agencysidebarplugincatalog-ts-73941e68df) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/intelligence/operationalAttention.ts`](lib.md#file-src-lib-intelligence-operationalattention-ts-0aaf482906) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/effectiveRole.ts`](lib.md#file-src-lib-server-auth-effectiverole-ts-800cbe7bd9) · [`src/lib/server/chrome/personalPanels.ts`](lib.md#file-src-lib-server-chrome-personalpanels-ts-7fc4b7fbf2) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devModeAccess.ts`](lib.md#file-src-lib-server-dev-devmodeaccess-ts-7a01dac06e) · [`src/lib/server/devIconPreference.ts`](lib.md#file-src-lib-server-deviconpreference-ts-ecd5778c16) · [`src/lib/server/inbox/operationalAlertPreferences.ts`](lib.md#file-src-lib-server-inbox-operationalalertpreferences-ts-6586a73a1d) · [`src/lib/server/performanceMode.ts`](lib.md#file-src-lib-server-performancemode-ts-4cd4548229) · [`src/lib/server/sidebarAttention.ts`](lib.md#file-src-lib-server-sidebarattention-ts-5ea8532d70) · [`src/lib/shared/internalWorkspace.ts`](lib.md#file-src-lib-shared-internalworkspace-ts-469a3bb9e7) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -6413,13 +6884,13 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ### `src/app/portal/agency/loading.tsx`
 
-**What it is:** instant instead of stalled. Purely presentational; no data, no logic.
+_No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `default AgencyHomeLoading()` — instant instead of stalled. Purely presentational; no data, no logic.
+- `default AgencyLoading()` — the message and visual deliberately workspace-neutral.
 
-**Depends on:** _No internal imports._
+**Depends on (1):** [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -6598,7 +7069,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default async AgencyHome({ searchParams }: { searchParams?: Promise<{ [key: string]: string | string[] | undefined }> })`
 
-**Depends on (47):** [`src/app/portal/agency/_BattleTableWorkspace.tsx`](#file-src-app-portal-agency-battletableworkspace-tsx-ec652c2c58) · [`src/app/portal/agency/_BrandPortfolioInstrument.tsx`](#file-src-app-portal-agency-brandportfolioinstrument-tsx-f4cc6a6f0f) · [`src/app/portal/agency/_CommandDeckPopup.tsx`](#file-src-app-portal-agency-commanddeckpopup-tsx-9e57b40464) · [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff) · [`src/app/portal/agency/_DevTeamStation.tsx`](#file-src-app-portal-agency-devteamstation-tsx-25a8a53a21) · [`src/app/portal/agency/_DynamicRadarConsole.tsx`](#file-src-app-portal-agency-dynamicradarconsole-tsx-b6d1c7a05a) · [`src/app/portal/agency/_NewClientButton.tsx`](#file-src-app-portal-agency-newclientbutton-tsx-933174699b) · [`src/app/portal/agency/actions/_ActionsPage.tsx`](#file-src-app-portal-agency-actions-actionspage-tsx-66b9e510e2) · [`src/app/portal/agency/assistant/AssistantWorkspace.tsx`](#file-src-app-portal-agency-assistant-assistantworkspace-tsx-0c7ca53569) · [`src/app/portal/agency/commandPerformance.ts`](#file-src-app-portal-agency-commandperformance-ts-4c3c4f6dfd) · [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/engines/data/server/kpi/companyHealthSnapshot.ts`](engines.md#file-src-engines-data-server-kpi-companyhealthsnapshot-ts-efcfa02aef) · [`src/engines/data/server/radar/businessIssueRadar.ts`](engines.md#file-src-engines-data-server-radar-businessissueradar-ts-df308875cc) · [`src/engines/data/server/radar/radarEvidenceVault.ts`](engines.md#file-src-engines-data-server-radar-radarevidencevault-ts-b2576f422c) · [`src/lib/brands/brandPortfolio.ts`](lib.md#file-src-lib-brands-brandportfolio-ts-85e5ae26f9) · [`src/lib/intelligence/businessRecommendedActions.ts`](lib.md#file-src-lib-intelligence-businessrecommendedactions-ts-b89f9ec998) · [`src/lib/performance/companyHealth.ts`](lib.md#file-src-lib-performance-companyhealth-ts-c24e507af4) · [`src/lib/performance/hiringCapacity.ts`](lib.md#file-src-lib-performance-hiringcapacity-ts-4ee70b26aa) · [`src/lib/server/assistants/assistantBusinessContext.ts`](lib.md#file-src-lib-server-assistants-assistantbusinesscontext-ts-022a1a1e3a) · [`src/lib/server/assistants/assistantStore.ts`](lib.md#file-src-lib-server-assistants-assistantstore-ts-15d0058af9) · [`src/lib/server/assistants/openaiAssistant.ts`](lib.md#file-src-lib-server-assistants-openaiassistant-ts-43bfde0f5e) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/brandPortfolioService.ts`](lib.md#file-src-lib-server-brandportfolioservice-ts-76537b2419) · [`src/lib/server/clients/clientAttention.ts`](lib.md#file-src-lib-server-clients-clientattention-ts-cadbc44f73) · [`src/lib/server/commandIntelligenceService.ts`](lib.md#file-src-lib-server-commandintelligenceservice-ts-8aba485964) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devTeamBoard.ts`](lib.md#file-src-lib-server-dev-devteamboard-ts-20125cdfd8) · [`src/lib/server/inbox/operationalAlerts.ts`](lib.md#file-src-lib-server-inbox-operationalalerts-ts-564a396d10) · [`src/lib/server/integrations/googleCalendar.ts`](lib.md#file-src-lib-server-integrations-googlecalendar-ts-457297d4a6) · [`src/lib/server/performanceMode.ts`](lib.md#file-src-lib-server-performancemode-ts-4cd4548229) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/lib/shared/internalWorkspace.ts`](lib.md#file-src-lib-shared-internalworkspace-ts-469a3bb9e7) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/agencySettings.ts`](server.md#file-src-server-agencysettings-ts-6d31afe153) · [`src/server/commandCalendar.ts`](server.md#file-src-server-commandcalendar-ts-70cef8d658) · [`src/server/company.ts`](server.md#file-src-server-company-ts-c3dc827a65) · [`src/server/dashboardPlanning.ts`](server.md#file-src-server-dashboardplanning-ts-e7312f445b) · [`src/server/legalDocuments.ts`](server.md#file-src-server-legaldocuments-ts-9db835baaf) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/pipelines.ts`](server.md#file-src-server-pipelines-ts-b3d01c6a82) · [`src/server/portalEditor.ts`](server.md#file-src-server-portaleditor-ts-f825920491) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tasks.ts`](server.md#file-src-server-tasks-ts-875282c006) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (28):** [`src/app/portal/agency/_BattleTableWorkspace.tsx`](#file-src-app-portal-agency-battletableworkspace-tsx-ec652c2c58) · [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff) · [`src/app/portal/agency/commandPerformance.ts`](#file-src-app-portal-agency-commandperformance-ts-4c3c4f6dfd) · [`src/app/portal/agency/commandStationRouting.ts`](#file-src-app-portal-agency-commandstationrouting-ts-1348113223) · [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d) · [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/engines/data/server/radar/radarEvidenceVault.ts`](engines.md#file-src-engines-data-server-radar-radarevidencevault-ts-b2576f422c) · [`src/lib/brands/brandPortfolio.ts`](lib.md#file-src-lib-brands-brandportfolio-ts-85e5ae26f9) · [`src/lib/intelligence/businessRecommendedActions.ts`](lib.md#file-src-lib-intelligence-businessrecommendedactions-ts-b89f9ec998) · [`src/lib/server/assistants/assistantContextScope.ts`](lib.md#file-src-lib-server-assistants-assistantcontextscope-ts-94c69e3f23) · [`src/lib/server/assistants/openaiAssistant.ts`](lib.md#file-src-lib-server-assistants-openaiassistant-ts-43bfde0f5e) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientAttention.ts`](lib.md#file-src-lib-server-clients-clientattention-ts-cadbc44f73) · [`src/lib/server/dev/devTeamAccess.ts`](lib.md#file-src-lib-server-dev-devteamaccess-ts-9e6ff72cf8) · [`src/lib/server/inbox/operationalAlerts.ts`](lib.md#file-src-lib-server-inbox-operationalalerts-ts-564a396d10) · [`src/lib/server/integrations/googleCalendar.ts`](lib.md#file-src-lib-server-integrations-googlecalendar-ts-457297d4a6) · [`src/lib/server/performanceMode.ts`](lib.md#file-src-lib-server-performancemode-ts-4cd4548229) · [`src/lib/shared/internalWorkspace.ts`](lib.md#file-src-lib-shared-internalworkspace-ts-469a3bb9e7) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/agencySettings.ts`](server.md#file-src-server-agencysettings-ts-6d31afe153) · [`src/server/commandCalendar.ts`](server.md#file-src-server-commandcalendar-ts-70cef8d658) · [`src/server/dashboardPlanning.ts`](server.md#file-src-server-dashboardplanning-ts-e7312f445b) · [`src/server/pipelines.ts`](server.md#file-src-server-pipelines-ts-b3d01c6a82) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tasks.ts`](server.md#file-src-server-tasks-ts-875282c006) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by (1):** [`src/app/portal/agency/command-center/page.tsx`](#file-src-app-portal-agency-command-center-page-tsx-8b13e6ca66)
 
@@ -6611,11 +7082,12 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (1):**
+**Exports (2):**
 
-- `PeopleCommand({ initial, capacity }: { initial: Snapshot; capacity: StaffCapacitySnapshot })`
+- `PeopleCommand({ initial, accessLevels, canManageAccess = false, accessEnvironment = "live" }: { initial: Snapshot; accessLevels: Readonly<Record<Tab, WorkspaceElementLevel>>; canManageAccess?: boolean; accessEnvironment…`
+- `type PeopleCommandTab = "overview" | "capacity" | "candidates" | "team" | "org" | "access" | "time" | "development" | "rewards" | "contracts" | "chat"`
 
-**Depends on (5):** [`src/components/people/TeamChat.tsx`](components.md#file-src-components-people-teamchat-tsx-2cb4f9bea8) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/staffCapacity.ts`](server.md#file-src-server-staffcapacity-ts-51560b1003) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (9):** [`src/components/access/accessModel.ts`](components.md#file-src-components-access-accessmodel-ts-87afdaff76) · [`src/components/people/TeamChat.tsx`](components.md#file-src-components-people-teamchat-tsx-2cb4f9bea8) · [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d) · [`src/lib/server/access/peopleWorkspaceProjection.ts`](lib.md#file-src-lib-server-access-peopleworkspaceprojection-ts-0758fbe18a) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/staffCapacity.ts`](server.md#file-src-server-staffcapacity-ts-51560b1003) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (1):** [`src/app/portal/agency/people/page.tsx`](#file-src-app-portal-agency-people-page-tsx-b471bdb86f)
 
@@ -6627,10 +7099,10 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (2):**
 
-- `default async PeoplePage()`
+- `default async PeoplePage({ searchParams }: { searchParams: Promise<{ view?: string; application?: string; employee?: string }> })`
 - `dynamic = "force-dynamic"`
 
-**Depends on (5):** [`src/app/portal/agency/people/_PeopleCommand.tsx`](#file-src-app-portal-agency-people-peoplecommand-tsx-7c4b4f6969) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/staffCapacity.ts`](server.md#file-src-server-staffcapacity-ts-51560b1003) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (9):** [`src/app/portal/agency/people/_PeopleCommand.tsx`](#file-src-app-portal-agency-people-peoplecommand-tsx-7c4b4f6969) · [`src/lib/server/access/peopleWorkspaceProjection.ts`](lib.md#file-src-lib-server-access-peopleworkspaceprojection-ts-0758fbe18a) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/staffCapacity.ts`](server.md#file-src-server-staffcapacity-ts-51560b1003) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -6647,7 +7119,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `AquaTagDashboard({ client, period, onReportsChange, }: { client: PerformanceClient; period: Period; onReportsChange: (reports: MonthlyPerformanceReport[]) => void; })`
 
-**Depends on (4):** [`src/app/portal/agency/performance/_PerformanceWorkspace.tsx`](#file-src-app-portal-agency-performance-performanceworkspace-tsx-e8cc3b6ef7) · [`src/lib/integrations/types.ts`](lib.md#file-src-lib-integrations-types-ts-8e85331e71) · [`src/lib/performance/performanceReports.ts`](lib.md#file-src-lib-performance-performancereports-ts-dc7feb76be) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
+**Depends on (5):** [`src/app/portal/agency/performance/_PerformanceWorkspace.tsx`](#file-src-app-portal-agency-performance-performanceworkspace-tsx-e8cc3b6ef7) · [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1) · [`src/lib/integrations/types.ts`](lib.md#file-src-lib-integrations-types-ts-8e85331e71) · [`src/lib/performance/performanceReports.ts`](lib.md#file-src-lib-performance-performancereports-ts-dc7feb76be) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 
 **Used by (1):** [`src/app/portal/agency/performance/_PerformanceWorkspace.tsx`](#file-src-app-portal-agency-performance-performanceworkspace-tsx-e8cc3b6ef7)
 
@@ -6797,9 +7269,10 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (1):**
+**Exports (2):**
 
-- `LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, prospects, leads, importHref, campaignsHref, boards, brands, products, customFields }: LeadsPipelineWorkspaceProps)`
+- `LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, prospects, leads, archivedLeads, importHref, campaignsHref, boards, brands, products, customFields }: LeadsPipelineWorkspaceProps)`
+- `interface ArchivedLeadView (8 members)` — An archived lead, as the Archived view needs it. Deliberately NOT a `LeadView`: the board's shape carries a column, services, timings and custom fields, none of which mean anythin…
 
 **Depends on (10):** [`src/app/portal/agency/leads-pipeline/_UpcomingMeetings.tsx`](#file-src-app-portal-agency-leads-pipeline-upcomingmeetings-tsx-18fcadc035) · [`src/app/portal/agency/leads-pipeline/_WorkflowSteps.tsx`](#file-src-app-portal-agency-leads-pipeline-workflowsteps-tsx-9b27f1ecac) · [`src/app/portal/agency/pipelines/[slug]/_PipelineBoard.tsx`](#file-src-app-portal-agency-pipelines-slug-pipelineboard-tsx-a12d247779) · [`src/app/portal/agency/pipelines/[slug]/_ScoutingCommand.tsx`](#file-src-app-portal-agency-pipelines-slug-scoutingcommand-tsx-15bc8216b1) · [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/components/forms/PortalCustomFields.tsx`](components.md#file-src-components-forms-portalcustomfields-tsx-c3122bba6b) · [`src/lib/enquiries/enquiryClassification.ts`](lib.md#file-src-lib-enquiries-enquiryclassification-ts-e9934c6609) · [`src/lib/enquiries/leadTiming.ts`](lib.md#file-src-lib-enquiries-leadtiming-ts-82b306bf2c) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
@@ -6827,7 +7300,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (2):**
 
-- `PipelineBoard({ title, eyebrow, description, activeSlug, boards, columns, cards, productKey, productViews, productBasePath, showProductOverview = true, embedded = false, }: { title: string; eyebrow: string; description:…`
+- `PipelineBoard({ title, eyebrow, description, activeSlug, boards, columns, cards, productKey, productViews, productBasePath, showProductOverview = true, embedded = false, editable = true, }: { title: string; eyebrow: str…`
 - `BoardSwitcher({ boards, activeSlug }: { boards: BoardLink[]; activeSlug: string })`
 
 **Depends on (1):** [`src/app/portal/agency/pipelines/[slug]/_FulfilmentProductSwitcher.tsx`](#file-src-app-portal-agency-pipelines-slug-fulfilmentproductswitcher-tsx-29f4fe40e6)
@@ -6871,6 +7344,21 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ## `src/app/portal/agency/portals/`
 
+<a id="file-src-app-portal-agency-portals-portalupdatecontrol-tsx-2d9a6f8e62"></a>
+
+### `src/app/portal/agency/portals/_PortalUpdateControl.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `PortalUpdateControl(props: PortalUpdateControlProps)`
+- `interface PortalUpdateControlProps (7 members)`
+
+**Depends on:** _No internal imports._
+
+**Used by (1):** [`src/app/portal/agency/portals/_PortalsWorkspace.tsx`](#file-src-app-portal-agency-portals-portalsworkspace-tsx-98e4936ea5)
+
 <a id="file-src-app-portal-agency-portals-portalsworkspace-tsx-98e4936ea5"></a>
 
 ### `src/app/portal/agency/portals/_PortalsWorkspace.tsx`
@@ -6883,9 +7371,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type PortalWorkspaceRecord = { id: string; name: string; ownerEmail?: string; status: string; stageLabel: string; companyName?: string; accentColor: string; portalBuiltAt?: number; portalUpdatedAt?: number; portalAccess…`
 - `type PortalTemplateProductRecord = { id: string; name: string; active: boolean; portalRequirement: "required" | "optional" | "none"; portalTemplateKey?: PortalProductDefinition["catalogKey"]; portalHeadline?: string; po…`
 
-**Depends on (1):** [`src/lib/portal/portalProducts.ts`](lib.md#file-src-lib-portal-portalproducts-ts-7c7e423e18)
+**Depends on (2):** [`src/app/portal/agency/portals/_PortalUpdateControl.tsx`](#file-src-app-portal-agency-portals-portalupdatecontrol-tsx-2d9a6f8e62) · [`src/lib/portal/portalProducts.ts`](lib.md#file-src-lib-portal-portalproducts-ts-7c7e423e18)
 
-**Used by (3):** [`src/app/portal/agency/fulfilment/_FulfilmentWorkspace.tsx`](#file-src-app-portal-agency-fulfilment-fulfilmentworkspace-tsx-efb66537d4) · [`src/app/portal/agency/portals/_portalWorkspaceData.ts`](#file-src-app-portal-agency-portals-portalworkspacedata-ts-a60554da8d) · [`src/app/portal/agency/portals/page.tsx`](#file-src-app-portal-agency-portals-page-tsx-8d4423a4a2)
+**Used by (2):** [`src/app/portal/agency/fulfilment/_FulfilmentWorkspace.tsx`](#file-src-app-portal-agency-fulfilment-fulfilmentworkspace-tsx-efb66537d4) · [`src/app/portal/agency/portals/_portalWorkspaceData.ts`](#file-src-app-portal-agency-portals-portalworkspacedata-ts-a60554da8d)
 
 <a id="file-src-app-portal-agency-portals-portalworkspacedata-ts-a60554da8d"></a>
 
@@ -6899,7 +7387,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (7):** [`src/app/portal/agency/portals/_PortalsWorkspace.tsx`](#file-src-app-portal-agency-portals-portalsworkspace-tsx-98e4936ea5) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/clientPortalDesigns.ts`](server.md#file-src-server-clientportaldesigns-ts-a391c1a4b9) · [`src/server/phases.ts`](server.md#file-src-server-phases-ts-fd96131909) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8)
 
-**Used by (2):** [`src/app/portal/agency/fulfilment/page.tsx`](#file-src-app-portal-agency-fulfilment-page-tsx-e7c5ecf81c) · [`src/app/portal/agency/portals/page.tsx`](#file-src-app-portal-agency-portals-page-tsx-8d4423a4a2)
+**Used by (1):** [`src/app/portal/agency/fulfilment/page.tsx`](#file-src-app-portal-agency-fulfilment-page-tsx-e7c5ecf81c)
 
 
 ## `src/app/portal/agency/portals/demo/[template]/`
@@ -6931,7 +7419,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default async ClientPortalEditorPage({ searchParams, }: { searchParams: Promise<PortalStudioQuery>; })` — editor mounts the SAME studio with the same data — one engine, two doors.
 
-**Depends on (7):** [`src/engines/editor/DevEditor.tsx`](engines.md#file-src-engines-editor-deveditor-tsx-97606b79ca) · [`src/engines/editor/server/editorAssistant.ts`](engines.md#file-src-engines-editor-server-editorassistant-ts-482bbeeffa) · [`src/engines/editor/server/portalStudio.ts`](engines.md#file-src-engines-editor-server-portalstudio-ts-4d840e5d95) · [`src/lib/clients/clientWorkspace.ts`](lib.md#file-src-lib-clients-clientworkspace-ts-90fa37f756) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (8):** [`src/engines/editor/DevEditor.tsx`](engines.md#file-src-engines-editor-deveditor-tsx-97606b79ca) · [`src/engines/editor/server/editorAssistant.ts`](engines.md#file-src-engines-editor-server-editorassistant-ts-482bbeeffa) · [`src/engines/editor/server/portalStudio.ts`](engines.md#file-src-engines-editor-server-portalstudio-ts-4d840e5d95) · [`src/lib/clients/clientWorkspace.ts`](lib.md#file-src-lib-clients-clientworkspace-ts-90fa37f756) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -6948,7 +7436,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default async PortalDataFormsPage()`
 
-**Depends on (4):** [`src/app/portal/agency/settings/PortalEditorPanel.tsx`](#file-src-app-portal-agency-settings-portaleditorpanel-tsx-48e59d2893) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (5):** [`src/app/portal/agency/settings/PortalEditorPanel.tsx`](#file-src-app-portal-agency-settings-portaleditorpanel-tsx-48e59d2893) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -6965,7 +7453,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default async PortalsPage({ searchParams }: { searchParams: Promise<{ view?: string }> })`
 
-**Depends on (5):** [`src/app/portal/agency/portals/_PortalsWorkspace.tsx`](#file-src-app-portal-agency-portals-portalsworkspace-tsx-98e4936ea5) · [`src/app/portal/agency/portals/_portalWorkspaceData.ts`](#file-src-app-portal-agency-portals-portalworkspacedata-ts-a60554da8d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (4):** [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -7087,6 +7575,27 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 
+## `src/app/portal/agency/`
+
+<a id="file-src-app-portal-agency-serverstationnavigation-ts-a2741da569"></a>
+
+### `src/app/portal/agency/serverStationNavigation.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (5):**
+
+- `pendingServerStationView(target: ServerCommandStation): ServerStationLocalView`
+- `beginServerStationNavigation(current: PendingServerStationNavigation | null, target: ServerCommandStation, previous: ServerStationLocalView): PendingServerStationNavigation` — One in-flight RSC station navigation owns the controls until it settles.
+- `serverStationSettlementFallback(pending: PendingServerStationNavigation, resolvedStation: ServerCommandStation | null): ServerStationLocalView | null` — A matching resolved query committed successfully; a mismatch restores the old local view.
+- `type ServerStationLocalView = { activeStation: "executive" | "day" | "battle" | "devteam" | "intelligence" | "radar"; dashboardMode: "radar" | "workspace" | "inspector" | "day" | "calendar" | "actions" | "advisor" | "in…`
+- `type PendingServerStationNavigation = { target: ServerCommandStation; previous: ServerStationLocalView; }`
+
+**Depends on (1):** [`src/app/portal/agency/commandStationRouting.ts`](#file-src-app-portal-agency-commandstationrouting-ts-1348113223)
+
+**Used by (2):** [`scripts/smoke-command-center-perf.test.ts`](scripts.md#file-scripts-smoke-command-center-perf-test-ts-03d7758302) · [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff)
+
+
 ## `src/app/portal/agency/settings/`
 
 <a id="file-src-app-portal-agency-settings-activitylogpanel-tsx-8e0ad7148e"></a>
@@ -7145,6 +7654,20 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by (1):** [`src/app/portal/agency/portals/forms/page.tsx`](#file-src-app-portal-agency-portals-forms-page-tsx-b185ead338)
 
+<a id="file-src-app-portal-agency-settings-sandboxmodepanel-tsx-81e8251ebd"></a>
+
+### `src/app/portal/agency/settings/SandboxModePanel.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `SandboxModePanel({ environment, canManage, }: { environment?: SandboxSessionEnvironment; canManage: boolean; })`
+
+**Depends on (2):** [`src/lib/client/sandboxModeRequest.ts`](lib.md#file-src-lib-client-sandboxmoderequest-ts-467a28c1db) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by (1):** [`src/app/portal/agency/settings/SettingsTabs.tsx`](#file-src-app-portal-agency-settings-settingstabs-tsx-e999a7955b)
+
 <a id="file-src-app-portal-agency-settings-settingstabs-tsx-e999a7955b"></a>
 
 ### `src/app/portal/agency/settings/SettingsTabs.tsx`
@@ -7155,7 +7678,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `SettingsTabs({ ctx }: { ctx: SettingsContext })`
 
-**Depends on (8):** [`src/app/portal/agency/settings/ActivityLogPanel.tsx`](#file-src-app-portal-agency-settings-activitylogpanel-tsx-8e0ad7148e) · [`src/app/portal/agency/settings/ExternalAiConnectionPanel.tsx`](#file-src-app-portal-agency-settings-externalaiconnectionpanel-tsx-17f25eeae6) · [`src/app/portal/agency/settings/ShowcaseModePanel.tsx`](#file-src-app-portal-agency-settings-showcasemodepanel-tsx-617b72d7f7) · [`src/app/portal/agency/settings/TeamUsersPanel.tsx`](#file-src-app-portal-agency-settings-teamuserspanel-tsx-d54d9cb91d) · [`src/lib/agencySettingsCapabilities.ts`](lib.md#file-src-lib-agencysettingscapabilities-ts-7bbdc779dd) · [`src/lib/projects/releases.ts`](lib.md#file-src-lib-projects-releases-ts-c5050ad492) · [`src/lib/server/productionReadiness.ts`](lib.md#file-src-lib-server-productionreadiness-ts-4763c179fe) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (10):** [`src/app/portal/agency/settings/ActivityLogPanel.tsx`](#file-src-app-portal-agency-settings-activitylogpanel-tsx-8e0ad7148e) · [`src/app/portal/agency/settings/ExternalAiConnectionPanel.tsx`](#file-src-app-portal-agency-settings-externalaiconnectionpanel-tsx-17f25eeae6) · [`src/app/portal/agency/settings/SandboxModePanel.tsx`](#file-src-app-portal-agency-settings-sandboxmodepanel-tsx-81e8251ebd) · [`src/app/portal/agency/settings/TeamUsersPanel.tsx`](#file-src-app-portal-agency-settings-teamuserspanel-tsx-d54d9cb91d) · [`src/components/access/accessModel.ts`](components.md#file-src-components-access-accessmodel-ts-87afdaff76) · [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d) · [`src/lib/agencySettingsCapabilities.ts`](lib.md#file-src-lib-agencysettingscapabilities-ts-7bbdc779dd) · [`src/lib/projects/releases.ts`](lib.md#file-src-lib-projects-releases-ts-c5050ad492) · [`src/lib/server/productionReadiness.ts`](lib.md#file-src-lib-server-productionreadiness-ts-4763c179fe) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (1):** [`src/app/portal/agency/settings/page.tsx`](#file-src-app-portal-agency-settings-page-tsx-05d4a95f14)
 
@@ -7171,7 +7694,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on:** _No internal imports._
 
-**Used by (1):** [`src/app/portal/agency/settings/SettingsTabs.tsx`](#file-src-app-portal-agency-settings-settingstabs-tsx-e999a7955b)
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 <a id="file-src-app-portal-agency-settings-teamuserspanel-tsx-d54d9cb91d"></a>
 
@@ -7197,7 +7720,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default async AgencySettingsPage()`
 
-**Depends on (14):** [`src/app/portal/agency/settings/SettingsTabs.tsx`](#file-src-app-portal-agency-settings-settingstabs-tsx-e999a7955b) · [`src/lib/agencySettingsCapabilities.ts`](lib.md#file-src-lib-agencysettingscapabilities-ts-7bbdc779dd) · [`src/lib/server/assistants/externalAssistantKeys.ts`](lib.md#file-src-lib-server-assistants-externalassistantkeys-ts-0301a6f6a2) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/integrations/integrationConnections.ts`](lib.md#file-src-lib-server-integrations-integrationconnections-ts-0ca61152db) · [`src/lib/server/productionReadiness.ts`](lib.md#file-src-lib-server-productionreadiness-ts-4763c179fe) · [`src/server/agencySettings.ts`](server.md#file-src-server-agencysettings-ts-6d31afe153) · [`src/server/phases.ts`](server.md#file-src-server-phases-ts-fd96131909) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (16):** [`src/app/portal/agency/settings/SettingsTabs.tsx`](#file-src-app-portal-agency-settings-settingstabs-tsx-e999a7955b) · [`src/engines/editor/server/devProjects.ts`](engines.md#file-src-engines-editor-server-devprojects-ts-4c77ac891a) · [`src/lib/agencySettingsCapabilities.ts`](lib.md#file-src-lib-agencysettingscapabilities-ts-7bbdc779dd) · [`src/lib/server/assistants/externalAssistantKeys.ts`](lib.md#file-src-lib-server-assistants-externalassistantkeys-ts-0301a6f6a2) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/integrations/integrationConnections.ts`](lib.md#file-src-lib-server-integrations-integrationconnections-ts-0ca61152db) · [`src/lib/server/productionReadiness.ts`](lib.md#file-src-lib-server-productionreadiness-ts-4763c179fe) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/agencySettings.ts`](server.md#file-src-server-agencysettings-ts-6d31afe153) · [`src/server/phases.ts`](server.md#file-src-server-phases-ts-fd96131909) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -7287,6 +7810,24 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 
+## `src/app/portal/agency/`
+
+<a id="file-src-app-portal-agency-weeklyreviewdraft-ts-7af990eaf4"></a>
+
+### `src/app/portal/agency/weeklyReviewDraft.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `weeklyReviewDraftFromPlan(plan: DashboardWeekPlan | null): WeeklyReviewDraft`
+- `type WeeklyReviewDraft = { outcome: string; reviewNotes: string; wins: string; misses: string; lessons: string; decisions: string; risks: string; startDoing: string; stopDoing: string; continueDoing: string; nextWeekPri…`
+
+**Depends on (1):** [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by (2):** [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff) · [`src/app/portal/agency/_WeeklyReviewWorkspace.tsx`](#file-src-app-portal-agency-weeklyreviewworkspace-tsx-325853ffef)
+
+
 ## `src/app/portal/agency/you-deserve-it/`
 
 <a id="file-src-app-portal-agency-you-deserve-it-youdeserveitworkspace-tsx-020c9ad704"></a>
@@ -7330,7 +7871,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default async ClientPluginCatchAll({ params, searchParams }: RouteProps)`
 
-**Depends on (10):** [`src/built-ins/runtime/_pageScope.ts`](built-ins.md#file-src-built-ins-runtime-pagescope-ts-3cc574306e) · [`src/built-ins/runtime/_routeResolver.ts`](built-ins.md#file-src-built-ins-runtime-routeresolver-ts-bbf700f5cc) · [`src/built-ins/runtime/_types.ts`](built-ins.md#file-src-built-ins-runtime-types-ts-bae4cd6b2a) · [`src/built-ins/runtime/foundation-adapters/index.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-index-ts-dcf532e6f2) · [`src/components/ui/ErrorBoundary.tsx`](components.md#file-src-components-ui-errorboundary-tsx-27181f6f14) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (11):** [`src/built-ins/runtime/_pageScope.ts`](built-ins.md#file-src-built-ins-runtime-pagescope-ts-3cc574306e) · [`src/built-ins/runtime/_routeResolver.ts`](built-ins.md#file-src-built-ins-runtime-routeresolver-ts-bbf700f5cc) · [`src/built-ins/runtime/_types.ts`](built-ins.md#file-src-built-ins-runtime-types-ts-bae4cd6b2a) · [`src/built-ins/runtime/foundation-adapters/index.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-index-ts-dcf532e6f2) · [`src/components/ui/ErrorBoundary.tsx`](components.md#file-src-components-ui-errorboundary-tsx-27181f6f14) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -7683,7 +8224,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `ContractsPanel({ clientId, initialContracts, initialTemplates, clientName, recipientEmail, canManage = true, }: { clientId: string; initialContracts: ClientContract[]; initialTemplates: ClientContractTemplate[]; clientN…`
+- `ContractsPanel({ clientId, initialContracts, initialTemplates, clientName, recipientEmail, canManage = true, canConfigure = canManage, }: { clientId: string; initialContracts: ClientContract[]; initialTemplates: ClientC…`
 
 **Depends on (2):** [`src/lib/clients/clientContracts.ts`](lib.md#file-src-lib-clients-clientcontracts-ts-e0bc41d74d) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 
@@ -7712,7 +8253,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `FinanceTabClient({ clientId, initial, initialContracts, initialContractTemplates, initialPaymentPlans, initialCommercialFiles, products, clientName, recipientEmail, showContracts = true, canManage = true, }: { clientId:…`
+- `FinanceTabClient({ clientId, initial, initialContracts, initialContractTemplates, initialPaymentPlans, initialCommercialFiles, products, clientName, recipientEmail, showContracts = true, canManage = true, canConfigure =…`
 
 **Depends on (5):** [`src/app/portal/clients/[clientId]/_ContractsPanel.tsx`](#file-src-app-portal-clients-clientid-contractspanel-tsx-a0413ef5b1) · [`src/app/portal/clients/[clientId]/_PaymentPlansPanel.tsx`](#file-src-app-portal-clients-clientid-paymentplanspanel-tsx-5a60a55ed8) · [`src/lib/clients/clientContracts.ts`](lib.md#file-src-lib-clients-clientcontracts-ts-e0bc41d74d) · [`src/lib/clients/clientPaymentPlans.ts`](lib.md#file-src-lib-clients-clientpaymentplans-ts-e2f45163b3) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 
@@ -7760,7 +8301,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `OnboardingDashboardPanel({ clientId, phases, currentStage, }: { clientId: string; phases: OnboardingPhase[]; currentStage: string; })`
 - `interface OnboardingPhase (3 members)`
 
-**Depends on:** _No internal imports._
+**Depends on (1):** [`src/built-ins/modules/fulfillment/src/lib/transitionFeedback.ts`](built-ins.md#file-src-built-ins-modules-fulfillment-src-lib-transitionfeedback-ts-7f3f61e2bd)
 
 **Used by (1):** [`src/app/portal/clients/[clientId]/page.tsx`](#file-src-app-portal-clients-clientid-page-tsx-f2587fcff8)
 
@@ -7787,7 +8328,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (2):**
 
-- `PaymentPlansPanel({ clientId, clientName, recipientEmail, products, initialPlans, initialFiles, invoices, onInvoiceCreated, canManage = true, }: { clientId: string; clientName?: string; recipientEmail?: string; products…`
+- `PaymentPlansPanel({ clientId, clientName, recipientEmail, products, initialPlans, initialFiles, invoices, onInvoiceCreated, canManage = true, canConfigure = canManage, }: { clientId: string; clientName?: string; recipie…`
 - `interface PaymentPlanEvidenceFile (7 members)`
 
 **Depends on (2):** [`src/lib/clients/clientPaymentPlans.ts`](lib.md#file-src-lib-clients-clientpaymentplans-ts-e2f45163b3) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
@@ -7804,7 +8345,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `PhaseTransitionButton({ clientId, currentStage, isFounder, }: { clientId: string; currentStage: string; isFounder: boolean; })`
 
-**Depends on:** _No internal imports._
+**Depends on (1):** [`src/built-ins/modules/fulfillment/src/lib/transitionFeedback.ts`](built-ins.md#file-src-built-ins-modules-fulfillment-src-lib-transitionfeedback-ts-7f3f61e2bd)
 
 **Used by (1):** [`src/app/portal/clients/[clientId]/page.tsx`](#file-src-app-portal-clients-clientid-page-tsx-f2587fcff8)
 
@@ -7816,7 +8357,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (5):**
 
-- `PropertiesTabClient({ clientId, clientName, initialProperties, githubPublishingConfigured, vercelDeploymentConfigured, canManage = true, }: { clientId: string; clientName: string; initialProperties: ClientProperty[]; gi…`
+- `PropertiesTabClient({ clientId, clientName, initialProperties, githubPublishingConfigured, vercelDeploymentConfigured, canManage = true, canRelease = canManage, }: { clientId: string; clientName: string; initialProperti…`
 - `type ClientPropertyKind = "website" | "client-portal" | "dev-portal" | "software" | "lead-magnet" | "repo" | "template" | "tag"`
 - `type ClientPropertyStatus = "planning" | "building" | "review" | "live" | "redirected" | "archived"`
 - `type ClientPropertyTagStatus = "planned" | "installed" | "missing" | "broken" | "not-needed"`
@@ -7880,7 +8421,21 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default async ClientLayout({ children, params, }: { children: ReactNode; params: Promise<{ clientId: string }>; })`
 
-**Depends on (26):** [`src/built-ins/runtime/_pageScope.ts`](built-ins.md#file-src-built-ins-runtime-pagescope-ts-3cc574306e) · [`src/components/chrome/AdvisorDrawerControl.tsx`](components.md#file-src-components-chrome-advisordrawercontrol-tsx-2c1a086faf) · [`src/components/chrome/ClientRadarQuickLookControl.tsx`](components.md#file-src-components-chrome-clientradarquicklookcontrol-tsx-b94e6ee3a6) · [`src/components/chrome/NotificationAttentionProvider.tsx`](components.md#file-src-components-chrome-notificationattentionprovider-tsx-51754b1c61) · [`src/components/chrome/NotificationCentreButton.tsx`](components.md#file-src-components-chrome-notificationcentrebutton-tsx-aafe1b47bf) · [`src/components/chrome/PortalRouteCanvas.tsx`](components.md#file-src-components-chrome-portalroutecanvas-tsx-0b7aff101e) · [`src/components/chrome/Sidebar.tsx`](components.md#file-src-components-chrome-sidebar-tsx-a3b761358c) · [`src/components/chrome/ThemeInjector.tsx`](components.md#file-src-components-chrome-themeinjector-tsx-60b2716099) · [`src/components/chrome/Topbar.tsx`](components.md#file-src-components-chrome-topbar-tsx-9a91269432) · [`src/components/chrome/WelcomeGate.tsx`](components.md#file-src-components-chrome-welcomegate-tsx-cafed2b65a) · [`src/components/ui/ErrorBoundary.tsx`](components.md#file-src-components-ui-errorboundary-tsx-27181f6f14) · [`src/lib/clients/clientWorkspace.ts`](lib.md#file-src-lib-clients-clientworkspace-ts-90fa37f756) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientPortalProvider.ts`](lib.md#file-src-lib-server-clients-clientportalprovider-ts-9c224098b6) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/devIconPreference.ts`](lib.md#file-src-lib-server-deviconpreference-ts-ecd5778c16) · [`src/lib/server/inbox/operationalAlertPreferences.ts`](lib.md#file-src-lib-server-inbox-operationalalertpreferences-ts-6586a73a1d) · [`src/lib/server/inbox/operationalAlerts.ts`](lib.md#file-src-lib-server-inbox-operationalalerts-ts-564a396d10) · [`src/lib/server/portal/previewPhase.ts`](lib.md#file-src-lib-server-portal-previewphase-ts-13ec383cc8) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/phaseTokens.ts`](server.md#file-src-server-phasetokens-ts-cfedbecf4a) · [`src/server/phases.ts`](server.md#file-src-server-phases-ts-fd96131909) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (33):** [`src/built-ins/runtime/_pageScope.ts`](built-ins.md#file-src-built-ins-runtime-pagescope-ts-3cc574306e) · [`src/components/chrome/AdvisorDrawerControl.tsx`](components.md#file-src-components-chrome-advisordrawercontrol-tsx-2c1a086faf) · [`src/components/chrome/ClientRadarQuickLookControl.tsx`](components.md#file-src-components-chrome-clientradarquicklookcontrol-tsx-b94e6ee3a6) · [`src/components/chrome/NotificationAttentionProvider.tsx`](components.md#file-src-components-chrome-notificationattentionprovider-tsx-51754b1c61) · [`src/components/chrome/NotificationCentreButton.tsx`](components.md#file-src-components-chrome-notificationcentrebutton-tsx-aafe1b47bf) · [`src/components/chrome/PortalRouteCanvas.tsx`](components.md#file-src-components-chrome-portalroutecanvas-tsx-0b7aff101e) · [`src/components/chrome/Sidebar.tsx`](components.md#file-src-components-chrome-sidebar-tsx-a3b761358c) · [`src/components/chrome/ThemeInjector.tsx`](components.md#file-src-components-chrome-themeinjector-tsx-60b2716099) · [`src/components/chrome/Topbar.tsx`](components.md#file-src-components-chrome-topbar-tsx-9a91269432) · [`src/components/chrome/WelcomeGate.tsx`](components.md#file-src-components-chrome-welcomegate-tsx-cafed2b65a) · [`src/components/ui/ErrorBoundary.tsx`](components.md#file-src-components-ui-errorboundary-tsx-27181f6f14) · [`src/lib/chrome/clientSidebarPluginCatalog.ts`](lib.md#file-src-lib-chrome-clientsidebarplugincatalog-ts-a302bba740) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/clients/clientWorkspace.ts`](lib.md#file-src-lib-clients-clientworkspace-ts-90fa37f756) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/chrome/personalPanels.ts`](lib.md#file-src-lib-server-chrome-personalpanels-ts-7fc4b7fbf2) · [`src/lib/server/clients/clientPortalProvider.ts`](lib.md#file-src-lib-server-clients-clientportalprovider-ts-9c224098b6) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devProjectAccess.ts`](lib.md#file-src-lib-server-dev-devprojectaccess-ts-74c76f5deb) · [`src/lib/server/devIconPreference.ts`](lib.md#file-src-lib-server-deviconpreference-ts-ecd5778c16) · [`src/lib/server/inbox/operationalAlertPreferences.ts`](lib.md#file-src-lib-server-inbox-operationalalertpreferences-ts-6586a73a1d) · [`src/lib/server/inbox/operationalAlerts.ts`](lib.md#file-src-lib-server-inbox-operationalalerts-ts-564a396d10) · [`src/lib/server/portal/previewPhase.ts`](lib.md#file-src-lib-server-portal-previewphase-ts-13ec383cc8) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/phaseTokens.ts`](server.md#file-src-server-phasetokens-ts-cfedbecf4a) · [`src/server/phases.ts`](server.md#file-src-server-phases-ts-fd96131909) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-src-app-portal-clients-clientid-loading-tsx-3d538aa67f"></a>
+
+### `src/app/portal/clients/[clientId]/loading.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `default ClientWorkspaceLoading()`
+
+**Depends on (1):** [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -7894,7 +8449,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default async ClientHome({ params, searchParams, }: { params: Promise<{ clientId: string }>; searchParams: Promise<Record<string, string | string[] | undefined>>; })`
 
-**Depends on (85):** [`src/app/api/tenants/client-approvals/route.ts`](#file-src-app-api-tenants-client-approvals-route-ts-b58c1541db) · [`src/app/api/tenants/client-requests/route.ts`](#file-src-app-api-tenants-client-requests-route-ts-24f94f6395) · [`src/app/portal/clients/[clientId]/_BuildPortalWizard.tsx`](#file-src-app-portal-clients-clientid-buildportalwizard-tsx-4f821665a0) · [`src/app/portal/clients/[clientId]/_ClientContactsPanel.tsx`](#file-src-app-portal-clients-clientid-clientcontactspanel-tsx-3570c2bed7) · [`src/app/portal/clients/[clientId]/_ClientDeliveryOverview.tsx`](#file-src-app-portal-clients-clientid-clientdeliveryoverview-tsx-b35df5df73) · [`src/app/portal/clients/[clientId]/_ClientFulfilmentHub.tsx`](#file-src-app-portal-clients-clientid-clientfulfilmenthub-tsx-be789bd7ff) · [`src/app/portal/clients/[clientId]/_ClientLensHeader.tsx`](#file-src-app-portal-clients-clientid-clientlensheader-tsx-96a33f53ca) · [`src/app/portal/clients/[clientId]/_ClientNotesWorkspace.tsx`](#file-src-app-portal-clients-clientid-clientnotesworkspace-tsx-f9af22af85) · [`src/app/portal/clients/[clientId]/_ClientOperationsControl.tsx`](#file-src-app-portal-clients-clientid-clientoperationscontrol-tsx-341a3f7669) · [`src/app/portal/clients/[clientId]/_ClientPortalConnections.tsx`](#file-src-app-portal-clients-clientid-clientportalconnections-tsx-4733bc4f25) · [`src/app/portal/clients/[clientId]/_ClientRecordWorkspace.tsx`](#file-src-app-portal-clients-clientid-clientrecordworkspace-tsx-802b49ce2e) · [`src/app/portal/clients/[clientId]/_ClientRequestsPanel.tsx`](#file-src-app-portal-clients-clientid-clientrequestspanel-tsx-22e29cdced) · [`src/app/portal/clients/[clientId]/_ClientServiceAssignment.tsx`](#file-src-app-portal-clients-clientid-clientserviceassignment-tsx-498175575d) · [`src/app/portal/clients/[clientId]/_ClientSopsTab.tsx`](#file-src-app-portal-clients-clientid-clientsopstab-tsx-75429b8d65) · [`src/app/portal/clients/[clientId]/_ClientSpineOverview.tsx`](#file-src-app-portal-clients-clientid-clientspineoverview-tsx-335864e1ea) · [`src/app/portal/clients/[clientId]/_ClientSystemsWorkspace.tsx`](#file-src-app-portal-clients-clientid-clientsystemsworkspace-tsx-1415b5eb0c) · [`src/app/portal/clients/[clientId]/_ClientTagWorkspace.tsx`](#file-src-app-portal-clients-clientid-clienttagworkspace-tsx-9adc44305b) · [`src/app/portal/clients/[clientId]/_ClientWorkspaceHeader.tsx`](#file-src-app-portal-clients-clientid-clientworkspaceheader-tsx-7a106cacee) · [`src/app/portal/clients/[clientId]/_ClientWorkspaceSwitcher.tsx`](#file-src-app-portal-clients-clientid-clientworkspaceswitcher-tsx-d537a590a6) · [`src/app/portal/clients/[clientId]/_CommsRow.tsx`](#file-src-app-portal-clients-clientid-commsrow-tsx-d862170047) · [`src/app/portal/clients/[clientId]/_FilesTabClient.tsx`](#file-src-app-portal-clients-clientid-filestabclient-tsx-8947655260) · [`src/app/portal/clients/[clientId]/_FinanceTabClient.tsx`](#file-src-app-portal-clients-clientid-financetabclient-tsx-26301bc26b) · [`src/app/portal/clients/[clientId]/_FulfilmentPortalPreview.tsx`](#file-src-app-portal-clients-clientid-fulfilmentportalpreview-tsx-5241712cd3) · [`src/app/portal/clients/[clientId]/_KanbanTabClient.tsx`](#file-src-app-portal-clients-clientid-kanbantabclient-tsx-0d1cdf93e4) · [`src/app/portal/clients/[clientId]/_OnboardingDashboardPanel.tsx`](#file-src-app-portal-clients-clientid-onboardingdashboardpanel-tsx-0d71d232d0) · [`src/app/portal/clients/[clientId]/_OverviewTabs.tsx`](#file-src-app-portal-clients-clientid-overviewtabs-tsx-7218574de0) · [`src/app/portal/clients/[clientId]/_PhaseTransitionButton.tsx`](#file-src-app-portal-clients-clientid-phasetransitionbutton-tsx-9549f0b3ec) · [`src/app/portal/clients/[clientId]/_PropertiesTabClient.tsx`](#file-src-app-portal-clients-clientid-propertiestabclient-tsx-6112b84966) · [`src/app/portal/clients/[clientId]/_WebsiteBuilderLauncher.tsx`](#file-src-app-portal-clients-clientid-websitebuilderlauncher-tsx-75638b40c0) · [`src/app/portal/clients/[clientId]/_tabs.ts`](#file-src-app-portal-clients-clientid-tabs-ts-b8a8ac33ce) · [`src/app/portal/clients/[clientId]/toolCopy.ts`](#file-src-app-portal-clients-clientid-toolcopy-ts-f8bc42f468) · [`src/app/portal/customer/_portalData.ts`](#file-src-app-portal-customer-portaldata-ts-2f1995696c) · [`src/built-ins/modules/agency-finance/src/server/index.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-server-index-ts-ad7d7dcdb6) · [`src/built-ins/runtime/_pageScope.ts`](built-ins.md#file-src-built-ins-runtime-pagescope-ts-3cc574306e) · [`src/built-ins/runtime/_registry.ts`](built-ins.md#file-src-built-ins-runtime-registry-ts-504f0b067d) · [`src/components/marketing/ClientMarketingServiceWorkspace.tsx`](components.md#file-src-components-marketing-clientmarketingserviceworkspace-tsx-48c27a861f) · [`src/components/ui/CollapsibleSection.tsx`](components.md#file-src-components-ui-collapsiblesection-tsx-98c71bb5d3) · [`src/engines/data/server/radar/clientRadarService.ts`](engines.md#file-src-engines-data-server-radar-clientradarservice-ts-8e96620551) · [`src/engines/sop/server/sops.ts`](engines.md#file-src-engines-sop-server-sops-ts-8c9bee0d0c) · [`src/lib/clients/clientAquaHealth.ts`](lib.md#file-src-lib-clients-clientaquahealth-ts-423527fa78) · [`src/lib/clients/clientContacts.ts`](lib.md#file-src-lib-clients-clientcontacts-ts-b78a3dff30) · [`src/lib/clients/clientContracts.ts`](lib.md#file-src-lib-clients-clientcontracts-ts-e0bc41d74d) · [`src/lib/clients/clientMarketingService.ts`](lib.md#file-src-lib-clients-clientmarketingservice-ts-106c46e6a9) · [`src/lib/clients/clientOperations.ts`](lib.md#file-src-lib-clients-clientoperations-ts-35602e4928) · [`src/lib/clients/clientPaymentPlans.ts`](lib.md#file-src-lib-clients-clientpaymentplans-ts-e2f45163b3) · [`src/lib/clients/clientProductProcess.ts`](lib.md#file-src-lib-clients-clientproductprocess-ts-6a5fafe81b) · [`src/lib/clients/clientProductVariations.ts`](lib.md#file-src-lib-clients-clientproductvariations-ts-aa915e2e49) · [`src/lib/clients/clientRelationshipRecord.ts`](lib.md#file-src-lib-clients-clientrelationshiprecord-ts-4cd971820b) · [`src/lib/clients/clientRequests.ts`](lib.md#file-src-lib-clients-clientrequests-ts-402e6c331e) · [`src/lib/clients/clientServiceWorkspace.ts`](lib.md#file-src-lib-clients-clientserviceworkspace-ts-f48c06075b) · [`src/lib/clients/clientTelemetry.ts`](lib.md#file-src-lib-clients-clienttelemetry-ts-d3462b0e3b) · [`src/lib/clients/clientWorkspace.ts`](lib.md#file-src-lib-clients-clientworkspace-ts-90fa37f756) · [`src/lib/portal/portalProductWorkspaces.ts`](lib.md#file-src-lib-portal-portalproductworkspaces-ts-e82f470a50) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/products/productInternalWorkspace.ts`](lib.md#file-src-lib-products-productinternalworkspace-ts-1544d53955) · [`src/lib/server/RequirePermission.tsx`](lib.md#file-src-lib-server-requirepermission-tsx-faf7fafffa) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientPortalProvider.ts`](lib.md#file-src-lib-server-clients-clientportalprovider-ts-9c224098b6) · [`src/lib/server/clients/clientRecordLedger.ts`](lib.md#file-src-lib-server-clients-clientrecordledger-ts-634ccdb8f7) · [`src/lib/server/identityResolution.ts`](lib.md#file-src-lib-server-identityresolution-ts-7b1487fea4) · [`src/lib/server/inbox/inboxStore.ts`](lib.md#file-src-lib-server-inbox-inboxstore-ts-e9d74d18ec) · [`src/lib/server/integrations/githubProjectPublisher.ts`](lib.md#file-src-lib-server-integrations-githubprojectpublisher-ts-37fcc43e66) · [`src/lib/server/integrations/vercelProjectDeployer.ts`](lib.md#file-src-lib-server-integrations-vercelprojectdeployer-ts-1e9a2020e5) · [`src/lib/server/onboardingMilestones.ts`](lib.md#file-src-lib-server-onboardingmilestones-ts-36940c3016) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/server/portal/portalConnections.ts`](lib.md#file-src-lib-server-portal-portalconnections-ts-2e1e525a6f) · [`src/lib/server/sopsAccess.ts`](lib.md#file-src-lib-server-sopsaccess-ts-ead9fdb042) · [`src/lib/server/websiteEnquiries.ts`](lib.md#file-src-lib-server-websiteenquiries-ts-e00ecfd23b) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/clientMilestones.ts`](server.md#file-src-server-clientmilestones-ts-08c5910472) · [`src/server/clientRelationships.ts`](server.md#file-src-server-clientrelationships-ts-25562cf9d9) · [`src/server/contractTemplates.ts`](server.md#file-src-server-contracttemplates-ts-b2d4ba6c70) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/phases.ts`](server.md#file-src-server-phases-ts-fd96131909) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/portalConnectionStore.ts`](server.md#file-src-server-portalconnectionstore-ts-53f23012a8) · [`src/server/productWorkspaces.ts`](server.md#file-src-server-productworkspaces-ts-c20e49f8a5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tasks.ts`](server.md#file-src-server-tasks-ts-875282c006) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (86):** [`src/app/api/tenants/client-approvals/route.ts`](#file-src-app-api-tenants-client-approvals-route-ts-b58c1541db) · [`src/app/api/tenants/client-requests/route.ts`](#file-src-app-api-tenants-client-requests-route-ts-24f94f6395) · [`src/app/portal/clients/[clientId]/_BuildPortalWizard.tsx`](#file-src-app-portal-clients-clientid-buildportalwizard-tsx-4f821665a0) · [`src/app/portal/clients/[clientId]/_ClientContactsPanel.tsx`](#file-src-app-portal-clients-clientid-clientcontactspanel-tsx-3570c2bed7) · [`src/app/portal/clients/[clientId]/_ClientDeliveryOverview.tsx`](#file-src-app-portal-clients-clientid-clientdeliveryoverview-tsx-b35df5df73) · [`src/app/portal/clients/[clientId]/_ClientFulfilmentHub.tsx`](#file-src-app-portal-clients-clientid-clientfulfilmenthub-tsx-be789bd7ff) · [`src/app/portal/clients/[clientId]/_ClientLensHeader.tsx`](#file-src-app-portal-clients-clientid-clientlensheader-tsx-96a33f53ca) · [`src/app/portal/clients/[clientId]/_ClientNotesWorkspace.tsx`](#file-src-app-portal-clients-clientid-clientnotesworkspace-tsx-f9af22af85) · [`src/app/portal/clients/[clientId]/_ClientOperationsControl.tsx`](#file-src-app-portal-clients-clientid-clientoperationscontrol-tsx-341a3f7669) · [`src/app/portal/clients/[clientId]/_ClientPortalConnections.tsx`](#file-src-app-portal-clients-clientid-clientportalconnections-tsx-4733bc4f25) · [`src/app/portal/clients/[clientId]/_ClientRecordWorkspace.tsx`](#file-src-app-portal-clients-clientid-clientrecordworkspace-tsx-802b49ce2e) · [`src/app/portal/clients/[clientId]/_ClientRequestsPanel.tsx`](#file-src-app-portal-clients-clientid-clientrequestspanel-tsx-22e29cdced) · [`src/app/portal/clients/[clientId]/_ClientServiceAssignment.tsx`](#file-src-app-portal-clients-clientid-clientserviceassignment-tsx-498175575d) · [`src/app/portal/clients/[clientId]/_ClientSopsTab.tsx`](#file-src-app-portal-clients-clientid-clientsopstab-tsx-75429b8d65) · [`src/app/portal/clients/[clientId]/_ClientSpineOverview.tsx`](#file-src-app-portal-clients-clientid-clientspineoverview-tsx-335864e1ea) · [`src/app/portal/clients/[clientId]/_ClientSystemsWorkspace.tsx`](#file-src-app-portal-clients-clientid-clientsystemsworkspace-tsx-1415b5eb0c) · [`src/app/portal/clients/[clientId]/_ClientTagWorkspace.tsx`](#file-src-app-portal-clients-clientid-clienttagworkspace-tsx-9adc44305b) · [`src/app/portal/clients/[clientId]/_ClientWorkspaceHeader.tsx`](#file-src-app-portal-clients-clientid-clientworkspaceheader-tsx-7a106cacee) · [`src/app/portal/clients/[clientId]/_ClientWorkspaceSwitcher.tsx`](#file-src-app-portal-clients-clientid-clientworkspaceswitcher-tsx-d537a590a6) · [`src/app/portal/clients/[clientId]/_CommsRow.tsx`](#file-src-app-portal-clients-clientid-commsrow-tsx-d862170047) · [`src/app/portal/clients/[clientId]/_FilesTabClient.tsx`](#file-src-app-portal-clients-clientid-filestabclient-tsx-8947655260) · [`src/app/portal/clients/[clientId]/_FinanceTabClient.tsx`](#file-src-app-portal-clients-clientid-financetabclient-tsx-26301bc26b) · [`src/app/portal/clients/[clientId]/_FulfilmentPortalPreview.tsx`](#file-src-app-portal-clients-clientid-fulfilmentportalpreview-tsx-5241712cd3) · [`src/app/portal/clients/[clientId]/_KanbanTabClient.tsx`](#file-src-app-portal-clients-clientid-kanbantabclient-tsx-0d1cdf93e4) · [`src/app/portal/clients/[clientId]/_OnboardingDashboardPanel.tsx`](#file-src-app-portal-clients-clientid-onboardingdashboardpanel-tsx-0d71d232d0) · [`src/app/portal/clients/[clientId]/_OverviewTabs.tsx`](#file-src-app-portal-clients-clientid-overviewtabs-tsx-7218574de0) · [`src/app/portal/clients/[clientId]/_PhaseTransitionButton.tsx`](#file-src-app-portal-clients-clientid-phasetransitionbutton-tsx-9549f0b3ec) · [`src/app/portal/clients/[clientId]/_PropertiesTabClient.tsx`](#file-src-app-portal-clients-clientid-propertiestabclient-tsx-6112b84966) · [`src/app/portal/clients/[clientId]/_WebsiteBuilderLauncher.tsx`](#file-src-app-portal-clients-clientid-websitebuilderlauncher-tsx-75638b40c0) · [`src/app/portal/clients/[clientId]/_tabs.ts`](#file-src-app-portal-clients-clientid-tabs-ts-b8a8ac33ce) · [`src/app/portal/clients/[clientId]/toolCopy.ts`](#file-src-app-portal-clients-clientid-toolcopy-ts-f8bc42f468) · [`src/app/portal/customer/_portalData.ts`](#file-src-app-portal-customer-portaldata-ts-2f1995696c) · [`src/built-ins/modules/agency-finance/src/server/index.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-server-index-ts-ad7d7dcdb6) · [`src/built-ins/runtime/_pageScope.ts`](built-ins.md#file-src-built-ins-runtime-pagescope-ts-3cc574306e) · [`src/built-ins/runtime/_registry.ts`](built-ins.md#file-src-built-ins-runtime-registry-ts-504f0b067d) · [`src/components/marketing/ClientMarketingServiceWorkspace.tsx`](components.md#file-src-components-marketing-clientmarketingserviceworkspace-tsx-48c27a861f) · [`src/components/ui/CollapsibleSection.tsx`](components.md#file-src-components-ui-collapsiblesection-tsx-98c71bb5d3) · [`src/engines/data/server/radar/clientRadarService.ts`](engines.md#file-src-engines-data-server-radar-clientradarservice-ts-8e96620551) · [`src/engines/sop/server/sops.ts`](engines.md#file-src-engines-sop-server-sops-ts-8c9bee0d0c) · [`src/lib/clients/clientAquaHealth.ts`](lib.md#file-src-lib-clients-clientaquahealth-ts-423527fa78) · [`src/lib/clients/clientContacts.ts`](lib.md#file-src-lib-clients-clientcontacts-ts-b78a3dff30) · [`src/lib/clients/clientContracts.ts`](lib.md#file-src-lib-clients-clientcontracts-ts-e0bc41d74d) · [`src/lib/clients/clientMarketingService.ts`](lib.md#file-src-lib-clients-clientmarketingservice-ts-106c46e6a9) · [`src/lib/clients/clientOperations.ts`](lib.md#file-src-lib-clients-clientoperations-ts-35602e4928) · [`src/lib/clients/clientPaymentPlans.ts`](lib.md#file-src-lib-clients-clientpaymentplans-ts-e2f45163b3) · [`src/lib/clients/clientProductProcess.ts`](lib.md#file-src-lib-clients-clientproductprocess-ts-6a5fafe81b) · [`src/lib/clients/clientProductVariations.ts`](lib.md#file-src-lib-clients-clientproductvariations-ts-aa915e2e49) · [`src/lib/clients/clientRelationshipRecord.ts`](lib.md#file-src-lib-clients-clientrelationshiprecord-ts-4cd971820b) · [`src/lib/clients/clientRequests.ts`](lib.md#file-src-lib-clients-clientrequests-ts-402e6c331e) · [`src/lib/clients/clientServiceWorkspace.ts`](lib.md#file-src-lib-clients-clientserviceworkspace-ts-f48c06075b) · [`src/lib/clients/clientTelemetry.ts`](lib.md#file-src-lib-clients-clienttelemetry-ts-d3462b0e3b) · [`src/lib/clients/clientWorkspace.ts`](lib.md#file-src-lib-clients-clientworkspace-ts-90fa37f756) · [`src/lib/portal/portalProductWorkspaces.ts`](lib.md#file-src-lib-portal-portalproductworkspaces-ts-e82f470a50) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/products/productInternalWorkspace.ts`](lib.md#file-src-lib-products-productinternalworkspace-ts-1544d53955) · [`src/lib/server/RequirePermission.tsx`](lib.md#file-src-lib-server-requirepermission-tsx-faf7fafffa) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientPortalProvider.ts`](lib.md#file-src-lib-server-clients-clientportalprovider-ts-9c224098b6) · [`src/lib/server/clients/clientRecordLedger.ts`](lib.md#file-src-lib-server-clients-clientrecordledger-ts-634ccdb8f7) · [`src/lib/server/identityResolution.ts`](lib.md#file-src-lib-server-identityresolution-ts-7b1487fea4) · [`src/lib/server/inbox/inboxStore.ts`](lib.md#file-src-lib-server-inbox-inboxstore-ts-e9d74d18ec) · [`src/lib/server/integrations/githubProjectPublisher.ts`](lib.md#file-src-lib-server-integrations-githubprojectpublisher-ts-37fcc43e66) · [`src/lib/server/integrations/vercelProjectDeployer.ts`](lib.md#file-src-lib-server-integrations-vercelprojectdeployer-ts-1e9a2020e5) · [`src/lib/server/onboardingMilestones.ts`](lib.md#file-src-lib-server-onboardingmilestones-ts-36940c3016) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/server/portal/portalConnections.ts`](lib.md#file-src-lib-server-portal-portalconnections-ts-2e1e525a6f) · [`src/lib/server/sopsAccess.ts`](lib.md#file-src-lib-server-sopsaccess-ts-ead9fdb042) · [`src/lib/server/websiteEnquiries.ts`](lib.md#file-src-lib-server-websiteenquiries-ts-e00ecfd23b) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/clientMilestones.ts`](server.md#file-src-server-clientmilestones-ts-08c5910472) · [`src/server/clientRelationships.ts`](server.md#file-src-server-clientrelationships-ts-25562cf9d9) · [`src/server/contractTemplates.ts`](server.md#file-src-server-contracttemplates-ts-b2d4ba6c70) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/phases.ts`](server.md#file-src-server-phases-ts-fd96131909) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/portalConnectionStore.ts`](server.md#file-src-server-portalconnectionstore-ts-53f23012a8) · [`src/server/productWorkspaces.ts`](server.md#file-src-server-productworkspaces-ts-c20e49f8a5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tasks.ts`](server.md#file-src-server-tasks-ts-875282c006) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -7967,7 +8522,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default async ClientSettingsPage({ params, }: { params: Promise<{ clientId: string }>; })`
 
-**Depends on (13):** [`src/app/portal/clients/[clientId]/settings/_ClientCustomFieldsSettings.tsx`](#file-src-app-portal-clients-clientid-settings-clientcustomfieldssettings-tsx-9f3a22f6fd) · [`src/app/portal/clients/[clientId]/settings/_ClientDangerZone.tsx`](#file-src-app-portal-clients-clientid-settings-clientdangerzone-tsx-608d7cfce6) · [`src/app/portal/clients/[clientId]/settings/_ClientDomainSettings.tsx`](#file-src-app-portal-clients-clientid-settings-clientdomainsettings-tsx-4422f8856e) · [`src/app/portal/clients/[clientId]/settings/_ClientStatusActions.tsx`](#file-src-app-portal-clients-clientid-settings-clientstatusactions-tsx-0d848e2210) · [`src/components/forms/PortalCustomFields.tsx`](components.md#file-src-components-forms-portalcustomfields-tsx-c3122bba6b) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/clientErasure.ts`](server.md#file-src-server-clienterasure-ts-551ffd3571) · [`src/server/phases.ts`](server.md#file-src-server-phases-ts-fd96131909) · [`src/server/portalEditor.ts`](server.md#file-src-server-portaleditor-ts-f825920491) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (15):** [`src/app/portal/clients/[clientId]/settings/_ClientCustomFieldsSettings.tsx`](#file-src-app-portal-clients-clientid-settings-clientcustomfieldssettings-tsx-9f3a22f6fd) · [`src/app/portal/clients/[clientId]/settings/_ClientDangerZone.tsx`](#file-src-app-portal-clients-clientid-settings-clientdangerzone-tsx-608d7cfce6) · [`src/app/portal/clients/[clientId]/settings/_ClientDomainSettings.tsx`](#file-src-app-portal-clients-clientid-settings-clientdomainsettings-tsx-4422f8856e) · [`src/app/portal/clients/[clientId]/settings/_ClientStatusActions.tsx`](#file-src-app-portal-clients-clientid-settings-clientstatusactions-tsx-0d848e2210) · [`src/components/forms/PortalCustomFields.tsx`](components.md#file-src-components-forms-portalcustomfields-tsx-c3122bba6b) · [`src/lib/clients/clientWorkspace.ts`](lib.md#file-src-lib-clients-clientworkspace-ts-90fa37f756) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/clientErasure.ts`](server.md#file-src-server-clienterasure-ts-551ffd3571) · [`src/server/phases.ts`](server.md#file-src-server-phases-ts-fd96131909) · [`src/server/portalEditor.ts`](server.md#file-src-server-portaleditor-ts-f825920491) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -8083,7 +8638,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default async ClientsList({ searchParams }: { searchParams: Promise<{ view?: string }> })` — sense for them).
 
-**Depends on (49):** [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspaceServer.tsx`](#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspaceserver-tsx-90294b0e08) · [`src/app/portal/clients/_JourneyCommercialWorkspace.tsx`](#file-src-app-portal-clients-journeycommercialworkspace-tsx-77a037be14) · [`src/app/portal/clients/_JourneyMeetingsWorkspace.tsx`](#file-src-app-portal-clients-journeymeetingsworkspace-tsx-1fdcf4ce27) · [`src/app/portal/clients/_PeopleHub.tsx`](#file-src-app-portal-clients-peoplehub-tsx-62c6426811) · [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-server-foundationadapter-ts-e614648c40) · [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/built-ins/runtime/foundation-adapters/agencyFinanceFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-agencyfinancefoundation-ts-8c3647e20e) · [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-leadspipelinefoundation-ts-a0444ffabc) · [`src/components/chrome/AdvisorDrawerControl.tsx`](components.md#file-src-components-chrome-advisordrawercontrol-tsx-2c1a086faf) · [`src/components/chrome/NotificationAttentionProvider.tsx`](components.md#file-src-components-chrome-notificationattentionprovider-tsx-51754b1c61) · [`src/components/chrome/NotificationCentreButton.tsx`](components.md#file-src-components-chrome-notificationcentrebutton-tsx-aafe1b47bf) · [`src/components/chrome/RadarQuickLookControl.tsx`](components.md#file-src-components-chrome-radarquicklookcontrol-tsx-08e3954c6c) · [`src/components/chrome/Sidebar.tsx`](components.md#file-src-components-chrome-sidebar-tsx-a3b761358c) · [`src/components/chrome/ThemeInjector.tsx`](components.md#file-src-components-chrome-themeinjector-tsx-60b2716099) · [`src/components/chrome/Topbar.tsx`](components.md#file-src-components-chrome-topbar-tsx-9a91269432) · [`src/components/ui/ErrorBoundary.tsx`](components.md#file-src-components-ui-errorboundary-tsx-27181f6f14) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/clients/clientAquaHealth.ts`](lib.md#file-src-lib-clients-clientaquahealth-ts-423527fa78) · [`src/lib/clients/clientContracts.ts`](lib.md#file-src-lib-clients-clientcontracts-ts-e0bc41d74d) · [`src/lib/clients/clientPaymentPlans.ts`](lib.md#file-src-lib-clients-clientpaymentplans-ts-e2f45163b3) · [`src/lib/clients/clientTelemetry.ts`](lib.md#file-src-lib-clients-clienttelemetry-ts-d3462b0e3b) · [`src/lib/enquiries/enquiryClassification.ts`](lib.md#file-src-lib-enquiries-enquiryclassification-ts-e9934c6609) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/effectiveRole.ts`](lib.md#file-src-lib-server-auth-effectiverole-ts-800cbe7bd9) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/devIconPreference.ts`](lib.md#file-src-lib-server-deviconpreference-ts-ecd5778c16) · [`src/lib/server/identityResolution.ts`](lib.md#file-src-lib-server-identityresolution-ts-7b1487fea4) · [`src/lib/server/inbox/inboxService.ts`](lib.md#file-src-lib-server-inbox-inboxservice-ts-1c9968c293) · [`src/lib/server/inbox/inboxStore.ts`](lib.md#file-src-lib-server-inbox-inboxstore-ts-e9d74d18ec) · [`src/lib/server/inbox/operationalAlertPreferences.ts`](lib.md#file-src-lib-server-inbox-operationalalertpreferences-ts-6586a73a1d) · [`src/lib/server/inbox/operationalAlerts.ts`](lib.md#file-src-lib-server-inbox-operationalalerts-ts-564a396d10) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/server/sidebarAttention.ts`](lib.md#file-src-lib-server-sidebarattention-ts-5ea8532d70) · [`src/lib/server/websiteEnquiries.ts`](lib.md#file-src-lib-server-websiteenquiries-ts-e00ecfd23b) · [`src/lib/shared/internalWorkspace.ts`](lib.md#file-src-lib-shared-internalworkspace-ts-469a3bb9e7) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/agencySettings.ts`](server.md#file-src-server-agencysettings-ts-6d31afe153) · [`src/server/clientRelationships.ts`](server.md#file-src-server-clientrelationships-ts-25562cf9d9) · [`src/server/contractTemplates.ts`](server.md#file-src-server-contracttemplates-ts-b2d4ba6c70) · [`src/server/phases.ts`](server.md#file-src-server-phases-ts-fd96131909) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/portalEditor.ts`](server.md#file-src-server-portaleditor-ts-f825920491) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (51):** [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspaceServer.tsx`](#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspaceserver-tsx-90294b0e08) · [`src/app/portal/clients/_JourneyCommercialWorkspace.tsx`](#file-src-app-portal-clients-journeycommercialworkspace-tsx-77a037be14) · [`src/app/portal/clients/_JourneyMeetingsWorkspace.tsx`](#file-src-app-portal-clients-journeymeetingsworkspace-tsx-1fdcf4ce27) · [`src/app/portal/clients/_PeopleHub.tsx`](#file-src-app-portal-clients-peoplehub-tsx-62c6426811) · [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-server-foundationadapter-ts-e614648c40) · [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/built-ins/runtime/foundation-adapters/agencyFinanceFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-agencyfinancefoundation-ts-8c3647e20e) · [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-leadspipelinefoundation-ts-a0444ffabc) · [`src/components/chrome/AdvisorDrawerControl.tsx`](components.md#file-src-components-chrome-advisordrawercontrol-tsx-2c1a086faf) · [`src/components/chrome/NotificationAttentionProvider.tsx`](components.md#file-src-components-chrome-notificationattentionprovider-tsx-51754b1c61) · [`src/components/chrome/NotificationCentreButton.tsx`](components.md#file-src-components-chrome-notificationcentrebutton-tsx-aafe1b47bf) · [`src/components/chrome/RadarQuickLookControl.tsx`](components.md#file-src-components-chrome-radarquicklookcontrol-tsx-08e3954c6c) · [`src/components/chrome/Sidebar.tsx`](components.md#file-src-components-chrome-sidebar-tsx-a3b761358c) · [`src/components/chrome/ThemeInjector.tsx`](components.md#file-src-components-chrome-themeinjector-tsx-60b2716099) · [`src/components/chrome/Topbar.tsx`](components.md#file-src-components-chrome-topbar-tsx-9a91269432) · [`src/components/ui/ErrorBoundary.tsx`](components.md#file-src-components-ui-errorboundary-tsx-27181f6f14) · [`src/lib/chrome/agencySidebarPluginCatalog.ts`](lib.md#file-src-lib-chrome-agencysidebarplugincatalog-ts-73941e68df) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/clients/clientAquaHealth.ts`](lib.md#file-src-lib-clients-clientaquahealth-ts-423527fa78) · [`src/lib/clients/clientContracts.ts`](lib.md#file-src-lib-clients-clientcontracts-ts-e0bc41d74d) · [`src/lib/clients/clientPaymentPlans.ts`](lib.md#file-src-lib-clients-clientpaymentplans-ts-e2f45163b3) · [`src/lib/clients/clientTelemetry.ts`](lib.md#file-src-lib-clients-clienttelemetry-ts-d3462b0e3b) · [`src/lib/enquiries/enquiryClassification.ts`](lib.md#file-src-lib-enquiries-enquiryclassification-ts-e9934c6609) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/effectiveRole.ts`](lib.md#file-src-lib-server-auth-effectiverole-ts-800cbe7bd9) · [`src/lib/server/chrome/personalPanels.ts`](lib.md#file-src-lib-server-chrome-personalpanels-ts-7fc4b7fbf2) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/devIconPreference.ts`](lib.md#file-src-lib-server-deviconpreference-ts-ecd5778c16) · [`src/lib/server/identityResolution.ts`](lib.md#file-src-lib-server-identityresolution-ts-7b1487fea4) · [`src/lib/server/inbox/inboxService.ts`](lib.md#file-src-lib-server-inbox-inboxservice-ts-1c9968c293) · [`src/lib/server/inbox/inboxStore.ts`](lib.md#file-src-lib-server-inbox-inboxstore-ts-e9d74d18ec) · [`src/lib/server/inbox/operationalAlertPreferences.ts`](lib.md#file-src-lib-server-inbox-operationalalertpreferences-ts-6586a73a1d) · [`src/lib/server/inbox/operationalAlerts.ts`](lib.md#file-src-lib-server-inbox-operationalalerts-ts-564a396d10) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/server/sidebarAttention.ts`](lib.md#file-src-lib-server-sidebarattention-ts-5ea8532d70) · [`src/lib/server/websiteEnquiries.ts`](lib.md#file-src-lib-server-websiteenquiries-ts-e00ecfd23b) · [`src/lib/shared/internalWorkspace.ts`](lib.md#file-src-lib-shared-internalworkspace-ts-469a3bb9e7) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/agencySettings.ts`](server.md#file-src-server-agencysettings-ts-6d31afe153) · [`src/server/clientRelationships.ts`](server.md#file-src-server-clientrelationships-ts-25562cf9d9) · [`src/server/contractTemplates.ts`](server.md#file-src-server-contracttemplates-ts-b2d4ba6c70) · [`src/server/phases.ts`](server.md#file-src-server-phases-ts-fd96131909) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/portalEditor.ts`](server.md#file-src-server-portaleditor-ts-f825920491) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -8100,7 +8655,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default async CustomerPluginCatchAll({ params, searchParams }: RouteProps)`
 
-**Depends on (9):** [`src/app/portal/customer/_CustomerPortalViews.tsx`](#file-src-app-portal-customer-customerportalviews-tsx-d55a5b8f78) · [`src/built-ins/runtime/_pageScope.ts`](built-ins.md#file-src-built-ins-runtime-pagescope-ts-3cc574306e) · [`src/built-ins/runtime/_routeResolver.ts`](built-ins.md#file-src-built-ins-runtime-routeresolver-ts-bbf700f5cc) · [`src/built-ins/runtime/_types.ts`](built-ins.md#file-src-built-ins-runtime-types-ts-bae4cd6b2a) · [`src/built-ins/runtime/foundation-adapters/index.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-index-ts-dcf532e6f2) · [`src/components/ui/ErrorBoundary.tsx`](components.md#file-src-components-ui-errorboundary-tsx-27181f6f14) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (10):** [`src/app/portal/customer/_CustomerPortalViews.tsx`](#file-src-app-portal-customer-customerportalviews-tsx-d55a5b8f78) · [`src/built-ins/runtime/_pageScope.ts`](built-ins.md#file-src-built-ins-runtime-pagescope-ts-3cc574306e) · [`src/built-ins/runtime/_routeResolver.ts`](built-ins.md#file-src-built-ins-runtime-routeresolver-ts-bbf700f5cc) · [`src/built-ins/runtime/_types.ts`](built-ins.md#file-src-built-ins-runtime-types-ts-bae4cd6b2a) · [`src/built-ins/runtime/foundation-adapters/index.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-index-ts-dcf532e6f2) · [`src/components/ui/ErrorBoundary.tsx`](components.md#file-src-components-ui-errorboundary-tsx-27181f6f14) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -8133,12 +8688,13 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (2):**
+**Exports (3):**
 
-- `CustomerPortalChrome({ children, clientName, email, name, avatarUrl, modeLabel, presentation, presentationProductId, productPresentations = {}, previewBackHref, previewHrefPrefix, activePreviewSection, hideAccountMenu =…`
+- `CustomerPortalChrome({ children, clientName, email, viewerRole, name, avatarUrl, modeLabel, presentation, presentationProductId, productPresentations = {}, previewBackHref, previewHrefPrefix, activePreviewSection, hideA…`
+- `interface CustomerDevWorkspaceProject (3 members)`
 - `interface CustomerPortalWorkspaceOption (5 members)`
 
-**Depends on (12):** [`src/app/portal/customer/_PortalCustomExtension.tsx`](#file-src-app-portal-customer-portalcustomextension-tsx-2415087a4c) · [`src/components/chrome/ColorModeToggle.tsx`](components.md#file-src-components-chrome-colormodetoggle-tsx-f23ad79317) · [`src/components/chrome/PrivacyModeControl.tsx`](components.md#file-src-components-chrome-privacymodecontrol-tsx-80575cf467) · [`src/components/chrome/ProfileMenu.tsx`](components.md#file-src-components-chrome-profilemenu-tsx-539a3c435a) · [`src/lib/a11y/contrastValidator.ts`](lib.md#file-src-lib-a11y-contrastvalidator-ts-7c6889cfca) · [`src/lib/portal/clientPortalBuilder.ts`](lib.md#file-src-lib-portal-clientportalbuilder-ts-efd225ebe5) · [`src/lib/portal/clientPortalDesign.ts`](lib.md#file-src-lib-portal-clientportaldesign-ts-99f227974c) · [`src/lib/portal/customerAccountActivity.ts`](lib.md#file-src-lib-portal-customeraccountactivity-ts-eae6fc884e) · [`src/lib/portal/customerPortalAttention.ts`](lib.md#file-src-lib-portal-customerportalattention-ts-93a213021f) · [`src/lib/portal/portalProductModules.ts`](lib.md#file-src-lib-portal-portalproductmodules-ts-4c2c99cb26) · [`src/lib/portal/portalProducts.ts`](lib.md#file-src-lib-portal-portalproducts-ts-7c7e423e18) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (14):** [`src/app/portal/customer/_PortalCustomExtension.tsx`](#file-src-app-portal-customer-portalcustomextension-tsx-2415087a4c) · [`src/components/chrome/ColorModeToggle.tsx`](components.md#file-src-components-chrome-colormodetoggle-tsx-f23ad79317) · [`src/components/chrome/PrivacyModeControl.tsx`](components.md#file-src-components-chrome-privacymodecontrol-tsx-80575cf467) · [`src/components/chrome/ProfileMenu.tsx`](components.md#file-src-components-chrome-profilemenu-tsx-539a3c435a) · [`src/components/chrome/SafeSandboxEntry.tsx`](components.md#file-src-components-chrome-safesandboxentry-tsx-7e157df10d) · [`src/components/ui/PortalLoadingCoordinator.tsx`](components.md#file-src-components-ui-portalloadingcoordinator-tsx-ab67a66ae6) · [`src/lib/a11y/contrastValidator.ts`](lib.md#file-src-lib-a11y-contrastvalidator-ts-7c6889cfca) · [`src/lib/portal/clientPortalBuilder.ts`](lib.md#file-src-lib-portal-clientportalbuilder-ts-efd225ebe5) · [`src/lib/portal/clientPortalDesign.ts`](lib.md#file-src-lib-portal-clientportaldesign-ts-99f227974c) · [`src/lib/portal/customerAccountActivity.ts`](lib.md#file-src-lib-portal-customeraccountactivity-ts-eae6fc884e) · [`src/lib/portal/customerPortalAttention.ts`](lib.md#file-src-lib-portal-customerportalattention-ts-93a213021f) · [`src/lib/portal/portalProductModules.ts`](lib.md#file-src-lib-portal-portalproductmodules-ts-4c2c99cb26) · [`src/lib/portal/portalProducts.ts`](lib.md#file-src-lib-portal-portalproducts-ts-7c7e423e18) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (2):** [`src/app/client-preview/[clientId]/page.tsx`](#file-src-app-client-preview-clientid-page-tsx-aa4e76a343) · [`src/app/portal/customer/layout.tsx`](#file-src-app-portal-customer-layout-tsx-51035d393e)
 
@@ -8148,13 +8704,14 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (3):**
+**Exports (4):**
 
-- `async CustomerPortalView({ section, productId, moduleId, customPageSlug }: { section: CustomerPortalSection; productId?: string; moduleId?: string; customPageSlug?: string })`
-- `CustomerPortalContent({ section, client, data, previewHrefPrefix, productId, moduleId, customPageSlug, providerName = "Milesymedia", workspaceRole = "preview", }: { section: CustomerPortalSection; client: Client; data: …`
-- `type CustomerPortalSection = "home" | "project" | "results" | "files" | "billing" | "support" | "resources" | "details" | "service" | "custom"`
+- `async CustomerPortalView({ section, productId, moduleId, customPageSlug, noticeId }: { section: CustomerPortalSection; productId?: string; moduleId?: string; customPageSlug?: string; noticeId?: string })`
+- `CustomerPortalContent({ section, client, data, previewHrefPrefix, productId, moduleId, customPageSlug, providerName = "Milesymedia", workspaceRole = "preview", enquiryNotices = [], }: { section: CustomerPortalSection; c…`
+- `type CustomerPortalSection = "home" | "project" | "results" | "files" | "billing" | "support" | "resources" | "details" | "service" | "custom" | "enquiries"` — missing a key it is typed as having. A view section needs no migration.
+- `interface ClientFormNoticeSummary (3 members)` — What the portal shows for one arriving enquiry. Pointers, not people.
 
-**Depends on (22):** [`src/app/portal/customer/_CustomerPortalActions.tsx`](#file-src-app-portal-customer-customerportalactions-tsx-05a3c8b5ae) · [`src/app/portal/customer/_CustomerRelationshipStatus.tsx`](#file-src-app-portal-customer-customerrelationshipstatus-tsx-a47b34bc96) · [`src/app/portal/customer/_PortalPageComposition.tsx`](#file-src-app-portal-customer-portalpagecomposition-tsx-123795f904) · [`src/app/portal/customer/_ProductWorkspaceApplication.tsx`](#file-src-app-portal-customer-productworkspaceapplication-tsx-81ce4f1d02) · [`src/app/portal/customer/_portalData.ts`](#file-src-app-portal-customer-portaldata-ts-2f1995696c) · [`src/lib/brands/authBrand.ts`](lib.md#file-src-lib-brands-authbrand-ts-036ce85121) · [`src/lib/clients/clientPaymentPlans.ts`](lib.md#file-src-lib-clients-clientpaymentplans-ts-e2f45163b3) · [`src/lib/clients/clientTelemetry.ts`](lib.md#file-src-lib-clients-clienttelemetry-ts-d3462b0e3b) · [`src/lib/performance/performanceAnalytics.ts`](lib.md#file-src-lib-performance-performanceanalytics-ts-27d7ba0bbe) · [`src/lib/performance/performanceReports.ts`](lib.md#file-src-lib-performance-performancereports-ts-dc7feb76be) · [`src/lib/portal/clientPortalBuilder.ts`](lib.md#file-src-lib-portal-clientportalbuilder-ts-efd225ebe5) · [`src/lib/portal/clientPortalDesign.ts`](lib.md#file-src-lib-portal-clientportaldesign-ts-99f227974c) · [`src/lib/portal/portalProductModules.ts`](lib.md#file-src-lib-portal-portalproductmodules-ts-4c2c99cb26) · [`src/lib/portal/portalProductWorkspaces.ts`](lib.md#file-src-lib-portal-portalproductworkspaces-ts-e82f470a50) · [`src/lib/portal/portalProducts.ts`](lib.md#file-src-lib-portal-portalproducts-ts-7c7e423e18) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientPortalProvider.ts`](lib.md#file-src-lib-server-clients-clientportalprovider-ts-9c224098b6) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/clientMilestones.ts`](server.md#file-src-server-clientmilestones-ts-08c5910472) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (21):** [`src/app/portal/customer/_CustomerPortalActions.tsx`](#file-src-app-portal-customer-customerportalactions-tsx-05a3c8b5ae) · [`src/app/portal/customer/_CustomerRelationshipStatus.tsx`](#file-src-app-portal-customer-customerrelationshipstatus-tsx-a47b34bc96) · [`src/app/portal/customer/_MarkEnquirySeen.tsx`](#file-src-app-portal-customer-markenquiryseen-tsx-a087917991) · [`src/app/portal/customer/_PortalPageComposition.tsx`](#file-src-app-portal-customer-portalpagecomposition-tsx-123795f904) · [`src/app/portal/customer/_ProductWorkspaceApplication.tsx`](#file-src-app-portal-customer-productworkspaceapplication-tsx-81ce4f1d02) · [`src/app/portal/customer/_portalData.ts`](#file-src-app-portal-customer-portaldata-ts-2f1995696c) · [`src/app/portal/customer/_requestContext.ts`](#file-src-app-portal-customer-requestcontext-ts-507a1406b3) · [`src/lib/clients/clientPaymentPlans.ts`](lib.md#file-src-lib-clients-clientpaymentplans-ts-e2f45163b3) · [`src/lib/clients/clientTelemetry.ts`](lib.md#file-src-lib-clients-clienttelemetry-ts-d3462b0e3b) · [`src/lib/performance/performanceAnalytics.ts`](lib.md#file-src-lib-performance-performanceanalytics-ts-27d7ba0bbe) · [`src/lib/performance/performanceReports.ts`](lib.md#file-src-lib-performance-performancereports-ts-dc7feb76be) · [`src/lib/portal/clientPortalBuilder.ts`](lib.md#file-src-lib-portal-clientportalbuilder-ts-efd225ebe5) · [`src/lib/portal/clientPortalDesign.ts`](lib.md#file-src-lib-portal-clientportaldesign-ts-99f227974c) · [`src/lib/portal/portalProductModules.ts`](lib.md#file-src-lib-portal-portalproductmodules-ts-4c2c99cb26) · [`src/lib/portal/portalProductWorkspaces.ts`](lib.md#file-src-lib-portal-portalproductworkspaces-ts-e82f470a50) · [`src/lib/portal/portalProducts.ts`](lib.md#file-src-lib-portal-portalproducts-ts-7c7e423e18) · [`src/lib/server/clientForms/clientFormNotices.ts`](lib.md#file-src-lib-server-clientforms-clientformnotices-ts-3b9510cd5f) · [`src/lib/server/clientForms/clientFormReader.ts`](lib.md#file-src-lib-server-clientforms-clientformreader-ts-5b653fb8bb) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/clientMilestones.ts`](server.md#file-src-server-clientmilestones-ts-08c5910472) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (3):** [`src/app/client-preview/[clientId]/page.tsx`](#file-src-app-client-preview-clientid-page-tsx-aa4e76a343) · [`src/app/portal/customer/[...rest]/page.tsx`](#file-src-app-portal-customer-rest-page-tsx-88df60b027) · [`src/app/portal/customer/page.tsx`](#file-src-app-portal-customer-page-tsx-86ca64ba68)
 
@@ -8171,6 +8728,20 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface CustomerRelationshipStatusPresentation (3 members)`
 
 **Depends on (1):** [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by (1):** [`src/app/portal/customer/_CustomerPortalViews.tsx`](#file-src-app-portal-customer-customerportalviews-tsx-d55a5b8f78)
+
+<a id="file-src-app-portal-customer-markenquiryseen-tsx-a087917991"></a>
+
+### `src/app/portal/customer/_MarkEnquirySeen.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `MarkEnquirySeen({ noticeId }: { noticeId: string })` — something nobody asked for.
+
+**Depends on:** _No internal imports._
 
 **Used by (1):** [`src/app/portal/customer/_CustomerPortalViews.tsx`](#file-src-app-portal-customer-customerportalviews-tsx-d55a5b8f78)
 
@@ -8272,7 +8843,36 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (22):** [`src/app/api/tenants/client-approvals/route.ts`](#file-src-app-api-tenants-client-approvals-route-ts-b58c1541db) · [`src/app/api/tenants/client-requests/route.ts`](#file-src-app-api-tenants-client-requests-route-ts-24f94f6395) · [`src/app/api/tenants/customer-project-brief/route.ts`](#file-src-app-api-tenants-customer-project-brief-route-ts-a6f51c824a) · [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/server/index.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-server-index-ts-ad7d7dcdb6) · [`src/lib/clients/clientContracts.ts`](lib.md#file-src-lib-clients-clientcontracts-ts-e0bc41d74d) · [`src/lib/clients/clientPaymentPlans.ts`](lib.md#file-src-lib-clients-clientpaymentplans-ts-e2f45163b3) · [`src/lib/clients/clientRelationshipRecord.ts`](lib.md#file-src-lib-clients-clientrelationshiprecord-ts-4cd971820b) · [`src/lib/clients/clientRequests.ts`](lib.md#file-src-lib-clients-clientrequests-ts-402e6c331e) · [`src/lib/portal/portalProductModules.ts`](lib.md#file-src-lib-portal-portalproductmodules-ts-4c2c99cb26) · [`src/lib/portal/portalProductWorkspaces.ts`](lib.md#file-src-lib-portal-portalproductworkspaces-ts-e82f470a50) · [`src/lib/portal/portalProducts.ts`](lib.md#file-src-lib-portal-portalproducts-ts-7c7e423e18) · [`src/lib/products/clientProductStageTruth.ts`](lib.md#file-src-lib-products-clientproductstagetruth-ts-d3dc49116c) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/inbox/inboxStore.ts`](lib.md#file-src-lib-server-inbox-inboxstore-ts-e9d74d18ec) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/server/websiteEnquiries.ts`](lib.md#file-src-lib-server-websiteenquiries-ts-e00ecfd23b) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/clientPortalDesigns.ts`](server.md#file-src-server-clientportaldesigns-ts-a391c1a4b9) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (11):** [`scripts/smoke-customer-portal-attention.test.ts`](scripts.md#file-scripts-smoke-customer-portal-attention-test-ts-08fc4c55db) · [`scripts/smoke-portal-element-parity.harness.tsx`](scripts.md#file-scripts-smoke-portal-element-parity-harness-tsx-96fd9b59e6) · [`src/app/client-preview/[clientId]/page.tsx`](#file-src-app-client-preview-clientid-page-tsx-aa4e76a343) · [`src/app/embed/account/page.tsx`](#file-src-app-embed-account-page-tsx-43ebc12cba) · [`src/app/portal/clients/[clientId]/page.tsx`](#file-src-app-portal-clients-clientid-page-tsx-f2587fcff8) · [`src/app/portal/customer/_CustomerPortalActions.tsx`](#file-src-app-portal-customer-customerportalactions-tsx-05a3c8b5ae) · [`src/app/portal/customer/_CustomerPortalViews.tsx`](#file-src-app-portal-customer-customerportalviews-tsx-d55a5b8f78) · [`src/app/portal/customer/_PortalPageComposition.tsx`](#file-src-app-portal-customer-portalpagecomposition-tsx-123795f904) · [`src/app/portal/customer/_ProductWorkspaceApplication.tsx`](#file-src-app-portal-customer-productworkspaceapplication-tsx-81ce4f1d02) · [`src/app/portal/customer/layout.tsx`](#file-src-app-portal-customer-layout-tsx-51035d393e) · [`src/lib/portal/customerPortalAttention.ts`](lib.md#file-src-lib-portal-customerportalattention-ts-93a213021f)
+**Used by (12):** [`scripts/smoke-customer-portal-attention.test.ts`](scripts.md#file-scripts-smoke-customer-portal-attention-test-ts-08fc4c55db) · [`scripts/smoke-portal-element-parity.harness.tsx`](scripts.md#file-scripts-smoke-portal-element-parity-harness-tsx-96fd9b59e6) · [`src/app/client-preview/[clientId]/page.tsx`](#file-src-app-client-preview-clientid-page-tsx-aa4e76a343) · [`src/app/embed/account/page.tsx`](#file-src-app-embed-account-page-tsx-43ebc12cba) · [`src/app/portal/clients/[clientId]/page.tsx`](#file-src-app-portal-clients-clientid-page-tsx-f2587fcff8) · [`src/app/portal/customer/_CustomerPortalActions.tsx`](#file-src-app-portal-customer-customerportalactions-tsx-05a3c8b5ae) · [`src/app/portal/customer/_CustomerPortalViews.tsx`](#file-src-app-portal-customer-customerportalviews-tsx-d55a5b8f78) · [`src/app/portal/customer/_PortalPageComposition.tsx`](#file-src-app-portal-customer-portalpagecomposition-tsx-123795f904) · [`src/app/portal/customer/_ProductWorkspaceApplication.tsx`](#file-src-app-portal-customer-productworkspaceapplication-tsx-81ce4f1d02) · [`src/app/portal/customer/_requestContext.ts`](#file-src-app-portal-customer-requestcontext-ts-507a1406b3) · [`src/app/portal/customer/layout.tsx`](#file-src-app-portal-customer-layout-tsx-51035d393e) · [`src/lib/portal/customerPortalAttention.ts`](lib.md#file-src-lib-portal-customerportalattention-ts-93a213021f)
+
+<a id="file-src-app-portal-customer-requestcache-ts-50afe00612"></a>
+
+### `src/app/portal/customer/_requestCache.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `createCustomerPortalRequestLoader<T>(load: () => Promise<T>): () => Promise<T>` — React owns the lifetime of this cache, so one Server Component request gets one snapshot while later requests always resolve fresh data.
+
+**Depends on:** _No internal imports._
+
+**Used by (2):** [`scripts/smoke-customer-portal-request-snapshot.test.ts`](scripts.md#file-scripts-smoke-customer-portal-request-snapshot-test-ts-765c7c6bb0) · [`src/app/portal/customer/_requestContext.ts`](#file-src-app-portal-customer-requestcontext-ts-507a1406b3)
+
+<a id="file-src-app-portal-customer-requestcontext-ts-507a1406b3"></a>
+
+### `src/app/portal/customer/_requestContext.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `loadCustomerPortalIdentity = createCustomerPortalRequestLoader(async () => {` — The layout and page both need the signed-in customer identity. Resolving it once also guarantees both halves of the portal agree on the same client and provider when the underlyin…
+- `loadCustomerPortalRequestContext = createCustomerPortalRequestLoader(async () => {` — One immutable aggregate per RSC request. CustomerLayout consumes this for chrome/attention and CustomerPortalView consumes the exact same object for the body, collapsing the old d…
+
+**Depends on (9):** [`src/app/portal/customer/_portalData.ts`](#file-src-app-portal-customer-portaldata-ts-2f1995696c) · [`src/app/portal/customer/_requestCache.ts`](#file-src-app-portal-customer-requestcache-ts-50afe00612) · [`src/lib/brands/authBrand.ts`](lib.md#file-src-lib-brands-authbrand-ts-036ce85121) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientPortalProvider.ts`](lib.md#file-src-lib-server-clients-clientportalprovider-ts-9c224098b6) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+
+**Used by (2):** [`src/app/portal/customer/_CustomerPortalViews.tsx`](#file-src-app-portal-customer-customerportalviews-tsx-d55a5b8f78) · [`src/app/portal/customer/layout.tsx`](#file-src-app-portal-customer-layout-tsx-51035d393e)
 
 <a id="file-src-app-portal-customer-subroute-tsx-78db1dfb61"></a>
 
@@ -8285,7 +8885,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async CustomerSubroute({ cfg }: { cfg: SubrouteConfig })`
 - `interface SubrouteConfig (6 members)`
 
-**Depends on (3):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (4):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (3):** [`src/app/portal/customer/affiliate/page.tsx`](#file-src-app-portal-customer-affiliate-page-tsx-fe609388be) · [`src/app/portal/customer/bookings/page.tsx`](#file-src-app-portal-customer-bookings-page-tsx-28dbe151d8) · [`src/app/portal/customer/membership/page.tsx`](#file-src-app-portal-customer-membership-page-tsx-cae5f18490)
 
@@ -8317,7 +8917,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default async CustomerAccountPage()`
 
-**Depends on (7):** [`src/app/portal/account/AvatarUploader.tsx`](#file-src-app-portal-account-avataruploader-tsx-1e235e5a66) · [`src/app/portal/customer/account/_ConnectedApps.tsx`](#file-src-app-portal-customer-account-connectedapps-tsx-edd6025066) · [`src/lib/brands/authBrand.ts`](lib.md#file-src-lib-brands-authbrand-ts-036ce85121) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/portalConnectionStore.ts`](server.md#file-src-server-portalconnectionstore-ts-53f23012a8) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (8):** [`src/app/portal/account/AvatarUploader.tsx`](#file-src-app-portal-account-avataruploader-tsx-1e235e5a66) · [`src/app/portal/customer/account/_ConnectedApps.tsx`](#file-src-app-portal-customer-account-connectedapps-tsx-edd6025066) · [`src/lib/brands/authBrand.ts`](lib.md#file-src-lib-brands-authbrand-ts-036ce85121) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/portalConnectionStore.ts`](server.md#file-src-server-portalconnectionstore-ts-53f23012a8) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -8369,7 +8969,21 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async generateMetadata(): Promise<Metadata>`
 - `default async CustomerLayout({ children }: { children: ReactNode })`
 
-**Depends on (16):** [`src/app/portal/customer/_CustomerPortalChrome.tsx`](#file-src-app-portal-customer-customerportalchrome-tsx-ec588f2c59) · [`src/app/portal/customer/_portalData.ts`](#file-src-app-portal-customer-portaldata-ts-2f1995696c) · [`src/built-ins/runtime/_registry.ts`](built-ins.md#file-src-built-ins-runtime-registry-ts-504f0b067d) · [`src/components/chrome/ThemeInjector.tsx`](components.md#file-src-components-chrome-themeinjector-tsx-60b2716099) · [`src/components/ui/ErrorBoundary.tsx`](components.md#file-src-components-ui-errorboundary-tsx-27181f6f14) · [`src/lib/brands/authBrand.ts`](lib.md#file-src-lib-brands-authbrand-ts-036ce85121) · [`src/lib/portal/customerAccountActivity.ts`](lib.md#file-src-lib-portal-customeraccountactivity-ts-eae6fc884e) · [`src/lib/portal/customerPortalAttention.ts`](lib.md#file-src-lib-portal-customerportalattention-ts-93a213021f) · [`src/lib/portal/portalProducts.ts`](lib.md#file-src-lib-portal-portalproducts-ts-7c7e423e18) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientPortalProvider.ts`](lib.md#file-src-lib-server-clients-clientportalprovider-ts-9c224098b6) · [`src/server/clientRelationships.ts`](server.md#file-src-server-clientrelationships-ts-25562cf9d9) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (20):** [`src/app/portal/customer/_CustomerPortalChrome.tsx`](#file-src-app-portal-customer-customerportalchrome-tsx-ec588f2c59) · [`src/app/portal/customer/_portalData.ts`](#file-src-app-portal-customer-portaldata-ts-2f1995696c) · [`src/app/portal/customer/_requestContext.ts`](#file-src-app-portal-customer-requestcontext-ts-507a1406b3) · [`src/built-ins/runtime/_registry.ts`](built-ins.md#file-src-built-ins-runtime-registry-ts-504f0b067d) · [`src/components/chrome/ThemeInjector.tsx`](components.md#file-src-components-chrome-themeinjector-tsx-60b2716099) · [`src/components/ui/ErrorBoundary.tsx`](components.md#file-src-components-ui-errorboundary-tsx-27181f6f14) · [`src/components/ui/PortalLoadingCoordinator.tsx`](components.md#file-src-components-ui-portalloadingcoordinator-tsx-ab67a66ae6) · [`src/lib/brands/authBrand.ts`](lib.md#file-src-lib-brands-authbrand-ts-036ce85121) · [`src/lib/portal/customerAccountActivity.ts`](lib.md#file-src-lib-portal-customeraccountactivity-ts-eae6fc884e) · [`src/lib/portal/customerPortalAttention.ts`](lib.md#file-src-lib-portal-customerportalattention-ts-93a213021f) · [`src/lib/portal/portalProducts.ts`](lib.md#file-src-lib-portal-portalproducts-ts-7c7e423e18) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientPortalProvider.ts`](lib.md#file-src-lib-server-clients-clientportalprovider-ts-9c224098b6) · [`src/lib/server/dev/devProjectAccess.ts`](lib.md#file-src-lib-server-dev-devprojectaccess-ts-74c76f5deb) · [`src/lib/server/sandbox/sandboxEnvironment.ts`](lib.md#file-src-lib-server-sandbox-sandboxenvironment-ts-719cbc6a25) · [`src/server/clientRelationships.ts`](server.md#file-src-server-clientrelationships-ts-25562cf9d9) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-src-app-portal-customer-loading-tsx-dd1a24127a"></a>
+
+### `src/app/portal/customer/loading.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `default CustomerPortalLoading()`
+
+**Depends on (1):** [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -8403,7 +9017,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default async OrdersPage()`
 
-**Depends on (6):** [`src/built-ins/runtime/foundation-adapters/ecommerceFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-ecommercefoundation-ts-96609f2fd3) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (7):** [`src/built-ins/runtime/foundation-adapters/ecommerceFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-ecommercefoundation-ts-96609f2fd3) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -8453,7 +9067,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface Accent (4 members)` — notes slate — quiet, personal
 - `interface SectionView (3 members)` — working through a redirect.
 
-**Depends on:** _No internal imports._
+**Depends on (1):** [`src/lib/chrome/devTeamLinkPrefetch.ts`](lib.md#file-src-lib-chrome-devteamlinkprefetch-ts-cbcd40fdec)
 
 **Used by (21):** [`src/app/portal/dev-team/api/_Section.tsx`](#file-src-app-portal-dev-team-api-section-tsx-f79e16bc18) · [`src/app/portal/dev-team/auditor/_Section.tsx`](#file-src-app-portal-dev-team-auditor-section-tsx-f67ee3b69b) · [`src/app/portal/dev-team/chat/page.tsx`](#file-src-app-portal-dev-team-chat-page-tsx-0832a1cd1f) · [`src/app/portal/dev-team/docs/page.tsx`](#file-src-app-portal-dev-team-docs-page-tsx-33ca38f24b) · [`src/app/portal/dev-team/editor/_AppConfigEditor.tsx`](#file-src-app-portal-dev-team-editor-appconfigeditor-tsx-457d15e5dc) · [`src/app/portal/dev-team/editor/_Section.tsx`](#file-src-app-portal-dev-team-editor-section-tsx-f070f138fb) · [`src/app/portal/dev-team/editor/page.tsx`](#file-src-app-portal-dev-team-editor-page-tsx-9a30bd7715) · [`src/app/portal/dev-team/findings/_Section.tsx`](#file-src-app-portal-dev-team-findings-section-tsx-c38092aaad) · [`src/app/portal/dev-team/findings/page.tsx`](#file-src-app-portal-dev-team-findings-page-tsx-27562154c5) · [`src/app/portal/dev-team/inspector/InspectorClient.tsx`](#file-src-app-portal-dev-team-inspector-inspectorclient-tsx-cb04b4e36d) · [`src/app/portal/dev-team/inspector/_Section.tsx`](#file-src-app-portal-dev-team-inspector-section-tsx-da71d32462) · [`src/app/portal/dev-team/layout.tsx`](#file-src-app-portal-dev-team-layout-tsx-ceef463ed4) · [`src/app/portal/dev-team/library/_LibraryIndex.tsx`](#file-src-app-portal-dev-team-library-libraryindex-tsx-433b6bd2ba) · [`src/app/portal/dev-team/library/page.tsx`](#file-src-app-portal-dev-team-library-page-tsx-771759ca38) · [`src/app/portal/dev-team/logs/_Section.tsx`](#file-src-app-portal-dev-team-logs-section-tsx-3daf78c58f) · [`src/app/portal/dev-team/page.tsx`](#file-src-app-portal-dev-team-page-tsx-c6f9c5a6b0) · [`src/app/portal/dev-team/plans/new/page.tsx`](#file-src-app-portal-dev-team-plans-new-page-tsx-af6392003f) · [`src/app/portal/dev-team/roadmap/page.tsx`](#file-src-app-portal-dev-team-roadmap-page-tsx-635c96b266) · [`src/app/portal/dev-team/tools/page.tsx`](#file-src-app-portal-dev-team-tools-page-tsx-9fd22ed463) · [`src/app/portal/dev-team/updates/_Section.tsx`](#file-src-app-portal-dev-team-updates-section-tsx-c2becb981d) · [`src/app/portal/dev-team/updates/_UpdateComposer.tsx`](#file-src-app-portal-dev-team-updates-updatecomposer-tsx-d4c709003e)
 
@@ -8642,7 +9256,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports (2):**
 
 - `default async DevEditorProjectsPage()`
-- `dynamic = "force-dynamic"` — Founder + Dev Mode only — role first, then `devDocsAccessible`.
+- `dynamic = "force-dynamic"` — Founder-only Dev Team access — role first, then `devDocsAccessible`.
 
 **Depends on (6):** [`src/app/portal/dev-team/_ui.tsx`](#file-src-app-portal-dev-team-ui-tsx-65938b8197) · [`src/app/portal/dev-team/editor/setup/_DevEditorSetup.tsx`](#file-src-app-portal-dev-team-editor-setup-deveditorsetup-tsx-7f6d634557) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
@@ -8660,7 +9274,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports (3):**
 
 - `DevEditorSetup()`
-- `DevEditorProjectSettings({ projectId, aiConfigured, }: { /** The project this editor is open ON. Empty = a door with no project. */ projectId: string; /** Whether the Aqua Editor AI holds a key for this project — never …` — around this panel re-derives its browser without a reload.
+- `DevEditorProjectSettings({ projectId, aiConfigured, canManageConnections = true, canRebindConnections = true, }: { /** The project this editor is open ON. Empty = a door with no project. */ projectId: string; /** Whethe…` — around this panel re-derives its browser without a reload.
 - `DEV_PROJECTS_CHANGED_EVENT = "aqua:dev-projects-changed"` — Fired on `window` after any mutation here SUCCEEDS (save, delete, map, check-tag). This panel is rendered inside the editor's inspector, but the editor fetched its own copy of the…
 
 **Depends on (3):** [`src/lib/shared/devProjectGrouping.ts`](lib.md#file-src-lib-shared-devprojectgrouping-ts-070f12451f) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
@@ -8788,9 +9402,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `default async DevTeamLayout({ children }: { children: ReactNode })` — scope pattern (inline panels → the shared <Sidebar>/<Topbar>).
+- `default async DevTeamLayout({ children }: { children: ReactNode })` — FOUNDER_EMAIL account. Its own sidebar + chrome mirrors the `team/` scope.
 
-**Depends on (18):** [`src/app/portal/dev-team/_ui.tsx`](#file-src-app-portal-dev-team-ui-tsx-65938b8197) · [`src/components/chrome/DevTeamTransition.tsx`](components.md#file-src-components-chrome-devteamtransition-tsx-2440d06990) · [`src/components/chrome/LibrarianDrawerControl.tsx`](components.md#file-src-components-chrome-librariandrawercontrol-tsx-c4e30bffaf) · [`src/components/chrome/NotificationCentreButton.tsx`](components.md#file-src-components-chrome-notificationcentrebutton-tsx-aafe1b47bf) · [`src/components/chrome/PortalRouteCanvas.tsx`](components.md#file-src-components-chrome-portalroutecanvas-tsx-0b7aff101e) · [`src/components/chrome/Sidebar.tsx`](components.md#file-src-components-chrome-sidebar-tsx-a3b761358c) · [`src/components/chrome/ThemeInjector.tsx`](components.md#file-src-components-chrome-themeinjector-tsx-60b2716099) · [`src/components/chrome/Topbar.tsx`](components.md#file-src-components-chrome-topbar-tsx-9a91269432) · [`src/components/ui/ErrorBoundary.tsx`](components.md#file-src-components-ui-errorboundary-tsx-27181f6f14) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/postLoginRedirect.ts`](lib.md#file-src-lib-server-auth-postloginredirect-ts-17fc4de17b) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/devIconPreference.ts`](lib.md#file-src-lib-server-deviconpreference-ts-ecd5778c16) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (17):** [`src/app/portal/dev-team/_ui.tsx`](#file-src-app-portal-dev-team-ui-tsx-65938b8197) · [`src/components/chrome/DeferredLibrarianDrawerControl.tsx`](components.md#file-src-components-chrome-deferredlibrariandrawercontrol-tsx-6c296b554d) · [`src/components/chrome/DevTeamTransition.tsx`](components.md#file-src-components-chrome-devteamtransition-tsx-2440d06990) · [`src/components/chrome/PortalRouteCanvas.tsx`](components.md#file-src-components-chrome-portalroutecanvas-tsx-0b7aff101e) · [`src/components/chrome/Sidebar.tsx`](components.md#file-src-components-chrome-sidebar-tsx-a3b761358c) · [`src/components/chrome/ThemeInjector.tsx`](components.md#file-src-components-chrome-themeinjector-tsx-60b2716099) · [`src/components/ui/ErrorBoundary.tsx`](components.md#file-src-components-ui-errorboundary-tsx-27181f6f14) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/postLoginRedirect.ts`](lib.md#file-src-lib-server-auth-postloginredirect-ts-17fc4de17b) · [`src/lib/server/chrome/personalPanels.ts`](lib.md#file-src-lib-server-chrome-personalpanels-ts-7fc4b7fbf2) · [`src/lib/server/dev/devTeamAccess.ts`](lib.md#file-src-lib-server-dev-devteamaccess-ts-9e6ff72cf8) · [`src/lib/server/dev/devWorkspaceFiles.ts`](lib.md#file-src-lib-server-dev-devworkspacefiles-ts-f62a900a74) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -8809,7 +9423,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (4):** [`src/app/portal/agency/dev-docs/_DocMarkdown.tsx`](#file-src-app-portal-agency-dev-docs-docmarkdown-tsx-54a153eec0) · [`src/app/portal/dev-team/library/_paths.ts`](#file-src-app-portal-dev-team-library-paths-ts-61a0cba8fa) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 
-**Used by (1):** [`src/app/portal/dev-team/library/_Section.tsx`](#file-src-app-portal-dev-team-library-section-tsx-ffb7836236)
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 <a id="file-src-app-portal-dev-team-library-libraryindex-tsx-433b6bd2ba"></a>
 
@@ -8824,7 +9438,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (5):** [`src/app/portal/dev-team/_ui.tsx`](#file-src-app-portal-dev-team-ui-tsx-65938b8197) · [`src/app/portal/dev-team/library/_LibraryTree.tsx`](#file-src-app-portal-dev-team-library-librarytree-tsx-2b290bbadd) · [`src/app/portal/dev-team/library/_paths.ts`](#file-src-app-portal-dev-team-library-paths-ts-61a0cba8fa) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 
-**Used by (1):** [`src/app/portal/dev-team/library/_Section.tsx`](#file-src-app-portal-dev-team-library-section-tsx-ffb7836236)
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 <a id="file-src-app-portal-dev-team-library-librarytree-tsx-2b290bbadd"></a>
 
@@ -8850,9 +9464,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async LibrarySection({ tabs, searchParams }: { tabs?: ReactNode; searchParams: SearchParams })`
 
-**Depends on (6):** [`src/app/portal/dev-team/library/_LibraryDocViewer.tsx`](#file-src-app-portal-dev-team-library-librarydocviewer-tsx-c518519a70) · [`src/app/portal/dev-team/library/_LibraryIndex.tsx`](#file-src-app-portal-dev-team-library-libraryindex-tsx-433b6bd2ba) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (4):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (1):** [`src/app/portal/dev-team/library/page.tsx`](#file-src-app-portal-dev-team-library-page-tsx-771759ca38)
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 <a id="file-src-app-portal-dev-team-library-paths-ts-61a0cba8fa"></a>
 
@@ -8880,7 +9494,24 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `default async LibraryPage({ searchParams }: { searchParams: SearchParams })`
 - `dynamic = "force-dynamic"` — so every existing Library link keeps working.
 
-**Depends on (4):** [`src/app/portal/dev-team/_ui.tsx`](#file-src-app-portal-dev-team-ui-tsx-65938b8197) · [`src/app/portal/dev-team/library/_Section.tsx`](#file-src-app-portal-dev-team-library-section-tsx-ffb7836236) · [`src/app/portal/dev-team/logs/_Section.tsx`](#file-src-app-portal-dev-team-logs-section-tsx-3daf78c58f) · [`src/app/portal/dev-team/updates/_Section.tsx`](#file-src-app-portal-dev-team-updates-section-tsx-c2becb981d)
+**Depends on (2):** [`src/app/portal/dev-team/_ui.tsx`](#file-src-app-portal-dev-team-ui-tsx-65938b8197) · [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
+## `src/app/portal/dev-team/`
+
+<a id="file-src-app-portal-dev-team-loading-tsx-f86dd01882"></a>
+
+### `src/app/portal/dev-team/loading.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `default DevTeamLoading()`
+
+**Depends on (1):** [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -8897,9 +9528,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async LogsSection({ tabs }: { tabs?: ReactNode })` — • doc edits — signed changes made from inside the app
 
-**Depends on (9):** [`src/app/portal/dev-team/_ui.tsx`](#file-src-app-portal-dev-team-ui-tsx-65938b8197) · [`src/app/portal/dev-team/logs/_changesLabel.ts`](#file-src-app-portal-dev-team-logs-changeslabel-ts-ec25f9a7ca) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocEdits.ts`](lib.md#file-src-lib-server-dev-devdocedits-ts-f9b7bbe202) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devTeamWorkers.ts`](lib.md#file-src-lib-server-dev-devteamworkers-ts-86ad4dc3ce) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (7):** [`src/app/portal/dev-team/_ui.tsx`](#file-src-app-portal-dev-team-ui-tsx-65938b8197) · [`src/app/portal/dev-team/logs/_changesLabel.ts`](#file-src-app-portal-dev-team-logs-changeslabel-ts-ec25f9a7ca) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devTeamAccess.ts`](lib.md#file-src-lib-server-dev-devteamaccess-ts-9e6ff72cf8) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (1):** [`src/app/portal/dev-team/library/page.tsx`](#file-src-app-portal-dev-team-library-page-tsx-771759ca38)
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 <a id="file-src-app-portal-dev-team-logs-changeslabel-ts-ec25f9a7ca"></a>
 
@@ -8960,9 +9591,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports (2):**
 
 - `default async DevTeamHomePage()`
-- `dynamic = "force-dynamic"` — twice, so home can never disagree with the page it links to.
+- `dynamic = "force-dynamic"` — existing freshness/invalidation contract.
 
-**Depends on (10):** [`src/app/portal/dev-team/_ui.tsx`](#file-src-app-portal-dev-team-ui-tsx-65938b8197) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devTeamFindings.ts`](lib.md#file-src-lib-server-dev-devteamfindings-ts-e4af23d1a3) · [`src/lib/server/dev/devTeamRoadmap.ts`](lib.md#file-src-lib-server-dev-devteamroadmap-ts-5914d96d81) · [`src/lib/server/dev/devTeamThoughts.ts`](lib.md#file-src-lib-server-dev-devteamthoughts-ts-b534e78e87) · [`src/lib/server/dev/devTeamWorkers.ts`](lib.md#file-src-lib-server-dev-devteamworkers-ts-86ad4dc3ce) · [`src/lib/server/productionReadiness.ts`](lib.md#file-src-lib-server-productionreadiness-ts-4763c179fe) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (8):** [`src/app/portal/dev-team/_ui.tsx`](#file-src-app-portal-dev-team-ui-tsx-65938b8197) · [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d) · [`src/lib/chrome/devTeamLinkPrefetch.ts`](lib.md#file-src-lib-chrome-devteamlinkprefetch-ts-cbcd40fdec) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devTeamAccess.ts`](lib.md#file-src-lib-server-dev-devteamaccess-ts-9e6ff72cf8) · [`src/lib/server/dev/devTeamHomeSnapshot.ts`](lib.md#file-src-lib-server-dev-devteamhomesnapshot-ts-f65da9708d) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -9026,7 +9657,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `default async RoadmapPage({ searchParams }: { searchParams: SearchParams })`
 - `dynamic = "force-dynamic"` — computed from the tasks on the inner one, so the views can never disagree.
 
-**Depends on (11):** [`src/app/portal/dev-team/_ui.tsx`](#file-src-app-portal-dev-team-ui-tsx-65938b8197) · [`src/app/portal/dev-team/roadmap/_RoadmapWorkspace.tsx`](#file-src-app-portal-dev-team-roadmap-roadmapworkspace-tsx-3477cc74cb) · [`src/app/portal/dev-team/tasks/_TasksWorkspace.tsx`](#file-src-app-portal-dev-team-tasks-tasksworkspace-tsx-69ee3b59a7) · [`src/app/portal/dev-team/working/_Board.tsx`](#file-src-app-portal-dev-team-working-board-tsx-21cb96eac2) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devTeamRoadmap.ts`](lib.md#file-src-lib-server-dev-devteamroadmap-ts-5914d96d81) · [`src/lib/server/dev/devTeamTasks.ts`](lib.md#file-src-lib-server-dev-devteamtasks-ts-408828590a) · [`src/lib/server/dev/devTeamThoughts.ts`](lib.md#file-src-lib-server-dev-devteamthoughts-ts-b534e78e87) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (12):** [`src/app/portal/dev-team/_ui.tsx`](#file-src-app-portal-dev-team-ui-tsx-65938b8197) · [`src/app/portal/dev-team/roadmap/_RoadmapWorkspace.tsx`](#file-src-app-portal-dev-team-roadmap-roadmapworkspace-tsx-3477cc74cb) · [`src/app/portal/dev-team/tasks/_TasksWorkspace.tsx`](#file-src-app-portal-dev-team-tasks-tasksworkspace-tsx-69ee3b59a7) · [`src/app/portal/dev-team/working/_Board.tsx`](#file-src-app-portal-dev-team-working-board-tsx-21cb96eac2) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devTeamRoadmap.ts`](lib.md#file-src-lib-server-dev-devteamroadmap-ts-5914d96d81) · [`src/lib/server/dev/devTeamTasks.ts`](lib.md#file-src-lib-server-dev-devteamtasks-ts-408828590a) · [`src/lib/server/dev/devTeamThoughts.ts`](lib.md#file-src-lib-server-dev-devteamthoughts-ts-b534e78e87) · [`src/lib/server/dev/devWorkspaceFiles.ts`](lib.md#file-src-lib-server-dev-devworkspacefiles-ts-f62a900a74) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -9109,7 +9740,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (9):** [`src/app/portal/dev-team/_ui.tsx`](#file-src-app-portal-dev-team-ui-tsx-65938b8197) · [`src/app/portal/dev-team/library/_paths.ts`](#file-src-app-portal-dev-team-library-paths-ts-61a0cba8fa) · [`src/app/portal/dev-team/updates/_UpdateComposer.tsx`](#file-src-app-portal-dev-team-updates-updatecomposer-tsx-d4c709003e) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devTeamUpdates.ts`](lib.md#file-src-lib-server-dev-devteamupdates-ts-e74bad569f) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (1):** [`src/app/portal/dev-team/library/page.tsx`](#file-src-app-portal-dev-team-library-page-tsx-771759ca38)
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 <a id="file-src-app-portal-dev-team-updates-updatecomposer-tsx-d4c709003e"></a>
 
@@ -9202,6 +9833,56 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 
+## `src/app/portal/dev-workspace/[projectId]/`
+
+<a id="file-src-app-portal-dev-workspace-projectid-page-tsx-6c3d928265"></a>
+
+### `src/app/portal/dev-workspace/[projectId]/page.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `default async GovernedDevProjectPage({ params, }: { params: Promise<{ projectId: string }>; })`
+- `dynamic = "force-dynamic"`
+
+**Depends on (7):** [`src/app/portal/dev-workspace/_ProjectAccessRequest.tsx`](#file-src-app-portal-dev-workspace-projectaccessrequest-tsx-72259e05c9) · [`src/components/access/AccessSnapshot.tsx`](components.md#file-src-components-access-accesssnapshot-tsx-33c6c5f1f1) · [`src/engines/editor/DevEditor.tsx`](engines.md#file-src-engines-editor-deveditor-tsx-97606b79ca) · [`src/engines/editor/editing/aquaTagBridge.ts`](engines.md#file-src-engines-editor-editing-aquatagbridge-ts-9c2a901578) · [`src/engines/editor/server/devProjects.ts`](engines.md#file-src-engines-editor-server-devprojects-ts-4c77ac891a) · [`src/engines/editor/server/editorAssistant.ts`](engines.md#file-src-engines-editor-server-editorassistant-ts-482bbeeffa) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
+## `src/app/portal/dev-workspace/`
+
+<a id="file-src-app-portal-dev-workspace-projectaccessrequest-tsx-72259e05c9"></a>
+
+### `src/app/portal/dev-workspace/_ProjectAccessRequest.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `ProjectAccessRequest({ projectId, environment, }: { projectId: string; environment: AccessEnvironment; })`
+
+**Depends on (1):** [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by (1):** [`src/app/portal/dev-workspace/[projectId]/page.tsx`](#file-src-app-portal-dev-workspace-projectid-page-tsx-6c3d928265)
+
+<a id="file-src-app-portal-dev-workspace-page-tsx-b5dd4d43d0"></a>
+
+### `src/app/portal/dev-workspace/page.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `default async DevWorkspacePage()`
+- `dynamic = "force-dynamic"`
+
+**Depends on (2):** [`src/engines/editor/server/devProjects.ts`](engines.md#file-src-engines-editor-server-devprojects-ts-4c77ac891a) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
 ## `src/app/portal/freelancer/`
 
 <a id="file-src-app-portal-freelancer-exitpreview-tsx-48845ab5e1"></a>
@@ -9256,7 +9937,21 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default async FreelancerLayout({ children }: { children: ReactNode })`
 
-**Depends on (8):** [`src/app/portal/freelancer/_ExitPreview.tsx`](#file-src-app-portal-freelancer-exitpreview-tsx-48845ab5e1) · [`src/components/chrome/PortalRouteCanvas.tsx`](components.md#file-src-components-chrome-portalroutecanvas-tsx-0b7aff101e) · [`src/components/chrome/ThemeInjector.tsx`](components.md#file-src-components-chrome-themeinjector-tsx-60b2716099) · [`src/components/ui/ErrorBoundary.tsx`](components.md#file-src-components-ui-errorboundary-tsx-27181f6f14) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (11):** [`src/app/portal/freelancer/_ExitPreview.tsx`](#file-src-app-portal-freelancer-exitpreview-tsx-48845ab5e1) · [`src/components/chrome/PortalRouteCanvas.tsx`](components.md#file-src-components-chrome-portalroutecanvas-tsx-0b7aff101e) · [`src/components/chrome/SafeSandboxEntry.tsx`](components.md#file-src-components-chrome-safesandboxentry-tsx-7e157df10d) · [`src/components/chrome/ThemeInjector.tsx`](components.md#file-src-components-chrome-themeinjector-tsx-60b2716099) · [`src/components/ui/ErrorBoundary.tsx`](components.md#file-src-components-ui-errorboundary-tsx-27181f6f14) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devProjectAccess.ts`](lib.md#file-src-lib-server-dev-devprojectaccess-ts-74c76f5deb) · [`src/lib/server/sandbox/sandboxEnvironment.ts`](lib.md#file-src-lib-server-sandbox-sandboxenvironment-ts-719cbc6a25) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-src-app-portal-freelancer-loading-tsx-57b5cdba88"></a>
+
+### `src/app/portal/freelancer/loading.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `default FreelancerWorkspaceLoading()`
+
+**Depends on (1):** [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -9286,9 +9981,23 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `default async PortalLayout({ children }: { children: ReactNode })`
+- `default PortalLayout({ children }: { children: ReactNode })`
 
-**Depends on (10):** [`src/components/chrome/ClientWorkspaceTransition.tsx`](components.md#file-src-components-chrome-clientworkspacetransition-tsx-c6dec0c3b1) · [`src/components/chrome/CommandCenterTransition.tsx`](components.md#file-src-components-chrome-commandcentertransition-tsx-7a5ebf9aef) · [`src/components/chrome/DevModeLoadIn.tsx`](components.md#file-src-components-chrome-devmodeloadin-tsx-6f2d532159) · [`src/components/chrome/DevModeSwitcher.tsx`](components.md#file-src-components-chrome-devmodeswitcher-tsx-c267d44d77) · [`src/components/chrome/SmartWorkSessionMonitor.tsx`](components.md#file-src-components-chrome-smartworksessionmonitor-tsx-4a1bafbb63) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (16):** [`src/components/chrome/ClientWorkspaceTransition.tsx`](components.md#file-src-components-chrome-clientworkspacetransition-tsx-c6dec0c3b1) · [`src/components/chrome/CommandCenterTransition.tsx`](components.md#file-src-components-chrome-commandcentertransition-tsx-7a5ebf9aef) · [`src/components/chrome/CompanySwitcher.tsx`](components.md#file-src-components-chrome-companyswitcher-tsx-606f77eb01) · [`src/components/chrome/DevModeLoadIn.tsx`](components.md#file-src-components-chrome-devmodeloadin-tsx-6f2d532159) · [`src/components/chrome/DevModeSwitcher.tsx`](components.md#file-src-components-chrome-devmodeswitcher-tsx-c267d44d77) · [`src/components/chrome/SandboxModeSwitcher.tsx`](components.md#file-src-components-chrome-sandboxmodeswitcher-tsx-1ba9f0802a) · [`src/components/chrome/SmartWorkSessionMonitor.tsx`](components.md#file-src-components-chrome-smartworksessionmonitor-tsx-4a1bafbb63) · [`src/components/ui/PortalLoadingCoordinator.tsx`](components.md#file-src-components-ui-portalloadingcoordinator-tsx-ab67a66ae6) · [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/companySwitcherState.ts`](lib.md#file-src-lib-server-auth-companyswitcherstate-ts-df33027a74) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/server/dashboardPlanning.ts`](server.md#file-src-server-dashboardplanning-ts-e7312f445b) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-src-app-portal-loading-tsx-6fac5be192"></a>
+
+### `src/app/portal/loading.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `default PortalLoading()`
+
+**Depends on (1):** [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -9311,7 +10020,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ### `src/app/portal/page.tsx`
 
-**What it is:** /portal/customer.
+**What it is:** end-customer → /portal/customer
 
 **Exports (1):**
 
@@ -9352,7 +10061,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `default async TeamSectionPage({ params, searchParams }: { params: Promise<{ section: string }>; searchParams: Promise<{ date?: string }> })`
 - `dynamic = "force-dynamic"`
 
-**Depends on (6):** [`src/app/portal/team/_TeamWorkspace.tsx`](#file-src-app-portal-team-teamworkspace-tsx-1ac58c6565) · [`src/app/portal/team/_data.ts`](#file-src-app-portal-team-data-ts-90c6feed18) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (8):** [`src/app/portal/team/_TeamWorkspace.tsx`](#file-src-app-portal-team-teamworkspace-tsx-1ac58c6565) · [`src/app/portal/team/_data.ts`](#file-src-app-portal-team-data-ts-90c6feed18) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -9381,9 +10090,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `teamWorkspaceData(agencyId: string, userId: string, date?: string)`
+- `teamWorkspaceData(agencyId: string, userId: string, date?: string, projection?: { workspaceAccess: PeopleWorkspaceAccess[]; includePay: boolean; includeActions: boolean; includeSchedule: boolean; })`
 
-**Depends on (6):** [`src/engines/sop/server/sops.ts`](engines.md#file-src-engines-sop-server-sops-ts-8c9bee0d0c) · [`src/server/company.ts`](server.md#file-src-server-company-ts-c3dc827a65) · [`src/server/dashboardPlanning.ts`](server.md#file-src-server-dashboardplanning-ts-e7312f445b) · [`src/server/notepad.ts`](server.md#file-src-server-notepad-ts-bf33f74a4d) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/tasks.ts`](server.md#file-src-server-tasks-ts-875282c006)
+**Depends on (7):** [`src/engines/sop/server/sops.ts`](engines.md#file-src-engines-sop-server-sops-ts-8c9bee0d0c) · [`src/server/company.ts`](server.md#file-src-server-company-ts-c3dc827a65) · [`src/server/dashboardPlanning.ts`](server.md#file-src-server-dashboardplanning-ts-e7312f445b) · [`src/server/notepad.ts`](server.md#file-src-server-notepad-ts-bf33f74a4d) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/tasks.ts`](server.md#file-src-server-tasks-ts-875282c006) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (2):** [`src/app/portal/team/[section]/page.tsx`](#file-src-app-portal-team-section-page-tsx-098b17a5ad) · [`src/app/portal/team/page.tsx`](#file-src-app-portal-team-page-tsx-4b3d6fd5a8)
 
@@ -9397,7 +10106,21 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default async TeamLayout({ children }: { children: ReactNode })`
 
-**Depends on (11):** [`src/components/chrome/PortalRouteCanvas.tsx`](components.md#file-src-components-chrome-portalroutecanvas-tsx-0b7aff101e) · [`src/components/chrome/Sidebar.tsx`](components.md#file-src-components-chrome-sidebar-tsx-a3b761358c) · [`src/components/chrome/ThemeInjector.tsx`](components.md#file-src-components-chrome-themeinjector-tsx-60b2716099) · [`src/components/chrome/Topbar.tsx`](components.md#file-src-components-chrome-topbar-tsx-9a91269432) · [`src/components/ui/ErrorBoundary.tsx`](components.md#file-src-components-ui-errorboundary-tsx-27181f6f14) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (15):** [`src/components/chrome/PortalRouteCanvas.tsx`](components.md#file-src-components-chrome-portalroutecanvas-tsx-0b7aff101e) · [`src/components/chrome/Sidebar.tsx`](components.md#file-src-components-chrome-sidebar-tsx-a3b761358c) · [`src/components/chrome/ThemeInjector.tsx`](components.md#file-src-components-chrome-themeinjector-tsx-60b2716099) · [`src/components/chrome/Topbar.tsx`](components.md#file-src-components-chrome-topbar-tsx-9a91269432) · [`src/components/ui/ErrorBoundary.tsx`](components.md#file-src-components-ui-errorboundary-tsx-27181f6f14) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/chrome/personalPanels.ts`](lib.md#file-src-lib-server-chrome-personalpanels-ts-7fc4b7fbf2) · [`src/lib/server/dev/devProjectAccess.ts`](lib.md#file-src-lib-server-dev-devprojectaccess-ts-74c76f5deb) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-src-app-portal-team-loading-tsx-9a4d225d98"></a>
+
+### `src/app/portal/team/loading.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `default TeamWorkspaceLoading()`
+
+**Depends on (1):** [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -9412,7 +10135,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `default async TeamPage({ searchParams }: { searchParams: Promise<{ date?: string }> })`
 - `dynamic = "force-dynamic"`
 
-**Depends on (4):** [`src/app/portal/team/_TeamWorkspace.tsx`](#file-src-app-portal-team-teamworkspace-tsx-1ac58c6565) · [`src/app/portal/team/_data.ts`](#file-src-app-portal-team-data-ts-90c6feed18) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (7):** [`src/app/portal/team/_TeamWorkspace.tsx`](#file-src-app-portal-team-teamworkspace-tsx-1ac58c6565) · [`src/app/portal/team/_data.ts`](#file-src-app-portal-team-data-ts-90c6feed18) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -9474,7 +10197,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default async SetupPage()` — A customer's first minutes with Aqua. They arrive from a setup email, signed in by the link and holding no password of their own. Three things have to happen before they are reall…
 
-**Depends on (5):** [`src/app/setup/_CustomerSetup.tsx`](#file-src-app-setup-customersetup-tsx-3e970c3b63) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (6):** [`src/app/setup/_CustomerSetup.tsx`](#file-src-app-setup-customersetup-tsx-3e970c3b63) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 

@@ -8,6 +8,7 @@ import { useState } from "react";
 import { Search } from "lucide-react";
 import type { Block } from "../../types/block";
 import { listBlockDefinitions, type BlockDefinition } from "../blockRegistry";
+import { blockBackendGap } from "../../lib/blockBackends";
 
 const CATEGORIES: Array<{ id: BlockDefinition["category"]; label: string }> = [
   { id: "layout",   label: "Layout" },
@@ -93,22 +94,45 @@ function BlockLibrary({ onAdd }: { onAdd: (type: BlockDefinition["type"]) => voi
           <div key={cat.id}>
             <p className="text-[10px] tracking-[0.2em] uppercase text-brand-cream/40 mb-1.5 px-1">{cat.label}</p>
             <div className="grid grid-cols-2 gap-1.5">
-              {items.map(d => (
-                <button
-                  key={d.type}
-                  draggable
-                  data-touch-drag-payload={JSON.stringify({ type: "x-block-type", value: d.type })}
-                  onDragStart={e => {
-                    e.dataTransfer.setData("application/x-block-type", d.type);
-                    e.dataTransfer.effectAllowed = "copy";
-                  }}
-                  onClick={() => onAdd(d.type)}
-                  className="flex flex-col items-center gap-1 px-2 py-2.5 rounded-lg border border-white/8 bg-white/[0.02] hover:bg-white/[0.06] hover:border-brand-orange/40 transition-colors text-center cursor-grab active:cursor-grabbing touch-none"
-                >
-                  <span className="text-base leading-none">{d.icon}</span>
-                  <span className="text-[10px] text-brand-cream/75 leading-tight">{d.label}</span>
-                </button>
-              ))}
+              {items.map(d => {
+                // A block whose backend a visitor cannot reach is still SHOWN —
+                // hiding it would just make somebody ask where the contact form
+                // went — but it cannot be added, and it says why. See
+                // `lib/blockBackends.ts`: publishing one of these puts a form in
+                // front of a client's customers that always fails.
+                const gap = blockBackendGap(d.type);
+                if (gap) {
+                  return (
+                    <div
+                      key={d.type}
+                      title={gap.reason}
+                      aria-disabled="true"
+                      className="flex flex-col items-center gap-1 rounded-lg border border-dashed border-white/12 bg-white/[0.01] px-2 py-2.5 text-center opacity-45"
+                    >
+                      <span className="text-base leading-none" aria-hidden>{d.icon}</span>
+                      <span className="text-[10px] leading-tight text-brand-cream/60">{d.label}</span>
+                      <span className="text-[9px] leading-tight text-brand-orange/70">Not connected yet</span>
+                      <span className="sr-only">{d.label} cannot be added: {gap.reason}</span>
+                    </div>
+                  );
+                }
+                return (
+                  <button
+                    key={d.type}
+                    draggable
+                    data-touch-drag-payload={JSON.stringify({ type: "x-block-type", value: d.type })}
+                    onDragStart={e => {
+                      e.dataTransfer.setData("application/x-block-type", d.type);
+                      e.dataTransfer.effectAllowed = "copy";
+                    }}
+                    onClick={() => onAdd(d.type)}
+                    className="flex flex-col items-center gap-1 px-2 py-2.5 rounded-lg border border-white/8 bg-white/[0.02] hover:bg-white/[0.06] hover:border-brand-orange/40 transition-colors text-center cursor-grab active:cursor-grabbing touch-none"
+                  >
+                    <span className="text-base leading-none">{d.icon}</span>
+                    <span className="text-[10px] text-brand-cream/75 leading-tight">{d.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         );

@@ -13,6 +13,17 @@ import type {
   UpdateContactPatch,
   UpdateSegmentPatch,
 } from "../lib/domain";
+import type {
+  CreateAutomationInput,
+  CreateCardInput,
+  CreatePipelineInput,
+  MoveCardInput,
+  StageKind,
+  StageTone,
+  UpdateAutomationPatch,
+  UpdateCardPatch,
+  UpdatePipelinePatch,
+} from "../lib/journey";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -255,4 +266,281 @@ export async function meUpdateProfileHandler(req: Request, ctx: PluginCtx): Prom
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// JOURNEY PIPELINES — the client's own kanban, and the rules behind it
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Added 28 August 2026. Ed: *"give them a kanban board as well so that they
+// can create their own journey pipelines and move contacts about and set
+// automations"*.
+//
+// Everything below sits behind the `journey-pipelines` feature flag, which is
+// what makes this an add-on rather than a fixture: switch the feature off on
+// the install and every route here answers 404 — the same answer as a client
+// who never had it, rather than a 403 that admits the feature exists and
+// invites a support ticket.
+
+/**
+ * Is the add-on switched on for this client?
+ *
+ * ── The semantics are not a free choice ──────────────────────────────────
+ *
+ * Two places in the host already answer this question for every plugin, and
+ * both read it the same way — an ABSENT key means OFF:
+ *
+ *   `app/api/portal/[module]/[...rest]/route.ts:111`
+ *     `if (route.requiresFeature && !install.features[route.requiresFeature])`
+ *   `lib/chrome/sidebarLayout.ts:179`
+ *     `if (!install?.features[navItem.requiresFeature]) continue;`
+ *
+ * The first draft of this helper used `!== false`, so a missing key meant ON.
+ * That would have produced the worst possible split: the nav link hidden and
+ * the API refusing, while this page happily rendered a board the client was
+ * not supposed to have. Matching the host exactly is the point — one answer,
+ * three enforcement sites.
+ *
+ * It also happens to be the right product behaviour. This is a paid add-on,
+ * like the editor: a client who installed the CRM before today does not
+ * silently acquire it, they are switched on deliberately.
+ */
+export function journeyEnabled(ctx: { install?: { features?: Record<string, boolean> } }): boolean {
+  return Boolean(ctx.install?.features?.["journey-pipelines"]);
+}
+
+function requireJourney(ctx: PluginCtx): Response | null {
+  return journeyEnabled(ctx) ? null : notFound("journey_pipelines_not_enabled");
+}
+
+// ─── Pipelines ───────────────────────────────────────────────────────────
+
+export async function listPipelinesHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const guard = methodGuard(req, "GET") ?? requireJourney(ctx);
+  if (guard) return guard;
+  return json({ ok: true, pipelines: await buildContainer(ctx).pipelines.list() });
+}
+
+/**
+ * The board, joined server-side.
+ *
+ * `pipelineId` is optional: with none, the client's default board is drawn.
+ * That is what makes "Pipelines" a working nav link rather than a chooser
+ * screen standing in front of the thing they wanted.
+ */
+export async function boardHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const guard = methodGuard(req, "GET") ?? requireJourney(ctx);
+  if (guard) return guard;
+  const container = buildContainer(ctx);
+  const requested = new URL(req.url).searchParams.get("pipelineId");
+  const pipeline = requested
+    ? await container.pipelines.get(requested)
+    : await container.pipelines.getDefault();
+  if (!pipeline) return notFound("pipeline_not_found");
+
+  // Contacts are read once and handed to the projection — the board needs them
+  // for names, and the browser needs the same list to offer "add a contact".
+  const contacts = await container.contacts.list();
+  const [board, automations] = await Promise.all([
+    container.pipelines.buildBoard(pipeline.id, contacts),
+    container.automations.list(pipeline.id),
+  ]);
+  return json({ ok: true, board, automations });
+}
+
+export async function createPipelineHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const guard = methodGuard(req, "POST") ?? requireJourney(ctx);
+  if (guard) return guard;
+  const body = await safeJson<CreatePipelineInput>(req);
+  if (!body?.name) return badRequest("name required.");
+  try {
+    return json({ ok: true, pipeline: await buildContainer(ctx).pipelines.create(body, ctx.actor) }, 201);
+  } catch (err) {
+    return unprocessable(err instanceof Error ? err.message : String(err));
+  }
+}
+
+export async function updatePipelineHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const guard = methodGuard(req, "PATCH") ?? requireJourney(ctx);
+  if (guard) return guard;
+  const body = await safeJson<{ id: string; patch: UpdatePipelinePatch }>(req);
+  if (!body?.id) return badRequest("id required.");
+  try {
+    const pipeline = await buildContainer(ctx).pipelines.update(body.id, body.patch ?? {}, ctx.actor);
+    return pipeline ? json({ ok: true, pipeline }) : notFound("pipeline_not_found");
+  } catch (err) {
+    return unprocessable(err instanceof Error ? err.message : String(err));
+  }
+}
+
+export async function deletePipelineHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const guard = methodGuard(req, "DELETE") ?? requireJourney(ctx);
+  if (guard) return guard;
+  const id = new URL(req.url).searchParams.get("id");
+  if (!id) return badRequest("id required.");
+  const container = buildContainer(ctx);
+  // Rules first. A rule outliving its pipeline is unreachable and un-deletable
+  // through the UI, because every automation screen is reached through a board.
+  await container.automations.deleteForPipeline(id, ctx.actor);
+  const deleted = await container.pipelines.delete(id, ctx.actor);
+  return deleted ? json({ ok: true }) : notFound("pipeline_not_found");
+}
+
+// ─── Stages ──────────────────────────────────────────────────────────────
+
+export async function addStageHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const guard = methodGuard(req, "POST") ?? requireJourney(ctx);
+  if (guard) return guard;
+  const body = await safeJson<{ pipelineId: string; name: string; kind?: StageKind; tone?: StageTone; idleAfterDays?: number }>(req);
+  if (!body?.pipelineId || !body.name) return badRequest("pipelineId and name required.");
+  try {
+    const pipeline = await buildContainer(ctx).pipelines.addStage(body.pipelineId, body, ctx.actor);
+    return pipeline ? json({ ok: true, pipeline }, 201) : notFound("pipeline_not_found");
+  } catch (err) {
+    return unprocessable(err instanceof Error ? err.message : String(err));
+  }
+}
+
+export async function updateStageHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const guard = methodGuard(req, "PATCH") ?? requireJourney(ctx);
+  if (guard) return guard;
+  const body = await safeJson<{
+    pipelineId: string; stageId: string;
+    patch: { name?: string; kind?: StageKind; tone?: StageTone; idleAfterDays?: number | null };
+  }>(req);
+  if (!body?.pipelineId || !body.stageId) return badRequest("pipelineId and stageId required.");
+  try {
+    const pipeline = await buildContainer(ctx).pipelines.updateStage(body.pipelineId, body.stageId, body.patch ?? {}, ctx.actor);
+    return pipeline ? json({ ok: true, pipeline }) : notFound("stage_not_found");
+  } catch (err) {
+    return unprocessable(err instanceof Error ? err.message : String(err));
+  }
+}
+
+/**
+ * Remove a column.
+ *
+ * A stage holding cards refuses with `stage_not_empty:<n>` unless the caller
+ * names where they go. The count travels in the error because the UI's next
+ * question is always "how many am I about to move?".
+ */
+export async function deleteStageHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const guard = methodGuard(req, "DELETE") ?? requireJourney(ctx);
+  if (guard) return guard;
+  const url = new URL(req.url);
+  const pipelineId = url.searchParams.get("pipelineId");
+  const stageId = url.searchParams.get("stageId");
+  if (!pipelineId || !stageId) return badRequest("pipelineId and stageId required.");
+  const result = await buildContainer(ctx).pipelines.deleteStage(
+    pipelineId, stageId, ctx.actor, url.searchParams.get("moveCardsTo") ?? undefined,
+  );
+  return result.ok ? json({ ok: true, pipeline: result.pipeline }) : unprocessable(result.error);
+}
+
+export async function reorderStagesHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const guard = methodGuard(req, "POST") ?? requireJourney(ctx);
+  if (guard) return guard;
+  const body = await safeJson<{ pipelineId: string; stageIds: string[] }>(req);
+  if (!body?.pipelineId || !Array.isArray(body.stageIds)) return badRequest("pipelineId and stageIds required.");
+  const pipeline = await buildContainer(ctx).pipelines.reorderStages(body.pipelineId, body.stageIds, ctx.actor);
+  return pipeline ? json({ ok: true, pipeline }) : notFound("pipeline_not_found");
+}
+
+// ─── Cards ───────────────────────────────────────────────────────────────
+
+export async function createCardHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const guard = methodGuard(req, "POST") ?? requireJourney(ctx);
+  if (guard) return guard;
+  const body = await safeJson<CreateCardInput>(req);
+  if (!body?.pipelineId || !body.contactId) return badRequest("pipelineId and contactId required.");
+  const container = buildContainer(ctx);
+  try {
+    const { card, transition } = await container.pipelines.createCard(body, ctx.actor);
+    // Landing on the board is itself a transition, so `card-created` and
+    // `card-entered-stage` both get their chance here. Running them anywhere
+    // else would mean a card added from the Inbox skips its own rules.
+    const automations = await container.automations.runForTransition(transition, ctx.actor);
+    return json({ ok: true, card, automations }, 201);
+  } catch (err) {
+    return unprocessable(err instanceof Error ? err.message : String(err));
+  }
+}
+
+export async function moveCardHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const guard = methodGuard(req, "POST") ?? requireJourney(ctx);
+  if (guard) return guard;
+  const body = await safeJson<MoveCardInput>(req);
+  if (!body?.cardId || !body.toStageId) return badRequest("cardId and toStageId required.");
+  const container = buildContainer(ctx);
+  const transition = await container.pipelines.moveCard(body.cardId, body.toStageId, body.toPosition, ctx.actor);
+  if (!transition) return notFound("card_not_found");
+  const automations = await container.automations.runForTransition(transition, ctx.actor);
+  // The board is returned with the move so the browser renders the RESULT of
+  // the automations, not the position it optimistically drew. A rule that
+  // moves the card on again would otherwise leave the UI a step behind.
+  const board = await container.pipelines.buildBoard(transition.card.pipelineId, await container.contacts.list());
+  return json({ ok: true, board, automations });
+}
+
+export async function updateCardHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const guard = methodGuard(req, "PATCH") ?? requireJourney(ctx);
+  if (guard) return guard;
+  const body = await safeJson<{ cardId: string; patch: UpdateCardPatch }>(req);
+  if (!body?.cardId) return badRequest("cardId required.");
+  const card = await buildContainer(ctx).pipelines.updateCard(body.cardId, body.patch ?? {}, ctx.actor);
+  return card ? json({ ok: true, card }) : notFound("card_not_found");
+}
+
+export async function deleteCardHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const guard = methodGuard(req, "DELETE") ?? requireJourney(ctx);
+  if (guard) return guard;
+  const cardId = new URL(req.url).searchParams.get("cardId");
+  if (!cardId) return badRequest("cardId required.");
+  const deleted = await buildContainer(ctx).pipelines.deleteCard(cardId, ctx.actor);
+  return deleted ? json({ ok: true }) : notFound("card_not_found");
+}
+
+// ─── Automations ─────────────────────────────────────────────────────────
+
+export async function listAutomationsHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const guard = methodGuard(req, "GET") ?? requireJourney(ctx);
+  if (guard) return guard;
+  const pipelineId = new URL(req.url).searchParams.get("pipelineId") ?? undefined;
+  return json({ ok: true, automations: await buildContainer(ctx).automations.list(pipelineId) });
+}
+
+export async function createAutomationHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const guard = methodGuard(req, "POST") ?? requireJourney(ctx);
+  if (guard) return guard;
+  const body = await safeJson<CreateAutomationInput>(req);
+  if (!body?.pipelineId || !body.name || !body.trigger || !Array.isArray(body.actions)) {
+    return badRequest("pipelineId, name, trigger and actions required.");
+  }
+  try {
+    return json({ ok: true, automation: await buildContainer(ctx).automations.create(body, ctx.actor) }, 201);
+  } catch (err) {
+    return unprocessable(err instanceof Error ? err.message : String(err));
+  }
+}
+
+export async function updateAutomationHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const guard = methodGuard(req, "PATCH") ?? requireJourney(ctx);
+  if (guard) return guard;
+  const body = await safeJson<{ id: string; patch: UpdateAutomationPatch }>(req);
+  if (!body?.id) return badRequest("id required.");
+  try {
+    const automation = await buildContainer(ctx).automations.update(body.id, body.patch ?? {}, ctx.actor);
+    return automation ? json({ ok: true, automation }) : notFound("automation_not_found");
+  } catch (err) {
+    return unprocessable(err instanceof Error ? err.message : String(err));
+  }
+}
+
+export async function deleteAutomationHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const guard = methodGuard(req, "DELETE") ?? requireJourney(ctx);
+  if (guard) return guard;
+  const id = new URL(req.url).searchParams.get("id");
+  if (!id) return badRequest("id required.");
+  const deleted = await buildContainer(ctx).automations.delete(id, ctx.actor);
+  return deleted ? json({ ok: true }) : notFound("automation_not_found");
 }

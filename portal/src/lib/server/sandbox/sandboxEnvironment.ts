@@ -136,7 +136,19 @@ async function liveIdentityFor(session: SessionPayload): Promise<LiveIdentity> {
     return {
       user,
       agency,
-      returnWasDemo: session.sandbox?.returnWasDemo ?? session.isDemo === true,
+      // A SANDBOX session is always `isDemo: true`, so the old
+      // `session.sandbox?.returnWasDemo ?? session.isDemo === true` fell
+      // through to that on exit whenever the envelope's flag was absent — and
+      // `mintSandboxSession` stores `false` AS absent (`|| undefined`). The
+      // result: entering from a live workspace and exiting handed the operator
+      // a session still flagged demo. That is not cosmetic — the chrome shows
+      // the demo banner from it, and `getSession()` skips the Supabase identity
+      // cross-check for a demo session. With an envelope present it is the
+      // authority; the plain `isDemo` reading is only for legacy cookies that
+      // have no envelope at all.
+      returnWasDemo: session.sandbox
+        ? session.sandbox.returnWasDemo === true
+        : session.isDemo === true,
       returnAal: session.sandbox?.returnAal ?? session.aal,
     };
   });

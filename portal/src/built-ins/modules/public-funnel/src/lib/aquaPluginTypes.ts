@@ -5,9 +5,19 @@ import type { ComponentType, ReactNode } from "react";
 import type { AgencyId, ClientId, PluginInstall, UserId } from "./tenancy";
 
 export type PluginCategory =
-  | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "growth";
+  | "core"
+  | "content"
+  | "commerce"
+  | "marketing"
+  | "support"
+  | "ops"
+  | "fulfillment"
+  | "growth";
 export type PluginStatus = "stable" | "beta" | "alpha";
-export type ScopePolicy = "agency" | "client" | "either";
+// Renamed from `ScopePolicy` 2026-08-28 to match the canonical name in
+// src/built-ins/runtime/_types.ts. Ten copies used the short name, one used
+// the canonical — and the majority was the divergent side.
+export type PluginScopePolicy = "agency" | "client" | "either";
 
 export interface PluginCtx {
   agencyId: AgencyId;
@@ -61,7 +71,6 @@ export interface SetupField {
   helpText?: string;
 }
 
-export interface NavGroup { id: string; label: string; order?: number; }
 export type PluginRoleVisibility =
   | "agency-owner" | "agency-manager" | "agency-staff"
   | "client-owner" | "client-staff" | "freelancer" | "end-customer"
@@ -161,7 +170,7 @@ export interface AquaPlugin {
   description: string;
   icon?: ReactNode;
   core?: boolean;
-  scopePolicy?: ScopePolicy;
+  scopePolicy?: PluginScopePolicy;
   requires?: string[];
   conflicts?: string[];
   onInstall?: (ctx: PluginCtx, setupAnswers: Record<string, string>) => Promise<void>;
@@ -177,7 +186,6 @@ export interface AquaPlugin {
   onDisable?: (ctx: PluginCtx) => Promise<void>;
   onConfigure?: (ctx: PluginCtx) => Promise<void>;
   setup?: SetupStep[];
-  navGroup?: NavGroup;
   navItems: NavItem[];
   pages: PluginPage[];
   api: PluginApiRoute[];

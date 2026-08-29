@@ -25,6 +25,18 @@ const CLIENT_ID = "client_refund_ledger";
 const ACTOR = "owner";
 const NOW = Date.UTC(2026, 7, 26, 12);
 
+// The end of every reporting window below must cover BOTH the fixed timestamps
+// this file stamps on provider events AND the wall clock.
+//
+// A Stripe refund object that carries no `created` is stamped by the product
+// with `now()` — correct in production, where any window ending "now" contains
+// it. This file used `NOW + 1` as its window end, so those wall-clock rows fell
+// outside it and the refund arithmetic under-counted. It passed every day up to
+// 2026-08-26 and began failing on the 27th: a fixture time-bomb, not a product
+// fault. Take whichever end is later so the window always contains everything
+// the test created.
+const REPORT_END = (): number => Math.max(NOW, Date.now()) + 1;
+
 function memoryWorld() {
   const agency: Agency = { id: AGENCY_ID, name: "Refund Agency", slug: "refund-agency", brand: { primaryColor: "#000" }, status: "active", createdAt: 0, updatedAt: 0 };
   const client: Client = { id: CLIENT_ID, agencyId: AGENCY_ID, name: "Refund Client", slug: "refund-client", brand: { primaryColor: "#000" }, stage: "live", status: "active", createdAt: 0, updatedAt: 0 };
@@ -122,7 +134,7 @@ test("partial, multiple and full cumulative refunds share one net allocation boo
   refunds = await services.payments.listRefundsForPayment(payment.id);
   assert.equal(refunds.reduce((sum, refund) => sum + refund.amountCents, 0), 5_000);
 
-  let accounting = await services.accounting.snapshot({ from: 0, to: NOW + 1, currency: "gbp" });
+  let accounting = await services.accounting.snapshot({ from: 0, to: REPORT_END(), currency: "gbp" });
   assert.equal(accounting.grossCashRevenueCents, 10_000);
   assert.equal(accounting.refundCents, 5_000);
   assert.equal(accounting.cashRevenueCents, 5_000);
@@ -135,9 +147,9 @@ test("partial, multiple and full cumulative refunds share one net allocation boo
     data: { object: { payment_intent: payment.externalRef, amount_refunded: 10_000 } },
   });
   assert.equal((await services.invoices.get(invoice.id))?.status, "refunded");
-  accounting = await services.accounting.snapshot({ from: 0, to: NOW + 1, currency: "gbp" });
-  const report = await services.reports.revenueSnapshot({ from: 0, to: NOW + 1, currency: "gbp" });
-  const pnl = await services.pnl.founderSnapshot(NOW + 1, 30, "gbp");
+  accounting = await services.accounting.snapshot({ from: 0, to: REPORT_END(), currency: "gbp" });
+  const report = await services.reports.revenueSnapshot({ from: 0, to: REPORT_END(), currency: "gbp" });
+  const pnl = await services.pnl.founderSnapshot(REPORT_END(), 30, "gbp");
   assert.equal(accounting.grossCashRevenueCents, 10_000);
   assert.equal(accounting.refundCents, 10_000);
   assert.equal(accounting.cashRevenueCents, 0);
@@ -270,7 +282,7 @@ test("independent processes converge one refund/dispute row and a fresh reload s
     runChild("dispute", { eventId: "evt_process_dispute_a", disputeId: "dp_process", amountCents: 2_000 }),
     runChild("dispute", { eventId: "evt_process_dispute_b", disputeId: "dp_process", amountCents: 2_000 }),
   ]);
-  const snapshot = await runChild<{ invoice: { status: string }; refunds: Array<{ providerId: string; amountCents: number }>; disputes: Array<{ providerId: string }>; accounting: { grossCashRevenueCents: number; refundCents: number; cashRevenueCents: number } }>("snapshot", { invoiceId: seeded.value.invoiceId, now: NOW });
+  const snapshot = await runChild<{ invoice: { status: string }; refunds: Array<{ providerId: string; amountCents: number }>; disputes: Array<{ providerId: string }>; accounting: { grossCashRevenueCents: number; refundCents: number; cashRevenueCents: number } }>("snapshot", { invoiceId: seeded.value.invoiceId, now: REPORT_END() });
   assert.equal(snapshot.ok, true);
   assert.equal(snapshot.value?.invoice.status, "partially-refunded");
   assert.deepEqual(snapshot.value?.refunds.map(row => [row.providerId, row.amountCents]), [["re_process", 3_000]]);

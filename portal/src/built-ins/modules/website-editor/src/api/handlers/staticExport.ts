@@ -7,6 +7,7 @@
 import type { PluginCtx } from "../../lib/aquaPluginTypes";
 import { fail, readQuery, requireClientScope } from "../helpers";
 import { exportSiteToZip } from "../../server/staticExport";
+import { clientSupabaseExportTarget } from "@/lib/server/clientForms/clientSupabaseExport";
 import type { AgencyId, ClientId, BrandKit } from "../../lib/tenancy";
 
 export async function handleExportSite(req: Request, ctx: PluginCtx): Promise<Response> {
@@ -18,6 +19,14 @@ export async function handleExportSite(req: Request, ctx: PluginCtx): Promise<Re
   const baseUrl = q.baseUrl ?? `https://${q.siteId}.example`;
   const brandKit = (ctx as unknown as { brand?: BrandKit }).brand;
 
+  // The client's own Supabase, if they have one connected. Absent is fine and
+  // is not an error: the export then renders forms that say they are not
+  // connected rather than a Send button that throws the message away.
+  //
+  // Only the PUBLIC half is read — project URL, anon key and table. The webhook
+  // secret is deliberately not passed anywhere near a downloadable bundle.
+  const supabase = clientSupabaseExportTarget(scope.clientId as string);
+
   const result = await exportSiteToZip({
     storage: ctx.storage,
     agencyId: scope.agencyId as AgencyId,
@@ -25,6 +34,7 @@ export async function handleExportSite(req: Request, ctx: PluginCtx): Promise<Re
     siteId: q.siteId,
     baseUrl,
     brandKit,
+    supabase,
   });
 
   const filename = `${q.siteId}-export-${new Date().toISOString().slice(0, 10)}.zip`;

@@ -276,6 +276,16 @@ describe("dev team auditor — readiness sees vault-connected providers", () => 
 });
 
 describe("dev team — every section body re-asserts the founder gate", () => {
+  it("the two founder-gate names are one decision, so a section may use either", async () => {
+    // This is what makes the `dev(Docs|Team)Accessible` alternation above safe.
+    const docs = await read("src/lib/server/dev/devDocs.ts");
+    assert.match(
+      docs,
+      /export function devDocsAccessible\(session: SessionPayload \| null \| undefined\): boolean \{\s*\n\s*return devTeamAccessible\(session\);\s*\n\}/,
+      "devDocsAccessible no longer simply delegates to devTeamAccessible — the section gate check above now permits two DIFFERENT decisions",
+    );
+  });
+
   it("gates each _Section.tsx itself, not just the layout", async () => {
     const dir = new URL("../src/app/portal/dev-team/", import.meta.url);
     const sections = readdirSync(dir, { withFileTypes: true })
@@ -296,7 +306,17 @@ describe("dev team — every section body re-asserts the founder gate", () => {
       // The layout gates too — this is the second layer, and the one that keeps
       // the contract true if a body is ever mounted outside the dev-team layout.
       assert.match(source, /requireRole\(\[\.\.\.AGENCY_ROLES\]\)/, `${rel} must re-assert the role gate`);
-      assert.match(source, /if \(!devDocsAccessible\(session\)\) notFound\(\)/, `${rel} must re-assert the founder gate`);
+      // Either NAME, but provably one GATE. `devDocsAccessible` is now a
+      // one-line delegation to `devTeamAccessible` — the single Dev Team access
+      // decision — so a section calling the canonical name directly is the more
+      // correct form, not a missing gate. Accepting both is only safe because
+      // the delegation is asserted below; if they ever diverge, this loosening
+      // stops being loose and starts being a hole.
+      assert.match(
+        source,
+        /if \(!dev(?:Docs|Team)Accessible\(session\)\) notFound\(\)/,
+        `${rel} must re-assert the founder gate`,
+      );
     }
   });
 });

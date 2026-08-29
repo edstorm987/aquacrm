@@ -29,8 +29,25 @@ describe("editor write path — the guards", () => {
 
   it("is founder + Dev Mode only — stricter than reading", () => {
     // Reading is an agency-role concern; rewriting the repository is not.
-    assert.match(route, /requireRole\(\["agency-owner", "agency-manager"\]\)/);
-    assert.match(route, /devDocsAccessible\(session\)/);
+    //
+    // This used to pin `requireRole(["agency-owner", "agency-manager"])` plus a
+    // `devDocsAccessible(session)` call inline. The route now goes through the
+    // shared `requireWholeWorkingTreeFounderAccess()`, which is STRICTER on both
+    // counts — `agency-manager` is no longer admitted at all, and Dev Mode is an
+    // explicit requirement rather than an implication. The old pin reported that
+    // tightening as a regression, so assert the guarantee and its source.
+    assert.match(route, /await requireWholeWorkingTreeFounderAccess\(\)/,
+      "the write path no longer goes through the whole-working-tree founder gate");
+
+    const gate = readFileSync(join(ROOT, "src", "lib", "server", "dev", "devProjectAccess.ts"), "utf8");
+    const body = gate.slice(gate.indexOf("export async function requireWholeWorkingTreeFounderAccess"));
+    const decl = body.slice(0, body.indexOf("\n}"));
+    assert.match(decl, /actor\.user\.role !== "agency-owner"/, "the owner-only rule left the gate");
+    assert.match(decl, /!devDocsAccessible\(actor\.session\)/, "the founder rule left the gate");
+    assert.match(decl, /!canUseDevMode\(\)/, "Dev Mode is no longer required to rewrite the working tree");
+    assert.match(decl, /throw new AccessControlError\(\s*403/, "the gate stopped refusing");
+    // The tightening itself, stated so a future widening has to argue with it.
+    assert.doesNotMatch(decl, /agency-manager/, "a manager can rewrite the working tree again");
   });
 
   it("checks the request origin, like every other mutating portal route", () => {

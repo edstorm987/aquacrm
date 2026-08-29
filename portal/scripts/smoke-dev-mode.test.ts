@@ -21,7 +21,7 @@ import { POST } from "../src/app/api/auth/dev-mode/route";
 import { POST as previewFreelancerPOST } from "../src/app/api/auth/preview-as-freelancer/route";
 import { createFreelancer, listAgencyFreelancers } from "../src/server/freelancerAdmin";
 import { assertTenantScope, issueSession, verifyToken, SESSION_COOKIE_NAME } from "../src/lib/server/auth/auth";
-import { ensureHydrated } from "../src/server/storage";
+import { ensureHydrated, runInDataRealm } from "../src/server/storage";
 import { createAgency, getAgencyBySlug } from "../src/server/tenants";
 import { createUser, getUser, getUserById } from "../src/server/users";
 import { getPeopleEmployeeByUserId, setPeopleFreelancerJobStatus } from "../src/server/people";
@@ -30,6 +30,30 @@ import {
   submitFreelancerJob, resolveFreelancerAccess, setFreelancerJobOverride, getFreelancerJobOverride, clearFreelancerJobOverride, listFreelancerJobsForConfig,
 } from "../src/server/freelancerWorkspace";
 import { DEMO_OWNER_EMAIL, DEMO_STAFF_EMAIL, DEMO_CUSTOMER_EMAIL, DEMO_FREELANCER_EMAIL, DEMO_AGENCY_SLUG, getDemoSnapshot } from "../src/lib/server/seeds/demoSeed";
+
+// ─── Where the return path lives ─────────────────────────────────────────────
+//
+// Dev Mode's "who and where do I go back to" moved into the signed SANDBOX
+// ENVELOPE in the 26 August consolidation (`session.sandbox.return*`). The
+// top-level `devReturn*` fields still exist and the route still honours them,
+// but only for cookies minted BEFORE that — `enter` and a founder's first
+// `switch` both go through `enterSandboxEnvironment` now, so a fresh session
+// carries the envelope and nothing else.
+//
+// These helpers read the return path from whichever carries it. The guarantee
+// under test was never a field name: it is that an inspection knows the exact
+// person and agency to restore, and that exit clears it. Asserting the shape
+// rather than the storage keeps the legacy compatibility branch covered too.
+type Payload = ReturnType<typeof verifyToken>;
+const returnAgencyOf = (p: Payload): string | undefined =>
+  p?.sandbox?.returnAgencyId ?? p?.devReturnAgencyId;
+const returnUserOf = (p: Payload): string | undefined =>
+  p?.sandbox?.returnUserId ?? p?.devReturnUserId;
+const returnWasDemoOf = (p: Payload): boolean | undefined =>
+  p?.sandbox ? p.sandbox.returnWasDemo : p?.devReturnWasDemo;
+/** True while a session is inside an inspection, by either carrier. */
+const inDevMode = (p: Payload): boolean =>
+  Boolean(p?.sandbox) || Boolean(p?.isDemo && p?.devReturnAgencyId);
 
 process.env.PORTAL_BACKEND ??= "memory";
 
@@ -128,7 +152,7 @@ describe("Dev Mode mint route — behaviour", () => {
       assert.ok(payload);
       assert.equal(payload!.isDemo, true, "demo session");
       assert.equal(payload!.email, DEMO_OWNER_EMAIL, "landed as the demo owner");
-      assert.equal(payload!.devReturnAgencyId, agency.id, "stashes the real agency to return to");
+      assert.equal(returnAgencyOf(payload), agency.id, "stashes the real agency to return to");
       assert.notEqual(payload!.agencyId, agency.id, "scoped to the demo tenant, not the real one");
     });
   });
@@ -147,7 +171,7 @@ describe("Dev Mode mint route — behaviour", () => {
       const payload = verifyToken(realToken);
       assert.ok(payload);
       assert.ok(!payload!.isDemo, "back to a live (non-demo) session");
-      assert.ok(!payload!.devReturnAgencyId, "return marker cleared");
+      assert.ok(!inDevMode(payload), "return marker cleared");
       assert.equal(payload!.agencyId, agency.id, "restored to the real agency");
       assert.equal(payload!.email, owner.email, "restored as the real owner");
     });
@@ -197,7 +221,7 @@ describe("Dev Mode POV switch — behaviour", () => {
       assert.ok(p);
       assert.equal(p!.role, "agency-staff");
       assert.equal(p!.isDemo, true);
-      assert.equal(p!.devReturnAgencyId, agency.id, "return-to-real is carried across the hop");
+      assert.equal(returnAgencyOf(p), agency.id, "return-to-real is carried across the hop");
     });
   });
 
@@ -228,13 +252,17 @@ describe("Dev Mode POV switch — behaviour", () => {
       assert.equal((await res.json() as { redirect?: string }).redirect, "/portal/freelancer", "own workspace, not the agency-side client workspace");
 
       // The workspace resolves only THEIR jobs, with the privacy-first config
-      // DEFAULTS applied (client anonymised, fee shown, read-only).
-      const demoAgency = getAgencyBySlug(DEMO_AGENCY_SLUG);
-      const freelancer = getUser(DEMO_FREELANCER_EMAIL);
-      assert.ok(demoAgency && freelancer);
-      const ws = freelancerWorkspace(demoAgency!.id, freelancer!.id);
-      assert.ok(ws && ws.jobs.length >= 1, "freelancer has their seeded job");
-      const job = ws!.jobs[0]!;
+      // DEFAULTS applied (client anonymised, fee shown, read-only). Read it
+      // through the SANDBOX realm — the demo tenant moved there in the 26 Aug
+      // consolidation, so a bare lookup runs on the live blob and finds nothing.
+      const job = await inDemoRealm(cookieFrom(res)!, () => {
+        const demoAgency = getAgencyBySlug(DEMO_AGENCY_SLUG);
+        const freelancer = getUser(DEMO_FREELANCER_EMAIL);
+        assert.ok(demoAgency && freelancer);
+        const ws = freelancerWorkspace(demoAgency!.id, freelancer!.id);
+        assert.ok(ws && ws.jobs.length >= 1, "freelancer has their seeded job");
+        return ws!.jobs[0]!;
+      });
       assert.equal(job.clientLabel, "Confidential client project", "client anonymised by default (not the real client name)");
       assert.ok(job.feeLabel, "fee visible by default — they're being paid");
       assert.equal(job.can.markSubmitted, false, "read-only by default");
@@ -273,8 +301,8 @@ describe("Dev Mode POV switch — behaviour", () => {
       assert.ok(p);
       assert.equal(p!.role, "agency-staff", "now inspecting the staff persona");
       assert.equal(p!.isDemo, true, "the inspection is fenced to the demo tenant");
-      assert.equal(p!.devReturnAgencyId, agency.id);
-      assert.equal(p!.devReturnUserId, before!.userId, "the exact founder is stashed, so exit returns HIM");
+      assert.equal(returnAgencyOf(p), agency.id);
+      assert.equal(returnUserOf(p), before!.userId, "the exact founder is stashed, so exit returns HIM");
     });
   });
 
@@ -328,6 +356,25 @@ describe("Dev Mode POV switch — behaviour", () => {
   });
 });
 
+/**
+ * Read demo state from the realm Dev Mode actually seeded into.
+ *
+ * Since the 2026-08-26 environment consolidation, Dev Mode enters through
+ * `enterSandboxEnvironment`, so the demo agency and its personas live in a
+ * SANDBOX data realm rather than the live blob. These assertions used to look
+ * in the live realm and therefore stopped seeing anything — the fencing they
+ * check is still real, it simply moved. The realm id is taken from the signed
+ * cookie the app itself minted, so the test cannot drift from the app's choice.
+ */
+async function inDemoRealm<T>(token: string, read: () => T): Promise<T> {
+  const realmId = verifyToken(token)?.sandbox?.realmId;
+  assert.ok(realmId, "an entered Dev Mode session carries its sandbox realm");
+  return runInDataRealm(realmId!, async () => {
+    await ensureHydrated({ preserveExplicitRealm: true });
+    return read();
+  });
+}
+
 describe("Dev Mode — isolation hardening (Phase 4)", () => {
   const DEMO_EMAILS = new Set([DEMO_OWNER_EMAIL, DEMO_STAFF_EMAIL, DEMO_CUSTOMER_EMAIL, DEMO_FREELANCER_EMAIL]);
 
@@ -336,7 +383,7 @@ describe("Dev Mode — isolation hardening (Phase 4)", () => {
     await withDevModeEnabled(async () => {
       const enter = await POST(devModeRequest(token, { action: "enter" }));
       let demo = cookieFrom(enter);
-      const demoAgency = getAgencyBySlug(DEMO_AGENCY_SLUG);
+      const demoAgency = await inDemoRealm(demo!, () => getAgencyBySlug(DEMO_AGENCY_SLUG));
       assert.ok(demoAgency, "the fenced demo agency exists after seeding");
       for (const persona of ["owner", "staff", "customer", "freelancer"] as const) {
         const res = await POST(devModeRequest(demo, { action: "switch", persona }));
@@ -392,13 +439,13 @@ describe("Dev Mode — Commander browser-fix regressions", () => {
     await withDevModeEnabled(async () => {
       const enter = await POST(devModeRequest(devOrigin, { action: "enter" }));
       const demo = verifyToken(cookieFrom(enter));
-      assert.equal(demo!.devReturnWasDemo, true, "origin demo-ness captured at enter");
+      assert.equal(returnWasDemoOf(demo), true, "origin demo-ness captured at enter");
       const exit = await POST(devModeRequest(cookieFrom(enter), { action: "exit" }));
       const back = verifyToken(cookieFrom(exit));
       assert.ok(back);
       assert.equal(back!.isDemo, true, "exit restores an accepted isDemo session");
       assert.equal(back!.email, owner.email, "back as the real founder");
-      assert.ok(!back!.devReturnAgencyId, "no longer a dev-mode session");
+      assert.ok(!inDevMode(back), "no longer a dev-mode session");
     });
   });
 
@@ -406,7 +453,7 @@ describe("Dev Mode — Commander browser-fix regressions", () => {
     const { token } = await seedRealFounder();   // plain non-demo founder
     await withDevModeEnabled(async () => {
       const enter = await POST(devModeRequest(token, { action: "enter" }));
-      assert.ok(!verifyToken(cookieFrom(enter))!.devReturnWasDemo, "non-demo origin recorded as such");
+      assert.ok(!returnWasDemoOf(verifyToken(cookieFrom(enter))), "non-demo origin recorded as such");
       const exit = await POST(devModeRequest(cookieFrom(enter), { action: "exit" }));
       assert.ok(!verifyToken(cookieFrom(exit))!.isDemo, "real founder returns to a non-demo session");
     });
@@ -416,8 +463,8 @@ describe("Dev Mode — Commander browser-fix regressions", () => {
     const { token } = await seedRealFounder();
     await withDevModeEnabled(async () => {
       const enter = await POST(devModeRequest(token, { action: "enter" }));
-      await POST(devModeRequest(cookieFrom(enter), { action: "switch", persona: "customer" }));
-      const snap = getDemoSnapshot();
+      const switched = await POST(devModeRequest(cookieFrom(enter), { action: "switch", persona: "customer" }));
+      const snap = await inDemoRealm(cookieFrom(switched)!, () => getDemoSnapshot());
       assert.ok(snap, "demo tenant seeded");
       assert.ok(snap!.customerUser.welcomeCompletedAt, "demo customer is welcome-complete → lands on /portal/customer, not /setup");
     });
@@ -427,12 +474,19 @@ describe("Dev Mode — Commander browser-fix regressions", () => {
     const { token } = await seedRealFounder();
     await withDevModeEnabled(async () => {
       const enter = await POST(devModeRequest(token, { action: "enter" }));
-      await POST(devModeRequest(cookieFrom(enter), { action: "switch", persona: "staff" }));
-      const staff = getUser(DEMO_STAFF_EMAIL);
-      assert.ok(staff, "demo staff user exists");
-      const demoAgency = getAgencyBySlug(DEMO_AGENCY_SLUG);
-      assert.ok(demoAgency);
-      assert.ok(getPeopleEmployeeByUserId(demoAgency!.id, staff!.id), "demo staff now has a PeopleEmployee");
+      const switched = await POST(devModeRequest(cookieFrom(enter), { action: "switch", persona: "staff" }));
+      const seeded = await inDemoRealm(cookieFrom(switched)!, () => {
+        const staff = getUser(DEMO_STAFF_EMAIL);
+        const demoAgency = getAgencyBySlug(DEMO_AGENCY_SLUG);
+        return {
+          staff,
+          demoAgency,
+          employee: staff && demoAgency ? getPeopleEmployeeByUserId(demoAgency.id, staff.id) : null,
+        };
+      });
+      assert.ok(seeded.staff, "demo staff user exists");
+      assert.ok(seeded.demoAgency);
+      assert.ok(seeded.employee, "demo staff now has a PeopleEmployee");
     });
   });
 
@@ -469,17 +523,21 @@ describe("Freelancer access config (Phase 2 — all configurable)", () => {
   it("the policy actually drives the freelancer view — naming the client de-anonymises it", async () => {
     const { token } = await seedRealFounder();
     await withDevModeEnabled(async () => {
-      await POST(devModeRequest(token, { action: "enter" }));   // seeds demo tenant + freelancer + job
-      const snap = getDemoSnapshot();
-      const freelancer = getUser(DEMO_FREELANCER_EMAIL);
-      assert.ok(snap && freelancer);
-      try {
-        assert.equal(freelancerWorkspace(snap!.agency.id, freelancer!.id)!.jobs[0]!.clientLabel, "Confidential client project", "anonymised by default");
-        saveFreelancerAccessConfig(snap!.agency.id, { clientIdentity: "named" });
-        assert.equal(freelancerWorkspace(snap!.agency.id, freelancer!.id)!.jobs[0]!.clientLabel, snap!.client.name, "policy → real client name");
-      } finally {
-        saveFreelancerAccessConfig(snap!.agency.id, DEFAULT_FREELANCER_ACCESS);  // restore for other tests
-      }
+      const enter = await POST(devModeRequest(token, { action: "enter" }));   // seeds demo tenant + freelancer + job
+      // Demo tenant, freelancer, job AND the config writes all live in the
+      // sandbox realm now — the whole body has to run there, not just the reads.
+      await inDemoRealm(cookieFrom(enter)!, () => {
+        const snap = getDemoSnapshot();
+        const freelancer = getUser(DEMO_FREELANCER_EMAIL);
+        assert.ok(snap && freelancer);
+        try {
+          assert.equal(freelancerWorkspace(snap!.agency.id, freelancer!.id)!.jobs[0]!.clientLabel, "Confidential client project", "anonymised by default");
+          saveFreelancerAccessConfig(snap!.agency.id, { clientIdentity: "named" });
+          assert.equal(freelancerWorkspace(snap!.agency.id, freelancer!.id)!.jobs[0]!.clientLabel, snap!.client.name, "policy → real client name");
+        } finally {
+          saveFreelancerAccessConfig(snap!.agency.id, DEFAULT_FREELANCER_ACCESS);  // restore for other tests
+        }
+      });
     });
   });
 
@@ -501,45 +559,49 @@ describe("Freelancer — mark-submitted action + per-job overrides (P3 + refinem
   it("mark-submitted is gated (ownership · config · active) then moves the job to delivered", async () => {
     const { token } = await seedRealFounder();
     await withDevModeEnabled(async () => {
-      await POST(devModeRequest(token, { action: "enter" }));   // seeds freelancer + an active job
-      const snap = getDemoSnapshot();
-      const freelancer = getUser(DEMO_FREELANCER_EMAIL);
-      assert.ok(snap && freelancer);
-      const jobId = listFreelancerJobsForConfig(snap!.agency.id)[0]!.id;
-      try {
-        assert.deepEqual(submitFreelancerJob(snap!.agency.id, freelancer!.id, jobId), { ok: false, error: "not_allowed" }, "read-only by default");
-        assert.deepEqual(submitFreelancerJob(snap!.agency.id, freelancer!.id, "nope"), { ok: false, error: "not_your_job" });
-        saveFreelancerAccessConfig(snap!.agency.id, { actions: { markSubmitted: true } });
-        assert.deepEqual(submitFreelancerJob(snap!.agency.id, freelancer!.id, jobId), { ok: true });
-        assert.equal(freelancerWorkspace(snap!.agency.id, freelancer!.id)!.jobs[0]!.status, "delivered");
-        assert.deepEqual(submitFreelancerJob(snap!.agency.id, freelancer!.id, jobId), { ok: false, error: "not_active" }, "not submittable twice");
-      } finally {
-        saveFreelancerAccessConfig(snap!.agency.id, DEFAULT_FREELANCER_ACCESS);
-        setPeopleFreelancerJobStatus({ agencyId: snap!.agency.id, jobId, status: "active", actorUserId: "test-reset" });
-      }
+      const enter = await POST(devModeRequest(token, { action: "enter" }));   // seeds freelancer + an active job
+      await inDemoRealm(cookieFrom(enter)!, () => {
+        const snap = getDemoSnapshot();
+        const freelancer = getUser(DEMO_FREELANCER_EMAIL);
+        assert.ok(snap && freelancer);
+        const jobId = listFreelancerJobsForConfig(snap!.agency.id)[0]!.id;
+        try {
+          assert.deepEqual(submitFreelancerJob(snap!.agency.id, freelancer!.id, jobId), { ok: false, error: "not_allowed" }, "read-only by default");
+          assert.deepEqual(submitFreelancerJob(snap!.agency.id, freelancer!.id, "nope"), { ok: false, error: "not_your_job" });
+          saveFreelancerAccessConfig(snap!.agency.id, { actions: { markSubmitted: true } });
+          assert.deepEqual(submitFreelancerJob(snap!.agency.id, freelancer!.id, jobId), { ok: true });
+          assert.equal(freelancerWorkspace(snap!.agency.id, freelancer!.id)!.jobs[0]!.status, "delivered");
+          assert.deepEqual(submitFreelancerJob(snap!.agency.id, freelancer!.id, jobId), { ok: false, error: "not_active" }, "not submittable twice");
+        } finally {
+          saveFreelancerAccessConfig(snap!.agency.id, DEFAULT_FREELANCER_ACCESS);
+          setPeopleFreelancerJobStatus({ agencyId: snap!.agency.id, jobId, status: "active", actorUserId: "test-reset" });
+        }
+      });
     });
   });
 
   it("a per-job override wins over the agency default (and clears back)", async () => {
     const { token } = await seedRealFounder();
     await withDevModeEnabled(async () => {
-      await POST(devModeRequest(token, { action: "enter" }));
-      const snap = getDemoSnapshot();
-      const freelancer = getUser(DEMO_FREELANCER_EMAIL);
-      assert.ok(snap && freelancer);
-      const jobId = listFreelancerJobsForConfig(snap!.agency.id)[0]!.id;
-      try {
-        assert.equal(resolveFreelancerAccess(snap!.agency.id, "e", jobId).clientIdentity, "anonymised", "agency default");
-        setFreelancerJobOverride(jobId, { ...DEFAULT_FREELANCER_ACCESS, clientIdentity: "named" });
-        assert.equal(resolveFreelancerAccess(snap!.agency.id, "e", jobId).clientIdentity, "named", "override wins");
-        assert.equal(freelancerWorkspace(snap!.agency.id, freelancer!.id)!.jobs.find(j => j.id === jobId)!.clientLabel, snap!.client.name, "view reflects the override");
-        assert.ok(getFreelancerJobOverride(jobId));
-        clearFreelancerJobOverride(jobId);
-        assert.equal(getFreelancerJobOverride(jobId), null, "cleared");
-        assert.equal(resolveFreelancerAccess(snap!.agency.id, "e", jobId).clientIdentity, "anonymised", "back to default");
-      } finally {
-        clearFreelancerJobOverride(jobId);
-      }
+      const enter = await POST(devModeRequest(token, { action: "enter" }));
+      await inDemoRealm(cookieFrom(enter)!, () => {
+        const snap = getDemoSnapshot();
+        const freelancer = getUser(DEMO_FREELANCER_EMAIL);
+        assert.ok(snap && freelancer);
+        const jobId = listFreelancerJobsForConfig(snap!.agency.id)[0]!.id;
+        try {
+          assert.equal(resolveFreelancerAccess(snap!.agency.id, "e", jobId).clientIdentity, "anonymised", "agency default");
+          setFreelancerJobOverride(jobId, { ...DEFAULT_FREELANCER_ACCESS, clientIdentity: "named" });
+          assert.equal(resolveFreelancerAccess(snap!.agency.id, "e", jobId).clientIdentity, "named", "override wins");
+          assert.equal(freelancerWorkspace(snap!.agency.id, freelancer!.id)!.jobs.find(j => j.id === jobId)!.clientLabel, snap!.client.name, "view reflects the override");
+          assert.ok(getFreelancerJobOverride(jobId));
+          clearFreelancerJobOverride(jobId);
+          assert.equal(getFreelancerJobOverride(jobId), null, "cleared");
+          assert.equal(resolveFreelancerAccess(snap!.agency.id, "e", jobId).clientIdentity, "anonymised", "back to default");
+        } finally {
+          clearFreelancerJobOverride(jobId);
+        }
+      });
     });
   });
 
@@ -771,7 +833,7 @@ describe("Freelancer management — create + preview (real system)", () => {
     assert.equal(preview!.isDemo, true, "isDemo bypasses the Supabase check for a never-logged-in freelancer");
     assert.equal(preview!.previewReturnAgencyId, agency.id, "stashes the agency to return to");
     assert.ok(!preview!.previewReturnWasDemo, "the real owner wasn't a demo session (falsy — the true case round-trips in the test below)");
-    assert.ok(!preview!.devReturnAgencyId, "NOT a Dev Mode session — the switcher must not show here");
+    assert.ok(!inDevMode(preview), "NOT a Dev Mode session — the switcher must not show here");
 
     // exit — back to the real owner, markers cleared
     const exit = await previewFreelancerPOST(devModeRequest(previewToken, { action: "exit" }));
@@ -898,4 +960,30 @@ describe("Freelancer management — create + preview (real system)", () => {
     assert.match(read("src/server/types.ts"), /previewReturnAgencyId\?: string/);
     assert.match(read("src/lib/server/auth/auth.ts"), /previewReturnAgencyId: input\.previewReturnAgencyId/);
   });
+});
+
+describe("dev mode switcher reachability", () => {
+  it("can always be exited, at any width", () => {
+  // Found in a browser at 320px, as a real customer persona: the switcher is a
+  // fixed-height row with `overflow-hidden`, and at that width the exit button
+  // laid out at x=312..356 while the row ended at 308. It was not merely ugly —
+  // the button was ENTIRELY outside the clipped box, so on a phone you could
+  // enter Dev Mode and had no way back out of the persona.
+  //
+  // `flex-wrap` is what fixes it: the exit wraps onto a second line inside the
+  // rounded box instead of being cut off. `overflow-hidden` has to stay for the
+  // rounded corners, which is precisely why the wrap is load-bearing.
+  for (const file of [
+    "src/components/chrome/DevModeSwitcher.tsx",
+    "src/components/chrome/SandboxModeSwitcher.tsx",
+  ]) {
+    const source = read(file);
+    const root = /mm-dev-mode-switcher inline-flex[^"]*/.exec(source);
+    assert.ok(root, `${file} must still build the switcher root as one class list`);
+    assert.match(root[0], /flex-wrap/, `${file}: the switcher must wrap, or overflow-hidden clips the exit button off-screen`);
+    assert.match(root[0], /max-w-full/, `${file}: the switcher must not exceed its container`);
+    // The guarantee only means anything while the box still clips.
+    assert.match(root[0], /overflow-hidden/, `${file}: if this ever stops clipping, re-check whether the wrap is still needed`);
+  }
+});
 });

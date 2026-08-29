@@ -30,7 +30,7 @@ import { listTradingCompanies } from "@/server/tradingCompanies";
 import type { TradingCompany } from "@/server/types";
 import { containerFor as financeContainerFor } from "@aqua/plugin-agency-finance/server";
 import { containerFor as leadsContainerFor } from "@aqua/plugin-leads-pipeline/server";
-import { ensureAgencyWebsite, readAgencyWebsite, summarizeAgencyWebsite } from "@/server/agencyWebsite";
+import { agencyWebsiteForRead, summarizeAgencyWebsite } from "@/server/agencyWebsite";
 import { FIRST_PARTY_DEVELOPMENT_PROJECTS } from "@/lib/projects/firstPartyDevelopmentProjects";
 import { listInboxConnections } from "@/lib/server/inbox/inboxStore";
 import { metaInboxReadiness } from "@/lib/server/integrations/metaMessaging";
@@ -115,6 +115,17 @@ export default async function MarketingPage({
             <h1 className="mt-2 text-3xl font-semibold tracking-tight text-black/90">Marketing workspace</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-black/55">Automate internal demand, follow-up, publishing, handovers, reminders and reporting across the CRM. These controls are never exposed to clients.</p>
             <Link href={marketingHref("pulse", "all")} className="mt-3 inline-flex min-h-9 items-center gap-2 text-xs font-semibold text-brand hover:underline"><ArrowLeft size={14} /> Back to marketing pulse</Link>
+            {automationData.dueRuns > 0 ? (
+              // Opening this page used to RUN these — resuming waiting
+              // automations and executing them, which can send a customer an
+              // email (issue #21). The scheduler owns that now, so a backlog is
+              // reported rather than quietly worked through by whoever looked.
+              <p role="status" className="mt-3 inline-flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">
+                {automationData.dueRuns === 1
+                  ? "1 automation is past its wait and the scheduler has not picked it up."
+                  : `${automationData.dueRuns} automations are past their wait and the scheduler has not picked them up.`}
+              </p>
+            ) : null}
           </div>
           <div className="flex items-center gap-3 rounded-md border border-black/10 bg-black/[0.025] px-4 py-3">
             <span className="grid size-9 shrink-0 place-items-center rounded-md bg-white text-brand shadow-sm"><Workflow size={17} aria-hidden /></span>
@@ -233,7 +244,10 @@ export default async function MarketingPage({
       converted: rows.filter(lead => lead.tags.includes("converted")).length,
     };
   }).sort((a, b) => b.leads - a.leads);
-  const ownWebsite = canManage ? ensureAgencyWebsite(session.agencyId) : readAgencyWebsite(session.agencyId);
+  // One read for everybody: the `canManage` branch existed only to keep a
+  // non-manager from triggering the write, and its other effect was handing
+  // them a null where a manager got an object (issue #21).
+  const ownWebsite = agencyWebsiteForRead(session.agencyId);
   const ownWebsiteSummary = ownWebsite ? summarizeAgencyWebsite(ownWebsite) : null;
   const companyOptions = companies.map(company => ({ id: company.id, name: company.name, slug: company.slug, colour: company.brand.primaryColor }));
   const defaultCompanyIds = selectedCompanyId ? [selectedCompanyId] : [];

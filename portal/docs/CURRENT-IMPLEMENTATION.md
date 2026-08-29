@@ -299,8 +299,20 @@ integration, or navigation contract.
 - A server-owned `aqua-preview.config.json` drives a local/test-only supervised
   loopback preview. The browser cannot supply root, command, arguments, environment,
   port or shell. The mounted browser has completed Start, Restart and Stop; responsive
-  Preview/Code panes switch correctly and `/aqua-tag.js` returned HTTP 200. Repository
-  preparation, authoring/AI/diff/check/PR, failure and dirty-state acceptance remain.
+  Preview/Code panes switch correctly and `/aqua-tag.js` returned HTTP 200.
+- **Repository preparation landed 2026-08-27 (opt-in).** A record carrying
+  `isolatedWorktrees` gives each project its own git worktree on its draft branch
+  `aqua-editor/<projectId>`, created or resumed under
+  `<trusted root>/.aqua-preview-worktrees/`, so an uncommitted edit survives
+  stop/restart and the shared checkout is never mutated. A record may also declare
+  `installCommand`/`installArgs`/`installTimeoutMs`: the supervisor then reports an
+  `installing` state, runs that command in the project's own worktree, streams its
+  output into the operator log, and skips it while the dependency fingerprint
+  (lockfiles + `package.json`) is unchanged. The install command passes the same
+  allowlist as the launch command, and **declaring one without `isolatedWorktrees`
+  is refused** — an install must never rewrite the shared checkout. AquaCRM's own
+  committed manifest therefore declares no install command. Clone-from-remote, and
+  authoring/AI/diff/check/PR, failure and dirty-state browser acceptance, remain.
 
 ### Ecommerce And Storefront Commerce
 

@@ -9,11 +9,12 @@ import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { getInstall } from "@/server/pluginInstalls";
 import { ensureHydrated } from "@/server/storage";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
+import { CUSTOMER_PORTAL_ROLES } from "@/server/types";
 
 export default async function OrdersPage() {
   await ensureHydrated();
   ensureEcommerceFoundationRegistered();
-  const session = await requireRole("end-customer");
+  const session = await requireRole([...CUSTOMER_PORTAL_ROLES]);
   if (!session.clientId) return <OrderNotice title="Account scope missing" detail="Your account is not tied to a client workspace." />;
 
   const install = getInstall({ agencyId: session.agencyId, clientId: session.clientId }, "ecommerce");

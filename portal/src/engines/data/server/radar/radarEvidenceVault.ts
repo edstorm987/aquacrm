@@ -16,14 +16,83 @@ import type {
 import type { RadarObservation } from "@/engines/data/radar/radarCheckEngine";
 import { resolveRadarPolicy } from "@/engines/data/radar/radarPolicyEngine";
 import { getState, mutate } from "@/server/storage";
-import type { RadarEvidencePoint, RadarEvidenceSeries, RadarEvidenceState, RadarPolicyConfiguration } from "@/server/types";
+import type { RadarEvidenceHourlyRollup, RadarEvidencePoint, RadarEvidenceSeries, RadarEvidenceState, RadarPolicyConfiguration } from "@/server/types";
 
 const MINUTE = 60_000;
 const HOUR = 3_600_000;
 const DAY = 86_400_000;
 const FIVE_MINUTES = 5 * MINUTE;
+// ── Retention: how much Radar keeps, and why ─────────────────────────────
+//
+// Ed, 2026-08-29: *"with the radar we dont want to completely clog the database
+// with it so we need to be smart about how much we keep where and when … but
+// making this very efficient while retaining all info we need."*
+//
+// ── The bug the measurement found ────────────────────────────────────────
+//
+// Retention was expressed as COUNTS: 288 points and 720 hourly buckets. Those
+// are the right numbers for a FIVE-MINUTE probe cadence — 24 hours of raw and
+// 30 days of hourly. The cadence later became daily (issues #170), and the
+// numbers stayed. So they silently came to mean **288 days of raw samples** and
+// **about two years of hourly buckets**: roughly thirty times the intended
+// history, in a state document rewritten in full on every save.
+//
+// Measured on 2026-08-29, before the fix: 150 series, 72 KB — and that is a
+// system with almost nothing in it. At saturation the same shape is ~86 KB per
+// series, so ~13 MB of blob rewritten every time anyone saves anything.
+//
+// ── Why these are now expressed in TIME ──────────────────────────────────
+//
+// A count only means a duration if you also know the cadence, and the cadence
+// is a setting somebody can change. Expressing retention in time is what stops
+// the same silent drift happening the next time it changes: a window of
+// fourteen days is fourteen days whether the probe runs hourly or monthly.
+//
+// The counts survive as pure RUNAWAY GUARDS. If the cadence went back to five
+// minutes, fourteen days of raw would be 4,032 samples per series; the cap
+// holds it at 288 until the time window catches up.
+//
+// ── What each tier is for, and what it costs ─────────────────────────────
+//
+//   raw points  — the fine detail you look at when something just broke.
+//   hourly      — the investigation window: "when did this start?"
+//   daily       — the long trend, and the reason compaction is not a loss.
+//
+// Per series at a daily cadence: 14 raw (~0.8 KB) + 60 hourly (~5.6 KB) +
+// 365 daily (~34 KB) ≈ 41 KB, against ~86 KB before — while carrying a FULL
+// YEAR of trend where the old shape held detail nobody read.
+//
+// ── Where this is heading ────────────────────────────────────────────────
+//
+// This keeps Radar honest inside the state document. It is not the final
+// answer: an append-only time series does not belong in a blob that is
+// rewritten whole on every write, and the right home is its own table with its
+// own retention. That is part of the storage split; until then, these windows
+// are what keep it bounded.
+const DAY_MS = 86_400_000;
+
+/** Full-fidelity samples. Short, because nothing reads raw beyond a fortnight. */
+const RAW_POINT_RETENTION_MS = 14 * DAY_MS;
+/** Hourly buckets — the "when did this start" window. */
+const HOURLY_RETENTION_MS = 60 * DAY_MS;
+/** Daily buckets — the long trend. One row a day is cheap; a year is ~34 KB. */
+const DAILY_RETENTION_MS = 365 * DAY_MS;
+
+/** Runaway guards. These bound a cadence change until the time windows bite. */
 const RECENT_POINT_LIMIT = 288;
 const HOURLY_ROLLUP_LIMIT = 24 * 30;
+const DAILY_ROLLUP_LIMIT = 400;
+
+/**
+ * Drop buckets older than a window, keeping at most `cap`.
+ *
+ * `now` is passed rather than read, so retention is testable and so a render
+ * cannot get a different answer from a write happening in the same second.
+ */
+function withinWindow<T extends { hour: number }>(rows: T[], windowMs: number, cap: number, now: number): T[] {
+  const cutoff = now - windowMs;
+  return rows.filter(row => row.hour >= cutoff).slice(-cap);
+}
 const DEFAULT_BASELINE_POINTS = 12;
 const DEFAULT_BASELINE_SPAN_MS = 30 * DAY;
 
@@ -127,7 +196,15 @@ export function recordRadarEvidence(agencyId: string, radar: BusinessIssueRadar)
       series.points = previousPoint && Math.floor(previousPoint.at / FIVE_MINUTES) === pointBucket
         ? [...series.points.slice(0, -1), point]
         : [...series.points, point].slice(-RECENT_POINT_LIMIT);
-      series.hourly = updateHourly(series.hourly, point).slice(-HOURLY_ROLLUP_LIMIT);
+      // Age out raw samples by TIME, with the count above as the runaway guard.
+      const rawCutoff = now - RAW_POINT_RETENTION_MS;
+      series.points = series.points.filter(entry => entry.at >= rawCutoff);
+      // Every sample lands in all three tiers on the way in. Compaction is then
+      // only ever a DELETE of what is already summarised above — there is no
+      // separate rollup pass that could fall behind, or fail, and quietly lose
+      // the history it was supposed to be preserving.
+      series.hourly = withinWindow(updateHourly(series.hourly, point), HOURLY_RETENTION_MS, HOURLY_ROLLUP_LIMIT, now);
+      series.daily = withinWindow(updateDaily(series.daily ?? [], point), DAILY_RETENTION_MS, DAILY_ROLLUP_LIMIT, now);
       series.familyLabel = check.familyLabel;
       series.sourceId = check.sourceId;
       series.expectedDirection = check.expectedDirection ?? series.expectedDirection;
@@ -363,6 +440,29 @@ function historicalPoints(series?: RadarEvidenceSeries): RadarEvidencePoint[] {
   }
   for (const point of series.points) byTimestamp.set(point.at, point);
   return [...byTimestamp.values()].sort((a, b) => a.at - b.at).slice(-360);
+}
+
+/**
+ * Fold a sample into the day it belongs to.
+ *
+ * Same shape as `updateHourly` and deliberately so — a daily rollup and an
+ * hourly one answer the same question at different resolutions, and giving
+ * them different shapes would mean every reader had to learn both.
+ */
+function updateDaily(daily: RadarEvidenceHourlyRollup[], point: RadarEvidencePoint): RadarEvidenceHourlyRollup[] {
+  const day = Math.floor(point.at / DAY_MS) * DAY_MS;
+  const existing = daily.at(-1);
+  if (existing?.hour !== day) return [...daily, { hour: day, samples: 1, minimum: point.value, maximum: point.value, average: point.value, last: point.value }];
+  const samples = existing.samples + 1;
+  return [...daily.slice(0, -1), {
+    hour: day,
+    samples,
+    minimum: Math.min(existing.minimum, point.value),
+    maximum: Math.max(existing.maximum, point.value),
+    // Running mean, so a day with 288 samples costs the same as one with 1.
+    average: (existing.average * existing.samples + point.value) / samples,
+    last: point.value,
+  }];
 }
 
 function updateHourly(hourly: RadarEvidenceSeries["hourly"], point: RadarEvidencePoint): RadarEvidenceSeries["hourly"] {

@@ -2,12 +2,21 @@ import "server-only";
 
 import type { BusinessIssueRadar, BusinessRadarIssue, RadarMemoryDigest, RadarMemoryPoint } from "@/engines/data/radar/businessRadar";
 import { getState, mutate } from "@/server/storage";
-import type { RadarMemoryState } from "@/server/types";
+import type { RadarMemoryState, RadarMemoryScan } from "@/server/types";
 
 const MINUTE = 60_000;
 const HOUR = 3_600_000;
 const DAY = 86_400_000;
 const RECENT_SCAN_LIMIT = 180;
+/**
+ * How many scans keep their detail.
+ *
+ * Only `scans.at(-1)` is read today, so one would do. Five leaves room to look
+ * back a few sweeps when something has just broken, and means a reader that
+ * changes to `at(-2)` does not silently start comparing against a compacted
+ * scan. Every one beyond this keeps its summary and loses ~6.8 KB of arrays.
+ */
+const DETAILED_SCAN_LIMIT = 5;
 const HOURLY_ROLLUP_LIMIT = 24 * 30;
 const RECOVERY_RETENTION_MS = 90 * DAY;
 
@@ -22,9 +31,13 @@ export function buildRadarMemoryDigest(
   const memory = getState().radarMemory?.[agencyId];
   const previous = memory?.scans.at(-1);
   const currentIssues = new Map(radar.issues.filter(issue => !issue.id.startsWith("memory:")).map(issue => [issue.id, issue]));
-  const previousIssues = new Map(previous?.issueStates.map(issue => [issue.id, issue]) ?? []);
+  // The detail is retained only on the newest few scans, so it can be absent —
+  // and absent means "not retained", NOT "there were none". `previous` is
+  // `scans.at(-1)`, which always has it; this is defensive so a future reader
+  // reaching further back cannot silently read a compacted scan as a clean one.
+  const previousIssues = new Map((previous?.issueStates ?? []).map(issue => [issue.id, issue]));
   const currentAttention = new Set(radar.checks.filter(check => check.status === "critical" || check.status === "warning" || check.status === "blind").map(check => check.id));
-  const previousAttention = new Set(previous ? [...previous.attentionCheckIds, ...previous.blindCheckIds] : []);
+  const previousAttention = new Set(previous ? [...(previous.attentionCheckIds ?? []), ...(previous.blindCheckIds ?? [])] : []);
   const newIssues = previous ? [...currentIssues.keys()].filter(id => !previousIssues.has(id)).length : 0;
   const worseningIssues = previous ? [...currentIssues].filter(([id, issue]) => {
     const prior = previousIssues.get(id);
@@ -150,7 +163,15 @@ export function recordRadarSweep(
       blindCheckIds: radar.checks.filter(check => check.status === "blind").map(check => check.id),
       sourceStates: radar.coverage.map(source => ({ id: source.id, status: source.status, recordCount: source.recordCount })),
     };
-    memory.scans = [...memory.scans, scan].slice(-RECENT_SCAN_LIMIT);
+    // Keep the full detail on the newest few scans and the summary on the rest.
+    // Measured 2026-08-29: 473 KB across 68 scans, ~7 KB each, almost all of it
+    // in the four detail arrays — and only `scans.at(-1)` is ever read. So the
+    // trend (assurance, counts, timing) survives at ~200 bytes a scan while the
+    // bulk goes. Compacted scans lose the fields entirely rather than emptying
+    // them, because `[]` would read as "nothing was firing".
+    memory.scans = [...memory.scans, scan]
+      .slice(-RECENT_SCAN_LIMIT)
+      .map((entry, index, all) => index >= all.length - DETAILED_SCAN_LIMIT ? entry : compactScan(entry));
     memory.hourly = updateHourly(memory.hourly, scan).slice(-HOURLY_ROLLUP_LIMIT);
     memory.totalSweeps += 1;
     memory.lastSweepAt = now;
@@ -222,6 +243,20 @@ function temporalHistory(memory: RadarMemoryState | undefined, radar: RadarWitho
   if (history.at(-1) && Math.floor(history.at(-1)!.at / HOUR) === Math.floor(now / HOUR)) history[history.length - 1] = current;
   else history.push(current);
   return history;
+}
+
+/**
+ * Strip a scan back to its summary.
+ *
+ * The fields are DELETED, not blanked. `issueStates: []` on a scan we no longer
+ * hold the detail for would say "no issues that sweep" — a confident statement
+ * about something we discarded. Absent says "not retained", which is true.
+ */
+function compactScan(scan: RadarMemoryScan): RadarMemoryScan {
+  if (scan.issueStates === undefined && scan.attentionCheckIds === undefined) return scan;
+  const { issueStates, attentionCheckIds, blindCheckIds, sourceStates, ...summary } = scan;
+  void issueStates; void attentionCheckIds; void blindCheckIds; void sourceStates;
+  return summary;
 }
 
 function updateHourly(hourly: RadarMemoryState["hourly"], scan: RadarMemoryState["scans"][number]): RadarMemoryState["hourly"] {

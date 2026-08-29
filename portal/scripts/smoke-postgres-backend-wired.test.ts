@@ -43,7 +43,13 @@ describe("Postgres backend — dual-read fallback (R027 C)", () => {
 
   it("after fallback hydrate, writes the recovered blob to Postgres + logs the migration", () => {
     const src = readFileSync(STORAGE, "utf8");
-    assert.ok(src.match(/backend\s*\.\s*saveBlob\(fallback\)/));
+    // `saveBlob` gained a `realmId` parameter in the 26 August realm work, so
+    // the old `saveBlob(fallback)` pattern no longer matches. The recovered blob
+    // must be written back into the SAME realm it was read for — writing it to
+    // the live realm from a sandbox hydrate would push demo data into Postgres —
+    // so pin the realm argument rather than loosening the match to any call.
+    assert.ok(src.match(/\.\s*saveBlob\(fallback,\s*realmId\)/),
+      "the recovered blob is no longer written back to Postgres in its own realm");
     assert.ok(src.includes("hydrated cache from file backend + wrote to Postgres"));
   });
 

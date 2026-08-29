@@ -13,6 +13,7 @@ import { flushPendingWrites, getState } from "@/server/storage";
 import type { ExternalAssistantApiPermission, PortalState } from "@/server/types";
 import { isoDateTimeValue } from "@/lib/shared/formatDateTime";
 import { clientWorkspaceDisplayName } from "@/lib/clients/clientWorkspace";
+import { delegatedAuthorityForKey } from "@/lib/server/assistants/externalAssistantDelegation";
 
 const SECRET_KEY = /(password|secret|token|api[-_]?key|cookie|authorization|credential|hash|nonce)/i;
 const STORED_FILE_KEY = /(avatar|base64|fileContent|contentBase64|dataUrl)/i;
@@ -57,6 +58,14 @@ export interface ExternalAssistantAuth {
   modules: ExternalAssistantModule[];
   permissions: ExternalAssistantApiPermission[];
   managed: boolean;
+  /**
+   * The person this key speaks for.
+   *
+   * Present for every managed key, because a managed key's authority IS that
+   * person's. Absent only for the legacy environment token, which has no
+   * creator and is refused in production for exactly that reason.
+   */
+  principalUserId?: string;
 }
 
 const LEGACY_ENV_PERMISSIONS: ExternalAssistantApiPermission[] = EXTERNAL_ASSISTANT_PERMISSIONS
@@ -157,16 +166,76 @@ export async function authenticateExternalAssistant(request: Request): Promise<E
 
   await flushPendingWrites();
 
+  // ── The key is a DELEGATE, never a principal of its own ─────────────────
+  //
+  // Ed, 2026-08-27: *"same for all AI scopes."* A managed key's authority is
+  // now the intersection of what it was granted and what the person who created
+  // it can still do TODAY, re-derived per request. Narrowing that person's
+  // access narrows their assistant in the same breath, and revoking them kills
+  // it — which is what issue #22 established for sessions and had never been
+  // true for AI.
+  //
+  // The LEGACY env token has no creator to delegate from, so it cannot be bound
+  // this way. It keeps its historical reach and is refused outright in
+  // production below, because an unbindable key is exactly the thing this
+  // change exists to stop.
+  if (managedKey) {
+    const delegated = delegatedAuthorityForKey(managedKey);
+    if (!delegated.ok) {
+      logActivity({
+        agencyId,
+        category: "integrations",
+        action: "external_ai.refused",
+        message: "An external AI key was refused: the person it belongs to no longer has that access.",
+        metadata: { keyId: managedKey.id, keyName: managedKey.name, refusal: delegated.refusal, principalUserId: delegated.principalUserId },
+      });
+      await flushPendingWrites();
+      throw new ExternalAssistantApiError(
+        403,
+        "assistant_principal_revoked",
+        "This assistant key belongs to somebody who no longer has that access.",
+      );
+    }
+    return {
+      agencyId,
+      tokenFingerprint,
+      keyId: managedKey.id,
+      keyName: managedKey.name || "Legacy environment key",
+      modules: delegated.modules,
+      permissions: delegated.permissions,
+      managed: true,
+      principalUserId: delegated.principalUserId,
+    };
+  }
+
+  // ── The legacy environment token cannot be delegated, so production says no ──
+  //
+  // It predates users: there is no creator to bind it to, no access to
+  // intersect with, and nothing that revoking a person does to it. It therefore
+  // carries EVERY module and cannot be narrowed by anything — which is the one
+  // shape this whole change exists to remove.
+  //
+  // Refused in production only. Locally it stays, because that is where it is
+  // actually useful and where there is nothing to protect. The message names
+  // the fix rather than just saying no: mint a managed key, and it inherits the
+  // access of whoever minted it.
+  if (process.env.NODE_ENV === "production") {
+    throw new ExternalAssistantApiError(
+      403,
+      "assistant_legacy_token_unbindable",
+      "The environment assistant token cannot be used in production because it belongs to nobody: "
+      + "create an assistant key in Settings instead, and it will carry your own access.",
+    );
+  }
+
   return {
     agencyId,
     tokenFingerprint,
-    keyId: managedKey?.id,
-    keyName: managedKey?.name || "Legacy environment key",
-    modules: managedKey
-      ? managedKey.modules.filter(isExternalAssistantModule)
-      : [...EXTERNAL_ASSISTANT_MODULES],
-    permissions: managedKey?.permissions ?? [...LEGACY_ENV_PERMISSIONS],
-    managed: Boolean(managedKey),
+    keyId: undefined,
+    keyName: "Legacy environment key",
+    modules: [...EXTERNAL_ASSISTANT_MODULES],
+    permissions: [...LEGACY_ENV_PERMISSIONS],
+    managed: false,
   };
 }
 

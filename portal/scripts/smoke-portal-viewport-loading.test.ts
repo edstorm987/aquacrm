@@ -1,3 +1,7 @@
+// FIRST: re-execs this file without the suite's `--conditions react-server`,
+// which `react-dom/server` refuses to load under. See the note in that file.
+import "./client-render-condition";
+
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";

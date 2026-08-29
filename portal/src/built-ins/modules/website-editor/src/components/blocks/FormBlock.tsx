@@ -28,10 +28,45 @@ export default function FormBlock({ block }: BlockRenderProps) {
     fontFamily: "inherit",
   };
 
+  // A form with nowhere to send is not a form.
+  //
+  // Issue #29, found 2026-08-27. `action` comes from the block's props and the
+  // page templates were seeding `/api/contact`, which is not a route — it
+  // answers 404. Left as-is this renders a perfectly convincing form that
+  // throws the visitor's message away, and the page templates put one on every
+  // Contact page anybody creates.
+  //
+  // Blanking the template default alone would NOT have fixed it: an empty
+  // `action` posts to the current URL, so the visitor's message would go to the
+  // page itself. Both roads end at a form that lies, which is why the honest
+  // state lives here in the block rather than in the template.
+  //
+  // The fields are still shown, so the person building the page sees what they
+  // designed — it simply cannot be submitted until an endpoint is set.
+  const connected = action.trim().length > 0;
+
   return (
-    <section data-block-type="form" style={{ maxWidth: 480, ...blockStylesToCss(block.styles) }}>
+    <section data-block-type="form" data-form-connected={connected ? "yes" : "no"} style={{ maxWidth: 480, ...blockStylesToCss(block.styles) }}>
       {title && <h3 style={{ fontFamily: "var(--font-playfair, Georgia, serif)", fontSize: 24, fontWeight: 700, marginBottom: 16 }}>{title}</h3>}
-      <form action={action} method="POST" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {!connected && (
+        <p
+          role="note"
+          style={{
+            margin: "0 0 12px", padding: "10px 12px", borderRadius: 8,
+            border: "1px dashed rgba(255,107,53,0.5)", background: "rgba(255,107,53,0.07)",
+            fontSize: 12, lineHeight: 1.5,
+          }}
+        >
+          This form has no destination yet, so it cannot be sent. Set “Action” in
+          the block settings to the address that should receive submissions.
+        </p>
+      )}
+      <form
+        action={connected ? action : undefined}
+        method="POST"
+        onSubmit={connected ? undefined : (event) => event.preventDefault()}
+        style={{ display: "flex", flexDirection: "column", gap: 12 }}
+      >
         {fields.map((f, i) => (
           <label key={i} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span style={{ fontSize: 12, opacity: 0.7 }}>{f.label}{f.required && <span style={{ color: "#ff6b35" }}> *</span>}</span>
@@ -41,7 +76,7 @@ export default function FormBlock({ block }: BlockRenderProps) {
             }
           </label>
         ))}
-        <button type="submit" style={{ marginTop: 8, padding: "12px 20px", borderRadius: 12, border: "none", background: "var(--brand-accent, #ff6b35)", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+        <button type="submit" disabled={!connected} style={{ marginTop: 8, padding: "12px 20px", borderRadius: 12, border: "none", background: "var(--brand-accent, #ff6b35)", color: "#fff", fontSize: 14, fontWeight: 600, cursor: connected ? "pointer" : "not-allowed", opacity: connected ? 1 : 0.5 }}>
           {submitLabel}
         </button>
       </form>

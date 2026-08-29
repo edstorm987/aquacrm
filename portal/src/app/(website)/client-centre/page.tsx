@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getSession } from "@/lib/server/auth/auth";
-import { ensurePrimaryAgencyWebsite, websitePageIsUpdating } from "@/server/agencyWebsite";
+import { readPrimaryAgencyWebsite, websitePageIsUpdating } from "@/server/agencyWebsite";
 import { ensureHydrated } from "@/server/storage";
 import { WebsitePageUpdating } from "../WebsitePageUpdating";
 import { MILESYMEDIA_HOME_PATH } from "@/lib/public/milesymediaRoutes";
@@ -64,7 +64,7 @@ export default async function ClientCentrePage({
   searchParams: Promise<{ preview?: string }>;
 }) {
   await ensureHydrated();
-  const website = ensurePrimaryAgencyWebsite();
+  const website = readPrimaryAgencyWebsite();
   const session = await getSession();
   const preview = (await searchParams).preview === "portal" && Boolean(session?.role.startsWith("agency-"));
   const updating = websitePageIsUpdating(website, "/client-centre");

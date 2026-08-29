@@ -203,12 +203,33 @@ describe("website-enquiries/erase refuses a cross-tenant delete", () => {
     ({ NextRequest } = require("next/server"));
     ({ POST } = require("../src/app/api/portal/website-enquiries/erase/route"));
     ({ issueSession } = require("../src/lib/server/auth/auth"));
+    ({ createUser } = require("../src/server/users"));
     const storage = require("../src/server/storage") as typeof import("../src/server/storage");
     await storage.ensureHydrated();
   });
 
+  // The central fresh-session boundary (issue #22) refuses cookies whose
+  // subject does not exist, so each minted session gets a REAL user record.
+  let createUser: typeof import("../src/server/users").createUser;
+  const realUsers = new Map<string, { id: string; email: string }>();
+  function realUserFor(role: string, agencyId: string): { id: string; email: string } {
+    const key = `${role}|${agencyId}`;
+    let user = realUsers.get(key);
+    if (!user) {
+      user = createUser({
+        email: `owner@${agencyId.toLowerCase()}.test`,
+        password: "Enquiry-smoke-1!",
+        role: role as never,
+        agencyId,
+      });
+      realUsers.set(key, user);
+    }
+    return user;
+  }
+
   function eraseAs(role: string, agencyId: string, enquiryId: string) {
-    sessionCookie = issueSession({ userId: `u_${agencyId}`, email: `owner@${agencyId}.test`, role: role as never, agencyId });
+    const user = realUserFor(role, agencyId);
+    sessionCookie = issueSession({ userId: user.id, email: user.email, role: role as never, agencyId });
     return POST(new NextRequest("http://localhost/api/portal/website-enquiries/erase", {
       method: "POST",
       headers: { "content-type": "application/json" },

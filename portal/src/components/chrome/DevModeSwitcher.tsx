@@ -53,7 +53,7 @@ export function DevModeSwitcher({ role }: { role: Role }) {
   }
 
   return (
-    <div className="mm-dev-mode-switcher inline-flex min-h-9 items-center overflow-hidden rounded-md border shadow-sm">
+    <div className="mm-dev-mode-switcher inline-flex min-h-9 max-w-full flex-wrap items-center overflow-hidden rounded-md border shadow-sm">
       <span className="mm-dev-mode-switcher-label inline-flex items-center gap-1.5 px-2.5 font-semibold">
         <FlaskConical size={14} aria-hidden="true" />
         <span className="hidden sm:inline">Dev POV</span>

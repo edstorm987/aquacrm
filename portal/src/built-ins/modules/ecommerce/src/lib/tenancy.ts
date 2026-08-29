@@ -19,7 +19,12 @@ export type Role =
   | "client-owner"
   | "client-staff"
   | "freelancer"
-  | "end-customer";
+  | "end-customer"
+  // Added 2026-08-28. The canonical `Role` in src/server/types.ts has always
+  // had eight members; every module copy had seven, so a plugin could not
+  // represent a lead at all — while bos-auth-gate and public-funnel are
+  // lead-facing surfaces. Widened: nothing maps Role exhaustively.
+  | "lead";
 
 export type ClientStage =
   | "lead"

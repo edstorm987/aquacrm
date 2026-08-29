@@ -18,7 +18,7 @@ import type {
 import { normaliseCurrency } from "../lib/currencies";
 import { assertKnownFields, assertNonEmptyText, assertTimestamp } from "../lib/runtimeValidation";
 import { resolveFinanceDefaultCurrency } from "@/lib/server/finance/financeCurrency";
-import { authErrorResponse } from "@/lib/server/auth/auth";
+import { AuthError, authErrorResponse } from "@/lib/server/auth/auth";
 import { requireCurrentClientWorkspaceElementAccess, type ClientWorkspaceElementLevel } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 function json(body: unknown, status = 200): Response {
@@ -53,7 +53,15 @@ async function clientCommercialGate(
     await requireCurrentClientWorkspaceElementAccess(clientId, "client.commercial", required);
     return null;
   } catch (error) {
-    return authErrorResponse(error);
+    if (error instanceof AuthError) return authErrorResponse(error);
+    // An access check that fails for a reason OTHER than "denied" is an
+    // internal fault, not a malformed request. Several handlers below run this
+    // gate inside their own try/catch whose tail is `badRequest(e.message)`, so
+    // rethrowing here answered 400 with an internal message in the body — the
+    // wrong status class, and an internal string echoed back to the caller.
+    // Answer at the gate instead, where the distinction is still known.
+    console.error("[agency-finance] client.commercial gate failed:", error);
+    return json({ ok: false, error: "access_check_failed" }, 500);
   }
 }
 

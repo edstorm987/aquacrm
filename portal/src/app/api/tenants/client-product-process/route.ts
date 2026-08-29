@@ -6,7 +6,7 @@ import { defaultProductInternalWorkspace } from "@/lib/products/productInternalW
 import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
 import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { logActivity } from "@/server/activity";
-import { ensureDefaultAgencyProducts } from "@/server/agencyProducts";
+import { agencyProductsForRead } from "@/server/agencyProducts";
 import { transitionClientProductStage } from "@/server/productStageTransitions";
 import { mutateClientProductWorkspaceVersioned } from "@/server/productWorkspaces";
 import { ProductWorkspaceBusyError, withProductWorkspaceTransaction } from "@/server/productWorkspaceCoordinator";
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     const client = getClientForAgency(session.agencyId, clientId);
     if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
 
-    const catalogue = ensureDefaultAgencyProducts(session.agencyId);
+    const catalogue = agencyProductsForRead(session.agencyId);
     const assignment = resolvePortalProductAssignment(client.metadata ?? {}, catalogue);
     if (!assignment.effectiveIds.includes(productId)) {
       return NextResponse.json({ ok: false, error: "product is not assigned to this client" }, { status: 400 });

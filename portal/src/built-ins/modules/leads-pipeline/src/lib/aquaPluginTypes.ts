@@ -10,7 +10,9 @@ export type PluginCategory =
   | "commerce"
   | "marketing"
   | "support"
-  | "ops";
+  | "ops"
+  | "fulfillment"
+  | "growth";
 
 export type PluginStatus = "stable" | "beta" | "alpha";
 
@@ -64,11 +66,6 @@ export interface SetupField {
   helpText?: string;
 }
 
-export interface NavGroup {
-  id: string;
-  label: string;
-  order?: number;
-}
 
 export type PluginRoleVisibility =
   | "agency-owner"
@@ -77,7 +74,11 @@ export type PluginRoleVisibility =
   | "client-owner"
   | "client-staff"
   | "freelancer"
-  | "end-customer";
+  | "end-customer"
+  // Added 2026-08-28: the canonical `Role` in src/server/types.ts has always
+  // had "lead", and two modules (bos-auth-gate, public-funnel) already listed
+  // it. Ten copies did not, so the same union meant two things.
+  | "lead";
 
 export interface NavItem {
   id: string;
@@ -163,7 +164,10 @@ export interface HealthStatus {
   components?: Record<string, { ok: boolean; message?: string }>;
 }
 
-export type ScopePolicy = "agency" | "client" | "either";
+// Renamed from `ScopePolicy` 2026-08-28 to match the canonical name in
+// src/built-ins/runtime/_types.ts. Ten copies used the short name, one used
+// the canonical — and the majority was the divergent side.
+export type PluginScopePolicy = "agency" | "client" | "either";
 
 /** Who is being erased — resolved by the sweep from the client record, which is
  *  deleted moments later. Mirrors `built-ins/runtime/_types.ts`. */
@@ -184,7 +188,7 @@ export interface AquaPlugin {
   icon?: ReactNode;
 
   core?: boolean;
-  scopePolicy?: ScopePolicy;
+  scopePolicy?: PluginScopePolicy;
 
   requires?: string[];
   conflicts?: string[];
@@ -201,8 +205,6 @@ export interface AquaPlugin {
   onEraseClient?: (ctx: PluginCtx, clientId: string, subject?: ErasureSubject) => Promise<void>;
 
   setup?: SetupStep[];
-
-  navGroup?: NavGroup;
   navItems: NavItem[];
 
   pages: PluginPage[];

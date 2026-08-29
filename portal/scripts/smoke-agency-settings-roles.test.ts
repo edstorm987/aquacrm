@@ -20,6 +20,9 @@ let getActivityLog: ActivityRoute["GET"];
 let getExternalAi: ExternalAiRoute["GET"];
 let issueSession: AuthModule["issueSession"];
 let sessionCookieName: string;
+// Real user records per role: the central fresh-session boundary (issue #22)
+// refuses a cookie whose subject does not exist.
+const realUsers = new Map<string, { id: string; email: string }>();
 
 before(async () => {
   ({ GET: getActivityLog } = await import("../src/app/api/portal/settings/activity-log/route"));
@@ -27,6 +30,17 @@ before(async () => {
   const auth = await import("../src/lib/server/auth/auth");
   issueSession = auth.issueSession;
   sessionCookieName = auth.SESSION_COOKIE_NAME;
+  const { ensureHydrated } = await import("../src/server/storage");
+  await ensureHydrated();
+  const { createUser } = await import("../src/server/users");
+  for (const role of ["agency-owner", "agency-manager", "agency-staff"] as const) {
+    realUsers.set(role, createUser({
+      email: `${role}@example.com`,
+      password: "Settings-smoke-1!",
+      role,
+      agencyId: "settings-role-agency",
+    }));
+  }
 });
 
 test("one capability matrix admits owners/managers and keeps staff read-only", () => {
@@ -94,9 +108,10 @@ test("staff account pages do not point back into owner and manager Settings", ()
 });
 
 function requestFor(role: "agency-owner" | "agency-manager" | "agency-staff", path: string): NextRequest {
+  const user = realUsers.get(role)!;
   const token = issueSession({
-    userId: `user_${role}`,
-    email: `${role}@example.com`,
+    userId: user.id,
+    email: user.email,
     role,
     agencyId: "settings-role-agency",
   });

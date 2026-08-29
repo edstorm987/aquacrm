@@ -4,6 +4,7 @@ import { authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { withdrawOwnPortalConnection } from "@/server/portalConnectionStore";
 import { logActivity } from "@/server/activity";
+import { CUSTOMER_PORTAL_ROLES } from "@/server/types";
 
 /**
  * A customer managing the software connected to their own portal.
@@ -19,8 +20,13 @@ export async function POST(request: NextRequest) {
     await ensureHydrated();
     const session = await getSessionFromRequest(request);
     if (!session) return NextResponse.json({ ok: false, error: "Sign in first." }, { status: 401 });
-    if (session.role !== "end-customer") {
-      return NextResponse.json({ ok: false, error: "This is for customer accounts." }, { status: 403 });
+    // Same audience as the portal itself — see CUSTOMER_PORTAL_ROLES.
+    //
+    // Withdrawing your own portal connection is a portal-account action, so it
+    // serves the same audience the portal does. The store still scopes the
+    // withdrawal by `viewerClientId` from the session.
+    if (!CUSTOMER_PORTAL_ROLES.includes(session.role)) {
+      return NextResponse.json({ ok: false, error: "This is for client portal accounts." }, { status: 403 });
     }
 
     const body = await request.json().catch(() => null) as { connectionId?: string } | null;

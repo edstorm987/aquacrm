@@ -43,6 +43,10 @@ import {
   currentClientWorkspaceElementAccess,
 } from "@/lib/server/access/clientWorkspaceElementAccess";
 import type { AccessElementKey } from "@/server/types";
+import { withPersonalChrome } from "@/lib/server/chrome/personalPanels";
+import { buildSidebar } from "@/lib/chrome/sidebarLayout";
+import { CLIENT_SIDEBAR_PLUGIN_CATALOG } from "@/lib/chrome/clientSidebarPluginCatalog";
+import { listInstalledFor } from "@/server/pluginInstalls";
 
 export default async function ClientLayout({
   children,
@@ -136,11 +140,54 @@ export default async function ClientLayout({
     });
   }
 
+  // ── Plugin navigation ───────────────────────────────────────────────────
+  //
+  // Added 2026-08-28. Until now the client workspace built the panel above by
+  // hand and never called `buildSidebar`, so **every client-scoped module's
+  // declared `navItems` rendered nowhere** — 33 items across six modules, all
+  // reachable only by typing a URL or through a bespoke CTA. The builder's
+  // `scope === "client"` branch was dead code for the surface it was written for.
+  //
+  // Three things make this safe to switch on:
+  //
+  //   • The catalogue is metadata only (`clientSidebarPluginCatalog.ts`), so the
+  //     shared layout still never imports the executable plugin registry — the
+  //     performance reason the agency catalogue exists in the first place.
+  //   • `buildSidebar` already applies the role and `requiresFeature` gates, and
+  //     only two modules with UNDECLARED roles are held back (stated there).
+  //   • The element gate below matches the one the plugin pages themselves use:
+  //     `app/portal/clients/[clientId]/[...rest]/page.tsx` requires at least
+  //     `view` on `client.systems` before rendering ANY plugin page. Advertising
+  //     a link that then redirects would be worse than no link.
+  //
+  // Its own two foundation items are dropped: `home` and `client-settings`
+  // duplicate "Overview" and "Client settings" in the hand-built panels above.
+  if (clientElementVisible("client.systems")) {
+    const clientInstalls = listInstalledFor({ agencyId: client.agencyId, clientId: client.id });
+    const FOUNDATION_DUPLICATES = new Set(["home", "client-settings"]);
+    const pluginPanels = buildSidebar({
+      role: session.role,
+      scope: "client",
+      currentClient: client,
+      installedPlugins: clientInstalls,
+      pluginCatalog: CLIENT_SIDEBAR_PLUGIN_CATALOG,
+    })
+      .map(panel => ({ ...panel, items: panel.items.filter(item => !FOUNDATION_DUPLICATES.has(item.id)) }))
+      .filter(panel => panel.items.length > 0);
+
+    for (const panel of pluginPanels) {
+      const existing = panels.find(candidate => candidate.id === panel.id);
+      if (existing) existing.items = [...existing.items, ...panel.items];
+      else panels.push(panel);
+    }
+  }
+
   // Phase sidebar override — read AFTER activePhase resolved below.
   // Computed inline once `activePhase` is available (further down).
 
   const h = await headers();
   const currentPath = h.get("x-invoke-path") ?? h.get("x-pathname") ?? `/portal/clients/${client.id}`;
+  const personalPanels = await withPersonalChrome(panels);
 
   // Preview-phase override (founder uses /portal/agency/phases). When the
   // cookie is set + the phase belongs to this client's agency, inject
@@ -230,8 +277,8 @@ export default async function ClientLayout({
       ) : null}
       <ThemeInjector brand={client.brand} scope="client" />
       <NotificationAttentionProvider initialAlerts={alertViews} clientId={client.id}>
-      <div className="mm-portal-root mm-client-workspace-shell flex h-dvh overflow-hidden" data-workspace-shell="client">
-        <Sidebar panels={panels} tenantLabel={client.name} currentPath={currentPath} navAlignment="start" variant="client" />
+      <div className="mm-portal-root mm-client-workspace-shell flex h-[var(--aqua-shell-h,100dvh)] overflow-hidden" data-workspace-shell="client">
+        <Sidebar panels={personalPanels} tenantLabel={client.name} currentPath={currentPath} navAlignment="start" variant="client" />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <Topbar
             inspecting={Boolean(session.previewReturnUserId)}
@@ -241,7 +288,7 @@ export default async function ClientLayout({
             email={session.email}
             name={getUserById(session.userId)?.name}
             avatarUrl={getUserById(session.userId)?.avatarUrl}
-            panels={panels}
+            panels={personalPanels}
             tenantLabel={client.name}
             currentPath={currentPath}
             sidebarVariant="client"

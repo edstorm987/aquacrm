@@ -22,8 +22,16 @@ test("custom skills can only compose a fixed safe recipe", () => {
   assert.match(service, /Built-in skills can be disabled, but not deleted/);
   assert.match(settings, /cleanCustomAdvisorSkills/);
   assert.match(settings, /slice\(0, 24\)/);
-  assert.match(route, /agency-owner/);
-  assert.match(route, /agency-manager/);
+  // Was `requireRole(["agency-owner","agency-manager"])`. Replaced 2026-08-27
+  // (issue #182) by an ELEMENT requirement, which is strictly stronger: a role
+  // check passes a manager whose element access has been narrowed, and the AI
+  // then answers from data the UI hides from them.
+  assert.match(route, /requireAssistantElement\("workspace\.overview"\)/);
+  assert.match(route, /requireAssistantElement\("workspace\.settings", "manage"\)/,
+    "editing an Advisor skill is configuration and must need more than reading one");
+  // `agency-manager` no longer appears: the gate is an element, not a role list.
+  assert.doesNotMatch(route, /requireRole\(/,
+    "the Advisor skills route is back on a role check");
   assert.match(route, /invalid_origin/);
   assert.match(route, /rateLimit/);
 });

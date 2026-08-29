@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
-import { createAgencyProduct, ensureDefaultAgencyProducts, listAgencyProducts, updateAgencyProduct } from "@/server/agencyProducts";
+import { agencyProductsForRead, createAgencyProduct, listAgencyProducts, updateAgencyProduct } from "@/server/agencyProducts";
 import { ensureProductPortalTemplate } from "@/server/clientPortalDesigns";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES, type AgencyProductInternalWorkspace, type AgencyProductKind, type AgencyProductPortalMode, type AgencyProductPortalRequirement, type AgencyProductPortalTemplateKey, type AgencyProductPricing, type AgencyProductStatus } from "@/server/types";
@@ -54,13 +54,15 @@ export async function GET() {
   try {
     await ensureHydrated();
     await requireRole([...AGENCY_ROLES]);
-    const { actor, access } = await requireCurrentWorkspaceElementAccess("fulfilment", "fulfilment.services", "view");
-    if (workspaceElementAtLeast(workspaceElementLevel(access, "fulfilment.services"), "manage")) {
-      ensureDefaultAgencyProducts(actor.resourceAgencyId);
-    }
+    const { actor } = await requireCurrentWorkspaceElementAccess("fulfilment", "fulfilment.services", "view");
+    // Reads no longer seed or repair on disk (issue #21): the default product is
+    // seeded at `bootstrapAgency`, and the legacy-field repair is applied in
+    // memory by `agencyProductsForRead`. A GET that wrote whenever the caller
+    // happened to hold `manage` meant the same request did different things for
+    // different people, which is a strange thing for a listing to do.
     return NextResponse.json({
       ok: true,
-      products: listAgencyProducts(actor.resourceAgencyId, true),
+      products: agencyProductsForRead(actor.resourceAgencyId, true),
     });
   } catch (error) {
     return authErrorResponse(error);

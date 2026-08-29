@@ -2,17 +2,17 @@
 
 > The current checklist, status, roadmap, goals, decisions and working queue.
 >
-> Consolidated 2026-08-27 from **7** source documents / **82,018 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-29 from **7** source documents / **85,086 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
-- [`docs/CURRENT-IMPLEMENTATION.md`](#source-docs-current-implementation-md) — 4,555 words · `524f14cfe4c8`
-- [`docs/development/checklist.md`](#source-docs-development-checklist-md) — 19,136 words · `cb9f4818cbd2`
+- [`docs/CURRENT-IMPLEMENTATION.md`](#source-docs-current-implementation-md) — 4,673 words · `34e0d0082117`
+- [`docs/development/checklist.md`](#source-docs-development-checklist-md) — 20,719 words · `a65ea36d7b84`
 - [`docs/development/goals.md`](#source-docs-development-goals-md) — 506 words · `28009372c4ab`
-- [`docs/development/notes.md`](#source-docs-development-notes-md) — 743 words · `d1c00e8f2777`
+- [`docs/development/notes.md`](#source-docs-development-notes-md) — 1,730 words · `f68ea59936dd`
 - [`docs/development/roadmap.md`](#source-docs-development-roadmap-md) — 21,160 words · `da05e0e5ba0f`
-- [`docs/development/status.md`](#source-docs-development-status-md) — 20,450 words · `ae3757114206`
-- [`docs/development/todo.md`](#source-docs-development-todo-md) — 15,468 words · `6d61a289278f`
+- [`docs/development/status.md`](#source-docs-development-status-md) — 20,474 words · `7644b20d51a7`
+- [`docs/development/todo.md`](#source-docs-development-todo-md) — 15,824 words · `5ba5f74fac89`
 
 ---
 
@@ -20,7 +20,7 @@
 
 ## Source document — `docs/CURRENT-IMPLEMENTATION.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/CURRENT-IMPLEMENTATION.md" sha256="524f14cfe4c8aadf70abe5306f07f536f62cf78053464f12b9e52658458810e0" -->
+<!-- AQUACRM_SOURCE_START path="docs/CURRENT-IMPLEMENTATION.md" sha256="34e0d00821178137385022c10e0a27eb7359dd617b81cfe8a32e1af92e02e684" -->
 # AquaCRM Current Implementation
 
 > **What this file is: the inventory of what systems EXIST.** It is not the
@@ -322,8 +322,20 @@ integration, or navigation contract.
 - A server-owned `aqua-preview.config.json` drives a local/test-only supervised
   loopback preview. The browser cannot supply root, command, arguments, environment,
   port or shell. The mounted browser has completed Start, Restart and Stop; responsive
-  Preview/Code panes switch correctly and `/aqua-tag.js` returned HTTP 200. Repository
-  preparation, authoring/AI/diff/check/PR, failure and dirty-state acceptance remain.
+  Preview/Code panes switch correctly and `/aqua-tag.js` returned HTTP 200.
+- **Repository preparation landed 2026-08-27 (opt-in).** A record carrying
+  `isolatedWorktrees` gives each project its own git worktree on its draft branch
+  `aqua-editor/<projectId>`, created or resumed under
+  `<trusted root>/.aqua-preview-worktrees/`, so an uncommitted edit survives
+  stop/restart and the shared checkout is never mutated. A record may also declare
+  `installCommand`/`installArgs`/`installTimeoutMs`: the supervisor then reports an
+  `installing` state, runs that command in the project's own worktree, streams its
+  output into the operator log, and skips it while the dependency fingerprint
+  (lockfiles + `package.json`) is unchanged. The install command passes the same
+  allowlist as the launch command, and **declaring one without `isolatedWorktrees`
+  is refused** — an install must never rewrite the shared checkout. AquaCRM's own
+  committed manifest therefore declares no install command. Clone-from-remote, and
+  authoring/AI/diff/check/PR, failure and dirty-state browser acceptance, remain.
 
 ### Ecommerce And Storefront Commerce
 
@@ -608,7 +620,7 @@ sure" overlay, the funnel/client-side editor convergence
 
 ## Source document — `docs/development/checklist.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/checklist.md" sha256="cb9f4818cbd2a5c31c272ebc8c2262e74776c3ebd5779201d3dfd3c891cacf16" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/checklist.md" sha256="a65ea36d7b84454f92695501b2d892db67921d9c882e47c6de1d4c6293937b62" -->
 # Checklist — 2026-08-27 (current source, tests and browser findings)
 
 > ★ **This is the one answer to "where do we stand".** As of 2026-08-27 nothing
@@ -818,8 +830,57 @@ sure" overlay, the funnel/client-side editor convergence
 
 ← [roadmap.md](roadmap.md) · Editor detail: [dev-editor-finish.md](plans/dev-editor-finish.md).
 
-**Last documented whole-suite proof, 2026-08-23 07:03 BST:** the whole local
-application suite is green: **3,621 pass / 0 fail / 1 skipped out of 3,622 tests,
+> **⚠ Whole-suite truth, 2026-08-27:** the canonical command
+> (`PORTAL_BACKEND=memory NODE_OPTIONS='--conditions react-server' npx tsx --test scripts/*.test.ts`)
+> was rerun repeatedly today on the current tree: **4,356 tests / 4,278 pass /
+> 76 fail / 2 skip** at the start of this work, and **4,465 / 4,462 / 0 / 2**
+> now — green for the first time since 23 August. Zero new failures were
+> introduced at any point — each run is diffed against the previous failure list
+> **by test name**, not by count, which is the only way that claim means
+> anything. The 2 skips are the optional live-Postgres checks.
+>
+> **Green is not finished.** Two items came out of the triage as OPEN rather than
+> fixed, and are recorded so they are not mistaken for closed: [issues #168]
+> (issues.md) — 28 routes answer 403 where the house convention is 404, a
+> consistency item with nothing opened — and [issues #170](issues.md) — the Radar
+> probe cron is now daily rather than every ten minutes, which is Ed's call.
+>
+> **The Finance cluster — the largest group — is now fully green:** 19 files, 248
+> tests, 0 failures, down from 11. Eight of those eleven were one class (handler
+> tests calling client-gated handlers with no request scope, so `cookies()`
+> threw); two were a fixture time-bomb that detonated on the 27th; one was a
+> stale source pin. Clearing them surfaced `issues #166` and `#167`.
+>
+> **Triage began 2026-08-27 and found a real defect hiding in the noise.** A
+> quarter of the failures sat in two Dev Mode files, and the largest cause was not
+> a stale pin: `liveIdentityFor` computed the origin's demo-ness with a `??` that
+> fell through to the sandbox session's own always-true `isDemo`, so entering Dev
+> or Sandbox Mode from a live workspace and exiting left the operator flagged
+> demo — which suppresses `getSession()`'s Supabase identity cross-check. Fixed.
+> Three further assertions were looking for demo data in the LIVE realm after the
+> 26 August consolidation moved it; they now read the realm named by the cookie
+> the app minted.
+>
+> **Still open, and now classified:** ~10 Dev Mode failures assert the legacy
+> `devReturnAgencyId`/`devReturnUserId` fields the sandbox envelope replaced. The
+> guarantee (exit restores the EXACT founder; no escalation) still holds in the
+> product — the assertions need moving to `sandbox.returnUserId`, deliberately.
+> The remaining ~59 span Finance idempotency/refunds/validity, app-route tenancy,
+> close-deal, product-stage convergence, People validity and others; the route-count
+> pin (313 vs 312) simply needs re-pinning. **The suite is NOT currently green**: ~74 failures
+> pre-date this session and span Dev Mode identity/POV exits, the editor
+> write-path guards, Dev Team section gates, Finance mark-paid concurrency /
+> refunds / validity, People domain validity, product-stage transitions,
+> showcase read-only client detail, close-deal idempotency, plugin API
+> invariants, portal render parity, the Postgres dual-read fallback and the
+> `smoke-access-control-ui` + `smoke-portal-viewport-loading` suites, among
+> others. These are failures of the CURRENT tree against tests added or
+> changed since 23 August; nobody had rerun the whole suite in between. The
+> green 2026-08-23 record below is history, not current state.
+
+**Last fully green whole-suite proof, 2026-08-23 07:03 BST** *(superseded as a
+current claim by the 2026-08-27 runs above)*: the whole local
+application suite was green: **3,621 pass / 0 fail / 1 skipped out of 3,622 tests,
 across 663 suites**. The one explicit skip is the live Postgres check because
 `DATABASE_URL` is not set in this local run. The previously red source-shape
 assertions were reconciled with the current read-only showcase, shared tenancy
@@ -1095,9 +1156,22 @@ No request was sent to Mark's website and no project record was saved.
       The final focused set passes **62/62** including six direct boundary tests, the
       separate product-workspace cross-process gate passes **4/4**, TypeScript and diff
       check pass. Expense attachments lack client identity and agency/global branches
-      remain agency surfaces. The dynamic plugin API catch-all still needs mappings for
-      Fulfilment, Client CRM, Ecommerce, Memberships and Affiliates; freelancer-job and
-      generic task/task-template client associations also remain genuinely unclassified.
+      remain agency surfaces. **The dynamic plugin API catch-all is now mapped (2026-08-27).**
+      It decided tenant, role and feature but never WHICH client element a client-scoped
+      call belonged to, so a governed identity holding only Fulfilment could reach a
+      client's Ecommerce or Memberships API through it. `pluginClientElement.ts`
+      classifies **every** built-in module into either an owning element —
+      Fulfilment→`client.fulfilment`, Client CRM→`client.relationship`, Ecommerce and
+      Memberships→`client.commercial`, Affiliates→`client.marketing` — or an
+      explicitly-reasoned unmapped list, with a test asserting each module is in exactly
+      one, so "not yet classified" can never look like "no client data". An unmapped
+      module contributes **no** requirement, so nothing invents an element; reads need
+      `view` and writes `use` as a floor beneath each handler's own `manage` checks; and
+      the gate applies only to client-scoped calls, with
+      `requireCurrentClientWorkspaceElementAccess` keeping its migration rule so
+      un-migrated identities retain legacy behaviour.
+      `scripts/smoke-plugin-client-element.test.ts` **7/7**. Freelancer-job and
+      generic task/task-template client associations remain genuinely unclassified.
       Alternative-authority customer, Dev-project, workspace-create, website-source and
       output/derived-association routes are documented separately, not mislabeled as gaps.
       A final static gate also proved and repaired four adjacent adoption holes: Fulfilment
@@ -1120,6 +1194,82 @@ No request was sent to Mark's website and no project record was saved.
       Preview/Code switching hides the inactive pane on phone layouts, and the preview
       served `/aqua-tag.js` with HTTP 200 after restart. Crash, occupied-port,
       dependency failure, dirty-editor and publish/PR journeys remain separate gates.
+- [x] **Isolated per-project branch/worktree (2026-08-27).** The phase-17 lifecycle
+      head is implemented: a trusted record carrying `isolatedWorktrees` makes the
+      supervisor create — or resume — a git worktree per project on its draft branch
+      `aqua-editor/<projectId>`, under `<trusted root>/.aqua-preview-worktrees/`, and
+      run the preview command there. An uncommitted edit therefore survives
+      stop/restart and the shared checkout is never mutated; two projects get separate
+      worktrees and branches. Resume never destroys — a hijacked directory or a
+      foreign branch is a refusal with an operator sentence, and a hand-deleted
+      worktree is pruned and re-created with its committed draft work intact. The
+      request supplies no path, branch or git argument. Records without the flag keep
+      the previous shared-checkout behaviour.
+- [x] **Dependency/start readiness and logs (2026-08-27).** A trusted record may
+      declare `installCommand`/`installArgs`/`installTimeoutMs`. The supervisor
+      reports a new `installing` state, runs that command in the project's own
+      worktree, streams its output to the operator log, and skips it while the
+      dependency fingerprint (lockfiles + `package.json`) is unchanged; a changed
+      lockfile always reinstalls. Failure, timeout and a missing runtime are
+      `install-failed` with the reason and output, record no readiness, retry on
+      the next start and never reach port allocation or spawn. The install command
+      passes the same allowlist as the launch command, and declaring one WITHOUT
+      `isolatedWorktrees` is refused — dependency work must never rewrite the shared
+      checkout. AquaCRM's own manifest stays install-free, pinned by a test.
+      Focused proof `scripts/smoke-local-preview-worktree.test.ts` **21/21** against
+      real git repositories and real install processes (**50/50** with the adjacent
+      preview/route/tsconfig/UI/project-access suites), TypeScript clean.
+      Clone-from-remote and the mounted authoring/publish walk remain open.
+- [x] **Stale preview and rejected-AI-change failure paths (2026-08-27).** The pure
+      preview state machine now drops a status/response snapshot naming a different
+      project, so a poll still in flight when the operator switches project cannot
+      give the new project the old one's lifecycle state or loopback `previewUrl`
+      (the component already aborted those requests; the rule is now provable
+      without a browser) — `smoke-local-repository-preview-ui` **8/8**. Aqua Editor
+      AI has no write path: a contract test asserts no Editor-AI module or route
+      references `repoWrite`/`sourceEdit`/`publishEdits` or their writers, and
+      verifies the detector catches the real write route so it cannot pass
+      vacuously; a behavioural test proves a reply proposing an edit leaves every
+      record except the conversation byte-identical — `smoke-aqua-editor-ai-reply`
+      **22/22**. With dependency/start failure, occupied port, crash, dynamic
+      loopback CSP and cross-project denial already covered, the phase-17 failure
+      list is source-proven; the mounted authoring walk, the dirty-transition
+      browser matrix (issue #19's browser half) and clone-from-remote remain.
+- [x] **Mounted browser acceptance of the isolated preview lifecycle (2026-08-27,
+      isolated `sandbox:fork` lane on port 3047; port 3032 untouched throughout).**
+      A real Dev Workspace drove the whole supervised lifecycle against a purpose-built
+      git fixture repository registered through `AQUA_DEV_PREVIEW_PROJECTS_JSON` with
+      `isolatedWorktrees`: **Start** created the worktree on
+      `aqua-editor/devproj_71635752a698405fb62a` and reached **Preview ready** on
+      loopback `127.0.0.1:51230`, serving the fixture site. An uncommitted edit written
+      into that worktree was then **retained across Restart** — the new process came up
+      on a *different* port (51586), served the edited content, the old port was dead,
+      and `/aqua-tag.js` returned **HTTP 200** after restart. The Logs panel showed the
+      contract in the operator's own words: *"Resumed the isolated preview worktree on
+      aqua-editor/…; uncommitted edits are retained."* **Stop** ended the process and
+      left the edit on disk (`git status` in the worktree: `M index.html` — the diff a
+      publish step would show). A second project proved exact-project binding and
+      stale-preview isolation: while project A was healthy, project B rendered
+      **Not running** with no iframe and no trace of A's ports, and its Start refused
+      with **Setup required** — *"no trusted local preview record"* — without disturbing
+      A, which kept serving. Responsive: **no horizontal overflow at 320×568, 375×812,
+      812×375, 768×1024, 1024×768, 1280×800, 1920×1080** or at a 640px viewport (1280 at
+      200% zoom), with preview controls at **44px** targets down to 320px. Console
+      carried no application errors. **Isolation proven:** Ed's repository ended with
+      the same HEAD, **zero** `aqua-editor/*` branches and **one** worktree, the shared
+      `.data/portal-state.json` was byte-identical
+      (`c8d4d129…d418f7de`), and Next's boot-time `tsconfig.json` edit for the sandbox
+      dist dir was reverted. Two honest limits: the mounted **authoring save** was NOT
+      exercised, because on the blank "this workspace" project it mutates Ed's real
+      checkout (owner + local-Dev-Mode only by design — see the #161 correction below),
+      and on a repository-backed project it commits through repo-write, which needs Ed's
+      GitHub credentials; and the in-pane browser blocks Next's dev HMR websocket, so the
+      **second** full page load in one tab stalls on the workspace loader (a fresh tab
+      always loads; a dev-environment artefact, not a route defect).
+      **Correction, same day:** a 🔴 raised during this session claiming the editor's save
+      path was an ungated route into AquaCRM's tree was WRONG and is retracted —
+      `site-editor/files` POST takes `requireWholeWorkingTreeFounderAccess()` first and
+      refuses repository-backed projects with 409. → [issues #161](issues.md)
 - [x] **Live governance intersects Sandbox resources.** Governance stays live while
       resources come from the signed active realm. Safe non-owner Demo entry derives
       persona and refuses privileged datasets/reset/persona selection; revocation of
@@ -1157,19 +1307,32 @@ Detailed scope and file map:
 
 ## 🚨 P0/P1 — fix before broader launch or sensitive production use
 
-- [ ] **P0 — stale privileged sessions remain privileged.** A live test downgraded
-      an owner to staff, then reused the old owner cookie to create an external-AI
-      API key. The route returned **201** and the issued token worked.
-      `getSessionFromRequest()` only verifies the signed cookie; `getSession()` and
-      the central `requireRole()` path do not compare the cookie's `sessionRev` or
-      role with the current user record. `getCurrentUser()` performs that check,
-      but most protected routes do not use it. Central session freshness must be
-      enforced before role/scope decisions, with a regression covering downgrade,
-      password change and account removal across representative sensitive APIs.
-      The new governed-access evaluator resolves fresh live identity and revisions
-      for its migrated paths; that narrower correction does not close legacy
-      `requireRole()` callers or this application-wide finding.
-      → [issues #22](issues.md)
+- [x] **P0 — central session revocation is enforced (2026-08-27).** One central
+      primitive, `resolveFreshSessionUser()` in `src/lib/server/auth/auth.ts`,
+      now runs on EVERY authenticated cookie read: `getSession()` and
+      `getSessionFromRequest()` both refuse a cookie whose subject no longer
+      exists, whose `sessionRev` is behind the record, whose role no longer
+      matches, or whose active agency left the live membership — so every
+      `requireRole()`/`requireRoleForClient()` caller and every direct reader
+      inherits revocation without opting in. Sandbox cookies anchor to the live
+      account in the signed environment; the public showcase visitor validates
+      inside its fixture realm; fenced Dev/Showcase/preview demo sessions skip
+      only live membership. The access kernel still answers `401 stale_session`
+      for a verifying-but-stale cookie. The behavioural regression
+      `scripts/smoke-session-revocation.test.ts` (**16/16**, `npm run
+      smoke:session-revocation`) replays real old cookies against the actual
+      exploit route (`POST /api/portal/settings/external-ai` → 403, no token)
+      and `requireRole()` surfaces after downgrade, password rotation, explicit
+      rotation and deletion. Whole-suite comparison on 2026-08-27: baseline
+      before the change **4,356 tests: 4,278 pass / 76 fail / 2 skip**; after
+      it (with nine test harnesses re-seeded to mint cookies for REAL users)
+      **4,372 tests: 4,295 pass / 75 fail / 2 skip**, and after the later
+      phase-17 work **4,393: 4,317 / 74 / 2** with the identical
+      baseline failure set — zero new failures, two baseline failures fixed.
+      The 74 remaining failures pre-date this session — see the whole-suite
+      truth note above. TypeScript and `git diff --check` pass.
+      This is focused-test proof; the browser walk of a live downgrade remains
+      part of the release access matrix. → [issues #22](issues.md)
 - [x] **P1 — the final configurable-access static/UI boundary findings are repaired.**
       Sandbox compiler tests now agree; Fulfilment client list/create, Staff People DTOs,
       governed client/customer collaboration APIs and exact workspace-scope composition
@@ -2539,7 +2702,7 @@ and the memory notes `aquacrm-project-shape`, `portal-products-scope-down`,
 
 ## Source document — `docs/development/notes.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/notes.md" sha256="d1c00e8f277754fb79ddb35519158a2857da5de9bc7d3704f63c70d0a79cec6c" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/notes.md" sha256="f68ea59936dd3e761e7e166cd9336913316dc79edf7c9b76d951a4906f3025ff" -->
 # Notes & decisions
 
 ← Back to [development.md](../development.md) (the law)
@@ -2547,6 +2710,117 @@ and the memory notes `aquacrm-project-shape`, `portal-products-scope-down`,
 Durable context and decisions that aren't obvious from the code — the "why", so
 nobody re-litigates a settled call or gets caught by a non-obvious fact. Newest
 at the top.
+
+## What a new agency inherits from the origin — Ed's answers (2026-08-27)
+
+Asked the three questions the origin template hinged on, Ed settled all of them:
+
+> "just for now be a real agency i operate for now i need to get this out for
+> myself first! but it will be both … and yes it will do designs too … and no
+> phases sops individually written ones wont transfer … contract templates
+> branded no, templates sure."
+
+Which reads as:
+
+| | |
+|---|---|
+| **What the origin IS** | A real agency Ed operates — for now. It will **also** be a system-owned artefact later, so nothing may assume which. Named by `AQUA_ORIGIN_AGENCY_ID`; `projectAgencyOrigin()` takes an agency id, so a synthetic origin only has to produce one. |
+| **Portal designs** | Transfer. |
+| **Phases, SOPs, written material** | Do **not** transfer. Individually written work is the agency's own voice, and phases are its own lifecycle. |
+| **Contract & task templates** | Transfer — the template, never the branding, and never a client's actual agreement. |
+
+**The branding rule, since "branded no" cannot be automated honestly.** Branding
+lives in free body text; a regex pretending to remove it would be worse than
+saying so. So the line is drawn where it CAN be drawn: a contract template
+created from a real client contract (`sourceContractId` present) is that client's
+agreement in template clothing and does not transfer **at all**; the rest do, and
+come back in `needsRebrand` so a person rewrites the wording deliberately.
+
+**Ordering consequence worth remembering:** Ed's "I need to get this out for
+myself first" means the origin is Milesymedia and the first consumer is Ed. Do
+not build multi-tenant origin governance before the single-tenant path he
+actually needs works.
+
+## Where a client touches the editor — Ed's placement decision (2026-08-27)
+
+Asked where a client should find their editor for phase 18, Ed drew the line by
+**audience**, not by feature:
+
+> "inside the client internal workspace is for internal employees. if the client has a
+> website or software then we will optionally toggle to embed it into their portal…
+> client internal we will have one anyway but we can face it to their portal for updates
+> etc, but **for clients anything they touch is inside their portal**."
+
+So the rule is:
+
+- **`/portal/clients/<clientId>` is INTERNAL.** It is the agency-side workspace for Ed and
+  his employees. The editor mounts there anyway, for internal work on that client's site.
+- **A client's own portal is where the client touches anything.** When a client has a
+  website or software project, the editor is **optionally toggled ON per client** and faced
+  into their portal. Off by default: having a project does not automatically hand the client
+  an editor.
+- The toggle is a per-client decision Ed makes, not a role or a template. It composes with —
+  and never replaces — the exact project grant: the toggle decides whether the surface is
+  offered at all, the grant decides what it can do.
+
+**Known tension — investigated 2026-08-27, and it is smaller than it looked.**
+`src/app/portal/page.tsx:20` does redirect `client-owner`/`client-staff` INTO
+`/portal/clients/<clientId>`. But the internal MUTATION surface is already
+internal-only, by role, before any grant is consulted: `client-properties` is
+`requireRoleForClient([...AGENCY_ROLES])` (`:144`) and `customer-portal-control`
+401s anything failing `isAgencyRole(session.role)` (`:100`). A client role is
+refused there even holding `client.portal.manage` on its own client — pinned by
+`scripts/smoke-client-role-workspace-boundary.test.ts` (6/6), which also proves
+an agency identity still works, so the boundary is about audience rather than a
+dead route.
+
+So Ed's rule is **already true for what a client can DO**; what remains is where a
+client is SENT and what they SEE — a product/UX separation, not an exposure. That
+matters for sequencing: it is safe to build the client-facing surface deliberately
+rather than urgently.
+
+**The destination — SETTLED by Ed, 2026-08-27.** Asked whether the client's portal
+should be a new surface or whether the existing customer portal is meant to be it,
+Ed answered: *"existing customer portal actually meant to be."*
+
+So `/portal/customer` **is** the client's portal. The `end-customer` role name is
+the legacy artefact, not the design: the portal already renders exactly what a
+client is given — their project stage, invoices, files, support — and
+`/client-preview/<id>` is the agency-side preview of that same portal.
+
+**What that makes the work:** re-point client roles at it rather than build a
+second portal. Concretely, `src/app/portal/page.tsx:20` stops sending
+`client-owner`/`client-staff` into the internal workspace, and the customer
+portal's `requireRole("end-customer")` gate (`app/portal/customer/layout.tsx:30`)
+widens to the client roles it was always for. Both are small; the care needed is in
+what the portal then shows each audience, and in not breaking the end-customer
+journeys (orders, membership, bookings) that share the surface. Its own scoped
+change, with its own browser matrix.
+
+## The template system lives in Fulfilment — Ed, 2026-08-27
+
+Ed asked for portal templates and product portals to be integrated into the
+editor, "to make a system so I can edit and seed everything that will follow…
+the original product will be the agency for everyone, with all products
+services" — then immediately corrected the home himself: *"actually this should
+mean it all lives in fulfilment."*
+
+That is his own contract applied: `CLAUDE.md` says Fulfilment owns the
+product/service operating model, and a library of product portal templates that
+every client instance is seeded from is exactly that.
+
+**Grounding, because most of this already exists:** `ClientPortalTemplateRecord`
+and `ClientPortalInstanceRecord` already give template → instance with
+`templateVersionId` pinning; `ensureProductPortalTemplate` provisions a template
+per product; the Dev Editor already edits templates at
+`/portal/agency/portals/editor`; and every page there is **already** gated on
+`fulfilment.portals`. So the authority is already Fulfilment's — what is missing
+is placement (the library is a top-level route, not inside the Fulfilment
+workspace) and the genuinely new idea: a **cross-tenant origin template**, since
+templates are `agencyId`-scoped today and `baseTemplateId` inherits only within an
+agency. Full write-up:
+[fulfilment-template-system.md](plans/fulfilment-template-system.md).
+
 
 ## Architecture / naming
 - **Milesymedia = Aqua (legacy names).** The product is branded "Aqua Advisor" / "AquaCRM", but legacy identifiers still say Milesymedia (`askMilesymediaAssistant`, default agency id `"milesymedia"`, env `MILESYMEDIA_ASSISTANT_API_TOKEN`, `/milesy-tag.js`). Same tenant — don't treat them as separate.
@@ -4042,7 +4316,7 @@ This remains a truthful record of the first pass, **not a current performance cl
 
 ## Source document — `docs/development/status.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/status.md" sha256="ae3757114206cc9de6da655f6fb2fe761449d47247c5e82d2dcef5620843ebb6" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/status.md" sha256="7644b20d51a799990f4d75dc3523fd9abea33b306b826280f708ef36c4361f21" -->
 # Status & verification register
 
 ← Back to [development.md](../development.md) (the law)
@@ -4204,7 +4478,7 @@ not rerun.
 | Release build | **Green and deployed.** The isolated Dev Team release candidate compiled, typechecked and completed **268/268** static-generation entries locally and in Vercel's remote build. The production release and its documentation refresh became READY on 2026-08-26 and `aqua-crm.com` points at the refreshed deployment. | Add a checked-in CI build gate so the same contract is enforced before every later Vercel deployment. |
 | Dev Team production control plane | **Live in production.** Every Dev Team page/API and navigation entry uses one founder-only predicate. Bounded output tracing supplies the immutable deployment snapshot; a durable PortalState overlay supplies production Library edits, roadmap/plans, findings/screenshots, Updates, thoughts and worker check-ins. The service-role-only Supabase batch function was installed directly and verified before release; generic Postgres uses the matching row-locked transaction. Exact versions and all-before-any validation protect concurrent and multi-file work. Local development deliberately keeps the real working tree, while production code editing remains GitHub draft/PR-backed. Focused production/access/persistence coverage passed **128/128** before the local and remote builds. Public production acceptance passed homepage/health 200s, login redirects and unauthenticated Dev Team/API boundaries. | Complete one authenticated founder browser walk. Vercel CLI masks sensitive environment values as `[SENSITIVE]`, so it could not supply the real founder password for automated acceptance; the resulting placeholder 401 is not evidence that the stored password is wrong. The local `worker:checkin` command still writes only the local working tree; choose an authenticated publishing path if local workers must appear in production automatically. Port 3032 has fast warm responses after initialization but can spend minutes in Next/React development debug-chunk initialization when open HMR tabs reconnect; this is a local development cost, not the production runtime. |
 | Configurable roles and workspace access | **Implemented kernel and representative runtime/browser adoption; application-wide parity remains Building.** Roles are reusable templates, while exact per-person agency/workspace/project/client/environment grants are authority. Permission requests support approve-as-requested, narrow, deny, cancel and revoke. Stable Hidden/View/Use/Manage elements drive Dev, Staff, Fulfilment and 11 client elements. All tenant route files containing `clientId` are **35/36** canonical-gated, with only the dev-only empty-store seeder excluded; 28 completed mappings are source-pinned. Focused client proof is **62/62** plus product-workspace cross-process **4/4**. The final boundary repairs gate Fulfilment list/create, element-project Staff People DTOs, canonicalise governed client/customer collaboration, remove the inert Development workspace choice and sanitise exact workspace scopes; **92/92 + 11/11 + 32/32**, TypeScript/diff and the clean exact-scope browser retest pass. | Finish the dynamic plugin mappings for Fulfilment/Client CRM/Ecommerce/Memberships/Affiliates and classify freelancer-job plus generic task/task-template client associations. Preserve the documented customer/session/relationship, Dev-project, workspace-create, website-source and output/derived alternative-authority routes. Complete the real create/grant/request/approve/revoke two-user/two-project/two-environment mutation matrix, positive exact-client journey, accessibility/failure paths, AI/service principals and expiring share links before release parity. The complete repo suite was not rerun in this wave. |
-| Session authorization | **P0 — central revocation is ineffective.** A stale owner cookie created a working external-AI token after the live user was downgraded to staff. | Enforce current-user existence, `sessionRev`, current role and membership centrally before every role/scope decision; add old-cookie behavioural regressions across sensitive APIs. |
+| Session authorization | **RESOLVED 2026-08-27 at the focused-test level.** `resolveFreshSessionUser()` in `auth.ts` enforces current-user existence, `sessionRev`, current role and live membership on every `getSession()`/`getSessionFromRequest()` read; the old-cookie exploit replay (external-AI create after owner→staff downgrade, password rotation, deletion) returns 403/401 with no token — `smoke-session-revocation` 16/16. | Browser-walk a live downgrade as part of the release access matrix; deployed multi-instance immediacy rides on the storage backend's freshness (sandbox anchors already hydrate fresh). |
 | Core CRM and portal surfaces | **Substantially coded; broad static/logic suite green at the last documented run** | Complete the critical browser journeys instead of treating source-shape assertions as end-to-end acceptance. |
 | Account creation surfaces | **The standalone portal intentionally exposes no `/signup` page.** Its JSON agency-bootstrap API is backend-only here. Published-site `SignupFormBlock` creates a lead; end-customer self-signup is available only from a client-scoped embed with signups enabled. The focused source/behaviour set passes **35/35**. | Browser-walk the published-site lead result and enabled client embed; do not report the absent standalone screen as a broken route unless product policy changes. |
 | Health Check → Public Funnel → BOS | **Connected and route-proven.** Email-backed completion now sends the exact result through a stable Public Funnel operation, flushes before acknowledgement, creates/reuses lead identity, issues the real cookie and redirects to BOS; BOS reloads the result from a fresh no-store lead context. A resumed clean browser derives the same completion id. Contact skip remains an explicitly browser-only free path. | The server journey/plugin regressions pass **21/21** and live 3032 copy is verified. A full human completion on the shared live dataset was deliberately not submitted during acceptance. |
@@ -4436,7 +4710,7 @@ verified" rather than implying something works._
 
 ## Source document — `docs/development/todo.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/todo.md" sha256="6d61a289278f8a104dfb234dabf1dffcafdd7d9bba25be773aef575047f0dd06" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/todo.md" sha256="5ba5f74fac8919c948c7e7b21400983c14d8e2c737097392fd653ef26b6f6278" -->
 # To-do — cleanup & finishing
 
 ← Back to [development.md](../development.md) (the law)
@@ -5265,7 +5539,26 @@ through → write its phased plan → blitz). Trivial one-liners don't need a pl
       scoped compare-and-swap commands, recoverable slug/collection migration, graph
       validation and lossless rich option/variant fields are source/service complete.
       Literal two-tab conflict/rename/reload proof remains. → [issues #71 and #77](issues.md)
-- [ ] 🟠 **Remove hidden read-time work from slow pages** — profile first, then
+- [~] 🟠 **Remove hidden read-time work from slow pages** — **the enumeration and
+  the classification exist as of 2026-08-27**: `npm run smoke:read-path-mutations`
+  re-derives the list from source every run and fails when it disagrees with
+  `scripts/read-path-mutation-inventory.ts`. Today: **19 GET-only routes and 38
+  renders** → after ruling every cause, **16 routes and 27 renders**, with the
+  unruled backlog at **zero**. What remains is the REMOVALS, in this order:
+  (1) ✅ **DONE 2026-08-27** — `listPeopleChannels` no longer creates the Team
+  channel; the id is deterministic per agency, a read gets it unsaved, and the
+  first post persists it. The chain re-resolved one hop along to
+  `releaseExpiredParks`, which is ruled and left as a product question.
+  (2) ✅ **DONE 2026-08-27** — `ensureDefaultAgencyProducts` no longer runs on a
+  read: the repair is applied in memory by `agencyProductsForRead`, the seed
+  moved to `bootstrapAgency`, and three dead showcase guards went with it. It
+  exposed seven causes hiding behind it, reducing to three roots — the next
+  seeder is `ensureProductPortalTemplate` (identical shape) and the next
+  migration-on-render is `upgradeLegacyLeadsPipeline`. (3) The Marketing render runs `processAutomationSweep`,
+  the cron function, and three Development pages run `migrateLegacyStageRefs`, a
+  migration. (4) `ensurePrimaryAgencyWebsite` is the only one a STRANGER can
+  trigger, from the public website layout. The original
+  wording follows: profile first, then
   classify the **28 non-auth API GETs and 26 rendered page/layout files** with a
   reachable mutation path; explicitly isolate intentional cron/OAuth effects;
   separate product/workflow/key/portal materialisation, plugin provisioning,
@@ -5388,6 +5681,18 @@ through → write its phased plan → blitz). Trivial one-liners don't need a pl
 - [ ] **Aqua Tag form-capture consent** — field-value capture isn't consent-gated (telemetry is). Deliberate legitimate-interest call, or gate it. → [issues #2](issues.md)
 - [ ] **`.env.example` missing 3 Supabase creds** — a fresh copy fails the boot check. Trivial fix. → [issues #4](issues.md)
 - [x] ~~**First git commit**~~ — completed and pushed 2026-08-21; merging to `main` remains Ed's deployment decision.
+- [ ] ⏳ **Ed's GitHub credentials for the Dev Editor publish walk — PROMISED, NOT YET SUPPLIED (noted 2026-08-27).**
+  Everything up to the publish boundary is now proven: the supervised preview lifecycle is
+  browser-accepted on an isolated worktree, and the commit/PR/merge engine exists
+  (`repoWrite` → `openProjectPullRequest` / `mergeProjectPullRequest`, two steps on purpose).
+  What cannot be walked without a real connection is the last leg — **commit → open PR →
+  review → merge** — against a real repository. Ed said he will supply the credentials later.
+  **When they arrive:** connect GitHub in the editor (Settings tab, one vault — do not fork a
+  second connection store), then walk save → diff → commit → PR → merge on a throwaway branch
+  BEFORE any real client repository, and record the result in
+  [dev-editor-finish](plans/dev-editor-finish.md) phase 17. **Never enter a real key yourself** —
+  build the inputs and let Ed fill them in (this plan's own guard rail).
+  → [dev-editor-finish](plans/dev-editor-finish.md), [issues #161](issues.md)
 
 ## 4. Prove — runtime verification (the honest gap)
 - [ ] 🔴 **Free a server + verify the critical flows for real** — enquiry ingestion (tag → `brand-enquiry` → inbox), customer portal loading, connect + setup, Aqua Tags detect. Most features are coded + static-tested only. → [status.md](status.md), [tests.md](tests.md) · **[plan »](plans/runtime-verification.md)**

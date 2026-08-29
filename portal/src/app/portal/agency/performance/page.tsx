@@ -13,7 +13,7 @@ import { phaseLabel } from "@/server/phases";
 import { PerformanceWorkspace, type PerformanceClient } from "./_PerformanceWorkspace";
 import { buildPerformanceAnalytics, type PerformanceEvent } from "@/lib/performance/performanceAnalytics";
 import { cleanMonthlyPerformanceReports } from "@/lib/performance/performanceReports";
-import { ensureAgencyWebsite, summarizeAgencyWebsite } from "@/server/agencyWebsite";
+import { agencyWebsiteForRead, summarizeAgencyWebsite } from "@/server/agencyWebsite";
 import { listPerformanceExperiments } from "@/server/performanceExperiments";
 import { listAgencyProducts } from "@/server/agencyProducts";
 
@@ -157,7 +157,7 @@ export default async function PerformancePage() {
     };
   });
 
-  const ownWebsite = ensureAgencyWebsite(session.agencyId);
+  const ownWebsite = agencyWebsiteForRead(session.agencyId);
   const ownSummary = summarizeAgencyWebsite(ownWebsite);
   const ownHealthNotes = ownSummary.errors24h > 0 ? [`${ownSummary.errors24h} live website error${ownSummary.errors24h === 1 ? "" : "s"}`] : [];
   const own: PerformanceClient = {

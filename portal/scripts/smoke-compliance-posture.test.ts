@@ -221,8 +221,20 @@ describe("posture is built from real evidence", () => {
 
   it("names the gaps the DPO pack itself calls out, so the two cannot drift apart quietly", () => {
     const posture = buildCompliancePosture(evidence());
-    assert.equal(control(posture, "gdpr.dsar-intake").status, "missing");
-    assert.equal(control(posture, "gdpr.dsar-access").status, "missing");
+    // Changed to "partial" on 2026-08-28: the export was BUILT
+    // (`POST /api/portal/governance/subject-access`), so leaving this at
+    // "missing" would have the app under-report a right it can now perform.
+    // It is not "met" — the request side (identity verification before
+    // releasing someone's data, and a clock against the one-month deadline)
+    // still does not exist, which the control's own `gap` now says.
+    assert.equal(control(posture, "gdpr.dsar-access").status, "partial");
+    assert.match(control(posture, "gdpr.dsar-access").gap, /identity-verification/);
+    // Also "partial" as of 2026-08-28: the register, the identity gate and the
+    // Art. 12(3) clock are built. It is not "met" because nothing FEEDS the
+    // register yet — requests are still typed in by hand and no screen surfaces
+    // the clock, so an overdue one is only visible to somebody who looks.
+    assert.equal(control(posture, "gdpr.dsar-intake").status, "partial");
+    assert.match(control(posture, "gdpr.dsar-intake").gap, /missing is INTAKE/);
     assert.equal(control(posture, "gdpr.ropa").status, "missing");
     assert.equal(control(posture, "gdpr.breach-register").status, "missing");
     assert.equal(control(posture, "gdpr.retention").status, "missing");

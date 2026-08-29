@@ -774,3 +774,89 @@ describe("Aqua Editor AI reply — the transcript stays unforgeable and bounded"
     assert.equal(last?.truncated, true, "and honest about having been cut");
   });
 });
+
+// ─── "A rejected AI change changes nothing" (dev-editor-finish phase 17) ────
+//
+// The plan requires proving that a proposal the operator does not accept
+// leaves no trace. That property is structural rather than behavioural here:
+// Aqua Editor AI has NO write path at all. It describes changes in words; a
+// person applies them through the ordinary repo-write/source-edit routes,
+// which have their own gates, fingerprints and confirmations.
+//
+// So the thing worth pinning is the boundary itself. If somebody later wires
+// "apply this suggestion" straight into the reply path, rejection stops being
+// free and this test is what says so — before a client's website finds out.
+describe("Editor AI proposes; only a person writes", () => {
+  const AI_SERVER_MODULES = [
+    "src/engines/editor/server/editorAi.ts",
+    "src/engines/editor/server/editorAiReply.ts",
+    "src/engines/editor/server/editorAiHistory.ts",
+    "src/engines/editor/server/editorAiReplyClaim.ts",
+  ];
+  const AI_ROUTES = [
+    "src/app/api/portal/dev/editor-ai/route.ts",
+    "src/app/api/portal/dev/editor-ai/history/route.ts",
+    "src/app/api/portal/dev/editor-ai/reply/route.ts",
+  ];
+  // The real writers. None of them may be reachable from the AI path.
+  const WRITE_SURFACES = [
+    "repoWrite",
+    "saveRepoFile",
+    "insertElementIntoRepo",
+    "createRepoPath",
+    "openProjectPullRequest",
+    "mergeProjectPullRequest",
+    "sourceEdit",
+    "writeWorkspaceFile",
+    "publishEdits",
+  ];
+
+  it("no Editor AI module or route can reach a repository/source write", async () => {
+    const { readFile } = await import("node:fs/promises");
+    let checked = 0;
+    for (const file of [...AI_SERVER_MODULES, ...AI_ROUTES]) {
+      const source = await readFile(file, "utf8");
+      assert.ok(source.length > 0, `${file} must exist for this boundary to mean anything`);
+      checked += 1;
+      for (const surface of WRITE_SURFACES) {
+        assert.ok(
+          !source.includes(surface),
+          `${file} references ${surface}: the AI must never hold a write path`,
+        );
+      }
+    }
+    assert.equal(checked, AI_SERVER_MODULES.length + AI_ROUTES.length,
+      "every named AI surface was actually read — a moved file must fail, not silently pass");
+    // The detector itself must work: a file that DOES write is caught.
+    const writer = await readFile("src/app/api/portal/dev/repo-write/route.ts", "utf8");
+    assert.ok(WRITE_SURFACES.some(surface => writer.includes(surface)),
+      "the write-surface list must match the real write path, or this test proves nothing");
+  });
+
+  it("a reply that proposes an edit still writes nothing but the conversation", async () => {
+    const { agencyId, userId } = await founder();
+    const { project, threadId } = readyProject(agencyId, userId);
+    // Everything the state holds EXCEPT the conversation the reply legitimately
+    // appends to. If a suggestion could write, it would show up in here.
+    const stateWithoutConversations = () => {
+      const { editorAiConversations: _conversations, ...rest } = getState();
+      return JSON.stringify(rest);
+    };
+    const before = stateWithoutConversations();
+
+    stubModel({ output_text: "Change the hero heading in app/page.tsx to 'Hello'." });
+    const result = await generateEditorAiReply({
+      agencyId, projectId: project.id, threadId, actorUserId: userId,
+    });
+
+    assert.equal(result.ok, true);
+    const thread = getEditorAiThread(agencyId, project.id, threadId);
+    assert.match(thread?.messages.at(-1)?.content ?? "", /Change the hero heading/);
+    // The operator reads it and walks away. There is nothing to undo.
+    assert.equal(
+      stateWithoutConversations(),
+      before,
+      "a proposal is words in a thread; every other record is byte-identical",
+    );
+  });
+});

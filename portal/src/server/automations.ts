@@ -27,6 +27,7 @@ const MAX_RUN_LOGS = 120;
 const TRIGGERS = new Set<AutomationTriggerType>([
   "manual",
   "website-enquiry.received",
+  "client-form.received",
   "client-request.received",
   "social-message.received",
   "client.created",
@@ -811,6 +812,24 @@ function formatDelay(minutes: number): string {
   }
   const days = minutes / 1_440;
   return `${Number.isInteger(days) ? days : days.toFixed(1)} day${days === 1 ? "" : "s"}`;
+}
+
+/**
+ * Runs whose wait has expired and which the scheduler has not picked up yet.
+ *
+ * Pure. Added 2026-08-27 (issue #21) when the sweep was taken off the Marketing
+ * RENDER: a page load used to resume and EXECUTE these, which meant opening a
+ * screen could send a customer an email. The sweep belongs to the scheduler, so
+ * the render now reports the backlog instead of quietly working through it —
+ * because a scheduler that has stopped is something to be told about, not
+ * something to paper over on whichever page somebody happens to open.
+ */
+export function dueAutomationRuns(agencyId?: string, now = Date.now()): number {
+  return Object.values(getState().automationRuns)
+    .filter(run => (!agencyId || run.agencyId === agencyId)
+      && run.status === "waiting"
+      && (run.waitUntil ?? Number.MAX_SAFE_INTEGER) <= now)
+    .length;
 }
 
 export async function processAutomationSweep(agencyId?: string): Promise<{ resumed: number; scheduled: number; failed: number }> {

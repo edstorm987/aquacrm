@@ -28,6 +28,7 @@ import { ensureHydrated } from "@/server/storage";
 import { getAgency } from "@/server/tenants";
 import { getUserById } from "@/server/users";
 import { ACCENTS } from "./_ui";
+import { withPersonalChrome } from "@/lib/server/chrome/personalPanels";
 
 // The sidebar's own stylesheet colours `.mm-sidebar-link-icon`, and lucide icons
 // stroke with `currentColor` — so an icon dropped in here inherits the chrome's
@@ -169,6 +170,7 @@ export default async function DevTeamLayout({ children }: { children: ReactNode 
 
   const h = await headers();
   const currentPath = h.get("x-invoke-path") ?? h.get("x-pathname") ?? "/portal/dev-team";
+  const personalPanels = await withPersonalChrome(panels);
   return (
     <>
       <ThemeInjector brand={agency.brand} scope="agency" />
@@ -750,11 +752,11 @@ html[data-cinematic-mode="false"] .mm-dev-transition { display: none !important;
   }
 }
       `}</style>
-      <div className="mm-dev-team-shell mm-portal-root flex h-dvh overflow-hidden">
+      <div className="mm-dev-team-shell mm-portal-root flex h-[var(--aqua-shell-h,100dvh)] overflow-hidden">
         {/* The shipyard cutscene — fires on entering the yard, gated by
             Cinematic mode + prefers-reduced-motion (both handled inside). */}
         <DevTeamTransition />
-        <Sidebar panels={panels} tenantLabel="Dev Team" currentPath={currentPath} />
+        <Sidebar panels={personalPanels} tenantLabel="Dev Team" currentPath={currentPath} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <Suspense fallback={<DevTeamTopbarFallback />}>
             <DevTeamTopbar
@@ -763,7 +765,7 @@ html[data-cinematic-mode="false"] .mm-dev-transition { display: none !important;
               email={session.email}
               name={user?.name}
               avatarUrl={user?.avatarUrl}
-              panels={panels}
+              panels={personalPanels}
               currentPath={currentPath}
               agencyId={session.agencyId}
               userId={session.userId}

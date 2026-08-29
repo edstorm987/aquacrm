@@ -32,14 +32,14 @@ Editing one does **not** change the others. Confirm which surface you're on befo
 - `src/app/portal/agency/leads-pipeline/contacts/_ContactsWorkspace.tsx` (1494L) — the older **CSV rolodex** from the `leads-pipeline` plugin.
 
 ### Two "who is this person" models
-- `lib/clientContacts.ts` — simple contacts embedded on a client.
+- `lib/clients/clientContacts.ts` — simple contacts embedded on a client.
 - `lib/server/identityResolution.ts` + `personInteractions.ts` — the resolution graph.
 
 ### Two client activity logs
-- `lib/clientRelationshipRecord.ts` (client-safe) vs `lib/server/clientRecordLedger.ts`. Confirm canonical before writing history entries.
+- `lib/clients/clientRelationshipRecord.ts` (client-safe) vs `lib/server/clients/clientRecordLedger.ts`. Confirm canonical before writing history entries.
 
 ### Aqua-tag analytics twice
-- `agency/aqua-tags/_AquaTagsWorkspace.tsx` **[new]** vs `agency/performance/_AquaTagDashboard.tsx`.
+- `agency/fulfilment/_AquaTagsWorkspace.tsx` **[new]** vs `agency/performance/_AquaTagDashboard.tsx`.
 
 ### Aqua Tag ↔ editor protocol — one definition, one alias
 **Canonical:** `src/engines/editor/editing/aquaTagBridge.ts` — message names,
@@ -294,13 +294,13 @@ Plus overlapping "intelligence" builders that are easy to confuse:
 - **A native `<form method="post">` cannot reach ANY plugin API handler — they all parse `req.json()`.** A native submit sends `application/x-www-form-urlencoded` and navigates the page; `safeJson`'s `req.json()` throws on that, returns null, and the handler answers **400** — which reads as a validation error, so the page looks finished and merely "fussy" while being 100% non-functional. This shipped in finance's Plans page and was invisible to tests because none called the endpoint the way the form did. Submit with `fetch` from a client component (`agency-finance/src/components/NewPlanForm.tsx` is the reference shape: JSON body, idempotency key, busy + error states). `smoke-finance-idempotency.test.ts` guards the whole class for the finance plugin. **A codebase-wide sweep (2026-08-19) found 8 native form POSTs; one other pair is genuinely broken** — `website-editor`'s `LoginFormBlock`/`SignupFormBlock` default to `/api/auth/login`+`/api/auth/signup`, which are JSON-only, so a visitor to a published client site lands on a raw JSON 400 ([issues #14](../development/issues.md)). The rest are fine and show the two correct patterns: **`api/auth/profile/update` accepts either encoding and 303-redirects** (the right fix when a form must work without JS), and the logout forms simply ignore their body.
 - **Stripe webhook: cache the event id only AFTER reconcile succeeds, and answer 5xx on a processing failure.** `server/stripeReconcile.ts` `reconcileStripeEventOnce` owns the in-process "already handled?" cache, and the ordering is load-bearing: caching first meant a transient failure poisoned the cache, Stripe's retry hit "already done", got a 200, stopped retrying, and **the payment was never recorded** (customer paid, invoice unpaid). The handler distinguishes **400 = verification failed** (not from Stripe; a retry achieves nothing) from **500 = processing failed** (it was from Stripe, so it must retry) — Stripe reads the status code as an instruction. **Don't drop the cache** even though payments now dedup durably on the PaymentIntent: refunds and disputes do NOT, so a redelivered `charge.refunded` would log and emit twice.
 - **`expense.*` events are emitted but consumed by nothing (not dead code).** `agency-finance/src/server/expenses.ts` emits `expense.created`/`updated`/`approved`/`rejected`/`reimbursed`/`recurring.posted` (declared in `server/ports.ts`), but no consumer exists — the activity log already records each action. They are the plugin's **event contract**, a ready ingestion surface for a future cross-domain wire (e.g. You-Deserve-It → Finance). Don't assume they drive anything today; don't add a duplicate emitter. **AR/AP aging** (`lib/aging.ts` + the Reports panel) reads state directly, not these events.
-- **Two contract systems — pick by scenario (both real, not a bug).** `lib/clientContracts.ts` + `_ContractsPanel.tsx` + `/api/tenants/client-contracts` = **client contracts** (on `client.metadata.contracts`, for an existing client) — this is what the one-button **close-deal** (`lib/server/closeDeal.ts` + `api/tenants/close-deal`) creates. The **leads-pipeline** proposal/commercial-pack (`built-ins/modules/leads-pipeline`, `app/proposal/[token]`) is the **lead** (pre-client) path. The close-deal's lead→client flavour reuses that and **spans Journey — coordinate before editing leads-pipeline.** (Also distinct from staff contracts, `PeopleContract` — three contract concepts, no shared key.)
+- **Two contract systems — pick by scenario (both real, not a bug).** `lib/clients/clientContracts.ts` + `_ContractsPanel.tsx` + `/api/tenants/client-contracts` = **client contracts** (on `client.metadata.contracts`, for an existing client) — this is what the one-button **close-deal** (`lib/server/closeDeal.ts` + `api/tenants/close-deal`) creates. The **leads-pipeline** proposal/commercial-pack (`built-ins/modules/leads-pipeline`, `app/proposal/[token]`) is the **lead** (pre-client) path. The close-deal's lead→client flavour reuses that and **spans Journey — coordinate before editing leads-pipeline.** (Also distinct from staff contracts, `PeopleContract` — three contract concepts, no shared key.)
 - **Payment-plan metadata key: `client.metadata.clientPaymentPlans` is canonical.** `lib/server/resolutionPlans.ts` used to read `metadata.paymentPlans` (a key nothing writes) at two sites → missed-instalment resolution plans + evidence silently returned null. Fixed 2026-08-19 (regression-locked in `smoke-operational-notifications`).
 
 ---
 
 - **A Radar `value: 0` is not automatically a measurement.** `blind` (no data source), `learning` (not enough evidence yet) and `inactive` (doesn't apply) checks still carry `value: 0`, so an agency with **nothing monitored** looks identical to a tracked-but-quiet one. `marketingIntelligence.ts` only accepts a reading from a lens whose own status is `pass`/`critical`/`warning`/`watch` (`ASSESSED_STATUSES`); everything else reads `null` → "—". **Any surface reading `check.value` directly needs the same guard** — this was a live bug in the marketing funnel (it would have reported "0 pageviews" for an untracked agency) and it was invisible to the smoke tests, which feed synthetic checks. Caught only by `scripts/verify-marketing-runtime.ts` driving a real Radar build. **Update 2026-08-20:** the command-intelligence spine now enforces this at the type level — `commandIntelligenceService.ts` uses `measuredCheckValue` (`number | null`, never `?? 0`) and `demandFlow`/`lineage` pageviews/forms are `number | null`, so downstream consumers cannot read a fabricated zero. The guard above still applies to any NEW surface reading `check.value` directly.
-- **Marketing metrics have ONE owner: `lib/server/marketingIntelligence.ts`.** Traffic, forms, conversions, conversion rate, tag coverage, enquiry counts, the KPI pulse and the funnel are all reshaped there from engines that already computed them (the Radar `marketing` domain, `lib/kpiRegistry`, `commercialIntelligence.lineage`, `server/websiteSources`, `lib/server/websiteEnquiries`). **Do not recompute any of them inside `agency/marketing/page.tsx` or a workspace component** — that is how marketing ended up half-fed the first time (the old overview showed `ownWebsiteSummary.pageviews24h`, the agency's own site only, next to Radar-derived numbers elsewhere; that field is now gone). Marketing is a **consumer**: it must never edit `lib/kpiRegistry.ts`, the aqua-tag files, or the Radar engine — flag it to the commander instead. Note `agency/marketing` is also the redirect target for `agency/automations`.
+- **Marketing metrics have ONE owner: `lib/server/marketingIntelligence.ts`.** Traffic, forms, conversions, conversion rate, tag coverage, enquiry counts, the KPI pulse and the funnel are all reshaped there from engines that already computed them (the Radar `marketing` domain, `lib/kpiRegistry`, `commercialIntelligence.lineage`, `server/websiteSources`, `lib/server/websiteEnquiries`). **Do not recompute any of them inside `agency/marketing/page.tsx` or a workspace component** — that is how marketing ended up half-fed the first time (the old overview showed `ownWebsiteSummary.pageviews24h`, the agency's own site only, next to Radar-derived numbers elsewhere; that field is now gone). Marketing is a **consumer**: it must never edit `lib/performance/kpiRegistry.ts`, the aqua-tag files, or the Radar engine — flag it to the commander instead. Note `agency/marketing` is also the redirect target for `agency/automations`.
 
 - **Never put PII in an activity message — the erasure sweep is keyed by `clientId`.** `clientErasure` sweeps `state.activity` by `clientId` only, and an **agency-scoped plugin install writes activity entries with no `clientId` at all** — so an email in one of those messages survives a client erasure forever. Every message in `built-ins/modules/leads-pipeline/src/server/contacts.ts` names the contact by **id**, with `contactId` in the metadata for the UI to resolve a label from (the rule is written into the file header, `contacts.ts:10-15`). **This was one of tonight's three "🔴 launch blockers" and it is FIXED.** Apply the same rule to any new agency-scoped plugin activity.
 
@@ -310,13 +310,14 @@ closed. Each was re-read from source during the 2026-08-20 docs pass:
 
 | Was briefed as open | Actually |
 | --- | --- |
+| **Client Portals had two addresses** | **Consolidated 2026-08-27.** The Portals library was reachable at both `/portal/agency/portals` and `/portal/agency/fulfilment?view=portals`. It was never a code fork — one data function (`_portalWorkspaceData.ts`), one component (`_PortalsWorkspace.tsx`), and the authority was **always** Fulfilment's (`fulfilment.portals` on every page; the sidebar has no Portals row and lights up FULFILMENT for that path — see the "Fulfilment's widened surfaces" list in `SidebarNavLink.tsx`). It was two doors onto one room. The standalone page is now a **redirect stub** following the Dev Team pattern, forwarding `?view=templates` too — which first required Fulfilment to accept a `portalView` param, because it hard-coded `initialView="library"` and could not reach the Demo templates half. **`/portal/agency/portals/editor` and `/forms` are NOT stubs** and remain the canonical addresses for template editing and forms. Browser-verified: both redirects land, the client card and its template line render, and the templates view opens. |
 | **Freelancer-preview privilege escalation** | Fixed. `app/api/auth/preview-as-freelancer/route.ts` stashes the enterer's own id as `previewReturnUserId` (`:101`) and `exit` re-mints **that** user (`:49`), instead of restoring "an owner it found". `previewReturnUserId` is a first-class session field (`lib/server/auth.ts:72,104`). `api/auth/switch-agency/route.ts` was built into the same shape and cites it. |
 | **Finance create-surface idempotency** | Fixed. `built-ins/modules/agency-finance/src/lib/idempotency.ts` (`deriveRecordId`) is wired into six create surfaces + expenses — see the money-CREATE bullet above. |
 | **Erasure logging an email** | Fixed. See the bullet directly above. |
 
 **Also settled, and repeatedly mis-briefed:** **MFA on login is BUILT and WIRED** — the
 server gate is `app/api/auth/login/route.ts:320-360` (it imports `loginMfaStep` from
-`lib/server/mfa.ts`, rate-limits code attempts, then calls `supabase.auth.mfa.challenge`
+`lib/server/auth/mfa.ts`, rate-limits code attempts, then calls `supabase.auth.mfa.challenge`
 + `.verify`) and the browser code step is in `app/login/LoginForm.tsx`. Any doc saying
 "`/api/auth/login` has no MFA step" or "`mfa.ts` built, unwired" is describing a state
 that ended. **What is genuinely NOT built is Phases 3–4**: the login gate proves aal2 once
@@ -347,6 +348,19 @@ as "the intended long-term mechanism". There are no recovery codes.
 ## ✅ Expected pairs (NOT bugs — the macro/micro model)
 - SOP library (agency) vs `_ClientSopsTab` (client) — same capability, two scopes.
 - `_PipelineBoard` (agency kanban) vs `_KanbanTabClient` (client kanban).
+- **THREE boards now, and the word "pipeline" names all three. They are different
+  SUBJECTS, not one feature in three places — check which you mean before editing:**
+  | Board | Scope | What is on it | Columns |
+  | --- | --- | --- | --- |
+  | `app/portal/agency/pipelines/[slug]/_PipelineBoard.tsx` (`leads-pipeline`, `scopePolicy: "agency"`) | Agency | The agency's **leads**, CSV-driven | The plugin's |
+  | `app/portal/clients/[clientId]/_KanbanTabClient.tsx` | One client | The agency's **work** for that client (`AgencyTask`) | **Fixed** — `lib/tasks/clientTaskBoard.ts` |
+  | `built-ins/modules/client-crm/src/pages/PipelinesPage.tsx` (`journey-pipelines` add-on) | One client | The **client's own contacts** (`Contact` rows) | **Authored by the client**, any number of pipelines |
+
+  The third is the only one whose stages the client writes, and the only one with
+  automations. It was added 2026-08-28 **inside the existing `client-crm` module**
+  rather than as a new one, because that module already owned the client's
+  contacts. Do not merge them and do not build a fourth: a board's identity here
+  is its subject (leads / work / contacts), not its shape.
 - Any agency workspace vs its client-scoped equivalent — this is the intended architecture (`CLAUDE.md`), not duplication.
 - Meta app credentials have **two save entry points** — the Company→Connections `IntegrationConnectionsPanel` modal and the social-inbox **"Connect now"** form (`MetaConnectForm` in `_SocialInboxWorkspace`) — but both write the **same** canonical `meta` integration connection via `/api/portal/settings/integrations`, using the same `integrationDefinition("meta")` fields. One store, two views (by design — see [meta-inbox-connect](../development/plans/meta-inbox-connect.md)), not a drift twin.
 
@@ -365,7 +379,7 @@ as "the intended long-term mechanism". There are no recovery codes.
 ## Roadmap vs phases.md vs the board (2026-08-20; phases.md archived 2026-08-21)
 Three things describe "what's next", and only one is canonical now:
 - **`docs/development/roadmap.md` — CANONICAL.** Outcomes with horizons + target dates, edited
-  from the Dev Console (`/portal/dev-team/roadmap`, `lib/server/devTeamRoadmap.ts`). Progress is
+  from the Dev Console (`/portal/dev-team/roadmap`, `lib/server/dev/devTeamRoadmap.ts`). Progress is
   derived from each item's plans → phases → tasks, so it cannot drift.
 - **`phases.md` — superseded**, and since 2026-08-21 it is off the live tree entirely: [context/archive/phases.md](../context/archive/phases.md). Do not add items.
 - **The board** (`devTeamBoard.ts`) is a different altitude: it shows

@@ -318,6 +318,45 @@ export const PROMOTION_DISPOSITION = {
     needsConfirmation: true,
   },
 
+  clientFormNotices: {
+    // Follows the client, like the client's other records — but ONLY as far as
+    // the pointer. A notice holds no customer data (see `ClientFormNotice`), so
+    // moving one leaks nothing; what it points at lives in the client's own
+    // Supabase and does not move at all.
+    //
+    // `leave`, not `move`, for the same reason `integrationConnections` is:
+    // the notice is worthless without the connection that can read it, and that
+    // connection is a CREDENTIAL whose transfer is a human decision. A notice
+    // moved into a tenant that cannot resolve its row is a permanent "an
+    // enquiry arrived, and you may never see it" — worse than not moving it.
+    disposition: "leave",
+    ownership: "client",
+    keying: "own-id",
+    reason:
+      "Points into a client's own database via a vault connection. Pointless without that credential, and credentials are revoke-and-reconnect rather than copy — so the notice waits for the human decision that moves the connection.",
+    needsConfirmation: true,
+  },
+
+  subjectRequests: {
+    // The DSAR register. `leave`, and this one is not a close call.
+    //
+    // A data-subject request is made TO a controller. Promoting a company out
+    // of an agency does not retrospectively change who the person wrote to, and
+    // copying the register would put one controller's evidence of compliance
+    // into another controller's hands — including the identity checks and the
+    // free-text outcomes.
+    //
+    // The statutory clock belongs to whoever received the request. If it should
+    // transfer, that is a controller-to-controller handover with its own
+    // paperwork, not a side effect of a portal promotion.
+    disposition: "leave",
+    ownership: "agency-scoped",
+    keying: "own-id",
+    reason:
+      "Evidence that THIS controller received and answered a subject request. Copying it would hand one controller's compliance record — identity checks included — to another, and the Art. 12(3) clock belongs to whoever took receipt.",
+    needsConfirmation: true,
+  },
+
   devProjects: {
     disposition: "leave",
     ownership: "agency-scoped",
@@ -642,6 +681,12 @@ export const PROMOTION_DISPOSITION = {
     keying: "agency-composite",
     reason: "Keyed `${agencyId}|${userId}|${alertId}` — one person's read/park/dismiss state for one tenant's alerts.",
   },
+  userChromeLayouts: {
+    disposition: "leave",
+    ownership: "agency-scoped",
+    keying: "agency-composite",
+    reason: "Keyed `${agencyId}|${userId}` — how one person arranged their own sidebar and where they put their own saved tabs. Personal, not organisational: promoting it would hand somebody else's shortcuts to a new company's staff, and the arrangement only means anything against the nav of the agency it was made in.",
+  },
 
   // ─── People — sixteen collections with no company dimension at all ──────
   peopleApplications: {
@@ -804,7 +849,7 @@ type _NoStaleCollections = AssertNever<StaleCollections>;
  * is the human-readable half — a smoke test pins it, so the next collection
  * announces itself in a test name as well as in the compiler.
  */
-export const PROMOTION_COLLECTION_COUNT = 88;
+export const PROMOTION_COLLECTION_COUNT = 91;
 
 /** Every classified collection name, in `PortalState` order. */
 export const PROMOTION_COLLECTIONS = Object.keys(PROMOTION_DISPOSITION) as Array<

@@ -8,6 +8,7 @@ import { devProjectGitHubToken } from "./devProjects";
 import { detectAquaTag, type AquaTagDetection } from "@/lib/server/integrations/aquaTagDetection";
 import { resolveIntegrationValues } from "@/lib/server/integrations/integrationConnections";
 import type { DevProject, DevProjectMap, DevProjectRepoMap, DevProjectTagMap } from "@/server/types";
+import { devPathScope, scopeAllows } from "@/lib/server/dev/devPathScope";
 
 /**
  * MAP — Ed's one button.
@@ -123,12 +124,26 @@ function message(error: unknown, fallback: string): string {
  * be read, here is why" is a normal thing to show on the card, and a throw
  * would take the tag half down with it.
  */
+/**
+ * MAP describes THIS PROJECT, so a scoped project reports its own surface.
+ *
+ * Not primarily a leak fix — MAP needs `project.manage`, which is a project
+ * administrator. It is a correctness one: a project declared as "the portal
+ * files" that answers with the whole repository's file count and top-level
+ * directories is describing something other than itself, and the number it
+ * gives is the number somebody will quote.
+ *
+ * The scope comes from the project rather than from the caller, because MAP's
+ * answer is a property of the project and should not change depending on who
+ * pressed the button.
+ */
 export async function mapProjectRepository(
   input: MapDevProjectInput,
   deps: MapDevProjectDeps = {},
 ): Promise<DevProjectRepoMap> {
   const { project } = input;
   const now = deps.now ?? Date.now();
+  const scope = devPathScope(project.allowedPaths);
   const base = {
     repository: project.repository,
     ref: project.ref || "main",
@@ -154,7 +169,9 @@ export async function mapProjectRepository(
       });
       // `readRepoTree` already drops hidden paths; the second check is for an
       // injected reader in a test, so the rule holds whoever supplies the list.
-      const paths = head.files.map(file => file.path).filter(path => !isHiddenPath(path));
+      const paths = head.files.map(file => file.path)
+        .filter(path => !isHiddenPath(path))
+        .filter(path => scopeAllows(scope, path));
       return {
         ...base,
         source: "github",
@@ -171,7 +188,9 @@ export async function mapProjectRepository(
 
   try {
     const files = await (deps.readWorkspace ?? readWorkspaceFiles)(deps.workspaceRoot ?? process.cwd());
-    const paths = files.map(file => file.path).filter(path => !isHiddenPath(path));
+    const paths = files.map(file => file.path)
+      .filter(path => !isHiddenPath(path))
+      .filter(path => scopeAllows(scope, path));
     return {
       ...base,
       source: "workspace",

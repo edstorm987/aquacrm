@@ -30,6 +30,27 @@ import {
   type SitemapPageInput,
 } from "../lib/sitemap";
 
+/**
+ * The client's OWN Supabase, baked into the exported site.
+ *
+ * Ed, 2026-08-27: the client's website writes into the client's database. An
+ * exported site is a static bundle dropped on Vercel, so there is no server of
+ * ours in the request path — the form posts straight from the visitor's browser
+ * to their PostgREST endpoint.
+ *
+ * **The anon key is in the bundle, and that is correct.** A Supabase anon key
+ * is designed to be public; it is the row-level-security policy on the table
+ * that decides what it may do, which is why the setup instructions ask for an
+ * INSERT-only policy. Nothing secret is exported — and the README says so
+ * plainly, because a reader who finds a key in a ZIP and is not told this will
+ * reasonably assume the worst.
+ */
+export interface ExportSupabaseTarget {
+  projectUrl: string;
+  anonKey: string;
+  table: string;
+}
+
 export interface ExportSiteInput {
   storage: PluginStorage;
   agencyId: AgencyId;
@@ -38,6 +59,8 @@ export interface ExportSiteInput {
   baseUrl: string;
   brandKit?: BrandKit;
   customCss?: string;
+  /** Absent when the client has no Supabase connected — forms then say so. */
+  supabase?: ExportSupabaseTarget;
 }
 
 export interface ExportSiteResult {
@@ -94,12 +117,12 @@ function styleString(b: Block): string {
   return parts.join(";");
 }
 
-export function renderBlockToHtml(block: Block): string {
+export function renderBlockToHtml(block: Block, supabase?: ExportSupabaseTarget): string {
   const style = styleString(block);
   const styleAttr = style ? ` style="${escapeAttr(style)}"` : "";
   const id = block.a11y?.htmlId ? ` id="${escapeAttr(block.a11y.htmlId)}"` : "";
   const aria = block.a11y?.ariaLabel ? ` aria-label="${escapeAttr(block.a11y.ariaLabel)}"` : "";
-  const childrenHtml = (block.children ?? []).map(renderBlockToHtml).join("");
+  const childrenHtml = (block.children ?? []).map(child => renderBlockToHtml(child, supabase)).join("");
   const text = String((block.props as { text?: unknown }).text ?? "");
   const href = String((block.props as { href?: unknown }).href ?? "");
   const src = String((block.props as { src?: unknown }).src ?? "");
@@ -129,6 +152,11 @@ export function renderBlockToHtml(block: Block): string {
     case "column":
     case "grid":
       return `<div${id}${styleAttr}${aria} data-block-type="${escapeAttr(block.type)}">${childrenHtml}</div>`;
+    case "contact-form":
+      // Previously fell through to `default` and emitted an empty div, which is
+      // why the README said form submissions do not survive an export: they
+      // were not rendered at all, never mind unwired.
+      return renderContactFormHtml(block, supabase, id, styleAttr, aria);
     case "html":
       // R020 raw-HTML block — passed through verbatim so operators can
       // embed snippets that wouldn't survive escape.
@@ -140,13 +168,94 @@ export function renderBlockToHtml(block: Block): string {
   }
 }
 
+
+/**
+ * A contact form that actually posts somewhere.
+ *
+ * Writes straight to the client's PostgREST endpoint from the visitor's
+ * browser. No JavaScript framework, no build step — this has to run inside a
+ * bundle somebody dropped on a static host.
+ *
+ * Without a Supabase target it renders the fields and says plainly that it is
+ * not connected, rather than presenting a Send button that throws the message
+ * away. The same decision `FormBlock` makes in the editor.
+ */
+function renderContactFormHtml(
+  block: Block,
+  supabase: ExportSupabaseTarget | undefined,
+  id: string,
+  styleAttr: string,
+  aria: string,
+): string {
+  const props = block.props as Record<string, unknown>;
+  const heading = String(props.heading ?? "Get in touch");
+  const subheading = String(props.subheading ?? "");
+  const submitLabel = String(props.submitLabel ?? "Send message");
+  const showPhone = props.showPhone !== false;
+  const formId = `aqua-contact-${block.id}`;
+
+  const notConnected = !supabase
+    ? `<p role="note" style="margin:0 0 12px;padding:10px 12px;border:1px dashed #c66;border-radius:8px;font-size:13px">This form is not connected yet, so it cannot be sent.</p>`
+    : "";
+
+  const phoneField = showPhone
+    ? `<label style="display:flex;flex-direction:column;gap:4px"><span>Phone</span><input name="phone" type="tel" /></label>`
+    : "";
+
+  // The script is emitted only when there is somewhere to post to.
+  const script = supabase
+    ? `<script>(function(){
+  var f=document.getElementById(${JSON.stringify(formId)});
+  if(!f)return;
+  var s=f.querySelector("[data-aqua-status]");
+  f.addEventListener("submit",function(e){
+    e.preventDefault();
+    if(f.dataset.sending==="yes")return;
+    var d=new FormData(f);
+    if(d.get("website"))return;
+    f.dataset.sending="yes";
+    s.textContent="Sending…";
+    var body={};d.forEach(function(v,k){if(k!=="website")body[k]=v;});
+    fetch(${JSON.stringify(`${supabase.projectUrl.replace(/\/+$/, "")}/rest/v1/${supabase.table}`)},{
+      method:"POST",
+      headers:{"Content-Type":"application/json","apikey":${JSON.stringify(supabase.anonKey)},"Authorization":"Bearer "+${JSON.stringify(supabase.anonKey)},"Prefer":"return=minimal"},
+      body:JSON.stringify(body)
+    }).then(function(r){
+      f.dataset.sending="";
+      if(r.ok){f.reset();s.textContent="Thanks — we have your message.";}
+      else{s.textContent="Sorry, that did not send. Please try again.";}
+    }).catch(function(){
+      f.dataset.sending="";
+      s.textContent="Sorry, that did not send. Please try again.";
+    });
+  });
+})();</script>`
+    : "";
+
+  return `<section${id}${styleAttr}${aria} data-block-type="contact-form">
+  <h2>${escapeHtml(heading)}</h2>
+  ${subheading ? `<p>${escapeHtml(subheading)}</p>` : ""}
+  ${notConnected}
+  <form id="${escapeAttr(formId)}" style="display:flex;flex-direction:column;gap:12px;max-width:480px">
+    <label style="display:flex;flex-direction:column;gap:4px"><span>Name</span><input name="name" type="text" required /></label>
+    <label style="display:flex;flex-direction:column;gap:4px"><span>Email</span><input name="email" type="email" required /></label>
+    ${phoneField}
+    <label style="display:flex;flex-direction:column;gap:4px"><span>Message</span><textarea name="message" rows="4" required></textarea></label>
+    <input name="website" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" />
+    <button type="submit"${supabase ? "" : " disabled"}>${escapeHtml(submitLabel)}</button>
+    <p data-aqua-status role="status" aria-live="polite" style="margin:0;font-size:13px"></p>
+  </form>
+</section>${script}`;
+}
+
 export function renderPageHtml(page: EditorPage, opts: {
   brandCssHref: string;
   customCssHref?: string;
   siteTitle?: string;
+  supabase?: ExportSupabaseTarget;
 }): string {
   const blocks = (page.publishedBlocks ?? page.blocks ?? []) as Block[];
-  const body = blocks.map(renderBlockToHtml).join("\n");
+  const body = blocks.map(block => renderBlockToHtml(block, opts.supabase)).join("\n");
   const title = page.seo?.metaTitle ?? page.title ?? page.slug;
   const desc = page.seo?.metaDescription ?? page.description ?? "";
   const noIndex = page.seo?.noIndex
@@ -186,7 +295,7 @@ img { max-width: 100%; height: auto; }
 `;
 }
 
-export function buildExportReadme(siteId: string, baseUrl: string, pages: number): string {
+export function buildExportReadme(siteId: string, baseUrl: string, pages: number, supabase?: ExportSupabaseTarget): string {
   return `Static site export — ${siteId}
 Generated: ${new Date().toISOString()}
 Base URL at export time: ${baseUrl}
@@ -195,8 +304,18 @@ Pages bundled: ${pages}
 This bundle is a SNAPSHOT of the site at the moment you clicked Export.
 Drop the contents on any static host (S3, Netlify, GitHub Pages, etc.).
 
-Things that WILL NOT work without backend wiring:
-- Form submissions (contact-form, signup-form, login-form, newsletter-signup)
+${supabase ? `Contact forms in this bundle DO work.
+They post straight from the visitor's browser to this site's own Supabase
+table "${supabase.table}". The anon key is in the page source, which is how
+Supabase is meant to be used — it is a PUBLIC key, and the row-level-security
+policy on that table is what decides what it may do. Keep that policy to INSERT
+only, and never put a service-role key anywhere near a static bundle.
+
+` : `Contact forms in this bundle are NOT connected.
+They render, and say so, but cannot be sent. Connect this client's Supabase in
+AquaCRM and export again to wire them up.
+
+`}Things that WILL NOT work without backend wiring:
 - Member-gated content / password-protected pages
 - Commerce blocks (product-card, cart-summary, checkout-summary, …)
 - Booking widgets and any block that reads live data
@@ -331,6 +450,7 @@ export async function exportSiteToZip(input: ExportSiteInput): Promise<ExportSit
       customCssHref: customHref
         ? (pageDepth(p) === 0 ? customHref : `../${customHref}`)
         : undefined,
+      supabase: input.supabase,
     });
     entries.push({ name: pageFilename(p), data: enc.encode(html) });
   }
@@ -386,7 +506,7 @@ export async function exportSiteToZip(input: ExportSiteInput): Promise<ExportSit
       data: enc.encode(buildAdvancedSitemap(localePages, { baseUrl })),
     });
   }
-  entries.push({ name: "README.txt", data: enc.encode(buildExportReadme(siteId, baseUrl, pages.length)) });
+  entries.push({ name: "README.txt", data: enc.encode(buildExportReadme(siteId, baseUrl, pages.length, input.supabase)) });
 
   const zip = buildZip(entries);
   return { zip, fileCount: entries.length, pageCount: pages.length };

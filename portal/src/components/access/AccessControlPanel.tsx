@@ -241,6 +241,7 @@ function PeopleGrants({
   const [capabilities, setCapabilities] = useState<string[]>([]);
   const [expiresAt, setExpiresAt] = useState("");
   const [reason, setReason] = useState("");
+  const [allowedPaths, setAllowedPaths] = useState("");
   const [busy, setBusy] = useState("");
   const activePeople = people.filter(person => person.id);
   const eligibleTemplates = templates.filter(template => !template.archivedAt && template.allowedScopeKinds.includes(scope.kind) && template.allowedEnvironments.includes(environment));
@@ -273,10 +274,17 @@ function PeopleGrants({
         capabilities: submittedCapabilities,
         expiresAt: parseExpiry(expiresAt),
         reason: reason || undefined,
+        // Only meaningful on a PROJECT scope — the other scopes have no files.
+        // Sent as an array; empty means "the whole scope", which is what every
+        // grant without a narrowing already is.
+        allowedPaths: scope.kind === "project"
+          ? allowedPaths.split("\n").map(line => line.trim()).filter(Boolean)
+          : undefined,
         idempotencyKey: crypto.randomUUID(),
       }, `Access assigned to ${selected?.name ?? "the selected person"}.`);
       setReason("");
       setExpiresAt("");
+      setAllowedPaths("");
       setCapabilities([]);
     } finally {
       setBusy("");
@@ -304,6 +312,24 @@ function PeopleGrants({
             <label className={labelClass}>Person<select required value={userId} onChange={event => setUserId(event.target.value)} className={controlClass}>{activePeople.map(person => <option key={person.id} value={person.id}>{person.name}{person.email ? ` · ${person.email}` : ""}</option>)}</select></label>
             <label className={labelClass}>Role template<select value={templateId} onChange={event => setTemplateId(event.target.value)} className={controlClass}><option value="">Custom capabilities only</option>{eligibleTemplates.map(template => <option key={template.id} value={template.id}>{template.name}</option>)}</select></label>
             <fieldset className="grid gap-2"><legend className="text-xs font-semibold text-black/55">Grant lifetime</legend><div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{[["Permanent", ""], ["7 days", daysFromNow(7)], ["30 days", daysFromNow(30)], ["90 days", daysFromNow(90)]].map(([label, value]) => <button key={label} type="button" onClick={() => setExpiresAt(value!)} aria-pressed={expiresAt === value} className={`min-h-10 rounded-md border px-2 text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${expiresAt === value ? "border-emerald-700 bg-emerald-50 text-emerald-900" : "border-black/10 bg-white text-black/55"}`}>{label}</button>)}</div><input type="datetime-local" value={expiresAt} onChange={event => setExpiresAt(event.target.value)} aria-label="Custom access expiry" className={controlClass} /></fieldset>
+            {scope.kind === "project" ? (
+              <label className={labelClass}>
+                Limit to these files <span className="font-normal text-black/38">(optional)</span>
+                <textarea
+                  rows={3}
+                  value={allowedPaths}
+                  onChange={event => setAllowedPaths(event.target.value)}
+                  spellCheck={false}
+                  placeholder={"src/app/portal\nsrc/lib/portal"}
+                  className={`${controlClass} py-2 font-mono`}
+                />
+                <span className="mt-1 block text-[11px] font-normal leading-5 text-black/45">
+                  {allowedPaths.trim()
+                    ? "This person sees and edits only these paths — narrowed further by whatever the project itself exposes."
+                    : "Blank gives them everything the project exposes. One path per line, relative to the project root."}
+                </span>
+              </label>
+            ) : null}
             <label className={labelClass}>Assignment reason <span className="font-normal text-black/38">(optional)</span><textarea rows={2} value={reason} onChange={event => setReason(event.target.value)} className={`${controlClass} py-2`} /></label>
             <CapabilityComposer capabilities={scopedCapabilities} onChange={setCapabilities} scope={scope} idPrefix="direct" compact />
             <button disabled={busy === "create" || (!templateId && !scopedCapabilities.length)} className={primaryButtonClass}><Save size={14} /> {busy === "create" ? "Assigning…" : "Assign access"}</button>

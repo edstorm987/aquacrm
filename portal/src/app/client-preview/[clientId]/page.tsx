@@ -11,6 +11,8 @@ import { customerPortalModeLabel, loadCustomerPortalData, portalMode, type Custo
 import { portalProjectLabel } from "@/lib/portal/portalProducts";
 import { resolveClientPortalProvider } from "@/lib/server/clients/clientPortalProvider";
 import { buildCustomerPortalAttention } from "@/lib/portal/customerPortalAttention";
+import { isSampleClientId, sampleClientAgencyId, sampleClientFor } from "@/lib/server/clients/samplePreviewClient";
+import { listClientFormNotices } from "@/lib/server/clientForms/clientFormNotices";
 
 export default async function ClientPreviewPage({
   params,
@@ -45,12 +47,27 @@ export default async function ClientPreviewPage({
   const scope = queryValue(query.portalScope) === "template" ? "template" : "client";
   const draft = queryValue(query.portalDraft) === "1";
   const templateId = queryValue(query.templateId);
-  const allowedSections = new Set<CustomerPortalSection>(["home", "project", "results", "files", "billing", "support", "resources", "details", "service", "custom"]);
+  // Kept in step with `CustomerPortalSection` by
+  // `smoke-client-form-notices`, which fails if a section exists that the
+  // agency cannot preview. "enquiries" was missing here for exactly that
+  // reason: the type gained it and this hand-written list did not, so the
+  // preview silently answered "home" instead of saying it did not know the
+  // section.
+  const allowedSections = new Set<CustomerPortalSection>(["home", "project", "results", "files", "billing", "support", "resources", "details", "service", "custom", "enquiries"]);
   const section: CustomerPortalSection = allowedSections.has(requestedSection as CustomerPortalSection)
     ? requestedSection as CustomerPortalSection
     : "home";
   const agencyId = session.activeAgencyId ?? session.agencyId;
-  const client = getClientForAgency(agencyId, clientId);
+  // A TEMPLATE can be drafted before any client exists. The studio previews a
+  // template by rendering it through a client, so with none on the agency there
+  // was nothing to render and the editor refused to open (Ed, 2026-08-27).
+  //
+  // The reserved sample id resolves to a synthesised stand-in rather than a
+  // stored row — see samplePreviewClient.ts for why nothing is created. It is
+  // still scoped: the id carries the agency it belongs to, and a sample id for
+  // ANOTHER agency resolves to nothing here.
+  const sampleForThisAgency = isSampleClientId(clientId) && sampleClientAgencyId(clientId) === agencyId;
+  const client = sampleForThisAgency ? sampleClientFor(agencyId) : getClientForAgency(agencyId, clientId);
   if (!client) notFound();
 
   const user = getUserById(session.userId);
@@ -80,10 +97,26 @@ export default async function ClientPreviewPage({
   const previewQuery = previewParams.toString();
   const previewHrefPrefix = `/client-preview/${client.id}?${previewQuery ? `${previewQuery}&` : ""}section=`;
 
+  // The enquiry POINTERS, and only in the section that shows them.
+  //
+  // Safe for an agency to see because that is what they already are: this
+  // agency is told an enquiry arrived, and the notice holds nothing but an id,
+  // a timestamp and a seen flag. The person's name, email and message stay in
+  // the client's own database and are read only by the client's own detail
+  // view — which is why the preview shows the LIST and does not link into it.
+  const enquiryNotices = section === "enquiries"
+    ? listClientFormNotices(client.agencyId, client.id).map(notice => ({
+        id: notice.id,
+        receivedAt: notice.receivedAt,
+        seen: Boolean(notice.seenAt),
+      }))
+    : [];
+
   return (
     <>
       <ThemeInjector brand={client.brand} scope="customer" />
       <CustomerPortalChrome
+        viewerRole={"end-customer"}
         clientName={client.name}
         email=""
         name={user?.name}
@@ -107,7 +140,7 @@ export default async function ClientPreviewPage({
         providerMark={provider.mark}
         attention={buildCustomerPortalAttention(data)}
       >
-        <CustomerPortalContent section={section} client={client} data={data} previewHrefPrefix={previewHrefPrefix} productId={requestedProductId} moduleId={requestedModuleId} customPageSlug={requestedCustomPageSlug} providerName={providerName} workspaceRole={manage ? "agency" : "preview"} />
+        <CustomerPortalContent section={section} client={client} data={data} previewHrefPrefix={previewHrefPrefix} productId={requestedProductId} moduleId={requestedModuleId} customPageSlug={requestedCustomPageSlug} providerName={providerName} workspaceRole={manage ? "agency" : "preview"} enquiryNotices={enquiryNotices} />
       </CustomerPortalChrome>
     </>
   );

@@ -173,12 +173,12 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** unifies via a one-line re-export later.
 
-**Exports (21):**
+**Exports (22):**
 
-- `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "growth"`
+- `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment" | "growth"`
 - `type PluginStatus = "stable" | "beta" | "alpha"`
-- `type ScopePolicy = "agency" | "client" | "either"`
-- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer"`
+- `type PluginScopePolicy = "agency" | "client" | "either"` — the canonical — and the majority was the divergent side.
+- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28: the canonical `Role` in src/server/types.ts has alw…`
 - `interface PluginCtx (6 members)`
 - `interface PluginStorage (5 members)`
 - `interface PluginServices (11 members)` — Other slots are unknown.
@@ -195,6 +195,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface PluginFeature (5 members)`
 - `interface BlockDescriptor (5 members)`
 - `interface HealthStatus (3 members)`
+- `interface ErasureSubject (3 members)` — Who is being erased — supplied to `onEraseClient` so a hook does not have to re-derive it through its own tenant port. Added to this copy 2026-08-28. It was already in the canonic…
 - `interface AquaPlugin (28 members)`
 
 **Depends on (2):** [`src/built-ins/modules/affiliates/src/lib/tenancy.ts`](#file-src-built-ins-modules-affiliates-src-lib-tenancy-ts-c6cd4f86ab) · [`src/built-ins/modules/affiliates/src/server/ports.ts`](#file-src-built-ins-modules-affiliates-src-server-ports-ts-725ff423ff)
@@ -233,7 +234,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (1):** [`src/built-ins/modules/affiliates/src/lib/tenancy.ts`](#file-src-built-ins-modules-affiliates-src-lib-tenancy-ts-c6cd4f86ab)
 
-**Used by (14):** [`scripts/smoke-affiliate-currency-refund.test.ts`](scripts.md#file-scripts-smoke-affiliate-currency-refund-test-ts-c437c25e94) · [`scripts/smoke-affiliate-payout-ownership.test.ts`](scripts.md#file-scripts-smoke-affiliate-payout-ownership-test-ts-4524d5574c) · [`src/built-ins/modules/affiliates/src/api/handlers.ts`](#file-src-built-ins-modules-affiliates-src-api-handlers-ts-b2da5fb28d) · [`src/built-ins/modules/affiliates/src/components/AffiliatesList.tsx`](#file-src-built-ins-modules-affiliates-src-components-affiliateslist-tsx-4f39380961) · [`src/built-ins/modules/affiliates/src/components/AttributionsList.tsx`](#file-src-built-ins-modules-affiliates-src-components-attributionslist-tsx-5086baaa54) · [`src/built-ins/modules/affiliates/src/components/CodesList.tsx`](#file-src-built-ins-modules-affiliates-src-components-codeslist-tsx-96120a5fd6) · [`src/built-ins/modules/affiliates/src/components/MyAffiliatePanel.tsx`](#file-src-built-ins-modules-affiliates-src-components-myaffiliatepanel-tsx-388096ea68) · [`src/built-ins/modules/affiliates/src/components/PayoutsList.tsx`](#file-src-built-ins-modules-affiliates-src-components-payoutslist-tsx-056435e833) · [`src/built-ins/modules/affiliates/src/lib/runtimeValidation.ts`](#file-src-built-ins-modules-affiliates-src-lib-runtimevalidation-ts-e2cc65384e) · [`src/built-ins/modules/affiliates/src/server/affiliates.ts`](#file-src-built-ins-modules-affiliates-src-server-affiliates-ts-ff2053d92d) · [`src/built-ins/modules/affiliates/src/server/attributions.ts`](#file-src-built-ins-modules-affiliates-src-server-attributions-ts-20c6bdc228) · [`src/built-ins/modules/affiliates/src/server/codes.ts`](#file-src-built-ins-modules-affiliates-src-server-codes-ts-1071e2a13f) · [`src/built-ins/modules/affiliates/src/server/onboarding.ts`](#file-src-built-ins-modules-affiliates-src-server-onboarding-ts-aee6945150) · [`src/built-ins/modules/affiliates/src/server/payouts.ts`](#file-src-built-ins-modules-affiliates-src-server-payouts-ts-d7b8ca8418)
+**Used by (15):** [`scripts/smoke-affiliate-currency-refund.test.ts`](scripts.md#file-scripts-smoke-affiliate-currency-refund-test-ts-c437c25e94) · [`scripts/smoke-affiliate-dependencies.test.ts`](scripts.md#file-scripts-smoke-affiliate-dependencies-test-ts-14e2c02556) · [`scripts/smoke-affiliate-payout-ownership.test.ts`](scripts.md#file-scripts-smoke-affiliate-payout-ownership-test-ts-4524d5574c) · [`src/built-ins/modules/affiliates/src/api/handlers.ts`](#file-src-built-ins-modules-affiliates-src-api-handlers-ts-b2da5fb28d) · [`src/built-ins/modules/affiliates/src/components/AffiliatesList.tsx`](#file-src-built-ins-modules-affiliates-src-components-affiliateslist-tsx-4f39380961) · [`src/built-ins/modules/affiliates/src/components/AttributionsList.tsx`](#file-src-built-ins-modules-affiliates-src-components-attributionslist-tsx-5086baaa54) · [`src/built-ins/modules/affiliates/src/components/CodesList.tsx`](#file-src-built-ins-modules-affiliates-src-components-codeslist-tsx-96120a5fd6) · [`src/built-ins/modules/affiliates/src/components/MyAffiliatePanel.tsx`](#file-src-built-ins-modules-affiliates-src-components-myaffiliatepanel-tsx-388096ea68) · [`src/built-ins/modules/affiliates/src/components/PayoutsList.tsx`](#file-src-built-ins-modules-affiliates-src-components-payoutslist-tsx-056435e833) · [`src/built-ins/modules/affiliates/src/lib/runtimeValidation.ts`](#file-src-built-ins-modules-affiliates-src-lib-runtimevalidation-ts-e2cc65384e) · [`src/built-ins/modules/affiliates/src/server/affiliates.ts`](#file-src-built-ins-modules-affiliates-src-server-affiliates-ts-ff2053d92d) · [`src/built-ins/modules/affiliates/src/server/attributions.ts`](#file-src-built-ins-modules-affiliates-src-server-attributions-ts-20c6bdc228) · [`src/built-ins/modules/affiliates/src/server/codes.ts`](#file-src-built-ins-modules-affiliates-src-server-codes-ts-1071e2a13f) · [`src/built-ins/modules/affiliates/src/server/onboarding.ts`](#file-src-built-ins-modules-affiliates-src-server-onboarding-ts-aee6945150) · [`src/built-ins/modules/affiliates/src/server/payouts.ts`](#file-src-built-ins-modules-affiliates-src-server-payouts-ts-d7b8ca8418)
 
 <a id="file-src-built-ins-modules-affiliates-src-lib-ids-ts-81abdf7a0a"></a>
 
@@ -290,7 +291,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type ClientId = string`
 - `type UserId = string`
 - `type PluginId = string`
-- `type Role = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer"`
+- `type Role = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28. The canonical `Role` in src/server/types.ts has always // had eight…`
 - `type EntityStatus = "active" | "suspended" | "archived"`
 - `type ClientStage = "lead" | "discovery" | "design" | "development" | "onboarding" | "live" | "churned"`
 - `type ActivityCategory = | "auth" | "tenant" | "plugin" | "phase" | "fulfillment" | "ecommerce" | "settings" | "system" | "hr" | "memberships" | "affiliates"` — extension (see chapter §"Foundation pending" item #4).
@@ -495,6 +496,23 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by (2):** [`src/built-ins/modules/affiliates/src/server/attributions.ts`](#file-src-built-ins-modules-affiliates-src-server-attributions-ts-20c6bdc228) · [`src/built-ins/modules/affiliates/src/server/index.ts`](#file-src-built-ins-modules-affiliates-src-server-index-ts-8d6bc6d6e0)
 
+<a id="file-src-built-ins-modules-affiliates-src-server-dependencies-ts-534e6383d3"></a>
+
+### `src/built-ins/modules/affiliates/src/server/dependencies.ts`
+
+**What it is:** it of one implementation.
+
+**Exports (4):**
+
+- `async affiliateDependencyInventory(services: Pick<AffiliatesContainer, "codes" | "attributions" | "payouts">, affiliateId: string): Promise<AffiliateDependencyInventory>` — Everything still attached to this affiliate. Composed from the services' existing `affiliateId` filters rather than a new storage walk, so it cannot drift from what the module its…
+- `type AffiliateDependantKind = "referral-code" | "attribution" | "payout"`
+- `interface AffiliateDependant (4 members)`
+- `interface AffiliateDependencyInventory (6 members)`
+
+**Depends on (1):** [`src/built-ins/modules/affiliates/src/server/index.ts`](#file-src-built-ins-modules-affiliates-src-server-index-ts-8d6bc6d6e0)
+
+**Used by (1):** [`scripts/smoke-affiliate-dependencies.test.ts`](scripts.md#file-scripts-smoke-affiliate-dependencies-test-ts-14e2c02556)
+
 <a id="file-src-built-ins-modules-affiliates-src-server-foundationadapter-ts-1b0d780160"></a>
 
 ### `src/built-ins/modules/affiliates/src/server/foundationAdapter.ts`
@@ -541,7 +559,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (9):** [`src/built-ins/modules/affiliates/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-affiliates-src-lib-aquaplugintypes-ts-2b0fcd59fe) · [`src/built-ins/modules/affiliates/src/lib/tenancy.ts`](#file-src-built-ins-modules-affiliates-src-lib-tenancy-ts-c6cd4f86ab) · [`src/built-ins/modules/affiliates/src/server/affiliates.ts`](#file-src-built-ins-modules-affiliates-src-server-affiliates-ts-ff2053d92d) · [`src/built-ins/modules/affiliates/src/server/attributions.ts`](#file-src-built-ins-modules-affiliates-src-server-attributions-ts-20c6bdc228) · [`src/built-ins/modules/affiliates/src/server/codes.ts`](#file-src-built-ins-modules-affiliates-src-server-codes-ts-1071e2a13f) · [`src/built-ins/modules/affiliates/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-affiliates-src-server-foundationadapter-ts-1b0d780160) · [`src/built-ins/modules/affiliates/src/server/onboarding.ts`](#file-src-built-ins-modules-affiliates-src-server-onboarding-ts-aee6945150) · [`src/built-ins/modules/affiliates/src/server/payouts.ts`](#file-src-built-ins-modules-affiliates-src-server-payouts-ts-d7b8ca8418) · [`src/built-ins/modules/affiliates/src/server/ports.ts`](#file-src-built-ins-modules-affiliates-src-server-ports-ts-725ff423ff)
 
-**Used by (5):** [`scripts/smoke-affiliate-atomic-claims.test.ts`](scripts.md#file-scripts-smoke-affiliate-atomic-claims-test-ts-130e65b1ec) · [`scripts/smoke-affiliate-currency-refund.test.ts`](scripts.md#file-scripts-smoke-affiliate-currency-refund-test-ts-c437c25e94) · [`scripts/smoke-affiliate-payout-ownership.test.ts`](scripts.md#file-scripts-smoke-affiliate-payout-ownership-test-ts-4524d5574c) · [`scripts/smoke-membership-affiliate-runtime-validation.test.ts`](scripts.md#file-scripts-smoke-membership-affiliate-runtime-validation-test-ts-3abf1989a8) · [`src/built-ins/modules/affiliates/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-affiliates-src-server-foundationadapter-ts-1b0d780160)
+**Used by (7):** [`scripts/smoke-affiliate-atomic-claims.test.ts`](scripts.md#file-scripts-smoke-affiliate-atomic-claims-test-ts-130e65b1ec) · [`scripts/smoke-affiliate-currency-refund.test.ts`](scripts.md#file-scripts-smoke-affiliate-currency-refund-test-ts-c437c25e94) · [`scripts/smoke-affiliate-dependencies.test.ts`](scripts.md#file-scripts-smoke-affiliate-dependencies-test-ts-14e2c02556) · [`scripts/smoke-affiliate-payout-ownership.test.ts`](scripts.md#file-scripts-smoke-affiliate-payout-ownership-test-ts-4524d5574c) · [`scripts/smoke-membership-affiliate-runtime-validation.test.ts`](scripts.md#file-scripts-smoke-membership-affiliate-runtime-validation-test-ts-3abf1989a8) · [`src/built-ins/modules/affiliates/src/server/dependencies.ts`](#file-src-built-ins-modules-affiliates-src-server-dependencies-ts-534e6383d3) · [`src/built-ins/modules/affiliates/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-affiliates-src-server-foundationadapter-ts-1b0d780160)
 
 <a id="file-src-built-ins-modules-affiliates-src-server-onboarding-ts-aee6945150"></a>
 
@@ -613,7 +631,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (1):** [`src/built-ins/modules/affiliates/src/lib/tenancy.ts`](#file-src-built-ins-modules-affiliates-src-lib-tenancy-ts-c6cd4f86ab)
 
-**Used by (13):** [`scripts/smoke-affiliate-atomic-claims.test.ts`](scripts.md#file-scripts-smoke-affiliate-atomic-claims-test-ts-130e65b1ec) · [`scripts/smoke-affiliate-currency-refund.test.ts`](scripts.md#file-scripts-smoke-affiliate-currency-refund-test-ts-c437c25e94) · [`scripts/smoke-affiliate-payout-ownership.test.ts`](scripts.md#file-scripts-smoke-affiliate-payout-ownership-test-ts-4524d5574c) · [`scripts/smoke-membership-affiliate-runtime-validation.test.ts`](scripts.md#file-scripts-smoke-membership-affiliate-runtime-validation-test-ts-3abf1989a8) · [`src/built-ins/modules/affiliates/src/__smoke__/affiliates.test.ts`](#file-src-built-ins-modules-affiliates-src-smoke-affiliates-test-ts-e464cf139b) · [`src/built-ins/modules/affiliates/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-affiliates-src-lib-aquaplugintypes-ts-2b0fcd59fe) · [`src/built-ins/modules/affiliates/src/server/affiliates.ts`](#file-src-built-ins-modules-affiliates-src-server-affiliates-ts-ff2053d92d) · [`src/built-ins/modules/affiliates/src/server/attributions.ts`](#file-src-built-ins-modules-affiliates-src-server-attributions-ts-20c6bdc228) · [`src/built-ins/modules/affiliates/src/server/codes.ts`](#file-src-built-ins-modules-affiliates-src-server-codes-ts-1071e2a13f) · [`src/built-ins/modules/affiliates/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-affiliates-src-server-foundationadapter-ts-1b0d780160) · [`src/built-ins/modules/affiliates/src/server/index.ts`](#file-src-built-ins-modules-affiliates-src-server-index-ts-8d6bc6d6e0) · [`src/built-ins/modules/affiliates/src/server/onboarding.ts`](#file-src-built-ins-modules-affiliates-src-server-onboarding-ts-aee6945150) · [`src/built-ins/modules/affiliates/src/server/payouts.ts`](#file-src-built-ins-modules-affiliates-src-server-payouts-ts-d7b8ca8418)
+**Used by (14):** [`scripts/smoke-affiliate-atomic-claims.test.ts`](scripts.md#file-scripts-smoke-affiliate-atomic-claims-test-ts-130e65b1ec) · [`scripts/smoke-affiliate-currency-refund.test.ts`](scripts.md#file-scripts-smoke-affiliate-currency-refund-test-ts-c437c25e94) · [`scripts/smoke-affiliate-dependencies.test.ts`](scripts.md#file-scripts-smoke-affiliate-dependencies-test-ts-14e2c02556) · [`scripts/smoke-affiliate-payout-ownership.test.ts`](scripts.md#file-scripts-smoke-affiliate-payout-ownership-test-ts-4524d5574c) · [`scripts/smoke-membership-affiliate-runtime-validation.test.ts`](scripts.md#file-scripts-smoke-membership-affiliate-runtime-validation-test-ts-3abf1989a8) · [`src/built-ins/modules/affiliates/src/__smoke__/affiliates.test.ts`](#file-src-built-ins-modules-affiliates-src-smoke-affiliates-test-ts-e464cf139b) · [`src/built-ins/modules/affiliates/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-affiliates-src-lib-aquaplugintypes-ts-2b0fcd59fe) · [`src/built-ins/modules/affiliates/src/server/affiliates.ts`](#file-src-built-ins-modules-affiliates-src-server-affiliates-ts-ff2053d92d) · [`src/built-ins/modules/affiliates/src/server/attributions.ts`](#file-src-built-ins-modules-affiliates-src-server-attributions-ts-20c6bdc228) · [`src/built-ins/modules/affiliates/src/server/codes.ts`](#file-src-built-ins-modules-affiliates-src-server-codes-ts-1071e2a13f) · [`src/built-ins/modules/affiliates/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-affiliates-src-server-foundationadapter-ts-1b0d780160) · [`src/built-ins/modules/affiliates/src/server/index.ts`](#file-src-built-ins-modules-affiliates-src-server-index-ts-8d6bc6d6e0) · [`src/built-ins/modules/affiliates/src/server/onboarding.ts`](#file-src-built-ins-modules-affiliates-src-server-onboarding-ts-aee6945150) · [`src/built-ins/modules/affiliates/src/server/payouts.ts`](#file-src-built-ins-modules-affiliates-src-server-payouts-ts-d7b8ca8418)
 
 
 ## `src/built-ins/modules/agency-finance/`
@@ -700,9 +718,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async assignPlanHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async pnlSummaryHandler(req: Request, ctx: PluginCtx): Promise<Response>` — ─── P&L ──────────────────────────────────────────────────────────
 
-**Depends on (6):** [`src/built-ins/modules/agency-finance/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-agency-finance-src-lib-aquaplugintypes-ts-9ba9f50217) · [`src/built-ins/modules/agency-finance/src/lib/currencies.ts`](#file-src-built-ins-modules-agency-finance-src-lib-currencies-ts-d92fdc906d) · [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/lib/runtimeValidation.ts`](#file-src-built-ins-modules-agency-finance-src-lib-runtimevalidation-ts-bf1019ef4b) · [`src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-agency-finance-src-server-foundationadapter-ts-e614648c40) · [`src/lib/server/finance/financeCurrency.ts`](lib.md#file-src-lib-server-finance-financecurrency-ts-85981f420b)
+**Depends on (8):** [`src/built-ins/modules/agency-finance/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-agency-finance-src-lib-aquaplugintypes-ts-9ba9f50217) · [`src/built-ins/modules/agency-finance/src/lib/currencies.ts`](#file-src-built-ins-modules-agency-finance-src-lib-currencies-ts-d92fdc906d) · [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/lib/runtimeValidation.ts`](#file-src-built-ins-modules-agency-finance-src-lib-runtimevalidation-ts-bf1019ef4b) · [`src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-agency-finance-src-server-foundationadapter-ts-e614648c40) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/finance/financeCurrency.ts`](lib.md#file-src-lib-server-finance-financecurrency-ts-85981f420b)
 
-**Used by (4):** [`scripts/smoke-finance-accounting-semantics.test.ts`](scripts.md#file-scripts-smoke-finance-accounting-semantics-test-ts-c4a37c37dc) · [`scripts/smoke-finance-idempotency.test.ts`](scripts.md#file-scripts-smoke-finance-idempotency-test-ts-3fe907cb63) · [`scripts/smoke-finance-plan-assignment.test.ts`](scripts.md#file-scripts-smoke-finance-plan-assignment-test-ts-fed2e879fc) · [`src/built-ins/modules/agency-finance/src/api/routes.ts`](#file-src-built-ins-modules-agency-finance-src-api-routes-ts-e8beecbfe3)
+**Used by (3):** [`scripts/smoke-finance-accounting-semantics.test.ts`](scripts.md#file-scripts-smoke-finance-accounting-semantics-test-ts-c4a37c37dc) · [`scripts/smoke-finance-plan-assignment.test.ts`](scripts.md#file-scripts-smoke-finance-plan-assignment-test-ts-fed2e879fc) · [`src/built-ins/modules/agency-finance/src/api/routes.ts`](#file-src-built-ins-modules-agency-finance-src-api-routes-ts-e8beecbfe3)
 
 <a id="file-src-built-ins-modules-agency-finance-src-api-handlers-stripe-ts-6e9c0e130b"></a>
 
@@ -716,7 +734,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async stripeWebhookHandler(req: Request, ctx: PluginCtx): Promise<Response>` — failed event id, so the retry genuinely re-processes.
 - `async stripeRefundHandler(req: Request, ctx: PluginCtx): Promise<Response>` — row or reconciles any cumulative remainder.
 
-**Depends on (6):** [`src/built-ins/modules/agency-finance/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-agency-finance-src-lib-aquaplugintypes-ts-9ba9f50217) · [`src/built-ins/modules/agency-finance/src/lib/paymentAllocation.ts`](#file-src-built-ins-modules-agency-finance-src-lib-paymentallocation-ts-48a646bd87) · [`src/built-ins/modules/agency-finance/src/lib/stripe.ts`](#file-src-built-ins-modules-agency-finance-src-lib-stripe-ts-3832f7b0e6) · [`src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-agency-finance-src-server-foundationadapter-ts-e614648c40) · [`src/built-ins/modules/agency-finance/src/server/stripeReconcile.ts`](#file-src-built-ins-modules-agency-finance-src-server-stripereconcile-ts-961b970b28) · [`src/lib/server/plugins/pluginSecretConfig.ts`](lib.md#file-src-lib-server-plugins-pluginsecretconfig-ts-8cb887a277)
+**Depends on (8):** [`src/built-ins/modules/agency-finance/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-agency-finance-src-lib-aquaplugintypes-ts-9ba9f50217) · [`src/built-ins/modules/agency-finance/src/lib/paymentAllocation.ts`](#file-src-built-ins-modules-agency-finance-src-lib-paymentallocation-ts-48a646bd87) · [`src/built-ins/modules/agency-finance/src/lib/stripe.ts`](#file-src-built-ins-modules-agency-finance-src-lib-stripe-ts-3832f7b0e6) · [`src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-agency-finance-src-server-foundationadapter-ts-e614648c40) · [`src/built-ins/modules/agency-finance/src/server/stripeReconcile.ts`](#file-src-built-ins-modules-agency-finance-src-server-stripereconcile-ts-961b970b28) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/plugins/pluginSecretConfig.ts`](lib.md#file-src-lib-server-plugins-pluginsecretconfig-ts-8cb887a277)
 
 **Used by (1):** [`src/built-ins/modules/agency-finance/src/api/routes.ts`](#file-src-built-ins-modules-agency-finance-src-api-routes-ts-e8beecbfe3)
 
@@ -747,9 +765,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async updateCategoryHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async reportHandler(req: Request, ctx: PluginCtx): Promise<Response>` — ─── Report ──────────────────────────────────────────────────────────────
 
-**Depends on (6):** [`src/built-ins/modules/agency-finance/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-agency-finance-src-lib-aquaplugintypes-ts-9ba9f50217) · [`src/built-ins/modules/agency-finance/src/lib/currencies.ts`](#file-src-built-ins-modules-agency-finance-src-lib-currencies-ts-d92fdc906d) · [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/lib/runtimeValidation.ts`](#file-src-built-ins-modules-agency-finance-src-lib-runtimevalidation-ts-bf1019ef4b) · [`src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-agency-finance-src-server-foundationadapter-ts-e614648c40) · [`src/lib/server/finance/financeCurrency.ts`](lib.md#file-src-lib-server-finance-financecurrency-ts-85981f420b)
+**Depends on (8):** [`src/built-ins/modules/agency-finance/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-agency-finance-src-lib-aquaplugintypes-ts-9ba9f50217) · [`src/built-ins/modules/agency-finance/src/lib/currencies.ts`](#file-src-built-ins-modules-agency-finance-src-lib-currencies-ts-d92fdc906d) · [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/lib/runtimeValidation.ts`](#file-src-built-ins-modules-agency-finance-src-lib-runtimevalidation-ts-bf1019ef4b) · [`src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-agency-finance-src-server-foundationadapter-ts-e614648c40) · [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/finance/financeCurrency.ts`](lib.md#file-src-lib-server-finance-financecurrency-ts-85981f420b)
 
-**Used by (5):** [`scripts/smoke-finance-accounting-semantics.test.ts`](scripts.md#file-scripts-smoke-finance-accounting-semantics-test-ts-c4a37c37dc) · [`scripts/smoke-finance-idempotency.test.ts`](scripts.md#file-scripts-smoke-finance-idempotency-test-ts-3fe907cb63) · [`scripts/smoke-finance-recurring-occurrence.test.ts`](scripts.md#file-scripts-smoke-finance-recurring-occurrence-test-ts-7b9a40d177) · [`scripts/smoke-finance-runtime-validation.test.ts`](scripts.md#file-scripts-smoke-finance-runtime-validation-test-ts-e9d8d503cc) · [`src/built-ins/modules/agency-finance/src/api/routes.ts`](#file-src-built-ins-modules-agency-finance-src-api-routes-ts-e8beecbfe3)
+**Used by (4):** [`scripts/smoke-finance-accounting-semantics.test.ts`](scripts.md#file-scripts-smoke-finance-accounting-semantics-test-ts-c4a37c37dc) · [`scripts/smoke-finance-recurring-occurrence.test.ts`](scripts.md#file-scripts-smoke-finance-recurring-occurrence-test-ts-7b9a40d177) · [`scripts/smoke-finance-runtime-validation.test.ts`](scripts.md#file-scripts-smoke-finance-runtime-validation-test-ts-e9d8d503cc) · [`src/built-ins/modules/agency-finance/src/api/routes.ts`](#file-src-built-ins-modules-agency-finance-src-api-routes-ts-e8beecbfe3)
 
 <a id="file-src-built-ins-modules-agency-finance-src-api-routes-ts-e8beecbfe3"></a>
 
@@ -968,10 +986,10 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (21):**
 
-- `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "growth"`
+- `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment" | "growth"`
 - `type PluginStatus = "stable" | "beta" | "alpha"`
-- `type ScopePolicy = "agency" | "client" | "either"`
-- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer"`
+- `type PluginScopePolicy = "agency" | "client" | "either"` — the canonical — and the majority was the divergent side.
+- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28: the canonical `Role` in src/server/types.ts has alw…`
 - `interface PluginCtx (6 members)`
 - `interface PluginStorage (5 members)`
 - `interface PluginServices (10 members)` — canonical PluginServices shape).
@@ -1314,7 +1332,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type ClientId = string`
 - `type UserId = string`
 - `type PluginId = string`
-- `type Role = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer"`
+- `type Role = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28. The canonical `Role` in src/server/types.ts has always // had eight…`
 - `type EntityStatus = "active" | "suspended" | "archived"`
 - `type ClientStage = "lead" | "discovery" | "design" | "development" | "onboarding" | "live" | "churned"`
 - `type ActivityCategory = | "auth" | "tenant" | "plugin" | "phase" | "fulfillment" | "ecommerce" | "settings" | "system" | "hr" | "memberships" | "affiliates" | "finance"` — extension when wiring this plugin in.
@@ -2071,10 +2089,10 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (20):**
 
-- `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops"` — ─── Plugin identity ───────────────────────────────────────────────────────
+- `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment" | "growth"` — ─── Plugin identity ───────────────────────────────────────────────────────
 - `type PluginStatus = "stable" | "beta" | "alpha"`
-- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer"`
-- `type ScopePolicy = "agency" | "client" | "either"` — ─── Scope policy (T1 R2 alignment) ───────────────────────────────────────
+- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28: the canonical `Role` in src/server/types.ts has alw…`
+- `type PluginScopePolicy = "agency" | "client" | "either"` — the canonical — and the majority was the divergent side.
 - `interface PluginCtx (6 members)` — ─── Runtime context handed to lifecycle hooks + handlers ─────────────────
 - `interface PluginStorage (4 members)`
 - `interface PluginServices (9 members)` — structurally identical to the canonical type.
@@ -2174,7 +2192,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type ClientId = string`
 - `type UserId = string`
 - `type PluginId = string`
-- `type Role = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer"` — permission system speak the same vocabulary.
+- `type Role = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28. The canonical `Role` in src/server/types.ts has always // had eight…` — permission system speak the same vocabulary.
 - `type EntityStatus = "active" | "suspended" | "archived"`
 - `type ActivityCategory = | "auth" | "tenant" | "plugin" | "phase" | "fulfillment" | "ecommerce" | "settings" | "system" | "hr"` — out as a one-line patch the orchestrator can land.
 - `interface BrandKit (8 members)`
@@ -2614,10 +2632,10 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (21):**
 
-- `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "growth"`
+- `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment" | "growth"`
 - `type PluginStatus = "stable" | "beta" | "alpha"`
-- `type ScopePolicy = "agency" | "client" | "either"`
-- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer"`
+- `type PluginScopePolicy = "agency" | "client" | "either"` — the canonical — and the majority was the divergent side.
+- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28: the canonical `Role` in src/server/types.ts has alw…`
 - `interface PluginCtx (6 members)`
 - `interface PluginStorage (4 members)`
 - `interface PluginServices (10 members)`
@@ -2747,7 +2765,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type ClientId = string`
 - `type UserId = string`
 - `type PluginId = string`
-- `type Role = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer"`
+- `type Role = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28. The canonical `Role` in src/server/types.ts has always // had eight…`
 - `type EntityStatus = "active" | "suspended" | "archived"`
 - `type ActivityCategory = | "auth" | "tenant" | "plugin" | "phase" | "fulfillment" | "ecommerce" | "settings" | "system" | "hr" | "memberships" | "affiliates" | "finance" | "marketing"` — extension when wiring this plugin in.
 - `interface BrandKit (8 members)`
@@ -3175,9 +3193,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (21):**
 
-- `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "growth"`
+- `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment" | "growth"`
 - `type PluginStatus = "stable" | "beta" | "alpha"`
-- `type ScopePolicy = "agency" | "client" | "either"`
+- `type PluginScopePolicy = "agency" | "client" | "either"` — the canonical — and the majority was the divergent side.
 - `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" | "lead"`
 - `interface PluginCtx (6 members)`
 - `interface PluginStorage (4 members)`
@@ -3252,7 +3270,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type ClientId = string`
 - `type UserId = string`
 - `type PluginId = string`
-- `type Role = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer"`
+- `type Role = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28. The canonical `Role` in src/server/types.ts has always // had eight…`
 - `type ActivityCategory = | "auth" | "tenant" | "plugin" | "phase" | "fulfillment" | "ecommerce" | "settings" | "system" | "hr" | "memberships" | "affiliates" | "finance" | "marketing" | "crm" | "forms" | "email" | "expor…`
 - `interface PluginInstall (12 members)`
 - `interface ActivityEntry (10 members)`
@@ -3405,7 +3423,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** HTTP handlers for the client-CRM plugin.
 
-**Exports (15):**
+**Exports (33):**
 
 - `async listContactsHandler(req: Request, ctx: PluginCtx): Promise<Response>` — ─── Contacts ────────────────────────────────────────────────────────────
 - `async createContactHandler(req: Request, ctx: PluginCtx): Promise<Response>`
@@ -3422,10 +3440,28 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async ingestEventHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async meProfileHandler(req: Request, ctx: PluginCtx): Promise<Response>` — ─── Customer-facing ────────────────────────────────────────────────────
 - `async meUpdateProfileHandler(req: Request, ctx: PluginCtx): Promise<Response>`
+- `journeyEnabled(ctx: { install?: { features?: Record<string, boolean> } }): boolean` — Is the add-on switched on for this client? ── The semantics are not a free choice ────────────────────────────────── Two places in the host already answer this question for every …
+- `async listPipelinesHandler(req: Request, ctx: PluginCtx): Promise<Response>` — ─── Pipelines ───────────────────────────────────────────────────────────
+- `async boardHandler(req: Request, ctx: PluginCtx): Promise<Response>` — The board, joined server-side. `pipelineId` is optional: with none, the client's default board is drawn. That is what makes "Pipelines" a working nav link rather than a chooser sc…
+- `async createPipelineHandler(req: Request, ctx: PluginCtx): Promise<Response>`
+- `async updatePipelineHandler(req: Request, ctx: PluginCtx): Promise<Response>`
+- `async deletePipelineHandler(req: Request, ctx: PluginCtx): Promise<Response>`
+- `async addStageHandler(req: Request, ctx: PluginCtx): Promise<Response>` — ─── Stages ──────────────────────────────────────────────────────────────
+- `async updateStageHandler(req: Request, ctx: PluginCtx): Promise<Response>`
+- `async deleteStageHandler(req: Request, ctx: PluginCtx): Promise<Response>` — Remove a column. A stage holding cards refuses with `stage_not_empty:<n>` unless the caller names where they go. The count travels in the error because the UI's next question is a…
+- `async reorderStagesHandler(req: Request, ctx: PluginCtx): Promise<Response>`
+- `async createCardHandler(req: Request, ctx: PluginCtx): Promise<Response>` — ─── Cards ───────────────────────────────────────────────────────────────
+- `async moveCardHandler(req: Request, ctx: PluginCtx): Promise<Response>`
+- `async updateCardHandler(req: Request, ctx: PluginCtx): Promise<Response>`
+- `async deleteCardHandler(req: Request, ctx: PluginCtx): Promise<Response>`
+- `async listAutomationsHandler(req: Request, ctx: PluginCtx): Promise<Response>` — ─── Automations ─────────────────────────────────────────────────────────
+- `async createAutomationHandler(req: Request, ctx: PluginCtx): Promise<Response>`
+- `async updateAutomationHandler(req: Request, ctx: PluginCtx): Promise<Response>`
+- `async deleteAutomationHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 
-**Depends on (3):** [`src/built-ins/modules/client-crm/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-client-crm-src-lib-aquaplugintypes-ts-283533f57f) · [`src/built-ins/modules/client-crm/src/lib/domain.ts`](#file-src-built-ins-modules-client-crm-src-lib-domain-ts-f66a56f3b8) · [`src/built-ins/modules/client-crm/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-client-crm-src-server-foundationadapter-ts-661f8db302)
+**Depends on (4):** [`src/built-ins/modules/client-crm/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-client-crm-src-lib-aquaplugintypes-ts-283533f57f) · [`src/built-ins/modules/client-crm/src/lib/domain.ts`](#file-src-built-ins-modules-client-crm-src-lib-domain-ts-f66a56f3b8) · [`src/built-ins/modules/client-crm/src/lib/journey.ts`](#file-src-built-ins-modules-client-crm-src-lib-journey-ts-c55c24f76f) · [`src/built-ins/modules/client-crm/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-client-crm-src-server-foundationadapter-ts-661f8db302)
 
-**Used by (1):** [`src/built-ins/modules/client-crm/src/api/routes.ts`](#file-src-built-ins-modules-client-crm-src-api-routes-ts-d780444cc9)
+**Used by (2):** [`scripts/smoke-client-crm-journey.test.ts`](scripts.md#file-scripts-smoke-client-crm-journey-test-ts-e5576b17a1) · [`src/built-ins/modules/client-crm/src/api/routes.ts`](#file-src-built-ins-modules-client-crm-src-api-routes-ts-d780444cc9)
 
 <a id="file-src-built-ins-modules-client-crm-src-api-routes-ts-d780444cc9"></a>
 
@@ -3433,9 +3469,10 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** Manifest API routes — mounted at `/api/portal/client-crm/...`.
 
-**Exports (1):**
+**Exports (2):**
 
-- `ROUTES: PluginApiRoute[]`
+- `JOURNEY_ROUTES: PluginApiRoute[]` — you", the `journey-pipelines` flag answers "does this client have it at all".
+- `ROUTES: PluginApiRoute[]` — already-exported array, so what a reader sees declared is what mounts.
 
 **Depends on (2):** [`src/built-ins/modules/client-crm/src/api/handlers.ts`](#file-src-built-ins-modules-client-crm-src-api-handlers-ts-a22b64845a) · [`src/built-ins/modules/client-crm/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-client-crm-src-lib-aquaplugintypes-ts-283533f57f)
 
@@ -3452,10 +3489,10 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (21):**
 
-- `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "growth"`
+- `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment" | "growth"`
 - `type PluginStatus = "stable" | "beta" | "alpha"`
-- `type ScopePolicy = "agency" | "client" | "either"`
-- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer"`
+- `type PluginScopePolicy = "agency" | "client" | "either"` — the canonical — and the majority was the divergent side.
+- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28: the canonical `Role` in src/server/types.ts has alw…`
 - `interface PluginCtx (6 members)`
 - `interface PluginStorage (4 members)`
 - `interface PluginServices (10 members)`
@@ -3463,7 +3500,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface SetupField (7 members)`
 - `interface NavGroup (3 members)`
 - `interface NavItem (11 members)`
-- `interface PluginPage (6 members)`
+- `interface PluginPage (7 members)`
 - `interface PluginPageProps (8 members)`
 - `interface PluginApiRoute (6 members)`
 - `interface SettingsSchema (2 members)`
@@ -3476,7 +3513,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (2):** [`src/built-ins/modules/client-crm/src/lib/tenancy.ts`](#file-src-built-ins-modules-client-crm-src-lib-tenancy-ts-68feaab432) · [`src/built-ins/modules/client-crm/src/server/ports.ts`](#file-src-built-ins-modules-client-crm-src-server-ports-ts-650fd8da05)
 
-**Used by (12):** [`src/built-ins/modules/client-crm/index.ts`](#file-src-built-ins-modules-client-crm-index-ts-83b87fe7ab) · [`src/built-ins/modules/client-crm/src/__smoke__/crm.test.ts`](#file-src-built-ins-modules-client-crm-src-smoke-crm-test-ts-0bb132e731) · [`src/built-ins/modules/client-crm/src/api/handlers.ts`](#file-src-built-ins-modules-client-crm-src-api-handlers-ts-a22b64845a) · [`src/built-ins/modules/client-crm/src/api/routes.ts`](#file-src-built-ins-modules-client-crm-src-api-routes-ts-d780444cc9) · [`src/built-ins/modules/client-crm/src/pages/ActivityPage.tsx`](#file-src-built-ins-modules-client-crm-src-pages-activitypage-tsx-7316198dfe) · [`src/built-ins/modules/client-crm/src/pages/ContactDetailPage.tsx`](#file-src-built-ins-modules-client-crm-src-pages-contactdetailpage-tsx-bee8c27ddd) · [`src/built-ins/modules/client-crm/src/pages/ContactsPage.tsx`](#file-src-built-ins-modules-client-crm-src-pages-contactspage-tsx-0120f7ef4e) · [`src/built-ins/modules/client-crm/src/pages/MyProfilePage.tsx`](#file-src-built-ins-modules-client-crm-src-pages-myprofilepage-tsx-92b7badb72) · [`src/built-ins/modules/client-crm/src/pages/SegmentsPage.tsx`](#file-src-built-ins-modules-client-crm-src-pages-segmentspage-tsx-b216247c60) · [`src/built-ins/modules/client-crm/src/pages/SettingsPage.tsx`](#file-src-built-ins-modules-client-crm-src-pages-settingspage-tsx-25d1cd87b4) · [`src/built-ins/modules/client-crm/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-client-crm-src-server-foundationadapter-ts-661f8db302) · [`src/built-ins/modules/client-crm/src/server/index.ts`](#file-src-built-ins-modules-client-crm-src-server-index-ts-a57bc87b5c)
+**Used by (13):** [`scripts/smoke-client-crm-journey.test.ts`](scripts.md#file-scripts-smoke-client-crm-journey-test-ts-e5576b17a1) · [`src/built-ins/modules/client-crm/index.ts`](#file-src-built-ins-modules-client-crm-index-ts-83b87fe7ab) · [`src/built-ins/modules/client-crm/src/__smoke__/crm.test.ts`](#file-src-built-ins-modules-client-crm-src-smoke-crm-test-ts-0bb132e731) · [`src/built-ins/modules/client-crm/src/api/handlers.ts`](#file-src-built-ins-modules-client-crm-src-api-handlers-ts-a22b64845a) · [`src/built-ins/modules/client-crm/src/api/routes.ts`](#file-src-built-ins-modules-client-crm-src-api-routes-ts-d780444cc9) · [`src/built-ins/modules/client-crm/src/pages/ActivityPage.tsx`](#file-src-built-ins-modules-client-crm-src-pages-activitypage-tsx-7316198dfe) · [`src/built-ins/modules/client-crm/src/pages/ContactDetailPage.tsx`](#file-src-built-ins-modules-client-crm-src-pages-contactdetailpage-tsx-bee8c27ddd) · [`src/built-ins/modules/client-crm/src/pages/ContactsPage.tsx`](#file-src-built-ins-modules-client-crm-src-pages-contactspage-tsx-0120f7ef4e) · [`src/built-ins/modules/client-crm/src/pages/MyProfilePage.tsx`](#file-src-built-ins-modules-client-crm-src-pages-myprofilepage-tsx-92b7badb72) · [`src/built-ins/modules/client-crm/src/pages/SegmentsPage.tsx`](#file-src-built-ins-modules-client-crm-src-pages-segmentspage-tsx-b216247c60) · [`src/built-ins/modules/client-crm/src/pages/SettingsPage.tsx`](#file-src-built-ins-modules-client-crm-src-pages-settingspage-tsx-25d1cd87b4) · [`src/built-ins/modules/client-crm/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-client-crm-src-server-foundationadapter-ts-661f8db302) · [`src/built-ins/modules/client-crm/src/server/index.ts`](#file-src-built-ins-modules-client-crm-src-server-index-ts-a57bc87b5c)
 
 <a id="file-src-built-ins-modules-client-crm-src-lib-domain-ts-f66a56f3b8"></a>
 
@@ -3510,7 +3547,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (1):** [`src/built-ins/modules/client-crm/src/lib/tenancy.ts`](#file-src-built-ins-modules-client-crm-src-lib-tenancy-ts-68feaab432)
 
-**Used by (4):** [`src/built-ins/modules/client-crm/src/api/handlers.ts`](#file-src-built-ins-modules-client-crm-src-api-handlers-ts-a22b64845a) · [`src/built-ins/modules/client-crm/src/server/activity.ts`](#file-src-built-ins-modules-client-crm-src-server-activity-ts-99fa86b90d) · [`src/built-ins/modules/client-crm/src/server/contacts.ts`](#file-src-built-ins-modules-client-crm-src-server-contacts-ts-50bf0920c3) · [`src/built-ins/modules/client-crm/src/server/segments.ts`](#file-src-built-ins-modules-client-crm-src-server-segments-ts-dcae986dc3)
+**Used by (5):** [`src/built-ins/modules/client-crm/src/api/handlers.ts`](#file-src-built-ins-modules-client-crm-src-api-handlers-ts-a22b64845a) · [`src/built-ins/modules/client-crm/src/server/activity.ts`](#file-src-built-ins-modules-client-crm-src-server-activity-ts-99fa86b90d) · [`src/built-ins/modules/client-crm/src/server/contacts.ts`](#file-src-built-ins-modules-client-crm-src-server-contacts-ts-50bf0920c3) · [`src/built-ins/modules/client-crm/src/server/pipelines.ts`](#file-src-built-ins-modules-client-crm-src-server-pipelines-ts-2c3cba34dd) · [`src/built-ins/modules/client-crm/src/server/segments.ts`](#file-src-built-ins-modules-client-crm-src-server-segments-ts-dcae986dc3)
 
 <a id="file-src-built-ins-modules-client-crm-src-lib-ids-ts-64ea324edf"></a>
 
@@ -3524,7 +3561,79 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on:** _No internal imports._
 
-**Used by (3):** [`src/built-ins/modules/client-crm/src/server/activity.ts`](#file-src-built-ins-modules-client-crm-src-server-activity-ts-99fa86b90d) · [`src/built-ins/modules/client-crm/src/server/contacts.ts`](#file-src-built-ins-modules-client-crm-src-server-contacts-ts-50bf0920c3) · [`src/built-ins/modules/client-crm/src/server/segments.ts`](#file-src-built-ins-modules-client-crm-src-server-segments-ts-dcae986dc3)
+**Used by (5):** [`src/built-ins/modules/client-crm/src/server/activity.ts`](#file-src-built-ins-modules-client-crm-src-server-activity-ts-99fa86b90d) · [`src/built-ins/modules/client-crm/src/server/automations.ts`](#file-src-built-ins-modules-client-crm-src-server-automations-ts-dc21623d64) · [`src/built-ins/modules/client-crm/src/server/contacts.ts`](#file-src-built-ins-modules-client-crm-src-server-contacts-ts-50bf0920c3) · [`src/built-ins/modules/client-crm/src/server/pipelines.ts`](#file-src-built-ins-modules-client-crm-src-server-pipelines-ts-2c3cba34dd) · [`src/built-ins/modules/client-crm/src/server/segments.ts`](#file-src-built-ins-modules-client-crm-src-server-segments-ts-dcae986dc3)
+
+<a id="file-src-built-ins-modules-client-crm-src-lib-journey-ts-c55c24f76f"></a>
+
+### `src/built-ins/modules/client-crm/src/lib/journey.ts`
+
+**What it is:** and the `card-won` trigger read `kind`, never the label.
+
+**Exports (24):**
+
+- `STAGE_TONES: readonly StageTone[]`
+- `STARTER_STAGES: ReadonlyArray<Pick<PipelineStage, "name" | "kind" | "tone"> & { idleAfterDays?: number }>` — The board a new pipeline starts as. Not empty, because an empty kanban is a dead end — there is nowhere to drop anything and no hint of what a stage is for. Not elaborate either: …
+- `AUTOMATION_EMAIL_EVENT = "crm.automation.email_requested"` — The event `send-email` emits, and email-sender subscribes to. Declared here as a constant rather than written as a string at the emit site, so the name cannot drift from the subsc…
+- `MAX_AUTOMATION_DEPTH = 5` — How many times one movement may cascade. A `move-to-stage` action can satisfy another rule's `card-entered-stage` trigger, and two rules pointing at each other's stages is a loop …
+- `type StageKind = "open" | "won" | "lost"` — What reaching this stage MEANS, independent of what it is called. `open` is an ordinary step; `won` and `lost` are terminal outcomes.
+- `type StageTone = "slate" | "blue" | "teal" | "amber" | "violet" | "green" | "red"`
+- `type AutomationTrigger = | { type: "card-created" } | { type: "card-entered-stage"; stageId: string } | { type: "card-left-stage"; stageId: string }` — `AUTOMATION_EMAIL_EVENT` below.
+- `type AutomationAction = | { type: "add-tag"; tag: string } | { type: "remove-tag"; tag: string } | { type: "set-contact-status"; status: "active" | "unsubscribed" } | { type: "move-to-stage"; stageId: string } | { type:…`
+- `interface PipelineStage (6 members)`
+- `interface Pipeline (9 members)`
+- `interface CreatePipelineInput (4 members)`
+- `interface UpdatePipelinePatch (3 members)`
+- `interface JourneyCard (13 members)` — ─── Cards ───────────────────────────────────────────────────────────────
+- `interface CreateCardInput (6 members)`
+- `interface MoveCardInput (3 members)`
+- `interface UpdateCardPatch (3 members)`
+- `interface Automation (12 members)`
+- `interface CreateAutomationInput (5 members)`
+- `interface UpdateAutomationPatch (4 members)`
+- `interface AutomationEmailPayload (6 members)`
+- `interface AutomationRunOutcome (5 members)`
+- `interface BoardCard (5 members)` — N+1 and a flash of "unknown contact" both come from.
+- `interface BoardStage (3 members)`
+- `interface JourneyBoard (5 members)`
+
+**Depends on (1):** [`src/built-ins/modules/client-crm/src/lib/tenancy.ts`](#file-src-built-ins-modules-client-crm-src-lib-tenancy-ts-68feaab432)
+
+**Used by (7):** [`scripts/smoke-client-crm-journey.test.ts`](scripts.md#file-scripts-smoke-client-crm-journey-test-ts-e5576b17a1) · [`src/built-ins/modules/client-crm/src/api/handlers.ts`](#file-src-built-ins-modules-client-crm-src-api-handlers-ts-a22b64845a) · [`src/built-ins/modules/client-crm/src/lib/journeyClient.ts`](#file-src-built-ins-modules-client-crm-src-lib-journeyclient-ts-38ad0cea16) · [`src/built-ins/modules/client-crm/src/pages/AutomationsPage.tsx`](#file-src-built-ins-modules-client-crm-src-pages-automationspage-tsx-2fed8baa20) · [`src/built-ins/modules/client-crm/src/pages/PipelinesPage.tsx`](#file-src-built-ins-modules-client-crm-src-pages-pipelinespage-tsx-c9bc7b738b) · [`src/built-ins/modules/client-crm/src/server/automations.ts`](#file-src-built-ins-modules-client-crm-src-server-automations-ts-dc21623d64) · [`src/built-ins/modules/client-crm/src/server/pipelines.ts`](#file-src-built-ins-modules-client-crm-src-server-pipelines-ts-2c3cba34dd)
+
+<a id="file-src-built-ins-modules-client-crm-src-lib-journeyclient-ts-38ad0cea16"></a>
+
+### `src/built-ins/modules/client-crm/src/lib/journeyClient.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (21):**
+
+- `fetchBoard(clientId: string, pipelineId?: string): Promise<BoardResponse>`
+- `fetchPipelines(clientId: string): Promise<{ pipelines: Pipeline[] }>`
+- `createPipeline(clientId: string, name: string, description?: string): Promise<{ pipeline: Pipeline }>`
+- `renamePipeline(clientId: string, id: string, name: string): Promise<{ pipeline: Pipeline }>`
+- `deletePipeline(clientId: string, id: string): Promise<unknown>`
+- `addStage(clientId: string, pipelineId: string, seed: { name: string; kind?: StageKind; tone?: StageTone; idleAfterDays?: number }): Promise<{ pipeline: Pipeline }>`
+- `updateStage(clientId: string, pipelineId: string, stageId: string, patch: { name?: string; kind?: StageKind; tone?: StageTone; idleAfterDays?: number | null }): Promise<{ pipeline: Pipeline }>`
+- `deleteStage(clientId: string, pipelineId: string, stageId: string, moveCardsTo?: string): Promise<unknown>`
+- `addCard(clientId: string, input: { pipelineId: string; contactId: string; stageId?: string; valueMinor?: number; currency?: string; note?: string }): Promise<{ automations: AutomationRunOutcome[] }>`
+- `moveCard(clientId: string, cardId: string, toStageId: string, toPosition?: number): Promise<MoveResponse>`
+- `updateCard(clientId: string, cardId: string, patch: { valueMinor?: number | null; currency?: string; note?: string }): Promise<unknown>`
+- `removeCard(clientId: string, cardId: string): Promise<unknown>`
+- `fetchAutomations(clientId: string, pipelineId?: string): Promise<{ automations: Automation[] }>`
+- `createAutomation(clientId: string, input: CreateAutomationInput): Promise<{ automation: Automation }>`
+- `updateAutomation(clientId: string, id: string, patch: UpdateAutomationPatch): Promise<{ automation: Automation }>`
+- `deleteAutomation(clientId: string, id: string): Promise<unknown>`
+- `fetchContacts(clientId: string): Promise<{ contacts: ContactLite[] }>`
+- `class FeatureDisabledError` — Distinguishes "this client does not have the add-on" from a real failure.
+    - `constructor()`
+- `interface BoardResponse (3 members)`
+- `interface MoveResponse (3 members)`
+- `interface ContactLite (5 members)`
+
+**Depends on (1):** [`src/built-ins/modules/client-crm/src/lib/journey.ts`](#file-src-built-ins-modules-client-crm-src-lib-journey-ts-c55c24f76f)
+
+**Used by (2):** [`src/built-ins/modules/client-crm/src/pages/AutomationsPage.tsx`](#file-src-built-ins-modules-client-crm-src-pages-automationspage-tsx-2fed8baa20) · [`src/built-ins/modules/client-crm/src/pages/PipelinesPage.tsx`](#file-src-built-ins-modules-client-crm-src-pages-pipelinespage-tsx-c9bc7b738b)
 
 <a id="file-src-built-ins-modules-client-crm-src-lib-safedate-ts-a8a54f765b"></a>
 
@@ -3554,7 +3663,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type ClientId = string`
 - `type UserId = string`
 - `type PluginId = string`
-- `type Role = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer"`
+- `type Role = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28. The canonical `Role` in src/server/types.ts has always // had eight…`
 - `type EntityStatus = "active" | "suspended" | "archived"`
 - `type ClientStage = "lead" | "discovery" | "design" | "development" | "onboarding" | "live" | "churned"`
 - `type ActivityCategory = | "auth" | "tenant" | "plugin" | "phase" | "fulfillment" | "ecommerce" | "settings" | "system" | "hr" | "memberships" | "affiliates" | "finance" | "marketing" | "crm"` — "crm" added — foundation needs a one-line ActivityCategory extension.
@@ -3567,7 +3676,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on:** _No internal imports._
 
-**Used by (9):** [`src/built-ins/modules/client-crm/src/__smoke__/crm.test.ts`](#file-src-built-ins-modules-client-crm-src-smoke-crm-test-ts-0bb132e731) · [`src/built-ins/modules/client-crm/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-client-crm-src-lib-aquaplugintypes-ts-283533f57f) · [`src/built-ins/modules/client-crm/src/lib/domain.ts`](#file-src-built-ins-modules-client-crm-src-lib-domain-ts-f66a56f3b8) · [`src/built-ins/modules/client-crm/src/server/activity.ts`](#file-src-built-ins-modules-client-crm-src-server-activity-ts-99fa86b90d) · [`src/built-ins/modules/client-crm/src/server/contacts.ts`](#file-src-built-ins-modules-client-crm-src-server-contacts-ts-50bf0920c3) · [`src/built-ins/modules/client-crm/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-client-crm-src-server-foundationadapter-ts-661f8db302) · [`src/built-ins/modules/client-crm/src/server/index.ts`](#file-src-built-ins-modules-client-crm-src-server-index-ts-a57bc87b5c) · [`src/built-ins/modules/client-crm/src/server/ports.ts`](#file-src-built-ins-modules-client-crm-src-server-ports-ts-650fd8da05) · [`src/built-ins/modules/client-crm/src/server/segments.ts`](#file-src-built-ins-modules-client-crm-src-server-segments-ts-dcae986dc3)
+**Used by (12):** [`src/built-ins/modules/client-crm/src/__smoke__/crm.test.ts`](#file-src-built-ins-modules-client-crm-src-smoke-crm-test-ts-0bb132e731) · [`src/built-ins/modules/client-crm/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-client-crm-src-lib-aquaplugintypes-ts-283533f57f) · [`src/built-ins/modules/client-crm/src/lib/domain.ts`](#file-src-built-ins-modules-client-crm-src-lib-domain-ts-f66a56f3b8) · [`src/built-ins/modules/client-crm/src/lib/journey.ts`](#file-src-built-ins-modules-client-crm-src-lib-journey-ts-c55c24f76f) · [`src/built-ins/modules/client-crm/src/server/activity.ts`](#file-src-built-ins-modules-client-crm-src-server-activity-ts-99fa86b90d) · [`src/built-ins/modules/client-crm/src/server/automations.ts`](#file-src-built-ins-modules-client-crm-src-server-automations-ts-dc21623d64) · [`src/built-ins/modules/client-crm/src/server/contacts.ts`](#file-src-built-ins-modules-client-crm-src-server-contacts-ts-50bf0920c3) · [`src/built-ins/modules/client-crm/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-client-crm-src-server-foundationadapter-ts-661f8db302) · [`src/built-ins/modules/client-crm/src/server/index.ts`](#file-src-built-ins-modules-client-crm-src-server-index-ts-a57bc87b5c) · [`src/built-ins/modules/client-crm/src/server/pipelines.ts`](#file-src-built-ins-modules-client-crm-src-server-pipelines-ts-2c3cba34dd) · [`src/built-ins/modules/client-crm/src/server/ports.ts`](#file-src-built-ins-modules-client-crm-src-server-ports-ts-650fd8da05) · [`src/built-ins/modules/client-crm/src/server/segments.ts`](#file-src-built-ins-modules-client-crm-src-server-segments-ts-dcae986dc3)
 
 <a id="file-src-built-ins-modules-client-crm-src-lib-time-ts-0f8728d52a"></a>
 
@@ -3588,7 +3697,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on:** _No internal imports._
 
-**Used by (4):** [`src/built-ins/modules/client-crm/src/__smoke__/crm.test.ts`](#file-src-built-ins-modules-client-crm-src-smoke-crm-test-ts-0bb132e731) · [`src/built-ins/modules/client-crm/src/server/activity.ts`](#file-src-built-ins-modules-client-crm-src-server-activity-ts-99fa86b90d) · [`src/built-ins/modules/client-crm/src/server/contacts.ts`](#file-src-built-ins-modules-client-crm-src-server-contacts-ts-50bf0920c3) · [`src/built-ins/modules/client-crm/src/server/segments.ts`](#file-src-built-ins-modules-client-crm-src-server-segments-ts-dcae986dc3)
+**Used by (7):** [`scripts/smoke-client-crm-journey.test.ts`](scripts.md#file-scripts-smoke-client-crm-journey-test-ts-e5576b17a1) · [`src/built-ins/modules/client-crm/src/__smoke__/crm.test.ts`](#file-src-built-ins-modules-client-crm-src-smoke-crm-test-ts-0bb132e731) · [`src/built-ins/modules/client-crm/src/server/activity.ts`](#file-src-built-ins-modules-client-crm-src-server-activity-ts-99fa86b90d) · [`src/built-ins/modules/client-crm/src/server/automations.ts`](#file-src-built-ins-modules-client-crm-src-server-automations-ts-dc21623d64) · [`src/built-ins/modules/client-crm/src/server/contacts.ts`](#file-src-built-ins-modules-client-crm-src-server-contacts-ts-50bf0920c3) · [`src/built-ins/modules/client-crm/src/server/pipelines.ts`](#file-src-built-ins-modules-client-crm-src-server-pipelines-ts-2c3cba34dd) · [`src/built-ins/modules/client-crm/src/server/segments.ts`](#file-src-built-ins-modules-client-crm-src-server-segments-ts-dcae986dc3)
 
 
 ## `src/built-ins/modules/client-crm/src/pages/`
@@ -3604,6 +3713,20 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `default async ActivityPage(props: PluginPageProps)`
 
 **Depends on (3):** [`src/built-ins/modules/client-crm/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-client-crm-src-lib-aquaplugintypes-ts-283533f57f) · [`src/built-ins/modules/client-crm/src/lib/safeDate.ts`](#file-src-built-ins-modules-client-crm-src-lib-safedate-ts-a8a54f765b) · [`src/built-ins/modules/client-crm/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-client-crm-src-server-foundationadapter-ts-661f8db302)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-src-built-ins-modules-client-crm-src-pages-automationspage-tsx-2fed8baa20"></a>
+
+### `src/built-ins/modules/client-crm/src/pages/AutomationsPage.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `default AutomationsPage()`
+
+**Depends on (2):** [`src/built-ins/modules/client-crm/src/lib/journey.ts`](#file-src-built-ins-modules-client-crm-src-lib-journey-ts-c55c24f76f) · [`src/built-ins/modules/client-crm/src/lib/journeyClient.ts`](#file-src-built-ins-modules-client-crm-src-lib-journeyclient-ts-38ad0cea16)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3625,7 +3748,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ### `src/built-ins/modules/client-crm/src/pages/ContactsPage.tsx`
 
-_No file-level doc-comment; purpose is inferred from the path and exports._
+**What it is:** navigation. Do not remove them thinking the sidebar covers it.
 
 **Exports (1):**
 
@@ -3646,6 +3769,20 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `default async MyProfilePage(props: PluginPageProps)`
 
 **Depends on (3):** [`src/built-ins/modules/client-crm/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-client-crm-src-lib-aquaplugintypes-ts-283533f57f) · [`src/built-ins/modules/client-crm/src/lib/safeDate.ts`](#file-src-built-ins-modules-client-crm-src-lib-safedate-ts-a8a54f765b) · [`src/built-ins/modules/client-crm/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-client-crm-src-server-foundationadapter-ts-661f8db302)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-src-built-ins-modules-client-crm-src-pages-pipelinespage-tsx-c9bc7b738b"></a>
+
+### `src/built-ins/modules/client-crm/src/pages/PipelinesPage.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `default PipelinesPage()`
+
+**Depends on (2):** [`src/built-ins/modules/client-crm/src/lib/journey.ts`](#file-src-built-ins-modules-client-crm-src-lib-journey-ts-c55c24f76f) · [`src/built-ins/modules/client-crm/src/lib/journeyClient.ts`](#file-src-built-ins-modules-client-crm-src-lib-journeyclient-ts-38ad0cea16)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3701,6 +3838,28 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (6):** [`src/built-ins/modules/client-crm/src/lib/domain.ts`](#file-src-built-ins-modules-client-crm-src-lib-domain-ts-f66a56f3b8) · [`src/built-ins/modules/client-crm/src/lib/ids.ts`](#file-src-built-ins-modules-client-crm-src-lib-ids-ts-64ea324edf) · [`src/built-ins/modules/client-crm/src/lib/tenancy.ts`](#file-src-built-ins-modules-client-crm-src-lib-tenancy-ts-68feaab432) · [`src/built-ins/modules/client-crm/src/lib/time.ts`](#file-src-built-ins-modules-client-crm-src-lib-time-ts-0f8728d52a) · [`src/built-ins/modules/client-crm/src/server/contacts.ts`](#file-src-built-ins-modules-client-crm-src-server-contacts-ts-50bf0920c3) · [`src/built-ins/modules/client-crm/src/server/ports.ts`](#file-src-built-ins-modules-client-crm-src-server-ports-ts-650fd8da05)
 
+**Used by (2):** [`src/built-ins/modules/client-crm/src/server/automations.ts`](#file-src-built-ins-modules-client-crm-src-server-automations-ts-dc21623d64) · [`src/built-ins/modules/client-crm/src/server/index.ts`](#file-src-built-ins-modules-client-crm-src-server-index-ts-a57bc87b5c)
+
+<a id="file-src-built-ins-modules-client-crm-src-server-automations-ts-dc21623d64"></a>
+
+### `src/built-ins/modules/client-crm/src/server/automations.ts`
+
+**What it is:** alone does not bound a long chain of distinct rules.
+
+**Exports (1):**
+
+- `class AutomationService`
+    - `constructor(private agencyId: AgencyId, private clientId: ClientId, private storage: StoragePort, private activityLog: ActivityLogPort, private events: EventBusPort, private pipelines: PipelineService, private contacts:…`
+    - `async list(pipelineId?: string): Promise<Automation[]>`
+    - `async get(id: string): Promise<Automation | null>`
+    - `async create(input: CreateAutomationInput, actor: UserId): Promise<Automation>`
+    - `async update(id: string, patch: UpdateAutomationPatch, actor: UserId): Promise<Automation | null>`
+    - `async delete(id: string, actor: UserId): Promise<boolean>`
+    - `async deleteForPipeline(pipelineId: string, actor: UserId): Promise<number>`
+    - `async runForTransition(transition: CardTransition, actor: UserId, depth = 0, visited: Set<string> = new Set()): Promise<AutomationRunOutcome[]>`
+
+**Depends on (8):** [`src/built-ins/modules/client-crm/src/lib/ids.ts`](#file-src-built-ins-modules-client-crm-src-lib-ids-ts-64ea324edf) · [`src/built-ins/modules/client-crm/src/lib/journey.ts`](#file-src-built-ins-modules-client-crm-src-lib-journey-ts-c55c24f76f) · [`src/built-ins/modules/client-crm/src/lib/tenancy.ts`](#file-src-built-ins-modules-client-crm-src-lib-tenancy-ts-68feaab432) · [`src/built-ins/modules/client-crm/src/lib/time.ts`](#file-src-built-ins-modules-client-crm-src-lib-time-ts-0f8728d52a) · [`src/built-ins/modules/client-crm/src/server/activity.ts`](#file-src-built-ins-modules-client-crm-src-server-activity-ts-99fa86b90d) · [`src/built-ins/modules/client-crm/src/server/contacts.ts`](#file-src-built-ins-modules-client-crm-src-server-contacts-ts-50bf0920c3) · [`src/built-ins/modules/client-crm/src/server/pipelines.ts`](#file-src-built-ins-modules-client-crm-src-server-pipelines-ts-2c3cba34dd) · [`src/built-ins/modules/client-crm/src/server/ports.ts`](#file-src-built-ins-modules-client-crm-src-server-ports-ts-650fd8da05)
+
 **Used by (1):** [`src/built-ins/modules/client-crm/src/server/index.ts`](#file-src-built-ins-modules-client-crm-src-server-index-ts-a57bc87b5c)
 
 <a id="file-src-built-ins-modules-client-crm-src-server-contacts-ts-50bf0920c3"></a>
@@ -3727,7 +3886,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (5):** [`src/built-ins/modules/client-crm/src/lib/domain.ts`](#file-src-built-ins-modules-client-crm-src-lib-domain-ts-f66a56f3b8) · [`src/built-ins/modules/client-crm/src/lib/ids.ts`](#file-src-built-ins-modules-client-crm-src-lib-ids-ts-64ea324edf) · [`src/built-ins/modules/client-crm/src/lib/tenancy.ts`](#file-src-built-ins-modules-client-crm-src-lib-tenancy-ts-68feaab432) · [`src/built-ins/modules/client-crm/src/lib/time.ts`](#file-src-built-ins-modules-client-crm-src-lib-time-ts-0f8728d52a) · [`src/built-ins/modules/client-crm/src/server/ports.ts`](#file-src-built-ins-modules-client-crm-src-server-ports-ts-650fd8da05)
 
-**Used by (3):** [`src/built-ins/modules/client-crm/src/server/activity.ts`](#file-src-built-ins-modules-client-crm-src-server-activity-ts-99fa86b90d) · [`src/built-ins/modules/client-crm/src/server/index.ts`](#file-src-built-ins-modules-client-crm-src-server-index-ts-a57bc87b5c) · [`src/built-ins/modules/client-crm/src/server/segments.ts`](#file-src-built-ins-modules-client-crm-src-server-segments-ts-dcae986dc3)
+**Used by (4):** [`src/built-ins/modules/client-crm/src/server/activity.ts`](#file-src-built-ins-modules-client-crm-src-server-activity-ts-99fa86b90d) · [`src/built-ins/modules/client-crm/src/server/automations.ts`](#file-src-built-ins-modules-client-crm-src-server-automations-ts-dc21623d64) · [`src/built-ins/modules/client-crm/src/server/index.ts`](#file-src-built-ins-modules-client-crm-src-server-index-ts-a57bc87b5c) · [`src/built-ins/modules/client-crm/src/server/segments.ts`](#file-src-built-ins-modules-client-crm-src-server-segments-ts-dcae986dc3)
 
 <a id="file-src-built-ins-modules-client-crm-src-server-foundationadapter-ts-661f8db302"></a>
 
@@ -3749,7 +3908,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (4):** [`src/built-ins/modules/client-crm/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-client-crm-src-lib-aquaplugintypes-ts-283533f57f) · [`src/built-ins/modules/client-crm/src/lib/tenancy.ts`](#file-src-built-ins-modules-client-crm-src-lib-tenancy-ts-68feaab432) · [`src/built-ins/modules/client-crm/src/server/index.ts`](#file-src-built-ins-modules-client-crm-src-server-index-ts-a57bc87b5c) · [`src/built-ins/modules/client-crm/src/server/ports.ts`](#file-src-built-ins-modules-client-crm-src-server-ports-ts-650fd8da05)
 
-**Used by (10):** [`src/built-ins/modules/client-crm/index.ts`](#file-src-built-ins-modules-client-crm-index-ts-83b87fe7ab) · [`src/built-ins/modules/client-crm/src/__smoke__/crm.test.ts`](#file-src-built-ins-modules-client-crm-src-smoke-crm-test-ts-0bb132e731) · [`src/built-ins/modules/client-crm/src/api/handlers.ts`](#file-src-built-ins-modules-client-crm-src-api-handlers-ts-a22b64845a) · [`src/built-ins/modules/client-crm/src/pages/ActivityPage.tsx`](#file-src-built-ins-modules-client-crm-src-pages-activitypage-tsx-7316198dfe) · [`src/built-ins/modules/client-crm/src/pages/ContactDetailPage.tsx`](#file-src-built-ins-modules-client-crm-src-pages-contactdetailpage-tsx-bee8c27ddd) · [`src/built-ins/modules/client-crm/src/pages/ContactsPage.tsx`](#file-src-built-ins-modules-client-crm-src-pages-contactspage-tsx-0120f7ef4e) · [`src/built-ins/modules/client-crm/src/pages/MyProfilePage.tsx`](#file-src-built-ins-modules-client-crm-src-pages-myprofilepage-tsx-92b7badb72) · [`src/built-ins/modules/client-crm/src/pages/SegmentsPage.tsx`](#file-src-built-ins-modules-client-crm-src-pages-segmentspage-tsx-b216247c60) · [`src/built-ins/modules/client-crm/src/pages/SettingsPage.tsx`](#file-src-built-ins-modules-client-crm-src-pages-settingspage-tsx-25d1cd87b4) · [`src/built-ins/modules/client-crm/src/server/index.ts`](#file-src-built-ins-modules-client-crm-src-server-index-ts-a57bc87b5c)
+**Used by (11):** [`scripts/smoke-client-crm-journey.test.ts`](scripts.md#file-scripts-smoke-client-crm-journey-test-ts-e5576b17a1) · [`src/built-ins/modules/client-crm/index.ts`](#file-src-built-ins-modules-client-crm-index-ts-83b87fe7ab) · [`src/built-ins/modules/client-crm/src/__smoke__/crm.test.ts`](#file-src-built-ins-modules-client-crm-src-smoke-crm-test-ts-0bb132e731) · [`src/built-ins/modules/client-crm/src/api/handlers.ts`](#file-src-built-ins-modules-client-crm-src-api-handlers-ts-a22b64845a) · [`src/built-ins/modules/client-crm/src/pages/ActivityPage.tsx`](#file-src-built-ins-modules-client-crm-src-pages-activitypage-tsx-7316198dfe) · [`src/built-ins/modules/client-crm/src/pages/ContactDetailPage.tsx`](#file-src-built-ins-modules-client-crm-src-pages-contactdetailpage-tsx-bee8c27ddd) · [`src/built-ins/modules/client-crm/src/pages/ContactsPage.tsx`](#file-src-built-ins-modules-client-crm-src-pages-contactspage-tsx-0120f7ef4e) · [`src/built-ins/modules/client-crm/src/pages/MyProfilePage.tsx`](#file-src-built-ins-modules-client-crm-src-pages-myprofilepage-tsx-92b7badb72) · [`src/built-ins/modules/client-crm/src/pages/SegmentsPage.tsx`](#file-src-built-ins-modules-client-crm-src-pages-segmentspage-tsx-b216247c60) · [`src/built-ins/modules/client-crm/src/pages/SettingsPage.tsx`](#file-src-built-ins-modules-client-crm-src-pages-settingspage-tsx-25d1cd87b4) · [`src/built-ins/modules/client-crm/src/server/index.ts`](#file-src-built-ins-modules-client-crm-src-server-index-ts-a57bc87b5c)
 
 <a id="file-src-built-ins-modules-client-crm-src-server-index-ts-a57bc87b5c"></a>
 
@@ -3757,21 +3916,59 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** Server-side barrel — services + container builder + foundation adapter.
 
-**Exports (9):**
+**Exports (12):**
 
 - `buildClientCrmContainer(deps: ClientCrmDeps): ClientCrmContainer`
 - `interface ClientCrmDeps (10 members)` — ─── Container ────────────────────────────────────────────────────────────
-- `interface ClientCrmContainer (3 members)`
+- `interface ClientCrmContainer (5 members)`
 - `{ ContactService } from "./contacts"`
 - `{ SegmentService, DEFAULT_SEGMENT_SEEDS } from "./segments"`
 - `{ ActivityService } from "./activity"`
+- `{ PipelineService } from "./pipelines"`
+- `{ CardTransition } from "./pipelines"`
+- `{ AutomationService } from "./automations"`
 - `{ ActivityLogPort, CrmEventName, EcommerceOrderProjection, EcommerceOrdersPort, EventBusPort, ListActivityFilter, LogActivityInput, MembershipBenefitsPort, MembershipSnapshot, PluginInstallStorePort, StoragePort, TenantPort, UserPort } from "./ports"`
 - `{ registerClientCrmFoundation, clearClientCrmFoundation, isFoundationRegistered, requireFoundation, containerFor, containerWithDeps, _containerFromCtx } from "./foundationAdapter"`
 - `{ ClientCrmFoundation, ContainerForArgs } from "./foundationAdapter"`
 
-**Depends on (7):** [`src/built-ins/modules/client-crm/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-client-crm-src-lib-aquaplugintypes-ts-283533f57f) · [`src/built-ins/modules/client-crm/src/lib/tenancy.ts`](#file-src-built-ins-modules-client-crm-src-lib-tenancy-ts-68feaab432) · [`src/built-ins/modules/client-crm/src/server/activity.ts`](#file-src-built-ins-modules-client-crm-src-server-activity-ts-99fa86b90d) · [`src/built-ins/modules/client-crm/src/server/contacts.ts`](#file-src-built-ins-modules-client-crm-src-server-contacts-ts-50bf0920c3) · [`src/built-ins/modules/client-crm/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-client-crm-src-server-foundationadapter-ts-661f8db302) · [`src/built-ins/modules/client-crm/src/server/ports.ts`](#file-src-built-ins-modules-client-crm-src-server-ports-ts-650fd8da05) · [`src/built-ins/modules/client-crm/src/server/segments.ts`](#file-src-built-ins-modules-client-crm-src-server-segments-ts-dcae986dc3)
+**Depends on (9):** [`src/built-ins/modules/client-crm/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-client-crm-src-lib-aquaplugintypes-ts-283533f57f) · [`src/built-ins/modules/client-crm/src/lib/tenancy.ts`](#file-src-built-ins-modules-client-crm-src-lib-tenancy-ts-68feaab432) · [`src/built-ins/modules/client-crm/src/server/activity.ts`](#file-src-built-ins-modules-client-crm-src-server-activity-ts-99fa86b90d) · [`src/built-ins/modules/client-crm/src/server/automations.ts`](#file-src-built-ins-modules-client-crm-src-server-automations-ts-dc21623d64) · [`src/built-ins/modules/client-crm/src/server/contacts.ts`](#file-src-built-ins-modules-client-crm-src-server-contacts-ts-50bf0920c3) · [`src/built-ins/modules/client-crm/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-client-crm-src-server-foundationadapter-ts-661f8db302) · [`src/built-ins/modules/client-crm/src/server/pipelines.ts`](#file-src-built-ins-modules-client-crm-src-server-pipelines-ts-2c3cba34dd) · [`src/built-ins/modules/client-crm/src/server/ports.ts`](#file-src-built-ins-modules-client-crm-src-server-ports-ts-650fd8da05) · [`src/built-ins/modules/client-crm/src/server/segments.ts`](#file-src-built-ins-modules-client-crm-src-server-segments-ts-dcae986dc3)
 
 **Used by (1):** [`src/built-ins/modules/client-crm/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-client-crm-src-server-foundationadapter-ts-661f8db302)
+
+<a id="file-src-built-ins-modules-client-crm-src-server-pipelines-ts-2c3cba34dd"></a>
+
+### `src/built-ins/modules/client-crm/src/server/pipelines.ts`
+
+**What it is:** deleting a contact would have to scan every card of every pipeline.
+
+**Exports (2):**
+
+- `class PipelineService`
+    - `constructor(private agencyId: AgencyId, private clientId: ClientId, private storage: StoragePort, private activity: ActivityLogPort, private events: EventBusPort)`
+    - `async list(): Promise<Pipeline[]>`
+    - `async get(id: string): Promise<Pipeline | null>`
+    - `async getDefault(): Promise<Pipeline | null>`
+    - `async create(input: CreatePipelineInput, actor: UserId): Promise<Pipeline>`
+    - `async update(id: string, patch: UpdatePipelinePatch, actor: UserId): Promise<Pipeline | null>`
+    - `async delete(id: string, actor: UserId): Promise<boolean>`
+    - `async addStage(pipelineId: string, seed: { name: string; kind?: StageKind; tone?: StageTone; idleAfterDays?: number }, actor: UserId): Promise<Pipeline | null>`
+    - `async updateStage(pipelineId: string, stageId: string, patch: { name?: string; kind?: StageKind; tone?: StageTone; idleAfterDays?: number | null }, actor: UserId): Promise<Pipeline | null>`
+    - `async deleteStage(pipelineId: string, stageId: string, actor: UserId, moveCardsTo?: string): Promise<{ ok: true; pipeline: Pipeline } | { ok: false; error: string }>`
+    - `async reorderStages(pipelineId: string, stageIds: string[], actor: UserId): Promise<Pipeline | null>`
+    - `async listCards(pipelineId: string): Promise<JourneyCard[]>`
+    - `async getCard(id: string): Promise<JourneyCard | null>`
+    - `async listCardsForContact(contactId: string): Promise<JourneyCard[]>`
+    - `async createCard(input: CreateCardInput, actor: UserId): Promise<{ card: JourneyCard; transition: CardTransition }>`
+    - `async moveCard(cardId: string, toStageId: string, toPosition: number | undefined, actor: UserId): Promise<CardTransition | null>`
+    - `async updateCard(cardId: string, patch: UpdateCardPatch, actor: UserId): Promise<JourneyCard | null>`
+    - `async deleteCard(cardId: string, actor: UserId): Promise<boolean>`
+    - `async deleteCardsForContact(contactId: string, actor: UserId): Promise<number>`
+    - `async buildBoard(pipelineId: string, contacts: Contact[], at: number = now()): Promise<JourneyBoard | null>`
+- `interface CardTransition (3 members)` — What a completed move was, handed to the automation runner.
+
+**Depends on (6):** [`src/built-ins/modules/client-crm/src/lib/domain.ts`](#file-src-built-ins-modules-client-crm-src-lib-domain-ts-f66a56f3b8) · [`src/built-ins/modules/client-crm/src/lib/ids.ts`](#file-src-built-ins-modules-client-crm-src-lib-ids-ts-64ea324edf) · [`src/built-ins/modules/client-crm/src/lib/journey.ts`](#file-src-built-ins-modules-client-crm-src-lib-journey-ts-c55c24f76f) · [`src/built-ins/modules/client-crm/src/lib/tenancy.ts`](#file-src-built-ins-modules-client-crm-src-lib-tenancy-ts-68feaab432) · [`src/built-ins/modules/client-crm/src/lib/time.ts`](#file-src-built-ins-modules-client-crm-src-lib-time-ts-0f8728d52a) · [`src/built-ins/modules/client-crm/src/server/ports.ts`](#file-src-built-ins-modules-client-crm-src-server-ports-ts-650fd8da05)
+
+**Used by (2):** [`src/built-ins/modules/client-crm/src/server/automations.ts`](#file-src-built-ins-modules-client-crm-src-server-automations-ts-dc21623d64) · [`src/built-ins/modules/client-crm/src/server/index.ts`](#file-src-built-ins-modules-client-crm-src-server-index-ts-a57bc87b5c)
 
 <a id="file-src-built-ins-modules-client-crm-src-server-ports-ts-650fd8da05"></a>
 
@@ -3797,7 +3994,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (1):** [`src/built-ins/modules/client-crm/src/lib/tenancy.ts`](#file-src-built-ins-modules-client-crm-src-lib-tenancy-ts-68feaab432)
 
-**Used by (7):** [`src/built-ins/modules/client-crm/src/__smoke__/crm.test.ts`](#file-src-built-ins-modules-client-crm-src-smoke-crm-test-ts-0bb132e731) · [`src/built-ins/modules/client-crm/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-client-crm-src-lib-aquaplugintypes-ts-283533f57f) · [`src/built-ins/modules/client-crm/src/server/activity.ts`](#file-src-built-ins-modules-client-crm-src-server-activity-ts-99fa86b90d) · [`src/built-ins/modules/client-crm/src/server/contacts.ts`](#file-src-built-ins-modules-client-crm-src-server-contacts-ts-50bf0920c3) · [`src/built-ins/modules/client-crm/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-client-crm-src-server-foundationadapter-ts-661f8db302) · [`src/built-ins/modules/client-crm/src/server/index.ts`](#file-src-built-ins-modules-client-crm-src-server-index-ts-a57bc87b5c) · [`src/built-ins/modules/client-crm/src/server/segments.ts`](#file-src-built-ins-modules-client-crm-src-server-segments-ts-dcae986dc3)
+**Used by (10):** [`scripts/smoke-client-crm-journey.test.ts`](scripts.md#file-scripts-smoke-client-crm-journey-test-ts-e5576b17a1) · [`src/built-ins/modules/client-crm/src/__smoke__/crm.test.ts`](#file-src-built-ins-modules-client-crm-src-smoke-crm-test-ts-0bb132e731) · [`src/built-ins/modules/client-crm/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-client-crm-src-lib-aquaplugintypes-ts-283533f57f) · [`src/built-ins/modules/client-crm/src/server/activity.ts`](#file-src-built-ins-modules-client-crm-src-server-activity-ts-99fa86b90d) · [`src/built-ins/modules/client-crm/src/server/automations.ts`](#file-src-built-ins-modules-client-crm-src-server-automations-ts-dc21623d64) · [`src/built-ins/modules/client-crm/src/server/contacts.ts`](#file-src-built-ins-modules-client-crm-src-server-contacts-ts-50bf0920c3) · [`src/built-ins/modules/client-crm/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-client-crm-src-server-foundationadapter-ts-661f8db302) · [`src/built-ins/modules/client-crm/src/server/index.ts`](#file-src-built-ins-modules-client-crm-src-server-index-ts-a57bc87b5c) · [`src/built-ins/modules/client-crm/src/server/pipelines.ts`](#file-src-built-ins-modules-client-crm-src-server-pipelines-ts-2c3cba34dd) · [`src/built-ins/modules/client-crm/src/server/segments.ts`](#file-src-built-ins-modules-client-crm-src-server-segments-ts-dcae986dc3)
 
 <a id="file-src-built-ins-modules-client-crm-src-server-segments-ts-dcae986dc3"></a>
 
@@ -4349,10 +4546,11 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** the foundation.
 
-**Exports (25):**
+**Exports (27):**
 
-- `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment"` — ─── Plugin identity ──────────────────────────────────────────────────────
+- `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment" | "growth"` — ─── Plugin identity ──────────────────────────────────────────────────────
 - `type PluginStatus = "stable" | "beta" | "alpha"`
+- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" | "lead"` — has always had. Same members as every other copy now.
 - `type PlanId = "free" | "starter" | "pro" | "enterprise"`
 - `type PanelId = | "main" | "fulfillment" | "store" | "content" | "marketing" | "settings" | "ops" | "tools"`
 - `type PluginScopePolicy = "client" | "agency" | "either"` — ─── Install scope policy ─────────────────────────────────────────────────
@@ -4374,7 +4572,8 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface SettingsField (9 members)`
 - `interface PluginFeature (6 members)` — ─── Feature toggles ──────────────────────────────────────────────────────
 - `interface HealthStatus (3 members)` — ─── Health check ─────────────────────────────────────────────────────────
-- `interface AquaPlugin (29 members)` — ─── The plugin manifest ──────────────────────────────────────────────────
+- `interface ErasureSubject (3 members)` — Who is being erased — supplied to `onEraseClient` so a hook does not have to re-derive it through its own tenant port. Added to this copy 2026-08-28. It was already in the canonic…
+- `interface AquaPlugin (29 members)`
 - `{ PluginInstall } from "./tenancy"`
 
 **Depends on (1):** [`src/built-ins/modules/ecommerce/src/lib/tenancy.ts`](#file-src-built-ins-modules-ecommerce-src-lib-tenancy-ts-9db8e1633b)
@@ -4485,7 +4684,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface ShopifyConfig (2 members)`
 - `interface ShopifyRequestOptions (3 members)`
 
-**Depends on (1):** [`src/lib/server/remoteOperation.ts`](lib.md#file-src-lib-server-remoteoperation-ts-60689f2f16)
+**Depends on (2):** [`src/lib/server/remoteOperation.ts`](lib.md#file-src-lib-server-remoteoperation-ts-60689f2f16) · [`src/lib/server/sandbox/providerPolicy.ts`](lib.md#file-src-lib-server-sandbox-providerpolicy-ts-d36e7025f0)
 
 **Used by (1):** [`scripts/smoke-provider-deadlines.test.ts`](scripts.md#file-scripts-smoke-provider-deadlines-test-ts-b3c5fd9785)
 
@@ -4532,7 +4731,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type EndCustomerId = string`
 - `type UserId = string`
 - `type PluginId = string`
-- `type Role = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer"`
+- `type Role = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28. The canonical `Role` in src/server/types.ts has always // had eight…`
 - `type ClientStage = | "lead" | "discovery" | "design" | "development" | "onboarding" | "live" | "churned"`
 - `type EntityStatus = "active" | "suspended" | "archived"`
 - `type ActivityCategory = | "auth" | "tenant" | "plugin" | "phase" | "fulfillment" | "settings" | "system" | "ecommerce"`
@@ -5070,7 +5269,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default manifest`
 
-**Depends on (3):** [`src/built-ins/modules/email-sender/src/api/routes.ts`](#file-src-built-ins-modules-email-sender-src-api-routes-ts-d09f0da0c7) · [`src/built-ins/modules/email-sender/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-email-sender-src-lib-aquaplugintypes-ts-f756e7c435) · [`src/built-ins/modules/email-sender/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-email-sender-src-server-foundationadapter-ts-1889ff7cf0)
+**Depends on (4):** [`src/built-ins/modules/email-sender/src/api/routes.ts`](#file-src-built-ins-modules-email-sender-src-api-routes-ts-d09f0da0c7) · [`src/built-ins/modules/email-sender/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-email-sender-src-lib-aquaplugintypes-ts-f756e7c435) · [`src/built-ins/modules/email-sender/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-email-sender-src-server-foundationadapter-ts-1889ff7cf0) · [`src/built-ins/modules/email-sender/src/server/health.ts`](#file-src-built-ins-modules-email-sender-src-server-health-ts-6083b8a5b2)
 
 **Used by (1):** [`scripts/smoke-tools-directory.test.ts`](scripts.md#file-scripts-smoke-tools-directory-test-ts-65a70ca0c9)
 
@@ -5085,7 +5284,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on (6):** [`src/built-ins/modules/email-sender/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-email-sender-src-lib-aquaplugintypes-ts-f756e7c435) · [`src/built-ins/modules/email-sender/src/lib/domain.ts`](#file-src-built-ins-modules-email-sender-src-lib-domain-ts-86c3b3b8a6) · [`src/built-ins/modules/email-sender/src/lib/tenancy.ts`](#file-src-built-ins-modules-email-sender-src-lib-tenancy-ts-40262249aa) · [`src/built-ins/modules/email-sender/src/server/drivers/index.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-index-ts-d560aeeed7) · [`src/built-ins/modules/email-sender/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-email-sender-src-server-foundationadapter-ts-1889ff7cf0) · [`src/built-ins/modules/email-sender/src/server/ports.ts`](#file-src-built-ins-modules-email-sender-src-server-ports-ts-d83f489d16)
+**Depends on (8):** [`src/built-ins/modules/email-sender/src/api/handlers.ts`](#file-src-built-ins-modules-email-sender-src-api-handlers-ts-103f6a498c) · [`src/built-ins/modules/email-sender/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-email-sender-src-lib-aquaplugintypes-ts-f756e7c435) · [`src/built-ins/modules/email-sender/src/lib/domain.ts`](#file-src-built-ins-modules-email-sender-src-lib-domain-ts-86c3b3b8a6) · [`src/built-ins/modules/email-sender/src/lib/tenancy.ts`](#file-src-built-ins-modules-email-sender-src-lib-tenancy-ts-40262249aa) · [`src/built-ins/modules/email-sender/src/server/drivers/index.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-index-ts-d560aeeed7) · [`src/built-ins/modules/email-sender/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-email-sender-src-server-foundationadapter-ts-1889ff7cf0) · [`src/built-ins/modules/email-sender/src/server/health.ts`](#file-src-built-ins-modules-email-sender-src-server-health-ts-6083b8a5b2) · [`src/built-ins/modules/email-sender/src/server/ports.ts`](#file-src-built-ins-modules-email-sender-src-server-ports-ts-d83f489d16)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -5125,9 +5324,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async postmarkWebhookHandler(req: Request, ctx: PluginCtx): Promise<Response>` — ─── Webhook (public, no auth — provider signs) ──────────────────────────
 - `async internalEnqueueHandler(req: Request, ctx: PluginCtx): Promise<Response>` — ─── Internal enqueue (plugin-to-plugin via foundation routing) ──────────
 
-**Depends on (3):** [`src/built-ins/modules/email-sender/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-email-sender-src-lib-aquaplugintypes-ts-f756e7c435) · [`src/built-ins/modules/email-sender/src/lib/domain.ts`](#file-src-built-ins-modules-email-sender-src-lib-domain-ts-86c3b3b8a6) · [`src/built-ins/modules/email-sender/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-email-sender-src-server-foundationadapter-ts-1889ff7cf0)
+**Depends on (4):** [`src/built-ins/modules/email-sender/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-email-sender-src-lib-aquaplugintypes-ts-f756e7c435) · [`src/built-ins/modules/email-sender/src/lib/domain.ts`](#file-src-built-ins-modules-email-sender-src-lib-domain-ts-86c3b3b8a6) · [`src/built-ins/modules/email-sender/src/server/delivery.ts`](#file-src-built-ins-modules-email-sender-src-server-delivery-ts-bf2e19a271) · [`src/built-ins/modules/email-sender/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-email-sender-src-server-foundationadapter-ts-1889ff7cf0)
 
-**Used by (1):** [`src/built-ins/modules/email-sender/src/api/routes.ts`](#file-src-built-ins-modules-email-sender-src-api-routes-ts-d09f0da0c7)
+**Used by (2):** [`src/built-ins/modules/email-sender/src/__smoke__/email-sender.test.ts`](#file-src-built-ins-modules-email-sender-src-smoke-email-sender-test-ts-c954269146) · [`src/built-ins/modules/email-sender/src/api/routes.ts`](#file-src-built-ins-modules-email-sender-src-api-routes-ts-d09f0da0c7)
 
 <a id="file-src-built-ins-modules-email-sender-src-api-routes-ts-d09f0da0c7"></a>
 
@@ -5154,10 +5353,10 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (21):**
 
-- `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "growth"`
+- `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment" | "growth"`
 - `type PluginStatus = "stable" | "beta" | "alpha"`
-- `type ScopePolicy = "agency" | "client" | "either"`
-- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer"`
+- `type PluginScopePolicy = "agency" | "client" | "either"` — the canonical — and the majority was the divergent side.
+- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28: the canonical `Role` in src/server/types.ts has alw…`
 - `interface PluginCtx (6 members)`
 - `interface PluginStorage (4 members)`
 - `interface PluginServices (9 members)`
@@ -5178,7 +5377,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (2):** [`src/built-ins/modules/email-sender/src/lib/tenancy.ts`](#file-src-built-ins-modules-email-sender-src-lib-tenancy-ts-40262249aa) · [`src/built-ins/modules/email-sender/src/server/ports.ts`](#file-src-built-ins-modules-email-sender-src-server-ports-ts-d83f489d16)
 
-**Used by (10):** [`src/built-ins/modules/email-sender/index.ts`](#file-src-built-ins-modules-email-sender-index-ts-99f0cb2139) · [`src/built-ins/modules/email-sender/src/__smoke__/email-sender.test.ts`](#file-src-built-ins-modules-email-sender-src-smoke-email-sender-test-ts-c954269146) · [`src/built-ins/modules/email-sender/src/__smoke__/smtp-driver.test.ts`](#file-src-built-ins-modules-email-sender-src-smoke-smtp-driver-test-ts-85079b6968) · [`src/built-ins/modules/email-sender/src/api/handlers.ts`](#file-src-built-ins-modules-email-sender-src-api-handlers-ts-103f6a498c) · [`src/built-ins/modules/email-sender/src/api/routes.ts`](#file-src-built-ins-modules-email-sender-src-api-routes-ts-d09f0da0c7) · [`src/built-ins/modules/email-sender/src/pages/LogsPage.tsx`](#file-src-built-ins-modules-email-sender-src-pages-logspage-tsx-c55f62840a) · [`src/built-ins/modules/email-sender/src/pages/OutboxPage.tsx`](#file-src-built-ins-modules-email-sender-src-pages-outboxpage-tsx-a8a936a037) · [`src/built-ins/modules/email-sender/src/pages/SettingsPage.tsx`](#file-src-built-ins-modules-email-sender-src-pages-settingspage-tsx-2efb9eaa32) · [`src/built-ins/modules/email-sender/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-email-sender-src-server-foundationadapter-ts-1889ff7cf0) · [`src/built-ins/modules/email-sender/src/server/index.ts`](#file-src-built-ins-modules-email-sender-src-server-index-ts-7639c339f5)
+**Used by (11):** [`src/built-ins/modules/email-sender/index.ts`](#file-src-built-ins-modules-email-sender-index-ts-99f0cb2139) · [`src/built-ins/modules/email-sender/src/__smoke__/email-sender.test.ts`](#file-src-built-ins-modules-email-sender-src-smoke-email-sender-test-ts-c954269146) · [`src/built-ins/modules/email-sender/src/__smoke__/smtp-driver.test.ts`](#file-src-built-ins-modules-email-sender-src-smoke-smtp-driver-test-ts-85079b6968) · [`src/built-ins/modules/email-sender/src/api/handlers.ts`](#file-src-built-ins-modules-email-sender-src-api-handlers-ts-103f6a498c) · [`src/built-ins/modules/email-sender/src/api/routes.ts`](#file-src-built-ins-modules-email-sender-src-api-routes-ts-d09f0da0c7) · [`src/built-ins/modules/email-sender/src/pages/LogsPage.tsx`](#file-src-built-ins-modules-email-sender-src-pages-logspage-tsx-c55f62840a) · [`src/built-ins/modules/email-sender/src/pages/OutboxPage.tsx`](#file-src-built-ins-modules-email-sender-src-pages-outboxpage-tsx-a8a936a037) · [`src/built-ins/modules/email-sender/src/pages/SettingsPage.tsx`](#file-src-built-ins-modules-email-sender-src-pages-settingspage-tsx-2efb9eaa32) · [`src/built-ins/modules/email-sender/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-email-sender-src-server-foundationadapter-ts-1889ff7cf0) · [`src/built-ins/modules/email-sender/src/server/health.ts`](#file-src-built-ins-modules-email-sender-src-server-health-ts-6083b8a5b2) · [`src/built-ins/modules/email-sender/src/server/index.ts`](#file-src-built-ins-modules-email-sender-src-server-index-ts-7639c339f5)
 
 <a id="file-src-built-ins-modules-email-sender-src-lib-domain-ts-86c3b3b8a6"></a>
 
@@ -5186,8 +5385,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** on individual messages via `clientId`.
 
-**Exports (26):**
+**Exports (27):**
 
+- `EMAIL_DELIVERY_DISABLED_REASON = "Email delivery is disabled because no provider is configured. The message remains queued."`
 - `type ProviderKind = "postmark" | "sendgrid" | "resend" | "smtp" | "none"` — ─── Provider ────────────────────────────────────────────────────────────
 - `type ProviderStatus = "active" | "unconfigured" | "error"`
 - `type SenderIdentityStatus = "active" | "pending" | "failed"` — ─── Sender identity ─────────────────────────────────────────────────────
@@ -5217,7 +5417,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (1):** [`src/built-ins/modules/email-sender/src/lib/tenancy.ts`](#file-src-built-ins-modules-email-sender-src-lib-tenancy-ts-40262249aa)
 
-**Used by (15):** [`src/built-ins/modules/email-sender/src/__smoke__/email-sender.test.ts`](#file-src-built-ins-modules-email-sender-src-smoke-email-sender-test-ts-c954269146) · [`src/built-ins/modules/email-sender/src/__smoke__/smtp-driver.test.ts`](#file-src-built-ins-modules-email-sender-src-smoke-smtp-driver-test-ts-85079b6968) · [`src/built-ins/modules/email-sender/src/api/handlers.ts`](#file-src-built-ins-modules-email-sender-src-api-handlers-ts-103f6a498c) · [`src/built-ins/modules/email-sender/src/server/delivery.ts`](#file-src-built-ins-modules-email-sender-src-server-delivery-ts-bf2e19a271) · [`src/built-ins/modules/email-sender/src/server/drivers/index.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-index-ts-d560aeeed7) · [`src/built-ins/modules/email-sender/src/server/drivers/noop.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-noop-ts-562c641f7b) · [`src/built-ins/modules/email-sender/src/server/drivers/postmark.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-postmark-ts-61f9e25b51) · [`src/built-ins/modules/email-sender/src/server/drivers/smtp.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-smtp-ts-51c25e94b8) · [`src/built-ins/modules/email-sender/src/server/emails.ts`](#file-src-built-ins-modules-email-sender-src-server-emails-ts-aec3ac0c79) · [`src/built-ins/modules/email-sender/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-email-sender-src-server-foundationadapter-ts-1889ff7cf0) · [`src/built-ins/modules/email-sender/src/server/identities.ts`](#file-src-built-ins-modules-email-sender-src-server-identities-ts-75d1b791e3) · [`src/built-ins/modules/email-sender/src/server/index.ts`](#file-src-built-ins-modules-email-sender-src-server-index-ts-7639c339f5) · [`src/built-ins/modules/email-sender/src/server/ports.ts`](#file-src-built-ins-modules-email-sender-src-server-ports-ts-d83f489d16) · [`src/built-ins/modules/email-sender/src/server/provider.ts`](#file-src-built-ins-modules-email-sender-src-server-provider-ts-4d7c6a58a3) · [`src/built-ins/modules/email-sender/src/server/webhook.ts`](#file-src-built-ins-modules-email-sender-src-server-webhook-ts-420e6f3bdc)
+**Used by (16):** [`src/built-ins/modules/email-sender/src/__smoke__/email-sender.test.ts`](#file-src-built-ins-modules-email-sender-src-smoke-email-sender-test-ts-c954269146) · [`src/built-ins/modules/email-sender/src/__smoke__/smtp-driver.test.ts`](#file-src-built-ins-modules-email-sender-src-smoke-smtp-driver-test-ts-85079b6968) · [`src/built-ins/modules/email-sender/src/api/handlers.ts`](#file-src-built-ins-modules-email-sender-src-api-handlers-ts-103f6a498c) · [`src/built-ins/modules/email-sender/src/server/delivery.ts`](#file-src-built-ins-modules-email-sender-src-server-delivery-ts-bf2e19a271) · [`src/built-ins/modules/email-sender/src/server/drivers/index.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-index-ts-d560aeeed7) · [`src/built-ins/modules/email-sender/src/server/drivers/noop.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-noop-ts-562c641f7b) · [`src/built-ins/modules/email-sender/src/server/drivers/postmark.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-postmark-ts-61f9e25b51) · [`src/built-ins/modules/email-sender/src/server/drivers/smtp.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-smtp-ts-51c25e94b8) · [`src/built-ins/modules/email-sender/src/server/emails.ts`](#file-src-built-ins-modules-email-sender-src-server-emails-ts-aec3ac0c79) · [`src/built-ins/modules/email-sender/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-email-sender-src-server-foundationadapter-ts-1889ff7cf0) · [`src/built-ins/modules/email-sender/src/server/health.ts`](#file-src-built-ins-modules-email-sender-src-server-health-ts-6083b8a5b2) · [`src/built-ins/modules/email-sender/src/server/identities.ts`](#file-src-built-ins-modules-email-sender-src-server-identities-ts-75d1b791e3) · [`src/built-ins/modules/email-sender/src/server/index.ts`](#file-src-built-ins-modules-email-sender-src-server-index-ts-7639c339f5) · [`src/built-ins/modules/email-sender/src/server/ports.ts`](#file-src-built-ins-modules-email-sender-src-server-ports-ts-d83f489d16) · [`src/built-ins/modules/email-sender/src/server/provider.ts`](#file-src-built-ins-modules-email-sender-src-server-provider-ts-4d7c6a58a3) · [`src/built-ins/modules/email-sender/src/server/webhook.ts`](#file-src-built-ins-modules-email-sender-src-server-webhook-ts-420e6f3bdc)
 
 <a id="file-src-built-ins-modules-email-sender-src-lib-ids-ts-d6fc9bd640"></a>
 
@@ -5232,7 +5432,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on:** _No internal imports._
 
-**Used by (4):** [`src/built-ins/modules/email-sender/src/server/drivers/noop.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-noop-ts-562c641f7b) · [`src/built-ins/modules/email-sender/src/server/drivers/smtp.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-smtp-ts-51c25e94b8) · [`src/built-ins/modules/email-sender/src/server/emails.ts`](#file-src-built-ins-modules-email-sender-src-server-emails-ts-aec3ac0c79) · [`src/built-ins/modules/email-sender/src/server/identities.ts`](#file-src-built-ins-modules-email-sender-src-server-identities-ts-75d1b791e3)
+**Used by (3):** [`src/built-ins/modules/email-sender/src/server/drivers/smtp.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-smtp-ts-51c25e94b8) · [`src/built-ins/modules/email-sender/src/server/emails.ts`](#file-src-built-ins-modules-email-sender-src-server-emails-ts-aec3ac0c79) · [`src/built-ins/modules/email-sender/src/server/identities.ts`](#file-src-built-ins-modules-email-sender-src-server-identities-ts-75d1b791e3)
 
 <a id="file-src-built-ins-modules-email-sender-src-lib-safedate-ts-4a512d87f0"></a>
 
@@ -5262,7 +5462,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type ClientId = string`
 - `type UserId = string`
 - `type PluginId = string`
-- `type Role = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer"`
+- `type Role = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28. The canonical `Role` in src/server/types.ts has always // had eight…`
 - `type EntityStatus = "active" | "suspended" | "archived"`
 - `type ActivityCategory = | "auth" | "tenant" | "plugin" | "phase" | "fulfillment" | "ecommerce" | "settings" | "system" | "hr" | "memberships" | "affiliates" | "finance" | "marketing" | "crm" | "forms" | "email"` — "email" added — foundation needs a one-line ActivityCategory extension.
 - `interface BrandKit (8 members)`
@@ -5346,16 +5546,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** because EmailService transitions guard against double-sending.
 
-**Exports (1):**
+**Exports (3):**
 
 - `class DeliveryService`
     - `constructor(private agencyId: AgencyId, private emails: EmailService, private provider: ProviderService, private drivers: Map<ProviderKind, EmailDriver>)`
-    - `async deliver(messageId: string): Promise<{ ok: boolean; externalRef?: string; reason?: string }>`
-    - `async retry(messageId: string): Promise<{ ok: boolean; externalRef?: string; reason?: string }>`
+    - `async deliver(messageId: string): Promise<DeliveryResult>`
+    - `async retry(messageId: string): Promise<DeliveryResult>`
+- `type DeliveryFailureCode = | "provider_unconfigured" | "message_not_found" | "terminal_state" | "delivery_unavailable" | "delivery_failed"`
+- `interface DeliveryResult (4 members)`
 
 **Depends on (5):** [`src/built-ins/modules/email-sender/src/lib/domain.ts`](#file-src-built-ins-modules-email-sender-src-lib-domain-ts-86c3b3b8a6) · [`src/built-ins/modules/email-sender/src/lib/tenancy.ts`](#file-src-built-ins-modules-email-sender-src-lib-tenancy-ts-40262249aa) · [`src/built-ins/modules/email-sender/src/server/emails.ts`](#file-src-built-ins-modules-email-sender-src-server-emails-ts-aec3ac0c79) · [`src/built-ins/modules/email-sender/src/server/ports.ts`](#file-src-built-ins-modules-email-sender-src-server-ports-ts-d83f489d16) · [`src/built-ins/modules/email-sender/src/server/provider.ts`](#file-src-built-ins-modules-email-sender-src-server-provider-ts-4d7c6a58a3)
 
-**Used by (1):** [`src/built-ins/modules/email-sender/src/server/index.ts`](#file-src-built-ins-modules-email-sender-src-server-index-ts-7639c339f5)
+**Used by (2):** [`src/built-ins/modules/email-sender/src/api/handlers.ts`](#file-src-built-ins-modules-email-sender-src-api-handlers-ts-103f6a498c) · [`src/built-ins/modules/email-sender/src/server/index.ts`](#file-src-built-ins-modules-email-sender-src-server-index-ts-7639c339f5)
 
 
 ## `src/built-ins/modules/email-sender/src/server/drivers/`
@@ -5384,14 +5586,14 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ### `src/built-ins/modules/email-sender/src/server/drivers/noop.ts`
 
-**What it is:** smoke-test default.
+**What it is:** before invoking a driver; this failure is defense in depth for direct use.
 
 **Exports (1):**
 
 - `class NoopDriver`
     - `async send(_args: { ctx: DriverContext; message: EmailMessage }): Promise<SendResult | SendFailure>`
 
-**Depends on (3):** [`src/built-ins/modules/email-sender/src/lib/domain.ts`](#file-src-built-ins-modules-email-sender-src-lib-domain-ts-86c3b3b8a6) · [`src/built-ins/modules/email-sender/src/lib/ids.ts`](#file-src-built-ins-modules-email-sender-src-lib-ids-ts-d6fc9bd640) · [`src/built-ins/modules/email-sender/src/server/ports.ts`](#file-src-built-ins-modules-email-sender-src-server-ports-ts-d83f489d16)
+**Depends on (2):** [`src/built-ins/modules/email-sender/src/lib/domain.ts`](#file-src-built-ins-modules-email-sender-src-lib-domain-ts-86c3b3b8a6) · [`src/built-ins/modules/email-sender/src/server/ports.ts`](#file-src-built-ins-modules-email-sender-src-server-ports-ts-d83f489d16)
 
 **Used by (1):** [`src/built-ins/modules/email-sender/src/server/drivers/index.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-index-ts-d560aeeed7)
 
@@ -5460,6 +5662,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
     - `async onMembershipSubscriptionChanged(payload: { subscriptionId: string; userId: string; userEmail?: string; oldStatus: string; newStatus: string; planName?: string; }): Promise<EmailMessage | null>`
     - `async onAffiliatePayoutCompleted(payload: { payoutId: string; affiliateUserId: string; affiliateEmail?: string; amountCents: number; externalRef?: string; }): Promise<EmailMessage | null>`
     - `async onAuthBootstrapSignup(payload: { userId: string; email: string; name?: string; agencyName?: string; }): Promise<EmailMessage | null>`
+    - `async onCrmAutomationEmailRequested(payload: { automationId: string; cardId: string; contactEmail: string; contactName?: string; subject: string; bodyText: string; clientId?: string; }): Promise<EmailMessage | null>`
     - `async eraseForAddresses(addresses: readonly string[], clientId?: string): Promise<number>`
 
 **Depends on (6):** [`src/built-ins/modules/email-sender/src/lib/domain.ts`](#file-src-built-ins-modules-email-sender-src-lib-domain-ts-86c3b3b8a6) · [`src/built-ins/modules/email-sender/src/lib/ids.ts`](#file-src-built-ins-modules-email-sender-src-lib-ids-ts-d6fc9bd640) · [`src/built-ins/modules/email-sender/src/lib/tenancy.ts`](#file-src-built-ins-modules-email-sender-src-lib-tenancy-ts-40262249aa) · [`src/built-ins/modules/email-sender/src/lib/time.ts`](#file-src-built-ins-modules-email-sender-src-lib-time-ts-fccd94feb0) · [`src/built-ins/modules/email-sender/src/server/identities.ts`](#file-src-built-ins-modules-email-sender-src-server-identities-ts-75d1b791e3) · [`src/built-ins/modules/email-sender/src/server/ports.ts`](#file-src-built-ins-modules-email-sender-src-server-ports-ts-d83f489d16)
@@ -5489,6 +5692,20 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by (7):** [`src/built-ins/modules/email-sender/index.ts`](#file-src-built-ins-modules-email-sender-index-ts-99f0cb2139) · [`src/built-ins/modules/email-sender/src/__smoke__/email-sender.test.ts`](#file-src-built-ins-modules-email-sender-src-smoke-email-sender-test-ts-c954269146) · [`src/built-ins/modules/email-sender/src/api/handlers.ts`](#file-src-built-ins-modules-email-sender-src-api-handlers-ts-103f6a498c) · [`src/built-ins/modules/email-sender/src/pages/LogsPage.tsx`](#file-src-built-ins-modules-email-sender-src-pages-logspage-tsx-c55f62840a) · [`src/built-ins/modules/email-sender/src/pages/OutboxPage.tsx`](#file-src-built-ins-modules-email-sender-src-pages-outboxpage-tsx-a8a936a037) · [`src/built-ins/modules/email-sender/src/pages/SettingsPage.tsx`](#file-src-built-ins-modules-email-sender-src-pages-settingspage-tsx-2efb9eaa32) · [`src/built-ins/modules/email-sender/src/server/index.ts`](#file-src-built-ins-modules-email-sender-src-server-index-ts-7639c339f5)
 
+<a id="file-src-built-ins-modules-email-sender-src-server-health-ts-6083b8a5b2"></a>
+
+### `src/built-ins/modules/email-sender/src/server/health.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `buildEmailSenderHealth(provider: ProviderConfig, identities: SenderIdentity[], messages: EmailMessage[]): HealthStatus`
+
+**Depends on (2):** [`src/built-ins/modules/email-sender/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-email-sender-src-lib-aquaplugintypes-ts-f756e7c435) · [`src/built-ins/modules/email-sender/src/lib/domain.ts`](#file-src-built-ins-modules-email-sender-src-lib-domain-ts-86c3b3b8a6)
+
+**Used by (3):** [`src/built-ins/modules/email-sender/index.ts`](#file-src-built-ins-modules-email-sender-index-ts-99f0cb2139) · [`src/built-ins/modules/email-sender/src/__smoke__/email-sender.test.ts`](#file-src-built-ins-modules-email-sender-src-smoke-email-sender-test-ts-c954269146) · [`src/built-ins/modules/email-sender/src/server/index.ts`](#file-src-built-ins-modules-email-sender-src-server-index-ts-7639c339f5)
+
 <a id="file-src-built-ins-modules-email-sender-src-server-identities-ts-75d1b791e3"></a>
 
 ### `src/built-ins/modules/email-sender/src/server/identities.ts`
@@ -5516,7 +5733,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** Server-side barrel — services + container builder + foundation adapter.
 
-**Exports (14):**
+**Exports (16):**
 
 - `buildEmailSenderContainer(deps: EmailSenderDeps): EmailSenderContainer`
 - `interface EmailSenderDeps (8 members)` — ─── Container ────────────────────────────────────────────────────────────
@@ -5527,13 +5744,15 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `{ WebhookHandleResult } from "./webhook"`
 - `{ IdentityService } from "./identities"`
 - `{ ProviderService } from "./provider"`
+- `{ buildEmailSenderHealth } from "./health"`
+- `{ DeliveryFailureCode, DeliveryResult } from "./delivery"`
 - `{ ActivityLogPort, DriverContext, EmailDriver, EmailEventName, EventBusPort, ListActivityFilter, LogActivityInput, MarketingTemplate, MarketingTemplatePort, PluginInstallStorePort, StoragePort, TenantPort } from "./ports"`
 - `{ registerEmailSenderFoundation, clearEmailSenderFoundation, isFoundationRegistered, requireFoundation, containerFor, containerWithDeps, _containerFromCtx, EVENT_SUBSCRIPTIONS } from "./foundationAdapter"`
 - `{ EmailSenderFoundation, ContainerForArgs } from "./foundationAdapter"`
 - `{ defaultDriverRegistry, NoopDriver, PostmarkDriver, SmtpDriver, StubDriver, buildSmtpDataBody, PLACEHOLDER_SMTP_TRANSPORT } from "./drivers"`
 - `{ SmtpDialOptions, SmtpDialResult, SmtpDialFailure, SmtpTransport } from "./drivers"`
 
-**Depends on (11):** [`src/built-ins/modules/email-sender/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-email-sender-src-lib-aquaplugintypes-ts-f756e7c435) · [`src/built-ins/modules/email-sender/src/lib/domain.ts`](#file-src-built-ins-modules-email-sender-src-lib-domain-ts-86c3b3b8a6) · [`src/built-ins/modules/email-sender/src/lib/tenancy.ts`](#file-src-built-ins-modules-email-sender-src-lib-tenancy-ts-40262249aa) · [`src/built-ins/modules/email-sender/src/server/delivery.ts`](#file-src-built-ins-modules-email-sender-src-server-delivery-ts-bf2e19a271) · [`src/built-ins/modules/email-sender/src/server/drivers/index.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-index-ts-d560aeeed7) · [`src/built-ins/modules/email-sender/src/server/emails.ts`](#file-src-built-ins-modules-email-sender-src-server-emails-ts-aec3ac0c79) · [`src/built-ins/modules/email-sender/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-email-sender-src-server-foundationadapter-ts-1889ff7cf0) · [`src/built-ins/modules/email-sender/src/server/identities.ts`](#file-src-built-ins-modules-email-sender-src-server-identities-ts-75d1b791e3) · [`src/built-ins/modules/email-sender/src/server/ports.ts`](#file-src-built-ins-modules-email-sender-src-server-ports-ts-d83f489d16) · [`src/built-ins/modules/email-sender/src/server/provider.ts`](#file-src-built-ins-modules-email-sender-src-server-provider-ts-4d7c6a58a3) · [`src/built-ins/modules/email-sender/src/server/webhook.ts`](#file-src-built-ins-modules-email-sender-src-server-webhook-ts-420e6f3bdc)
+**Depends on (12):** [`src/built-ins/modules/email-sender/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-email-sender-src-lib-aquaplugintypes-ts-f756e7c435) · [`src/built-ins/modules/email-sender/src/lib/domain.ts`](#file-src-built-ins-modules-email-sender-src-lib-domain-ts-86c3b3b8a6) · [`src/built-ins/modules/email-sender/src/lib/tenancy.ts`](#file-src-built-ins-modules-email-sender-src-lib-tenancy-ts-40262249aa) · [`src/built-ins/modules/email-sender/src/server/delivery.ts`](#file-src-built-ins-modules-email-sender-src-server-delivery-ts-bf2e19a271) · [`src/built-ins/modules/email-sender/src/server/drivers/index.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-index-ts-d560aeeed7) · [`src/built-ins/modules/email-sender/src/server/emails.ts`](#file-src-built-ins-modules-email-sender-src-server-emails-ts-aec3ac0c79) · [`src/built-ins/modules/email-sender/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-email-sender-src-server-foundationadapter-ts-1889ff7cf0) · [`src/built-ins/modules/email-sender/src/server/health.ts`](#file-src-built-ins-modules-email-sender-src-server-health-ts-6083b8a5b2) · [`src/built-ins/modules/email-sender/src/server/identities.ts`](#file-src-built-ins-modules-email-sender-src-server-identities-ts-75d1b791e3) · [`src/built-ins/modules/email-sender/src/server/ports.ts`](#file-src-built-ins-modules-email-sender-src-server-ports-ts-d83f489d16) · [`src/built-ins/modules/email-sender/src/server/provider.ts`](#file-src-built-ins-modules-email-sender-src-server-provider-ts-4d7c6a58a3) · [`src/built-ins/modules/email-sender/src/server/webhook.ts`](#file-src-built-ins-modules-email-sender-src-server-webhook-ts-420e6f3bdc)
 
 **Used by (2):** [`src/built-ins/modules/email-sender/src/__smoke__/smtp-driver.test.ts`](#file-src-built-ins-modules-email-sender-src-smoke-smtp-driver-test-ts-85079b6968) · [`src/built-ins/modules/email-sender/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-email-sender-src-server-foundationadapter-ts-1889ff7cf0)
 
@@ -5662,7 +5881,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async listActivityHandler(req: Request, ctx: PluginCtx): Promise<Response>` — ─── Activity ──────────────────────────────────────────────────────────────
 - `async listPhasePresetsHandler(_req: Request, ctx: PluginCtx): Promise<Response>` — ─── Phase preset descriptors (for new-client wizard tooltip) ─────────────
 - `interface CreateClientBody (7 members)`
-- `interface AdvancePhaseBody (4 members)` — ─── Phase board / advance ─────────────────────────────────────────────────
+- `interface AdvancePhaseBody (5 members)` — ─── Phase board / advance ─────────────────────────────────────────────────
 - `interface TickItemBody (5 members)` — ─── Checklist ─────────────────────────────────────────────────────────────
 - `interface UpsertPhaseBody (8 members)`
 - `interface MarketplaceMutationBody (4 members)`
@@ -5790,7 +6009,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `PhaseBoard(props: PhaseBoardProps)`
 - `interface PhaseBoardProps (5 members)`
 
-**Depends on (3):** [`src/built-ins/modules/fulfillment/src/components/ChecklistColumn.tsx`](#file-src-built-ins-modules-fulfillment-src-components-checklistcolumn-tsx-126b8f08ad) · [`src/built-ins/modules/fulfillment/src/lib/tenancy.ts`](#file-src-built-ins-modules-fulfillment-src-lib-tenancy-ts-000f2aa59a) · [`src/built-ins/modules/fulfillment/src/server/index.ts`](#file-src-built-ins-modules-fulfillment-src-server-index-ts-c8d0f1cf24)
+**Depends on (4):** [`src/built-ins/modules/fulfillment/src/components/ChecklistColumn.tsx`](#file-src-built-ins-modules-fulfillment-src-components-checklistcolumn-tsx-126b8f08ad) · [`src/built-ins/modules/fulfillment/src/lib/tenancy.ts`](#file-src-built-ins-modules-fulfillment-src-lib-tenancy-ts-000f2aa59a) · [`src/built-ins/modules/fulfillment/src/lib/transitionFeedback.ts`](#file-src-built-ins-modules-fulfillment-src-lib-transitionfeedback-ts-7f3f61e2bd) · [`src/built-ins/modules/fulfillment/src/server/index.ts`](#file-src-built-ins-modules-fulfillment-src-server-index-ts-c8d0f1cf24)
 
 **Used by (1):** [`src/built-ins/modules/fulfillment/src/pages/PhaseBoardPage.tsx`](#file-src-built-ins-modules-fulfillment-src-pages-phaseboardpage-tsx-db5f1d321a)
 
@@ -5835,11 +6054,11 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (19):**
 
-- `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops"` — ─── Plugin identity ───────────────────────────────────────────────────────
+- `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment" | "growth"` — ─── Plugin identity ───────────────────────────────────────────────────────
 - `type PluginStatus = "stable" | "beta" | "alpha"`
-- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer"`
+- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28: the canonical `Role` in src/server/types.ts has alw…`
 - `interface PluginCtx (6 members)` — ─── Runtime context handed to plugin lifecycle hooks + handlers ───────────
-- `interface PluginStorage (4 members)`
+- `interface PluginStorage (5 members)`
 - `interface PluginServices (8 members)` — (here: the fulfillment plugin uses every service).
 - `interface SetupStep (6 members)` — ─── Setup wizard ──────────────────────────────────────────────────────────
 - `interface SetupField (7 members)`
@@ -5857,7 +6076,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (2):** [`src/built-ins/modules/fulfillment/src/lib/tenancy.ts`](#file-src-built-ins-modules-fulfillment-src-lib-tenancy-ts-000f2aa59a) · [`src/built-ins/modules/fulfillment/src/server/ports.ts`](#file-src-built-ins-modules-fulfillment-src-server-ports-ts-5ef187b7f7)
 
-**Used by (11):** [`src/built-ins/modules/fulfillment/index.ts`](#file-src-built-ins-modules-fulfillment-index-ts-cf6050ce40) · [`src/built-ins/modules/fulfillment/src/__smoke__/lifecycle.test.ts`](#file-src-built-ins-modules-fulfillment-src-smoke-lifecycle-test-ts-62c68e0a0d) · [`src/built-ins/modules/fulfillment/src/api/handlers.ts`](#file-src-built-ins-modules-fulfillment-src-api-handlers-ts-0ab12648a5) · [`src/built-ins/modules/fulfillment/src/api/routes.ts`](#file-src-built-ins-modules-fulfillment-src-api-routes-ts-c0d5c61c65) · [`src/built-ins/modules/fulfillment/src/pages/ChecklistPage.tsx`](#file-src-built-ins-modules-fulfillment-src-pages-checklistpage-tsx-5ca869308c) · [`src/built-ins/modules/fulfillment/src/pages/ClientsPage.tsx`](#file-src-built-ins-modules-fulfillment-src-pages-clientspage-tsx-bbdc7632df) · [`src/built-ins/modules/fulfillment/src/pages/MarketplacePage.tsx`](#file-src-built-ins-modules-fulfillment-src-pages-marketplacepage-tsx-6aee9b59c8) · [`src/built-ins/modules/fulfillment/src/pages/PhaseBoardPage.tsx`](#file-src-built-ins-modules-fulfillment-src-pages-phaseboardpage-tsx-db5f1d321a) · [`src/built-ins/modules/fulfillment/src/pages/PhasesPage.tsx`](#file-src-built-ins-modules-fulfillment-src-pages-phasespage-tsx-9239fb8e59) · [`src/built-ins/modules/fulfillment/src/server/checklist.ts`](#file-src-built-ins-modules-fulfillment-src-server-checklist-ts-daf01ae640) · [`src/built-ins/modules/fulfillment/src/server/index.ts`](#file-src-built-ins-modules-fulfillment-src-server-index-ts-c8d0f1cf24)
+**Used by (12):** [`src/built-ins/modules/fulfillment/index.ts`](#file-src-built-ins-modules-fulfillment-index-ts-cf6050ce40) · [`src/built-ins/modules/fulfillment/src/__smoke__/lifecycle.test.ts`](#file-src-built-ins-modules-fulfillment-src-smoke-lifecycle-test-ts-62c68e0a0d) · [`src/built-ins/modules/fulfillment/src/api/handlers.ts`](#file-src-built-ins-modules-fulfillment-src-api-handlers-ts-0ab12648a5) · [`src/built-ins/modules/fulfillment/src/api/routes.ts`](#file-src-built-ins-modules-fulfillment-src-api-routes-ts-c0d5c61c65) · [`src/built-ins/modules/fulfillment/src/pages/ChecklistPage.tsx`](#file-src-built-ins-modules-fulfillment-src-pages-checklistpage-tsx-5ca869308c) · [`src/built-ins/modules/fulfillment/src/pages/ClientsPage.tsx`](#file-src-built-ins-modules-fulfillment-src-pages-clientspage-tsx-bbdc7632df) · [`src/built-ins/modules/fulfillment/src/pages/MarketplacePage.tsx`](#file-src-built-ins-modules-fulfillment-src-pages-marketplacepage-tsx-6aee9b59c8) · [`src/built-ins/modules/fulfillment/src/pages/PhaseBoardPage.tsx`](#file-src-built-ins-modules-fulfillment-src-pages-phaseboardpage-tsx-db5f1d321a) · [`src/built-ins/modules/fulfillment/src/pages/PhasesPage.tsx`](#file-src-built-ins-modules-fulfillment-src-pages-phasespage-tsx-9239fb8e59) · [`src/built-ins/modules/fulfillment/src/server/checklist.ts`](#file-src-built-ins-modules-fulfillment-src-server-checklist-ts-daf01ae640) · [`src/built-ins/modules/fulfillment/src/server/index.ts`](#file-src-built-ins-modules-fulfillment-src-server-index-ts-c8d0f1cf24) · [`src/built-ins/modules/fulfillment/src/server/transitions.ts`](#file-src-built-ins-modules-fulfillment-src-server-transitions-ts-db89e86459)
 
 <a id="file-src-built-ins-modules-fulfillment-src-lib-ids-ts-c30617dbea"></a>
 
@@ -5905,7 +6124,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type UserId = string`
 - `type PluginId = string`
 - `type ClientStage = | "lead" | "discovery" | "design" | "development" | "onboarding" | "live" | "churned" | "aqua-epic-intro" | "aqua-blueprint" | "aqua-diagnostics" | "aqua-brand-builder" | "aqua-traffic" | "aqua-master…` — the canonical Aqua Incubator 3.0 progression (chapter #59 §5).
-- `type Role = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer"`
+- `type Role = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28. The canonical `Role` in src/server/types.ts has always // had eight…`
 - `type PortalRole = "login" | "affiliates" | "orders" | "account"` — once the chief commander wires the integration.
 - `type EntityStatus = "active" | "suspended" | "archived"`
 - `type ActivityCategory = | "auth" | "tenant" | "plugin" | "phase" | "fulfillment" | "settings" | "system"` — ─── Activity log ──────────────────────────────────────────────────────────
@@ -5938,6 +6157,22 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Depends on:** _No internal imports._
 
 **Used by (1):** [`src/built-ins/modules/fulfillment/src/server/checklist.ts`](#file-src-built-ins-modules-fulfillment-src-server-checklist-ts-daf01ae640)
+
+<a id="file-src-built-ins-modules-fulfillment-src-lib-transitionfeedback-ts-7f3f61e2bd"></a>
+
+### `src/built-ins/modules/fulfillment/src/lib/transitionFeedback.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (3):**
+
+- `createPhaseTransitionOperationId(clientId: string, fromPhaseId: string, toPhaseId: string)`
+- `phaseTransitionFailureMessage(result: PhaseTransitionApiResult): string`
+- `interface PhaseTransitionApiResult (9 members)`
+
+**Depends on:** _No internal imports._
+
+**Used by (4):** [`scripts/smoke-phase-transition-convergence.test.ts`](scripts.md#file-scripts-smoke-phase-transition-convergence-test-ts-4c776e59e9) · [`src/app/portal/clients/[clientId]/_OnboardingDashboardPanel.tsx`](app.md#file-src-app-portal-clients-clientid-onboardingdashboardpanel-tsx-0d71d232d0) · [`src/app/portal/clients/[clientId]/_PhaseTransitionButton.tsx`](app.md#file-src-app-portal-clients-clientid-phasetransitionbutton-tsx-9549f0b3ec) · [`src/built-ins/modules/fulfillment/src/components/PhaseBoard.tsx`](#file-src-built-ins-modules-fulfillment-src-components-phaseboard-tsx-f4690a82f3)
 
 
 ## `src/built-ins/modules/fulfillment/src/pages/`
@@ -6204,20 +6439,20 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ### `src/built-ins/modules/fulfillment/src/server/transitions.ts`
 
-**What it is:** Auto-disable, config preserved. Reversible. Never auto-uninstall.
+**What it is:** incomplete work, never hidden inside `ok:true`.
 
 **Exports (4):**
 
 - `class TransitionService`
     - `constructor(private clients: ClientStorePort, private installs: PluginInstallStorePort, private runtime: PluginRuntimePort, private activity: ActivityLogPort, private events: EventBusPort, private checklist: ChecklistSe…`
     - `async advancePhase(args: AdvancePhaseArgs): Promise<AdvancePhaseResult | AdvancePhaseFailure>`
-- `interface AdvancePhaseArgs (8 members)`
-- `interface AdvancePhaseResult (6 members)`
-- `interface AdvancePhaseFailure (4 members)`
+- `interface AdvancePhaseArgs (9 members)`
+- `interface AdvancePhaseResult (10 members)`
+- `interface AdvancePhaseFailure (9 members)`
 
-**Depends on (4):** [`src/built-ins/modules/fulfillment/src/lib/tenancy.ts`](#file-src-built-ins-modules-fulfillment-src-lib-tenancy-ts-000f2aa59a) · [`src/built-ins/modules/fulfillment/src/server/checklist.ts`](#file-src-built-ins-modules-fulfillment-src-server-checklist-ts-daf01ae640) · [`src/built-ins/modules/fulfillment/src/server/ports.ts`](#file-src-built-ins-modules-fulfillment-src-server-ports-ts-5ef187b7f7) · [`src/built-ins/modules/fulfillment/src/server/starterVariant.ts`](#file-src-built-ins-modules-fulfillment-src-server-startervariant-ts-3d066b00f6)
+**Depends on (5):** [`src/built-ins/modules/fulfillment/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-fulfillment-src-lib-aquaplugintypes-ts-99505d6032) · [`src/built-ins/modules/fulfillment/src/lib/tenancy.ts`](#file-src-built-ins-modules-fulfillment-src-lib-tenancy-ts-000f2aa59a) · [`src/built-ins/modules/fulfillment/src/server/checklist.ts`](#file-src-built-ins-modules-fulfillment-src-server-checklist-ts-daf01ae640) · [`src/built-ins/modules/fulfillment/src/server/ports.ts`](#file-src-built-ins-modules-fulfillment-src-server-ports-ts-5ef187b7f7) · [`src/built-ins/modules/fulfillment/src/server/starterVariant.ts`](#file-src-built-ins-modules-fulfillment-src-server-startervariant-ts-3d066b00f6)
 
-**Used by (2):** [`scripts/smoke-stage-jump.test.ts`](scripts.md#file-scripts-smoke-stage-jump-test-ts-6a377866ae) · [`src/built-ins/modules/fulfillment/src/server/index.ts`](#file-src-built-ins-modules-fulfillment-src-server-index-ts-c8d0f1cf24)
+**Used by (3):** [`scripts/smoke-phase-transition-convergence.test.ts`](scripts.md#file-scripts-smoke-phase-transition-convergence-test-ts-4c776e59e9) · [`scripts/smoke-stage-jump.test.ts`](scripts.md#file-scripts-smoke-stage-jump-test-ts-6a377866ae) · [`src/built-ins/modules/fulfillment/src/server/index.ts`](#file-src-built-ins-modules-fulfillment-src-server-index-ts-c8d0f1cf24)
 
 
 ## `src/built-ins/modules/leads-pipeline/`
@@ -6260,7 +6495,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** rule violation.
 
-**Exports (37):**
+**Exports (39):**
 
 - `async prospectsHandler(req: Request, ctx: PluginCtx): Promise<Response>` — ─── Scouting prospects ─────────────────────────────────────────────────
 - `async importProspectsHandler(req: Request, ctx: PluginCtx): Promise<Response>`
@@ -6283,7 +6518,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async updateLeadMeetingHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async markLeadContactedHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async convertLeadToClientHandler(req: Request, ctx: PluginCtx): Promise<Response>`
-- `async archiveLeadHandler(req: Request, ctx: PluginCtx): Promise<Response>`
+- `async archiveLeadHandler(req: Request, ctx: PluginCtx): Promise<Response>` — separate route so nothing reaches it by accident.
+- `async restoreLeadHandler(req: Request, ctx: PluginCtx): Promise<Response>`
+- `async purgeLeadHandler(req: Request, ctx: PluginCtx): Promise<Response>` — the second of two deliberate acts, never a faster route to the same button.
 - `async previewCsvHandler(req: Request, ctx: PluginCtx): Promise<Response>` — don't need to construct multipart bodies in tests.
 - `async importCsvHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async contactConfigurationHandler(req: Request, ctx: PluginCtx): Promise<Response>`
@@ -6329,10 +6566,10 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (21):**
 
-- `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops"`
+- `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment" | "growth"`
 - `type PluginStatus = "stable" | "beta" | "alpha"`
-- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer"`
-- `type ScopePolicy = "agency" | "client" | "either"`
+- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28: the canonical `Role` in src/server/types.ts has alw…`
+- `type PluginScopePolicy = "agency" | "client" | "either"` — the canonical — and the majority was the divergent side.
 - `interface PluginCtx (6 members)`
 - `interface PluginStorage (5 members)`
 - `interface PluginServices (9 members)`
@@ -6402,7 +6639,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type ProspectOutreachOutcome = | "attempted" | "no-answer" | "left-message" | "sent" | "replied" | "interested" | "not-now" | "not-fit" | "wrong-contact" | "meeting-booked"`
 - `type ProspectInspectionCheck = | "business-verified" | "contact-route-verified" | "opportunity-confirmed" | "decision-maker-identified" | "timing-understood"`
 - `type ProspectFollowUpStatus = "scheduled" | "completed" | "skipped"`
-- `type LeadJourneyEventType = | "lead-captured" | "enquiry-received" | "contact-recorded" | "stage-changed" | "meeting-scheduled" | "converted"` — ─── Lead ─────────────────────────────────────────────────────────────────
+- `type LeadJourneyEventType = | "lead-captured" | "enquiry-received" | "contact-recorded" | "stage-changed" | "meeting-scheduled" | "converted" // Archiving is part of the journey, not a hole in it. Issue #62: the control…` — ─── Lead ─────────────────────────────────────────────────────────────────
 - `type ContactType = "lead" | "customer" | "account" | "vendor" | "employee" | "other"` — ─── Contact ──────────────────────────────────────────────────────────────
 - `type CampaignStatus = "draft" | "scheduled" | "active" | "paused" | "sending" | "sent" | "completed"` — ─── Campaign ─────────────────────────────────────────────────────────────
 - `type CampaignChannel = "email" | "newsletter" | "cold-outreach" | "dm" | "direct-mail" | "print" | "google-ads" | "meta-ads" | "linkedin-ads" | "organic" | "social" | "event" | "referral" | "charity" | "other"`
@@ -6425,10 +6662,10 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface ScheduleProspectFollowUpInput (3 members)`
 - `interface ResolveProspectFollowUpInput (3 members)`
 - `interface LeadJourneyEvent (13 members)`
-- `interface Lead (51 members)`
+- `interface Lead (54 members)`
 - `interface CreateLeadInput (14 members)`
 - `interface UpdateLeadPatch (35 members)`
-- `interface LeadFilter (5 members)`
+- `interface LeadFilter (6 members)`
 - `interface LeadCard (5 members)` — service stores under `PipelineCard.snapshot` (kind `"lead"`).
 - `interface Contact (41 members)`
 - `interface CreateContactInput (34 members)`
@@ -6490,7 +6727,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type ClientId = string`
 - `type UserId = string`
 - `type PluginId = string`
-- `type Role = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer"`
+- `type Role = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28. The canonical `Role` in src/server/types.ts has always // had eight…`
 - `type EntityStatus = "active" | "suspended" | "archived"`
 - `type ActivityCategory = | "auth" | "tenant" | "plugin" | "phase" | "fulfillment" | "ecommerce" | "settings" | "system" | "hr" | "leads"` — patch the orchestrator needs to land.
 - `interface BrandKit (8 members)`
@@ -6677,7 +6914,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (4):** [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca) · [`src/built-ins/modules/leads-pipeline/src/lib/tenancy.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-tenancy-ts-7c7be8ab2d) · [`src/built-ins/modules/leads-pipeline/src/server/index.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-index-ts-887b568dd6) · [`src/built-ins/modules/leads-pipeline/src/server/ports.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-ports-ts-3da7bed047)
 
-**Used by (6):** [`src/built-ins/modules/leads-pipeline/index.ts`](#file-src-built-ins-modules-leads-pipeline-index-ts-33d21129df) · [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](#file-src-built-ins-modules-leads-pipeline-src-api-handlers-ts-1726bbbb81) · [`src/built-ins/modules/leads-pipeline/src/pages/CampaignsPage.tsx`](#file-src-built-ins-modules-leads-pipeline-src-pages-campaignspage-tsx-706988f838) · [`src/built-ins/modules/leads-pipeline/src/pages/ContactsPage.tsx`](#file-src-built-ins-modules-leads-pipeline-src-pages-contactspage-tsx-82802ae8e8) · [`src/built-ins/modules/leads-pipeline/src/pages/LeadsBoardPage.tsx`](#file-src-built-ins-modules-leads-pipeline-src-pages-leadsboardpage-tsx-6fad98202a) · [`src/built-ins/modules/leads-pipeline/src/server/index.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-index-ts-887b568dd6)
+**Used by (7):** [`src/built-ins/modules/leads-pipeline/index.ts`](#file-src-built-ins-modules-leads-pipeline-index-ts-33d21129df) · [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](#file-src-built-ins-modules-leads-pipeline-src-api-handlers-ts-1726bbbb81) · [`src/built-ins/modules/leads-pipeline/src/pages/CampaignsPage.tsx`](#file-src-built-ins-modules-leads-pipeline-src-pages-campaignspage-tsx-706988f838) · [`src/built-ins/modules/leads-pipeline/src/pages/ContactsPage.tsx`](#file-src-built-ins-modules-leads-pipeline-src-pages-contactspage-tsx-82802ae8e8) · [`src/built-ins/modules/leads-pipeline/src/pages/LeadsBoardPage.tsx`](#file-src-built-ins-modules-leads-pipeline-src-pages-leadsboardpage-tsx-6fad98202a) · [`src/built-ins/modules/leads-pipeline/src/server/index.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-index-ts-887b568dd6) · [`src/lib/server/plugins/ensureLeadsPipelineInstall.ts`](lib.md#file-src-lib-server-plugins-ensureleadspipelineinstall-ts-bc1dba2897)
 
 <a id="file-src-built-ins-modules-leads-pipeline-src-server-index-ts-887b568dd6"></a>
 
@@ -6732,7 +6969,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
     - `async recordStageChange(id: string, input: { fromStage?: string; toStage: string; at?: number }, actor: UserId): Promise<Lead | null>`
     - `async recordMeeting(id: string, meetingAt: number, actor: UserId): Promise<Lead | null>`
     - `async recordConversion(id: string, clientId: string, actor: UserId, at = now()): Promise<Lead | null>`
-    - `async delete(id: string, actor: UserId): Promise<boolean>`
+    - `async archive(id: string, actor: UserId): Promise<Lead | null>`
+    - `async restore(id: string, actor: UserId): Promise<Lead | null>`
+    - `async purge(id: string, actor: UserId): Promise<boolean>`
     - `async anonymiseForErasure(id: string, actor: UserId): Promise<Lead | null>`
     - `async importCsv(args: { text: string; filename?: string; actor: UserId; defaultSource?: string; defaultTags?: string[]; defaultRelationshipCategory?: LeadRelationshipCategory; mapping?: Record<string, string>; customFie…`
     - `async resolveAudience(filter: AudienceFilter): Promise<Lead[]>`
@@ -6763,7 +7002,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface EmailEnqueuePort (2 members)`
 - `interface PipelineCardRef (3 members)` — ─── Pipeline port (adapter onto T1 R034 foundation pipelines) ───────────
 - `interface AddLeadCardInput (8 members)`
-- `interface PipelinePort (3 members)`
+- `interface PipelinePort (5 members)`
 
 **Depends on (1):** [`src/built-ins/modules/leads-pipeline/src/lib/tenancy.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-tenancy-ts-7c7be8ab2d)
 
@@ -6980,10 +7219,10 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (21):**
 
-- `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "growth"` — ─── Plugin identity ───────────────────────────────────────────────────────
+- `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment" | "growth"` — ─── Plugin identity ───────────────────────────────────────────────────────
 - `type PluginStatus = "stable" | "beta" | "alpha"`
-- `type ScopePolicy = "agency" | "client" | "either"`
-- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer"`
+- `type PluginScopePolicy = "agency" | "client" | "either"` — the canonical — and the majority was the divergent side.
+- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28: the canonical `Role` in src/server/types.ts has alw…`
 - `interface PluginCtx (6 members)` — ─── Runtime context handed to lifecycle hooks + handlers ─────────────────
 - `interface PluginStorage (5 members)`
 - `interface PluginServices (11 members)` — ecommerce's cross-package surface)
@@ -7035,7 +7274,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (1):** [`src/built-ins/modules/memberships/src/lib/tenancy.ts`](#file-src-built-ins-modules-memberships-src-lib-tenancy-ts-cc5efd3e52)
 
-**Used by (13):** [`src/built-ins/modules/memberships/index.ts`](#file-src-built-ins-modules-memberships-index-ts-ffebb58de1) · [`src/built-ins/modules/memberships/src/api/handlers.ts`](#file-src-built-ins-modules-memberships-src-api-handlers-ts-d98278c673) · [`src/built-ins/modules/memberships/src/components/BenefitsList.tsx`](#file-src-built-ins-modules-memberships-src-components-benefitslist-tsx-b4b288d4fc) · [`src/built-ins/modules/memberships/src/components/MyMembershipPanel.tsx`](#file-src-built-ins-modules-memberships-src-components-mymembershippanel-tsx-67364abd50) · [`src/built-ins/modules/memberships/src/components/NewPlanModal.tsx`](#file-src-built-ins-modules-memberships-src-components-newplanmodal-tsx-47dbf6639f) · [`src/built-ins/modules/memberships/src/components/PlansList.tsx`](#file-src-built-ins-modules-memberships-src-components-planslist-tsx-bc9f2be7e0) · [`src/built-ins/modules/memberships/src/components/SubscribersList.tsx`](#file-src-built-ins-modules-memberships-src-components-subscriberslist-tsx-763aa0f20f) · [`src/built-ins/modules/memberships/src/lib/runtimeValidation.ts`](#file-src-built-ins-modules-memberships-src-lib-runtimevalidation-ts-7e2f1caabe) · [`src/built-ins/modules/memberships/src/pages/PlansPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-planspage-tsx-bef9fb0e53) · [`src/built-ins/modules/memberships/src/server/benefits.ts`](#file-src-built-ins-modules-memberships-src-server-benefits-ts-93c989a4f5) · [`src/built-ins/modules/memberships/src/server/plans.ts`](#file-src-built-ins-modules-memberships-src-server-plans-ts-770bb1f081) · [`src/built-ins/modules/memberships/src/server/subscriptions.ts`](#file-src-built-ins-modules-memberships-src-server-subscriptions-ts-45c34b6545) · [`src/built-ins/modules/memberships/src/server/webhook.ts`](#file-src-built-ins-modules-memberships-src-server-webhook-ts-f6a18edd69)
+**Used by (14):** [`src/built-ins/modules/memberships/index.ts`](#file-src-built-ins-modules-memberships-index-ts-ffebb58de1) · [`src/built-ins/modules/memberships/src/api/handlers.ts`](#file-src-built-ins-modules-memberships-src-api-handlers-ts-d98278c673) · [`src/built-ins/modules/memberships/src/components/BenefitsList.tsx`](#file-src-built-ins-modules-memberships-src-components-benefitslist-tsx-b4b288d4fc) · [`src/built-ins/modules/memberships/src/components/MyMembershipPanel.tsx`](#file-src-built-ins-modules-memberships-src-components-mymembershippanel-tsx-67364abd50) · [`src/built-ins/modules/memberships/src/components/NewPlanModal.tsx`](#file-src-built-ins-modules-memberships-src-components-newplanmodal-tsx-47dbf6639f) · [`src/built-ins/modules/memberships/src/components/PlansList.tsx`](#file-src-built-ins-modules-memberships-src-components-planslist-tsx-bc9f2be7e0) · [`src/built-ins/modules/memberships/src/components/SubscribersList.tsx`](#file-src-built-ins-modules-memberships-src-components-subscriberslist-tsx-763aa0f20f) · [`src/built-ins/modules/memberships/src/lib/runtimeValidation.ts`](#file-src-built-ins-modules-memberships-src-lib-runtimevalidation-ts-7e2f1caabe) · [`src/built-ins/modules/memberships/src/pages/PlansPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-planspage-tsx-bef9fb0e53) · [`src/built-ins/modules/memberships/src/server/benefits.ts`](#file-src-built-ins-modules-memberships-src-server-benefits-ts-93c989a4f5) · [`src/built-ins/modules/memberships/src/server/dependencies.ts`](#file-src-built-ins-modules-memberships-src-server-dependencies-ts-95d50c25a8) · [`src/built-ins/modules/memberships/src/server/plans.ts`](#file-src-built-ins-modules-memberships-src-server-plans-ts-770bb1f081) · [`src/built-ins/modules/memberships/src/server/subscriptions.ts`](#file-src-built-ins-modules-memberships-src-server-subscriptions-ts-45c34b6545) · [`src/built-ins/modules/memberships/src/server/webhook.ts`](#file-src-built-ins-modules-memberships-src-server-webhook-ts-f6a18edd69)
 
 <a id="file-src-built-ins-modules-memberships-src-lib-ids-ts-f22b0fcc0a"></a>
 
@@ -7090,7 +7329,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type UserId = string`
 - `type PluginId = string`
 - `type EndCustomerId = string`
-- `type Role = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer"`
+- `type Role = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28. The canonical `Role` in src/server/types.ts has always // had eight…`
 - `type EntityStatus = "active" | "suspended" | "archived"`
 - `type ClientStage = | "lead" | "discovery" | "design" | "development" | "onboarding" | "live" | "churned"`
 - `type ActivityCategory = | "auth" | "tenant" | "plugin" | "phase" | "fulfillment" | "ecommerce" | "settings" | "system" | "hr" | "memberships"` — (chapter 24) and agency-hr (chapter 28).
@@ -7252,6 +7491,22 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by (1):** [`src/built-ins/modules/memberships/src/server/index.ts`](#file-src-built-ins-modules-memberships-src-server-index-ts-4aa1588796)
 
+<a id="file-src-built-ins-modules-memberships-src-server-dependencies-ts-95d50c25a8"></a>
+
+### `src/built-ins/modules/memberships/src/server/dependencies.ts`
+
+**What it is:** answers only what every version of it must ask first: *who is still on it?*
+
+**Exports (3):**
+
+- `async planDependencyInventory(services: Pick<MembershipsContainer, "subscriptions">, storage: StoragePort, planId: string): Promise<PlanDependencyInventory>` — Everyone still on this plan. Reads the plan's member set DIRECTLY rather than through `subscriptions.list()`, because that method is the thing this exists to warn about: it enumer…
+- `interface PlanDependant (4 members)`
+- `interface PlanDependencyInventory (5 members)`
+
+**Depends on (3):** [`src/built-ins/modules/memberships/src/lib/domain.ts`](#file-src-built-ins-modules-memberships-src-lib-domain-ts-1e3d826e85) · [`src/built-ins/modules/memberships/src/server/index.ts`](#file-src-built-ins-modules-memberships-src-server-index-ts-4aa1588796) · [`src/built-ins/modules/memberships/src/server/ports.ts`](#file-src-built-ins-modules-memberships-src-server-ports-ts-25661d85b4)
+
+**Used by (1):** [`scripts/smoke-membership-plan-dependencies.test.ts`](scripts.md#file-scripts-smoke-membership-plan-dependencies-test-ts-dddf387354)
+
 <a id="file-src-built-ins-modules-memberships-src-server-foundationadapter-ts-adbdd97bed"></a>
 
 ### `src/built-ins/modules/memberships/src/server/foundationAdapter.ts`
@@ -7298,7 +7553,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (8):** [`src/built-ins/modules/memberships/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-memberships-src-lib-aquaplugintypes-ts-0c0e63626a) · [`src/built-ins/modules/memberships/src/lib/tenancy.ts`](#file-src-built-ins-modules-memberships-src-lib-tenancy-ts-cc5efd3e52) · [`src/built-ins/modules/memberships/src/server/benefits.ts`](#file-src-built-ins-modules-memberships-src-server-benefits-ts-93c989a4f5) · [`src/built-ins/modules/memberships/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-memberships-src-server-foundationadapter-ts-adbdd97bed) · [`src/built-ins/modules/memberships/src/server/plans.ts`](#file-src-built-ins-modules-memberships-src-server-plans-ts-770bb1f081) · [`src/built-ins/modules/memberships/src/server/ports.ts`](#file-src-built-ins-modules-memberships-src-server-ports-ts-25661d85b4) · [`src/built-ins/modules/memberships/src/server/subscriptions.ts`](#file-src-built-ins-modules-memberships-src-server-subscriptions-ts-45c34b6545) · [`src/built-ins/modules/memberships/src/server/webhook.ts`](#file-src-built-ins-modules-memberships-src-server-webhook-ts-f6a18edd69)
 
-**Used by (4):** [`scripts/smoke-membership-affiliate-runtime-validation.test.ts`](scripts.md#file-scripts-smoke-membership-affiliate-runtime-validation-test-ts-3abf1989a8) · [`scripts/smoke-membership-subscription-lifecycle.test.ts`](scripts.md#file-scripts-smoke-membership-subscription-lifecycle-test-ts-d229a2fed2) · [`scripts/smoke-membership-webhook-inbox.test.ts`](scripts.md#file-scripts-smoke-membership-webhook-inbox-test-ts-6304a83f45) · [`src/built-ins/modules/memberships/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-memberships-src-server-foundationadapter-ts-adbdd97bed)
+**Used by (6):** [`scripts/smoke-membership-affiliate-runtime-validation.test.ts`](scripts.md#file-scripts-smoke-membership-affiliate-runtime-validation-test-ts-3abf1989a8) · [`scripts/smoke-membership-plan-dependencies.test.ts`](scripts.md#file-scripts-smoke-membership-plan-dependencies-test-ts-dddf387354) · [`scripts/smoke-membership-subscription-lifecycle.test.ts`](scripts.md#file-scripts-smoke-membership-subscription-lifecycle-test-ts-d229a2fed2) · [`scripts/smoke-membership-webhook-inbox.test.ts`](scripts.md#file-scripts-smoke-membership-webhook-inbox-test-ts-6304a83f45) · [`src/built-ins/modules/memberships/src/server/dependencies.ts`](#file-src-built-ins-modules-memberships-src-server-dependencies-ts-95d50c25a8) · [`src/built-ins/modules/memberships/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-memberships-src-server-foundationadapter-ts-adbdd97bed)
 
 <a id="file-src-built-ins-modules-memberships-src-server-plans-ts-770bb1f081"></a>
 
@@ -7355,7 +7610,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (1):** [`src/built-ins/modules/memberships/src/lib/tenancy.ts`](#file-src-built-ins-modules-memberships-src-lib-tenancy-ts-cc5efd3e52)
 
-**Used by (11):** [`scripts/smoke-membership-affiliate-runtime-validation.test.ts`](scripts.md#file-scripts-smoke-membership-affiliate-runtime-validation-test-ts-3abf1989a8) · [`scripts/smoke-membership-subscription-lifecycle.test.ts`](scripts.md#file-scripts-smoke-membership-subscription-lifecycle-test-ts-d229a2fed2) · [`scripts/smoke-membership-webhook-inbox.test.ts`](scripts.md#file-scripts-smoke-membership-webhook-inbox-test-ts-6304a83f45) · [`src/built-ins/modules/memberships/src/__smoke__/memberships.test.ts`](#file-src-built-ins-modules-memberships-src-smoke-memberships-test-ts-00ac23cdbb) · [`src/built-ins/modules/memberships/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-memberships-src-lib-aquaplugintypes-ts-0c0e63626a) · [`src/built-ins/modules/memberships/src/server/benefits.ts`](#file-src-built-ins-modules-memberships-src-server-benefits-ts-93c989a4f5) · [`src/built-ins/modules/memberships/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-memberships-src-server-foundationadapter-ts-adbdd97bed) · [`src/built-ins/modules/memberships/src/server/index.ts`](#file-src-built-ins-modules-memberships-src-server-index-ts-4aa1588796) · [`src/built-ins/modules/memberships/src/server/plans.ts`](#file-src-built-ins-modules-memberships-src-server-plans-ts-770bb1f081) · [`src/built-ins/modules/memberships/src/server/subscriptions.ts`](#file-src-built-ins-modules-memberships-src-server-subscriptions-ts-45c34b6545) · [`src/built-ins/modules/memberships/src/server/webhook.ts`](#file-src-built-ins-modules-memberships-src-server-webhook-ts-f6a18edd69)
+**Used by (13):** [`scripts/smoke-membership-affiliate-runtime-validation.test.ts`](scripts.md#file-scripts-smoke-membership-affiliate-runtime-validation-test-ts-3abf1989a8) · [`scripts/smoke-membership-plan-dependencies.test.ts`](scripts.md#file-scripts-smoke-membership-plan-dependencies-test-ts-dddf387354) · [`scripts/smoke-membership-subscription-lifecycle.test.ts`](scripts.md#file-scripts-smoke-membership-subscription-lifecycle-test-ts-d229a2fed2) · [`scripts/smoke-membership-webhook-inbox.test.ts`](scripts.md#file-scripts-smoke-membership-webhook-inbox-test-ts-6304a83f45) · [`src/built-ins/modules/memberships/src/__smoke__/memberships.test.ts`](#file-src-built-ins-modules-memberships-src-smoke-memberships-test-ts-00ac23cdbb) · [`src/built-ins/modules/memberships/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-memberships-src-lib-aquaplugintypes-ts-0c0e63626a) · [`src/built-ins/modules/memberships/src/server/benefits.ts`](#file-src-built-ins-modules-memberships-src-server-benefits-ts-93c989a4f5) · [`src/built-ins/modules/memberships/src/server/dependencies.ts`](#file-src-built-ins-modules-memberships-src-server-dependencies-ts-95d50c25a8) · [`src/built-ins/modules/memberships/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-memberships-src-server-foundationadapter-ts-adbdd97bed) · [`src/built-ins/modules/memberships/src/server/index.ts`](#file-src-built-ins-modules-memberships-src-server-index-ts-4aa1588796) · [`src/built-ins/modules/memberships/src/server/plans.ts`](#file-src-built-ins-modules-memberships-src-server-plans-ts-770bb1f081) · [`src/built-ins/modules/memberships/src/server/subscriptions.ts`](#file-src-built-ins-modules-memberships-src-server-subscriptions-ts-45c34b6545) · [`src/built-ins/modules/memberships/src/server/webhook.ts`](#file-src-built-ins-modules-memberships-src-server-webhook-ts-f6a18edd69)
 
 <a id="file-src-built-ins-modules-memberships-src-server-subscriptions-ts-45c34b6545"></a>
 
@@ -7476,9 +7731,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (22):**
 
-- `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "growth"`
+- `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment" | "growth"`
 - `type PluginStatus = "stable" | "beta" | "alpha"`
-- `type ScopePolicy = "agency" | "client" | "either"`
+- `type PluginScopePolicy = "agency" | "client" | "either"` — the canonical — and the majority was the divergent side.
 - `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" | "lead"`
 - `interface PluginCtx (6 members)`
 - `interface PluginStorage (5 members)`
@@ -7554,7 +7809,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type ClientId = string`
 - `type UserId = string`
 - `type PluginId = string`
-- `type Role = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer"`
+- `type Role = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28. The canonical `Role` in src/server/types.ts has always // had eight…`
 - `type ActivityCategory = | "auth" | "tenant" | "plugin" | "phase" | "fulfillment" | "ecommerce" | "settings" | "system" | "hr" | "memberships" | "affiliates" | "finance" | "marketing" | "crm" | "forms" | "email" | "expor…`
 - `interface PluginInstall (12 members)`
 - `interface ActivityEntry (10 members)`
@@ -8627,9 +8882,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async handleExportSite(req: Request, ctx: PluginCtx): Promise<Response>`
 
-**Depends on (4):** [`src/built-ins/modules/website-editor/src/api/helpers.ts`](#file-src-built-ins-modules-website-editor-src-api-helpers-ts-9a02781d21) · [`src/built-ins/modules/website-editor/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-website-editor-src-lib-aquaplugintypes-ts-0dd53b92c8) · [`src/built-ins/modules/website-editor/src/lib/tenancy.ts`](#file-src-built-ins-modules-website-editor-src-lib-tenancy-ts-9b7092e47a) · [`src/built-ins/modules/website-editor/src/server/staticExport.ts`](#file-src-built-ins-modules-website-editor-src-server-staticexport-ts-5b7eb2eef9)
+**Depends on (5):** [`src/built-ins/modules/website-editor/src/api/helpers.ts`](#file-src-built-ins-modules-website-editor-src-api-helpers-ts-9a02781d21) · [`src/built-ins/modules/website-editor/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-website-editor-src-lib-aquaplugintypes-ts-0dd53b92c8) · [`src/built-ins/modules/website-editor/src/lib/tenancy.ts`](#file-src-built-ins-modules-website-editor-src-lib-tenancy-ts-9b7092e47a) · [`src/built-ins/modules/website-editor/src/server/staticExport.ts`](#file-src-built-ins-modules-website-editor-src-server-staticexport-ts-5b7eb2eef9) · [`src/lib/server/clientForms/clientSupabaseExport.ts`](lib.md#file-src-lib-server-clientforms-clientsupabaseexport-ts-0748326949)
 
-**Used by (1):** [`src/built-ins/modules/website-editor/src/__smoke__/r033-static-export.test.ts`](#file-src-built-ins-modules-website-editor-src-smoke-r033-static-export-test-ts-8d54971c9f)
+**Used by (2):** [`src/built-ins/modules/website-editor/src/__smoke__/r033-static-export.test.ts`](#file-src-built-ins-modules-website-editor-src-smoke-r033-static-export-test-ts-8d54971c9f) · [`src/built-ins/modules/website-editor/src/api/routes.ts`](#file-src-built-ins-modules-website-editor-src-api-routes-ts-74f54dcdc1)
 
 <a id="file-src-built-ins-modules-website-editor-src-api-handlers-templates-ts-a0b5921305"></a>
 
@@ -8701,7 +8956,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `apiRoutes: PluginApiRoute[]`
 
-**Depends on (22):** [`src/built-ins/modules/website-editor/src/api/handlers/assets.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-assets-ts-f44bd9b690) · [`src/built-ins/modules/website-editor/src/api/handlers/blog.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-blog-ts-9c56c8dc05) · [`src/built-ins/modules/website-editor/src/api/handlers/brandKit.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-brandkit-ts-07f04dc0c3) · [`src/built-ins/modules/website-editor/src/api/handlers/components.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-components-ts-5bc1472dc2) · [`src/built-ins/modules/website-editor/src/api/handlers/content.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-content-ts-5a43f903df) · [`src/built-ins/modules/website-editor/src/api/handlers/customCode.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-customcode-ts-a575fd3d26) · [`src/built-ins/modules/website-editor/src/api/handlers/discoveries.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-discoveries-ts-cc17a6de20) · [`src/built-ins/modules/website-editor/src/api/handlers/embedAllow.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-embedallow-ts-45a236b2bd) · [`src/built-ins/modules/website-editor/src/api/handlers/embeds.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-embeds-ts-cd9e03c19a) · [`src/built-ins/modules/website-editor/src/api/handlers/forcePassword.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-forcepassword-ts-38bb2c575b) · [`src/built-ins/modules/website-editor/src/api/handlers/formSubmissionHost.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-formsubmissionhost-ts-447f7f4b8c) · [`src/built-ins/modules/website-editor/src/api/handlers/pagePrivacy.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-pageprivacy-ts-c09259305e) · [`src/built-ins/modules/website-editor/src/api/handlers/pageVersions.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-pageversions-ts-3b865d534e) · [`src/built-ins/modules/website-editor/src/api/handlers/pages.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-pages-ts-5b080b3a4b) · [`src/built-ins/modules/website-editor/src/api/handlers/promote.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-promote-ts-64a909b565) · [`src/built-ins/modules/website-editor/src/api/handlers/redirects.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-redirects-ts-382a4e4f7c) · [`src/built-ins/modules/website-editor/src/api/handlers/seoMeta.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-seometa-ts-ddb49617b6) · [`src/built-ins/modules/website-editor/src/api/handlers/sitemapHostRoutes.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-sitemaphostroutes-ts-3436214398) · [`src/built-ins/modules/website-editor/src/api/handlers/sites.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-sites-ts-faa27ad75a) · [`src/built-ins/modules/website-editor/src/api/handlers/templates.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-templates-ts-a0b5921305) · [`src/built-ins/modules/website-editor/src/api/handlers/themes.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-themes-ts-24bdda2aad) · [`src/built-ins/modules/website-editor/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-website-editor-src-lib-aquaplugintypes-ts-0dd53b92c8)
+**Depends on (23):** [`src/built-ins/modules/website-editor/src/api/handlers/assets.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-assets-ts-f44bd9b690) · [`src/built-ins/modules/website-editor/src/api/handlers/blog.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-blog-ts-9c56c8dc05) · [`src/built-ins/modules/website-editor/src/api/handlers/brandKit.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-brandkit-ts-07f04dc0c3) · [`src/built-ins/modules/website-editor/src/api/handlers/components.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-components-ts-5bc1472dc2) · [`src/built-ins/modules/website-editor/src/api/handlers/content.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-content-ts-5a43f903df) · [`src/built-ins/modules/website-editor/src/api/handlers/customCode.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-customcode-ts-a575fd3d26) · [`src/built-ins/modules/website-editor/src/api/handlers/discoveries.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-discoveries-ts-cc17a6de20) · [`src/built-ins/modules/website-editor/src/api/handlers/embedAllow.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-embedallow-ts-45a236b2bd) · [`src/built-ins/modules/website-editor/src/api/handlers/embeds.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-embeds-ts-cd9e03c19a) · [`src/built-ins/modules/website-editor/src/api/handlers/forcePassword.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-forcepassword-ts-38bb2c575b) · [`src/built-ins/modules/website-editor/src/api/handlers/formSubmissionHost.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-formsubmissionhost-ts-447f7f4b8c) · [`src/built-ins/modules/website-editor/src/api/handlers/pagePrivacy.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-pageprivacy-ts-c09259305e) · [`src/built-ins/modules/website-editor/src/api/handlers/pageVersions.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-pageversions-ts-3b865d534e) · [`src/built-ins/modules/website-editor/src/api/handlers/pages.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-pages-ts-5b080b3a4b) · [`src/built-ins/modules/website-editor/src/api/handlers/promote.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-promote-ts-64a909b565) · [`src/built-ins/modules/website-editor/src/api/handlers/redirects.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-redirects-ts-382a4e4f7c) · [`src/built-ins/modules/website-editor/src/api/handlers/seoMeta.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-seometa-ts-ddb49617b6) · [`src/built-ins/modules/website-editor/src/api/handlers/sitemapHostRoutes.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-sitemaphostroutes-ts-3436214398) · [`src/built-ins/modules/website-editor/src/api/handlers/sites.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-sites-ts-faa27ad75a) · [`src/built-ins/modules/website-editor/src/api/handlers/staticExport.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-staticexport-ts-e3edfce345) · [`src/built-ins/modules/website-editor/src/api/handlers/templates.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-templates-ts-a0b5921305) · [`src/built-ins/modules/website-editor/src/api/handlers/themes.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-themes-ts-24bdda2aad) · [`src/built-ins/modules/website-editor/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-website-editor-src-lib-aquaplugintypes-ts-0dd53b92c8)
 
 **Used by (1):** [`src/built-ins/modules/website-editor/index.ts`](#file-src-built-ins-modules-website-editor-index-ts-a050a693df)
 
@@ -10006,7 +10261,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default Sidebar({ blocks, selectedId, onSelect, onAddTopLevel }: SidebarProps)`
 
-**Depends on (2):** [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913) · [`src/built-ins/modules/website-editor/src/types/block.ts`](#file-src-built-ins-modules-website-editor-src-types-block-ts-68d8cdbe7f)
+**Depends on (3):** [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913) · [`src/built-ins/modules/website-editor/src/lib/blockBackends.ts`](#file-src-built-ins-modules-website-editor-src-lib-blockbackends-ts-0dc6384826) · [`src/built-ins/modules/website-editor/src/types/block.ts`](#file-src-built-ins-modules-website-editor-src-types-block-ts-68d8cdbe7f)
 
 **Used by (1):** [`src/built-ins/modules/website-editor/src/components/editor/EditorBlockStage.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editorblockstage-tsx-90a4d3c20c)
 
@@ -10792,11 +11047,12 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** merge.
 
-**Exports (26):**
+**Exports (27):**
 
-- `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops"` — ─── Plugin identity ───────────────────────────────────────────────────────
+- `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment" | "growth"` — ─── Plugin identity ───────────────────────────────────────────────────────
 - `type PluginStatus = "stable" | "beta" | "alpha"`
-- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer"`
+- `type PlanId = "free" | "starter" | "pro" | "enterprise"`
+- `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28: the canonical `Role` in src/server/types.ts has alw…`
 - `type BlockCategory = ElementCategory` — is part of the shared element vocabulary now, not a plugin-local enum.
 - `interface PluginCtx (6 members)` — ─── Runtime context ───────────────────────────────────────────────────────
 - `interface PluginStorage (4 members)`
@@ -10817,7 +11073,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface PluginFeature (6 members)` — ─── Feature toggles ───────────────────────────────────────────────────────
 - `interface HealthStatus (3 members)` — ─── Health check ──────────────────────────────────────────────────────────
 - `interface BlockDescriptor (9 members)` — install order (later plugins override earlier ones — rare, by design).
-- `interface HeadInjection (3 members)`
+- `interface HeadInjection (4 members)` — Aligned to the canonical shape 2026-08-28. This copy had diverged twice over: `render` took a `{ clientId, agencyId }` context and could return a `ReactNode`, where the canonical …
 - `interface StorefrontContributions (2 members)`
 - `interface AquaPlugin (25 members)` — ─── The plugin manifest ───────────────────────────────────────────────────
 
@@ -10862,6 +11118,23 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Depends on:** _No internal imports._
 
 **Used by (1):** [`src/built-ins/modules/website-editor/src/__smoke__/r030-animations.test.ts`](#file-src-built-ins-modules-website-editor-src-smoke-r030-animations-test-ts-dfe7d455e8)
+
+<a id="file-src-built-ins-modules-website-editor-src-lib-blockbackends-ts-0dc6384826"></a>
+
+### `src/built-ins/modules/website-editor/src/lib/blockBackends.ts`
+
+**What it is:** entry rather than leaving a stale warning in front of clients forever.
+
+**Exports (4):**
+
+- `blockBackendGap(type: string): BlockBackendGap | undefined` — The gap for `type`, or `undefined` when the block is fine.
+- `blocksWithoutVisitorBackend(): string[]` — Every block type that cannot serve a visitor today.
+- `BLOCK_BACKEND_GAPS: Readonly<Record<string, BlockBackendGap>>`
+- `interface BlockBackendGap (3 members)` — entry rather than leaving a stale warning in front of clients forever.
+
+**Depends on:** _No internal imports._
+
+**Used by (1):** [`src/built-ins/modules/website-editor/src/components/canvas/Sidebar.tsx`](#file-src-built-ins-modules-website-editor-src-components-canvas-sidebar-tsx-7a55e330bc)
 
 <a id="file-src-built-ins-modules-website-editor-src-lib-blockschemamigrations-ts-aabee24552"></a>
 
@@ -11102,12 +11375,12 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (7):**
 
-- `async attachDomain(domain: string): Promise<{ ok: boolean; error?: string }>`
-- `async detachDomain(domain: string): Promise<{ ok: boolean }>`
+- `async attachDomain(domain: string): Promise<{ ok: boolean; available: boolean; error?: string }>`
+- `async detachDomain(domain: string): Promise<{ ok: boolean; available: boolean }>`
 - `async getDomainStatus(domain: string): Promise<DomainStatus>`
 - `listAttachedDomains(): AttachedDomain[]`
-- `async verifyDomain(domain: string): Promise<{ ok: boolean; status: DomainStatus }>` — Vercel API; the stub flips the status optimistically.
-- `type DomainStatus = "verified" | "pending" | "invalid" | "unknown"` — it does — callers don't change.
+- `async verifyDomain(domain: string): Promise<{ ok: boolean; available: boolean; status: DomainStatus }>` — Verification, refused. This used to set `status: "verified"` and stamp `verifiedAt` without making any call — the single most misleading thing in this file, because "verified" is …
+- `type DomainStatus = "verified" | "pending" | "invalid" | "unknown"` — domain to "verified" without verifying anything. It now refuses.
 - `interface AttachedDomain (4 members)`
 
 **Depends on:** _No internal imports._
@@ -11331,6 +11604,22 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Depends on (1):** [`src/built-ins/modules/website-editor/src/lib/tenancy.ts`](#file-src-built-ins-modules-website-editor-src-lib-tenancy-ts-9b7092e47a)
 
 **Used by (1):** [`src/built-ins/modules/website-editor/src/__smoke__/r014-seo-meta.test.ts`](#file-src-built-ins-modules-website-editor-src-smoke-r014-seo-meta-test-ts-a22e06b13d)
+
+<a id="file-src-built-ins-modules-website-editor-src-lib-featurebackends-ts-5198844225"></a>
+
+### `src/built-ins/modules/website-editor/src/lib/featureBackends.ts`
+
+**What it is:** gap is worse than none, because it tells people a working feature is broken.
+
+**Exports (3):**
+
+- `featureBackendGap(id: FeatureBackendGap["id"]): FeatureBackendGap | undefined`
+- `FEATURE_BACKEND_GAPS: readonly FeatureBackendGap[]`
+- `interface FeatureBackendGap (4 members)` — gap is worse than none, because it tells people a working feature is broken.
+
+**Depends on:** _No internal imports._
+
+**Used by (1):** [`src/built-ins/modules/website-editor/src/pages/EditorPage.tsx`](#file-src-built-ins-modules-website-editor-src-pages-editorpage-tsx-147aac838c)
 
 <a id="file-src-built-ins-modules-website-editor-src-lib-findreplace-ts-b6a3a1e011"></a>
 
@@ -11680,7 +11969,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `hasSecret(value: string | undefined): boolean`
 - `SECRET_PLACEHOLDER = "__portal_secret_set__"`
 - `DEFAULT_SETTINGS: PortalSettings`
-- `type DatabaseBackend = "file" | "memory" | "kv"` — fallbacks for real responses (single-file change).
+- `type DatabaseBackend = "file" | "memory" | "kv"` — pretend-success path in it is a trap for whoever wires the endpoint up.
 - `type PortalSettingsPatch = { github?: Partial<PortalSettings["github"]>; database?: Partial<PortalSettings["database"]>; deployment?: Partial<PortalSettings["deployment"]>; }`
 - `interface PortalSettings (3 members)`
 
@@ -12056,7 +12345,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type UserId = string`
 - `type PluginId = string`
 - `type ClientStage = | "lead" | "discovery" | "design" | "development" | "onboarding" | "live" | "churned"`
-- `type Role = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer"`
+- `type Role = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer" // Added 2026-08-28. The canonical `Role` in src/server/types.ts has always // had eight…`
 - `type EntityStatus = "active" | "suspended" | "archived"`
 - `type ActivityCategory = | "auth" | "tenant" | "plugin" | "phase" | "fulfillment" | "settings" | "system"`
 - `interface BrandKit (17 members)`
@@ -12271,7 +12560,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default VisualEditorPage()` — a pass-through (foundation handles plugin gating upstream).
 
-**Depends on (22):** [`src/built-ins/modules/website-editor/src/components/canvas/blockTreeOps.ts`](#file-src-built-ins-modules-website-editor-src-components-canvas-blocktreeops-ts-825c40c7ad) · [`src/built-ins/modules/website-editor/src/components/devicePreview.tsx`](#file-src-built-ins-modules-website-editor-src-components-devicepreview-tsx-0fee6b9bce) · [`src/built-ins/modules/website-editor/src/components/editor/EditorBlockStage.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editorblockstage-tsx-90a4d3c20c) · [`src/built-ins/modules/website-editor/src/components/editor/EditorFunnelStage.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editorfunnelstage-tsx-eb24cbb707) · [`src/built-ins/modules/website-editor/src/components/editor/EditorOutliner.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editoroutliner-tsx-50801dc75d) · [`src/built-ins/modules/website-editor/src/components/editor/EditorPropertiesSidebar.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editorpropertiessidebar-tsx-47e3d37588) · [`src/built-ins/modules/website-editor/src/components/editor/EditorTopBar.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editortopbar-tsx-5488c17b23) · [`src/built-ins/modules/website-editor/src/components/editor/GenerateModal.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-generatemodal-tsx-adc29a5f75) · [`src/built-ins/modules/website-editor/src/components/editor/LivePreview.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-livepreview-tsx-5c55fe2a65) · [`src/built-ins/modules/website-editor/src/components/editor/PagePickerToolbar.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-pagepickertoolbar-tsx-10e3a921af) · [`src/built-ins/modules/website-editor/src/components/pageTemplates.ts`](#file-src-built-ins-modules-website-editor-src-components-pagetemplates-ts-a6b20b21c8) · [`src/built-ins/modules/website-editor/src/lib/confirm.ts`](#file-src-built-ins-modules-website-editor-src-lib-confirm-ts-33ae610d92) · [`src/built-ins/modules/website-editor/src/lib/devicePresets.ts`](#file-src-built-ins-modules-website-editor-src-lib-devicepresets-ts-fdbbacbde1) · [`src/built-ins/modules/website-editor/src/lib/editorDeepLink.ts`](#file-src-built-ins-modules-website-editor-src-lib-editordeeplink-ts-70a964fc9b) · [`src/built-ins/modules/website-editor/src/lib/editorMode.ts`](#file-src-built-ins-modules-website-editor-src-lib-editormode-ts-0e8c99e000) · [`src/built-ins/modules/website-editor/src/lib/editorPages.ts`](#file-src-built-ins-modules-website-editor-src-lib-editorpages-ts-e5b139ae15) · [`src/built-ins/modules/website-editor/src/lib/funnels.ts`](#file-src-built-ins-modules-website-editor-src-lib-funnels-ts-1e196119cd) · [`src/built-ins/modules/website-editor/src/lib/pluginRequired.tsx`](#file-src-built-ins-modules-website-editor-src-lib-pluginrequired-tsx-30c1037542) · [`src/built-ins/modules/website-editor/src/lib/promote.ts`](#file-src-built-ins-modules-website-editor-src-lib-promote-ts-7b7a91818b) · [`src/built-ins/modules/website-editor/src/lib/sites.ts`](#file-src-built-ins-modules-website-editor-src-lib-sites-ts-7f50908a93) · [`src/built-ins/modules/website-editor/src/types/block.ts`](#file-src-built-ins-modules-website-editor-src-types-block-ts-68d8cdbe7f) · [`src/built-ins/modules/website-editor/src/types/editorPage.ts`](#file-src-built-ins-modules-website-editor-src-types-editorpage-ts-8ec7c1cdce)
+**Depends on (23):** [`src/built-ins/modules/website-editor/src/components/canvas/blockTreeOps.ts`](#file-src-built-ins-modules-website-editor-src-components-canvas-blocktreeops-ts-825c40c7ad) · [`src/built-ins/modules/website-editor/src/components/devicePreview.tsx`](#file-src-built-ins-modules-website-editor-src-components-devicepreview-tsx-0fee6b9bce) · [`src/built-ins/modules/website-editor/src/components/editor/EditorBlockStage.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editorblockstage-tsx-90a4d3c20c) · [`src/built-ins/modules/website-editor/src/components/editor/EditorFunnelStage.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editorfunnelstage-tsx-eb24cbb707) · [`src/built-ins/modules/website-editor/src/components/editor/EditorOutliner.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editoroutliner-tsx-50801dc75d) · [`src/built-ins/modules/website-editor/src/components/editor/EditorPropertiesSidebar.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editorpropertiessidebar-tsx-47e3d37588) · [`src/built-ins/modules/website-editor/src/components/editor/EditorTopBar.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editortopbar-tsx-5488c17b23) · [`src/built-ins/modules/website-editor/src/components/editor/GenerateModal.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-generatemodal-tsx-adc29a5f75) · [`src/built-ins/modules/website-editor/src/components/editor/LivePreview.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-livepreview-tsx-5c55fe2a65) · [`src/built-ins/modules/website-editor/src/components/editor/PagePickerToolbar.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-pagepickertoolbar-tsx-10e3a921af) · [`src/built-ins/modules/website-editor/src/components/pageTemplates.ts`](#file-src-built-ins-modules-website-editor-src-components-pagetemplates-ts-a6b20b21c8) · [`src/built-ins/modules/website-editor/src/lib/confirm.ts`](#file-src-built-ins-modules-website-editor-src-lib-confirm-ts-33ae610d92) · [`src/built-ins/modules/website-editor/src/lib/devicePresets.ts`](#file-src-built-ins-modules-website-editor-src-lib-devicepresets-ts-fdbbacbde1) · [`src/built-ins/modules/website-editor/src/lib/editorDeepLink.ts`](#file-src-built-ins-modules-website-editor-src-lib-editordeeplink-ts-70a964fc9b) · [`src/built-ins/modules/website-editor/src/lib/editorMode.ts`](#file-src-built-ins-modules-website-editor-src-lib-editormode-ts-0e8c99e000) · [`src/built-ins/modules/website-editor/src/lib/editorPages.ts`](#file-src-built-ins-modules-website-editor-src-lib-editorpages-ts-e5b139ae15) · [`src/built-ins/modules/website-editor/src/lib/featureBackends.ts`](#file-src-built-ins-modules-website-editor-src-lib-featurebackends-ts-5198844225) · [`src/built-ins/modules/website-editor/src/lib/funnels.ts`](#file-src-built-ins-modules-website-editor-src-lib-funnels-ts-1e196119cd) · [`src/built-ins/modules/website-editor/src/lib/pluginRequired.tsx`](#file-src-built-ins-modules-website-editor-src-lib-pluginrequired-tsx-30c1037542) · [`src/built-ins/modules/website-editor/src/lib/promote.ts`](#file-src-built-ins-modules-website-editor-src-lib-promote-ts-7b7a91818b) · [`src/built-ins/modules/website-editor/src/lib/sites.ts`](#file-src-built-ins-modules-website-editor-src-lib-sites-ts-7f50908a93) · [`src/built-ins/modules/website-editor/src/types/block.ts`](#file-src-built-ins-modules-website-editor-src-types-block-ts-68d8cdbe7f) · [`src/built-ins/modules/website-editor/src/types/editorPage.ts`](#file-src-built-ins-modules-website-editor-src-types-editorpage-ts-8ec7c1cdce)
 
 **Used by (1):** [`src/built-ins/modules/website-editor/src/pages/EditorRoutePage.tsx`](#file-src-built-ins-modules-website-editor-src-pages-editorroutepage-tsx-d7e8b2f724)
 
@@ -12871,15 +13160,16 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** surrounding layout still flows.
 
-**Exports (8):**
+**Exports (9):**
 
-- `renderBlockToHtml(block: Block): string`
-- `renderPageHtml(page: EditorPage, opts: { brandCssHref: string; customCssHref?: string; siteTitle?: string; }): string`
+- `renderBlockToHtml(block: Block, supabase?: ExportSupabaseTarget): string`
+- `renderPageHtml(page: EditorPage, opts: { brandCssHref: string; customCssHref?: string; siteTitle?: string; supabase?: ExportSupabaseTarget; }): string`
 - `buildBrandCss(brand?: BrandKit): string`
-- `buildExportReadme(siteId: string, baseUrl: string, pages: number): string`
+- `buildExportReadme(siteId: string, baseUrl: string, pages: number, supabase?: ExportSupabaseTarget): string`
 - `buildZip(entries: ZipEntry[]): Uint8Array`
 - `async exportSiteToZip(input: ExportSiteInput): Promise<ExportSiteResult>`
-- `interface ExportSiteInput (7 members)`
+- `interface ExportSupabaseTarget (3 members)` — The client's OWN Supabase, baked into the exported site. Ed, 2026-08-27: the client's website writes into the client's database. An exported site is a static bundle dropped on Ver…
+- `interface ExportSiteInput (8 members)`
 - `interface ExportSiteResult (3 members)`
 
 **Depends on (6):** [`src/built-ins/modules/website-editor/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-website-editor-src-lib-aquaplugintypes-ts-0dd53b92c8) · [`src/built-ins/modules/website-editor/src/lib/sitemap.ts`](#file-src-built-ins-modules-website-editor-src-lib-sitemap-ts-5153f9c73c) · [`src/built-ins/modules/website-editor/src/lib/tenancy.ts`](#file-src-built-ins-modules-website-editor-src-lib-tenancy-ts-9b7092e47a) · [`src/built-ins/modules/website-editor/src/server/pages.ts`](#file-src-built-ins-modules-website-editor-src-server-pages-ts-2624a905b7) · [`src/built-ins/modules/website-editor/src/types/block.ts`](#file-src-built-ins-modules-website-editor-src-types-block-ts-68d8cdbe7f) · [`src/built-ins/modules/website-editor/src/types/editorPage.ts`](#file-src-built-ins-modules-website-editor-src-types-editorpage-ts-8ec7c1cdce)
@@ -13066,7 +13356,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (2):** [`src/built-ins/runtime/_types.ts`](#file-src-built-ins-runtime-types-ts-bae4cd6b2a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (11):** [`scripts/smoke-app-route-tenancy.test.ts`](scripts.md#file-scripts-smoke-app-route-tenancy-test-ts-c2561f3f7d) · [`scripts/smoke-plugin-api-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-api-host-gates-test-ts-a532a714e3) · [`scripts/smoke-plugin-page-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-page-host-gates-test-ts-a2690cdf7e) · [`src/app/api/portal/[module]/[...rest]/route.ts`](app.md#file-src-app-api-portal-module-rest-route-ts-b2456019c9) · [`src/app/portal/agency/[...rest]/page.tsx`](app.md#file-src-app-portal-agency-rest-page-tsx-27d1ad6afa) · [`src/app/portal/agency/marketing/page.tsx`](app.md#file-src-app-portal-agency-marketing-page-tsx-e2b361f4ba) · [`src/app/portal/clients/[clientId]/[...rest]/page.tsx`](app.md#file-src-app-portal-clients-clientid-rest-page-tsx-f215f5ac0f) · [`src/app/portal/clients/[clientId]/layout.tsx`](app.md#file-src-app-portal-clients-clientid-layout-tsx-2e7f1d7ce2) · [`src/app/portal/clients/[clientId]/page.tsx`](app.md#file-src-app-portal-clients-clientid-page-tsx-f2587fcff8) · [`src/app/portal/customer/[...rest]/page.tsx`](app.md#file-src-app-portal-customer-rest-page-tsx-88df60b027) · [`src/built-ins/runtime/_routeResolver.ts`](#file-src-built-ins-runtime-routeresolver-ts-bbf700f5cc)
+**Used by (12):** [`scripts/smoke-app-route-tenancy.test.ts`](scripts.md#file-scripts-smoke-app-route-tenancy-test-ts-c2561f3f7d) · [`scripts/smoke-client-portal-placement.test.ts`](scripts.md#file-scripts-smoke-client-portal-placement-test-ts-1e85efb390) · [`scripts/smoke-plugin-api-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-api-host-gates-test-ts-a532a714e3) · [`scripts/smoke-plugin-page-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-page-host-gates-test-ts-a2690cdf7e) · [`src/app/api/portal/[module]/[...rest]/route.ts`](app.md#file-src-app-api-portal-module-rest-route-ts-b2456019c9) · [`src/app/portal/agency/[...rest]/page.tsx`](app.md#file-src-app-portal-agency-rest-page-tsx-27d1ad6afa) · [`src/app/portal/agency/marketing/page.tsx`](app.md#file-src-app-portal-agency-marketing-page-tsx-e2b361f4ba) · [`src/app/portal/clients/[clientId]/[...rest]/page.tsx`](app.md#file-src-app-portal-clients-clientid-rest-page-tsx-f215f5ac0f) · [`src/app/portal/clients/[clientId]/layout.tsx`](app.md#file-src-app-portal-clients-clientid-layout-tsx-2e7f1d7ce2) · [`src/app/portal/clients/[clientId]/page.tsx`](app.md#file-src-app-portal-clients-clientid-page-tsx-f2587fcff8) · [`src/app/portal/customer/[...rest]/page.tsx`](app.md#file-src-app-portal-customer-rest-page-tsx-88df60b027) · [`src/built-ins/runtime/_routeResolver.ts`](#file-src-built-ins-runtime-routeresolver-ts-bbf700f5cc)
 
 <a id="file-src-built-ins-runtime-pathmapping-ts-4b40ea0169"></a>
 
@@ -13117,7 +13407,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (13):** [`src/built-ins/runtime/_types.ts`](#file-src-built-ins-runtime-types-ts-bae4cd6b2a) · [`src/built-ins/runtime/_validate.ts`](#file-src-built-ins-runtime-validate-ts-7537e6b17c) · [`src/built-ins/runtime/foundation-adapters/_eventSubscribers.ts`](#file-src-built-ins-runtime-foundation-adapters-eventsubscribers-ts-6334555da4) · [`src/built-ins/runtime/foundation-adapters/affiliatesFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-affiliatesfoundation-ts-bab72f48dc) · [`src/built-ins/runtime/foundation-adapters/agencyFinanceFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-agencyfinancefoundation-ts-8c3647e20e) · [`src/built-ins/runtime/foundation-adapters/agencyHrFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-agencyhrfoundation-ts-f82a67d656) · [`src/built-ins/runtime/foundation-adapters/agencyMarketingFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-agencymarketingfoundation-ts-5b00836f2d) · [`src/built-ins/runtime/foundation-adapters/clientCrmFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-clientcrmfoundation-ts-49db2e4fd5) · [`src/built-ins/runtime/foundation-adapters/ecommerceFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-ecommercefoundation-ts-96609f2fd3) · [`src/built-ins/runtime/foundation-adapters/emailSenderFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-emailsenderfoundation-ts-5aa21ab460) · [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-leadspipelinefoundation-ts-a0444ffabc) · [`src/built-ins/runtime/foundation-adapters/membershipsFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-membershipsfoundation-ts-f01e9eeeea) · [`src/built-ins/runtime/foundation-adapters/publicFunnelFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-publicfunnelfoundation-ts-18280e9710)
 
-**Used by (17):** [`scripts/smoke-app-route-tenancy.test.ts`](scripts.md#file-scripts-smoke-app-route-tenancy-test-ts-c2561f3f7d) · [`scripts/smoke-finance-section-gates.test.ts`](scripts.md#file-scripts-smoke-finance-section-gates-test-ts-bb835c5a2c) · [`scripts/smoke-plugin-api-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-api-host-gates-test-ts-a532a714e3) · [`scripts/smoke-plugin-api-tenancy.test.ts`](scripts.md#file-scripts-smoke-plugin-api-tenancy-test-ts-8bbf35181d) · [`scripts/smoke-plugin-page-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-page-host-gates-test-ts-a2690cdf7e) · [`scripts/smoke-plugin-settings-surface.test.ts`](scripts.md#file-scripts-smoke-plugin-settings-surface-test-ts-2205532d69) · [`src/app/portal/agency/[...rest]/page.tsx`](app.md#file-src-app-portal-agency-rest-page-tsx-27d1ad6afa) · [`src/app/portal/agency/marketing/page.tsx`](app.md#file-src-app-portal-agency-marketing-page-tsx-e2b361f4ba) · [`src/app/portal/clients/[clientId]/page.tsx`](app.md#file-src-app-portal-clients-clientid-page-tsx-f2587fcff8) · [`src/app/portal/customer/layout.tsx`](app.md#file-src-app-portal-customer-layout-tsx-51035d393e) · [`src/built-ins/runtime/_pathMapping.ts`](#file-src-built-ins-runtime-pathmapping-ts-4b40ea0169) · [`src/built-ins/runtime/_routeResolver.ts`](#file-src-built-ins-runtime-routeresolver-ts-bbf700f5cc) · [`src/built-ins/runtime/_runtime.ts`](#file-src-built-ins-runtime-runtime-ts-d2a0efb5ed) · [`src/built-ins/runtime/foundation-adapters/pluginRegistryAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-pluginregistryadapter-ts-8a92b62f94) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/server/plugins/pluginSecretConfig.ts`](lib.md#file-src-lib-server-plugins-pluginsecretconfig-ts-8cb887a277) · [`src/lib/server/plugins/pluginSettingsSurface.ts`](lib.md#file-src-lib-server-plugins-pluginsettingssurface-ts-f5a8104127)
+**Used by (18):** [`scripts/smoke-app-route-tenancy.test.ts`](scripts.md#file-scripts-smoke-app-route-tenancy-test-ts-c2561f3f7d) · [`scripts/smoke-client-portal-placement.test.ts`](scripts.md#file-scripts-smoke-client-portal-placement-test-ts-1e85efb390) · [`scripts/smoke-client-sidebar-catalog.test.ts`](scripts.md#file-scripts-smoke-client-sidebar-catalog-test-ts-2fe38ae86b) · [`scripts/smoke-finance-section-gates.test.ts`](scripts.md#file-scripts-smoke-finance-section-gates-test-ts-bb835c5a2c) · [`scripts/smoke-plugin-api-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-api-host-gates-test-ts-a532a714e3) · [`scripts/smoke-plugin-api-tenancy.test.ts`](scripts.md#file-scripts-smoke-plugin-api-tenancy-test-ts-8bbf35181d) · [`scripts/smoke-plugin-page-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-page-host-gates-test-ts-a2690cdf7e) · [`scripts/smoke-plugin-settings-surface.test.ts`](scripts.md#file-scripts-smoke-plugin-settings-surface-test-ts-2205532d69) · [`src/app/portal/agency/[...rest]/page.tsx`](app.md#file-src-app-portal-agency-rest-page-tsx-27d1ad6afa) · [`src/app/portal/agency/marketing/page.tsx`](app.md#file-src-app-portal-agency-marketing-page-tsx-e2b361f4ba) · [`src/app/portal/clients/[clientId]/page.tsx`](app.md#file-src-app-portal-clients-clientid-page-tsx-f2587fcff8) · [`src/app/portal/customer/layout.tsx`](app.md#file-src-app-portal-customer-layout-tsx-51035d393e) · [`src/built-ins/runtime/_pathMapping.ts`](#file-src-built-ins-runtime-pathmapping-ts-4b40ea0169) · [`src/built-ins/runtime/_routeResolver.ts`](#file-src-built-ins-runtime-routeresolver-ts-bbf700f5cc) · [`src/built-ins/runtime/_runtime.ts`](#file-src-built-ins-runtime-runtime-ts-d2a0efb5ed) · [`src/built-ins/runtime/foundation-adapters/pluginRegistryAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-pluginregistryadapter-ts-8a92b62f94) · [`src/lib/server/plugins/pluginSecretConfig.ts`](lib.md#file-src-lib-server-plugins-pluginsecretconfig-ts-8cb887a277) · [`src/lib/server/plugins/pluginSettingsSurface.ts`](lib.md#file-src-lib-server-plugins-pluginsettingssurface-ts-f5a8104127)
 
 <a id="file-src-built-ins-runtime-routeresolver-ts-bbf700f5cc"></a>
 
@@ -13164,7 +13454,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (7):** [`src/built-ins/runtime/_registry.ts`](#file-src-built-ins-runtime-registry-ts-504f0b067d) · [`src/built-ins/runtime/_types.ts`](#file-src-built-ins-runtime-types-ts-bae4cd6b2a) · [`src/built-ins/runtime/foundation-adapters/index.ts`](#file-src-built-ins-runtime-foundation-adapters-index-ts-dcf532e6f2) · [`src/server/eventBus.ts`](server.md#file-src-server-eventbus-ts-0d11c56fb0) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (12):** [`src/app/portal/agency/[...rest]/page.tsx`](app.md#file-src-app-portal-agency-rest-page-tsx-27d1ad6afa) · [`src/app/portal/agency/layout.tsx`](app.md#file-src-app-portal-agency-layout-tsx-47dd48700a) · [`src/app/portal/agency/marketing/page.tsx`](app.md#file-src-app-portal-agency-marketing-page-tsx-e2b361f4ba) · [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspaceServer.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspaceserver-tsx-90294b0e08) · [`src/app/portal/agency/pipelines/[slug]/page.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-page-tsx-6d47eb0c95) · [`src/built-ins/modules/leads-pipeline/src/pages/CampaignsPage.tsx`](#file-src-built-ins-modules-leads-pipeline-src-pages-campaignspage-tsx-706988f838) · [`src/built-ins/runtime/foundation-adapters/pluginRuntimeAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-pluginruntimeadapter-ts-ad61c52b09) · [`src/lib/server/auth/showcaseMode.ts`](lib.md#file-src-lib-server-auth-showcasemode-ts-20762473eb) · [`src/lib/server/embedAllowResolver.ts`](lib.md#file-src-lib-server-embedallowresolver-ts-c444b1bd8b) · [`src/lib/server/seeds/demoSeed.ts`](lib.md#file-src-lib-server-seeds-demoseed-ts-8b209d4159) · [`src/lib/server/seeds/founderSeed.ts`](lib.md#file-src-lib-server-seeds-founderseed-ts-a8d60a4bd5) · [`src/server/agencyBootstrap.ts`](server.md#file-src-server-agencybootstrap-ts-7ff459b170)
+**Used by (11):** [`src/app/portal/agency/[...rest]/page.tsx`](app.md#file-src-app-portal-agency-rest-page-tsx-27d1ad6afa) · [`src/app/portal/agency/marketing/page.tsx`](app.md#file-src-app-portal-agency-marketing-page-tsx-e2b361f4ba) · [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspaceServer.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspaceserver-tsx-90294b0e08) · [`src/app/portal/agency/pipelines/[slug]/page.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-page-tsx-6d47eb0c95) · [`src/built-ins/modules/leads-pipeline/src/pages/CampaignsPage.tsx`](#file-src-built-ins-modules-leads-pipeline-src-pages-campaignspage-tsx-706988f838) · [`src/built-ins/runtime/foundation-adapters/pluginRuntimeAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-pluginruntimeadapter-ts-ad61c52b09) · [`src/lib/server/auth/showcaseMode.ts`](lib.md#file-src-lib-server-auth-showcasemode-ts-20762473eb) · [`src/lib/server/embedAllowResolver.ts`](lib.md#file-src-lib-server-embedallowresolver-ts-c444b1bd8b) · [`src/lib/server/seeds/demoSeed.ts`](lib.md#file-src-lib-server-seeds-demoseed-ts-8b209d4159) · [`src/lib/server/seeds/founderSeed.ts`](lib.md#file-src-lib-server-seeds-founderseed-ts-a8d60a4bd5) · [`src/server/agencyBootstrap.ts`](server.md#file-src-server-agencybootstrap-ts-7ff459b170)
 
 <a id="file-src-built-ins-runtime-types-ts-bae4cd6b2a"></a>
 
@@ -13180,7 +13470,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `pluginPageAllowedRoles(page: PluginPage): Role[] | undefined`
 - `pluginApiRouteAllowedRoles(route: PluginApiRoute): Role[] | undefined` — dispatcher's door.
 - `PORTAL_ROLES: readonly PortalRole[]`
-- `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment"` — ─── Plugin identity ──────────────────────────────────────────────────────
+- `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment" // Added 2026-08-28. FOUR modules already declared `category: "growth"` — // client-crm, memberships, affiliates …` — ─── Plugin identity ──────────────────────────────────────────────────────
 - `type PluginStatus = "stable" | "beta" | "alpha"`
 - `type PlanId = "free" | "starter" | "pro" | "enterprise"`
 - `type EventName = | "agency.created" | "client.created" | "client.updated" | "client.archived" | "client.stage_changed" | "user.signed_up" | "user.signed_in" | "user.password_reset" | "plugin.installed" | "plugin.uninsta…`
@@ -13234,7 +13524,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (1):** [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (30):** [`scripts/smoke-finance-section-gates.test.ts`](scripts.md#file-scripts-smoke-finance-section-gates-test-ts-bb835c5a2c) · [`scripts/smoke-plugin-api-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-api-host-gates-test-ts-a532a714e3) · [`scripts/smoke-plugin-api-tenancy.test.ts`](scripts.md#file-scripts-smoke-plugin-api-tenancy-test-ts-8bbf35181d) · [`scripts/smoke-plugin-page-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-page-host-gates-test-ts-a2690cdf7e) · [`scripts/smoke-portal-role-brandkit.test.ts`](scripts.md#file-scripts-smoke-portal-role-brandkit-test-ts-0d497171f7) · [`src/app/api/portal/[module]/[...rest]/route.ts`](app.md#file-src-app-api-portal-module-rest-route-ts-b2456019c9) · [`src/app/portal/agency/[...rest]/page.tsx`](app.md#file-src-app-portal-agency-rest-page-tsx-27d1ad6afa) · [`src/app/portal/clients/[clientId]/[...rest]/page.tsx`](app.md#file-src-app-portal-clients-clientid-rest-page-tsx-f215f5ac0f) · [`src/app/portal/customer/[...rest]/page.tsx`](app.md#file-src-app-portal-customer-rest-page-tsx-88df60b027) · [`src/built-ins/modules/website-editor/src/pages/EditorRoutePage.tsx`](#file-src-built-ins-modules-website-editor-src-pages-editorroutepage-tsx-d7e8b2f724) · [`src/built-ins/runtime/_pageScope.ts`](#file-src-built-ins-runtime-pagescope-ts-3cc574306e) · [`src/built-ins/runtime/_presets.ts`](#file-src-built-ins-runtime-presets-ts-91b4e14e96) · [`src/built-ins/runtime/_registry.ts`](#file-src-built-ins-runtime-registry-ts-504f0b067d) · [`src/built-ins/runtime/_routeResolver.ts`](#file-src-built-ins-runtime-routeresolver-ts-bbf700f5cc) · [`src/built-ins/runtime/_runtime.ts`](#file-src-built-ins-runtime-runtime-ts-d2a0efb5ed) · [`src/built-ins/runtime/_validate.ts`](#file-src-built-ins-runtime-validate-ts-7537e6b17c) · [`src/built-ins/runtime/foundation-adapters/activityLogAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-activitylogadapter-ts-83c88f8691) · [`src/built-ins/runtime/foundation-adapters/clientStoreAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-clientstoreadapter-ts-d9f633b076) · [`src/built-ins/runtime/foundation-adapters/eventBusAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-eventbusadapter-ts-7779dab897) · [`src/built-ins/runtime/foundation-adapters/index.ts`](#file-src-built-ins-runtime-foundation-adapters-index-ts-dcf532e6f2) · [`src/built-ins/runtime/foundation-adapters/phaseStoreAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-phasestoreadapter-ts-8ef086bb47) · [`src/built-ins/runtime/foundation-adapters/pluginInstallStoreAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-plugininstallstoreadapter-ts-2a7e1c6e0d) · [`src/built-ins/runtime/foundation-adapters/pluginRegistryAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-pluginregistryadapter-ts-8a92b62f94) · [`src/built-ins/runtime/foundation-adapters/pluginRuntimeAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-pluginruntimeadapter-ts-ad61c52b09) · [`src/built-ins/runtime/foundation-adapters/portalVariantAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-portalvariantadapter-ts-8738bd92b5) · [`src/built-ins/runtime/foundation-adapters/publicMediaAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-publicmediaadapter-ts-4b47d9ab84) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/server/plugins/pluginSecretConfig.ts`](lib.md#file-src-lib-server-plugins-pluginsecretconfig-ts-8cb887a277) · [`src/lib/server/plugins/pluginSettingsSurface.ts`](lib.md#file-src-lib-server-plugins-pluginsettingssurface-ts-f5a8104127)
+**Used by (33):** [`scripts/smoke-client-sidebar-catalog.test.ts`](scripts.md#file-scripts-smoke-client-sidebar-catalog-test-ts-2fe38ae86b) · [`scripts/smoke-finance-section-gates.test.ts`](scripts.md#file-scripts-smoke-finance-section-gates-test-ts-bb835c5a2c) · [`scripts/smoke-plugin-api-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-api-host-gates-test-ts-a532a714e3) · [`scripts/smoke-plugin-api-tenancy.test.ts`](scripts.md#file-scripts-smoke-plugin-api-tenancy-test-ts-8bbf35181d) · [`scripts/smoke-plugin-page-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-page-host-gates-test-ts-a2690cdf7e) · [`scripts/smoke-portal-role-brandkit.test.ts`](scripts.md#file-scripts-smoke-portal-role-brandkit-test-ts-0d497171f7) · [`src/app/api/portal/[module]/[...rest]/route.ts`](app.md#file-src-app-api-portal-module-rest-route-ts-b2456019c9) · [`src/app/portal/agency/[...rest]/page.tsx`](app.md#file-src-app-portal-agency-rest-page-tsx-27d1ad6afa) · [`src/app/portal/clients/[clientId]/[...rest]/page.tsx`](app.md#file-src-app-portal-clients-clientid-rest-page-tsx-f215f5ac0f) · [`src/app/portal/customer/[...rest]/page.tsx`](app.md#file-src-app-portal-customer-rest-page-tsx-88df60b027) · [`src/built-ins/modules/website-editor/src/pages/EditorRoutePage.tsx`](#file-src-built-ins-modules-website-editor-src-pages-editorroutepage-tsx-d7e8b2f724) · [`src/built-ins/runtime/_pageScope.ts`](#file-src-built-ins-runtime-pagescope-ts-3cc574306e) · [`src/built-ins/runtime/_presets.ts`](#file-src-built-ins-runtime-presets-ts-91b4e14e96) · [`src/built-ins/runtime/_registry.ts`](#file-src-built-ins-runtime-registry-ts-504f0b067d) · [`src/built-ins/runtime/_routeResolver.ts`](#file-src-built-ins-runtime-routeresolver-ts-bbf700f5cc) · [`src/built-ins/runtime/_runtime.ts`](#file-src-built-ins-runtime-runtime-ts-d2a0efb5ed) · [`src/built-ins/runtime/_validate.ts`](#file-src-built-ins-runtime-validate-ts-7537e6b17c) · [`src/built-ins/runtime/foundation-adapters/activityLogAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-activitylogadapter-ts-83c88f8691) · [`src/built-ins/runtime/foundation-adapters/clientStoreAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-clientstoreadapter-ts-d9f633b076) · [`src/built-ins/runtime/foundation-adapters/eventBusAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-eventbusadapter-ts-7779dab897) · [`src/built-ins/runtime/foundation-adapters/index.ts`](#file-src-built-ins-runtime-foundation-adapters-index-ts-dcf532e6f2) · [`src/built-ins/runtime/foundation-adapters/phaseStoreAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-phasestoreadapter-ts-8ef086bb47) · [`src/built-ins/runtime/foundation-adapters/pluginInstallStoreAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-plugininstallstoreadapter-ts-2a7e1c6e0d) · [`src/built-ins/runtime/foundation-adapters/pluginRegistryAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-pluginregistryadapter-ts-8a92b62f94) · [`src/built-ins/runtime/foundation-adapters/pluginRuntimeAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-pluginruntimeadapter-ts-ad61c52b09) · [`src/built-ins/runtime/foundation-adapters/portalVariantAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-portalvariantadapter-ts-8738bd92b5) · [`src/built-ins/runtime/foundation-adapters/publicMediaAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-publicmediaadapter-ts-4b47d9ab84) · [`src/lib/chrome/agencySidebarPluginCatalog.ts`](lib.md#file-src-lib-chrome-agencysidebarplugincatalog-ts-73941e68df) · [`src/lib/chrome/clientSidebarPluginCatalog.ts`](lib.md#file-src-lib-chrome-clientsidebarplugincatalog-ts-a302bba740) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/server/plugins/pluginSecretConfig.ts`](lib.md#file-src-lib-server-plugins-pluginsecretconfig-ts-8cb887a277) · [`src/lib/server/plugins/pluginSettingsSurface.ts`](lib.md#file-src-lib-server-plugins-pluginsettingssurface-ts-f5a8104127)
 
 <a id="file-src-built-ins-runtime-validate-ts-7537e6b17c"></a>
 
@@ -13522,7 +13812,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (6):** [`src/built-ins/runtime/foundation-adapters/_foundationPorts.ts`](#file-src-built-ins-runtime-foundation-adapters-foundationports-ts-4b979334a9) · [`src/built-ins/runtime/foundation-adapters/personClientSeeding.ts`](#file-src-built-ins-runtime-foundation-adapters-personclientseeding-ts-313518954c) · [`src/lib/server/leadsPipelinePorts.ts`](lib.md#file-src-lib-server-leadspipelineports-ts-65fb36de0a) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/server/eventBus.ts`](server.md#file-src-server-eventbus-ts-0d11c56fb0) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40)
 
-**Used by (19):** [`scripts/smoke-website-signup-lead.test.ts`](scripts.md#file-scripts-smoke-website-signup-lead-test-ts-58675d9221) · [`src/app/api/auth/signup/route.ts`](app.md#file-src-app-api-auth-signup-route-ts-1b48626832) · [`src/app/api/portal/search/route.ts`](app.md#file-src-app-api-portal-search-route-ts-4b746a12f2) · [`src/app/api/portal/website-enquiries/classification/route.ts`](app.md#file-src-app-api-portal-website-enquiries-classification-route-ts-e367cccc11) · [`src/app/api/portal/website-enquiries/lead/route.ts`](app.md#file-src-app-api-portal-website-enquiries-lead-route-ts-b89a336d61) · [`src/app/api/public/brand-enquiry/route.ts`](app.md#file-src-app-api-public-brand-enquiry-route-ts-a6e218f276) · [`src/app/api/public/contact/route.ts`](app.md#file-src-app-api-public-contact-route-ts-08a246b9bd) · [`src/app/portal/agency/actions/_ActionsPage.tsx`](app.md#file-src-app-portal-agency-actions-actionspage-tsx-66b9e510e2) · [`src/app/portal/agency/marketing/page.tsx`](app.md#file-src-app-portal-agency-marketing-page-tsx-e2b361f4ba) · [`src/app/portal/clients/page.tsx`](app.md#file-src-app-portal-clients-page-tsx-bffc1e671f) · [`src/built-ins/runtime/_registry.ts`](#file-src-built-ins-runtime-registry-ts-504f0b067d) · [`src/engines/data/server/kpi/companyHealthSnapshot.ts`](engines.md#file-src-engines-data-server-kpi-companyhealthsnapshot-ts-efcfa02aef) · [`src/engines/data/server/radar/businessIssueRadar.ts`](engines.md#file-src-engines-data-server-radar-businessissueradar-ts-df308875cc) · [`src/engines/data/server/radar/radarSourceInspection.ts`](engines.md#file-src-engines-data-server-radar-radarsourceinspection-ts-18f2227fe9) · [`src/lib/server/brandPortfolioService.ts`](lib.md#file-src-lib-server-brandportfolioservice-ts-76537b2419) · [`src/lib/server/commandIntelligenceService.ts`](lib.md#file-src-lib-server-commandintelligenceservice-ts-8aba485964) · [`src/lib/server/commercialProposal.ts`](lib.md#file-src-lib-server-commercialproposal-ts-3cca2c10db) · [`src/lib/server/inbox/operationalAlerts.ts`](lib.md#file-src-lib-server-inbox-operationalalerts-ts-564a396d10) · [`src/lib/server/websiteEnquiryLeadSync.ts`](lib.md#file-src-lib-server-websiteenquiryleadsync-ts-90c226107f)
+**Used by (20):** [`scripts/smoke-website-signup-lead.test.ts`](scripts.md#file-scripts-smoke-website-signup-lead-test-ts-58675d9221) · [`src/app/api/auth/signup/route.ts`](app.md#file-src-app-api-auth-signup-route-ts-1b48626832) · [`src/app/api/portal/search/route.ts`](app.md#file-src-app-api-portal-search-route-ts-4b746a12f2) · [`src/app/api/portal/website-enquiries/classification/route.ts`](app.md#file-src-app-api-portal-website-enquiries-classification-route-ts-e367cccc11) · [`src/app/api/portal/website-enquiries/lead/route.ts`](app.md#file-src-app-api-portal-website-enquiries-lead-route-ts-b89a336d61) · [`src/app/api/public/brand-enquiry/route.ts`](app.md#file-src-app-api-public-brand-enquiry-route-ts-a6e218f276) · [`src/app/api/public/contact/route.ts`](app.md#file-src-app-api-public-contact-route-ts-08a246b9bd) · [`src/app/portal/agency/actions/_ActionsPage.tsx`](app.md#file-src-app-portal-agency-actions-actionspage-tsx-66b9e510e2) · [`src/app/portal/agency/marketing/page.tsx`](app.md#file-src-app-portal-agency-marketing-page-tsx-e2b361f4ba) · [`src/app/portal/clients/page.tsx`](app.md#file-src-app-portal-clients-page-tsx-bffc1e671f) · [`src/built-ins/runtime/_registry.ts`](#file-src-built-ins-runtime-registry-ts-504f0b067d) · [`src/engines/data/server/kpi/companyHealthSnapshot.ts`](engines.md#file-src-engines-data-server-kpi-companyhealthsnapshot-ts-efcfa02aef) · [`src/engines/data/server/radar/businessIssueRadar.ts`](engines.md#file-src-engines-data-server-radar-businessissueradar-ts-df308875cc) · [`src/engines/data/server/radar/radarSourceInspection.ts`](engines.md#file-src-engines-data-server-radar-radarsourceinspection-ts-18f2227fe9) · [`src/lib/server/brandPortfolioService.ts`](lib.md#file-src-lib-server-brandportfolioservice-ts-76537b2419) · [`src/lib/server/commandIntelligenceService.ts`](lib.md#file-src-lib-server-commandintelligenceservice-ts-8aba485964) · [`src/lib/server/commercialProposal.ts`](lib.md#file-src-lib-server-commercialproposal-ts-3cca2c10db) · [`src/lib/server/inbox/operationalAlerts.ts`](lib.md#file-src-lib-server-inbox-operationalalerts-ts-564a396d10) · [`src/lib/server/plugins/ensureLeadsPipelineInstall.ts`](lib.md#file-src-lib-server-plugins-ensureleadspipelineinstall-ts-bc1dba2897) · [`src/lib/server/websiteEnquiryLeadSync.ts`](lib.md#file-src-lib-server-websiteenquiryleadsync-ts-90c226107f)
 
 <a id="file-src-built-ins-runtime-foundation-adapters-membershipsfoundation-ts-f01e9eeeea"></a>
 

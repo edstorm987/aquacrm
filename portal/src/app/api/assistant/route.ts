@@ -33,6 +33,7 @@ import { listAgencyTasks } from "@/server/tasks";
 import { buildAdvisorSkillContext } from "@/lib/server/assistants/advisorSkillContext";
 import { resolveAdvisorSkill } from "@/lib/server/assistants/advisorSkillsService";
 import { withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
+import { currentAssistantBusinessContext } from "@/lib/server/assistants/assistantContextScope";
 
 const ASSISTANT_ROLES = new Set(["agency-owner", "agency-manager"]);
 
@@ -43,8 +44,8 @@ async function sessionFor(req: NextRequest) {
   return session;
 }
 
-function responseState(agencyId: string, userId: string) {
-  const context = buildAssistantBusinessContext(agencyId);
+async function responseState(agencyId: string, userId: string) {
+  const context = await currentAssistantBusinessContext(agencyId);
   return {
     workspace: getAssistantWorkspace(agencyId, userId),
     configured: isAssistantConfigured(agencyId),
@@ -62,7 +63,7 @@ function responseState(agencyId: string, userId: string) {
 export async function GET(req: NextRequest) {
   const session = await sessionFor(req);
   if (!session) return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  return NextResponse.json({ ok: true, ...responseState(session.agencyId, session.userId) });
+  return NextResponse.json({ ok: true, ...await responseState(session.agencyId, session.userId) });
 }
 
 export async function POST(req: NextRequest) {
@@ -89,19 +90,19 @@ export async function POST(req: NextRequest) {
       const thread = await withAssistantTransaction(session.agencyId, session.userId, () => (
         createAssistantThread(session.agencyId, session.userId)
       ));
-      return NextResponse.json({ ok: true, thread, ...responseState(session.agencyId, session.userId) });
+      return NextResponse.json({ ok: true, thread, ...await responseState(session.agencyId, session.userId) });
     }
     if (body.action === "delete-thread" && body.threadId) {
       await withAssistantTransaction(session.agencyId, session.userId, () => (
         deleteAssistantThread(session.agencyId, session.userId, body.threadId!)
       ));
-      return NextResponse.json({ ok: true, ...responseState(session.agencyId, session.userId) });
+      return NextResponse.json({ ok: true, ...await responseState(session.agencyId, session.userId) });
     }
     if (body.action === "rename-thread" && body.threadId && body.title) {
       await withAssistantTransaction(session.agencyId, session.userId, () => (
         renameAssistantThread(session.agencyId, session.userId, body.threadId!, body.title!)
       ));
-      return NextResponse.json({ ok: true, ...responseState(session.agencyId, session.userId) });
+      return NextResponse.json({ ok: true, ...await responseState(session.agencyId, session.userId) });
     }
     if (body.action === "add-memory" && body.content) {
       const memory = await withAssistantTransaction(session.agencyId, session.userId, () => (
@@ -112,13 +113,13 @@ export async function POST(req: NextRequest) {
           body.threadId,
         )
       ));
-      return NextResponse.json({ ok: true, memory, ...responseState(session.agencyId, session.userId) });
+      return NextResponse.json({ ok: true, memory, ...await responseState(session.agencyId, session.userId) });
     }
     if (body.action === "delete-memory" && body.memoryId) {
       await withAssistantTransaction(session.agencyId, session.userId, () => (
         deleteAssistantMemory(session.agencyId, session.userId, body.memoryId!)
       ));
-      return NextResponse.json({ ok: true, ...responseState(session.agencyId, session.userId) });
+      return NextResponse.json({ ok: true, ...await responseState(session.agencyId, session.userId) });
     }
     if (body.action === "suggest-actions") {
       const limit = rateLimit({
@@ -219,7 +220,7 @@ export async function POST(req: NextRequest) {
         operationId: claim.operation.id,
         threadId: claim.operation.threadId,
         turnStatus: claim.operation.status,
-        ...responseState(session.agencyId, session.userId),
+        ...await responseState(session.agencyId, session.userId),
       }, { status: 409 });
     }
 
@@ -258,7 +259,7 @@ export async function POST(req: NextRequest) {
             operationId: claim.operation.id,
             threadId: claim.operation.threadId,
             turnStatus: failed?.operation.status,
-            ...responseState(session.agencyId, session.userId),
+            ...await responseState(session.agencyId, session.userId),
           }, { status: 409 });
         }
         return NextResponse.json({
@@ -269,7 +270,7 @@ export async function POST(req: NextRequest) {
           operationId: claim.operation.id,
           threadId: claim.operation.threadId,
           turnStatus: failed?.operation.status ?? "failed",
-          ...responseState(session.agencyId, session.userId),
+          ...await responseState(session.agencyId, session.userId),
         }, { status: 502 });
       }
       const recorded = await withAssistantTransaction(session.agencyId, session.userId, () => (
@@ -286,7 +287,7 @@ export async function POST(req: NextRequest) {
           operationId: providerOperation.id,
           threadId: providerOperation.threadId,
           turnStatus: providerOperation.status,
-          ...responseState(session.agencyId, session.userId),
+          ...await responseState(session.agencyId, session.userId),
         }, { status: 409 });
       }
     }
@@ -324,7 +325,7 @@ export async function POST(req: NextRequest) {
       userMessage: completion.userMessage,
       assistantMessage: completion.assistantMessage,
       activeSkill: { id: skill.skillId, name: skill.name, access: skill.access },
-      ...responseState(session.agencyId, session.userId),
+      ...await responseState(session.agencyId, session.userId),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "The assistant could not respond.";
@@ -341,7 +342,7 @@ export async function POST(req: NextRequest) {
         operationId: body.operationId,
         threadId: operation?.threadId ?? body.threadId,
         turnStatus: operation?.status,
-        ...responseState(session.agencyId, session.userId),
+        ...await responseState(session.agencyId, session.userId),
       }, { status });
     }
     return NextResponse.json({ ok: false, error: message }, { status });

@@ -15,6 +15,7 @@ import { CompanySwitcher } from "./CompanySwitcher";
 import { WORKSPACES } from "@/lib/chrome/workspaces";
 import { SidebarNavLink } from "./SidebarNavLink";
 import { SidebarPinnedTabs } from "./PinnedTabs";
+import { SidebarReorder } from "./SidebarReorder";
 
 function workspacesForPanel(panelId: string): string {
   return WORKSPACES.filter(w => w.panels.includes(panelId)).map(w => w.id).join(" ");
@@ -54,7 +55,7 @@ export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extr
       suppressHydrationWarning
       className={[
         "mm-private-sidebar shrink-0 bg-white/60 p-4 text-sm",
-        "flex h-dvh min-h-0 flex-col overflow-hidden",
+        "flex h-[var(--aqua-shell-h,100dvh)] min-h-0 flex-col overflow-hidden",
         mobile ? "w-full" : "hidden md:flex border-r border-black/10 mm-sidebar-collapsible",
       ].join(" ")}
     >
@@ -194,22 +195,36 @@ function NavItems({ panel, currentPath }: { panel: NavPanel; currentPath: string
   if (!panel.items.length) {
     return <p className="px-2 py-1 text-[11px] italic text-black/40 mm-sidebar-link-label">Nothing here yet.</p>;
   }
+  // `SidebarReorder` is a thin client wrapper around these server-rendered rows:
+  // it reads `data-nav-id` off the DOM to work out order, and never re-renders
+  // a row itself. See its own note for why the rows stay on the server — icons,
+  // badges and attention counts all resolve there.
   return (
-    <ul className="mt-0.5 flex flex-col">
-      {panel.items.map(item => {
-        return (
-          <li key={`${panel.id}:${item.id}:${item.href}`}>
-            <SidebarNavLink
-              id={item.id}
-              href={item.href}
-              label={item.label}
-              icon={item.icon}
-              badge={item.badge}
-              attentionCount={item.attentionCount}
-            />
-          </li>
-        );
-      })}
-    </ul>
+    <SidebarReorder panelId={panel.id}>
+      <ul className="mt-0.5 flex flex-col">
+        {panel.items.map(item => {
+          return (
+            // `aria-keyshortcuts` is how the row tells assistive technology
+            // that Alt+Arrow moves it — the alternative was a visible drag grip
+            // on every nav row, which is chrome everybody pays for and few use.
+            <li
+              key={`${panel.id}:${item.id}:${item.href}`}
+              data-nav-id={item.id}
+              draggable
+              aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+            >
+              <SidebarNavLink
+                id={item.id}
+                href={item.href}
+                label={item.label}
+                icon={item.icon}
+                badge={item.badge}
+                attentionCount={item.attentionCount}
+              />
+            </li>
+          );
+        })}
+      </ul>
+    </SidebarReorder>
   );
 }

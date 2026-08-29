@@ -3,10 +3,11 @@ import { NextResponse } from "next/server";
 import { authErrorResponse, issueSession, requireRole, sessionCookie } from "@/lib/server/auth/auth";
 import { listAccessibleClientPortals } from "@/server/clientRelationships";
 import { getUserById } from "@/server/users";
+import { CUSTOMER_PORTAL_ROLES } from "@/server/types";
 
 export async function POST(request: Request) {
   try {
-    const session = await requireRole("end-customer");
+    const session = await requireRole([...CUSTOMER_PORTAL_ROLES]);
     if (!session.clientId) {
       return NextResponse.json({ ok: false, error: "Current portal scope is missing." }, { status: 409 });
     }

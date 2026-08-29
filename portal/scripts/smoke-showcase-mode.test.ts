@@ -149,11 +149,30 @@ test("public showcase chrome links to the read-only access summary, not Agency S
   assert.match(clientLayout, /session\.publicShowcase \? "Permissions" : "Client settings"/);
 });
 
+/**
+ * Source with comments stripped.
+ *
+ * Both pages now EXPLAIN in a comment why the seeding call was removed, and a
+ * `doesNotMatch` against raw source counts that explanation as the thing it
+ * forbids. Same trap the HR sweep hit by matching an import line.
+ */
+function code(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/(^|[^:])\/\/[^\n]*/g, "$1 ");
+}
+
 test("public showcase client hub hides every management control and heavy mutable workspace", () => {
   const page = read("src/app/portal/clients/page.tsx");
   const hub = read("src/app/portal/clients/_PeopleHub.tsx");
 
-  assert.match(page, /if \(!session\.publicShowcase\) ensureDefaultAgencyProducts/);
+  // Was `if (!session.publicShowcase) ensureDefaultAgencyProducts(...)`. That
+  // guard existed only because the call WROTE, and a public showcase visitor
+  // must not write. The read cannot write any more (issue #21), so the guard is
+  // gone and the stronger property is asserted instead: the page reaches no
+  // seeding write at all, for anyone.
+  assert.doesNotMatch(code(page), /ensureDefaultAgencyProducts\s*\(/,
+    "the Clients list is seeding the product catalogue again, which a public showcase visitor would trigger");
   assert.match(page, /publicShowcase: session\.publicShowcase/);
   assert.match(page, /canManage=\{!session\.publicShowcase\}/);
   assert.match(page, /journeyWorkspace=\{session\.publicShowcase \? null : <JourneyCommercialWorkspace/);
@@ -167,8 +186,31 @@ test("public showcase client hub hides every management control and heavy mutabl
 
 test("public showcase client detail keeps every workspace read-only", () => {
   const page = read("src/app/portal/clients/[clientId]/page.tsx");
-  assert.match(page, /const canManageClient = isAgencyRole\(session\.role\) && !session\.publicShowcase/);
-  assert.match(page, /session\.publicShowcase[\s\S]*listAgencyProducts\(session\.agencyId\)/);
+  // Whitespace-insensitive, and it now has a THIRD conjunct. `canManageClient`
+  // went multi-line when the client-element gate was added on top of the role
+  // and showcase checks — strictly stricter, which the old single-line regex
+  // reported as the condition disappearing. What must hold is that an agency
+  // role, a non-showcase session AND the element level all gate management.
+  assert.match(
+    page,
+    /const canManageClient = isAgencyRole\(session\.role\)\s*&&\s*!session\.publicShowcase/,
+    "canManageClient stopped requiring an agency role outside public showcase",
+  );
+  assert.match(
+    page,
+    /const canManageClient = isAgencyRole\(session\.role\)[\s\S]{0,160}?clientWorkspaceElementAtLeast\(activeElementLevel, "use"\)/,
+    "canManageClient stopped consulting the client workspace element level",
+  );
+  // This pinned the showcase BRANCH that avoided the seeding write:
+  // `session.publicShowcase ? listAgencyProducts(...) : ensureDefault...`.
+  // Both sides are reads now, so the branch is gone — and its only other effect
+  // was handing a showcase visitor an UNREPAIRED catalogue, a worse view of the
+  // same data. The stronger property replaces it: one read, no write, for
+  // everybody.
+  assert.doesNotMatch(code(page), /ensureDefaultAgencyProducts\s*\(/,
+    "the client record is seeding the product catalogue again");
+  assert.match(page, /agencyProductsForRead\(session\.agencyId\)/,
+    "the client record no longer repairs the catalogue it renders");
   assert.match(page, /tab === "notes" && !session\.publicShowcase/);
   assert.match(page, /canManage=\{canManageClient\}/);
   assert.match(page, /canManageProductPlans=\{canManageClient\}/);
@@ -206,9 +248,21 @@ test("public showcase agency workspaces cannot expose owner mutation controls", 
   assert.match(fulfilment, /const canManage = !session\.publicShowcase/);
   assert.match(fulfilment, /if \(session\.publicShowcase && \(view === "technical" \|\| view === "tags"\)\) redirect/);
   assert.match(marketing, /if \(session\.publicShowcase && view !== "pulse"\) redirect/);
-  assert.match(marketing, /canManage \? ensureAgencyWebsite\(session\.agencyId\) : readAgencyWebsite\(session\.agencyId\)/);
+  // Was `canManage ? ensureAgencyWebsite(...) : readAgencyWebsite(...)`. That
+  // branch existed only to keep a non-manager from triggering the WRITE, and its
+  // other effect was handing them a null where a manager got an object. Both
+  // sides are one read now (issue #21), so the stronger property is asserted:
+  // Marketing reaches no website write at all, for anyone.
+  assert.doesNotMatch(code(marketing), /ensureAgencyWebsite\s*\(/,
+    "the Marketing page creates the agency website record again");
+  assert.match(marketing, /agencyWebsiteForRead\(session\.agencyId\)/);
   assert.match(company, /const canEdit = !session\.publicShowcase/);
-  assert.match(company, /if \(canEdit\) ensureDefaultAgencyProducts/);
+  // Same story: the discarded `if (canEdit) ensureDefaultAgencyProducts(...)`
+  // is gone because reading the catalogue no longer writes it.
+  assert.doesNotMatch(code(company), /ensureDefaultAgencyProducts\s*\(/,
+    "the Company page is seeding the product catalogue again");
+  assert.match(company, /agencyProductsForRead\(session\.agencyId, true\)/,
+    "the Company page no longer repairs the catalogue it renders");
 
   const inboxPage = read("src/app/portal/agency/inbox/page.tsx");
   const inbox = read("src/app/portal/agency/inbox/_MasterInbox.tsx");

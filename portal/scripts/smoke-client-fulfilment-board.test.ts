@@ -1,3 +1,7 @@
+// First, and statically: this import installs the request-scope helpers before
+// anything pulls in `next/`. See the note in dev-console-request-scope.ts.
+import { withSession } from "./dev-console-request-scope";
+
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -47,7 +51,27 @@ beforeEach(async () => {
   const agency = tenants.createAgency({ name: "Shared board smoke", slug: `shared-board-${Date.now()}` });
   const client = tenants.createClient(agency.id, { name: "Board client" });
   clientId = client.id;
-  token = auth.issueSession({ userId: "usr_board_owner", email: "board-owner@example.com", role: "agency-owner", agencyId: agency.id });
+  // A REAL user, not a made-up id. `getSession()` re-resolves the session's user
+  // on every call and refuses a cookie whose subject does not exist, whose role
+  // has changed, or whose `sessionRev` is stale (issues #22). `storage.reset()`
+  // above wipes the store each time, so the owner is seeded per test.
+  const users = await import("../src/server/users");
+  const owner = users.createUser({
+    email: `board-owner-${Date.now()}@example.com`,
+    name: "Board Owner",
+    role: "agency-owner",
+    agencyId: agency.id,
+    password: "client-board-smoke-pass-phrase",
+  });
+  token = auth.issueSession({
+    userId: owner.id,
+    email: owner.email,
+    role: "agency-owner",
+    agencyId: agency.id,
+    agencyIds: [agency.id],
+    activeAgencyId: agency.id,
+    sessionRev: owner.sessionRev ?? 0,
+  });
 });
 
 function request(method: "GET" | "POST" | "PATCH" | "DELETE", path = "", body?: Record<string, unknown>): NextRequest {
@@ -62,29 +86,29 @@ function request(method: "GET" | "POST" | "PATCH" | "DELETE", path = "", body?: 
 }
 
 test("client fulfilment tasks persist in Actions, reject stale moves and delete durably", async () => {
-  const createdResponse = await route.POST(request("POST", "", { clientId, action: "create", title: "Prepare launch pack", operationId: "create-one" }));
+  const createdResponse = await withSession(token, () => route.POST(request("POST", "", { clientId, action: "create", title: "Prepare launch pack", operationId: "create-one" })));
   assert.equal(createdResponse.status, 201);
   const created = await createdResponse.json() as { task: { id: string; revision: number; status: string; clientBoardColumn: string }; tasks: unknown[] };
   assert.deepEqual({ revision: created.task.revision, status: created.task.status, column: created.task.clientBoardColumn }, { revision: 0, status: "todo", column: "backlog" });
 
-  const secondSession = await route.GET(request("GET", `?clientId=${encodeURIComponent(clientId)}`));
+  const secondSession = await withSession(token, () => route.GET(request("GET", `?clientId=${encodeURIComponent(clientId)}`)));
   assert.equal(secondSession.status, 200);
   assert.equal((await secondSession.json() as { tasks: unknown[] }).tasks.length, 1);
   assert.equal(tasks.listAgencyTasks(tenants.getClient(clientId)!.agencyId)[0]?.clientId, clientId);
 
-  const movedResponse = await route.PATCH(request("PATCH", "", { clientId, id: created.task.id, columnId: "waiting-on-client", order: 20, expectedRevision: 0 }));
+  const movedResponse = await withSession(token, () => route.PATCH(request("PATCH", "", { clientId, id: created.task.id, columnId: "waiting-on-client", order: 20, expectedRevision: 0 })));
   assert.equal(movedResponse.status, 200);
   const moved = await movedResponse.json() as { task: { revision: number; status: string; clientBoardColumn: string } };
   assert.deepEqual({ revision: moved.task.revision, status: moved.task.status, column: moved.task.clientBoardColumn }, { revision: 1, status: "in-progress", column: "waiting-on-client" });
 
-  const staleMove = await route.PATCH(request("PATCH", "", { clientId, id: created.task.id, columnId: "review", order: 30, expectedRevision: 0 }));
+  const staleMove = await withSession(token, () => route.PATCH(request("PATCH", "", { clientId, id: created.task.id, columnId: "review", order: 30, expectedRevision: 0 })));
   assert.equal(staleMove.status, 409);
   const stalePayload = await staleMove.json() as { task: { revision: number; clientBoardColumn: string } };
   assert.deepEqual({ revision: stalePayload.task.revision, column: stalePayload.task.clientBoardColumn }, { revision: 1, column: "waiting-on-client" });
 
-  const staleDelete = await route.DELETE(request("DELETE", `?clientId=${encodeURIComponent(clientId)}&id=${encodeURIComponent(created.task.id)}&expectedRevision=0`));
+  const staleDelete = await withSession(token, () => route.DELETE(request("DELETE", `?clientId=${encodeURIComponent(clientId)}&id=${encodeURIComponent(created.task.id)}&expectedRevision=0`)));
   assert.equal(staleDelete.status, 409);
-  const deleted = await route.DELETE(request("DELETE", `?clientId=${encodeURIComponent(clientId)}&id=${encodeURIComponent(created.task.id)}&expectedRevision=1`));
+  const deleted = await withSession(token, () => route.DELETE(request("DELETE", `?clientId=${encodeURIComponent(clientId)}&id=${encodeURIComponent(created.task.id)}&expectedRevision=1`)));
   assert.equal(deleted.status, 200);
   assert.equal((await deleted.json() as { tasks: unknown[] }).tasks.length, 0);
 });
@@ -94,13 +118,13 @@ test("legacy browser cards import once with their board/status meaning intact", 
     { id: "legacy-a", title: "Old backlog task", columnId: "backlog", order: 1 },
     { id: "legacy-b", title: "Old completed task", columnId: "done", order: 2 },
   ];
-  const first = await route.POST(request("POST", "", { clientId, action: "import", cards }));
+  const first = await withSession(token, () => route.POST(request("POST", "", { clientId, action: "import", cards })));
   assert.equal(first.status, 200);
   const firstPayload = await first.json() as { imported: number; tasks: Array<{ status: string; clientBoardColumn: string }> };
   assert.equal(firstPayload.imported, 2);
   assert.deepEqual(firstPayload.tasks.map(task => [task.clientBoardColumn, task.status]), [["backlog", "todo"], ["done", "done"]]);
 
-  const retry = await route.POST(request("POST", "", { clientId, action: "import", cards }));
+  const retry = await withSession(token, () => route.POST(request("POST", "", { clientId, action: "import", cards })));
   assert.equal(retry.status, 200);
   const retryPayload = await retry.json() as { imported: number; tasks: unknown[] };
   assert.equal(retryPayload.imported, 0);

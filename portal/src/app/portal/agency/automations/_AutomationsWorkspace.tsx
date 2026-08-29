@@ -66,6 +66,7 @@ const AutomationsCanvas = dynamic(() => import("./_AutomationsCanvas").then(modu
 const TRIGGER_LABELS: Record<AutomationTriggerType, string> = {
   manual: "Manual run",
   "website-enquiry.received": "Website enquiry received",
+  "client-form.received": "Client website form received",
   "client-request.received": "Client portal message received",
   "social-message.received": "Social message received",
   "client.created": "Client created",

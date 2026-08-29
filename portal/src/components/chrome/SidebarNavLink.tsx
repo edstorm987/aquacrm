@@ -52,60 +52,7 @@ import { attentionTitle, useAttentionMatches, useNotificationAttention, useUnres
 import { devTeamLinkPrefetch } from "@/lib/chrome/devTeamLinkPrefetch";
 import { sharedChromeLinkPrefetch } from "@/lib/chrome/sharedChromeLinkPrefetch";
 import type { OperationalAlertCategory } from "@/lib/intelligence/operationalAttention";
-
-const NAV_ICONS: Record<string, typeof Circle> = {
-  home: Radar,
-  dashboard: LayoutDashboard,
-  company: Building2,
-  actions: ClipboardCheck,
-  calendar: CalendarDays,
-  notepad: NotebookPen,
-  automations: Workflow,
-  inbox: Inbox,
-  performance: Gauge,
-  clients: ContactRound,
-  portals: PanelsTopLeft,
-  fulfilment: FolderKanban,
-  "you-deserve-it": Gift,
-  pipelines: Ship,
-  products: Package,
-  development: Code2,
-  marketing: Megaphone,
-  finance: WalletCards,
-  "agency-finance": WalletCards,
-  "sop-library": BookOpen,
-  tools: Wrench,
-  settings: Settings,
-  "agency-settings": Settings,
-  "agency-phases": Boxes,
-  "back-to-agency": House,
-  "client-overview": LayoutDashboard,
-  "client-relationship": UsersRound,
-  "client-delivery": FolderKanban,
-  "client-marketing": Megaphone,
-  "client-communications": Inbox,
-  "client-finance": ReceiptText,
-  "client-files": FileText,
-  "client-portal": PanelTop,
-  "client-notes": NotebookPen,
-  "client-systems": MonitorCog,
-  "client-settings": Settings,
-  "client-assign-services": PackagePlus,
-  customer: Users,
-  people: UsersRound,
-  "my-day": Gauge,
-  onboarding: UserRoundCheck,
-  leave: CalendarDays,
-  training: BookOpen,
-  pay: WalletCards,
-  notes: NotebookPen,
-  orders: ShoppingBag,
-  bookings: Bell,
-  membership: Sparkles,
-  affiliate: HandCoins,
-  account: Building2,
-  leads: Target,
-};
+import { navIcon } from "@/components/chrome/navIcons";
 
 const NAV_TONES: Record<string, string> = {
   home: "teal",
@@ -152,20 +99,6 @@ const NAV_TONES: Record<string, string> = {
   "agency-settings": "slate",
 };
 
-const CLIENT_SERVICE_ICONS: Array<[string, typeof Circle]> = [
-  ["client-service-brand-identity-", Palette],
-  ["client-service-google-profile-", MapPin],
-  ["client-service-custom-software-", Code2],
-  ["client-service-ongoing-care-", HeartPulse],
-  ["client-service-business-os-", Building2],
-  ["client-service-health-check-", Gauge],
-  ["client-service-social-ads-", Megaphone],
-  ["client-service-photography-", Camera],
-  ["client-service-automation-", Workflow],
-  ["client-service-website-", Globe2],
-  ["client-service-content-", FileText],
-  ["client-service-custom-", Package],
-];
 
 const CLIENT_SERVICE_TONES: Array<[string, string]> = [
   ["client-service-brand-identity-", "violet"],
@@ -202,10 +135,6 @@ const OPERATIONS_ACTIVE_PREFIXES = [
   "/portal/agency/portals",
 ];
 const OPERATIONS_ATTENTION_DESTINATIONS = ["pipelines", "fulfilment", "marketing", "finance", "people"];
-
-function navIcon(id: string): typeof Circle {
-  return NAV_ICONS[id] ?? CLIENT_SERVICE_ICONS.find(([prefix]) => id.startsWith(prefix))?.[1] ?? Circle;
-}
 
 function navTone(id: string): string {
   return NAV_TONES[id] ?? CLIENT_SERVICE_TONES.find(([prefix]) => id.startsWith(prefix))?.[1] ?? "slate";

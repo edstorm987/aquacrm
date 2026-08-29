@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { accessErrorResponse } from "@/server/accessControl";
 import { requireDevProjectAccess } from "@/lib/server/dev/devProjectAccess";
+import { DevPathScopeError, assertPathInScope } from "@/lib/server/dev/devPathScope";
 import { SourceEditUnavailable } from "@/engines/editor/server/sourceEdit";
 import { normalisePageSeo } from "@/engines/editor/editing/pageSeo";
 import {
@@ -193,6 +194,16 @@ export async function POST(request: NextRequest) {
     const agencyId = access.resourceAgencyId;
     const sourceDeps = { allowSharedCredentials: access.resolution.ownerBaseline };
 
+    // THE PATH SCOPE, once, for every action that names a path.
+    //
+    // This is the repository write path — the files route refuses repo-backed
+    // projects by design — so without this a project scoped to its portal files
+    // could still COMMIT anywhere in the repository. Placed here rather than in
+    // each branch because `save` and `create` both take a path and a third
+    // action taking one later would otherwise be born unguarded.
+    const requestedPath = typeof body?.path === "string" ? body.path.trim() : "";
+    if (requestedPath) assertPathInScope(access.pathScope, requestedPath, "write");
+
     try {
       if (body?.action === "save") {
         const path = body.path?.trim();
@@ -376,6 +387,9 @@ export async function POST(request: NextRequest) {
       }, { status: 502 });
     }
   } catch (error) {
+    if (error instanceof DevPathScopeError) {
+      return NextResponse.json({ ok: false, error: error.message, code: error.code }, { status: error.status });
+    }
     return accessErrorResponse(error);
   }
 }

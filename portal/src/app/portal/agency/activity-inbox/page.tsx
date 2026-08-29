@@ -48,7 +48,7 @@ export default async function ActivityInboxPage() {
                   </time>
                 </div>
                 {entry.clientId && (
-                  <Link href={`/portal/clients/${entry.clientId}`} className="mt-2 inline-flex text-xs font-medium text-brand hover:underline">
+                  <Link href={`/portal/clients/${entry.clientId}`} className="mt-2 inline-flex min-h-6 items-center text-xs font-medium text-brand hover:underline">
                     Open client →
                   </Link>
                 )}

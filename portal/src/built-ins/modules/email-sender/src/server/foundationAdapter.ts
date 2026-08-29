@@ -111,10 +111,33 @@ export function _containerFromCtx(args: {
   });
 }
 
-// Cross-plugin event subscription declarations. Foundation's R6 router
-// reads this list, looks up the matching method on the container's
-// EmailService, and subscribes. Wiring is data-driven so adding a new
-// subscriber is a one-line append here + one method on EmailService.
+// Cross-plugin event subscription declarations.
+//
+// ⚠ **This list is a declaration of intent, not a wiring mechanism.** The
+// comment here used to say "Foundation's R6 router reads this list … and
+// subscribes". **No such router exists**, and that was found on 2026-08-28 by
+// asking which manifest fields anything actually reads. Every entry below is
+// wired — or not — by hand in
+// `src/built-ins/runtime/foundation-adapters/_eventSubscribers.ts`.
+//
+// State of each, verified 2026-08-29 by searching for emitters across `src/`:
+//
+//   ✅ `crm.automation.email_requested` — wired. A client's journey-board
+//      automation sends their own subject and body.
+//   ✅ `membership.subscription_changed` — wired. The emitted payload carries no
+//      email address (the handler's first line is `if (!payload.userEmail)
+//      return null`), so the wire resolves it from `userId` before calling.
+//   ⚠ `affiliate.payout_completed` — emitted, NOT wired. The payload carries
+//      `affiliateId`, a record id, where the handler wants `affiliateUserId`
+//      and `affiliateEmail`; resolving one to the other needs a cross-module
+//      read into affiliates that does not exist. Wiring it as-is would call a
+//      handler that returns `null` every time.
+//   ❌ `forms.notification.requested` — **nothing emits this event.**
+//   ❌ `auth.bootstrap.signup` — **nothing emits this event.**
+//
+// `scripts/smoke-email-subscriber-wiring.test.ts` pins all five, in both
+// directions: an entry that gains an emitter or a wire fails, so the notes
+// above cannot quietly go stale.
 export const EVENT_SUBSCRIPTIONS = [
   {
     event: "forms.notification.requested" as const,
@@ -135,5 +158,10 @@ export const EVENT_SUBSCRIPTIONS = [
     event: "auth.bootstrap.signup" as const,
     handler: "onAuthBootstrapSignup" as const,
     description: "End-customer signup → welcome confirmation email.",
+  },
+  {
+    event: "crm.automation.email_requested" as const,
+    handler: "onCrmAutomationEmailRequested" as const,
+    description: "A client's journey automation reached a stage → send their email.",
   },
 ] as const;

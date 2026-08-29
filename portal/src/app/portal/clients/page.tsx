@@ -21,7 +21,7 @@ import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { containerFor } from "@aqua/plugin-leads-pipeline/server";
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
 import { PeopleHub, type ContactRole, type HubContact } from "./_PeopleHub";
-import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
+import { agencyProductsForRead, listAgencyProducts } from "@/server/agencyProducts";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
 import { listTradingCompanies } from "@/server/tradingCompanies";
 import { INTERNAL_WORKSPACE_NAME } from "@/lib/shared/internalWorkspace";
@@ -50,6 +50,7 @@ import { clearIdentityResolutionReviews, listIdentityResolutionReviews } from "@
 import { clientRelationshipId } from "@/server/clientRelationships";
 import { inferLeadRelationshipCategory, isLeadRelationshipCategory } from "@/built-ins/modules/leads-pipeline/src/lib/domain";
 import { getPortalFormFields } from "@/server/portalEditor";
+import { withPersonalChrome } from "@/lib/server/chrome/personalPanels";
 
 interface JourneyClientMetadata {
   leadId?: string;
@@ -105,7 +106,10 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
     counts.set(relationshipId, (counts.get(relationshipId) ?? 0) + 1);
     return counts;
   }, new Map<string, number>());
-  if (!session.publicShowcase) ensureDefaultAgencyProducts(session.agencyId);
+  // Was `if (!session.publicShowcase) ensureDefaultAgencyProducts(...)` — a call
+  // whose result was discarded, kept for its side effect, and guarded so a
+  // public showcase visitor could not trigger the write. The read cannot write
+  // any more (issue #21), so the whole line goes.
   const products = listAgencyProducts(session.agencyId);
   const workspaceSettings = getAgencyWorkspaceSettings(session.agencyId);
   const leadsInstall = getInstall({ agencyId: agency.id }, "leads-pipeline");
@@ -392,7 +396,7 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
   });
   const operationalAlerts = session.publicShowcase ? [] : await listOperationalAlerts(agency.id);
   const alertViews = listOperationalAlertViews(agency.id, session.userId, operationalAlerts);
-  const panels = addSidebarAttention(basePanels, alertViews.filter(alert => alert.attention));
+  const panels = await withPersonalChrome(addSidebarAttention(basePanels, alertViews.filter(alert => alert.attention)));
   const currentPath = initialView === "journey" ? "/portal/clients?view=journey" : "/portal/clients";
   const workspaceName = session.publicShowcase ? agency.name : INTERNAL_WORKSPACE_NAME;
 
@@ -400,7 +404,7 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
     <>
       <ThemeInjector brand={agency.brand} scope="agency" />
       <NotificationAttentionProvider initialAlerts={alertViews}>
-      <div className="mm-portal-root flex h-dvh overflow-hidden">
+      <div className="mm-portal-root flex h-[var(--aqua-shell-h,100dvh)] overflow-hidden">
         <Sidebar
           panels={panels}
           tenantLabel={workspaceName}

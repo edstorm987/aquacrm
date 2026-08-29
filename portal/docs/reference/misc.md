@@ -84,5 +84,5 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on:** _No internal imports._
 
-**Used by (1):** [`scripts/smoke-showcase-mode.test.ts`](scripts.md#file-scripts-smoke-showcase-mode-test-ts-a1d2a86c7a)
+**Used by (2):** [`scripts/smoke-sandbox-environment.test.ts`](scripts.md#file-scripts-smoke-sandbox-environment-test-ts-99a8655e6d) · [`scripts/smoke-showcase-mode.test.ts`](scripts.md#file-scripts-smoke-showcase-mode-test-ts-a1d2a86c7a)
 

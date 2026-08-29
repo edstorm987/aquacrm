@@ -1,6 +1,6 @@
 import "server-only";
 
-import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
+import { agencyProductsForRead, listAgencyProducts } from "@/server/agencyProducts";
 import { ensureProductPortalTemplates, ensureStunningPortalTemplate } from "@/server/clientPortalDesigns";
 import { listClients } from "@/server/tenants";
 import type { ClientPortalMode, Role } from "@/server/types";
@@ -47,6 +47,8 @@ export interface PortalStudioProps {
   lockToClient: boolean;
 }
 
+import { SAMPLE_CLIENT_NAME, sampleClientId } from "@/lib/server/clients/samplePreviewClient";
+
 export function cleanPortalMode(value: unknown): ClientPortalMode {
   return value === "designing" || value === "developed-launch" || value === "maintenance" ? value : "onboarding";
 }
@@ -73,7 +75,7 @@ export function loadPortalStudioProps(input: {
 }): PortalStudioProps {
   const { agencyId, userId, role, query } = input;
 
-  ensureDefaultAgencyProducts(agencyId);
+  agencyProductsForRead(agencyId);
   const products = listAgencyProducts(agencyId, true).filter(product => product.portalRequirement !== "none");
   const masterTemplate = ensureStunningPortalTemplate(agencyId, userId);
   const productTemplates = ensureProductPortalTemplates(agencyId, products, userId);
@@ -96,7 +98,7 @@ export function loadPortalStudioProps(input: {
     ? query.templateId!
     : requestedProductTemplate?.id ?? masterTemplate.id;
 
-  const clients: PortalStudioClient[] = listClients(agencyId, { includeArchived: true })
+  const realClients: PortalStudioClient[] = listClients(agencyId, { includeArchived: true })
     .map(client => ({
       id: client.id,
       name: client.name,
@@ -105,8 +107,27 @@ export function loadPortalStudioProps(input: {
     }))
     .sort((a, b) => Number(b.built) - Number(a.built) || a.name.localeCompare(b.name));
 
+  // The stand-in is ALWAYS offered, and always last.
+  //
+  // A template — a product portal especially — belongs to a product rather than
+  // to any client, so drafting one must not wait on a real client existing. With
+  // no clients at all the editor used to refuse to open (Ed, 2026-08-27); with
+  // clients, the sample is still the honest thing to draft a template against,
+  // because previewing a template through a real client shows THEIR data.
+  //
+  // Nothing is created for it — see samplePreviewClient.ts.
+  const clients: PortalStudioClient[] = [
+    ...realClients,
+    { id: sampleClientId(agencyId), name: SAMPLE_CLIENT_NAME, built: false, mode: "designing" as const },
+  ];
+
   const requestedClient = clients.find(client => client.id === query.clientId);
-  const initialClientId = requestedClient?.id ?? clients.find(client => client.built)?.id ?? clients[0]?.id ?? "";
+  // A built client is still the best default when one exists — the sample is a
+  // floor, not a preference.
+  const initialClientId = requestedClient?.id
+    ?? realClients.find(client => client.built)?.id
+    ?? realClients[0]?.id
+    ?? sampleClientId(agencyId);
 
   return {
     clients,

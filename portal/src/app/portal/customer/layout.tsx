@@ -21,13 +21,14 @@ import { listPlugins } from "@/built-ins/runtime/_registry";
 import { resolveCustomerAccountActivityCapabilities } from "@/lib/portal/customerAccountActivity";
 import { listGrantedDevWorkspaceProjects } from "@/lib/server/dev/devProjectAccess";
 import { sandboxModeAvailable } from "@/lib/server/sandbox/sandboxEnvironment";
+import { CUSTOMER_PORTAL_ROLES } from "@/server/types";
 
 export async function generateMetadata(): Promise<Metadata> {
   const cookieStore = await cookies();
   const authBrand = getAuthBrand(cookieStore.get("aqua_public_brand")?.value);
   try {
     await ensureHydrated();
-    const session = await requireRole("end-customer");
+    const session = await requireRole([...CUSTOMER_PORTAL_ROLES]);
     const client = session.clientId ? getClientForAgency(session.agencyId, session.clientId) : null;
     if (client) {
       const provider = resolveClientPortalProvider(client, authBrand);
@@ -98,6 +99,7 @@ export default async function CustomerLayout({ children }: { children: ReactNode
     <>
       <ThemeInjector brand={client.brand} scope="customer" />
       <CustomerPortalChrome
+        viewerRole={session.role}
         clientName={client.name}
         email={session.email}
         name={user?.name}

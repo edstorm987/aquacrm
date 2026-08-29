@@ -26,7 +26,7 @@ export default async function PortalDataFormsPage() {
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-black/90">Data forms</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-black/52">Control the custom information collected for contacts, expenses, clients, leads, actions, and products.</p>
         </div>
-        <Link href="/portal/agency/portals" className="inline-flex min-h-10 items-center gap-2 self-start rounded-md border border-black/12 bg-white px-3 text-sm font-semibold text-black/65 hover:bg-black/[0.03]"><ArrowLeft size={15} /> Back to portals</Link>
+        <Link href="/portal/agency/fulfilment?view=portals" className="inline-flex min-h-10 items-center gap-2 self-start rounded-md border border-black/12 bg-white px-3 text-sm font-semibold text-black/65 hover:bg-black/[0.03]"><ArrowLeft size={15} /> Back to portals</Link>
       </header>
       <div id="forms" className="scroll-mt-6 pt-7">
         <PortalEditorPanel canManage />

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { requireRole } from "@/lib/server/auth/auth";
-import { ensureDefaultAgencyProducts, getAgencyProduct, listAgencyProducts } from "@/server/agencyProducts";
+import { agencyProductsForRead, getAgencyProduct, listAgencyProducts } from "@/server/agencyProducts";
 import { listSops } from "@/engines/sop/server/sops";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
@@ -18,7 +18,7 @@ import { getPortalFormFields } from "@/server/portalEditor";
 export default async function ProductDetailPage({ params, searchParams }: { params: Promise<{ productId: string }>; searchParams: Promise<{ edit?: string }> }) {
   await ensureHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
-  ensureDefaultAgencyProducts(session.agencyId);
+  agencyProductsForRead(session.agencyId);
   const { productId } = await params;
   const requested = await searchParams;
   const product = getAgencyProduct(session.agencyId, productId);

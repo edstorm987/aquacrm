@@ -2013,11 +2013,26 @@ export function DevEditor({
     return () => window.removeEventListener("keydown", saveOnShortcut);
   }, [busy, canManage, dirty, portalDocument, record]);
 
+  // No client used to mean no editor.
+  //
+  // Template preview renders THROUGH a client, so with none on the agency this
+  // refused to open — and a product-portal template, which belongs to a product
+  // rather than to any client, could not be drafted at all until somebody
+  // created a real client first (Ed, 2026-08-27).
+  //
+  // `loadPortalStudioProps` now always offers a synthesised stand-in, so this
+  // list cannot be empty in practice. The guard stays because it is the honest
+  // answer if a caller ever mounts the editor with no clients AND no stand-in:
+  // failing visibly beats rendering a preview pane that silently loads nothing.
   if (!clients.length && portalTarget) {
     return (
       <div className="fixed inset-0 z-[80] grid place-items-center bg-[#111311] px-6 text-center text-white">
         <div>
-          <p className="text-lg font-semibold">The editor needs a client record to supply preview data for this project.</p>
+          <p className="text-lg font-semibold">This editor was opened without any preview target.</p>
+          <p className="mt-2 text-sm text-white/60">
+            Templates normally preview against a built-in sample, so this usually means the studio was
+            mounted without it.
+          </p>
           <Link href="/portal/clients" className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-black">Create a client</Link>
         </div>
       </div>

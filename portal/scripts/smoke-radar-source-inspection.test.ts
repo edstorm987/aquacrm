@@ -7,7 +7,12 @@ const read = (path: string) => readFileSync(path, "utf8");
 test("Radar source records remain tenant scoped and owner or manager only", () => {
   const route = read("src/app/api/portal/advisor/radar/sources/route.ts");
   const inspector = read("src/engines/data/server/radar/radarSourceInspection.ts");
-  assert.match(route, /requireRole\(\["agency-owner", "agency-manager"\]\)/);
+  // Was `requireRole(["agency-owner","agency-manager"])`. Replaced 2026-08-27
+  // (issue #182) by an ELEMENT requirement, which is strictly stronger: a role
+  // check passes a manager whose element access has been narrowed, and the AI
+  // then answers from data the UI hides from them.
+  assert.match(route, /requireAssistantElement\("workspace\.overview"\)/);
+  assert.doesNotMatch(route, /requireRole\(/, "the Radar source route is back on a role check");
   assert.match(route, /session\.agencyId/);
   assert.match(route, /datasetId\.length > 240/);
   assert.match(route, /private, no-store/);

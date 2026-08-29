@@ -23,6 +23,7 @@ const PREVIEW_REQUEST_TIMEOUT_MS = 10_000;
 
 const STATE_LABELS: Record<LocalRepositoryPreviewState, string> = {
   idle: "Not running",
+  installing: "Installing dependencies",
   starting: "Starting",
   healthy: "Preview ready",
   stopping: "Stopping",
@@ -138,7 +139,7 @@ export function RepositoryPreviewControl({
     if (next.state === "healthy" && next.previewUrl) {
       previewAvailable.current = true;
       readyCallback.current?.(next.previewUrl);
-    } else if (next.state !== "starting" && previewAvailable.current) {
+    } else if (next.state !== "starting" && next.state !== "installing" && previewAvailable.current) {
       previewAvailable.current = false;
       unavailableCallback.current?.();
     }
@@ -235,7 +236,10 @@ export function RepositoryPreviewControl({
 
   if (!canView || !projectId) return null;
 
-  const running = preview.state === "starting" || preview.state === "healthy" || preview.state === "stopping";
+  const running = preview.state === "installing"
+    || preview.state === "starting"
+    || preview.state === "healthy"
+    || preview.state === "stopping";
   const failed = ["crashed", "occupied-port", "install-failed", "start-failed", "health-timeout", "configuration-error", "production-refused"].includes(preview.state);
 
   return (
@@ -247,7 +251,7 @@ export function RepositoryPreviewControl({
       <div className="flex flex-wrap items-center gap-2">
         <span
           aria-hidden="true"
-          className={`size-2 rounded-full ${preview.state === "healthy" ? "bg-emerald-400" : preview.state === "starting" || preview.state === "stopping" ? "animate-pulse bg-amber-300" : failed ? "bg-rose-400" : "bg-white/25"}`}
+          className={`size-2 rounded-full ${preview.state === "healthy" ? "bg-emerald-400" : preview.state === "installing" || preview.state === "starting" || preview.state === "stopping" ? "animate-pulse bg-amber-300" : failed ? "bg-rose-400" : "bg-white/25"}`}
         />
         <p className="min-w-0 flex-1 text-xs font-semibold" role="status" aria-live="polite">
           {STATE_LABELS[preview.state]}

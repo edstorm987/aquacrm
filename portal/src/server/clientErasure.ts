@@ -51,6 +51,28 @@ import type { PortalState } from "./types";
  * and contracts are plugin-owned (agency-finance / fulfillment, flagged
  * `dataDisposition: "retain"`) or not `clientId`-stamped at the top level.
  */
+/**
+ * ⚠ De-identification here covers IDENTIFIERS, not free text.
+ *
+ * The justification above — "the client record's own PII still goes, so what
+ * remains is de-identified" — is true of the ids that point at a person. It is
+ * NOT automatically true of operator-typed prose.
+ *
+ * `ClientMilestone` carries `title` and `description`, both free text. A
+ * milestone called "Onboarding call with Jane Smith" survives an erasure, and
+ * once the client record is gone it is an orphaned row nobody can search back
+ * to. Same rule the activity log already has written down elsewhere: **never
+ * put a person's details in free text that outlives them.**
+ *
+ * Before adding a collection here, ask whether it carries operator-typed prose.
+ * If it does, this justification does not cover it and the answer is either a
+ * scrub-on-erasure hook (as ecommerce does for orders — strip the PII, keep the
+ * payment record) or leaving it out of the retain set. `smoke-client-erasure`
+ * pins this list so the question has to be answered deliberately.
+ *
+ * Whether the retained proof should ever expire at all is question Q1 in the
+ * DPO pack — a legal answer, not a default this module may choose.
+ */
 const RETAIN_COLLECTIONS = new Set<string>(["clientMilestones"]);
 
 /** Collections handled by the dedicated plugin sweep — skip in the generic pass. */
@@ -58,6 +80,39 @@ const PLUGIN_COLLECTIONS = new Set<string>(["pluginData", "pluginInstalls"]);
 
 /** Collections with a dedicated pass below — skipped by the generic sweep. */
 const DEDICATED_COLLECTIONS = new Set<string>(["persons", "identityResolutionReviews"]);
+
+/**
+ * Does this record name the client?
+ *
+ * A top-level `clientId` is the common form and was, until 2026-08-27, the only
+ * one the generic sweep looked for. It is not the only one: an access GRANT and
+ * an access REQUEST reference a client through `scope: { kind: "client", id }`,
+ * and other records use `scope: { clientId }`. Both are nested, so both survived
+ * an erasure that promises the client and their associated data are gone.
+ *
+ * That mattered more than a dangling id, because those records carry a
+ * free-text `reason` written by a person — and people name the client in it
+ * ("Granted for Acme Ltd onboarding", "I need access to Acme Ltd's files").
+ * The erasure's own audit line claims it names no personal data; a surviving
+ * reason field contradicted that.
+ *
+ * Found by the item-6 reference-integrity probe. Kept as ONE predicate so the
+ * arrays pass, the records pass and the retained-count pass cannot drift apart.
+ */
+function recordNamesClient(record: unknown, clientId: string): boolean {
+  if (!record || typeof record !== "object") return false;
+  const value = record as {
+    clientId?: unknown;
+    scope?: { kind?: unknown; id?: unknown; clientId?: unknown } | null;
+  };
+  if (value.clientId === clientId) return true;
+  const scope = value.scope;
+  if (scope && typeof scope === "object") {
+    if (scope.clientId === clientId) return true;
+    if (scope.kind === "client" && scope.id === clientId) return true;
+  }
+  return false;
+}
 
 export type ErasureDisposition = "delete" | "retain" | "hook";
 
@@ -685,9 +740,9 @@ export async function eraseClientCompletely(input: {
       if (RETAIN_COLLECTIONS.has(collectionName)) {
         let kept = 0;
         if (Array.isArray(collection)) {
-          kept = collection.filter(e => e && typeof e === "object" && (e as { clientId?: string }).clientId === input.clientId).length;
+          kept = collection.filter(e => recordNamesClient(e, input.clientId)).length;
         } else if (typeof collection === "object") {
-          kept = Object.values(collection as Record<string, unknown>).filter(r => r && typeof r === "object" && (r as { clientId?: string }).clientId === input.clientId).length;
+          kept = Object.values(collection as Record<string, unknown>).filter(r => recordNamesClient(r, input.clientId)).length;
         }
         if (kept) collections[`retained:${collectionName}`] = kept;
         continue;
@@ -696,8 +751,7 @@ export async function eraseClientCompletely(input: {
       if (Array.isArray(collection)) {
         // Arrays (e.g. the activity log) — drop entries that name this client.
         const before = collection.length;
-        const kept = collection.filter(entry =>
-          !(entry && typeof entry === "object" && (entry as { clientId?: string }).clientId === input.clientId));
+        const kept = collection.filter(entry => !recordNamesClient(entry, input.clientId));
         if (kept.length !== before) {
           (state as unknown as Record<string, unknown>)[collectionName] = kept;
           const droppedCount = before - kept.length;
@@ -711,7 +765,7 @@ export async function eraseClientCompletely(input: {
         // Record<string, X> — delete entries stamped with this client.
         let droppedCount = 0;
         for (const [id, record] of Object.entries(collection as Record<string, unknown>)) {
-          if (record && typeof record === "object" && (record as { clientId?: string }).clientId === input.clientId) {
+          if (recordNamesClient(record, input.clientId)) {
             delete (collection as Record<string, unknown>)[id];
             droppedCount++;
           }

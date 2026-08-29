@@ -7,6 +7,7 @@ import { assistantModel, isAssistantConfigured } from "@/lib/server/assistants/o
 import { radarDigest } from "@/engines/data/radar/businessRadar";
 import { buildPausedBusinessRadar } from "@/app/portal/agency/commandPerformance";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
+import { currentAssistantBusinessContext } from "@/lib/server/assistants/assistantContextScope";
 
 export async function AdvisorDrawerControl({
   agencyId,
@@ -19,7 +20,7 @@ export async function AdvisorDrawerControl({
   userName: string;
   lightweight?: boolean;
 }) {
-  const context = buildAssistantBusinessContext(agencyId);
+  const context = await currentAssistantBusinessContext(agencyId);
   const radar = lightweight
     ? buildPausedBusinessRadar(getAgencyWorkspaceSettings(agencyId).advisor.radarPolicy, Date.now())
     : await import("@/engines/data/server/radar/businessIssueRadar")

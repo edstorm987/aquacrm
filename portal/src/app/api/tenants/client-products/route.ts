@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { resolveAgencyProductAssignment, resolvePortalProductAssignment } from "@/lib/products/productAssignments";
 import { portalProductSelectionFromAgencyProduct, type PortalProductMode } from "@/lib/portal/portalProducts";
-import { ensureDefaultAgencyProducts } from "@/server/agencyProducts";
+import { agencyProductsForRead } from "@/server/agencyProducts";
 import { logActivity } from "@/server/activity";
 import { reconcileClientProductWorkspaces } from "@/server/productWorkspaces";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
 
     const requestedIds = cleanProductIds(body.productIds);
-    const catalogue = applyClientProductVariations(client.metadata ?? {}, ensureDefaultAgencyProducts(session.agencyId));
+    const catalogue = applyClientProductVariations(client.metadata ?? {}, agencyProductsForRead(session.agencyId));
     const previousAssignment = resolvePortalProductAssignment(client.metadata ?? {}, catalogue);
     const assignment = resolveAgencyProductAssignment(catalogue, requestedIds);
     if (assignment.missingIds.length) {

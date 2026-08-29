@@ -56,36 +56,90 @@ export function getAgencyProduct(agencyId: string, productId: string): AgencyPro
   return product?.agencyId === agencyId ? product : null;
 }
 
+// ─── Repairing a stored product, and where that repair may be WRITTEN ────
+//
+// Issue #21. `ensureDefaultAgencyProducts` was reached from eight rendered
+// surfaces AND from `/api/portal/search` — the widest read-time write in the
+// app. It does two different jobs, and only one of them ever needed to write:
+//
+//   • it REPAIRS legacy product records whose newer fields are missing;
+//   • it SEEDS the one default product for an agency that has none.
+//
+// The repair is now a pure function applied in memory on every read, and
+// persisted only when something is being written anyway. The seed moved to
+// `bootstrapAgency`, where a new tenant's other defaults already live.
+//
+// ── Why removing the seed from reads is safe ─────────────────────────────
+//
+// It is self-extinguishing: once it has run for an agency it never runs again,
+// and it ran on the first page view. So every agency that has ever been LOOKED
+// at already has its Website product on disk, and the only agency the change
+// could affect is one that has never been opened — which bootstrap now covers.
+
+/** A stored product with its newer fields filled in. Pure: writes nothing. */
+export function repairedAgencyProduct(product: AgencyProduct): AgencyProduct {
+  const inferredTemplate = PORTAL_PRODUCT_CATALOG.find(definition => definition.name.toLowerCase() === product.name.toLowerCase())?.catalogKey;
+  const category = product.category === "Advisory" && (product.name === "Business OS" || product.name === "Digital health check")
+    ? "Lead magnets"
+    : product.category;
+  if (!agencyProductNeedsRepair(product, category, inferredTemplate)) return product;
+  return {
+    ...product,
+    category,
+    kind: validKind(product.kind),
+    portalRequirement: validPortalRequirement(product.portalRequirement),
+    portalTemplateKey: validPortalTemplateKey(product.portalTemplateKey) ?? inferredTemplate,
+    includedProductIds: Array.isArray(product.includedProductIds) ? product.includedProductIds : [],
+    welcomePackItems: Array.isArray(product.welcomePackItems) ? product.welcomePackItems : [],
+    sopIds: Array.isArray(product.sopIds) ? product.sopIds : [],
+    sopCategories: Array.isArray(product.sopCategories) ? product.sopCategories : [],
+    status: productStatus(product),
+    active: productStatus(product) === "live",
+    internalWorkspace: cleanInternalWorkspace(product.internalWorkspace, {
+      id: product.id,
+      name: product.name,
+      portalTemplateKey: validPortalTemplateKey(product.portalTemplateKey) ?? inferredTemplate,
+      sopIds: Array.isArray(product.sopIds) ? product.sopIds : [],
+    }),
+    // NOT stamped with `updatedAt` here — an in-memory repair has not updated
+    // anything, and saying it did would make every read look like an edit in
+    // any surface that sorts or reports on that field.
+  };
+}
+
+function agencyProductNeedsRepair(product: AgencyProduct, category: string, inferredTemplate: string | undefined): boolean {
+  return category !== product.category
+    || !product.kind
+    || !product.portalRequirement
+    || !product.status
+    || (!product.portalTemplateKey && Boolean(inferredTemplate))
+    || !Array.isArray(product.includedProductIds)
+    || !Array.isArray(product.welcomePackItems)
+    || !Array.isArray(product.sopIds)
+    || !Array.isArray(product.sopCategories)
+    || !product.internalWorkspace
+    || !Array.isArray(product.internalWorkspace.lifecycleStages)
+    || product.internalWorkspace.processSteps.some(step => !step.stageId);
+}
+
+/**
+ * The catalogue as a READ sees it — repaired in memory, nothing stored.
+ *
+ * This is what every page, every GET and every context builder should call.
+ * `ensureDefaultAgencyProducts` is the write, and it belongs to provisioning.
+ */
+export function agencyProductsForRead(agencyId: string, includeArchived = false): AgencyProduct[] {
+  return listAgencyProducts(agencyId, includeArchived).map(repairedAgencyProduct);
+}
+
 export function ensureDefaultAgencyProducts(agencyId: string): AgencyProduct[] {
   const existing = listAgencyProducts(agencyId, true);
   if (existing.length) {
     for (const product of existing) {
-      const inferredTemplate = PORTAL_PRODUCT_CATALOG.find(definition => definition.name.toLowerCase() === product.name.toLowerCase())?.catalogKey;
-      const category = product.category === "Advisory" && (product.name === "Business OS" || product.name === "Digital health check")
-        ? "Lead magnets"
-        : product.category;
-      if (category !== product.category || !product.kind || !product.portalRequirement || !product.status || (!product.portalTemplateKey && inferredTemplate) || !Array.isArray(product.includedProductIds) || !Array.isArray(product.welcomePackItems) || !Array.isArray(product.sopIds) || !Array.isArray(product.sopCategories) || !product.internalWorkspace || !Array.isArray(product.internalWorkspace.lifecycleStages) || product.internalWorkspace.processSteps.some(step => !step.stageId)) {
+      const repaired = repairedAgencyProduct(product);
+      if (repaired !== product) {
         mutate(state => {
-          state.agencyProducts[product.id] = {
-            ...product,
-            category,
-            kind: validKind(product.kind),
-            portalRequirement: validPortalRequirement(product.portalRequirement),
-            portalTemplateKey: validPortalTemplateKey(product.portalTemplateKey) ?? inferredTemplate,
-            includedProductIds: Array.isArray(product.includedProductIds) ? product.includedProductIds : [],
-            welcomePackItems: Array.isArray(product.welcomePackItems) ? product.welcomePackItems : [],
-            sopIds: Array.isArray(product.sopIds) ? product.sopIds : [],
-            sopCategories: Array.isArray(product.sopCategories) ? product.sopCategories : [],
-            status: productStatus(product),
-            active: productStatus(product) === "live",
-            internalWorkspace: cleanInternalWorkspace(product.internalWorkspace, {
-              id: product.id,
-              name: product.name,
-              portalTemplateKey: validPortalTemplateKey(product.portalTemplateKey) ?? inferredTemplate,
-              sopIds: Array.isArray(product.sopIds) ? product.sopIds : [],
-            }),
-            updatedAt: Date.now(),
-          };
+          state.agencyProducts[product.id] = { ...repaired, updatedAt: Date.now() };
         });
       }
     }

@@ -5,9 +5,19 @@ import type { ComponentType, ReactNode } from "react";
 import type { AgencyId, ClientId, PluginInstall, UserId } from "./tenancy";
 
 export type PluginCategory =
-  | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "growth";
+  | "core"
+  | "content"
+  | "commerce"
+  | "marketing"
+  | "support"
+  | "ops"
+  | "fulfillment"
+  | "growth";
 export type PluginStatus = "stable" | "beta" | "alpha";
-export type ScopePolicy = "agency" | "client" | "either";
+// Renamed from `ScopePolicy` 2026-08-28 to match the canonical name in
+// src/built-ins/runtime/_types.ts. Ten copies used the short name, one used
+// the canonical — and the majority was the divergent side.
+export type PluginScopePolicy = "agency" | "client" | "either";
 
 export interface PluginCtx {
   agencyId: AgencyId;
@@ -59,10 +69,13 @@ export interface SetupField {
   helpText?: string;
 }
 
-export interface NavGroup { id: string; label: string; order?: number; }
 export type PluginRoleVisibility =
   | "agency-owner" | "agency-manager" | "agency-staff"
-  | "client-owner" | "client-staff" | "freelancer" | "end-customer";
+  | "client-owner" | "client-staff" | "freelancer" | "end-customer"
+  // Added 2026-08-28: the canonical `Role` in src/server/types.ts has always
+  // had "lead", and two modules (bos-auth-gate, public-funnel) already listed
+  // it. Ten copies did not, so the same union meant two things.
+  | "lead";
 export interface NavItem {
   id: string;
   label: string;
@@ -153,7 +166,7 @@ export interface AquaPlugin {
   description: string;
   icon?: ReactNode;
   core?: boolean;
-  scopePolicy?: ScopePolicy;
+  scopePolicy?: PluginScopePolicy;
   requires?: string[];
   conflicts?: string[];
   onInstall?: (ctx: PluginCtx, setupAnswers: Record<string, string>) => Promise<void>;
@@ -168,7 +181,6 @@ export interface AquaPlugin {
   onDisable?: (ctx: PluginCtx) => Promise<void>;
   onConfigure?: (ctx: PluginCtx) => Promise<void>;
   setup?: SetupStep[];
-  navGroup?: NavGroup;
   navItems: NavItem[];
   pages: PluginPage[];
   api: PluginApiRoute[];

@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { applyClientProductVariations, buildClientProductVariation, clientProductVariations, variationHasOverrides } from "@/lib/clients/clientProductVariations";
 import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
-import { getAgencyProduct, ensureDefaultAgencyProducts } from "@/server/agencyProducts";
+import { getAgencyProduct, agencyProductsForRead } from "@/server/agencyProducts";
 import { logActivity } from "@/server/activity";
 import { reconcileClientProductWorkspaces } from "@/server/productWorkspaces";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     await requireCurrentClientWorkspaceElementAccess(clientId, "client.fulfilment", "manage");
     const client = getClientForAgency(session.agencyId, clientId);
     if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
-    const catalogue = ensureDefaultAgencyProducts(session.agencyId);
+    const catalogue = agencyProductsForRead(session.agencyId);
     const baseProduct = getAgencyProduct(session.agencyId, productId);
     if (!baseProduct) return NextResponse.json({ ok: false, error: "service not found" }, { status: 404 });
     const currentAssignment = resolvePortalProductAssignment(client.metadata ?? {}, catalogue);

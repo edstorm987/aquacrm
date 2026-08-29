@@ -12,6 +12,7 @@
 // it; leaving it blank keeps the stored one. There is no "reveal" control,
 // because there is nothing on this page to reveal.
 
+import { isSettingUnwired, UNWIRED_SETTING_NOTICE } from "@/lib/plugins/unwiredSettings";
 import { useState } from "react";
 import { Check, KeyRound, Loader2, ShieldCheck, TriangleAlert } from "lucide-react";
 
@@ -107,7 +108,7 @@ export function PluginSettingsPanel({ initial, clientId }: { initial: PluginSett
           </div>
           <div className="grid gap-4 px-4 py-4 sm:grid-cols-2">
             {group.fields.map(field => (
-              <Field key={field.id} field={field} draft={draft[field.id]} onChange={value => set(field.id, value)} />
+              <Field key={field.id} field={field} pluginId={settings.pluginId} draft={draft[field.id]} onChange={value => set(field.id, value)} />
             ))}
           </div>
         </div>
@@ -130,20 +131,37 @@ export function PluginSettingsPanel({ initial, clientId }: { initial: PluginSett
   );
 }
 
-function Field({ field, draft, onChange }: {
+function Field({ field, pluginId, draft, onChange }: {
   field: PluginSettingsFieldView;
+  pluginId: string;
   draft: string | boolean | undefined;
   onChange: (value: string | boolean) => void;
 }) {
   const described = field.helpText ? `${field.id}-help` : undefined;
+  // Swept 2026-08-28: 25 of the 51 declared settings fields are read by nothing.
+  // A field like that is the worst kind of mask — it accepts input, saves
+  // without error, and shows the value back on reload, so there is no way to
+  // tell it from one that works. Say so at the field.
+  const unwired = isSettingUnwired(pluginId, field.id);
+  const noticeId = unwired ? `${field.id}-unwired` : undefined;
   return (
     <label className="block text-xs font-medium text-black/55">
       <span className="flex flex-wrap items-center gap-2">
         {field.label}
         {field.secret ? <SecretState field={field} /> : null}
+        {unwired ? (
+          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+            Not connected
+          </span>
+        ) : null}
       </span>
-      {renderInput(field, draft, onChange, described)}
+      {renderInput(field, draft, onChange, described ?? noticeId)}
       {field.helpText ? <span id={described} className="mt-1 block text-[11px] font-normal leading-4 text-black/40">{field.helpText}</span> : null}
+      {unwired ? (
+        <span id={noticeId} className="mt-1 block text-[11px] font-normal leading-4 text-amber-800">
+          {UNWIRED_SETTING_NOTICE}
+        </span>
+      ) : null}
     </label>
   );
 }

@@ -8,7 +8,7 @@ import { AGENCY_ROLES } from "@/server/types";
 import { CompanyWorkspace } from "./_CompanyWorkspace";
 import { TradingCompaniesPanel } from "./_TradingCompaniesPanel";
 import { listTradingCompanies } from "@/server/tradingCompanies";
-import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
+import { agencyProductsForRead, listAgencyProducts } from "@/server/agencyProducts";
 import { listSops } from "@/engines/sop/server/sops";
 import { listUsersForAgency } from "@/server/users";
 import { calculateServiceBrandHealth } from "@/lib/performance/companyHealth";
@@ -43,8 +43,12 @@ export default async function CompanyPage({ searchParams }: { searchParams: Comp
   const profile = companyHealth.profile;
   const canEdit = !session.publicShowcase
     && (session.role === "agency-owner" || session.role === "agency-manager");
-  if (canEdit) ensureDefaultAgencyProducts(session.agencyId);
-  const products = listAgencyProducts(session.agencyId, true);
+  // The catalogue, repaired in memory. There used to be a bare
+  // `if (canEdit) ensureDefaultAgencyProducts(...)` here whose result was
+  // discarded — it existed purely for the side effect, and the `canEdit` guard
+  // existed only to keep a public showcase visitor from triggering that write.
+  // Neither is needed now the read cannot write (issue #21).
+  const products = agencyProductsForRead(session.agencyId, true);
   const users = listUsersForAgency(session.agencyId).filter(user => user.role.startsWith("agency-"));
   const tradingCompanies = listTradingCompanies(session.agencyId, true);
   const companies = tradingCompanies.map(company => ({

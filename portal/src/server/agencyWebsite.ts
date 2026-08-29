@@ -57,6 +57,19 @@ export function readAgencyWebsite(agencyId: string): AgencyWebsiteProject | null
   return { ...fallback, ...existing, pages: existing.pages?.length ? existing.pages : fallback.pages };
 }
 
+/**
+ * An agency's website record as a READ sees it — merged with the defaults, and
+ * never stored.
+ *
+ * `readAgencyWebsite` answers null when there is no record; four rendered pages
+ * wanted an object and so called `ensureAgencyWebsite`, which created one
+ * (issue #21). This gives them the object without the write; the legacy-value
+ * upgrade inside `ensureAgencyWebsite` still happens on the write paths.
+ */
+export function agencyWebsiteForRead(agencyId: string): AgencyWebsiteProject {
+  return readAgencyWebsite(agencyId) ?? defaults(agencyId);
+}
+
 export function ensureAgencyWebsite(agencyId: string): AgencyWebsiteProject {
   const existing = getState().agencyWebsites[agencyId];
   if (existing) {
@@ -86,6 +99,25 @@ export function ensureAgencyWebsite(agencyId: string): AgencyWebsiteProject {
   const project = defaults(agencyId);
   mutate(state => { state.agencyWebsites[agencyId] = project; });
   return project;
+}
+
+/**
+ * The primary agency's website record, as a READ sees it. Writes nothing.
+ *
+ * Issue #21, and the sharpest of the remaining read-time writes because it is
+ * the only one a STRANGER could trigger: the public website layout called
+ * `ensurePrimaryAgencyWebsite()`, so a visitor loading the marketing site could
+ * create the tenant's website record.
+ *
+ * Falls back to the in-memory defaults rather than null, so the public site
+ * renders exactly as it did — the difference is that nothing is stored.
+ */
+export function readPrimaryAgencyWebsite(): AgencyWebsiteProject | null {
+  const state = getState();
+  const agency = Object.values(state.agencies).find(item => /milesy\s*media/i.test(item.name))
+    ?? Object.values(state.agencies)[0];
+  if (!agency) return null;
+  return readAgencyWebsite(agency.id) ?? defaults(agency.id);
 }
 
 export function ensurePrimaryAgencyWebsite(): AgencyWebsiteProject | null {

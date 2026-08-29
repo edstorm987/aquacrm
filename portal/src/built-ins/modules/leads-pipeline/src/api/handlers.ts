@@ -995,6 +995,12 @@ export async function listLeadsHandler(req: Request, ctx: PluginCtx): Promise<Re
     relationshipCategory: isLeadRelationshipCategory(url.searchParams.get("relationshipCategory"))
       ? url.searchParams.get("relationshipCategory") as LeadRelationshipCategory
       : undefined,
+    // Anything other than the two explicit opt-ins means "the active leads".
+    // An unrecognised value must not widen the answer — that is how an archived
+    // lead ends up in a campaign audience.
+    archived: url.searchParams.get("archived") === "only" ? "only"
+      : url.searchParams.get("archived") === "include" ? "include"
+      : "exclude",
   });
   return json({ ok: true, leads });
 }
@@ -1580,11 +1586,38 @@ export async function convertLeadToClientHandler(req: Request, ctx: PluginCtx): 
   }
 }
 
+// Archive is REVERSIBLE (issue #62 — it used to be a hard delete wearing the
+// word "archive"). The permanent one is `purgeLeadHandler`, and it is a
+// separate route so nothing reaches it by accident.
 export async function archiveLeadHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
   const body = await safeJson<{ id: string }>(req);
   if (!body?.id) return badRequest("id required.");
-  const ok = await buildContainer(ctx).leads.delete(body.id, ctx.actor);
+  const lead = await buildContainer(ctx).leads.archive(body.id, ctx.actor);
+  if (!lead) return notFound("lead_not_found");
+  return json({ ok: true, lead });
+}
+
+export async function restoreLeadHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
+  const body = await safeJson<{ id: string }>(req);
+  if (!body?.id) return badRequest("id required.");
+  const lead = await buildContainer(ctx).leads.restore(body.id, ctx.actor);
+  if (!lead) return notFound("lead_not_found");
+  return json({ ok: true, lead });
+}
+
+// Permanent, and named so. Requires the lead to be archived FIRST: a purge is
+// the second of two deliberate acts, never a faster route to the same button.
+export async function purgeLeadHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
+  const body = await safeJson<{ id: string }>(req);
+  if (!body?.id) return badRequest("id required.");
+  const container = buildContainer(ctx);
+  const existing = await container.leads.get(body.id);
+  if (!existing) return notFound("lead_not_found");
+  if (!existing.archivedAt) return badRequest("Archive this lead before deleting it permanently.");
+  const ok = await container.leads.purge(body.id, ctx.actor);
   if (!ok) return notFound("lead_not_found");
   return json({ ok: true });
 }

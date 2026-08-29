@@ -42,7 +42,25 @@ function safeErrorReturn(raw: FormDataEntryValue | null, fallback: URL) {
 }
 
 export async function POST(req: NextRequest) {
-  const form = await req.formData();
+  // This route exists for the branded login FORM, so it reads `formData()`.
+  // Anything else — a bot posting JSON, a mistyped integration — made
+  // `formData()` throw, and an unhandled throw here is a **500** on the login
+  // endpoint. Found by the Phase D sweep on 2026-08-27, which posted `{}` as
+  // JSON to all 180 mutating routes.
+  //
+  // A 500 on sign-in is worth more than tidiness: it is indistinguishable in a
+  // log from the database being down, so anything that produces one cheaply
+  // and from outside is a way to bury a real outage. Answered as the bad
+  // request it is.
+  let form: FormData;
+  try {
+    form = await req.formData();
+  } catch {
+    return NextResponse.json(
+      { ok: false, error: "This endpoint expects a sign-in form submission." },
+      { status: 400 },
+    );
+  }
   const email = typeof form.get("email") === "string"
     ? String(form.get("email"))
     : "";

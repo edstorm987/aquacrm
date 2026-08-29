@@ -18,5 +18,9 @@ test("supervised previews isolate Next's generated TypeScript includes", async (
   assert.match(supervisor, /entry\.generatedTypeScriptConfigPath\s*=\s*previewTypeScriptConfig\.absolutePath/);
   assert.match(supervisor, /unlinkSync\(generatedTypeScriptConfigPath\)/);
   assert.match(manifest, /"NEXT_DIST_DIR"\s*:/);
-  assert.match(gitignore, /portal\/\.aqua-preview-config\//);
+  // Unanchored since 2026-08-27: the same repository is also checked out inside
+  // an isolated preview worktree, where an anchored `portal/...` rule would not
+  // match the nested copy and the generated shim would show up as untracked.
+  assert.match(gitignore, /^\.aqua-preview-config\/$/m);
+  assert.match(gitignore, /^\.aqua-preview-worktrees\/$/m);
 });

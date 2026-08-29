@@ -1400,7 +1400,7 @@ export function DashboardCommandCenter({
                 <p className="text-xs font-semibold uppercase tracking-wide text-brand">{isToday ? "Do in this order" : isFuture ? "Planned for this day" : "Daily execution record"}</p>
                 <h3 id="strict-work-heading" className="mt-1 text-lg font-semibold text-black/85">{isToday ? "Strict work queue" : isFuture ? "Day work queue" : "Work and outcomes"}</h3>
               </div>
-              <button type="button" onClick={() => selectWorkspaceMode("actions")} disabled={serverNavigationBusy} className="inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline disabled:opacity-45">All actions <ArrowUpRight size={13} /></button>
+              <button type="button" onClick={() => selectWorkspaceMode("actions")} disabled={serverNavigationBusy} className="inline-flex min-h-6 items-center gap-1 text-xs font-semibold text-brand hover:underline disabled:opacity-45">All actions <ArrowUpRight size={13} /></button>
             </div>
             {!isFuture && !isToday ? <div className="border-b border-black/10 bg-black/[0.018] px-4 py-3 text-xs text-black/45 sm:px-5">Historical ledger: use Plan and evidence to add retrospective notes without creating an overdue task.</div> : <form onSubmit={event => { event.preventDefault(); void addQuickTask(); }} className="grid gap-2 border-b border-black/10 bg-black/[0.018] p-3 sm:grid-cols-[minmax(0,1fr)_120px_auto] sm:px-5">
               <input value={quickTask} onChange={event => setQuickTask(event.target.value)} placeholder="Capture the next concrete action" className="min-h-10 rounded-md border border-black/10 bg-white px-3 text-sm outline-none focus:border-brand" />
@@ -1548,7 +1548,7 @@ export function DashboardCommandCenter({
 
       <section className="mm-surface-card overflow-hidden rounded-lg border border-black/10" aria-labelledby="week-plan-heading">
         <div className="flex flex-wrap items-center justify-between gap-3 p-4 sm:px-5">
-          <button type="button" onClick={toggleWeekCommand} aria-expanded={weekExpanded} aria-controls="week-command-content" className="flex min-w-0 flex-1 items-center gap-3 text-left">
+          <button type="button" onClick={toggleWeekCommand} aria-expanded={weekExpanded} aria-controls="week-command-content" className="flex w-full min-w-0 items-center gap-3 text-left sm:w-auto sm:flex-1">
             <span className="mm-area-icon grid size-10 shrink-0 place-items-center rounded-md"><CalendarDays size={18} /></span>
             <span className="min-w-0"><span className="block text-xs font-semibold uppercase tracking-wide text-brand">Week command</span><span id="week-plan-heading" className="mt-1 block truncate text-lg font-semibold text-black/85">Week of {shortDate(planningWeekStart)}</span></span>
             <span className="ml-auto grid size-8 shrink-0 place-items-center rounded-md border border-black/10 bg-white text-black/45">{weekExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}</span>

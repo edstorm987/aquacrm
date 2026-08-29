@@ -56,12 +56,28 @@ export async function POST(request: Request) {
   let session;
   try {
     session = await requireRoleForClient([...AGENCY_ROLES], clientId);
-    await requireCurrentClientWorkspaceElementAccess(clientId, "client.commercial", "manage");
   }
   catch (error) { return authErrorResponse(error); }
 
+  // TENANCY first, then PERMISSION — in that order, deliberately.
+  //
+  // `getClientForAgency` answers null for a client of another agency and for one
+  // that does not exist, so the 404 below is identical in both cases and
+  // discloses nothing. That is the house convention (see the note at
+  // src/server/phaseApplier.ts:51) and it is the answer this route's UI expects.
+  //
+  // The element check must therefore run AFTER it: once the ceiling stopped
+  // falling back to legacy `manage` (issues #166) it refuses a cross-tenant id
+  // outright, and running it first turned this route's documented 404 into a 403.
+  // Ordered this way, an outsider still gets "Client not found", and a colleague
+  // inside the agency who lacks `client.commercial` gets the 403 they should.
   const client = getClientForAgency(session.agencyId, clientId);
   if (!client) return NextResponse.json({ ok: false, error: "Client not found." }, { status: 404 });
+
+  try {
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.commercial", "manage");
+  }
+  catch (error) { return authErrorResponse(error); }
 
   const install = getInstall({ agencyId: session.agencyId }, "agency-finance");
   if (!install?.enabled) return NextResponse.json({ ok: false, error: "Agency Finance is not connected." }, { status: 409 });

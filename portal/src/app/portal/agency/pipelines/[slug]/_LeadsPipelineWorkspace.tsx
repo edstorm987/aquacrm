@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, BarChart3, Binoculars, Building2, ChevronDown, Clock3, ExternalLink, Globe2, GripVertical, History, Mail, MessageCircle, MoreHorizontal, Phone, Plus, Presentation, Search, TimerReset, Trash2, UserRoundCheck, X } from "lucide-react";
+import { Archive, ArrowLeft, BarChart3, Binoculars, Building2, ChevronDown, Clock3, ExternalLink, Globe2, GripVertical, History, Mail, MessageCircle, MoreHorizontal, Phone, Plus, Presentation, Search, TimerReset, Trash2, UserRoundCheck, X } from "lucide-react";
 import { WorkflowSteps } from "@/app/portal/agency/leads-pipeline/_WorkflowSteps";
 import { UpcomingMeetings } from "@/app/portal/agency/leads-pipeline/_UpcomingMeetings";
 import { formatUkDateTime, localDateTimeInputValue, timestampFromValue } from "@/lib/shared/formatDateTime";
@@ -88,9 +88,28 @@ interface LeadView {
   customFields: PortalCustomFieldValues;
 }
 
+/**
+ * An archived lead, as the Archived view needs it.
+ *
+ * Deliberately NOT a `LeadView`: the board's shape carries a column, services,
+ * timings and custom fields, none of which mean anything once a lead is off the
+ * board — and requiring them would make the server assemble a full board row
+ * for a lead that will never appear on it.
+ */
+export interface ArchivedLeadView {
+  id: string;
+  email: string;
+  name?: string;
+  phone?: string;
+  company?: string;
+  tags: string[];
+  capturedAt: number;
+  archivedAt?: number;
+}
+
 interface LeadJourneyEventView {
   id: string;
-  type: "lead-captured" | "enquiry-received" | "contact-recorded" | "stage-changed" | "meeting-scheduled" | "converted";
+  type: "lead-captured" | "enquiry-received" | "contact-recorded" | "stage-changed" | "meeting-scheduled" | "converted" | "archived" | "restored";
   at: number;
   source?: string;
   enquiryId?: string;
@@ -111,6 +130,14 @@ interface LeadsPipelineWorkspaceProps {
   columns: PipelineColumnView[];
   prospects: ProspectView[];
   leads: LeadView[];
+  /**
+   * Archived leads, loaded separately and deliberately kept OUT of `leads`.
+   *
+   * Every metric, count and column on this screen derives from `leads`; folding
+   * archived rows in there would quietly change all of them. They belong to one
+   * view, and only that view asks for them.
+   */
+  archivedLeads: ArchivedLeadView[];
   importHref: string;
   campaignsHref: string;
   boards: Array<{ slug: string; label: string }>;
@@ -174,7 +201,7 @@ const EMPTY_PROSPECT = {
   nextContactReason: "",
 };
 
-type WorkFilter = "all" | "waiting" | "scouting" | "new" | "contacted" | "meeting" | "proposal" | "awaiting-payment" | "won";
+type WorkFilter = "all" | "waiting" | "scouting" | "new" | "contacted" | "meeting" | "proposal" | "awaiting-payment" | "won" | "archived";
 type MeetingMode = "google-meet" | "phone" | "in-person" | "other";
 type MeetingStatus = "scheduled" | "confirmed" | "completed" | "no-show" | "cancelled" | "rescheduled";
 type AttemptChannel = "call" | "email" | "sms" | "whatsapp" | "in-person";
@@ -317,7 +344,7 @@ function CloseLeadDealModal({ target, onClose, onClosed }: { target: { clientId:
   );
 }
 
-export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, prospects, leads, importHref, campaignsHref, boards, brands, products, customFields }: LeadsPipelineWorkspaceProps) {
+export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, prospects, leads, archivedLeads, importHref, campaignsHref, boards, brands, products, customFields }: LeadsPipelineWorkspaceProps) {
   const router = useRouter();
   const [clock, setClock] = useState(referenceNow);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -706,20 +733,39 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
     }
   }
 
+  // The confirmation now describes what actually happens. It used to say
+  // "removed from the active leads board" while the service hard-deleted the
+  // lead, its pointers and its pipeline card (issue #62).
   async function archiveLead(id: string, label: string) {
-    if (!window.confirm(`Archive ${label}? It will be removed from the active leads board.`)) return;
-    setBusy(`archive:${id}`);
+    if (!window.confirm(`Archive ${label}? They move to the Archived view and can be restored.`)) return;
+    await leadLifecycle(id, "archive", "Lead archived. Restore it from the Archived view.");
+  }
+
+  async function restoreLead(id: string) {
+    await leadLifecycle(id, "restore", "Lead restored to the active board.");
+  }
+
+  async function purgeLead(id: string, label: string) {
+    if (!window.confirm(`Permanently delete ${label}? Their record, history and contact details go for good. This cannot be undone.`)) return;
+    await leadLifecycle(id, "purge", "Lead permanently deleted.");
+  }
+
+  async function leadLifecycle(id: string, action: "archive" | "restore" | "purge", done: string) {
+    setBusy(`${action}:${id}`);
     setError(null);
     setSuccess(null);
     try {
-      const res = await fetch("/api/portal/leads-pipeline/leads/archive", {
+      const res = await fetch(`/api/portal/leads-pipeline/leads/${action}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ id }),
       });
-      const data = await res.json() as { ok: boolean; error?: string };
-      if (!data.ok) throw new Error(data.error ?? "Could not archive lead.");
-      setSuccess("Lead archived.");
+      const data = await res.json() as { ok: boolean; error?: string; message?: string };
+      // The message first: the purge route explains WHY it refused ("archive it
+      // first"), and showing the bare error code instead would leave the person
+      // with no idea what to do next.
+      if (!data.ok) throw new Error(data.message ?? data.error ?? `Could not ${action} lead.`);
+      setSuccess(done);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -918,7 +964,12 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
               <MoreHorizontal size={15} aria-hidden="true" />
               Tools
             </summary>
-            <div className="absolute right-0 top-full z-30 mt-2 w-48 overflow-hidden rounded-md border border-black/10 bg-white p-1.5 shadow-xl">
+            {/* Anchored LEFT below sm, right above it. This row is `flex-wrap`:
+                at 320 it wraps and Tools lands at the left edge, so a
+                right-anchored 192px panel grew leftwards to x=-96 and half its
+                items were off-screen. Above sm the row does not wrap and
+                right-0 is the correct edge. Measured, not guessed. */}
+            <div className="absolute left-0 top-full z-30 mt-2 w-48 overflow-hidden rounded-md border border-black/10 bg-white p-1.5 shadow-xl sm:left-auto sm:right-0">
               <Link href={importHref} className="block rounded px-3 py-2 text-sm text-black/70 hover:bg-black/[0.04]">Contacts</Link>
               <Link href={campaignsHref} className="block rounded px-3 py-2 text-sm text-black/70 hover:bg-black/[0.04]">Campaigns</Link>
             </div>
@@ -991,6 +1042,7 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
           <QuickFilter active={workFilter === "proposal"} onClick={() => setWorkFilter("proposal")}>Proposal</QuickFilter>
           <QuickFilter active={workFilter === "awaiting-payment"} onClick={() => setWorkFilter("awaiting-payment")}>Awaiting payment</QuickFilter>
           <QuickFilter active={workFilter === "won"} onClick={() => setWorkFilter("won")}>Won</QuickFilter>
+          <QuickFilter active={workFilter === "archived"} onClick={() => setWorkFilter("archived")}>Archived {archivedLeads.length || ""}</QuickFilter>
           <select
             value={relationshipCategoryFilter}
             onChange={event => setRelationshipCategoryFilter(event.target.value as "" | LeadRelationshipCategory)}
@@ -1091,7 +1143,14 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
 
       {closeFor ? <CloseLeadDealModal target={closeFor} onClose={() => setCloseFor(null)} onClosed={() => router.refresh()} /> : null}
 
-      {workFilter === "scouting" ? (
+      {workFilter === "archived" ? (
+        <ArchivedLeads
+          leads={archivedLeads}
+          busy={busy}
+          onRestore={id => void restoreLead(id)}
+          onPurge={(id, label) => void purgeLead(id, label)}
+        />
+      ) : workFilter === "scouting" ? (
         <div id="scouting" className="scroll-mt-24">
           <ScoutingCommand
             prospects={filteredProspects}
@@ -2111,7 +2170,13 @@ function journeyEventLabel(event: LeadJourneyEventView): string {
   if (event.type === "contact-recorded") return "Contact recorded";
   if (event.type === "stage-changed") return `Entered ${stageLabel(event.toStage)}`;
   if (event.type === "meeting-scheduled") return "Meeting scheduled";
-  return "Converted to client";
+  // Before the archive/restore events existed this fell through to "Converted
+  // to client" for anything unrecognised, so a new event type silently claimed
+  // the most consequential label on the screen.
+  if (event.type === "archived") return "Archived";
+  if (event.type === "restored") return "Restored to the board";
+  if (event.type === "converted") return "Converted to client";
+  return "Recorded";
 }
 
 function journeyEventDetail(event: LeadJourneyEventView): string {
@@ -2119,6 +2184,8 @@ function journeyEventDetail(event: LeadJourneyEventView): string {
   if (event.type === "contact-recorded") return [event.channel && stageLabel(event.channel), event.outcome && stageLabel(event.outcome), event.note].filter(Boolean).join(" · ") || "Contact recorded.";
   if (event.type === "enquiry-received" || event.type === "lead-captured") return [event.source && sourceLabel(event.source), event.enquiryId && `Submission ${event.enquiryId}`].filter(Boolean).join(" · ") || "Journey started.";
   if (event.type === "meeting-scheduled" && event.scheduledFor) return `Meeting booked for ${formatUkDateTime(event.scheduledFor)}.`;
+  if (event.type === "archived") return "Taken off the active board. The record and its history were kept.";
+  if (event.type === "restored") return "Put back on the active board with its history intact.";
   return event.note || (event.clientId ? `Client ${event.clientId}` : "Recorded in the journey history.");
 }
 
@@ -2757,8 +2824,88 @@ function clientWorkspaceNotice(data: {
   return `${name}: ${workspace}${login}${portal}`;
 }
 
+/**
+ * The Archived view — the half of "Archive" that never existed.
+ *
+ * Deliberately a plain list rather than the column board: an archived lead has
+ * no column, and rendering it in one would invite somebody to drag it, which
+ * would mean restoring it by accident.
+ */
+function ArchivedLeads({
+  leads,
+  busy,
+  onRestore,
+  onPurge,
+}: {
+  leads: ArchivedLeadView[];
+  busy: string | null;
+  onRestore: (id: string) => void;
+  onPurge: (id: string, label: string) => void;
+}) {
+  if (!leads.length) {
+    return (
+      <section className="mm-surface-card rounded-lg border border-dashed border-black/10 p-8 text-center">
+        <h2 className="text-sm font-semibold text-black/75">Nothing archived</h2>
+        <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-black/45">
+          Archiving a lead takes them off the active board and keeps their record and history here. If they enquire again they come back automatically, with everything they did still attached.
+        </p>
+      </section>
+    );
+  }
+  return (
+    <section className="mm-surface-card rounded-lg border border-black/10 p-3">
+      <div className="mb-3 flex items-start gap-3 rounded-md bg-black/[0.02] p-3">
+        <span aria-hidden className="inline-flex size-9 shrink-0 items-center justify-center rounded-md bg-black/[0.05] text-black/55"><Archive size={16} /></span>
+        <p className="text-xs leading-5 text-black/50">
+          Off the active board, still here. Restore puts a lead back where it left — and if the same person enquires again, they are restored automatically rather than becoming a second record.
+        </p>
+      </div>
+      <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {leads.map(lead => {
+          const label = lead.name || lead.company || lead.email || lead.phone || "lead";
+          return (
+            <li key={lead.id} className="mm-surface-card rounded-lg border border-black/10 p-3">
+              <h3 className="truncate text-sm font-semibold text-black/85">{label}</h3>
+              <p className="mt-0.5 truncate text-xs text-black/50">{lead.company ? `${lead.company} · ` : ""}{lead.email || lead.phone || "Contact details pending"}</p>
+              <p className="mt-2 text-[11px] text-black/42">
+                Archived {lead.archivedAt ? formatUkDateTime(lead.archivedAt) : "—"} · captured {formatUkDateTime(lead.capturedAt)}
+              </p>
+              {lead.tags.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {lead.tags.slice(0, 3).map(tag => <span key={tag} className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[11px] text-black/55">{tag}</span>)}
+                </div>
+              ) : null}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => onRestore(lead.id)}
+                  disabled={busy === `restore:${lead.id}`}
+                  className="min-h-10 flex-1 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
+                >
+                  {busy === `restore:${lead.id}` ? "Restoring..." : "Restore"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onPurge(lead.id, label)}
+                  disabled={busy === `purge:${lead.id}`}
+                  className="min-h-10 rounded-md border border-red-200 bg-white px-3 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                >
+                  {busy === `purge:${lead.id}` ? "Deleting..." : "Delete permanently"}
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 function matchesWorkFilter(lead: LeadView, filter: WorkFilter, clock: number): boolean {
   if (filter === "all") return true;
+  // Archived leads are not in `leads` at all — the Archived view renders its own
+  // list from its own prop, so nothing here should try to match them.
+  if (filter === "archived") return false;
   if (filter === "waiting") {
     const timing = leadTimingSnapshot(lead, clock);
     return timing.awaitingResponse || timing.needsFollowUp || timing.stageStalled;

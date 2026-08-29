@@ -47,7 +47,7 @@ export interface ClientWorkspaceElementAccess {
   clientId: string;
   /** False only for an identity that has not entered canonical governance yet. */
   canonical: boolean;
-  source: "owner-baseline" | "canonical-grant" | "canonical-deny" | "legacy";
+  source: "owner-baseline" | "canonical-grant" | "canonical-deny" | "ceiling-denied" | "legacy";
   capabilities: AccessCapability[];
   levels: Readonly<Partial<Record<AccessElementKey, ClientWorkspaceElementLevel>>>;
   grantIds: string[];
@@ -141,6 +141,31 @@ export function resolveActorClientWorkspaceElementAccess(
   now = Date.now(),
 ): ClientWorkspaceElementAccess {
   const resolution = resolveActorAccess(actor, { kind: "client", id: clientId }, now);
+
+  // A CEILING failure is not "this identity has not been migrated yet".
+  //
+  // The two look identical from here — both arrive with no capabilities and no
+  // grants — but they mean opposite things. An un-migrated identity CAN reach
+  // this client and simply has no governance grants written yet, so the legacy
+  // fallback below is right for it. A ceiling failure means the kernel refused:
+  // the client belongs to another agency, or does not exist. Falling through to
+  // `legacyLevels` answered `manage` for every agency role in exactly that
+  // case — the element layer overruling the refusal it was handed. The two are
+  // distinguishable, and the difference is `ceilingFailure`, so use it.
+  if (resolution.ceilingFailure) {
+    return {
+      clientId,
+      canonical: true,
+      source: "ceiling-denied",
+      capabilities: [],
+      levels: Object.fromEntries(
+        CLIENT_WORKSPACE_ELEMENT_KEYS.map(key => [key, "hidden"]),
+      ) as Partial<Record<AccessElementKey, ClientWorkspaceElementLevel>>,
+      grantIds: [],
+      agencyWidePolicy: false,
+    };
+  }
+
   const activeUserGrants = Object.values(actor.governanceState.accessGrants)
     .filter(grant => activeGrant(actor, grant, now));
   const policyGrantIds = resolution.grantIds.filter(grantId => {

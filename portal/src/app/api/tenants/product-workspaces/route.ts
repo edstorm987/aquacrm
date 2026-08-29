@@ -6,7 +6,7 @@ import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES, CLIENT_ROLES } from "@/server/types";
 import { getClientForAgency } from "@/server/tenants";
 import { logActivity } from "@/server/activity";
-import { ensureDefaultAgencyProducts } from "@/server/agencyProducts";
+import { agencyProductsForRead } from "@/server/agencyProducts";
 import { clientProductWorkspaces, mutateClientProductWorkspaceVersioned } from "@/server/productWorkspaces";
 import { transitionClientProductStage } from "@/server/productStageTransitions";
 import { ProductWorkspaceBusyError, withProductWorkspaceTransaction } from "@/server/productWorkspaceCoordinator";
@@ -137,7 +137,7 @@ export async function POST(req: Request) {
       if (!management) return NextResponse.json({ ok: false, error: "only the delivery team can move product stages" }, { status: 403 });
       if (!STAGES.includes(body?.stage as PortalProductMode)) return NextResponse.json({ ok: false, error: "valid stage required" }, { status: 400 });
       const portalMode = body?.stage as PortalProductMode;
-      const product = ensureDefaultAgencyProducts(session.agencyId).find(item => item.id === productId);
+      const product = agencyProductsForRead(session.agencyId).find(item => item.id === productId);
       if (!product) return NextResponse.json({ ok: false, error: "product is no longer available" }, { status: 404 });
       const lifecycle = (product.internalWorkspace ?? defaultProductInternalWorkspace(product)).lifecycleStages;
       const currentTruth = resolveClientProductStage(client, product);

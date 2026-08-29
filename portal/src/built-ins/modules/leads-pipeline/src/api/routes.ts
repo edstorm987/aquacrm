@@ -4,6 +4,8 @@ import type { PluginApiRoute } from "../lib/aquaPluginTypes";
 import {
   addContactToBoardHandler,
   archiveLeadHandler,
+  restoreLeadHandler,
+  purgeLeadHandler,
   createCommercialStripeCheckoutHandler,
   commercialStripeWebhookHandler,
   convertContactToClientHandler,
@@ -64,6 +66,8 @@ export const ROUTES: PluginApiRoute[] = [
   { path: "leads/contacted", methods: ["POST"], handler: markLeadContactedHandler, visibleToRoles: [...AGENCY_ADMIN] },
   { path: "leads/convert-to-client", methods: ["POST"], handler: convertLeadToClientHandler, visibleToRoles: [...AGENCY_ADMIN] },
   { path: "leads/archive", methods: ["POST"], handler: archiveLeadHandler, visibleToRoles: [...AGENCY_ADMIN] },
+  { path: "leads/restore", methods: ["POST"], handler: restoreLeadHandler, visibleToRoles: [...AGENCY_ADMIN] },
+  { path: "leads/purge", methods: ["POST"], handler: purgeLeadHandler, visibleToRoles: [...AGENCY_ADMIN] },
 
   // CSV import (round goal D)
   { path: "import-csv", methods: ["POST"], handler: importCsvHandler, visibleToRoles: [...AGENCY_ADMIN] },

@@ -24,10 +24,25 @@ export interface TrustedLocalRepositoryPreviewRecord {
   worktreePath: string;
   command: string;
   args: string[];
+  /**
+   * Declared dependency-install command, run once per isolated worktree before
+   * the preview starts (and again when the lockfile fingerprint changes).
+   * Same allowlist as `command`; only meaningful with `isolatedWorktrees`.
+   */
+  installCommand?: string;
+  installArgs?: string[];
+  installTimeoutMs?: number;
   healthPath?: string;
   startupTimeoutMs?: number;
   healthPollIntervalMs?: number;
   env?: Record<string, string>;
+  /**
+   * Run each project's preview inside its own git worktree on the project's
+   * draft branch (`aqua-editor/<projectId>`) instead of the shared checkout.
+   * The isolated worktree is derived server-side from this record's trusted
+   * `worktreePath`; the request never chooses a path or branch.
+   */
+  isolatedWorktrees?: boolean;
   source?: string;
 }
 
@@ -35,10 +50,16 @@ export interface ResolvedLocalRepositoryPreviewConfig {
   worktreePath: string;
   command: string;
   args: string[];
+  /** Resolved dependency-install command; absent means "no install step". */
+  installCommand?: string;
+  installArgs: string[];
+  installTimeoutMs: number;
   healthPath: string;
   startupTimeoutMs: number;
   healthPollIntervalMs: number;
   env: Record<string, string>;
+  /** See TrustedLocalRepositoryPreviewRecord.isolatedWorktrees. */
+  isolatedWorktrees?: boolean;
   source: string;
 }
 
@@ -47,8 +68,12 @@ interface ManifestShape {
   projectIds?: unknown;
   repositories?: unknown;
   allowBlankRepository?: unknown;
+  isolatedWorktrees?: unknown;
   command?: unknown;
   args?: unknown;
+  installCommand?: unknown;
+  installArgs?: unknown;
+  installTimeoutMs?: unknown;
   healthPath?: unknown;
   startupTimeoutMs?: unknown;
   healthPollIntervalMs?: unknown;
@@ -87,9 +112,17 @@ function parseRecord(value: unknown, source: string, implicitWorktree?: string):
     projectIds: stringList(item.projectIds),
     repositories: stringList(item.repositories).map(repository => repository.toLowerCase()),
     allowBlankRepository: item.allowBlankRepository === true,
+    isolatedWorktrees: item.isolatedWorktrees === true,
     worktreePath,
     command: item.command.trim(),
     args: item.args as string[],
+    installCommand: typeof item.installCommand === "string" && item.installCommand.trim()
+      ? item.installCommand.trim()
+      : undefined,
+    installArgs: Array.isArray(item.installArgs) && item.installArgs.every(arg => typeof arg === "string")
+      ? item.installArgs as string[]
+      : [],
+    installTimeoutMs: typeof item.installTimeoutMs === "number" ? item.installTimeoutMs : undefined,
     healthPath: typeof item.healthPath === "string" ? item.healthPath : undefined,
     startupTimeoutMs: typeof item.startupTimeoutMs === "number" ? item.startupTimeoutMs : undefined,
     healthPollIntervalMs: typeof item.healthPollIntervalMs === "number" ? item.healthPollIntervalMs : undefined,
@@ -293,14 +326,30 @@ export async function resolveTrustedLocalRepositoryPreview(
       `This project has no trusted local preview record. Add ${LOCAL_PREVIEW_MANIFEST} to its worktree or configure ${LOCAL_PREVIEW_REGISTRY_ENV}.`,
     );
   }
+  // A dependency install rewrites a lockfile and a node_modules tree. That is
+  // acceptable inside the project's OWN isolated worktree and never acceptable
+  // in the shared checkout somebody is working in, so the pair is refused
+  // rather than silently downgraded to "install into the live tree".
+  if (record.installCommand && record.isolatedWorktrees !== true) {
+    throw new LocalRepositoryPreviewConfigError(
+      "install-requires-isolation",
+      "A preview record may declare an install command only alongside isolatedWorktrees; installing into the shared checkout is refused.",
+    );
+  }
   return {
     worktreePath: await validatedWorktree(record.worktreePath, options.safeRoots),
     command: validatedCommand(record.command),
     args: validatedArgs(record.args),
+    // The install command passes through the SAME allowlist as the launch
+    // command: a trusted record may not smuggle a shell in through it.
+    installCommand: record.installCommand ? validatedCommand(record.installCommand) : undefined,
+    installArgs: validatedArgs(record.installArgs ?? []),
+    installTimeoutMs: boundedInteger(record.installTimeoutMs, 300_000, 1_000, 900_000),
     healthPath: validatedHealthPath(record.healthPath),
     startupTimeoutMs: boundedInteger(record.startupTimeoutMs, 45_000, 250, 120_000),
     healthPollIntervalMs: boundedInteger(record.healthPollIntervalMs, 250, 20, 5_000),
     env: safeEnvironment(record.env),
+    isolatedWorktrees: record.isolatedWorktrees === true,
     source: record.source || "trusted server record",
   };
 }

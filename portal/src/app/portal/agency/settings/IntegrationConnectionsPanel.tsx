@@ -16,6 +16,7 @@ import {
   Plus,
   RefreshCw,
   SearchCheck,
+  Database,
   Server,
   ShieldCheck,
   Trash2,
@@ -53,6 +54,7 @@ type ModalState = {
 };
 
 const providerIcon: Record<IntegrationProvider, typeof Mail> = {
+  "client-supabase": Database,
   resend: Mail,
   smtp: Server,
   twilio: MessageSquareText,

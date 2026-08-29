@@ -1,5 +1,10 @@
 // `@aqua/plugin-fulfillment` — manifest entry.
 //
+// ⚠ AMERICAN spelling, and that is load-bearing. `src/app/portal/agency/
+// fulfilment/` (British) is a SEPARATE hand-rolled workspace that shares no
+// code with this plugin — see hazards-and-duplication.md. One letter apart,
+// two systems.
+//
 // Default-exports the AquaPlugin manifest. The foundation imports this
 // once at boot, registers it into the plugin registry, and (because
 // `core: true`) auto-installs it for every agency.

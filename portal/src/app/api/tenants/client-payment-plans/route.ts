@@ -20,7 +20,7 @@ import {
 } from "@/lib/server/clients/clientRecordLedger";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
-import { ensureDefaultAgencyProducts } from "@/server/agencyProducts";
+import { agencyProductsForRead } from "@/server/agencyProducts";
 import { logActivity } from "@/server/activity";
 import { getInstall } from "@/server/pluginInstalls";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
@@ -120,7 +120,7 @@ export async function POST(request: Request) {
 
   const products = resolvePortalProductAssignment(
     client.metadata ?? {},
-    ensureDefaultAgencyProducts(session.agencyId),
+    agencyProductsForRead(session.agencyId),
   ).products;
   const productById = new Map(products.map(product => [product.id, product]));
   const plans = cleanClientPaymentPlans(client.metadata?.clientPaymentPlans);

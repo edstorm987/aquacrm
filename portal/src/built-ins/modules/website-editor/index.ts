@@ -21,8 +21,6 @@ const websiteEditorPlugin: AquaPlugin = {
 
   requires: [],
 
-  navGroup: { id: "content", label: "Content", order: 10 },
-
   navItems: [
     { id: "editor", label: "Editor", href: "/portal/clients/[clientId]/editor", panelId: "content" },
     { id: "pages", label: "Pages", href: "/portal/clients/[clientId]/pages", panelId: "content" },

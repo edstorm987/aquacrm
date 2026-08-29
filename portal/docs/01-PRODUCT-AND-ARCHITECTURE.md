@@ -2,12 +2,12 @@
 
 > Product shape, portal model, brand architecture and plain-English system explanations.
 >
-> Consolidated 2026-08-27 from **2** source documents / **6,002 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-29 from **2** source documents / **6,068 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`docs/architecture-noobie.md`](#source-docs-architecture-noobie-md) — 1,702 words · `089741ec7a41`
-- [`docs/PRODUCT-ARCHITECTURE.md`](#source-docs-product-architecture-md) — 4,300 words · `88b78ad5b0c9`
+- [`docs/PRODUCT-ARCHITECTURE.md`](#source-docs-product-architecture-md) — 4,366 words · `f824661dcad4`
 
 ---
 
@@ -258,7 +258,7 @@ many companies, everything tagged with whose it is.
 
 ## Source document — `docs/PRODUCT-ARCHITECTURE.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/PRODUCT-ARCHITECTURE.md" sha256="88b78ad5b0c99adbf6f98c0a35cfc9cf6674128fce9ae41abd6c36287b0f1570" -->
+<!-- AQUACRM_SOURCE_START path="docs/PRODUCT-ARCHITECTURE.md" sha256="f824661dcad45e5db4ea490bffaf24e7d5b3c1ca4fa9721bc4d6028770052fbc" -->
 # AquaCRM Product Architecture
 
 Last reviewed: 26 August 2026 (implementation boundary reconciled)
@@ -334,6 +334,13 @@ an approved real path, starts the declared command with `shell:false` on loopbac
 bounds/redacts logs, caps concurrent processes and prevents two access realms from
 controlling the same physical worktree. Start, status, logs, stop and restart are
 separately capability-gated and production refuses this local process feature.
+
+Since 2026-08-27 a record may opt into `isolatedWorktrees`, giving each project a
+git worktree of its own on the draft branch `aqua-editor/<projectId>` so editor
+work accumulates there rather than in the shared checkout, and may declare a
+dependency-install command that runs in that worktree before the server starts.
+An install command without isolation is refused: dependency work must never
+rewrite the checkout a person is using.
 
 The mounted repository preview has now browser-proved Start, Restart with a new
 loopback process, Stop, responsive Preview/Code panes and HTTP 200 for

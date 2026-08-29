@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { accessErrorResponse, requireAccessCapability } from "@/server/accessControl";
 import { requireDevProjectAccess } from "@/lib/server/dev/devProjectAccess";
+import { DevPathScopeError, assertPathInScope, isUnrestricted, scopeAllows } from "@/lib/server/dev/devPathScope";
 import {
   SourceEditUnavailable,
   editBranchName,
@@ -85,6 +86,11 @@ export async function POST(request: NextRequest) {
     const { project } = access;
     const agencyId = access.resourceAgencyId;
     const sourceDeps = { allowSharedCredentials: access.resolution.ownerBaseline };
+    // Publishing an edit names a file; it answers to the same scope everything
+    // else does.
+    if (typeof body?.file === "string" && body.file.trim()) {
+      assertPathInScope(access.pathScope, body.file.trim(), "write");
+    }
     const opensPullRequest = publishes && body?.confirm === true && body.openPullRequest !== false;
     if (opensPullRequest) {
       const scope = { kind: "project" as const, id: project.id };
@@ -129,7 +135,24 @@ export async function POST(request: NextRequest) {
 
       const text = typeof body?.text === "string" ? body.text : "";
       const found = await findWordsInProject({ agencyId, project, text }, sourceDeps);
-      return NextResponse.json({ ok: true, branch: editBranchName(project), ...found });
+      // FILTER THE SEARCH RESULTS.
+      //
+      // This is a repository-wide text search that returns matched lines WITH
+      // their file paths. Guarding only the publish would leave the more direct
+      // leak wide open: a scoped person could search for a secret's name and
+      // read it out of the results without opening a single file they are
+      // allowed to open. `skipped` carries file paths too.
+      const candidates = found.candidates.filter(candidate => scopeAllows(access.pathScope, candidate.file));
+      return NextResponse.json({
+        ok: true,
+        branch: editBranchName(project),
+        ...found,
+        candidates,
+        skipped: found.skipped.filter(entry => entry.file.startsWith("(") || scopeAllows(access.pathScope, entry.file)),
+        // Say the results are partial rather than letting "not found" imply the
+        // words are absent from the repository.
+        scoped: isUnrestricted(access.pathScope) ? undefined : true,
+      });
     } catch (error) {
       if (error instanceof SourceEditUnavailable) {
         return NextResponse.json({
@@ -147,6 +170,9 @@ export async function POST(request: NextRequest) {
       }, { status: 502 });
     }
   } catch (error) {
+    if (error instanceof DevPathScopeError) {
+      return NextResponse.json({ ok: false, error: error.message, code: error.code }, { status: error.status });
+    }
     return accessErrorResponse(error);
   }
 }

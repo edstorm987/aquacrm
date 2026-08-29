@@ -561,7 +561,12 @@ describe("standalone portal nav audit", () => {
     assert.ok(subroute.includes("not available yet"), "customer subroutes should use available/not available language");
     assert.ok(subroute.includes("is being prepared for your account"), "active-but-unexposed systems should read as prepared");
     assert.ok(bookings.includes("scheduling is ready for your account"), "bookings fallback should be customer-friendly");
-    assert.ok(orders.includes('requireRole("end-customer")'), "orders must require a customer session");
+    // The gate widened to the whole client-portal audience on 2026-08-27
+    // (`CUSTOMER_PORTAL_ROLES` — end-customer plus the client roles Ed moved
+    // into their own portal). What must still hold is that orders requires a
+    // PORTAL session, not that it names one role.
+    assert.ok(orders.includes("requireRole([...CUSTOMER_PORTAL_ROLES])"), "orders must require a client portal session");
+    assert.ok(!orders.includes('requireRole("end-customer")'), "orders is back on a bare end-customer gate — client roles are excluded again");
     assert.ok(orders.includes('getInstall({ agencyId: session.agencyId, clientId: session.clientId }, "ecommerce")'), "orders must use the client-scoped commerce install");
     assert.ok(orders.includes("order.endCustomerUserId === session.userId"), "orders must filter by the signed-in customer");
     assert.ok(orders.includes("order.customerEmail?.toLowerCase() === session.email.toLowerCase()"), "guest purchases should match the signed-in email");

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { searchCandidateAccess, type SearchCandidateAccess } from "@/lib/server/access/searchCandidateAccess";
-import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
+import { agencyProductsForRead, listAgencyProducts } from "@/server/agencyProducts";
 import { listClients } from "@/server/tenants";
 import { getState, ensureHydrated } from "@/server/storage";
 import { getActiveDataRealmId } from "@/server/dataRealm";
@@ -114,7 +114,7 @@ export async function GET(request: Request) {
     const warm = url.searchParams.get("warm") === "1";
     if (!query && !warm) return NextResponse.json({ ok: true, results: [] });
 
-    if (!session.publicShowcase) ensureDefaultAgencyProducts(session.agencyId);
+    if (!session.publicShowcase) agencyProductsForRead(session.agencyId);
     const access = session.role === "agency-staff"
       ? searchCandidateAccess(await requireCurrentAccessActor())
       : undefined;

@@ -1,5 +1,15 @@
 "use client";
 
+// The leads-pipeline CSV ROLODEX — not the canonical contacts view.
+//
+// `app/portal/agency/contacts/` is the canonical people/CRM surface, built over
+// `server/persons.ts`, where a contact is one real human with facets. This file
+// is the older import-and-work-a-list surface that belongs to the
+// leads-pipeline plugin.
+//
+// Both are called "contacts" and they are not the same thing. CRM work belongs
+// in the other one; see hazards-and-duplication.md.
+
 import { useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";

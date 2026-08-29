@@ -24,6 +24,7 @@ type Auth = typeof import("../src/lib/server/auth/auth");
 let storage: Storage;
 let tasks: Tasks;
 let tenants: Tenants;
+let users: typeof import("../src/server/users");
 let route: TasksRoute;
 let auth: Auth;
 let agencyId = "";
@@ -38,6 +39,7 @@ before(async () => {
   tenants = await import("../src/server/tenants");
   route = await import("../src/app/api/portal/tasks/route");
   auth = await import("../src/lib/server/auth/auth");
+  users = await import("../src/server/users");
   await storage.ensureHydrated();
 });
 
@@ -45,9 +47,17 @@ beforeEach(async () => {
   await storage.reset();
   const agency = tenants.createAgency({ name: "Task validity smoke", slug: `task-validity-${Date.now()}` });
   agencyId = agency.id;
-  token = auth.issueSession({
-    userId: "usr_task_owner",
+  // Real user record: the central fresh-session boundary (issue #22)
+  // refuses a cookie whose subject does not exist.
+  const owner = users.createUser({
     email: "task-owner@example.com",
+    password: "Task-smoke-1!",
+    role: "agency-owner",
+    agencyId,
+  });
+  token = auth.issueSession({
+    userId: owner.id,
+    email: owner.email,
     role: "agency-owner",
     agencyId,
   });

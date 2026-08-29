@@ -1,5 +1,14 @@
 "use client";
 
+// Aqua Tag ANALYTICS — what the tags have measured: views, conversions, search
+// visibility. Lives under Performance because it is reporting, not setup.
+//
+// `agency/fulfilment/_AquaTagsWorkspace.tsx` is the OTHER Aqua Tag surface,
+// where a site is registered and its key installed. Changing what a tag COLLECTS
+// happens there; changing how it is REPORTED happens here.
+//
+// See docs/workspace/hazards-and-duplication.md.
+
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -165,7 +174,7 @@ function SearchConsolePanel({ client }: { client: PerformanceClient }) {
           <button type="button" onClick={() => void sync(connection)} disabled={busyId === connection.id} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/15 px-3 text-sm font-semibold text-black/65 hover:bg-black/[0.03]"><RefreshCw size={14} className={busyId === connection.id ? "animate-spin" : ""} />{busyId === connection.id ? "Syncing..." : "Sync 90 days"}</button>
         </div>
       ))}</div> : <div className="p-8 text-center"><p className="font-semibold text-black/70">No Search Console connection for this account</p><p className="mt-1 text-sm text-black/45">Connect the exact Google property and map it to an Aqua property.</p></div>) : loadState === "error" ? <div className="p-6 text-sm text-red-700">Connection status is unavailable. Retry the check; no empty-state assumption was made.</div> : <div className="p-6 text-sm text-black/45">Checking the current search setup...</div>}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-black/10 px-5 py-4 text-xs text-black/45 sm:px-6"><span className="inline-flex items-center gap-2"><ShieldCheck size={14} />Encrypted credentials · read-only Google scope</span><Link href="/portal/agency/company?view=connections" className="inline-flex items-center gap-1 font-semibold text-black/60 hover:text-black">Manage all connections <ExternalLink size={12} /></Link></div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-black/10 px-5 py-4 text-xs text-black/45 sm:px-6"><span className="inline-flex items-center gap-2"><ShieldCheck size={14} />Encrypted credentials · read-only Google scope</span><Link href="/portal/agency/company?view=connections" className="inline-flex min-h-6 items-center gap-1 font-semibold text-black/60 hover:text-black">Manage all connections <ExternalLink size={12} /></Link></div>
       {connecting ? <SearchConsoleModal client={client} onClose={() => setConnecting(false)} onSaved={next => { setConnections(next); setLoadState("ready"); setConnecting(false); setMessage("Search Console connection saved. Test or sync it when ready."); }} /> : null}
     </section>
   );

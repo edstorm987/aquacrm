@@ -36,9 +36,12 @@ export type PluginCategory =
   | "commerce"
   | "marketing"
   | "support"
-  | "ops";
+  | "ops"
+  | "fulfillment"
+  | "growth";
 
 export type PluginStatus = "stable" | "beta" | "alpha";
+export type PlanId = "free" | "starter" | "pro" | "enterprise";
 
 // ─── Runtime context ───────────────────────────────────────────────────────
 
@@ -115,11 +118,6 @@ export interface SetupField {
 
 // ─── Sidebar contributions ─────────────────────────────────────────────────
 
-export interface NavGroup {
-  id: string;
-  label: string;
-  order?: number;
-}
 
 export type PluginRoleVisibility =
   | "agency-owner"
@@ -128,7 +126,11 @@ export type PluginRoleVisibility =
   | "client-owner"
   | "client-staff"
   | "freelancer"
-  | "end-customer";
+  | "end-customer"
+  // Added 2026-08-28: the canonical `Role` in src/server/types.ts has always
+  // had "lead", and two modules (bos-auth-gate, public-funnel) already listed
+  // it. Ten copies did not, so the same union meant two things.
+  | "lead";
 
 export interface NavItem {
   id: string;
@@ -207,7 +209,9 @@ export interface PluginFeature {
   description?: string;
   default: boolean;
   requires?: string[];
-  plans?: ("free" | "starter" | "pro" | "enterprise")[];
+  // Named 2026-08-28: this module inlined the union that `PlanId` already
+  // spells out, so the same four plans were written two ways across copies.
+  plans?: PlanId[];
 }
 
 // ─── Health check ──────────────────────────────────────────────────────────
@@ -244,11 +248,24 @@ export interface BlockDescriptor {
 // is part of the shared element vocabulary now, not a plugin-local enum.
 export type BlockCategory = ElementCategory;
 
+/**
+ * Aligned to the canonical shape 2026-08-28.
+ *
+ * This copy had diverged twice over: `render` took a `{ clientId, agencyId }`
+ * context and could return a `ReactNode`, where the canonical in
+ * `runtime/_types.ts` takes the `PluginInstall` and returns `string | null`;
+ * and `position` was missing entirely, so this copy could not express whether
+ * an injection belongs in `<head>` or at body-end.
+ *
+ * Safe to correct: **no module declares `headInjections` at all**, and nothing
+ * in this module referenced the type outside this file. A divergent shape for
+ * something nobody implements is pure future trap — the first person to use it
+ * would have written against a contract the runtime does not honour.
+ */
 export interface HeadInjection {
   id: string;
-  // Returns either a string of HTML (for `<head>`) or a React node tree.
-  // Foundation renders these in document head per (clientId, page).
-  render: (ctx: { clientId?: ClientId; agencyId: AgencyId }) => string | ReactNode;
+  render: (install: PluginInstall) => string | null;
+  position: "head" | "body-end";
   requiresFeature?: string;
 }
 
@@ -281,8 +298,6 @@ export interface AquaPlugin {
   onConfigure?: (ctx: PluginCtx) => Promise<void>;
 
   setup?: SetupStep[];
-
-  navGroup?: NavGroup;
   navItems: NavItem[];
 
   pages: PluginPage[];

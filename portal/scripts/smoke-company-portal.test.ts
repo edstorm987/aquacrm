@@ -508,7 +508,26 @@ describe("Promote endpoint — the boundary", () => {
     // Nothing moved.
     assert.equal(Object.keys(getState().clients).length, clientsBefore);
     assert.equal(getState().clients[f.companyClientId]!.agencyId, f.agencyId, "the client must not have moved");
-    assert.equal(JSON.stringify(getState().agencyProducts), productsBefore);
+    // The ORIGIN's products are untouched — that is what "moves nothing" means.
+    //
+    // Comparing the whole map used to work and stopped meaning anything on
+    // 2026-08-27, when `bootstrapAgency` began seeding a new tenant's one
+    // default product (issue #21 — it used to be seeded by the first page view,
+    // which was a write on eight rendered surfaces). A promoted company is a new
+    // tenant like any other and gets its own Website; what it must never get is
+    // a single record belonging to the agency it came from.
+    const before = JSON.parse(productsBefore) as Record<string, { agencyId: string }>;
+    const after = getState().agencyProducts;
+    for (const [id, product] of Object.entries(before)) {
+      assert.deepEqual(after[id], product, `the origin's product ${id} was altered by a promotion`);
+    }
+    const newTenantProducts = Object.values(after).filter(product => product.agencyId === body.agencyId);
+    assert.equal(newTenantProducts.length, 1, "the new tenant got more than its own default product");
+    assert.equal(newTenantProducts[0]!.name, "Website");
+    assert.equal(
+      Object.keys(after).length, Object.keys(before).length + 1,
+      "a promotion created or moved a product it should not have",
+    );
 
     // Tombstoned, so later phases know which agency to move records into.
     const company = getTradingCompany(f.agencyId, f.companyId)!;
@@ -629,7 +648,10 @@ describe("Promote endpoint — the boundary", () => {
       sessionRev: fresh.sessionRev ?? 0,
     });
     const res = await PROMOTE_POST(...promoteRequest(token, f.companyId));
-    assert.equal(res.status, 403, "the live record is authoritative for role");
+    // The central fresh-session boundary (issue #22) now refuses the forged
+    // cookie before the route runs: an unrecognised session is a 401, and the
+    // live record stays authoritative for role.
+    assert.equal(res.status, 401, "the live record is authoritative for role");
     assert.equal(mintedSession(res), null);
   });
 

@@ -618,17 +618,33 @@ describe("leads-pipeline / LeadService", () => {
     assert.equal(updated?.salesPresentations?.[0]?.title, "Website proposal");
   });
 
-  test("delete archives lead and removes it from active list", async () => {
+  // Rewritten with issue #62: `delete()` became `purge()`, and `archive()` is
+  // now the reversible thing the button always claimed to be.
+  test("archive takes the lead off the active list but keeps the record", async () => {
     const w = buildWorld();
     const c = buildLeadsPipelineContainer({
       agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
       events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
     });
     const r = await c.leads.upsert({ email: "archive@x.com", source: "manual" }, ACTOR);
-    assert.equal(await c.leads.delete(r.lead.id, ACTOR), true);
-    assert.equal(await c.leads.get(r.lead.id), null);
-    assert.equal((await c.leads.list()).length, 0);
+    assert.ok(await c.leads.archive(r.lead.id, ACTOR));
+    assert.equal((await c.leads.list()).length, 0, "an archived lead is still on the active board");
+    assert.ok(await c.leads.get(r.lead.id), "the record was destroyed by an archive");
+    assert.equal((await c.leads.list({ archived: "only" })).length, 1);
     assert.equal(w.events.some(e => e.name === "leads.lead.archived"), true);
+  });
+
+  test("purge is the permanent one, and says so", async () => {
+    const w = buildWorld();
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+    });
+    const r = await c.leads.upsert({ email: "purge@x.com", source: "manual" }, ACTOR);
+    assert.equal(await c.leads.purge(r.lead.id, ACTOR), true);
+    assert.equal(await c.leads.get(r.lead.id), null);
+    assert.equal((await c.leads.list({ archived: "include" })).length, 0);
+    assert.equal(w.events.some(e => e.name === "leads.lead.purged"), true);
   });
 });
 

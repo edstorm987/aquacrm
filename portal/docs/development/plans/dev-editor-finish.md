@@ -112,8 +112,11 @@ repository: requests cannot supply the root, command, arguments, port, environme
 shell; the local/test-only supervisor binds loopback, bounds/redacts logs, caps processes,
 locks the physical worktree and serialises start/restart ownership. The mounted browser
 completed Start, Restart and Stop, responsive Preview/Code switching and HTTP 200 for
-`/aqua-tag.js`. This does not complete clone/worktree/install automation or the full
-edit/check/PR/failure browser journey.
+`/aqua-tag.js`. **Per-project isolated branch/worktree create-or-resume landed
+2026-08-27** (opt-in through the trusted record's `isolatedWorktrees`), so an
+uncommitted edit now survives stop/restart without touching the shared checkout.
+This still does not complete clone-from-remote or declared dependency-install
+automation, nor the full edit/check/PR/failure browser journey.
 
 
 ## Where we are today (refreshed against the tree, 2026-08-26)
@@ -693,17 +696,105 @@ edit/check/PR/failure browser journey.
     fetch/XHR wrappers and the protocol drift guards. The UI states the browser
     limitation rather than pretending document/image loads are throttled.
 
-17. 🟡 **Preview lifecycle browser-proven; finish managed authoring/failure acceptance.**
+17. 🟡 **Preview lifecycle browser-proven; isolated worktrees landed 2026-08-27;
+    finish managed authoring/failure acceptance.**
     The trusted supervisor/control, exact-project route and direct project/element
     gates are implemented and focused-tested. A real mounted repository preview now
     proves Start, Restart with a replacement loopback process, Stop, responsive Preview/
-    Code panes and `/aqua-tag.js` HTTP 200. The remaining acceptance path is:
-    select an authorised project → create/resume its isolated branch/worktree →
-    prepare its supervised preview → health/logs ready → inspect an element →
+    Code panes and `/aqua-tag.js` HTTP 200.
+
+    **✅ The lifecycle head — isolated branch/worktree — is now implemented**
+    (`src/lib/server/dev/localRepositoryPreviewWorktree.ts`). A trusted record
+    that sets `isolatedWorktrees: true` makes the supervisor create — or resume —
+    a git worktree per project on the SAME draft branch the repo-write publish
+    path uses (`aqua-editor/<projectId>`), under
+    `<trusted worktree>/.aqua-preview-worktrees/<projectId>` so nothing is ever
+    written outside the configured safe roots. The preview command then runs
+    there instead of the shared checkout, which is what makes an uncommitted
+    visual/source/AI edit survive stop/restart. The request still supplies no
+    path, branch or git argument; git is spawned directly (no shell) with a
+    minimal environment and `GIT_TERMINAL_PROMPT=0`. **Resume never destroys:**
+    a directory that is not a worktree, or is parked on another branch, is a
+    `worktree-conflict` refusal surfaced as `configuration-error` with an
+    operator sentence — never a delete or a checkout over somebody's work. A
+    hand-deleted worktree is recovered by `git worktree prune` + re-add, and the
+    branch's committed draft work comes back with it. `node_modules` is linked
+    from the trusted checkout for runtime readiness; env files deliberately are
+    NOT. Records without the flag keep the previous shared-checkout behaviour
+    exactly. Pinned by `scripts/smoke-local-preview-worktree.test.ts`
+    (**21/21**, `npm run smoke:preview-worktree`) against real temporary git
+    repositories, alongside the existing preview suites (**50/50** combined).
+
+    **✅ Dependency/start readiness also landed 2026-08-27.** A record may declare
+    `installCommand`/`installArgs`/`installTimeoutMs`. The supervisor then reports
+    a new `installing` lifecycle state, runs that command in the project's OWN
+    worktree, streams its output into the operator-visible log, and records a
+    readiness marker fingerprinted over the lockfiles plus `package.json` — so a
+    resumed preview skips a multi-minute install while a changed lockfile always
+    reinstalls. A failed, timed-out or missing-runtime install is `install-failed`
+    with the reason and its own output, records nothing, retries next start, and
+    never reaches port allocation or spawn. The install command passes the same
+    allowlist as the launch command (a `/bin/sh -c` install is `untrusted-command`),
+    and **declaring an install without `isolatedWorktrees` is refused outright**
+    (`install-requires-isolation`): dependency work must never rewrite the shared
+    checkout somebody is using. AquaCRM's own committed manifest therefore stays
+    install-free, pinned by a test. Clone-from-remote remains open.
+
+    **✅ Two more named failure paths are closed in source (2026-08-27).**
+    *Stale preview:* the pure preview state machine now drops any status or
+    response snapshot that names a different project, so a poll still in flight
+    when the operator switches project cannot hand the new project the old
+    one's lifecycle state or its loopback `previewUrl` — which the editor would
+    otherwise load into its frame. The component already aborted those
+    requests; the rule is now enforced where it is provable without a browser
+    (`smoke-local-repository-preview-ui` **8/8**). *Rejected AI change:* Aqua
+    Editor AI has no write path at all — a contract test asserts that no
+    Editor-AI module or route references `repoWrite`/`sourceEdit`/`publishEdits`
+    or their exported writers (and that the detector catches the real write
+    route, so it cannot pass vacuously), and a behavioural test proves a reply
+    proposing an edit leaves every record except the conversation
+    byte-identical. A suggestion nobody accepts has nothing to undo
+    (`smoke-aqua-editor-ai-reply` **22/22**).
+
+    The remaining acceptance path is:
+    select an authorised project → ~~create/resume its isolated branch/worktree~~ →
+    ~~dependency/start readiness and logs~~ → prepare its supervised preview →
+    health/logs ready → inspect an element →
     visual/source/AI change → diff → save/reload → tests → commit/PR → stop/restart →
-    exact change retained. Prove dependency/start failure, occupied port, crashed
-    process, dynamic-loopback CSP, stale preview, rejected AI change, dirty project/mode/surface/refresh
-    transitions and unauthorised cross-project attempts. Run the remote tagged-site
+    exact change retained. ~~Prove dependency/start failure, occupied port, crashed
+    process, dynamic-loopback CSP, stale preview, rejected AI change~~ and
+    unauthorised cross-project attempts — all now source/focused-test proven.
+    **✅ The mounted lifecycle is now browser-accepted (2026-08-27, isolated
+    `sandbox:fork` lane on 3047; 3032 untouched).** Against a fixture repository
+    registered with `isolatedWorktrees`, a real Dev Workspace drove Start →
+    Preview ready on loopback → an uncommitted worktree edit → Restart onto a
+    NEW port with the edit retained and `/aqua-tag.js` 200 → Logs showing
+    *"uncommitted edits are retained"* → Stop, with the edit still on disk as
+    `M index.html`. A second project proved exact-project binding and
+    stale-preview isolation (Not running, no iframe, no trace of A's ports;
+    Start refused *"no trusted local preview record"* without disturbing A).
+    No overflow at 320/375/812/768/1024/1280/1920 or at 200% zoom; 44px targets
+    at 320px; no application console errors. Ed's repository ended with the same
+    HEAD, zero `aqua-editor/*` branches and one worktree; the shared state file
+    was byte-identical.
+
+    What genuinely remains is the rest of the MOUNTED matrix: **the authoring
+    walk, which is blocked on Ed's GitHub credentials.** A repository-backed
+    project does not write to local disk at all — `site-editor/files` POST
+    refuses it with 409 (`:382`) and the edit commits through `repo-write` to
+    the draft branch — so edit → save → diff → commit → PR needs a real
+    connection. The blank "this workspace" project does write locally, but that
+    path is owner + local-Dev-Mode only
+    (`requireWholeWorkingTreeFounderAccess`, `:363`) and mutates Ed's own
+    checkout, which is why the 2026-08-27 browser session did not press Save.
+    *(A 🔴 raised in that session, claiming this was an ungated route into
+    AquaCRM's tree, was wrong and is retracted — see [issues #161](../issues.md).
+    Pointing repository-backed saves at the managed worktree instead of a
+    per-save commit remains a genuine design evolution this plan describes, but
+    it is not an open hole.)* Also remaining: the dirty
+    project/mode/surface/refresh transitions (issue #19's browser half),
+    commit/PR/merge (needs Ed's GitHub credentials), and clone-from-remote. Run
+    the remote tagged-site
     bridge as a separate optional matrix, not as a prerequisite for repo preview.
 
 18. 🟡 **Finish putting the WHOLE editor in a client portal.** Ed's end state, and he was precise
@@ -742,6 +833,100 @@ edit/check/PR/failure browser journey.
     intended in-portal placement and browser-prove a real client owner/staff can see only
     their project, use only granted editor elements, retain edits across reload and request
     extra access without seeing internal Dev Team.
+
+    **✅ The client-identity boundary is now proven at the route level (2026-08-27),
+    `scripts/smoke-client-dev-workspace.test.ts` (8/8, `npm run smoke:client-dev-workspace`).**
+    A real `client-owner` — not a staff member wearing a label — with an exact project grant
+    lists **only** that project (a sibling client's repository appears nowhere in the payload),
+    reads its own project's source through the grant, is refused the sibling's project and its
+    preview in every lifecycle action, and cannot reach Aqua's working tree even under
+    `withDevMode`. The client role **by itself** grants nothing (no grant → no projects, no
+    preview), and holding a project grant discloses neither the agency master tag nor the
+    connection catalogue. A rotated live record refuses the client's cookie, so issue #22's
+    boundary reaches this surface too.
+
+    **Two things that audit found, both recorded rather than assumed:** the access ceiling
+    only lets a client role reach a project whose `clientId` is their own
+    (`userCanReachScope`) — so **Ed must attach the project to the client record**, and a
+    grant on an unattached project is inert by design; and a client can currently distinguish
+    "ungranted but exists in this agency" (403) from "does not exist" (404), which is the
+    established agency convention but a cross-client disclosure worth a decision
+    (→ [issues #163](../issues.md)).
+
+    **✅ The client's portal is the EXISTING customer portal** (Ed, 2026-08-27:
+    *"existing customer portal actually meant to be"*). So phase 18 does not build a
+    second portal — it re-points `client-owner`/`client-staff` at
+    `/portal/customer` and widens that layout's `requireRole("end-customer")` gate
+    to the client roles it was always for, taking care not to disturb the
+    end-customer journeys (orders, membership, bookings) sharing the surface.
+
+    **✅ Placement DECIDED by Ed, 2026-08-27** (recorded in full with his words in
+    [notes.md](../notes.md)). The line is drawn by audience, not by feature:
+    `/portal/clients/<clientId>` is the **internal** workspace for Ed and his
+    employees, and the editor mounts there anyway for internal work; **a client's own
+    portal is where a client touches anything**, with the editor **optionally toggled
+    on per client** when that client has a website or software project. Off by default —
+    having a project does not hand the client an editor. The toggle decides whether the
+    surface is offered; the exact project grant still decides what it can do.
+
+    **The concrete build this implies, and the blocker to clear first**
+    *(deliberately bulleted, not numbered: a numbered list inside a phase is parsed as
+    another task by `devTeamTasks.parsePhases`, and a second "1." in this section would
+    collide with phase 1's id):*
+    - 🟠 **A client role lands in the INTERNAL workspace — but cannot act there.**
+      `src/app/portal/page.tsx:20` sends `client-owner`/`client-staff` to
+      `/portal/clients/<clientId>`. Investigated 2026-08-27: the internal mutation
+      routes already refuse a client role **by role, before any grant** —
+      `client-properties` is `requireRoleForClient([...AGENCY_ROLES])` (`:144`),
+      `customer-portal-control` 401s a non-agency role (`:100`) — and a client is
+      refused even holding `client.portal.manage` on its own client. Pinned by
+      `scripts/smoke-client-role-workspace-boundary.test.ts` (**6/6**), which also
+      proves an agency identity still works. So this is a **product/UX separation,
+      not an exposure**, and can be done deliberately rather than urgently.
+      **The destination does not exist yet:** `/portal/customer` is
+      `requireRole("end-customer")` (the client's own customers) and
+      `/client-preview/<id>` is an agency-side preview of it, so there is no
+      client-facing portal for a `client-owner`. Moving the redirect means building
+      one — or deliberately re-designating the customer portal as the client's. That
+      is the real content of "decide the actual client-portal placement", and it is
+      Ed's call.
+    - **The toggle mechanism already exists** and should be reused rather than invented:
+      per-client capability is `getInstall({ agencyId, clientId }, pluginId)` with
+      `enabled` (`src/server/pluginInstalls.ts`), which is exactly how the customer
+      portal already decides whether Finance/Orders appear
+      (`app/portal/customer/_portalData.ts:319`). The editor toggle belongs there — **not**
+      in `ClientPortalDesignDocument`, which is presentation (theme/chrome/pages/blocks)
+      and would be the wrong home for authority.
+    - Then: surface the editor inside the client's portal behind toggle **and** grant,
+      and browser-prove a real client session — sees only its project, uses only granted
+      elements, retains edits across reload, can request more access, and never sees
+      internal Dev Team material.
+
+    **✅ The provisioning rule is now built and pinned (2026-08-27).**
+    `src/server/clientProjectAccess.ts` is the ONE place that decides what a client
+    receives when a website/software product is attached (or the toggle goes on):
+    `grantClientProjectAccess()` gives the client's **own** people — `client-owner`
+    and `client-staff`, never their end-customers — a grant whose scope is
+    **always** `{ kind: "project", id }` and never agency, client or workspace.
+    It **refuses** a project that is not attached to that client
+    (`project_not_attached_to_client`, 409) rather than writing a grant the access
+    ceiling would silently render inert — which is what a grant on AquaCRM's own
+    internal project, or on another client's site, would be. A foreign project id
+    answers exactly like an invented one. The default hands over the editor, the
+    code and the preview, and deliberately **withholds** publish, PR, deploy, AI,
+    connection management and the local process controls — each stays a separate,
+    deliberate decision. `revokeClientProjectAccess()` takes it back immediately and
+    leaves the project attached; what survives is `access.request` alone, because
+    asking grants nothing and the right to ask is never withdrawn — that is the
+    request-access half of the journey. Pinned by
+    `scripts/smoke-client-project-access.test.ts` (12/12) plus the client-identity
+    route suite (8/8): **20/20** through `npm run smoke:client-dev-workspace`.
+
+    Still open for phase 18: the client-redirect decision above, calling this
+    provisioning from the product-attach flow and a per-client toggle
+    (`portalTemplateKey` is already `website` / `custom-software`, and
+    `getInstall(...).enabled` is the toggle mechanism), the portal mount itself, the
+    mounted browser walk with a real client session, and retaining edits across reload.
 
     **Do not call complete before 17.** Putting an
     editor that has never run in a browser in front of somebody who is not Ed is how

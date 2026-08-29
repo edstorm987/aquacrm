@@ -7,9 +7,19 @@ import type { ComponentType, ReactNode } from "react";
 import type { AgencyId, ClientId, PluginInstall, UserId } from "./tenancy";
 
 export type PluginCategory =
-  | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "growth";
+  | "core"
+  | "content"
+  | "commerce"
+  | "marketing"
+  | "support"
+  | "ops"
+  | "fulfillment"
+  | "growth";
 export type PluginStatus = "stable" | "beta" | "alpha";
-export type ScopePolicy = "agency" | "client" | "either";
+// Renamed from `ScopePolicy` 2026-08-28 to match the canonical name in
+// src/built-ins/runtime/_types.ts. Ten copies used the short name, one used
+// the canonical — and the majority was the divergent side.
+export type PluginScopePolicy = "agency" | "client" | "either";
 
 export interface PluginCtx {
   agencyId: AgencyId;
@@ -71,10 +81,13 @@ export interface SetupField {
   helpText?: string;
 }
 
-export interface NavGroup { id: string; label: string; order?: number; }
 export type PluginRoleVisibility =
   | "agency-owner" | "agency-manager" | "agency-staff"
-  | "client-owner" | "client-staff" | "freelancer" | "end-customer";
+  | "client-owner" | "client-staff" | "freelancer" | "end-customer"
+  // Added 2026-08-28: the canonical `Role` in src/server/types.ts has always
+  // had "lead", and two modules (bos-auth-gate, public-funnel) already listed
+  // it. Ten copies did not, so the same union meant two things.
+  | "lead";
 export interface NavItem {
   id: string;
   label: string;
@@ -161,6 +174,30 @@ export interface HealthStatus {
   components?: Record<string, { ok: boolean; message?: string }>;
 }
 
+/**
+ * Who is being erased — supplied to `onEraseClient` so a hook does not have to
+ * re-derive it through its own tenant port.
+ *
+ * Added to this copy 2026-08-28. It was already in the canonical contract and
+ * in four other modules; this module's vendored signature took only
+ * `(ctx, clientId)`, so its hook could not receive the subject the runtime
+ * ALREADY passes (`clientErasure.ts:457`).
+ *
+ * That mattered beyond tidiness: this module's hook matches rows by
+ * `clientId`, and the canonical comment says the subject exists for data that
+ * "predates the client existing at all". A row belonging to the same person but
+ * not carrying this `clientId` cannot be found by id — and until now the type
+ * offered no other way to find it.
+ */
+export interface ErasureSubject {
+  /** Every address the client workspace knows for this person, lowercased. */
+  emails: string[];
+  /** The client's display name at erasure time (for matching by name). */
+  name?: string;
+  /** The client record's metadata — leadId / contactId / linkedContacts / … */
+  metadata: Record<string, unknown>;
+}
+
 export interface AquaPlugin {
   id: string;
   name: string;
@@ -171,7 +208,7 @@ export interface AquaPlugin {
   description: string;
   icon?: ReactNode;
   core?: boolean;
-  scopePolicy?: ScopePolicy;
+  scopePolicy?: PluginScopePolicy;
   // Erasure disposition — "retain" excludes this plugin's client data from the
   // client-erasure sweep (legal hold). Default "delete". See clientErasure.ts.
   dataDisposition?: "delete" | "retain";
@@ -182,12 +219,11 @@ export interface AquaPlugin {
   // Right-to-be-forgotten. Strips the subject's PII from this plugin's records
   // while keeping the de-identified financial shell (legal hold). Takes
   // precedence over `dataDisposition`. See clientErasure.ts.
-  onEraseClient?: (ctx: PluginCtx, clientId: string) => Promise<void>;
+  onEraseClient?: (ctx: PluginCtx, clientId: string, subject?: ErasureSubject) => Promise<void>;
   onEnable?: (ctx: PluginCtx) => Promise<void>;
   onDisable?: (ctx: PluginCtx) => Promise<void>;
   onConfigure?: (ctx: PluginCtx) => Promise<void>;
   setup?: SetupStep[];
-  navGroup?: NavGroup;
   navItems: NavItem[];
   pages: PluginPage[];
   api: PluginApiRoute[];

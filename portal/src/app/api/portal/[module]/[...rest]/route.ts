@@ -27,6 +27,9 @@ import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { clientIdFromPortalReferer } from "@/lib/server/pluginRequestScope";
 import { resolveApiTenantScope, tenantScopeSession } from "@/lib/server/portal/apiTenantScope";
 import { getClient } from "@/server/tenants";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
+import { clientElementForModule, clientElementLevelForMethod } from "@/lib/server/portal/pluginClientElement";
+import { accessErrorResponse } from "@/server/accessControl";
 
 interface RouteParams {
   params: Promise<{ module: string; rest: string[] }>;
@@ -107,6 +110,31 @@ async function dispatch(req: NextRequest, params: RouteParams["params"], method:
   // Feature gate.
   if (route.requiresFeature && !install.features[route.requiresFeature]) {
     return NextResponse.json({ ok: false, error: "feature_disabled" }, { status: 404 });
+  }
+
+  // CLIENT ELEMENT. The gap this catch-all carried: tenant, role and feature
+  // were decided, but not WHICH client element a client-scoped call belongs to
+  // — so a governed identity holding, say, only Fulfilment could still reach a
+  // client's Ecommerce or Memberships API through here, because nothing asked.
+  //
+  // Only applies when the call is genuinely client-scoped and the module has a
+  // classified owner; an unmapped module keeps today's behaviour rather than
+  // being handed an invented element. `requireCurrentClientWorkspaceElementAccess`
+  // keeps its own migration rule, so an entirely un-migrated identity retains
+  // legacy behaviour and only governed identities are enforced.
+  if (session && scopeClientId) {
+    const element = clientElementForModule(moduleId);
+    if (element) {
+      try {
+        await requireCurrentClientWorkspaceElementAccess(
+          scopeClientId,
+          element,
+          clientElementLevelForMethod(method),
+        );
+      } catch (error) {
+        return accessErrorResponse(error);
+      }
+    }
   }
 
   const ctx: PluginCtx = {

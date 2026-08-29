@@ -32,6 +32,7 @@ import { addSidebarAttention } from "@/lib/server/sidebarAttention";
 import { listOperationalAlertViews } from "@/lib/server/inbox/operationalAlertPreferences";
 import { NotificationAttentionProvider } from "@/components/chrome/NotificationAttentionProvider";
 import { RadarQuickLookControl } from "@/components/chrome/RadarQuickLookControl";
+import { withPersonalChrome } from "@/lib/server/chrome/personalPanels";
 
 export default async function AgencyLayout({ children }: { children: ReactNode }) {
   await ensureHydrated();
@@ -135,9 +136,9 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
     operationalAlerts = await getRequestOperationalAlerts(agency.id);
   }
   const alertViews = listOperationalAlertViews(agency.id, session.userId, operationalAlerts);
-  const panels = addSidebarAttention(basePanels, alertViews.filter(alert =>
+  const panels = await withPersonalChrome(addSidebarAttention(basePanels, alertViews.filter(alert =>
     alert.attention || (alert.persistentUntilResolved && alert.state !== "parked")
-  ));
+  )));
 
   // Best-effort current path for "active" highlighting. Falls back to ""
   // when the header isn't present (some preview environments).
@@ -163,7 +164,7 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
     <>
       <ThemeInjector brand={agency.brand} scope="agency" />
       <NotificationAttentionProvider initialAlerts={alertViews}>
-      <div className="mm-portal-root flex h-dvh overflow-hidden">
+      <div className="mm-portal-root flex h-[var(--aqua-shell-h,100dvh)] overflow-hidden">
         <Sidebar
           panels={panels}
           tenantLabel={workspaceName}

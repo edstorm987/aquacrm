@@ -140,9 +140,31 @@ describe("the editor's Settings tab configures ONLY the project you are in", () 
   it("points at the Aqua Editor AI key without ever holding it", () => {
     assert.match(panel, /Aqua Editor AI key/);
     assert.match(panel, /aiConfigured/);
-    assert.equal(/token|apiKey|secret/i.test(code(panel).replace(/aiConfigured/g, "")
-      .replace(/agency token/g, "")), false,
+
+    // Two scans, because one word list cannot do both jobs.
+    //
+    // `code()` strips COMMENTS so prose about a defect never reads as the
+    // defect. It does not strip user-facing COPY, and the panel now carries the
+    // sentence *"Delegated access never falls back to an agency or server
+    // token."* — a promise that no token is used, which the old scan read as a
+    // token being used. Stripping sentences fixes that, but stripping every
+    // string literal would hide a hardcoded key, so:
+    //
+    //   1. over the code with SENTENCES removed: no token-shaped identifier;
+    //   2. over the WHOLE panel including copy: no key-shaped literal.
+    // One quoted run, no quote or newline inside it, containing a space — i.e.
+    // a sentence of user-facing copy. (A backreference with lazy quantifiers
+    // spanned from one literal into the next and left tails behind.)
+    const sentences = /(["'`])[^"'`\n]*\s[^"'`\n]*\1/g;
+    const identifiers = code(panel)
+      .replace(sentences, '""')
+      .replace(/aiConfigured/g, "");
+    assert.equal(/token|apiKey|secret/i.test(identifiers), false,
       "the settings panel may know WHETHER a key is set, never the key");
+
+    // A real key never survives as prose, so this scan keeps the copy in.
+    assert.equal(/\b(sk|pk|ghp|gho|github_pat)[-_][A-Za-z0-9_-]{16,}/.test(panel), false,
+      "a key-shaped literal is embedded in the settings panel");
   });
 });
 

@@ -21,6 +21,10 @@
 // Everything here drives the real POST handlers in-process (issueSession +
 // NextRequest), so it fails against the behaviour, not the source text.
 
+// Load-bearing FIRST import: installs the AsyncLocalStorage global that Next's
+// own request store needs, before anything from `next/` is evaluated.
+import { withSession } from "./dev-console-request-scope";
+
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
@@ -29,7 +33,7 @@ import { POST } from "../src/app/api/auth/dev-mode/route";
 import { POST as previewFreelancerPOST } from "../src/app/api/auth/preview-as-freelancer/route";
 import { createFreelancer, listAgencyFreelancers } from "../src/server/freelancerAdmin";
 import { issueSession, verifyToken, SESSION_COOKIE_NAME } from "../src/lib/server/auth/auth";
-import { ensureHydrated } from "../src/server/storage";
+import { ensureHydrated, runInDataRealm } from "../src/server/storage";
 import { createAgency } from "../src/server/tenants";
 import { createUser } from "../src/server/users";
 
@@ -111,8 +115,12 @@ describe("Dev Mode identity — multi-hop, and the way out", () => {
         assert.equal(hop.status, 200, `hop to ${persona} succeeded`);
         current = cookieFrom(hop)!;
         const payload = verifyToken(current);
-        assert.equal(payload!.devReturnUserId, owner.id, `the ${persona} hop still knows who to return to`);
-        assert.equal(payload!.devReturnAgencyId, agency.id, `the ${persona} hop still knows where to return to`);
+        // The stash moved into the signed sandbox envelope when Dev Mode began
+        // entering through `enterSandboxEnvironment` (26 Aug consolidation).
+        // The PROPERTY is unchanged and is what the exit below actually proves;
+        // these two lines pin the mechanism that carries it.
+        assert.equal(payload!.sandbox?.returnUserId, owner.id, `the ${persona} hop still knows who to return to`);
+        assert.equal(payload!.sandbox?.returnAgencyId, agency.id, `the ${persona} hop still knows where to return to`);
       }
 
       const exit = await POST(devModeRequest(current, { action: "exit" }));
@@ -149,9 +157,17 @@ describe("Dev Mode identity — multi-hop, and the way out", () => {
     // between the two siblings is otherwise invisible, and someone tidying them
     // into agreement would strand or escalate without a single test moving.
     const { agency, owner } = await seedRealFounder();
+    // In the real flow this persona user is seeded by Dev Mode; the central
+    // fresh-session boundary (issue #22) refuses a subject that never existed.
+    const persona = createUser({
+      email: `legacy-persona-${agency.id}@demo.test`,
+      password: "Legacy-persona-1!",
+      role: "agency-staff",
+      agencyId: "demo-agency",
+    });
     const legacy = issueSession({
-      userId: `demo-persona-${agency.id}`,
-      email: "someone@demo.test",
+      userId: persona.id,
+      email: persona.email,
       role: "agency-staff",
       agencyId: "demo-agency",
       agencyIds: ["demo-agency"],
@@ -184,31 +200,56 @@ describe("Dev Mode × freelancer preview — the way out must survive both", () 
       const inspecting = cookieFrom(inspect)!;
       const demoAgencyId = verifyToken(inspecting)!.agencyId;
       assert.notEqual(demoAgencyId, agency.id, "the inspection really is fenced to the demo tenant");
-      assert.equal(verifyToken(inspecting)!.devReturnAgencyId, agency.id);
-      assert.equal(verifyToken(inspecting)!.devReturnUserId, owner.id);
+      // The inspection's way back now travels in the signed sandbox envelope.
+      assert.equal(verifyToken(inspecting)!.sandbox?.returnAgencyId, agency.id);
+      assert.equal(verifyToken(inspecting)!.sandbox?.returnUserId, owner.id);
 
       // 2. …and previews the demo tenant's own seeded freelancer from
       //    /portal/agency/freelancers while inside it. Two mints happen here,
       //    and BOTH used to drop the dev markers.
-      const demoFreelancer = listAgencyFreelancers(demoAgencyId)[0];
+      // The demo tenant lives in its own data realm since the 26 Aug
+      // consolidation, so read it through the realm the app's own cookie names.
+      const demoRealmId = verifyToken(inspecting)!.sandbox?.realmId;
+      assert.ok(demoRealmId, "the inspection carries its sandbox realm");
+      const demoFreelancer = await runInDataRealm(demoRealmId!, async () => {
+        await ensureHydrated({ preserveExplicitRealm: true });
+        return listAgencyFreelancers(demoAgencyId)[0];
+      });
       assert.ok(demoFreelancer, "the demo tenant seeds a freelancer to preview");
-      const enter = await previewFreelancerPOST(previewRequest(inspecting, { employeeId: demoFreelancer.employeeId }));
+      // The preview handler resolves its data realm from the REQUEST STORE, so
+      // calling it bare leaves it on the live realm and it cannot see the demo
+      // tenant it is being asked about. A real browser request always has one.
+      const enter = await withSession(inspecting, () => previewFreelancerPOST(
+        previewRequest(inspecting, { employeeId: demoFreelancer.employeeId }),
+      ));
       assert.equal(enter.status, 200);
       const previewing = verifyToken(cookieFrom(enter)!)!;
       assert.equal(previewing.role, "freelancer");
-      assert.equal(previewing.devReturnAgencyId, agency.id, "the inspection's return agency survives the preview mint");
+      // THE regression this file exists for: a preview taken mid-inspection must
+      // not drop the way out. It used to carry `devReturn*` faithfully while the
+      // envelope fell on the floor — the same blocker in a new coat.
+      assert.equal(previewing.sandbox?.returnAgencyId, agency.id, "the inspection's return agency survives the preview mint");
       assert.equal(previewing.previewReturnAgencyId, demoAgencyId, "…alongside the preview's own return pointer");
-      assert.equal(previewing.devReturnUserId, owner.id, "…and so does the person to return to");
+      assert.equal(previewing.sandbox?.returnUserId, owner.id, "…and so does the person to return to");
 
       // 3. Exit the preview: back to the inspection, still knowing the way out.
-      const previewExit = await previewFreelancerPOST(previewRequest(cookieFrom(enter), { action: "exit" }));
+      const previewExit = await withSession(cookieFrom(enter)!, () => previewFreelancerPOST(
+        previewRequest(cookieFrom(enter), { action: "exit" }),
+      ));
       assert.equal(previewExit.status, 200);
       const afterPreview = verifyToken(cookieFrom(previewExit)!)!;
-      assert.equal(afterPreview.devReturnAgencyId, agency.id, "the Dev Mode return path is not destroyed by the round trip");
-      assert.equal(afterPreview.devReturnUserId, owner.id);
-      // The POV bar in /portal/layout.tsx renders on `isDemo && devReturnAgencyId`
-      // — the founder's only visible way home.
-      assert.ok(afterPreview.isDemo && afterPreview.devReturnAgencyId, "the POV bar can render");
+      assert.equal(afterPreview.sandbox?.returnAgencyId, agency.id, "the Dev Mode return path is not destroyed by the round trip");
+      assert.equal(afterPreview.sandbox?.returnUserId, owner.id);
+      // The founder's visible way home. `/portal/layout.tsx:64-68` branches:
+      // a session carrying a sandbox envelope gets `<SandboxModeSwitcher>`, and
+      // only a legacy `isDemo && devReturnAgencyId` session gets the old
+      // `<DevModeSwitcher>`. Either way SOMETHING must render, or the founder is
+      // welded into the demo tenant with only a logout to escape — which is the
+      // blocker this whole test exists for.
+      assert.ok(
+        afterPreview.sandbox || (afterPreview.isDemo && afterPreview.devReturnAgencyId),
+        "a way home renders after the round trip",
+      );
 
       // 4. And the way out actually works — no 409, and it is Ed who comes back.
       const devExit = await POST(devModeRequest(cookieFrom(previewExit), { action: "exit" }));

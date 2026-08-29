@@ -9,7 +9,13 @@ const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
 test("sidebar uses real icons and presents the merged people hub as Journey", () => {
   const link = read("src/components/chrome/SidebarNavLink.tsx");
   const layout = read("src/lib/chrome/sidebarLayout.ts");
-  assert.match(link, /pipelines:\s*Ship/);
+  // The icon map moved to `navIcons.ts` on 2026-08-27 so the saved-tab icon
+  // picker could draw from the SAME vocabulary the nav uses. The property is
+  // unchanged — real icons, not initials — and it is asserted where the map
+  // now lives.
+  const icons = read("src/components/chrome/navIcons.ts");
+  assert.match(icons, /pipelines:\s*Ship/);
+  assert.match(link, /navIcon\(id\)/, "the nav link stopped resolving its icons from the shared map");
   assert.doesNotMatch(link, /const initial\s*=/);
   assert.match(layout, /label:\s*"Journey"/);
   assert.match(layout, /href:\s*"\/portal\/clients\?view=journey"/);

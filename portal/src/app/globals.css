@@ -1223,27 +1223,60 @@ html[data-color-mode="dark"] .mm-portal-root .mm-quick-note footer {
   font-weight: 600;
 }
 
-.plugin-page-shell:not([data-plugin-id="website-editor"]) input,
-.plugin-page-shell:not([data-plugin-id="website-editor"]) select,
-.plugin-page-shell:not([data-plugin-id="website-editor"]) textarea {
-  min-height: 2.5rem;
-  width: 100%;
-  max-width: 100%;
-  border: 1px solid rgb(0 0 0 / 0.14);
-  border-radius: 0.375rem;
-  background: white;
-  padding: 0.5rem 0.75rem;
-  color: rgb(0 0 0 / 0.84);
-  font: inherit;
-  font-weight: 400;
+/* Form controls — the same default-not-override fix as the button rule below,
+ * and for the same measured reason. A `select` carrying `min-h-11` computed to
+ * 40px here, and on the journey board every card's "Move to another stage"
+ * control is a select: it is the keyboard path and the only usable path on a
+ * phone, so it is the one control that most needs to clear 44px.
+ *
+ * `width: 100%` is deliberately kept in the layer too — a plugin page that
+ * wants an auto-width control can now say so with a utility and be obeyed. */
+@layer components {
+  .plugin-page-shell:not([data-plugin-id="website-editor"]) input,
+  .plugin-page-shell:not([data-plugin-id="website-editor"]) select,
+  .plugin-page-shell:not([data-plugin-id="website-editor"]) textarea {
+    min-height: 2.75rem;
+    width: 100%;
+    max-width: 100%;
+    border: 1px solid rgb(0 0 0 / 0.14);
+    border-radius: 0.375rem;
+    background: white;
+    padding: 0.5rem 0.75rem;
+    color: rgb(0 0 0 / 0.84);
+    font: inherit;
+    font-weight: 400;
+  }
 }
 
-.plugin-page-shell:not([data-plugin-id="website-editor"]) button {
-  min-height: 2.5rem;
-  border-radius: 0.375rem;
-  padding: 0.5rem 0.875rem;
-  font-size: 0.8125rem;
-  font-weight: 650;
+/* A DEFAULT skin for plugin buttons — not an override of one.
+ *
+ * Measured 2026-08-28: this block was unlayered, and unlayered CSS beats
+ * Tailwind's `@layer utilities` no matter the specificity. So a plugin author
+ * writing `min-h-11 rounded-lg text-sm` on a button got 40px, 6px and 13px
+ * instead — their explicit choice silently replaced by this default, with
+ * nothing in their file to explain it. It also capped every plugin page's
+ * touch targets at 40px, under the 44x44 bar the browser-acceptance checklist
+ * asks for (WCAG 2.5.5; 2.5.8 AA only needs 24px, so this was a house-standard
+ * miss rather than a conformance failure).
+ *
+ * Two changes, one rule:
+ *   • `@layer components` puts it BELOW utilities in the cascade, so it still
+ *     styles the many plugin pages that ship no classes of their own, and
+ *     stops fighting the ones that do.
+ *   • 2.75rem so the pages that DON'T style themselves clear 44px too.
+ *
+ * The rest of the `.plugin-page-shell` block above is left unlayered on
+ * purpose: those rules (typography, tables, form labels) have no utility
+ * competing with them, and moving them all is a bigger change than the defect
+ * warranted. */
+@layer components {
+  .plugin-page-shell:not([data-plugin-id="website-editor"]) button {
+    min-height: 2.75rem;
+    border-radius: 0.375rem;
+    padding: 0.5rem 0.875rem;
+    font-size: 0.8125rem;
+    font-weight: 650;
+  }
 }
 
 .plugin-page-shell:not([data-plugin-id="website-editor"]) a {
@@ -1976,11 +2009,46 @@ svg[class*="-card"] {
   margin-top: 1rem;
 }
 
+/* Saved-tab controls meet WCAG 2.5.8 on EVERY pointer, not just touch.
+   Added 2026-08-27; the coarse-pointer block above already gives these 44px
+   under a finger, which quietly left the mouse case unexamined. Measured at
+   1920 with a fine pointer they were 16x16 (move, unpin) and 23px wide (the
+   pinning caret) — under the 24x24 AA minimum, and sitting flush against each
+   other, so the "spacing" exception that rescues small isolated targets does
+   not apply either. 24px is the standard's floor rather than the 44px touch
+   figure, because a mouse is precise and widening these to 44 on the desktop
+   is exactly the dense-row damage the comment above rightly refused. The icon
+   stays 16px; only the hit box grows. */
+.mm-pinned-bar :is(a, button),
+.mm-pinned-caret {
+  min-width: 24px;
+  min-height: 24px;
+}
 /* Tap targets — bump small inline buttons to a11y-friendly size on
    touch devices. */
 @media (pointer: coarse) {
   button:not([class*="-pill"]), a:not([class*="-pill"]):not([class*="-meta"]) {
     min-height: 44px;
+  }
+
+  /* Height alone is not enough for the saved-tab controls (2026-08-27). They
+     are icon-only, 16px wide, and sit immediately beside each other — so the
+     rule above gives a 16×44 target next to another 16×44 target, which is
+     precisely the shape that makes somebody unpin a shortcut they meant to
+     move. Widened here rather than in the global rule because making every
+     icon button in the app 44px wide would wreck dense rows that are fine. */
+  .mm-pinned-bar button,
+  .mm-sidebar-panel[data-panel-id="pinned"] button {
+    min-width: 44px;
+  }
+
+  /* …and they must be VISIBLE. Both strips reveal their move/unpin controls on
+     hover, which is a perfectly good desktop affordance and simply does not
+     exist on touch: the control is there, it is the right size, and nobody can
+     ever see it. Shown outright on a coarse pointer. */
+  .mm-pinned-bar button,
+  .mm-sidebar-panel[data-panel-id="pinned"] .group > span {
+    opacity: 1;
   }
 }
 
@@ -1997,6 +2065,115 @@ svg[class*="-card"] {
 
   .mm-portal-root :is(h1, h2, h3, p, dd) {
     overflow-wrap: anywhere;
+  }
+}
+
+/* The topbar's overflow — one copy of the controls, two layouts.
+   ─────────────────────────────────────────────────────────────────────────
+   Ed, 2026-08-27: the mobile topbar had eleven controls in a row, and the
+   44px touch-target rule below made it worse by widening every one of them.
+
+   `display: contents` above the breakpoint is what allows a SINGLE copy of the
+   children: the wrapper stops generating a box, so the controls sit in the
+   topbar's flex row exactly as they did before this existed. Rendering them
+   twice — once inline, once in a panel — would have duplicated every popover
+   and every piece of state they own, which is two notification bells that
+   disagree.
+
+   The breakpoint is `sm` (640px) to match `.mm-portal-topbar`'s own mobile
+   rules further down this file, so the row never has a width where it is both
+   crowded and uncollapsed. */
+.mm-topbar-overflow { display: contents; }
+.mm-topbar-overflow-toggle { display: none; }
+.mm-topbar-overflow-items { display: contents; }
+
+@media (max-width: 639px) {
+  .mm-topbar-overflow {
+    display: block;
+    position: relative;
+  }
+  .mm-topbar-overflow-toggle { display: inline-flex; }
+
+  .mm-topbar-overflow-items {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 8px);
+    z-index: 200;
+    display: none;
+    /* A fixed three-column grid rather than a wrapping row. Left to wrap, six
+       controls came out as five across and one stranded underneath, which
+       reads as a mistake rather than a menu. Three columns gives two even rows
+       whether there are five controls or six. */
+    grid-template-columns: repeat(3, auto);
+    align-items: center;
+    justify-items: center;
+    gap: 8px;
+    width: max-content;
+    max-width: calc(100vw - 24px);
+    padding: 10px;
+    /* The workspace themes this sits inside range from near-white to the
+       Command Centre's near-black, so a hardcoded `#fff` panel appears as a
+       white slab with invisible icons on half of them — which is exactly what
+       the first version did. `--mm-surface` and `--mm-border` are the same
+       tokens `.mm-surface-card` uses, so the panel follows whatever theme the
+       workspace is wearing. */
+    border: 1px solid var(--mm-border, rgb(0 0 0 / 0.1));
+    border-radius: 12px;
+    background: var(--mm-surface, #fff);
+    color: inherit;
+    box-shadow: 0 18px 40px rgb(0 0 0 / 0.28);
+  }
+  .mm-topbar-overflow[data-open="yes"] .mm-topbar-overflow-items { display: grid; }
+
+  /* Anything inside that hid itself for small screens is wanted here — the
+     panel IS the small screen's home for these. Without this, a control marked
+     `hidden sm:block` would be collapsed into a panel it then refuses to
+     appear in, which is how an overflow silently eats a feature. */
+  .mm-topbar-overflow-items > .hidden { display: block; }
+}
+
+/* …but a FINGER needs 44px, and it must be said after the block above.
+   Found 2026-08-27 by the launch browser walk at 375x812 with touch
+   emulation on: the hamburger measured 40x44 and — worse — a 36px star sat
+   flush against a 36px caret, which is the very adjacent-icon-pair hazard the
+   `pointer: coarse` block further up was written for, on the one control that
+   actually UNPINS a saved tab.
+
+   Width and pointer are different axes. 2.25rem is a sound floor for a narrow
+   DESKTOP window, where a mouse is precise and the row is dense; it is not a
+   floor for touch, and only the touch case is an accessibility question. A
+   coarse-pointer tablet at 768px was missing it entirely, which the
+   max-width rule could never have reached.
+
+   Placed HERE, after the max-width block, on purpose: the selector is
+   identical and so is its specificity, so source order is the only thing that
+   decides it. Moved back up into the earlier `pointer: coarse` block it would
+   silently lose and this comment would be describing a rule that does
+   nothing. The topbar strip scrolls horizontally, so widening costs no
+   layout — the row scrolls a little sooner. */
+@media (pointer: coarse) {
+  .mm-portal-topbar :is(button, a) {
+    min-width: 44px;
+  }
+
+  /* The app's icon-button idiom — `grid size-9 place-items-center` and its
+     siblings, plus the `min-h-*` variant the calendar and workspace search
+     use — is 24-40px square, so every one of them is under the touch
+     minimum by construction. The walk found four on the Agency dashboard
+     alone (the day arrows, Add, Open source), and there are 555 of these
+     utilities in source, so fixing them one component at a time would be a
+     sweep that is never finished and silently regresses.
+
+     Scoped to `button`/`a` on purpose. The earlier block in this file declined
+     to widen "every icon button in the app" because it would wreck dense rows
+     — and that reasoning holds for a MOUSE, which is why this is coarse-only.
+     A dense row on a desktop keeps its 36px buttons; the same row under a
+     finger gets targets somebody can actually hit. `min-*` beats the `width`
+     that `size-*` sets, so the icon stays centred and only the box grows. */
+  :is(button, a):is(.size-6, .size-7, .size-8, .size-9, .size-10,
+                    .min-h-7, .min-h-8, .min-h-9, .min-h-10) {
+    min-width: 44px;
+    min-height: 44px;
   }
 }
 
@@ -3367,6 +3544,71 @@ html[data-cinematic-mode="false"] .mm-client-workspace-transition {
    darkMode config; theming is done with `html[data-color-mode]` overrides on
    component classes (see .mm-showcase-control). The switcher is portal-level
    (not topbar-scoped), so these are un-scoped. Base = light; dark below. */
+/* ── Sandbox top bar ──────────────────────────────────────────────────────
+ *
+ * A full-width strip above the whole application saying you are not looking at
+ * live data. It takes real space rather than floating, so nothing overlaps it
+ * and it cannot be tuned out the way the old `bottom-4` pill was.
+ *
+ * `--aqua-shell-h` is the contract with the eight full-height shells: they
+ * measure `h-[var(--aqua-shell-h,100dvh)]` instead of `h-dvh`, and this file
+ * declares the default. `SandboxTopBar` redefines it to subtract the bar while
+ * the bar is on screen. Declaring the default HERE (rather than only in the
+ * bar) is what makes the fallback real — a shell renders correctly whether or
+ * not the bar exists, and neither knows about the other beyond the name.
+ *
+ * The height is fixed and the bar scrolls sideways instead of wrapping: a bar
+ * that grew to two lines would subtract the wrong amount and leave a gap or a
+ * clipped edge at exactly the widths nobody tests.
+ */
+:root {
+  --aqua-shell-h: 100dvh;
+  --aqua-sandbox-bar-h: 2.75rem;
+}
+
+.mm-sandbox-topbar {
+  height: var(--aqua-sandbox-bar-h);
+  /* Amber, not red. Sandbox is a SAFE place to experiment — the bar exists to
+     stop you mistaking it for production, not to suggest something is wrong. */
+  background: linear-gradient(90deg, #b45309 0%, #d97706 55%, #b45309 100%);
+  color: #fffbeb;
+  font-size: 0.6875rem;
+  line-height: 1;
+  box-shadow: inset 0 -1px 0 rgb(0 0 0 / 0.22);
+  scrollbar-width: none;
+}
+.mm-sandbox-topbar::-webkit-scrollbar { display: none; }
+.mm-sandbox-topbar-detail {
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: rgb(255 251 235 / 0.86);
+}
+
+/* The switcher inside the bar: no second border, no second "Sandbox" label —
+   the bar already carries both. Only the controls. */
+.mm-dev-mode-switcher-bar {
+  border: 1px solid rgb(255 251 235 / 0.34);
+  border-radius: 0.3125rem;
+  overflow: hidden;
+  background: rgb(0 0 0 / 0.16);
+  color: #fffbeb;
+}
+.mm-dev-mode-switcher-bar .mm-dev-mode-switcher-personas,
+.mm-dev-mode-switcher-bar .mm-dev-mode-switcher-exit { border-left-color: rgb(255 251 235 / 0.28); }
+.mm-dev-mode-switcher-bar .mm-dev-mode-switcher-persona { color: #fffbeb; }
+.mm-dev-mode-switcher-bar .mm-dev-mode-switcher-persona[data-active="false"]:hover,
+.mm-dev-mode-switcher-bar .mm-dev-mode-switcher-exit:hover:not(:disabled) { background: rgb(255 251 235 / 0.18); }
+.mm-dev-mode-switcher-bar .mm-dev-mode-switcher-persona[data-active="true"] { background: #fffbeb; color: #7c2d12; }
+/* The bar is 44px tall; its controls must fit inside it rather than set it. */
+.mm-dev-mode-switcher-bar :is(button, .mm-dev-mode-switcher-persona) { min-height: 1.75rem; }
+/* Below `sm` there is not room for four persona buttons AND Exit. Exit is how
+   you leave sandbox mode, so it is the one that stays; switching persona is a
+   convenience you can reach on a wider screen. Measured at 800px: the first
+   version scrolled Exit off the edge entirely. */
+@media (max-width: 639px) {
+  .mm-dev-mode-switcher-bar .mm-dev-mode-switcher-personas { display: none; }
+}
+
 .mm-dev-mode-switcher {
   border-color: rgb(14 116 144 / 0.4);
   background: #ecfeff;
@@ -4050,8 +4292,28 @@ html[data-portal-shell="command"] .mm-advisor-drawer [class*="text-emerald-"] {
   color: var(--mm-text-muted) !important;
 }
 
-.mm-portal-root :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]) {
-  min-height: 2.5rem;
+/* The portal's default control height — a floor for controls that ask for
+ * nothing, NOT a ceiling on the ones that do.
+ *
+ * Measured 2026-08-28: this was unlayered, and unlayered CSS beats Tailwind's
+ * `@layer utilities` regardless of specificity. The app writes `min-h-11`
+ * (44px) on form controls in 146 places, and **every one of them on an input,
+ * select or textarea was silently being served 40px instead** — the author's
+ * explicit choice replaced by this default, with nothing at the call site to
+ * explain it, and the 44x44 target the browser-acceptance checklist asks for
+ * quietly unreachable across the whole portal.
+ *
+ * Only the LAYER changed. The value is deliberately still 2.5rem, so nothing
+ * that did not ask for a height moves by a pixel; a control that says
+ * `min-h-11` now simply gets what it asked for. Raising this default is a
+ * separate, app-wide visual decision and is not being taken here.
+ *
+ * Found via the client-CRM journey board, whose per-card "Move to another
+ * stage" select is the keyboard path and the only usable path on a phone. */
+@layer components {
+  .mm-portal-root :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]) {
+    min-height: 2.5rem;
+  }
 }
 
 .mm-portal-root :is(input, textarea)::placeholder {

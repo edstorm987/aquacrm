@@ -5,6 +5,7 @@ import {
   publicFunnelContainerFor,
 } from "@/built-ins/runtime/foundation-adapters/publicFunnelFoundation";
 import { sessionCookie } from "@/lib/server/auth/auth";
+import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
 import { FOUNDER_AGENCY_SLUG, seedFounder } from "@/lib/server/seeds/founderSeed";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { flushPendingWrites, ensureHydrated } from "@/server/storage";
@@ -24,7 +25,29 @@ function failure(status: number, error: string, message: string) {
   return NextResponse.json({ ok: false, error, message, retryable: status >= 500 }, { status });
 }
 
+// Rate limited 2026-08-27 (Phase D public-surface review).
+//
+// This is an unauthenticated POST that can end with `sessionCookie(...)` — it
+// SIGNS SOMEBODY IN off the back of a Health Check completion. That makes it
+// the most powerful anonymous endpoint in the app after login itself, and it
+// had no limit of any kind while `contact`, `careers` and `brand-enquiry` all
+// did.
+//
+// The limit is per-IP and generous enough that a real person finishing the
+// funnel, or retrying after a dropped connection, will never see it.
+const MAX_PER_WINDOW = 15;
+const WINDOW_MS = 10 * 60 * 1_000;
+
 export async function POST(request: NextRequest) {
+  const ip = clientIpFromHeaders(request.headers);
+  const limit = rateLimit({ key: `health-check-complete:${ip}`, max: MAX_PER_WINDOW, windowMs: WINDOW_MS });
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { ok: false, error: "rate_limited", message: "Too many attempts. Please try again shortly.", retryable: true },
+      { status: 429, headers: { "retry-after": String(limit.retryAfterSec) } },
+    );
+  }
+
   const body = await request.json().catch(() => null) as HealthCheckCompletionBody | null;
   const email = typeof body?.email === "string" ? body.email.trim() : "";
   const completionId = typeof body?.completionId === "string" ? body.completionId.trim() : "";

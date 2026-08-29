@@ -104,6 +104,7 @@ Everything dated — old summaries, session records, worker debriefs — lives o
 | **[roadmap.md](development/roadmap.md)** | **The roadmap — the outer view.** Every outcome that is coming, its horizon (Now / Next / Later / Someday / Shipped), its target date, and the plans that deliver it. Progress is COMPUTED from those plans' phases, never typed. Written and edited from the Dev Console (`/portal/dev-team/roadmap`); this supersedes phases.md. |
 | **[checklist.md](development/checklist.md)** | **The single most reliable "where do we stand" summary** — what's yours (Ed's) vs mine, in order, generated at the end of a session. If you read one thing before working, read this. |
 | **[architecture-noobie.md](architecture-noobie.md)** | The whole system explained in **plain English**, no jargon. Start here if you're new (human or agent) and the catalogue below is too dense. |
+| **[development/plans/fulfilment-template-system.md](development/plans/fulfilment-template-system.md)** | **The template system** — portal/product templates edited once and seeded into every client instance, owned by Fulfilment (Ed's direction, 2026-08-27). Most of the spine already exists; the new idea is a cross-tenant *origin* template. |
 | **[development/plans/dev-editor-finish.md](development/plans/dev-editor-finish.md)** | **Current Dev Editor plan.** The 22 Aug session handoff is preserved on the [history shelf](context/archive/dev-editor-handoff-2026-08-22.md), but it is no longer a current brief. |
 | **[context/archive/](context/archive/README.md)** | 🗄 **The history shelf.** Dated records — superseded summaries, session handoffs, worker debriefs — kept because they are the only place some facts survive, and **never current**. `phases.md` (the old roadmap) lives here now. Nothing on this shelf should brief a worker. |
 | **[plans/](development/plans/)** | One **phased plan per substantial item** (e.g. [radar-upgrade.md](development/plans/radar-upgrade.md), [mfa-login.md](development/plans/mfa-login.md)). Each plan's own `**Status:**` line is the authority on that item. Shipped plans may be moved to [plans/archive/](development/plans/archive/). |
@@ -203,8 +204,14 @@ documentation, because updating the docs *is* part of finishing the work.
   suite proves substantial shape and logic coverage, not complete usability. The
   honest per-feature reality is in **[status.md](development/status.md)**; the
   verified record is in **[audits.md](development/audits.md)**.
-- **P0:** central session revocation is ineffective. A stale owner cookie created
-  a working external-AI token after the live user was downgraded to staff.
+- **P0 session revocation: RESOLVED 2026-08-27.** Every authenticated cookie
+  read now crosses one central fresh-session boundary (`resolveFreshSessionUser`
+  in `auth.ts`) enforcing existence, `sessionRev`, current role and live
+  membership; the stale-owner-cookie exploit replay returns 403 with no token
+  (`smoke-session-revocation`, 16/16). ⚠ The same day's whole-suite reruns show
+  **the full suite is NOT currently green** (~74 pre-existing failures on the
+  current tree) — see the truth note at the top of
+  [checklist.md](development/checklist.md).
 - **P1:** showcase GET/OAuth mutations bypass the read-only proxy assumption;
   erasure can report live failures as success, strand retry and retain the client
   name in its audit; Editor AI's database coordination remains incomplete;

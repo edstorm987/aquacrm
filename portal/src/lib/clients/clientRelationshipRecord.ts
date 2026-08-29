@@ -1,3 +1,16 @@
+// The CLIENT-SAFE relationship record: notes, calls, meetings and decisions
+// that may be shown to a client, each carrying its own `visibility`.
+//
+// `lib/server/clients/clientRecordLedger.ts` is the other one — the internal
+// ledger. Confirm which you want before writing history: an entry written to
+// the wrong one is either invisible to the client who needed it, or visible to
+// the client who should never have seen it.
+//
+// `ClientRecordVisibility` below is that decision. It is load-bearing: the
+// customer portal filters on `visibility === "client"`, and on 2026-08-28 a
+// second path that skipped that filter was found putting internal call notes
+// on a client's screen. See `_portalData.ts` and `smoke-client-erasure`.
+
 export const CLIENT_RECORD_ENTRY_KINDS = ["note", "call", "meeting", "decision", "update"] as const;
 
 export type ClientRecordEntryKind = (typeof CLIENT_RECORD_ENTRY_KINDS)[number];

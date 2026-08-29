@@ -6,6 +6,7 @@ import {
   requireWholeWorkingTreeFounderAccess,
 } from "@/lib/server/dev/devProjectAccess";
 import { fileFindingWorld, findFiles } from "@/lib/server/dev/fileFinding";
+import { UNRESTRICTED, isUnrestricted, scopeAllows, type DevPathScope } from "@/lib/server/dev/devPathScope";
 
 // ─── THE LIBRARIAN — find, never edit ────────────────────────────────────────
 //
@@ -67,6 +68,7 @@ export async function POST(request: Request) {
     let allowWorkspace = false;
     let includeInternalSources = false;
     let allowSharedCredentials = false;
+    let pathScope: DevPathScope = UNRESTRICTED;
     if (projectId) {
       const access = await requireDevProjectAccess({
         projectId,
@@ -75,6 +77,7 @@ export async function POST(request: Request) {
       });
       agencyId = access.resourceAgencyId;
       allowSharedCredentials = access.resolution.ownerBaseline;
+      pathScope = access.pathScope;
       if (!access.project.repository || access.project.map?.repo?.source === "workspace") {
         // A workspace-backed project is Aqua's checkout, not a delegable
         // repository. The separate local-owner gate is mandatory here.
@@ -101,7 +104,22 @@ export async function POST(request: Request) {
         includeInternalSources,
         allowSharedCredentials,
       });
-      return NextResponse.json({ ok: true, result }, { headers: { "cache-control": "private, no-store" } });
+      // The librarian ANSWERS WITH FILE PATHS, so it is a listing like any
+      // other and takes the same scope. Without this, a person narrowed to one
+      // folder could still ask "where is the Stripe key configured?" and be told.
+      //
+      // The no-project branch above requires whole-working-tree owner access, so
+      // its scope is unrestricted and this costs it nothing.
+      const scoped = isUnrestricted(pathScope)
+        ? result
+        : {
+            ...result,
+            hits: result.hits.filter(hit => scopeAllows(pathScope, hit.path)),
+            // Say the answer is partial. "No results" must not be read as "it is
+            // not in the repository" by somebody who simply cannot see it.
+            scoped: true,
+          };
+      return NextResponse.json({ ok: true, result: scoped }, { headers: { "cache-control": "private, no-store" } });
     } catch (error) {
       if (error instanceof Error && error.message === "project_not_found") {
         return NextResponse.json({ ok: false, error: "That project could not be found." }, { status: 404 });

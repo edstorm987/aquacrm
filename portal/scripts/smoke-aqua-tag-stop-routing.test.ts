@@ -98,7 +98,18 @@ describe("Aqua Tag stop-routing semantics", () => {
       assert.match(ui, /Keep the registered site and its tools/);
     }
     assert.match(route, /action === "route-to-inbox"/);
-    assert.match(route, /updateWebsiteSourceRouting\(\{[\s\S]*?agencyId: session\.agencyId,[\s\S]*?id:/);
+    // The agency comes from the SERVER, not the body — but it is no longer
+    // spelled `session.agencyId` inline. The route resolves an access-kernel
+    // actor and hoists `const agencyId = actor.resourceAgencyId`, which is the
+    // same guarantee through the newer vocabulary. Assert the guarantee: the
+    // agency is actor-derived, and the call is handed that local rather than
+    // anything off the request.
+    assert.match(route, /const agencyId = actor\.resourceAgencyId;/,
+      "the route stopped deriving its agency from the resolved actor");
+    assert.match(route, /updateWebsiteSourceRouting\(\{\s*\n\s*agencyId,\s*\n\s*id:/,
+      "route-to-inbox stopped passing the server-derived agency");
+    assert.doesNotMatch(route, /agencyId: (?:str\()?body/,
+      "an agency id is being taken from the request body");
     assert.match(route, /website_source\.routed_to_inbox/);
   });
 

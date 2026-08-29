@@ -1,5 +1,22 @@
 import "server-only";
 
+// ─── HR and staff. NOT the CRM. ──────────────────────────────────────────
+//
+// `people.ts` (this file) owns EMPLOYMENT: applications, employees, leave,
+// shifts, training, contracts, freelancer jobs, recognition, feedback. The
+// subject is somebody who works for the agency.
+//
+// `persons.ts` owns the CRM: one `Person` per real human out in the world,
+// with Lead / Contact / Client as facets hanging off them. The subject is
+// somebody the agency does business with.
+//
+// The two are named a syllable apart and mean entirely different things, which
+// `docs/workspace/hazards-and-duplication.md` has flagged as a hazard for as
+// long as both have existed — but this file said nothing, so the distinction
+// only existed in a document. If you are looking for "the record of a human",
+// decide first WHICH KIND: staff → here; customer, lead or supplier →
+// `persons.ts`. They do not share storage and must not learn to.
+
 import crypto from "node:crypto";
 
 import { logActivity } from "./activity";
@@ -1187,18 +1204,72 @@ function userDisplayName(agencyId: string, userId: string): string {
   return listUsersForAgency(agencyId).find(user => user.id === userId)?.name ?? "Team member";
 }
 
+// ── The team channel, and why READING must not create it ──────────────────
+//
+// `listPeopleChannels` used to call `ensureTeamChannel` unconditionally, and
+// `ensureTeamChannel` creates the channel when it is missing. That put a WRITE
+// behind an ordinary read — and not a rare one. Issue #21's inventory traced it
+// as far as the operational alerts, but the chain is wider than that was
+// recorded:
+//
+//   RadarQuickLookControl (the AGENCY LAYOUT) → getCachedBusinessIssueRadar
+//     → listOperationalAlerts → ownerChatAttention → chatAttentionForUser
+//     → listPeopleChannels → ensureTeamChannel → mutate()
+//
+// So ordinary agency navigation could create a chat channel, as could the
+// Assistant, Calendar and People pages and `/api/portal/attention/plan` — an
+// *explain* endpoint. On the file backend one write rewrites the whole state
+// blob, and a GET that writes cannot be cached, served from a replica or run
+// against a read-only store.
+//
+// ── The fix: a deterministic id, so the virtual and saved forms are one ────
+//
+// A read now gets the channel it would have, unsaved. That only works because
+// the id is derived from the agency rather than generated: the channel a reader
+// sees, selects and marks read has the SAME id it will have once persisted, so
+// nothing the UI is holding goes stale at the moment it becomes real.
+//
+// Agencies created before this keep their generated id — the lookup is still by
+// `kind`, and it runs first — so nothing migrates and no channel is duplicated.
+
+function teamChannelId(agencyId: string): string {
+  return `channel_team_${agencyId}`;
+}
+
+/** The saved team channel, if this agency has one. */
+function savedTeamChannel(agencyId: string): PeopleChannel | undefined {
+  return Object.values(getState().peopleChannels ?? {}).find(channel => channel.agencyId === agencyId && channel.kind === "team");
+}
+
+/**
+ * The team channel as a READ sees it: saved if it exists, otherwise the exact
+ * record that would be saved. Writes nothing.
+ */
+export function teamChannelFor(agencyId: string, now = 0): PeopleChannel {
+  const saved = savedTeamChannel(agencyId);
+  if (saved) return saved;
+  // `now = 0` by default, not `Date.now()`: an unsaved channel must render
+  // identically on every read, or two requests a second apart disagree about a
+  // record neither of them created.
+  return { id: teamChannelId(agencyId), agencyId, kind: "team", name: "Team", memberUserIds: [], createdAt: now, updatedAt: now };
+}
+
+/**
+ * The team channel, created if missing. Call this from a WRITE — never from a
+ * read; `teamChannelFor` is the read.
+ */
 export function ensureTeamChannel(agencyId: string): PeopleChannel {
-  const existing = Object.values(getState().peopleChannels ?? {}).find(channel => channel.agencyId === agencyId && channel.kind === "team");
+  const existing = savedTeamChannel(agencyId);
   if (existing) return existing;
   const now = Date.now();
-  const channel: PeopleChannel = { id: id("channel"), agencyId, kind: "team", name: "Team", memberUserIds: [], createdAt: now, updatedAt: now };
+  const channel: PeopleChannel = { id: teamChannelId(agencyId), agencyId, kind: "team", name: "Team", memberUserIds: [], createdAt: now, updatedAt: now };
   mutate(state => { state.peopleChannels[channel.id] = channel; });
   return channel;
 }
 
 /** Channels visible to a member: the team channel + any direct channels they're in. */
 export function listPeopleChannels(agencyId: string, userId: string): PeopleChannel[] {
-  const team = ensureTeamChannel(agencyId);
+  const team = teamChannelFor(agencyId);
   const directs = Object.values(getState().peopleChannels ?? {})
     .filter(channel => channel.agencyId === agencyId && channel.kind === "direct" && channel.memberUserIds.includes(userId))
     .sort((a, b) => b.updatedAt - a.updatedAt);
@@ -1229,7 +1300,12 @@ export function listPeopleMessages(agencyId: string, channelId: string, limit = 
 }
 
 export function postPeopleMessage(input: { agencyId: string; channelId: string; authorUserId: string; body: string }): PeopleMessage {
-  const channel = getState().peopleChannels?.[input.channelId];
+  // Posting is the write that makes the team channel real. Anyone reading got
+  // it unsaved, with this same id, so the first message lands in the channel
+  // they were already looking at.
+  const channel = input.channelId === teamChannelId(input.agencyId) && !getState().peopleChannels?.[input.channelId]
+    ? ensureTeamChannel(input.agencyId)
+    : getState().peopleChannels?.[input.channelId];
   if (!channel || channel.agencyId !== input.agencyId) throw new Error("Channel not found.");
   if (!canAccessChannel(channel, input.authorUserId)) throw new Error("You are not a member of this channel.");
   const body = clean(input.body, 4_000);

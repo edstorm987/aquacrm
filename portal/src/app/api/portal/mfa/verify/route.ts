@@ -12,6 +12,18 @@ import { createRouteSupabaseClient } from "@/lib/supabase/route";
 export async function POST(request: NextRequest) {
   const { client, applyCookies } = createRouteSupabaseClient(request);
 
+  // Stated, rather than inherited. Every `client.auth.mfa.*` call below already
+  // acts on the session Supabase resolves from the request's own cookies, so a
+  // caller with no session could never verify anybody's factor — but it reached
+  // that outcome by falling through to "there is no authenticator set up on
+  // this account yet", a 400 that describes account state to a stranger and
+  // leaves the route's security resting on downstream behaviour instead of a
+  // check. `enrol` states it; so does this now. (Route-auth sweep, 2026-08-28.)
+  const { data: user } = await client.auth.getUser();
+  if (!user?.user) {
+    return NextResponse.json({ ok: false, error: "Sign in first." }, { status: 401 });
+  }
+
   const body = await request.json().catch(() => null) as { factorId?: string; code?: string } | null;
   const code = body?.code?.trim().replace(/\s+/g, "");
   if (!code) return NextResponse.json({ ok: false, error: "Enter the code from your app." }, { status: 400 });

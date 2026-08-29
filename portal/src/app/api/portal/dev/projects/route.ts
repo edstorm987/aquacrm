@@ -28,6 +28,7 @@ import { isPubliclyReachableOrigin } from "@/lib/public/publicOrigin";
 import { listIntegrationConnections } from "@/lib/server/integrations/integrationConnections";
 import { flushPendingWrites } from "@/server/storage";
 import type { AccessCapability, DevProject, DevProjectKind, DevProjectMasterTagView } from "@/server/types";
+import { devPathScope, scopeOnlyNarrows } from "@/lib/server/dev/devPathScope";
 
 // Dev Editor Engine — projects API.
 //
@@ -56,6 +57,8 @@ type Body = {
    * this route only translates its refusals.
    */
   parentProjectId?: string | null;
+  /** Repo-relative files/folders this project exposes. `[]` = the whole repo. */
+  allowedPaths?: string[];
 };
 
 function validOrigin(request: Request) {
@@ -391,7 +394,16 @@ export async function POST(request: Request) {
       const refChanged = nextRef !== existing.ref;
       const githubConnectionChanged = nextGitHubConnectionId !== existing.githubConnectionId;
       const vercelConnectionChanged = nextVercelConnectionId !== existing.vercelConnectionId;
-      if (repositoryChanged || refChanged || githubConnectionChanged || vercelConnectionChanged) {
+      // WIDENING the exposed file surface is the same kind of decision as
+      // pointing the project at another repository, so it answers to the same
+      // capability. NARROWING costs nothing: somebody tightening a scope in a
+      // hurry must never be stopped by a permission check.
+      const widensPathScope = body.allowedPaths !== undefined
+        && !scopeOnlyNarrows(
+          devPathScope(existing.allowedPaths),
+          devPathScope(Array.isArray(body.allowedPaths) ? body.allowedPaths : []),
+        );
+      if (repositoryChanged || refChanged || githubConnectionChanged || vercelConnectionChanged || widensPathScope) {
         requireActorCapabilities(actor, { kind: "project", id: existing.id }, [
           "project.connection.manage",
         ]);
@@ -450,6 +462,17 @@ export async function POST(request: Request) {
         // Passed through as sent: omitted carries, "" clears, an id nests —
         // and every rule about it lives in the store, not here.
         parentProjectId: body.parentProjectId,
+        // WHAT THIS PROJECT EXPOSES. Omitted carries the stored scope; an empty
+        // array is an explicit "expose the whole repository". The two must stay
+        // distinguishable, or an unrelated save would silently unlock the repo.
+        //
+        // Requires the same authority as rebinding the repository: widening the
+        // surface and pointing the project at a different repository are the
+        // same kind of decision, and the narrower capability set should not be
+        // able to do either.
+        allowedPaths: Array.isArray(body.allowedPaths)
+          ? body.allowedPaths.filter((value: unknown): value is string => typeof value === "string")
+          : undefined,
         actorUserId: actor.user.id,
       });
       await flushPendingWrites();

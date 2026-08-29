@@ -302,6 +302,33 @@ export const CLIENT_ROLES: readonly Role[] = [
   "freelancer",
 ] as const;
 
+/**
+ * Who the CLIENT PORTAL at `/portal/customer` is for.
+ *
+ * Ed settled the placement on 2026-08-27: *"for clients anything they touch is
+ * inside their portal"*, and *"existing customer portal actually meant to be"* —
+ * so `/portal/customer` is the client's portal, and `/portal/clients/<id>` is
+ * the INTERNAL agency-side workspace for Ed and his employees.
+ *
+ * `end-customer` is the legacy name, not the design: it is the role the portal
+ * was built around, and Dev Mode's own "customer" persona uses it to inspect
+ * exactly what a client sees. `client-owner` / `client-staff` are the same
+ * audience arriving under an older name, and were being sent to the internal
+ * workspace instead.
+ *
+ * **This is the HOST gate only.** It deliberately does not touch
+ * `SURFACE_ROLE_CEILING.customer` in `_pageScope.ts`, which stays
+ * `["end-customer"]`: an undeclared plugin page falls back to the WHOLE ceiling,
+ * so widening it would open every unclassified customer plugin page at once.
+ * Plugin pages on that surface are shopper surfaces — orders, profile,
+ * membership — and belong to the client's own customers, not to the client.
+ */
+export const CUSTOMER_PORTAL_ROLES: readonly Role[] = [
+  "end-customer",
+  "client-owner",
+  "client-staff",
+] as const;
+
 export const ALL_ROLES: readonly Role[] = [
   ...AGENCY_ROLES,
   ...CLIENT_ROLES,
@@ -449,6 +476,19 @@ export interface AccessGrant {
   environment: AccessEnvironment;
   /** Direct capabilities, additive with the referenced template. */
   capabilities: AccessCapability[];
+  /**
+   * Narrow this grant to particular files or folders, repo-relative.
+   *
+   * Ed, 2026-08-27: *"I'd love to just give a dev staff access to one folder, or
+   * maybe even one file, or even multiple files in folders."* Absent means the
+   * whole of whatever the SCOPE already allows — an ordinary grant is unchanged.
+   *
+   * This can only ever NARROW. The effective surface is the project's
+   * `allowedPaths` intersected with this, so naming a path the project does not
+   * expose does not expose it (`intersectPathScopes`). Several grants held by
+   * the same person union with each other first (`unionPathScopes`).
+   */
+  allowedPaths?: string[];
   templateId?: string;
   expiresAt?: number;
   revokedAt?: number;
@@ -1283,7 +1323,21 @@ export interface ExternalAssistantApiKey {
   modules: string[];
   permissions: ExternalAssistantApiPermission[];
   createdAt: number;
+  /**
+   * The creator's EMAIL. Named `createdBy` since before there was an access
+   * kernel, and it is what the activity log shows — kept as-is so no stored key
+   * has to be rewritten.
+   */
   createdBy: string;
+  /**
+   * The creator's user id, recorded from 2026-08-27 onward.
+   *
+   * The key's authority is that person's, re-derived per request, so it needs a
+   * handle that survives them changing their email address. Optional because
+   * keys minted before this date have only the email — those resolve by email,
+   * which works until the address changes and is why this field exists.
+   */
+  createdByUserId?: string;
   expiresAt?: number;
   lastUsedAt?: number;
   revokedAt?: number;
@@ -1486,6 +1540,15 @@ export type AutomationWorkflowStatus = "draft" | "active" | "paused";
 export type AutomationTriggerType =
   | "manual"
   | "website-enquiry.received"
+  /**
+   * A form landed in a CLIENT's own database (see `ClientFormNotice`).
+   *
+   * Distinct from `website-enquiry.received`, which is one of OUR sites posting
+   * into our own inbox. This one carries a pointer and no customer data, so a
+   * workflow acting on it must read the submission through the client's
+   * connection rather than expecting fields on the event.
+   */
+  | "client-form.received"
   | "client-request.received"
   | "social-message.received"
   | "client.created"
@@ -2217,8 +2280,31 @@ export interface SharedKpiComparisonView {
   createdBy?: string;
 }
 
+/**
+ * Retention periods, in days, per category of personal data.
+ *
+ * **Absent means keep forever**, which is today's behaviour and therefore the
+ * only safe default: a retention sweep that shipped with numbers already in it
+ * would start deleting somebody's records the moment it was deployed, on a
+ * schedule nobody chose. Every field here is optional for that reason.
+ *
+ * GDPR Art. 5(1)(e) asks for a stated period per category; `compliancePosture`
+ * wants "something actually enforces it". These are the numbers that get
+ * enforced — see `retention.ts`.
+ */
+export interface RetentionPolicy {
+  /** The audit trail. Long by nature: it is the evidence of everything else. */
+  activityDays?: number;
+  /** The DSAR register — evidence a request was received and answered. */
+  subjectRequestDays?: number;
+  /** Enquiry pointers into a client's own database. */
+  clientFormNoticeDays?: number;
+}
+
 export interface AgencyWorkspaceSettings {
   agencyId: string;
+  /** Unset per field = keep forever. See RetentionPolicy. */
+  retention?: RetentionPolicy;
   legalName?: string;
   supportEmail?: string;
   phone?: string;
@@ -3169,6 +3255,21 @@ export interface DevProject {
    * Old records simply lack the field and parse unchanged (top-level).
    */
   parentProjectId?: string;
+  /**
+   * The files this project EXPOSES, repo-relative. Absent or empty = the whole
+   * repository, which is what every project had before this existed.
+   *
+   * Ed, 2026-08-27: *"aquaCRM repo locked down to this portal's files as we
+   * can't expose the whole repo in Fulfilment."* The editor serves from the
+   * working tree, so a project pointed at a large shared repository handed the
+   * whole thing to anyone who could open the editor. This is the project's
+   * MAXIMUM surface; a person's grant may narrow further within it but can
+   * never widen past it (`intersectPathScopes`).
+   *
+   * A folder entry covers everything beneath it, matched on segment boundaries
+   * — see `lib/server/dev/devPathScope.ts`, which owns every rule about these.
+   */
+  allowedPaths?: string[];
   /** The last MAP run — both halves and when. Absent means never mapped. */
   map?: DevProjectMap;
   createdBy: string;
@@ -3371,10 +3472,27 @@ export interface RadarMemoryScan {
   criticalIssues: number;
   warningIssues: number;
   watchIssues: number;
-  issueStates: Array<{ id: string; severity: "critical" | "warning" | "watch" }>;
-  attentionCheckIds: string[];
-  blindCheckIds: string[];
-  sourceStates: Array<{ id: string; status: "connected" | "empty" | "disconnected" | "unavailable"; recordCount: number }>;
+  // ── The detail, kept only on the newest few scans ──────────────────────
+  //
+  // Measured on the live datastore 2026-08-29: `radarMemory.scans` was **473 KB
+  // across 68 scans — about 7 KB each**, and the cap is 180, so this alone was
+  // heading for ~1.26 MB per agency. Radar as a whole was 29% of the entire
+  // document, five times the size of the actual `clients` data.
+  //
+  // Nearly all of that weight is these four fields, and **only the single most
+  // recent scan is ever read** — `radarMemory.ts` takes `scans.at(-1)` to work
+  // out what is new, worsening or recovered since last time. Nothing looks at
+  // the detail of scan #170.
+  //
+  // So they are compacted away on older scans, and they are OPTIONAL rather
+  // than emptied. That distinction is the whole point: an empty
+  // `issueStates: []` reads as "nothing was wrong during that sweep", which
+  // would be a confident lie about a scan whose detail we simply no longer
+  // hold. **Absent means "not retained"; `[]` means "genuinely none".**
+  issueStates?: Array<{ id: string; severity: "critical" | "warning" | "watch" }>;
+  attentionCheckIds?: string[];
+  blindCheckIds?: string[];
+  sourceStates?: Array<{ id: string; status: "connected" | "empty" | "disconnected" | "unavailable"; recordCount: number }>;
 }
 
 export interface RadarMemoryHourlyRollup {
@@ -3460,6 +3578,28 @@ export interface RadarEvidenceSeries {
   totalSamples: number;
   points: RadarEvidencePoint[];
   hourly: RadarEvidenceHourlyRollup[];
+  /**
+   * Daily rollups — the long trend, kept when the raw points and the hourly
+   * buckets behind them have aged out.
+   *
+   * Added 2026-08-29. Retention used to be COUNT-based (`288` points, `720`
+   * hourly), numbers chosen for a five-minute probe cadence. When the cadence
+   * became daily those same numbers silently started meaning **288 days** and
+   * **~2 years** instead of 24 hours and 30 days, so the series grew roughly
+   * thirty times larger than intended — inside a state document that is
+   * rewritten in full on every save.
+   *
+   * Time-based windows fix the meaning, but a short window on its own would
+   * throw away the long history the KPI trajectory chart draws. This tier is
+   * what makes compaction lossless in the way that matters: one row per day,
+   * carrying the same shape as an hourly rollup, so a year of trend costs about
+   * as much as three days of raw samples.
+   *
+   * Optional because every series persisted before that date has none; it fills
+   * in as those series are next written, and readers must treat absent as
+   * "nothing rolled up yet", never as "nothing happened".
+   */
+  daily?: RadarEvidenceHourlyRollup[];
   entityType?: "client" | "product" | "property";
   entityId?: string;
   entityLabel?: string;
@@ -3472,6 +3612,107 @@ export interface RadarEvidenceState {
   firstRecordedAt: number;
   lastRecordedAt: number;
   series: Record<string, RadarEvidenceSeries>;
+}
+
+// ─── Personal chrome: sidebar order and saved tabs ────────────────────────
+//
+// Ed, 2026-08-27: *"I want anyone to be able to reorder their sidebar, meaning
+// saved tabs can properly integrate if dragged into it. On top of that, saving
+// tabs needs an upgrade — currently it saves a page, and I'd like it to be able
+// to save a specific view or specific place that I choose."*
+//
+// Two asks, one record, because they are the same thing from the person's point
+// of view: *this is my nav, arranged how I want it, with my own shortcuts in it*.
+// A saved tab dropped into a panel is a nav row; keeping the order somewhere
+// else from the pins would mean two stores that have to agree about position.
+//
+// ── Why this is stored per person, and on the ACCOUNT ─────────────────────
+//
+// Pins used to live in `localStorage`, which is per browser: arrange your nav on
+// the laptop and the phone still shows the default. Ed asked for the account, so
+// this is server state — which also makes it visible to erasure, export and the
+// access kernel, none of which could see a localStorage key.
+//
+// ── Why order is stored as a LIST OF IDS, not a copy of the nav ───────────
+//
+// The sidebar is assembled per request from role, installed plugins and grants.
+// Storing a person's nav as a snapshot would freeze it: a plugin they install
+// tomorrow would never appear, and one they lose access to would linger. So the
+// record holds only ORDER — ids, in the sequence the person wants — and the
+// assembly applies it to whatever the nav legitimately contains today. An id
+// that no longer exists is ignored; an item the order does not mention keeps its
+// default position. That way a personal arrangement can never grant, hide or
+// outlive access to anything.
+
+/** Where a saved tab is shown. */
+export type SavedTabPlacement =
+  /** The quick strip across the top — the short-term working set. */
+  | { kind: "topbar" }
+  /** The "Saved" section at the foot of the sidebar. */
+  | { kind: "sidebar" }
+  /** Dropped INTO a nav panel, so it reads as an ordinary nav row. */
+  | { kind: "panel"; panelId: string };
+
+/**
+ * The exact place in a page a saved tab points at.
+ *
+ * Ed asked for *"the view so we get the right icon and the spot to get the
+ * right location"*. Those are two different things and both are stored:
+ *
+ *   • the VIEW is the href — path plus query, so `?tab=ar&range=90d` comes back
+ *     as it was. It is also what the icon is resolved from, by matching the
+ *     href against the live nav tree rather than storing an icon name (there is
+ *     exactly one icon source in this app and this must not become a second).
+ *   • the SPOT is this: a target within the rendered page.
+ *
+ * `selector` is a CSS selector captured when the person picked the spot, and
+ * `text` is what that element said at the time. The text is not decoration — a
+ * selector alone breaks silently the first time a page's markup changes, and
+ * then the pin scrolls to the wrong thing or nowhere with no explanation. With
+ * the text kept, the reader can fall back to finding the heading by name, and
+ * can say honestly that the spot has moved.
+ */
+export interface SavedTabSpot {
+  /** CSS selector for the element, captured at save time. */
+  selector: string;
+  /** What it read at save time — the fallback, and what makes a miss explainable. */
+  text: string;
+}
+
+export interface SavedTab {
+  id: string;
+  /** Path plus query: the VIEW this tab returns to. */
+  href: string;
+  /** The person's own name for it, or the page heading captured at save time. */
+  label: string;
+  placement: SavedTabPlacement;
+  /** Where in its strip or panel it sits. */
+  order: number;
+  /** The chosen place within the page. Absent means the top of the view. */
+  spot?: SavedTabSpot;
+  /**
+   * An icon the person CHOSE, as a key into `components/chrome/navIcons`.
+   *
+   * Ed, 2026-08-27: *"if i hold the star icon or the icon i can switch it to the
+   * workspace icons."* Absent is the normal state and means DERIVED — the icon
+   * of the nav item the tab's href sits under, resolved live so it cannot
+   * drift. This field is only ever set by somebody deliberately overriding that,
+   * which is why it is not populated at save time.
+   */
+  icon?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface UserChromeLayout {
+  agencyId: string;
+  userId: string;
+  /** Panel ids in the person's order. Unlisted panels keep their default place. */
+  panelOrder: string[];
+  /** panelId → nav item ids in the person's order. Unlisted items keep theirs. */
+  itemOrder: Record<string, string[]>;
+  savedTabs: SavedTab[];
+  updatedAt: number;
 }
 
 export interface OperationalAlertPreference {
@@ -3964,6 +4205,126 @@ export interface DevTeamWorkspaceFile {
   updatedBy?: string;
 }
 
+/**
+ * "A form came in" — and deliberately nothing else.
+ *
+ * Ed, 2026-08-27: *"internally we just get a notification to say they got the
+ * form so we can track enquiries without merging or breaching data."*
+ *
+ * A client's website writes submissions into THEIR OWN Supabase project. A
+ * Database Webhook there posts here on insert, and this is everything we keep:
+ * which client, which table, which row, and when. The customer's name, email
+ * and message stay in the client's database and are read on demand, in their
+ * portal, and never persisted on our side.
+ *
+ * That is not only a privacy nicety — it decides who the data controller is.
+ * The client remains controller of their customers' data; AquaCRM holds
+ * operational metadata about an event. Copying the row here would collapse
+ * that distinction for every client at once.
+ *
+ * `rowId` is a foreign key into a database we do not own. It may point at a row
+ * that has been deleted, and reading it may fail. Anything rendering these must
+ * treat a missing row as normal rather than as an error.
+ */
+/**
+ * A data-subject request, and the clock it runs against.
+ *
+ * GDPR Art. 12(3): a controller answers "without undue delay and in any event
+ * within one month of receipt". That deadline is statutory, not a preference —
+ * which is why this record can exist before anybody chooses a policy.
+ *
+ * The paired gap to the export itself. `compliancePosture` recorded both:
+ * `gdpr.dsar-access` (no export — now built) and `gdpr.dsar-intake`, which said
+ * "If a regulator asked you to evidence a request you handled, you could show
+ * the erasure but not the request." This is the request.
+ */
+export interface SubjectRequest {
+  id: string;
+  agencyId: string;
+  /** Which right is being exercised. */
+  kind: "access" | "erasure" | "rectification" | "portability" | "objection" | "restriction";
+  /**
+   * How they identified themselves, as given. Free text on purpose: a request
+   * arrives by email or post from somebody who may not be in the system at all,
+   * and refusing to log it until it matches a record would defeat the point.
+   */
+  subjectLabel: string;
+  /** Resolved later, if and when they are matched to a person. */
+  personId?: string;
+  receivedAt: number;
+  /** receivedAt + one month. Stored, not computed, so a later change to the
+   * rule cannot silently move a deadline that has already been communicated. */
+  dueAt: number;
+  /**
+   * Art. 12(3) allows two further months for complex requests. Recorded with a
+   * reason, because an extension the subject was not told about is not an
+   * extension.
+   */
+  extendedAt?: number;
+  extensionReason?: string;
+  /**
+   * Art. 12(6): where there is reasonable doubt about identity, ask. Releasing
+   * somebody's data to whoever asks for it is itself a breach, so fulfilment is
+   * gated on this being set.
+   */
+  identityVerifiedAt?: number;
+  identityVerifiedBy?: string;
+  fulfilledAt?: number;
+  fulfilledBy?: string;
+  /** What was actually done — free text for the file, no personal data. */
+  outcome?: string;
+  refusedAt?: number;
+  refusalReason?: string;
+  createdBy: string;
+}
+
+export interface ClientFormNotice {
+  id: string;
+  agencyId: string;
+  clientId: string;
+  /** The vault connection this arrived through, so the reader knows where to look. */
+  connectionId: string;
+  /** The client's table name, as configured — not trusted for anything else. */
+  table: string;
+  /** The row's primary key in THEIR database. Never a value from the row. */
+  rowId: string;
+  /**
+   * WHICH column that key came from — `id`, `uuid`, `submission_id`…
+   *
+   * Supabase does not promise the primary key is called `id`, and the reader
+   * has to name a column to filter on. Guessing at read time would mean an
+   * enquiry that silently resolves to nothing on any table that named its key
+   * differently — the failure would look like "the customer's row was deleted"
+   * rather than "we looked in the wrong column". A column name is not personal
+   * data, so recording it costs nothing.
+   */
+  rowKey: string;
+  /** When we were told, not when they submitted — those can differ. */
+  receivedAt: number;
+  /** Cleared when somebody opens it in the inbox. */
+  seenAt?: number;
+
+  /**
+   * When a confirmation to the customer was ATTEMPTED — written before the send,
+   * not after.
+   *
+   * Claiming first is what stops a retried webhook sending a second thank-you.
+   * Supabase retries; a "have we sent it yet" check that only wrote on success
+   * would let two concurrent deliveries both decide they were first.
+   */
+  confirmationAt?: number;
+  confirmationStatus?: "sent" | "failed" | "skipped";
+  /**
+   * Why, as a CODE — never a message, and never an address.
+   *
+   * A failure reason is the easiest place in this whole design for a customer's
+   * email to leak back into our store: "could not send to jane@example.com" is
+   * the natural thing to write down. So this is a fixed vocabulary and nothing
+   * derived from the row.
+   */
+  confirmationReason?: "no-email" | "not-configured" | "unavailable" | "send-failed";
+}
+
 export interface PortalState {
   agencies: Record<string, Agency>;
   tradingCompanies: Record<string, TradingCompany>;
@@ -3995,6 +4356,9 @@ export interface PortalState {
   externalAssistantApiKeys: Record<string, ExternalAssistantApiKey>;
   externalAssistantActionProposals: Record<string, ExternalAssistantActionProposal>;
   integrationConnections: Record<string, IntegrationConnection>;
+  clientFormNotices: Record<string, ClientFormNotice>;
+  // Data-subject requests and their statutory clocks. See SubjectRequest.
+  subjectRequests: Record<string, SubjectRequest>;
   // Dev Editor Engine projects — repo + connections + tag + kind. See DevProject.
   devProjects: Record<string, DevProject>;
   // `${agencyId}|${projectId}` → Aqua Editor AI's own per-project config: its
@@ -4066,6 +4430,13 @@ export interface PortalState {
   /** Latest Infra sweep snapshot (radar upgrade Stage 4). App-wide DB/storage health — one probe, not per-agency. */
   radarInfraHealth?: import("@/engines/data/radar/businessRadar").RadarInfraHealthSnapshot;
   operationalAlertPreferences: Record<string, OperationalAlertPreference>;
+  /**
+   * Each person's own chrome: their sidebar order and their saved tabs.
+   *
+   * Keyed `${agencyId}|${userId}` — the same person in two agencies keeps two
+   * layouts, because the nav they are reordering is a different nav.
+   */
+  userChromeLayouts: Record<string, UserChromeLayout>;
   peopleApplications: Record<string, PeopleApplication>;
   peopleEmployees: Record<string, PeopleEmployee>;
   peopleLeaveRequests: Record<string, PeopleLeaveRequest>;

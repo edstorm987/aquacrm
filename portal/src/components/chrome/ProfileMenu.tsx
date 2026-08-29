@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Clapperboard, FlaskConical, Gauge, LogOut, NotebookPen, ShieldCheck, UserRound } from "lucide-react";
 import type { Role } from "@/server/types";
+import { CUSTOMER_PORTAL_ROLES } from "@/server/types";
 import { CINEMATIC_MODE_EVENT, CINEMATIC_MODE_STORAGE_KEY, cinematicModeEnabled, setCinematicMode } from "@/lib/chrome/cinematicMode";
 import { performanceModeCookieEnabled, setPerformanceModeCookie } from "@/lib/chrome/performanceMode";
 import { devIconCookieEnabled, setDevIconCookie } from "@/lib/chrome/devIconPreference";
@@ -105,6 +106,12 @@ export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "Aqua
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const attentionLevel = attention?.attentionWindow.level;
   const showFocusProtection = role.startsWith("agency-") && (attentionLevel === "elevated" || attentionLevel === "overload");
+  // Which ACCOUNT these two links belong to is a question about the audience,
+  // not about one role. `/portal/customer` serves the whole client-portal
+  // audience since 2026-08-27, so a `client-owner` reading this menu inside
+  // their portal must get the portal's account page and its support link — not
+  // the agency-side `/portal/account` they can't reach anyway.
+  const inClientPortal = (CUSTOMER_PORTAL_ROLES as readonly string[]).includes(role);
   const focusProtectionEnabled = attention?.focusProtectionEnabled ?? true;
 
   useEffect(() => {
@@ -286,7 +293,7 @@ export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "Aqua
               </button>
             ) : null}
             <Link
-              href={role === "end-customer" ? "/portal/customer/account" : "/portal/account"}
+              href={inClientPortal ? "/portal/customer/account" : "/portal/account"}
               role="menuitem"
               onClick={() => setOpen(false)}
               className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm text-[#2A2520] hover:bg-[#F4ECD9]"
@@ -294,7 +301,7 @@ export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "Aqua
               <UserRound size={16} className="text-[#8E7340]" aria-hidden="true" />
               <span className="flex-1">Edit profile</span>
             </Link>
-            {role === "end-customer" ? (
+            {inClientPortal ? (
               <Link
                 href="/portal/customer/support"
                 role="menuitem"

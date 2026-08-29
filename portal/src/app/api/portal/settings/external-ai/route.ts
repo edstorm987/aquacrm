@@ -67,6 +67,9 @@ export async function POST(req: NextRequest) {
         modules,
         permissions,
         createdBy: session.email,
+        // The durable handle. A key's authority is this person's, re-derived
+        // per request, and an email can change under it.
+        createdByUserId: session.userId,
         expiresAt: expiresInDays ? Date.now() + expiresInDays * 86_400_000 : undefined,
       });
       await flushPendingWrites();
@@ -84,6 +87,7 @@ export async function POST(req: NextRequest) {
         agencyId: session.agencyId,
         keyId: body.keyId,
         createdBy: session.email,
+        createdByUserId: session.userId,
       });
       await flushPendingWrites();
       return NextResponse.json({

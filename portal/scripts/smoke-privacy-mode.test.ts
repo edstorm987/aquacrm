@@ -36,7 +36,14 @@ test("privacy mode masks sensitive values while leaving the workspace usable", (
 test("a deliberate hold enters the isolated showcase workspace", () => {
   const component = read("src/components/chrome/PrivacyModeControl.tsx");
   assert.match(component, /HOLD_MS = 900/);
-  assert.match(component, /\/api\/auth\/showcase-mode/);
+  // The hold now enters through the canonical sandbox endpoint rather than the
+  // separate `/api/auth/showcase-mode` — the 26 August Sandbox Mode
+  // consolidation. The new call says MORE than the old one did: it names the
+  // dataset and the access level, so "isolated" and "read-only" are both
+  // asserted here instead of being implied by the endpoint's name.
+  assert.match(component, /\/api\/auth\/sandbox-mode/);
   assert.match(component, /action: "enter"/);
+  assert.match(component, /dataset: "demo"/, "the hold stopped entering the isolated demo dataset");
+  assert.match(component, /access: "read-only"/, "the hold stopped being read-only — it can now write to the demo tenant");
   assert.match(component, /longPressTriggered/);
 });

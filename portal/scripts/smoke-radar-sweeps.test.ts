@@ -79,7 +79,28 @@ test("a dedicated probe cron gives the Deep + Infra sweeps a real fast cadence",
   assert.match(cron, /Bearer \$\{secret\}/);
   assert.match(cron, /runRadarInfraSweep\(\)/);
   assert.match(cron, /runRadarProbeRefresh\(agency\.id\)/);
-  // It is scheduled on a short interval, distinct from the daily cron/inbox rebuild.
+  // It is its own cron, distinct from the daily cron/inbox rebuild.
   assert.match(vercel, /\/api\/cron\/radar-probes/);
-  assert.match(vercel, /\*\/10 \* \* \* \*/);
+  const config = JSON.parse(vercel) as { crons?: Array<{ path: string; schedule: string }> };
+  const probes = config.crons?.find(entry => entry.path === "/api/cron/radar-probes");
+  const inbox = config.crons?.find(entry => entry.path === "/api/cron/inbox");
+  assert.ok(probes, "the dedicated probe cron is gone — Deep/Infra are back on the inbox rebuild's cadence");
+  assert.ok(inbox, "the inbox cron is gone");
+  assert.notEqual(probes!.schedule, inbox!.schedule,
+    "the probe cron shares the inbox rebuild's schedule — it is no longer a separate cadence");
+
+  // ── The cadence itself is a DEPLOYMENT decision, and it has changed ────────
+  //
+  // This used to assert `*/10 * * * *`, and the sweep's whole argument was that
+  // "the cheap Pulse now reads genuinely fresh probe data". The schedule is now
+  // once daily. The likely reason is recorded in the docs — "a Vercel plan
+  // allowing sub-daily crons (Hobby is daily-only)" — so this reads as making
+  // the config deployable rather than as a slip.
+  //
+  // It is pinned as an exact value, not loosened to "any schedule", because the
+  // consequence is real: on a daily cron, Radar's Deep/Infra evidence can be up
+  // to 24 hours stale, and no surface says so. Whoever changes this next has to
+  // come here and state which cadence they mean. → issues #170.
+  assert.equal(probes!.schedule, "15 6 * * *",
+    "the probe cadence changed — decide and record whether Radar is claiming fresh or daily evidence (issues #170)");
 });

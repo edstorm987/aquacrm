@@ -1,5 +1,7 @@
 import { describe, it, before, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { execSync } from "node:child_process";
 
 let storage: typeof import("../src/server/storage");
 let tenants: typeof import("../src/server/tenants");
@@ -1032,5 +1034,265 @@ describe("erasing a client anonymises the identity-resolution reviews that named
     assert.equal(after.email, OTHER, "a separate party's details must NOT be collateral damage");
     assert.equal(after.name, "Someone Else");
     assert.deepEqual(after.resolution.candidates, [], "but the erased client is no longer named as a candidate");
+  });
+});
+
+describe("erasure covers client form notices", () => {
+  // A GDPR check on data added on 2026-08-28. Client-form notices are pointers
+  // to enquiries living in a CLIENT's own Supabase — an id, a timestamp, a seen
+  // flag. They hold no customer PII by design, but they do record that a named
+  // client received enquiries and when, which is client data and must not
+  // outlive the client.
+  //
+  // Nothing was written to make this work: `clientFormNotices` simply is not in
+  // RETAIN_COLLECTIONS, PLUGIN_COLLECTIONS or DEDICATED_COLLECTIONS, so the
+  // generic `pruneClientId` pass reaches it. That is exactly why it deserves a
+  // test — the guarantee is currently an ABSENCE from three lists, and an
+  // absence is the easiest thing in the world to reverse by accident.
+  it("removes a client's notices when that client is erased", async () => {
+    const notices = await import("../src/lib/server/clientForms/clientFormNotices");
+
+    const agency = tenants.createAgency({ name: "Erase Notices", slug: `en-${Math.floor(performance.now())}` });
+    const doomed = tenants.createClient(agency.id, { name: "Doomed" });
+    const survivor = tenants.createClient(agency.id, { name: "Survivor" });
+
+    notices.recordClientFormNotice({
+      agencyId: agency.id, clientId: doomed.id, connectionId: "conn_d", table: "form_submissions", rowId: "d1",
+    });
+    notices.recordClientFormNotice({
+      agencyId: agency.id, clientId: doomed.id, connectionId: "conn_d", table: "form_submissions", rowId: "d2",
+    });
+    const kept = notices.recordClientFormNotice({
+      agencyId: agency.id, clientId: survivor.id, connectionId: "conn_s", table: "form_submissions", rowId: "s1",
+    });
+
+    assert.equal(notices.listClientFormNotices(agency.id, doomed.id).length, 2, "seed must actually land");
+
+    const result = await erasure.eraseClientCompletely({
+      agencyId: agency.id,
+      clientId: doomed.id,
+      actorUserId: "user_test",
+    });
+    assert.ok(result?.completed, "the erasure must complete");
+
+    // The point of the test.
+    assert.equal(
+      notices.listClientFormNotices(agency.id, doomed.id).length,
+      0,
+      "erasing a client must not leave their enquiry notices behind",
+    );
+
+    // Read the store directly too: `listClientFormNotices` filters by client, so
+    // on its own it would report zero even if the rows were merely orphaned.
+    const remaining = Object.values(storage.getState().clientFormNotices ?? {}) as Array<{ clientId?: string }>;
+    assert.equal(
+      remaining.some(notice => notice.clientId === doomed.id),
+      false,
+      "no notice may survive with the erased client's id on it",
+    );
+
+    // And erasure must be surgical: the other client is untouched.
+    assert.equal(notices.listClientFormNotices(agency.id, survivor.id).length, 1, "another client's notices must survive");
+    assert.equal(notices.listClientFormNotices(agency.id, survivor.id)[0]?.id, kept.id);
+  });
+});
+
+describe("what survives an erasure is genuinely de-identified", () => {
+  // The RETAIN set's whole justification, in `clientErasure.ts`:
+  //
+  //   "Excluded from the erasure sweep — the client record's own PII still
+  //    goes, so what remains is de-identified."
+  //
+  // That is true of the IDENTIFIERS. It is not automatically true of FREE TEXT.
+  // `ClientMilestone` carries `title` and `description?`, both operator-typed,
+  // and a milestone called "Onboarding call with Jane Smith" survives erasure
+  // as a row nobody can find again — the client record that would have led you
+  // to it is gone.
+  //
+  // This is the same rule the codebase already learned for activity messages
+  // ("Never put PII in an activity message — the erasure sweep is keyed by
+  // clientId"), applied to a collection that never had it written down.
+  //
+  // ── What this test does and does not do ──────────────────────────────
+  //
+  // It cannot scrub free text; deciding what delivery proof must survive is a
+  // legal question (Q1 in the DPO pack). What it CAN do is make the retain set
+  // a reviewed list rather than an incidental one, so adding a collection to it
+  // is a deliberate act taken against this concern.
+
+  it("retains exactly the collections that have been reviewed for it", async () => {
+    const source = readFileSync("src/server/clientErasure.ts", "utf8");
+    const match = /const RETAIN_COLLECTIONS = new Set<string>\(\[([^\]]*)\]\)/.exec(source);
+    assert.ok(match, "RETAIN_COLLECTIONS must still be a literal set for this to mean anything");
+    const retained = [...match[1].matchAll(/"([a-zA-Z]+)"/g)].map(entry => entry[1]).sort();
+
+    assert.deepEqual(
+      retained,
+      ["clientMilestones"],
+      "A collection was added to or removed from RETAIN_COLLECTIONS. Retained data survives erasure, "
+      + "so before changing this list: does the collection carry operator-typed free text that could "
+      + "name a person? If so, the 'what remains is de-identified' justification does not hold for it.",
+    );
+  });
+
+  it("names the free-text risk where somebody changing it will read it", () => {
+    // A finding recorded only in a plan document is a finding that gets lost.
+    const source = readFileSync("src/server/clientErasure.ts", "utf8");
+    assert.match(
+      source,
+      /free text|free-text/i,
+      "clientErasure.ts must say, next to RETAIN_COLLECTIONS, that de-identification covers identifiers "
+      + "and not operator-typed prose",
+    );
+  });
+});
+
+describe("the customer portal's activity feed cannot leak internal wording", () => {
+  // The portal ships an `activity` list to the client. Every entry goes through
+  // `customerActivityMessage`, which is an ALLOWLIST — it matches known actions
+  // and `return undefined` for everything else, so an action nobody has
+  // considered is dropped rather than shown. That is the right shape, and it is
+  // why the actions added on 2026-08-28 (`subject_access.exported`,
+  // `retention.policy_set`) cannot reach a client.
+  //
+  // ── The one exception, and why it needs a guard ──────────────────────
+  //
+  // One line breaks the allowlist:
+  //
+  //     if (item.action.startsWith("product_workspace.")) return item.message;
+  //
+  // It passes the RAW stored message straight to the client. That is safe today
+  // only because the single writer of those actions builds its message with
+  // `customerMessage(...)` — text authored for the customer at write time.
+  //
+  // Nothing enforces that. A second writer, or a change to the existing one,
+  // would put internal wording in front of a client with no code change to the
+  // portal at all. These two assertions are what stands between the convention
+  // and a leak.
+
+  it("the portal passes product_workspace messages through verbatim", () => {
+    const portal = readFileSync("src/app/portal/customer/_portalData.ts", "utf8");
+    assert.match(
+      portal,
+      /item\.action\.startsWith\("product_workspace\."\)\) return item\.message;/,
+      "if this passthrough is removed the guard below is no longer needed — delete it too",
+    );
+    // Everything else must still fall through to "show nothing".
+    assert.match(portal, /\n\s*return undefined;\n}/, "unknown actions must be dropped, never passed through");
+  });
+
+  it("so every writer of those actions must author customer-facing text", () => {
+    const writers = execSync(
+      'grep -rln "product_workspace\\." src/app src/server src/lib || true',
+      { encoding: "utf8" },
+    ).split("\n").filter(Boolean).filter(file => !file.includes("_portalData.ts"));
+
+    assert.deepEqual(
+      writers,
+      ["src/app/api/tenants/product-workspaces/route.ts"],
+      "A new writer of product_workspace.* activity appeared. The customer portal shows those messages "
+      + "VERBATIM, so it must build its message with customer-facing wording — check it, then add it here.",
+    );
+
+    const writer = readFileSync(writers[0], "utf8");
+    assert.match(
+      writer,
+      /message: customerMessage\(action, workspace\.productName\)/,
+      "the message must come from customerMessage(), which is written for the client to read",
+    );
+  });
+});
+
+describe("internal call notes never reach the customer portal", () => {
+  // Found in the 2026-08-28 GDPR pass, and it is the sharpest kind of bug:
+  // the SAME data classified two different ways by two paths over it.
+  //
+  //   `websiteEnquiries.ts` builds a record-ledger entry per enquiry call whose
+  //   body is `[outcome, call.notes, recording]` and marks it
+  //   `visibility: "internal"`.
+  //
+  //   `_portalData.ts` built its OWN entry from the same `enquiry.calls`, put
+  //   `call.notes` in the body, and spread it into `recordEntries` — AFTER the
+  //   `.filter(entry => entry.visibility === "client")` applied to the other
+  //   source. So the gate existed, and this list walked around it.
+  //
+  // The tell was already in the code: the recording URL on the very next line
+  // is gated on `consentConfirmed`. Somebody thought hard about the recording
+  // and not about the notes beside it.
+
+  it("the portal's call entries carry duration, never notes", () => {
+    const portal = readFileSync("src/app/portal/customer/_portalData.ts", "utf8");
+    const block = /const enquiryCallEntries[\s\S]*?\}\)\)\);/.exec(portal);
+    assert.ok(block, "enquiryCallEntries must still exist for this guard to mean anything");
+
+    assert.doesNotMatch(block[0], /call\.notes/, "call notes are internal — they must not reach a client's screen");
+    assert.match(block[0], /call\.durationSeconds/, "keeping that the call happened is the point");
+    // The consent gate on the recording must survive too.
+    assert.match(block[0], /call\.recording\?\.consentConfirmed \? call\.recording\.url : undefined/,
+      "a recording may only be linked where consent was confirmed");
+  });
+
+  it("the ledger still classifies those same calls as internal", () => {
+    // If this classification ever changes to "client", the portal decision
+    // above should be revisited rather than silently diverging again.
+    const ledger = readFileSync("src/lib/server/websiteEnquiries.ts", "utf8");
+    const callEntry = /sourceType: "call" as const[\s\S]*?visibility: "(\w+)" as const/.exec(ledger);
+    assert.ok(callEntry, "the ledger must still build a call entry with a visibility");
+    assert.equal(
+      callEntry[1],
+      "internal",
+      "enquiry call entries are classified internal; if that changed, revisit what the customer portal shows",
+    );
+  });
+});
+
+describe("the customer portal builds its payload field by field", () => {
+  // The invariant that makes `requests`, `approvals`, `files`, `invoices` and
+  // `contracts` safe — and whose absence made `enquiryCallEntries` unsafe.
+  //
+  // `ClientRequest` carries no internal-only field today, so copying it whole
+  // would leak nothing. But `_portalData.ts` maps it property by property
+  // anyway, which means the day somebody adds `internalNote?: string` to that
+  // type, the portal does NOT start showing it. The explicit mapping IS the
+  // protection; a spread would silently opt every future field in.
+  //
+  // Checked 2026-08-28: no source record is spread into a customer-facing
+  // object anywhere in the file. The one `...` present spreads an array of
+  // ALREADY-MAPPED replies, which is a different thing.
+
+  it("never spreads a source record into the customer payload", () => {
+    const portal = readFileSync("src/app/portal/customer/_portalData.ts", "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+
+    // Sources that come from stored state. Spreading one of these into an
+    // object literal hands the client every field it happens to carry.
+    const sources = "meta|client|entry|request|approval|file|invoice|contract|call|enquiry|reply|plan|message";
+    const offenders: string[] = [];
+    for (const match of portal.matchAll(new RegExp(`\\.\\.\\.(${sources})\\b([^\\n]*)`, "g"))) {
+      const rest = match[2] ?? "";
+      // `...enquiry.replies.map(...)` spreads a mapped ARRAY — allowed.
+      if (/^\s*\.\w+/.test(rest) && /\.(map|filter|flatMap|slice|concat)\s*\(/.test(rest)) continue;
+      offenders.push(`...${match[1]}${rest.slice(0, 60)}`);
+    }
+
+    assert.deepEqual(
+      offenders,
+      [],
+      "A stored record is being spread into the customer payload. Map its fields by hand instead — "
+      + "a spread opts in every field the type gains later, which is how internal data reaches a client "
+      + "without anyone editing this file:\n  " + offenders.join("\n  "),
+    );
+  });
+
+  it("still maps the collections it is supposed to", () => {
+    // Guards the guard: if the file were renamed or gutted, the check above
+    // would pass over an empty string and prove nothing.
+    const portal = readFileSync("src/app/portal/customer/_portalData.ts", "utf8");
+    for (const name of ["safeFiles", "safeRequests", "safeApprovals", "safeInvoices", "safeContracts"]) {
+      assert.match(portal, new RegExp(`const ${name}`), `${name} must still be built here`);
+    }
+    // And the visibility gate on files, which is the one collection with a flag.
+    assert.match(portal, /file\.customerVisible === true/, "files must stay gated on their visibility flag");
   });
 });

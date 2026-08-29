@@ -1,33 +1,34 @@
 process.env.PORTAL_BACKEND ??= "memory";
 process.env.PORTAL_SESSION_SECRET ??= "product-stage-convergence-smoke-secret";
 
+// First, and statically: this import installs the request-scope helpers before
+// anything pulls in `next/`. See the note in dev-console-request-scope.ts.
+import { withSession } from "./dev-console-request-scope";
+
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { before, describe, test } from "node:test";
 
 const require_ = createRequire(import.meta.url);
-let sessionCookie = "";
-const headersId = require_.resolve("next/headers");
-require_.cache[headersId] = {
-  id: headersId,
-  filename: headersId,
-  loaded: true,
-  paths: [],
-  children: [],
-  exports: {
-    cookies: async () => ({
-      get: (name: string) => sessionCookie && name === "lk_session_v1" ? { name, value: sessionCookie } : undefined,
-      getAll: () => sessionCookie ? [{ name: "lk_session_v1", value: sessionCookie }] : [],
-      has: (name: string) => Boolean(sessionCookie) && name === "lk_session_v1",
-    }),
-    headers: async () => new Headers(),
-    draftMode: async () => ({ isEnabled: false }),
-  },
-} as never;
 
-const { POST: moveFromBoard } = require_("../src/app/api/portal/pipelines/move-client/route") as typeof import("../src/app/api/portal/pipelines/move-client/route");
-const { POST: moveFromProcess } = require_("../src/app/api/tenants/client-product-process/route") as typeof import("../src/app/api/tenants/client-product-process/route");
-const { POST: moveFromPortal } = require_("../src/app/api/tenants/product-workspaces/route") as typeof import("../src/app/api/tenants/product-workspaces/route");
+// These routes authenticate through `getSession()` → `cookies()`, which throws
+// outside a request scope. This file used to stub the whole `next/headers`
+// module with a cookie jar of its own; that is not a request scope, and
+// `getSession()` now also resolves the session's live user and data realm from
+// the REAL request store, so the stub answered the cookie question and silently
+// failed the rest. Use the shared rig instead — one home, not two — and wrap the
+// routes once here so every call site below reads unchanged.
+let sessionCookie = "";
+
+const { POST: boardRoute } = require_("../src/app/api/portal/pipelines/move-client/route") as typeof import("../src/app/api/portal/pipelines/move-client/route");
+const { POST: processRoute } = require_("../src/app/api/tenants/client-product-process/route") as typeof import("../src/app/api/tenants/client-product-process/route");
+const { POST: portalRoute } = require_("../src/app/api/tenants/product-workspaces/route") as typeof import("../src/app/api/tenants/product-workspaces/route");
+
+// Every route runs in the current world's request scope — the shape a browser
+// request has.
+const moveFromBoard = (req: Request) => withSession(sessionCookie, () => boardRoute(req as never));
+const moveFromProcess = (req: Request) => withSession(sessionCookie, () => processRoute(req as never));
+const moveFromPortal = (req: Request) => withSession(sessionCookie, () => portalRoute(req as never));
 const auth = require_("../src/lib/server/auth/auth") as typeof import("../src/lib/server/auth/auth");
 const stageTruth = require_("../src/lib/products/clientProductStageTruth") as typeof import("../src/lib/products/clientProductStageTruth");
 const productWorkspace = require_("../src/server/productWorkspaces") as typeof import("../src/server/productWorkspaces");
@@ -35,6 +36,7 @@ const activity = require_("../src/server/activity") as typeof import("../src/ser
 const agencyProducts = require_("../src/server/agencyProducts") as typeof import("../src/server/agencyProducts");
 const storage = require_("../src/server/storage") as typeof import("../src/server/storage");
 const tenants = require_("../src/server/tenants") as typeof import("../src/server/tenants");
+const users = require_("../src/server/users") as typeof import("../src/server/users");
 
 before(async () => {
   await storage.ensureHydrated();
@@ -107,11 +109,26 @@ function seedWorld(productCount = 1): World {
       portalProductIds: products.map(product => product.id),
     },
   });
-  sessionCookie = auth.issueSession({
-    userId: `product-stage-user-${sequence}`,
+  // A REAL user, not a made-up id. `getSession()` re-resolves the session's user
+  // on every call and refuses a cookie whose subject does not exist, whose role
+  // has changed, or whose `sessionRev` is stale — the central fresh-session
+  // boundary (issues #22). A hand-minted id used to sail through it; it now 401s,
+  // correctly, so the fixture has to seed the person it claims to be.
+  const owner = users.createUser({
     email: ownerEmail,
+    name: `Stage Owner ${sequence}`,
     role: "agency-owner",
     agencyId: agency.id,
+    password: "product-stage-smoke-pass-phrase",
+  });
+  sessionCookie = auth.issueSession({
+    userId: owner.id,
+    email: owner.email,
+    role: "agency-owner",
+    agencyId: agency.id,
+    agencyIds: [agency.id],
+    activeAgencyId: agency.id,
+    sessionRev: owner.sessionRev ?? 0,
   });
   return { agencyId: agency.id, clientId: client.id, products };
 }

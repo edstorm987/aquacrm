@@ -15,6 +15,36 @@ export function stateKeyForRealm(realmId = "live"): string {
   return clean === "live" ? STATE_KEY : `${STATE_KEY}:realm:${clean}`;
 }
 
+/**
+ * The Dev Team workspace files live in their OWN datastore row.
+ *
+ * Measured on the live project 2026-08-29: `devTeamWorkspaceFiles` was **967 KB
+ * of a 3.25 MB document — 29% of it**, and the largest single collection. The
+ * actual business data (`clients`) was 181 KB, 5.4%.
+ *
+ * That matters because of how the datastore is written. PostgreSQL applies each
+ * `jsonb_set` **against the complete value**, and the patch RPC returns the
+ * whole saved document to be re-parsed into the cache. So a founder editing one
+ * markdown file, and equally somebody marking one enquiry as seen, paid for
+ * those 967 KB on every write and every response.
+ *
+ * Splitting them out needs **no SQL change at all**: both RPCs already take
+ * `p_app_key` and read `data->'devTeamWorkspaceFiles'` from whichever row that
+ * names, so pointing the workspace RPC at a second key is a one-line change and
+ * the row-level lock it takes is now on a row nothing else contends for.
+ *
+ * They are a good first collection to move precisely because they are NOT
+ * personal data — a mistake here costs a founder tool, not a client's records.
+ */
+export function sidecarKeyForRealm(slug: string, realmId = "live"): string {
+  return `${stateKeyForRealm(realmId)}:${slug}`;
+}
+
+/** Back-compat name for the first sidecar, kept so call sites read plainly. */
+export function devWorkspaceKeyForRealm(realmId = "live"): string {
+  return sidecarKeyForRealm("dev-workspace-files", realmId);
+}
+
 function getConfig() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -109,6 +139,77 @@ export async function saveBlob(
   }
 }
 
+/**
+ * The Dev Team workspace files, from their own row.
+ *
+ * Returns `null` when the row does not exist yet — which is the normal state
+ * until the first commit, and is deliberately NOT an error: a fresh project has
+ * no sidecar and must fall back to whatever the main document holds.
+ */
+export async function loadSidecarBlob(
+  slug: string,
+  options: SupabaseStorageRequestOptions = {},
+  realmId = "live",
+): Promise<string | null> {
+  const { url, serviceRoleKey } = getConfig();
+  const stateKey = sidecarKeyForRealm(slug, realmId);
+  const response = await request(
+    "Supabase sidecar load",
+    "storageRead",
+    "read",
+    `${url}/rest/v1/app_datastores?app_key=eq.${encodeURIComponent(stateKey)}&select=data&limit=1`,
+    { headers: headers(serviceRoleKey), cache: "no-store" },
+    options,
+  );
+  if (!response.ok) throw new Error(`[supabase-storage] sidecar "${slug}" load failed (${response.status})`);
+  const rows = JSON.parse(response.body) as Array<{ data: unknown }>;
+  if (!rows.length) return null;
+  return JSON.stringify(rows[0]!.data ?? {});
+}
+
+export const loadDevWorkspaceBlob = (
+  options: SupabaseStorageRequestOptions = {},
+  realmId = "live",
+): Promise<string | null> => loadSidecarBlob("dev-workspace-files", options, realmId);
+
+/**
+ * Seed the Dev Team workspace sidecar row.
+ *
+ * Used exactly once per project, on the first commit after the split: the RPC
+ * only ever writes the operations it is handed, so without this the first
+ * commit would leave the sidecar holding one file and the main document about
+ * to drop the rest. Upsert-merge, so running it twice is harmless.
+ */
+export async function saveSidecarBlob(
+  slug: string,
+  content: string,
+  options: SupabaseStorageRequestOptions = {},
+  realmId = "live",
+): Promise<void> {
+  const { url, serviceRoleKey } = getConfig();
+  const stateKey = sidecarKeyForRealm(slug, realmId);
+  const data = JSON.parse(content) as unknown;
+  const response = await request(
+    "Supabase sidecar save",
+    "storageWrite",
+    "non-idempotent-write",
+    `${url}/rest/v1/app_datastores?on_conflict=app_key`,
+    {
+      method: "POST",
+      headers: { ...headers(serviceRoleKey), prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify({ app_key: stateKey, data }),
+    },
+    options,
+  );
+  if (!response.ok) throw new Error(`[supabase-storage] sidecar "${slug}" save failed (${response.status})`);
+}
+
+export const saveDevWorkspaceBlob = (
+  content: string,
+  options: SupabaseStorageRequestOptions = {},
+  realmId = "live",
+): Promise<void> => saveSidecarBlob("dev-workspace-files", content, options, realmId);
+
 export async function applyPatch(
   operations: StoragePatchOperation[],
   options: SupabaseStorageRequestOptions = {},
@@ -143,7 +244,8 @@ export async function applyDevTeamWorkspaceFiles(
   realmId = "live",
 ): Promise<string> {
   const { url, serviceRoleKey } = getConfig();
-  const stateKey = stateKeyForRealm(realmId);
+  // The sidecar row, not the main document — see `devWorkspaceKeyForRealm`.
+  const stateKey = devWorkspaceKeyForRealm(realmId);
   const response = await request(
     "Supabase Dev Team workspace commit",
     "storageWrite",

@@ -1,5 +1,15 @@
 "use client";
 
+// Aqua Tag SETUP — the tags themselves: registering a site, its key, install
+// state. Lives under Fulfilment because tagging a site is delivery work.
+//
+// `agency/performance/_AquaTagDashboard.tsx` is the OTHER Aqua Tag surface, and
+// it answers a different question: what the tags have MEASURED. Both are called
+// "Aqua Tag" screens and neither is a rename of the other.
+//
+// Setup belongs here; analytics belongs there. See
+// docs/workspace/hazards-and-duplication.md before adding a third.
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import {

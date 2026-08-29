@@ -246,7 +246,25 @@ describe("canonical client workspace element runtime", () => {
     assert.match(stripe, /clientCommercialGate\(payment\.clientId, "manage"\)/);
     assert.match(connections, /"client\.portal", "manage"/);
     assert.match(portalControl, /"client\.portal", "manage"/);
-    assert.match(portalDesign, /body\.action === "save-draft" \|\| body\.action === "checkpoint" \? "use" : "manage"/);
+    // The portal-design route splits its element level by how destructive the
+    // action is: low-impact edits and the read-only `update-plan` need `use`,
+    // everything that changes a live portal needs `manage`. Pinned as the
+    // PROPERTY rather than one exact ternary, so adding a legitimate read does
+    // not fail while quietly demoting a destructive action still does.
+    assert.match(portalDesign, /body\.action === "save-draft"[\s\S]{0,160}\? "use"\s*: "manage"/);
+    for (const readOnlyAction of ["save-draft", "checkpoint", "update-plan"]) {
+      assert.ok(
+        new RegExp(`body\\.action === "${readOnlyAction}"`).test(portalDesign),
+        `${readOnlyAction} must be named on the "use" side of the portal-design gate`,
+      );
+    }
+    // …and the destructive ones must NOT be, or they would fall to `use`.
+    for (const destructive of ["publish", "reset-client", "update-apply"]) {
+      assert.ok(
+        !new RegExp(`body\\.action === "${destructive}"[^\\n]*\\? "use"`).test(portalDesign),
+        `${destructive} must stay on the "manage" side`,
+      );
+    }
     assert.match(properties, /"client\.systems", "use"/);
     for (const source of [provision, publish, deploy]) assert.match(source, /"client\.systems", "manage"/);
     assert.match(requests, /requireCurrentClientWorkspaceElementAccess\([\s\S]*"client\.communications", "use"\)/);

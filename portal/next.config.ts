@@ -54,6 +54,21 @@ const DEV_LOOPBACK_FRAME_SOURCES = process.env.NODE_ENV === "production"
 // TS gate. If a warning needs suppressing, fix the code or carve out a
 // scoped override in eslint.config.mjs.
 
+// `'unsafe-eval'` is a DEV need, not a production one.
+//
+// Webpack's dev runtime and React Refresh evaluate code at runtime, so the dev
+// server genuinely needs it. A production Next build does not, and leaving it in
+// the shipped policy is not a small thing: together with `'unsafe-inline'` it
+// removes most of what CSP is FOR. An injected string that reaches a sink can
+// execute, which is the exact class of bug a Content-Security-Policy exists to
+// contain.
+//
+// Split rather than deleted, because deleting it outright would have broken the
+// dev server the moment anybody ran it (2026-08-27, Phase D header audit).
+const SCRIPT_SRC = process.env.NODE_ENV === "production"
+  ? "script-src 'self' 'unsafe-inline' https:"
+  : "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:";
+
 const SECURITY_HEADERS = [
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -63,7 +78,7 @@ const SECURITY_HEADERS = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:",
+      SCRIPT_SRC,
       "style-src 'self' 'unsafe-inline' https:",
       "img-src 'self' data: blob: https:",
       "media-src 'self' blob: https:",

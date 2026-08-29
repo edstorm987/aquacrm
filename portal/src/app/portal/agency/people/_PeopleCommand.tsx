@@ -258,7 +258,7 @@ function Overview({ summary, allowedTabs, onOpen }: { summary: StaffOverviewElem
       </section>
       <section data-resolution-focus="details" className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="rounded-lg border border-black/10 bg-white p-5">
-          <div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase text-emerald-800">Hiring flow</p><h2 className="mt-1 text-lg font-semibold">Candidate movement</h2></div>{allowedTabs.includes("candidates") ? <button onClick={() => onOpen("candidates")} className="text-sm font-semibold text-emerald-800">Open pipeline</button> : null}</div>
+          <div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase text-emerald-800">Hiring flow</p><h2 className="mt-1 text-lg font-semibold">Candidate movement</h2></div>{allowedTabs.includes("candidates") ? <button onClick={() => onOpen("candidates")} className="inline-flex min-h-6 items-center text-sm font-semibold text-emerald-800">Open pipeline</button> : null}</div>
           <div className="mt-5 grid grid-cols-3 gap-3 sm:grid-cols-5">
             {(["applied", "under-review", "interview", "offer", "onboarding"] as PeopleApplicationStage[]).map(stage => <div key={stage} className="border-l-2 border-black/10 pl-3"><p className="text-2xl font-semibold">{summary.applicationStages[stage] ?? 0}</p><p className="mt-1 text-xs text-black/45">{STAGE_LABEL[stage]}</p></div>)}
           </div>

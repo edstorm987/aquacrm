@@ -3,6 +3,9 @@
 export { ContactService } from "./contacts";
 export { SegmentService, DEFAULT_SEGMENT_SEEDS } from "./segments";
 export { ActivityService } from "./activity";
+export { PipelineService } from "./pipelines";
+export type { CardTransition } from "./pipelines";
+export { AutomationService } from "./automations";
 
 export type {
   ActivityLogPort,
@@ -46,6 +49,8 @@ import type {
 import { ContactService } from "./contacts";
 import { SegmentService } from "./segments";
 import { ActivityService } from "./activity";
+import { PipelineService } from "./pipelines";
+import { AutomationService } from "./automations";
 
 // ─── Container ────────────────────────────────────────────────────────────
 
@@ -66,6 +71,11 @@ export interface ClientCrmContainer {
   contacts: ContactService;
   segments: SegmentService;
   activity: ActivityService;
+  /** Journey boards — the client's own kanban. Gated by the
+   *  `journey-pipelines` feature; the service is always built, because a
+   *  container whose shape depends on a flag makes every caller check. */
+  pipelines: PipelineService;
+  automations: AutomationService;
 }
 
 export function buildClientCrmContainer(deps: ClientCrmDeps): ClientCrmContainer {
@@ -81,5 +91,14 @@ export function buildClientCrmContainer(deps: ClientCrmDeps): ClientCrmContainer
     deps.agencyId, deps.clientId, storage, deps.activity, deps.events,
     contacts, deps.ecommerceOrders,
   );
-  return { contacts, segments, activity };
+  const pipelines = new PipelineService(
+    deps.agencyId, deps.clientId, storage, deps.activity, deps.events,
+  );
+  // Automations drive the board through PipelineService rather than touching
+  // card storage, so "where a card is" has exactly one owner.
+  const automations = new AutomationService(
+    deps.agencyId, deps.clientId, storage, deps.activity, deps.events,
+    pipelines, contacts, activity, deps.pluginInstalls,
+  );
+  return { contacts, segments, activity, pipelines, automations };
 }

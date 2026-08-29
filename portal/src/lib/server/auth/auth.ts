@@ -27,6 +27,8 @@ import {
   signSessionPayload,
   verifySessionToken,
 } from "@/lib/server/auth/sessionToken";
+import { LIVE_DATA_REALM_ID, ensureHydrated, runInDataRealm } from "@/server/storage";
+import { normaliseDataRealmId } from "@/server/dataRealm";
 
 const COOKIE_NAME = SESSION_COOKIE_NAME;
 const COOKIE_MAX_AGE = SESSION_COOKIE_MAX_AGE;
@@ -120,10 +122,102 @@ export function verifyToken(token: string | undefined): SessionPayload | null {
 }
 
 // ─── Read helpers ─────────────────────────────────────────────────────────
+//
+// Central fresh-session boundary (issue #22). A signed cookie proves only
+// what was true when it was minted. Before ANY role/scope decision, the
+// session's subject is re-validated against the CURRENT authoritative user
+// record — existence (account removal revokes), `sessionRev` (password/role
+// rotation revokes), current role, and live agency membership. Both
+// `getSession()` and `getSessionFromRequest()` refuse a stale cookie, so
+// `requireSession()`/`requireRole()`/`requireRoleForClient()` and every
+// direct caller inherit revocation without opting in.
+
+/**
+ * Load the CURRENT authoritative record for the session's subject.
+ *
+ * Sandbox sessions carry a presentational persona; their authority anchors
+ * to the live account recorded in the signed `sandbox.returnUserId`, read
+ * from the live realm (mirrors `requireCurrentAccessActor`). The public
+ * showcase visitor only exists inside its fixed fixture realm, so it is
+ * validated there. Everything else — real sign-ins, Dev Mode personas,
+ * previews, Showcase Mode — resolves in the session's own realm, where its
+ * user record lives.
+ */
+async function currentUserForSession(session: SessionPayload): Promise<ServerUser | null> {
+  if (session.publicShowcase) {
+    if (!session.sandbox?.realmId) {
+      // Legacy showcase cookies predate the fixture realm; their subject
+      // lives in the live blob. Existence + rotation still apply.
+      await ensureHydrated();
+      return getUserById(session.userId);
+    }
+    let realmId: string;
+    try {
+      realmId = normaliseDataRealmId(session.sandbox.realmId);
+    } catch {
+      return null; // a malformed realm id is a refusal, not a crash
+    }
+    return runInDataRealm(realmId, async () => {
+      await ensureHydrated({ preserveExplicitRealm: true });
+      return getUserById(session.sandbox?.returnUserId ?? session.userId);
+    });
+  }
+  if (session.sandbox) {
+    return runInDataRealm(LIVE_DATA_REALM_ID, async () => {
+      await ensureHydrated({ fresh: true, preserveExplicitRealm: true });
+      return getUserById(session.sandbox?.returnUserId ?? session.userId);
+    });
+  }
+  await ensureHydrated();
+  return getUserById(session.userId);
+}
+
+function liveMemberships(user: ServerUser): string[] {
+  return user.agencyIds.length > 0 ? user.agencyIds : user.agencyId ? [user.agencyId] : [];
+}
+
+/**
+ * The central prerequisite for every authenticated request: returns the
+ * current authoritative user when the cookie is still trustworthy, null when
+ * it must be refused. Exported so routes that need the live record can reuse
+ * the already-enforced resolution instead of re-implementing it.
+ */
+export async function resolveFreshSessionUser(session: SessionPayload): Promise<ServerUser | null> {
+  const user = await currentUserForSession(session);
+  if (!user) return null;
+  // R021 rotation: password change, role/scope change and explicit rotation
+  // all bump the record's rev past the cookie's.
+  if (!isSessionFresh(session, user)) return null;
+  // The public tour visitor is an anonymous fixture identity; existence +
+  // rotation is the whole contract (the proxy keeps the session read-only).
+  if (session.publicShowcase) return user;
+  if (session.sandbox) {
+    // Sandbox persona/dataset stay presentational; the live anchor must
+    // still be a member of the workspace it will return to.
+    return liveMemberships(user).includes(session.sandbox.returnAgencyId) ? user : null;
+  }
+  // Role decisions must use the CURRENT role. Rotation already bumps on role
+  // change; this is the belt-and-braces refusal for any writer that didn't.
+  if (user.role !== session.role) return null;
+  // Live membership. Dev Mode / Showcase Mode / preview sessions are fenced
+  // demo tenants deliberately outside the record's real membership; their
+  // mint routes are themselves founder/dev-gated.
+  if (!session.isDemo && !liveMemberships(user).includes(getActiveAgencyId(session))) {
+    return null;
+  }
+  return user;
+}
+
+async function sessionFromToken(token: string | undefined): Promise<SessionPayload | null> {
+  const session = verifyToken(token);
+  if (!session) return null;
+  if (!(await resolveFreshSessionUser(session))) return null;
+  return session;
+}
 
 export async function getSession(): Promise<SessionPayload | null> {
   const c = await cookies();
-  const session = verifyToken(c.get(COOKIE_NAME)?.value);
+  const session = await sessionFromToken(c.get(COOKIE_NAME)?.value);
   if (!session) return null;
   if (session.isDemo || session.publicShowcase) return session;
   // Embedded customer portals can still use AquaCRM's signed one-time
@@ -140,7 +234,7 @@ export async function getSession(): Promise<SessionPayload | null> {
 }
 
 export async function getSessionFromRequest(req: NextRequest): Promise<SessionPayload | null> {
-  return verifyToken(req.cookies.get(COOKIE_NAME)?.value);
+  return sessionFromToken(req.cookies.get(COOKIE_NAME)?.value);
 }
 
 export async function getCurrentUser(): Promise<ServerUser | null> {

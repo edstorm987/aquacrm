@@ -6,6 +6,7 @@
 // handler scope check.
 
 import type { PluginApiRoute } from "../lib/aquaPluginTypes";
+import { handleExportSite } from "./handlers/staticExport";
 import {
   handleListPages,
   handleCreatePage,
@@ -116,6 +117,16 @@ import {
 } from "./handlers/blog";
 
 export const apiRoutes: PluginApiRoute[] = [
+  // Static export.
+  //
+  // `handleExportSite` has existed, complete and covered by two smoke tests
+  // (r033, r046), since it was written — it was simply never listed here, so
+  // the only way to reach it was code that did not exist. Meanwhile the
+  // Customise page's Export button called `/api/admin/export-code`, which is
+  // not a route in this app at all and answered 404 every time somebody tried
+  // to take a backup of their site (issue #30, wired up 2026-08-27).
+  { path: "/export", methods: ["GET"], handler: handleExportSite },
+
   // Pages
   { path: "/pages", methods: ["GET"], handler: handleListPages },
   { path: "/pages", methods: ["POST"], handler: handleCreatePage },

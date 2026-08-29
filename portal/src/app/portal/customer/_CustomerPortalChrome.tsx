@@ -14,6 +14,7 @@ import {
   Files,
   FolderKanban,
   Home,
+  Inbox,
   IdCard,
   Layers3,
   LoaderCircle,
@@ -41,7 +42,7 @@ import {
 } from "@/lib/portal/customerAccountActivity";
 import { portalProductModule, type PortalModuleIcon } from "@/lib/portal/portalProductModules";
 import type { PortalProductSelection } from "@/lib/portal/portalProducts";
-import type { ClientPortalDesignDocument } from "@/server/types";
+import type { ClientPortalDesignDocument, Role } from "@/server/types";
 import type { CustomerPortalAttention, CustomerPortalAttentionItem } from "@/lib/portal/customerPortalAttention";
 import { PortalCustomExtension } from "./_PortalCustomExtension";
 
@@ -154,6 +155,38 @@ function NavItems({
   return (
     <nav aria-label="Client portal" className="grid gap-1">
       {shellLinks(coreNav)}
+      {/* Enquiries — its own link rather than a NAV entry.
+          `shellLinks` reads each item's label out of
+          `presentation.pages[item.section]`, which is keyed by the STORED
+          section ids. "enquiries" is a view section with no stored page design
+          (see CustomerPortalSection), so joining that array would index a key
+          that does not exist for any client already in the database. A link of
+          its own costs eight lines and no migration.
+
+          Shown in preview too. It was hidden at first because the preview route
+          had no "enquiries" section; it does now, so hiding it would mean the
+          people who SET THE INBOX UP are the only ones who cannot see it. */}
+      {(() => {
+        const enquiriesActive = previewHrefPrefix
+          ? activePreviewSection === "enquiries"
+          : pathname.startsWith("/portal/customer/enquiries");
+        return (
+          <Link
+            href={previewHrefPrefix ? `${previewHrefPrefix}enquiries` : "/portal/customer/enquiries"}
+            onClick={close}
+            aria-current={enquiriesActive ? "page" : undefined}
+            className={[
+              "group flex min-h-10 items-center gap-3 rounded-sm px-3 text-sm transition",
+              enquiriesActive
+                ? "bg-[#f4efe6] text-[#151310]"
+                : "text-white/58 hover:bg-white/[0.07] hover:text-white",
+            ].join(" ")}
+          >
+            <Inbox size={16} strokeWidth={1.65} aria-hidden="true" />
+            <span className="min-w-0 flex-1 truncate">Enquiries</span>
+          </Link>
+        );
+      })()}
       {products.map(product => {
         const module = portalProductModule(product);
         return (
@@ -244,7 +277,7 @@ function PortalAttentionBadge({ item }: { item?: CustomerPortalAttentionItem }) 
 export function CustomerPortalChrome({
   children,
   clientName,
-  email,
+  email, viewerRole,
   name,
   avatarUrl,
   modeLabel,
@@ -273,6 +306,15 @@ export function CustomerPortalChrome({
   children: ReactNode;
   clientName: string;
   email: string;
+  /**
+   * The viewer's REAL role. This was hardcoded to `"end-customer"`, which was
+   * harmless while that was the only role the portal served — and became a lie
+   * on 2026-08-27 when the client roles moved in, telling a `client-owner` they
+   * were an "End customer". The two links this drives follow the AUDIENCE
+   * (`inClientPortal`), so passing the true role changes the label and nothing
+   * else.
+   */
+  viewerRole: Role;
   name?: string;
   avatarUrl?: string;
   modeLabel: string;
@@ -340,7 +382,7 @@ export function CustomerPortalChrome({
 
   return (
     <div
-      className="mm-customer-portal mm-portal-root h-dvh overflow-hidden bg-[var(--portal-bg)] text-[#171512]"
+      className="mm-customer-portal mm-portal-root h-[var(--aqua-shell-h,100dvh)] overflow-hidden bg-[var(--portal-bg)] text-[#171512]"
       style={{
         "--portal-accent": lightAccent,
         "--portal-accent-dark": darkAccent,
@@ -446,11 +488,13 @@ export function CustomerPortalChrome({
         </div>
       )}
 
-      <div className="flex h-dvh min-h-0 flex-col overflow-hidden md:pl-72">
+      <div className="flex h-[var(--aqua-shell-h,100dvh)] min-h-0 flex-col overflow-hidden md:pl-72">
         {previewBackHref && (
           <div className="flex min-h-10 items-center justify-between gap-3 border-b border-white/10 bg-[var(--portal-dark)] px-4 text-white sm:px-6 lg:px-10">
             <p className="min-w-0 truncate text-[10px] uppercase tracking-[0.12em] text-white/55 sm:tracking-[0.16em]">Agency preview · customers do not see this bar</p>
-            <Link href={previewBackHref} className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-white/80 hover:text-white">
+            {/* min-h-6 for WCAG 2.5.8: the text alone measured 16px tall, under
+                the 24px minimum. Internal-only chrome is still chrome. */}
+            <Link href={previewBackHref} className="inline-flex min-h-6 shrink-0 items-center gap-1.5 text-xs font-medium text-white/80 hover:text-white">
               <ArrowLeft size={13} aria-hidden="true" />
               Back to client work
             </Link>
@@ -484,7 +528,7 @@ export function CustomerPortalChrome({
                 Get support
               </Link>
             )}
-            {!hideAccountMenu && !previewBackHref && <div className="mm-private-chrome"><ProfileMenu email={email} role="end-customer" name={name} avatarUrl={avatarUrl} accountLabel={`${providerName} account`} /></div>}
+            {!hideAccountMenu && !previewBackHref && <div className="mm-private-chrome"><ProfileMenu email={email} role={viewerRole} name={name} avatarUrl={avatarUrl} accountLabel={`${providerName} account`} /></div>}
           </div>
         </header>
         <main id="main-content" className="mm-private-surface relative min-h-0 flex-1 overflow-y-auto overscroll-contain">

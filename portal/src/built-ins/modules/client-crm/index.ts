@@ -30,7 +30,10 @@ const manifest: AquaPlugin = {
     "auto-appear here as Contacts; ecommerce orders + memberships subscriptions " +
     "+ affiliate referrals flow into the timeline via cross-plugin event ingest. " +
     "No hard plugin deps — degrades gracefully when memberships / ecommerce " +
-    "aren't installed for the client.",
+    "aren't installed for the client. The journey-pipelines add-on adds kanban " +
+    "boards the client builds themselves — their own stages, contacts dragged " +
+    "between them, and automations that tag, note, move or email when someone " +
+    "reaches a stage.",
 
   core: false,
   scopePolicy: "client",
@@ -58,6 +61,27 @@ const manifest: AquaPlugin = {
       href: "/portal/clients/:clientId/client-crm/activity",
       panelId: "growth",
       order: 30,
+      visibleToRoles: [...ADMIN_VIEWERS],
+    },
+    // Journey pipelines — the add-on. `requiresFeature` is real here:
+    // `lib/chrome/sidebarLayout.ts:179` drops a nav item whose feature is not
+    // enabled, so a client without the add-on never sees a link into it.
+    {
+      id: "client-crm.pipelines",
+      label: "Pipelines",
+      href: "/portal/clients/:clientId/client-crm/pipelines",
+      panelId: "growth",
+      order: 12,
+      requiresFeature: "journey-pipelines",
+      visibleToRoles: [...ADMIN_VIEWERS],
+    },
+    {
+      id: "client-crm.automations",
+      label: "Automations",
+      href: "/portal/clients/:clientId/client-crm/automations",
+      panelId: "growth",
+      order: 14,
+      requiresFeature: "journey-pipelines",
       visibleToRoles: [...ADMIN_VIEWERS],
     },
     {
@@ -88,6 +112,16 @@ const manifest: AquaPlugin = {
     { path: "contacts", component: () => import("./src/pages/ContactsPage"), visibleToRoles: [...ADMIN_VIEWERS] },
     { path: "contacts/:id", component: () => import("./src/pages/ContactDetailPage"), visibleToRoles: [...ADMIN_VIEWERS] },
     { path: "segments", component: () => import("./src/pages/SegmentsPage"), visibleToRoles: [...ADMIN_VIEWERS] },
+    // The board and its rules. Both are client components: they read the
+    // clientId from the route and talk to this module's API.
+    //
+    // NOTE for whoever adds the next one: page mounting does not enforce
+    // `requiresFeature` — only `sidebarLayout.ts` (nav) and the API dispatcher
+    // do. A page reached by direct URL therefore has to answer for itself, and
+    // both of these do: their data comes from feature-gated routes, and a
+    // `feature_disabled` reply renders "not switched on" rather than an error.
+    { path: "pipelines", component: () => import("./src/pages/PipelinesPage"), clientComponent: true, visibleToRoles: [...ADMIN_VIEWERS] },
+    { path: "automations", component: () => import("./src/pages/AutomationsPage"), clientComponent: true, visibleToRoles: [...ADMIN_VIEWERS] },
     { path: "activity", component: () => import("./src/pages/ActivityPage"), visibleToRoles: [...ADMIN_VIEWERS] },
     // Admin-only in the nav, so admin-only at the door too: the host gates on
     // this, and without it the page was reachable by URL to any role the scope
@@ -159,6 +193,10 @@ const manifest: AquaPlugin = {
     { id: "activity-timeline", label: "Activity timeline", default: true },
     { id: "cross-plugin-ingest", label: "Ingest events from ecommerce/memberships/affiliates", default: true },
     { id: "bulk-import", label: "Bulk import (≤1000 rows per call)", default: true },
+    // The add-on. Off for any install that predates it, because
+    // `install.features` is written at install time and both host gates read a
+    // missing key as OFF — see `journeyEnabled` in `src/api/handlers.ts`.
+    { id: "journey-pipelines", label: "Journey pipelines — kanban boards, stages and automations", default: true },
   ],
 
   // Idempotent. Seeds the four default segments

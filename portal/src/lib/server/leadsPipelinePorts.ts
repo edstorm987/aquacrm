@@ -24,6 +24,7 @@ import "server-only";
 
 import {
   addCard,
+  deleteCard,
   getPipelineBySlug,
   listCardsByAgency,
 } from "@/server/pipelines";
@@ -136,7 +137,15 @@ export const pipelinePort: PipelinePort = {
   addLeadCard(input: AddLeadCardInput): PipelineCardRef | null {
     const pipeline = getPipelineBySlug(input.agencyId, LEADS_PIPELINE_SLUG);
     if (!pipeline) return null;
-    const columnId = input.columnId
+    // An override is honoured only if the column actually exists. Restore passes
+    // the column the card sat in before archiving, and a pipeline that has since
+    // been re-columned would otherwise take the card to a column id nothing
+    // renders — a card that exists and cannot be seen, which is the exact shape
+    // of the bug this whole change is closing.
+    const requested = input.columnId
+      ? pipeline.columns.find(c => c.id === input.columnId)?.id
+      : undefined;
+    const columnId = requested
       ?? pipeline.columns.find(c => c.label === "New")?.id
       ?? pipeline.columns.find(c => c.id === DEFAULT_NEW_COLUMN_ID)?.id
       ?? pipeline.columns[0]?.id
@@ -176,6 +185,30 @@ export const pipelinePort: PipelinePort = {
       if (leadId) out.push(leadId);
     }
     return out;
+  },
+
+  columnIdForLead(args: { agencyId: string; leadId: string }): string | null {
+    const pipeline = getPipelineBySlug(args.agencyId, LEADS_PIPELINE_SLUG);
+    if (!pipeline) return null;
+    for (const c of listCardsByAgency(args.agencyId)) {
+      if (c.kind !== "lead" || c.pipelineId !== pipeline.id) continue;
+      if ((c.lead as unknown as { leadId?: string }).leadId === args.leadId) return c.columnId;
+    }
+    return null;
+  },
+
+  removeLeadCards(args: { agencyId: string; leadId: string; cardId?: string }): number {
+    let removed = 0;
+    // The stored id first — it is the only handle when the card has drifted to
+    // another pipeline — then a sweep by `leadId`, because `pipelineCardId` is
+    // absent on every lead captured while the foundation was unwired.
+    if (args.cardId && deleteCard(args.agencyId, args.cardId)) removed += 1;
+    for (const card of listCardsByAgency(args.agencyId)) {
+      if (card.kind !== "lead") continue;
+      if ((card.lead as unknown as { leadId?: string }).leadId !== args.leadId) continue;
+      if (deleteCard(args.agencyId, card.id)) removed += 1;
+    }
+    return removed;
   },
 
   columnLabelForLead(args: { agencyId: string; leadId: string }): string | null {

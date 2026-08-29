@@ -3,6 +3,7 @@ import "server-only";
 import { getDevProject, listDevProjects } from "@/engines/editor/server/devProjects";
 import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import { canUseDevMode } from "@/lib/server/dev/devModeAccess";
+import { UNRESTRICTED, devPathScope, intersectPathScopes, unionPathScopes, type DevPathScope } from "@/lib/server/dev/devPathScope";
 import {
   AccessControlError,
   resolveActorAccess,
@@ -48,6 +49,8 @@ export async function requireDevProjectAccess(input: {
   project: DevProject;
   /** Active data-realm tenant. Never substitute the live governance tenant. */
   resourceAgencyId: string;
+  /** Project surface ∩ this person's grants. Ask this, never the raw fields. */
+  pathScope: DevPathScope;
 }> {
   const projectId = input.projectId.trim();
   if (!projectId) {
@@ -74,7 +77,32 @@ export async function requireDevProjectAccess(input: {
     });
   }
 
-  return { ...access, project, resourceAgencyId: actor.resourceAgencyId };
+  // THE EFFECTIVE FILE SURFACE, resolved once, here.
+  //
+  // Two narrowings compose, and they compose differently (Ed, 2026-08-27):
+  //
+  //   • the PROJECT's `allowedPaths` is its maximum surface;
+  //   • this person's own grants UNION with each other — two grants, two
+  //     folders — and the result INTERSECTS the project's, so a grant can only
+  //     ever narrow.
+  //
+  // Resolved here rather than at each route so the four file boundaries cannot
+  // drift into slightly different readings of the same rule, which is how a
+  // guard ends up holding on three of them.
+  //
+  // `ownerBaseline` deliberately skips the grant half: an owner is not narrowed
+  // by grants they never needed. The PROJECT's surface still applies to them,
+  // because "this project is the portal files" is a statement about the project.
+  const grantScopes = access.resolution.ownerBaseline
+    ? []
+    : access.resolution.grantIds.map(grantId =>
+        devPathScope(actor.governanceState.accessGrants[grantId]?.allowedPaths));
+  const pathScope = intersectPathScopes(
+    devPathScope(project.allowedPaths),
+    access.resolution.ownerBaseline ? UNRESTRICTED : unionPathScopes(grantScopes),
+  );
+
+  return { ...access, project, resourceAgencyId: actor.resourceAgencyId, pathScope };
 }
 
 /**

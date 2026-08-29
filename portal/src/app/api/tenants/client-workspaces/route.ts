@@ -13,7 +13,7 @@ import { flushPendingWrites } from "@/server/storage";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { getTradingCompany } from "@/server/tradingCompanies";
 import { AGENCY_ROLES } from "@/server/types";
-import { ensureDefaultAgencyProducts } from "@/server/agencyProducts";
+import { agencyProductsForRead } from "@/server/agencyProducts";
 import { resolveAgencyProductAssignment } from "@/lib/products/productAssignments";
 import { portalProductSelectionFromAgencyProduct } from "@/lib/portal/portalProducts";
 import { reconcileClientProductWorkspaces } from "@/server/productWorkspaces";
@@ -91,7 +91,7 @@ export async function POST(request: Request) {
       }
       const hasExplicitProducts = Array.isArray(body?.productIds);
       const selectedProductIds = ids(body?.productIds);
-      const catalogue = ensureDefaultAgencyProducts(session.agencyId);
+      const catalogue = agencyProductsForRead(session.agencyId);
       const assignment = resolveAgencyProductAssignment(catalogue, selectedProductIds);
       if (hasExplicitProducts && assignment.missingIds.length) {
         return NextResponse.json({ ok: false, error: "One or more selected services are no longer available." }, { status: 409 });

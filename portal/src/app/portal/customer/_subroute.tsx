@@ -12,6 +12,7 @@ import { redirect } from "next/navigation";
 import { ensureHydrated } from "@/server/storage";
 import { requireRole } from "@/lib/server/auth/auth";
 import { getInstall } from "@/server/pluginInstalls";
+import { CUSTOMER_PORTAL_ROLES } from "@/server/types";
 
 export interface SubrouteConfig {
   pluginId: string;
@@ -24,7 +25,7 @@ export interface SubrouteConfig {
 
 export async function CustomerSubroute({ cfg }: { cfg: SubrouteConfig }) {
   await ensureHydrated();
-  const session = await requireRole("end-customer");
+  const session = await requireRole([...CUSTOMER_PORTAL_ROLES]);
   if (!session.clientId) {
     return <FallbackCard testid={cfg.testid} heading="Account scope missing" body="Your session isn't tied to a client." />;
   }

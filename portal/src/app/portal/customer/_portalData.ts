@@ -477,11 +477,28 @@ export async function loadCustomerPortalData(
       status: reply.status,
     })),
   ]);
+  // Calls on this customer's own enquiries — that they happened, never what was
+  // written about them.
+  //
+  // `call.notes` used to be the body here. The SAME field is classified
+  // `visibility: "internal"` by `websiteEnquiries.ts` when it builds the record
+  // ledger, and the other source feeding `recordEntries` below is filtered on
+  // `visibility === "client"`. This list was spread in AFTER that filter, so
+  // internal call commentary reached the client's screen through the one path
+  // that never checked (found 2026-08-28).
+  //
+  // The tell was already in the next line: the recording URL is gated on
+  // `consentConfirmed`, so somebody thought carefully about the recording and
+  // not about the notes beside it.
+  //
+  // Duration replaces the notes, phrased the way the ledger already phrases it.
+  // This is the same ruling erasure makes for meetings and calls — keep that
+  // they happened, drop the free text.
   const enquiryCallEntries: CustomerRecordEntry[] = matchedEnquiries.flatMap(enquiry => enquiry.calls.map(call => ({
     id: call.id,
     kind: "call" as const,
     title: `Call · ${call.outcome?.replaceAll("-", " ") || call.status}`,
-    body: call.notes?.trim() || (call.durationSeconds ? `${call.durationSeconds} seconds` : undefined),
+    body: call.durationSeconds ? `${Math.ceil(call.durationSeconds / 60)} min` : undefined,
     occurredAt: call.startedAt,
     channel: call.senderLabel,
     url: call.recording?.consentConfirmed ? call.recording.url : undefined,

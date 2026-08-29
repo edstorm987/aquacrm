@@ -1,4 +1,8 @@
 import Link from "next/link";
+import { MarkEnquirySeen } from "./_MarkEnquirySeen";
+import { listClientFormNotices } from "@/lib/server/clientForms/clientFormNotices";
+import { findClientFormNotice, readClientFormSubmission, type ClientFormSubmission } from "@/lib/server/clientForms/clientFormReader";
+import type { ClientFormNotice } from "@/server/types";
 import {
   Activity,
   ArrowRight,
@@ -68,8 +72,18 @@ import { PortalPageComposition } from "./_PortalPageComposition";
 import { summariseInvoicesByCurrency, type InvoiceCurrencyPosition } from "@/lib/clients/clientPaymentPlans";
 import { CustomerRelationshipStatus } from "./_CustomerRelationshipStatus";
 
-export type CustomerPortalSection = "home" | "project" | "results" | "files" | "billing" | "support" | "resources" | "details" | "service" | "custom";
-type CustomerPortalShellSection = Exclude<CustomerPortalSection, "service" | "custom">;
+// "enquiries" sits alongside "service" and "custom": a VIEW section, not one of
+// the stored `ClientPortalSectionId`s. That distinction is deliberate — the
+// stored model is a non-partial `Record<ClientPortalSectionId, …>`, so adding a
+// ninth id there would leave every client portal already in the database
+// missing a key it is typed as having. A view section needs no migration.
+export type CustomerPortalSection = "home" | "project" | "results" | "files" | "billing" | "support" | "resources" | "details" | "service" | "custom" | "enquiries";
+// "enquiries" joins "service" and "custom" in the exclusion for the same
+// reason: this type indexes `presentation.pages`, which is keyed by the STORED
+// `ClientPortalSectionId`s. The compiler caught the difference immediately,
+// which is the exhaustive `Record` earning its keep — a `Partial` there would
+// have let this through and produced `undefined.eyebrow` at runtime instead.
+type CustomerPortalShellSection = Exclude<CustomerPortalSection, "service" | "custom" | "enquiries">;
 const PORTAL_LIFECYCLE_MODES: CustomerPortalMode[] = ["onboarding", "designing", "developed-launch", "maintenance"];
 
 function customerHref(section: CustomerPortalShellSection, previewHrefPrefix?: string): string {
@@ -255,16 +269,48 @@ function InvoiceStatus({ status }: { status: string }) {
   return <span className={`rounded-full px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.08em] ${style}`}>{status}</span>;
 }
 
-export async function CustomerPortalView({ section, productId, moduleId, customPageSlug }: { section: CustomerPortalSection; productId?: string; moduleId?: string; customPageSlug?: string }) {
+export async function CustomerPortalView({ section, productId, moduleId, customPageSlug, noticeId }: { section: CustomerPortalSection; productId?: string; moduleId?: string; customPageSlug?: string; noticeId?: string }) {
   const { client, data, provider } = await loadCustomerPortalRequestContext();
   const providerName = provider.name;
   if (section === "service" && !data.products.some(product => product.id === productId)) notFound();
   if (section === "custom" && !portalCustomPage(data.presentation, customPageSlug)) notFound();
+
+  // Pointers only, and only for THIS client. The list makes no call into their
+  // database — a portal left open on a screen must not sit there displaying
+  // fifty customers' details. The values are fetched when one is opened.
+  // Opening one: read it from the CLIENT's own database, now, and render it
+  // without keeping any of it. The gate is the session's own client — a
+  // customer may only ever see their own, and the notice's `clientId` is
+  // compared against the client this request already resolved to rather than
+  // anything in the URL.
+  if (section === "enquiries" && noticeId) {
+    const notice = findClientFormNotice(client.agencyId, noticeId);
+    if (!notice || notice.clientId !== client.id) notFound();
+    const submission = await readClientFormSubmission(notice);
+    // Marking it read happens from the CLIENT, not here.
+    //
+    // Writing during a render is the thing issue #21 spent real effort removing,
+    // and the read-path analyser flagged this within one test run — including
+    // `customer/page.tsx`, which cannot actually reach the write but calls the
+    // same function, so a name-level graph cannot tell the difference. Rather
+    // than declare two writing renders and explain that one of them is a false
+    // positive, the render stays pure and a small client component posts once
+    // on mount.
+    return <EnquiryDetailView notice={notice} submission={submission} providerName={providerName} />;
+  }
+
+  const enquiryNotices = section === "enquiries"
+    ? listClientFormNotices(client.agencyId, client.id).map(notice => ({
+        id: notice.id,
+        receivedAt: notice.receivedAt,
+        seen: Boolean(notice.seenAt),
+      }))
+    : [];
   if (section === "home") {
     const handoff = data.properties.find(property => property.status === "redirected" && safeExternalUrl(property.redirectTarget));
     if (handoff?.redirectTarget) redirect(handoff.redirectTarget);
   }
-  return <CustomerPortalContent section={section} client={client} data={data} productId={productId} moduleId={moduleId} customPageSlug={customPageSlug} providerName={providerName} workspaceRole="customer" />;
+  return <CustomerPortalContent section={section} client={client} data={data} productId={productId} moduleId={moduleId} customPageSlug={customPageSlug} providerName={providerName} workspaceRole="customer" enquiryNotices={enquiryNotices} />;
 }
 
 export function CustomerPortalContent({
@@ -277,6 +323,7 @@ export function CustomerPortalContent({
   customPageSlug,
   providerName = "Milesymedia",
   workspaceRole = "preview",
+  enquiryNotices = [],
 }: {
   section: CustomerPortalSection;
   client: Client;
@@ -287,12 +334,17 @@ export function CustomerPortalContent({
   customPageSlug?: string;
   providerName?: string;
   workspaceRole?: ProductWorkspaceRole;
+  /** Pointers only — see ClientFormNotice. The values live in their database. */
+  enquiryNotices?: ClientFormNoticeSummary[];
 }) {
   if (section === "service") {
     const product = data.products.find(item => item.id === productId) ?? data.products[0];
     return product ? <ProductModuleView clientId={client.id} product={product} moduleId={moduleId} data={data} previewHrefPrefix={previewHrefPrefix} providerName={providerName} workspaceRole={workspaceRole} /> : <HomeView client={client} data={data} previewHrefPrefix={previewHrefPrefix} providerName={providerName} />;
   }
   if (section === "custom") return <PortalPageComposition customPageSlug={customPageSlug} data={data} providerName={providerName} previewHrefPrefix={previewHrefPrefix} />;
+  // Rendered outside the stored-presentation shell, because there is no stored
+  // page design for it — the same treatment "service" and "custom" get.
+  if (section === "enquiries") return <EnquiriesView notices={enquiryNotices} providerName={providerName} readOnly={Boolean(previewHrefPrefix)} />;
   let content: React.ReactNode;
   const readOnly = Boolean(previewHrefPrefix);
   if (section === "project") content = <ProjectView client={client} data={data} previewHrefPrefix={previewHrefPrefix} providerName={providerName} />;
@@ -304,6 +356,164 @@ export function CustomerPortalContent({
   else if (section === "details") content = <RecordView client={client} data={data} previewHrefPrefix={previewHrefPrefix} providerName={providerName} />;
   else content = <HomeView client={client} data={data} previewHrefPrefix={previewHrefPrefix} providerName={providerName} />;
   return <PortalPageComposition section={section} data={data} providerName={providerName} previewHrefPrefix={previewHrefPrefix}>{content}</PortalPageComposition>;
+}
+
+
+/** What the portal shows for one arriving enquiry. Pointers, not people. */
+export interface ClientFormNoticeSummary {
+  id: string;
+  receivedAt: number;
+  seen: boolean;
+}
+
+/**
+ * "You have had enquiries" — the client's own inbox.
+ *
+ * Ed, 2026-08-27: *"the client needs an inbox as well, a snapshot of our system
+ * with enquiries and actions… this way they can actually receive stuff
+ * effectively."*
+ *
+ * ── Why the list shows no names ──────────────────────────────────────────
+ *
+ * Deliberately, and it is not a limitation. What arrived in AquaCRM is a
+ * pointer: which form, which row, when (see `ClientFormNotice`). The customer's
+ * name and message are in the CLIENT's own database, and are fetched when
+ * somebody opens one — so a list of fifty enquiries makes no calls into their
+ * database at all, and a portal left open on a screen is not quietly displaying
+ * fifty customers' details.
+ */
+function EnquiriesView({ notices, providerName, readOnly = false }: { notices: ClientFormNoticeSummary[]; providerName: string; readOnly?: boolean }) {
+  const unread = notices.filter(notice => !notice.seen).length;
+  return (
+    <section className="mm-surface-card rounded-lg border border-black/10 p-5" aria-labelledby="client-enquiries-heading">
+      <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 id="client-enquiries-heading" className="text-lg font-semibold text-black/85">Enquiries</h2>
+          <p className="mt-1 text-xs text-black/50">
+            Messages sent through your website. {providerName} is notified when one arrives.
+          </p>
+        </div>
+        {unread > 0 ? (
+          <span className="rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-semibold text-white">
+            {unread} new
+          </span>
+        ) : null}
+      </header>
+
+      {notices.length === 0 ? (
+        <p className="rounded-md border border-dashed border-black/15 bg-black/[0.02] px-4 py-6 text-center text-sm text-black/50">
+          No enquiries yet. When somebody fills in a form on your website, it will appear here.
+        </p>
+      ) : (
+        <ul className="divide-y divide-black/10">
+          {notices.map(notice => (
+            <li key={notice.id} className="flex items-center justify-between gap-3 py-3">
+              <span className="flex min-w-0 items-center gap-2.5">
+                <span
+                  className={`inline-block size-2 shrink-0 rounded-full ${notice.seen ? "bg-black/20" : "bg-red-600"}`}
+                  aria-hidden="true"
+                />
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium text-black/80">
+                    Website enquiry
+                    {notice.seen ? null : <span className="sr-only"> (unread)</span>}
+                  </span>
+                  <span className="block text-[11px] text-black/45">
+                    {new Date(notice.receivedAt).toLocaleString("en-GB")}
+                  </span>
+                </span>
+              </span>
+              {/* No Open in preview. The detail view reads the CLIENT's own
+                  database, and the agency previewing their portal has no
+                  business pulling a customer's name and message out of it —
+                  the pointer is what we are entitled to see. The href would
+                  also 404 an agency session, since the target is customer-only. */}
+              {readOnly ? (
+                <span className="shrink-0 rounded-md border border-dashed border-black/15 px-3 py-1.5 text-xs font-medium text-black/40">
+                  Client only
+                </span>
+              ) : (
+                <Link
+                  href={`/portal/customer/enquiries/${notice.id}`}
+                  className="shrink-0 rounded-md border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-black/70 transition hover:bg-black/[0.04]"
+                >
+                  Open
+                </Link>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+
+/**
+ * One enquiry, read live from the client's own database.
+ *
+ * Nothing here is stored on our side — the values arrive from their Supabase for
+ * this render and are gone afterwards. That is why every failure state below is
+ * spelled out rather than collapsed into "something went wrong": a client
+ * looking at a missing enquiry deserves to know whether the row was deleted,
+ * their connection was revoked, or their database simply did not answer, since
+ * those need three different actions from them.
+ */
+function EnquiryDetailView({
+  notice,
+  submission,
+  providerName,
+}: {
+  notice: ClientFormNotice;
+  submission: ClientFormSubmission;
+  providerName: string;
+}) {
+  const received = new Date(notice.receivedAt).toLocaleString("en-GB");
+  const core = submission.status === "ok" ? submission.mapped.core : undefined;
+  const extra = submission.status === "ok" ? submission.mapped.additional : [];
+
+  const problem =
+    submission.status === "missing" ? "This enquiry is no longer in your database — it may have been deleted."
+      : submission.status === "disconnected" ? `This website's database is no longer connected. ${providerName} can reconnect it.`
+        : submission.status === "unavailable" && submission.reason === "refused" ? "Your database refused the request. Check that the read policy on the submissions table still allows it."
+          : submission.status === "unavailable" && submission.reason === "timeout" ? "Your database did not answer in time. Try again in a moment."
+            : submission.status === "unavailable" ? "Your database could not be reached just now."
+              : undefined;
+
+  return (
+    <section className="mm-surface-card rounded-lg border border-black/10 p-5" aria-labelledby="enquiry-detail-heading">
+      <header className="mb-4">
+        <Link href="/portal/customer/enquiries" className="text-xs font-medium text-black/50 hover:text-black/80">
+          ← All enquiries
+        </Link>
+        <h2 id="enquiry-detail-heading" className="mt-2 text-lg font-semibold text-black/85">Website enquiry</h2>
+        <p className="mt-1 text-xs text-black/50">Received {received}</p>
+      </header>
+
+      {submission.status === "ok" && !notice.seenAt ? <MarkEnquirySeen noticeId={notice.id} /> : null}
+      {problem ? (
+        <p role="status" className="rounded-md border border-dashed border-amber-400/60 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {problem}
+        </p>
+      ) : (
+        <dl className="grid gap-3">
+          {core?.name ? <div><dt className="text-[11px] uppercase tracking-wide text-black/40">Name</dt><dd className="text-sm text-black/80">{core.name}</dd></div> : null}
+          {core?.email ? <div><dt className="text-[11px] uppercase tracking-wide text-black/40">Email</dt><dd className="text-sm text-black/80"><a className="underline" href={`mailto:${core.email}`}>{core.email}</a></dd></div> : null}
+          {core?.phone ? <div><dt className="text-[11px] uppercase tracking-wide text-black/40">Phone</dt><dd className="text-sm text-black/80"><a className="underline" href={`tel:${core.phone}`}>{core.phone}</a></dd></div> : null}
+          {core?.message ? <div><dt className="text-[11px] uppercase tracking-wide text-black/40">Message</dt><dd className="whitespace-pre-wrap text-sm text-black/80">{core.message}</dd></div> : null}
+          {/* Everything else they were asked. Kept, because a form may ask
+              anything and showing only the four fields we recognise would
+              misrepresent what the customer actually said. */}
+          {extra.map(field => (
+            <div key={field.key}>
+              <dt className="text-[11px] uppercase tracking-wide text-black/40">{field.key.replaceAll("_", " ")}</dt>
+              <dd className="whitespace-pre-wrap text-sm text-black/80">{field.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </section>
+  );
 }
 
 function ResultsView({ client, data, providerName }: { client: Client; data: CustomerPortalData; providerName: string }) {

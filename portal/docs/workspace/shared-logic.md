@@ -57,7 +57,13 @@ three reusable engines now live separately under `src/engines/`.
 > [issue #148](../development/issues.md).
 
 ## Auth, session & security  (`lib/server/`)
-`auth.ts` (session read/verify), `csrf.ts`, `mfa.ts` **[TOTP — ALL FOUR PHASES
+`auth.ts` (session read/verify — **since 2026-08-27 every authenticated read
+crosses the central fresh-session boundary**: `resolveFreshSessionUser()`
+re-validates existence, `sessionRev`, current role and live membership against
+the authoritative user record before `getSession()`/`getSessionFromRequest()`
+return a session, with sandbox cookies anchored to their signed live account
+and the public-showcase visitor validated in its fixture realm; issue #22,
+pinned by `smoke-session-revocation`), `csrf.ts`, `mfa.ts` **[TOTP — ALL FOUR PHASES
 BUILT (phases 3–4 on 2026-08-20). Login gate: `loginMfaStep` is called by
 `app/api/auth/login/route.ts`, which rate-limits code tries 5/min, runs
 `supabase.auth.mfa.challenge` + `.verify`, and refuses unless

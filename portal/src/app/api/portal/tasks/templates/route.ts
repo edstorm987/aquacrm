@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { requireClientAssociation } from "@/lib/server/access/clientAssociationElement";
 import {
   createTaskFromTemplate,
   deleteTaskTemplate,
@@ -51,6 +52,15 @@ export async function POST(request: Request) {
     if (action === "apply") {
       const templateId = typeof body?.templateId === "string" ? body.templateId : "";
       if (!templateId) return NextResponse.json({ ok: false, error: "A template is required." }, { status: 400 });
+      // Applying a template AT a client is a write against that client. This
+      // route had no client rule at all — an agency role was the whole gate,
+      // so a governed identity restricted away from a client could still
+      // instantiate a whole task sequence against them.
+      await requireClientAssociation(
+        "agency-task-template",
+        typeof body?.clientId === "string" ? body.clientId : undefined,
+        "use",
+      );
       const task = createTaskFromTemplate({
         agencyId: session.agencyId,
         templateId,

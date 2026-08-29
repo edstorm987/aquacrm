@@ -1,9 +1,13 @@
 // Finance runtime validation — invalid API/import-shaped values must fail at
 // the service boundary and leave the plugin store byte-for-byte unchanged.
 
+// First, and statically: this import installs the request-scope helpers before
+// anything pulls in `next/`. See the note in dev-console-request-scope.ts.
+import { withSession } from "./dev-console-request-scope";
+
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import { test } from "node:test";
+import { before, test } from "node:test";
 
 const require = createRequire(import.meta.url);
 const serverOnly = require.resolve("server-only");
@@ -16,9 +20,46 @@ import { compensationPaymentsHandler } from "../src/built-ins/modules/agency-fin
 import { containerWithDeps, registerAgencyFinanceFoundation } from "../src/built-ins/modules/agency-finance/src/server/foundationAdapter";
 import type { ActivityLogPort, EventBusPort, PluginInstallStorePort, TenantPort, UserPort } from "../src/built-ins/modules/agency-finance/src/server/ports";
 
-const AGENCY_ID = "agency_finance_validation" as AgencyId;
-const CLIENT_ID = "client_finance_validation" as ClientId;
-const ACTOR = "owner_finance_validation" as UserId;
+// The mounted handlers exercised at the end of this file ask the access kernel
+// whether this caller may touch the client's `client.commercial` element, and
+// the kernel reads the session out of Next's request store. A bare call has no
+// request scope, so it never reaches the validation this file is about. The ids
+// are therefore seeded from a REAL portal tenant, and the handler calls run
+// inside that owner's session — the same shape a browser request has.
+let AGENCY_ID: AgencyId;
+let CLIENT_ID: ClientId;
+let ACTOR: UserId;
+let OWNER_SESSION: string;
+
+/** Run a handler the way the server does: inside this owner's request scope. */
+const asOwner = <T>(fn: () => Promise<T>): Promise<T> => withSession(OWNER_SESSION, fn);
+
+before(async () => {
+  const { ensureHydrated } = await import("../src/server/storage");
+  const { createAgency, createClient } = await import("../src/server/tenants");
+  const { createUser } = await import("../src/server/users");
+  const { issueSession } = await import("../src/lib/server/auth/auth");
+
+  await ensureHydrated();
+  const agency = createAgency({ name: "Validation Agency", slug: `validation-agency-${Date.now()}` });
+  const client = createClient(agency.id, { name: "Validation Client", slug: "validation-client" });
+  const owner = createUser({
+    email: `owner-${Date.now()}@validation.test`,
+    name: "Validation Owner",
+    role: "agency-owner",
+    agencyId: agency.id,
+    password: "validation-pass-phrase",
+  });
+
+  AGENCY_ID = agency.id as AgencyId;
+  CLIENT_ID = client.id as ClientId;
+  ACTOR = owner.id as UserId;
+  OWNER_SESSION = await issueSession({
+    userId: owner.id, email: owner.email, role: "agency-owner",
+    agencyId: agency.id, agencyIds: [agency.id], activeAgencyId: agency.id,
+    sessionRev: owner.sessionRev ?? 0,
+  });
+});
 const ISSUED_AT = Date.parse("2026-08-26T09:00:00Z");
 const DUE_AT = Date.parse("2026-09-26T09:00:00Z");
 
@@ -319,14 +360,14 @@ test("payment and income services plus mounted handlers reject invalid JSON with
   });
 
   const beforeInvoiceApi = snapshot();
-  const invoiceResponse = await createInvoiceHandler(request("finance/invoices", { ...validInvoice(), currency: "zzz" }), ctx);
+  const invoiceResponse = await asOwner(() => createInvoiceHandler(request("finance/invoices", { ...validInvoice(), currency: "zzz" }), ctx));
   assert.equal(invoiceResponse.status, 422);
   assert.match(String((await invoiceResponse.json() as { error: string }).error), /currency/);
   assert.equal(snapshot(), beforeInvoiceApi);
 
   const profile = await services.operations.createCompensationProfile(ACTOR, { name: "API Operator", payeeType: "employee", currency: "gbp", rateBasis: "annual", baseRateCents: 3_000_000 });
   const beforeOperationsApi = snapshot();
-  const operationsResponse = await compensationPaymentsHandler(request("finance/operations/payments", { profileId: profile.id, kind: "gift", grossCents: 10_000 }), ctx);
+  const operationsResponse = await asOwner(() => compensationPaymentsHandler(request("finance/operations/payments", { profileId: profile.id, kind: "gift", grossCents: 10_000 }), ctx));
   assert.equal(operationsResponse.status, 422);
   assert.match(String((await operationsResponse.json() as { error: string }).error), /kind/);
   assert.equal(snapshot(), beforeOperationsApi);

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { AuthError, authErrorResponse, getActiveAgencyId, requireRole } from "@/lib/server/auth/auth";
+import { requireClientAssociation } from "@/lib/server/access/clientAssociationElement";
 import { routeTenantScope } from "@/lib/server/portal/apiTenantScope";
 import {
   getStaffProvisioningOperation,
@@ -202,13 +203,26 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   await ensureHydrated();
-  const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
-  const agencyId = getActiveAgencyId(session);
-  const body = await req.json().catch(() => null) as Record<string, unknown> | null;
-  if (!body) return error("Invalid request.");
-  const action = text(body.action, 80);
-
+  // `requireRole` INSIDE the try — it used to sit above it.
+  //
+  // The catch below already converts AuthError and AccessControlError into
+  // their proper responses, and the GET handler in this file has always done
+  // so. The POST threw its 401 from outside the try, so Next.js saw an
+  // unhandled exception and answered **500** to every unauthenticated caller —
+  // an error object that literally carries `status: 401`, reported as a server
+  // fault. Found by the Phase D sweep of all 180 mutating routes on
+  // 2026-08-27.
+  //
+  // It mattered twice over: the caller got the wrong answer, and every
+  // unauthenticated POST wrote a stack trace into the error log, which is how
+  // a real incident gets lost among the noise.
   try {
+    const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
+    const agencyId = getActiveAgencyId(session);
+    const body = await req.json().catch(() => null) as Record<string, unknown> | null;
+    if (!body) return error("Invalid request.");
+    const action = text(body.action, 80);
+
     const { access } = await currentWorkspaceElementAccess("staff");
     if (session.role === "agency-staff") {
       const self = employeePeopleSnapshot(agencyId, session.userId);
@@ -476,6 +490,17 @@ export async function POST(req: NextRequest) {
       const requestedClientId = text(body.clientId, 120);
       const clientScope = routeTenantScope(session, { clientId: requestedClientId });
       if (requestedClientId && !clientScope.client) return error("Client not found.", 404);
+      // Tenancy first (above), then the CLIENT ELEMENT. Proving the client
+      // belongs to this agency is not the same as proving this person may place
+      // delivery work against them: a governed identity restricted away from a
+      // client could still assign a freelancer to that client's job.
+      //
+      // `client.fulfilment` — the element the client workspace calls Delivery —
+      // because that is what a freelancer job IS. The contractor's own view of
+      // the same job stays governed by `FreelancerAccessConfig`, which decides
+      // whether the client is even named to them; that is a deliberate
+      // alternative authority, not a gap.
+      await requireClientAssociation("freelancer-job", clientScope.clientId, "use");
       const job = savePeopleFreelancerJob({
         agencyId,
         actorUserId: session.userId,

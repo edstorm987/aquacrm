@@ -2,15 +2,15 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-08-27 from **6** source documents / **8,221 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-29 from **6** source documents / **9,670 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`AGENTS.md`](#source-agents-md) — 95 words · `63f2c50380ed`
-- [`CLAUDE.md`](#source-claude-md) — 2,179 words · `ae4e3ec9616c`
+- [`CLAUDE.md`](#source-claude-md) — 3,545 words · `80e4ff9c47b9`
 - [`docs/DEVELOPMENT-HANDOFF.md`](#source-docs-development-handoff-md) — 1,552 words · `9199166a1f30`
 - [`docs/development-workspace-cleanup.md`](#source-docs-development-workspace-cleanup-md) — 793 words · `bdb46a5cecd3`
-- [`docs/development.md`](#source-docs-development-md) — 3,165 words · `a44b12ab7565`
+- [`docs/development.md`](#source-docs-development-md) — 3,248 words · `dd5efef22882`
 - [`README.md`](#source-readme-md) — 437 words · `78865db66238`
 
 ---
@@ -37,7 +37,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## Source document — `CLAUDE.md`
 
-<!-- AQUACRM_SOURCE_START path="CLAUDE.md" sha256="ae4e3ec9616c50f8fa57bee2fec5f06c5085b64d3baa8b1bf0e20b3de88b70c0" -->
+<!-- AQUACRM_SOURCE_START path="CLAUDE.md" sha256="80e4ff9c47b98744bf3ae4ecdf585cd0702ab35614d1fdea0af5905518afb2e0" -->
 @AGENTS.md
 
 # AquaCRM Claude Handoff
@@ -52,14 +52,17 @@ is the one current status document.
 
 ### First five minutes: preserve the working state
 
-- Work in `aquaCRM/portal` on branch `work/2026-08-20-parallel-session`, currently
-  at `1d46479`. The branch is even with its upstream, but almost all work since
-  that commit exists only in the working tree.
-- This is a **large, intentionally dirty, entirely unstaged tree**. The handoff
-  audit saw 2,823 tracked changes and 286 untracked files. Run
-  `git status --short` before touching a file and use narrowly scoped patches and
-  diffs. Do not reset, rebase, checkout, clean, blanket-regenerate, stash, commit,
-  push, deploy, or rewrite history unless Ed explicitly asks.
+- Work in `aquaCRM/portal`. **Corrected 2026-08-27:** the tree is on **`main` at
+  `2f3995b`** ("chore(checkpoint): preserve complete AquaCRM workspace") — Ed
+  committed the previously dirty `work/2026-08-20-parallel-session` state as a
+  checkpoint. The older wording here described that branch and 2,823 unstaged
+  changes; that is history. **Run `git status --short` first, always** — do not
+  trust this paragraph over the command.
+- The tree currently carries the **27 August session's work, uncommitted**: ~82
+  changed files across source, tests and docs, including the P0 session-revocation
+  fix. Use narrowly scoped patches and diffs. Do not reset, rebase, checkout,
+  clean, blanket-regenerate, stash, commit, push, deploy, or rewrite history
+  unless Ed explicitly asks.
 - Preserve the intentional deletion of the retired
   `docs/reference/files/**` stub tree and `src/app/manifest.ts`. The former is
   replaced by consolidated reference volumes; the latter is replaced by
@@ -105,37 +108,122 @@ is the one current status document.
 
 ### Exact continuation order
 
-1. **P0 security — central session revocation.** Legacy `requireRole()` paths can
-   still accept an old privileged cookie after a live user is downgraded. Make
-   current-user existence, current `sessionRev`, current role, and live agency
-   membership a central prerequisite for every authenticated request. Prove an
-   old cookie cannot mutate after role downgrade, password/session rotation, or
-   user deletion. Start at `docs/development/checklist.md` lines 547–560,
-   `docs/development/issues.md` issue #22, and the auth/session helpers in source.
-2. **Finish Dev Workspace phase 17.** Complete one repository-backed lifecycle:
-   isolated branch/worktree → dependency/start readiness and logs → inspect →
-   visual/source/AI edit → diff → save/reload → checks → commit/PR/merge,
-   retaining state across restart. Cover dependency/start failure, occupied port,
-   crash, stale preview, rejected AI change, dirty transitions, and cross-project
-   denial. The owning plan is
-   `docs/development/plans/dev-editor-finish.md`.
-3. **Then phase 18 client embedding.** Decide the actual client-portal placement
-   and browser-prove a real client owner/staff identity sees only its granted
-   project/elements, retains edits, can request access, and never sees internal
-   Dev Team material.
-4. **Complete application-wide access adoption.** Classify remaining dynamic
-   plugin handlers for Fulfilment, Client CRM, Ecommerce, Memberships and
-   Affiliates; resolve freelancer-job and generic task/task-template scope; and
-   converge HR/freelancer/customer legacy policies without deleting legitimate
-   alternative authority.
-5. **Run the release access matrix.** Use two people, two projects and two
-   environments for create role → grant → request → narrow/approve/deny/
-   cancel/revoke. Prove Hidden/View/Use/Manage positive and negative reads and
-   writes, exact-client isolation, and immediate Live/Sandbox revocation.
-6. **Close the recorded runtime residue.** This includes live two-instance
-   Editor-AI database coordination, dirty-editor transitions, remaining Staff
-   policy, unresolved references, dependency-safe retirement, and hidden
-   render-time mutation. Use checklist/issues/todo, not memory.
+*Status refreshed 2026-08-27 after a full working session. Items 1–4 moved; 5
+and 6 have not started. Verify in source before acting on any line here.*
+
+1. ✅ **P0 security — central session revocation. DONE.** `resolveFreshSessionUser()`
+   (`src/lib/server/auth/auth.ts`) runs on every `getSession()` /
+   `getSessionFromRequest()` read, so existence, `sessionRev`, current role and
+   live agency membership are prerequisites for every authenticated request and
+   all `requireRole()` callers inherit it. The exploit is dead: the old owner
+   cookie now gets 403 with no token from `POST /api/portal/settings/external-ai`
+   after downgrade, password rotation, explicit rotation and deletion.
+   `npm run smoke:session-revocation` (16/16). → issues #22 RESOLVED.
+2. 🟡 **Dev Workspace phase 17 — preview half complete, authoring half blocked on
+   credentials.** Built and proven: the isolated per-project branch/worktree on
+   `aqua-editor/<projectId>`, declared dependency-install readiness with an
+   `installing` state, and the named failure paths (dependency/start failure,
+   occupied port, crash, CSP, stale preview, rejected AI change, cross-project
+   denial). **Browser-accepted** on a `sandbox:fork` lane: Start → healthy on
+   loopback → an uncommitted edit **retained across Restart** onto a new port →
+   `/aqua-tag.js` 200 → Stop, with the edit still on disk. **Remaining:**
+   the authoring walk (edit → save → diff → commit → PR) needs **Ed's GitHub
+   credentials — promised, not yet supplied** (see todo.md); plus
+   clone-from-remote and the dirty-transition browser matrix (issues #19).
+3. ✅ **Phase 18 client embedding — DONE 2026-08-27, browser-accepted.**
+   `/portal` now sends `client-owner`/`client-staff` to **`/portal/customer`**, and all
+   seven customer-portal gates name one list, `CUSTOMER_PORTAL_ROLES`
+   (`src/server/types.ts`). Deliberately NOT widened:
+   `SURFACE_ROLE_CEILING.customer` stays `["end-customer"]` — an undeclared plugin
+   page inherits the WHOLE ceiling, so widening it would open every unclassified
+   customer plugin page at once; those are shopper surfaces owned by the client's
+   own customers. Two lockouts were closed with it: `customer/setup` (the layout
+   sends an unfinished account there, and it refused non-end-customers — a fresh
+   client would have been stranded) and `customer/connections`. The chrome's
+   hardcoded `role="end-customer"` now passes the real role, so a client-owner is
+   not labelled an "End customer". Pinned by `npm run smoke:client-portal-placement`
+   (9/9), both halves verified by breaking them.
+   **Browser-accepted** on a `sandbox:fork` lane (port 3047; 3032 untouched). A real
+   `client-owner` session goes `/portal` → `/portal/customer` and renders their portal;
+   the profile menu reads "Client owner"; setup answers them 400-on-validation while an
+   agency session still gets 403. Seven viewports plus 200%-zoom equivalents down to
+   188×406: zero horizontal overflow, no console errors, every request 200.
+   **The walk earned its keep** — it found an infinite redirect loop
+   (`/portal → /portal/customer → /setup → /portal`) that locked a NEW client out
+   entirely, which no unit test caught because all three gates were individually
+   correct (issues #171). The regression now walks the redirect GRAPH, layout included.
+   *Two things the harness cannot prove:* keyboard ACTIVATION (a plain `<button>` records
+   zero activations from a synthetic Enter — tab order and focus rings are proven), and
+   repeat in-place navigation (the known in-pane HMR stall, issues #162).
+   *Superseded description below:* A real `client-owner` with an exact project grant lists only that
+   project and is refused siblings, previews and Aqua's own tree
+   (`npm run smoke:client-dev-workspace`, 26/26 including the internal-workspace
+   boundary). `clientProjectAccess.ts` is the one place that provisions a client's
+   access, refusing a project not attached to that client. **Ed decided the
+   placement:** the internal workspace is for employees, and *"for clients
+   anything they touch is inside their portal"* — and **the existing customer
+   portal IS that portal**. **Remaining:** re-point `client-owner`/`client-staff`
+   (`src/app/portal/page.tsx:20`) at `/portal/customer` and widen that layout's
+   `requireRole("end-customer")`, then browser-prove a real client session.
+   Full reasoning in `docs/development/notes.md`.
+4. ✅ **Application-wide access adoption — DONE 2026-08-27.**
+   `/api/portal/<moduleId>/<...>` now resolves which `client.*` element owns a
+   client-scoped call; every built-in module is classified as mapped or
+   explicitly-unmapped-with-a-reason (`npm run smoke:plugin-client-element`).
+   **The association half is DONE 2026-08-27.** `clientAssociationElement.ts`
+   classifies the three agency records that name a client — generic task and task
+   template → `client.overview` (the "may you see this client at all" element,
+   because a generic task belongs to no single one), freelancer job →
+   `client.fulfilment` — and all three routes now enforce it. An explicit
+   alternative-authority list preserves the contractor's own `FreelancerAccessConfig`
+   view rather than forcing the wrong client gate. `npm run smoke:client-association-element`
+   (13/13), issues #172.
+   **The convergence half is DONE 2026-08-27 (issues #173).** Most of the old
+   wording was stale — People already consumed the evaluator and no custom-role or
+   client-assignment records remain. A sweep of every HR/freelancer/customer route
+   found twelve deciding without the evaluator, nine of them legitimately (public
+   signup, the portal's own account routes, the contractor's `FreelancerAccessConfig`
+   surfaces). The three genuinely competing agency-side routes — `freelancers`,
+   `freelancer-access`, `people/cv` — now use the same `staff.people` element the
+   rest of People uses. `npm run smoke:hr-policy-convergence` (7/7) pins both what
+   must consume the evaluator and what must deliberately not, with a sweep so a NEW
+   HR route cannot decide access on its own unnoticed.
+   **Item 4 is complete.** What remains application-wide is the whole app's other
+   legacy pages/APIs, which is item 6's residue rather than this item.
+5. ✅ **Release access matrix — DONE 2026-08-27.** Two people, two projects, two
+   clients and two environments driven through the real kernel: create role →
+   grant → request → narrow/approve/deny/cancel/revoke, with every positive paired
+   to the negative that a merely-permissive kernel would pass — the other person,
+   the other project, the other environment, the other client, and the same person
+   after revocation. Hidden/View/Use/Manage are proven **as reads and writes**
+   against a real gated route (`api/tenants/client-notes`), not only as capability
+   lookups, and the store is checked so a 200 cannot mean "answered without
+   writing". Live/Sandbox revoke independently and immediately.
+   `npm run smoke:release-access-matrix` (22/22).
+   **Verified two-sided:** a kernel stubbed to answer `true` fails 11, one stubbed
+   to answer `false` fails 6. Neither degenerate kernel passes.
+   **It surfaced one thing for Ed — issues #174:** revoking an identity's LAST
+   grant returns them to un-migrated legacy access, so revocation WIDENS instead of
+   narrowing. Documented behaviour followed to its conclusion, pinned exactly, and
+   left as a decision rather than changed unilaterally.
+6. 🟡 **Close the recorded runtime residue.** Stale preview is closed (issues #19).
+   Still open: live two-instance Editor-AI database coordination (needs
+   `DATABASE_URL`), dirty-editor browser transitions, remaining Staff policy,
+   unresolved references, dependency-safe retirement, hidden render-time
+   mutation. Use checklist/issues/todo, not memory.
+
+### Also decided on 27 August — read before touching Fulfilment
+
+Ed set a product direction that now has a plan and working code:
+**`docs/development/plans/fulfilment-template-system.md`**. The Portals library is
+consolidated into Fulfilment (one home; `/portal/agency/portals` is a redirect
+stub — **do not re-create the second address**), a portal template's changes are
+offered to each client through an **Update button showing changes and conflicts**
+where *a client left on an older version is a supported state, not drift*, and the
+cross-tenant **origin template** ("the agency for everyone") has its boundary,
+projection and seed built. All four phases are code-complete; what remains is a
+review-and-seed screen. His answers on what transfers are recorded verbatim in
+`docs/development/notes.md`.
 
 ### Required verification and truth labels
 
@@ -147,9 +235,34 @@ is the one current status document.
   PORTAL_BACKEND=memory NODE_OPTIONS='--conditions react-server' npx tsx --test scripts/*.test.ts
   ```
 
-  Do not substitute `smoke:all`; it omits non-`smoke-` tests. The last complete
-  whole-suite proof remains **3,621 pass / 0 fail / 1 missing-DATABASE_URL skip**
-  from 23 August. Newer focused gates are valuable but are not a whole-suite run.
+  Do not substitute `smoke:all`; it omits non-`smoke-` tests.
+
+  > ### ✅ The suite is green — 27 August, first time since 23 August
+  > **4,482 tests / 4,480 pass / 0 fail / 2 skip**, and it stayed green across the
+  > Phase 18 behaviour change. It started the day at
+  > **4,356 / 4,278 / 76 / 2**. Triage took the count from 76 to 0 and introduced
+  > **zero** new failures at any point — every run was diffed against the previous
+  > failure list **by test name**, not by count, which is the only way that claim
+  > means anything. The 2 skips are the optional live-Postgres checks.
+  >
+  > **Five real defects came out of that triage**, every one of them hiding behind
+  > a failure that had been written off as a stale test pin:
+  > `#164` demo-flag leak suppressing the Supabase identity cross-check ·
+  > `#165` the 2026-08-19 live blocker returned through the dropped sandbox
+  > envelope · `#166` a client-element ceiling refusal answered with legacy
+  > `manage`, including for another agency's client · `#167` an internal access
+  > fault reported as a 400 with the internal message in the body ·
+  > `#169` a MISSING date rendering as TODAY, including the "Issued" date on the
+  > invoice export.
+  >
+  > **Green is not the same as finished.** Two items are open and recorded rather
+  > than closed: `#168` (28 routes answer 403 where the house convention is 404 —
+  > consistency, not a hole) and `#170` (Ed's decision: the Radar probe cron is now
+  > daily, so evidence can be 24h stale with no surface saying so).
+  >
+  > **Do not brief the 23 August "3,621 pass / 0 fail" result as current** — it is
+  > history, and it was green over a smaller suite. When you change behaviour, diff
+  > your failure list against this one by name and say which failures are yours.
 - Browser acceptance must exercise 375×812, 812×375, 768×1024, 1024×768,
   1280×800 and 1920×1080, plus 320×568, 200% zoom and exact breakpoint
   probes where relevant. Require no overflow/content flash, 44×44 targets,
@@ -166,6 +279,10 @@ is the one current status document.
   deployed-live are not interchangeable.
 
 ### Latest trustworthy evidence
+
+*The isolated-production and Library/Logs numbers below are from before
+27 August and remain the best available for speed. For access, session and
+template work, the 27 August suites named in the continuation order are current.*
 
 - Isolated Webpack production: 281 pages, 135,196.3 ms build, 1,479,314,365-byte
   output. Fresh-process first HTTP / repeat max: auth 619.1/7.7 ms, public
@@ -184,8 +301,19 @@ is the one current status document.
 
 - `DATABASE_URL` was absent at handoff, so Supabase migrations and live
   two-instance Editor-AI claim coordination still need a configured environment.
+- **Ed's GitHub credentials for the Dev Editor publish walk — promised 27 August,
+  not yet supplied.** Everything up to the publish boundary is proven; commit → PR
+  → merge against a real repository cannot be walked without them. When they
+  arrive: connect GitHub *in the editor* (one vault, do not fork a second
+  connection store) and walk it on a throwaway branch before any client
+  repository. **Never enter a real key yourself.** → `docs/development/todo.md`.
 - Ed must approve merge to main, real onboarding-code walkthrough, live
   Stripe/Meta credentials, deployment environment, and DPO/solicitor decisions.
+- **Resolved 27 August, do not re-ask:** the client-portal placement (the existing
+  customer portal is the client's portal), and what the origin template transfers
+  (designs yes; phases and written SOPs no; contract and task templates yes, minus
+  branding and minus any client's actual agreement). Both recorded verbatim with
+  reasoning in `docs/development/notes.md`.
 - The preview supervisor starts an already configured trusted repository. Clone,
   worktree and dependency-install automation is not complete merely because
   Start/Restart/Stop works.
@@ -322,10 +450,12 @@ session context and re-exploration. After a change:
 - **Had to add a duplicate, alias, or dead path?** Log it in
   `docs/workspace/hazards-and-duplication.md` so it isn't mistaken for canonical.
 
-Current operational snapshot: 27 August 2026 on `work/2026-08-20-parallel-session`
-at `1d46479`, with all subsequent work intentionally uncommitted. The current
-brief at the top of this file, source, and `docs/development/checklist.md`
-supersede older status prose.
+Current operational snapshot: 27 August 2026 on **`main` at `2f3995b`**, with that
+day's session work (~82 files) intentionally uncommitted on top. The earlier
+snapshot naming `work/2026-08-20-parallel-session` at `1d46479` is history — Ed
+checkpoint-committed that state. The current brief at the top of this file,
+source, and `docs/development/checklist.md` supersede older status prose, and
+`git status --short` supersedes all of them.
 <!-- AQUACRM_SOURCE_END path="CLAUDE.md" -->
 
 ---
@@ -735,7 +865,7 @@ Before deleting a source folder:
 
 ## Source document — `docs/development.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development.md" sha256="a44b12ab756520032bd8a5531d07a102887cc105c3129fff39b40f5a61e2ad61" -->
+<!-- AQUACRM_SOURCE_START path="docs/development.md" sha256="dd5efef22882db7c16a70d93acac0188750edfd77cbc8104187bf8b6eb1d2244" -->
 # development.md — the law
 
 **This is the master catalogue and build map for AquaCRM. Use it to find the
@@ -842,6 +972,7 @@ Everything dated — old summaries, session records, worker debriefs — lives o
 | **[roadmap.md](development/roadmap.md)** | **The roadmap — the outer view.** Every outcome that is coming, its horizon (Now / Next / Later / Someday / Shipped), its target date, and the plans that deliver it. Progress is COMPUTED from those plans' phases, never typed. Written and edited from the Dev Console (`/portal/dev-team/roadmap`); this supersedes phases.md. |
 | **[checklist.md](development/checklist.md)** | **The single most reliable "where do we stand" summary** — what's yours (Ed's) vs mine, in order, generated at the end of a session. If you read one thing before working, read this. |
 | **[architecture-noobie.md](architecture-noobie.md)** | The whole system explained in **plain English**, no jargon. Start here if you're new (human or agent) and the catalogue below is too dense. |
+| **[development/plans/fulfilment-template-system.md](development/plans/fulfilment-template-system.md)** | **The template system** — portal/product templates edited once and seeded into every client instance, owned by Fulfilment (Ed's direction, 2026-08-27). Most of the spine already exists; the new idea is a cross-tenant *origin* template. |
 | **[development/plans/dev-editor-finish.md](development/plans/dev-editor-finish.md)** | **Current Dev Editor plan.** The 22 Aug session handoff is preserved on the [history shelf](context/archive/dev-editor-handoff-2026-08-22.md), but it is no longer a current brief. |
 | **[context/archive/](context/archive/README.md)** | 🗄 **The history shelf.** Dated records — superseded summaries, session handoffs, worker debriefs — kept because they are the only place some facts survive, and **never current**. `phases.md` (the old roadmap) lives here now. Nothing on this shelf should brief a worker. |
 | **[plans/](development/plans/)** | One **phased plan per substantial item** (e.g. [radar-upgrade.md](development/plans/radar-upgrade.md), [mfa-login.md](development/plans/mfa-login.md)). Each plan's own `**Status:**` line is the authority on that item. Shipped plans may be moved to [plans/archive/](development/plans/archive/). |
@@ -941,8 +1072,14 @@ documentation, because updating the docs *is* part of finishing the work.
   suite proves substantial shape and logic coverage, not complete usability. The
   honest per-feature reality is in **[status.md](development/status.md)**; the
   verified record is in **[audits.md](development/audits.md)**.
-- **P0:** central session revocation is ineffective. A stale owner cookie created
-  a working external-AI token after the live user was downgraded to staff.
+- **P0 session revocation: RESOLVED 2026-08-27.** Every authenticated cookie
+  read now crosses one central fresh-session boundary (`resolveFreshSessionUser`
+  in `auth.ts`) enforcing existence, `sessionRev`, current role and live
+  membership; the stale-owner-cookie exploit replay returns 403 with no token
+  (`smoke-session-revocation`, 16/16). ⚠ The same day's whole-suite reruns show
+  **the full suite is NOT currently green** (~74 pre-existing failures on the
+  current tree) — see the truth note at the top of
+  [checklist.md](development/checklist.md).
 - **P1:** showcase GET/OAuth mutations bypass the read-only proxy assumption;
   erasure can report live failures as success, strand retry and retain the client
   name in its audit; Editor AI's database coordination remains incomplete;

@@ -13,6 +13,7 @@ let NextRequestCtor: typeof import("next/server").NextRequest;
 let agencyId = "";
 let token = "";
 let cookieName = "";
+let ownerUserId = "";
 
 before(async () => {
   ({ NextRequest: NextRequestCtor } = await import("next/server"));
@@ -21,13 +22,30 @@ before(async () => {
   const auth = await import("../src/lib/server/auth/auth");
   await storage.ensureHydrated();
   await storage.reset();
+  const users = await import("../src/server/users");
   const agency = tenants.createAgency({ name: "People validity proof" });
   agencyId = agency.id;
-  token = auth.issueSession({
-    userId: "people-validity-owner",
+  // A REAL user, not a made-up id. `getSession()` re-resolves the session's user
+  // on every call and refuses a cookie whose subject does not exist, whose role
+  // has changed, or whose `sessionRev` is stale — the central fresh-session
+  // boundary (issues #22). A hand-minted id used to sail through it; it now 401s,
+  // correctly, so the fixture has to seed the people it claims to be.
+  const owner = users.createUser({
     email: "owner@people-validity.test",
+    name: "People Validity Owner",
     role: "agency-owner",
     agencyId,
+    password: "people-validity-pass-phrase",
+  });
+  ownerUserId = owner.id;
+  token = auth.issueSession({
+    userId: owner.id,
+    email: owner.email,
+    role: "agency-owner",
+    agencyId,
+    agencyIds: [agencyId],
+    activeAgencyId: agencyId,
+    sessionRev: owner.sessionRev ?? 0,
   });
   cookieName = auth.SESSION_COOKIE_NAME;
   ({ POST: postPeople } = await import("../src/app/api/portal/people/route"));
@@ -246,12 +264,23 @@ test("leave, shift and training enums and dates fail closed through the real rou
   const employee = await createEmployee("schedule@example.test");
   const people = await import("../src/server/people");
   const auth = await import("../src/lib/server/auth/auth");
-  people.updatePeopleEmployee(agencyId, employee.id, { userId: "people-validity-staff", status: "active" }, "people-validity-owner");
-  const staffToken = auth.issueSession({
-    userId: "people-validity-staff",
+  const users = await import("../src/server/users");
+  const staff = users.createUser({
     email: employee.email,
+    name: "People Validity Staff",
     role: "agency-staff",
     agencyId,
+    password: "people-validity-pass-phrase",
+  });
+  people.updatePeopleEmployee(agencyId, employee.id, { userId: staff.id, status: "active" }, ownerUserId);
+  const staffToken = auth.issueSession({
+    userId: staff.id,
+    email: staff.email,
+    role: "agency-staff",
+    agencyId,
+    agencyIds: [agencyId],
+    activeAgencyId: agencyId,
+    sessionRev: staff.sessionRev ?? 0,
   });
   const badLeave = await action({ action: "request-leave", type: "space-leave", startsOn: "2026-09-01", endsOn: "2026-09-02" }, staffToken);
   assert.equal(badLeave.status, 400);

@@ -17,7 +17,11 @@ coverage
 # next.js — including per-worker isolated build dirs (.next-verify, .next-alpha, ...)
 .next
 .next-*
-portal/.aqua-preview-config/
+# Supervisor-owned preview state. Unanchored so it also matches inside an
+# isolated preview worktree, which is a checkout of this same repository.
+.aqua-preview-config/
+# Isolated per-project preview worktrees (git worktrees on aqua-editor/<projectId>).
+.aqua-preview-worktrees/
 out
 
 # production

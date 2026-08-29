@@ -1,5 +1,6 @@
 "use client";
 
+import { PortalUpdateControl } from "./_PortalUpdateControl";
 import Link from "next/link";
 import {
   ArrowUpRight,
@@ -34,6 +35,17 @@ export type PortalWorkspaceRecord = {
   portalMode: "onboarding" | "designing" | "developed-launch" | "maintenance";
   portalServicePlan?: string;
   productCount: number;
+  /**
+   * What this client's portal would receive from its template. Absent when the
+   * client has no portal instance yet. Being behind is a supported state, so
+   * this is information, never a warning.
+   */
+  templateUpdate?: {
+    summary: string;
+    onCurrentVersion: boolean;
+    changeCount: number;
+    conflictCount: number;
+  };
 };
 
 export type PortalTemplateProductRecord = {
@@ -335,6 +347,18 @@ function PortalCard({ portal, canManage }: { portal: PortalWorkspaceRecord; canM
             <p className="mt-1 truncate text-xs text-black/45">{portal.companyName ?? "AquaOasis-Web"} · {portal.stageLabel}{isBuilt ? ` · ${MODE_LABELS[portal.portalMode]}` : ""}</p>
           </div>
         </div>
+
+        {portal.templateUpdate ? (
+          <PortalUpdateControl
+            clientId={portal.id}
+            clientName={portal.name}
+            summary={portal.templateUpdate.summary}
+            onCurrentVersion={portal.templateUpdate.onCurrentVersion}
+            changeCount={portal.templateUpdate.changeCount}
+            conflictCount={portal.templateUpdate.conflictCount}
+            canManage={canManage}
+          />
+        ) : null}
 
         <dl className="mt-5 grid gap-3 border-y border-black/8 py-4 sm:grid-cols-3">
           <Detail label="Access" value={access} />

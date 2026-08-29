@@ -22,18 +22,21 @@ delete process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 type Storage = typeof import("../src/server/storage");
 type Tenants = typeof import("../src/server/tenants");
+type Users = typeof import("../src/server/users");
 type Auth = typeof import("../src/lib/server/auth/auth");
 type Route = typeof import("../src/app/api/portal/kpi-registry/targets/route");
 
 let storage: Storage;
 let tenants: Tenants;
+let users: Users;
 let auth: Auth;
 let route: Route;
 
 before(async () => {
-  [storage, tenants, auth, route] = await Promise.all([
+  [storage, tenants, users, auth, route] = await Promise.all([
     import("../src/server/storage"),
     import("../src/server/tenants"),
+    import("../src/server/users"),
     import("../src/lib/server/auth/auth"),
     import("../src/app/api/portal/kpi-registry/targets/route"),
   ]);
@@ -59,8 +62,12 @@ function get(token: string): Promise<Response> {
 test("edit, reset, suggestion, replay and two-session conflict converge on one agency version", async () => {
   await storage.reset();
   const agency = tenants.createAgency({ name: "KPI convergence", ownerEmail: "first@example.com" });
-  const firstToken = auth.issueSession({ userId: "usr_kpi_first", email: "first@example.com", role: "agency-owner", agencyId: agency.id });
-  const secondToken = auth.issueSession({ userId: "usr_kpi_second", email: "second@example.com", role: "agency-manager", agencyId: agency.id });
+  // Real user records: the central fresh-session boundary (issue #22)
+  // refuses a cookie whose subject does not exist.
+  const firstUser = users.createUser({ email: "first@example.com", password: "Kpi-smoke-1!", role: "agency-owner", agencyId: agency.id });
+  const secondUser = users.createUser({ email: "second@example.com", password: "Kpi-smoke-1!", role: "agency-manager", agencyId: agency.id });
+  const firstToken = auth.issueSession({ userId: firstUser.id, email: firstUser.email, role: "agency-owner", agencyId: agency.id });
+  const secondToken = auth.issueSession({ userId: secondUser.id, email: secondUser.email, role: "agency-manager", agencyId: agency.id });
 
   const initial = await get(firstToken);
   assert.equal(initial.status, 200);

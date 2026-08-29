@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 import { inviteFreelancer, listAgencyFreelancers } from "@/server/freelancerAdmin";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
@@ -11,6 +12,13 @@ export async function GET() {
   try {
     await ensureHydrated();
     const session = await requireRole([...AGENCY_ROLES]);
+    // Freelancers are PEOPLE records, and the rest of People has consumed the
+    // element evaluator for a while — `staff.people` for the roster,
+    // `staff.pay` for compensation. This route was still deciding on a broad
+    // role alone, so a governed identity restricted out of People kept the
+    // contractor roster. Converged onto the same element the People route uses
+    // for its own roster reads.
+    await requireCurrentWorkspaceElementAccess("staff", "staff.people", "view");
     return NextResponse.json({ ok: true, freelancers: listAgencyFreelancers(session.agencyId) });
   } catch (error) {
     return authErrorResponse(error);
@@ -21,6 +29,9 @@ export async function POST(request: Request) {
   try {
     await ensureHydrated();
     const session = await requireRole(["agency-owner", "agency-manager"]);
+    // Provisioning an identity + People record is `staff.people` at manage —
+    // the same level People itself requires for `create-employee`.
+    await requireCurrentWorkspaceElementAccess("staff", "staff.people", "manage");
     const body = await request.json().catch(() => null) as { name?: string; email?: string; title?: string } | null;
     if (!body) return NextResponse.json({ ok: false, error: "name + email required" }, { status: 400 });
     const result = await inviteFreelancer(session.agencyId, session.userId, {

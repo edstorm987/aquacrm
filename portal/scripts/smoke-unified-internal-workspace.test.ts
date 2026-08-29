@@ -24,7 +24,10 @@ describe("one AquaOasis-Web internal workspace", () => {
     }
     assert.ok(clients.includes("listTradingCompanies"));
     assert.ok(clients.includes("brands={serviceBrands.map"));
-    assert.ok(company.includes("listAgencyProducts(session.agencyId, true)"));
+    // `listAgencyProducts` → `agencyProductsForRead` on 2026-08-27: the Company
+    // page now reads the catalogue REPAIRED in memory rather than raw, because
+    // the repair no longer happens by writing it (issue #21).
+    assert.ok(company.includes("agencyProductsForRead(session.agencyId, true)"));
   });
 
   it("requires client-facing brand selection to be explicit and validated", () => {

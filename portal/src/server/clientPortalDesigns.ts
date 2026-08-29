@@ -12,6 +12,12 @@ import {
 import { PORTAL_PRODUCT_CATALOG, portalProductSelectionFromAgencyProduct } from "@/lib/portal/portalProducts";
 import { portalProductLifecycle } from "@/lib/portal/portalProductModules";
 import { getState, mutate } from "./storage";
+import {
+  applyClientPortalTemplateUpdate,
+  describeTemplateUpdate,
+  planClientPortalTemplateUpdate,
+  type PortalTemplateUpdatePlan,
+} from "@/server/clientPortalTemplateUpdate";
 import type {
   AgencyProduct,
   ClientPortalDesignDocument,
@@ -371,6 +377,134 @@ export function resetClientPortalFromTemplate(input: {
   };
   mutate(state => { state.clientPortalInstances[updated.id] = updated; });
   return updated;
+}
+
+/**
+ * Offer this client its template's changes — the read half of the Update button.
+ *
+ * Returns null when there is no instance or template to compare, so a caller can
+ * say "nothing to offer" rather than inventing an empty plan.
+ */
+export function planClientPortalUpdate(input: {
+  agencyId: string;
+  clientId: string;
+}): PortalTemplateUpdatePlan | null {
+  const instance = getClientPortalInstance(input.agencyId, input.clientId);
+  const template = getClientPortalTemplate(input.agencyId, instance?.templateId);
+  if (!instance || !template) return null;
+  return planClientPortalTemplateUpdate({ template, instance });
+}
+
+export interface ClientPortalUpdateOffer {
+  clientId: string;
+  templateId: string;
+  templateName: string;
+  /** The version this client's portal is based on. */
+  versionId: string;
+  onCurrentVersion: boolean;
+  changeCount: number;
+  conflictCount: number;
+  /** Whether the seeded version is still in history; false means every change needs a decision. */
+  baseKnown: boolean;
+  /** The one line to show beside the client's name. */
+  summary: string;
+}
+
+/**
+ * What every client with a portal would be offered right now.
+ *
+ * For the Fulfilment list: who is on which version, and what each would
+ * receive. Read-only — computing an offer never changes anything, so this is
+ * safe to call while rendering.
+ *
+ * Cost note: one document diff per client. Portal design documents are small
+ * and this is an agency-sized list, but if an agency ever carries thousands of
+ * clients this is the call to make lazy.
+ */
+export function listClientPortalUpdateOffers(agencyId: string): ClientPortalUpdateOffer[] {
+  const templates = new Map(listClientPortalTemplates(agencyId).map(template => [template.id, template]));
+  return Object.values(getState().clientPortalInstances)
+    .filter(instance => instance.agencyId === agencyId)
+    .map(instance => {
+      const template = templates.get(instance.templateId);
+      if (!template) return null;
+      const plan = planClientPortalTemplateUpdate({ template, instance });
+      return {
+        clientId: instance.clientId,
+        templateId: template.id,
+        templateName: template.name,
+        versionId: instance.templateVersionId,
+        onCurrentVersion: plan.upToDate,
+        changeCount: plan.changes.length,
+        conflictCount: plan.conflicts.length,
+        baseKnown: plan.baseKnown,
+        summary: describeTemplateUpdate(plan),
+      } satisfies ClientPortalUpdateOffer;
+    })
+    .filter((offer): offer is ClientPortalUpdateOffer => offer !== null);
+}
+
+export interface AppliedClientPortalUpdate {
+  instance: ClientPortalInstanceRecord;
+  plan: PortalTemplateUpdatePlan;
+  accepted: string[];
+  declined: string[];
+  /** Whether the instance is now based on the template's current version. */
+  versionPinAdvanced: boolean;
+}
+
+/**
+ * Apply the accepted subset of a template update to ONE client's portal.
+ *
+ * Deliberately writes the DRAFT, never the live published portal: an update is
+ * reviewed and then published like every other change here. The version pin
+ * advances whenever anything was accepted, because a declined change is a
+ * resolution — see the semantics note in `clientPortalTemplateUpdate.ts`.
+ *
+ * This is the safe counterpart to `resetClientPortalFromTemplate`, which
+ * overwrites the whole instance and discards client edits without asking.
+ */
+export function applyClientPortalUpdate(input: {
+  agencyId: string;
+  clientId: string;
+  accept: readonly string[];
+  actorUserId: string;
+}): AppliedClientPortalUpdate | null {
+  const instance = getClientPortalInstance(input.agencyId, input.clientId);
+  const template = getClientPortalTemplate(input.agencyId, instance?.templateId);
+  if (!instance || !template) return null;
+
+  const plan = planClientPortalTemplateUpdate({ template, instance });
+  const merged = applyClientPortalTemplateUpdate({
+    plan,
+    current: instance.published,
+    accept: input.accept,
+  });
+
+  const now = Date.now();
+  const label = merged.fullyApplied
+    ? `Updated from ${template.name}`
+    : `Updated from ${template.name} (${merged.accepted.length} of ${plan.changes.length})`;
+  const version = makeVersion(merged.document, input.actorUserId, "restore", label, now);
+  const updated: ClientPortalInstanceRecord = {
+    ...instance,
+    // Only move the pin when a decision was actually made. Declining everything
+    // leaves this client legacy on purpose, and the offer stands next time.
+    templateVersionId: merged.advanceVersionPin ? plan.toVersionId : instance.templateVersionId,
+    draft: merged.document,
+    versions: pruneVersions([version, ...instance.versions]),
+    updatedBy: input.actorUserId,
+    updatedAt: now,
+  };
+  mutate(state => { state.clientPortalInstances[updated.id] = updated; });
+
+  return {
+    instance: updated,
+    plan,
+    accepted: merged.accepted.map(change => change.path),
+    declined: merged.declined.map(change => change.path),
+    versionPinAdvanced: merged.advanceVersionPin,
+  };
 }
 
 function findRecord(agencyId: string, scope: ClientPortalDesignScope, recordId: string): ClientPortalDesignRecord | null {

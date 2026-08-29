@@ -247,10 +247,30 @@ function tablesFor(sites: CallSite[], client?: ClientKind): Set<string> {
 // ─── The contract ─────────────────────────────────────────────────────────
 
 /**
- * Deliberately world-readable: website content only, no PII. Verified against
- * the live project read-only on 2026-08-20 (anon reads rows; every other table
- * returns zero rows or a grant denial). Adding a table here is a decision to
- * publish it — which is exactly why it is a literal in a test.
+ * Deliberately world-readable: website content only, no PII. Adding a table here
+ * is a decision to publish it — which is exactly why it is a literal in a test.
+ *
+ * RE-VERIFIED against the live project, read-only, on 2026-08-28. The earlier
+ * 2026-08-20 check recorded "zero rows or a grant denial", which is not on its
+ * own proof of anything: under RLS, PostgREST answers **200 with an empty
+ * array** both when a policy is correctly filtering every row AND when the
+ * table is simply empty. Those are indistinguishable from outside, and reading
+ * the first as a pass — or as a leak — would be equally wrong.
+ *
+ * Distinguished with a service-role COUNT (`HEAD` + `count=exact`, no rows
+ * read):
+ *
+ *   brand_enquiries        anon 0 / service 41  → RLS filtering correctly
+ *   profiles               anon 0 / service  3  → RLS filtering correctly
+ *   website_consent_events anon 0 / service 11  → RLS filtering correctly
+ *   audit_events           anon 0 / service  0  → INCONCLUSIVE, table empty
+ *   client_portals         anon 0 / service  0  → INCONCLUSIVE, table empty
+ *   clients                anon 0 / service  0  → INCONCLUSIVE, table empty
+ *
+ * So the three tables that hold real data today are provably protected — 41
+ * enquiries with names and addresses among them. The three empty ones prove
+ * nothing yet and **must be re-checked once they carry rows**, which is the
+ * moment clients are onboarded.
  */
 const PUBLIC_READ_TABLES = ["brands", "shoot_photos", "shoots"];
 

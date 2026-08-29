@@ -6,6 +6,7 @@ import { getUserById } from "@/server/users";
 import { getClientForAgency } from "@/server/tenants";
 
 import { CustomerSetup } from "./_CustomerSetup";
+import { CUSTOMER_PORTAL_ROLES } from "@/server/types";
 
 /**
  * A customer's first minutes with Aqua.
@@ -25,7 +26,19 @@ export default async function SetupPage() {
 
   if (!session) redirect("/login?next=%2Fsetup");
   // Agency staff have no setup to do; sending them here would be a dead end.
-  if (session.role !== "end-customer") redirect("/portal");
+  //
+  // This must name the SAME audience the portal serves, or it is not a dead end
+  // but an infinite loop. Found in the Phase 18 browser walk, 2026-08-27: the
+  // portal layout sends anyone with no `welcomeCompletedAt` here, this line sent
+  // everything that was not `end-customer` back to `/portal`, and `/portal` sent
+  // the client role straight back to the portal —
+  //
+  //     /portal → /portal/customer → /setup → /portal → …
+  //
+  // …with the browser showing "Preparing your workspace…" for ever. The unit
+  // tests did not catch it because each gate is correct on its own; only the
+  // round trip is wrong.
+  if (!(CUSTOMER_PORTAL_ROLES as readonly string[]).includes(session.role)) redirect("/portal");
 
   const user = getUserById(session.userId);
   // Already done it — this is a link they followed again, not a first visit.
@@ -44,7 +57,11 @@ export default async function SetupPage() {
     <CustomerSetup
       firstName={firstName(user?.name, session.email)}
       clientName={client?.name ?? "your account"}
-      providerName={read("portalProviderName") ?? "your team"}
+      // Capitalised because it opens a SENTENCE — the welcome reads
+      // "…all in one place. {providerName} is right here…". The browser walk
+      // caught the lowercase fallback rendering as "place. your team is right
+      // here", on the very first screen a paying client ever sees.
+      providerName={read("portalProviderName") ?? "Your team"}
       // Set per client, so the welcome can be specific rather than generic.
       // Absent is fine — the section is left out rather than shown broken.
       videoUrl={read("portalWelcomeVideoUrl")}

@@ -23,7 +23,9 @@ export type PluginCategory =
   | "commerce"
   | "marketing"
   | "support"
-  | "ops";
+  | "ops"
+  | "fulfillment"
+  | "growth";
 
 export type PluginStatus = "stable" | "beta" | "alpha";
 
@@ -100,11 +102,6 @@ export interface SetupField {
 
 // ─── Sidebar contributions ─────────────────────────────────────────────────
 
-export interface NavGroup {
-  id: string;
-  label: string;
-  order?: number;
-}
 
 export type PluginRoleVisibility =
   | "agency-owner"
@@ -113,7 +110,11 @@ export type PluginRoleVisibility =
   | "client-owner"
   | "client-staff"
   | "freelancer"
-  | "end-customer";
+  | "end-customer"
+  // Added 2026-08-28: the canonical `Role` in src/server/types.ts has always
+  // had "lead", and two modules (bos-auth-gate, public-funnel) already listed
+  // it. Ten copies did not, so the same union meant two things.
+  | "lead";
 
 export interface NavItem {
   id: string;
@@ -240,8 +241,6 @@ export interface AquaPlugin {
   onConfigure?: (ctx: PluginCtx) => Promise<void>;
 
   setup?: SetupStep[];
-
-  navGroup?: NavGroup;
   navItems: NavItem[];
 
   pages: PluginPage[];

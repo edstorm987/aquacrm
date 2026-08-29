@@ -1,5 +1,16 @@
 "use client";
 
+// The CANONICAL contacts view — a people/CRM surface over `server/persons.ts`.
+//
+// There is a second contacts system:
+// `app/portal/agency/leads-pipeline/contacts/_ContactsWorkspace.tsx`, an older
+// CSV rolodex belonging to the leads-pipeline plugin. It is seven times the
+// size of this file and answers a different question ("who is on my imported
+// list") from this one ("who is this person, across everything we know").
+//
+// Extend this one for CRM work. See hazards-and-duplication.md before adding a
+// third.
+
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Building2, CircleAlert, Search, UserRound } from "lucide-react";

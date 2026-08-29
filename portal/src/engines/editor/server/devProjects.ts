@@ -13,6 +13,7 @@ import type {
   DevProjectTagState,
 } from "@/server/types";
 import { getIntegrationConnection, resolveIntegrationConnectionValues } from "@/lib/server/integrations/integrationConnections";
+import { devPathScope } from "@/lib/server/dev/devPathScope";
 
 // Re-exported so callers that already import from here keep one import, while
 // the shape itself stays in `@/server/types` where a client component can name
@@ -123,6 +124,12 @@ export interface SaveDevProjectInput {
    *   an id      → inside that project, subject to the two-level rule below.
    */
   parentProjectId?: string | null;
+  /**
+   * The files this project exposes. Omit to LEAVE UNCHANGED — this record is
+   * rebuilt field by field with no spread, so an omitted field is otherwise
+   * dropped, and an unrelated rename would silently unlock the whole repository.
+   */
+  allowedPaths?: string[];
   actorUserId: string;
   now?: number;
 }
@@ -164,6 +171,13 @@ export function saveDevProject(input: SaveDevProjectInput): DevProject {
     siteUrl: normalizeProjectSiteUrl(input.siteUrl) || undefined,
     clientId: clean(input.clientId, 120) || undefined,
     parentProjectId,
+    // Normalised through the scope module on the way IN, so a stored scope is
+    // always already clean and no reader has to wonder. `undefined` rather than
+    // `[]` when empty: an empty array and "unrestricted" mean the same thing
+    // here, and storing the shorter one keeps old records and new ones alike.
+    allowedPaths: input.allowedPaths === undefined
+      ? existing?.allowedPaths
+      : (devPathScope(input.allowedPaths).allow.length ? devPathScope(input.allowedPaths).allow : undefined),
     // Carried, never re-derived. A rename is not a reason to forget that the
     // repository was mapped an hour ago.
     map: existing?.map,

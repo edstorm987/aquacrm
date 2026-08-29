@@ -10,11 +10,40 @@ tests that pin old behaviour).
 ```bash
 PORTAL_BACKEND=memory NODE_OPTIONS='--conditions react-server' npx tsx --test scripts/*.test.ts
 ```
-`PORTAL_BACKEND=memory` keeps stateful tests off the live sandbox. Last known
-whole-suite green: **3,621 passing / 0 failing / 1 skipped across 663 suites,
-typecheck clean** (2026-08-23 07:03 BST). The skip is the live Postgres check
-when `DATABASE_URL` is absent. The 2026-08-24 documentation refresh did not
-rerun the whole suite; record its doc-focused verification separately.
+`PORTAL_BACKEND=memory` keeps stateful tests off the live sandbox.
+
+> **⚠ Current whole-suite state (2026-08-27): NOT green.** Canonical runs today:
+> **4,356 tests: 4,278 pass / 76 fail / 2 skip** before the central
+> session-revocation change, **4,372: 4,295 / 75 / 2** after it, and
+> **4,393: 4,317 / 74 / 2** after the phase-17 isolated-worktree and
+> dependency-readiness work. The same baseline failure set throughout: this
+> session introduced no new failures and fixed two. (`smoke-local-inbox-persistence` flakes on a cross-process file
+> lock under full-suite load; it is 3/3 green isolated.)
+> ~74 failures pre-date 2026-08-27 and accumulated between 23–27 August while
+> only focused gates were run. The clusters are listed in
+> [checklist.md](checklist.md)'s truth note. Fixing them is queued work — do
+> not brief the suite as green.
+
+Last known whole-suite green: **3,621 passing / 0 failing / 1 skipped across
+663 suites, typecheck clean** (2026-08-23 07:03 BST) — now history, superseded
+by the 2026-08-27 runs above. The skip is the live Postgres check when
+`DATABASE_URL` is absent.
+
+New preview suite (2026-08-27): `scripts/smoke-local-preview-worktree.test.ts`
+(`npm run smoke:preview-worktree`, **21/21**) — drives real `git` and real
+install processes against real temporary repositories to pin the phase-17
+lifecycle head: worktree create, resume-with-uncommitted-edit-retained,
+two-project isolation, prune recovery, the refusals that must never delete an
+operator's files, install-once-then-skip with lockfile fingerprinting, install
+failure/timeout/missing-runtime fail-closed behaviour, and the refusal to run a
+dependency install into the shared checkout.
+
+New security suite (2026-08-27): `scripts/smoke-session-revocation.test.ts`
+(`npm run smoke:session-revocation`, **16/16**) — replays old cookies against
+the real external-AI exploit route and `requireRole()` surfaces after
+downgrade / password rotation / explicit rotation / deletion, and pins the
+sandbox/demo/showcase anchoring semantics of the central fresh-session
+boundary (issue #22).
 
 Latest broad **non-security** checkpoint, 2026-08-24: the 13 files explicitly
 centred on authentication, MFA, sessions and their direct gates were excluded;

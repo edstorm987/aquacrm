@@ -22,6 +22,15 @@ export interface WorkspaceConfig {
   hint: string;
   /** Workspace dashboard route — picking the tile lands the operator here. */
   dashboardHref: string;
+  /**
+   * The workspace's icon, as a key into `components/chrome/navIcons`.
+   *
+   * Ed, 2026-08-27: *"every workspace should have an icon."* Required, not
+   * optional — a workspace without one shows a neutral dot in the saved-tab
+   * picker, which is exactly the "nobody chose" state the ask was about. A key
+   * rather than a component so this stays a plain config module.
+   */
+  icon: string;
 }
 
 // AquaOasis-Web scope: only the owner workspace. Finance, marketing and operations
@@ -35,6 +44,7 @@ export const WORKSPACES: WorkspaceConfig[] = [
     extra: true,
     hint: "Command — pipelines, inbox, SOPs.",
     dashboardHref: "/portal/agency",
+    icon: "home",
   },
 ];
 

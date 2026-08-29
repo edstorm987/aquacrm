@@ -46,6 +46,13 @@ export async function POST(request: Request): Promise<Response> {
       scope: parseAccessScope(body.scope),
       environment,
       capabilities: body.capabilities === undefined ? [] : parseAccessCapabilities(body.capabilities, { allowEmpty: true }),
+      // Narrow this person to particular files/folders within the scope. Only
+      // ever narrows — the store intersects it with the PROJECT's own surface,
+      // so naming a path the project does not expose does not expose it. Absent
+      // or empty means the whole scope, which is every existing grant.
+      allowedPaths: Array.isArray(body.allowedPaths)
+        ? body.allowedPaths.filter((value: unknown): value is string => typeof value === "string")
+        : undefined,
       templateId: optionalString(body.templateId),
       expiresAt: optionalNumber(body.expiresAt),
       reason: optionalString(body.reason),

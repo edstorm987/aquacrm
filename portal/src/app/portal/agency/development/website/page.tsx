@@ -1,5 +1,5 @@
 import { requireRole } from "@/lib/server/auth/auth";
-import { ensureAgencyWebsite, summarizeAgencyWebsite } from "@/server/agencyWebsite";
+import { agencyWebsiteForRead, summarizeAgencyWebsite } from "@/server/agencyWebsite";
 import { ensureHydrated } from "@/server/storage";
 import { DevelopmentNav } from "../_DevelopmentNav";
 import { WebsiteWorkspace } from "./_WebsiteWorkspace";
@@ -7,7 +7,7 @@ import { WebsiteWorkspace } from "./_WebsiteWorkspace";
 export default async function WebsiteDevelopmentPage() {
   await ensureHydrated();
   const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
-  const website = ensureAgencyWebsite(session.agencyId);
+  const website = agencyWebsiteForRead(session.agencyId);
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-7">
       <DevelopmentNav active="website" />

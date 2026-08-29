@@ -2,7 +2,7 @@
 
 > Source maps, subsystem dossiers, components, routes, state and built-in module notes.
 >
-> Consolidated 2026-08-27 from **23** source documents / **52,108 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-29 from **23** source documents / **54,006 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -10,19 +10,19 @@
 - [`docs/WORKSPACE-FILE-TREE.md`](#source-docs-workspace-file-tree-md) — 1,365 words · `9e3de848465c`
 - [`docs/workspace/advisor.md`](#source-docs-workspace-advisor-md) — 1,445 words · `d5b9b4fc79dc`
 - [`docs/workspace/api-and-routes.md`](#source-docs-workspace-api-and-routes-md) — 946 words · `8bbf0d2e9c9f`
-- [`docs/workspace/api-reference.md`](#source-docs-workspace-api-reference-md) — 7,465 words · `9d773d5ce883`
+- [`docs/workspace/api-reference.md`](#source-docs-workspace-api-reference-md) — 8,190 words · `834697014ecf`
 - [`docs/workspace/aqua-tag.md`](#source-docs-workspace-aqua-tag-md) — 3,463 words · `d662b63850cb`
 - [`docs/workspace/components.md`](#source-docs-workspace-components-md) — 1,142 words · `5ef3bf2f75be`
 - [`docs/workspace/database.md`](#source-docs-workspace-database-md) — 2,273 words · `4ed0007a7dd9`
 - [`docs/workspace/env-and-sellability.md`](#source-docs-workspace-env-and-sellability-md) — 3,089 words · `73e225f93a52`
-- [`docs/workspace/feature-index.md`](#source-docs-workspace-feature-index-md) — 4,347 words · `b98e1ff5d3a5`
-- [`docs/workspace/hazards-and-duplication.md`](#source-docs-workspace-hazards-and-duplication-md) — 5,737 words · `cdefaec09890`
+- [`docs/workspace/feature-index.md`](#source-docs-workspace-feature-index-md) — 5,151 words · `bffbf6237ea7`
+- [`docs/workspace/hazards-and-duplication.md`](#source-docs-workspace-hazards-and-duplication-md) — 6,053 words · `5403d85950f1`
 - [`docs/workspace/kpi-intelligence.md`](#source-docs-workspace-kpi-intelligence-md) — 2,283 words · `d641f1291cbc`
 - [`docs/workspace/plugins.md`](#source-docs-workspace-plugins-md) — 2,193 words · `85bf55b735d1`
 - [`docs/workspace/portal-ui.md`](#source-docs-workspace-portal-ui-md) — 3,812 words · `ab4485ad8dbd`
 - [`docs/workspace/radar.md`](#source-docs-workspace-radar-md) — 3,319 words · `3ce82366eef0`
 - [`docs/workspace/scripts-config-docs.md`](#source-docs-workspace-scripts-config-docs-md) — 705 words · `6c64dba30a6b`
-- [`docs/workspace/shared-logic.md`](#source-docs-workspace-shared-logic-md) — 3,847 words · `8b8347940dd3`
+- [`docs/workspace/shared-logic.md`](#source-docs-workspace-shared-logic-md) — 3,900 words · `971a7bc40ccd`
 - [`docs/workspace/state-layer.md`](#source-docs-workspace-state-layer-md) — 1,047 words · `b891d38adf8e`
 - [`src/archive/multi-agency/README.md`](#source-src-archive-multi-agency-readme-md) — 43 words · `8655235589a0`
 - [`src/built-ins/modules/ecommerce/README.md`](#source-src-built-ins-modules-ecommerce-readme-md) — 1,118 words · `7725ceb40027`
@@ -591,7 +591,7 @@ switcher — membership-only, session ∩ live record), `showcase-mode`, `dev-mo
 
 ## Source document — `docs/workspace/api-reference.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/api-reference.md" sha256="9d773d5ce88367cc7550108546ab624c411028305aba71f28d3a598297041cce" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/api-reference.md" sha256="834697014ecf45f1e8ab251a9d1fd805e720bfc2a26fd9e85ac8b3238842717b" -->
 # Chapter — Hand-maintained API reference
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md) · [API & routes overview](api-and-routes.md)
@@ -665,6 +665,7 @@ not live.
 
 | Path | Methods | Purpose | Scope/auth | Live? |
 |---|---|---|---|---|
+| `/api/portal/chrome/layout` | GET, PUT, DELETE | A person's own sidebar order and saved tabs. **Identity comes from the session, never the body** — the record key is `${agencyId}\|${userId}`, so a body-supplied id would be a cross-tenant write. No capability gate: it touches only the caller's own chrome, and there is no capability for "may arrange your own sidebar". DELETE resets the ORDER and keeps the saved tabs | any signed-in role | |
 | `/api/portal/connections` | GET, POST | Agency-side portal connections: list/create/withdraw/reset | agency | |
 | `/api/portal/connections/request-code` | POST | Email a single-use confirmation code for a connection (also serves resend); sends only to the session's own email | authenticated | |
 | `/api/portal/connections/accept` | POST | Accept a portal connection — verifies the emailed code (6 digits, HMAC-hashed on the connection record, 15-min TTL, single-use, 5-attempt lockout; the `DEV_CONFIRMATION_CODE` bypass is `"000000"` — six zeros — and only behind the dev-mode gate). Rate-limited 20/15min per IP+user | authenticated | |
@@ -777,6 +778,8 @@ not live.
 | `/api/portal/contracts/templates` | GET, POST | Contract templates list/create/update/delete | agency (write: owner/manager) | |
 | `/api/portal/site-editor/files` | GET, **POST** | GET reads the tree/file (agency). **For a repo-backed project GET reads the DRAFT BRANCH first** (2026-08-22): once `aqua-editor/<projectId>` exists, the tree and every file come off it (falling back to the base ref before the first commit), the response says so via `draftBranch`, and an explicit `?ref=` still wins — without this, a repo-write save/create was invisible and every reopened file carried main's fingerprint, which the save path then rightly refused forever. **POST writes, creates files and creates folders on LOCAL DISK ONLY** — founder + **Dev Mode** only, origin-checked, path confined to ROOT via `realpath` (symlink-proof), text+size-capped, and guarded by a path-bound FINGERPRINT that refuses a save if the file moved since it was opened. Writes atomically (temp file + rename) and serialises per path. A repo-backed project's POST still 409s — its write path is `/api/portal/dev/repo-write`. | GET: agency · POST: founder + Dev Mode | `route.ts` GET `:153`, POST `:285` |
 | `/api/portal/dev/projects` | GET, POST | Dev Editor projects — list/save/delete/**map**. A project binds repo + branch + the GitHub/Vercel **connection ids** (never secrets) + an Aqua Tag + a `siteUrl`. Cross-agency connection ids are rejected. `action:"map"` (2026-08-21) walks the repository (GitHub at its ref, or the working tree) **and** fetches `siteUrl` to prove the Aqua Tag answers with THIS agency's master key; a verified tag mints `aquaTagId`, which is what turns the browser on. The master key comes from the session, never the body. GET also returns `statuses[projectId]` (`DevProjectMapStatus`) so the screen never re-derives the gate, and `masterTag` (`DevProjectMasterTagView`: `siteKey`/`snippet`/`scriptUrl`/`origin`/`originIsFallback`) — created-or-fetched by `ensureAgencyMasterSiteKey`, so **the editor's Settings tab is where an Aqua Tag gets made**. `action:"connect-tag"` (2026-08-21) is the tag half on its own: saves the `siteUrl` it was given, fetches it via Map's `mapProjectAquaTag`, and binds `aquaTagId` through the same one rule (`aquaTagIdFromCheck`) — it does **not** walk the repo, and leaves `map.repo`/`lastMappedAt` untouched. No key and no tag id is ever read from the body. | deployment founder or local Dev Mode | |
+| `/api/portal/client-portal-design` · **`update-plan` / `update-apply`** | **POST** | The **Update button** for a client portal whose template has moved on (Ed's rule, 2026-08-27: an offer with changes and conflicts, and a client left on an older version is a *supported state*). `update-plan` answers *what would this do?* and **writes nothing** — a three-way comparison against the template version the instance was seeded from (`templateVersionId` is the merge base), returning each differing path as **clean** / **conflict** / **already-matches** plus a one-line `summary`. `update-apply` merges **only** the accepted paths into the client's **DRAFT** — never the live published portal — keeps their own value for anything declined, and advances the version pin only when something was actually accepted, so declining everything leaves them legacy on purpose. Paths not on offer are ignored, so the accept list cannot smuggle an edit. Manager-or-owner, plus `client.portal` **use** to plan and **manage** to apply. ⚠ Not to be confused with `reset-client`, which overwrites the whole portal and discards client edits. | agency owner/manager + `client.portal` | `route.ts` POST |
+| `/api/portal/dev/preview` | **POST only** | The supervised local repository preview — actions `status` / `start` / `logs` / `stop` / `restart`. The browser supplies only an action, a project id and an optional log limit: **never a root, command, arguments, environment, port or shell**, which all come from the server-owned `aqua-preview.config.json` (or the `AQUA_DEV_PREVIEW_PROJECTS_JSON` registry). Each action carries its own capability pair — `status` needs `project.preview` + `element.development.preview.view`, `logs` needs `dev.project.logs`, and `start`/`stop`/`restart` need `dev.project.run_local` + `element.development.preview.use` — resolved against the EXACT project and environment. Origin-checked; a read-only Sandbox is refused the three lifecycle actions; production refuses the whole feature with `production-refused`. Returns a `LocalRepositoryPreviewSnapshot` (state, loopback `previewUrl` while starting/healthy, timings, bounded and credential-redacted logs). **2026-08-27:** a record may opt into `isolatedWorktrees` (a git worktree per project on `aqua-editor/<projectId>`) and declare an install command, adding the `installing` state; an install command without isolation is refused. | exact project grant (never the Dev Team control plane) | `route.ts` POST `:68` |
 | `/api/portal/dev/editor-activity` | GET | Which files moved recently + who is checked in, so the editor can warn before you type into a file somebody else is in. Advisory. | deployment founder or local Dev Mode | |
 | `/api/portal/dev/editor-ai` | **POST only** | Aqua Editor AI's OWN credential, model and brief, **per project** — actions `status` / `save` / `set-token` / `clear-token`. The key is encrypted into the integrations vault under its own provider kind `aqua-editor-ai`; **no GET exists on purpose**, and the value is never echoed, not even by the request that set it. Reads are `action:"status"`, returning `EditorAiStatus` (configured / model / `••••abcd` / brief) which has no field a key could occupy. A project id from another agency is a 404 before any vault lookup. | deployment founder or local Dev Mode | |
 | `/api/portal/dev/editor-ai/history` | **POST only** | Aqua Editor AI's chat history for **ONE project and nothing else** — actions `read` / `append` / `new-thread` / `rename-thread` / `delete-thread` / `clear`. `append` only ever writes the PERSON's voice — a body claiming `role:"assistant"` is a 400 (assistant lines are appended server-side by the reply path), so the stored transcript is not forgeable from a browser. Its own collection (`editorAiConversations`), separate from the Advisor's `assistant` store, so clearing either cannot empty the other. Agency is checked **before** project: a foreign project id and an invented one return the same 404. Capped — 12 threads/project, 60 messages/thread, 6,000 chars/message, 80,000 chars/project, oldest out. | deployment founder or local Dev Mode | |
@@ -805,6 +808,7 @@ not live.
 | `/api/portal/products` | GET, POST | Agency products catalogue create/update | agency (write: owner/manager) | |
 | `/api/portal/products/rollout` | POST | Product catalogue rollout (sync-catalogue / adopt-template) | agency | |
 | `/api/portal/settings` | GET, POST | Agency workspace settings + plugin-install patch | agency (write: owner/manager) | |
+| `/api/portal/plugins/health` | GET | **Plugin health** — runs each installed module's manifest `healthcheck` for the scope (`?clientId=` for a client's installs, `?pluginId=` to narrow). Each hook is bounded by a 5s timeout and isolated, so a slow or throwing module becomes one unhealthy row rather than taking the report down; a module with no hook is `supported: false`, not unhealthy. Added 2026-08-28 — ten modules implemented a healthcheck and nothing called any of them | agency owner/manager/staff | |
 | `/api/portal/plugins/settings` | GET, POST | THE generic plugin settings surface — reads/writes whatever a manifest declares in `settings.groups`, for any plugin (`?pluginId=`, optional `clientId`). Password fields go to the encrypted integrations vault via their `secretVault` target, never onto `install.config`, and are never returned (only `configured` + `source`) | agency owner/manager | |
 | `/api/portal/freelancers` | GET, POST | Agency freelancer management — GET lists freelancers/jobs/setup status; `POST {name,email,title}` resumably provisions/adopts the provider identity, local freelancer and linked People record, then sends/returns the password-setup path | agency (write: owner/manager) | mounted in-process |
 | `/api/portal/freelancer-access` | GET, POST | Agency freelancer-access policy (what a freelancer sees + can do) — default + per-job overrides; POST saves default or `{jobId}` override / `{jobId,clear}`, normalised | agency (write: owner/manager) | |
@@ -832,6 +836,13 @@ not live.
 | `/api/portal/people/cv` | GET | Stream a job-application CV file | agency-session | **LIVE (Storage)** |
 | `/api/portal/dashboard-planning` | GET, POST | My-Day: clock in/out, work sessions, day/week plans | agency (staff gated by station) | |
 | `/api/portal/[module]/[...rest]` | GET, POST, PATCH, PUT, DELETE | **Built-in module API catch-all** → plugin handlers | authenticated (scope inferred) | varies by plugin |
+| `/api/portal/client-crm/pipelines` | GET, POST, PATCH, DELETE | Journey boards a client builds for themselves | agency viewers + client-owner/staff | feature `journey-pipelines` |
+| `/api/portal/client-crm/pipelines/board` | GET | One board, joined server-side (cards + contacts + idle flags + stage totals). No `pipelineId` → the client's default board | agency viewers + client-owner/staff | feature `journey-pipelines` |
+| `/api/portal/client-crm/pipelines/stages` | POST, PATCH, DELETE | Columns. DELETE refuses `stage_not_empty:<n>` unless `moveCardsTo` names where the people go | agency admins + client-owner/staff | feature `journey-pipelines` |
+| `/api/portal/client-crm/pipelines/stages/reorder` | POST | Reorder columns | agency admins + client-owner/staff | feature `journey-pipelines` |
+| `/api/portal/client-crm/pipelines/cards` | POST, PATCH, DELETE | People on a board. POST runs `card-created` / `card-entered-stage` rules | agency admins + client-owner/staff | feature `journey-pipelines` |
+| `/api/portal/client-crm/pipelines/cards/move` | POST | Move a card, run the rules, and return the board **after** they ran | agency admins + client-owner/staff | feature `journey-pipelines` |
+| `/api/portal/client-crm/automations` | GET, POST, PATCH, DELETE | The rules behind a board | agency viewers (write: admins + client-owner/staff) | feature `journey-pipelines` |
 
 ## `api/portal/*` — Dev Team & team chat (10 `dev-team/*` + `team-chat`)
 
@@ -991,6 +1002,8 @@ Two Live-column edge cases (they don't match a naive `supabase/admin` grep):
 | `/api/portal/governance/hipaa` | POST | Toggle the HIPAA readiness track (owner-only); returns HIPAA_HONESTY | agency | new 2026-08-20 |
 | `/api/portal/governance/legal` | POST | Add a legal-register record (owner/manager) | agency | new 2026-08-20 |
 | `/api/portal/governance/erasure/preview` | POST | Non-destructive erasure blast-radius preview (owner/manager) | agency | new 2026-08-20 |
+| `/api/portal/governance/subject-access` | POST | GDPR Art. 15/20 subject access export — everything held about one person, as a JSON download (owner/manager) | agency | new 2026-08-28 |
+| `/api/portal/governance/retention` | POST | Set the retention period per category; blank clears to keep-forever. Returns a fresh preview, never sweeps (owner only) | agency | new 2026-08-28 |
 | `/api/portal/sop-guides` | GET/POST/PATCH/DELETE | SOP guides CRUD (ordered SOP sequences); GET all-roles, writes owner/manager | agency | new 2026-08-20 |
 <!-- AQUACRM_SOURCE_END path="docs/workspace/api-reference.md" -->
 
@@ -2097,7 +2110,7 @@ store.
 
 ## Source document — `docs/workspace/feature-index.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/feature-index.md" sha256="b98e1ff5d3a5caf7e436c5a0e94a4944caefeeabb13d3c232a25b9467e9abbde" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/feature-index.md" sha256="bffbf6237ea7886388805bad24e32e7ccb8dbb7c3201f022ea591b567f4e9fa0" -->
 # Chapter — Feature → files index (the conflict-avoider)
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
@@ -2111,6 +2124,15 @@ layers (state → logic → API → UI). Edit these; don't duplicate them.
 | --- | --- |
 | **Nested dev projects (Ed's two levels)** | `parentProjectId` on `DevProject` (`server/types.ts`); rules in `engines/editor/server/devProjects.ts` — `resolveParentProjectId` (two-level rule both ways + self-guard, tenant first, omission carries), `listDevProjectChildren`, `devProjectDeleteRefusal` (parent delete refuses NAMING children; route checks it BEFORE AI cleanup). Display grouping: `lib/shared/devProjectGrouping.ts` (pure, orphan-tolerant), drawn by `app/portal/dev-team/editor/setup/_DevEditorSetup.tsx` (indented children, "Inside" select, per-card "Add a project inside"; editor panel creates pre-parented only). A child is a FULL project. The in-editor family switcher is `devProjectDoorFamily` (door-anchored: the project the editor was OPENED on plus its direct children — a child-scoped door never offers the walk up to the parent). Tests: `scripts/smoke-dev-project-nesting.test.ts`. New 2026-08-22 |
 | **Governance / compliance / legal / DPO** | `app/portal/agency/governance/**` (`_GovernanceWorkspace.tsx`, `_governanceData.ts`), `app/api/portal/governance/**`; reuses `server/legalDocuments.ts`, `lib/compliance/compliancePosture.ts`, `server/clientErasure.ts`. KNOW-first — never a false green. New 2026-08-20 |
+| **Client-owned form data (their Supabase, our pointer)** | A client's enquiries live in THEIR database; we hold a pointer only. `lib/server/clientForms/**` — `clientSupabaseConnection.ts` (the vault connection), `clientFormNotices.ts` (`recordClientFormNotice` is idempotent per row, so a Supabase retry is not a second enquiry), `clientFormReader.ts` (reads values live, never stores them), `clientFormConfirmation.ts`, `clientSupabaseExport.ts` (**public half only — cannot return `webhookSecret`, which is the guarantee**), `clientSupabaseMapping.ts` (narrow mutator; `saveIntegrationConnection` would wipe `projectUrl`/`submissionsTable`). Door: `app/api/public/client-forms/[connectionId]/` (HMAC, timing-safe; unknown connection and bad secret BOTH answer 202). Mapping detection: `lib/enquiries/clientFormMapping.ts`. Client's inbox: the `enquiries` section in `app/portal/customer/_CustomerPortalViews.tsx`. Tests: `scripts/smoke-client-form-notices.test.ts`. New 2026-08-28 |
+| **Subject access & portability (GDPR Art. 15/20)** | `lib/server/compliance/subjectAccessExport.ts` — searches EVERY collection in state rather than a maintained list, so a collection added later cannot be silently absent from an export; matching is recursive and scoped to the caller's agency, with unattributable matches reported not dropped. Door: `app/api/portal/governance/subject-access/` (owner/manager; logs the fulfilment naming the subject by id only). Tests: `scripts/smoke-subject-access-export.test.ts`. New 2026-08-28 |
+| **DSAR register & the statutory clock (Art. 12)** | `lib/server/compliance/subjectRequests.ts` — one calendar month from RECEIPT (clamped at month-end), identity verification enforced as a SEQUENCE (`fulfilSubjectRequest` throws until it is done), one extension from the ORIGINAL deadline with a written reason. Surface: Governance → **Subject requests** (`_GovernanceWorkspace.tsx`). State: `subjectRequests` in `server/types.ts`. Tests: `scripts/smoke-subject-requests.test.ts`. New 2026-08-28 |
+| **Retention (Art. 5(1)(e))** | `lib/server/compliance/retention.ts` — periods per category on `AgencyWorkspaceSettings.retention`; **unset means keep forever**, which is the shipping default and the whole safety story. `findExpired` reads only (split out so a render cannot reach `mutate`); `previewRetentionSweep` counts, `runRetentionSweep` deletes. An OPEN subject request never expires. Form: Governance → Subject requests (owner only). Door: `app/api/portal/governance/retention/`. Tests: `scripts/smoke-retention.test.ts`. New 2026-08-28 |
+| **Where a claim in the privacy notice meets the code** | `scripts/smoke-privacy-notice-truth.test.ts` pins BOTH halves of two known contradictions (form-field values; "the server independently rejects"), so neither side can be changed without the other. Options drafted in `docs/development/plans/supabase-cutover-and-policy-drafts.md` §2f/§2g. New 2026-08-28 |
+| **Journey pipelines (the client's own kanban) — ADD-ON** | `built-ins/modules/client-crm/` — `src/lib/journey.ts` (domain), `src/server/pipelines.ts` (storage + board projection), `src/server/automations.ts` (rules + the cascade-bounded runner), `src/pages/PipelinesPage.tsx` + `AutomationsPage.tsx` (client components), `src/lib/journeyClient.ts` (the only place `?clientId=` is added). **Toggled by the `journey-pipelines` feature**, and an ABSENT key means OFF in all three enforcement sites — `app/api/portal/[module]/[...rest]/route.ts:111` (API), `lib/chrome/sidebarLayout.ts:179` (nav), and `journeyEnabled` in the module's `api/handlers.ts` (pages, which nothing else gates). Cards point at CRM `Contact` rows, never at a client-form enquiry — enquiries live in the client's own Supabase and may not be copied here. Email actions emit `AUTOMATION_EMAIL_EVENT`, wired to email-sender in `built-ins/runtime/foundation-adapters/_eventSubscribers.ts`. Tests: `scripts/smoke-client-crm-journey.test.ts`. **Its nav renders because `lib/chrome/clientSidebarPluginCatalog.ts` + the client layout now call `buildSidebar` with `scope: "client"` — before 2026-08-28 no client-scoped plugin's navItems rendered anywhere (`scripts/smoke-client-sidebar-catalog.test.ts`).** New 2026-08-28 |
+| **Client-workspace plugin navigation** | `lib/chrome/clientSidebarPluginCatalog.ts` (metadata mirror of the manifests, so the shared layout never imports the executable registry — same reason as `agencySidebarPluginCatalog.ts`), consumed by `app/portal/clients/[clientId]/layout.tsx`, gated on the `client.systems` element that `[...rest]/page.tsx` already requires. `website-editor` and `ecommerce` are deliberately unadvertised: their client nav declares no roles. Tests: `scripts/smoke-client-sidebar-catalog.test.ts` (deep-equals every entry against its manifest). New 2026-08-28 |
+| **Control sizing defaults vs author utilities** | `app/globals.css` — the portal-wide `:is(input, select, textarea)` height and the two `.plugin-page-shell` rules live in `@layer components` so Tailwind utilities can win. Unlayered, they beat `@layer utilities` at any specificity and silently served 40px to all 146 `min-h-11` usages. Portal value unchanged (2.5rem) on purpose; plugin rules raised to 2.75rem. Tests: `scripts/smoke-portal-control-targets.test.ts`. New 2026-08-28 |
+| **Editor features with no server** | `built-ins/modules/website-editor/src/lib/featureBackends.ts` — funnels and split-tests fetch routes that do not exist, so the UI says so instead of showing an empty state. Sibling to `blockBackends.ts` (blocks, not features — deliberately separate). Tests: `scripts/smoke-editor-feature-backends.test.ts`. New 2026-08-28 |
 | **Inbox & Actions (unified)** | `app/portal/agency/inbox/` (Actions is a tab via a server slot from `../actions/_ActionsPage`), `app/portal/agency/actions/page.tsx` redirects to `?view=actions`. Sidebar item id `inbox` "Inbox & actions". Needs-attention fused into the Today view (`_TodayView`). New 2026-08-20 |
 | **Marketing funnel builder** | top-level "Funnels" tab: `app/portal/agency/marketing/page.tsx` (`view==="funnels"` → `_FunnelsWorkspace`), `_marketingViews.ts`. New 2026-08-20 |
 | **SOP guides + interactive SOPs** | `server/sopGuides.ts`, `app/api/portal/sop-guides/`, `app/portal/agency/sop-library/{_SopLibrary.tsx,composerBlocks.ts}`. A guide = ordered SOP sequence; interactive SOPs = element-block trees composed in-library (kind `interactive`). New 2026-08-20 |
@@ -2200,8 +2222,9 @@ layers (state → logic → API → UI). Edit these; don't duplicate them.
 | Concern | Owns it |
 | --- | --- |
 | **State store / persistence** | `server/storage.ts`, `server/types.ts` (the `PortalState` shape) |
+| **A person's own chrome — sidebar order + saved tabs (2026-08-27)** | `server/types.ts` (`UserChromeLayout` · `SavedTab` · `SavedTabSpot`, stored in `PortalState.userChromeLayouts` keyed `${agencyId}\|${userId}`), `lib/server/chrome/userChromeLayout.ts` (the store — **reads never write**, because the sidebar is assembled on every authenticated navigation), `lib/chrome/sidebarLayout.ts` (`applyPersonalChrome` · `applyOrder` · `navItemForHref` — the arrangement is a list of IDS applied to whatever the nav legitimately contains, so it can never add, resurrect or hide an item), `lib/server/chrome/personalPanels.ts` (`withPersonalChrome` — the ONE place it is applied, called by all five sidebar renderers and swept for a sixth; fails open to the default nav), `app/api/portal/chrome/layout/route.ts` (GET/PUT/DELETE, identity from the SESSION only). Client: `components/chrome/pinnedTabsStore.ts` (one module-level store with a subscriber set — **not** per hook instance), `PinnedTabs.tsx`, `SidebarReorder.tsx` (wraps the server-rendered rows and reads `data-nav-id`; never re-renders one), `SpotPicker.tsx`, `SavedSpotArrival.tsx` (MutationObserver, 15s deadline), `savedSpot.ts` (selector **and** the text, so a moved spot is found by name and a miss is explainable). A tab dropped into a panel becomes a nav row and takes the icon of the nav item its href sits under — resolved live, never stored. `npm run smoke:chrome-layout` |
 | **Env vars, per-company config & what "sellable" costs** | `lib/server/env.ts` (typed reader + allowlist + startup check), `lib/server/secrets.ts` (named accessors), `lib/server/founderAgency.ts` (**env credentials are the FOUNDER'S** — `mayUseEnvironmentCredentials()`), `lib/server/integrationConnections.ts` + `lib/integrations/catalog.ts` (the per-agency vault that replaces env, 9 providers), `server/agencySettings.ts` (per-agency preferences), `lib/server/productionReadiness.ts` (derives its verdict from env keys — breaks for a buyer). **Every env-only setting is one a buyer cannot configure without the source.** Full inventory + the readiness conflict + day-one order: [env-and-sellability.md](env-and-sellability.md) |
-| **Auth / session / MFA** | `lib/server/auth/auth.ts`, `app/api/auth/`, `lib/server/auth/mfa.ts`, `lib/supabase/`. **All four MFA phases are built:** password login challenge/verify, browser code step, assurance on the app session, enrolled-account fail-closed OAuth/magic-link handling and ten single-use recovery codes. **P0 current defect:** central `getSession()` / `getSessionFromRequest()` / `requireRole()` paths do not enforce the cookie's `sessionRev`/role against the live user, so role/password/membership revocation is ineffective across many protected APIs (issues #22). |
+| **Auth / session / MFA** | `lib/server/auth/auth.ts`, `app/api/auth/`, `lib/server/auth/mfa.ts`, `lib/supabase/`. **All four MFA phases are built:** password login challenge/verify, browser code step, assurance on the app session, enrolled-account fail-closed OAuth/magic-link handling and ten single-use recovery codes. **P0 #22 RESOLVED 2026-08-27:** `resolveFreshSessionUser()` (`lib/server/auth/auth.ts`) runs on every `getSession()`/`getSessionFromRequest()` read — existence, `sessionRev`, current role and live membership are central prerequisites, so `requireRole()` paths inherit revocation; regression `scripts/smoke-session-revocation.test.ts` (16/16). |
 | **Company switcher (one app, several agencies)** | `app/api/auth/switch-agency/route.ts` (GET = the options, POST `{agencyId}` = re-mint the cookie with a new `activeAgencyId`). Authorised by **membership only** — the signed session's `agencyIds` **∩** the live user record's, so a switch can only ever narrow; identity (role/email) is copied from the live user record, never from the request or the old cookie. Every refusal answers the same 403 `forbidden`. Borrowed identities (demo / Dev Mode / freelancer preview / showcase) are refused outright. Sign-in is brand-aware via `lib/server/postLoginRedirect.ts` (`resolvePostLoginPath`) |
 | **Promote a trading company into its own agency** | `app/api/portal/agency/companies/[companyId]/promote/route.ts` (GET = read-only preview, POST = create the tenant + grant membership + re-mint + tombstone the brand). **Moves no records** — creating the tenant and relocating the data are deliberately separate phases. `server/promotion/promoteCompany.ts` (`previewCompanyPromotion`), `server/tradingCompanies.ts` (`markTradingCompanyPromoted`), `server/agencyBootstrap.ts` |
 | **Compliance posture + the HIPAA track** | `app/api/portal/compliance/posture/route.ts` (GET, read-only, owner/manager/staff) built by `lib/server/compliancePostureSource.ts` + honesty-checked by `lib/compliancePosture.ts` (`assertPostureHonesty`); `app/api/portal/compliance/frameworks/route.ts` (POST, owner/manager) toggles the **optional per-company HIPAA checklist** via `server/legalDocuments.ts` (`isHipaaTrackEnabled`/`setHipaaTrack`). It **never returns a compliance verdict** — GDPR always applies and cannot be switched off |
@@ -2225,7 +2248,7 @@ _(For which plugin owns a feature, see the [plugins chapter](plugins.md). For an
 
 ## Source document — `docs/workspace/hazards-and-duplication.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/hazards-and-duplication.md" sha256="cdefaec09890fcd38cc768835302dfaea6aa66bf2b529c794805b788470ad7f2" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/hazards-and-duplication.md" sha256="5403d85950f1c4d9442c1ab321dc873b480669fb14841a3d2f7947d84fa86ca6" -->
 # Chapter — Hazards & duplication (read before editing)
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
@@ -2260,14 +2283,14 @@ Editing one does **not** change the others. Confirm which surface you're on befo
 - `src/app/portal/agency/leads-pipeline/contacts/_ContactsWorkspace.tsx` (1494L) — the older **CSV rolodex** from the `leads-pipeline` plugin.
 
 ### Two "who is this person" models
-- `lib/clientContacts.ts` — simple contacts embedded on a client.
+- `lib/clients/clientContacts.ts` — simple contacts embedded on a client.
 - `lib/server/identityResolution.ts` + `personInteractions.ts` — the resolution graph.
 
 ### Two client activity logs
-- `lib/clientRelationshipRecord.ts` (client-safe) vs `lib/server/clientRecordLedger.ts`. Confirm canonical before writing history entries.
+- `lib/clients/clientRelationshipRecord.ts` (client-safe) vs `lib/server/clients/clientRecordLedger.ts`. Confirm canonical before writing history entries.
 
 ### Aqua-tag analytics twice
-- `agency/aqua-tags/_AquaTagsWorkspace.tsx` **[new]** vs `agency/performance/_AquaTagDashboard.tsx`.
+- `agency/fulfilment/_AquaTagsWorkspace.tsx` **[new]** vs `agency/performance/_AquaTagDashboard.tsx`.
 
 ### Aqua Tag ↔ editor protocol — one definition, one alias
 **Canonical:** `src/engines/editor/editing/aquaTagBridge.ts` — message names,
@@ -2522,13 +2545,13 @@ Plus overlapping "intelligence" builders that are easy to confuse:
 - **A native `<form method="post">` cannot reach ANY plugin API handler — they all parse `req.json()`.** A native submit sends `application/x-www-form-urlencoded` and navigates the page; `safeJson`'s `req.json()` throws on that, returns null, and the handler answers **400** — which reads as a validation error, so the page looks finished and merely "fussy" while being 100% non-functional. This shipped in finance's Plans page and was invisible to tests because none called the endpoint the way the form did. Submit with `fetch` from a client component (`agency-finance/src/components/NewPlanForm.tsx` is the reference shape: JSON body, idempotency key, busy + error states). `smoke-finance-idempotency.test.ts` guards the whole class for the finance plugin. **A codebase-wide sweep (2026-08-19) found 8 native form POSTs; one other pair is genuinely broken** — `website-editor`'s `LoginFormBlock`/`SignupFormBlock` default to `/api/auth/login`+`/api/auth/signup`, which are JSON-only, so a visitor to a published client site lands on a raw JSON 400 ([issues #14](../development/issues.md)). The rest are fine and show the two correct patterns: **`api/auth/profile/update` accepts either encoding and 303-redirects** (the right fix when a form must work without JS), and the logout forms simply ignore their body.
 - **Stripe webhook: cache the event id only AFTER reconcile succeeds, and answer 5xx on a processing failure.** `server/stripeReconcile.ts` `reconcileStripeEventOnce` owns the in-process "already handled?" cache, and the ordering is load-bearing: caching first meant a transient failure poisoned the cache, Stripe's retry hit "already done", got a 200, stopped retrying, and **the payment was never recorded** (customer paid, invoice unpaid). The handler distinguishes **400 = verification failed** (not from Stripe; a retry achieves nothing) from **500 = processing failed** (it was from Stripe, so it must retry) — Stripe reads the status code as an instruction. **Don't drop the cache** even though payments now dedup durably on the PaymentIntent: refunds and disputes do NOT, so a redelivered `charge.refunded` would log and emit twice.
 - **`expense.*` events are emitted but consumed by nothing (not dead code).** `agency-finance/src/server/expenses.ts` emits `expense.created`/`updated`/`approved`/`rejected`/`reimbursed`/`recurring.posted` (declared in `server/ports.ts`), but no consumer exists — the activity log already records each action. They are the plugin's **event contract**, a ready ingestion surface for a future cross-domain wire (e.g. You-Deserve-It → Finance). Don't assume they drive anything today; don't add a duplicate emitter. **AR/AP aging** (`lib/aging.ts` + the Reports panel) reads state directly, not these events.
-- **Two contract systems — pick by scenario (both real, not a bug).** `lib/clientContracts.ts` + `_ContractsPanel.tsx` + `/api/tenants/client-contracts` = **client contracts** (on `client.metadata.contracts`, for an existing client) — this is what the one-button **close-deal** (`lib/server/closeDeal.ts` + `api/tenants/close-deal`) creates. The **leads-pipeline** proposal/commercial-pack (`built-ins/modules/leads-pipeline`, `app/proposal/[token]`) is the **lead** (pre-client) path. The close-deal's lead→client flavour reuses that and **spans Journey — coordinate before editing leads-pipeline.** (Also distinct from staff contracts, `PeopleContract` — three contract concepts, no shared key.)
+- **Two contract systems — pick by scenario (both real, not a bug).** `lib/clients/clientContracts.ts` + `_ContractsPanel.tsx` + `/api/tenants/client-contracts` = **client contracts** (on `client.metadata.contracts`, for an existing client) — this is what the one-button **close-deal** (`lib/server/closeDeal.ts` + `api/tenants/close-deal`) creates. The **leads-pipeline** proposal/commercial-pack (`built-ins/modules/leads-pipeline`, `app/proposal/[token]`) is the **lead** (pre-client) path. The close-deal's lead→client flavour reuses that and **spans Journey — coordinate before editing leads-pipeline.** (Also distinct from staff contracts, `PeopleContract` — three contract concepts, no shared key.)
 - **Payment-plan metadata key: `client.metadata.clientPaymentPlans` is canonical.** `lib/server/resolutionPlans.ts` used to read `metadata.paymentPlans` (a key nothing writes) at two sites → missed-instalment resolution plans + evidence silently returned null. Fixed 2026-08-19 (regression-locked in `smoke-operational-notifications`).
 
 ---
 
 - **A Radar `value: 0` is not automatically a measurement.** `blind` (no data source), `learning` (not enough evidence yet) and `inactive` (doesn't apply) checks still carry `value: 0`, so an agency with **nothing monitored** looks identical to a tracked-but-quiet one. `marketingIntelligence.ts` only accepts a reading from a lens whose own status is `pass`/`critical`/`warning`/`watch` (`ASSESSED_STATUSES`); everything else reads `null` → "—". **Any surface reading `check.value` directly needs the same guard** — this was a live bug in the marketing funnel (it would have reported "0 pageviews" for an untracked agency) and it was invisible to the smoke tests, which feed synthetic checks. Caught only by `scripts/verify-marketing-runtime.ts` driving a real Radar build. **Update 2026-08-20:** the command-intelligence spine now enforces this at the type level — `commandIntelligenceService.ts` uses `measuredCheckValue` (`number | null`, never `?? 0`) and `demandFlow`/`lineage` pageviews/forms are `number | null`, so downstream consumers cannot read a fabricated zero. The guard above still applies to any NEW surface reading `check.value` directly.
-- **Marketing metrics have ONE owner: `lib/server/marketingIntelligence.ts`.** Traffic, forms, conversions, conversion rate, tag coverage, enquiry counts, the KPI pulse and the funnel are all reshaped there from engines that already computed them (the Radar `marketing` domain, `lib/kpiRegistry`, `commercialIntelligence.lineage`, `server/websiteSources`, `lib/server/websiteEnquiries`). **Do not recompute any of them inside `agency/marketing/page.tsx` or a workspace component** — that is how marketing ended up half-fed the first time (the old overview showed `ownWebsiteSummary.pageviews24h`, the agency's own site only, next to Radar-derived numbers elsewhere; that field is now gone). Marketing is a **consumer**: it must never edit `lib/kpiRegistry.ts`, the aqua-tag files, or the Radar engine — flag it to the commander instead. Note `agency/marketing` is also the redirect target for `agency/automations`.
+- **Marketing metrics have ONE owner: `lib/server/marketingIntelligence.ts`.** Traffic, forms, conversions, conversion rate, tag coverage, enquiry counts, the KPI pulse and the funnel are all reshaped there from engines that already computed them (the Radar `marketing` domain, `lib/kpiRegistry`, `commercialIntelligence.lineage`, `server/websiteSources`, `lib/server/websiteEnquiries`). **Do not recompute any of them inside `agency/marketing/page.tsx` or a workspace component** — that is how marketing ended up half-fed the first time (the old overview showed `ownWebsiteSummary.pageviews24h`, the agency's own site only, next to Radar-derived numbers elsewhere; that field is now gone). Marketing is a **consumer**: it must never edit `lib/performance/kpiRegistry.ts`, the aqua-tag files, or the Radar engine — flag it to the commander instead. Note `agency/marketing` is also the redirect target for `agency/automations`.
 
 - **Never put PII in an activity message — the erasure sweep is keyed by `clientId`.** `clientErasure` sweeps `state.activity` by `clientId` only, and an **agency-scoped plugin install writes activity entries with no `clientId` at all** — so an email in one of those messages survives a client erasure forever. Every message in `built-ins/modules/leads-pipeline/src/server/contacts.ts` names the contact by **id**, with `contactId` in the metadata for the UI to resolve a label from (the rule is written into the file header, `contacts.ts:10-15`). **This was one of tonight's three "🔴 launch blockers" and it is FIXED.** Apply the same rule to any new agency-scoped plugin activity.
 
@@ -2538,13 +2561,14 @@ closed. Each was re-read from source during the 2026-08-20 docs pass:
 
 | Was briefed as open | Actually |
 | --- | --- |
+| **Client Portals had two addresses** | **Consolidated 2026-08-27.** The Portals library was reachable at both `/portal/agency/portals` and `/portal/agency/fulfilment?view=portals`. It was never a code fork — one data function (`_portalWorkspaceData.ts`), one component (`_PortalsWorkspace.tsx`), and the authority was **always** Fulfilment's (`fulfilment.portals` on every page; the sidebar has no Portals row and lights up FULFILMENT for that path — see the "Fulfilment's widened surfaces" list in `SidebarNavLink.tsx`). It was two doors onto one room. The standalone page is now a **redirect stub** following the Dev Team pattern, forwarding `?view=templates` too — which first required Fulfilment to accept a `portalView` param, because it hard-coded `initialView="library"` and could not reach the Demo templates half. **`/portal/agency/portals/editor` and `/forms` are NOT stubs** and remain the canonical addresses for template editing and forms. Browser-verified: both redirects land, the client card and its template line render, and the templates view opens. |
 | **Freelancer-preview privilege escalation** | Fixed. `app/api/auth/preview-as-freelancer/route.ts` stashes the enterer's own id as `previewReturnUserId` (`:101`) and `exit` re-mints **that** user (`:49`), instead of restoring "an owner it found". `previewReturnUserId` is a first-class session field (`lib/server/auth.ts:72,104`). `api/auth/switch-agency/route.ts` was built into the same shape and cites it. |
 | **Finance create-surface idempotency** | Fixed. `built-ins/modules/agency-finance/src/lib/idempotency.ts` (`deriveRecordId`) is wired into six create surfaces + expenses — see the money-CREATE bullet above. |
 | **Erasure logging an email** | Fixed. See the bullet directly above. |
 
 **Also settled, and repeatedly mis-briefed:** **MFA on login is BUILT and WIRED** — the
 server gate is `app/api/auth/login/route.ts:320-360` (it imports `loginMfaStep` from
-`lib/server/mfa.ts`, rate-limits code attempts, then calls `supabase.auth.mfa.challenge`
+`lib/server/auth/mfa.ts`, rate-limits code attempts, then calls `supabase.auth.mfa.challenge`
 + `.verify`) and the browser code step is in `app/login/LoginForm.tsx`. Any doc saying
 "`/api/auth/login` has no MFA step" or "`mfa.ts` built, unwired" is describing a state
 that ended. **What is genuinely NOT built is Phases 3–4**: the login gate proves aal2 once
@@ -2575,6 +2599,19 @@ as "the intended long-term mechanism". There are no recovery codes.
 ## ✅ Expected pairs (NOT bugs — the macro/micro model)
 - SOP library (agency) vs `_ClientSopsTab` (client) — same capability, two scopes.
 - `_PipelineBoard` (agency kanban) vs `_KanbanTabClient` (client kanban).
+- **THREE boards now, and the word "pipeline" names all three. They are different
+  SUBJECTS, not one feature in three places — check which you mean before editing:**
+  | Board | Scope | What is on it | Columns |
+  | --- | --- | --- | --- |
+  | `app/portal/agency/pipelines/[slug]/_PipelineBoard.tsx` (`leads-pipeline`, `scopePolicy: "agency"`) | Agency | The agency's **leads**, CSV-driven | The plugin's |
+  | `app/portal/clients/[clientId]/_KanbanTabClient.tsx` | One client | The agency's **work** for that client (`AgencyTask`) | **Fixed** — `lib/tasks/clientTaskBoard.ts` |
+  | `built-ins/modules/client-crm/src/pages/PipelinesPage.tsx` (`journey-pipelines` add-on) | One client | The **client's own contacts** (`Contact` rows) | **Authored by the client**, any number of pipelines |
+
+  The third is the only one whose stages the client writes, and the only one with
+  automations. It was added 2026-08-28 **inside the existing `client-crm` module**
+  rather than as a new one, because that module already owned the client's
+  contacts. Do not merge them and do not build a fourth: a board's identity here
+  is its subject (leads / work / contacts), not its shape.
 - Any agency workspace vs its client-scoped equivalent — this is the intended architecture (`CLAUDE.md`), not duplication.
 - Meta app credentials have **two save entry points** — the Company→Connections `IntegrationConnectionsPanel` modal and the social-inbox **"Connect now"** form (`MetaConnectForm` in `_SocialInboxWorkspace`) — but both write the **same** canonical `meta` integration connection via `/api/portal/settings/integrations`, using the same `integrationDefinition("meta")` fields. One store, two views (by design — see [meta-inbox-connect](../development/plans/meta-inbox-connect.md)), not a drift twin.
 
@@ -2593,7 +2630,7 @@ as "the intended long-term mechanism". There are no recovery codes.
 ## Roadmap vs phases.md vs the board (2026-08-20; phases.md archived 2026-08-21)
 Three things describe "what's next", and only one is canonical now:
 - **`docs/development/roadmap.md` — CANONICAL.** Outcomes with horizons + target dates, edited
-  from the Dev Console (`/portal/dev-team/roadmap`, `lib/server/devTeamRoadmap.ts`). Progress is
+  from the Dev Console (`/portal/dev-team/roadmap`, `lib/server/dev/devTeamRoadmap.ts`). Progress is
   derived from each item's plans → phases → tasks, so it cannot drift.
 - **`phases.md` — superseded**, and since 2026-08-21 it is off the live tree entirely: [context/archive/phases.md](../context/archive/phases.md). Do not add items.
 - **The board** (`devTeamBoard.ts`) is a different altitude: it shows
@@ -3828,7 +3865,7 @@ archived — do not re-create them.
 
 ## Source document — `docs/workspace/shared-logic.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/shared-logic.md" sha256="8b8347940dd384a9710735bdba62872c804bf8c371f128cfdd38d2add85a19f4" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/shared-logic.md" sha256="971a7bc40ccd5e30ed2d5f80d762d658b30e2db33a158df82464a0073b2a08ed" -->
 # Chapter — Shared logic (`src/lib/` & `src/lib/server/`)
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
@@ -3888,7 +3925,13 @@ three reusable engines now live separately under `src/engines/`.
 > [issue #148](../development/issues.md).
 
 ## Auth, session & security  (`lib/server/`)
-`auth.ts` (session read/verify), `csrf.ts`, `mfa.ts` **[TOTP — ALL FOUR PHASES
+`auth.ts` (session read/verify — **since 2026-08-27 every authenticated read
+crosses the central fresh-session boundary**: `resolveFreshSessionUser()`
+re-validates existence, `sessionRev`, current role and live membership against
+the authoritative user record before `getSession()`/`getSessionFromRequest()`
+return a session, with sandbox cookies anchored to their signed live account
+and the public-showcase visitor validated in its fixture realm; issue #22,
+pinned by `smoke-session-revocation`), `csrf.ts`, `mfa.ts` **[TOTP — ALL FOUR PHASES
 BUILT (phases 3–4 on 2026-08-20). Login gate: `loginMfaStep` is called by
 `app/api/auth/login/route.ts`, which rate-limits code tries 5/min, runs
 `supabase.auth.mfa.challenge` + `.verify`, and refuses unless

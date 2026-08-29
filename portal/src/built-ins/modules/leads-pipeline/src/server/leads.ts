@@ -156,11 +156,18 @@ export class LeadService {
 
   async list(filter?: LeadFilter): Promise<Lead[]> {
     const index = (await this.storage.get<string[]>(LEAD_INDEX_KEY)) ?? [];
-    const rows: Lead[] = [];
+    const all: Lead[] = [];
     for (const id of index) {
       const row = await this.storage.get<Lead>(leadKey(id));
-      if (row && row.agencyId === this.agencyId) rows.push(normalizeLeadJourney(row));
+      if (row && row.agencyId === this.agencyId) all.push(normalizeLeadJourney(row));
     }
+    // Applied BEFORE the `!filter` shortcut on purpose: `resolveAudience` and
+    // every count call `list()` with no argument, and those are exactly the
+    // callers that must not see an archived lead. Default-exclude, always.
+    const mode = filter?.archived ?? "exclude";
+    const rows = mode === "include"
+      ? all
+      : all.filter(l => (mode === "only" ? Boolean(l.archivedAt) : !l.archivedAt));
     if (!filter) return rows.sort((a, b) => b.capturedAt - a.capturedAt);
     const q = filter.query?.toLowerCase().trim();
     const cutoff = filter.notContactedSinceMs;
@@ -212,8 +219,24 @@ export class LeadService {
     const existingId = (email ? await this.storage.get<string>(emailPtrKey(email)) : undefined)
       ?? (phone ? await this.storage.get<string>(phonePtrKey(phone)) : undefined);
     if (existingId) {
-      const existing = await this.get(existingId);
+      let existing = await this.get(existingId);
       if (existing) {
+        // The same person came back. Their lead is archived, and the pointers
+        // still point at it — so revive it rather than writing an update into a
+        // record nobody can see. The alternative (leave it archived, quietly
+        // absorb the enquiry) is how a real enquiry disappears.
+        if (existing.archivedAt) {
+          existing = await this.reviveUnlocked(existing, actor, now());
+          await this.activity.logActivity({
+            agencyId: this.agencyId,
+            actorUserId: actor,
+            category: "leads",
+            action: "leads.lead.restored",
+            message: `Restored archived lead ${leadLabel(existing)} — they came back through ${input.source}.`,
+            metadata: { leadId: existing.id, source: input.source },
+          });
+          this.events.emit({ agencyId: this.agencyId }, "leads.lead.restored", { leadId: existing.id });
+        }
         const incomingEnquiryId = enquiryIdFrom(input);
         const isNewEnquiry = Boolean(incomingEnquiryId && !(existing.enquiryIds ?? []).includes(incomingEnquiryId));
         const patched = await this.updateUnlocked(existing.id, {
@@ -542,13 +565,146 @@ export class LeadService {
     return updated;
   }
 
-  async delete(id: string, actor: UserId): Promise<boolean> {
-    return withLeadIdentityLock(this.agencyId, () => this.deleteUnlocked(id, actor));
+  // ─── Archive, restore, purge ──────────────────────────────────────────
+  //
+  // Issue #62. The control said "Archive", the confirmation said "removed from
+  // the active leads board", and the service hard-deleted the row, its pointers
+  // and its index entry — with no archived state, no list and no way back. The
+  // linked foundation pipeline CARD survived, holding a copy of the name, email
+  // and phone of a lead that no longer existed.
+  //
+  // Three verbs now, and each one does what its name says:
+  //
+  //   • `archive`  — off the board, still here, restorable. Keeps the row, the
+  //     index entry and the email/phone pointers; removes the pipeline card and
+  //     remembers which column it came from.
+  //   • `restore`  — back on the board, in the column it left.
+  //   • `purge`    — the old permanent delete, under a name that admits it.
+  //
+  // The POINTERS are deliberately kept on archive. Dropping them would let the
+  // same person enquire again and become a SECOND lead while their history sat
+  // invisible; keeping them means `upsert` finds the archived lead and restores
+  // it. Purge drops them, because after a purge there is nothing to find.
+
+  async archive(id: string, actor: UserId): Promise<Lead | null> {
+    return withLeadIdentityLock(this.agencyId, () => this.archiveUnlocked(id, actor));
   }
 
-  private async deleteUnlocked(id: string, actor: UserId): Promise<boolean> {
+  private async archiveUnlocked(id: string, actor: UserId): Promise<Lead | null> {
+    const existing = await this.get(id);
+    if (!existing) return null;
+    if (existing.archivedAt) return existing;               // idempotent
+    const at = now();
+
+    // Where the card is NOW, not where the lead's stage says it should be —
+    // somebody may have dragged it, and restore should undo the archive rather
+    // than quietly relocate the card.
+    let columnId: string | undefined;
+    if (this.pipeline?.columnIdForLead) {
+      columnId = (await this.pipeline.columnIdForLead({ agencyId: this.agencyId, leadId: id })) ?? undefined;
+    }
+    if (this.pipeline?.removeLeadCards) {
+      await this.pipeline.removeLeadCards({ agencyId: this.agencyId, leadId: id, cardId: existing.pipelineCardId });
+    }
+
+    const archived: Lead = {
+      ...existing,
+      archivedAt: at,
+      archivedBy: actor,
+      archivedFromColumnId: columnId,
+      // The card is gone, so the link must go with it — a retained id would
+      // point at nothing and read as "there is a card" to the next caller.
+      pipelineCardId: undefined,
+      journeyEvents: [...(existing.journeyEvents ?? []), journeyEvent("archived", at, { actorUserId: actor })],
+    };
+    await this.storage.set(leadKey(id), archived);
+    await this.activity.logActivity({
+      agencyId: this.agencyId,
+      actorUserId: actor,
+      category: "leads",
+      action: "leads.lead.archived",
+      message: `Archived lead ${leadLabel(existing)}.`,
+      metadata: { leadId: id },
+    });
+    this.events.emit({ agencyId: this.agencyId }, "leads.lead.archived", { leadId: id });
+    return archived;
+  }
+
+  async restore(id: string, actor: UserId): Promise<Lead | null> {
+    return withLeadIdentityLock(this.agencyId, () => this.restoreUnlocked(id, actor));
+  }
+
+  private async restoreUnlocked(id: string, actor: UserId): Promise<Lead | null> {
+    const existing = await this.get(id);
+    if (!existing) return null;
+    if (!existing.archivedAt) return existing;              // idempotent
+    const restored = await this.reviveUnlocked(existing, actor, now());
+    await this.activity.logActivity({
+      agencyId: this.agencyId,
+      actorUserId: actor,
+      category: "leads",
+      action: "leads.lead.restored",
+      message: `Restored lead ${leadLabel(existing)} to the active board.`,
+      metadata: { leadId: id },
+    });
+    this.events.emit({ agencyId: this.agencyId }, "leads.lead.restored", { leadId: id });
+    return restored;
+  }
+
+  /**
+   * The state change itself, without the log — shared with `upsert`, which
+   * revives an archived lead when the same person comes back rather than
+   * writing into a record nobody can see.
+   */
+  private async reviveUnlocked(existing: Lead, actor: UserId, at: number): Promise<Lead> {
+    let card: { cardId: string } | null = null;
+    if (this.pipeline) {
+      card = await this.pipeline.addLeadCard({
+        agencyId: this.agencyId,
+        leadId: existing.id,
+        email: existing.email,
+        phone: existing.phone,
+        name: existing.name,
+        company: existing.company,
+        source: existing.source,
+        // Honoured only if that column still exists; the adapter falls back to
+        // "New" rather than parking the card somewhere nothing renders.
+        columnId: existing.archivedFromColumnId,
+      });
+    }
+    const restored: Lead = {
+      ...existing,
+      archivedAt: undefined,
+      archivedBy: undefined,
+      archivedFromColumnId: undefined,
+      pipelineCardId: card?.cardId,
+      journeyEvents: [...(existing.journeyEvents ?? []), journeyEvent("restored", at, { actorUserId: actor })],
+    };
+    await this.storage.set(leadKey(existing.id), restored);
+    return restored;
+  }
+
+  /**
+   * Permanent. No archive, no restore, nothing left to find.
+   *
+   * This is the old `delete()` under an honest name. It stays because erasure
+   * and genuine mistakes need it — but nothing routine should call it, and the
+   * route that does says "permanently" in its own copy.
+   */
+  async purge(id: string, actor: UserId): Promise<boolean> {
+    return withLeadIdentityLock(this.agencyId, () => this.purgeUnlocked(id, actor));
+  }
+
+  private async purgeUnlocked(id: string, actor: UserId): Promise<boolean> {
     const existing = await this.get(id);
     if (!existing) return false;
+    // The card goes first. If the write below fails the lead survives WITH its
+    // card gone, which is recoverable; the other order leaves an orphan card
+    // holding contact details for a lead that no longer exists — the exact
+    // failure this issue was raised for.
+    if (this.pipeline?.removeLeadCards) {
+      await this.pipeline.removeLeadCards({ agencyId: this.agencyId, leadId: id, cardId: existing.pipelineCardId });
+    }
     await this.storage.del(leadKey(id));
     if (existing.email && await this.storage.get<string>(emailPtrKey(existing.email)) === id) {
       await this.storage.del(emailPtrKey(existing.email));
@@ -563,11 +719,11 @@ export class LeadService {
       agencyId: this.agencyId,
       actorUserId: actor,
       category: "leads",
-      action: "leads.lead.archived",
-      message: `Archived lead ${leadLabel(existing)}.`,
+      action: "leads.lead.purged",
+      message: `Permanently deleted lead ${leadLabel(existing)}.`,
       metadata: { leadId: id },
     });
-    this.events.emit({ agencyId: this.agencyId }, "leads.lead.archived", { leadId: id });
+    this.events.emit({ agencyId: this.agencyId }, "leads.lead.purged", { leadId: id });
     return true;
   }
 

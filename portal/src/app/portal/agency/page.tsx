@@ -20,7 +20,7 @@ import { getAgency, listClients } from "@/server/tenants";
 import { listPipelines, pipelineCardCounts, seedDefaultPipelines } from "@/server/pipelines";
 import { getUser } from "@/server/users";
 import { listAgencyTasks } from "@/server/tasks";
-import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
+import { agencyProductsForRead, listAgencyProducts } from "@/server/agencyProducts";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
 import { INTERNAL_WORKSPACE_NAME } from "@/lib/shared/internalWorkspace";
 import { dashboardPlanningSnapshot } from "@/server/dashboardPlanning";
@@ -40,6 +40,7 @@ import type { BattleTablePayload } from "./_BattleTableWorkspace";
 import { devTeamAccessible } from "@/lib/server/dev/devTeamAccess";
 import { resolveServerCommandStation } from "./commandStationRouting";
 import { PortalViewportLoading } from "@/components/ui/PortalViewportLoading";
+import { currentAssistantBusinessContext } from "@/lib/server/assistants/assistantContextScope";
 
 // Fallback for the requested secondary station. The server imports and builds
 // only the workspace named by `?station=`; Suspense then lets the surrounding
@@ -75,7 +76,7 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
   const scanPaused = !runHeavyPanels;
   const clients = listClients(agency.id);
   const tasks = listAgencyTasks(agency.id);
-  if (!session.publicShowcase) ensureDefaultAgencyProducts(agency.id);
+  if (!session.publicShowcase) agencyProductsForRead(agency.id);
   const products = listAgencyProducts(agency.id);
   const needsExecutiveData = requestedServerStation === "executive";
   const needsBattleData = requestedServerStation === "battle";
@@ -236,7 +237,7 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
       import("@/lib/server/assistants/assistantStore"),
       import("@/engines/data/radar/businessRadar"),
     ]);
-    const assistantContext = buildAssistantBusinessContext(agency.id);
+    const assistantContext = await currentAssistantBusinessContext(agency.id);
     advisorWorkspace = (
       <Suspense key="advisor-workspace-boundary" fallback={<StationStreaming label="Aqua Advisor" />}>
         <LazyAssistantWorkspace

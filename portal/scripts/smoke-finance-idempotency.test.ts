@@ -12,8 +12,12 @@
 // Driven over the real Payment/Income services in an in-memory finance container.
 // Record + surface only; the app never holds funds.
 
+// First, and statically: this import installs the request-scope helpers
+// before anything pulls in `next/`. See the note in dev-console-request-scope.ts.
+import { withSession } from "./dev-console-request-scope";
+
 import assert from "node:assert/strict";
-import { beforeEach, test } from "node:test";
+import { before, beforeEach, test } from "node:test";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
@@ -41,9 +45,51 @@ import type {
 import { containerWithDeps } from "../src/built-ins/modules/agency-finance/src/server/foundationAdapter";
 import { deriveRecordId, normaliseIdempotencyKey } from "../src/built-ins/modules/agency-finance/src/lib/idempotency";
 
-const AGENCY_ID: AgencyId = "agency_idem_smoke";
-const CLIENT_ID: ClientId = "client_idem_smoke";
-const ACTOR: UserId = "user_owner";
+// The handlers below are not pure module code: each one asks the ACCESS KERNEL
+// whether this caller may touch this client's `client.commercial` element, and
+// the kernel reads the session from Next's request store. A bare handler call
+// therefore runs with no request scope at all — `cookies()` throws, and (before
+// the gate fix in handlers-r007.ts) that surfaced as a 400 rather than as the
+// 401/403/500 it really was. A browser request always has a scope, so the
+// honest fixture is to give these calls one too.
+//
+// That means the synthetic finance world and the portal store must agree on WHO
+// the client is: the ids below are seeded from a real portal agency/client so
+// the kernel can resolve the same client the finance container is holding.
+let AGENCY_ID: AgencyId;
+let CLIENT_ID: ClientId;
+let ACTOR: UserId;
+let OWNER_SESSION: string;
+
+/** Run a handler the way the server does: inside this owner's request scope. */
+const asOwner = <T>(fn: () => Promise<T>): Promise<T> => withSession(OWNER_SESSION, fn);
+
+before(async () => {
+  const { ensureHydrated } = await import("../src/server/storage");
+  const { createAgency, createClient } = await import("../src/server/tenants");
+  const { createUser } = await import("../src/server/users");
+  const { issueSession } = await import("../src/lib/server/auth/auth");
+
+  await ensureHydrated();
+  const agency = createAgency({ name: "Idem Smoke", slug: `idem-smoke-${Date.now()}` });
+  const client = createClient(agency.id, { name: "Payer Ltd", slug: "payer" });
+  const owner = createUser({
+    email: `owner-${Date.now()}@idem.test`,
+    name: "Idem Owner",
+    role: "agency-owner",
+    agencyId: agency.id,
+    password: "idem-smoke-pass-phrase",
+  });
+
+  AGENCY_ID = agency.id as AgencyId;
+  CLIENT_ID = client.id as ClientId;
+  ACTOR = owner.id as UserId;
+  OWNER_SESSION = await issueSession({
+    userId: owner.id, email: owner.email, role: "agency-owner",
+    agencyId: agency.id, agencyIds: [agency.id], activeAgencyId: agency.id,
+    sessionRev: owner.sessionRev ?? 0,
+  });
+});
 
 function buildWorld() {
   const agency: Agency = { id: AGENCY_ID, name: "Idem Smoke", slug: "idem-smoke", brand: { primaryColor: "#000" }, status: "active", createdAt: 0, updatedAt: 0 };
@@ -224,11 +270,14 @@ async function seedIn(services: ReturnType<typeof containerWithDeps>, totalCents
   return inv.id;
 }
 
+// Through the real handler, in a real request scope — the client-element gate
+// inside it reads the session, so a bare call would never reach the code under
+// test.
 const markPaid = (ctx: PluginCtx, invoiceId: string, body: Record<string, unknown> = {}): Promise<Response> =>
-  markInvoicePaidHandler(
+  asOwner(() => markInvoicePaidHandler(
     new Request("http://localhost/invoices/mark-paid", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: invoiceId, ...body }) }),
     ctx,
-  );
+  ));
 
 test("two CONCURRENT mark-paid clicks record exactly one settling payment", async () => {
   const { services, ctx } = racingWorld();
@@ -698,8 +747,8 @@ test("the expense create HANDLER dedups a double-clicked submit", async () => {
   const categoryId = await expenseCategory(services);
   const body = { categoryId, amountCents: 240_000, currency: "gbp", vendor: "Contractor Ltd", incurredAt: 1_700_000_000_000, idempotencyKey: "handler-expense-1" };
 
-  const first = await createExpenseHandler(jsonPost("expenses", body), httpCtx);
-  const second = await createExpenseHandler(jsonPost("expenses", body), httpCtx);
+  const first = await asOwner(() => createExpenseHandler(jsonPost("expenses", body), httpCtx));
+  const second = await asOwner(() => createExpenseHandler(jsonPost("expenses", body), httpCtx));
   assert.equal(first.status, 201);
   assert.equal(second.status, 201, "the second click is not an error the user has to interpret");
 
@@ -711,7 +760,7 @@ test("the expense create HANDLER dedups a double-clicked submit", async () => {
   assert.equal((await services.expenses.list()).length, 1, "ONE expense — the key survived the handler boundary");
 
   // A genuinely new intent through the same handler is still recorded.
-  await createExpenseHandler(jsonPost("expenses", { ...body, idempotencyKey: "handler-expense-2" }), httpCtx);
+  await asOwner(() => createExpenseHandler(jsonPost("expenses", { ...body, idempotencyKey: "handler-expense-2" }), httpCtx));
   const all = await services.expenses.list();
   assert.equal(all.length, 2, "a second contractor bill is not swallowed");
   assert.equal(all.reduce((sum, e) => sum + e.amountCents, 0), 480_000);
@@ -723,15 +772,15 @@ test("the payment create HANDLER dedups a double-clicked submit", async () => {
   const invoiceId = await seedIn(services, 200_000);
   const body = { invoiceId, amountCents: 50_000, currency: "gbp", method: "bank-transfer", idempotencyKey: "handler-pay-1" };
 
-  const first = await createPaymentHandler(jsonPost("payments/create", body), httpCtx);
-  const second = await createPaymentHandler(jsonPost("payments/create", body), httpCtx);
+  const first = await asOwner(() => createPaymentHandler(jsonPost("payments/create", body), httpCtx));
+  const second = await asOwner(() => createPaymentHandler(jsonPost("payments/create", body), httpCtx));
   assert.equal(first.status, 201);
   assert.equal(second.status, 201);
   assert.equal((await (second.json() as Promise<{ deduped: boolean }>)).deduped, true);
   assert.equal((await services.payments.listForInvoice(invoiceId)).length, 1, "ONE payment through the handler");
 
   // A genuine second partial payment (new key) still goes through.
-  await createPaymentHandler(jsonPost("payments/create", { ...body, idempotencyKey: "handler-pay-2" }), httpCtx);
+  await asOwner(() => createPaymentHandler(jsonPost("payments/create", { ...body, idempotencyKey: "handler-pay-2" }), httpCtx));
   const payments = await services.payments.listForInvoice(invoiceId);
   assert.equal(payments.length, 2, "partial payments stay legal over HTTP");
   assert.equal(payments.reduce((sum, p) => sum + p.amountCents, 0), 100_000);
@@ -742,8 +791,8 @@ test("the income create HANDLER dedups a double-clicked submit", async () => {
   const httpCtx = withInstall(ctx);
   const body = { title: "Consulting day", amountCents: 25_000, currency: "gbp", method: "bank-transfer", idempotencyKey: "handler-income-1" };
 
-  const first = await createIncomeHandler(jsonPost("income", body), httpCtx);
-  const second = await createIncomeHandler(jsonPost("income", body), httpCtx);
+  const first = await asOwner(() => createIncomeHandler(jsonPost("income", body), httpCtx));
+  const second = await asOwner(() => createIncomeHandler(jsonPost("income", body), httpCtx));
   assert.equal(first.status, 201);
   assert.equal(second.status, 201);
   const firstBody = await first.json() as { income: { id: string } };
@@ -751,7 +800,7 @@ test("the income create HANDLER dedups a double-clicked submit", async () => {
   assert.equal(firstBody.income.id, secondBody.income.id, "the resubmit returns the first entry");
   assert.equal((await services.income.list()).length, 1, "ONE income entry through the handler");
 
-  await createIncomeHandler(jsonPost("income", { ...body, idempotencyKey: "handler-income-2" }), httpCtx);
+  await asOwner(() => createIncomeHandler(jsonPost("income", { ...body, idempotencyKey: "handler-income-2" }), httpCtx));
   const all = await services.income.list();
   assert.equal(all.length, 2, "a genuinely separate consulting day is still recorded");
   assert.equal(all.reduce((sum, e) => sum + e.amountCents, 0), 50_000);

@@ -1,6 +1,10 @@
 // Finance plan assignment — validation, recoverable multi-write faults and
 // real separate-process races over one isolated file-backed PortalState.
 
+// First, and statically: this import installs the request-scope helpers before
+// anything pulls in `next/`. See the note in dev-console-request-scope.ts.
+import { withSession } from "./dev-console-request-scope";
+
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
@@ -9,7 +13,7 @@ import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { after, test } from "node:test";
+import { after, before, test } from "node:test";
 
 const require_ = createRequire(import.meta.url);
 const serverOnly = require_.resolve("server-only");
@@ -25,11 +29,52 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const TSX_LOADER = require_.resolve("tsx");
 const SANDBOX = mkdtempSync(join(tmpdir(), "aqua-finance-plan-assignment-"));
 const STATE_FILE = join(SANDBOX, "portal-state.json");
-const INSTALL_ID = "agency_plan_assignment|_agency|agency-finance";
-const AGENCY_ID = "agency_plan_assignment";
-const CLIENT_ONE = "client_plan_one";
-const CLIENT_TWO = "client_plan_two";
-const ACTOR = "owner_plan_assignment";
+// `assignPlanHandler` asks the ACCESS KERNEL whether this caller may manage the
+// client's `client.commercial` element, and the kernel reads the session from
+// Next's request store and the client from the PORTAL store. So the ids below
+// are seeded from a real portal tenant and the handler runs inside that owner's
+// request scope — otherwise the call never reaches the validation under test.
+// The separate-process races further down do NOT go through a handler; they get
+// the same ids through `AQUA_CLIENT_IDS` so both halves talk about one tenant.
+let INSTALL_ID: string;
+let AGENCY_ID: string;
+let CLIENT_ONE: string;
+let CLIENT_TWO: string;
+let ACTOR: string;
+let OWNER_SESSION: string;
+
+/** Run a handler the way the server does: inside this owner's request scope. */
+const asOwner = <T>(fn: () => Promise<T>): Promise<T> => withSession(OWNER_SESSION, fn);
+
+before(async () => {
+  const { ensureHydrated } = await import("../src/server/storage");
+  const { createAgency, createClient } = await import("../src/server/tenants");
+  const { createUser } = await import("../src/server/users");
+  const { issueSession } = await import("../src/lib/server/auth/auth");
+
+  await ensureHydrated();
+  const agency = createAgency({ name: "Plan Agency", slug: `plan-agency-${Date.now()}` });
+  const one = createClient(agency.id, { name: "Plan Client One", slug: "plan-client-one" });
+  const two = createClient(agency.id, { name: "Plan Client Two", slug: "plan-client-two" });
+  const owner = createUser({
+    email: `owner-${Date.now()}@plan.test`,
+    name: "Plan Owner",
+    role: "agency-owner",
+    agencyId: agency.id,
+    password: "plan-assignment-pass-phrase",
+  });
+
+  AGENCY_ID = agency.id;
+  CLIENT_ONE = one.id;
+  CLIENT_TWO = two.id;
+  ACTOR = owner.id;
+  INSTALL_ID = `${AGENCY_ID}|_agency|agency-finance`;
+  OWNER_SESSION = await issueSession({
+    userId: owner.id, email: owner.email, role: "agency-owner",
+    agencyId: agency.id, agencyIds: [agency.id], activeAgencyId: agency.id,
+    sessionRev: owner.sessionRev ?? 0,
+  });
+});
 
 interface FaultStorage extends PluginStorage {
   arm(writeNumber: number): void;
@@ -154,32 +199,43 @@ test("missing clients, stale plans and malformed mounted requests write nothing"
     services: {} as PluginCtx["services"],
     actor: ACTOR,
   };
-  const response = await assignPlanHandler(new Request("http://localhost/plans/assign", {
+  const response = await asOwner(() => assignPlanHandler(new Request("http://localhost/plans/assign", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ clientId: CLIENT_ONE }),
-  }), ctx);
+  }), ctx));
   assert.equal(response.status, 400);
   assert.deepEqual(await response.json(), { ok: false, error: "planId_required" });
-  const unknownField = await assignPlanHandler(new Request("http://localhost/plans/assign", {
+  const unknownField = await asOwner(() => assignPlanHandler(new Request("http://localhost/plans/assign", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ clientId: CLIENT_ONE, planId: a.id, force: true }),
-  }), ctx);
+  }), ctx));
   assert.equal(unknownField.status, 400);
   assert.match((await unknownField.json() as { error: string }).error, /unsupported field/);
-  const missingClient = await assignPlanHandler(new Request("http://localhost/plans/assign", {
+  const missingClient = await asOwner(() => assignPlanHandler(new Request("http://localhost/plans/assign", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ clientId: "missing-client", planId: a.id }),
-  }), ctx);
-  assert.equal(missingClient.status, 404);
-  assert.deepEqual(await missingClient.json(), { ok: false, error: "client_not_found" });
-  const staleTarget = await assignPlanHandler(new Request("http://localhost/plans/assign", {
+  }), ctx));
+  // 403, not the 404 this once asserted. The element gate now runs BEFORE the
+  // service is asked whether the client exists, and it cannot tell "no such
+  // client" from "another agency's client" — deliberately, since distinguishing
+  // them would confirm existence. Both therefore answer the same thing, and the
+  // answer names the missing PERMISSION rather than the client's fate, which is
+  // the non-disclosing phrasing.
+  //
+  // (Elsewhere the house answers 404 `client_not_found` for both — see the note
+  // at src/server/phaseApplier.ts:51 — but those routes make their own tenancy
+  // check first and so never reach this gate with an unreachable id. Nothing in
+  // the app calls plans/assign, so the divergence costs no message.)
+  assert.equal(missingClient.status, 403);
+  assert.deepEqual(await missingClient.json(), { ok: false, error: "client_workspace_element_manage_required" });
+  const staleTarget = await asOwner(() => assignPlanHandler(new Request("http://localhost/plans/assign", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ clientId: CLIENT_ONE, planId: "missing-plan" }),
-  }), ctx);
+  }), ctx));
   assert.equal(staleTarget.status, 404);
   assert.deepEqual(await staleTarget.json(), { ok: false, error: "not_found" });
   assert.equal(world.storage.snapshot(), before);
@@ -196,7 +252,7 @@ const financeModule = financeImported.default || financeImported;
 const portalStorageModule = portalStorageImported.default || portalStorageImported;
 await portalStorageModule.ensureHydrated({ fresh: true });
 const agencyId = process.env.AQUA_AGENCY_ID;
-const clients = new Set(["client_plan_one", "client_plan_two"]);
+const clients = new Set(JSON.parse(process.env.AQUA_CLIENT_IDS));
 const agency = { id: agencyId, name: "Plan Agency", slug: "plan-agency", brand: { primaryColor: "#000" }, status: "active", createdAt: 0, updatedAt: 0 };
 const clientFor = id => clients.has(id) ? { id, agencyId, name: id, slug: id, brand: { primaryColor: "#000" }, stage: "live", status: "active", createdAt: 0, updatedAt: 0 } : null;
 const storage = pluginStorageModule.makePluginStorage(process.env.AQUA_INSTALL_ID);
@@ -226,7 +282,7 @@ try {
   } else if (process.env.AQUA_ACTION === "snapshot") {
     const plans = await services.plans.list(true);
     const assignments = {};
-    for (const clientId of ["client_plan_one", "client_plan_two"]) {
+    for (const clientId of clients) {
       assignments[clientId] = (await services.plans.getForClient(clientId))?.id || null;
     }
     value = { plans: plans.map(plan => ({ id: plan.id, clientIds: plan.clientIds })), assignments };
@@ -276,6 +332,7 @@ async function runChild<T>(action: "seed" | "assign" | "snapshot", input: Record
         AQUA_INPUT: JSON.stringify(input),
         AQUA_INSTALL_ID: INSTALL_ID,
         AQUA_AGENCY_ID: AGENCY_ID,
+        AQUA_CLIENT_IDS: JSON.stringify([CLIENT_ONE, CLIENT_TWO]),
         AQUA_PLUGIN_STORAGE_MODULE: moduleUrl("src/lib/server/pluginStorage.ts"),
         AQUA_FINANCE_MODULE: moduleUrl("src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts"),
         AQUA_PORTAL_STORAGE_MODULE: moduleUrl("src/server/storage.ts"),
@@ -330,7 +387,10 @@ test("assign, move, unassign and stale-plan races converge across processes and 
   snapshot = (await runChild<AssignmentSnapshot>("snapshot")).value!;
   assert.equal(snapshot.assignments[CLIENT_ONE], a);
   assert.equal(snapshot.assignments[CLIENT_TWO], a);
-  assert.deepEqual(snapshot.plans.find(plan => plan.id === a)?.clientIds.sort(), [CLIENT_ONE, CLIENT_TWO]);
+  // Sort BOTH sides: the ids are now real portal ids, so their relative order
+  // is arbitrary — sorting only the actual side silently pinned the old
+  // literals' alphabetical order.
+  assert.deepEqual(snapshot.plans.find(plan => plan.id === a)?.clientIds.sort(), [CLIENT_ONE, CLIENT_TWO].sort());
   assertSnapshotConsistent(snapshot);
 
   const moveAgainstUnassign = await Promise.all([

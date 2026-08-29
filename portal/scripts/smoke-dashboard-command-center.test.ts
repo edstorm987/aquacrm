@@ -378,7 +378,13 @@ describe("dashboard command centre surface", () => {
     assert.doesNotMatch(workspace, /Day Command views/);
     assert.doesNotMatch(workspace, /label="My day & time"/);
     assert.doesNotMatch(workspace, /label="Actions"/);
-    assert.match(workspace, /onClick=\{\(\) => selectWorkspaceMode\("actions"\)\} disabled=\{serverNavigationBusy\} className="inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline disabled:opacity-45">All actions/);
+    // Narrowed 2026-08-28: this used to pin the whole className string, so
+    // adding `min-h-6` for a WCAG 2.5.8 fix (it measured 79×16) failed a test
+    // about behaviour. What matters is that "All actions" switches mode and is
+    // disabled during navigation — not how it is painted.
+    assert.match(workspace, /onClick=\{\(\) => selectWorkspaceMode\("actions"\)\} disabled=\{serverNavigationBusy\} className="[^"]*">All actions/);
+    // The reason the class list changed at all, kept so it cannot regress.
+    assert.match(workspace, /onClick=\{\(\) => selectWorkspaceMode\("actions"\)\} disabled=\{serverNavigationBusy\} className="[^"]*min-h-6[^"]*">All actions/, "the actions link must keep a 24px minimum target height");
     assert.match(workspace, /async function returnToToday\(\)/);
     assert.match(workspace, /if \(!isToday\) await selectDay\(actualToday\)/);
     assert.match(workspace, /Return to today’s Day Command/);

@@ -31,7 +31,18 @@ export type PluginCategory =
   | "marketing"
   | "support"
   | "ops"
-  | "fulfillment";
+  | "fulfillment"
+  // Added 2026-08-28. FOUR modules already declared `category: "growth"` —
+  // client-crm, memberships, affiliates and public-funnel — and compiled only
+  // because each imports its own vendored copy of this contract, where the
+  // member exists. Point any of them at the canonical type (which is the TODO
+  // every vendored copy carries) and they would have failed to build.
+  //
+  // Widened rather than changing four manifests: nothing maps PluginCategory
+  // exhaustively (no `Record<PluginCategory, …>`, no switch), so adding a
+  // member breaks nothing, and "growth" is a description those four modules
+  // chose for themselves.
+  | "growth";
 
 export type PluginStatus = "stable" | "beta" | "alpha";
 
@@ -336,11 +347,6 @@ export interface SetupField {
 
 // ─── Sidebar contributions ────────────────────────────────────────────────
 
-export interface NavGroup {
-  id: string;
-  label: string;
-  order?: number;
-}
 
 export type PanelId =
   | "main"
@@ -606,13 +612,47 @@ export interface AquaPlugin {
   // same thing through its own tenant port, four different ways.
   onEraseClient?: (ctx: PluginCtx, clientId: string, subject?: ErasureSubject) => Promise<void>;
 
+  /**
+   * A first-install wizard.
+   *
+   * ⚠ **Nothing renders this today.** Swept on 2026-08-28: `ecommerce` is the
+   * only module that declares one, and no host code reads `plugin.setup`. The
+   * ANSWERS path exists and works — `installPlugin({ setupAnswers })` forwards
+   * them to `onInstall` — so what is missing is only the UI that would collect
+   * them. Declaring steps here therefore does nothing at all today.
+   *
+   * Do not confuse it with `setupAnswers` in `_runtime.ts`: that is install
+   * options, a different thing whose similar name is how this stayed hidden.
+   *
+   * Pinned by `scripts/smoke-manifest-fields-consumed.test.ts`, which fails the
+   * day a consumer appears so this warning can be deleted with it.
+   */
   setup?: SetupStep[];
 
-  navGroup?: NavGroup;
   navItems: NavItem[];
   pages: PluginPage[];
   api: PluginApiRoute[];
 
+  /**
+   * Blocks, routes and head injections a module contributes to a storefront.
+   *
+   * ⚠ **Nothing registers any of this today**, and wiring it blind would make
+   * things worse rather than better. Swept on 2026-08-28: five modules declare
+   * a `storefront`, and **three of them — affiliates, client-crm and
+   * memberships — say "Renderer ships in T3" in their own block descriptions.**
+   * Their blocks have no renderer. Registering them would drop non-functional
+   * blocks into the editor's palette, which is precisely the failure
+   * `built-ins/modules/website-editor/src/lib/blockBackends.ts` exists to
+   * prevent.
+   *
+   * The website editor's own 70 blocks work because its code imports
+   * `BLOCK_DESCRIPTORS` directly — this declaration is NOT what makes them
+   * work, which is exactly why the gap stayed invisible for so long.
+   *
+   * So before wiring a consumer: check each declared block actually renders,
+   * and label the ones that do not, the way `blockBackends.ts` already does.
+   * Pinned by `scripts/smoke-manifest-fields-consumed.test.ts`.
+   */
   storefront?: {
     blocks?: BlockDescriptor[];
     routes?: StorefrontRoute[];

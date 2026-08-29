@@ -1,4 +1,4 @@
-export type IntegrationProvider = "resend" | "smtp" | "twilio" | "meta" | "stripe" | "github" | "vercel" | "openai" | "aqua-editor-ai" | "google-search-console";
+export type IntegrationProvider = "resend" | "smtp" | "twilio" | "meta" | "stripe" | "github" | "vercel" | "openai" | "aqua-editor-ai" | "google-search-console" | "client-supabase";
 
 export type IntegrationFieldKind = "text" | "email" | "url" | "password";
 
@@ -15,7 +15,7 @@ export interface IntegrationFieldDefinition {
 export interface IntegrationDefinition {
   id: IntegrationProvider;
   name: string;
-  category: "Communication" | "Payments" | "Development" | "Intelligence";
+  category: "Communication" | "Payments" | "Development" | "Intelligence" | "Client data";
   description: string;
   setupUrl: string;
   setupLabel: string;
@@ -24,6 +24,65 @@ export interface IntegrationDefinition {
 }
 
 export const INTEGRATION_CATALOG: IntegrationDefinition[] = [
+  {
+    // A CLIENT's own Supabase project — their database, not ours.
+    //
+    // Ed, 2026-08-27: *"surely we have to link their superbase inside this to
+    // get their forms data and then internally we just get a notification to
+    // say they got the form so we can track enquiries without merging or
+    // breaching data."*
+    //
+    // ── Why there is no service-role key field here ──────────────────────
+    //
+    // A Supabase service-role key bypasses row-level security entirely: it is
+    // root on that project. Storing one per client would mean a single
+    // compromise of this vault hands over every client's whole database, and
+    // no amount of encryption at rest changes what the key itself grants.
+    //
+    // The anon key is powerless on its own — it can only do what that
+    // project's RLS policies allow — so the client stays in control of exactly
+    // which table we may read, and can revoke it without touching anything
+    // else. If somebody later "just needs" the service key for a feature, that
+    // is the moment to design the feature differently, not to add the field.
+    //
+    // ── Why a webhook secret rather than polling ─────────────────────────
+    //
+    // The notification comes from THEM: a Supabase Database Webhook fires on
+    // insert and posts a minimal payload — which client, which form, which row,
+    // when. No personal data crosses the boundary to tell us an enquiry landed.
+    // Polling would mean holding a live connection open on a timer and reading
+    // their data to discover something they could simply have told us.
+    id: "client-supabase",
+    name: "Client Supabase",
+    category: "Client data",
+    description: "Read a client's own form submissions from their Supabase project, without copying the data into AquaCRM.",
+    setupUrl: "https://supabase.com/dashboard/project/_/settings/api",
+    setupLabel: "Open Supabase API settings",
+    outcome: "Enquiries land in this client's portal, and the agency inbox shows that one arrived without holding the customer's details.",
+    fields: [
+      { id: "projectUrl", label: "Project URL", kind: "url", required: true, placeholder: "https://xxxxxxxx.supabase.co", help: "Settings → API → Project URL in the client's Supabase dashboard." },
+      { id: "anonKey", label: "Anon (public) key", kind: "password", secret: true, required: true, placeholder: "eyJ...", help: "The anon key ONLY. Never the service-role key — that one bypasses row-level security and would give AquaCRM full access to their database." },
+      { id: "submissionsTable", label: "Submissions table", kind: "text", required: true, placeholder: "form_submissions", help: "The table their website form writes into. It needs a row-level-security policy allowing this key to read it." },
+      { id: "webhookSecret", label: "Webhook secret", kind: "password", secret: true, placeholder: "A long random string", help: "Paste the same value into the client's Supabase Database Webhook header so AquaCRM can verify the notification really came from them." },
+      // Column overrides — all optional, because the common case needs none.
+      // `clientFormMapping` recognises the ordinary names (email, full_name,
+      // phone, message, created_at) on its own; these exist for the table that
+      // calls its message column `enquiry_body_v2`. Config, not secrets: a
+      // column name is not sensitive and hiding it behind a write-only field
+      // would make it impossible to check what the mapping is doing.
+      { id: "columnName", label: "Name column", kind: "text", placeholder: "Detected automatically", help: "Only needed if the column is not called something obvious like name or full_name." },
+      { id: "columnEmail", label: "Email column", kind: "text", placeholder: "Detected automatically", help: "Only needed if the column is not called something obvious like email." },
+      { id: "columnPhone", label: "Phone column", kind: "text", placeholder: "Detected automatically", help: "Only needed if the column is not called something obvious like phone or mobile." },
+      { id: "columnMessage", label: "Message column", kind: "text", placeholder: "Detected automatically", help: "Only needed if the column is not called something obvious like message or enquiry." },
+      { id: "columnSubmittedAt", label: "Submitted-at column", kind: "text", placeholder: "Detected automatically", help: "Only needed if the column is not called something obvious like created_at." },
+      // Blank means no confirmation is sent. Enabling it by WRITING THE SUBJECT
+      // means the feature cannot be switched on without deciding what the
+      // customer will actually receive — a checkbox would let somebody enable
+      // it and ship a default nobody read.
+      { id: "confirmationSubject", label: "Confirmation subject", kind: "text", placeholder: "Leave blank to send nothing", help: "Fill this in to send the customer an automatic thank-you from this client's own email connection. Blank means no confirmation is sent." },
+      { id: "confirmationBody", label: "Confirmation message", kind: "text", placeholder: "Thanks — we have your message and will be in touch.", help: "The body of that thank-you. Their name is added automatically when the form captured one." },
+    ],
+  },
   {
     id: "resend",
     name: "Resend",
@@ -199,6 +258,10 @@ export function integrationDefinition(provider: IntegrationProvider): Integratio
 
 /** Providers whose real consumers carry an agency + target-client boundary. */
 const CLIENT_SCOPED_PROVIDERS = new Set<IntegrationProvider>([
+  // Client Supabase is client-scoped BY DEFINITION — an agency-wide one would
+  // be meaningless, since the whole point is that each client's data stays in
+  // their own project.
+  "client-supabase",
   "resend",
   "smtp",
   "twilio",

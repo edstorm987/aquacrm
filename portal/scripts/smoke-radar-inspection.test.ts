@@ -12,7 +12,12 @@ test("legacy Radar links preserve their inspector state inside Command Centre", 
   assert.match(page, /"view", "query", "domain", "status", "scope", "lens", "source", "dataset"/);
   assert.match(page, /params\.set\(key, value\.trim\(\)\.slice\(0, 240\)\)/);
   assert.match(page, /redirect\(`\/portal\/agency\?\$\{params\.toString\(\)\}`\)/);
-  assert.match(route, /requireRole\(\["agency-owner", "agency-manager"\]\)/);
+  // Was `requireRole(["agency-owner","agency-manager"])`. Replaced 2026-08-27
+  // (issue #182) by an ELEMENT requirement, which is strictly stronger: a role
+  // check passes a manager whose element access has been narrowed, and the AI
+  // then answers from data the UI hides from them.
+  assert.match(route, /requireAssistantElement\("workspace\.overview"\)/);
+  assert.doesNotMatch(route, /requireRole\(/, "the Radar evidence route is back on a role check");
   assert.match(route, /session\.agencyId/);
   assert.match(route, /cache-control/);
   assert.match(route, /private, no-store/);

@@ -9,6 +9,7 @@
 import Link from "next/link";
 import type { Role } from "@/server/types";
 import { MobileNav } from "@/components/chrome/MobileNav";
+import { TopbarOverflow } from "@/components/chrome/TopbarOverflow";
 import { ProfileMenu } from "@/components/chrome/ProfileMenu";
 import { TopbarBackButton } from "@/components/chrome/TopbarBackButton";
 import type { NavPanel } from "@/lib/chrome/sidebarLayout";
@@ -16,6 +17,7 @@ import type { ReactNode } from "react";
 import { ColorModeToggle } from "@/components/chrome/ColorModeToggle";
 import { DeferredPortalSearch } from "@/components/chrome/DeferredPortalSearch";
 import { PinCurrentControl, PinnedTabsBar } from "@/components/chrome/PinnedTabs";
+import { SavedSpotArrival } from "@/components/chrome/SavedSpotArrival";
 import { ShowcaseModeControl } from "@/components/chrome/ShowcaseModeControl";
 import { InspectorModeControl } from "@/components/chrome/InspectorModeControl";
 import { sharedChromeLinkPrefetch } from "@/lib/chrome/sharedChromeLinkPrefetch";
@@ -95,6 +97,12 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
         </div>
       </div>
       <div className="flex shrink-0 flex-nowrap items-center gap-1 text-xs sm:gap-2 lg:gap-3">
+        {/* Everything between here and the profile menu collapses behind one
+            button on a phone. The profile menu and the exit link stay out —
+            "who am I" and "how do I leave" are the two a person reaches for
+            without thinking, and burying them costs more than the space it
+            saves. See TopbarOverflow for why the children are rendered once. */}
+        <TopbarOverflow>
         {!publicShowcase && companySwitcher ? <div className="mm-private-chrome hidden lg:block">{companySwitcher}</div> : null}
         {searchItems.length ? <DeferredPortalSearch items={searchItems} recordsEnabled={recordsEnabled} /> : null}
         {advisorEnabled ? advisorControl ?? <Link href="/portal/agency/assistant" prefetch={sharedChromeLinkPrefetch()} aria-label="Open Aqua Advisor" className="inline-flex size-9 items-center justify-center gap-2 rounded-md border border-black/10 bg-white/60 text-black/55 transition hover:bg-white hover:text-black xl:w-auto xl:px-3"><Sparkles size={16} /><span className="hidden text-xs font-semibold xl:inline">Advisor</span></Link> : null}
@@ -108,6 +116,7 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
         {inspecting ? <InspectorModeControl label={inspectingLabel} /> : null}
         {publicShowcase ? <PublicShowcaseControl /> : showcaseMode ? <ShowcaseModeControl /> : notifications}
         <div className="hidden sm:block"><ColorModeToggle /></div>
+        </TopbarOverflow>
         {previewActive ? (
           <Link
             href="/portal/agency/phases"
@@ -139,6 +148,10 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
       </div>
     </header>
     {!publicShowcase ? <PinnedTabsBar /> : null}
+    {/* Arriving on a saved tab that has a spot: go to the spot, and say so when
+        the page has changed underneath it. Mounted here because the topbar is
+        on every portal surface a saved tab can point at. */}
+    {!publicShowcase ? <SavedSpotArrival /> : null}
     </>
   );
 }

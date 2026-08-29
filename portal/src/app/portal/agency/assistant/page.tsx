@@ -12,13 +12,14 @@ import { ensureHydrated } from "@/server/storage";
 import { getUserById } from "@/server/users";
 import { getCachedBusinessIssueRadar } from "@/engines/data/server/radar/businessIssueRadar";
 import { radarDigest } from "@/engines/data/radar/businessRadar";
+import { currentAssistantBusinessContext } from "@/lib/server/assistants/assistantContextScope";
 
 export default async function AssistantPage() {
   await ensureHydrated();
   const session = await requireRole(["agency-owner", "agency-manager"]);
   if (!session) redirect("/portal/agency");
 
-  const context = buildAssistantBusinessContext(session.agencyId);
+  const context = await currentAssistantBusinessContext(session.agencyId);
   const radar = await getCachedBusinessIssueRadar(session.agencyId);
   const user = getUserById(session.userId);
 

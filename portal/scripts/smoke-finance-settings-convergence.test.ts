@@ -115,7 +115,11 @@ test("Finance exposes one visible owner for terms and tax identity", () => {
   assert.match(invoicesPage, /getAgencyWorkspaceSettings\(props\.agencyId\)/);
   assert.match(invoicesPage, /defaultPaymentTermsDays=\{workspace\.defaultPaymentTermsDays\}/);
   assert.match(invoicesPage, /defaultTaxRatePercent=\{workspace\.defaultTaxRatePercent\}/);
-  assert.match(invoiceList, /defaultPaymentTermsDays \* 86_400_000/);
+  // Pin the PROPERTY — the due date defaults from the workspace setting — not
+  // the arithmetic that once computed it. `addBusinessCalendarDays` replaced
+  // the raw `* 86_400_000` so a `type="date"` input lands on the right day in
+  // the business time zone; the setting is still what drives it.
+  assert.match(invoiceList, /defaultValue=\{addBusinessCalendarDays\(defaultPaymentTermsDays\)\}/);
   assert.match(invoiceList, /defaultValue=\{defaultTaxRatePercent\}/);
   assert.doesNotMatch(invoiceList, /14 \* 86_400_000|defaultValue="20"/);
   assert.match(financeSettings, /\/portal\/agency\/settings#defaults/);

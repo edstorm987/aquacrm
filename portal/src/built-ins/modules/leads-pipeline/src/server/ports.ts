@@ -67,6 +67,8 @@ export type LeadsEventName =
   | "leads.lead.created"
   | "leads.lead.updated"
   | "leads.lead.archived"
+  | "leads.lead.restored"
+  | "leads.lead.purged"
   | "leads.contact.created"
   | "leads.contact.promoted"
   | "leads.csv.imported"
@@ -152,4 +154,20 @@ export interface PipelinePort {
   // Lookup used by Lead→Contact promotion. Returns the lead's current
   // pipeline column label (e.g. "Won"); null if no card exists.
   columnLabelForLead(args: { agencyId: AgencyId; leadId: string }): Promise<string | null> | string | null;
+  // Which column the lead's card is in, so archive can remember where to put it
+  // back. Returns null when there is no card — the same "foundation-pending"
+  // answer every other method here gives.
+  columnIdForLead?(args: { agencyId: AgencyId; leadId: string }): Promise<string | null> | string | null;
+  // Remove the lead's card when the lead leaves the active board.
+  //
+  // Issue #62: without this the card SURVIVED the archive, holding a snapshot of
+  // the lead's name, email and phone, on a board where nobody could see it was
+  // stale. Sweeps by `leadId` as well as by the stored `pipelineCardId`, because
+  // the id is only stored when the foundation was wired up at capture time.
+  // Returns how many cards it removed.
+  removeLeadCards?(args: {
+    agencyId: AgencyId;
+    leadId: string;
+    cardId?: string;
+  }): Promise<number> | number;
 }

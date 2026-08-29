@@ -2,10 +2,14 @@ import "server-only";
 
 import crypto from "node:crypto";
 
+import { cookies } from "next/headers";
+
 import {
   getActiveAgencyId,
   getSession,
   isSessionFresh,
+  SESSION_COOKIE_NAME,
+  verifyToken,
 } from "@/lib/server/auth/auth";
 import { withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
 import {
@@ -35,6 +39,7 @@ import {
   isAgencyRole,
 } from "@/server/types";
 import { getUserById } from "@/server/users";
+import { devPathScope } from "@/lib/server/dev/devPathScope";
 
 const ACTIVITY_HARD_CAP = 50_000;
 const CAPABILITIES = new Set<string>(ACCESS_CAPABILITIES);
@@ -358,7 +363,14 @@ export interface CurrentAccessActor {
 export async function requireCurrentAccessActor(): Promise<CurrentAccessActor> {
   await ensureHydrated({ fresh: true });
   const session = await getSession();
-  if (!session) throw new AccessControlError(401, "unauthorized");
+  if (!session) {
+    // getSession() now enforces the central fresh-session boundary (issue
+    // #22), so a rotated/downgraded/deleted subject never reaches this line.
+    // Keep the client-facing distinction: a cookie that still verifies but
+    // failed that boundary means "sign in again", not "no session".
+    const raw = verifyToken((await cookies()).get(SESSION_COOKIE_NAME)?.value);
+    throw new AccessControlError(401, raw ? "stale_session" : "unauthorized");
+  }
   const resourceState = getState();
   const resourceAgencyId = getActiveAgencyId(session);
   const userId = session.sandbox?.returnUserId ?? session.userId;
@@ -751,6 +763,8 @@ export interface CreateAccessGrantInput {
   scope: AccessScope;
   environment: AccessEnvironment;
   capabilities?: AccessCapability[];
+  /** Narrow the grant to particular files/folders. Absent = the whole scope. */
+  allowedPaths?: string[];
   templateId?: string;
   expiresAt?: number;
   reason?: string;
@@ -793,6 +807,12 @@ function prepareGrant(state: PortalState, input: CreateAccessGrantInput, now: nu
     scope,
     environment,
     capabilities,
+    // Normalised on the way in, so a stored narrowing is always already clean.
+    // `undefined` rather than `[]` when empty: both mean "the whole scope", and
+    // storing the shorter one keeps old grants and new ones identical.
+    allowedPaths: devPathScope(input.allowedPaths).allow.length
+      ? devPathScope(input.allowedPaths).allow
+      : undefined,
     templateId,
     expiresAt,
     reason: cleanText(input.reason, "access_grant_reason", 1_000),
@@ -804,7 +824,7 @@ function prepareGrant(state: PortalState, input: CreateAccessGrantInput, now: nu
   };
 }
 
-function grantFingerprint(grant: Pick<AccessGrant, "agencyId" | "userId" | "scope" | "environment" | "capabilities" | "templateId" | "expiresAt">): string {
+function grantFingerprint(grant: Pick<AccessGrant, "agencyId" | "userId" | "scope" | "environment" | "capabilities" | "templateId" | "expiresAt" | "allowedPaths">): string {
   return JSON.stringify({
     agencyId: grant.agencyId,
     userId: grant.userId,
@@ -813,6 +833,11 @@ function grantFingerprint(grant: Pick<AccessGrant, "agencyId" | "userId" | "scop
     capabilities: [...grant.capabilities].sort(),
     templateId: grant.templateId ?? null,
     expiresAt: grant.expiresAt ?? null,
+    // Two grants that differ ONLY by their narrowing are different grants.
+    // Leaving this out would make the second one look like a duplicate of the
+    // first and silently return it — so granting somebody a second folder would
+    // hand back the first one's grant and appear to have worked.
+    allowedPaths: grant.allowedPaths ? [...grant.allowedPaths].sort() : null,
   });
 }
 

@@ -33,7 +33,7 @@ import { FinanceTabClient } from "./_FinanceTabClient";
 import type { ClientContract, ClientContractTemplate } from "@/lib/clients/clientContracts";
 import type { ClientTelemetryEvent } from "@/lib/clients/clientTelemetry";
 import { listContractTemplates } from "@/server/contractTemplates";
-import { ensureDefaultAgencyProducts, listAgencyProducts, productStatus } from "@/server/agencyProducts";
+import { agencyProductsForRead, listAgencyProducts, productStatus } from "@/server/agencyProducts";
 import { PropertiesTabClient, type ClientProperty } from "./_PropertiesTabClient";
 import { ClientSystemsWorkspace } from "./_ClientSystemsWorkspace";
 import { ClientTagWorkspace } from "./_ClientTagWorkspace";
@@ -346,9 +346,11 @@ export default async function ClientHome({
   };
   const planLabel = meta.planTier ? PLAN_LABELS[meta.planTier] : null;
   const servicePlanLabel = meta.portalServicePlan?.trim() || planLabel;
-  const agencyProducts = session.publicShowcase
-    ? listAgencyProducts(session.agencyId)
-    : ensureDefaultAgencyProducts(session.agencyId);
+  // One branch, because the read no longer writes (issue #21). The showcase
+  // branch existed to keep a public visitor from triggering the seed, and its
+  // only other effect was to hand them an UNREPAIRED catalogue — a worse view
+  // of the same data, for a reason that no longer applies.
+  const agencyProducts = agencyProductsForRead(session.agencyId);
   const tradingCompanies = listTradingCompanies(session.agencyId, true);
   const agencyName = getAgency(session.agencyId)?.name?.trim() || "AquaOasis-Web";
   const portalProviderName = resolveClientPortalProvider(client, { name: agencyName, mark: agencyName.charAt(0) }).name;

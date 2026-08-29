@@ -10,6 +10,8 @@ export type LocalRepositoryPreviewAction = "status" | "start" | "logs" | "stop" 
 
 export type LocalRepositoryPreviewState =
   | "idle"
+  /** Running the project's declared dependency-install command in its worktree. */
+  | "installing"
   | "starting"
   | "healthy"
   | "stopping"

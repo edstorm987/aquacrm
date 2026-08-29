@@ -748,3 +748,64 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .cookie-dialog a { color: var(--teal); font-weight: 800; }
 .cookie-dialog footer { justify-content: flex-end; margin-top: 22px; }
 @media (max-width: 700px) { .cookie-banner { grid-template-columns: 1fr; gap: 16px; padding: 18px; } .cookie-actions { justify-content: stretch; } .cookie-actions button { flex: 1 1 auto; } .cookie-reopen { left: 10px; bottom: 10px; } }
+
+/* ── Touch targets ────────────────────────────────────────────────────────
+   Added 2026-08-27 by the pre-launch browser walk (320x568, touch emulated).
+
+   This site is styled ENTIRELY by this file. It does not load the app's
+   globals.css, so the `pointer: coarse` rules that give the portal its 44px
+   targets have never applied to a single element out here — which is the
+   wrong way round, because this is the surface a stranger meets first and the
+   only one they meet before deciding whether to trust us.
+
+   Thirteen controls measured under 44px on a phone. The ones that matter most
+   are the COOKIE CONSENT buttons: "Accept all" and "Necessary only" came in
+   at 42px and the per-category toggles at 20px. A consent control that is
+   awkward to hit is not only an accessibility defect — it biases which answer
+   somebody gives, and that goes to whether the consent is freely given at
+   all. Sized first for that reason.
+
+   Coarse-pointer only, so the desktop composition is untouched. */
+@media (pointer: coarse) {
+  .cookie-actions button,
+  .cookie-reopen,
+  .cookie-dialog button {
+    min-height: 44px;
+  }
+
+  /* The per-category toggles were 20x20 — the smallest controls on the page
+     and the ones carrying the actual choice. The label row is already a
+     generous hit area; this makes the input itself reachable too. */
+  /* `width` alone was not enough and the browser walk caught it: these sit in
+     a `display: flex` label row, so a plain width is only a STARTING size and
+     flex shrink took them to 13px — narrower than the 20px they began at.
+     `flex-shrink: 0` is the part that actually holds the size. */
+  .cookie-dialog input {
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    flex-shrink: 0;
+  }
+
+  /* Primary calls to action and the standalone links that act as buttons.
+     `.contact-detail`, `.contact-client-route` and `.footer-access` links were
+     19px tall — they read as body text but behave as navigation, so they get a
+     real target rather than a new visual weight. The contact page's one was
+     missed on the first pass and caught by re-sweeping every public page
+     rather than trusting that the homepage was representative. */
+  .actions > a,
+  .actions > button,
+  .contact-detail a,
+  .contact-client-route a,
+  .footer-access a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  /* The system-preview tab strip (Overview / People / Operations / Finance /
+     Support) was floored at 38px by the rule further up this file. */
+  .system-body > aside button {
+    min-height: 44px;
+  }
+}

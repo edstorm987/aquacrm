@@ -19,6 +19,10 @@
 process.env.PORTAL_BACKEND ??= "memory";
 process.env.PORTAL_SESSION_SECRET ??= "close-deal-route-smoke-secret";
 
+// First, and statically: this import installs the request-scope helpers before
+// anything pulls in `next/`. See the note in dev-console-request-scope.ts.
+import { withRequestScope, withSession } from "./dev-console-request-scope";
+
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createRequire } from "node:module";
@@ -29,28 +33,18 @@ const require = createRequire(import.meta.url);
 //
 // This route authenticates with `requireRoleForClient` → `getSession()` →
 // `cookies()` from `next/headers`, which throws "called outside a request
-// scope" when a handler is invoked in-process. Nothing in this repo rigs Next's
-// request async-context for tests, so `next/headers` is stubbed with a cookie
-// jar this file controls. Everything else — the route, auth's HMAC verify, the
-// role gate, the real stores, the real finance container — is the shipped code.
-let sessionCookie = "";
-const headersId = require.resolve("next/headers");
-require.cache[headersId] = {
-  id: headersId,
-  filename: headersId,
-  loaded: true,
-  paths: [],
-  children: [],
-  exports: {
-    cookies: async () => ({
-      get: (name: string) => (sessionCookie && name === "lk_session_v1" ? { name, value: sessionCookie } : undefined),
-      getAll: () => (sessionCookie ? [{ name: "lk_session_v1", value: sessionCookie }] : []),
-      has: (name: string) => Boolean(sessionCookie) && name === "lk_session_v1",
-    }),
-    headers: async () => new Headers(),
-    draftMode: async () => ({ isEnabled: false }),
-  },
-} as never;
+// scope" when a handler is invoked in-process.
+//
+// This file used to stub the whole `next/headers` module with a cookie jar of
+// its own, on the stated grounds that "nothing in this repo rigs Next's request
+// async-context for tests". That stopped being true: `dev-console-request-scope`
+// does exactly that, and ~25 files use it. Worse, a module stub is not a request
+// scope — `getSession()` now also resolves the session's live user and the data
+// realm from the REAL request store, so the stub answered the cookie question
+// and silently failed the realm one, and every authenticated case here 401'd.
+//
+// So: one rig, the shared one. Everything else — the route, auth's HMAC verify,
+// the role gate, the real stores, the real finance container — is shipped code.
 
 // ─── Real storage latency ────────────────────────────────────────────────────
 //
@@ -87,6 +81,7 @@ const { issueSession } = require("../src/lib/server/auth/auth") as typeof import
 const { ensureHydrated } = require("../src/server/storage") as typeof import("../src/server/storage");
 const { createAgency, createClient, getClientForAgency } = require("../src/server/tenants") as typeof import("../src/server/tenants");
 const { upsertInstall, deleteInstall } = require("../src/server/pluginInstalls") as typeof import("../src/server/pluginInstalls");
+const { createUser } = require("../src/server/users") as typeof import("../src/server/users");
 const { makePluginStorage } = require("../src/lib/server/pluginStorage") as typeof import("../src/lib/server/pluginStorage");
 const { containerFor } = require("../src/built-ins/modules/agency-finance/src/server/foundationAdapter") as typeof import("../src/built-ins/modules/agency-finance/src/server/foundationAdapter");
 const { ensureAgencyFinanceFoundationRegistered } = require("../src/built-ins/runtime/foundation-adapters/agencyFinanceFoundation") as typeof import("../src/built-ins/runtime/foundation-adapters/agencyFinanceFoundation");
@@ -122,11 +117,27 @@ async function seedWorld(options: { installFinance?: boolean; role?: string } = 
     installId = install.id;
   }
   ensureAgencyFinanceFoundationRegistered();
-  const cookie = issueSession({
-    userId: `user_${seq}`,
+  // A REAL user, not a made-up id. `getSession()` re-resolves the session's user
+  // on every call and refuses a cookie whose subject does not exist, whose role
+  // has changed, or whose `sessionRev` is stale — the central fresh-session
+  // boundary (issues #22). A hand-minted `user_<n>` used to sail through that;
+  // it now 401s, correctly, so the fixture has to seed the person it claims.
+  const role = (options.role ?? "agency-owner") as never;
+  const owner = createUser({
     email: `owner${seq}@example.com`,
-    role: (options.role ?? "agency-owner") as never,
+    name: `Close Deal Owner ${seq}`,
+    role,
     agencyId: agency.id,
+    password: "close-deal-smoke-pass-phrase",
+  });
+  const cookie = issueSession({
+    userId: owner.id,
+    email: owner.email,
+    role,
+    agencyId: agency.id,
+    agencyIds: [agency.id],
+    activeAgencyId: agency.id,
+    sessionRev: owner.sessionRev ?? 0,
   });
   return { agencyId: agency.id, clientId: client.id, cookie, installId };
 }
@@ -152,8 +163,8 @@ interface CloseResponse {
 
 // Drive the real handler as the given world's user.
 async function close(world: World, body: Record<string, unknown>): Promise<{ status: number; data: CloseResponse }> {
-  sessionCookie = world.cookie;
-  const response = await POST(closeDealRequest({ clientId: world.clientId, ...body }));
+  const response = await withSession(world.cookie, () =>
+    POST(closeDealRequest({ clientId: world.clientId, ...body })));
   return { status: response.status, data: (await response.json()) as CloseResponse };
 }
 
@@ -294,8 +305,10 @@ test("a non-agency role is rejected", async () => {
 
 test("no session at all is rejected", async () => {
   const world = await seedWorld();
-  sessionCookie = "";
-  const response = await POST(closeDealRequest({ clientId: world.clientId, ...BANK, idempotencyKey: "no-session" }));
+  // A real request scope carrying NO session cookie — the browser case, not a
+  // missing scope (which would fail for an unrelated reason and prove nothing).
+  const response = await withRequestScope({}, () =>
+    POST(closeDealRequest({ clientId: world.clientId, ...BANK, idempotencyKey: "no-session" })));
   assert.equal(response.status, 401);
   assert.equal(contractsOf(world).length, 0);
 });
@@ -314,8 +327,8 @@ test("a missing title or a non-positive amount is a 400 before any auth or write
 test("a client from another agency cannot be closed against", async () => {
   const mine = await seedWorld();
   const theirs = await seedWorld();
-  sessionCookie = mine.cookie;
-  const response = await POST(closeDealRequest({ clientId: theirs.clientId, ...BANK, idempotencyKey: "cross-tenant" }));
+  const response = await withSession(mine.cookie, () =>
+    POST(closeDealRequest({ clientId: theirs.clientId, ...BANK, idempotencyKey: "cross-tenant" })));
 
   assert.equal(response.status, 404, "another agency's client is simply not found for me");
   assert.equal(contractsOf(theirs).length, 0, "and nothing was written on their client");

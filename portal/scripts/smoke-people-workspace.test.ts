@@ -71,6 +71,64 @@ describe("People lifecycle and employee workspace", () => {
     assert.equal(people.ownerChatAttention(agencyId), null);
   });
 
+  // Issue #21. `listPeopleChannels` used to call `ensureTeamChannel`, which
+  // CREATES the channel — so reading the chat wrote to storage, and the chain
+  // reached all the way up to the agency layout through the Radar's operational
+  // alerts. Reading must not create; posting must.
+  it("reading the chat does not create the team channel — posting does", async () => {
+    const people = await import("../src/server/people");
+    const { getState } = await import("../src/server/storage");
+    const { createUser } = await import("../src/server/users");
+    const agencyId = "agency_readonly_chat";
+    const owner = createUser({ email: "owner@readonly.test", password: "Smoke-pass-123!", name: "Ola Owner", role: "agency-owner", agencyId });
+
+    const channelsBefore = Object.values(getState().peopleChannels ?? {}).filter(c => c.agencyId === agencyId);
+    assert.equal(channelsBefore.length, 0, "the fixture already has channels, so this proves nothing");
+
+    // Every read shape: the list, the snapshot the UI renders, and the owner
+    // attention the Command Centre alert asks for.
+    const listed = people.listPeopleChannels(agencyId, owner.id);
+    people.teamChatSnapshot(agencyId, owner.id);
+    people.ownerChatAttention(agencyId);
+    assert.equal(
+      Object.values(getState().peopleChannels ?? {}).filter(c => c.agencyId === agencyId).length, 0,
+      "reading the chat created a channel — a GET that writes cannot be cached, replicated or run read-only");
+
+    // The reader still SEES a team channel, and it is usable.
+    const team = listed.find(channel => channel.kind === "team");
+    assert.ok(team, "a reader with no saved channel sees no team channel at all");
+    assert.equal(people.listPeopleMessages(agencyId, team.id).length, 0);
+
+    // Posting materialises it — under the SAME id the reader was already
+    // holding, which is the whole reason the id is derived from the agency.
+    const message = people.postPeopleMessage({ agencyId, channelId: team.id, authorUserId: owner.id, body: "First post" });
+    assert.equal(message.channelId, team.id);
+    const saved = Object.values(getState().peopleChannels ?? {}).filter(c => c.agencyId === agencyId);
+    assert.equal(saved.length, 1, "posting did not persist the team channel");
+    assert.equal(saved[0]!.id, team.id, "the saved channel has a different id from the one the reader was shown");
+
+    // …and a second read does not make another one.
+    people.listPeopleChannels(agencyId, owner.id);
+    assert.equal(Object.values(getState().peopleChannels ?? {}).filter(c => c.agencyId === agencyId).length, 1);
+  });
+
+  it("an agency that already had a generated team-channel id keeps it", async () => {
+    const people = await import("../src/server/people");
+    const { getState, mutate } = await import("../src/server/storage");
+    const agencyId = "agency_legacy_chat";
+    // A channel as it was created before the id became deterministic.
+    const legacyId = "channel_legacy_random";
+    mutate(state => {
+      state.peopleChannels[legacyId] = { id: legacyId, agencyId, kind: "team", name: "Team", memberUserIds: [], createdAt: 1, updatedAt: 1 };
+    });
+    const team = people.listPeopleChannels(agencyId, "usr_anyone").find(channel => channel.kind === "team");
+    assert.equal(team?.id, legacyId, "an existing team channel was shadowed by a new deterministic one");
+    assert.equal(people.ensureTeamChannel(agencyId).id, legacyId);
+    assert.equal(
+      Object.values(getState().peopleChannels ?? {}).filter(c => c.agencyId === agencyId).length, 1,
+      "the agency ended up with two team channels");
+  });
+
   it("the team chat UI highlights @mentions and hints how to mention", () => {
     const teamChat = readFileSync("src/components/people/TeamChat.tsx", "utf8");
     // Mentions that resolve to a roster member are rendered specially (not plain text)…

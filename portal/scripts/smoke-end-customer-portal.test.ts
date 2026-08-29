@@ -33,7 +33,11 @@ describe("End-customer portal sub-routes (R019)", () => {
 
   it("/portal/customer/orders/page.tsx exposes secure customer order history", () => {
     const src = readFileSync(join(CUSTOMER, "orders", "page.tsx"), "utf8");
-    assert.ok(src.includes('requireRole("end-customer")'));
+    // Widened 2026-08-27 to the whole client-portal audience — the client roles
+    // Ed moved into their own portal. The scoping assertions below are the ones
+    // that keep one customer's orders away from another's, and are untouched.
+    assert.ok(src.includes("requireRole([...CUSTOMER_PORTAL_ROLES])"));
+    assert.ok(!src.includes('requireRole("end-customer")'), "back on a bare end-customer gate");
     assert.ok(src.includes('getInstall({ agencyId: session.agencyId, clientId: session.clientId }, "ecommerce")'));
     assert.ok(src.includes("order.endCustomerUserId === session.userId"));
     assert.ok(src.includes("order.customerEmail?.toLowerCase() === session.email.toLowerCase()"));
@@ -42,7 +46,11 @@ describe("End-customer portal sub-routes (R019)", () => {
 
   it("/portal/customer/account/page.tsx is a built-in customer account page", () => {
     const src = readFileSync(join(CUSTOMER, "account", "page.tsx"), "utf8");
-    assert.ok(src.includes('requireRole("end-customer")'));
+    // Widened 2026-08-27 to the whole client-portal audience — the client roles
+    // Ed moved into their own portal. The scoping assertions below are the ones
+    // that keep one customer's orders away from another's, and are untouched.
+    assert.ok(src.includes("requireRole([...CUSTOMER_PORTAL_ROLES])"));
+    assert.ok(!src.includes('requireRole("end-customer")'), "back on a bare end-customer gate");
     assert.ok(src.includes("AvatarUploader"));
     assert.ok(src.includes('action="/api/auth/profile/update"'));
     assert.ok(src.includes('href={`/login/forgot?brand=${authBrand.id}`}'));
@@ -141,12 +149,20 @@ describe("End-customer portal subroute config contracts", () => {
     assert.ok(src.includes('"/portal/customer/account?saved=1"'));
   });
 
-  it("profile menu sends end-customers to their customer account page", () => {
+  it("profile menu sends the client-portal audience to their customer account page", () => {
     const src = readFileSync(
       join(ROOT, "src", "components", "chrome", "ProfileMenu.tsx"),
       "utf8",
     );
-    assert.ok(src.includes('role === "end-customer" ? "/portal/customer/account"'));
+    // The link is keyed on the AUDIENCE now, not on the single `end-customer`
+    // role: `/portal/customer` serves the client roles too since 2026-08-27, and
+    // sending one of them to the agency-side `/portal/account` would land them
+    // somewhere they cannot reach. An end-customer is inside that audience, so
+    // this test's original guarantee is unchanged.
+    assert.ok(src.includes('href={inClientPortal ? "/portal/customer/account" : "/portal/account"}'),
+      "the account link is keyed on one role again");
+    assert.ok(src.includes('const inClientPortal = (CUSTOMER_PORTAL_ROLES as readonly string[]).includes(role)'),
+      "inClientPortal is no longer derived from CUSTOMER_PORTAL_ROLES");
   });
 
   it("membership → memberships with redirect to /memberships", () => {

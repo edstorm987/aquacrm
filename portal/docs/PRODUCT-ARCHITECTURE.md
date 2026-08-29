@@ -74,6 +74,13 @@ bounds/redacts logs, caps concurrent processes and prevents two access realms fr
 controlling the same physical worktree. Start, status, logs, stop and restart are
 separately capability-gated and production refuses this local process feature.
 
+Since 2026-08-27 a record may opt into `isolatedWorktrees`, giving each project a
+git worktree of its own on the draft branch `aqua-editor/<projectId>` so editor
+work accumulates there rather than in the shared checkout, and may declare a
+dependency-install command that runs in that worktree before the server starts.
+An install command without isolation is refused: dependency work must never
+rewrite the checkout a person is using.
+
 The mounted repository preview has now browser-proved Start, Restart with a new
 loopback process, Stop, responsive Preview/Code panes and HTTP 200 for
 `/aqua-tag.js`. That is representative lifecycle acceptance, not completion of the

@@ -55,6 +55,7 @@ const { GET } = require("../src/app/api/portal/dev-team/workers/route") as typeo
 const { issueSession } = require("../src/lib/server/auth/auth") as typeof import("../src/lib/server/auth/auth");
 const { ensureHydrated } = require("../src/server/storage") as typeof import("../src/server/storage");
 const { createAgency } = require("../src/server/tenants") as typeof import("../src/server/tenants");
+const { createUser } = require("../src/server/users") as typeof import("../src/server/users");
 const workers = require("../src/lib/server/dev/devTeamWorkers") as typeof import("../src/lib/server/dev/devTeamWorkers");
 const { ACTIVE_WORKER_WINDOW_MS } = require("../src/lib/server/dev/devConsoleStatus") as typeof import("../src/lib/server/dev/devConsoleStatus");
 const view = require("../src/app/portal/dev-team/working/_liveWorkerView") as typeof import("../src/app/portal/dev-team/working/_liveWorkerView");
@@ -79,9 +80,17 @@ async function cookieFor(role: "agency-owner" | "agency-manager" | "agency-staff
   await ensureHydrated();
   seq += 1;
   const agency = createAgency({ name: `Workers Smoke ${seq}`, ownerEmail: `owner${seq}@example.com` });
-  return issueSession({
-    userId: `user_${seq}`,
+  // The central fresh-session boundary (issue #22) refuses a cookie whose
+  // subject does not exist, so the minted session needs a REAL user record.
+  const user = createUser({
     email: `owner${seq}@example.com`,
+    password: "Workers-smoke-1!",
+    role,
+    agencyId: agency.id,
+  });
+  return issueSession({
+    userId: user.id,
+    email: user.email,
     role,
     agencyId: agency.id,
   });

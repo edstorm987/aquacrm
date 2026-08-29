@@ -43,6 +43,12 @@ before(async () => {
   tasks = await import("../src/server/tasks");
   await storage.ensureHydrated();
   agencyId = tenants.createAgency({ name: "Proposal boundary smoke", slug: "proposal-boundary-smoke" }).id;
+  // An assistant key DELEGATES: its authority is the live access of the person
+  // who created it (2026-08-27). These fixtures used to name an owner who did
+  // not exist, which no signed-in create flow can produce — so they now make
+  // one, and the key means what a real key means.
+  const { createUser } = await import("../src/server/users");
+  createUser({ email: "owner@example.test", password: "Smoke-pass-123!", name: "Smoke Owner", role: "agency-owner", agencyId });
 });
 
 test("actions:propose grants proposal tools without granting task mutation", async () => {

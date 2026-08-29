@@ -84,7 +84,7 @@ describe("personal notepad persistence", () => {
 
 describe("personal notepad surface", () => {
   it("ships a searchable autosaving workspace with recoverable deletion", async () => {
-    const [workspace, page, route, sidebar, search, profile, quickNote, dashboard] = await Promise.all([
+    const [workspace, page, route, sidebar, search, profile, quickNote, dashboard, command] = await Promise.all([
       readFile(new URL("../src/app/portal/agency/notepad/_NotepadWorkspace.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/agency/notepad/page.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/api/portal/notepad/route.ts", import.meta.url), "utf8"),
@@ -93,6 +93,7 @@ describe("personal notepad surface", () => {
       readFile(new URL("../src/components/chrome/ProfileMenu.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/components/chrome/QuickNoteWindow.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/agency/page.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../src/app/portal/agency/_ExecutiveCommandWorkspace.tsx", import.meta.url), "utf8"),
     ]);
 
     for (const expected of ["Quick capture", "Search notes", "Pinned", "Archive", "Trash", "Add tags", "Saving", "Delete forever"]) {
@@ -116,7 +117,14 @@ describe("personal notepad surface", () => {
     assert.match(quickNote, /data-testid="quick-note-window"/);
     assert.match(quickNote, /pinned: sticky/);
     assert.match(quickNote, /Page:/);
-    assert.match(dashboard, /href="\/portal\/agency\/notepad"/);
+    // The way in from Ed's home page. The link itself moved out of
+    // `agency/page.tsx` and into the Executive Command workspace it renders, so
+    // assert the CHAIN rather than the leaf: the dashboard mounts that
+    // component, and that component carries the link. Pinning only the leaf
+    // file would have gone quiet the moment it moved again; pinning only the
+    // dashboard is what just broke.
+    assert.match(dashboard, /ExecutiveCommandWorkspace/, "the dashboard stopped mounting the command workspace");
+    assert.match(command, /href="\/portal\/agency\/notepad"/, "no way into the notepad from Ed's home");
     assert.match(dashboard, /calendarWorkspace=/);
     assert.match(search, /category: "Note"/);
     assert.match(search, /\/portal\/agency\/notepad\?note=/);

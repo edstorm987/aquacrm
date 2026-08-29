@@ -70,8 +70,25 @@ function routeSource(short: string): string {
   return raw.split("\n").filter(line => !/^\s*(\/\/|\*|\/\*)/.test(line)).join("\n");
 }
 
+// What counts as "this route authenticates".
+//
+// Two vocabularies, and the second was missing until 2026-08-27. The original
+// list knows only the SESSION helpers. Since then the access kernel grew its own
+// entry points, and eighteen routes — every `portal/access/*`, every
+// `portal/dev/*`, `fulfillment/clients`, `site-editor/files` — authenticate
+// through those instead. This sweep read all eighteen as sessionless, which is
+// the worst way for a security enumeration to be wrong: it names real routes as
+// unguarded, so the next reader either panics or, far more likely, stops
+// believing the list. Each was checked by hand on 27 Aug; all eighteen gate.
+//
+// Add to this list when a new authorisation entry point appears — never widen it
+// to silence a specific route.
 const READS_SESSION =
   /getSessionFromRequest|requireSession|requireRole|requireRoleForClient|getSession\(|assertTenantScope|requireAgencyScope/;
+const READS_ACCESS_KERNEL =
+  /requireCurrentAccessActor|requireAccessCapability|requireDevProjectAccess|requireWholeWorkingTreeFounderAccess|requireCurrentWorkspaceElementAccess|requireCurrentClientWorkspaceElementAccess/;
+const authenticates = (source: string): boolean =>
+  READS_SESSION.test(source) || READS_ACCESS_KERNEL.test(source);
 const READS_QUERY_AGENCY = /searchParams\.get\(["']agencyId["']\)|x-aqua-agency-id/;
 const READS_REQUEST_CLIENT =
   /searchParams\.get\(["']clientId["']\)|x-aqua-client-id|body[\w?.]*\.clientId|input\.clientId|params[\w?.()]*\)?\.clientId|\{[^}]*\bclientId\b[^}]*\}\s*=\s*(body|input|payload|await)/;
@@ -79,8 +96,62 @@ const READS_REQUEST_CLIENT =
 describe("the non-plugin app API routes — the class with no class-level guard", () => {
   it("the enumeration is pinned, so a new route cannot join unnoticed", () => {
     const routes = appApiRoutes();
-    assert.equal(routes.length, 133,
-      `there are now ${routes.length} non-plugin routes under src/app/api/portal, not 133.`
+    // 133 → 144 on 2026-08-27. The eleven newcomers are the access-kernel and
+    // dev-editor routes; each was audited before this number moved, and the
+    // audit is what the three assertions below now encode. Never move this
+    // number without doing that: the count is only worth pinning because
+    // changing it is supposed to cost something.
+    //
+    // 144 → 145 on 2026-08-27: `chrome/layout`, a person's own sidebar
+    // arrangement and saved tabs. Audited before the number moved — it takes
+    // BOTH its agency and its user from the session and reads neither from the
+    // body, which is the whole security property of a route whose record key is
+    // `${agencyId}|${userId}`. The two sweeps below cover it like any other.
+    // 145 → 146 on 2026-08-27: `client-forms/[noticeId]`, opening one enquiry
+    // that lives in a CLIENT's own Supabase. Audited before the number moved.
+    // Its tenant comes from `getActiveAgencyId(session)`; the notice is then
+    // looked up scoped to that agency, so a foreign notice id is simply not
+    // found rather than found-and-refused. The client whose access is checked
+    // is the one named by the STORED notice — nothing in the request says whose
+    // data it is, which is the property that matters for a route whose whole
+    // job is to read somebody else's database.
+    // 146 → 147 on 2026-08-27: `customer/enquiries/seen`, a client marking one
+    // of their own enquiries read. Audited before the number moved. Its tenant
+    // comes from the session's `clientId`, and the AGENCY is read off that
+    // client's record rather than from the request — so the body's only
+    // influence is which notice id it names, and a notice belonging to anyone
+    // else is not found rather than found-and-refused.
+    //
+    // It exists as a route at all because the alternative was writing during a
+    // render, which the read-path analyser flags and issue #21 removed.
+    // 147 → 148 on 2026-08-27: `website-sources/mapping`, accepting a detected
+    // column mapping. Audited before the number moved. Tenant from the session;
+    // the clientId in the body is validated against that agency before anything
+    // is written, and it is gated on `fulfilment.tags` — the same element that
+    // governs scanning the site the mapping came from.
+    // 148 → 149 on 2026-08-28: `governance/subject-access`, the GDPR Art. 15/20
+    // export. Audited before the number moved. Tenant from the SESSION
+    // (`getActiveAgencyId`); the body names only a personId, and a person in
+    // another agency resolves to null so the route answers 404 rather than
+    // refusing a record it has already located. The export itself then keeps
+    // only records whose own `agencyId` matches, because the file it produces
+    // is handed to a member of the public.
+    // 149 → 150 on 2026-08-28: `governance/retention`, setting the retention
+    // periods. Audited before the number moved. Tenant from the SESSION
+    // (`getActiveAgencyId`); the body carries only day counts, and a blank or
+    // unparseable one CLEARS that period rather than widening what is deleted.
+    // Owner-only, unlike the rest of Governance, because the next sweep deletes
+    // by whatever it stores.
+    // 150 → 151 on 2026-08-28: `plugins/health`, which runs each installed
+    // module's manifest `healthcheck`. Audited before the number moved. It
+    // takes an OPTIONAL `?clientId=` and resolves it through the shared
+    // `routeTenantScope(session, { clientId })` — the same guard
+    // `plugins/settings` uses — so a client id belonging to another agency does
+    // not resolve and the route answers 404 rather than reporting that scope's
+    // health. Read-only: it calls hooks and returns what they say. It exists
+    // because ten modules implemented a healthcheck and nothing called any.
+    assert.equal(routes.length, 151,
+      `there are now ${routes.length} non-plugin routes under src/app/api/portal, not 151.`
       + " A new one has appeared: decide where IT gets its tenant from, then update this count.");
   });
 
@@ -95,10 +166,12 @@ describe("the non-plugin app API routes — the class with no class-level guard"
   });
 
   it("only four run without an Aqua session, and each has a named reason", () => {
-    const sessionless = appApiRoutes().filter(route => !READS_SESSION.test(routeSource(route)));
+    const sessionless = appApiRoutes().filter(route => !authenticates(routeSource(route)));
     assert.deepEqual(sessionless.sort(), [
-      // Static constants. No tenant, no store read, no parameter.
-      "portal/fulfillment/presets/route.ts",
+      // `portal/fulfillment/presets` used to sit here as "static constants, no
+      // tenant, no store read". It now calls `getSessionFromRequest` — it
+      // gained a check rather than losing one, so it left this list.
+      //
       // Authorised by a signed, expiring media token, not by a session.
       "portal/inbox/media/content/route.ts",
       // Supabase's OWN session (`client.auth.getUser()`), about the caller's
@@ -106,6 +179,7 @@ describe("the non-plugin app API routes — the class with no class-level guard"
       "portal/mfa/enrol/route.ts",
       "portal/mfa/verify/route.ts",
     ], "a route lost (or gained) its session check — read the reason list before changing this");
+    assert.equal(sessionless.length, 3, "three, and each named above");
   });
 
   it("the routes that DO take a client id from the request are pinned, one by one", () => {
@@ -120,6 +194,7 @@ describe("the non-plugin app API routes — the class with no class-level guard"
       "portal/clients/[clientId]/erase/route.ts",
       "portal/clients/[clientId]/radar/route.ts",
       "portal/connections/route.ts",
+      "portal/contracts/templates/route.ts",
       "portal/customer/workspace/route.ts",
       "portal/dev/projects/route.ts",
       "portal/governance/erasure/preview/route.ts",
@@ -132,11 +207,16 @@ describe("the non-plugin app API routes — the class with no class-level guard"
       "portal/performance/search-console/route.ts",
       "portal/phases/apply/route.ts",
       "portal/pipelines/move-client/route.ts",
+      "portal/plugins/health/route.ts",
       "portal/plugins/settings/route.ts",
       "portal/products/rollout/route.ts",
       "portal/settings/integrations/route.ts",
       "portal/tasks/route.ts",
       "portal/tasks/templates/route.ts",
+      // Takes a clientId from the body and pairs it with the SESSION agency
+      // before writing: `client.agencyId !== agencyId` → 404. Audited when it
+      // joined this list (2026-08-27).
+      "portal/website-sources/mapping/route.ts",
     ], "the client-id-from-request set changed — check the newcomer uses routeTenantScope or pairs it with the session agency");
   });
 
@@ -146,7 +226,11 @@ describe("the non-plugin app API routes — the class with no class-level guard"
     // returns an agency derived from the signed session.
     const orphans = appApiRoutes()
       .filter(route => READS_REQUEST_CLIENT.test(routeSource(route)))
-      .filter(route => !/routeTenantScope\(session\s*,|session\.agencyId|getActiveAgencyId\(session\)|session\.clientId/.test(routeSource(route)));
+      // Three supported forms, not two. `actor.resourceAgencyId` is the access
+      // kernel's equivalent of `session.agencyId` — the agency the RESOLVED
+      // actor is scoped to — and `requireDevProjectAccess` resolves project
+      // scope for the caller before the handler sees the id at all.
+      .filter(route => !/routeTenantScope\(session\s*,|session\.agencyId|getActiveAgencyId\(session\)|session\.clientId|actor\.resourceAgencyId|requireDevProjectAccess|requireActorCapabilities/.test(routeSource(route)));
     assert.deepEqual(orphans, [],
       `these scope a client by the request alone:\n  ${orphans.join("\n  ")}`);
   });
@@ -206,8 +290,30 @@ describe("phases/apply — a client id from the body, and nothing asking whose i
 
   it("the route hands it the SESSION's agency, not the body's", async () => {
     const source = readFileSync("src/app/api/portal/phases/apply/route.ts", "utf8");
-    assert.match(source, /applyPhaseToClient\(clientId, phaseId, getActiveAgencyId\(session\)\)/,
-      "the apply route stopped naming the session's agency");
+
+    // The PROPERTY, not one expression's exact shape. This used to insist on the
+    // inlined `applyPhaseToClient(clientId, phaseId, getActiveAgencyId(session))`
+    // and started failing the moment the route hoisted that call into a local so
+    // it could ALSO pre-check the client's tenancy — a strictly better route that
+    // the old pin reported as a regression. What must hold is that the agency
+    // handed to the applier comes from the SESSION and never from the body.
+    assert.match(source, /getActiveAgencyId\(session\)/,
+      "the apply route stopped naming the session's agency at all");
+    assert.match(
+      source,
+      /applyPhaseToClient\(\s*clientId,\s*phaseId,\s*(?:getActiveAgencyId\(session\)|agencyId)\s*\)/,
+      "the applier is no longer handed the session's agency as its third argument",
+    );
+    assert.match(source, /const agencyId = getActiveAgencyId\(session\)|applyPhaseToClient\(clientId, phaseId, getActiveAgencyId\(session\)\)/,
+      "`agencyId`, if a local, must be the session's — not re-read from anywhere else");
+    assert.doesNotMatch(source, /applyPhaseToClient\([^)]*\bbody\b[^)]*\)/,
+      "the applier is being handed something body-derived — this is the exact hole ARM 2 exists for");
+
+    // And the improvement that came with the hoist: the route refuses a client
+    // outside the session's agency BEFORE it reaches the applier, so an outsider
+    // gets the same "not found" as a nonexistent id.
+    assert.match(source, /getClientForAgency\(agencyId, clientId\)/,
+      "the route stopped checking the client belongs to the session's agency");
     // …and the signature makes it impossible to forget: a third REQUIRED
     // parameter, so a new caller cannot omit the tenant the way this one did.
     const applier = readFileSync("src/server/phaseApplier.ts", "utf8");

@@ -26,6 +26,7 @@ const route = require("../src/app/api/portal/sop-guides/route") as typeof import
 const { issueSession } = require("../src/lib/server/auth/auth") as typeof import("../src/lib/server/auth/auth");
 const { ensureHydrated } = require("../src/server/storage") as typeof import("../src/server/storage");
 const { createWrittenSop } = require("../src/engines/sop/server/sops") as typeof import("../src/engines/sop/server/sops");
+const { createUser } = require("../src/server/users") as typeof import("../src/server/users");
 const guides = require("../src/engines/sop/server/sopGuides") as typeof import("../src/engines/sop/server/sopGuides");
 
 let seq = 0;
@@ -112,8 +113,12 @@ function guideRequest(method: string, body: unknown, cookie: string, query = "")
 test("the HTTP CRUD is owner/manager gated — agency-staff is refused", async () => {
   const { agencyId, sopIds } = await seedAgencyWithSops(2);
 
-  const ownerCookie = issueSession({ userId: "usr_owner", email: "owner@example.com", role: "agency-owner" as never, agencyId });
-  const staffCookie = issueSession({ userId: "usr_staff", email: "staff@example.com", role: "agency-staff" as never, agencyId });
+  // Real user records: the central fresh-session boundary (issue #22)
+  // refuses a cookie whose subject does not exist.
+  const ownerUser = createUser({ email: `sop-owner-${agencyId}@example.com`, password: "Sop-smoke-1!", role: "agency-owner", agencyId });
+  const staffUser = createUser({ email: `sop-staff-${agencyId}@example.com`, password: "Sop-smoke-1!", role: "agency-staff", agencyId });
+  const ownerCookie = issueSession({ userId: ownerUser.id, email: ownerUser.email, role: "agency-owner" as never, agencyId });
+  const staffCookie = issueSession({ userId: staffUser.id, email: staffUser.email, role: "agency-staff" as never, agencyId });
 
   // Owner can create.
   const ownerCreate = await route.POST(guideRequest("POST", { title: "Owner guide", sopIds }, ownerCookie));

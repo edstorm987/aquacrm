@@ -38,6 +38,12 @@ before(async () => {
   mcp = await import("../src/lib/server/assistants/externalAssistantMcp");
   await storage.ensureHydrated();
   agencyId = tenants.createAgency({ name: "MCP assistant smoke", slug: "mcp-assistant-smoke" }).id;
+  // An assistant key DELEGATES: its authority is the live access of the person
+  // who created it (2026-08-27). These fixtures used to name an owner who did
+  // not exist, which no signed-in create flow can produce — so they now make
+  // one, and the key means what a real key means.
+  const { createUser } = await import("../src/server/users");
+  createUser({ email: "owner@example.test", password: "Smoke-pass-123!", name: "Smoke Owner", role: "agency-owner", agencyId });
 });
 
 test("a separately authenticated assistant negotiates MCP and sees only granted tools", async () => {
@@ -256,10 +262,24 @@ test("the Dev Team gate is strictly narrower than the external-AI endpoint it mo
   const founders = roles.filter(role => effectiveRole({ role } as never).isFounder);
   assert.deepEqual(founders, ["agency-owner"], "only agency-owner is a Founder");
 
-  // `devDocsAccessible` = canUseDevMode() && isFounder, so anyone who reaches
-  // the page is an agency-owner — which the endpoint already admits.
+  // Anyone who reaches the page is an agency-owner — which the endpoint already
+  // admits. That is still the argument; the gate it rests on has moved.
+  //
+  // It used to be `canUseDevMode() && isFounder` inline in `devDocs.ts`. The
+  // single decision now lives in `devTeamAccess.ts` as
+  // `isFounder && (canUseDevMode() || productionDevTeamFounder(session))`, and
+  // `devDocsAccessible` delegates to it. That change WIDENS the Dev Mode half —
+  // a deployment's live founder account no longer needs `PORTAL_DEV_MODE` — but
+  // leaves the half this test depends on untouched: `isFounder` is still
+  // required first and unconditionally, and the check above proves only
+  // `agency-owner` is a founder. Owner ⊂ owner+manager, so the containment
+  // that makes the unwrapped mount safe still holds.
+  const devTeam = require("node:fs").readFileSync("src/lib/server/dev/devTeamAccess.ts", "utf8");
+  assert.match(devTeam, /if \(!effectiveRole\(session\)\.isFounder\) return false;/,
+    "Dev Team access no longer requires a founder — the unwrapped ExternalAiConnectionPanel mount is no longer safe");
   const devDocs = require("node:fs").readFileSync("src/lib/server/dev/devDocs.ts", "utf8");
-  assert.match(devDocs, /canUseDevMode\(\) && effectiveRole\(session\)\.isFounder/);
+  assert.match(devDocs, /return devTeamAccessible\(session\);/,
+    "devDocsAccessible stopped delegating — it may now be a different decision from devTeamAccessible");
   const { getAgencySettingsCapabilities } = await import("../src/lib/agencySettingsCapabilities");
   assert.equal(getAgencySettingsCapabilities("agency-owner").manageExternalAi, true);
   assert.equal(getAgencySettingsCapabilities("agency-manager").manageExternalAi, true);

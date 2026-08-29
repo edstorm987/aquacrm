@@ -1,4 +1,4 @@
-import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
+import { agencyProductsForRead, listAgencyProducts } from "@/server/agencyProducts";
 import { installPlugin, setPluginEnabled } from "@/built-ins/runtime/_runtime";
 import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
@@ -29,13 +29,18 @@ export async function LeadsPipelineWorkspaceServer({ agencyId, userId }: { agenc
   }
   if (!install?.enabled) return <JourneyUnavailable detail="The Journey data module could not be enabled." />;
 
-  ensureDefaultAgencyProducts(agencyId);
+  agencyProductsForRead(agencyId);
   const productCatalogue = listAgencyProducts(agencyId, true);
   const products = productCatalogue.filter(product => product.active);
   const brands = listTradingCompanies(agencyId).filter(company => company.status !== "archived");
   const storage = makePluginStorage(install.id);
   const container = leadsContainerFor({ agencyId, storage: storage as never });
-  const [leadList, prospectList] = await Promise.all([container.leads.list(), container.prospects.list()]);
+  const [leadList, prospectList, archivedList] = await Promise.all([
+    container.leads.list(),
+    container.prospects.list(),
+    // Their own view, and only their own view — see the note in page.tsx.
+    container.leads.list({ archived: "only" }),
+  ]);
   const journeyLeadList = leadList.filter(isLeadJourneyEligible);
   const clients = listClients(agencyId);
   const brandById = new Map(brands.map(brand => [brand.id, brand.name]));
@@ -64,6 +69,16 @@ export async function LeadsPipelineWorkspaceServer({ agencyId, userId }: { agenc
   return (
     <LeadsPipelineWorkspace
       referenceNow={Date.now()}
+      archivedLeads={archivedList.map(lead => ({
+        id: lead.id,
+        email: lead.email,
+        name: lead.name,
+        phone: lead.phone,
+        company: lead.company,
+        tags: lead.tags,
+        capturedAt: lead.capturedAt,
+        archivedAt: lead.archivedAt,
+      }))}
       columns={pipeline.columns.map(column => ({ id: column.id, label: column.label, color: column.color }))}
       prospects={prospectList.filter(prospect => prospect.status === "scouting").map(prospect => ({
         id: prospect.id,

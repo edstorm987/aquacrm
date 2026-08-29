@@ -380,6 +380,39 @@ export default function AdminSitesPage(_props: unknown) {
   return (
     <div className="p-6 sm:p-8 lg:p-10 max-w-5xl space-y-6">
       <AdminTabs tabs={SETTINGS_TABS} ariaLabel="Settings" />
+
+      {/* This screen keeps its site registry in THIS BROWSER, and says so.
+          ────────────────────────────────────────────────────────────────
+          Issue #31. `lib/sitesAdmin.ts` writes to `localStorage` under
+          `lk_sites_v1`, and a search of the whole repository finds no other
+          reader — the server routes hostnames from `websiteSources`, an
+          entirely separate store, matching on `source.host`.
+
+          So a domain added here has NO effect on where that hostname actually
+          goes, and the whole registry disappears in another browser or on
+          another machine. That was already true; what made it a defect rather
+          than an unfinished feature is that nothing said so, and the header's
+          own tooltip claimed "visitors are routed to the correct site by
+          hostname automatically". Somebody could point a client's live domain
+          at this screen, see it listed as primary and live, and believe the
+          switch had been thrown.
+
+          The real fix is to move these calls onto the `/sites` API that now
+          exists — `sitesAdmin.ts` even predicts it ("callers swap to fetch").
+          That is a sync→async conversion across ~20 functions and 27 call
+          sites in this file, so it is a deliberate piece of work rather than a
+          launch-day edit. Until then this screen tells the truth. */}
+      <div
+        role="note"
+        className="rounded-lg border border-dashed border-brand-amber/45 bg-brand-amber/[0.06] px-4 py-3 text-[12px] leading-relaxed text-brand-cream/75"
+      >
+        <strong className="text-brand-amber">Saved in this browser only.</strong>{" "}
+        Sites, domains and live/draft state on this screen are stored locally and
+        are not shared with your team or other devices. They do <strong>not</strong>{" "}
+        control where a real domain points yet — adding one here will not route
+        live traffic.
+      </div>
+
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -388,7 +421,7 @@ export default function AdminSitesPage(_props: unknown) {
             <h1 className="font-display text-3xl sm:text-4xl text-brand-cream">Sites</h1>
             <Tip
               id="sites.header"
-              text="Run multiple storefronts from one admin. Each site has its own brand, domains and content but shares the product catalog. Visitors are routed to the correct site by hostname automatically."
+              text="Run multiple storefronts from one admin. Each site has its own brand, domains and content but shares the product catalog. Note: this registry is stored in your browser and does not yet drive real hostname routing — see the notice below."
               align="bottom"
             />
           </div>

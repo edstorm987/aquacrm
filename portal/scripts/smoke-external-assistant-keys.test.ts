@@ -34,6 +34,11 @@ before(async () => {
   gateway = await import("../src/lib/server/assistants/externalAssistantApi");
   await storage.ensureHydrated();
   agencyId = tenants.createAgency({ name: "AI key smoke", slug: "ai-key-smoke" }).id;
+  // An assistant key DELEGATES: its authority is the live access of the person
+  // who created it (2026-08-27). A key whose owner does not exist is something
+  // no signed-in create flow can produce, so the fixture makes one.
+  const { createUser } = await import("../src/server/users");
+  createUser({ email: "owner@example.test", password: "Smoke-pass-123!", name: "Smoke Owner", role: "agency-owner", agencyId });
 });
 
 test("managed keys store only a hash and reveal different secrets", () => {

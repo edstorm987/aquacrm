@@ -17,6 +17,8 @@ import type { NavItem, PanelId } from "@/built-ins/runtime/_types";
 import { navItemAllowedRoles } from "@/built-ins/runtime/_types";
 import type { Client, PluginInstall, Role } from "@/server/types";
 import { isAgencyRole, isClientRole } from "@/server/types";
+import { createElement } from "react";
+import { chosenNavIcon } from "@/components/chrome/navIcons";
 
 export interface NavPanel {
   id: PanelId;
@@ -340,4 +342,129 @@ function appendIntoPanel(map: Map<PanelId, NavItem[]>, item: NavItem) {
   const duplicate = bucket.find(existing => existing.id === item.id || existing.href === item.href);
   if (duplicate) return;
   bucket.push(item);
+}
+
+// ─── The person's own arrangement ─────────────────────────────────────────
+//
+// `buildSidebar` answers "what may this person see". This answers "and how did
+// they arrange it" — a separate step on purpose, because the two must never be
+// able to influence each other. An arrangement is a list of ids applied to
+// whatever the assembly already produced, so no order can add an item, and an
+// id that has gone simply does not match anything.
+//
+// Ed asked for saved tabs to *"properly integrate if dragged into"* the
+// sidebar. A tab dropped into a panel becomes an ordinary nav row in that
+// panel, in the position it was dropped, and takes its icon from the nav item
+// its href belongs under — so a shortcut into Finance carries the Finance icon
+// rather than a generic star. The icon is RESOLVED at assembly rather than
+// stored with the tab: there is one icon source in this app, and a saved copy
+// would be a second one that drifts.
+
+/** A saved tab as the chrome needs it — the storage shape lives in `types.ts`. */
+export interface ChromeSavedTab {
+  id: string;
+  href: string;
+  label: string;
+  placement: { kind: "topbar" } | { kind: "sidebar" } | { kind: "panel"; panelId: string };
+  order: number;
+  /** A chosen icon key, or absent for the derived one. */
+  icon?: string;
+}
+
+export interface PersonalChromeInput {
+  panelOrder: readonly string[];
+  itemOrder: Readonly<Record<string, readonly string[]>>;
+  savedTabs: readonly ChromeSavedTab[];
+}
+
+/**
+ * The nav item a saved tab belongs under — the longest href it sits inside.
+ *
+ * `/portal/agency/finance?tab=ar` belongs to `/portal/agency/finance`, not to
+ * `/portal/agency`, so the match is by longest prefix on a SEGMENT boundary.
+ * Without the boundary, `/portal/agency/financials` would claim it, which is
+ * the same neighbour-leak that path allowlists get wrong.
+ */
+export function navItemForHref(panels: readonly NavPanel[], href: string): NavItem | undefined {
+  const path = href.split("?")[0]!.replace(/\/+$/, "");
+  let best: NavItem | undefined;
+  for (const panel of panels) {
+    for (const item of panel.items) {
+      const candidate = item.href.split("?")[0]!.replace(/\/+$/, "");
+      if (!candidate) continue;
+      if (path !== candidate && !path.startsWith(`${candidate}/`)) continue;
+      if (!best || candidate.length > best.href.split("?")[0]!.replace(/\/+$/, "").length) best = item;
+    }
+  }
+  return best;
+}
+
+/** Order a list by a person's ids, keeping anything they did not mention in place. */
+export function applyOrder<T>(items: readonly T[], order: readonly string[], idOf: (item: T) => string): T[] {
+  if (!order.length) return [...items];
+  const rank = new Map(order.map((id, index) => [id, index]));
+  // Unmentioned items keep their relative order and sit after the arranged
+  // ones, rather than being scattered — a new plugin should appear predictably,
+  // not somewhere in the middle of a list the person carefully arranged.
+  return [...items].sort((left, right) => {
+    const a = rank.get(idOf(left)) ?? Number.MAX_SAFE_INTEGER;
+    const b = rank.get(idOf(right)) ?? Number.MAX_SAFE_INTEGER;
+    if (a !== b) return a - b;
+    return items.indexOf(left) - items.indexOf(right);
+  });
+}
+
+/** The id a saved tab uses as a nav row, namespaced so it cannot collide. */
+export function savedTabNavId(tabId: string): string {
+  return `saved:${tabId}`;
+}
+
+/**
+ * Apply one person's arrangement to the panels they are allowed to see.
+ *
+ * Pure. Takes the assembled panels and returns new ones — the caller decides
+ * whether to use them, and a caller with no stored layout can skip this
+ * entirely and get exactly today's behaviour.
+ */
+export function applyPersonalChrome(panels: readonly NavPanel[], personal: PersonalChromeInput): NavPanel[] {
+  const byPanel = new Map<string, ChromeSavedTab[]>();
+  for (const tab of personal.savedTabs) {
+    if (tab.placement.kind !== "panel") continue;
+    const bucket = byPanel.get(tab.placement.panelId) ?? [];
+    bucket.push(tab);
+    byPanel.set(tab.placement.panelId, bucket);
+  }
+
+  const withTabs = panels.map(panel => {
+    const tabs = byPanel.get(panel.id);
+    if (!tabs?.length) return { ...panel, items: [...panel.items] };
+    const rows: NavItem[] = tabs
+      .slice()
+      .sort((left, right) => left.order - right.order)
+      .map(tab => {
+        const source = navItemForHref(panels, tab.href);
+        // A CHOSEN icon wins; otherwise the icon of the thing it points at.
+        //
+        // Ed asked to be able to override it (2026-08-27), so this is no longer
+        // "never store an icon" — it is "derive by default, store only a
+        // deliberate choice". The stored value is a KEY into the one nav icon
+        // map, never a component, so the two can still never drift.
+        const chosen = chosenNavIcon(tab.icon);
+        return {
+          id: savedTabNavId(tab.id),
+          label: tab.label,
+          href: tab.href,
+          icon: chosen ? createElement(chosen, { size: 16, strokeWidth: 1.8 }) : source?.icon,
+          panelId: panel.id,
+        } satisfies NavItem;
+      });
+    return { ...panel, items: [...panel.items, ...rows] };
+  });
+
+  const ordered = withTabs.map(panel => ({
+    ...panel,
+    items: applyOrder(panel.items, personal.itemOrder[panel.id] ?? [], item => item.id),
+  }));
+
+  return applyOrder(ordered, personal.panelOrder, panel => panel.id);
 }

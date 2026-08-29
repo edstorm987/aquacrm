@@ -9,7 +9,12 @@ export type PluginId = string;
 
 export type Role =
   | "agency-owner" | "agency-manager" | "agency-staff"
-  | "client-owner" | "client-staff" | "freelancer" | "end-customer";
+  | "client-owner" | "client-staff" | "freelancer" | "end-customer"
+  // Added 2026-08-28. The canonical `Role` in src/server/types.ts has always
+  // had eight members; every module copy had seven, so a plugin could not
+  // represent a lead at all — while bos-auth-gate and public-funnel are
+  // lead-facing surfaces. Widened: nothing maps Role exhaustively.
+  | "lead";
 
 export interface BrandKit {
   logoUrl?: string;

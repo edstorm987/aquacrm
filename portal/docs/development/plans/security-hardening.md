@@ -2,23 +2,26 @@
 
 ← [todo.md](../todo.md) · [operations-command-surface.md](operations-command-surface.md) · [development.md](../../development.md)
 
-**Status: P0 BUILDING — central session revocation is broken; the dedicated posture surface is unbuilt; MFA and in-repo RLS implementation exist.** _(Corrected 2026-08-24 after a stale owner cookie created a working external-AI token following owner→staff downgrade.)_ Tighten security to the maximum and give it a **dedicated
+**Status: Phase 0 DONE 2026-08-27 — central session revocation is enforced (`resolveFreshSessionUser()` in `auth.ts`, pinned by `smoke-session-revocation` 16/16); the dedicated posture surface is unbuilt; MFA and in-repo RLS implementation exist.** _(The 2026-08-24 exploit — a stale owner cookie creating a working external-AI token after owner→staff downgrade — is behaviourally dead: the same replay now returns 403 with no token.)_ Tighten security to the maximum and give it a **dedicated
 surface** — posture at a glance, attack monitoring/prevention, access management,
 incident response. The primitives exist and are switched on; what is missing is a **home** for them. No security view exists anywhere under `src/app/portal/agency/`, and `sidebarLayout.ts` has no security entry — Phase 1 has not started.
 
 ## Where we are (verified)
-- **Real primitives exist, but the central session gate is unsafe:** `auth.ts`
-  issues `sessionRev`, yet `getSessionFromRequest()`, `getSession()` and
-  `requireRole()` do not enforce it against the current user record. Isolated
-  callers that use `getCurrentUser()` or manually call `isSessionFresh()` are not
-  a whole-application revocation mechanism.
+- **✅ The central session gate is now safe (2026-08-27):** `sessionFromToken()`
+  routes both `getSession()` and `getSessionFromRequest()` through
+  `resolveFreshSessionUser()`, which enforces existence, `sessionRev`, current
+  role and live membership against the authoritative record before any
+  role/scope decision — every `requireRole()` caller inherits it. Sandbox
+  cookies anchor to their signed live account; the public-showcase visitor is
+  validated in its fixture realm; fenced demo sessions skip only live
+  membership. Regression: `scripts/smoke-session-revocation.test.ts` (16/16).
 - **Two gaps this plan was written around have CLOSED — do not brief them as open:**
   - ✅ **RLS *is* in the repo, and it is on.** The claim "not in the repo" was an artefact of auditing `portal/` alone: the policies live in `../../../../supabase/migrations/` (16 migrations), beside `portal/`, not inside it. The live project was verified with the anon key on 2026-08-20; pending migrations still need production application. See [rls-enable](rls-enable.md) for the corrected picture. **The honest posture still stands, though:** admin/service-role call sites bypass RLS, so it is defence-in-depth on those paths — **not** tenant isolation, and it must not be sold as such.
   - ✅ **All four MFA phases are built.** Password login performs the real challenge/verify and assurance raise, sessions carry the proven `aal`, magic-link/OAuth doors fail closed for enrolled accounts, and ten single-use recovery codes are supported. The narrower signup/enrolment/backup-method decisions are recorded in [mfa-login](mfa-login.md); they are not unfinished phases 3–4.
 - **The gaps that are still real:**
-  - **P0 session revocation:** role/password/membership/account changes do not
-    reliably invalidate old cookies across sensitive APIs. A stale owner cookie
-    created a working external-AI key after downgrade to staff (issues #22).
+  - ~~**P0 session revocation**~~ — **closed 2026-08-27** (issue #22 RESOLVED);
+    the downgrade/rotation/deletion replays are pinned by
+    `smoke-session-revocation`.
   - **No security surface** — nothing shows posture, failed logins, lockouts, active sessions, or attacks.
   - No access review, session/device management, secret-rotation tracking, or security-event audit/alerting.
   - `brand_enquiries` has no `agency_id`, so RLS cannot scope it by tenant however the policies are written ([rls-enable](rls-enable.md) gap 3, Ed's decision).
@@ -44,8 +47,8 @@ A dedicated view (under [Operations/System](operations-command-surface.md)):
 - **Dependency + secret hygiene** — rotation reminders, secret-scanning, dependency alerts.
 
 ## Phases
-0. 🚨 **Restore central session revocation** — issue #22; blocks relying on any
-   cookie role for sensitive production actions.
+0. ✅ **Restore central session revocation** — DONE 2026-08-27 (issue #22
+   RESOLVED). Every cookie read re-validates the live record centrally.
 1. **Security posture dashboard** — the surface + honest posture (RLS/MFA/encryption/env), pulling real state; **green only on evidence.**
 2. **Attack monitoring + alerts** — surface rate-limit/lockout/failed-auth/SSRF events → alerts.
 3. ✅ **Enforce the two big controls** — RLS + MFA-into-login. Both landed under their own plans; this phase is a tracker, not work. Their *remaining* phases are tracked there, not here.

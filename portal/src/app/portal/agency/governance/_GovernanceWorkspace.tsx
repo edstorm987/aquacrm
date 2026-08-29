@@ -27,7 +27,7 @@ import type {
   SubprocessorRow,
 } from "./_governanceData";
 
-type View = "overview" | "legal" | "erasure" | "subprocessors" | "security";
+type View = "overview" | "legal" | "erasure" | "requests" | "subprocessors" | "security";
 
 const DATE_OPTS: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short", year: "numeric" };
 
@@ -35,6 +35,7 @@ const VIEWS: Array<{ id: View; label: string; icon: typeof ShieldCheck }> = [
   { id: "overview", label: "Posture", icon: ShieldCheck },
   { id: "legal", label: "Legal register", icon: ScrollText },
   { id: "erasure", label: "DPO / erasure", icon: Trash2 },
+  { id: "requests", label: "Subject requests", icon: UserRoundCheck },
   { id: "subprocessors", label: "Sub-processors", icon: Landmark },
   { id: "security", label: "Security", icon: Lock },
 ];
@@ -160,6 +161,7 @@ export function GovernanceWorkspace({ initial, isOwner }: { initial: GovernanceS
         {view === "overview" ? <PostureSection snapshot={snapshot} companyId={companyId} isOwner={isOwner} onChanged={() => reload(companyId)} /> : null}
         {view === "legal" ? <LegalSection snapshot={snapshot} companyId={companyId} onChanged={() => reload(companyId)} /> : null}
         {view === "erasure" ? <ErasureSection snapshot={snapshot} isOwner={isOwner} onChanged={() => reload(companyId)} /> : null}
+        {view === "requests" ? <SubjectRequestSection snapshot={snapshot} isOwner={isOwner} onChanged={() => reload(companyId)} /> : null}
         {view === "subprocessors" ? <SubprocessorSection rows={snapshot.subprocessors} /> : null}
         {view === "security" ? <SecuritySection controls={snapshot.security} /> : null}
       </div>
@@ -525,6 +527,206 @@ function ErasureSection({ snapshot, isOwner, onChanged }: { snapshot: Governance
 
       {result ? <p className="rounded-md border border-black/10 bg-black/[0.03] px-3 py-2 text-sm text-black/70">{result}</p> : null}
     </section>
+  );
+}
+
+
+// ─── Subject requests, and the clock ─────────────────────────────────────────
+
+/**
+ * The DSAR register on screen.
+ *
+ * `compliancePosture` named the gap precisely: the register and its clock were
+ * built, but "no screen surfaces the clock, so an overdue request is only
+ * visible to somebody who goes looking". A statutory deadline nobody can see is
+ * a deadline that gets missed.
+ *
+ * Read-only for now, and deliberately so: logging a request, verifying identity
+ * and closing one are writes with a required ORDER (Art. 12(6) before
+ * fulfilment), and putting them on a screen before that flow is designed is how
+ * the order gets skipped. The register enforces the order today; this shows it.
+ *
+ * The retention panel below is the same idea — what the policy WOULD remove,
+ * counted, never swept as a side effect of opening a page.
+ */
+function SubjectRequestSection({ snapshot, isOwner, onChanged }: { snapshot: GovernanceSnapshot; isOwner: boolean; onChanged: () => void }) {
+  const { subjectRequestClock: clock, subjectRequests: rows, retentionPreview, retentionCategories } = snapshot;
+  const noPolicy = retentionCategories.every(category => !category.days);
+
+  return (
+    <section className="space-y-5">
+      <p className="text-sm text-black/60">
+        Every data-subject request, and the one-month clock each runs on (GDPR Art. 12(3), from the date it was <strong>received</strong>). Identity must be verified before a request can be fulfilled — the register refuses otherwise.
+      </p>
+
+      <div className="grid gap-3 sm:grid-cols-4">
+        <ClockTile label="Open" value={clock.open} />
+        <ClockTile label="Overdue" value={clock.overdue} tone={clock.overdue > 0 ? "alert" : undefined} />
+        <ClockTile label="Due in 7 days" value={clock.dueWithin7Days} tone={clock.dueWithin7Days > 0 ? "warn" : undefined} />
+        <ClockTile label="Awaiting identity" value={clock.awaitingIdentity} tone={clock.awaitingIdentity > 0 ? "warn" : undefined} />
+      </div>
+
+      {rows.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-black/15 bg-black/[0.02] px-4 py-6 text-center text-sm text-black/50">
+          No subject requests recorded. Requests still arrive by email and are logged by hand — nothing feeds this register automatically yet.
+        </p>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-black/10 bg-white">
+          <table className="w-full min-w-[680px] text-left text-sm">
+            <thead className="border-b border-black/10 text-xs uppercase tracking-wide text-black/45">
+              <tr>
+                <th className="px-4 py-2.5 font-medium">Subject</th>
+                <th className="px-4 py-2.5 font-medium">Right</th>
+                <th className="px-4 py-2.5 font-medium">Received</th>
+                <th className="px-4 py-2.5 font-medium">Due</th>
+                <th className="px-4 py-2.5 font-medium">State</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-black/8">
+              {rows.map(row => (
+                <tr key={row.id} className={row.overdue ? "bg-red-50/60" : undefined}>
+                  <td className="px-4 py-2.5 text-black/75">{row.subjectLabel}</td>
+                  <td className="px-4 py-2.5 capitalize text-black/60">{row.kind}</td>
+                  <td className="px-4 py-2.5 tabular-nums text-black/55">{new Date(row.receivedAt).toLocaleDateString("en-GB", DATE_OPTS)}</td>
+                  <td className="px-4 py-2.5 tabular-nums text-black/55">
+                    {new Date(row.dueAt).toLocaleDateString("en-GB", DATE_OPTS)}
+                    {row.extended ? <span className="ml-1.5 text-[10px] uppercase text-black/40">extended</span> : null}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    {row.closed
+                      ? <span className="text-xs font-medium text-black/45">Closed</span>
+                      : row.overdue
+                        ? <span className="text-xs font-semibold text-red-700">Overdue</span>
+                        : row.identityVerified
+                          ? <span className="text-xs font-medium text-black/60">Identity verified</span>
+                          : <span className="text-xs font-medium text-amber-700">Awaiting identity</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="rounded-lg border border-black/10 bg-white p-4">
+        <h3 className="text-sm font-semibold text-black/80">Retention</h3>
+        <p className="mt-1 text-xs leading-5 text-black/55">
+          {noPolicy
+            ? "No retention period is set for any category, so nothing expires — data is kept indefinitely. Setting a period below is what turns the stated policy into an enforced one."
+            : `With the current periods, a sweep would remove ${retentionPreview.total} record${retentionPreview.total === 1 ? "" : "s"} right now. Nothing has been deleted — this is a count.`}
+        </p>
+        <RetentionForm categories={retentionCategories} preview={retentionPreview} isOwner={isOwner} onChanged={onChanged} />
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Entering the periods.
+ *
+ * The sweep existed and was inert because there was nowhere to type a number.
+ * Owner-only, matching the erase button rather than the reports: the next sweep
+ * deletes by whatever is saved here, and deletion has no undo.
+ *
+ * A blank field CLEARS the period and the category returns to keep-forever.
+ * That is the only safe reading of an empty box, and it means a typo can never
+ * widen what gets deleted.
+ *
+ * Saving stores the numbers and re-counts. It never sweeps — the count and the
+ * act stay separate controls, for the same reason erasure has a preview.
+ */
+function RetentionForm({
+  categories, preview, isOwner, onChanged,
+}: {
+  categories: GovernanceSnapshot["retentionCategories"];
+  preview: GovernanceSnapshot["retentionPreview"];
+  isOwner: boolean;
+  onChanged: () => void;
+}) {
+  const [draft, setDraft] = useState<Record<string, string>>(
+    () => Object.fromEntries(categories.map(category => [category.id, category.days ? String(category.days) : ""])),
+  );
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  async function save() {
+    setBusy(true);
+    setNote(null);
+    try {
+      const response = await fetch("/api/portal/governance/retention", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(draft),
+      });
+      const payload = await response.json().catch(() => null) as { ok?: boolean; preview?: { total?: number } } | null;
+      if (!payload?.ok) {
+        setNote("Those periods could not be saved.");
+        return;
+      }
+      setNote(
+        `Saved. A sweep would now remove ${payload.preview?.total ?? 0} record${payload.preview?.total === 1 ? "" : "s"} — nothing has been deleted.`,
+      );
+      onChanged();
+    } catch {
+      setNote("Those periods could not be saved.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-3 grid gap-2">
+      {categories.map(category => (
+        <div key={category.id} className="flex flex-wrap items-center justify-between gap-3 border-t border-black/8 pt-2 first:border-0 first:pt-0">
+          <label className="min-w-0 flex-1" htmlFor={`retention-${category.id}`}>
+            <span className="text-xs font-medium text-black/70">{category.label}</span>
+            <span className="mt-0.5 block text-[11px] leading-4 text-black/45">{category.describes}</span>
+          </label>
+          <span className="flex shrink-0 items-center gap-2">
+            <input
+              id={`retention-${category.id}`}
+              type="number"
+              min={0}
+              inputMode="numeric"
+              disabled={!isOwner || busy}
+              value={draft[category.id] ?? ""}
+              onChange={event => setDraft(current => ({ ...current, [category.id]: event.target.value }))}
+              placeholder="Forever"
+              className="min-h-9 w-28 rounded-md border border-black/15 px-2 text-right text-xs tabular-nums disabled:opacity-50"
+            />
+            <span className="w-24 text-right text-[11px] tabular-nums text-black/45">
+              {category.days ? `${preview.removed[category.id] ?? 0} expiring` : "Kept forever"}
+            </span>
+          </span>
+        </div>
+      ))}
+      {isOwner ? (
+        <div className="mt-1 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => void save()}
+            disabled={busy}
+            className="inline-flex min-h-9 items-center rounded-md bg-black px-3 text-xs font-semibold text-white disabled:opacity-45"
+          >
+            {busy ? "Saving…" : "Save retention periods"}
+          </button>
+          <span className="text-[11px] text-black/50">Leave a field empty to keep that category forever.</span>
+          {note ? <span className="text-[11px] text-black/60" role="status">{note}</span> : null}
+        </div>
+      ) : (
+        <p className="mt-1 text-[11px] text-black/45">Only an owner can change retention periods.</p>
+      )}
+    </div>
+  );
+}
+
+function ClockTile({ label, value, tone }: { label: string; value: number; tone?: "alert" | "warn" }) {
+  const colour = tone === "alert" ? "text-red-700" : tone === "warn" ? "text-amber-700" : "text-black/75";
+  return (
+    <div className="rounded-lg border border-black/10 bg-white p-3">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-black/40">{label}</p>
+      <p className={`mt-1 text-2xl font-semibold tabular-nums ${colour}`}>{value}</p>
+    </div>
   );
 }
 

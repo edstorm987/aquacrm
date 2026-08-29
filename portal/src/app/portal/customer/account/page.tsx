@@ -9,6 +9,7 @@ import { getUserById } from "@/server/users";
 import { listOwnPortalConnections } from "@/server/portalConnectionStore";
 import { getAuthBrand } from "@/lib/brands/authBrand";
 import { ConnectedApps } from "./_ConnectedApps";
+import { CUSTOMER_PORTAL_ROLES } from "@/server/types";
 
 function initials(seed: string): string {
   const parts = seed.trim().split(/[\s@.]+/).filter(Boolean);
@@ -18,7 +19,7 @@ function initials(seed: string): string {
 
 export default async function CustomerAccountPage() {
   await ensureHydrated();
-  const session = await requireRole("end-customer");
+  const session = await requireRole([...CUSTOMER_PORTAL_ROLES]);
   const user = getUserById(session.userId);
   if (!user) notFound();
   const cookieStore = await cookies();

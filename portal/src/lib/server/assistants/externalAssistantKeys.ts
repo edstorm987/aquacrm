@@ -40,6 +40,8 @@ interface ApiKeyInput {
   modules: string[];
   permissions: ExternalAssistantApiPermission[];
   createdBy: string;
+  /** The creator's user id — see `ExternalAssistantApiKey.createdByUserId`. */
+  createdByUserId?: string;
   expiresAt?: number;
 }
 
@@ -113,6 +115,7 @@ export function rotateExternalAssistantApiKey(input: {
   agencyId: string;
   keyId: string;
   createdBy: string;
+  createdByUserId?: string;
 }): { key: ExternalAssistantApiKeySummary; token: string } {
   const existing = getState().externalAssistantApiKeys[input.keyId];
   if (!existing || existing.agencyId !== input.agencyId) throw new Error("api_key_not_found");
@@ -124,6 +127,7 @@ export function rotateExternalAssistantApiKey(input: {
     modules: existing.modules,
     permissions: existing.permissions,
     createdBy: input.createdBy,
+    createdByUserId: input.createdByUserId,
     expiresAt: existing.expiresAt,
   });
   const revokedAt = Date.now();

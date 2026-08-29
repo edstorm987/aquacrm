@@ -152,6 +152,32 @@ test("only the plans that genuinely have no phases yield none", async () => {
     "freelancer-workspace-HANDOFF",
     "public-bucket-HANDOFF",
     "configurable-access-and-workspace-parity",
+    // Not a plan with phases — it is the launch ORDER and the list of things
+    // only Ed can supply (2026-08-27). Its "Phase A/B/C" headings are the order
+    // of work, not deliverable phases the roadmap should track.
+    "launch-order-and-blockers",
+    // Also not a plan: the Supabase cutover runbook and the drafted privacy
+    // wording (2026-08-27). Its numbered sections are steps Ed performs and
+    // decisions only he can make — there is no engineering deliverable here for
+    // the roadmap to track, and counting it would report the roadmap as behind
+    // on work that is not ours to do.
+    "supabase-cutover-and-policy-drafts",
+    // Architecture note + what is built vs not, for the client-owned form data
+    // design (2026-08-27). Its sections are a record of a decision, not phases
+    // the roadmap should be tracking progress against.
+    // Also not a plan with phases: the storage-split analysis (2026-08-29).
+    // It records what was MEASURED — the single-JSONB-blob shape, the live
+    // Supabase RLS check, the radar retention defect — and what Ed has to
+    // decide. Its "1/2/3/4" headings are the four data classes, not phases,
+    // and the one ordered list in it is mostly steps only he can perform
+    // (deploy, fix accounts). Counting it would report the roadmap as behind
+    // on work that is not ours to do.
+    "database-separation",
+    // Also not a plan with phases (2026-08-29): the remaining-build order. Its
+    // "1/2/3/4" headings are an ORDER OF WORK with the two storage moves
+    // distinguished, not deliverable phases the roadmap should track.
+    "storage-and-remaining-build",
+    "client-owned-form-data",
   ]);
   const empty = (await plans()).filter(p => parsePhases(p.md).length === 0).map(p => p.name);
   assert.deepEqual(empty.sort(), [...allowed].sort());

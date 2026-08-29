@@ -16,6 +16,8 @@ import { logActivity } from "@/server/activity";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { updateClient } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
+import { applyClientPortalUpdate, planClientPortalUpdate } from "@/server/clientPortalDesigns";
+import { describeTemplateUpdate } from "@/server/clientPortalTemplateUpdate";
 import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 async function agencySession(request: NextRequest) {
@@ -73,7 +75,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: "manager access required" }, { status: 403 });
     }
     const body = await request.json().catch(() => null) as {
-      action?: "save-draft" | "publish" | "checkpoint" | "restore" | "refresh-product" | "reset-client";
+      action?: "save-draft" | "publish" | "checkpoint" | "restore" | "refresh-product" | "reset-client"
+        | "update-plan" | "update-apply";
       scope?: ClientPortalDesignScope;
       recordId?: string;
       clientId?: string;
@@ -81,6 +84,8 @@ export async function POST(request: NextRequest) {
       versionId?: string;
       label?: string;
       document?: unknown;
+      /** `update-apply`: the change paths the operator accepted. */
+      accept?: unknown;
     } | null;
     if (!body?.action) return NextResponse.json({ ok: false, error: "action required" }, { status: 400 });
     const scope = cleanScope(body.scope);
@@ -93,9 +98,60 @@ export async function POST(request: NextRequest) {
       await requireCurrentClientWorkspaceElementAccess(
         client.id,
         "client.portal",
-        body.action === "save-draft" || body.action === "checkpoint" ? "use" : "manage",
+        body.action === "save-draft" || body.action === "checkpoint" || body.action === "update-plan"
+          ? "use"
+          : "manage",
       );
     }
+    // ── The Update button (Ed, 2026-08-27) ────────────────────────────────
+    // `update-plan` answers "what would this do?" and writes nothing.
+    // `update-apply` merges only the accepted paths into the client's DRAFT.
+    // Neither goes near `reset-client`, which overwrites the whole portal.
+    if (body.action === "update-plan" || body.action === "update-apply") {
+      if (scope !== "client" || !client) {
+        return NextResponse.json({ ok: false, error: "client portal required" }, { status: 400 });
+      }
+      if (body.action === "update-plan") {
+        const plan = planClientPortalUpdate({ agencyId, clientId: client.id });
+        if (!plan) return NextResponse.json({ ok: false, error: "no template to compare" }, { status: 404 });
+        return NextResponse.json({ ok: true, plan, summary: describeTemplateUpdate(plan) });
+      }
+      const accept = Array.isArray(body.accept)
+        ? body.accept.filter((path): path is string => typeof path === "string")
+        : [];
+      const applied = applyClientPortalUpdate({
+        agencyId,
+        clientId: client.id,
+        accept,
+        actorUserId: session.userId,
+      });
+      if (!applied) return NextResponse.json({ ok: false, error: "no template to compare" }, { status: 404 });
+      logActivity({
+        agencyId,
+        clientId: client.id,
+        actorUserId: session.userId,
+        actorEmail: session.email,
+        category: "settings",
+        action: "client_portal_design.update-apply",
+        message: `Applied ${applied.accepted.length} of ${applied.plan.changes.length} template changes to ${client.name}`,
+        metadata: {
+          templateId: applied.plan.templateId,
+          fromVersionId: applied.plan.fromVersionId,
+          toVersionId: applied.plan.toVersionId,
+          accepted: applied.accepted,
+          declined: applied.declined,
+          versionPinAdvanced: applied.versionPinAdvanced,
+        },
+      });
+      return NextResponse.json({
+        ok: true,
+        record: applied.instance,
+        accepted: applied.accepted,
+        declined: applied.declined,
+        versionPinAdvanced: applied.versionPinAdvanced,
+      });
+    }
+
     const initial = getPortalDesignRecord({
       agencyId,
       scope,

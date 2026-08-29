@@ -1,5 +1,17 @@
 import "server-only";
 
+// The INTERNAL client ledger — the full history, including entries a client
+// must never see.
+//
+// `lib/clients/clientRelationshipRecord.ts` is the client-safe counterpart,
+// and it carries the `ClientRecordVisibility` flag (`"internal" | "client"`)
+// that the customer portal filters on.
+//
+// Confirm which one you are writing to. An entry in the wrong place is either
+// invisible to the client who needed it, or visible to the client who should
+// never have seen it — and on 2026-08-28 a path that skipped that filter was
+// found putting internal call notes on a client's screen.
+
 import crypto from "node:crypto";
 
 import { getState, mutate } from "@/server/storage";

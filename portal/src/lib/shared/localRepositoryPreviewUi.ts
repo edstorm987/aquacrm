@@ -116,6 +116,23 @@ export function repositoryPreviewStatusCanApply(
     || repositoryPreviewStatusConfirmsAction(pending, snapshot);
 }
 
+/**
+ * A snapshot only ever describes the project it names.
+ *
+ * Switching project resets this machine, but a status/response body for the
+ * PREVIOUS project can still be in flight. Merging it would hand the new
+ * project the old one's lifecycle state and — worse — its loopback
+ * `previewUrl`, which the editor then loads into its frame. The component
+ * aborts those requests too; this is the same rule enforced where it can be
+ * proven without a browser.
+ */
+function describesCurrentProject(
+  state: LocalRepositoryPreviewUiState,
+  snapshot: LocalRepositoryPreviewSnapshot,
+): boolean {
+  return snapshot.projectId === state.preview.projectId;
+}
+
 /** Pure UI state machine, kept outside React so lifecycle races are testable. */
 export function localRepositoryPreviewUiReducer(
   state: LocalRepositoryPreviewUiState,
@@ -138,6 +155,7 @@ export function localRepositoryPreviewUiReducer(
 
   if (event.type === "response") {
     if (state.pending?.id !== event.id) return state;
+    if (!describesCurrentProject(state, event.preview)) return state;
     return {
       preview: mergeRepositoryPreviewSnapshot(state.preview, event.preview),
       pending: null,
@@ -145,6 +163,7 @@ export function localRepositoryPreviewUiReducer(
   }
 
   if (event.type === "status") {
+    if (!describesCurrentProject(state, event.preview)) return state;
     if (!repositoryPreviewStatusCanApply(state.pending, event.preview)) return state;
     const confirmed = state.pending
       ? repositoryPreviewStatusConfirmsAction(state.pending, event.preview)

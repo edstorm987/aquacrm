@@ -8,7 +8,10 @@
 
 import type { ComponentType, ReactNode } from "react";
 
-import type { PluginInstall, Role } from "./tenancy";
+// AgencyId/ClientId aligned 2026-08-28: this module typed them as bare `string`
+// while twelve others used the branded aliases its own tenancy.ts already
+// exports. Same underlying type, but one name per concept.
+import type { AgencyId, ClientId, PluginInstall, Role } from "./tenancy";
 
 // Re-export PluginInstall so plugin-internal code can `import { PluginInstall }`
 // from this module just like the foundation does.
@@ -23,9 +26,25 @@ export type PluginCategory =
   | "marketing"
   | "support"
   | "ops"
-  | "fulfillment";
+  | "fulfillment"
+  | "growth";
 
 export type PluginStatus = "stable" | "beta" | "alpha";
+// Aligned 2026-08-28. This module was the only one of the thirteen typing
+// plugin visibility as `Role[]` (from ./tenancy) while the other twelve used
+// `PluginRoleVisibility[]` — one concept under two names, and ecommerce's copy
+// was also missing "lead", which the canonical `Role` in src/server/types.ts
+// has always had. Same members as every other copy now.
+export type PluginRoleVisibility =
+  | "agency-owner"
+  | "agency-manager"
+  | "agency-staff"
+  | "client-owner"
+  | "client-staff"
+  | "freelancer"
+  | "end-customer"
+  | "lead";
+
 
 export type PlanId = "free" | "starter" | "pro" | "enterprise";
 
@@ -36,8 +55,8 @@ export type PlanId = "free" | "starter" | "pro" | "enterprise";
 // its services in via a separate adapter (see `src/server/foundationAdapter.ts`).
 
 export interface PluginCtx {
-  agencyId: string;
-  clientId?: string;
+  agencyId: AgencyId;
+  clientId?: ClientId;
   install: PluginInstall;
   storage: PluginStorage;
 }
@@ -73,11 +92,6 @@ export interface SetupField {
 
 // ─── Sidebar contributions ────────────────────────────────────────────────
 
-export interface NavGroup {
-  id: string;
-  label: string;
-  order?: number;
-}
 
 export type PanelId =
   | "main"
@@ -97,9 +111,22 @@ export interface NavItem {
   badge?: string | number;
   requiresFeature?: string;
   order?: number;
-  panelId?: PanelId;
+  // `string`, matching the canonical `NavItem` in runtime/_types.ts — NOT the
+  // local `PanelId` union.
+  //
+  // This module was the only one of thirteen narrowing the field to a union,
+  // and that union is missing values the system actually uses: "customer" (the
+  // end-customer surface) plus the plugin-specific panels the validator knows
+  // about ("agency-finance", "agency-hr", "growth", "operations" …). The
+  // runtime types this `string` deliberately — `_validate.ts` says so — because
+  // plugin panels are still in flight, and it WARNS on an unknown id rather
+  // than failing the build.
+  //
+  // Aligned 2026-08-28. A narrower type here could not express a nav item the
+  // rest of the system considers valid.
+  panelId?: string;
   groupId?: string;
-  roles?: Role[];
+  roles?: PluginRoleVisibility[];
 }
 
 // ─── Admin pages ──────────────────────────────────────────────────────────
@@ -109,12 +136,12 @@ export interface PluginPage {
   component: () => Promise<{ default: ComponentType<PluginPageProps> }>;
   requiresFeature?: string;
   title?: string;
-  roles?: Role[];
+  roles?: PluginRoleVisibility[];
 }
 
 export interface PluginPageProps {
-  agencyId: string;
-  clientId?: string;
+  agencyId: AgencyId;
+  clientId?: ClientId;
   install: PluginInstall;
   segments: string[];
   // Per-install storage handed in by the foundation. T1's canonical
@@ -132,7 +159,7 @@ export interface PluginApiRoute {
   methods: ("GET" | "POST" | "PATCH" | "PUT" | "DELETE")[];
   handler: (req: Request, ctx: PluginCtx) => Promise<Response>;
   requiresFeature?: string;
-  roles?: Role[];
+  roles?: PluginRoleVisibility[];
 }
 
 // ─── Storefront contributions ─────────────────────────────────────────────
@@ -221,6 +248,30 @@ export type PluginScopePolicy = "client" | "agency" | "either";
 
 // ─── The plugin manifest ──────────────────────────────────────────────────
 
+/**
+ * Who is being erased — supplied to `onEraseClient` so a hook does not have to
+ * re-derive it through its own tenant port.
+ *
+ * Added to this copy 2026-08-28. It was already in the canonical contract and
+ * in four other modules; this module's vendored signature took only
+ * `(ctx, clientId)`, so its hook could not receive the subject the runtime
+ * ALREADY passes (`clientErasure.ts:457`).
+ *
+ * That mattered beyond tidiness: this module's hook matches rows by
+ * `clientId`, and the canonical comment says the subject exists for data that
+ * "predates the client existing at all". A row belonging to the same person but
+ * not carrying this `clientId` cannot be found by id — and until now the type
+ * offered no other way to find it.
+ */
+export interface ErasureSubject {
+  /** Every address the client workspace knows for this person, lowercased. */
+  emails: string[];
+  /** The client's display name at erasure time (for matching by name). */
+  name?: string;
+  /** The client record's metadata — leadId / contactId / linkedContacts / … */
+  metadata: Record<string, unknown>;
+}
+
 export interface AquaPlugin {
   id: string;
   name: string;
@@ -247,14 +298,12 @@ export interface AquaPlugin {
   // Right-to-be-forgotten. Strips the subject's PII from this plugin's records
   // while keeping the de-identified financial shell (legal hold). Takes
   // precedence over `dataDisposition`. See clientErasure.ts.
-  onEraseClient?: (ctx: PluginCtx, clientId: string) => Promise<void>;
+  onEraseClient?: (ctx: PluginCtx, clientId: string, subject?: ErasureSubject) => Promise<void>;
   onEnable?: (ctx: PluginCtx) => Promise<void>;
   onDisable?: (ctx: PluginCtx) => Promise<void>;
   onConfigure?: (ctx: PluginCtx) => Promise<void>;
 
   setup?: SetupStep[];
-
-  navGroup?: NavGroup;
   navItems: NavItem[];
   pages: PluginPage[];
   api: PluginApiRoute[];

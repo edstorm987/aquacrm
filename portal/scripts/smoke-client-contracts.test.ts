@@ -48,7 +48,7 @@ test("product contracts are available alongside the agency template library", ()
   const templateRoute = read("src/app/api/portal/contracts/templates/route.ts");
 
   assert.match(clientPage, /listContractTemplates\(session\.agencyId\)/);
-  assert.match(clientPage, /ensureDefaultAgencyProducts\(session\.agencyId\)/);
+  assert.match(clientPage, /agencyProductsForRead\(session\.agencyId\)/);
   assert.match(clientPage, /product\.contractBody/);
   assert.match(templateRoute, /createContractTemplate/);
   assert.match(templateRoute, /updateContractTemplate/);

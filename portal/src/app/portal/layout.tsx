@@ -15,7 +15,7 @@ import { CommandCenterTransition } from "@/components/chrome/CommandCenterTransi
 import { ClientWorkspaceTransition } from "@/components/chrome/ClientWorkspaceTransition";
 import { DevModeLoadIn } from "@/components/chrome/DevModeLoadIn";
 import { DevModeSwitcher } from "@/components/chrome/DevModeSwitcher";
-import { SandboxModeSwitcher } from "@/components/chrome/SandboxModeSwitcher";
+import { SandboxTopBar } from "@/components/chrome/SandboxTopBar";
 import { SmartWorkSessionMonitor } from "@/components/chrome/SmartWorkSessionMonitor";
 import { CompanySwitcherStateProvider } from "@/components/chrome/CompanySwitcher";
 import { getUserById } from "@/server/users";
@@ -61,15 +61,18 @@ async function AuthenticatedPortalLayout({ children }: { children: ReactNode }) 
           reachable from EVERY persona, including the customer portal, which has
           its own chrome. Fixed + dev-scoped; the load-in (z-10002,
           pointer-events:none) sits above it during a swap. */}
-      {session.sandbox ? (
-        <div className="fixed inset-x-0 bottom-4 z-[9990] flex justify-center px-3">
-          <SandboxModeSwitcher environment={session.sandbox} role={session.role} />
-        </div>
-      ) : session.isDemo && session.devReturnAgencyId ? (
+      {/* Sandbox announces itself at the TOP of the page, in the flow, pushing
+          the application down — see `SandboxTopBar`. It used to be a pill
+          floating at `bottom-4`, which is a thing you stop seeing. Dev Mode's
+          switcher keeps the floating treatment: it is a founder tool for
+          hopping personas on LIVE data, not a warning about which dataset you
+          are looking at. */}
+      {session.sandbox ? null : session.isDemo && session.devReturnAgencyId ? (
         <div className="fixed inset-x-0 bottom-4 z-[9990] flex justify-center px-3">
           <DevModeSwitcher role={session.role} />
         </div>
       ) : null}
+      {session.sandbox ? <SandboxTopBar environment={session.sandbox} role={session.role} /> : null}
       {children}
       {internalOperator ? <SmartWorkSessionMonitor userName={currentUser?.name || session.email} initialSession={initialWorkSession} initialNow={workSessionNow} /> : null}
     </CompanySwitcherStateProvider>

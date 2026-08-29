@@ -13,6 +13,13 @@ import {
   resolveTrustedLocalRepositoryPreview,
   type ResolvedLocalRepositoryPreviewConfig,
 } from "@/lib/server/dev/localRepositoryPreviewConfig";
+import {
+  ensureDependenciesInstalled,
+  ensureIsolatedPreviewWorktree,
+  LocalRepositoryPreviewWorktreeError,
+  type DependencyReadinessOutcome,
+  type IsolatedPreviewWorktree,
+} from "@/lib/server/dev/localRepositoryPreviewWorktree";
 import type {
   LocalRepositoryPreviewLogLine,
   LocalRepositoryPreviewSnapshot,
@@ -39,6 +46,12 @@ export interface LocalRepositoryPreviewSupervisorDeps {
     project: DevProject,
     scope: LocalRepositoryPreviewScope,
   ) => Promise<ResolvedLocalRepositoryPreviewConfig>;
+  ensureIsolatedWorktree?: (
+    input: { configuredPath: string; projectId: string; log?: (text: string) => void },
+  ) => Promise<IsolatedPreviewWorktree>;
+  ensureDependencies?: (
+    input: { worktreePath: string; command: string; args: string[]; timeoutMs: number; log?: (text: string) => void },
+  ) => Promise<DependencyReadinessOutcome>;
   allocatePort?: (host: string) => Promise<number>;
   probeHealth?: (url: string) => Promise<boolean>;
   now?: () => number;
@@ -87,7 +100,7 @@ function scopeKey(scope: LocalRepositoryPreviewScope): string {
 }
 
 function isRunning(state: LocalRepositoryPreviewState): boolean {
-  return state === "starting" || state === "healthy" || state === "stopping";
+  return state === "installing" || state === "starting" || state === "healthy" || state === "stopping";
 }
 
 function cleanLogText(value: string): string {
@@ -289,6 +302,8 @@ export class LocalRepositoryPreviewSupervisor {
   constructor(deps: LocalRepositoryPreviewSupervisorDeps = {}) {
     this.deps = {
       resolveConfig: deps.resolveConfig ?? ((project) => resolveTrustedLocalRepositoryPreview(project)),
+      ensureIsolatedWorktree: deps.ensureIsolatedWorktree ?? ensureIsolatedPreviewWorktree,
+      ensureDependencies: deps.ensureDependencies ?? ensureDependenciesInstalled,
       allocatePort: deps.allocatePort ?? allocateLoopbackPort,
       probeHealth: deps.probeHealth ?? probeHttpHealth,
       now: deps.now ?? Date.now,
@@ -424,6 +439,29 @@ export class LocalRepositoryPreviewSupervisor {
       return this.snapshot(entry);
     }
     entry.config = config;
+
+    // Phase-17 lifecycle head: an isolated-worktrees record previews each
+    // project inside its own draft-branch worktree (created here, resumed
+    // with edits intact). Derived entirely from the trusted path — the
+    // request still supplies nothing.
+    if (config.isolatedWorktrees) {
+      try {
+        const isolated = await this.deps.ensureIsolatedWorktree({
+          configuredPath: config.worktreePath,
+          projectId: scope.projectId,
+          log: text => this.append(entry, "system", text),
+        });
+        config = { ...config, worktreePath: isolated.previewPath };
+        entry.config = config;
+      } catch (error) {
+        entry.state = "configuration-error";
+        entry.error = error instanceof LocalRepositoryPreviewWorktreeError
+          ? error.message
+          : "The project's isolated preview worktree could not be prepared.";
+        this.append(entry, "system", entry.error);
+        return this.snapshot(entry);
+      }
+    }
     entry.worktreePath = config.worktreePath;
 
     // Process state/control remains realm-scoped, but a physical worktree is a
@@ -451,6 +489,42 @@ export class LocalRepositoryPreviewSupervisor {
     // Reserve capacity before the first await so concurrent different-scope
     // starts cannot both pass the global cap.
     entry.state = "starting";
+
+    // Dependency readiness (phase 17). Declared in the same trusted record as
+    // the launch command, run in the project's own worktree, logged where the
+    // operator can read it. A skipped-because-current install is the normal
+    // resume path and costs nothing.
+    if (config.installCommand) {
+      entry.state = "installing";
+      try {
+        const readiness = await this.deps.ensureDependencies({
+          worktreePath: config.worktreePath,
+          command: config.installCommand,
+          args: config.installArgs,
+          timeoutMs: config.installTimeoutMs,
+          log: text => this.append(entry, "system", text),
+        });
+        if (!readiness.ok) {
+          if (this.worktreeOwners.get(worktreeKey) === ownerToken) this.worktreeOwners.delete(worktreeKey);
+          entry.state = "install-failed";
+          entry.error = readiness.reason;
+          this.append(entry, "system", entry.error);
+          return this.snapshot(entry);
+        }
+      } catch (error) {
+        if (this.worktreeOwners.get(worktreeKey) === ownerToken) this.worktreeOwners.delete(worktreeKey);
+        entry.state = "install-failed";
+        entry.error = error instanceof LocalRepositoryPreviewWorktreeError
+          ? error.message
+          : "The project's dependencies could not be prepared.";
+        this.append(entry, "system", entry.error);
+        return this.snapshot(entry);
+      }
+      // NB: `stop()` serialises on the same scope key as `start()`, so a stop
+      // requested during a long install runs after this completes rather than
+      // racing the spawn below.
+      entry.state = "starting";
+    }
 
     try {
       entry.port = await this.deps.allocatePort(LOOPBACK_HOST);

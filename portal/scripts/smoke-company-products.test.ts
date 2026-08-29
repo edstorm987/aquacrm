@@ -32,7 +32,11 @@ describe("company specialist systems", () => {
     assert.ok(company.includes('requestedView === "products"'));
     assert.ok(company.includes('url.searchParams.set("view", "products")'));
     assert.ok(company.includes('url.searchParams.delete("view")'));
-    assert.ok(page.includes("ensureDefaultAgencyProducts(session.agencyId)"));
+    // The catalogue read, whatever arguments it takes — pinning the exact call
+    // text made this fail when `includeArchived` was added, which says nothing
+    // about the property being guarded.
+    assert.match(page, /agencyProductsForRead\(session\.agencyId/,
+      "the products view no longer reads the agency catalogue");
     assert.ok(page.includes("initialProducts={products}"));
     assert.ok(!sidebar.includes('id: "products",    label: "Products"'));
     assert.ok(!sidebar.includes('id: "company"'));

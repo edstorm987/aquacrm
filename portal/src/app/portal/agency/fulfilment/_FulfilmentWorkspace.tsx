@@ -1,3 +1,20 @@
+// ─── FULFILMENT, British spelling. NOT the plugin. ───────────────────────
+//
+// Three surfaces in this codebase are spelled two ways and do not share code:
+//
+//   src/app/portal/agency/fulfilment/    ← YOU ARE HERE. Hand-rolled agency
+//                                          workspace, outside the plugin system.
+//   src/built-ins/modules/fulfillment/     the PLUGIN (American spelling)
+//   src/app/api/portal/fulfillment/        that plugin's API (American)
+//
+// Editing one does not change the others, and the only thing distinguishing
+// them at a glance is a single letter. `docs/workspace/hazards-and-duplication.md`
+// calls this the highest-risk duplication in the repo; it was not said in the
+// files themselves until 2026-08-28.
+//
+// Before changing anything here, confirm the surface you are on is the one the
+// user is actually looking at.
+
 import Link from "next/link";
 import type { ReactNode } from "react";
 import {
@@ -138,6 +155,7 @@ export function FulfilmentWorkspace({
   flow,
   stageBoard,
   portals,
+  portalView = "library",
   portalProducts,
   focusedClientId,
   focusedProductId,
@@ -156,6 +174,8 @@ export function FulfilmentWorkspace({
   flow: FlowSummary;
   stageBoard: FulfilmentStageBoard;
   portals: PortalWorkspaceRecord[];
+  /** Which Portals sub-view to open — the library, or the demo templates. */
+  portalView?: "library" | "templates";
   portalProducts: PortalTemplateProductRecord[];
   focusedClientId?: string;
   focusedProductId?: string;
@@ -252,7 +272,7 @@ export function FulfilmentWorkspace({
       {view === "clients" ? <ClientDelivery clients={clients} focusedClientId={focusedClientId} focusedProductId={focusedProductId} /> : null}
       {view === "portals" ? (
         <div className="pt-6">
-          <PortalsWorkspace portals={portals} products={portalProducts} initialView="library" canManage={canManagePortals} embedded />
+          <PortalsWorkspace portals={portals} products={portalProducts} initialView={portalView} canManage={canManagePortals} embedded />
         </div>
       ) : null}
       {view === "access" ? (

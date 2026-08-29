@@ -6,11 +6,15 @@ import { runRadarFullSweep } from "@/engines/data/server/radar/radarSweeps";
 import { getAgencyWorkspaceSettings, updateAgencyWorkspaceSettings } from "@/server/agencySettings";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import type { RadarPolicyConfiguration } from "@/server/types";
+import { requireAssistantElement } from "@/lib/server/assistants/assistantContextScope";
 
 async function runFullRadarScan() {
   try {
     await ensureHydrated();
-    const session = await requireRole(["agency-owner", "agency-manager"]);
+    // Running a full sweep WRITES evidence, so it needs `use` rather than a
+    // role. Issue #182: a role check passes a manager whose element access has
+    // been narrowed, and the Advisor then answers from what the UI hides.
+    const session = await requireAssistantElement("workspace.overview", "use");
     const { radar, memory } = await runRadarFullSweep(session.agencyId);
     await flushPendingWrites();
     return NextResponse.json({ ok: true, radar: { ...radar, memory } });
@@ -24,7 +28,7 @@ async function runFullRadarScan() {
 export async function GET() {
   try {
     await ensureHydrated();
-    const session = await requireRole(["agency-owner", "agency-manager"]);
+    const session = await requireAssistantElement("workspace.overview");
     invalidateBusinessIssueRadarCache(session.agencyId);
     const radar = await buildBusinessIssueRadar(session.agencyId);
     return NextResponse.json({ ok: true, radar });
@@ -42,7 +46,8 @@ export async function POST() {
 export async function PATCH(request: Request) {
   try {
     await ensureHydrated();
-    const session = await requireRole(["agency-owner", "agency-manager"]);
+    // Changing the Radar policy is configuration, not a read.
+    const session = await requireAssistantElement("workspace.settings", "manage");
     const body = await request.json().catch(() => null) as { policy?: Partial<RadarPolicyConfiguration> } | null;
     if (!body?.policy) return NextResponse.json({ ok: false, error: "Radar policy required." }, { status: 400 });
     const current = getAgencyWorkspaceSettings(session.agencyId);
@@ -57,14 +62,14 @@ export async function PATCH(request: Request) {
         return {
           ...exception,
           createdAt: existing?.createdAt ?? Date.now(),
-          createdBy: existing?.createdBy ?? session.userId,
+          createdBy: existing?.createdBy ?? session.user.id,
         };
       }) ?? current.advisor.radarPolicy.exceptions,
       updatedAt: Date.now(),
     };
     updateAgencyWorkspaceSettings(session.agencyId, {
       advisor: { ...current.advisor, radarPolicy: policy },
-    }, session.userId);
+    }, session.user.id);
     invalidateBusinessIssueRadarCache(session.agencyId);
     const radar = await buildBusinessIssueRadar(session.agencyId);
     await flushPendingWrites();

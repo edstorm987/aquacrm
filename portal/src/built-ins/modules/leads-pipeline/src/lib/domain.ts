@@ -359,7 +359,11 @@ export type LeadJourneyEventType =
   | "contact-recorded"
   | "stage-changed"
   | "meeting-scheduled"
-  | "converted";
+  | "converted"
+  // Archiving is part of the journey, not a hole in it. Issue #62: the control
+  // said "Archive", the service hard-deleted, and the journey simply ended.
+  | "archived"
+  | "restored";
 
 export interface LeadJourneyEvent {
   id: string;
@@ -436,6 +440,17 @@ export interface Lead {
   // adds the lead. Null until the cross-plugin subscriber wires up
   // (foundation-pending — see chapter).
   pipelineCardId?: string;
+  // ── Archive ──────────────────────────────────────────────────────────────
+  //
+  // Set means "off the active board, still here". The row, the index entry and
+  // the email/phone POINTERS all survive — the identity stays claimed, so the
+  // same person enquiring again restores this lead with its history instead of
+  // quietly updating a record nobody can see. `purge()` is the permanent one,
+  // and it says so.
+  archivedAt?: number;
+  archivedBy?: UserId;
+  /** Which pipeline column the card sat in, so restore can put it back. */
+  archivedFromColumnId?: string;
 }
 
 export interface CreateLeadInput {
@@ -499,6 +514,14 @@ export interface LeadFilter {
   source?: string;
   relationshipCategory?: LeadRelationshipCategory;
   notContactedSinceMs?: number;
+  /**
+   * Archived leads are EXCLUDED unless this says otherwise.
+   *
+   * The default is the safe one on purpose: every existing caller — campaign
+   * audiences, exports, counts — asks for "the leads", and an archived lead
+   * receiving a marketing email is the failure that matters most here.
+   */
+  archived?: "exclude" | "include" | "only";
 }
 
 // `LeadCard` projection — one-shot snapshot the foundation pipelines

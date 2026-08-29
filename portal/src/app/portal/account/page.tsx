@@ -107,7 +107,7 @@ export default async function AccountPage() {
             )}
           </div>
           <div className="flex items-center justify-between gap-3 pt-2">
-            <Link href={isCustomer ? "/portal/customer/details" : "/portal/account/permissions"} className="inline-flex items-center gap-1.5 text-xs font-medium text-black/55 hover:text-black/80">
+            <Link href={isCustomer ? "/portal/customer/details" : "/portal/account/permissions"} className="inline-flex min-h-6 items-center gap-1.5 text-xs font-medium text-black/55 hover:text-black/80">
               {isCustomer ? "View account details" : "View my permissions"} <ArrowRight size={13} aria-hidden="true" />
             </Link>
             <button type="submit" className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-black/85">
@@ -128,7 +128,7 @@ export default async function AccountPage() {
             <p className="text-xs leading-5 text-black/55">
               Use the secure password reset flow and we will send the next step to your email.
             </p>
-            <a href="/login/forgot" className="mt-3 inline-flex text-xs font-medium text-black underline underline-offset-2">
+            <a href="/login/forgot" className="mt-3 inline-flex min-h-6 items-center text-xs font-medium text-black underline underline-offset-2">
               Reset my password
             </a>
           </div>

@@ -30,6 +30,7 @@ import EditorTopBar, { type EditorMode } from "../components/editor/EditorTopBar
 import EditorPropertiesSidebar, { type SelectedElement } from "../components/editor/EditorPropertiesSidebar";
 import EditorOutliner, { type EditorTarget } from "../components/editor/EditorOutliner";
 import EditorFunnelStage from "../components/editor/EditorFunnelStage";
+import { featureBackendGap } from "../lib/featureBackends";
 import EditorBlockStage from "../components/editor/EditorBlockStage";
 import { GenerateModal } from "../components/editor/GenerateModal";
 import { LivePreview, useLivePreviewOpenState } from "../components/editor/LivePreview";
@@ -1357,6 +1358,7 @@ function NewFunnelModal({
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const funnelGap = featureBackendGap("funnels");
 
   async function submit() {
     setError(null);
@@ -1365,16 +1367,26 @@ function NewFunnelModal({
     setBusy(true);
     const ok = await onCreate({ name: n });
     setBusy(false);
-    if (!ok) { setError("Failed to create funnel."); return; }
+    // Name the real cause when there is one, rather than "Failed to create
+    // funnel." — which reads as something worth retrying, and is not.
+    if (!ok) { setError(funnelGap ? funnelGap.reason : "Failed to create funnel."); return; }
     onClose();
   }
 
   return (
     <ModalShell title="New funnel" onClose={busy ? () => {} : onClose}>
-      <p className="text-[12px] text-brand-cream/65">
-        Funnels track how visitors walk a sequence of pages — landing → product → checkout.
-        Add steps after creating.
-      </p>
+      {/* Said BEFORE the name field, not after a failed submit. The create
+          endpoint does not exist (see featureBackends.ts), so letting somebody
+          type a name and then telling them "Failed to create funnel" presents a
+          permanent gap as a transient error. */}
+      {funnelGap ? (
+        <p className="text-[12px] leading-5 text-amber-200/90">{funnelGap.reason}</p>
+      ) : (
+        <p className="text-[12px] text-brand-cream/65">
+          Funnels track how visitors walk a sequence of pages — landing → product → checkout.
+          Add steps after creating.
+        </p>
+      )}
       <label className="block">
         <span className="text-[10px] tracking-wider uppercase text-brand-cream/45">Name</span>
         <input
@@ -1390,7 +1402,7 @@ function NewFunnelModal({
         onCancel={onClose}
         onSubmit={() => void submit()}
         submitLabel={busy ? "Creating…" : "Create"}
-        disabled={busy}
+        disabled={busy || Boolean(funnelGap)}
       />
     </ModalShell>
   );

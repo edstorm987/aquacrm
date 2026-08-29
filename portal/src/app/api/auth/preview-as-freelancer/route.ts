@@ -67,6 +67,13 @@ export async function POST(request: NextRequest) {
         // these three welds the founder into the demo tenant: no POV bar,
         // /api/auth/dev-mode exit answering 409, and Inspector re-stashing the
         // demo agency as the thing to return to. Only a logout escaped.
+        // 2026-08-27: the SANDBOX envelope is part of that return path now.
+        // Dev Mode enters through `enterSandboxEnvironment`, so an inspection's
+        // way back lives in `sandbox.returnUserId`/`returnAgencyId` rather than
+        // the legacy `devReturn*` fields — which this route carried faithfully
+        // while the envelope silently fell on the floor, reproducing the exact
+        // blocker described above. Both travel now.
+        sandbox: session.sandbox,
         devReturnAgencyId: session.devReturnAgencyId,
         devReturnWasDemo: session.devReturnWasDemo === true ? true : undefined,
         devReturnUserId: session.devReturnUserId,
@@ -100,7 +107,9 @@ export async function POST(request: NextRequest) {
       // manager→manager) — not "an owner in the agency".
       previewReturnUserId: session.userId,
       // Same reason as the exit branch: an inspection that is interrupted by a
-      // freelancer preview must still know who to hand back to.
+      // freelancer preview must still know who to hand back to — including the
+      // sandbox envelope Dev Mode now uses to carry it.
+      sandbox: session.sandbox,
       devReturnAgencyId: session.devReturnAgencyId,
       devReturnWasDemo: session.devReturnWasDemo === true ? true : undefined,
       devReturnUserId: session.devReturnUserId,

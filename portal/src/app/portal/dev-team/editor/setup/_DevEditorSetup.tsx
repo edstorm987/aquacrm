@@ -171,6 +171,7 @@ const BLANK = {
   // save that doesn't know about nesting, wrong for a form that shows an
   // "Inside" select and must be able to clear it.
   parentProjectId: "",
+  allowedPaths: "",
 };
 
 type Draft = typeof BLANK;
@@ -187,6 +188,9 @@ function draftFrom(project: DevProject): Draft {
     aquaTagId: project.aquaTagId ?? "",
     siteUrl: project.siteUrl ?? "",
     parentProjectId: project.parentProjectId ?? "",
+    // One path per line: a comma-separated box invites somebody to paste a path
+    // containing a comma and silently split it in half.
+    allowedPaths: (project.allowedPaths ?? []).join("\n"),
   };
 }
 
@@ -1186,6 +1190,11 @@ export function DevEditorProjectSettings({
         // binding, so `undefined` cannot represent the user's clear action.
         githubConnectionId: draft.githubConnectionId,
         vercelConnectionId: draft.vercelConnectionId,
+        // WIDENING the surface is the sensitive direction, so this travels with
+        // the governance-controlled bindings rather than with the free fields.
+        // Sent as an array; an empty one is an explicit "expose everything",
+        // which the server distinguishes from "field omitted, leave alone".
+        allowedPaths: draft.allowedPaths.split("\n").map(line => line.trim()).filter(Boolean),
       } : {}),
       // NO aquaTagId — the tag id is the browser gate and only Map / Check it
       // may set it, from the key the fetched page really carried. The server
@@ -1371,6 +1380,24 @@ export function DevEditorProjectSettings({
               Website address <span className="font-normal">— where the Aqua Tag is installed; Map checks it</span>
               <input value={draft.siteUrl} onChange={event => setDraft({ ...draft, siteUrl: event.target.value })} placeholder="example.com" className={sk.field} />
             </label>
+            {canManageConnections ? (
+              <label className={`grid gap-1 text-[11px] font-semibold ${sk.muted}`}>
+                Exposed files <span className="font-normal">— one path per line, relative to the project root; blank exposes everything</span>
+                <textarea
+                  value={draft.allowedPaths}
+                  onChange={event => setDraft({ ...draft, allowedPaths: event.target.value })}
+                  rows={4}
+                  spellCheck={false}
+                  placeholder={"src/app/portal\nsrc/lib/portal"}
+                  className={`${sk.field} font-mono leading-5`}
+                />
+                <span className="font-normal">
+                  {draft.allowedPaths.trim()
+                    ? "Only these files and folders are readable, searchable or writable in this project — for everyone, including you."
+                    : "This project exposes the ENTIRE repository. Name the folders it actually needs."}
+                </span>
+              </label>
+            ) : null}
             <button
               type="button"
               onClick={save}

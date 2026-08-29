@@ -10,6 +10,7 @@ import { getClientForAgency } from "@/server/tenants";
 import { getUserById } from "@/server/users";
 import { loadCustomerPortalData } from "./_portalData";
 import { createCustomerPortalRequestLoader } from "./_requestCache";
+import { CUSTOMER_PORTAL_ROLES } from "@/server/types";
 
 function emailDisplayName(email: string): string {
   return (email.split("@")[0] || "there").replace(/[._-]+/g, " ").trim() || "there";
@@ -22,7 +23,7 @@ function emailDisplayName(email: string): string {
  */
 export const loadCustomerPortalIdentity = createCustomerPortalRequestLoader(async () => {
   await ensureHydrated();
-  const session = await requireRole("end-customer");
+  const session = await requireRole([...CUSTOMER_PORTAL_ROLES]);
   const client = session.clientId
     ? getClientForAgency(session.agencyId, session.clientId)
     : null;

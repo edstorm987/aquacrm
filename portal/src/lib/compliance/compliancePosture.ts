@@ -438,11 +438,14 @@ function buildGdprControls(input: ComplianceEvidenceInput): ComplianceControl[] 
       retentionPolicies.length
         ? `${retentionPolicies.length} retention policy record${retentionPolicies.length === 1 ? "" : "s"} in the legal register.`
         : "No retention policy record in the legal register.",
-      "Nothing in the app expires data automatically. The erasure policy's RETAIN set (finance, contracts, deliverable proof, the erasure audit) currently has no expiry at all — flagged as question Q1 in the DPO pack.",
+      "An expiry mechanism exists (`retention.ts`) covering the activity log, the DSAR register and enquiry notices, with a preview that counts before anything is deleted.",
+      "Every period is UNSET by default and unset means keep forever, so the control changes nothing until a number is chosen — a sweep that shipped with defaults would have started deleting on a schedule nobody picked.",
+      "An OPEN subject request never expires however old: it is still running a statutory clock, and age is not the same as being finished with.",
+      "Still unexpired by anything: the erasure policy's RETAIN set (finance, contracts, deliverable proof, the erasure audit) — question Q1 in the DPO pack, and a legal answer rather than a default this app may choose.",
     ],
     gap: retentionPolicies.length
-      ? "A policy is recorded but nothing enforces it: there is no automatic expiry, so retention is a promise rather than a control."
-      : "There is no retention policy and no automatic expiry. Indefinite retention is the weakest point in the current design.",
+      ? "The enforcing mechanism exists, but no PERIOD has been chosen for any category — so it is still keep-forever in practice. Set the days per category, preview what that would remove, then enable it."
+      : "Indefinite retention. The mechanism to expire data now exists and is off until a number is set, but nothing is recorded in the legal register saying what the periods should BE — the stated-policy half of Art. 5(1)(e) is still missing.",
     evidenceLimit: "",
     href: "/portal/agency/company?view=legal",
   });
@@ -488,12 +491,16 @@ function buildGdprControls(input: ComplianceEvidenceInput): ComplianceControl[] 
     title: "DSAR intake and the statutory clock",
     requirement: "A place to log that a request arrived, verify who is asking, and track the response deadline.",
     conferredBy: "app",
-    status: "missing",
+    status: "partial",
     evidence: [
-      "No DSAR intake exists. Today a request is handled out-of-band and the owner presses the erase button.",
-      "The erasure audit records what the system did, but not why: not who requested it, not how they were identified, not when the request came in.",
+      "The DSAR register records each request against the right exercised, who asked, and when it was RECEIVED — the clock runs from receipt, not from data entry, so a request logged days after it arrived is already that far into its month.",
+      "Art. 12(3) is enforced as a stored deadline: one calendar month, clamped at month-end so 31 Jan + 1 month lands on 28 Feb rather than rolling into March and handing back time the rule does not allow.",
+      "Art. 12(6) is enforced as a SEQUENCE, not a prompt: `fulfilSubjectRequest` throws `identity_unverified` until identity has been checked, and the verification timestamp is write-once so it cannot be quietly reassigned.",
+      "One extension is allowed, requires a written reason, and runs from the ORIGINAL deadline — extending from today would reward answering late.",
+      "`subjectRequestClock` reports open / overdue / due-within-7-days / awaiting-identity. Pinned by smoke-subject-requests.",
+      "Surfaced on the Governance workspace under Subject requests: the clock, every request with its due date, and overdue ones marked — so a deadline is visible without going looking for it.",
     ],
-    gap: "There is no request log, no identity-verification step and no response clock. If a regulator asked you to evidence a request you handled, you could show the erasure but not the request.",
+    gap: "The register, its clock and the screen that surfaces them all exist. What is still missing is INTAKE: requests arrive by email and are logged by hand, so the register is only as complete as somebody's diligence. Choosing an intake channel — a form, a monitored address — is the remaining half.",
     evidenceLimit: "",
   });
 
@@ -504,9 +511,14 @@ function buildGdprControls(input: ComplianceEvidenceInput): ComplianceControl[] 
     title: "Subject access and portability",
     requirement: "A person's data can be exported and handed to them in a usable form.",
     conferredBy: "app",
-    status: "missing",
-    evidence: ["No subject-access or portability export exists. Erasure is the only subject right the app can currently perform."],
-    gap: "You can delete someone's data but you cannot give it to them. Access and portability are the two most commonly exercised rights and neither is buildable by hand at scale.",
+    status: "partial",
+    evidence: [
+      "POST /api/portal/governance/subject-access exports everything held about one person, as JSON (Art. 20 asks for a structured, machine-readable format).",
+      "It searches EVERY collection in state rather than a maintained list, so a collection added later cannot be silently absent from an export — pinned by smoke-subject-access-export.",
+      "Only the caller's own agency's records are included; matches that carry no agencyId are reported as unattributable rather than dropped or leaked.",
+      "Each fulfilment is written to the activity log, naming the subject by id only so no address enters the audit trail.",
+    ],
+    gap: "The export exists and is complete; what is still missing around it is the REQUEST side — no identity-verification step before releasing someone's data, and no response clock against the one-month deadline. Fulfilment is evidenced; receipt is not.",
     evidenceLimit: "",
   });
 

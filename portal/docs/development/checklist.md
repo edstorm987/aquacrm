@@ -207,8 +207,57 @@
 
 ← [roadmap.md](roadmap.md) · Editor detail: [dev-editor-finish.md](plans/dev-editor-finish.md).
 
-**Last documented whole-suite proof, 2026-08-23 07:03 BST:** the whole local
-application suite is green: **3,621 pass / 0 fail / 1 skipped out of 3,622 tests,
+> **⚠ Whole-suite truth, 2026-08-27:** the canonical command
+> (`PORTAL_BACKEND=memory NODE_OPTIONS='--conditions react-server' npx tsx --test scripts/*.test.ts`)
+> was rerun repeatedly today on the current tree: **4,356 tests / 4,278 pass /
+> 76 fail / 2 skip** at the start of this work, and **4,465 / 4,462 / 0 / 2**
+> now — green for the first time since 23 August. Zero new failures were
+> introduced at any point — each run is diffed against the previous failure list
+> **by test name**, not by count, which is the only way that claim means
+> anything. The 2 skips are the optional live-Postgres checks.
+>
+> **Green is not finished.** Two items came out of the triage as OPEN rather than
+> fixed, and are recorded so they are not mistaken for closed: [issues #168]
+> (issues.md) — 28 routes answer 403 where the house convention is 404, a
+> consistency item with nothing opened — and [issues #170](issues.md) — the Radar
+> probe cron is now daily rather than every ten minutes, which is Ed's call.
+>
+> **The Finance cluster — the largest group — is now fully green:** 19 files, 248
+> tests, 0 failures, down from 11. Eight of those eleven were one class (handler
+> tests calling client-gated handlers with no request scope, so `cookies()`
+> threw); two were a fixture time-bomb that detonated on the 27th; one was a
+> stale source pin. Clearing them surfaced `issues #166` and `#167`.
+>
+> **Triage began 2026-08-27 and found a real defect hiding in the noise.** A
+> quarter of the failures sat in two Dev Mode files, and the largest cause was not
+> a stale pin: `liveIdentityFor` computed the origin's demo-ness with a `??` that
+> fell through to the sandbox session's own always-true `isDemo`, so entering Dev
+> or Sandbox Mode from a live workspace and exiting left the operator flagged
+> demo — which suppresses `getSession()`'s Supabase identity cross-check. Fixed.
+> Three further assertions were looking for demo data in the LIVE realm after the
+> 26 August consolidation moved it; they now read the realm named by the cookie
+> the app minted.
+>
+> **Still open, and now classified:** ~10 Dev Mode failures assert the legacy
+> `devReturnAgencyId`/`devReturnUserId` fields the sandbox envelope replaced. The
+> guarantee (exit restores the EXACT founder; no escalation) still holds in the
+> product — the assertions need moving to `sandbox.returnUserId`, deliberately.
+> The remaining ~59 span Finance idempotency/refunds/validity, app-route tenancy,
+> close-deal, product-stage convergence, People validity and others; the route-count
+> pin (313 vs 312) simply needs re-pinning. **The suite is NOT currently green**: ~74 failures
+> pre-date this session and span Dev Mode identity/POV exits, the editor
+> write-path guards, Dev Team section gates, Finance mark-paid concurrency /
+> refunds / validity, People domain validity, product-stage transitions,
+> showcase read-only client detail, close-deal idempotency, plugin API
+> invariants, portal render parity, the Postgres dual-read fallback and the
+> `smoke-access-control-ui` + `smoke-portal-viewport-loading` suites, among
+> others. These are failures of the CURRENT tree against tests added or
+> changed since 23 August; nobody had rerun the whole suite in between. The
+> green 2026-08-23 record below is history, not current state.
+
+**Last fully green whole-suite proof, 2026-08-23 07:03 BST** *(superseded as a
+current claim by the 2026-08-27 runs above)*: the whole local
+application suite was green: **3,621 pass / 0 fail / 1 skipped out of 3,622 tests,
 across 663 suites**. The one explicit skip is the live Postgres check because
 `DATABASE_URL` is not set in this local run. The previously red source-shape
 assertions were reconciled with the current read-only showcase, shared tenancy
@@ -484,9 +533,22 @@ No request was sent to Mark's website and no project record was saved.
       The final focused set passes **62/62** including six direct boundary tests, the
       separate product-workspace cross-process gate passes **4/4**, TypeScript and diff
       check pass. Expense attachments lack client identity and agency/global branches
-      remain agency surfaces. The dynamic plugin API catch-all still needs mappings for
-      Fulfilment, Client CRM, Ecommerce, Memberships and Affiliates; freelancer-job and
-      generic task/task-template client associations also remain genuinely unclassified.
+      remain agency surfaces. **The dynamic plugin API catch-all is now mapped (2026-08-27).**
+      It decided tenant, role and feature but never WHICH client element a client-scoped
+      call belonged to, so a governed identity holding only Fulfilment could reach a
+      client's Ecommerce or Memberships API through it. `pluginClientElement.ts`
+      classifies **every** built-in module into either an owning element —
+      Fulfilment→`client.fulfilment`, Client CRM→`client.relationship`, Ecommerce and
+      Memberships→`client.commercial`, Affiliates→`client.marketing` — or an
+      explicitly-reasoned unmapped list, with a test asserting each module is in exactly
+      one, so "not yet classified" can never look like "no client data". An unmapped
+      module contributes **no** requirement, so nothing invents an element; reads need
+      `view` and writes `use` as a floor beneath each handler's own `manage` checks; and
+      the gate applies only to client-scoped calls, with
+      `requireCurrentClientWorkspaceElementAccess` keeping its migration rule so
+      un-migrated identities retain legacy behaviour.
+      `scripts/smoke-plugin-client-element.test.ts` **7/7**. Freelancer-job and
+      generic task/task-template client associations remain genuinely unclassified.
       Alternative-authority customer, Dev-project, workspace-create, website-source and
       output/derived-association routes are documented separately, not mislabeled as gaps.
       A final static gate also proved and repaired four adjacent adoption holes: Fulfilment
@@ -509,6 +571,82 @@ No request was sent to Mark's website and no project record was saved.
       Preview/Code switching hides the inactive pane on phone layouts, and the preview
       served `/aqua-tag.js` with HTTP 200 after restart. Crash, occupied-port,
       dependency failure, dirty-editor and publish/PR journeys remain separate gates.
+- [x] **Isolated per-project branch/worktree (2026-08-27).** The phase-17 lifecycle
+      head is implemented: a trusted record carrying `isolatedWorktrees` makes the
+      supervisor create — or resume — a git worktree per project on its draft branch
+      `aqua-editor/<projectId>`, under `<trusted root>/.aqua-preview-worktrees/`, and
+      run the preview command there. An uncommitted edit therefore survives
+      stop/restart and the shared checkout is never mutated; two projects get separate
+      worktrees and branches. Resume never destroys — a hijacked directory or a
+      foreign branch is a refusal with an operator sentence, and a hand-deleted
+      worktree is pruned and re-created with its committed draft work intact. The
+      request supplies no path, branch or git argument. Records without the flag keep
+      the previous shared-checkout behaviour.
+- [x] **Dependency/start readiness and logs (2026-08-27).** A trusted record may
+      declare `installCommand`/`installArgs`/`installTimeoutMs`. The supervisor
+      reports a new `installing` state, runs that command in the project's own
+      worktree, streams its output to the operator log, and skips it while the
+      dependency fingerprint (lockfiles + `package.json`) is unchanged; a changed
+      lockfile always reinstalls. Failure, timeout and a missing runtime are
+      `install-failed` with the reason and output, record no readiness, retry on
+      the next start and never reach port allocation or spawn. The install command
+      passes the same allowlist as the launch command, and declaring one WITHOUT
+      `isolatedWorktrees` is refused — dependency work must never rewrite the shared
+      checkout. AquaCRM's own manifest stays install-free, pinned by a test.
+      Focused proof `scripts/smoke-local-preview-worktree.test.ts` **21/21** against
+      real git repositories and real install processes (**50/50** with the adjacent
+      preview/route/tsconfig/UI/project-access suites), TypeScript clean.
+      Clone-from-remote and the mounted authoring/publish walk remain open.
+- [x] **Stale preview and rejected-AI-change failure paths (2026-08-27).** The pure
+      preview state machine now drops a status/response snapshot naming a different
+      project, so a poll still in flight when the operator switches project cannot
+      give the new project the old one's lifecycle state or loopback `previewUrl`
+      (the component already aborted those requests; the rule is now provable
+      without a browser) — `smoke-local-repository-preview-ui` **8/8**. Aqua Editor
+      AI has no write path: a contract test asserts no Editor-AI module or route
+      references `repoWrite`/`sourceEdit`/`publishEdits` or their writers, and
+      verifies the detector catches the real write route so it cannot pass
+      vacuously; a behavioural test proves a reply proposing an edit leaves every
+      record except the conversation byte-identical — `smoke-aqua-editor-ai-reply`
+      **22/22**. With dependency/start failure, occupied port, crash, dynamic
+      loopback CSP and cross-project denial already covered, the phase-17 failure
+      list is source-proven; the mounted authoring walk, the dirty-transition
+      browser matrix (issue #19's browser half) and clone-from-remote remain.
+- [x] **Mounted browser acceptance of the isolated preview lifecycle (2026-08-27,
+      isolated `sandbox:fork` lane on port 3047; port 3032 untouched throughout).**
+      A real Dev Workspace drove the whole supervised lifecycle against a purpose-built
+      git fixture repository registered through `AQUA_DEV_PREVIEW_PROJECTS_JSON` with
+      `isolatedWorktrees`: **Start** created the worktree on
+      `aqua-editor/devproj_71635752a698405fb62a` and reached **Preview ready** on
+      loopback `127.0.0.1:51230`, serving the fixture site. An uncommitted edit written
+      into that worktree was then **retained across Restart** — the new process came up
+      on a *different* port (51586), served the edited content, the old port was dead,
+      and `/aqua-tag.js` returned **HTTP 200** after restart. The Logs panel showed the
+      contract in the operator's own words: *"Resumed the isolated preview worktree on
+      aqua-editor/…; uncommitted edits are retained."* **Stop** ended the process and
+      left the edit on disk (`git status` in the worktree: `M index.html` — the diff a
+      publish step would show). A second project proved exact-project binding and
+      stale-preview isolation: while project A was healthy, project B rendered
+      **Not running** with no iframe and no trace of A's ports, and its Start refused
+      with **Setup required** — *"no trusted local preview record"* — without disturbing
+      A, which kept serving. Responsive: **no horizontal overflow at 320×568, 375×812,
+      812×375, 768×1024, 1024×768, 1280×800, 1920×1080** or at a 640px viewport (1280 at
+      200% zoom), with preview controls at **44px** targets down to 320px. Console
+      carried no application errors. **Isolation proven:** Ed's repository ended with
+      the same HEAD, **zero** `aqua-editor/*` branches and **one** worktree, the shared
+      `.data/portal-state.json` was byte-identical
+      (`c8d4d129…d418f7de`), and Next's boot-time `tsconfig.json` edit for the sandbox
+      dist dir was reverted. Two honest limits: the mounted **authoring save** was NOT
+      exercised, because on the blank "this workspace" project it mutates Ed's real
+      checkout (owner + local-Dev-Mode only by design — see the #161 correction below),
+      and on a repository-backed project it commits through repo-write, which needs Ed's
+      GitHub credentials; and the in-pane browser blocks Next's dev HMR websocket, so the
+      **second** full page load in one tab stalls on the workspace loader (a fresh tab
+      always loads; a dev-environment artefact, not a route defect).
+      **Correction, same day:** a 🔴 raised during this session claiming the editor's save
+      path was an ungated route into AquaCRM's tree was WRONG and is retracted —
+      `site-editor/files` POST takes `requireWholeWorkingTreeFounderAccess()` first and
+      refuses repository-backed projects with 409. → [issues #161](issues.md)
 - [x] **Live governance intersects Sandbox resources.** Governance stays live while
       resources come from the signed active realm. Safe non-owner Demo entry derives
       persona and refuses privileged datasets/reset/persona selection; revocation of
@@ -546,19 +684,32 @@ Detailed scope and file map:
 
 ## 🚨 P0/P1 — fix before broader launch or sensitive production use
 
-- [ ] **P0 — stale privileged sessions remain privileged.** A live test downgraded
-      an owner to staff, then reused the old owner cookie to create an external-AI
-      API key. The route returned **201** and the issued token worked.
-      `getSessionFromRequest()` only verifies the signed cookie; `getSession()` and
-      the central `requireRole()` path do not compare the cookie's `sessionRev` or
-      role with the current user record. `getCurrentUser()` performs that check,
-      but most protected routes do not use it. Central session freshness must be
-      enforced before role/scope decisions, with a regression covering downgrade,
-      password change and account removal across representative sensitive APIs.
-      The new governed-access evaluator resolves fresh live identity and revisions
-      for its migrated paths; that narrower correction does not close legacy
-      `requireRole()` callers or this application-wide finding.
-      → [issues #22](issues.md)
+- [x] **P0 — central session revocation is enforced (2026-08-27).** One central
+      primitive, `resolveFreshSessionUser()` in `src/lib/server/auth/auth.ts`,
+      now runs on EVERY authenticated cookie read: `getSession()` and
+      `getSessionFromRequest()` both refuse a cookie whose subject no longer
+      exists, whose `sessionRev` is behind the record, whose role no longer
+      matches, or whose active agency left the live membership — so every
+      `requireRole()`/`requireRoleForClient()` caller and every direct reader
+      inherits revocation without opting in. Sandbox cookies anchor to the live
+      account in the signed environment; the public showcase visitor validates
+      inside its fixture realm; fenced Dev/Showcase/preview demo sessions skip
+      only live membership. The access kernel still answers `401 stale_session`
+      for a verifying-but-stale cookie. The behavioural regression
+      `scripts/smoke-session-revocation.test.ts` (**16/16**, `npm run
+      smoke:session-revocation`) replays real old cookies against the actual
+      exploit route (`POST /api/portal/settings/external-ai` → 403, no token)
+      and `requireRole()` surfaces after downgrade, password rotation, explicit
+      rotation and deletion. Whole-suite comparison on 2026-08-27: baseline
+      before the change **4,356 tests: 4,278 pass / 76 fail / 2 skip**; after
+      it (with nine test harnesses re-seeded to mint cookies for REAL users)
+      **4,372 tests: 4,295 pass / 75 fail / 2 skip**, and after the later
+      phase-17 work **4,393: 4,317 / 74 / 2** with the identical
+      baseline failure set — zero new failures, two baseline failures fixed.
+      The 74 remaining failures pre-date this session — see the whole-suite
+      truth note above. TypeScript and `git diff --check` pass.
+      This is focused-test proof; the browser walk of a live downgrade remains
+      part of the release access matrix. → [issues #22](issues.md)
 - [x] **P1 — the final configurable-access static/UI boundary findings are repaired.**
       Sandbox compiler tests now agree; Fulfilment client list/create, Staff People DTOs,
       governed client/customer collaboration APIs and exact workspace-scope composition

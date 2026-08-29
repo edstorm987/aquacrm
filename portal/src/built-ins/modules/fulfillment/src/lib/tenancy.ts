@@ -32,7 +32,12 @@ export type Role =
   | "client-owner"
   | "client-staff"
   | "freelancer"
-  | "end-customer";
+  | "end-customer"
+  // Added 2026-08-28. The canonical `Role` in src/server/types.ts has always
+  // had eight members; every module copy had seven, so a plugin could not
+  // represent a lead at all — while bos-auth-gate and public-funnel are
+  // lead-facing surfaces. Widened: nothing maps Role exhaustively.
+  | "lead";
 
 // `PortalRole` is the **variant surface** — which client-portal page a
 // variant belongs to. Distinct from user `Role`. T3 owns the canonical

@@ -2,7 +2,7 @@
 
 > The append-only change record, dated handoffs and superseded historical summaries.
 >
-> Consolidated 2026-08-27 from **18** source documents / **105,271 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-29 from **18** source documents / **127,590 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -23,7 +23,7 @@
 - [`docs/context/archive/website-editor-and-migration.md`](#source-docs-context-archive-website-editor-and-migration-md) — 1,159 words · `235e8af731b6`
 - [`docs/context/archive/WHERE-WE-ARE-2026-08-18.md`](#source-docs-context-archive-where-we-are-2026-08-18-md) — 2,192 words · `4056e9a347cb`
 - [`docs/context/archive/WHERE-WE-STAND-2026-08-20.md`](#source-docs-context-archive-where-we-stand-2026-08-20-md) — 2,482 words · `26bf4442580e`
-- [`docs/development/updates.md`](#source-docs-development-updates-md) — 75,115 words · `79791616c722`
+- [`docs/development/updates.md`](#source-docs-development-updates-md) — 97,434 words · `45c355ce345e`
 
 ---
 
@@ -3318,7 +3318,7 @@ Being straight with you about the edges.
 
 ## Source document — `docs/development/updates.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="79791616c722b90677e8d6d387520e18c0f9ed1dbb0c0003e42fd1af230d7a38" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="45c355ce345e40ccf54d4f564ed46960b6175357672e61a4d460bd3d3a7de2ed" -->
 # Updates log
 
 ← Back to [development.md](../development.md) (the law)
@@ -3354,6 +3354,2258 @@ map stays trustworthy.
 > If you ship something, log it.
 
 ---
+
+
+
+## 2026-08-29 — Storage split, Radar retention, the sandbox bar, and two near-misses
+
+Ed: *"get it done"* — against the list of what was left after the launch audit.
+
+### The storage split: `devTeamWorkspaceFiles` out of the main document
+
+Measured on the LIVE datastore, which turned out to be **3.25 MB**, not the
+677 KB the local file suggested:
+
+| | | |
+| --- | --- | --- |
+| `devTeamWorkspaceFiles` | 967 KB | **29.0%** |
+| Radar (memory + evidence) | 974 KB | **29.2%** |
+| `clientPortalTemplates` | 615 KB | 18.5% |
+| **`clients`** | **181 KB** | **5.4%** |
+
+**The actual business data is 5% of the document.** PostgreSQL applies each
+`jsonb_set` against the COMPLETE value and the patch RPC returns the whole saved
+document to be re-parsed, so marking one enquiry as seen paid for a founder's
+markdown files twice over.
+
+**No SQL changed.** Both RPCs already take `p_app_key` and read
+`data->'devTeamWorkspaceFiles'` from whichever row it names, so the workspace RPC
+simply points at a second key — and the row lock it takes is now on a row nothing
+else contends for.
+
+**Two data-loss bugs were found in my own change before it shipped**, both by
+the test written for them:
+
+1. *Excluding new writes is not removing the old copy.* The main row kept its
+   pre-split copy for ever — the 967 KB the split exists to remove, plus a
+   second answer to "what is in this file". The clear is now asserted on every
+   patched flush: idempotent, one tiny operation, no migration step to forget.
+2. *Clearing before the sidecar exists.* Hydrate falls back to the main copy
+   (correct), then the first ordinary write cleared it — while the sidecar row
+   did not yet exist. **The files would have been gone.** The clear is now gated
+   on the sidecar being confirmed to hold them, and the first commit SEEDS the
+   sidecar from the cache before the RPC runs, so the move is lossless with no
+   manual step.
+
+Every exclusion is conditional on the backend actually having a sidecar — memory
+and file backends have nowhere else to put these, and an unconditional strip
+would delete a founder's workspace. The whole suite runs on the memory backend,
+which is what proves that half.
+
+### Radar retention — 29% of the document
+
+*Evidence:* retention was expressed as COUNTS (288 points, 720 hourly), correct
+for a five-minute cadence. The cadence became daily (issues #170) and the numbers
+stayed, so they silently meant **288 days** and **~2 years**. Now expressed in
+TIME, with the counts as runaway guards, plus a daily tier so shortening the
+windows does not discard the trend.
+
+*Scan history:* `radarMemory.scans` held 68 scans at **~7 KB each**, capped at
+180 — heading for 1.26 MB. Nearly all of it is four detail arrays, and **only
+`scans.at(-1)` is ever read**. Detail is kept on the newest five. The fields are
+now **optional and deleted, not emptied**: `issueStates: []` on a scan whose
+detail we no longer hold would claim "nothing was wrong that sweep".
+
+### Email subscribers — one wired, three that could not be
+
+"Wire up the four dormant subscribers" was four different jobs:
+
+- ✅ `membership.subscription_changed` — wired. The emitted payload carries no
+  email and the handler's first line is `if (!payload.userEmail) return null`,
+  so the wire resolves the address from `userId`. The lookup lives in the wire,
+  not the emit, because the emitting module has no business knowing somebody
+  wants to send an email.
+- ⚠ `affiliate.payout_completed` — emitted, deliberately NOT wired: the payload
+  carries `affiliateId` where the handler needs `affiliateUserId` and
+  `affiliateEmail`. Wiring it would call a handler that returns `null` every
+  time — connected and permanently silent.
+- ❌ `forms.notification.requested` and `auth.bootstrap.signup` — **nothing
+  emits either event.** Searched across the whole of `src/`.
+
+`EVENT_SUBSCRIPTIONS`'s comment claiming a router reads it has been replaced with
+what is actually true, and `smoke-email-subscriber-wiring.test.ts` pins all five
+in both directions.
+
+### Sandbox top bar
+
+Full width, 44px, in the flow at the top of the page so it PUSHES the app down;
+controls moved in and the floating `bottom-4` pill retired. Eight `h-dvh` shells
+now measure `--aqua-shell-h`, which the bar redefines — the shells opt in by
+naming the variable rather than a stylesheet winning the cascade behind them.
+
+The browser walk earned its keep: at 800px the persona buttons pushed **Exit**
+off the right edge — the one control that gets you out of the mode. Nothing
+scrolls now; the sentence truncates, the controls never shrink, and the persona
+switcher drops away below 640px so Exit survives to 320px.
+
+### Supabase, verified live
+
+`scripts/supabase-live-rls-probe.mjs` — read-only, no destructive verb. 12
+tables, **0 unexpectedly public, 0 publicly writable**. It reports four empty
+tables as *"proves nothing"* rather than calling them secure, because PostgREST
+answers `200 []` for "RLS filtered everything" and "no rows" alike.
+
+**A correction worth recording:** an earlier probe established this partly by
+sending an anon `DELETE` at the live project. It was refused and nothing was
+touched — but that was luck standing in for judgement. A destructive verb is
+never a way to find out whether destruction is possible, and the probe's header
+says so.
+
+**Suite: 4,980 tests / 4,978 pass / 0 fail / 2 skip.** `tsc` clean.
+
+## 2026-08-28 — Journey pipelines: the client's own kanban, as a toggleable add-on
+
+Ed: *"a customer version of the crm with the inbox stuff contacts … give them a
+kanban board as well so that they can create their own journey pipelines and move
+contacts about and set automations"*, and *"this will be an addition product btw
+just like the editor we can toggle on and off"*.
+
+**Built into the EXISTING `client-crm` module, not a new one.** That module
+already owned contacts, segments and an activity timeline; a second home for
+"the client's CRM" is exactly what `hazards-and-duplication.md` exists to stop.
+
+- **Where it renders.** The client workspace, not `/portal/customer`.
+  `SURFACE_ROLE_CEILING.customer` is `["end-customer"]` and `effectivePageRoles`
+  **intersects, never unions**, so a plugin page under `/portal/customer` can
+  never serve a `client-owner`. Widening that ceiling would open every
+  unclassified customer plugin page at once. The client surface's ceiling
+  already includes client roles, and `client-crm`'s nav already pointed there.
+- **The toggle.** Feature `journey-pipelines`. An ABSENT key means OFF —
+  matching both host gates (`route.ts:111`, `sidebarLayout.ts:179`). The first
+  draft of the module's own check read a missing key as ON, which would have
+  hidden the nav link and refused the API while the page rendered the board
+  anyway. Pages are the only surface the host does NOT feature-gate, so the
+  pages answer for themselves.
+- **Automations that are real.** Tag, un-tag, set status, write a note, move a
+  stage, send an email. No "wait 3 days" — nothing here can be woken on a timer,
+  so a delay would be a rule that silently never completes; time is surfaced as
+  the board's idle flag instead.
+- **Cascades are bounded twice.** A `move-to-stage` can satisfy another rule's
+  `card-entered-stage`. A visited-set cuts the common two-rule ring on its second
+  pass; a depth budget bounds a long chain of distinct rules. Both are needed and
+  both are tested — including that the ring RETURNS AT ALL.
+
+### The email action was nearly a mask, twice
+
+1. It emits a cross-plugin event. **email-sender's `EVENT_SUBSCRIPTIONS` is
+   declarative only** — its comment claims "Foundation's R6 router reads this
+   list and subscribes", and no such router exists. `subscribeForPlugin` is
+   called for affiliates, client-crm and leads-pipeline; **never for
+   email-sender**. Its four other declared subscribers (forms notification,
+   membership change, affiliate payout, signup welcome) are dormant. The new
+   event was wired explicitly in `_eventSubscribers.ts`; the four existing ones
+   were left alone — turning on four dormant email paths across every agency is
+   Ed's decision, not this add-on's. **→ written up for Ed.**
+2. The browser walk then showed the board announcing *"Booked — say thanks ·
+   2 actions"* for an agency with **no email-sender installed** — the event went
+   into an empty room. `send-email` now checks the install through the port the
+   module already held and reports *"Your agency has not set up email sending
+   yet, so no email was sent."*
+
+**Proven end to end on an isolated lane (port 3057, own state file, 3032 never
+touched):** pipeline created in the browser → contact added → rule fired and its
+tag appeared on the card → moved to Won via the keyboard-accessible select →
+second rule fired → **a real queued message** `to: ben@journey.test ·
+subject: "Your date is booked" · plugin: client-crm`, with idempotency key
+`client-crm:<automationId>:<cardId>` collapsing repeat entries to one message
+while a different person still gets their own.
+
+### Also found (pre-existing, NOT changed)
+
+`globals.css` has an **unlayered** rule
+`.plugin-page-shell:not([data-plugin-id="website-editor"]) button { min-height: 2.5rem; … }`.
+Unlayered CSS beats Tailwind's `@layer utilities`, so it silently overrides any
+plugin author's button sizing and caps every plugin page's touch targets at
+**40px** — under the project's own stated 44×44 bar (it still passes WCAG 2.5.8
+AA, which asks 24px). One value would fix it for all twelve plugin pages; left
+for Ed rather than restyling every module unasked.
+
+**Suite: 4,895 tests / 4,893 pass / 0 fail / 2 skip** (was 4,864/4,862/0/2).
+`tsc` clean. The three critical guards — cascade bound, email wire, feature-gate
+semantics — were each verified by breaking them and watching them fail.
+
+### Audit pass over the new code (same day, after the build)
+
+The rest of the app was audited on 2026-08-28; this add-on was written after
+that, so it was put through the same lenses.
+
+- **GDPR erasure — covered, and now pinned.** Journey boards hold real personal
+  data: card notes and automation email bodies are free text about named people.
+  Today it is erased completely by the DEFAULT path — `client-crm` is
+  client-scoped with no `onEraseClient` and no `dataDisposition`, so
+  `sweepPluginData` takes the `delete state.pluginData[installId]` branch and the
+  whole slice goes. Two ways that could quietly stop being true are now guarded,
+  because **both look like ordinary improvements**: adding
+  `dataDisposition: "retain"` (which would retain every board with it), and
+  adding an `onEraseClient` hook that strips contacts but does not know journey
+  storage exists (a hook OVERRIDES the sweep, so boards would survive a lawful
+  erasure while the log still reported a clean "hook" disposition). Both
+  verified by breaking them.
+- **Production build:** 286/286 pages, 0 errors.
+- **Seven breakpoints** — 320×568, 375×812, 812×375, 768×1024, 1024×768,
+  1280×800, 1920×1080: **no page-level horizontal overflow at any size**, board
+  columns scrolling inside their own container as a kanban should, zero elements
+  overflowing outside it, every `client-crm` request 200.
+
+### 🔴 Fixed: client-scoped plugin navigation rendered NOWHERE
+
+Found while checking the board was reachable; it turned out not to be a
+client-crm problem at all.
+
+`buildSidebar` was called in exactly two places — `app/portal/agency/layout.tsx`
+and `app/portal/clients/page.tsx` — **both with `scope: "agency"`**. The client
+workspace layout built its panel by hand and never called the builder, so the
+builder's `scope === "client"` branch (role gates, `requiresFeature`,
+`:clientId` rewriting) was **dead code for the only surface it was written
+for**. The effect: **33 declared nav items across six modules rendered
+nowhere**, and every client-scoped feature was reachable only by typing a URL or
+through a bespoke CTA someone remembered to add — which is why the website
+editor has an "Edit website" button on the client overview.
+
+**Fixed, not deferred.** `lib/chrome/clientSidebarPluginCatalog.ts` mirrors the
+agency catalogue's approach, so the shared layout still never imports the
+executable plugin registry (the performance reason that catalogue exists —
+importing it "made every agency route compile the entire plugin graph"). The
+client layout now calls the builder, gated on `client.systems` — **the same
+element `[...rest]/page.tsx` requires before rendering any plugin page**,
+because a link that then redirects is worse than no link — and drops the two
+foundation items (`home`, `client-settings`) the layout already builds by hand.
+
+**Two modules are deliberately held back:** `website-editor` (9 items) and
+`ecommerce` (7) declare **no roles at all** on any client nav item. Listing them
+would advertise every one to every client, including the editor's *Git status*.
+That is the same conservative rule already applied to pages and API routes —
+undeclared inherits the ceiling rather than the door, treated as a hazard to
+close rather than a permission to use. It changes no ACCESS: both modules' pages
+are already reachable by URL under the client surface's ceiling.
+
+The catalogue is hand-maintained metadata, so `smoke-client-sidebar-catalog.test.ts`
+deep-equals every entry against its real manifest, fails when a module with
+client-role nav is missing from both lists, and fails when an "unadvertised"
+module starts declaring roles (so the stated reason cannot go stale). A copy
+pinned against its source is a projection, not a duplicate. Browser-verified:
+all six client-crm links render with `:clientId` resolved.
+
+### 🔴 Fixed: default styling was overriding every author who asked for a size
+
+`globals.css` styled controls with plain, **unlayered** rules. Tailwind v4 emits
+utilities inside `@layer utilities`, and unlayered CSS beats any layered rule
+regardless of specificity — so three defaults were silently replacing explicit
+choices app-wide:
+
+- `.mm-portal-root :is(input, select, textarea)…` → `min-height: 2.5rem`, across
+  the **whole portal**. The app writes `min-h-11` (44px) on controls in 146
+  places, and **every one of them on an input, select or textarea rendered at
+  40px**.
+- the two `.plugin-page-shell…` rules did the same for plugin pages, and also
+  forced radius, padding and font-size — a plugin's `rounded-lg` (8px) rendered
+  as 6px.
+
+**Only the layer moved on the portal-wide rule; its value is deliberately still
+2.5rem**, so nothing that never asked for a height shifts by a pixel — a control
+saying `min-h-11` simply gets what it asked for. Raising that default across
+every form in the app is a separate visual decision and was not taken. The two
+plugin-scoped rules did go to 2.75rem, because plugin pages that ship no styling
+have no other way to reach the 44×44 target.
+
+Measured before: `min-h-11` computed to 40px on the board, 44px on a bare probe
+on the same page. After: **zero controls on that page under 44px**, and the
+authored `rounded-lg` survives at 8px. `smoke-portal-control-targets.test.ts`
+pins it with a brace-scanning layer detector that skips comments and strings —
+the first version of that helper mis-reported and was caught by its own
+guards-the-guard case.
+
+### The module's own hub (kept)
+
+`ContactsPage` — mounted at both
+`client-crm` and `client-crm/contacts`, so it is the module's landing page — was
+a bare unstyled `<ul>` and is now a proper hub, linking to Segments, Activity,
+Automations and the Journey board (the last two only when the add-on is on, so
+it never advertises a 404). It stays as a hub now that the sidebar
+works, rather than as the only way in.
+
+### Two app-wide sweeps for the defect class the day kept producing
+
+Both bugs above were the same shape: **something declared, that nothing
+consumes**. Rather than assume they were the only two, the class was swept.
+
+**Sweep 1 — unlayered CSS overriding utilities.** 25 unlayered rules force
+properties Tailwind also sets. All but the one already fixed are either
+component-scoped (`.mm-smart-clock-*`, `.mm-auth-*`, `[class$="-list-actions"]`)
+where no utility competes, or deliberately protective: `.mm-route-canvas
+:where(…) { min-width: 0 }` is the overflow guard, and the `button:not([class*="-pill"])`
+44px rule is inside `@media (pointer: coarse)` and RAISES to the target. **No
+further defects** — a real negative result, and the one genuinely app-wide
+override was the one fixed.
+
+**Sweep 2 — `AquaPlugin` fields nothing reads. Three real ones; two fixed, one documented at source**, now a ratchet in
+`scripts/smoke-manifest-fields-consumed.test.ts` that fails on a NEW silent
+field and equally when a listed one gains a consumer, so it can only shrink:
+
+| Field | Declared by | Consumed by |
+| --- | --- | --- |
+| ~~`healthcheck`~~ | **10 of 13 modules** | **FIXED — `api/portal/plugins/health`** |
+| `storefront` | affiliates, client-crm, ecommerce, memberships, website-editor | nothing |
+| `setup` | ecommerce | nothing |
+| `navGroup` | website-editor | nothing |
+| `headInjections` | — | nothing |
+| `routes` | — | nothing (superseded by `api`) |
+
+**`healthcheck` was the significant one, and it is now fixed.** Ten modules
+implement one and the host called none. They are not stubs: client-crm's counts
+active contacts and seeded segments with per-component status; email-sender's is
+an entire `buildEmailSenderHealth` module. Ten working health reports existed
+with nothing asking for them.
+
+`app/api/portal/plugins/health/route.ts` is the consumer. It does the smallest
+honest thing — runs the hooks that exist and returns what they say — because
+where health gets DRAWN (Radar? Dev Console? a per-client systems tab?) is a
+product decision, and inventing a screen would have been the same mask in a new
+costume. The capability is live; a screen can hang off it whenever one is wanted.
+
+Health surfaces fail in specific ways, so each is pinned: a module with **no**
+hook is `supported: false`, never "unhealthy" (missing evidence is a blind spot,
+the rule Radar already follows); every hook races a **5s timeout** so one slow
+module cannot hang the request; a **throwing** hook becomes one unhealthy row
+naming the reason rather than taking the other nine down; and the summary is
+derived from the rows it summarises, so the header cannot contradict the table.
+
+Tested by driving the real handler with a real session against a real install —
+not only by reading the source — and verified two-sided: stubbing the route to
+synthesise a status instead of asking the module fails the test that checks the
+message came from `client-crm`'s own hook.
+
+**The ratchet shrank itself.** `smoke-manifest-fields-consumed.test.ts` failed
+with *"healthcheck is still unconsumed — shrink the list when that changes"* the
+moment the route landed. That is the direction it was built for, and it is why
+the five remaining entries are worth trusting.
+
+**Then the remaining list was worked through rather than left.**
+
+*First, a correction to this session's own finding:* `routes` and
+`headInjections` are **sub-fields of `storefront`**, not top-level manifest
+fields. An earlier version of the ratchet counted them separately and overstated
+the list at six. The real count was three.
+
+- **`navGroup` — DELETED.** website-editor was the only declarer and nothing
+  read it; the sidebar groups by `panelId` on each item instead. Removed from
+  the canonical contract, from **13 vendored copies**, and from the manifest
+  that declared it. The now-orphaned `NavGroup` interface went with it across
+  all 14 files — a type nobody can use is the same trap one level down.
+- **`storefront` — deliberately NOT wired, and that is the finding.** Three of
+  the five declarers — affiliates, client-crm, memberships — say *"Renderer
+  ships in T3"* in their own block descriptions. **Their blocks have no
+  renderer.** Registering them would drop non-functional blocks into the
+  editor's palette, which is precisely what `blockBackends.ts` exists to
+  prevent. So this is not a forgotten consumer; it is a set of promises made
+  before the thing that would keep them.
+- **`setup` — same shape.** ecommerce declares a wizard; the ANSWERS path
+  already works (`installPlugin({ setupAnswers })` → `onInstall`), so only the
+  collecting UI is absent, and where it belongs in the install flow is a product
+  decision.
+
+For the two that remain, the fix was to **stop the contract lying at the point
+someone reads it**. `_types.ts` now carries a warning on each field naming what
+is missing, why wiring it blind would make things worse, and where the rest of
+the list lives. That is this codebase's own established answer — the same one
+`FEATURE_BACKEND_GAPS` and `blockBackends.ts` give — applied to the platform
+contract. The warnings are themselves asserted, so one cannot be quietly
+deleted: removing the text from `setup` fails the suite.
+
+`storefront` is the same story in miniature: five modules declare blocks and
+nothing registers them. The website editor still has its 70 blocks only because
+its own code imports `BLOCK_DESCRIPTORS` directly — the manifest declaration is
+not what makes that work, which is precisely why the gap stayed invisible.
+
+The detector is deliberately generous (a false "consumed" only shrinks the list)
+and carries its own guards-the-guard: it must see >300 host files, and must
+register `pages` and `navItems` as consumed, or it is inventing findings rather
+than finding them. It proved itself two-sided in use — `healthcheck` was caught
+by the catch-all before anyone had listed it.
+
+### 🔴 Half the plugin settings in the app save a value nothing reads
+
+The "declared but not wired" sweep was run once more, on a surface it had not
+touched: **settings fields**. The thirteen modules declare **51**, and **25 are
+referenced exactly once in the whole repository — by the manifest line that
+declares them.** The saved value is never consulted.
+
+**This is the sharpest form of the defect, because of how it feels to use.**
+Every other gap labelled today at least LOOKED inert — funnels with no API, an
+editor's fake `verifyDomain`. A settings field does the opposite: it accepts
+your input, saves without error, and shows your value back on reload. There is
+no way to tell it from one that works. Two read like safety controls:
+
+- **`public-funnel / issueSessionCookie`** (default **true**) reads as "do not
+  issue a session on lead capture". Turning it off changes nothing.
+- **`agency-hr / canStaffEdit`** reads as an edit permission. The access kernel
+  is what actually enforces editing, so nothing is open — but an operator would
+  reasonably believe they had just changed something, and they had not.
+
+Neither deleted nor guessed at: deleting 25 fields throws away the record of
+what each module meant to be configurable, and implementing them is 25 separate
+product decisions (what SHOULD `advanceRequiresAllTasks` do about an optional
+task?) where guessing re-creates the mask a layer down. Instead the panel now
+marks each one **"Not connected"** with a plain sentence — the same answer
+`FEATURE_BACKEND_GAPS` and `blockBackends.ts` give, applied to settings, and put
+at the exact place the promise is made. The notice is `aria-describedby`-linked,
+because a warning only sighted users reach is half a warning.
+
+`scripts/smoke-unwired-settings.test.ts` re-derives the set from source and
+fails **in both directions** — a newly-unwired field (a new mask), and a field
+that is now read but still labelled (calling a working control broken). Verified
+by breaking it each way.
+
+**And the detector nearly disarmed itself.** `unwiredSettings.ts` names all 25
+ids and lives under `src/lib`, so on the first run every field looked "read" —
+by the very list asserting they are not. A detector its own findings disable is
+worse than none, because it reports a clean sweep it did not earn. The file is
+excluded, and a guards-the-guard assertion now fails if it ever creeps back in.
+
+### Also noticed
+
+**The disk is at 99% (7.7 GiB free)**, which made webpack's cache fail during the
+build (`ENOSPC`, caching only — the build itself succeeded). Ignored build dirs:
+`.next-dev-turbo-3032` 3.8G, `.next-archive` 1.5G, `.next-dev-3032` 586M,
+`.next` 381M. Only `.next-journey-build` (106M, created for this build) was
+removed; the others have owners that need resolving first.
+
+**Suite: 4,945 tests / 4,943 pass / 0 fail / 2 skip** (4,864 at the start of the day). `tsc` clean; production build 286/286 pages, 0 errors.
+
+**Docs updated:** `workspace/api-reference.md` (7 endpoint rows),
+`workspace/feature-index.md` (one row naming every file and all three gate
+sites), `workspace/hazards-and-duplication.md` (the three-boards table), this
+log.
+
+## 2026-08-27 — Launch push, batch 1: the read-time writes are nearly gone (#21)
+
+Working Ed's launch order. Phase A, items 1 and 2.
+
+**`.env.example` (issue #4, open since 19 Aug) — closed BY CONSTRUCTION.** It
+listed the two Supabase *bucket* names and none of the three credentials, which
+is exactly why it survived: the section looked finished.
+`npm run smoke:env-example` now derives the required list from
+`productionReadiness.ts` and fails when anything it checks is undocumented —
+which immediately caught two more nobody had noticed
+(`AQUACRM_ASSISTANT_API_TOKEN` / `_AGENCY_ID`, now documented alongside their
+production refusal). It also refuses a real-looking secret committed into the
+example file. This one mattered first because it is the file Ed works from to
+supply the credentials everything else waits on.
+
+**Four more read-time writes removed.**
+
+- **The Marketing render executed automations.** `processAutomationSweep` resumes
+  waiting runs and RUNS them, so opening a screen could send a customer an
+  email. Not a seeder and not idempotent — a side effect with outward
+  consequences, triggered by looking. The scheduler owns it; the page now
+  reports the backlog, so a stopped scheduler is visible rather than silently
+  compensated for by whoever happened to open Marketing.
+- **Three Development pages ran a data MIGRATION**
+  (`ensureDefaultDevelopmentWorkflow` → `migrateLegacyStageRefs`), and all three
+  discarded the result — the calls were there purely for the side effect. Gone;
+  the seed moved to `bootstrapAgency`.
+- **`ensurePrimaryAgencyWebsite` on the PUBLIC website layout.** The one that
+  mattered most for a launch: a **stranger** loading the marketing site created
+  the tenant's website record. It was the only read-time write an
+  unauthenticated visitor could reach, and **there are now none.**
+- **`ensureAgencyWebsite` on four more renders**, three of which dropped out of
+  the inventory entirely.
+
+**Totals: 16 GET-only routes and 27 renders → 16 and 17.** Three dead
+`publicShowcase` guards went with them: each existed only to stop a showcase
+visitor triggering a write, and each also handed that visitor a worse view of
+the same data as a side effect.
+
+- Every removal probed by restoring the old behaviour, including a behavioural
+  test that a fresh agency reading the public site stores nothing.
+- Full suite **4,741 / 4,739 pass / 0 fail / 2 skip**, `tsc` clean.
+- Written up for Ed with the ordered plan and every blocker:
+  [launch-order-and-blockers](plans/launch-order-and-blockers.md).
+
+---
+
+## 2026-08-27 — Hold a saved tab to rename it; hold its icon to change it
+
+Ed: *"allow me to rename saved tabs if i do a long hold on it… and if i hold the
+star icon or the icon i can switch it to the workspace icons — every workspace
+should have an icon."*
+
+- **Hold a saved tab (450ms)** → an inline rename box, in the strip where the tab
+  lives, because half the point of a name is how it looks there. The menu route
+  stays: a long press is not discoverable and must never be the only way to
+  reach something.
+- **Hold its icon** → a picker of the app's own areas, with the workspaces first.
+  **Derived by default, chosen when chosen** — the icon is normally the one
+  belonging to whatever the tab points at, resolved live so it cannot drift, and
+  the first entry in the picker puts it back. An override you cannot clear is a
+  one-way door.
+- **Every workspace now has an icon.** `WorkspaceConfig.icon` is REQUIRED, not
+  optional — a workspace without one would show a neutral dot in the picker,
+  which is exactly the "nobody chose" state the ask was about.
+- **One icon vocabulary.** `NAV_ICONS` moved out of `SidebarNavLink.tsx` into
+  `navIcons.ts` so the picker and the sidebar draw from the same map. A stored
+  icon is a KEY into it, never a component, and an unknown key falls back to the
+  derived icon rather than rendering a hole.
+
+**Four defects the browser walk found, all invisible to a unit test:**
+
+1. **Enter did not commit.** Implicit form submission needs a submit button and
+   this form deliberately has none, so the box stayed open with the new name
+   untaken. Enter is handled explicitly now.
+2. **The field did not select its text**, so typing appended: "Agency" became
+   "AgencyEd's command". `autoFocus` fires before React attaches `onFocus`; it
+   focuses and selects from an effect instead.
+3. **The picker's own clicks were swallowed.** A long press has to eat the click
+   that follows it or the chip's link fires — and the picker was a descendant of
+   that very handler, so every icon click died. It is a portal now.
+4. **Holding the icon also opened the rename box**, because both handlers saw
+   the same pointerdown. The icon's press stops propagation first.
+
+- Verified in the browser: hold → box opens with the name selected → type →
+  Enter → chip reads "Ed's command", persisted to the account. Hold the icon →
+  picker opens portalled, rename does NOT co-open → pick Finance → persisted.
+- `npm run smoke:chrome-layout` **32 in that file**, with all four defects pinned.
+- Full suite **4,735 / 4,733 pass / 0 fail / 2 skip**, `tsc` clean.
+
+---
+
+## 2026-08-27 — Every AI scope is now bound to the person asking (#182)
+
+The in-app half of Ed's *"same for all AI scopes actually"*, and the one he uses
+himself. `/api/assistant` gated on ROLE and then built a context containing every
+user's name, email and role, every client, pipelines, activity, and up to **500
+raw entries from EVERY installed module** — finance and HR pay included. A
+manager whose element access had been narrowed could not open Finance in the UI
+and **could ask the Assistant instead**.
+
+**A stricter gate would not have fixed it.** The question is not *may you call
+this endpoint*, it is *what may this endpoint know about you*. Every section of
+the context now names an element, and `buildAssistantBusinessContext` takes a
+scope — **required, not defaulted**, because a default would let any future
+caller that forgot it get the firehose back. The compiler named all four callers.
+
+- **An unclassified module contributes nothing**, the reverse of the old
+  behaviour where anything installed went out because nothing excluded it.
+- The module→element map went beside the client-scope one already in
+  `pluginClientElement.ts` — one answer to "which element owns this module" —
+  and matches `externalAssistantDelegation.ts`, so an assistant inside the app
+  and one over the API cannot disagree about who may see finance.
+- The context **says what it was not given** (`withheld`), so a model can say
+  "I was not given Finance" instead of answering from the gap.
+- **Five routes** moved off roles onto elements, and configuration costs more
+  than reading: the Radar policy, Advisor skills and Custom AI creation need
+  `workspace.settings.manage`.
+- **A guard fired and was right:** the first cut imported the access kernel
+  statically and `smoke-shared-graph-split` refused it — the healthy owner shell
+  must not reach `accessControl.ts` through the Advisor drawer. The scope builder
+  is pure; every kernel value is dynamic.
+- `npm run smoke:ai-actor-binding` **27/27**, probed four ways. **One probe
+  initially passed against a broken build** — the plugin-data assertion was
+  vacuous with nothing installed. The fixture installs `agency-hr` with pay data
+  now and checks both directions, so the filter cannot pass by being a wall.
+- Env token: Ed said *"get it all completed"* — the production refusal stands.
+- Full suite **4,729 / 4,727 pass / 0 fail / 2 skip**, `tsc` clean.
+
+---
+
+## 2026-08-27 — First removal: reading the product catalogue no longer writes it (#21)
+
+`ensureDefaultAgencyProducts` was the widest read-time write in the app — eight
+rendered surfaces plus `/api/portal/search`. It did **two** jobs and only one of
+them ever needed to write:
+
+- it **repaired** legacy product records whose newer fields were missing;
+- it **seeded** the one default product (Website) for an agency with none.
+
+The repair is now a pure function applied in memory on every read
+(`agencyProductsForRead`), persisted only when something is being written
+anyway. The seed moved to `bootstrapAgency`, where a new tenant's other defaults
+already live. 17 read call sites switched over; `ensureDefaultAgencyProducts`
+survives at bootstrap, showcase seeding and the product write routes.
+
+**Why removing the seed from reads is safe:** it is self-extinguishing. Once it
+has run for an agency it never runs again, and it ran on the first page view —
+so every agency that has ever been *looked at* already has its product on disk,
+and the only one the change could affect is an agency that has never been
+opened, which bootstrap now covers.
+
+**Three dead guards fell out.** Three pages carried
+`if (!session.publicShowcase) ensureDefaultAgencyProducts(...)` — a call whose
+result was *discarded*, kept for its side effect, guarded so a showcase visitor
+could not trigger the write. Two of them also handed showcase visitors an
+UNREPAIRED catalogue as a side effect. All three are gone, and the tests now pin
+the stronger property: one read, no write, for everybody.
+
+**The peeling continues, and it is the point.** One cause removed exposed
+**seven** that were hiding behind it, reducing to three roots: `releaseExpiredParks`
+(already ruled — now reached by search, the agency home, the clients list and a
+client's own page), `ensureProductPortalTemplate` (the next seeder of exactly the
+same shape), and `upgradeLegacyLeadsPipeline` (a migration on render, like
+`migrateLegacyStageRefs`). All seven are declared and ruled.
+
+- Behavioural test, not just structural: a fresh agency reads an empty catalogue
+  and gets no seeded product; a broken record reads back repaired while the
+  STORED record stays broken. Probed by restoring the old behaviour — 3 fail.
+- Route/render totals: 16 and 27 → **16 and 26**.
+- Four stale pins repinned honestly, including one that matched its own
+  explanatory comment — the HR-sweep trap again.
+- Full suite **4,722 / 4,720 pass / 0 fail / 2 skip**, `tsc` clean.
+
+---
+
+## 2026-08-27 — An AI key is now a delegate, not a principal (issue #181)
+
+Ed: *"Aqua AI editor must be bound to the user's permissions to prevent
+unauthorised changes in areas!!! same for all AI scopes actually."*
+
+**The hole.** `ExternalAssistantAuth` had no user in it at all. A managed key
+carried its own modules and permissions, chosen once and checked against nothing
+afterwards — so the access kernel never ran on an external assistant request. A
+key could exceed its creator, narrowing that person changed nothing, and
+**revoking or removing them left the key working**. Issue #22 made revocation
+immediate for sessions; AI had no equivalent.
+
+**The fix.** A managed key's authority is the intersection of what it was granted
+and what its creator can still do today, resolved at the agency scope and
+**re-derived per request** — caching it into the key would reintroduce the defect
+one indirection later. All 15 modules and 6 permissions map to an element, the
+type enforces completeness, and `actions:propose` (the only writing one) needs
+`use` rather than `view`. A key whose principal is gone gets
+`403 assistant_principal_revoked`, logged.
+
+**A near-miss worth recording.** The first cut read `key.createdBy` as a user id.
+It holds an **email** — named before the access kernel existed — so it would have
+refused **every key ever minted**. A change that looks like a security fix and is
+actually an outage is worse than the hole. Keys now also store `createdByUserId`
+and resolution prefers it, falling back to a case-insensitive email lookup.
+
+**The legacy env token is refused in production** — no creator, nothing to
+intersect, unbindable by construction. → Ed: if `AQUACRM_ASSISTANT_API_TOKEN` is
+live anywhere, mint a managed key in Settings first.
+
+**The Dev Editor AI was already bound** (capability + element + path scope, #180)
+and is now pinned, including that its reply reads no repository content of its
+own — the moment it does, it needs the path scope or the librarian hole returns.
+
+- `npm run smoke:ai-actor-binding` **20/20**, driven through the real gateway.
+  An earlier version of two assertions passed while the refusal was disabled,
+  because they only matched source text; they drive it now.
+- Four fixtures minted keys for a user who never existed — impossible for a
+  signed-in create flow — and now make one.
+- Full suite **4,721 / 4,719 pass / 0 fail / 2 skip**, `tsc` clean.
+- **Still open:** the in-app AI surfaces (`/api/assistant`, Advisor radar and
+  skills, Custom AIs) gate on ROLE, not on the access kernel. Same shape, one
+  level in. Next.
+
+---
+
+## 2026-08-27 — Anyone can rearrange their own sidebar, and saved tabs are shortcuts now
+
+Ed: *"I want anyone to be able to reorder their sidebar, meaning saved tabs can
+properly integrate if dragged into it. On top of that, saving tabs needs an
+upgrade — currently it saves a page, and I'd like it to be able to save a
+specific view or specific place that I choose."* Asked what he meant, he chose
+**both** the view and the spot — *"the view so we get the right icon and the
+spot to get the right location"* — and **the account** over the browser.
+
+**The record.** `UserChromeLayout`, keyed `${agencyId}|${userId}`, holding the
+panel order, the item order per panel, and the saved tabs. One record because
+they are one thing to the person: *my nav, arranged how I want it, with my own
+shortcuts in it*. Two stores would have to agree about position.
+
+**Order, never content.** The arrangement is a list of IDS applied to whatever
+the nav legitimately contains at request time. An id the person can no longer
+see is ignored, and an item the order does not mention keeps its default place —
+so an arrangement cannot resurrect access, cannot hide a new plugin, and cannot
+freeze a nav on the day it was made. That is the only part of this that could
+have become a security problem if built the other way, and it is pinned.
+
+**Reading it never writes.** The sidebar is assembled on every authenticated
+navigation, so an `ensure…` here would have been a write on every page load in
+the app — the class #21 exists to remove. Pinned by a test.
+
+**Every workspace, because Ed said anyone.** One helper, `withPersonalChrome`,
+applied at all five places that render a sidebar (Agency, Clients, a client
+workspace, Dev Team, Team), with a sweep that fails if a sixth appears without
+it. It fails OPEN: if the layout cannot be read, you get the default nav rather
+than none.
+
+**Saved tabs.** A placement (topbar · the sidebar's Saved section · dropped into
+a nav panel), a name you can change, and an optional SPOT. Dropping one into a
+panel makes it a native nav row at that position, taking the icon of the nav item
+its href belongs under — resolved from the live nav tree by longest
+segment-boundary match, never stored, because there is one icon source in this
+app and a copy would drift. Pre-existing `localStorage` pins are adopted into the
+account once, and the old key is cleared only after the save is acknowledged.
+
+**Spots.** "Save this spot…" dims the page, outlines what you hover with its
+name, and captures a selector plus the text it carried. The text is not
+decoration: a selector alone rots the first time markup changes, and then the
+shortcut lands somewhere wrong and says nothing. With the text kept, it usually
+still finds the place, and when it cannot it says so.
+
+**Browser-accepted on an isolated lane** (3051; 3032 untouched): dragged Tools to
+the top → persisted to the account → server-rendered in that order after a full
+navigation; starred a view → account; dragged the chip into the sidebar panel →
+it became a nav row with an icon, second in the panel, after a reload; picked a
+spot with the overlay → captured with its text; landed on the tab → the spot was
+found and outlined.
+
+**The walk found two real defects, both now fixed and pinned:**
+- the store was per hook instance, so starring a page left the topbar strip empty
+  until a reload — four components, four private copies;
+- the spot restore polled for 2.4s and gave up against a cold streaming render,
+  reporting a spot as gone when the page had not arrived. It watches the DOM now,
+  with a 15s deadline, and an earlier version cancelled its own only attempt in
+  the effect cleanup.
+
+- `npm run smoke:chrome-layout` **44/44**. Full suite **4,696 / 4,694 pass /
+  0 fail / 2 skip**, `tsc` clean.
+- New: `PortalState.userChromeLayouts` (promotion disposition `leave` — personal,
+  not organisational), `/api/portal/chrome/layout` (session-derived identity
+  only; app-route count re-pinned 144 → 145).
+
+### The same day — keyboard reordering, and the touch pass
+
+Two gaps I had flagged rather than closed, now closed. Both were found by using
+the thing, not by reading it.
+
+- **The row did not move.** The order is applied on the SERVER, so a drop saved
+  the arrangement and left the row exactly where it was until the next
+  navigation. Correct, and it feels broken. `SidebarReorder` now renders its own
+  `<style>` block assigning a CSS `order` per row — declarative, so React keeps
+  it, and it never touches the DOM tree the server component owns — then calls
+  `router.refresh()` so the screen and the server stop holding different
+  opinions.
+- **Alt+ArrowUp / Alt+ArrowDown** moves the focused row. HTML5 drag and drop is
+  mouse-only, and "anyone can reorder their sidebar" cannot mean "anyone with a
+  mouse". Alt rather than a bare arrow, because arrows are how somebody scrolls
+  a nav and how assistive technology walks it. Announced through a live region
+  (*"Command Centre, position 2 of 5"*), focus follows the ROW rather than the
+  position it vacated, and the rows carry `aria-keyshortcuts` so it is
+  discoverable. Verified in the browser: moved, announced, persisted.
+- **Touch, at 375×812.** Two separate failures. The global coarse-pointer rule
+  gives every button 44px of HEIGHT, which left the saved-tab controls **16px
+  wide, side by side** — the shape that makes somebody unpin a shortcut they
+  meant to move; they are 44×44 now. And both strips revealed those controls on
+  hover, which does not exist on touch: the control was there, the right size,
+  and invisible. Shown outright on a coarse pointer. Widened in a scoped rule
+  rather than the global one, because 44px-wide icon buttons everywhere would
+  wreck dense rows that are fine as they are.
+- Zero horizontal overflow at 375. `npm run smoke:chrome-layout` **49/49**, full
+  suite **4,701 / 4,699 pass / 0 fail / 2 skip**, `tsc` clean.
+
+---
+
+## 2026-08-27 — Reading the chat no longer creates the Team channel (#21, first removal)
+
+The first fix out of the ruled inventory, and the one with the widest reach:
+`listPeopleChannels` called `ensureTeamChannel`, so an ordinary read created a
+chat channel — reachable from the agency LAYOUT through the Radar.
+
+- The team channel now has a **deterministic per-agency id**
+  (`channel_team_<agencyId>`). A read gets it **unsaved** (`teamChannelFor`);
+  the first `postPeopleMessage` persists it under the same id.
+- Determinism is what makes this safe rather than clever: the channel a reader
+  sees, selects and marks read carries the id it will have once it is real.
+- **Agencies created earlier keep their generated id** — the lookup is still by
+  `kind` and runs first, so nothing migrates and no channel is duplicated.
+- `smoke-people-workspace` **23/23**, with the read-only guarantee and the
+  legacy-id case pinned; both probed by reverting the fix.
+- The inventory chain did not vanish — it re-resolved one hop along to
+  `releaseExpiredParks` (bounded by `if (!expired.length) return`), which is
+  ruled and left as a product question. That peeling is the point: fixing one
+  makes the next visible instead of leaving it hidden behind it.
+- Full suite **4,662 / 4,660 pass / 0 fail / 2 skip**, `tsc` clean.
+
+---
+
+## 2026-08-27 — Every cause ruled, and the Radar turns out to create the Team channel (#21)
+
+Read all 21 remaining causes. The backlog is at **zero**, and the finding
+changed shape on the way.
+
+- **Six hand-overs were the noise.** Four foundation adapters,
+  `makePluginStorage` and `appConfigEditAdapter` mention writers without calling
+  them — `register({ activity: activityPort })` is not logging, and a factory
+  that returns a handle is not the handle's `set`. Declared in `PASS_THROUGH`,
+  each with a justification the test requires.
+- **Suppressing the hand-over, not its callers, is what found the real bug.**
+  Everything downstream re-derives. The Radar chain did not disappear — it
+  re-resolved onto `getCachedBusinessIssueRadar → listOperationalAlerts →
+  ownerChatAttention → chatAttentionForUser → listPeopleChannels →
+  ensureTeamChannel`. `listPeopleChannels` (`people.ts:1201`) calls it
+  **unconditionally**, so a page load can create the Team channel — and
+  `RadarQuickLookControl` is on the **agency layout**. One fix closes seven
+  entries.
+- **16 routes and 27 renders** now (from 19 and 38). 10 causes deliberate
+  (6 callbacks, 3 cron, 1 audit stamp); 15 open, mostly **idempotent
+  first-touch seeders** — worth naming precisely, because "the first load that
+  reaches this writes once" has a different fix from "every load writes".
+- Sharper than seeding: `installPlugin` provisions a module on navigation; the
+  Marketing render runs `processAutomationSweep`, the cron function; three
+  Development pages run `migrateLegacyStageRefs`, a data migration.
+- **Exactly one is still triggerable by a stranger**: the public website layout
+  can create the primary website record.
+- Probes: removing a suppression fails, a suppression naming a dead function
+  fails, a read given a hidden write fails, a deleted declaration fails.
+- Full suite **4,660 / 4,658 pass / 0 fail / 2 skip**, `tsc` clean.
+
+---
+
+## 2026-08-27 — The reads that can write are now a list, not a paragraph (issue #21)
+
+#21 said a call-graph pass found "28 GET handlers and 26 rendered files" with a
+reachable `mutate()`, and that the rest needed classifying. The list lived in
+prose written three days earlier, and prose cannot notice when the code moves.
+
+- `scripts/read-path-mutations.ts` re-derives it from source;
+  `scripts/read-path-mutation-inventory.ts` declares it with a ruling per cause;
+  `npm run smoke:read-path-mutations` fails if the two disagree — on a NEW path,
+  a CHANGED cause, or a stale line left behind after a fix.
+- **19 GET-only routes and 38 renders** today. Not like-for-like with 28/26:
+  this counts GET-*only* routes and follows `await import`.
+- **The first instrument was useless and was rebuilt.** Import-graph
+  reachability flagged 46/49 routes and 94/124 renders — everything imports
+  `@/server/tenants` eventually. The unit is now the function, not the file.
+  Four over-reaches had to go: storage hydration counted as a write; inline
+  `import("./types")` TYPE syntax counted as a dynamic import; a module's
+  dynamic imports attributed to every function in it; type declarations treated
+  as code. Three canaries in the test keep it honest.
+- **16 of 37 causes ruled**: 6 callbacks, 3 cron, 1 audit stamp, 6 open. All six
+  open ones were named in the original prose — good evidence it measures the
+  same thing. **21 unruled, each named**, with a pinned ceiling that can only
+  come down.
+- Full suite **4,659 / 4,657 pass / 0 fail / 2 skip**, `tsc` clean.
+- Docs: [issues.md](issues.md) #21 rewritten with the original kept.
+
+---
+
+## 2026-08-27 — "Archive lead" now means archive (issue #62)
+
+The control said Archive. The confirmation said *"removed from the active leads
+board"*. The service hard-deleted the lead row, its email and phone pointers and
+its index entry — no archived state, no list, no way back — and left the linked
+foundation **pipeline card** behind, holding a snapshot of the name, email and
+phone of a lead that no longer existed.
+
+- **Three verbs**: `archive` (reversible, keeps the record and the identity
+  pointers, removes the card, remembers its column), `restore` (back to the
+  column it left), `purge` (the old permanent delete, under a name that admits
+  it, and the route makes you archive first).
+- **Archived is excluded by default** — before the `!filter` shortcut, because
+  `resolveAudience()` and every count call `list()` with no argument. An
+  archived lead in a campaign audience is the failure that emails a real person.
+- **The same person coming back restores their lead** instead of the enquiry
+  landing in a record nobody can see. That is why the pointers are kept.
+- **`PipelinePort`** gained `removeLeadCards` and `columnIdForLead`; the adapter
+  sweeps by stored card id AND by stamped `leadId`, and `addLeadCard` now
+  validates a requested column against the pipeline's real columns.
+- **UI**: an Archived quick filter and view with Restore / Delete permanently,
+  honest confirmation copy, and archive/restore journey events — which also
+  fixed a fall-through that would have labelled any new event
+  *"Converted to client"*.
+- **Browser-accepted** on an isolated lane (3051; 3032 untouched): archive →
+  board empties, all counts 0 → **full reload** → Archived 1 → Restore → back in
+  **Meeting**, card re-created there. State file shows zero lead cards while
+  archived. Purge refused (400) until archived, then removed lead and card.
+  Mobile 375×812: no overflow, Restore 125×44, clean console.
+- `smoke-lead-archive` **16/16**, each assertion probed by reverting the
+  behaviour it guards. Route-count pin re-pinned 313 → 315 (`leads/restore` and
+  `leads/purge`; `undeclared` unchanged — both declare roles).
+- Full suite **4,649 / 4,647 pass / 0 fail / 2 skip**, `tsc` clean.
+- Docs: [issues.md](issues.md) #62 marked FIXED with the original finding kept.
+
+---
+
+## 2026-08-27 — "Give a dev staff one folder" is now something you can actually click
+
+The per-person half of the path scope had a route and a store but no field, so it was
+API-only — which in practice means nobody uses it. `AccessControlPanel` now offers
+**Limit to these files** beside the capability picker.
+
+- **Only on a project scope.** An agency, workspace or client scope has no files; a box
+  that invites paths which silently do nothing is worse than no box at all. The submit
+  gates on the same condition, so switching scope cannot smuggle a stale narrowing.
+- **Blank is labelled.** *"Blank gives them everything the project exposes"* — the
+  permissive default is the one that must never be inferred from an empty field.
+- **One path per line**, matching the project form. A comma-separated box would split a
+  path containing a comma in half.
+- Empty normalises to `undefined` in the store, so a new unrestricted grant fingerprints
+  identically to every grant made before any of this existed.
+- `smoke-dev-path-scope-routes` **19/19**, each of the three new pins probed by breaking
+  what it guards (rename the label, drop the project gate, drop the blank copy, drop the
+  route's string filter — one failure each, none silent).
+- Full suite **4,633 / 4,631 pass / 0 fail / 2 skip**, `tsc` clean.
+- Docs: [issues.md](issues.md) #180 amended (it is one item, not a new one).
+
+---
+
+## 2026-08-27 — The scope becomes settable, and the browser walk catches a trap
+
+The editor's project Settings tab now has an **Exposed files** control, and `mapProject`
+reports the project's own surface rather than the whole repository's — a correctness fix more
+than a leak one, since MAP needs `project.manage`, but a project declared as "the portal
+files" that answers with the whole repository is describing something other than itself.
+
+**Widening is gated, narrowing is free.** Adding paths outside the current scope — or clearing
+the box, which exposes everything — requires `project.connection.manage`, the same capability
+as pointing the project at a different repository. Narrowing costs nothing, deliberately:
+somebody tightening a scope in a hurry must never be stopped by a permission check.
+
+**Verified on an isolated lane, and it earned its keep again.** A project scoped to
+`src/app/portal` + `src/lib/portal` shows **332 files instead of 2,631**, every one inside the
+scope, and an out-of-scope read answers `403 path_out_of_scope` naming the path.
+
+The trap it caught: paths are relative to the EDITOR's root (`portal/`), not the git
+repository's. My first scope through the real API used `portal/src/...`, matched nothing, and
+produced an **empty file tree with no error** — which is indistinguishable from a broken
+editor, and would have cost Ed the same confusion with a placeholder that told him to write it
+that way. The placeholder and a note in the module now show the correct form.
+
+That is twice today that a browser walk found something no test would have: the redirect loop
+in Phase 18, and a scope that silently matches nothing here. Both were shaped the same way —
+each individual piece correct, the composition wrong.
+
+[issues #180](issues.md) is now closed.
+
+Suite: **4,611 / 4,609 pass / 0 fail / 2 skip**.
+
+## 2026-08-27 — The other three doors, and the two that mattered most
+
+The file route was locked down first; three other paths read the same tree. All four now take
+the same resolved scope.
+
+**The searches mattered more than the writes.** `dev/source-edit`'s fall-through action is a
+repository-wide TEXT search that returns matched lines together with their file paths, and the
+librarian answers questions WITH file paths. Guarding only the file reads would have left
+somebody narrowed to one folder able to ask "where is the Stripe key configured?" — or search
+for the secret's name outright — and read it out of the results without ever opening a file
+they were allowed to open. That is a more direct leak than the write path, and it is the one
+that would have survived a review of "did we guard the editor?".
+
+Both filter now, and both **say** the answer is partial. A trimmed result that stays quiet
+reads as "it is not there", which sends the reader hunting for a bug instead of asking for
+access — and, worse, tells them something false about the repository.
+
+`repo-write`'s guard sits once BEFORE the action dispatch rather than inside `save` and
+`create` separately, so the next action that takes a path is not born unguarded.
+
+**Still open:** no UI for setting either scope — they are set through the API today — and
+`mapProject` reads the tree on its own path. [issues #180](issues.md).
+
+Suite: **4,604 / 4,602 pass / 0 fail / 2 skip**.
+
+## 2026-08-27 — "one folder for this dev" now works end to end
+
+The second half of Ed's ask: *"I'd love to just give a dev staff access to one folder, or
+maybe even one file, or even multiple files in folders."*
+
+`AccessGrant.allowedPaths` narrows a person within the project's surface, and
+`requireDevProjectAccess` resolves ONE effective answer that every file boundary reads,
+rather than four routes each recomputing the same rule slightly differently.
+
+**The two operations are different, and that is the whole design.** A person's own grants
+UNION with each other — two grants, two folders. That union then INTERSECTS the project's
+surface, so a grant can only ever narrow. Getting them the same way round would either hand
+somebody one of their two folders or let a grant reach past what the project exposes;
+swapping intersect for union breaks eight assertions, which is how it stays honest rather
+than being a claim in a comment.
+
+An unscoped grant contributes no limit, so the ordinary case is unchanged. `ownerBaseline`
+skips the grant half — an owner is not narrowed by grants they never needed — but still obeys
+the PROJECT's surface, because "this project is the portal files" is a statement about the
+project rather than about who is asking.
+
+**One detail that would have been a quiet bug:** the duplicate-grant fingerprint had to learn
+about `allowedPaths`. Without it, a second differently-scoped grant looked like a duplicate of
+the first and was silently returned — so granting somebody a second folder would have appeared
+to work while changing nothing.
+
+Also fixed: two route pins I wrote an hour earlier went stale when the route moved from the
+project's raw field to the resolved scope — strictly stronger, and exactly the "pinned the
+expression, not the property" pattern this session has been correcting all day. Repinned to
+the property.
+
+**Still not wired:** `dev/repo-write`, `dev/source-edit`, the librarian and `mapProject` read
+the tree by their own paths, and there is no UI for setting either scope yet — both are set
+through the API today. [issues #180](issues.md).
+
+Suite: **4,599 / 4,597 pass / 0 fail / 2 skip**.
+
+## 2026-08-27 — Ed: the editor stops handing over the whole repository
+
+Ed: *"the internal editor needs to be ever so slightly different, with aquaCRM repo locked
+down to this portal's files as we can't expose the whole repo in Fulfilment … I'd love to
+just give a dev staff access to one folder, or maybe even one file, or even multiple files
+in folders."*
+
+He remembered building something like this — there is nothing. `site-editor/files` served
+from `process.cwd()` and confined only against traversal, so a project pointed at a large
+shared repository handed the whole thing to anyone who could open the editor.
+
+**The two halves of that sentence are different concerns, and both are real.** The project
+declares its maximum surface — a property of the project, applying to everyone. A grant may
+narrow further within it — a property of the person. They **intersect, never union**, which
+is the same rule `_pageScope.ts` already uses for surfaces and roles: naming a path the
+project does not expose does not thereby expose it, so widening always means touching the
+thing an owner reviews.
+
+**What is built:** the matcher and its intersection (22 tests), `DevProject.allowedPaths`,
+and enforcement on the file route's read, **write**, and both tree listings (8 tests).
+
+Three rules are worth knowing because each is a way this class of guard usually fails. A
+folder matches on **segment boundaries**, so `src/app` never covers `src/application.ts` — a
+naive `startsWith` says yes to both. Traversal is **refused rather than sanitised**, because
+quietly rewriting `a/../../etc` into something valid is how an allowlist approves a path
+nobody asked for. And an empty scope means **unrestricted** — nothing changes until a scope
+is set, since default-deny would have locked every existing project out of its own editor on
+deploy — which then makes an empty *intersection* a trap, so it deliberately does not reuse
+that representation.
+
+Two details that are easy to get wrong and are pinned. The write path resolves its project
+separately from the read path, so guarding reads alone would leave a scoped project able to
+write anywhere. And `saveDevProject` rebuilds its record field by field with **no spread**,
+so an omitted field is dropped — for this one, an unrelated rename would have silently
+unlocked the whole repository.
+
+**Not done, and it is the half Ed asked for second:** paths on an access GRANT, so a dev
+staffer gets one folder rather than the project's whole surface. The intersection is written
+and tested; what remains is the field on `AccessGrant`, resolving it in
+`requireDevProjectAccess`, and the UI for both scopes. `dev/repo-write`, `dev/source-edit`,
+the librarian and `mapProject` also still read the tree by their own paths.
+[issues #180](issues.md).
+
+Suite: **4,587 / 4,585 pass / 0 fail / 2 skip**.
+
+## 2026-08-27 — Ed: a product portal or template can now be drafted with no client
+
+Ed hit a wall: *"The editor needs a client record to supply preview data for this project …
+all the products ones should just use a demo … this way I can make draft things."*
+
+The cause is a reasonable design with one sharp edge. Template preview is not a separate
+renderer — the studio previews a template by rendering it THROUGH a client, so the layout is
+seen with real shapes in it rather than as an abstract wireframe. With no clients on the
+agency there was nothing to render through, so `DevEditor` refused to open at all. A product
+portal template, which belongs to a product and to no client, could not be drafted until
+somebody created a real client first.
+
+The studio now always offers a stand-in, and the preview route resolves its reserved id. A
+built client is still the default when one exists — the sample is a floor, not a preference —
+and it always sits last in the list.
+
+**Nothing is created**, which was the main design decision. Making a real client record would
+work and would also put a fake client into the client list, counts, KPIs, Radar and finance,
+with every one of those surfaces then needing to learn to exclude it. The stand-in is
+synthesised for one render, named "Sample Client (preview only)" so nobody reads its numbers
+as real, and carries portal metadata so the preview shows a populated layout instead of an
+empty shell.
+
+**The first attempt 404'd, and the reason is worth keeping.** The reserved id used a colon,
+and Next hands a dynamic route segment through **without decoding it** — so
+`/client-preview/sample-preview:milesymedia` arrived as `sample-preview%3Amilesymedia` and
+matched nothing. Found by instrumenting the route rather than reasoning at it. The separator
+is now `__`, which needs no encoding at all, and the reader tolerates an encoded id anyway;
+both halves are pinned so the next id to travel through a path does not rediscover it.
+
+Browser-verified on an isolated lane with **zero clients** (3048; 3032 untouched): the editor
+opens, the preview renders *"PREPARED FOR Sample Client (preview only)"* with the full section
+set, and switching to Template scope previews Master · Stunning Standard against the same
+stand-in.
+
+Suite: **4,557 / 4,555 pass / 0 fail / 2 skip**.
+
+- Source: new `lib/server/clients/samplePreviewClient.ts`; `client-preview` route,
+  `portalStudio.ts`, `DevEditor.tsx`.
+- Tests: new `smoke-template-preview-sample` (11).
+- Docs: [issues.md](issues.md) #179.
+
+## 2026-08-27 — Membership plans: a paying member who receives nothing and appears nowhere
+
+The other half of the Membership/Affiliate retirement item, and the most serious of the three
+retirement gaps measured today. The roadmap says *"Plan DELETE leaves a subscriber row but
+hides it from admin lists and removes benefits without reconciling billing."* That is true,
+and "hides" understates the mechanism.
+
+**`SubscriptionService.list()` does not walk subscriptions. It walks the surviving PLANS** and
+collects each one's member set. Delete the plan and the only path to its members is gone — the
+subscription rows and the `by-plan` set both still exist, and nothing can reach them.
+
+Three things then happen at once, and the third conceals the first two:
+
+1. the subscription row survives with its `stripeSubscriptionId` intact, so external billing
+   is untouched and **the member keeps paying**;
+2. benefits resolve through `plans.get(sub.planId)`, now null, so the member **silently loses
+   what they pay for**;
+3. **no admin list can show them**, so nobody can find out.
+
+All three are asserted, along with the contrast that makes the case: `PlanService.archive` —
+the documented ordinary path — keeps the member visible AND billable. The safe route already
+exists. Hard delete is the one with no policy behind it.
+
+The inventory reports `billableSubscribers` and `wouldBecomeUnreachable` separately, because
+"one person is on this plan" and "one person is on this plan, still being charged, and about
+to vanish from every list" are different sentences, and only the second one stops somebody
+clicking delete.
+
+That completes the measurement half of both retirement items. What remains in each is the
+policy, and both have money in them: [issues #177](issues.md) and
+[issues #178](issues.md).
+
+Suite: **4,546 / 4,544 pass / 0 fail / 2 skip**.
+
+- Source: new `built-ins/modules/memberships/src/server/dependencies.ts`.
+- Tests: new `smoke-membership-plan-dependencies` (5).
+- Docs: [issues.md](issues.md) #178.
+
+## 2026-08-27 — Affiliate retirement: same shape, but this one has money in it
+
+The sibling of the SOP inventory, and the roadmap's claim verified rather than repeated:
+*"Affiliate DELETE leaves active codes, attributions and payouts tied to a missing parent."*
+It does. `AffiliateService.delete` removes the affiliate row, the by-user reverse lookup, the
+enrollment claim and the index entry, and touches the other three not at all.
+
+**What makes this different from an untidy id is that two of the three orphans are
+financial.** An attribution records that somebody earned commission; a payout records that
+money is owed or was sent. Orphaning them detaches money from the person it belongs to — and
+because the surfaces that would show it filter on an affiliate who no longer resolves, it
+disappears quietly rather than erroring. The referral code is sharp in a different way: it
+stays **active**, so a live link keeps attributing sales to somebody who is gone.
+
+The inventory reports `hasFinancialDependants` and `activeReferralCodes` separately, because
+those are the two facts that actually change the decision — "three things are attached" and
+"three things are attached, two of them are money and one is a live link" are different
+conversations. It composes the services' own `affiliateId` filters rather than walking
+storage, so it cannot drift from what the module itself considers to belong to an affiliate.
+
+As with SOPs, the last test RECORDS today's behaviour instead of blessing it. The policy —
+use the existing archive/removed states for ordinary retirement, define an explicit
+exceptional purge that reconciles billing and payout state — is Ed's, and it has money in it.
+[issues #177](issues.md).
+
+Suite: **4,541 / 4,539 pass / 0 fail / 2 skip**.
+
+- Source: new `built-ins/modules/affiliates/src/server/dependencies.ts`.
+- Tests: new `smoke-affiliate-dependencies` (6); blinding any branch fires.
+- Docs: [issues.md](issues.md) #177.
+
+## 2026-08-27 — SOP retirement: the question before the decision
+
+The roadmap's dependency-safe-sop-retirement item is M-sized and carries a real product
+decision inside it — archive, tombstone, reassign or detach. That decision is Ed's, and
+inventing one would be worse than the gap. But the item names a prerequisite that needs no
+decision at all: *"Build a dependency inventory used by both confirmation UI and the server
+command."* That is now built.
+
+`deleteSopRecord` is literally `delete state.sops[id]` and nothing else. Nine reference sites
+across seven owning types keep the id — and **four of them hide inside a parent record**: a
+task's checklist item, a template's step, a product's internal process step, and a per-client
+variation living in client metadata rather than a collection. Those four are why a
+per-collection sweep looks complete and is not.
+
+**The failure mode is silence, which is what makes it worth doing properly.** A dangling SOP
+id raises nothing. The surfaces holding it render one fewer step, so an operator's checklist
+quietly gets shorter and nobody is told a required procedure went missing.
+
+`sopDependencies.ts` answers the one question every candidate policy has to ask first — what
+would break? — so the confirmation UI and the server command ask it of one implementation. It
+decides nothing else, deliberately.
+
+Two things about the test are worth keeping. It proves an **unreferenced** SOP comes back
+empty, because a count is only meaningful if something can produce zero. And its last test
+RECORDS what deletion does today rather than asserting it is right — when a policy lands,
+that is where the new rule gets written, instead of someone discovering the old assertion and
+wondering whether stranding nine references was intended.
+
+The fixture also caught itself: it seeded `metadata.productVariations` while the reader uses
+`clientProductVariations`, so one site silently seeded nothing and the fixture — not the
+module — was briefly the thing under test. Found because the count came back 8 of 9 and I
+chased the discrepancy instead of adjusting the expectation.
+
+Suite: **4,535 / 4,533 pass / 0 fail / 2 skip**.
+
+- Source: new `engines/sop/server/sopDependencies.ts`.
+- Tests: new `smoke-sop-dependencies` (6); blinding any one site drops the total and fires.
+- Docs: [issues.md](issues.md) #176 — still open: the policy, and wiring the inventory into
+  the confirmation UI and delete command.
+
+## 2026-08-27 — Item 6: erasure was leaving prose that named the erased client
+
+Item 6's residue names *"unresolved … references … including nested assignments … and parent
+deletion"*. Rather than take that list at face value, I picked the one operation where a
+leftover reference is a broken promise rather than untidiness — client erasure — and measured
+what actually survives.
+
+`eraseClientCompletely` sweeps every collection and deletes any record carrying a **top-level
+`clientId`**. That is a well-built generic cascade, and it has a blind spot: an access GRANT
+and an access REQUEST have no such field. They name the client through
+`scope: { kind: "client", id }`. Both survived.
+
+**The id surviving would have been untidy. What actually survived was prose.** Both records
+carry a free-text `reason` a person wrote, and that is exactly where a client gets named:
+
+    grant.reason   = "Granted for Doomed Ltd onboarding"
+    request.reason = "I need access to Doomed Ltd's files for the March audit"
+
+The operation's own audit line records that it "Names no personal data", and the erasure code
+comments state that "only the random clientId token survives, never the person". Neither was
+true.
+
+Fixed with one shared predicate used by all three passes — arrays, records, and the retained
+count — so they cannot drift apart. It matches `clientId`, `scope.clientId`, and
+`scope.kind === "client" && scope.id`.
+
+**The assertion worth copying** is the blunt one, because it needed nobody to guess which
+collection to inspect: after an erasure, the client's NAME must not appear anywhere in
+serialised state. That would have caught this on the day it was introduced. A fifth test
+proves the fix did not quietly become "delete more than asked" — another client's grant
+survives untouched.
+
+Suite green across it: **4,529 / 4,527 pass / 0 fail / 2 skip**.
+
+- Source: `server/clientErasure.ts` (`recordNamesClient`).
+- Tests: new `smoke-client-erasure-references` (5); all four positives verified by reverting
+  the matcher and watching them fail with the right messages.
+- Docs: [issues.md](issues.md) #175.
+
+## 2026-08-27 — Item 5: the release access matrix, and what it caught in itself
+
+The last unstarted item in the continuation order is now written and green: two people, two
+projects, two clients and two environments driven through the real kernel —
+create role → grant → request → narrow/approve/deny/cancel/revoke — with every assertion
+answered by `resolveAccess`, the same function every gate in the application consults.
+
+**Every positive is paired with the negative a merely-permissive kernel would pass**: the
+other person, the other project, the other environment, the other client, and the same
+person after revocation. That pairing is the whole design, and it was verified rather than
+asserted: stubbing the kernel to answer `true` fails eleven of the tests, stubbing it to
+answer `false` fails six. Neither degenerate kernel gets through, which is the only evidence
+that a matrix like this means anything.
+
+**Hidden/View/Use/Manage are proven as reads and WRITES**, not only as capability lookups. A
+correct resolver is worth nothing if the surfaces ignore it, and that gap is invisible to a
+resolver-only test — so the levels are driven against a real gated route
+(`POST api/tenants/client-notes`, which requires `client.record` at use), and the store is
+checked afterwards so a 200 cannot quietly mean "answered without writing".
+
+**The matrix caught a defect in itself, which is worth recording.** Two helper loops filtered
+grants on `grant.status === "active"`. `AccessGrant` has no `status` field — it records
+revocation as `revokedAt` — so the comparison was always false and both loops were silent
+no-ops: grants accumulated across tests and several assertions were passing for the wrong
+reason. It was found by probing a failing expectation instead of adjusting it, and the same
+probe confirmed the kernel had been right all along.
+
+**And it surfaced one thing for Ed — [issues #174](issues.md).** Revoking an identity's LAST
+grant returns them to un-migrated legacy access, so revocation WIDENS what they can reach
+instead of narrowing it. That is the documented opt-in migration rule followed to its
+conclusion rather than a defect, but "revoke" widening access is the opposite of what the
+word suggests: an operator removing someone's final grant to lock them down achieves the
+reverse. Proven end-to-end — the same route answers 403 while governed and 200 once the last
+grant is gone. Pinned exactly as it behaves today, and left as a decision.
+
+Suite: **4,524 / 4,522 pass / 0 fail / 2 skip**.
+
+- Tests: new `smoke-release-access-matrix` (22).
+- Docs: [issues.md](issues.md) #174; item 5 marked done in CLAUDE.md.
+
+## 2026-08-27 — Item 4 finished: most of the "not converged" wording was stale
+
+The second half of application-wide parity read *"HR custom-role/client-assignment records
+and freelancer job policies have not all converged."* Auditing it rather than believing it
+turned out to matter: People already consumes the evaluator thoroughly — `staff.people`,
+`staff.pay`, `staff.schedule`, `staff.training`, `workspace.settings` — and there are no
+`customRole` or client-assignment records left to converge at all. That sentence had been
+true once and outlived its fix, which is the trap the docs' own warning box describes.
+
+So the honest version of the task was a sweep: every HR/freelancer/customer route, checked
+for whether it decides access without the evaluator. Twelve did. **Nine of those are
+legitimate and must stay that way** — public signup has no session to evaluate; the client
+portal's own routes act on the caller's OWN account, scoped by their session's `clientId`;
+and the contractor's surfaces answer to `FreelancerAccessConfig`, which is the named
+alternative authority the plan explicitly says to preserve rather than override.
+
+**Three were genuinely competing**, all agency-side and all deciding on a broad role while
+the rest of People decided on elements: the contractor roster and identity provisioning, the
+policy that decides what every contractor sees (including whether a client is named to them
+at all), and an applicant's CV — which every sibling application action already gated on
+`staff.people`. Each joined the element map People already used rather than inventing a
+parallel vocabulary, since a parallel vocabulary is how competing policies start.
+
+**The tripwire was weaker than it looked, and the probe caught it.** The sweep test matched
+the *name* `requireCurrentWorkspaceElementAccess` — which appears in the import line. Deleting
+a route's gate and leaving the import behind kept it green over a route that no longer gated
+anything. It now strips imports and requires a CALL, and re-probing makes both the specific
+pin and the sweep fire, with the sweep naming the offending file. The exemption list is also
+checked for rot: an entry naming a route that no longer exists, or that has since gained a
+real gate, fails.
+
+That closes item 4. Suite: **4,502 / 4,500 pass / 0 fail / 2 skip**.
+
+- Source: `portal/freelancers`, `portal/freelancer-access`, `portal/people/cv`.
+- Tests: new `smoke-hr-policy-convergence` (7), pinning both what must consume the evaluator
+  and what must deliberately not.
+- Docs: [issues.md](issues.md) #173; item 4 marked complete in CLAUDE.md.
+
+## 2026-08-27 — Item 4: the three records that name a client now answer for it
+
+The checklist's last application-wide parity gap, and it was open for a good reason:
+*"freelancer-job and generic task/task-template client associations remain genuinely
+unclassified."*
+
+All three are agency work that merely names a client, and all three were already gated as
+agency work — `workspace.actions`, an agency role, People's own elements. What none of them
+had was a rule about the one field that crosses the boundary. The task-template route was
+the starkest: an agency role was the entire gate, so a governed identity restricted away
+from a client could instantiate a whole task sequence against them.
+
+**Why nobody had classified them.** A generic task belongs to no single client element — it
+might be about money, delivery or a conversation — and picking one would have read as
+enforced while guarding the wrong thing. That is a real difficulty, not an oversight.
+
+**What settles it** is noticing that a generic association does not need the element that
+owns the SUBJECT; it needs the one that says *may you see this client at all*. That element
+exists and is not a guess: `client.overview`, the client workspace's landing tab and the
+first thing someone loses when restricted away from a client. A freelancer job is not
+generic — it is delivery work for a named client — so it takes `client.fulfilment`.
+
+`clientAssociationElement.ts` carries the classification and, mirroring
+`pluginClientElement.ts`, an explicit **alternative-authority** list so "governed elsewhere"
+cannot be confused with "nobody looked". The one the checklist specifically asks to preserve
+is the contractor's own view of their job: that stays with `FreelancerAccessConfig`, because
+a freelancer is not an agency identity and evaluating them as one would be exactly the
+"wrong client gate" the plan warns about.
+
+Three details worth keeping. PATCH checks **both** the client an Action is on now and the one
+it is moving to — checking only the destination would let someone detach a task from a client
+they cannot see. The list endpoint filters rather than throws, resolving the actor **once**
+instead of per row. And the freelancer job keeps tenancy first, element second, so a
+cross-tenant id still answers not-found rather than 403 ([issues #168](issues.md)'s ordering
+rule applied deliberately rather than by accident).
+
+Suite stayed green across three new access gates: **4,495 / 4,493 pass / 0 fail / 2 skip**.
+
+- Source: new `lib/server/access/clientAssociationElement.ts`; `tasks`, `tasks/templates`
+  and `people` routes.
+- Tests: new `smoke-client-association-element` (13), enforcement verified by removing a
+  gate and watching it fail.
+- Docs: [issues.md](issues.md) #172.
+
+## 2026-08-27 — The Phase 18 browser walk, and why it was worth doing
+
+A real `client-owner` was driven through the portal on an isolated `sandbox:fork` lane
+(port 3047; 3032 untouched throughout). It found a bug the whole test suite had missed,
+which is the argument for browser acceptance in one example.
+
+**An infinite redirect loop locked a new client out of their own portal.** The browser
+showed "Preparing your workspace…" for ever; the dev log showed
+`/portal → /portal/customer → /setup → /portal` cycling about three times a second.
+Three gates, each correct on its own: `/portal` sends a client role to their portal, the
+portal layout sends an unfinished account to `/setup`, and `/setup` sent everything that
+was not `end-customer` back to `/portal`. I had already widened two of the three when
+closing the lockout — and the third was the one that closed the circle.
+[issues #171](issues.md).
+
+**The regression walks the redirect graph, not the gates.** The first version of it
+passed against the live bug, because it treated `/portal/customer` as terminal — and it
+is the customer LAYOUT, not the page, that makes the middle hop. Driving the layout
+reproduces the loop and prints the chain. Per-gate assertions cannot catch this class,
+and three individually-green gates adding up to a product nobody can log into is worth
+remembering.
+
+**What the walk proved.** `/portal` → `/portal/customer` for a real `client-owner`
+session, rendering *"PRIVATE CLIENT HOME · Phase18 Client Ltd · Everything, beautifully
+in one place"*. The profile menu reads **"Client owner"**, not "End customer", and its
+links point at `/portal/customer/account` and `/portal/customer/support`. The setup API
+answers a client-owner with a 400 on password validation — through the role gate — while
+an agency session still gets 403 and is bounced off `/setup` without looping. Seven
+viewports (1920×1080, 1280×800, 1024×768, 768×1024, 812×375, 375×812, 320×568) plus 200%
+zoom equivalents down to 188×406: **zero horizontal overflow everywhere**, no console
+errors, every network request 200.
+
+**Stated honestly, two things the walk could NOT prove.** Keyboard *activation* is
+unprovable in this harness: a freshly-created plain `<button onclick>` records zero
+activations from a synthetic Enter, so the harness dispatches key events without the
+browser's native default action. Tab order and focus rings ARE proven. And the repeat
+in-place navigation stall is the known in-pane HMR issue ([issues #162](issues.md)) —
+fresh tabs render fine and the server returns 200 with content throughout.
+
+Also folded in: `/dev?client=<id>` now signs in as the client's real user whatever their
+role, instead of insisting on `end-customer`. Its own comment had deferred that — *"a real
+question, but not this route's to answer"* — on the grounds that the portal layout required
+the role. Phase 18 answered it.
+
+- Source: `setup/page.tsx` (the loop), `dev/route.ts`.
+- Tests: `smoke-client-portal-placement` 9 → 17, including the redirect-graph walk.
+
+## 2026-08-27 — Phase 18: a client now lands in their own portal
+
+With the suite green, the documented continuation order was unblocked. Item 2 still
+waits on Ed's GitHub credentials, so this is item 3 — the placement Ed settled: *"for
+clients anything they touch is inside their portal"*, and *"existing customer portal
+actually meant to be"*.
+
+`/portal` no longer sends `client-owner` / `client-staff` into `/portal/clients/<id>`,
+the internal agency-side workspace. They land on `/portal/customer`, whose host gate now
+names one list — `CUSTOMER_PORTAL_ROLES` — used by all seven gates that previously wrote
+`requireRole("end-customer")` by hand.
+
+**The interesting part is what was deliberately NOT widened.** Plugin pages on the
+customer surface are capped by `SURFACE_ROLE_CEILING.customer`, still `["end-customer"]`.
+That cap is load-bearing in a way that is easy to miss: `effectivePageRoles` falls back to
+the WHOLE ceiling for a page that declares no roles, so adding the client roles there
+would have opened every unclassified customer plugin page at once. Those pages are shopper
+surfaces — orders, profile, membership — belonging to the client's own customers rather
+than to the client. The regression walks every real plugin page and checks the outcome
+rather than trusting the constant, and it fails loudly if someone "finishes the job" by
+widening the ceiling.
+
+**Two things the change would have broken, caught before they shipped.** The layout sends
+anyone with no `welcomeCompletedAt` to `/setup`, and that route refused everything that
+was not `end-customer` — so a fresh client would have been redirected to setup, refused
+there, and left with no password and no way into their own portal. The same shape was in
+the connections route. Both now serve the portal's audience. Separately, the portal chrome
+hardcoded `role="end-customer"` on the profile menu; harmless while that was the only role
+served, and a lie the moment client roles moved in, telling a `client-owner` they were an
+"End customer". The chrome passes the real role, and the two links that role drove now
+follow the audience instead, so an end-customer's behaviour is unchanged.
+
+Both halves of the change were verified by breaking them: removing the redirect puts
+`client-owner` back on `/portal/clients/<id>`, and widening the ceiling trips the
+plugin-page walk. Four existing tests pinned the old expressions and were re-pinned to the
+properties they were protecting.
+
+**Still open on this item:** the browser walk. The note that recorded Ed's decision said
+this deserves *"its own scoped change, with its own browser matrix"* — the code half is
+done and proven by tests; a real client session driven through the portal in a browser is
+not, and needs a `sandbox:fork` lane rather than port 3032.
+
+- Source: `portal/page.tsx`, `server/types.ts` (`CUSTOMER_PORTAL_ROLES`), the seven
+  customer-portal gates, `customer/setup` + `customer/connections` routes,
+  `_CustomerPortalChrome.tsx`, `ProfileMenu.tsx`.
+- Tests: new `smoke-client-portal-placement` (9); re-pinned `smoke-nav-audit`,
+  `smoke-end-customer-portal`, `smoke-portal-connections`.
+
+## 2026-08-27 — The tail: two security enumerations re-audited, and a date bug in Finance
+
+The last stretch of triage was the interesting one, because the remaining failures were
+thin and individually reasoned rather than one repeated cause. Three things are worth
+carrying forward.
+
+**A real defect, and it was in money.** `dateInputValue(undefined)` returned **today**.
+It delegates to `businessCalendarDate`, whose `value` parameter defaults to `Date.now()`
+— correct for callers like `addBusinessCalendarDays(7)` that mean "seven days from
+today", wrong for a function that formats a value which is supposed to already exist,
+because a JavaScript default fires on `undefined`. Of its 34 call sites most are Finance:
+a date input with no value silently pre-filled today, so the next save wrote a date
+nobody chose, and the invoice HTML export printed today as the "Issued" date for an
+invoice that had never been issued. [issues #169](issues.md).
+
+**Two security enumerations were stale, and one of them nearly fooled me.**
+`smoke-app-route-tenancy` reported eighteen routes as running with no session at all.
+They all gate — through the access kernel (`requireCurrentAccessActor`,
+`requireDevProjectAccess`, `requireCurrentWorkspaceElementAccess`), a vocabulary the
+sweep's regex predated. That is the worst way for a security enumeration to be wrong: it
+names real routes as unguarded, so the next reader either panics or stops believing the
+list. All eighteen were checked by hand before the regex was widened, and the sweep now
+proves what it claims — 144 routes, **zero** taking an agency from the request, **zero**
+scoping a client by the request alone.
+
+The near-miss is worth admitting. On `smoke-plugin-api-host-gates` I re-pinned the route
+count and wrote that the newcomer was "confirmed by elimination" because the undeclared
+and public counts were unchanged. They were not unchanged — the assertions short-circuit,
+so I had never seen the second one. Undeclared had moved from 133 to 135. The counts were
+corrected only after running the ceiling check separately over all 128 undeclared
+non-public routes: **zero are open**. The lesson is small and general — an assertion you
+did not watch run is not evidence.
+
+**A test that passes without running is worse than one that fails.** Two client-render
+files could not load `react-dom/server` under the suite's `--conditions react-server`.
+The tempting fix — move them out of `smoke:all` — makes a test nobody runs look identical
+to a test that passes. They now re-exec themselves in a child with the condition stripped
+(`scripts/client-render-condition.ts`). The first version of that guard silently reported
+`ok` for a file whose assertions never executed; it was caught by deliberately breaking an
+assertion and checking the failure propagated, which it now does.
+
+Also in this stretch: the plugin-route ceiling re-verified, the Dev Team founder gate
+re-pinned to the decision rather than one of its two names, the editor write path proven
+STRICTER than its old pin claimed (it dropped `agency-manager` and added an explicit Dev
+Mode requirement), a raw NUL byte removed from `site-editor/files/route.ts` that made the
+file read as binary to every grep-based tool, and the portal parity baseline re-captured
+— but only after naming both intended differences and checking that the new `—` fires
+solely when a client has no invoices at all, so a genuine £0 still shows as £0.
+
+One question is left for Ed rather than answered: the Radar probe cron is now daily
+instead of every ten minutes, so Deep and Infra evidence can be up to 24 hours stale while
+the UI presents it like fresh evidence. `vercel.json` was left alone — the cadence is a
+hosting decision. [issues #170](issues.md).
+
+- Source: `formatDateTime.ts`, `site-editor/files/route.ts`, `fulfilment/page.tsx`,
+  `SettingsTabs.tsx`.
+- Tests: 15 files re-pinned to properties rather than expressions; new
+  `scripts/client-render-condition.ts`.
+- Docs: [issues.md](issues.md) #169 and #170.
+
+## 2026-08-27 — 76 → 28, and the single biggest cause was our own security fix working
+
+The whole-suite count is **4,464 tests / 4,434 pass / 28 fail / 2 skip**, down from 76
+failures when this triage started, with **zero** new failures introduced at any point —
+every run diffed against the previous failure list by test name, never by count. Five
+clusters are now completely green: Finance (19 files, 248 tests), Dev Mode (48),
+close-deal (10), product-stage convergence (8) and People validity (5).
+
+The pattern worth carrying forward is what most of those failures turned out to be. The
+largest single cause, across four files, was **the central fresh-session boundary doing
+exactly its job**. Fixtures had been minting signed cookies for users like
+`user_3`, `product-stage-user-1` and `people-validity-owner` — subjects that never
+existed. Before that boundary landed, `getSession()` trusted a well-signed cookie's
+claims; now it re-resolves the user on every call and refuses one whose subject is
+absent, whose role has changed, or whose `sessionRev` is stale. Those fixtures had been
+relying on the very hole the P0 work closed, so they 401'd. The fix is not to weaken
+anything: it is for each fixture to seed the person it claims to be, which is also what
+makes those tests mean something.
+
+Second was **two files carrying their own `next/headers` stub**, each written on the
+stated grounds that nothing in the repo rigged Next's request async-context. That had
+stopped being true, and a module stub was never equivalent anyway: `getSession()` also
+resolves the data realm from the real request store, so the stub answered the cookie
+question and silently failed the rest. Both now use the shared rig.
+
+Where this leaves the remaining 28: they are spread thin — no cluster larger than two —
+across showcase mode, the editor guards, Dev Team gates, app-route tenancy source pins,
+Postgres dual-read and a handful of one-offs. That thinness is itself the result: the
+big, systematic causes are gone, and what is left has to be read one at a time.
+
+- Tests: `smoke-product-stage-convergence` (8), `smoke-people-domain-validity` (5).
+- Docs: the suite figure in [CLAUDE.md](../../CLAUDE.md) and
+  [checklist.md](checklist.md) now reads 28, and the consolidation was regenerated.
+
+## 2026-08-27 — Three more clusters green, and the fresh-session boundary doing its job
+
+Dev Mode and close-deal are now fully green alongside Finance. Between them that is
+26 failures cleared today, and the causes were worth knowing.
+
+**Dev Mode (8 → 0).** Two classes, both consequences of the 26 August sandbox
+consolidation rather than defects. The return path — who and where to restore on exit —
+moved into the signed sandbox envelope, so assertions naming the top-level `devReturn*`
+fields were reading a field the mint no longer writes. They now read the return path
+through small helpers that accept either carrier, because the guarantee under test was
+never a field name: it is that an inspection knows the exact person to restore and that
+exit clears it. The second class is realm scoping. The demo tenant moved into its own
+data realm, so `getUser(DEMO_FREELANCER_EMAIL)` run bare looks in the live blob and finds
+nothing; those bodies now run inside the realm named by the app's own signed cookie.
+
+**close-deal (7 → 0), and the more interesting one.** This file carried its own
+`next/headers` stub, written on the stated grounds that "nothing in this repo rigs Next's
+request async-context for tests". That had stopped being true, and a module stub is not a
+request scope: `getSession()` now also resolves the session's live user and the data realm
+from the real request store, so the stub answered the cookie question and silently failed
+the realm one. It now uses the shared rig — one home, not two.
+
+Underneath that sat the real reason every authenticated case 401'd: the fixture minted
+sessions for `user_<n>`, a user that never existed. That is **the central fresh-session
+boundary working exactly as intended** — a signed cookie whose subject is absent, whose
+role has changed, or whose `sessionRev` is stale is refused. The fixture now seeds the
+person it claims to be.
+
+The last close-deal failure was a genuine design question rather than a stale pin. With
+the ceiling fix in place the element gate refused a cross-tenant client before the route
+reached its own `getClientForAgency` check, turning a documented 404 "Client not found"
+into a 403. The right answer keeps both properties: **tenancy first, permission second**.
+An outsider still gets "Client not found" — identical to the answer for an id that does
+not exist, so nothing is confirmed — and a colleague inside the agency who lacks
+`client.commercial` gets the 403 they should.
+
+That ordering turns out to be a class: **28 other routes are still gate-first** and now
+answer 403 where the house says 404. Nothing is opened and nothing is disclosed, so it is
+logged as [issues #168](issues.md) rather than swept along with a security fix — changing
+the answer on 28 live surfaces deserves its own pass and its own suite run.
+
+- Source: `api/tenants/close-deal/route.ts` (gate ordering).
+- Tests: `smoke-dev-mode` (48), `smoke-close-deal-route` (10).
+- Docs: [issues.md](issues.md) #168.
+
+## 2026-08-27 — Finance triage: the cluster is green, and it was hiding a real access hole
+
+The Finance cluster is the largest group I set out to clear, and it is now **19 files,
+248 tests, zero failures** — down from eleven failures. More usefully, working through
+it turned up two genuine defects that had been sitting behind failures everyone had
+filed under "stale test pin". That is now the third and fourth defect this triage has
+found by refusing to assume, and the pattern is consistent enough to be worth stating:
+a test that fails for an uninteresting-looking reason is worth one honest look at the
+product before it is repinned.
+
+The serious one is **issues #166**. Eight of the eleven failures came from handler tests
+calling gated handlers with no request scope, so `cookies()` threw. Wiring a real
+request scope meant seeding a real portal tenant, and probing what the access kernel
+actually says about a client id revealed that an agency owner asking about **another
+agency's client** was answered `manage`. The kernel had refused — `ceilingFailure:
+resource_ownership` — and `resolveActorClientWorkspaceElementAccess` read the empty
+result as "this identity has not been migrated to canonical governance yet" and fell
+through to the legacy path, which grants `manage` to every agency role. The element
+layer was overruling the refusal it had just been handed. The fix works because the two
+cases are genuinely distinguishable: an un-migrated identity can reach its client and
+raises no ceiling failure. Both halves are pinned, and the regression was verified by
+removing the guard and watching four of six assertions fail while the two deliberate
+controls held.
+
+The smaller one is **issues #167**: an unexpected fault inside the same gate reached the
+caller as a `400` with the internal message in the body, because several handlers run
+the gate inside a `try` that ends in `badRequest(e.message)`.
+
+Two of the remaining failures were not defects at all but a **fixture time-bomb**: the
+refund-ledger tests pinned a reporting window ending 2026-08-26 while the product stamps
+undated Stripe refunds with the wall clock. They passed every day until the 26th and
+began failing on the 27th. The window now covers both.
+
+- Source: `clientWorkspaceElementAccess.ts`, the three `clientCommercialGate` copies in
+  agency-finance.
+- Tests: new `smoke-client-element-ceiling` (6); real request scopes and seeded tenants
+  in `smoke-finance-idempotency` (32), `smoke-finance-runtime-validation` (115),
+  `smoke-finance-plan-assignment` (18); window fix in `smoke-finance-refund-ledger` (4);
+  a stale source pin repinned to the property it guards in
+  `smoke-finance-settings-convergence` (3).
+- Docs: [issues.md](issues.md) #166 and #167.
+
+## 2026-08-27 — Triage, second pass: the 2026-08-19 blocker had come back
+
+Continuing the triage into the Dev Mode identity file turned up a second real defect,
+and it is the one that matters most: the live blocker from 19 August — take a
+freelancer preview while inspecting a persona, and the founder is welded into the
+demo tenant with only a logout to escape — had returned in a new form. The route
+that was fixed for it still carries the legacy `devReturn*` fields perfectly. It just
+never learned that Dev Mode moved its return path into the signed sandbox envelope on
+26 August, so the envelope fell on the floor at both mints. The test written to
+prevent exactly this caught it, which is the whole argument for not leaving a suite red.
+
+- **Fixed** (→ [issues #165](issues.md)): both mints in `preview-as-freelancer` now
+  carry `sandbox: session.sandbox`, so an inspection interrupted by a preview keeps
+  its way out in both directions.
+- **The assertions moved, the guarantee did not.** The tests read the legacy fields;
+  they now read `sandbox.returnUserId`/`returnAgencyId` while still proving what they
+  exist to prove — exit restores the EXACT founder after three hops, and a way home
+  renders. The way-home check now matches what `/portal/layout.tsx:64-68` actually
+  branches on: an envelope gets `<SandboxModeSwitcher>`, a legacy session gets
+  `<DevModeSwitcher>`, and the assertion accepts either but requires one.
+- **A harness truth worth knowing:** these tests call route handlers directly, and
+  data-realm selection reads Next's REQUEST STORE — so a bare call runs in the live
+  realm and cannot see the demo tenant at all. The in-inspection preview calls now run
+  inside `withSession`, which is what a browser request always has.
+- `smoke-dev-mode-identity` **5/5**. Suite **68 → 66**, no new failures, TypeScript clean.
+
+## 2026-08-27 — Suite triage: a real Dev Mode bug behind the "stale tests"
+
+The suite has carried ~74 failures since 23 August, and the assumption was that they
+were mostly stale pins left behind by the 26 August environment consolidation. That
+was half right. Grouping them by file put a quarter of the total in two Dev Mode
+files, and the largest single cause turned out to be a genuine product defect rather
+than a test that had aged — which is exactly the risk of leaving a red suite to sit:
+a real bug hides comfortably among the noise.
+
+- **The defect.** Dev Mode now enters through `enterSandboxEnvironment`, and
+  `liveIdentityFor` computed the origin's demo-ness as
+  `session.sandbox?.returnWasDemo ?? session.isDemo === true`. `mintSandboxSession`
+  stores a `false` **as absent** (`|| undefined`), so that `??` fell through to the
+  sandbox session's own `isDemo` — which is *always* true. Result: entering Dev or
+  Sandbox Mode from a live workspace and exiting handed the operator a session still
+  flagged demo.
+- **Not cosmetic.** The chrome renders the demo banner from that flag, and
+  `getSession()` deliberately returns early for a demo session, skipping the Supabase
+  identity cross-check. A wrongly-demo session therefore weakens that check for the
+  rest of its life. Fixed: with an envelope present the envelope is the authority; the
+  plain `isDemo` reading is only for legacy cookies that have no envelope.
+- **Stale pins, separated from it.** Three assertions looked for the demo agency and
+  personas in the LIVE realm, where the consolidation no longer puts them. They now
+  read through the realm named by the cookie the app itself minted, so the test cannot
+  drift from the app's own choice. The fencing they check is unchanged.
+- **Net: 74 → 69 failures**, with 8 named tests fixed and no new ones. TypeScript clean.
+- **Classified, not yet fixed:** ~10 remaining Dev Mode failures assert the legacy
+  `devReturnAgencyId` / `devReturnUserId` cookie fields that the sandbox envelope
+  replaced with `sandbox.returnAgencyId` / `sandbox.returnUserId`. The guarantee they
+  encode — exit restores the EXACT founder, no escalation — is real and still held by
+  the product; the assertions need moving to the new fields, which deserves care
+  rather than a mechanical rename at the end of a session.
+- I also broke a contract of my own and fixed it: `smoke-dev-team-updates` requires
+  the newest 20 log entries to include at least one **paragraph**, because the Dev
+  Console renders this log as prose. Ten bullet-only entries in one day pushed the
+  prose out. This entry and the one below it now carry it.
+
+## 2026-08-27 — Docs pass: the auto-loaded brief now matches reality
+
+A long session's worth of work had been logged entry by entry, but the file every
+session actually starts from had not been re-read as a whole. It turned out to be
+wrong in three ways that would each have cost the next session real time: it named
+a branch and a dirty tree that no longer exist, and it still promised a green test
+suite that today's runs disproved. Everything below is that correction. The rule
+it re-teaches is the one this project already states — a doc is evidence of what
+somebody believed on the day they wrote it, so walk back up and fix it, or the
+next reader inherits the belief.
+
+- Audited `CLAUDE.md` — the file loaded into every session — against the actual tree and the
+  day's work, because a stale brief starts the next session wrong.
+- **Corrected the git state.** It still described branch `work/2026-08-20-parallel-session` at
+  `1d46479` with "2,823 tracked changes and 286 untracked files". Reality: **`main` at
+  `2f3995b`** (Ed's checkpoint commit) with ~82 changed files from this session. Both the
+  opening section and the closing snapshot now say so, and both defer to
+  `git status --short` over their own prose.
+- **Refreshed the six-item continuation order** with true status: item 1 ✅ done; items 2, 3, 4
+  and 6 🟡 partially moved with what specifically remains; item 5 ⬜ not started. Each carries
+  the command that proves it.
+- **Removed the dangerous stale claim.** The brief still cited *"the last complete whole-suite
+  proof remains 3,621 pass / 0 fail from 23 August"*. Today's runs disproved that: **4,356 /
+  4,278 / 76** at the session's start and **4,477 / 4,401 / 74** at its end. The brief now
+  carries a warning box saying the suite is NOT green, that ~74 failures pre-date this session,
+  and that a change should be compared against the recorded baseline rather than expecting zero.
+- **Added the standing blockers and the resolved decisions** so neither is re-asked: Ed's GitHub
+  credentials are promised-not-supplied with instructions for when they arrive; the client-portal
+  placement and what the origin template transfers are both settled, recorded verbatim in
+  `notes.md`, and marked do-not-re-ask.
+- Added a pointer to the new `plans/fulfilment-template-system.md` with the one rule most likely
+  to be broken by accident: `/portal/agency/portals` is a redirect stub now — do not re-create
+  the second address.
+- Doc contracts still pass (**16/16** across consolidation and plan-task parsing).
+
+## 2026-08-27 — The dynamic plugin catch-all now asks which client element
+
+- Continued the documented order into item 4 (application-wide access adoption) and closed the
+  gap the checklist has carried: *"the dynamic plugin API catch-all still needs mappings for
+  Fulfilment, Client CRM, Ecommerce, Memberships and Affiliates."*
+- `/api/portal/<moduleId>/<...>` already decided tenant (`resolveApiTenantScope`), role
+  (`apiRouteAllowsRole`) and feature flag — but never WHICH `client.*` element a client-scoped
+  call belonged to. So a governed identity holding only Fulfilment could reach a client's
+  Ecommerce or Memberships API through it, because nothing asked.
+- New `src/lib/server/portal/pluginClientElement.ts` classifies **every** built-in module into
+  either an owning element — Fulfilment→`client.fulfilment`, Client CRM→`client.relationship`,
+  Ecommerce and Memberships→`client.commercial`, Affiliates→`client.marketing` — or an
+  explicitly-reasoned `UNMAPPED_MODULES` list. A test asserts each module is in **exactly one**,
+  so "nobody classified this" can never look like "this has no client data".
+- **Nothing defaults to open, and nothing is invented.** An unmapped module contributes no
+  requirement, which is exactly today's behaviour — so this tightens the five that are mapped
+  and changes nothing else. Reads need `view`, writes need `use`: a floor beneath each handler's
+  own `manage` checks rather than a replacement, because a catch-all cannot tell an ordinary
+  write from a destructive one. The gate runs only for client-scoped calls, after tenancy and
+  role and before the handler, and `requireCurrentClientWorkspaceElementAccess` keeps its
+  migration rule so un-migrated identities retain legacy behaviour.
+- `scripts/smoke-plugin-client-element.test.ts` **7/7** (`npm run smoke:plugin-client-element`).
+  **I also caught my own weak test:** the gate-ordering assertions were measuring `indexOf` over
+  the whole file, which finds the *import* lines — they would have passed whatever the code did.
+  They now measure inside the dispatch body.
+- The one failure in the adjacent plugin-gate suite is the **pre-existing** route-count drift
+  (313 vs a pinned 312), present in this session's baseline and unrelated to this change.
+
+## 2026-08-27 — The origin seed: phase 3 code-complete
+
+- Built the write path. `seedAgencyFromOrigin()` applies a reviewed projection under the same
+  rule the Update button follows: **it never overwrites something the new agency already has.**
+- Because the ids are deterministic, re-seeding after Ed adds a service to the origin brings the
+  new one across and leaves everything else alone — **including records the new agency has since
+  renamed or edited.** Pinned by a test that seeds, renames a seeded service in the target, adds
+  a new service to the origin, re-seeds, and asserts exactly one record was created and the
+  rename survived. A seed that replaced their edits would be the forced upgrade this whole
+  system exists to avoid.
+- Reports `created` versus `skipped` per collection so a screen can say "3 new services, 2 left
+  alone" instead of claiming a wholesale copy, carries `needsRebrand` through to the result, and
+  refuses an origin or target agency that does not exist.
+- `scripts/smoke-agency-origin-template.test.ts` **23/23** (`npm run smoke:agency-origin`),
+  including that the origin's own catalogue is untouched by seeding somebody else and that a
+  second seed adds nothing. TypeScript and diff clean.
+- **The Fulfilment template system is now code-complete across all four phases.** What remains
+  is presentation — a screen to review a projection and run the seed — and Ed's own first use,
+  since he asked for the single-tenant path he needs before any multi-tenant governance.
+
+## 2026-08-27 — Ed settled what the origin transfers
+
+- The three open origin questions are answered and pinned (full quotes in [notes.md](notes.md)):
+  the origin is **a real agency Ed operates for now — and will be both** later, so it is named by
+  configuration (`AQUA_ORIGIN_AGENCY_ID`) and nothing assumes which kind it is; **portal designs
+  transfer**; **phases, SOPs and written material do not**; **contract and task templates do**.
+- `phases`/`sops`/`sopGuides`/`legalDocuments` moved from the honest "not yet" bucket into an
+  explicit **written-material-and-lifecycle** never-bucket carrying his reason.
+- **The branding rule, drawn where it can be drawn honestly.** "Branded no" cannot be automated —
+  branding lives in free body text and a regex pretending to strip it would be worse than saying
+  so. So: a contract template created **from a real client contract** (`sourceContractId`) is
+  that client's agreement in template clothing and does **not** transfer at all; the rest do and
+  come back in a new `needsRebrand` list for a person to rewrite. Its operation key and author
+  are dropped as origin-tenant artefacts.
+- Task templates transfer their shape but lose an SOP step reference (SOPs do not transfer) and
+  any step link containing an identifier from the origin tenant — the step survives, the leaking
+  link does not.
+- `scripts/smoke-agency-origin-template.test.ts` **18/18** (`npm run smoke:agency-origin`),
+  TypeScript and diff clean. Two of my earlier assertions described the older, narrower rules and
+  were updated to the current ones rather than left to rot.
+- Remaining for phase 3: only the write path that applies a reviewed projection.
+
+## 2026-08-27 — The origin template's tenant boundary
+
+- Started phase 3 — "the original product will be the agency for everyone" — with the part that
+  does not depend on the open product question: **what crosses when a new agency is seeded.**
+  Whether the origin turns out to be a real agency Ed operates or a system-owned artefact, a
+  client record or an API key must never appear inside another tenant.
+- `src/server/agencyOriginTemplate.ts` classifies **all 88** `PortalState` collections into
+  `ORIGIN_CONTRIBUTES` (today `agencyProducts` + `clientPortalTemplates`) or
+  `ORIGIN_NEVER_CONTRIBUTES`, grouped by *why*: people, secrets, operations, tenancy, plus an
+  honest **not-yet-classified-as-safe** bucket (phases, SOPs, task/contract templates) that an
+  origin plausibly should seed one day but which needs its own reference-safety pass.
+  `assertOriginClassificationIsComplete()` throws when a collection appears in neither list, so
+  **future state is excluded until a human decides** rather than silently copied.
+- No dangling references: `companyIds` and `sopIds` are dropped and the drop is *reported*; a
+  package keeps links only to products that came across. Ids are re-minted deterministically, so
+  re-seeding is idempotent rather than duplicating a catalogue.
+- **The test caught a real leak in my own code.** Portal templates carry `createdBy`/`updatedBy`
+  — and every version in their history does too — all user ids belonging to the ORIGIN tenant.
+  Copying them would hand a new agency a person it cannot see. Contributed records are now
+  re-attributed to the seeding actor, and a seeded template starts from the published document
+  alone rather than somebody else's audit trail.
+- `projectAgencyOrigin()` is pure: it describes what a seed would do and writes nothing, so it
+  can back a review screen. `scripts/smoke-agency-origin-template.test.ts` **12/12**
+  (`npm run smoke:agency-origin`), including a test that hides a collection to prove the
+  classification check is not vacuous, and one asserting the projection contains no trace of the
+  origin's client id, client name, user id or emails.
+- **What remains is Ed's product decision, not safety work:** is the origin a real agency or a
+  system artefact, does it ship portal designs or the catalogue only, and the write path that
+  applies a projection.
+
+## 2026-08-27 — Portals consolidated into Fulfilment (one door, not two)
+
+- Went to do the phase-1 move and found it was **already mostly done**: the Fulfilment
+  workspace already mounted the very same `PortalsWorkspace` component with the same
+  `portalWorkspaceData`, the authority was always `fulfilment.portals`, and the sidebar has no
+  Portals row — it lights up **Fulfilment** for that path ("Fulfilment's widened surfaces").
+  Two doors onto one room, not a fork.
+- **One real gap had to close first:** Fulfilment hard-coded `initialView="library"`, so the
+  **Demo templates** half was unreachable from it — the one thing the standalone address still
+  did that its Fulfilment home could not. Fulfilment now takes a `portalView` param.
+- `/portal/agency/portals` is now a **redirect stub** into `?view=portals`, forwarding
+  `?view=templates` as well, and resolving the element gate FIRST so somebody without Portals
+  access is refused by their access rather than handed a redirect that reveals the surface
+  exists. Followed the Dev Team pattern rather than deleting a URL somebody may have bookmarked.
+  **`/portal/agency/portals/editor` and `/forms` are deliberately NOT stubs** — the editor is the
+  template-editing mount. The forms page's back-link now points at the real home.
+- **Browser-verified on the sandbox lane (3047; 3032 untouched):** `/portal/agency/portals`
+  lands on `/portal/agency/fulfilment?view=portals` with the client card and its template line
+  rendering, and `?view=templates` lands on `…&portalView=templates` with Demo templates active
+  and no overflow at 1280×900.
+- Logged in [hazards-and-duplication.md](../workspace/hazards-and-duplication.md) so the second
+  address is not re-created. Plan status: phases 1, 2 and 4 done; **phase 3, the cross-tenant
+  origin template, is the one genuinely new piece of architecture left.**
+
+## 2026-08-27 — The Update button, on screen and browser-proven
+
+- Built the surface. `listClientPortalUpdateOffers(agencyId)` gives the Fulfilment Portals list
+  who is on which version and what each client would receive — read-only, so rendering never
+  writes (pinned by a test that compares the instance before and after). Wired through
+  `_portalWorkspaceData.ts` onto every portal card as `_PortalUpdateControl.tsx`.
+- **The interaction follows Ed's rule.** A client on the current version gets one quiet line and
+  no control — being behind is not a warning. Opening the panel calls `update-plan`, which
+  writes nothing. **Conflicts start unticked** while clean changes start ticked, so the
+  destructive default is "keep theirs". Without `fulfilment.portals` manage it is read-only.
+- **Browser-accepted on an isolated `sandbox:fork` lane (3047; 3032 never touched).** Created a
+  real client, seeded its portal instance from the template, published a genuine new template
+  version, then drove the whole thing: the list read *"1 change available, none affecting this
+  client's own edits."*; Review update showed **Chrome · service label — Now: Your website**
+  pre-ticked; Apply reported *"1 change saved to the draft. Publish the portal to make it
+  live."* Verified through the API afterwards: `draft.chrome.serviceLabel = "Your website"`
+  while `published.chrome.serviceLabel` stayed **"Private client service"** — the live portal
+  untouched — and the pin advanced. No horizontal overflow at 1280×900.
+- Two suites now cover it end to end: `smoke-portal-update-route` grew to **9/9** with the
+  offers listing, including a test that the summary never scolds a client for staying behind
+  ("outdated", "stale", "must", "should" are all forbidden words).
+- **Isolation note, stated honestly:** my lane wrote only `.data/portal-state.phase17.json`, and
+  the shared `.data/portal-state.json` provably contains none of the test data (zero matches for
+  the client I created). Its hash HAS changed since earlier in the session and its mtime
+  (05:03) predates this lane; every file-backend test sets an explicit `PORTAL_DATA_FILE`, so
+  the remaining writer is the live 3032 server, which was never touched. I am not claiming
+  byte-identical for it any more.
+- Next: the phase-1 Fulfilment placement consolidation — the library is already governed by
+  `fulfilment.portals` but still lives at a top-level `/portal/agency/portals` route.
+
+## 2026-08-27 — The Update button reaches the API
+
+- Wired the template-update engine to a real endpoint. **No third home:** the two actions were
+  added to the existing `/api/portal/client-portal-design` route rather than a new surface
+  (reuse → repurpose → simplify), and the persistence sits beside the other instance mutations
+  in `clientPortalDesigns.ts` as `planClientPortalUpdate()` / `applyClientPortalUpdate()`.
+- **`update-plan`** returns the three-way plan plus its one-line summary and **writes nothing** —
+  it is a question. **`update-apply`** merges only the accepted paths into the client's
+  **draft**, keeps their own value for anything declined, advances the version pin only when
+  something was accepted, and logs the decision (accepted, declined, from/to version) to the
+  activity log.
+- **Authority is the existing gate**, not a new one: owner-or-manager, plus `client.portal`
+  **use** to plan and **manage** to apply — changing a live client's portal is manager work.
+- `scripts/smoke-portal-update-route.test.ts` (**7/7**) drives the real handler: planning leaves
+  the instance byte-identical; applying touches the draft while the **live published portal
+  stays untouched** until somebody publishes; a declined conflict keeps the client's wording and
+  does **not** move the pin; a resolved change is not offered again; `agency-staff` is refused
+  403 with nothing written; and a template-scope request without a client is a 400.
+- Two test expectations were corrected to reality rather than the product bent to the test: the
+  real template normalises its builder pages when it publishes, so the edited label is one
+  change among several — the assertions now check the label is *offered* rather than that it is
+  the *only* change.
+- Combined gate **21/21** (`npm run smoke:portal-template-update`), TypeScript clean.
+- Docs updated: `workspace/api-reference.md` (new row, including the ⚠ that this is not
+  `reset-client`), `plans/fulfilment-template-system.md` phase 4, and this log.
+
+## 2026-08-27 — The Update button: changes, conflicts, and legacy clients staying put
+
+- Ed settled the open decision on what happens when a template moves on: *"update button with
+  changes and possible conflicts — in other words, in future as I update my services I can have
+  legacy clients etc on older versions for whatever reason."* An **offer**, never a forced
+  upgrade and never silence; **a client on an old version is a supported state, not drift**.
+- Built the core: `src/server/clientPortalTemplateUpdate.ts` computes what pressing Update would
+  do to one client's portal. It is a three-way comparison, and
+  `ClientPortalInstanceRecord.templateVersionId` is what makes it possible — it is the merge
+  base. `base` = the template when this client was seeded, `incoming` = the template now,
+  `current` = what the client actually has.
+- Each differing path returns **clean** (template moved, client never touched it),
+  **conflict** (both moved — applying would discard the client's own work, so a person decides)
+  or **already-matches**. `describeTemplateUpdate()` gives the one line to show beside a client's
+  name, deliberately neutral about staying behind.
+- Three deliberate properties: it **mutates nothing** (safe to call while rendering a whole
+  client list — pinned by a test that JSON-compares both records before and after); arrays are
+  compared **whole**, so a reordered block list is one decision rather than twenty; and when the
+  seeded version has fallen out of history it reports `baseKnown: false` and marks **every**
+  difference a conflict rather than guessing who changed what.
+- ⚠ Recorded loudly in the plan: `resetClientPortalFromTemplate`
+  (`clientPortalDesigns.ts:353`) is the blunt instrument this replaces — it overwrites an
+  instance wholesale with the template's published document, discarding client edits with no
+  preview. **The Update button must not be wired to it.**
+- **The apply half is built too.** `applyClientPortalTemplateUpdate({ plan, current, accept })`
+  merges only the accepted paths and returns `{ document, accepted, declined, fullyApplied,
+  advanceVersionPin }`. Pure — a new document, no write, no publish, no pin move, because
+  draft → review → publish are separate reversible steps and a merge helper must not quietly
+  publish to a live client portal. It ignores paths that were not on offer (a caller cannot
+  smuggle an edit through the accept list) and removes a field the template dropped rather than
+  leaving `undefined`.
+- **Pin semantics, decided:** accept everything → advance the pin; accept SOME → still advance,
+  because a declined change is *resolved, not pending* (otherwise the same change is offered
+  forever and people learn to ignore the button); accept nothing → move nothing, the client
+  stays legacy on purpose and the offer stands next time.
+- `scripts/smoke-client-portal-template-update.test.ts` **14/14**
+  (`npm run smoke:portal-template-update`), TypeScript clean.
+- Docs updated: `plans/fulfilment-template-system.md` phase 4 (decided + built, with the open
+  question closed), and this log.
+
+## 2026-08-27 — Two directions settled: the client's portal, and the Fulfilment template system
+
+- **The client's portal is the EXISTING customer portal.** Ed: *"existing customer portal
+  actually meant to be."* So phase 18 builds no second surface — it re-points
+  `client-owner`/`client-staff` (`app/portal/page.tsx:20`) at `/portal/customer` and widens
+  that layout's `requireRole("end-customer")` gate (`layout.tsx:30`) to the client roles it was
+  always for. The care is in what each audience then sees, and in not disturbing the
+  end-customer journeys (orders, membership, bookings) sharing the surface.
+- **The template system lives in Fulfilment.** Ed asked for portal/product templates in the
+  editor "to make a system so I can edit and seed everything that will follow… the original
+  product will be the agency for everyone", then corrected the home himself: *"actually this
+  should mean it all lives in fulfilment."* That is his own contract — `CLAUDE.md` gives
+  Fulfilment the product/service operating model.
+- **Audited before writing anything, and most of it already exists:**
+  `ClientPortalTemplateRecord` → `ClientPortalInstanceRecord` already gives template → instance
+  with `templateVersionId` **pinning** (the hard part); `ensureProductPortalTemplate`
+  (`clientPortalDesigns.ts:67`) provisions a template per product and inherits via
+  `baseTemplateId`; the Dev Editor **already edits templates** at
+  `/portal/agency/portals/editor`; and every page there is **already gated on
+  `fulfilment.portals`**. So the authority is already Fulfilment's.
+- **What is genuinely new:** placement (the library is a top-level route, not inside the
+  Fulfilment workspace — a consolidation, and the hazards file warns fulfilment already exists
+  in more than one place, so move the canonical copy rather than adding a third); the
+  **cross-tenant origin template** (templates are `agencyId`-scoped today and `baseTemplateId`
+  inherits only within an agency, so "the agency for everyone" does not exist); and explicit
+  re-seed/upgrade semantics for instances already pinned to a version.
+- New plan: [fulfilment-template-system.md](plans/fulfilment-template-system.md), linked from
+  `development.md`, with four phases, guard rails and three open decisions for Ed.
+- Docs updated: `notes.md` (both decisions, with the client-portal tension corrected),
+  `plans/dev-editor-finish.md` phase 18, `development.md` plans table, and this log.
+
+## 2026-08-27 — Phase 18: the internal boundary investigated, and it holds
+
+- Went to move the client-redirect "blocker" and investigated it first. **It is smaller than I
+  reported, and I have corrected the record.** The internal client-workspace MUTATION routes
+  already refuse a client role outright, by role, before any grant is consulted:
+  `client-properties` is `requireRoleForClient([...AGENCY_ROLES])` and
+  `customer-portal-control` 401s anything failing `isAgencyRole(session.role)`.
+- New `scripts/smoke-client-role-workspace-boundary.test.ts` (**6/6**) pins it with a REAL
+  `client-owner` — the audience the rule is about, and one the existing client-workspace suite
+  never used (it drives `agency-staff` throughout). A client is refused its own client's
+  internal route even holding generous `client.*` grants, refused a sibling client, refused
+  another tenant, and refused portal configuration even holding `client.portal.manage`. A
+  control proves an agency identity still works, so the boundary is about audience rather than
+  a dead route.
+- **So Ed's "they cannot edit our internal CRM portal" is already true for what a client can
+  DO.** What remains is where a client is SENT and what they SEE — a product/UX separation,
+  not an exposure, which means it can be built deliberately rather than urgently.
+- **And the destination does not exist yet.** `/portal/customer` is
+  `requireRole("end-customer")` — the client's own customers (seeded in `demoSeed` as the
+  client's "demo shopper") — while `client-owner` is Ed's client. `/client-preview/<id>` is an
+  agency-side preview of that portal. There is no client-facing portal for a `client-owner`
+  today, so moving the redirect means building one, or deliberately re-designating the customer
+  portal as the client's. That is the real content of "decide the client-portal placement".
+- The combined client gate is now **26/26** (`npm run smoke:client-dev-workspace`).
+  TypeScript clean.
+- Docs updated: `notes.md` (the tension corrected with evidence), `plans/dev-editor-finish.md`
+  phase 18, and this log.
+
+## 2026-08-27 — Phase 18: the client provisioning rule, in one place
+
+- Ed described the model: the internal client workspace comes with the client and is where the
+  AGENCY edits that client's portal; attaching a website/software product — or toggling it on —
+  gives the CLIENT a build workspace; "they cannot edit our internal CRM portal, just the
+  project we attach to them."
+- Built `src/server/clientProjectAccess.ts` as the single place that decides this.
+  `grantClientProjectAccess()` gives the client's **own** people (`client-owner`,
+  `client-staff` — never their end-customers) a grant whose scope is **always**
+  `{ kind: "project", id }`, never agency/client/workspace.
+- **It refuses rather than writing something inert.** A project not attached to that client —
+  AquaCRM's own internal project, or a rival client's site — is a 409
+  `project_not_attached_to_client`, because the access ceiling (`userCanReachScope`) only lets
+  a client reach a project whose `clientId` is their own, so such a grant would confer nothing
+  while looking like it had worked. A foreign project id answers exactly like an invented one.
+- **The default is narrow on purpose:** editor + code + preview view. Publish, pull-request,
+  deploy, AI, connection management and the local process controls (`run_local`, `logs`) are
+  deliberately withheld — each is a cost, a production reach or a local-machine control, and
+  stays a separate decision. Revocation is immediate and leaves the project attached; the one
+  capability that survives is `access.request`, because asking grants nothing and the right to
+  ask is never taken away — that is the request-access half of the client journey.
+- Pinned by `scripts/smoke-client-project-access.test.ts` (**12/12**) alongside the
+  client-identity route suite (**8/8**) — **20/20** via `npm run smoke:client-dev-workspace`.
+  TypeScript clean.
+- Still to wire: calling this from the product-attach flow plus a per-client toggle
+  (`portalTemplateKey` already distinguishes `website` / `custom-software`, and
+  `getInstall(...).enabled` is the existing toggle mechanism), the portal mount, and the
+  browser walk. The client-redirect blocker recorded below still comes first.
+
+## 2026-08-27 — Phase 18 begins: the client-identity boundary, proven at the route level
+
+- New `scripts/smoke-client-dev-workspace.test.ts` (**8/8**, `npm run smoke:client-dev-workspace`)
+  pins the case phase 18 is actually about and which nothing covered: a real **`client-owner`**
+  — not a delegated staff identity wearing a label — holding an exact project grant.
+- Proven: the client lists **only** the granted project (a sibling client's repository appears
+  nowhere in the payload); reads its own project's source through the grant; is refused the
+  sibling's project and every preview lifecycle action on it; and cannot reach Aqua's working
+  tree even under `withDevMode`. The client role **by itself** grants nothing — no grant means
+  no projects and no preview — and holding a project grant discloses neither the agency master
+  tag nor the connection catalogue. A rotated live record refuses the client's cookie, so the
+  issue #22 boundary reaches this surface too.
+- **Two audit results, both from the tests failing first and being investigated rather than
+  patched.** (1) The access ceiling only lets a client role reach a project whose `clientId` is
+  their own (`userCanReachScope`) — my first fixture wrote a grant for an unattached project and
+  it resolved to `ceilingFailure: "resource_ownership"`, correctly. **Operational consequence:
+  Ed must attach the project to the client record; a grant alone is inert.** (2) A client can
+  distinguish "ungranted but exists in this agency" (403) from "does not exist" (404). That is
+  the established Dev-route convention (15+ assertions expect it) and neither answer leaks the
+  sibling's name or repository, but for a *client* it is a cross-client disclosure worth a
+  decision → [issues #163](issues.md). Not changed unilaterally.
+- **Ed decided the placement** (his words, in full, in [notes.md](notes.md)): the internal
+  client workspace is for internal employees; a client's own portal is where a client touches
+  anything; the editor is **optionally toggled on per client** when they have a website or
+  software project. The toggle decides whether the surface is offered, the grant decides what
+  it can do.
+- **That decision surfaces a blocker**, now recorded as phase 18's real first step:
+  `src/app/portal/page.tsx:20` currently redirects `client-owner`/`client-staff` INTO the
+  internal workspace. Under the decision that is the wrong destination — but it moves every
+  client-facing surface at once and the 11 governed `client.*` elements were built around the
+  current shape, so it needs its own scoped change and browser matrix rather than being
+  changed as a side effect of the editor work.
+- Also identified so the next step reuses rather than invents: the per-client toggle mechanism
+  already exists as `getInstall({ agencyId, clientId }, pluginId).enabled`
+  (`src/server/pluginInstalls.ts`), which is how the customer portal already gates Finance
+  (`app/portal/customer/_portalData.ts:319`). It does **not** belong in
+  `ClientPortalDesignDocument`, which is presentation, not authority.
+- Docs updated: `plans/dev-editor-finish.md` phase 18, `notes.md` (the decision), issues #163,
+  and this log.
+
+## 2026-08-27 — Phase 17 browser acceptance on an isolated sandbox lane
+
+- Ran the mounted preview lifecycle on a forked lane (`npm run sandbox:fork -- phase17 3047`,
+  own state file + own dist dir + own port). **Port 3032 was never touched** — verified before,
+  during and after (same pid 50883).
+- The preview target was a purpose-built git fixture repository in the scratchpad, registered
+  through `AQUA_DEV_PREVIEW_PROJECTS_JSON` with `isolatedWorktrees`. Deliberate choice: pointing
+  the isolated-worktree path at AquaCRM's own repository would have created an `aqua-editor/*`
+  branch and worktree in Ed's checkout. The fixture proves the same machinery — real supervisor,
+  real `git worktree`, real loopback server, real UI — with no git-state side effect on the repo.
+- **What the browser proved:** Start created the worktree on
+  `aqua-editor/devproj_71635752a698405fb62a` and reached **Preview ready** on
+  `127.0.0.1:51230`, serving the fixture site in the editor frame. An uncommitted edit written
+  into that worktree was **retained across Restart** — new process on **51586**, serving the
+  edited content, old port dead, `/aqua-tag.js` **HTTP 200**. The Logs panel showed
+  *"Resumed the isolated preview worktree on aqua-editor/…; uncommitted edits are retained."*
+  **Stop** killed the process and left the edit on disk (`M index.html` — the diff a publish
+  would show).
+- **Exact-project binding and stale preview:** a second project rendered **Not running** with no
+  iframe and no trace of project A's ports while A was healthy, and its Start refused with
+  **Setup required — "no trusted local preview record"**, leaving A serving.
+- **Responsive/accessibility slice:** no horizontal overflow at 320×568, 375×812, 812×375,
+  768×1024, 1024×768, 1280×800, 1920×1080, or at a 640px viewport (1280 at 200% zoom); preview
+  controls at **44px** targets down to 320px; no application console errors.
+- **Isolation verified after teardown:** Ed's repository at the same HEAD with **zero**
+  `aqua-editor/*` branches and one worktree; shared `.data/portal-state.json` byte-identical at
+  `c8d4d129…d418f7de`; Next's boot-time `tsconfig.json` edit for the sandbox dist dir reverted.
+- **Two findings recorded — and one of them I got wrong and corrected the same day.**
+  → [issues #161](issues.md) was raised 🔴 ("the editor's save path writes into AquaCRM's own
+  tree") from reading `devWorkspaceFiles.ts:18` plus the browser symptom of seeing 2,598 files.
+  Tracing the actual route disproved it: `site-editor/files` POST calls
+  `requireWholeWorkingTreeFounderAccess()` first (owner + devDocs + local Dev Mode) and refuses
+  repository-backed projects with 409; the repository-less READ takes the same gate. What I saw
+  was the founder-in-Dev-Mode case the route exists for. **Retracted and kept**, with the
+  proving file:line. The authoring walk is blocked on **Ed's GitHub credentials**, not a hole.
+  → [issues #162](issues.md) the in-pane
+  browser blocks Next's dev HMR websocket, so the second full load in one tab stalls on the
+  workspace loader (a fresh tab always loads); environment, not product, but future browser
+  matrices should open a fresh tab per navigation or run against a production build.
+- Docs updated: checklist Dev Workspace section, `plans/dev-editor-finish.md` phase 17, issues
+  #161/#162, and this log.
+
+## 2026-08-27 — Phase 17 failure paths: stale preview and rejected AI change
+
+- **Stale preview closed in the pure state machine.** `localRepositoryPreviewUiReducer` now
+  drops any `status` or `response` snapshot whose `projectId` is not the one the machine was
+  reset to. Without it, a poll still in flight when the operator switches project merged the
+  previous project's lifecycle state — including its loopback `previewUrl` — into the new
+  project, and `DevEditor` loads that URL straight into its frame: project A's running site
+  inside project B's editor. `RepositoryPreviewControl` already aborted those requests per
+  `projectId`; this enforces the same rule in the module that exists precisely so lifecycle
+  races are provable without a browser. Three new cases in
+  `smoke-local-repository-preview-ui.test.ts` (**8/8**): a late status cannot leak the URL, a
+  late Start response is dropped, and the current project's own progress still applies.
+- **Rejected AI change proven structural.** Aqua Editor AI has no write path — verified
+  against source, not assumed. Added a contract test asserting that none of the four
+  Editor-AI server modules or three routes references `repoWrite`, `saveRepoFile`,
+  `insertElementIntoRepo`, `createRepoPath`, `openProjectPullRequest`,
+  `mergeProjectPullRequest`, `sourceEdit`, `writeWorkspaceFile` or `publishEdits`; it also
+  reads the REAL write route and asserts the surface list matches it, so the guard cannot
+  pass vacuously, and counts the files it read so a moved file fails rather than silently
+  passing. A behavioural test then proves a reply proposing an edit leaves every state record
+  except the conversation byte-identical — a suggestion nobody accepts has nothing to undo.
+  `smoke-aqua-editor-ai-reply.test.ts` **22/22**.
+- With dependency/start failure, occupied port, crash, dynamic-loopback CSP and cross-project
+  denial already covered, **phase 17's named failure list is now source/focused-test proven**.
+  What remains is genuinely mounted work: the authoring walk, the dirty
+  project/mode/surface/refresh browser matrix (issue #19's browser half), and
+  clone-from-remote.
+- Docs updated: `plans/dev-editor-finish.md` phase 17, the checklist Dev Workspace section,
+  issues #19, and this log.
+
+## 2026-08-27 — Dev Workspace phase 17: dependency/start readiness and logs
+
+- Added the next phase-17 step after the isolated worktree. A trusted preview record may now
+  declare `installCommand`, `installArgs` and `installTimeoutMs`. The supervisor reports a new
+  `installing` lifecycle state, runs that command in the project's OWN worktree before the
+  server spawns, and streams its output into the operator-visible log.
+- **Installs once, not every start.** Readiness is recorded in a supervisor-owned marker
+  fingerprinted over the lockfiles (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`,
+  `bun.lockb`) plus `package.json`. A resumed preview whose fingerprint matches skips the
+  install; a changed dependency declaration always reinstalls. The marker is written
+  atomically and only after a genuine success, so a crash mid-write cannot make a broken tree
+  look installed.
+- **Fails closed.** A non-zero exit, a timeout or a missing runtime is `install-failed`
+  carrying the reason and the command's own output, records no readiness, retries on the next
+  start, and never reaches port allocation or spawn.
+- **The install command has no extra authority.** It passes the same allowlist as the launch
+  command (`/bin/sh -c …` is `untrusted-command`), runs with a minimal environment
+  (no inherited secrets), `shell:false`, and a bounded timeout.
+- **A dependency install may never touch the shared checkout.** Declaring `installCommand`
+  without `isolatedWorktrees` is refused at config resolution (`install-requires-isolation`)
+  rather than silently installing into the tree somebody is working in. AquaCRM's own
+  committed `aqua-preview.config.json` is therefore unchanged and install-free, pinned by a
+  test that fails if that ever drifts.
+- `.gitignore`'s preview entries became unanchored (`.aqua-preview-config/`,
+  `.aqua-preview-worktrees/`) so they also match inside an isolated worktree — which is a
+  checkout of this same repository — keeping supervisor-owned files out of the diff the
+  editor's publish step will show. The existing tsconfig-isolation contract was updated to
+  assert the unanchored form and both directories.
+- `scripts/smoke-local-preview-worktree.test.ts` grew to **21/21** (real git repositories and
+  real install processes): install-once-then-skip, reinstall on a changed `package.json`,
+  failure output surfaced and readiness withheld, a bounded hang, a missing runtime, the
+  supervisor's install-before-spawn ordering, opt-in-only behaviour, the isolated cwd, the
+  shared-checkout refusal, the allowlist, and the committed manifest's install-free shape.
+  Adjacent preview/route/tsconfig/UI/project-access suites pass **50/50**.
+- Docs updated: `CURRENT-IMPLEMENTATION.md`, `PRODUCT-ARCHITECTURE.md`,
+  `plans/dev-editor-finish.md` phase 17, the checklist Dev Workspace section, and this log.
+
+## 2026-08-27 — Dev Workspace phase 17: isolated per-project branch/worktree
+
+- Implemented the phase-17 lifecycle head — "create/resume its isolated branch/worktree" — in a
+  new `src/lib/server/dev/localRepositoryPreviewWorktree.ts`. A trusted preview record carrying
+  `isolatedWorktrees: true` now makes the supervisor create, or resume, a git worktree per
+  project on the SAME draft branch the repo-write publish path uses
+  (`aqua-editor/<projectId>`), rooted at `<trusted worktree>/.aqua-preview-worktrees/<projectId>`
+  so nothing is written outside the configured preview safe roots. The preview command then runs
+  there instead of the shared checkout.
+- **What this buys:** an uncommitted visual/source/AI edit now survives preview stop/restart,
+  two projects get separate worktrees and branches that cannot see each other's working changes,
+  and AquaCRM's own checkout is never mutated by an editor session.
+- **Trust model unchanged.** The request still supplies no path, branch or git argument; the
+  derived path is containment-checked against the realpathed trusted root before and after
+  creation; git is spawned directly (no shell) with a minimal environment and
+  `GIT_TERMINAL_PROMPT=0`, and a 120s timeout. `node_modules` is linked from the trusted
+  checkout for runtime readiness; env files deliberately are NOT, so secrets stay unreadable
+  through the editor-writable surface.
+- **Resume never destroys.** A directory that is not a worktree, or is parked on another branch,
+  is a `worktree-conflict` refusal surfaced as `configuration-error` with an operator sentence
+  — never a delete or a checkout over somebody's work, and the supervisor never reaches port
+  allocation. A hand-deleted worktree is recovered with `git worktree prune` + re-add, bringing
+  its committed draft work back. Records without the flag keep the previous shared-checkout
+  behaviour exactly.
+- New regression `scripts/smoke-local-preview-worktree.test.ts` (**10/10**,
+  `npm run smoke:preview-worktree`) drives real `git` against real temporary repositories:
+  create, resume-with-edit-retained, two-project isolation, prune recovery, hijacked-directory
+  and wrong-branch refusals (asserting the operator's files are untouched), not-a-repository,
+  and the three supervisor integration paths. Adjacent preview/tsconfig/UI/project-access
+  suites pass **40/40** combined.
+- **Whole suite after this work: 4,382 tests / 4,306 pass / 74 fail / 2 skip** — the identical
+  baseline failure set, so this work introduced no new failures. TypeScript and
+  `git diff --check` pass. `.gitignore` now excludes `portal/.aqua-preview-worktrees/`.
+- Still open in phase 17: clone-from-remote and declared dependency-install automation, and the
+  mounted authoring/diff/checks/commit/PR browser walk (the publish legs need Ed's real GitHub
+  credentials).
+- Docs updated: `plans/dev-editor-finish.md` phase 17, checklist Dev Workspace section and
+  whole-suite truth note, tests.md, and this log. Symbol reference regenerated.
+
+## 2026-08-27 — P0 #22 closed: central session revocation on every authenticated request
+
+- Built the central fresh-session boundary in `src/lib/server/auth/auth.ts`: a new
+  `resolveFreshSessionUser()` runs inside `sessionFromToken()`, which both `getSession()` and
+  `getSessionFromRequest()` now call, so `requireSession`/`requireRole`/`requireRoleForClient`
+  and every direct cookie reader inherit revocation. Before any role/scope decision the CURRENT
+  authoritative user record must exist, its `sessionRev` must not be ahead of the cookie, its
+  role must equal the cookie's, and (for real sessions) the active agency must be in live
+  membership. Sandbox cookies anchor to the live account in the signed `sandbox.returnUserId`
+  (fresh live-realm hydrate, mirroring `requireCurrentAccessActor`); the public-showcase visitor
+  validates inside its fixture realm (legacy showcase cookies without a realm fall back to the
+  live blob); fenced Dev Mode/Showcase Mode/preview demo sessions skip only the live-membership
+  check. `requireCurrentAccessActor` still answers `401 stale_session` for a
+  verifying-but-stale cookie (`src/server/accessControl.ts`).
+- Added `scripts/smoke-session-revocation.test.ts` (**16/16**, `npm run smoke:session-revocation`):
+  replays the real old owner cookie against the actual exploit route
+  (`POST /api/portal/settings/external-ai`) after owner→staff downgrade, password rotation,
+  explicit rotation and account deletion (403, no token); proves `requireRole()` surfaces
+  (team-management, Notepad) refuse the same cookies; pins sandbox/demo/showcase anchoring and
+  the belt-and-braces refusal of a role edited without a rev bump.
+- Re-seeded nine smoke harnesses that minted cookies for never-created users
+  (governance-workspace, dev-team-workers, company-portal, enquiry-tenant-isolation,
+  kpi-target-convergence, agency-settings-roles, actions-task-validity, dev-mode-identity,
+  sop-guides) — the strictness they tripped over is the fix working. One deliberate
+  expectation change: the forged owner-role cookie in `smoke-company-portal` is now refused
+  centrally at 401 instead of the route's 403.
+- **Whole-suite truth:** the canonical suite was rerun twice today — **4,356 tests: 4,278
+  pass / 76 fail / 2 skip** before the change; **4,372: 4,295 / 75 / 2** after. The change
+  fixed two baseline failures and introduced none (the single non-baseline failure is a
+  cross-process file-lock flake in `smoke-local-inbox-persistence`, 3/3 green isolated).
+  **~74 failures pre-date this session** — the 2026-08-23 green record is history, not current
+  state; checklist.md now carries the truth note. TypeScript and `git diff --check` pass.
+- Docs updated: issues.md #22 → RESOLVED with evidence; checklist.md P0 flipped + whole-suite
+  truth note; plans/security-hardening.md Phase 0 done; development.md snapshot; status.md
+  Session-authorization row; workspace/feature-index.md and workspace/shared-logic.md auth
+  entries; this log. Symbol reference regenerated.
 
 ## 2026-08-27 — Claude continuation brief captured the live working state
 

@@ -1,3 +1,14 @@
+// Simple contacts embedded on a client record — the people you actually ring
+// at that business, stored on the client itself.
+//
+// NOT the identity graph. `lib/server/identityResolution.ts` +
+// `personInteractions.ts` decide whether two sightings of an address are the
+// same human across the whole agency; this is just "who do I call here".
+// NOT the CRM either — that is `server/persons.ts`.
+//
+// Listed in `docs/workspace/hazards-and-duplication.md` under "two who-is-this-
+// person models". If you need identity resolution, do not extend this.
+
 export type ClientEntityType = "company" | "person";
 
 export interface ClientContact {

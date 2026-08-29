@@ -9,6 +9,7 @@ import {
   updateSupabasePassword,
 } from "@/lib/supabase/admin";
 import { logActivity } from "@/server/activity";
+import { CUSTOMER_PORTAL_ROLES } from "@/server/types";
 
 /**
  * A customer choosing their own password, on their way in for the first time.
@@ -28,8 +29,15 @@ export async function POST(request: NextRequest) {
     await ensureHydrated();
     const session = await getSessionFromRequest(request);
     if (!session) return NextResponse.json({ ok: false, error: "Sign in first." }, { status: 401 });
-    if (session.role !== "end-customer") {
-      return NextResponse.json({ ok: false, error: "This is for customer accounts." }, { status: 403 });
+    // Same audience as the portal itself — see CUSTOMER_PORTAL_ROLES.
+    //
+    // This is the route that gives a portal user their OWN password so they can
+    // sign in without a link. The layout sends anyone with no
+    // `welcomeCompletedAt` to `/setup`, so refusing a client role here would
+    // strand them: redirected to setup, then refused by setup, with no way into
+    // their own portal.
+    if (!CUSTOMER_PORTAL_ROLES.includes(session.role)) {
+      return NextResponse.json({ ok: false, error: "This is for client portal accounts." }, { status: 403 });
     }
 
     const body = await request.json().catch(() => null) as { password?: string } | null;

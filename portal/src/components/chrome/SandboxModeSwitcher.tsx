@@ -34,9 +34,18 @@ function currentPersona(role: Role): SandboxPersona {
 export function SandboxModeSwitcher({
   environment,
   role,
+  variant = "pill",
 }: {
   environment: SandboxSessionEnvironment;
   role: Role;
+  /**
+   * `pill` is the original free-floating control. `bar` is the same control
+   * inside `SandboxTopBar`, which already carries the border, the colour and
+   * the "Sandbox" label — so the pill's own chrome and label would be a second
+   * copy of both. One component, two presentations: the switching LOGIC has
+   * exactly one home and cannot drift between the two places it appears.
+   */
+  variant?: "pill" | "bar";
 }) {
   const [busy, setBusy] = useState<SandboxPersona | "exit" | null>(null);
   const [error, setError] = useState("");
@@ -62,14 +71,18 @@ export function SandboxModeSwitcher({
 
   return (
     <div
-      className="mm-dev-mode-switcher inline-flex min-h-9 items-center overflow-hidden rounded-md border shadow-sm"
+      className={variant === "bar"
+        ? "mm-dev-mode-switcher mm-dev-mode-switcher-bar inline-flex items-center"
+        : "mm-dev-mode-switcher inline-flex min-h-9 max-w-full flex-wrap items-center overflow-hidden rounded-md border shadow-sm"}
       title={error || undefined}
     >
       <span className="sr-only" role="status" aria-live="polite">{error}</span>
-      <span className="mm-dev-mode-switcher-label inline-flex items-center gap-1.5 px-2.5 font-semibold">
-        <FlaskConical size={14} aria-hidden="true" />
-        <span className="hidden sm:inline">Sandbox · {DATASET_LABEL[environment.dataset]}</span>
-      </span>
+      {variant === "bar" ? null : (
+        <span className="mm-dev-mode-switcher-label inline-flex items-center gap-1.5 px-2.5 font-semibold">
+          <FlaskConical size={14} aria-hidden="true" />
+          <span className="hidden sm:inline">Sandbox · {DATASET_LABEL[environment.dataset]}</span>
+        </span>
+      )}
       {environment.dataset === "demo" && canSwitchPersona ? (
         <div className="mm-dev-mode-switcher-personas flex items-center">
           {PERSONAS.map(persona => {

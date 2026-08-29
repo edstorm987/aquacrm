@@ -16,10 +16,23 @@ describe("agency portals workspace", () => {
     const page = read("src", "app", "portal", "agency", "portals", "page.tsx");
     const data = read("src", "app", "portal", "agency", "portals", "_portalWorkspaceData.ts");
     const workspace = read("src", "app", "portal", "agency", "portals", "_PortalsWorkspace.tsx");
+    const fulfilmentPage = read("src", "app", "portal", "agency", "fulfilment", "page.tsx");
+    const fulfilmentWorkspace = read("src", "app", "portal", "agency", "fulfilment", "_FulfilmentWorkspace.tsx");
 
-    assert.ok(page.includes("portalWorkspaceData"));
+    // ONE central library — which since 2026-08-27 lives in FULFILMENT, the
+    // element that always governed it (`fulfilment.portals`). The guarantee is
+    // unchanged; the address moved, so this asserts the canonical home loads the
+    // canonical data and mounts the canonical component…
+    assert.ok(fulfilmentPage.includes("portalWorkspaceData"), "Fulfilment loads the portal data");
+    assert.ok(fulfilmentWorkspace.includes("<PortalsWorkspace"), "…and mounts the one component");
+    assert.ok(fulfilmentWorkspace.includes("initialView={portalView}"),
+      "…including the Demo templates half, which it must be able to reach");
+    // …and that the old address is a stub pointing there, not a second library.
+    assert.ok(page.includes("redirect("), "the old portals page is a redirect stub");
+    assert.ok(page.includes("/portal/agency/fulfilment?view=portals"), "…forwarding to the Fulfilment home");
+    assert.ok(!page.includes("<PortalsWorkspace"), "the stub must not render a second library");
     assert.ok(data.includes("listClients(agencyId, { includeArchived: true })"));
-    assert.ok(data.includes("ensureDefaultAgencyProducts"));
+    assert.ok(data.includes("agencyProductsForRead"));
     assert.ok(data.includes("listAgencyProducts"));
     assert.ok(workspace.includes('label="All portals"'));
     assert.ok(workspace.includes('label="Demo templates"'));

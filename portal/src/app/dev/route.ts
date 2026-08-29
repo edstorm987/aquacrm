@@ -12,6 +12,7 @@ import {
 } from "@/lib/server/dev/devMode";
 import { createAgency, getClientForAgency, listClients } from "@/server/tenants";
 import { createUser, getUser, listUsersForAgency, listUsersForClient } from "@/server/users";
+import { CUSTOMER_PORTAL_ROLES } from "@/server/types";
 import {
   LIVE_DATA_REALM_ID,
   ensureHydrated,
@@ -108,12 +109,21 @@ async function enterLocalDev(request: Request) {
       }, { status: 404, headers: { "cache-control": "no-store" } });
     }
 
-    // `end-customer`, not `client-owner`: the customer portal layout requires
-    // that role, and the customer portal is where the connect flow sends
-    // people. A `client-owner` following the same link signs in fine and then
-    // lands somewhere else entirely — a real question, but not this route's
-    // to answer.
-    const clientUser = listUsersForClient(client.id).find(user => user.role === "end-customer")
+    // Prefer a REAL client user, whatever their role.
+    //
+    // This used to insist on `end-customer` because "the customer portal layout
+    // requires that role", and noted that a `client-owner` following the same
+    // link "lands somewhere else entirely — a real question, but not this
+    // route's to answer". Phase 18 answered it on 2026-08-27: the portal serves
+    // the whole client audience (`CUSTOMER_PORTAL_ROLES`) and `/portal` sends
+    // client roles there, so both land in the same place now.
+    //
+    // So sign in as whoever the client actually has, newest first, and only
+    // mint a throwaway `end-customer` when the client has nobody at all. That
+    // makes the dev link walk the real thing rather than a role chosen to work
+    // around a gate that no longer exists.
+    const clientUser = listUsersForClient(client.id)
+      .find(user => (CUSTOMER_PORTAL_ROLES as readonly string[]).includes(user.role))
       ?? createUser({
         email: `dev-customer-${client.id}@bare-co.test`,
         name: `${client.name} (dev)`,

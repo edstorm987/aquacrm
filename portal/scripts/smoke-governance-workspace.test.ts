@@ -55,6 +55,7 @@ const { NextRequest } = require("next/server") as typeof import("next/server");
 const { issueSession } = require("../src/lib/server/auth/auth") as typeof import("../src/lib/server/auth/auth");
 const { ensureHydrated } = require("../src/server/storage") as typeof import("../src/server/storage");
 const { createAgency, createClient, getClientForAgency } = require("../src/server/tenants") as typeof import("../src/server/tenants");
+const { createUser } = require("../src/server/users") as typeof import("../src/server/users");
 const { COMPLIANCE_DISCLAIMER, HIPAA_HONESTY, GDPR_HONESTY } = require("../src/lib/compliance/compliancePosture") as typeof import("../src/lib/compliance/compliancePosture");
 
 const overviewRoute = require("../src/app/api/portal/governance/route") as typeof import("../src/app/api/portal/governance/route");
@@ -81,12 +82,22 @@ async function seedWorld(): Promise<World> {
   seq += 1;
   const agency = createAgency({ name: `Governance Smoke ${seq}`, ownerEmail: `owner${seq}@example.com` });
   const client = createClient(agency.id, { name: `Erasable Client ${seq}`, stage: "live" });
-  const cookieFor = (role: string, suffix: string) => issueSession({
-    userId: `user_${role}_${seq}`,
-    email: `${suffix}${seq}@example.com`,
-    role: role as never,
-    agencyId: agency.id,
-  });
+  // The central fresh-session boundary (issue #22) refuses a cookie whose
+  // subject does not exist, so every minted session needs a REAL user record.
+  const cookieFor = (role: string, suffix: string) => {
+    const user = createUser({
+      email: `${suffix}${seq}@example.com`,
+      password: "Governance-smoke-1!",
+      role: role as never,
+      agencyId: agency.id,
+    });
+    return issueSession({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      agencyId: agency.id,
+    });
+  };
   return {
     agencyId: agency.id,
     clientId: client.id,

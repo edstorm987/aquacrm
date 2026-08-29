@@ -122,7 +122,14 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
       blk("section", { fullWidth: false }, [
         blk("form", {
           title: "Send us a message",
-          action: "/api/contact",
+          // Deliberately EMPTY. This said "/api/contact", which is not a route
+          // — it answers 404 — so every Contact page created from this template
+          // shipped a form that silently threw the visitor's message away
+          // (issue #29, 2026-08-27). `FormBlock` now shows an honest
+          // "no destination yet" notice and disables submit while this is
+          // blank, so the person building the page is told to set it rather
+          // than discovering the loss from a customer who never heard back.
+          action: "",
           submitLabel: "Send",
           fields: [
             { name: "name", label: "Name", type: "text", required: true },
@@ -176,7 +183,10 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
           blk("column", {}, [
             blk("form", {
               title: "Shipping details",
-              action: "/api/checkout",
+              // Empty for the same reason as the Contact template above:
+              // "/api/checkout" is not a route either, and a checkout form that
+              // discards an order is worse than one that says it is not wired up.
+              action: "",
               submitLabel: "Continue to payment",
               fields: [
                 { name: "email", label: "Email", type: "email", required: true },
@@ -714,12 +724,21 @@ function buildBrandPageTemplates(): PageTemplate[] {
       build: () => [
         brandHero("Get in touch", "Tell us where you are. We'll meet you there."),
         blk("section", { fullWidth: false }, [
-          blk("contact-form", {
-            heading: "Send us a message",
-            subheading: "We respond within one business day.",
+          // Was `contact-form`, which posts to a `forms` module that does not
+          // exist, so it could never deliver (see lib/blockBackends.ts). The
+          // palette stops anybody ADDING that block; a template seeding it
+          // would have walked straight past that gate. The generic form keeps
+          // the page's shape and says plainly that it needs a destination.
+          blk("form", {
+            title: "Send us a message",
+            action: "",
             submitLabel: "Send",
-            showPhone: true,
-            formName: "contact",
+            fields: [
+              { name: "name", label: "Name", type: "text", required: true },
+              { name: "email", label: "Email", type: "email", required: true },
+              { name: "phone", label: "Phone", type: "tel" },
+              { name: "message", label: "Message", type: "textarea", required: true },
+            ],
           }),
         ]),
         blk("section", { fullWidth: false }, [

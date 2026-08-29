@@ -1,8 +1,8 @@
 import "server-only";
 
 import { phaseLabel } from "@/server/phases";
-import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
-import { ensureProductPortalTemplates } from "@/server/clientPortalDesigns";
+import { agencyProductsForRead, listAgencyProducts } from "@/server/agencyProducts";
+import { ensureProductPortalTemplates, listClientPortalUpdateOffers } from "@/server/clientPortalDesigns";
 import { listClients } from "@/server/tenants";
 import { listTradingCompanies } from "@/server/tradingCompanies";
 import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
@@ -13,7 +13,7 @@ type PortalMode = PortalWorkspaceRecord["portalMode"];
 export function portalWorkspaceData(agencyId: string, userId: string) {
   const companies = new Map(listTradingCompanies(agencyId).map(company => [company.id, company.name]));
   const clients = listClients(agencyId, { includeArchived: true });
-  ensureDefaultAgencyProducts(agencyId);
+  agencyProductsForRead(agencyId);
   const agencyProducts = listAgencyProducts(agencyId, true);
   const productTemplates = new Map(ensureProductPortalTemplates(agencyId, agencyProducts, userId)
     .map(template => [template.productId, template]));
@@ -35,6 +35,10 @@ export function portalWorkspaceData(agencyId: string, userId: string) {
     portalDesignUpdatedAt: productTemplates.get(product.id)?.updatedAt,
   }));
 
+  // What each client's portal would be offered from its template right now.
+  // Read-only: computing an offer changes nothing.
+  const offers = new Map(listClientPortalUpdateOffers(agencyId).map(offer => [offer.clientId, offer]));
+
   const portals: PortalWorkspaceRecord[] = clients.map(client => {
     const metadata = client.metadata ?? {};
     const productAssignment = resolvePortalProductAssignment(metadata, agencyProducts);
@@ -54,6 +58,14 @@ export function portalWorkspaceData(agencyId: string, userId: string) {
       portalMode: cleanMode(metadata.portalMode),
       portalServicePlan: stringValue(metadata.portalServicePlan),
       productCount: productAssignment.products.length,
+      templateUpdate: offers.get(client.id)
+        ? {
+            summary: offers.get(client.id)!.summary,
+            onCurrentVersion: offers.get(client.id)!.onCurrentVersion,
+            changeCount: offers.get(client.id)!.changeCount,
+            conflictCount: offers.get(client.id)!.conflictCount,
+          }
+        : undefined,
     };
   });
 

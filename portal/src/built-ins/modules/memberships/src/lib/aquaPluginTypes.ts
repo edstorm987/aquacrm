@@ -17,11 +17,15 @@ export type PluginCategory =
   | "marketing"
   | "support"
   | "ops"
+  | "fulfillment"
   | "growth";
 
 export type PluginStatus = "stable" | "beta" | "alpha";
 
-export type ScopePolicy = "agency" | "client" | "either";
+// Renamed from `ScopePolicy` 2026-08-28 to match the canonical name in
+// src/built-ins/runtime/_types.ts. Ten copies used the short name, one used
+// the canonical — and the majority was the divergent side.
+export type PluginScopePolicy = "agency" | "client" | "either";
 
 // ─── Runtime context handed to lifecycle hooks + handlers ─────────────────
 
@@ -102,11 +106,6 @@ export interface SetupField {
 
 // ─── Sidebar contributions ─────────────────────────────────────────────────
 
-export interface NavGroup {
-  id: string;
-  label: string;
-  order?: number;
-}
 
 export type PluginRoleVisibility =
   | "agency-owner"
@@ -115,7 +114,11 @@ export type PluginRoleVisibility =
   | "client-owner"
   | "client-staff"
   | "freelancer"
-  | "end-customer";
+  | "end-customer"
+  // Added 2026-08-28: the canonical `Role` in src/server/types.ts has always
+  // had "lead", and two modules (bos-auth-gate, public-funnel) already listed
+  // it. Ten copies did not, so the same union meant two things.
+  | "lead";
 
 export interface NavItem {
   id: string;
@@ -238,7 +241,7 @@ export interface AquaPlugin {
   icon?: ReactNode;
 
   core?: boolean;
-  scopePolicy?: ScopePolicy;
+  scopePolicy?: PluginScopePolicy;
   // Erasure disposition — "retain" excludes this plugin's client data from the
   // client-erasure sweep (legal hold). Default "delete". See clientErasure.ts.
   dataDisposition?: "delete" | "retain";
@@ -253,8 +256,6 @@ export interface AquaPlugin {
   onConfigure?: (ctx: PluginCtx) => Promise<void>;
 
   setup?: SetupStep[];
-
-  navGroup?: NavGroup;
   navItems: NavItem[];
 
   pages: PluginPage[];

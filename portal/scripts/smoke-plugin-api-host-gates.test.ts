@@ -508,12 +508,53 @@ describe("plugin API routes — surface invariants no manifest can break", () =>
         if (!pluginApiRouteAllowedRoles(route)) undeclared += 1;
       }
     }
-    assert.equal(total, 312, `the registry now ships ${total} API routes, not 312 — re-run the enumeration`);
-    assert.equal(undeclared, 133, `${undeclared} routes declare no roles, not 133 — re-run the enumeration`);
+    // 2026-08-27: total 312 → 313 → 315, undeclared 133 → 135 (unchanged by the
+    // second move: `leads/restore` and `leads/purge` both DECLARE their roles).
+    //
+    // Moving these numbers is only honest if the LOOP BELOW was run first, and
+    // it was — separately, because the assertions here short-circuit before it.
+    // All 128 undeclared non-public routes were re-checked against the ceiling:
+    // **zero are open**. No route answers a lead, none answers a shopper without
+    // owning a `/portal/customer/` page, and none answers every role. The
+    // undeclared count rising is not by itself a finding; the ceiling failing
+    // would be, and it has not.
+    //
+    // (`undeclared` counts the 7 public routes too — they declare no roles by
+    // definition — so 135 = 128 gated + 7 public.)
+    //
+    // 2026-08-27, later: 315 → 316, undeclared 135 → 136. One route,
+    // `website-editor /export`, which mounts the static-export handler that had
+    // been written and tested but never registered — the Customise page's
+    // Export button called `/api/admin/export-code`, which is not a route in
+    // this app (issue #30).
+    //
+    // It declares no roles, which is this module's convention: the
+    // website-editor manifest declares `visibleToRoles` on **none** of its
+    // routes, so all of them inherit the ceiling rather than a second list that
+    // could drift from the pages they back. The loop below was re-run and still
+    // reports zero open routes, and the new one was also checked live on a dev
+    // lane — anonymous GET answers 401, an owner without `siteId` answers 400,
+    // and an owner with one gets a 200 `application/zip`.
+    // 2026-08-28: 316 → 333. Seventeen routes, all from one addition — the
+    // client-crm `journey-pipelines` add-on (boards, stages, cards,
+    // automations). **`undeclared` did not move**, which is the number that
+    // matters: every one of the seventeen declares `visibleToRoles`, so none
+    // of them inherits the ceiling. They also carry
+    // `requiresFeature: "journey-pipelines"`, so the dispatcher refuses them
+    // outright for a client without the add-on.
+    //
+    // The loop below was re-run separately before this line was touched, as
+    // the note above requires: **zero open routes**, unchanged. Counts
+    // verified by enumeration, not by adding 17 to the old number:
+    // total 333, undeclared 136, public 7.
+    assert.equal(total, 333, `the registry now ships ${total} API routes, not 333 — re-run the enumeration`);
+    assert.equal(undeclared, 136, `${undeclared} routes declare no roles, not 136 — re-run the enumeration`);
     assert.equal(publicRoutes, 7, `${publicRoutes} routes are public, not 7`);
 
     // …and none of them is open. This is the whole point: the count can stay
-    // at 133 for ever, because the fallback is the ceiling and not the door.
+    // wherever it lands for ever, because the fallback is the ceiling and not
+    // the door. THIS loop is the assertion that matters — the counts above are
+    // only tripwires that make someone come and read it.
     for (const plugin of shippedPlugins()) {
       for (const route of plugin.api) {
         if (route.public === true) continue;

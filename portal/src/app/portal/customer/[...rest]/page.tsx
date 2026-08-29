@@ -2,7 +2,7 @@
 //
 // Matches `/portal/customer/<rest>`. The parent
 // `/portal/customer/layout.tsx` already painted the chrome with the
-// embedding client's brand kit and verified `requireRole("end-customer")`.
+// embedding client's brand kit and verified `requireRole([...CUSTOMER_PORTAL_ROLES])`.
 // Here we only resolve the URL → plugin page and render it.
 
 import { notFound } from "next/navigation";
@@ -14,6 +14,7 @@ import { pageAllowsRoleAt } from "@/built-ins/runtime/_pageScope";
 import type { PluginPageProps } from "@/built-ins/runtime/_types";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
+import { CUSTOMER_PORTAL_ROLES } from "@/server/types";
 import {
   CustomerPortalView,
   type CustomerPortalSection,
@@ -26,7 +27,7 @@ interface RouteProps {
 
 export default async function CustomerPluginCatchAll({ params, searchParams }: RouteProps) {
   await ensureHydrated();
-  const session = await requireRole("end-customer");
+  const session = await requireRole([...CUSTOMER_PORTAL_ROLES]);
   if (!session.clientId) notFound();
 
   const { rest } = await params;
@@ -34,6 +35,15 @@ export default async function CustomerPluginCatchAll({ params, searchParams }: R
   const section = rest[0];
   if (section === "service" && rest.length >= 2 && rest.length <= 3) {
     return <CustomerPortalView section="service" productId={rest[1]} moduleId={rest[2]} />;
+  }
+  if (section === "enquiries" && rest.length === 1) {
+    return <CustomerPortalView section="enquiries" />;
+  }
+  if (section === "enquiries" && rest.length === 2) {
+    // The id is passed through, not trusted: `CustomerPortalView` looks the
+    // notice up scoped to this session's own client and 404s anything else, so
+    // a customer cannot read another client's enquiry by editing the URL.
+    return <CustomerPortalView section="enquiries" noticeId={rest[1]} />;
   }
   if (section === "page" && rest.length === 2) {
     return <CustomerPortalView section="custom" customPageSlug={rest[1]} />;

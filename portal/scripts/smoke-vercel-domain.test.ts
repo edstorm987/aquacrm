@@ -239,7 +239,14 @@ test("removeDomain returns error message on network failure", async () => {
       "example.com",
     );
     assert.equal(result.ok, false);
-    assert.equal(result.error, "ECONNREFUSED");
+    // The message stopped being a bare `ECONNREFUSED` and became something a
+    // caller can act on. A DELETE that fails AFTER the request went out has a
+    // genuinely unknown outcome — the domain may or may not be gone — and a
+    // blind retry is how you turn an ambiguous failure into a real one. Assert
+    // the three things the message now has to carry.
+    assert.match(String(result.error), /ECONNREFUSED/, "the underlying cause is no longer reported");
+    assert.match(String(result.error), /outcome is unknown/i, "the message no longer admits the outcome is unknown");
+    assert.match(String(result.error), /same operation key/i, "the message no longer tells the caller how to retry safely");
   } finally {
     restoreFetch();
   }

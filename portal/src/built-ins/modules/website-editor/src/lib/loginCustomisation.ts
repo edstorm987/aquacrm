@@ -7,11 +7,40 @@
 // `/api/portal/website-editor/login-customisation` API (Round-3 stub).
 //
 // Round-3 status: client-side localStorage cache + change events match
-// 02 1:1; server-side persistence is a Round-4 follow-up (currently
-// keys are global per-browser like 02). When T1 wires a TenantPort
-// brand-kit getter/setter, swap `KEY` → `t/{agencyId}/{clientId}/...`.
+// 02 1:1; server-side persistence is still a follow-up.
+//
+// ── Scoped per client, 2026-08-28 ────────────────────────────────────────
+//
+// The key WAS a single global `lk_login_customisation_v1`, while this page is
+// mounted per client at `/portal/clients/[clientId]/customise`. So customising
+// one client's login page and then opening another's showed the FIRST client's
+// settings — and saving there overwrote them. One browser, every client, one
+// slot.
+//
+// The header above already prescribed the fix ("swap `KEY` →
+// `t/{agencyId}/{clientId}/…`"), so this is that, taken from the same place
+// `CustomisePage` already reads the client id: the pathname.
+//
+// Deliberately NOT migrated from the old global key. Copying it forward would
+// hand whatever was last saved to EVERY client, which is the bug rather than
+// the fix. This is browser-local presentation, not user data, so re-entering
+// it is the safe cost.
 
-const KEY = "lk_login_customisation_v1";
+const KEY_PREFIX = "lk_login_customisation_v1";
+
+/**
+ * The storage key for the client currently being edited.
+ *
+ * Falls back to a shared `:global` slot off a client page — the module is also
+ * imported where no client is in scope, and silently writing those into one
+ * client's slot would be the same bleed in the other direction.
+ */
+function storageKey(): string {
+  if (typeof window === "undefined") return `${KEY_PREFIX}:global`;
+  const [, portal, clients, clientId] = window.location.pathname.split("/");
+  const scoped = portal === "portal" && clients === "clients" && clientId;
+  return scoped ? `${KEY_PREFIX}:${clientId}` : `${KEY_PREFIX}:global`;
+}
 const EVENT = "lk-login-config-change";
 
 export type LoginLayout = "split" | "centered" | "minimal";
@@ -88,7 +117,7 @@ export const DEFAULT_LOGIN: LoginCustomisation = {
 export function getLoginCustomisation(): LoginCustomisation {
   if (typeof window === "undefined") return DEFAULT_LOGIN;
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = window.localStorage.getItem(storageKey());
     if (!raw) return DEFAULT_LOGIN;
     return { ...DEFAULT_LOGIN, ...(JSON.parse(raw) as Partial<LoginCustomisation>) };
   } catch {
@@ -99,13 +128,13 @@ export function getLoginCustomisation(): LoginCustomisation {
 export function saveLoginCustomisation(patch: Partial<LoginCustomisation>) {
   if (typeof window === "undefined") return;
   const next = { ...getLoginCustomisation(), ...patch };
-  window.localStorage.setItem(KEY, JSON.stringify(next));
+  window.localStorage.setItem(storageKey(), JSON.stringify(next));
   window.dispatchEvent(new Event(EVENT));
 }
 
 export function resetLoginCustomisation() {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(KEY);
+  window.localStorage.removeItem(storageKey());
   window.dispatchEvent(new Event(EVENT));
 }
 
