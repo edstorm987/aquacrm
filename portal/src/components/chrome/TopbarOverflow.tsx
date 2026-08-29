@@ -1,7 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { MoreHorizontal, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MoreHorizontal, Pin, PinOff, X } from "lucide-react";
+
+import {
+  MAX_TOPBAR_CONTROLS,
+  normaliseTopbarControls,
+  type TopbarControlId,
+} from "@/lib/chrome/topbarControls";
 
 // The topbar's secondary controls, collapsed on a phone.
 //
@@ -25,16 +31,20 @@ import { MoreHorizontal, X } from "lucide-react";
 // because a crowded topbar at least tells the truth. So the collapsed group is
 // watched for `.mm-attention-badge` — the shared class the notification and dev
 // console buttons already use — and their numbers are summed onto the toggle.
-// Nothing with a badge can hide silently.
+// Nothing with a badge can hide silently. A control somebody has promoted onto
+// the bar is showing its own badge in plain sight, so it is deliberately no
+// longer summed here: it is not hidden, and counting it twice would be a lie in
+// the other direction.
 //
-// ── Why ONE copy of the children ─────────────────────────────────────────
+// ── Why ONE copy of each control ─────────────────────────────────────────
 //
 // The obvious implementation renders the controls twice (inline for desktop,
 // again inside the panel for mobile) and hides one with CSS. That duplicates
 // every id, every popover, and every piece of state those controls own — two
-// notification bells, two open panels. Instead the children are rendered once
-// and the CONTAINER changes: `display: contents` above the breakpoint, so they
-// lay out exactly as they do today, and a positioned panel below it.
+// notification bells, two open panels. So each control is rendered exactly
+// once, in whichever place it belongs. That rule survived the pinning work
+// below: a promoted control is not a copy, it is the same control somewhere
+// else.
 //
 // ── Why the panel closes itself ──────────────────────────────────────────
 //
@@ -58,16 +68,139 @@ import { MoreHorizontal, X } from "lucide-react";
 // never mounts a surface, so the click handler covers it; that is also plain
 // menu behaviour, and it is scoped to clicks that did not come from inside an
 // already-open surface so tapping about inside one cannot reopen the panel.
+//
+// ── Keeping a control on the bar ─────────────────────────────────────────
+//
+// Ed, 2026-08-29: *"it would be useful if I can bring some of them to the
+// topbar and out of the drawer so if I really need something it can be one
+// click away and I think the space would allow for two slots on mobile."*
+//
+// Two things make that work, and the second is the one that is easy to skip:
+//
+//   1. A pinned control renders in the row instead of in the panel. The pin is
+//      an id on the ACCOUNT (`UserChromeLayout.topbarControls`), read on the
+//      server by `Topbar`, so the first paint is already the arranged bar
+//      rather than a default that rearranges itself after hydration.
+//
+//   2. The bar CHECKS whether it fits. Measured on 2026-08-29 at 320/360/390/
+//      430 CSS px: the row's own demand is 180px on the left (menu, back, the
+//      page-pin pair) and 92px on the right, plus 30px of padding and gaps,
+//      against a slot costing 48px. So two slots need about 398px and one
+//      needs about 350px — and a session that also carries the "Back to
+//      website" exit link needs 48px more than that again. A fixed breakpoint
+//      would be wrong for half the sessions, so the bar watches whether the
+//      left cluster is being squeezed and holds a slot back when it is. A pin
+//      that cannot be shown here is still STORED: the same account opens on a
+//      bigger screen, where it can.
+//
+// `order` restores the authored sequence, but only above the breakpoint. The
+// pin is stored per person rather than per device, so without it a phone pin
+// would silently resequence the same person's desktop topbar — above `sm`
+// every collapsible control is a flex item of the same row whichever container
+// it renders in. Below `sm` it is deliberately NOT applied: promoted controls
+// render before the drawer in the DOM, which is already the reading order, and
+// an `order` there sorted them past the exit link and the account menu.
 
 /** Marks a surface a topbar control has opened. Kept in one place because the
  *  CSS above and the observer below have to agree on it. */
 export const CHROME_SURFACE_ATTRIBUTE = "data-chrome-surface";
 
-export function TopbarOverflow({ children }: { children: React.ReactNode }) {
+export interface TopbarControl {
+  /** Stored contract. Never changes — see `lib/chrome/topbarControls.ts`. */
+  id: TopbarControlId;
+  /** How the pin sheet names it. Free to change with the copy. */
+  label: string;
+  node: React.ReactNode;
+}
+
+const ENDPOINT = "/api/portal/chrome/layout";
+
+/** What one promoted control costs the row, including its gap. */
+const SLOT_WIDTH = 48;
+
+export function TopbarOverflow({
+  controls,
+  pinned: storedPins = [],
+}: {
+  controls: TopbarControl[];
+  pinned?: TopbarControlId[];
+}) {
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [attention, setAttention] = useState(0);
+  const [pinned, setPinned] = useState<TopbarControlId[]>(() => normaliseTopbarControls(storedPins));
+  /** How many pinned controls the row can actually carry right now. */
+  const [slots, setSlots] = useState(() => normaliseTopbarControls(storedPins).length);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const itemsRef = useRef<HTMLDivElement | null>(null);
+
+  // The server answered this for the first paint; a later navigation can bring
+  // a fresher answer (pinned in another tab), and adopting it keeps the bar
+  // honest without a reload.
+  const storedKey = storedPins.join(",");
+  useEffect(() => {
+    setPinned(normaliseTopbarControls(storedKey ? (storedKey.split(",") as TopbarControlId[]) : []));
+  }, [storedKey]);
+
+  const available = useMemo(() => new Set(controls.map(control => control.id)), [controls]);
+  // A pin for a control this session does not have — Radar for a showcase
+  // visitor, the Dev Console for a non-founder — holds no slot open.
+  const wanted = useMemo(() => pinned.filter(id => available.has(id)), [pinned, available]);
+  const promotedIds = useMemo(() => new Set(wanted.slice(0, slots)), [wanted, slots]);
+
+  const promoted = controls.filter(control => promotedIds.has(control.id));
+  const collapsed = controls.filter(control => !promotedIds.has(control.id));
+
+  // Does the row still fit?
+  //
+  // The left cluster is what flex squeezes when the bar runs out of room, so
+  // the slack it has is the signal. That slack is measured as the difference
+  // between the width the cluster was GRANTED and the width its children
+  // actually need — not as `scrollWidth - clientWidth`, which was the first
+  // attempt and is one-sided: a flex container's scrollWidth never drops below
+  // its clientWidth, so it can report a squeeze but never spare room. Slots
+  // could then only ever shrink, and a phone turned to landscape kept showing
+  // the one control it had settled on in portrait.
+  //
+  // The children do not shrink (they are `shrink-0`), so their combined width
+  // is stable whether or not the row is over-subscribed, which is what makes
+  // this readable in both directions.
+  //
+  // The answer is COMPUTED, never stepped towards. An earlier version nudged
+  // the count by one per measurement, and two measurements firing before the
+  // browser had reflowed both read the same stale squeeze and demoted twice.
+  // Adding back what the promoted controls already occupy gives the room the
+  // row would have with none of them — a fixed quantity that does not depend
+  // on the current answer, so it converges in one pass and cannot oscillate.
+  const wantedCount = wanted.length;
+  const promotedCount = promoted.length;
+  useEffect(() => {
+    const lead = document.querySelector<HTMLElement>("[data-topbar-lead]");
+    if (!lead) return;
+    const measure = () => {
+      // Above the breakpoint every control is inline anyway: nothing to hold back.
+      if (!window.matchMedia("(max-width: 639px)").matches) {
+        setSlots(MAX_TOPBAR_CONTROLS);
+        return;
+      }
+      const gap = Number.parseFloat(window.getComputedStyle(lead).columnGap) || 0;
+      const kids = [...lead.children].filter(child => (child as HTMLElement).offsetWidth > 0);
+      const needed = kids.reduce((total, child) => total + (child as HTMLElement).offsetWidth, 0)
+        + gap * Math.max(0, kids.length - 1);
+      const room = promotedCount * SLOT_WIDTH + (lead.clientWidth - needed);
+      const fits = Math.max(0, Math.floor(room / SLOT_WIDTH));
+      setSlots(Math.min(MAX_TOPBAR_CONTROLS, wantedCount, fits));
+    };
+    const frame = requestAnimationFrame(measure);
+    const observer = new ResizeObserver(measure);
+    observer.observe(lead);
+    window.addEventListener("resize", measure);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [wantedCount, promotedCount]);
 
   // Sum whatever the hidden controls are trying to say, and step aside the
   // moment one of them opens a surface. Both are re-checked on any DOM change
@@ -96,16 +229,57 @@ export function TopbarOverflow({ children }: { children: React.ReactNode }) {
     return () => observer.disconnect();
   }, []);
 
-  const close = useCallback(() => setOpen(false), []);
+  const close = useCallback(() => {
+    setOpen(false);
+    setEditing(false);
+  }, []);
 
   // The controls that open nothing. Capture phase so the panel is already on
-  // its way out by the time the control's own handler runs, and ignored for
-  // clicks that came from inside a surface the panel is deliberately outliving.
+  // its way out by the time the control's own handler runs.
+  //
+  // Three things inside the panel are NOT a menu choice and must not close it:
+  // a click inside a surface the panel is deliberately outliving, anything in
+  // the edit row (the row that arranges the menu is part of the menu — closing
+  // on it made "Keep on the bar" shut the drawer before a single pin could be
+  // pressed), and a pin toggle, which is a tap ABOUT a control rather than a
+  // tap on it.
   const onItemsClickCapture = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (editing) return;
     const target = event.target as HTMLElement | null;
     if (target?.closest(`[${CHROME_SURFACE_ATTRIBUTE}]`)) return;
+    if (target?.closest(".mm-topbar-overflow-edit, .mm-topbar-pin-toggle")) return;
     setOpen(false);
+  }, [editing]);
+
+  const persist = useCallback((next: TopbarControlId[]) => {
+    // Optimistic, and only this field is sent. The layout route treats an
+    // absent field as "leave it alone", so this cannot clear the sidebar
+    // arrangement or somebody's saved tabs — see the note on its PUT handler.
+    void fetch(ENDPOINT, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ topbarControls: next }),
+    }).catch(() => { /* best-effort: a reload shows what the server still holds */ });
   }, []);
+
+  // Computed outside the updater on purpose. Saving and setting a second piece
+  // of state from inside a `setPinned` callback made both run twice under
+  // StrictMode's double-invoke, and the slot bump was lost — the second pin
+  // stored fine and never appeared.
+  const togglePin = useCallback((id: TopbarControlId) => {
+    const current = pinned;
+    const next = current.includes(id)
+      ? current.filter(entry => entry !== id)
+      : normaliseTopbarControls([...current, id]);
+    // At the cap, pinning another is refused rather than silently evicting the
+    // one already there — which one would it drop?
+    if (!current.includes(id) && !next.includes(id)) return;
+    setPinned(next);
+    // Offer the slot straight away so the tap feels immediate; the measurement
+    // above still gets the last word on a row that cannot carry it.
+    setSlots(count => Math.min(MAX_TOPBAR_CONTROLS, Math.max(count, next.length)));
+    persist(next);
+  }, [pinned, persist]);
 
   useEffect(() => {
     if (!open) return;
@@ -121,33 +295,120 @@ export function TopbarOverflow({ children }: { children: React.ReactNode }) {
     };
   }, [open, close]);
 
-  return (
-    <div ref={wrapRef} className="mm-topbar-overflow" data-open={open ? "yes" : "no"}>
-      <button
-        type="button"
-        onClick={() => setOpen(value => !value)}
-        aria-expanded={open}
-        aria-label={
-          attention > 0
-            ? `More controls, ${attention} needing attention`
-            : "More controls"
-        }
-        className="mm-topbar-overflow-toggle relative inline-flex size-9 items-center justify-center rounded-md border border-black/10 bg-white/60 text-black/60 transition hover:bg-white hover:text-black"
-      >
-        {open ? <X size={16} /> : <MoreHorizontal size={16} />}
-        {!open && attention > 0 ? (
-          <span
-            className="mm-attention-badge absolute -right-1.5 -top-1.5 z-10 grid min-h-4 min-w-4 place-items-center rounded-full bg-red-600 px-1 text-[9px] font-semibold leading-none text-white ring-2 ring-white"
-            aria-hidden="true"
-          >
-            {attention > 99 ? "99+" : attention}
-          </span>
-        ) : null}
-      </button>
+  const atCap = wanted.length >= MAX_TOPBAR_CONTROLS;
 
-      <div ref={itemsRef} className="mm-topbar-overflow-items" onClickCapture={onItemsClickCapture}>
-        {children}
+  const pinToggle = (control: TopbarControl, isPinned: boolean) => (
+    <button
+      type="button"
+      onClick={event => { event.preventDefault(); event.stopPropagation(); togglePin(control.id); }}
+      aria-pressed={isPinned}
+      disabled={!isPinned && atCap}
+      className="mm-topbar-pin-toggle"
+      aria-label={
+        isPinned
+          ? `${control.label}: put back in the More menu`
+          : atCap
+            ? `${control.label}: the bar is full, take one off first`
+            : `${control.label}: keep on the bar`
+      }
+    >
+      <span className="mm-topbar-pin-chip">
+        {isPinned ? <PinOff size={9} aria-hidden="true" /> : <Pin size={9} aria-hidden="true" />}
+      </span>
+    </button>
+  );
+
+  // The authored position, handed to CSS rather than applied here. `order` is
+  // wanted only above the breakpoint, where it restores the desktop sequence;
+  // applied on a phone it sorts the promoted controls past the exit link and
+  // the account menu, which is where the Dev Console first landed. See
+  // `.mm-topbar-control` in globals.css.
+  const orderStyle = (id: TopbarControlId) =>
+    ({ "--mm-control-order": controls.findIndex(entry => entry.id === id) } as React.CSSProperties);
+
+  return (
+    <>
+      {/* Promoted controls sit before the drawer in the DOM. Above the
+          breakpoint `order` puts every control back in its authored place, so
+          a pin made on a phone cannot reorder the same person's desktop bar. */}
+      {promoted.map(control => (
+        <span
+          key={control.id}
+          className="mm-topbar-control mm-topbar-control-promoted"
+          data-topbar-control={control.id}
+          style={orderStyle(control.id)}
+        >
+          {control.node}
+          {editing ? pinToggle(control, true) : null}
+        </span>
+      ))}
+
+      <div
+        ref={wrapRef}
+        className="mm-topbar-overflow"
+        data-open={open ? "yes" : "no"}
+        data-editing={editing ? "yes" : "no"}
+      >
+        <button
+          type="button"
+          onClick={() => { setOpen(value => !value); setEditing(false); }}
+          aria-expanded={open}
+          aria-label={
+            attention > 0
+              ? `More controls, ${attention} needing attention`
+              : "More controls"
+          }
+          className="mm-topbar-overflow-toggle relative inline-flex size-9 items-center justify-center rounded-md border border-black/10 bg-white/60 text-black/60 transition hover:bg-white hover:text-black"
+        >
+          {open ? <X size={16} /> : <MoreHorizontal size={16} />}
+          {!open && attention > 0 ? (
+            <span
+              className="mm-attention-badge absolute -right-1.5 -top-1.5 z-10 grid min-h-4 min-w-4 place-items-center rounded-full bg-red-600 px-1 text-[9px] font-semibold leading-none text-white ring-2 ring-white"
+              aria-hidden="true"
+            >
+              {attention > 99 ? "99+" : attention}
+            </span>
+          ) : null}
+        </button>
+
+        <div ref={itemsRef} className="mm-topbar-overflow-items" onClickCapture={onItemsClickCapture}>
+          {collapsed.map(control => (
+            <span
+              key={control.id}
+              className="mm-topbar-control"
+              data-topbar-control={control.id}
+              style={orderStyle(control.id)}
+            >
+              {control.node}
+              {editing ? pinToggle(control, false) : null}
+            </span>
+          ))}
+          {/* The edit row, inside the panel so it is part of the same surface,
+              and last in DOM order so it never takes the first tab stop from
+              the controls people actually opened the menu for. */}
+          <div className="mm-topbar-overflow-edit">
+            <button
+              type="button"
+              onClick={() => setEditing(value => !value)}
+              aria-pressed={editing}
+              className="mm-topbar-overflow-edit-toggle"
+            >
+              <Pin size={11} aria-hidden="true" />
+              {editing ? "Done" : "Keep on the bar"}
+            </button>
+            {/* Says what is actually happening. A pin the row has no space for
+                is still stored — it comes back on a wider screen — and a
+                counter reading "2/2" beside a bar showing one would look like
+                a bug rather than a decision. */}
+            <span className="mm-topbar-overflow-edit-count">
+              {wanted.length}/{MAX_TOPBAR_CONTROLS} on the bar
+              {promoted.length < wanted.length
+                ? ` · no room for ${wanted.length - promoted.length} here`
+                : ""}
+            </span>
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

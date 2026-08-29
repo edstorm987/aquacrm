@@ -13,7 +13,7 @@ import { TopbarOverflow } from "@/components/chrome/TopbarOverflow";
 import { ProfileMenu } from "@/components/chrome/ProfileMenu";
 import { TopbarBackButton } from "@/components/chrome/TopbarBackButton";
 import type { NavPanel } from "@/lib/chrome/sidebarLayout";
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { ColorModeToggle } from "@/components/chrome/ColorModeToggle";
 import { DeferredPortalSearch } from "@/components/chrome/DeferredPortalSearch";
 import { PinCurrentControl, PinnedTabsBar } from "@/components/chrome/PinnedTabs";
@@ -24,6 +24,8 @@ import { sharedChromeLinkPrefetch } from "@/lib/chrome/sharedChromeLinkPrefetch"
 import { PublicShowcaseControl } from "@/components/chrome/PublicShowcaseControl";
 import { PrivacyModeControl } from "@/components/chrome/PrivacyModeControl";
 import { DevConsoleControl } from "@/components/chrome/DevConsoleControl";
+import { topbarControlPins } from "@/lib/server/chrome/topbarControlPins";
+import type { TopbarControl } from "@/components/chrome/TopbarOverflow";
 import { Sparkles } from "lucide-react";
 import type { SidebarVariant } from "@/components/chrome/Sidebar";
 
@@ -78,14 +80,75 @@ interface Props {
   inspectingLabel?: string;
 }
 
-export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, sidebarVariant = "standard", isDemo, homeHref, homeLabel, showcaseMode, sandboxMode, publicShowcase, canUseDevMode, devModeActive, devConsole, previewActive, notifications, radarControl, companySwitcher, advisorControl, privacyTerms, searchRecordsEnabled, inspecting, inspectingLabel }: Props) {
+export async function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, sidebarVariant = "standard", isDemo, homeHref, homeLabel, showcaseMode, sandboxMode, publicShowcase, canUseDevMode, devModeActive, devConsole, previewActive, notifications, radarControl, companySwitcher, advisorControl, privacyTerms, searchRecordsEnabled, inspecting, inspectingLabel }: Props) {
   const searchItems = panels?.flatMap(panel => panel.items.map(item => ({ label: item.label, href: item.href }))) ?? [];
   const recordsEnabled = searchRecordsEnabled ?? (role === "agency-owner" || role === "agency-manager" || role === "agency-staff");
   const advisorEnabled = !publicShowcase && (role === "agency-owner" || role === "agency-manager");
+
+  // The collapsible controls, as a LIST rather than opaque children.
+  //
+  // They used to be JSX children of `<TopbarOverflow>`. Ed asked on 2026-08-29
+  // to be able to keep one or two of them on the bar itself instead of behind
+  // the drawer, and a pin is stored as an id — so the overflow has to be able
+  // to tell them apart, which it cannot do with an opaque `children` blob.
+  // Each entry is still rendered exactly ONCE, in whichever place its pin state
+  // puts it; see TopbarOverflow for why a second copy is not an option.
+  //
+  // `label` is the pin sheet's name for the control and its accessible name in
+  // that sheet. `id` is the stored contract and never changes — see
+  // `lib/chrome/topbarControls.ts`.
+  // Each `node` carries a key. React tracks where an element was created, so an
+  // element made HERE and handed on inside an array is a child of this
+  // component as far as the reconciler is concerned — without one it warns, and
+  // a later reorder would reconcile by position instead of identity.
+  const collapsible = ([
+    !publicShowcase && companySwitcher
+      ? { id: "company", label: "Company switcher", node: <div key="company" className="mm-private-chrome hidden lg:block">{companySwitcher}</div> }
+      : null,
+    searchItems.length
+      ? { id: "search", label: "Search workspace", node: <DeferredPortalSearch key="search" items={searchItems} recordsEnabled={recordsEnabled} /> }
+      : null,
+    advisorEnabled
+      ? {
+          id: "advisor",
+          label: "Aqua Advisor",
+          node: advisorControl ? <Fragment key="advisor">{advisorControl}</Fragment> : <Link key="advisor" href="/portal/agency/assistant" prefetch={sharedChromeLinkPrefetch()} aria-label="Open Aqua Advisor" className="inline-flex size-9 items-center justify-center gap-2 rounded-md border border-black/10 bg-white/60 text-black/55 transition hover:bg-white hover:text-black xl:w-auto xl:px-3"><Sparkles size={16} /><span className="hidden text-xs font-semibold xl:inline">Advisor</span></Link>,
+        }
+      : null,
+    {
+      id: "privacy",
+      label: "Privacy mode",
+      node: (
+        <PrivacyModeControl
+          key="privacy"
+          canEnterShowcase={!publicShowcase && !sandboxMode && role !== "lead"}
+          showcaseMode={showcaseMode}
+          sensitiveTerms={[email, name ?? "", ...(privacyTerms ?? [])]}
+        />
+      ),
+    },
+    devConsole && !publicShowcase && !showcaseMode
+      ? { id: "dev-console", label: "Dev Console", node: <DevConsoleControl key="dev-console" /> }
+      : null,
+    !publicShowcase && radarControl ? { id: "radar", label: "Business Radar", node: <Fragment key="radar">{radarControl}</Fragment> } : null,
+    inspecting ? { id: "inspector", label: "Inspector mode", node: <InspectorModeControl key="inspector" label={inspectingLabel} /> } : null,
+    {
+      id: "notifications",
+      label: publicShowcase ? "Demo" : showcaseMode ? "Showcase mode" : "Notifications",
+      node: <Fragment key="notifications">{publicShowcase ? <PublicShowcaseControl /> : showcaseMode ? <ShowcaseModeControl /> : notifications}</Fragment>,
+    },
+    { id: "colour-mode", label: "Light and dark", node: <div key="colour-mode" className="hidden sm:block"><ColorModeToggle /></div> },
+  ] as (TopbarControl | null)[]).filter((entry): entry is TopbarControl => entry !== null);
+
+  const pinnedControls = await topbarControlPins();
+
   return (
     <>
     <header className="mm-portal-topbar relative z-40 flex min-h-14 shrink-0 items-center justify-between gap-1.5 border-b border-black/10 bg-white/40 px-3 py-2 backdrop-blur-xl sm:gap-2 sm:px-4 md:px-6">
-      <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-3">
+      {/* `data-topbar-lead` is what the overflow measures against: this cluster
+          is the one that gets squeezed when the bar runs out of room, so it is
+          the honest signal for "a promoted control no longer fits". */}
+      <div data-topbar-lead className="flex min-w-0 flex-1 items-center gap-1 sm:gap-3">
         {panels && tenantLabel && currentPath && (
           <MobileNav panels={panels} tenantLabel={tenantLabel} currentPath={currentPath} sidebarVariant={sidebarVariant} />
         )}
@@ -102,21 +165,7 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
             "who am I" and "how do I leave" are the two a person reaches for
             without thinking, and burying them costs more than the space it
             saves. See TopbarOverflow for why the children are rendered once. */}
-        <TopbarOverflow>
-        {!publicShowcase && companySwitcher ? <div className="mm-private-chrome hidden lg:block">{companySwitcher}</div> : null}
-        {searchItems.length ? <DeferredPortalSearch items={searchItems} recordsEnabled={recordsEnabled} /> : null}
-        {advisorEnabled ? advisorControl ?? <Link href="/portal/agency/assistant" prefetch={sharedChromeLinkPrefetch()} aria-label="Open Aqua Advisor" className="inline-flex size-9 items-center justify-center gap-2 rounded-md border border-black/10 bg-white/60 text-black/55 transition hover:bg-white hover:text-black xl:w-auto xl:px-3"><Sparkles size={16} /><span className="hidden text-xs font-semibold xl:inline">Advisor</span></Link> : null}
-        <PrivacyModeControl
-          canEnterShowcase={!publicShowcase && !sandboxMode && role !== "lead"}
-          showcaseMode={showcaseMode}
-          sensitiveTerms={[email, name ?? "", ...(privacyTerms ?? [])]}
-        />
-        {devConsole && !publicShowcase && !showcaseMode ? <DevConsoleControl /> : null}
-        {!publicShowcase ? radarControl : null}
-        {inspecting ? <InspectorModeControl label={inspectingLabel} /> : null}
-        {publicShowcase ? <PublicShowcaseControl /> : showcaseMode ? <ShowcaseModeControl /> : notifications}
-        <div className="hidden sm:block"><ColorModeToggle /></div>
-        </TopbarOverflow>
+        <TopbarOverflow controls={collapsible} pinned={pinnedControls} />
         {previewActive ? (
           <Link
             href="/portal/agency/phases"

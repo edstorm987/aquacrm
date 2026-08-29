@@ -36,6 +36,74 @@ map stays trustworthy.
 
 
 
+## 2026-08-29 — Keeping a chrome control on the topbar, out of the mobile drawer
+
+Ed: *"it would be useful if I can bring some of them to the topbar and out of
+the drawer so if I really need something it can be one click away and I think
+the space would allow for two slots on mobile."*
+
+### What the row can actually carry
+
+Measured in Chromium **before** building anything, at 320/360/390/430 CSS px.
+The row's own demand is **180px** on the left (menu, back, the page-pin pair)
+and **92px** on the right (drawer toggle, account menu), plus 30px of padding
+and gaps. A slot costs **48px**. So two slots need about **398px** and one about
+**350px** — and a session that also carries the "Back to website" exit link
+(demo, Dev Mode, Dev Team) needs 48px more than that again.
+
+His instinct was close but not universal, so the bar **measures** rather than
+trusting a breakpoint. Confirmed afterwards on one account with two pins stored:
+
+| width | shown |
+| --- | --- |
+| 320px | none — that row is already 34px over-subscribed today, before any of this |
+| 360px / 390px | none (with the exit link present) |
+| 430px | one |
+| 560px | two |
+
+390 portrait → none · rotate to 620 → both · back to 390 → none. **A pin the
+row cannot show is still stored**: the same account opens on a bigger screen.
+
+### How it is built
+
+- The pin is an **id on the account** (`UserChromeLayout.topbarControls`, capped
+  at 2), read **server-side** by `Topbar` so the first paint is already the
+  arranged bar rather than one that rearranges itself after hydration. Same
+  place, and same "order, not content" rule, as the sidebar arrangement Ed put
+  on the account rather than the browser.
+- The collapsible controls became a **list with ids** instead of opaque
+  children, because a pin has to be able to name one. Each is still rendered
+  **exactly once** — promoted or collapsed, never both — which is the rule the
+  overflow was built around.
+- The drawer's aggregated badge **stops counting a promoted control**: it is on
+  the bar showing its own badge, and summing it twice overstates what is hidden.
+  Browser-checked: promoting the Dev Console took the toggle from 20 to 1.
+- Pinning is an explicit **edit mode** in the drawer, not a long-press — the
+  privacy control already owns that gesture for entering the sandbox demo.
+
+### Three defects the browser found that review would not have
+
+1. **The pin target could not be tapped.** The Dev Console's own hammer was
+   intercepting it, so tapping to pin *opened the console*. Each control now
+   isolates its stacking context so the overlay only has to beat its own
+   control, not whatever the next author picks.
+2. **The measurement was one-sided.** `scrollWidth - clientWidth` never drops
+   below zero on a flex container, so it reports a squeeze but never spare
+   room: slots could shrink and never grow, and a phone turned to landscape
+   kept showing the one control it had settled on in portrait. Slack is now
+   granted width minus what the children need.
+3. **`order` leaked onto mobile.** It exists so a pin made on a phone cannot
+   resequence the same person's *desktop* bar — but applied below the
+   breakpoint it sorted the promoted control past the exit link and the account
+   menu. It is now scoped to `min-width: 640px` and offset below the row's tail.
+
+Also: two clients now write the chrome layout record, so its PUT reads **absent
+as "leave it"** rather than as empty. Without that, saving a tab cleared the
+pins and pinning a control cleared the sidebar arrangement.
+
+Pinned by `smoke-topbar-control-pins.test.ts` (9) plus the updated
+`smoke-topbar-overflow.test.ts` (7). Docs updated: this log.
+
 ## 2026-08-29 — Mobile: the overflow menu stops fighting what it opens, and silent scroll strips speak up
 
 Ed, with a phone screenshot of `/portal/agency/operations`: *"let's get the

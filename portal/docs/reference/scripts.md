@@ -5653,6 +5653,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-topbar-control-pins-test-ts-b90110941a"></a>
+
+### `scripts/smoke-topbar-control-pins.test.ts`
+
+**What it is:** room does.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/lib/chrome/topbarControls.ts`](lib.md#file-src-lib-chrome-topbarcontrols-ts-e7f3bc1812)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-topbar-overflow-test-ts-f3f11c9049"></a>
 
 ### `scripts/smoke-topbar-overflow.test.ts`

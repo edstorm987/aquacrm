@@ -3712,6 +3712,12 @@ export interface UserChromeLayout {
   /** panelId → nav item ids in the person's order. Unlisted items keep theirs. */
   itemOrder: Record<string, string[]>;
   savedTabs: SavedTab[];
+  /**
+   * Chrome control ids this person keeps on the topbar itself rather than
+   * behind the mobile overflow drawer. Ids, not controls — see
+   * `lib/chrome/topbarControls.ts` for why, and for the cap.
+   */
+  topbarControls: string[];
   updatedAt: number;
 }
 

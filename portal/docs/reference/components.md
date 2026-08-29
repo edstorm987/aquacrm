@@ -972,9 +972,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, sidebarVariant = "standard", isDemo, homeHref, homeLabel, showcaseMode, sandboxMode, publicShowcase, canUseDevMode, devModeActive…`
+- `async Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, sidebarVariant = "standard", isDemo, homeHref, homeLabel, showcaseMode, sandboxMode, publicShowcase, canUseDevMode, devMode…`
 
-**Depends on (17):** [`src/components/chrome/ColorModeToggle.tsx`](#file-src-components-chrome-colormodetoggle-tsx-f23ad79317) · [`src/components/chrome/DeferredPortalSearch.tsx`](#file-src-components-chrome-deferredportalsearch-tsx-9f037d8751) · [`src/components/chrome/DevConsoleControl.tsx`](#file-src-components-chrome-devconsolecontrol-tsx-f4e77f6e72) · [`src/components/chrome/InspectorModeControl.tsx`](#file-src-components-chrome-inspectormodecontrol-tsx-ee605c0889) · [`src/components/chrome/MobileNav.tsx`](#file-src-components-chrome-mobilenav-tsx-6225ed2a8e) · [`src/components/chrome/PinnedTabs.tsx`](#file-src-components-chrome-pinnedtabs-tsx-6a643b00e6) · [`src/components/chrome/PrivacyModeControl.tsx`](#file-src-components-chrome-privacymodecontrol-tsx-80575cf467) · [`src/components/chrome/ProfileMenu.tsx`](#file-src-components-chrome-profilemenu-tsx-539a3c435a) · [`src/components/chrome/PublicShowcaseControl.tsx`](#file-src-components-chrome-publicshowcasecontrol-tsx-9c30478e1a) · [`src/components/chrome/SavedSpotArrival.tsx`](#file-src-components-chrome-savedspotarrival-tsx-38ab9d5a7f) · [`src/components/chrome/ShowcaseModeControl.tsx`](#file-src-components-chrome-showcasemodecontrol-tsx-b73e80faff) · [`src/components/chrome/Sidebar.tsx`](#file-src-components-chrome-sidebar-tsx-a3b761358c) · [`src/components/chrome/TopbarBackButton.tsx`](#file-src-components-chrome-topbarbackbutton-tsx-eb0e817169) · [`src/components/chrome/TopbarOverflow.tsx`](#file-src-components-chrome-topbaroverflow-tsx-52395a7eeb) · [`src/lib/chrome/sharedChromeLinkPrefetch.ts`](lib.md#file-src-lib-chrome-sharedchromelinkprefetch-ts-5da3605f67) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (18):** [`src/components/chrome/ColorModeToggle.tsx`](#file-src-components-chrome-colormodetoggle-tsx-f23ad79317) · [`src/components/chrome/DeferredPortalSearch.tsx`](#file-src-components-chrome-deferredportalsearch-tsx-9f037d8751) · [`src/components/chrome/DevConsoleControl.tsx`](#file-src-components-chrome-devconsolecontrol-tsx-f4e77f6e72) · [`src/components/chrome/InspectorModeControl.tsx`](#file-src-components-chrome-inspectormodecontrol-tsx-ee605c0889) · [`src/components/chrome/MobileNav.tsx`](#file-src-components-chrome-mobilenav-tsx-6225ed2a8e) · [`src/components/chrome/PinnedTabs.tsx`](#file-src-components-chrome-pinnedtabs-tsx-6a643b00e6) · [`src/components/chrome/PrivacyModeControl.tsx`](#file-src-components-chrome-privacymodecontrol-tsx-80575cf467) · [`src/components/chrome/ProfileMenu.tsx`](#file-src-components-chrome-profilemenu-tsx-539a3c435a) · [`src/components/chrome/PublicShowcaseControl.tsx`](#file-src-components-chrome-publicshowcasecontrol-tsx-9c30478e1a) · [`src/components/chrome/SavedSpotArrival.tsx`](#file-src-components-chrome-savedspotarrival-tsx-38ab9d5a7f) · [`src/components/chrome/ShowcaseModeControl.tsx`](#file-src-components-chrome-showcasemodecontrol-tsx-b73e80faff) · [`src/components/chrome/Sidebar.tsx`](#file-src-components-chrome-sidebar-tsx-a3b761358c) · [`src/components/chrome/TopbarBackButton.tsx`](#file-src-components-chrome-topbarbackbutton-tsx-eb0e817169) · [`src/components/chrome/TopbarOverflow.tsx`](#file-src-components-chrome-topbaroverflow-tsx-52395a7eeb) · [`src/lib/chrome/sharedChromeLinkPrefetch.ts`](lib.md#file-src-lib-chrome-sharedchromelinkprefetch-ts-5da3605f67) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/server/chrome/topbarControlPins.ts`](lib.md#file-src-lib-server-chrome-topbarcontrolpins-ts-45ceb56e13) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (4):** [`src/app/portal/agency/layout.tsx`](app.md#file-src-app-portal-agency-layout-tsx-47dd48700a) · [`src/app/portal/clients/[clientId]/layout.tsx`](app.md#file-src-app-portal-clients-clientid-layout-tsx-2e7f1d7ce2) · [`src/app/portal/clients/page.tsx`](app.md#file-src-app-portal-clients-page-tsx-bffc1e671f) · [`src/app/portal/team/layout.tsx`](app.md#file-src-app-portal-team-layout-tsx-f6dab38395)
 
@@ -999,12 +999,13 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (2):**
+**Exports (3):**
 
-- `TopbarOverflow({ children }: { children: React.ReactNode })`
+- `TopbarOverflow({ controls, pinned: storedPins = [], }: { controls: TopbarControl[]; pinned?: TopbarControlId[]; })`
 - `CHROME_SURFACE_ATTRIBUTE = "data-chrome-surface"` — Marks a surface a topbar control has opened. Kept in one place because the CSS above and the observer below have to agree on it.
+- `interface TopbarControl (3 members)`
 
-**Depends on:** _No internal imports._
+**Depends on (1):** [`src/lib/chrome/topbarControls.ts`](lib.md#file-src-lib-chrome-topbarcontrols-ts-e7f3bc1812)
 
 **Used by (1):** [`src/components/chrome/Topbar.tsx`](#file-src-components-chrome-topbar-tsx-9a91269432)
 

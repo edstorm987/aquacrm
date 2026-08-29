@@ -160,7 +160,12 @@ describe("Dev Console — the topbar wiring", () => {
   it("every Topbar mount decides visibility server-side", () => {
     const topbar = read("src/components/chrome/Topbar.tsx");
     assert.match(topbar, /devConsole\?: boolean/, "one boolean prop, never a client decision");
-    assert.match(topbar, /devConsole && !publicShowcase && !showcaseMode \? <DevConsoleControl \/> : null/);
+    // The collapsible controls became an id'd list on 2026-08-29 so they could
+    // be pinned to the bar; the gate itself is unchanged.
+    assert.match(
+      topbar,
+      /devConsole && !publicShowcase && !showcaseMode\s*\?\s*\{ id: "dev-console", label: "Dev Console", node: <DevConsoleControl key="dev-console" \/> \}\s*: null/,
+    );
 
     // Every surface that renders a Topbar for an agency operator passes it.
     for (const surface of [

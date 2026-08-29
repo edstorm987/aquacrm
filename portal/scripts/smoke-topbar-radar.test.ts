@@ -16,7 +16,9 @@ describe("topbar Radar quick look", () => {
     assert.match(control, /getCachedBusinessIssueRadar/);
     assert.match(control, /radarDigest\(radar\)/);
     assert.match(topbar, /radarControl\?: ReactNode/);
-    assert.match(topbar, /!publicShowcase \? radarControl : null/);
+    // Same gate, now an entry in the collapsible list (2026-08-29). It also
+    // requires the control to exist: an absent one must not hold a pinnable id.
+    assert.match(topbar, /!publicShowcase && radarControl \? \{ id: "radar", label: "Business Radar", node: <Fragment key="radar">\{radarControl\}<\/Fragment> \} : null/);
     for (const surface of [agencyLayout, peoplePage, clientLayout]) {
       assert.match(surface, /RadarQuickLookControl/);
       assert.match(surface, /radarControl=/);

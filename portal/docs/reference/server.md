@@ -1774,7 +1774,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface RadarEvidenceState (5 members)`
 - `interface SavedTabSpot (2 members)` — The exact place in a page a saved tab points at. Ed asked for *"the view so we get the right icon and the spot to get the right location"*. Those are two different things and both…
 - `interface SavedTab (9 members)`
-- `interface UserChromeLayout (6 members)`
+- `interface UserChromeLayout (7 members)`
 - `interface OperationalAlertPreference (9 members)`
 - `interface PeopleApplicationStageEntry (4 members)`
 - `interface PeopleApplication (20 members)`

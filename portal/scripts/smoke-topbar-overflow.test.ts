@@ -29,9 +29,17 @@ test("the children are rendered ONCE, not duplicated per breakpoint", () => {
   assert.match(css, /\.mm-topbar-overflow \{ display: contents; \}/, "the wrapper must vanish above the breakpoint");
   assert.match(css, /\.mm-topbar-overflow-items \{ display: contents; \}/, "the items must lay out inline above the breakpoint");
 
+  // The controls became a LIST prop on 2026-08-29 so that pins could name them
+  // (see smoke-topbar-control-pins), which moved this property rather than
+  // removing it: the overflow is still mounted once, and each control still
+  // appears in exactly one of the two places it can render.
   const topbar = stripComments(read("src/components/chrome/Topbar.tsx"));
-  const opens = [...topbar.matchAll(/<TopbarOverflow>/g)].length;
-  assert.equal(opens, 1, "the controls must be wrapped once, not once per breakpoint");
+  const mounts = [...topbar.matchAll(/<TopbarOverflow[\s/>]/g)].length;
+  assert.equal(mounts, 1, "the overflow must be mounted once, not once per breakpoint");
+  assert.doesNotMatch(topbar, /<\/TopbarOverflow>/, "the controls are a list prop; children would be a second copy");
+
+  const overflow = stripComments(read("src/components/chrome/TopbarOverflow.tsx"));
+  assert.match(overflow, /!promotedIds\.has\(control\.id\)/, "the drawer renders exactly what the bar does not");
 });
 
 test("a hidden badge is surfaced on the toggle, never swallowed", () => {
@@ -141,8 +149,8 @@ test("the profile menu and the exit link stay OUT of the overflow", () => {
   // "Who am I" and "how do I leave" are the two controls a person reaches for
   // without thinking. Burying them costs more than the space it saves.
   const topbar = stripComments(read("src/components/chrome/Topbar.tsx"));
-  const collapsed = topbar.split("<TopbarOverflow>")[1]?.split("</TopbarOverflow>")[0] ?? "";
-  assert.ok(collapsed, "the collapsed group must exist");
+  const collapsed = topbar.split("const collapsible")[1]?.split("const pinnedControls")[0] ?? "";
+  assert.ok(collapsed, "the collapsible control list must exist");
   assert.doesNotMatch(collapsed, /<ProfileMenu/, "the profile menu must stay visible");
   assert.doesNotMatch(collapsed, /homeLabel/, "the exit link must stay visible");
 });

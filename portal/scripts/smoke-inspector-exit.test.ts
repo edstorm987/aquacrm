@@ -49,7 +49,8 @@ describe("exit inspector", () => {
   });
 
   it("is mounted in the topbar, driven by the session flag", () => {
-    assert.match(topbar, /inspecting \? <InspectorModeControl/);
+    // Same control, now an entry in the collapsible list (2026-08-29).
+    assert.match(topbar, /inspecting \? \{ id: "inspector", label: "Inspector mode", node: <InspectorModeControl/);
     assert.match(topbar, /inspecting\?: boolean/);
   });
 

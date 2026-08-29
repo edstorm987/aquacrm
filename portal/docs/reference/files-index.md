@@ -2,7 +2,7 @@
 
 ← Back to [the reference index](00-index.md) · [the map](../WORKSPACE-FILE-TREE.md) · [development.md](../development.md)
 
-Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2401 source files; 0 per-source stubs.**
+Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2404 source files; 0 per-source stubs.**
 
 ## Engines — `src/engines/` (83)
 
@@ -159,7 +159,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
 - [`src/server/zimanteTradingCompanies.ts`](server.md#file-src-server-zimantetradingcompanies-ts-ef9a41c5a6)
 
-## Shared logic — `src/lib/` (284)
+## Shared logic — `src/lib/` (286)
 
 - [`src/lib/a11y/contrastValidator.ts`](lib.md#file-src-lib-a11y-contrastvalidator-ts-7c6889cfca) — components. We default to 4.5 for the strictest check.
 - [`src/lib/a11y/isEmbedded.ts`](lib.md#file-src-lib-a11y-isembedded-ts-e91cac9938)
@@ -187,6 +187,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/chrome/performanceMode.ts`](lib.md#file-src-lib-chrome-performancemode-ts-bdcd1c163c) — Cookie name. Read on the server by `performanceModePreference()`.
 - [`src/lib/chrome/sharedChromeLinkPrefetch.ts`](lib.md#file-src-lib-chrome-sharedchromelinkprefetch-ts-5da3605f67) — Local development compiles a destination the first time Next prefetches it. A mounted portal shell …
 - [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411)
+- [`src/lib/chrome/topbarControls.ts`](lib.md#file-src-lib-chrome-topbarcontrols-ts-e7f3bc1812) — Every control that can be collapsed into the mobile drawer, in bar order.
 - [`src/lib/chrome/workspaces.ts`](lib.md#file-src-lib-chrome-workspaces-ts-d222438340) — override `--brand-primary`.
 - [`src/lib/client/apiResponseError.ts`](lib.md#file-src-lib-client-apiresponseerror-ts-b93c08834c) — Prefer the access kernel's human sentence over its machine-readable code.
 - [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1)
@@ -305,6 +306,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/server/brandPortfolioService.ts`](lib.md#file-src-lib-server-brandportfolioservice-ts-76537b2419)
 - [`src/lib/server/calendarVault.ts`](lib.md#file-src-lib-server-calendarvault-ts-dbe48389c3)
 - [`src/lib/server/chrome/personalPanels.ts`](lib.md#file-src-lib-server-chrome-personalpanels-ts-7fc4b7fbf2)
+- [`src/lib/server/chrome/topbarControlPins.ts`](lib.md#file-src-lib-server-chrome-topbarcontrolpins-ts-45ceb56e13)
 - [`src/lib/server/chrome/userChromeLayout.ts`](lib.md#file-src-lib-server-chrome-userchromelayout-ts-e39b7711f4)
 - [`src/lib/server/clientForms/clientFormConfirmation.ts`](lib.md#file-src-lib-server-clientforms-clientformconfirmation-ts-8dacba60c2)
 - [`src/lib/server/clientForms/clientFormNotices.ts`](lib.md#file-src-lib-server-clientforms-clientformnotices-ts-3b9510cd5f)
@@ -1928,7 +1930,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/showcase/exit/route.ts`](app.md#file-src-app-showcase-exit-route-ts-2297ba275f)
 - [`src/app/showcase/route.ts`](app.md#file-src-app-showcase-route-ts-4c24dd82df)
 
-## Scripts — `scripts/` (490)
+## Scripts — `scripts/` (491)
 
 - [`scripts/attention-protection.test.ts`](scripts.md#file-scripts-attention-protection-test-ts-d64d01714c)
 - [`scripts/audit-actions.ts`](scripts.md#file-scripts-audit-actions-ts-862ea31175) — What state Actions is actually in — measured, not remembered. For every alert the checks currently …
@@ -2398,6 +2400,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-today-view.test.ts`](scripts.md#file-scripts-smoke-today-view-test-ts-636087248b)
 - [`scripts/smoke-tools-directory.test.ts`](scripts.md#file-scripts-smoke-tools-directory-test-ts-65a70ca0c9) — (Freelancers). If any of those go missing, this fails.
 - [`scripts/smoke-topbar-agency-switcher.test.ts`](scripts.md#file-scripts-smoke-topbar-agency-switcher-test-ts-010a81e653) — CI commands keep working after retiring the agency/company switchers.
+- [`scripts/smoke-topbar-control-pins.test.ts`](scripts.md#file-scripts-smoke-topbar-control-pins-test-ts-b90110941a) — room does.
 - [`scripts/smoke-topbar-overflow.test.ts`](scripts.md#file-scripts-smoke-topbar-overflow-test-ts-f3f11c9049) — something that looks fine in review and is not.
 - [`scripts/smoke-topbar-radar.test.ts`](scripts.md#file-scripts-smoke-topbar-radar-test-ts-36f6cda2d7)
 - [`scripts/smoke-trading-companies.test.ts`](scripts.md#file-scripts-smoke-trading-companies-test-ts-4c0ca048ab)

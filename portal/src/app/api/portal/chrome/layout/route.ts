@@ -67,10 +67,23 @@ export async function PUT(request: Request) {
     // order in two panels and a tab's placement at once, and three sequential
     // patches would leave the nav briefly describing an arrangement nobody
     // chose. Everything is normalised on the way in.
+    //
+    // ── Absent means "leave it", empty means "clear it" ───────────────────
+    //
+    // Added 2026-08-29 with topbar control pins. Two independent clients now
+    // write this record — the sidebar/saved-tabs store and the topbar pin
+    // sheet — and neither knows about the other's field. Under the previous
+    // "absent is empty" reading, saving a tab would have silently cleared the
+    // pins and pinning a control would have silently cleared the sidebar
+    // arrangement. Presence is the signal instead, which leaves the dragging
+    // client exactly as it was: it always sends all three of its fields, and a
+    // deliberate clear still arrives as a present, empty array.
+    const current = getUserChromeLayout(who.agencyId, who.userId);
     const layout = saveUserChromeLayout(who.agencyId, who.userId, {
-      panelOrder: Array.isArray(body.panelOrder) ? body.panelOrder : [],
-      itemOrder: body.itemOrder && typeof body.itemOrder === "object" ? body.itemOrder : {},
-      savedTabs: Array.isArray(body.savedTabs) ? body.savedTabs : [],
+      panelOrder: Array.isArray(body.panelOrder) ? body.panelOrder : current.panelOrder,
+      itemOrder: body.itemOrder && typeof body.itemOrder === "object" ? body.itemOrder : current.itemOrder,
+      savedTabs: Array.isArray(body.savedTabs) ? body.savedTabs : current.savedTabs,
+      topbarControls: Array.isArray(body.topbarControls) ? body.topbarControls : current.topbarControls,
     });
     await flushPendingWrites();
     return NextResponse.json({ ok: true, layout });

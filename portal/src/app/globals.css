@@ -2086,6 +2086,41 @@ svg[class*="-card"] {
 .mm-topbar-overflow { display: contents; }
 .mm-topbar-overflow-toggle { display: none; }
 .mm-topbar-overflow-items { display: contents; }
+.mm-topbar-overflow-edit { display: none; }
+
+/* Each control gets a box of its own, so the overflow has something to hang an
+   id, a pin toggle and an `order` on. It is deliberately weightless: no size,
+   no spacing, nothing that would change how the controls sit in the row. The
+   `order` is set inline from the authored list — see TopbarOverflow for why a
+   pin made on a phone must not reorder the same person's desktop bar. */
+.mm-topbar-control {
+  display: inline-flex;
+  position: relative;
+  align-items: center;
+  /* Its own stacking context, so a control's internal z-index stays inside its
+     own box. Several of them carry one (the privacy eye is `z-[70]`), and
+     without this the pin overlay below would be in an arms race with whatever
+     the next control author picks. Caught by Playwright on 2026-08-29: the Dev
+     Console's hammer was intercepting the pin's taps, so edit mode opened the
+     console instead of pinning it. */
+  isolation: isolate;
+}
+
+/* The authored order, applied ONLY where it is wanted.
+   ─────────────────────────────────────────────────────────────────────────
+   Above the breakpoint every collapsible control is a flex item of the
+   topbar's right-hand row, whichever container it renders in, so `order` is
+   what keeps a pin made on a phone from silently resequencing the same
+   person's desktop bar. Offset below zero so the controls still precede the
+   row's tail — the exit link and the account menu sit at the default 0, and
+   ordering the controls 0..8 against that pushed them PAST the account menu.
+   Below the breakpoint no order is applied at all: there, DOM order already
+   reads promoted controls, then the drawer, then the way out and who you are. */
+@media (min-width: 640px) {
+  .mm-topbar-control {
+    order: calc(var(--mm-control-order, 0) - 100);
+  }
+}
 
 @media (max-width: 639px) {
   .mm-topbar-overflow {
@@ -2150,11 +2185,106 @@ svg[class*="-card"] {
     pointer-events: auto;
   }
 
-  /* Anything inside that hid itself for small screens is wanted here — the
-     panel IS the small screen's home for these. Without this, a control marked
+  /* Anything that hid itself for small screens is wanted here — the drawer IS
+     the small screen's home for these. Without this, a control marked
      `hidden sm:block` would be collapsed into a panel it then refuses to
-     appear in, which is how an overflow silently eats a feature. */
-  .mm-topbar-overflow-items > .hidden { display: block; }
+     appear in, which is how an overflow silently eats a feature.
+
+     Scoped to a control's own wrapper, and only its DIRECT child: the same
+     controls carry `hidden … :inline` LABELS inside themselves (the search
+     button's "Search workspace", the privacy eye's "Privacy on"), and a
+     descendant selector would show those too and blow the row's width open.
+     It reads `.mm-topbar-control` rather than the panel because a promoted
+     control has left the panel and needs exactly the same treatment — pinning
+     the colour-mode toggle to the bar would otherwise pin an invisible one. */
+  .mm-topbar-control > .hidden { display: block; }
+
+  /* ── Keeping a control on the bar ────────────────────────────────────────
+     The pin sheet. In edit mode the pin target COVERS its control rather than
+     sitting beside it: these are 44px touch targets with no room for a second
+     one inside, and a pin you have to hit precisely next to a live control is
+     a pin that occasionally fires the control instead. Covering it also means
+     edit mode cannot trigger anything by accident. */
+  .mm-topbar-pin-toggle {
+    position: absolute;
+    inset: 0;
+    /* Above anything a control carries internally. `isolation` on the wrapper
+       keeps that a local comparison rather than a global one. */
+    z-index: 90;
+    display: flex;
+    align-items: flex-start;
+    /* Top LEFT. Every attention badge in this chrome sits at the top right
+       (`-right-1.5 -top-1.5`), and the first version put the pin chip straight
+       on top of the Dev Console's red 19. */
+    justify-content: flex-start;
+    border-radius: 8px;
+    /* Deliberately see-through. You are choosing WHICH control to keep, so the
+       control has to stay legible underneath — the first version painted a
+       74%-opaque panel over it and the icons disappeared, which turns the sheet
+       into seven identical boxes. */
+    border: 1px dashed color-mix(in srgb, var(--brand-primary, #0b6f6d) 60%, transparent);
+    background: color-mix(in srgb, var(--mm-surface, #fff) 18%, transparent);
+    color: var(--brand-primary, #0b6f6d);
+  }
+  .mm-topbar-pin-chip {
+    display: grid;
+    place-items: center;
+    width: 15px;
+    height: 15px;
+    margin: -5px 0 0 -5px;
+    border-radius: 999px;
+    background: var(--mm-surface, #fff);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand-primary, #0b6f6d) 45%, transparent);
+  }
+  .mm-topbar-pin-toggle[aria-pressed="true"] {
+    border-style: solid;
+    background: color-mix(in srgb, var(--brand-primary, #0b6f6d) 12%, transparent);
+  }
+  .mm-topbar-pin-toggle[aria-pressed="true"] .mm-topbar-pin-chip {
+    background: var(--brand-primary, #0b6f6d);
+    color: #fff;
+  }
+  .mm-topbar-pin-toggle:disabled {
+    border-color: var(--mm-border, rgb(0 0 0 / 0.14));
+    color: color-mix(in srgb, currentColor 45%, transparent);
+  }
+
+  .mm-topbar-overflow-edit {
+    /* Last, always. The controls carry an authored `order`, so a row left at
+       the default 0 lands in the MIDDLE of the sheet — which is exactly where
+       it appeared the first time. */
+    order: 999;
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 2px;
+    padding-top: 8px;
+    border-top: 1px solid var(--mm-border, rgb(0 0 0 / 0.1));
+  }
+  .mm-topbar-overflow-edit-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 32px;
+    padding: 0 8px;
+    border-radius: 7px;
+    border: 1px solid var(--mm-border, rgb(0 0 0 / 0.12));
+    font-size: 11px;
+    font-weight: 600;
+    color: inherit;
+  }
+  .mm-topbar-overflow-edit-toggle[aria-pressed="true"] {
+    border-color: color-mix(in srgb, var(--brand-primary, #0b6f6d) 55%, transparent);
+    color: var(--brand-primary, #0b6f6d);
+  }
+  .mm-topbar-overflow-edit-count {
+    font-size: 10px;
+    font-weight: 600;
+    opacity: 0.55;
+    white-space: nowrap;
+  }
 }
 
 /* …but a FINGER needs 44px, and it must be said after the block above.

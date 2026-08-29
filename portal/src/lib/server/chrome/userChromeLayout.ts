@@ -31,6 +31,7 @@ import "server-only";
 // Both directions matter. Storing a snapshot of the nav instead would have
 // frozen a person's sidebar on the day they first dragged something.
 
+import { normaliseTopbarControls } from "@/lib/chrome/topbarControls";
 import { getState, mutate } from "@/server/storage";
 import type { SavedTab, SavedTabPlacement, SavedTabSpot, UserChromeLayout } from "@/server/types";
 
@@ -45,7 +46,7 @@ export function chromeLayoutKey(agencyId: string, userId: string): string {
 }
 
 function emptyLayout(agencyId: string, userId: string): UserChromeLayout {
-  return { agencyId, userId, panelOrder: [], itemOrder: {}, savedTabs: [], updatedAt: 0 };
+  return { agencyId, userId, panelOrder: [], itemOrder: {}, savedTabs: [], topbarControls: [], updatedAt: 0 };
 }
 
 /**
@@ -84,6 +85,9 @@ export function normaliseLayout(value: unknown, agencyId: string, userId: string
     panelOrder,
     itemOrder,
     savedTabs,
+    // Normalised against the live registry, so a pin for a control this deploy
+    // no longer has is dropped rather than holding an empty slot open.
+    topbarControls: normaliseTopbarControls(record.topbarControls),
     updatedAt: typeof record.updatedAt === "number" ? record.updatedAt : 0,
   };
 }
@@ -155,7 +159,7 @@ export function normaliseSavedTab(value: unknown): SavedTab | null {
 export function saveUserChromeLayout(
   agencyId: string,
   userId: string,
-  input: Pick<UserChromeLayout, "panelOrder" | "itemOrder" | "savedTabs">,
+  input: Pick<UserChromeLayout, "panelOrder" | "itemOrder" | "savedTabs" | "topbarControls">,
   now = Date.now(),
 ): UserChromeLayout {
   const next = normaliseLayout({ ...input, updatedAt: now }, agencyId, userId);
@@ -171,7 +175,14 @@ export function resetUserChromeOrder(agencyId: string, userId: string, now = Dat
   // Saved tabs survive a reset of the ORDER. They are shortcuts the person
   // made, not an arrangement they chose — and a "reset my sidebar" that also
   // deleted their bookmarks would be a nasty surprise from a tidy-up button.
-  return saveUserChromeLayout(agencyId, userId, { panelOrder: [], itemOrder: {}, savedTabs: current.savedTabs }, now);
+  // Topbar pins survive for the same reason saved tabs do: they are shortcuts
+  // this person made, not the sidebar arrangement this button resets.
+  return saveUserChromeLayout(
+    agencyId,
+    userId,
+    { panelOrder: [], itemOrder: {}, savedTabs: current.savedTabs, topbarControls: current.topbarControls },
+    now,
+  );
 }
 
 /** Forget everything this person arranged, for erasure and for account deletion. */

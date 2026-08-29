@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-29T12:39:00.625Z",
+  "generatedAt": "2026-08-29T14:05:32.227Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -871,9 +871,9 @@
       "path": "docs/development/updates.md",
       "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
       "anchor": "source-docs-development-updates-md",
-      "sha256": "973371b1cde2c72bab8c5cf75e9166a35f479c6191817bc6ae5ba2ca6d4b96e2",
-      "words": 98205,
-      "bytes": 735521
+      "sha256": "201e142bb4c7196aa6828f76096f4216b89e377b60945f00ba7f40a1ae4af109",
+      "words": 98843,
+      "bytes": 739208
     },
     {
       "path": "docs/development/visual-browser-audit-2026-08-23.md",
