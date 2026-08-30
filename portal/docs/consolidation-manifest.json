@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-30T21:09:33.913Z",
+  "generatedAt": "2026-08-30T21:29:37.747Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -447,9 +447,9 @@
       "path": "docs/development/ED-QUESTIONS.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-ed-questions-md",
-      "sha256": "66d4c02a34553622af961eefd1142adcc2b098284a4820ed0fb5b9e54756a592",
-      "words": 923,
-      "bytes": 6311
+      "sha256": "f8dfdfa9cfad61140e8ec9428b3b2b706cf33e96296825c7860467e862f7f86f",
+      "words": 2209,
+      "bytes": 14740
     },
     {
       "path": "docs/development/findings/2026-08-22-agency-staff-can-read-salaries.md",
