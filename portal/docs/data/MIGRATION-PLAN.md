@@ -67,11 +67,23 @@ adopted call site: `tenants.createClient` → `client.created` (payload
 unchanged; pinned by source-scan). Company promotion classifies the
 collection as `leave` (events are the origin tenant's history).
 
-Remaining in this phase, call-site-by-call-site: adopt the other `emit()`
-sites (agency.created, client.updated/stage_changed, person.*, phase.*,
-auth events); a cross-process claim (lease) when the outbox extracts to a
-table — the in-blob version's serialization is per-process only, which the
-module documents honestly.
+**Adoption COMPLETE for the foundation (2026-08-30, second pass):** every
+`emit()` under `src/server/**` now announces through the outbox —
+agency.created, client.updated/stage_changed (tenants + productWorkspaces),
+user.signed_up, action.completed, person.created/updated/classified,
+organisation.created/updated — plus the plugin lifecycle events
+(built-ins/runtime + ensureLeadsPipelineInstall). `smoke-outbox.test.ts`
+pins the manifest: plain `emit(` under `src/server` is confined to the bus
+and its drain. The drain is deliberately SYNCHRONOUS (nothing in it awaits),
+so all outbox writes settle before the domain function returns — an async
+drain left delivered-marks trailing into "a GET does not write" pins.
+Deliberately still plain: the plugin PORT adapters
+(built-ins/runtime/foundation-adapters) and module-internal emits — the one
+seam a later phase flips to make every plugin event durable at once.
+
+Remaining in this phase: flip that port-adapter seam (with volume review);
+a cross-process claim (lease) when the outbox extracts to a table — the
+in-blob version's single-instance serialization is what synchrony buys.
 
 - **No event-sourcing claim**: state is not rebuildable from events; the
   outbox supports reliability and lineage, nothing more.

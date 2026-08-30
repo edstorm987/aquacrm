@@ -2,7 +2,7 @@
 
 > Source maps, subsystem dossiers, components, routes, state and built-in module notes.
 >
-> Consolidated 2026-08-30 from **23** source documents / **54,442 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-30 from **23** source documents / **54,499 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -15,7 +15,7 @@
 - [`docs/workspace/components.md`](#source-docs-workspace-components-md) — 1,142 words · `5ef3bf2f75be`
 - [`docs/workspace/database.md`](#source-docs-workspace-database-md) — 2,273 words · `4ed0007a7dd9`
 - [`docs/workspace/env-and-sellability.md`](#source-docs-workspace-env-and-sellability-md) — 3,202 words · `6541a737c2ee`
-- [`docs/workspace/feature-index.md`](#source-docs-workspace-feature-index-md) — 5,285 words · `9bb33b985071`
+- [`docs/workspace/feature-index.md`](#source-docs-workspace-feature-index-md) — 5,342 words · `bb81323b787b`
 - [`docs/workspace/hazards-and-duplication.md`](#source-docs-workspace-hazards-and-duplication-md) — 6,053 words · `5403d85950f1`
 - [`docs/workspace/kpi-intelligence.md`](#source-docs-workspace-kpi-intelligence-md) — 2,283 words · `d641f1291cbc`
 - [`docs/workspace/plugins.md`](#source-docs-workspace-plugins-md) — 2,193 words · `85bf55b735d1`
@@ -2126,7 +2126,7 @@ store.
 
 ## Source document — `docs/workspace/feature-index.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/feature-index.md" sha256="9bb33b985071c74312b797a241cc0828927e2aaace7ac66ad9d35eb1154a8b4c" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/feature-index.md" sha256="bb81323b787b43106b7afcd0ac4b3ca4efca94431e5d8c53e5dc6baad0c3a497" -->
 # Chapter — Feature → files index (the conflict-avoider)
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
@@ -2238,7 +2238,7 @@ layers (state → logic → API → UI). Edit these; don't duplicate them.
 | Concern | Owns it |
 | --- | --- |
 | **State store / persistence** | `server/storage.ts`, `server/types.ts` (the `PortalState` shape) |
-| **Transactional outbox (durable domain events)** | `server/outbox.ts` (`recordOutboxEvent` — call INSIDE the domain `mutate()` so change + announcement are one write; `drainOutbox` emit-then-mark at-least-once into the existing bus; `emitDurable` drop-in; 14d/5,000-cap prune, pending never pruned), `OutboxEvent` + `PortalState.outbox` (`server/types.ts`), promotion disposition `leave` (collection #92). Adopted: `tenants.createClient` → `client.created`. NOT event sourcing — reliability + lineage only. Tests: `scripts/smoke-outbox.test.ts`. New 2026-08-30 |
+| **Transactional outbox (durable domain events)** | `server/outbox.ts` (`recordOutboxEvent` — call INSIDE the domain `mutate()` so change + announcement are one write; `drainOutbox` — SYNCHRONOUS, emit-then-mark at-least-once into the existing bus, so all outbox writes settle before the domain function returns; `emitDurable` drop-in; 14d/5,000-cap prune, pending never pruned), `OutboxEvent` + `PortalState.outbox` (`server/types.ts`), promotion disposition `leave` (collection #92). **Adopted across the whole foundation**: every `src/server/**` emit (tenants, users, persons, organisations, completedActions, productWorkspaces) + plugin lifecycle (runtime, ensureLeadsPipelineInstall) — the manifest pin confines plain `emit(` under src/server to the bus + drain. Port adapters stay plain deliberately (the seam that later makes every plugin event durable at once). NOT event sourcing — reliability + lineage only. Tests: `scripts/smoke-outbox.test.ts`. New 2026-08-30 |
 | **Canonical semantic layer (data architecture)** | `lib/data/semanticRegistry.ts` (30 entities, distinctions, timestamp/value doctrines, `PORTAL_STATE_COVERAGE` classifying every PortalState collection — set-equality-enforced), `lib/data/metricRegistry.ts` (one canonical id + semantics per metric, `computedBy` authority, `same-quantity` overlap map, the pinned `campaign-roas` collision), `lib/data/metadataContracts.ts` (all 123 metadata keys: carrier/namespace/owner/type/sensitivity; source-scan-enforced both ways). Docs: `docs/data/{ARCHITECTURE,SOURCE-INVENTORY,SEMANTIC-LAYER,DATA-DICTIONARY,MIGRATION-PLAN,LINEAGE}.md` + `docs/data/adr/`. Tests: `scripts/smoke-semantic-registry.test.ts`, `smoke-metric-registry.test.ts` (incl. golden boundary cases), `smoke-metadata-contracts.test.ts`. **Registries describe, never recompute — `computedBy` names the one calculation site.** New 2026-08-30 |
 | **A person's own chrome — sidebar order + saved tabs (2026-08-27)** | `server/types.ts` (`UserChromeLayout` · `SavedTab` · `SavedTabSpot`, stored in `PortalState.userChromeLayouts` keyed `${agencyId}\|${userId}`), `lib/server/chrome/userChromeLayout.ts` (the store — **reads never write**, because the sidebar is assembled on every authenticated navigation), `lib/chrome/sidebarLayout.ts` (`applyPersonalChrome` · `applyOrder` · `navItemForHref` — the arrangement is a list of IDS applied to whatever the nav legitimately contains, so it can never add, resurrect or hide an item), `lib/server/chrome/personalPanels.ts` (`withPersonalChrome` — the ONE place it is applied, called by all five sidebar renderers and swept for a sixth; fails open to the default nav), `app/api/portal/chrome/layout/route.ts` (GET/PUT/DELETE, identity from the SESSION only). Client: `components/chrome/pinnedTabsStore.ts` (one module-level store with a subscriber set — **not** per hook instance), `PinnedTabs.tsx`, `SidebarReorder.tsx` (wraps the server-rendered rows and reads `data-nav-id`; never re-renders one), `SpotPicker.tsx`, `SavedSpotArrival.tsx` (MutationObserver, 15s deadline), `savedSpot.ts` (selector **and** the text, so a moved spot is found by name and a miss is explainable). A tab dropped into a panel becomes a nav row and takes the icon of the nav item its href sits under — resolved live, never stored. `npm run smoke:chrome-layout` |
 | **Env vars, per-company config & what "sellable" costs** | `lib/server/env.ts` (typed reader + allowlist + startup check), `lib/server/secrets.ts` (named accessors), `lib/server/founderAgency.ts` (**env credentials are the FOUNDER'S** — `mayUseEnvironmentCredentials()`), `lib/server/integrationConnections.ts` + `lib/integrations/catalog.ts` (the per-agency vault that replaces env, 9 providers), `server/agencySettings.ts` (per-agency preferences), `lib/server/productionReadiness.ts` (derives its verdict from env keys — breaks for a buyer). **Every env-only setting is one a buyer cannot configure without the source.** Full inventory + the readiness conflict + day-one order: [env-and-sellability.md](env-and-sellability.md) |

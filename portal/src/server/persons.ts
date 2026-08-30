@@ -13,7 +13,7 @@ import "server-only";
 
 import crypto from "crypto";
 import { getState, mutate } from "./storage";
-import { emit } from "./eventBus";
+import { emitDurable } from "./outbox";
 import { normaliseIdentityEmail, normaliseIdentityPhone } from "@/lib/server/identityResolution";
 import type {
   IdentityResolutionSource,
@@ -296,7 +296,7 @@ export function upsertPerson(agencyId: string, input: UpsertPersonInput): Upsert
       );
       state.persons[next.id] = next;
     });
-    emit({ agencyId }, "person.updated", { personId: next.id });
+    emitDurable({ name: "person.updated", agencyId, source: "server/persons", payload: { personId: next.id } });
     return { person: next, created: false };
   }
 
@@ -327,7 +327,7 @@ export function upsertPerson(agencyId: string, input: UpsertPersonInput): Upsert
     );
     state.persons[person.id] = person;
   });
-  emit({ agencyId }, "person.created", { personId: person.id });
+  emitDurable({ name: "person.created", agencyId, source: "server/persons", payload: { personId: person.id } });
   return { person, created: true };
 }
 
@@ -454,7 +454,7 @@ function editIdentityValue(
 
   const next: Person = { ...existing, [field]: updated, updatedAt: Date.now() };
   mutate(state => { state.persons[personId] = next; });
-  emit({ agencyId }, "person.updated", { personId });
+  emitDurable({ name: "person.updated", agencyId, source: "server/persons", payload: { personId } });
   return next;
 }
 
@@ -479,7 +479,7 @@ function removeIdentityValue(
 
   const next: Person = { ...existing, [field]: settled, updatedAt: Date.now() };
   mutate(state => { state.persons[personId] = next; });
-  emit({ agencyId }, "person.updated", { personId });
+  emitDurable({ name: "person.updated", agencyId, source: "server/persons", payload: { personId } });
   return next;
 }
 
@@ -508,7 +508,7 @@ function addIdentityValue(
     updatedAt: Date.now(),
   };
   mutate(state => { state.persons[personId] = next; });
-  emit({ agencyId }, "person.updated", { personId });
+  emitDurable({ name: "person.updated", agencyId, source: "server/persons", payload: { personId } });
   return next;
 }
 
@@ -562,7 +562,7 @@ export function addPersonRecord(
     updatedAt: now,
   };
   mutate(state => { state.persons[personId] = next; });
-  emit({ agencyId }, "person.updated", { personId });
+  emitDurable({ name: "person.updated", agencyId, source: "server/persons", payload: { personId } });
   return next;
 }
 
@@ -574,7 +574,7 @@ export function deletePersonRecord(agencyId: string, personId: string, entryId: 
   if (remaining.length === (existing.record ?? []).length) return existing;
   const next: Person = { ...existing, record: remaining, updatedAt: Date.now() };
   mutate(state => { state.persons[personId] = next; });
-  emit({ agencyId }, "person.updated", { personId });
+  emitDurable({ name: "person.updated", agencyId, source: "server/persons", payload: { personId } });
   return next;
 }
 
@@ -613,7 +613,7 @@ export function suggestPersonOrganisation(
     updatedAt: Date.now(),
   };
   mutate(state => { state.persons[personId] = next; });
-  emit({ agencyId }, "person.updated", { personId });
+  emitDurable({ name: "person.updated", agencyId, source: "server/persons", payload: { personId } });
   return next;
 }
 
@@ -651,7 +651,7 @@ export function decidePersonOrganisation(
     updatedAt: now,
   };
   mutate(state => { state.persons[personId] = next; });
-  emit({ agencyId }, "person.updated", { personId });
+  emitDurable({ name: "person.updated", agencyId, source: "server/persons", payload: { personId } });
   return next;
 }
 
@@ -693,7 +693,7 @@ export function updatePerson(agencyId: string, personId: string, patch: UpdatePe
     updatedAt: Date.now(),
   };
   mutate(state => { state.persons[personId] = next; });
-  emit({ agencyId }, "person.updated", { personId });
+  emitDurable({ name: "person.updated", agencyId, source: "server/persons", payload: { personId } });
   return next;
 }
 
@@ -710,7 +710,7 @@ export function attachPersonFacet(agencyId: string, personId: string, facets: Pe
     updatedAt: Date.now(),
   };
   mutate(state => { state.persons[personId] = next; });
-  emit({ agencyId }, "person.updated", { personId });
+  emitDurable({ name: "person.updated", agencyId, source: "server/persons", payload: { personId } });
   return next;
 }
 
@@ -757,10 +757,11 @@ export function classifyPerson(
     updatedAt: now,
   };
   mutate(state => { state.persons[personId] = next; });
-  emit({ agencyId }, "person.classified", {
-    personId,
-    from: existing.classification,
-    to: input.classification,
+  emitDurable({
+    name: "person.classified",
+    agencyId,
+    source: "server/persons",
+    payload: { personId, from: existing.classification, to: input.classification },
   });
   return next;
 }

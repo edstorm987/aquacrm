@@ -14,7 +14,7 @@
 //     client.created durably with the same payload the old emit carried.
 
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, test } from "node:test";
 
@@ -83,7 +83,7 @@ test("drain delivers to a real bus subscriber once, marks delivered, and never r
   mutate(state => {
     recordOutboxEvent(state, { id: "obx_once", name: "outbox.test_event", agencyId: AGENCY, clientId: "cli-1", source: "t", payload: { n: 1 } });
   });
-  const delivered = await drainOutbox(5_000);
+  const delivered = drainOutbox(5_000);
   await microtasks();
 
   assert.equal(delivered, 1);
@@ -95,7 +95,7 @@ test("drain delivers to a real bus subscriber once, marks delivered, and never r
   assert.equal(row.deliveredAt, 5_000);
   assert.equal(row.attempts, 1);
 
-  const again = await drainOutbox(6_000);
+  const again = drainOutbox(6_000);
   await microtasks();
   assert.equal(again, 0, "a delivered row is never redelivered");
   assert.equal(received.length, 1);
@@ -113,7 +113,7 @@ test("a row recorded but never drained is delivered by a later drain — at-leas
 
   // "Next instance" drains opportunistically (every emitDurable call drains).
   emitDurable({ name: "outbox.other_event", agencyId: AGENCY, source: "t", payload: {} });
-  await drainOutbox();
+  drainOutbox();
   await microtasks();
 
   assert.deepEqual(received, ["survived"], "the stranded pending row was redelivered exactly once");
@@ -125,7 +125,7 @@ test("emitDurable records durably AND the subscriber still hears it in-request",
   on("outbox.durable_event", event => { received.push(event); });
 
   const event = emitDurable({ name: "outbox.durable_event", agencyId: AGENCY, source: "t", payload: { k: "v" }, causationId: "obx_parent", correlationId: "corr-1" });
-  await drainOutbox();
+  drainOutbox();
   await microtasks();
 
   assert.equal(received.length, 1);
@@ -148,7 +148,7 @@ test("pruning removes only aged delivered rows — pending is never pruned, what
   });
 
   const now = OLD + OUTBOX_DELIVERED_RETENTION_MS + 1;
-  await drainOutbox(now);
+  drainOutbox(now);
   await microtasks();
 
   const state = getState();
@@ -166,7 +166,7 @@ test("the adopted call site: createClient records + delivers client.created dura
 
   const agency = createAgency({ name: "Outbox Adoption Co" });
   const client = createClient(agency.id, { name: "First Client" });
-  await drainOutbox();
+  drainOutbox();
   await microtasks();
 
   const rows = listOutboxEvents(agency.id).filter(row => row.name === "client.created");
@@ -182,5 +182,29 @@ test("the adopted call site: createClient records + delivers client.created dura
 test("source pin: the adopted site records inside its own mutate, not via a detached emit", () => {
   const source = readFileSync(join(__dirname, "..", "src/server/tenants.ts"), "utf-8");
   assert.match(source, /recordOutboxEvent\(state, \{\s*\n\s*name: "client\.created"/, "createClient no longer records client.created inside its mutate");
-  assert.doesNotMatch(source, /emit\([^)]*"client\.created"/, "a second, non-durable client.created emit path crept back in");
+  assert.doesNotMatch(source, /\bemit\(\s*[{a-zA-Z]/, "a non-durable emit path crept back into tenants.ts");
+});
+
+test("adoption manifest: plain emit() is confined to the bus and its drain across src/server", () => {
+  // Every foundation domain module now announces through the outbox
+  // (record-inside-mutate or emitDurable). The ONLY files under src/server
+  // allowed to call the bus directly are the bus itself and the drain that
+  // feeds it. The plugin PORT adapters (built-ins/runtime/foundation-adapters)
+  // and module-internal emits stay plain deliberately — they are the single
+  // seam a later phase flips to make every plugin event durable at once.
+  const serverRoot = join(__dirname, "..", "src/server");
+  const allowed = new Set(["eventBus.ts", "outbox.ts"]);
+  const offenders: string[] = [];
+  const walk = (dir: string): void => {
+    for (const name of readdirSync(dir)) {
+      const path = join(dir, name);
+      if (statSync(path).isDirectory()) { walk(path); continue; }
+      if (!name.endsWith(".ts") || allowed.has(name)) continue;
+      // A real bus call passes its scope object first: `emit({ agencyId … }`.
+      // Prose like "the old emit() did" in comments deliberately doesn't match.
+      if (/\bemit\(\s*[{a-zA-Z]/.test(readFileSync(path, "utf-8"))) offenders.push(path.slice(serverRoot.length + 1));
+    }
+  };
+  walk(serverRoot);
+  assert.deepEqual(offenders, [], `src/server modules bypassing the outbox: ${offenders.join(", ")} — use recordOutboxEvent inside the mutate, or emitDurable`);
 });

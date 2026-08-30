@@ -49,6 +49,18 @@ TRIPLICATED conversion-event predicate into `lib/shared/conversionEvent.ts`
 import it; restatement fails the suite) — first Phase-7 dedup that needed no
 business decision.
 
+**Phase 3 adoption COMPLETE for the foundation** (second pass, 2026-08-30):
+all 28 remaining `emit()` sites adopted — every `src/server/**` domain module
+(tenants, users, persons ×13, organisations ×3, completedActions,
+productWorkspaces) plus the plugin lifecycle (runtime ×4 +
+ensureLeadsPipelineInstall ×2). Manifest pin: plain `emit(` under src/server
+is confined to eventBus.ts + outbox.ts, restatement fails the suite. The
+drain became SYNCHRONOUS after the full suite caught an async delivered-mark
+trailing into smoke-company-portal's "a GET does not write" pin — nothing in
+the drain awaits, so async only detached writes from the caller's turn.
+Deliberately still plain: the port adapters (the one seam that later makes
+every plugin event durable at once) and module-internal emits.
+
 **Phase queue (from docs/data/MIGRATION-PLAN.md):**
 1. Tenancy/identity/roles extraction (tables + RLS behind existing modules;
    blocked on Ed for `supabase db push` + DATABASE_URL — ED-QUESTIONS Q7).

@@ -2,7 +2,7 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-08-30 from **19** source documents / **19,135 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-30 from **19** source documents / **19,350 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -15,7 +15,7 @@
 - [`docs/data/ARCHITECTURE.md`](#source-docs-data-architecture-md) — 1,020 words · `c00c30773721`
 - [`docs/data/DATA-DICTIONARY.md`](#source-docs-data-data-dictionary-md) — 955 words · `bad31fdda0bc`
 - [`docs/data/LINEAGE.md`](#source-docs-data-lineage-md) — 599 words · `1a9cf390899c`
-- [`docs/data/MIGRATION-PLAN.md`](#source-docs-data-migration-plan-md) — 951 words · `f964846b746d`
+- [`docs/data/MIGRATION-PLAN.md`](#source-docs-data-migration-plan-md) — 1,055 words · `5b1148d53b53`
 - [`docs/data/SEMANTIC-LAYER.md`](#source-docs-data-semantic-layer-md) — 775 words · `eaaf6bafb960`
 - [`docs/data/SOURCE-INVENTORY.md`](#source-docs-data-source-inventory-md) — 1,661 words · `880977ed9e4b`
 - [`docs/DEVELOPMENT-HANDOFF.md`](#source-docs-development-handoff-md) — 1,552 words · `9199166a1f30`
@@ -23,7 +23,7 @@
 - [`docs/development.md`](#source-docs-development-md) — 3,248 words · `dd5efef22882`
 - [`docs/development/CLOUD-RESUME.md`](#source-docs-development-cloud-resume-md) — 500 words · `03458cdf18bf`
 - [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 923 words · `66d4c02a3455`
-- [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,217 words · `797ea1046595`
+- [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,328 words · `987da536edaa`
 - [`README.md`](#source-readme-md) — 437 words · `78865db66238`
 
 ---
@@ -1005,7 +1005,7 @@ class in the semantic registry / metadata contracts before copying a field.
 
 ## Source document — `docs/data/MIGRATION-PLAN.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/data/MIGRATION-PLAN.md" sha256="f964846b746d405cf3a88f2d85a287c71b533d8491a365064b9a738112327dc5" -->
+<!-- AQUACRM_SOURCE_START path="docs/data/MIGRATION-PLAN.md" sha256="5b1148d53b53b6f86325f118b8092b0cbd7a359ca2f59bca9696f03690059bbd" -->
 # Migration plan — strangler, one coherent vertical slice at a time
 
 *Rules that bind every phase below: the PortalState/blob system is not
@@ -1075,11 +1075,23 @@ adopted call site: `tenants.createClient` → `client.created` (payload
 unchanged; pinned by source-scan). Company promotion classifies the
 collection as `leave` (events are the origin tenant's history).
 
-Remaining in this phase, call-site-by-call-site: adopt the other `emit()`
-sites (agency.created, client.updated/stage_changed, person.*, phase.*,
-auth events); a cross-process claim (lease) when the outbox extracts to a
-table — the in-blob version's serialization is per-process only, which the
-module documents honestly.
+**Adoption COMPLETE for the foundation (2026-08-30, second pass):** every
+`emit()` under `src/server/**` now announces through the outbox —
+agency.created, client.updated/stage_changed (tenants + productWorkspaces),
+user.signed_up, action.completed, person.created/updated/classified,
+organisation.created/updated — plus the plugin lifecycle events
+(built-ins/runtime + ensureLeadsPipelineInstall). `smoke-outbox.test.ts`
+pins the manifest: plain `emit(` under `src/server` is confined to the bus
+and its drain. The drain is deliberately SYNCHRONOUS (nothing in it awaits),
+so all outbox writes settle before the domain function returns — an async
+drain left delivered-marks trailing into "a GET does not write" pins.
+Deliberately still plain: the plugin PORT adapters
+(built-ins/runtime/foundation-adapters) and module-internal emits — the one
+seam a later phase flips to make every plugin event durable at once.
+
+Remaining in this phase: flip that port-adapter seam (with volume review);
+a cross-process claim (lease) when the outbox extracts to a table — the
+in-blob version's single-instance serialization is what synchrony buys.
 
 - **No event-sourcing claim**: state is not rebuildable from events; the
   outbox supports reliability and lineage, nothing more.
@@ -2334,7 +2346,7 @@ file stays a live queue.*
 
 ## Source document — `docs/development/LOOP-PROGRESS.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/LOOP-PROGRESS.md" sha256="797ea1046595d47ad69da09a7430f0fbb47a5c097dfb737a4286948b37374854" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/LOOP-PROGRESS.md" sha256="987da536edaacf1521ddec9a1cc7efac30e5305eccba8d288d4cff4aee174d35" -->
 # Production-readiness loop — live ledger
 
 **Loop:** every 20 min (cron 5ced36da), started 2026-08-30. Blocked-on-Ed items
@@ -2385,6 +2397,18 @@ TRIPLICATED conversion-event predicate into `lib/shared/conversionEvent.ts`
 (radarTelemetry + commandIntelligenceService + performanceAnalytics now
 import it; restatement fails the suite) — first Phase-7 dedup that needed no
 business decision.
+
+**Phase 3 adoption COMPLETE for the foundation** (second pass, 2026-08-30):
+all 28 remaining `emit()` sites adopted — every `src/server/**` domain module
+(tenants, users, persons ×13, organisations ×3, completedActions,
+productWorkspaces) plus the plugin lifecycle (runtime ×4 +
+ensureLeadsPipelineInstall ×2). Manifest pin: plain `emit(` under src/server
+is confined to eventBus.ts + outbox.ts, restatement fails the suite. The
+drain became SYNCHRONOUS after the full suite caught an async delivered-mark
+trailing into smoke-company-portal's "a GET does not write" pin — nothing in
+the drain awaits, so async only detached writes from the caller's turn.
+Deliberately still plain: the port adapters (the one seam that later makes
+every plugin event durable at once) and module-internal emits.
 
 **Phase queue (from docs/data/MIGRATION-PLAN.md):**
 1. Tenancy/identity/roles extraction (tables + RLS behind existing modules;

@@ -7,7 +7,6 @@ import "server-only";
 
 import crypto from "crypto";
 import { getState, mutate } from "./storage";
-import { emit } from "./eventBus";
 import { drainOutbox, recordOutboxEvent } from "./outbox";
 import type {
   Agency, AgencyStatus, BrandKit, Client, ClientStage, EndCustomer,
@@ -101,8 +100,14 @@ export function createAgency(input: CreateAgencyInput): Agency {
       updatedAt: now,
     };
     state.agencies[id] = saved;
+    recordOutboxEvent(state, {
+      name: "agency.created",
+      agencyId: saved.id,
+      source: "server/tenants",
+      payload: { agencyId: saved.id, name: saved.name },
+    });
   });
-  emit({ agencyId: saved.id }, "agency.created", { agencyId: saved.id, name: saved.name });
+  drainOutbox();
   return saved;
 }
 
@@ -208,7 +213,7 @@ export function createClient(agencyId: string, input: CreateClientInput): Client
       payload: { clientId: saved.id, name: saved.name },
     });
   });
-  void drainOutbox();
+  drainOutbox();
   return saved;
 }
 
@@ -298,18 +303,24 @@ export function updateClient(agencyId: string, clientId: string, patch: UpdateCl
       updatedAt: now,
     };
     state.clients[clientId] = saved;
-  });
-  if (saved) {
-    emit({ agencyId, clientId }, "client.updated", { clientId });
+    recordOutboxEvent(state, {
+      name: "client.updated",
+      agencyId,
+      clientId,
+      source: "server/tenants",
+      payload: { clientId },
+    });
     if (stageChanged) {
-      const after = saved as Client;
-      emit({ agencyId, clientId }, "client.stage_changed", {
+      recordOutboxEvent(state, {
+        name: "client.stage_changed",
+        agencyId,
         clientId,
-        from: oldStage,
-        to: after.stage,
+        source: "server/tenants",
+        payload: { clientId, from: oldStage, to: saved.stage },
       });
     }
-  }
+  });
+  if (saved) drainOutbox();
   return saved;
 }
 

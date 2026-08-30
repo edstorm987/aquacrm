@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-30T11:22:46.436Z",
+  "generatedAt": "2026-08-30T12:40:49.996Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -359,9 +359,9 @@
       "path": "docs/data/MIGRATION-PLAN.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-data-migration-plan-md",
-      "sha256": "f964846b746d405cf3a88f2d85a287c71b533d8491a365064b9a738112327dc5",
-      "words": 951,
-      "bytes": 7336
+      "sha256": "5b1148d53b53b6f86325f118b8092b0cbd7a359ca2f59bca9696f03690059bbd",
+      "words": 1055,
+      "bytes": 8156
     },
     {
       "path": "docs/data/SEMANTIC-LAYER.md",
@@ -495,9 +495,9 @@
       "path": "docs/development/LOOP-PROGRESS.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-loop-progress-md",
-      "sha256": "797ea1046595d47ad69da09a7430f0fbb47a5c097dfb737a4286948b37374854",
-      "words": 1217,
-      "bytes": 9405
+      "sha256": "987da536edaacf1521ddec9a1cc7efac30e5305eccba8d288d4cff4aee174d35",
+      "words": 1328,
+      "bytes": 10207
     },
     {
       "path": "docs/development/notes.md",
@@ -1119,9 +1119,9 @@
       "path": "docs/workspace/feature-index.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-feature-index-md",
-      "sha256": "9bb33b985071c74312b797a241cc0828927e2aaace7ac66ad9d35eb1154a8b4c",
-      "words": 5285,
-      "bytes": 49965
+      "sha256": "bb81323b787b43106b7afcd0ac4b3ca4efca94431e5d8c53e5dc6baad0c3a497",
+      "words": 5342,
+      "bytes": 50378
     },
     {
       "path": "docs/workspace/hazards-and-duplication.md",

@@ -99,13 +99,6 @@ export function recordOutboxEvent(state: PortalState, input: RecordOutboxEventIn
   return event;
 }
 
-// One drain at a time per process: two overlapping drains could hand the same
-// pending row to the bus twice within one instance. (Across instances the
-// blob's last-write-wins still allows a rare double-delivery — which is why
-// the contract is at-least-once, and why the real cross-process claim moves
-// to a lease once the outbox extracts to a table.)
-let drainQueue: Promise<number> = Promise.resolve(0);
-
 function pruneOutbox(state: PortalState, now: number): void {
   const rows = Object.values(state.outbox ?? {});
   for (const row of rows) {
@@ -124,7 +117,21 @@ function pruneOutbox(state: PortalState, now: number): void {
   }
 }
 
-async function drainNow(now: number): Promise<number> {
+/**
+ * Deliver every pending outbox event to the bus (oldest first), then prune.
+ * Returns how many events were delivered.
+ *
+ * SYNCHRONOUS on purpose. Nothing in the loop awaits (emit schedules its
+ * handlers in their own microtasks; mutate is sync), so making this async
+ * would only detach the delivered-marks from the caller's turn — and a write
+ * trailing behind a returned domain function is exactly the kind of ghost
+ * mutation the "a GET does not write" pins exist to catch. Synchronous also
+ * means overlapping drains are impossible in one instance, so no queue is
+ * needed. Across instances the blob's last-write-wins still allows a rare
+ * double-delivery — the at-least-once contract; a real cross-process claim
+ * arrives with the table extraction (MIGRATION-PLAN Phase 3).
+ */
+export function drainOutbox(now = Date.now()): number {
   const pending = Object.values(getState().outbox ?? {})
     .filter(row => row.status === "pending")
     .sort((left, right) => left.recordedAt - right.recordedAt);
@@ -149,16 +156,6 @@ async function drainNow(now: number): Promise<number> {
 }
 
 /**
- * Deliver every pending outbox event to the bus (oldest first), then prune.
- * Serialized per process. Returns how many events were delivered.
- */
-export function drainOutbox(now = Date.now()): Promise<number> {
-  const run = drainQueue.then(() => drainNow(now));
-  drainQueue = run.then(count => count, () => 0);
-  return run;
-}
-
-/**
  * Record + drain in one call — the drop-in for `emit()` call sites that are
  * not already inside a `mutate()`. The record is durable before the bus sees
  * it; subscribers still receive the event in this request, as before.
@@ -168,7 +165,7 @@ export function emitDurable(input: RecordOutboxEventInput): OutboxEvent {
   mutate(state => {
     recorded = recordOutboxEvent(state, input);
   });
-  void drainOutbox(input.now);
+  drainOutbox(input.now);
   return recorded!;
 }
 

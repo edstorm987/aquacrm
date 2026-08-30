@@ -17,7 +17,7 @@ import {
   upsertInstall,
   type PluginInstallScope,
 } from "@/server/pluginInstalls";
-import { emit } from "@/server/eventBus";
+import { emitDurable } from "@/server/outbox";
 import { getPlugin, listCorePlugins } from "./_registry";
 import type {
   AquaPlugin, AquaPreset, PluginCtx, PluginStorage,
@@ -173,7 +173,7 @@ export async function installPlugin(
     }
   }
 
-  emit(options.scope, "plugin.installed", { pluginId, installId: install.id });
+  emitDurable({ name: "plugin.installed", agencyId: options.scope.agencyId, clientId: options.scope.clientId, source: "built-ins/runtime", payload: { pluginId, installId: install.id } });
   return { ok: true, install };
 }
 
@@ -211,7 +211,7 @@ export async function uninstallPlugin(
   }
 
   deleteInstall(scope, pluginId);
-  emit(scope, "plugin.uninstalled", { pluginId, installId: install.id });
+  emitDurable({ name: "plugin.uninstalled", agencyId: scope.agencyId, clientId: scope.clientId, source: "built-ins/runtime", payload: { pluginId, installId: install.id } });
   return { ok: true };
 }
 
@@ -240,7 +240,7 @@ export async function setPluginEnabled(
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   }
-  emit(scope, enabled ? "plugin.enabled" : "plugin.disabled", { pluginId, installId: next.id });
+  emitDurable({ name: enabled ? "plugin.enabled" : "plugin.disabled", agencyId: scope.agencyId, clientId: scope.clientId, source: "built-ins/runtime", payload: { pluginId, installId: next.id } });
   return { ok: true };
 }
 
@@ -288,7 +288,7 @@ export async function configurePlugin(
     }
   }
 
-  emit(scope, "plugin.configured", { pluginId, installId: next.id });
+  emitDurable({ name: "plugin.configured", agencyId: scope.agencyId, clientId: scope.clientId, source: "built-ins/runtime", payload: { pluginId, installId: next.id } });
   return { ok: true, install: next };
 }
 

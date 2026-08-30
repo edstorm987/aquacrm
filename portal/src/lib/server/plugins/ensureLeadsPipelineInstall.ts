@@ -10,7 +10,7 @@ import "server-only";
 
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
 import { _containerFromCtx } from "@/built-ins/modules/leads-pipeline/src/server/foundationAdapter";
-import { emit } from "@/server/eventBus";
+import { emitDurable } from "@/server/outbox";
 import {
   deleteInstall,
   getInstall,
@@ -47,7 +47,7 @@ export function ensureLeadsPipelineInstall(
   if (existing) {
     const enabled = patchInstall(scope, LEADS_PIPELINE_PLUGIN_ID, { enabled: true });
     if (!enabled) return { ok: false, error: "patch failed" };
-    emit(scope, "plugin.enabled", { pluginId: LEADS_PIPELINE_PLUGIN_ID, installId: enabled.id });
+    emitDurable({ name: "plugin.enabled", agencyId: scope.agencyId, source: "lib/server/plugins/ensureLeadsPipelineInstall", payload: { pluginId: LEADS_PIPELINE_PLUGIN_ID, installId: enabled.id } });
     return { ok: true, install: enabled, changed: "enabled" };
   }
 
@@ -72,6 +72,6 @@ export function ensureLeadsPipelineInstall(
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
 
-  emit(scope, "plugin.installed", { pluginId: LEADS_PIPELINE_PLUGIN_ID, installId: install.id });
+  emitDurable({ name: "plugin.installed", agencyId: scope.agencyId, source: "lib/server/plugins/ensureLeadsPipelineInstall", payload: { pluginId: LEADS_PIPELINE_PLUGIN_ID, installId: install.id } });
   return { ok: true, install, changed: "installed" };
 }

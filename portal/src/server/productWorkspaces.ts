@@ -10,7 +10,7 @@ import {
 } from "@/lib/portal/portalProductWorkspaces";
 import type { Client, ClientStage } from "./types";
 import { listAgencyProducts } from "./agencyProducts";
-import { emit } from "./eventBus";
+import { emitDurable } from "./outbox";
 import { mutate } from "./storage";
 import { updateClient } from "./tenants";
 
@@ -137,13 +137,15 @@ export function mutateClientProductWorkspaceVersioned(input: {
   });
   const finalResult = result as ProductWorkspaceVersionedResult;
   if (finalResult.status === "saved" && wrote) {
-    emit({ agencyId: input.agencyId, clientId: input.clientId }, "client.updated", { clientId: input.clientId });
+    emitDurable({ name: "client.updated", agencyId: input.agencyId, clientId: input.clientId, source: "server/productWorkspaces", payload: { clientId: input.clientId } });
     if (stageEvent) {
       const transition = stageEvent as { from: ClientStage; to: ClientStage };
-      emit({ agencyId: input.agencyId, clientId: input.clientId }, "client.stage_changed", {
+      emitDurable({
+        name: "client.stage_changed",
+        agencyId: input.agencyId,
         clientId: input.clientId,
-        from: transition.from,
-        to: transition.to,
+        source: "server/productWorkspaces",
+        payload: { clientId: input.clientId, from: transition.from, to: transition.to },
       });
     }
   }
