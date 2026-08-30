@@ -270,3 +270,54 @@ The same work appears in more than one list 39 times. Canonical id first:
 - **todo:402** ⟵ checklist:1236 — Same loading-skeleton live-region item. Code half fully shipped (PortalViewportLoading) — 1236's checkbox can be ticked; only the AT/announcement browser proof 
 - **todo:746** ⟵ checklist:1729 — Same lead archive/restore/purge work — shipped and browser-accepted per 1729; the only residue is todo:746's forced-partial-failure test in smoke-lead-archive.t
 
+
+---
+
+## Bookkeeping — what was ticked, and what was deliberately not
+
+Updated 2026-08-30 after wave 3.
+
+### Ticked in the trackers
+
+Twelve items were found by triage to be **already shipped and never struck
+through**. These are now `- [x]` in their own file, because source proves them
+done — no code was written for them in this campaign:
+
+`todo.md` 682 (central session revocation), 860 (showcase fixture seeded once,
+not reset), 952 (Aqua Tags nav entry), 958 (the fulfilment spelling split's
+user-facing half), 959 (canonical contacts pick, enforced in source), 961 (the
+`adapters.ts` "dead code" line — it is NOT dead; two real importers), 969
+(the three Supabase creds in `.env.example`).
+
+`checklist.md` 1236 (Command Centre loading status), 1605 (merge to `main` —
+PR #3 merged on 2026-08-23), 1729 (lead archive is reversible since #62).
+
+`LOOP-PROGRESS.md` queue entries 2 and 3 (Scouting Stage 1, inbox premium
+messaging) — both shipped in `7917318`; entry 4's residual double-render was
+fixed in wave 1.
+
+### NOT ticked, on purpose
+
+Every item this campaign actually wrote code for is left **unticked**, even
+where the implementation is complete and test-pinned. Almost all of them
+returned `partially-implemented` for the same two honest reasons:
+
+1. **Browser acceptance is unrun.** This container has no display, so the
+   viewport/keyboard/AT walks the items demand (and that `docs/development/tests.md`
+   records as the closing step) cannot be performed. Code-complete is not
+   browser-accepted, and this repo's own evidence labels forbid conflating them.
+2. **A policy or credential is Ed's.** `todo:751`/`757` retirement policy,
+   `todo:501`/`506` live Stripe test-mode round trips, `todo:99` durable-worker
+   vs synchronous-send product split, `todo:104` database-native version
+   constraint (needs `DATABASE_URL`), `todo:386` `@sentry/nextjs` install.
+
+Ticking those boxes would claim the closing evidence exists. It does not.
+The per-wave commit messages name exactly what shipped; this ledger names what
+each item still owes. Both are more useful than a tick.
+
+### Still open on the trackers after this campaign
+
+`todo:600` (issue #57) is a bundle of roughly fifteen families; eleven are
+closed, four are named as untouched in the wave 2 journal and the issue should
+stay open. `todo:656`'s staged-object lifecycle/expiry is unbuilt. `todo:386`
+has four named open pieces. These are progress, not completion.

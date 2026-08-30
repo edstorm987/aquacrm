@@ -178,9 +178,17 @@ Path prefix: /private/tmp/claude-501/.../scratchpad/
 ## Queue (priority order)
 
 1. Radar agent lands → verify, full suite
-2. Scouting journey Stage 1 (outreach buttons + logging + quota ring)
-3. Inbox premium messaging pass
-4. Kanbans tab (with the testid + catch-all fixes)
+2. ✅ Scouting journey Stage 1 (outreach buttons + logging + quota ring) —
+   shipped in `7917318`; the queue entry was simply never struck through.
+   Verified against source 2026-08-30 (14/14 dedicated smoke tests).
+   Auto-increment of the quota target is deliberately still out.
+3. ✅ Inbox premium messaging pass — shipped in `7917318` (inbox merge:
+   three tabs + cog modal + two-pane messaging). Verified against source
+   2026-08-30.
+4. ✅ Kanbans tab (with the testid + catch-all fixes) — the tab and custom
+   boards shipped in `7917318`; the remaining one-line defect (the desk
+   rendered twice) was fixed and pinned in the 2026-08-30 campaign, wave 1.
+   Live browser acceptance of the tab is still outstanding.
 5. Command Centre regrouping (biggest; stage it)
 6. Info icons / plain-English pass app-wide (Ed: "information icons everywhere
    where needed") — do per-surface as each is touched, then a sweep

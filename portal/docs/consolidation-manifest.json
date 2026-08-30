@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-30T13:39:58.962Z",
+  "generatedAt": "2026-08-30T21:09:33.913Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -420,11 +420,19 @@
       "bytes": 269187
     },
     {
+      "path": "docs/development/CAMPAIGN-LEDGER.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-development-campaign-ledger-md",
+      "sha256": "930c22d8918dcca5b0545074c9cd2821cd9a9c2fd2e05259a919797d987d829c",
+      "words": 6681,
+      "bytes": 49466
+    },
+    {
       "path": "docs/development/checklist.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-checklist-md",
-      "sha256": "a65ea36d7b84454f92695501b2d892db67921d9c882e47c6de1d4c6293937b62",
-      "words": 20719,
+      "sha256": "a22e251386cde62a331eb32b605712d618b378aeec7de3001966d2f1dd1171f7",
+      "words": 20716,
       "bytes": 163376
     },
     {
@@ -495,9 +503,9 @@
       "path": "docs/development/LOOP-PROGRESS.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-loop-progress-md",
-      "sha256": "920ee322006de4b9aacfe1be9578e119e1b9c41d4d121cb71809b5117c9a1382",
-      "words": 1536,
-      "bytes": 11775
+      "sha256": "98fe02dc9d94a4fc3a2091ff5521f2b3b2d3c1a9d8ae0431efae9a5abc2cc971",
+      "words": 1622,
+      "bytes": 12357
     },
     {
       "path": "docs/development/notes.md",
@@ -991,8 +999,8 @@
       "path": "docs/development/todo.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-todo-md",
-      "sha256": "5ba5f74fac8919c948c7e7b21400983c14d8e2c737097392fd653ef26b6f6278",
-      "words": 15824,
+      "sha256": "607b5308f72a7e1d0dd783adf83c7f90aadc06e06b2806e634d80acfb9482673",
+      "words": 15817,
       "bytes": 126717
     },
     {
@@ -1127,9 +1135,9 @@
       "path": "docs/workspace/hazards-and-duplication.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-hazards-and-duplication-md",
-      "sha256": "5403d85950f1c4d9442c1ab321dc873b480669fb14841a3d2f7947d84fa86ca6",
-      "words": 6053,
-      "bytes": 46495
+      "sha256": "b895587bcfe5f8617cdf1eed1db12e973c1e10f592815e3235b032ce55241dfd",
+      "words": 6545,
+      "bytes": 50458
     },
     {
       "path": "docs/workspace/kpi-intelligence.md",
