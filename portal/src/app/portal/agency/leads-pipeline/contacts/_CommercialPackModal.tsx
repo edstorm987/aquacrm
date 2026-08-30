@@ -12,7 +12,17 @@ type Party = {
   email: string;
 };
 type Line = { description: string; quantity: number; unitCents: number };
-type Payment = { id: string; amountCents: number; method: string; reference?: string; paidAt: number };
+type DeliveryStatus = "queued" | "delivered" | "failed";
+type Payment = {
+  id: string;
+  amountCents: number;
+  method: string;
+  reference?: string;
+  paidAt: number;
+  receiptSentAt?: number;
+  receiptDeliveryStatus?: DeliveryStatus;
+  receiptError?: string;
+};
 type ProductTemplate = {
   id: string;
   name: string;
@@ -50,6 +60,9 @@ type Pack = {
   payments: Payment[];
   stripeCheckoutUrl?: string;
   emailMessageId?: string;
+  deliveryStatus?: DeliveryStatus;
+  deliveryError?: string;
+  deliveryAttemptedAt?: number;
   sentAt?: number;
 };
 
@@ -89,7 +102,15 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
   const [paymentReference, setPaymentReference] = useState("");
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
+  // A notice about an unconfirmed or refused delivery must not wear the success
+  // banner's colour, so every notice carries the tone of the outcome it reports.
+  const [noticeTone, setNoticeTone] = useState<"ok" | "warn">("ok");
   const [error, setError] = useState<string | null>(null);
+
+  function showNotice(text: string | null, tone: "ok" | "warn" = "ok") {
+    setNotice(text);
+    setNoticeTone(tone);
+  }
 
   useEffect(() => {
     void (async () => {
@@ -150,13 +171,13 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
     }
     setAgreementTitle(product.contractTitle || `${product.name} agreement`);
     setAgreementBody(product.contractBody || "");
-    setNotice(product.contractBody ? `${product.name} and its contract are ready to review.` : `${product.name} added. This product does not have a contract template yet.`);
+    showNotice(product.contractBody ? `${product.name} and its contract are ready to review.` : `${product.name} added. This product does not have a contract template yet.`);
   }
 
   async function save(): Promise<Pack | null> {
     setBusy("save");
     setError(null);
-    setNotice(null);
+    showNotice(null);
     try {
       const response = await fetch(`${API}/commercial`, {
         method: "PUT",
@@ -186,19 +207,19 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
         return null;
       }
       setPack(result.pack);
-      setNotice("Invoice and agreement saved.");
+      showNotice("Invoice and agreement saved.");
       return result.pack;
     } finally {
       setBusy("");
     }
   }
 
-  async function action(path: string, success: string) {
+  async function action(path: string, success: string | ((pack: Pack | undefined) => { text: string; tone: "ok" | "warn" })) {
     const current = await save();
     if (!current) return;
     setBusy(path);
     setError(null);
-    setNotice(null);
+    showNotice(null);
     try {
       const response = await fetch(`${API}/${path}`, {
         method: "POST",
@@ -206,12 +227,19 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
         body: JSON.stringify({ partyKind: party.kind, partyId: party.id }),
       });
       const result = await response.json() as { ok?: boolean; pack?: Pack; checkoutUrl?: string; error?: string };
+      // A refused delivery still returns the pack so the retained error and retry
+      // handle can be shown; adopt it before reporting the failure.
+      if (result.pack) setPack(result.pack);
       if (!response.ok || !result.ok) {
         setError(result.error ?? "Action failed.");
         return;
       }
-      if (result.pack) setPack(result.pack);
-      setNotice(success);
+      if (typeof success === "function") {
+        const outcome = success(result.pack);
+        showNotice(outcome.text, outcome.tone);
+      } else {
+        showNotice(success);
+      }
     } finally {
       setBusy("");
     }
@@ -246,9 +274,16 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
         return;
       }
       setPack(result.pack);
+      const recorded = result.pack.payments.find(payment =>
+        (payment.reference ?? "").trim().toLowerCase() === paymentReference.trim().toLowerCase());
       setPaymentAmount("");
       setPaymentReference("");
-      setNotice("Payment recorded in the opportunity trail.");
+      showNotice(recorded?.receiptDeliveryStatus === "failed"
+        ? `Payment recorded in the opportunity trail. The receipt email was refused: ${recorded.receiptError ?? "the provider refused delivery."} Record the payment again with the same reference to retry the receipt.`
+        : recorded?.receiptSentAt
+          ? "Payment recorded and the receipt was delivered by email."
+          : "Payment recorded in the opportunity trail. The receipt email is not confirmed delivered yet — record the payment again with the same reference to retry it.",
+        recorded?.receiptSentAt ? "ok" : "warn");
     } finally {
       setBusy("");
     }
@@ -268,7 +303,7 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
     });
     setSignedName(file.name);
     setSignedData(dataUrl);
-    setNotice("Signed copy attached. Save to keep it.");
+    showNotice("Signed copy attached. Save to keep it.");
   }
 
   return (
@@ -306,13 +341,24 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
             <div className="mt-4 space-y-2">
               <Gap ok={Boolean(pack)} label="Invoice saved" />
               <Gap ok={Boolean(pack?.agreementBody)} label="Agreement attached" />
-              <Gap ok={pack?.invoiceStatus === "sent" || pack?.invoiceStatus === "accepted" || pack?.invoiceStatus === "paid"} label="Invoice emailed" />
+              <Gap ok={pack?.deliveryStatus
+                ? pack.deliveryStatus === "delivered"
+                : pack?.invoiceStatus === "sent" || pack?.invoiceStatus === "accepted" || pack?.invoiceStatus === "paid"} label="Invoice emailed" />
               <Gap ok={pack?.agreementStatus === "accepted" || Boolean(pack?.signedDocumentDataUrl)} label="Agreement signed" />
               <Gap ok={paid > 0} label="Payment recorded" />
             </div>
             <button type="button" onClick={() => void save()} disabled={Boolean(busy)} className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50"><FilePenLine size={16} /> {busy === "save" ? "Saving..." : "Save draft"}</button>
             {pack ? <a href={`/proposal/${pack.publicToken}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-4 text-sm font-semibold"><ExternalLink size={16} /> Preview / download copy</a> : null}
-            <button type="button" onClick={() => void action("commercial/send", "Invoice and agreement sent by email.")} disabled={Boolean(busy)} className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-4 text-sm font-semibold disabled:opacity-50"><Mail size={16} /> {busy === "commercial/send" ? "Sending..." : "Send invoice & agreement"}</button>
+            <button type="button" onClick={() => void action("commercial/send", sent => sent?.deliveryStatus === "delivered"
+              ? { text: "Invoice and agreement delivered by email.", tone: "ok" }
+              : { text: "Invoice and agreement handed to the email provider. Delivery is not confirmed yet, so neither document is marked sent — retry the email if the client does not receive it.", tone: "warn" })} disabled={Boolean(busy)} className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-4 text-sm font-semibold disabled:opacity-50"><Mail size={16} /> {busy === "commercial/send" ? "Sending..." : pack?.deliveryStatus === "failed" || pack?.deliveryStatus === "queued" ? "Retry invoice & agreement email" : pack?.deliveryStatus === "delivered" ? "Resend invoice & agreement" : "Send invoice & agreement"}</button>
+            {pack?.deliveryStatus === "failed"
+              ? <p role="status" className="mt-2 border-l-2 border-red-600 bg-red-50 px-3 py-2 text-xs leading-5 text-red-800">Email delivery failed{pack.deliveryAttemptedAt ? ` on ${formatUkDate(pack.deliveryAttemptedAt, { dateStyle: "medium" })}` : ""}: {pack.deliveryError ?? "the provider refused delivery."} The invoice and agreement stay unsent — retry the email above.{pack.emailMessageId ? ` Provider message ${pack.emailMessageId}.` : ""}</p>
+              : pack?.deliveryStatus === "queued"
+                ? <p role="status" className="mt-2 border-l-2 border-amber-600 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">Queued with the email provider{pack.deliveryAttemptedAt ? ` on ${formatUkDate(pack.deliveryAttemptedAt, { dateStyle: "medium" })}` : ""} · delivery not confirmed, so neither document is marked sent. Retry if the client does not receive it.</p>
+                : pack?.deliveryStatus === "delivered" && pack.sentAt
+                  ? <p className="mt-2 px-3 py-1 text-xs leading-5 text-black/50">Delivered {formatUkDate(pack.sentAt, { dateStyle: "medium" })}.</p>
+                  : null}
             <div className="mt-6 border-t border-black/10 pt-5">
               <p className="text-xs font-semibold uppercase tracking-wide text-black/40">Card payments</p>
               {stripeConfigured ? <button type="button" onClick={() => void action("commercial/stripe-checkout", "Secure Stripe payment page created.")} disabled={Boolean(busy)} className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium"><CreditCard size={16} /> {pack?.stripeCheckoutUrl ? "Refresh Stripe payment page" : "Create Stripe payment page"}</button> : <p className="mt-2 text-xs leading-5 text-red-700">Stripe is not connected. Add the server key before offering card payment.</p>}
@@ -322,8 +368,8 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
               <p className="text-xs font-semibold uppercase tracking-wide text-black/40">Record bank, cash or other payment</p>
               <div className="mt-3 grid gap-2"><input className={control} type="number" min="0.01" step="0.01" placeholder={`Amount (£) · balance ${gbp(balance)}`} value={paymentAmount} onChange={event => setPaymentAmount(event.target.value)} /><select className={control} value={paymentMethod} onChange={event => setPaymentMethod(event.target.value)}><option value="bank-transfer">Bank transfer</option><option value="cash">Cash</option><option value="stripe">Stripe</option><option value="other">Other</option></select><input className={control} aria-label="Payment reference" required placeholder="Reference or receipt number · required" value={paymentReference} onChange={event => setPaymentReference(event.target.value)} /><button type="button" onClick={() => void recordPayment()} disabled={busy === "payment" || Number(paymentAmount) <= 0 || !paymentReference.trim()} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium disabled:opacity-40"><Landmark size={16} /> {busy === "payment" ? "Recording..." : "Record payment"}</button></div>
             </div>
-            {pack?.payments.length ? <div className="mt-6 border-t border-black/10 pt-5"><p className="text-xs font-semibold uppercase tracking-wide text-black/40">Payment trail</p><ul className="mt-3 space-y-2">{pack.payments.map(payment => <li key={payment.id} className="flex justify-between gap-3 text-xs"><span className="capitalize text-black/55">{payment.method.replace("-", " ")} · {formatUkDate(payment.paidAt, { dateStyle: "medium" })}</span><strong>{gbp(payment.amountCents)}</strong></li>)}</ul></div> : null}
-            {notice ? <p className="mt-5 border-l-2 border-emerald-600 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{notice}</p> : null}
+            {pack?.payments.length ? <div className="mt-6 border-t border-black/10 pt-5"><p className="text-xs font-semibold uppercase tracking-wide text-black/40">Payment trail</p><ul className="mt-3 space-y-2">{pack.payments.map(payment => <li key={payment.id} className="text-xs"><span className="flex justify-between gap-3"><span className="capitalize text-black/55">{payment.method.replace("-", " ")} · {formatUkDate(payment.paidAt, { dateStyle: "medium" })}</span><strong>{gbp(payment.amountCents)}</strong></span>{payment.receiptSentAt ? <span className="mt-0.5 block text-[11px] text-black/45">Receipt delivered {formatUkDate(payment.receiptSentAt, { dateStyle: "medium" })}</span> : payment.receiptDeliveryStatus === "failed" ? <span className="mt-0.5 block text-[11px] text-red-700">Receipt email refused: {payment.receiptError ?? "the provider refused delivery."} Re-record with the same reference to retry.</span> : <span className="mt-0.5 block text-[11px] text-amber-800">Receipt not confirmed delivered. Re-record with the same reference to retry it.</span>}</li>)}</ul></div> : null}
+            {notice ? <p className={`mt-5 border-l-2 px-3 py-2 text-sm ${noticeTone === "warn" ? "border-amber-600 bg-amber-50 text-amber-900" : "border-emerald-600 bg-emerald-50 text-emerald-800"}`}>{notice}</p> : null}
             {error ? <p role="alert" className="mt-5 border-l-2 border-red-600 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p> : null}
           </aside>
         </div>

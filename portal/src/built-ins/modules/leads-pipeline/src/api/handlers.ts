@@ -412,7 +412,17 @@ export async function sendCommercialPackHandler(req: Request, ctx: PluginCtx): P
   try {
     const baseUrl = new URL(req.url).origin;
     const pack = await buildContainer(ctx).commercial.send(body.partyKind, body.partyId, baseUrl, ctx.actor);
-    return json({ ok: true, pack });
+    // A refused delivery is not a successful send. The pack still comes back so the
+    // caller can show the retained error and message id and retry the same action.
+    if (pack.deliveryStatus === "failed") {
+      return json({
+        ok: false,
+        error: pack.deliveryError ?? "The email provider refused delivery.",
+        delivery: "failed",
+        pack,
+      }, 502);
+    }
+    return json({ ok: true, pack, delivery: pack.deliveryStatus ?? "queued" });
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
   }

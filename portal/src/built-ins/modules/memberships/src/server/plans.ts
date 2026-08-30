@@ -34,6 +34,29 @@ import {
 const PLAN_INDEX_KEY = "memberships/plans/index";
 const planKey = (id: string): string => `memberships/plans/${id}`;
 
+/** Where the outcome of the default-plan seed is recorded. */
+export const SEED_REPORT_KEY = "memberships/plans/seed-report";
+
+/** One default plan that could not be created, and why. */
+export interface SeedDefaultsFailure {
+  name: string;
+  priceMonthly: number;
+  reason: string;
+}
+
+export interface SeedDefaultsResult {
+  seeded: number;
+  existed: number;
+  /** Empty on a clean seed. Non-empty means the install is only partly set up. */
+  failed: SeedDefaultsFailure[];
+}
+
+/** The persisted record of the last seed attempt, read back by the healthcheck. */
+export interface SeedReport extends SeedDefaultsResult {
+  at: number;
+  currency: string;
+}
+
 export class PlanService {
   constructor(
     private agencyId: AgencyId,
@@ -235,9 +258,18 @@ export class PlanService {
 
   // Idempotent. Seeds Bronze / Silver / Gold defaults if no plans exist
   // yet for this client. Called from `onInstall`.
-  async seedDefaults(actor: UserId, currency: Currency = "usd"): Promise<{ seeded: number; existed: number }> {
+  //
+  // Silver and Gold are PAID, so each needs a Stripe Price. With no Stripe
+  // configured those two throw and only free Bronze survives. That partial
+  // outcome is REPORTED, never swallowed: `failed` names each plan that could
+  // not be created and why, so `onInstall` can record it and the healthcheck
+  // can stop reporting a half-seeded install as green.
+  async seedDefaults(
+    actor: UserId,
+    currency: Currency = "usd",
+  ): Promise<SeedDefaultsResult> {
     const existing = await this.list();
-    if (existing.length > 0) return { seeded: 0, existed: existing.length };
+    if (existing.length > 0) return { seeded: 0, existed: existing.length, failed: [] };
 
     const defaults: CreatePlanInput[] = [
       {
@@ -272,15 +304,34 @@ export class PlanService {
     ];
 
     let seeded = 0;
+    const failed: SeedDefaultsFailure[] = [];
     for (const def of defaults) {
       try {
         await this.create(def, actor);
         seeded += 1;
-      } catch {
-        // Concurrent seed — ignore and keep going.
+      } catch (err) {
+        // Keep going — a later default may still be creatable — but record
+        // exactly which one failed and why. Swallowing this is how an install
+        // ends up with free Bronze only and no surface saying so.
+        failed.push({
+          name: def.name,
+          priceMonthly: def.priceMonthly,
+          reason: err instanceof Error ? err.message : String(err),
+        });
       }
     }
-    return { seeded, existed: 0 };
+    const report: SeedReport = { at: now(), currency, seeded, existed: 0, failed };
+    await this.storage.set(SEED_REPORT_KEY, report);
+    return { seeded, existed: 0, failed };
+  }
+
+  /**
+   * The recorded outcome of the last default-plan seed, or null if this install
+   * never ran one. The healthcheck reads it so a half-seeded install (free
+   * Bronze only, because Stripe was not configured) cannot report as green.
+   */
+  async getSeedReport(): Promise<SeedReport | null> {
+    return (await this.storage.get<SeedReport>(SEED_REPORT_KEY)) ?? null;
   }
 
   private async assertBenefitReferences(benefitIds: string[]): Promise<void> {

@@ -43,7 +43,14 @@ import type {
   TenantPort,
   UserPort,
 } from "../server/ports";
-import { containerWithDeps } from "../server/foundationAdapter";
+import {
+  clearMembershipsFoundation,
+  containerWithDeps,
+  isStripeAvailable,
+  registerMembershipsFoundation,
+} from "../server/foundationAdapter";
+import membershipsManifest from "../../index";
+import type { PluginCtx } from "../lib/aquaPluginTypes";
 
 const AGENCY_ID: AgencyId = "agency_mem_smoke";
 const CLIENT_ID: ClientId = "client_mem_smoke";
@@ -478,5 +485,221 @@ describe("memberships smoke", () => {
     const eventNames = world.inspect.events.map(e => e.name);
     assert.ok(eventNames.includes("membership.subscription_started"));
     assert.ok(eventNames.includes("membership.subscription_changed"));
+  });
+});
+
+// ─── Honest degradation when Stripe is not configured ─────────────────────
+//
+// issues #33 / todo:501. The runtime used to hand memberships a throwing NOOP
+// Stripe stub UNCONDITIONALLY, and three lies followed from that one fact:
+//
+//   • `isStripeAvailable()` answered true for every install (a stub is not
+//     null), so the paid-plan guard passed and the request died three calls
+//     later inside `createPrice`;
+//   • `seedDefaults` swallowed the Silver + Gold failures, leaving free Bronze
+//     only, with nothing anywhere saying so;
+//   • `healthcheck` returned ok:true off plan/subscriber row counts, never
+//     asking whether billing could work at all.
+//
+// These pin the corrected behaviour. Each assertion below fails against the
+// old code.
+
+describe("memberships without Stripe says so", () => {
+  const noStripeMessage = "Stripe not configured for this client.";
+
+  function worldWithFailingStripe() {
+    const w = buildWorld();
+    const stripe: StripePort = {
+      ...w.stripe,
+      async createPrice(): Promise<StripePrice> { throw new Error(noStripeMessage); },
+    };
+    return { ...w, stripe };
+  }
+
+  function ctxFor(w: ReturnType<typeof buildWorld>): PluginCtx {
+    return {
+      agencyId: AGENCY_ID,
+      clientId: CLIENT_ID,
+      actor: ACTOR,
+      storage: w.storage,
+      install: {
+        id: "inst_mem_smoke",
+        pluginId: "memberships",
+        agencyId: AGENCY_ID,
+        clientId: CLIENT_ID,
+        enabled: true,
+        config: {},
+        features: {},
+      } as unknown as PluginInstall,
+      services: {} as PluginCtx["services"],
+    };
+  }
+
+  test("seedDefaults names the paid plans it could not create", async () => {
+    const w = worldWithFailingStripe();
+    const services = containerWithDeps({
+      agencyId: AGENCY_ID,
+      clientId: CLIENT_ID,
+      storage: w.storage,
+      tenant: w.tenant,
+      user: w.user,
+      activity: w.activity,
+      events: w.events,
+      pluginInstalls: w.pluginInstalls,
+      stripe: w.stripe,
+    });
+
+    const result = await services.plans.seedDefaults(ACTOR, "usd");
+    assert.equal(result.seeded, 1, "only free Bronze can be created without Stripe");
+    assert.deepEqual(
+      result.failed.map(f => f.name),
+      ["Silver", "Gold"],
+      "the paid defaults are REPORTED as not created, not silently dropped",
+    );
+    assert.ok(
+      result.failed.every(f => f.reason.includes("Stripe")),
+      "each failure states why — an operator must be able to act on it",
+    );
+
+    const report = await services.plans.getSeedReport();
+    assert.equal(report?.seeded, 1, "the partial seed is persisted, not only returned");
+    assert.deepEqual(report?.failed.map(f => f.name), ["Silver", "Gold"]);
+  });
+
+  test("healthcheck refuses to be green for a half-seeded Stripe-less install", async () => {
+    const w = worldWithFailingStripe();
+    clearMembershipsFoundation();
+    registerMembershipsFoundation({
+      tenant: w.tenant,
+      user: w.user,
+      activity: w.activity,
+      events: w.events,
+      pluginInstalls: w.pluginInstalls,
+      // The honest answer for an install with no Stripe keys.
+      stripeFor: () => null,
+    });
+
+    assert.equal(
+      isStripeAvailable({ agencyId: AGENCY_ID, clientId: CLIENT_ID }),
+      false,
+      "a scope with no Stripe client must not report Stripe as available",
+    );
+
+    const ctx = ctxFor(w);
+    await membershipsManifest.onInstall!(ctx, {});
+    const health = await membershipsManifest.healthcheck!(ctx);
+
+    assert.equal(health.ok, false, "row counts alone are not health");
+    assert.equal(health.components?.stripe?.ok, false, "the Stripe port is a health component");
+    assert.match(health.components?.stripe?.message ?? "", /not configured/i);
+    assert.match(
+      health.components?.seed?.message ?? "",
+      /Silver/,
+      "the half-seeded state is named, including which plans are missing",
+    );
+    assert.match(health.message ?? "", /failed to seed/i);
+
+    clearMembershipsFoundation();
+  });
+
+  test("healthcheck is green once Stripe is wired and every default seeds", async () => {
+    const w = buildWorld();
+    clearMembershipsFoundation();
+    registerMembershipsFoundation({
+      tenant: w.tenant,
+      user: w.user,
+      activity: w.activity,
+      events: w.events,
+      pluginInstalls: w.pluginInstalls,
+      stripeFor: () => w.stripe,
+    });
+
+    assert.equal(isStripeAvailable({ agencyId: AGENCY_ID, clientId: CLIENT_ID }), true);
+
+    const ctx = ctxFor(w);
+    await membershipsManifest.onInstall!(ctx, {});
+    const health = await membershipsManifest.healthcheck!(ctx);
+
+    assert.equal(health.ok, true, "a fully seeded, Stripe-wired install is healthy");
+    assert.equal(health.components?.stripe?.ok, true);
+    assert.equal(health.components?.seed, undefined, "no seed component when nothing failed");
+    assert.equal((await ctx.storage.get("memberships/plans/index") as string[]).length, 3);
+
+    clearMembershipsFoundation();
+  });
+
+  test("the seed report stops being reported once the missing plans exist", async () => {
+    // The report is written once and never rewritten: `seedDefaults`
+    // early-returns as soon as any plan exists, and a healthcheck runs against
+    // read-only storage. So a partial seed recorded on day one would otherwise
+    // pin `ok:false` FOREVER, still naming plans that now exist and still
+    // quoting "Stripe not configured" after Stripe was wired. Reporting a fixed
+    // install as broken is the same defect as swallowing the failure, reversed.
+    const w = worldWithFailingStripe();
+    clearMembershipsFoundation();
+    registerMembershipsFoundation({
+      tenant: w.tenant,
+      user: w.user,
+      activity: w.activity,
+      events: w.events,
+      pluginInstalls: w.pluginInstalls,
+      stripeFor: () => null,
+    });
+
+    const ctx = ctxFor(w);
+    await membershipsManifest.onInstall!(ctx, {});
+    const halfSeeded = await membershipsManifest.healthcheck!(ctx);
+    assert.equal(halfSeeded.ok, false, "the half-seeded install is genuinely unhealthy");
+
+    // The operator does the remedy the message named: wires Stripe, then
+    // creates the two plans that could not be seeded.
+    clearMembershipsFoundation();
+    registerMembershipsFoundation({
+      tenant: w.tenant,
+      user: w.user,
+      activity: w.activity,
+      events: w.events,
+      pluginInstalls: w.pluginInstalls,
+      stripeFor: () => buildWorld().stripe,
+    });
+    const services = containerWithDeps({
+      agencyId: AGENCY_ID,
+      clientId: CLIENT_ID,
+      storage: w.storage,
+      tenant: w.tenant,
+      user: w.user,
+      activity: w.activity,
+      events: w.events,
+      pluginInstalls: w.pluginInstalls,
+      stripe: buildWorld().stripe,
+    });
+    await services.plans.create(
+      { name: "Silver", description: "", priceMonthly: 1999, priceAnnual: 0, currency: "usd", benefitIds: [] },
+      ACTOR,
+    );
+
+    const partlyFixed = await membershipsManifest.healthcheck!(ctx);
+    assert.match(
+      partlyFixed.components?.seed?.message ?? "",
+      /Gold/,
+      "Gold is still missing, so it is still named",
+    );
+    assert.doesNotMatch(
+      partlyFixed.components?.seed?.message ?? "",
+      /Silver/,
+      "Silver exists now — claiming it was not created would be false",
+    );
+    assert.equal(partlyFixed.ok, false, "one default plan is still missing");
+
+    await services.plans.create(
+      { name: "Gold", description: "", priceMonthly: 4999, priceAnnual: 0, currency: "usd", benefitIds: [] },
+      ACTOR,
+    );
+    const fixed = await membershipsManifest.healthcheck!(ctx);
+    assert.equal(fixed.components?.seed, undefined, "a fully remediated install has no seed fault left");
+    assert.equal(fixed.ok, true, "a remediated install must be able to go green again");
+    assert.doesNotMatch(fixed.message ?? "", /failed to seed/i);
+
+    clearMembershipsFoundation();
   });
 });

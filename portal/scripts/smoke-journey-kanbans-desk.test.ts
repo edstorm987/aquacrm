@@ -41,6 +41,22 @@ describe("the desk exists and is gated", () => {
     assert.match(workspace, /desk === "kanbans" \? <div className="mt-5 min-w-0">\{kanbans\}<\/div> : null/);
   });
 
+  it("the Kanbans desk renders ALONE — the client-rail block is not a catch-all", () => {
+    // The regression this pins: the block below the desk nav used to render for
+    // every desk except pipeline/meetings, so selecting Kanbans ALSO drew a
+    // header mis-titled "Aqua Health", the brand/service filters, the client
+    // rail and a ContractsPanel underneath the board directory.
+    assert.doesNotMatch(workspace, /desk !== "pipeline" && desk !== "meetings" \?/,
+      'the client-rail block is a catch-all again — every new desk double-renders "Aqua Health" beneath it');
+    const rail = /const CLIENT_RAIL_DESKS: readonly JourneyDesk\[\] = \[([^\]]*)\]/.exec(workspace);
+    assert.ok(rail, "the client-rail block no longer names the desks it serves");
+    const serves = rail[1]!.split(",").map(entry => entry.trim().replace(/"/g, "")).filter(Boolean);
+    assert.deepEqual(serves, ["payments", "contracts", "aqua-health"],
+      "the client-rail block serves a desk it has no header, no title and no panel for");
+    assert.match(workspace, /\{CLIENT_RAIL_DESKS\.includes\(desk\) \?/,
+      "the client-rail block stopped consulting CLIENT_RAIL_DESKS");
+  });
+
   it("creation and deletion are manage-only", () => {
     assert.match(desk, /level === "manage" \? \(\s*<button/, "New board is no longer gated to manage");
     assert.match(desk, /row\.deletable && level === "manage"/, "board delete is no longer gated");

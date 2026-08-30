@@ -19,6 +19,8 @@ import { createInvoiceCheckout, readStripeKeysFromInstall, stripeConfigured } fr
 import { installConfigWithSecrets } from "@/lib/server/plugins/pluginSecretConfig";
 import type { ClientContract } from "@/lib/clients/clientContracts";
 import { closeDealForClient } from "@/lib/server/closeDeal";
+import { deliverContractToClient, describeContractOutcome } from "@/lib/server/clients/contractDelivery";
+import type { TransactionalEmailResult } from "@/lib/server/email/transactionalEmail";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { logActivity } from "@/server/activity";
@@ -124,7 +126,10 @@ export async function POST(request: Request) {
         channel,
         dueAt,
         contractSummary: text(body?.contractSummary, 2_000) || undefined,
-        contractBody: text(body?.contractBody, 20_000) || undefined,
+        // Same ceiling as the canonical contract route (action "update"), so a
+        // set of terms the Contracts panel would store in full is not silently
+        // truncated just because it arrived through the one-button close.
+        contractBody: text(body?.contractBody, 50_000) || undefined,
         idempotencyKey: text(body?.idempotencyKey, 200) || undefined,
       },
       {
@@ -139,6 +144,26 @@ export async function POST(request: Request) {
       },
     );
 
+    // Deliver the agreement the SAME way the canonical send does — the close
+    // used to say "contract sent" while no delivery path ran at all (issues
+    // #39). A contract with no terms never reaches "sent", so there is nothing
+    // to deliver and nothing to claim; a resubmit delivered on its first pass.
+    let delivery: TransactionalEmailResult | undefined;
+    let recipient = "";
+    if (!result.deduped && result.contract.status === "sent") {
+      ({ delivery, recipient } = await deliverContractToClient({
+        agencyId: session.agencyId,
+        clientId,
+        client,
+        contract: result.contract,
+        origin,
+        actorUserId: session.userId,
+        actorEmail: session.email,
+        signal: request.signal,
+      }));
+    }
+    const agreementOutcome = describeContractOutcome(result.contract, delivery, recipient);
+
     // Don't re-log a "deal closed" for an accidental resubmit that reused the
     // first close.
     if (!result.deduped) {
@@ -149,8 +174,14 @@ export async function POST(request: Request) {
         actorEmail: session.email,
         category: "finance",
         action: "deal.closed",
-        message: `Closed “${title}” — contract sent + invoice ${result.invoice.number} issued (${channel}).`,
-        metadata: { contractId: result.contract.id, invoiceId: result.invoice.id, channel },
+        message: `Closed “${title}” — ${agreementOutcome} Invoice ${result.invoice.number} issued (${channel}).`,
+        metadata: {
+          contractId: result.contract.id,
+          contractStatus: result.contract.status,
+          invoiceId: result.invoice.id,
+          channel,
+          agreementDelivered: delivery?.delivered ?? false,
+        },
       });
     }
     await flushPendingWrites();
@@ -158,6 +189,9 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       contractId: result.contract.id,
+      contractStatus: result.contract.status,
+      agreementOutcome,
+      delivery,
       invoiceId: result.invoice.id,
       invoiceNumber: result.invoice.number,
       channel: result.channel,

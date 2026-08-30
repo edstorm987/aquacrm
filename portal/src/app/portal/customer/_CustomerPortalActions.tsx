@@ -4,7 +4,7 @@ import { ArrowRight, ArrowUpRight, Check, CheckCircle2, Circle, ExternalLink, Fi
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { ClientRequest, ClientRequestType } from "@/app/api/tenants/client-requests/route";
-import type { ClientContract } from "@/lib/clients/clientContracts";
+import { contractHasReviewableTerms, type ClientContract } from "@/lib/clients/clientContracts";
 import type { CustomerProjectBrief } from "@/app/api/tenants/customer-project-brief/route";
 import type { ClientApproval } from "@/app/api/tenants/client-approvals/route";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
@@ -833,7 +833,16 @@ export function CustomerAgreements({
                 {contract.acceptedAt && (
                   <p className="mt-3 inline-flex items-center gap-1.5 text-xs text-emerald-700">
                     <CheckCircle2 size={13} aria-hidden="true" />
-                    Accepted {formatShortDate(contract.acceptedAt)}
+                    {/* Bound to the version that was on screen when they agreed —
+                        an amendment resets the agreement, it does not inherit
+                        this acceptance. */}
+                    Accepted version {contract.acceptedVersion ?? contract.version ?? 1} on {formatShortDate(contract.acceptedAt)}
+                  </p>
+                )}
+                {contract.status === "sent" && !contractHasReviewableTerms(contract) && (
+                  <p className="mt-3 text-xs text-amber-800">
+                    There are no terms attached to this agreement yet, so there is nothing to accept.
+                    {" "}{providerName} will add the terms before asking you to agree.
                   </p>
                 )}
               </div>
@@ -843,7 +852,7 @@ export function CustomerAgreements({
                     Review document <ExternalLink size={12} aria-hidden="true" />
                   </a>
                 )}
-                {contract.status === "sent" && !readOnly && (
+                {contract.status === "sent" && contractHasReviewableTerms(contract) && !readOnly && (
                   <>
                     <button
                       type="button"

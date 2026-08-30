@@ -533,6 +533,9 @@ export async function loadCustomerPortalData(
     issuedAt: contract.issuedAt,
     acceptedAt: contract.acceptedAt,
     acceptedBy: contract.acceptedBy ? "Customer" : undefined,
+    // Which wording they actually agreed to — so the portal can say "version 2
+    // accepted" rather than implying the current text was the accepted one.
+    acceptedVersion: contract.acceptedVersion,
     declinedAt: contract.declinedAt,
     declinedBy: contract.declinedBy ? "Customer" : undefined,
   }));

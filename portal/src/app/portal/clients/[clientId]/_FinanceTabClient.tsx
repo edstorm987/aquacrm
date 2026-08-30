@@ -648,12 +648,12 @@ function CloseDealCard({ clientId, onClosed }: { clientId: string; onClosed: () 
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ invoiceNumber?: string; payLink?: string; paymentInstruction?: string } | null>(null);
-  const [form, setForm] = useState({ title: "", amount: "", channel: "stripe", dueInDays: "30", contractSummary: "" });
+  const [result, setResult] = useState<{ invoiceNumber?: string; payLink?: string; paymentInstruction?: string; agreementOutcome?: string; contractStatus?: string } | null>(null);
+  const [form, setForm] = useState({ title: "", amount: "", channel: "stripe", dueInDays: "30", contractSummary: "", contractBody: "" });
   const [idempotencyKey, setIdempotencyKey] = useState(freshIdempotencyKey);
 
   function reset() {
-    setForm({ title: "", amount: "", channel: "stripe", dueInDays: "30", contractSummary: "" });
+    setForm({ title: "", amount: "", channel: "stripe", dueInDays: "30", contractSummary: "", contractBody: "" });
     setResult(null);
     setError(null);
     setOpen(false);
@@ -681,10 +681,11 @@ function CloseDealCard({ clientId, onClosed }: { clientId: string; onClosed: () 
           channel: form.channel,
           dueInDays: Number(form.dueInDays) || 30,
           contractSummary: form.contractSummary.trim() || undefined,
+          contractBody: form.contractBody.trim() || undefined,
           idempotencyKey,
         }),
       });
-      const data = await res.json().catch(() => null) as { ok?: boolean; error?: string; invoiceNumber?: string; payLink?: string; paymentInstruction?: string } | null;
+      const data = await res.json().catch(() => null) as { ok?: boolean; error?: string; invoiceNumber?: string; payLink?: string; paymentInstruction?: string; agreementOutcome?: string; contractStatus?: string } | null;
       if (!res.ok || !data?.ok) {
         setError(data?.error ?? "Could not close the deal.");
         return;
@@ -703,7 +704,11 @@ function CloseDealCard({ clientId, onClosed }: { clientId: string; onClosed: () 
       {result ? (
         <div className="space-y-2">
           <p className="text-sm font-semibold text-emerald-800">Deal closed ✓</p>
-          <p className="text-xs text-black/60">Contract sent{result.invoiceNumber ? ` · invoice ${result.invoiceNumber} issued` : ""}.</p>
+          {/* What actually happened to the agreement — never a blanket "Contract
+              sent". A terms-less close is a draft; a send whose email bounced
+              says so. The server is the only thing that knows, so it says it. */}
+          <p className={`text-xs ${result.contractStatus === "sent" ? "text-black/60" : "text-amber-800"}`}>{result.agreementOutcome ?? "Agreement recorded."}</p>
+          {result.invoiceNumber ? <p className="text-xs text-black/60">Invoice {result.invoiceNumber} issued.</p> : null}
           {result.payLink ? (
             <a href={result.payLink} target="_blank" rel="noreferrer" className="inline-block rounded-md bg-black px-3 py-1.5 text-xs font-semibold text-white">Open the Stripe pay-link →</a>
           ) : null}
@@ -735,6 +740,14 @@ function CloseDealCard({ clientId, onClosed }: { clientId: string; onClosed: () 
             <label className="grid gap-1 text-xs font-medium text-black/60">Take payment by<select className={inputClass} value={form.channel} disabled={busy} onChange={e => setForm(f => ({ ...f, channel: e.target.value }))}>{CLOSE_CHANNELS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}</select></label>
             <label className="grid gap-1 text-xs font-medium text-black/60">Payment due in (days)<input type="number" min="0" step="1" className={inputClass} value={form.dueInDays} disabled={busy} onChange={e => setForm(f => ({ ...f, dueInDays: e.target.value }))} /></label>
             <label className="grid gap-1 text-xs font-medium text-black/60">Contract summary <span className="font-normal text-black/35">(optional)</span><input className={inputClass} placeholder="Scope, terms" value={form.contractSummary} disabled={busy} onChange={e => setForm(f => ({ ...f, contractSummary: e.target.value }))} /></label>
+            <label className="grid gap-1 text-xs font-medium text-black/60 sm:col-span-2">Agreed terms
+              <textarea rows={5} className="rounded-md border border-black/15 bg-white px-3 py-2 text-sm font-normal text-black" placeholder="What you are delivering, for how long, and what the client owes." value={form.contractBody} disabled={busy} onChange={e => setForm(f => ({ ...f, contractBody: e.target.value }))} />
+              <span className="font-normal text-black/45">
+                {form.contractBody.trim()
+                  ? "The client can review and accept exactly these terms in their portal."
+                  : "Without terms the agreement is saved as a draft — the client cannot review or accept it. The invoice is still issued."}
+              </span>
+            </label>
           </div>
           {error ? <p role="alert" className="text-xs text-red-700">{error}</p> : null}
           <div className="flex justify-end">

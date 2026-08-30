@@ -181,6 +181,10 @@ test("a failure after the refund row is retryable and adopts one durable provide
 
 const SANDBOX = mkdtempSync(join(tmpdir(), "aqua-finance-refunds-"));
 const STATE_FILE = join(SANDBOX, "portal-state.json");
+// A side channel both child processes append to: the event bus has no
+// idempotency of its own, so "how many times was this emitted, across every
+// instance?" is only answerable outside either process.
+const EMIT_LOG = join(SANDBOX, "emitted-events.jsonl");
 const INSTALL_ID = `${AGENCY_ID}|_agency|agency-finance`;
 
 const CHILD_SOURCE = String.raw`
@@ -190,6 +194,8 @@ const [pluginStorageImported, financeImported, portalStorageImported, reconcileI
   import(process.env.AQUA_PORTAL_STORAGE_MODULE),
   import(process.env.AQUA_RECONCILE_MODULE),
 ]);
+const { appendFileSync } = await import("node:fs");
+const emitLog = process.env.AQUA_EMIT_LOG;
 const pluginStorageModule = pluginStorageImported.default || pluginStorageImported;
 const financeModule = financeImported.default || financeImported;
 const portalStorageModule = portalStorageImported.default || portalStorageImported;
@@ -209,7 +215,7 @@ const finance = financeModule.containerWithDeps({
   },
   user: { getUser: () => null },
   activity: { logActivity: value => ({ id: value.idempotencyKey || "activity", ts: Date.now(), ...value }), listActivity: () => [] },
-  events: { emit() {} },
+  events: { emit(scope, name, payload) { if (emitLog) appendFileSync(emitLog, JSON.stringify({ name: name, payload: payload }) + "\n"); } },
   pluginInstalls: { getInstall: () => null },
 });
 let value;
@@ -243,6 +249,7 @@ async function runChild<T>(action: "seed" | "refund" | "dispute" | "snapshot", i
         AQUA_ACTION: action,
         AQUA_INPUT: JSON.stringify(input),
         AQUA_INSTALL_ID: INSTALL_ID,
+        AQUA_EMIT_LOG: EMIT_LOG,
         AQUA_AGENCY_ID: AGENCY_ID,
         AQUA_CLIENT_ID: CLIENT_ID,
         AQUA_PLUGIN_STORAGE_MODULE: moduleUrl("src/lib/server/pluginStorage.ts"),
@@ -278,10 +285,18 @@ test("independent processes converge one refund/dispute row and a fresh reload s
   ]);
   assert.equal(left.ok, true);
   assert.equal(right.ok, true);
-  await Promise.all([
-    runChild("dispute", { eventId: "evt_process_dispute_a", disputeId: "dp_process", amountCents: 2_000 }),
-    runChild("dispute", { eventId: "evt_process_dispute_b", disputeId: "dp_process", amountCents: 2_000 }),
+  const [disputeLeft, disputeRight] = await Promise.all([
+    runChild<{ action: string }>("dispute", { eventId: "evt_process_dispute_a", disputeId: "dp_process", amountCents: 2_000 }),
+    runChild<{ action: string }>("dispute", { eventId: "evt_process_dispute_b", disputeId: "dp_process", amountCents: 2_000 }),
   ]);
+  // One process wrote the dispute; the other met it already there. The loser
+  // must SAY so — reporting a second "chargeback" would tell the operator the
+  // client disputed twice.
+  assert.deepEqual(
+    [disputeLeft.value?.action, disputeRight.value?.action].sort(),
+    ["chargeback", "deduped"],
+    "exactly one delivery records the chargeback, the other reports itself deduped",
+  );
   const snapshot = await runChild<{ invoice: { status: string }; refunds: Array<{ providerId: string; amountCents: number }>; disputes: Array<{ providerId: string }>; accounting: { grossCashRevenueCents: number; refundCents: number; cashRevenueCents: number } }>("snapshot", { invoiceId: seeded.value.invoiceId, now: REPORT_END() });
   assert.equal(snapshot.ok, true);
   assert.equal(snapshot.value?.invoice.status, "partially-refunded");
@@ -290,6 +305,13 @@ test("independent processes converge one refund/dispute row and a fresh reload s
   assert.equal(snapshot.value?.accounting.grossCashRevenueCents, 10_000);
   assert.equal(snapshot.value?.accounting.refundCents, 3_000);
   assert.equal(snapshot.value?.accounting.cashRevenueCents, 7_000);
+
+  // The side effects, not just the rows. The bus re-runs every subscriber and
+  // automation per emit — a duplicate `payment.disputed` chases the client
+  // about the same chargeback twice.
+  const emitted = readFileSync(EMIT_LOG, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line) as { name: string });
+  assert.equal(emitted.filter(e => e.name === "agency-finance.payment.disputed").length, 1, "one dispute, one emitted event across BOTH processes");
+  assert.equal(emitted.filter(e => e.name === "agency-finance.payment.refunded").length, 1, "one refund, one emitted event across BOTH processes");
 });
 
 test("mounted/manual and visible consumers keep gross, refund and net fields explicit", () => {

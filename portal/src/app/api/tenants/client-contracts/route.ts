@@ -5,12 +5,13 @@ import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth"
 import { AGENCY_ROLES, CLIENT_ROLES, isAgencyRole } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { logActivity } from "@/server/activity";
-import type { ClientContract, ClientContractRevision } from "@/lib/clients/clientContracts";
+import { contractHasReviewableTerms, type ClientContract, type ClientContractRevision } from "@/lib/clients/clientContracts";
 import {
   removeClientRecordLedgerEvent,
   upsertClientContractLedgerEvent,
 } from "@/lib/server/clients/clientRecordLedger";
-import { sendTransactionalEmail, type TransactionalEmailResult } from "@/lib/server/email/transactionalEmail";
+import { deliverContractToClient } from "@/lib/server/clients/contractDelivery";
+import type { TransactionalEmailResult } from "@/lib/server/email/transactionalEmail";
 import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 type Action = "create" | "update" | "send" | "accept" | "decline" | "delete";
@@ -222,6 +223,7 @@ export async function POST(req: Request) {
         issuedAt: undefined,
         acceptedAt: undefined,
         acceptedBy: undefined,
+        acceptedVersion: undefined,
         declinedAt: undefined,
         declinedBy: undefined,
         updatedAt: now,
@@ -230,7 +232,7 @@ export async function POST(req: Request) {
       activityAction = "contract.amended";
     } else if (action === "send") {
       if (!agencyUser) return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-      if (!current.body && !current.documentUrl) {
+      if (!contractHasReviewableTerms(current)) {
         return NextResponse.json({ ok: false, error: "write terms or attach a document before sending" }, { status: 409 });
       }
       contracts[index] = { ...current, status: "sent", issuedAt: now, updatedAt: now };
@@ -241,16 +243,26 @@ export async function POST(req: Request) {
       if (current.status !== "sent") {
         return NextResponse.json({ ok: false, error: "only a sent agreement can be accepted" }, { status: 409 });
       }
+      // Nobody can agree to a title. A record that reached "sent" without terms
+      // (an older one-button close did exactly that) is refused here too, so the
+      // gate holds for agreements already sitting in a client's portal.
+      if (!contractHasReviewableTerms(current)) {
+        return NextResponse.json({ ok: false, error: "this agreement has no terms to review yet — ask for the terms before accepting" }, { status: 409 });
+      }
       contracts[index] = {
         ...current,
         status: "accepted",
         acceptedAt: now,
         acceptedBy: session.email,
+        // Bind the acceptance to the exact wording that was on screen. An
+        // amendment bumps the version and resets to draft, so a later version
+        // can never inherit this acceptance.
+        acceptedVersion: current.version ?? 1,
         declinedAt: undefined,
         declinedBy: undefined,
         updatedAt: now,
       };
-      message = `${session.email} accepted agreement “${current.title}”.`;
+      message = `${session.email} accepted version ${current.version ?? 1} of agreement “${current.title}”.`;
       activityAction = "contract.accepted";
     } else if (action === "decline") {
       if (current.status !== "sent") {
@@ -263,6 +275,7 @@ export async function POST(req: Request) {
         declinedBy: session.email,
         acceptedAt: undefined,
         acceptedBy: undefined,
+        acceptedVersion: undefined,
         updatedAt: now,
       };
       message = `${session.email} declined agreement “${current.title}”.`;
@@ -304,44 +317,19 @@ export async function POST(req: Request) {
 
   let delivery: TransactionalEmailResult | undefined;
   if (contractForDelivery) {
-    const recipient = cleanText((client.metadata as { portalLoginEmail?: unknown; clientEmail?: unknown } | undefined)?.portalLoginEmail, 320)
-      || cleanText((client.metadata as { clientEmail?: unknown } | undefined)?.clientEmail, 320)
-      || client.ownerEmail?.trim()
-      || "";
-    if (recipient) {
-      const origin = new URL(req.url).origin;
-      const portalUrl = `${origin}/login?brand=aquacrm&next=${encodeURIComponent("/portal/customer")}`;
-      delivery = await sendTransactionalEmail({
-        agencyId: session.agencyId,
-        clientId,
-        to: recipient,
-        signal: req.signal,
-        fromName: "AquaCRM",
-        subject: `Agreement ready for review · ${contractForDelivery.title}`,
-        bodyText: [`Hello ${client.name},`, "", `Your agreement “${contractForDelivery.title}” is ready to review.`, contractForDelivery.summary || "", "", `Review the agreement: ${portalUrl}`].filter(Boolean).join("\n"),
-        bodyHtml: `<div style="font-family:Arial,sans-serif;background:#f3f6f5;padding:28px;color:#192321"><div style="max-width:640px;margin:auto;background:#fff;border:1px solid #dce4e1;padding:28px"><p style="margin:0 0 20px;color:#087f8c;font-size:13px;font-weight:700">AQUACRM AGREEMENT</p><h1 style="font-size:24px;margin:0 0 12px">${escapeHtml(contractForDelivery.title)}</h1>${contractForDelivery.summary ? `<p style="line-height:1.6;color:#58635f">${escapeHtml(contractForDelivery.summary)}</p>` : ""}<a href="${escapeHtml(portalUrl)}" style="display:inline-block;margin-top:18px;background:#102d2a;color:#fff;text-decoration:none;padding:12px 18px;border-radius:6px;font-weight:700">Review agreement</a></div></div>`,
-        externalRef: `contract-delivery:${session.agencyId}:${clientId}:${contractForDelivery.id}:${contractForDelivery.updatedAt}`,
-      });
-    } else {
-      delivery = { delivered: false, via: "unconfigured", reason: "Add a client email before delivering this agreement." };
-    }
-    logActivity({
+    ({ delivery } = await deliverContractToClient({
       agencyId: session.agencyId,
       clientId,
+      client,
+      contract: contractForDelivery,
+      origin: new URL(req.url).origin,
       actorUserId: session.userId,
       actorEmail: session.email,
-      category: "finance",
-      action: delivery.delivered ? "contract.delivered" : "contract.delivery_failed",
-      message: delivery.delivered ? `Delivered agreement “${contractForDelivery.title}” to ${recipient}.` : `Agreement “${contractForDelivery.title}” is in the portal but email delivery failed.`,
-      metadata: { contractId: contractForDelivery.id, recipient, via: delivery.via, reason: delivery.reason },
-    });
+      signal: req.signal,
+    }));
   }
 
   await flushPendingWrites();
 
   return NextResponse.json({ ok: true, replayed, contract: changedContract, contracts, delivery });
-}
-
-function escapeHtml(value: string): string {
-  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 }

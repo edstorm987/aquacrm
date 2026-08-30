@@ -13,7 +13,7 @@ import type {
   PluginCtx,
 } from "./src/lib/aquaPluginTypes";
 import { ROUTES } from "./src/api/routes";
-import { _containerFromCtx } from "./src/server/foundationAdapter";
+import { _containerFromCtx, isStripeAvailable } from "./src/server/foundationAdapter";
 import type { Currency } from "./src/lib/domain";
 
 const AGENCY_ADMINS = ["agency-owner", "agency-manager"] as const;
@@ -206,7 +206,17 @@ const manifest: AquaPlugin = {
     const currency = (setupAnswers.currency as Currency | undefined)
       ?? (ctx.install.config.defaultCurrency as Currency | undefined)
       ?? "usd";
-    await c.plans.seedDefaults(ctx.actor, currency);
+    const result = await c.plans.seedDefaults(ctx.actor, currency);
+    if (result.failed.length > 0) {
+      // Do NOT let a half-seeded install look like a clean one. `seedDefaults`
+      // persisted the report the healthcheck reads; say it out loud here too,
+      // naming the plans and the reason.
+      console.warn(
+        `[memberships] onInstall seeded ${result.seeded} of ` +
+          `${result.seeded + result.failed.length} default plans for client ${ctx.clientId}. ` +
+          `Not created: ${result.failed.map(f => `${f.name} (${f.reason})`).join("; ")}`,
+      );
+    }
   },
 
   healthcheck: async (ctx: PluginCtx): Promise<HealthStatus> => {
@@ -217,16 +227,65 @@ const manifest: AquaPlugin = {
       storage: ctx.storage,
     });
     if (!c) return { ok: false, message: "memberships foundation not registered" };
-    const [plans, subscribers] = await Promise.all([c.plans.list(), c.subscriptions.list()]);
+    const [plans, subscribers, seedReport] = await Promise.all([
+      c.plans.list(),
+      c.subscriptions.list(),
+      c.plans.getSeedReport(),
+    ]);
     const active = subscribers.filter(s => s.status === "active" || s.status === "trialing").length;
-    return {
-      ok: true,
-      message: `${plans.length} plans, ${active} active subscribers`,
-      components: {
-        plans: { ok: plans.length > 0, message: `${plans.length} rows` },
-        subscribers: { ok: true, message: `${subscribers.length} total · ${active} active` },
-      },
+
+    // Row counts alone are not health. Memberships bills through Stripe, so the
+    // Stripe port is a component of this plugin's health — an unconfigured one
+    // is a visible blind spot, never a silent green.
+    const stripeReady = isStripeAvailable({ agencyId: ctx.agencyId, clientId: ctx.clientId });
+    const paidPlans = plans.filter(p => p.priceMonthly > 0 || p.priceAnnual > 0).length;
+
+    // A recorded seed failure is only news while that plan is STILL missing.
+    // Nothing ever rewrites the report — `seedDefaults` early-returns once any
+    // plan exists, and a healthcheck runs against read-only storage — so an
+    // operator who wires Stripe and creates Silver + Gold by hand would
+    // otherwise be told forever that "2 default plan(s) not created: Silver
+    // (Stripe not configured…)". Both halves of that would be false. Reporting
+    // a fixed install as broken is the same honesty defect as swallowing the
+    // failure was, pointed the other way, so the report is reconciled against
+    // the plans that actually exist now.
+    const existingPlanNames = new Set(plans.map(p => p.name));
+    const seedFailures = (seedReport?.failed ?? []).filter(f => !existingPlanNames.has(f.name));
+
+    const components: NonNullable<HealthStatus["components"]> = {
+      plans: { ok: plans.length > 0, message: `${plans.length} rows` },
+      subscribers: { ok: true, message: `${subscribers.length} total · ${active} active` },
+      stripe: stripeReady
+        ? { ok: true, message: "configured via the ecommerce install" }
+        : {
+            ok: false,
+            message:
+              "not configured — paid plans, checkout, the billing portal and webhooks are unavailable. " +
+              "Add the Stripe secret key in the ecommerce plugin's settings.",
+          },
     };
+    if (seedFailures.length > 0) {
+      components.seed = {
+        ok: false,
+        message: `${seedFailures.length} default plan(s) not created: ` +
+          seedFailures.map(f => `${f.name} (${f.reason})`).join("; "),
+      };
+    }
+
+    // Unhealthy when something is actually broken: a recorded partial seed, or
+    // paid plans that exist with no Stripe to bill them. A deliberately
+    // free-only install with no paid plans stays ok, with the Stripe component
+    // still stating plainly that it is unconfigured.
+    const brokenPaid = !stripeReady && paidPlans > 0;
+    const ok = seedFailures.length === 0 && !brokenPaid;
+    const notes = [`${plans.length} plans, ${active} active subscribers`];
+    if (seedFailures.length > 0) {
+      notes.push(`${seedFailures.length} default plan(s) failed to seed`);
+    }
+    if (brokenPaid) notes.push(`${paidPlans} paid plan(s) but Stripe is not configured`);
+    else if (!stripeReady) notes.push("Stripe not configured (free tiers only)");
+
+    return { ok, message: notes.join(" · "), components };
   },
 };
 

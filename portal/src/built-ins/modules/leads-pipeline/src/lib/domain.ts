@@ -96,13 +96,23 @@ export interface CommercialLineItem {
   unitCents: number;
 }
 
+// Email delivery is three-valued, never a boolean "sent" flag: "queued" means the
+// provider accepted the message but has not confirmed delivery, "delivered" is the
+// only state that may advance a sent/receipt milestone, and "failed" retains the
+// provider's reason plus the message id so the send can be retried honestly.
+export type CommercialDeliveryStatus = "queued" | "delivered" | "failed";
+
 export interface CommercialPayment {
   id: string;
   amountCents: number;
   method: CommercialPaymentMethod;
   reference?: string;
   paidAt: number;
+  /** Stamped only on confirmed receipt delivery. */
   receiptSentAt?: number;
+  receiptDeliveryStatus?: CommercialDeliveryStatus;
+  receiptMessageId?: string;
+  receiptError?: string;
   activityRecordedAt?: number;
   eventEmittedAt?: number;
 }
@@ -141,7 +151,12 @@ export interface CommercialPack {
   stripeCheckoutUrl?: string;
   stripeSubscriptionId?: string;
   financeInvoiceId?: string;
+  /** Retry handle for the last proposal email, kept for failed attempts too. */
   emailMessageId?: string;
+  deliveryStatus?: CommercialDeliveryStatus;
+  deliveryError?: string;
+  deliveryAttemptedAt?: number;
+  /** Stamped only on confirmed delivery of the proposal email. */
   sentAt?: number;
   acceptedAt?: number;
   createdAt: number;

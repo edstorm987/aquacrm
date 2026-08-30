@@ -131,11 +131,24 @@ function buildWorld(opts: { withEmail?: boolean; withPipeline?: boolean } = {}) 
     },
   };
 
+  // Delivery outcome the stub provider reports back from `send()`. Tests flip this
+  // to simulate an explicit provider refusal ("failed") or a provider that only
+  // accepts the message into its queue without confirming delivery ("queued").
+  const emailDelivery: { mode: "delivered" | "queued" | "failed"; error?: string } = { mode: "delivered" };
   const emailEnqueue: EmailEnqueuePort | undefined = opts.withEmail
     ? {
         enqueue(input) {
           enqueued.push(input);
           return { messageId: `msg_${enqueued.length}` };
+        },
+        send(input) {
+          enqueued.push(input);
+          const messageId = `msg_${enqueued.length}`;
+          if (emailDelivery.mode === "queued") return { messageId };
+          if (emailDelivery.mode === "failed") {
+            return { messageId, delivered: false, error: emailDelivery.error ?? "Mailbox rejected the recipient." };
+          }
+          return { messageId, delivered: true };
         },
       }
     : undefined;
@@ -169,7 +182,7 @@ function buildWorld(opts: { withEmail?: boolean; withPipeline?: boolean } = {}) 
   return {
     storage, tenant, activity, eventBus, pluginInstalls,
     emailEnqueue, pipeline, pipelineColumn,
-    activityLog, events, enqueued,
+    activityLog, events, enqueued, emailDelivery,
   };
 }
 
@@ -787,6 +800,9 @@ describe("leads-pipeline / commercial packs", () => {
     const sent = await c.commercial.send("lead", lead.lead.id, "https://milesymedia.test", ACTOR);
     assert.equal(sent.invoiceStatus, "sent");
     assert.equal(sent.agreementStatus, "sent");
+    assert.equal(sent.deliveryStatus, "delivered");
+    assert.ok((sent.sentAt ?? 0) > 0);
+    assert.equal(sent.deliveryError, undefined);
     assert.equal(w.enqueued.length, 1);
     assert.match(w.enqueued[0]?.bodyText ?? "", /proposal\//);
 
@@ -815,8 +831,123 @@ describe("leads-pipeline / commercial packs", () => {
     }, ACTOR);
     assert.equal(paid?.invoiceStatus, "paid");
     assert.equal(paid?.payments.length, 2);
+    assert.ok(paid?.payments.every(payment =>
+      payment.receiptDeliveryStatus === "delivered" && (payment.receiptSentAt ?? 0) > 0));
     assert.ok(w.activityLog.some(entry => entry.action === "commercial.payment.recorded"));
     assert.ok(w.events.some(event => event.name === "commercial.payment.recorded"));
+  });
+
+  test("a refused proposal email leaves the pack unsent, retains the error, and a retry sends it", async () => {
+    const w = buildWorld({ withEmail: true });
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+      emailEnqueue: w.emailEnqueue,
+    });
+    await c.commercial.save({
+      partyKind: "lead",
+      partyId: "lead_send_refused",
+      recipientEmail: "refused@example.test",
+      lineItems: [{ description: "Service", quantity: 1, unitCents: 50_000 }],
+      taxCents: 0,
+      currency: "gbp",
+      dueAt: Date.now() + 86_400_000,
+      billingCadence: "one-off",
+      serviceLevel: "Service",
+      agreementTitle: "Agreement",
+      agreementBody: "Terms",
+    }, ACTOR);
+
+    w.emailDelivery.mode = "failed";
+    w.emailDelivery.error = "Mailbox unavailable (550).";
+    const refused = await c.commercial.send("lead", "lead_send_refused", "https://milesymedia.test", ACTOR);
+    assert.equal(refused.deliveryStatus, "failed");
+    assert.equal(refused.deliveryError, "Mailbox unavailable (550).");
+    assert.equal(refused.invoiceStatus, "draft");
+    assert.equal(refused.agreementStatus, "draft");
+    assert.equal(refused.sentAt, undefined);
+    assert.ok(refused.emailMessageId, "the provider message id is retained as the retry handle");
+    assert.ok(refused.deliveryAttemptedAt);
+    assert.equal(w.activityLog.some(entry => entry.action === "commercial.sent"), false);
+    const failure = w.activityLog.find(entry => entry.action === "commercial.send.failed");
+    assert.ok(failure, "the refusal is logged as a failure, not a send");
+    assert.match(failure?.message ?? "", /stay unsent/i);
+    // The refusal survives a reload — it is persisted, not only returned.
+    const reloaded = await c.commercial.get("lead", "lead_send_refused");
+    assert.equal(reloaded?.deliveryStatus, "failed");
+    assert.equal(reloaded?.invoiceStatus, "draft");
+
+    // Queue-only acceptance is not confirmation either.
+    w.emailDelivery.mode = "queued";
+    const queued = await c.commercial.send("lead", "lead_send_refused", "https://milesymedia.test", ACTOR);
+    assert.equal(queued.deliveryStatus, "queued");
+    assert.equal(queued.invoiceStatus, "draft");
+    assert.equal(queued.sentAt, undefined);
+    assert.equal(queued.deliveryError, undefined);
+    assert.ok(w.activityLog.some(entry => entry.action === "commercial.send.queued"));
+
+    // Retry: the same action is the retry path and confirmed delivery advances it.
+    w.emailDelivery.mode = "delivered";
+    const delivered = await c.commercial.send("lead", "lead_send_refused", "https://milesymedia.test", ACTOR);
+    assert.equal(delivered.deliveryStatus, "delivered");
+    assert.equal(delivered.deliveryError, undefined);
+    assert.equal(delivered.invoiceStatus, "sent");
+    assert.equal(delivered.agreementStatus, "sent");
+    assert.ok((delivered.sentAt ?? 0) > 0);
+    assert.ok(w.activityLog.some(entry => entry.action === "commercial.sent"));
+  });
+
+  test("a refused payment receipt is retained unsent and the same reference retries it", async () => {
+    const w = buildWorld({ withEmail: true });
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+      emailEnqueue: w.emailEnqueue,
+    });
+    await c.commercial.save({
+      partyKind: "contact",
+      partyId: "contact_receipt_refused",
+      recipientEmail: "receipt-refused@example.test",
+      lineItems: [{ description: "Service", quantity: 1, unitCents: 20_000 }],
+      taxCents: 0,
+      currency: "gbp",
+      dueAt: Date.now() + 86_400_000,
+      billingCadence: "one-off",
+      serviceLevel: "Service",
+      agreementTitle: "Agreement",
+      agreementBody: "Terms",
+    }, ACTOR);
+
+    w.emailDelivery.mode = "failed";
+    w.emailDelivery.error = "Receipt mailbox full.";
+    const recorded = await c.commercial.recordPayment("contact", "contact_receipt_refused", {
+      amountCents: 20_000,
+      method: "bank-transfer",
+      reference: "BANK-RECEIPT-1",
+    }, ACTOR);
+    const failedReceipt = recorded?.payments[0];
+    assert.equal(recorded?.invoiceStatus, "paid", "the money is still recorded");
+    assert.equal(failedReceipt?.receiptSentAt, undefined, "a refused receipt is never stamped sent");
+    assert.equal(failedReceipt?.receiptDeliveryStatus, "failed");
+    assert.equal(failedReceipt?.receiptError, "Receipt mailbox full.");
+    assert.ok(failedReceipt?.receiptMessageId, "the receipt message id is retained for retry");
+    // The activity and event side effects still completed despite the refusal.
+    assert.ok(w.activityLog.some(entry => entry.action === "commercial.payment.recorded"));
+    assert.ok(w.events.some(event => event.name === "commercial.payment.recorded"));
+
+    // Re-recording the same reference resumes the outstanding receipt rather than
+    // duplicating the payment; a confirmed delivery is what finally stamps it.
+    w.emailDelivery.mode = "delivered";
+    const retried = await c.commercial.recordPayment("contact", "contact_receipt_refused", {
+      amountCents: 20_000,
+      method: "bank-transfer",
+      reference: "bank-receipt-1",
+    }, ACTOR);
+    assert.equal(retried?.payments.length, 1);
+    assert.equal(retried?.payments[0]?.receiptDeliveryStatus, "delivered");
+    assert.ok((retried?.payments[0]?.receiptSentAt ?? 0) > 0);
+    assert.equal(retried?.payments[0]?.receiptError, undefined);
+    assert.equal(w.activityLog.filter(entry => entry.action === "commercial.payment.recorded").length, 1);
   });
 
   test("signed agreement uploads are constrained to safe document formats", async () => {

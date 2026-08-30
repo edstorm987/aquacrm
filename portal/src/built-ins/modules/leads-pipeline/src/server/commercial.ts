@@ -9,7 +9,7 @@ import type {
   SaveCommercialPackInput,
 } from "../lib/domain";
 import type { PluginStorage } from "../lib/aquaPluginTypes";
-import type { ActivityLogPort, EmailEnqueuePort, EventBusPort } from "./ports";
+import type { ActivityLogPort, EmailEnqueuePort, EmailEnqueueResult, EventBusPort } from "./ports";
 
 const partyKey = (kind: CommercialPartyKind, id: string) => `commercial/party/${kind}/${id}`;
 const tokenKey = (token: string) => `commercial/token/${token}`;
@@ -146,6 +146,9 @@ export class CommercialService {
       stripeSubscriptionId: existing?.stripeSubscriptionId,
       financeInvoiceId: existing?.financeInvoiceId,
       emailMessageId: existing?.emailMessageId,
+      deliveryStatus: existing?.deliveryStatus,
+      deliveryError: existing?.deliveryError,
+      deliveryAttemptedAt: existing?.deliveryAttemptedAt,
       sentAt: existing?.sentAt,
       acceptedAt: existing?.acceptedAt,
       createdAt: existing?.createdAt ?? ts,
@@ -201,29 +204,47 @@ export class CommercialService {
     const paymentLink = pack.stripeCheckoutUrl
       ? `<p><a href="${escapeHtml(pack.stripeCheckoutUrl)}">Pay securely by card</a></p>`
       : `<p>Bank transfer or cash payment can be arranged with ${escapeHtml(publicBrand)}.</p>`;
-    const result = await (this.email.send?.({
-      agencyId: this.agencyId,
-      to: pack.recipientEmail,
-      subject: `${pack.invoiceNumber} and ${pack.agreementTitle}`,
-      bodyHtml: `<h1>Your ${escapeHtml(publicBrand)} proposal</h1><p>Hello ${escapeHtml(pack.recipientName ?? "there")},</p><p>Your invoice and service agreement are ready to review.</p><p><strong>${escapeHtml(pack.serviceLevel)}</strong><br>${escapeHtml(cadence)}<br>Total ${(pack.totalCents / 100).toFixed(2)} ${pack.currency.toUpperCase()}</p><p><a href="${escapeHtml(proposalUrl)}">Review invoice and agreement</a></p>${paymentLink}<p>Please keep this email for your records.</p>`,
-      bodyText: `Your ${publicBrand} invoice and agreement are ready: ${proposalUrl}${pack.stripeCheckoutUrl ? `\nPay securely: ${pack.stripeCheckoutUrl}` : ""}`,
-      triggeredByPlugin: "leads-pipeline",
-      externalRef: `commercial:${pack.id}:${pack.updatedAt}`,
-    }) ?? this.email.enqueue({
-      agencyId: this.agencyId,
-      to: pack.recipientEmail,
-      subject: `${pack.invoiceNumber} and ${pack.agreementTitle}`,
-      bodyText: `Your Milesymedia invoice and agreement are ready: ${proposalUrl}${pack.stripeCheckoutUrl ? `\nPay securely: ${pack.stripeCheckoutUrl}` : ""}`,
-      triggeredByPlugin: "leads-pipeline",
-      externalRef: `commercial:${pack.id}:${pack.updatedAt}`,
-    }));
+    let result: EmailEnqueueResult;
+    try {
+      result = await (this.email.send?.({
+        agencyId: this.agencyId,
+        to: pack.recipientEmail,
+        subject: `${pack.invoiceNumber} and ${pack.agreementTitle}`,
+        bodyHtml: `<h1>Your ${escapeHtml(publicBrand)} proposal</h1><p>Hello ${escapeHtml(pack.recipientName ?? "there")},</p><p>Your invoice and service agreement are ready to review.</p><p><strong>${escapeHtml(pack.serviceLevel)}</strong><br>${escapeHtml(cadence)}<br>Total ${(pack.totalCents / 100).toFixed(2)} ${pack.currency.toUpperCase()}</p><p><a href="${escapeHtml(proposalUrl)}">Review invoice and agreement</a></p>${paymentLink}<p>Please keep this email for your records.</p>`,
+        bodyText: `Your ${publicBrand} invoice and agreement are ready: ${proposalUrl}${pack.stripeCheckoutUrl ? `\nPay securely: ${pack.stripeCheckoutUrl}` : ""}`,
+        triggeredByPlugin: "leads-pipeline",
+        externalRef: `commercial:${pack.id}:${pack.updatedAt}`,
+      }) ?? this.email.enqueue({
+        agencyId: this.agencyId,
+        to: pack.recipientEmail,
+        subject: `${pack.invoiceNumber} and ${pack.agreementTitle}`,
+        bodyText: `Your Milesymedia invoice and agreement are ready: ${proposalUrl}${pack.stripeCheckoutUrl ? `\nPay securely: ${pack.stripeCheckoutUrl}` : ""}`,
+        triggeredByPlugin: "leads-pipeline",
+        externalRef: `commercial:${pack.id}:${pack.updatedAt}`,
+      }));
+    } catch (error) {
+      // The provider refused before returning a result. Record the refusal on the
+      // pack so the agency can see it and retry, then let the caller see the throw.
+      await this.recordSendRefusal(pack, undefined, error instanceof Error ? error.message : String(error), actor);
+      throw error;
+    }
+    // Three-valued delivery. `delivered === false` is an explicit provider refusal
+    // and must not advance any sent milestone; `undefined` means the message was
+    // only accepted into the queue, which is not confirmation either.
+    if (result.delivered === false) {
+      return this.recordSendRefusal(pack, result.messageId, result.error, actor);
+    }
     const ts = now();
+    const delivered = result.delivered === true;
     const next: CommercialPack = {
       ...pack,
-      invoiceStatus: pack.invoiceStatus === "paid" ? "paid" : "sent",
-      agreementStatus: pack.agreementStatus === "accepted" ? "accepted" : "sent",
+      invoiceStatus: delivered && pack.invoiceStatus !== "paid" ? "sent" : pack.invoiceStatus,
+      agreementStatus: delivered && pack.agreementStatus !== "accepted" ? "sent" : pack.agreementStatus,
       emailMessageId: result.messageId,
-      sentAt: ts,
+      deliveryStatus: delivered ? "delivered" : "queued",
+      deliveryError: undefined,
+      deliveryAttemptedAt: ts,
+      sentAt: delivered ? ts : pack.sentAt,
       updatedAt: ts,
     };
     await this.persist(next);
@@ -231,9 +252,40 @@ export class CommercialService {
       agencyId: this.agencyId,
       actorUserId: actor,
       category: "leads",
-      action: "commercial.sent",
-      message: `Sent ${pack.invoiceNumber} and agreement to ${pack.partyKind} ${pack.partyId}.`,
-      metadata: { commercialPackId: pack.id, messageId: result.messageId },
+      action: delivered ? "commercial.sent" : "commercial.send.queued",
+      message: delivered
+        ? `Sent ${pack.invoiceNumber} and agreement to ${pack.partyKind} ${pack.partyId}.`
+        : `Queued ${pack.invoiceNumber} and agreement for ${pack.partyKind} ${pack.partyId}. The provider has not confirmed delivery, so neither document is marked sent.`,
+      metadata: { commercialPackId: pack.id, messageId: result.messageId, deliveryStatus: next.deliveryStatus },
+    });
+    return next;
+  }
+
+  /** Persist an explicit delivery refusal without advancing any sent milestone. */
+  private async recordSendRefusal(
+    pack: CommercialPack,
+    messageId: string | undefined,
+    error: string | undefined,
+    actor: UserId,
+  ): Promise<CommercialPack> {
+    const ts = now();
+    const reason = error?.trim() || "The email provider refused delivery.";
+    const next: CommercialPack = {
+      ...pack,
+      emailMessageId: messageId ?? pack.emailMessageId,
+      deliveryStatus: "failed",
+      deliveryError: reason,
+      deliveryAttemptedAt: ts,
+      updatedAt: ts,
+    };
+    await this.persist(next);
+    await this.activity.logActivity({
+      agencyId: this.agencyId,
+      actorUserId: actor,
+      category: "leads",
+      action: "commercial.send.failed",
+      message: `Email delivery of ${pack.invoiceNumber} to ${pack.partyKind} ${pack.partyId} failed: ${reason} The invoice and agreement stay unsent until a retry is delivered.`,
+      metadata: { commercialPackId: pack.id, messageId, error: reason },
     });
     return next;
   }
@@ -334,7 +386,7 @@ export class CommercialService {
     if (this.email && !payment.receiptSentAt) {
       try {
         const send = this.email.send ?? this.email.enqueue;
-        await send.call(this.email, {
+        const result = await send.call(this.email, {
           agencyId: this.agencyId,
           to: current.recipientEmail,
           subject: `Payment receipt · ${current.invoiceNumber}`,
@@ -343,10 +395,46 @@ export class CommercialService {
           triggeredByPlugin: "leads-pipeline",
           externalRef: `commercial-payment:${current.id}:${payment.id}`,
         });
-        payment = { ...payment, receiptSentAt: now() };
+        // receiptSentAt is a delivery claim, so only confirmed delivery stamps it.
+        // A refusal or a bare queue acceptance keeps the receipt unsent and leaves
+        // this resume path free to retry it on the next recordPayment.
+        if (result?.delivered === false) {
+          payment = {
+            ...payment,
+            receiptMessageId: result.messageId ?? payment.receiptMessageId,
+            receiptDeliveryStatus: "failed",
+            receiptError: result.error?.trim() || "The email provider refused delivery.",
+          };
+        } else if (result?.delivered === true) {
+          payment = {
+            ...payment,
+            receiptMessageId: result.messageId,
+            receiptDeliveryStatus: "delivered",
+            receiptError: undefined,
+            receiptSentAt: now(),
+          };
+        } else {
+          payment = {
+            ...payment,
+            receiptMessageId: result?.messageId ?? payment.receiptMessageId,
+            receiptDeliveryStatus: "queued",
+            receiptError: undefined,
+          };
+        }
         current = await this.persistPaymentState(current, payment);
-      } catch {
-        // Payment evidence must persist even if the email provider is unavailable.
+      } catch (error) {
+        // Payment evidence must persist even if the email provider is unavailable —
+        // and the refusal itself is evidence, so it is retained rather than swallowed.
+        payment = {
+          ...payment,
+          receiptDeliveryStatus: "failed",
+          receiptError: error instanceof Error ? error.message : String(error),
+        };
+        try {
+          current = await this.persistPaymentState(current, payment);
+        } catch {
+          // Storage is unavailable too; the ledger row still holds the payment.
+        }
       }
     }
     if (!payment.activityRecordedAt) {

@@ -155,8 +155,8 @@ const CLOSE_LEAD_CHANNELS: Array<{ value: string; label: string }> = [
 function CloseLeadDealModal({ target, onClose, onClosed }: { target: { clientId: string; clientName: string; suggestedAmount: string }; onClose: () => void; onClosed: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ invoiceNumber?: string; payLink?: string; paymentInstruction?: string } | null>(null);
-  const [form, setForm] = useState({ title: "", amount: target.suggestedAmount || "", channel: "stripe", contractSummary: "" });
+  const [result, setResult] = useState<{ invoiceNumber?: string; payLink?: string; paymentInstruction?: string; agreementOutcome?: string; contractStatus?: string } | null>(null);
+  const [form, setForm] = useState({ title: "", amount: target.suggestedAmount || "", channel: "stripe", contractSummary: "", contractBody: "" });
   // One-time key so a double-clicked close bills once (this modal is mounted
   // fresh per close intent, so a new close naturally gets a new key).
   const [idempotencyKey] = useState(() =>
@@ -174,9 +174,9 @@ function CloseLeadDealModal({ target, onClose, onClosed }: { target: { clientId:
       const res = await fetch("/api/tenants/close-deal", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ clientId: target.clientId, title: form.title.trim(), amountCents: Math.round(amount * 100), currency: "gbp", channel: form.channel, contractSummary: form.contractSummary.trim() || undefined, idempotencyKey }),
+        body: JSON.stringify({ clientId: target.clientId, title: form.title.trim(), amountCents: Math.round(amount * 100), currency: "gbp", channel: form.channel, contractSummary: form.contractSummary.trim() || undefined, contractBody: form.contractBody.trim() || undefined, idempotencyKey }),
       });
-      const data = await res.json().catch(() => null) as { ok?: boolean; error?: string; invoiceNumber?: string; payLink?: string; paymentInstruction?: string } | null;
+      const data = await res.json().catch(() => null) as { ok?: boolean; error?: string; invoiceNumber?: string; payLink?: string; paymentInstruction?: string; agreementOutcome?: string; contractStatus?: string } | null;
       if (!res.ok || !data?.ok) { setError(data?.error ?? "Could not close the deal."); return; }
       setResult(data);
       onClosed();
@@ -196,7 +196,11 @@ function CloseLeadDealModal({ target, onClose, onClosed }: { target: { clientId:
         {result ? (
           <div className="space-y-2">
             <p className="text-sm font-semibold text-emerald-800">Deal closed ✓</p>
-            <p className="text-xs text-black/60">Contract sent{result.invoiceNumber ? ` · invoice ${result.invoiceNumber} issued` : ""}.</p>
+            {/* The server's own account of what happened to the agreement —
+                draft, published, emailed, or email-failed. Never a blanket
+                "Contract sent" for work no delivery path performed. */}
+            <p className={`text-xs ${result.contractStatus === "sent" ? "text-black/60" : "text-amber-800"}`}>{result.agreementOutcome ?? "Agreement recorded."}</p>
+            {result.invoiceNumber ? <p className="text-xs text-black/60">Invoice {result.invoiceNumber} issued.</p> : null}
             {result.payLink ? <a href={result.payLink} target="_blank" rel="noreferrer" className="inline-block rounded-md bg-black px-3 py-1.5 text-xs font-semibold text-white">Open the Stripe pay-link →</a> : null}
             {result.paymentInstruction ? <p className="text-xs text-black/50">{result.paymentInstruction}</p> : null}
             <div className="pt-2"><button type="button" onClick={onClose} className="rounded-md bg-black px-3 py-1.5 text-xs font-semibold text-white">Done</button></div>
@@ -209,6 +213,14 @@ function CloseLeadDealModal({ target, onClose, onClosed }: { target: { clientId:
               <label className="grid gap-1 text-xs font-medium text-black/60">Take payment by<select className={inputClass} value={form.channel} disabled={busy} onChange={e => setForm(f => ({ ...f, channel: e.target.value }))}>{CLOSE_LEAD_CHANNELS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}</select></label>
             </div>
             <label className="grid gap-1 text-xs font-medium text-black/60">Contract summary <span className="font-normal text-black/35">(optional)</span><input className={inputClass} placeholder="Scope, terms" value={form.contractSummary} disabled={busy} onChange={e => setForm(f => ({ ...f, contractSummary: e.target.value }))} /></label>
+            <label className="grid gap-1 text-xs font-medium text-black/60">Agreed terms
+              <textarea rows={5} className="w-full rounded-md border border-black/15 bg-white px-3 py-2 text-sm text-black" placeholder="What you are delivering, for how long, and what the client owes." value={form.contractBody} disabled={busy} onChange={e => setForm(f => ({ ...f, contractBody: e.target.value }))} />
+              <span className="font-normal text-black/45">
+                {form.contractBody.trim()
+                  ? "The client can review and accept exactly these terms in their portal."
+                  : "Without terms the agreement is saved as a draft — the client cannot review or accept it. The invoice is still issued."}
+              </span>
+            </label>
             {error ? <p role="alert" className="text-xs text-red-700">{error}</p> : null}
             <div className="flex justify-end gap-2"><button type="button" onClick={onClose} className="rounded-md border border-black/15 px-3 py-2 text-xs font-medium">Cancel</button><button type="submit" disabled={busy} className="rounded-md bg-black px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy ? "Closing…" : "Close the deal"}</button></div>
           </form>

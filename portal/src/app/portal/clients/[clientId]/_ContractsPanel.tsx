@@ -17,7 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { ClientContract, ClientContractTemplate } from "@/lib/clients/clientContracts";
+import { contractHasReviewableTerms, type ClientContract, type ClientContractTemplate } from "@/lib/clients/clientContracts";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 const CONTROL = "min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm outline-none focus:border-black/35 focus:ring-2 focus:ring-black/5";
@@ -425,7 +425,7 @@ export function ContractsPanel({
                 {canManage && contract.status === "draft" && (
                   <>
                     {canConfigure ? <button type="button" onClick={() => void act("delete", contract)} disabled={busy} title="Delete draft" className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-black/15 text-black/55 disabled:opacity-45"><Trash2 size={14} aria-hidden="true" /></button> : null}
-                    <button type="button" onClick={() => void act("send", contract)} disabled={busy || (!contract.body && !contract.documentUrl)} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-medium text-white disabled:opacity-45"><Send size={13} aria-hidden="true" /> Send</button>
+                    <button type="button" onClick={() => void act("send", contract)} disabled={busy || !contractHasReviewableTerms(contract)} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-medium text-white disabled:opacity-45"><Send size={13} aria-hidden="true" /> Send</button>
                   </>
                 )}
                 {canManage && contract.status === "sent" && <button type="button" onClick={() => void act("accept", contract)} disabled={busy} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/15 px-3 text-xs font-medium disabled:opacity-45"><Check size={13} aria-hidden="true" /> Mark accepted</button>}

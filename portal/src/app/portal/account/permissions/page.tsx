@@ -1,6 +1,7 @@
 import { ensureHydrated } from "@/server/storage";
 import { requireSession } from "@/lib/server/auth/auth";
 import { effectiveRole } from "@/lib/server/auth/effectiveRole";
+import { canUseAgencySettingsCapability } from "@/lib/agencySettingsCapabilities";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ColorModeToggle } from "@/components/chrome/ColorModeToggle";
@@ -41,7 +42,10 @@ export default async function PermissionsPage() {
   }
   const eff = effectiveRole(session);
   const publicShowcase = Boolean(session.publicShowcase);
-  const isAgencyStaff = session.role === "agency-staff";
+  // Only an owner/manager can open Team settings. Everyone else — staff (#92),
+  // and now client roles and freelancers too — was being sent to a surface that
+  // refuses them, so they get the "someone else manages this" wording instead.
+  const canManageTeamSettings = canUseAgencySettingsCapability(session.role, "manageTeam");
 
   return (
     <main id="main-content" data-portal-area="account" className="mm-portal-root mm-route-canvas relative flex min-h-screen w-full justify-center px-4 py-16 sm:px-6 sm:py-20">
@@ -99,14 +103,14 @@ export default async function PermissionsPage() {
 
         {publicShowcase ? (
           <p className="mt-4 text-xs text-black/45">The showcase session is temporary and contains sample data only.</p>
-        ) : isAgencyStaff ? (
-          <p className="mt-4 text-xs text-black/45">
-            Permissions are based on your role. An owner or manager manages your workspace access.
-          </p>
-        ) : (
+        ) : canManageTeamSettings ? (
           <p className="mt-4 text-xs text-black/45">
             Permissions are based on each person&apos;s role. The business owner
             can update access in <Link href="/portal/agency/settings#access" className="font-medium text-black/65 underline decoration-black/25 underline-offset-2 hover:text-black">Team settings</Link>.
+          </p>
+        ) : (
+          <p className="mt-4 text-xs text-black/45">
+            Permissions are based on your role. An owner or manager manages your workspace access.
           </p>
         )}
       </div>

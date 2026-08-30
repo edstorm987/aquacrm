@@ -49,6 +49,9 @@ export interface JourneyCommercialClient {
 
 type JourneyDesk = "pipeline" | "kanbans" | "meetings" | "payments" | "contracts" | "aqua-health";
 
+/** The desks whose body is the shared client-rail block below the desk nav. */
+const CLIENT_RAIL_DESKS: readonly JourneyDesk[] = ["payments", "contracts", "aqua-health"];
+
 const DESKS: Array<{ id: JourneyDesk; label: string; detail: string; icon: typeof GitBranch }> = [
   { id: "pipeline", label: "Pipeline", detail: "Enquiries to clients", icon: GitBranch },
   // Ed, 2026-08-30: *"make a new tab on journey called kanbans and move all the
@@ -113,7 +116,13 @@ export function JourneyCommercialWorkspace({
       {desk === "kanbans" ? <div className="mt-5 min-w-0">{kanbans}</div> : null}
       {desk === "meetings" ? <div className="mt-7 min-w-0"><JourneyMeetingsWorkspace people={meetingPeople} referenceNow={referenceNow} /></div> : null}
 
-      {desk !== "pipeline" && desk !== "meetings" ? <>
+      {/* The client-rail block serves exactly three desks. It used to be a
+          catch-all (`!== "pipeline" && !== "meetings"`), which meant adding the
+          Kanbans desk silently double-rendered this whole block — header
+          mis-titled "Aqua Health", filters, rail and a ContractsPanel — under
+          the board directory. Name the desks it serves so a NEW desk cannot
+          fall into it again. */}
+      {CLIENT_RAIL_DESKS.includes(desk) ? <>
         <header className="mt-7 flex flex-col gap-4 border-b border-black/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wide text-brand">Journey · {DESKS.find(item => item.id === desk)?.label}</p>

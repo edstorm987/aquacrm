@@ -72,17 +72,13 @@ export interface ContainerForArgs {
 
 export function containerFor(args: ContainerForArgs): MembershipsContainer {
   const f = requireFoundation();
-  const stripe = f.stripeFor({ agencyId: args.agencyId, clientId: args.clientId });
-  if (!stripe) {
-    // Tests + non-Stripe flows can pass a no-op StripePort via
-    // `containerWithDeps`. Production routes that need Stripe will
-    // throw on first call — handlers should check `isStripeAvailable()`
-    // (added below) before kicking off paid-tier flows.
-    throw new Error(
-      `@aqua/plugin-memberships: no Stripe client for client ${args.clientId} (agency ${args.agencyId}). ` +
-        `Configure Stripe via the ecommerce plugin's settings before subscribing.`,
-    );
-  }
+  // No Stripe for this install → build anyway with the NOOP port. Everything
+  // that does not need Stripe (admin reads, benefits, free-tier subscribes)
+  // must keep working; the paid paths hit the NOOP's throw and surface a named
+  // "Stripe not configured" message. Callers that would rather answer 422 than
+  // let a paid operation fail mid-flight should check `isStripeAvailable()`
+  // first — which is honest precisely because `stripeFor` returns null here.
+  const stripe = f.stripeFor({ agencyId: args.agencyId, clientId: args.clientId }) ?? NOOP_STRIPE;
   return buildMembershipsContainer({
     agencyId: args.agencyId,
     clientId: args.clientId,
@@ -164,23 +160,33 @@ export function _containerFromCtx(args: {
   });
 }
 
-// No-op Stripe used when the manifest's onInstall fires before the
-// agency owner has wired Stripe keys. Throws on every method so
-// `seedDefaults` falls through cleanly for the $0 Bronze plan and only
-// the paid Silver/Gold plans require keys later. PlanService.create
-// checks `priceMonthly > 0` before calling createPrice so Bronze
-// proceeds without touching Stripe.
+// No-op Stripe used when this install has no Stripe configured — either the
+// manifest's onInstall fired before the agency owner wired keys, or nobody ever
+// did. Throws on every paid method so `seedDefaults` falls through cleanly for
+// the $0 Bronze plan and only the paid Silver/Gold plans require keys later.
+// PlanService.create checks `priceMonthly > 0` before calling createPrice so
+// Bronze proceeds without touching Stripe.
+//
+// The message names the remedy — an operator reading it in an activity log or a
+// 422 body must know where to go.
+export const STRIPE_NOT_CONFIGURED_MESSAGE =
+  "Stripe not configured for this client. Add the Stripe secret key in the ecommerce plugin's settings.";
+
+function stripeUnavailable(): never {
+  throw new Error(STRIPE_NOT_CONFIGURED_MESSAGE);
+}
+
 const NOOP_STRIPE: StripePort = {
-  async createCustomer() { throw new Error("Stripe not configured."); },
+  async createCustomer() { return stripeUnavailable(); },
   async retrieveCustomer() { return null; },
-  async createSubscription() { throw new Error("Stripe not configured."); },
-  async cancelSubscription() { throw new Error("Stripe not configured."); },
+  async createSubscription() { return stripeUnavailable(); },
+  async cancelSubscription() { return stripeUnavailable(); },
   async retrieveSubscription() { return null; },
-  async pauseSubscription() { throw new Error("Stripe not configured."); },
-  async resumeSubscription() { throw new Error("Stripe not configured."); },
-  async changeSubscriptionPlan() { throw new Error("Stripe not configured."); },
-  async createCheckoutSession() { throw new Error("Stripe not configured."); },
-  async createBillingPortalSession() { throw new Error("Stripe not configured."); },
-  async createPrice() { throw new Error("Stripe not configured."); },
+  async pauseSubscription() { return stripeUnavailable(); },
+  async resumeSubscription() { return stripeUnavailable(); },
+  async changeSubscriptionPlan() { return stripeUnavailable(); },
+  async createCheckoutSession() { return stripeUnavailable(); },
+  async createBillingPortalSession() { return stripeUnavailable(); },
+  async createPrice() { return stripeUnavailable(); },
   async verifyWebhookSignature() { return null; },
 };

@@ -15,10 +15,7 @@ import "server-only";
 import { getInstall } from "@/server/pluginInstalls";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { containerFor as ecommerceContainerFor } from "@aqua/plugin-ecommerce/server";
-import {
-  containerFor as membershipsContainerFor,
-  isStripeAvailable as membershipsStripeAvailable,
-} from "@aqua/plugin-memberships/server";
+import { containerFor as membershipsContainerFor } from "@aqua/plugin-memberships/server";
 
 const ECOMMERCE_PLUGIN_ID = "ecommerce";
 const MEMBERSHIPS_PLUGIN_ID = "memberships";
@@ -102,11 +99,11 @@ export const membershipBenefitsPort = {
   }): Promise<{ planId: string; planName?: string; status: string } | null> {
     const install = getInstall({ agencyId: args.agencyId, clientId: args.clientId }, MEMBERSHIPS_PLUGIN_ID);
     if (!install || !install.enabled) return null;
-    // memberships's container demands a Stripe client. The factory
-    // returns null when keys aren't configured — degrade by skipping
-    // the membership read rather than throwing. The CRM still runs,
-    // it just doesn't tag this contact as a member.
-    if (!membershipsStripeAvailable({ agencyId: args.agencyId, clientId: args.clientId })) return null;
+    // Reading a subscription never touches Stripe, and memberships's
+    // `containerFor` now degrades to a throwing NOOP port when this client has
+    // no Stripe configured. So the CRM tags a member correctly whether or not
+    // billing keys exist — it used to skip the read entirely and silently drop
+    // the membership tag on every unconfigured install.
     const storage = makePluginStorage(install.id);
     const container = membershipsContainerFor({
       agencyId: args.agencyId,
