@@ -1044,6 +1044,23 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Used by (1):** [`scripts/smoke-company-portal.test.ts`](scripts.md#file-scripts-smoke-company-portal-test-ts-4386def7f3)
 
 
+## `src/app/api/portal/agency/identity/`
+
+<a id="file-src-app-api-portal-agency-identity-route-ts-a3bf806334"></a>
+
+### `src/app/api/portal/agency/identity/route.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `async POST(request: Request)` — The agency's own name and brand — the first write path a non-founder has had. Verified before building (2026-08-30): `/api/portal/settings` writes only `AgencyWorkspaceSettings`, …
+
+**Depends on (4):** [`src/lib/brands/brandFieldValidation.ts`](lib.md#file-src-lib-brands-brandfieldvalidation-ts-ebf06bb114) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
 ## `src/app/api/portal/agency/users/`
 
 <a id="file-src-app-api-portal-agency-users-route-ts-f6e6af0cd6"></a>
@@ -1253,7 +1270,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: NextRequest)`
 
-**Depends on (6):** [`src/lib/access/departmentProfiles.ts`](lib.md#file-src-lib-access-departmentprofiles-ts-343cc6ceea) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/chrome/activeDepartment.ts`](lib.md#file-src-lib-server-chrome-activedepartment-ts-14973fdc11) · [`src/server/dashboardPlanning.ts`](server.md#file-src-server-dashboardplanning-ts-e7312f445b) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (8):** [`src/lib/access/departmentProfiles.ts`](lib.md#file-src-lib-access-departmentprofiles-ts-343cc6ceea) · [`src/lib/chrome/departmentLens.ts`](lib.md#file-src-lib-chrome-departmentlens-ts-6c583d18f2) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/chrome/activeDepartment.ts`](lib.md#file-src-lib-server-chrome-activedepartment-ts-14973fdc11) · [`src/lib/server/chrome/agencyBasePanels.ts`](lib.md#file-src-lib-server-chrome-agencybasepanels-ts-6b2d5e4714) · [`src/server/dashboardPlanning.ts`](server.md#file-src-server-dashboardplanning-ts-e7312f445b) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -2485,6 +2502,23 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 
+## `src/app/api/portal/intelligence/my-radar/`
+
+<a id="file-src-app-api-portal-intelligence-my-radar-route-ts-33a9c7eed2"></a>
+
+### `src/app/api/portal/intelligence/my-radar/route.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `async GET(request: NextRequest)`
+
+**Depends on (9):** [`src/lib/intelligence/departmentAllocation.ts`](lib.md#file-src-lib-intelligence-departmentallocation-ts-effe208c44) · [`src/lib/server/access/clientAssociationElement.ts`](lib.md#file-src-lib-server-access-clientassociationelement-ts-141ea1a836) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/intelligence/myRadar.ts`](lib.md#file-src-lib-server-intelligence-myradar-ts-440d4e5adb) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tasks.ts`](server.md#file-src-server-tasks-ts-875282c006) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
 ## `src/app/api/portal/journey/payment-request/`
 
 <a id="file-src-app-api-portal-journey-payment-request-route-ts-aab1d57d31"></a>
@@ -2658,7 +2692,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: NextRequest)` — Verifying a code — both to finish enrolment and to raise a session to aal2. One route for both because Supabase treats them the same way: a challenge followed by a verify. Splitti…
 
-**Depends on (1):** [`src/lib/supabase/route.ts`](lib.md#file-src-lib-supabase-route-ts-62d79257db)
+**Depends on (4):** [`src/lib/server/auth/mfa.ts`](lib.md#file-src-lib-server-auth-mfa-ts-2eef53bfa4) · [`src/lib/supabase/route.ts`](lib.md#file-src-lib-supabase-route-ts-62d79257db) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -2854,6 +2888,44 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async POST(req: NextRequest)` — agency-manager only (Admin grid). Idempotent on phaseId.
 
 **Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/effectiveRole.ts`](lib.md#file-src-lib-server-auth-effectiverole-ts-800cbe7bd9) · [`src/server/phases.ts`](server.md#file-src-server-phases-ts-fd96131909) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
+## `src/app/api/portal/pipelines/boards/`
+
+<a id="file-src-app-api-portal-pipelines-boards-route-ts-04157417da"></a>
+
+### `src/app/api/portal/pipelines/boards/route.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (3):**
+
+- `async POST(request: Request)`
+- `async PATCH(request: Request)`
+- `async DELETE(request: Request)`
+
+**Depends on (6):** [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/pipelines.ts`](server.md#file-src-server-pipelines-ts-b3d01c6a82) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
+## `src/app/api/portal/pipelines/cards/`
+
+<a id="file-src-app-api-portal-pipelines-cards-route-ts-3612b8989f"></a>
+
+### `src/app/api/portal/pipelines/cards/route.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (3):**
+
+- `async POST(request: Request)`
+- `async PATCH(request: Request)`
+- `async DELETE(request: Request)`
+
+**Depends on (6):** [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/customBoardCards.ts`](server.md#file-src-server-customboardcards-ts-98a2cf93df) · [`src/server/pipelines.ts`](server.md#file-src-server-pipelines-ts-b3d01c6a82) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3257,7 +3329,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET(request: NextRequest)` — Who is this number, and can I call it? Used by the dialler to paint a row before you press call, and by the caller screen. Cheap enough to call per row; it reads the same two coll…
 - `async POST(request: NextRequest)`
 
-**Depends on (8):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/email/outboundCommunications.ts`](lib.md#file-src-lib-server-email-outboundcommunications-ts-2c4deea1df) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/lib/server/telephony/resolveCaller.ts`](lib.md#file-src-lib-server-telephony-resolvecaller-ts-e095b8d96b) · [`src/lib/telephony/phoneNumbers.ts`](lib.md#file-src-lib-telephony-phonenumbers-ts-b7be228e55) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (9):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/email/outboundCommunications.ts`](lib.md#file-src-lib-server-email-outboundcommunications-ts-2c4deea1df) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/lib/server/telephony/prospectOutreach.ts`](lib.md#file-src-lib-server-telephony-prospectoutreach-ts-e5dc064a6f) · [`src/lib/server/telephony/resolveCaller.ts`](lib.md#file-src-lib-server-telephony-resolvecaller-ts-e095b8d96b) · [`src/lib/telephony/phoneNumbers.ts`](lib.md#file-src-lib-telephony-phonenumbers-ts-b7be228e55) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3275,7 +3347,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET()` — The addresses this agency can send outreach FROM.
 - `async POST(request: NextRequest)`
 
-**Depends on (8):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/email/outboundCommunications.ts`](lib.md#file-src-lib-server-email-outboundcommunications-ts-2c4deea1df) · [`src/lib/server/email/transactionalEmail.ts`](lib.md#file-src-lib-server-email-transactionalemail-ts-778ef382d4) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/lib/server/telephony/resolveCaller.ts`](lib.md#file-src-lib-server-telephony-resolvecaller-ts-e095b8d96b) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (9):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/email/outboundCommunications.ts`](lib.md#file-src-lib-server-email-outboundcommunications-ts-2c4deea1df) · [`src/lib/server/email/transactionalEmail.ts`](lib.md#file-src-lib-server-email-transactionalemail-ts-778ef382d4) · [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) · [`src/lib/server/telephony/prospectOutreach.ts`](lib.md#file-src-lib-server-telephony-prospectoutreach-ts-e5dc064a6f) · [`src/lib/server/telephony/resolveCaller.ts`](lib.md#file-src-lib-server-telephony-resolvecaller-ts-e095b8d96b) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -5636,9 +5708,10 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (1):**
+**Exports (2):**
 
-- `async AgencyActionsPage({ initialView = "list", heading = "Actions", description, }: { initialView?: ActionsView; heading?: string; description?: string; })`
+- `async assembleAgencyActions()` — Everything the Actions surface is made of, gathered once. Extracted from the component on 2026-08-30 so the Master Inbox can COUNT this queue without rendering it twice. Ed: *"nee…
+- `async AgencyActionsPage({ initialView = "list", heading = "Actions", description, prepared, }: { initialView?: ActionsView; heading?: string; description?: string; /** * Pass the result of `assembleAgencyActions()` to r…`
 
 **Depends on (24):** [`src/app/portal/agency/actions/_ActionsWorkspace.tsx`](#file-src-app-portal-agency-actions-actionsworkspace-tsx-3feedac0a1) · [`src/app/portal/agency/actions/_LazyActionsWorkspace.tsx`](#file-src-app-portal-agency-actions-lazyactionsworkspace-tsx-01a7a18ff2) · [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-leadspipelinefoundation-ts-a0444ffabc) · [`src/engines/data/server/radar/businessIssueRadar.ts`](engines.md#file-src-engines-data-server-radar-businessissueradar-ts-df308875cc) · [`src/engines/sop/server/sops.ts`](engines.md#file-src-engines-sop-server-sops-ts-8c9bee0d0c) · [`src/lib/inbox/resolutionContext.ts`](lib.md#file-src-lib-inbox-resolutioncontext-ts-f21513ba4f) · [`src/lib/inbox/resolutionFocus.ts`](lib.md#file-src-lib-inbox-resolutionfocus-ts-6aab5ca8a9) · [`src/lib/intelligence/businessRecommendedActions.ts`](lib.md#file-src-lib-intelligence-businessrecommendedactions-ts-b89f9ec998) · [`src/lib/server/assistants/externalAssistantProposals.ts`](lib.md#file-src-lib-server-assistants-externalassistantproposals-ts-0cb34ef763) · [`src/lib/server/assistants/openaiAssistant.ts`](lib.md#file-src-lib-server-assistants-openaiassistant-ts-43bfde0f5e) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/inbox/operationalAlertPreferences.ts`](lib.md#file-src-lib-server-inbox-operationalalertpreferences-ts-6586a73a1d) · [`src/lib/server/inbox/operationalAlerts.ts`](lib.md#file-src-lib-server-inbox-operationalalerts-ts-564a396d10) · [`src/lib/server/integrations/googleCalendar.ts`](lib.md#file-src-lib-server-integrations-googlecalendar-ts-457297d4a6) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/server/commandCalendar.ts`](server.md#file-src-server-commandcalendar-ts-70cef8d658) · [`src/server/dashboardPlanning.ts`](server.md#file-src-server-dashboardplanning-ts-e7312f445b) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/portalEditor.ts`](server.md#file-src-server-portaleditor-ts-f825920491) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tasks.ts`](server.md#file-src-server-tasks-ts-875282c006) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
@@ -6857,7 +6930,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `UnifiedInboxWorkspace({ websiteForms, conversations, socialInbox, websiteFormsError, socialInboxError, communicationReadiness, clientProfiles, focusThreadKey, }: { websiteForms: WebsiteEnquiry[]; conversations: ClientCo…`
 - `type UnifiedClientProfile = { id: string; name: string; buyerName?: string; ownerEmail?: string; ownerPhone?: string; stage: string; source: string; createdAt: number; lastContactedAt?: number; }`
 
-**Depends on (7):** [`src/app/portal/agency/inbox/_EnquiryCommunications.tsx`](#file-src-app-portal-agency-inbox-enquirycommunications-tsx-156c953958) · [`src/lib/enquiries/leadTiming.ts`](lib.md#file-src-lib-enquiries-leadtiming-ts-82b306bf2c) · [`src/lib/inbox/media.ts`](lib.md#file-src-lib-inbox-media-ts-699ea4c966) · [`src/lib/inbox/types.ts`](lib.md#file-src-lib-inbox-types-ts-6a30cf2d14) · [`src/lib/server/email/outboundCommunications.ts`](lib.md#file-src-lib-server-email-outboundcommunications-ts-2c4deea1df) · [`src/lib/server/websiteEnquiries.ts`](lib.md#file-src-lib-server-websiteenquiries-ts-e00ecfd23b) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
+**Depends on (8):** [`src/app/portal/agency/inbox/_EnquiryCommunications.tsx`](#file-src-app-portal-agency-inbox-enquirycommunications-tsx-156c953958) · [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1) · [`src/lib/enquiries/leadTiming.ts`](lib.md#file-src-lib-enquiries-leadtiming-ts-82b306bf2c) · [`src/lib/inbox/media.ts`](lib.md#file-src-lib-inbox-media-ts-699ea4c966) · [`src/lib/inbox/types.ts`](lib.md#file-src-lib-inbox-types-ts-6a30cf2d14) · [`src/lib/server/email/outboundCommunications.ts`](lib.md#file-src-lib-server-email-outboundcommunications-ts-2c4deea1df) · [`src/lib/server/websiteEnquiries.ts`](lib.md#file-src-lib-server-websiteenquiries-ts-e00ecfd23b) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 
 **Used by (1):** [`src/app/portal/agency/inbox/_MasterInbox.tsx`](#file-src-app-portal-agency-inbox-masterinbox-tsx-2323adcb4b)
 
@@ -6902,7 +6975,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default async AgencyLayout({ children }: { children: ReactNode })`
 
-**Depends on (29):** [`src/components/attention/ResolutionBanner.tsx`](components.md#file-src-components-attention-resolutionbanner-tsx-079c792ea5) · [`src/components/attention/ResolutionSpotlight.tsx`](components.md#file-src-components-attention-resolutionspotlight-tsx-ae5d8281fd) · [`src/components/chrome/AdvisorDrawerControl.tsx`](components.md#file-src-components-chrome-advisordrawercontrol-tsx-2c1a086faf) · [`src/components/chrome/NotificationAttentionProvider.tsx`](components.md#file-src-components-chrome-notificationattentionprovider-tsx-51754b1c61) · [`src/components/chrome/NotificationCentreButton.tsx`](components.md#file-src-components-chrome-notificationcentrebutton-tsx-aafe1b47bf) · [`src/components/chrome/PortalRouteCanvas.tsx`](components.md#file-src-components-chrome-portalroutecanvas-tsx-0b7aff101e) · [`src/components/chrome/RadarQuickLookControl.tsx`](components.md#file-src-components-chrome-radarquicklookcontrol-tsx-08e3954c6c) · [`src/components/chrome/Sidebar.tsx`](components.md#file-src-components-chrome-sidebar-tsx-a3b761358c) · [`src/components/chrome/ThemeInjector.tsx`](components.md#file-src-components-chrome-themeinjector-tsx-60b2716099) · [`src/components/chrome/Topbar.tsx`](components.md#file-src-components-chrome-topbar-tsx-9a91269432) · [`src/components/ui/ErrorBoundary.tsx`](components.md#file-src-components-ui-errorboundary-tsx-27181f6f14) · [`src/lib/chrome/agencySidebarPluginCatalog.ts`](lib.md#file-src-lib-chrome-agencysidebarplugincatalog-ts-73941e68df) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/intelligence/operationalAttention.ts`](lib.md#file-src-lib-intelligence-operationalattention-ts-0aaf482906) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/effectiveRole.ts`](lib.md#file-src-lib-server-auth-effectiverole-ts-800cbe7bd9) · [`src/lib/server/chrome/personalPanels.ts`](lib.md#file-src-lib-server-chrome-personalpanels-ts-7fc4b7fbf2) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devModeAccess.ts`](lib.md#file-src-lib-server-dev-devmodeaccess-ts-7a01dac06e) · [`src/lib/server/devIconPreference.ts`](lib.md#file-src-lib-server-deviconpreference-ts-ecd5778c16) · [`src/lib/server/inbox/operationalAlertPreferences.ts`](lib.md#file-src-lib-server-inbox-operationalalertpreferences-ts-6586a73a1d) · [`src/lib/server/performanceMode.ts`](lib.md#file-src-lib-server-performancemode-ts-4cd4548229) · [`src/lib/server/sidebarAttention.ts`](lib.md#file-src-lib-server-sidebarattention-ts-5ea8532d70) · [`src/lib/shared/internalWorkspace.ts`](lib.md#file-src-lib-shared-internalworkspace-ts-469a3bb9e7) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (30):** [`src/components/attention/ResolutionBanner.tsx`](components.md#file-src-components-attention-resolutionbanner-tsx-079c792ea5) · [`src/components/attention/ResolutionSpotlight.tsx`](components.md#file-src-components-attention-resolutionspotlight-tsx-ae5d8281fd) · [`src/components/chrome/AdvisorDrawerControl.tsx`](components.md#file-src-components-chrome-advisordrawercontrol-tsx-2c1a086faf) · [`src/components/chrome/NotificationAttentionProvider.tsx`](components.md#file-src-components-chrome-notificationattentionprovider-tsx-51754b1c61) · [`src/components/chrome/NotificationCentreButton.tsx`](components.md#file-src-components-chrome-notificationcentrebutton-tsx-aafe1b47bf) · [`src/components/chrome/PortalRouteCanvas.tsx`](components.md#file-src-components-chrome-portalroutecanvas-tsx-0b7aff101e) · [`src/components/chrome/RadarQuickLookControl.tsx`](components.md#file-src-components-chrome-radarquicklookcontrol-tsx-08e3954c6c) · [`src/components/chrome/Sidebar.tsx`](components.md#file-src-components-chrome-sidebar-tsx-a3b761358c) · [`src/components/chrome/ThemeInjector.tsx`](components.md#file-src-components-chrome-themeinjector-tsx-60b2716099) · [`src/components/chrome/Topbar.tsx`](components.md#file-src-components-chrome-topbar-tsx-9a91269432) · [`src/components/ui/ErrorBoundary.tsx`](components.md#file-src-components-ui-errorboundary-tsx-27181f6f14) · [`src/lib/chrome/agencySidebarPluginCatalog.ts`](lib.md#file-src-lib-chrome-agencysidebarplugincatalog-ts-73941e68df) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/intelligence/operationalAttention.ts`](lib.md#file-src-lib-intelligence-operationalattention-ts-0aaf482906) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/effectiveRole.ts`](lib.md#file-src-lib-server-auth-effectiverole-ts-800cbe7bd9) · [`src/lib/server/chrome/agencyBasePanels.ts`](lib.md#file-src-lib-server-chrome-agencybasepanels-ts-6b2d5e4714) · [`src/lib/server/chrome/personalPanels.ts`](lib.md#file-src-lib-server-chrome-personalpanels-ts-7fc4b7fbf2) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/dev/devModeAccess.ts`](lib.md#file-src-lib-server-dev-devmodeaccess-ts-7a01dac06e) · [`src/lib/server/devIconPreference.ts`](lib.md#file-src-lib-server-deviconpreference-ts-ecd5778c16) · [`src/lib/server/inbox/operationalAlertPreferences.ts`](lib.md#file-src-lib-server-inbox-operationalalertpreferences-ts-6586a73a1d) · [`src/lib/server/performanceMode.ts`](lib.md#file-src-lib-server-performancemode-ts-4cd4548229) · [`src/lib/server/sidebarAttention.ts`](lib.md#file-src-lib-server-sidebarattention-ts-5ea8532d70) · [`src/lib/shared/internalWorkspace.ts`](lib.md#file-src-lib-shared-internalworkspace-ts-469a3bb9e7) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -7199,7 +7272,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default async OperationsPage()`
 
-**Depends on (2):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (3):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/performanceMode.ts`](lib.md#file-src-lib-server-performancemode-ts-4cd4548229) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -7425,6 +7498,20 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by (1):** [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.tsx`](#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspace-tsx-f2c8061bae)
 
+<a id="file-src-app-portal-agency-pipelines-slug-customboardworkspace-tsx-04bfdb692d"></a>
+
+### `src/app/portal/agency/pipelines/[slug]/_CustomBoardWorkspace.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `CustomBoardWorkspace({ boardId, name, slug, columns, cards, editable }: { boardId: string; name: string; slug: string; columns: BoardColumn[]; cards: BoardCard[]; editable: boolean; })`
+
+**Depends on (2):** [`src/app/portal/agency/pipelines/[slug]/_PipelineBoard.tsx`](#file-src-app-portal-agency-pipelines-slug-pipelineboard-tsx-a12d247779) · [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1)
+
+**Used by (1):** [`src/app/portal/agency/pipelines/[slug]/page.tsx`](#file-src-app-portal-agency-pipelines-slug-page-tsx-6d47eb0c95)
+
 <a id="file-src-app-portal-agency-pipelines-slug-detailseditor-tsx-3ebc0eecb9"></a>
 
 ### `src/app/portal/agency/pipelines/[slug]/_DetailsEditor.tsx`
@@ -7459,9 +7546,10 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (3):**
+**Exports (4):**
 
-- `LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, prospects, leads, archivedLeads, importHref, campaignsHref, boards, brands, products, customFields }: LeadsPipelineWorkspaceProps)`
+- `LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, prospects, leads, archivedLeads, importHref, campaignsHref, boards, brands, products, customFields, scoutingQuota }: LeadsPipelineWorkspaceProps)`
+- `interface ScoutingQuotaSnapshot (2 members)`
 - `{ AgencyProductOption, AttemptChannel, AttemptOutcome, ClientConversionPackage, LeadDetailsPatch, LeadJourneyEventView, LeadMeetingDraft, LeadSaveResult, LeadView, MeetingAttempt, MeetingMode, MeetingStatus, SalesPresentation }`
 - `{ ArchivedLeadView }`
 
@@ -7479,7 +7567,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async LeadsPipelineWorkspaceServer({ agencyId, userId }: { agencyId: string; userId: string })`
 
-**Depends on (11):** [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.tsx`](#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspace-tsx-f2c8061bae) · [`src/built-ins/runtime/_runtime.ts`](built-ins.md#file-src-built-ins-runtime-runtime-ts-d2a0efb5ed) · [`src/lib/enquiries/enquiryClassification.ts`](lib.md#file-src-lib-enquiries-enquiryclassification-ts-e9934c6609) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/pipelines.ts`](server.md#file-src-server-pipelines-ts-b3d01c6a82) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/portalEditor.ts`](server.md#file-src-server-portaleditor-ts-f825920491) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8)
+**Depends on (12):** [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.tsx`](#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspace-tsx-f2c8061bae) · [`src/built-ins/runtime/_runtime.ts`](built-ins.md#file-src-built-ins-runtime-runtime-ts-d2a0efb5ed) · [`src/lib/enquiries/enquiryClassification.ts`](lib.md#file-src-lib-enquiries-enquiryclassification-ts-e9934c6609) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/intelligence/scoutingQuota.ts`](lib.md#file-src-lib-server-intelligence-scoutingquota-ts-fe272dfda1) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/pipelines.ts`](server.md#file-src-server-pipelines-ts-b3d01c6a82) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/portalEditor.ts`](server.md#file-src-server-portaleditor-ts-f825920491) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8)
 
 **Used by (1):** [`src/app/portal/clients/page.tsx`](#file-src-app-portal-clients-page-tsx-bffc1e671f)
 
@@ -7491,12 +7579,12 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (2):**
 
-- `PipelineBoard({ title, eyebrow, description, activeSlug, boards, columns, cards, productKey, productViews, productBasePath, showProductOverview = true, embedded = false, editable = true, }: { title: string; eyebrow: str…`
+- `PipelineBoard({ title, eyebrow, description, activeSlug, boards, columns, cards, productKey, productViews, productBasePath, showProductOverview = true, embedded = false, editable = true, onMoveCard, cardNoun = "client",…`
 - `BoardSwitcher({ boards, activeSlug }: { boards: BoardLink[]; activeSlug: string })`
 
 **Depends on (1):** [`src/app/portal/agency/pipelines/[slug]/_FulfilmentProductSwitcher.tsx`](#file-src-app-portal-agency-pipelines-slug-fulfilmentproductswitcher-tsx-29f4fe40e6)
 
-**Used by (3):** [`src/app/portal/agency/fulfilment/_FulfilmentWorkspace.tsx`](#file-src-app-portal-agency-fulfilment-fulfilmentworkspace-tsx-efb66537d4) · [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.tsx`](#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspace-tsx-f2c8061bae) · [`src/app/portal/agency/pipelines/[slug]/page.tsx`](#file-src-app-portal-agency-pipelines-slug-page-tsx-6d47eb0c95)
+**Used by (4):** [`src/app/portal/agency/fulfilment/_FulfilmentWorkspace.tsx`](#file-src-app-portal-agency-fulfilment-fulfilmentworkspace-tsx-efb66537d4) · [`src/app/portal/agency/pipelines/[slug]/_CustomBoardWorkspace.tsx`](#file-src-app-portal-agency-pipelines-slug-customboardworkspace-tsx-04bfdb692d) · [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.tsx`](#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspace-tsx-f2c8061bae) · [`src/app/portal/agency/pipelines/[slug]/page.tsx`](#file-src-app-portal-agency-pipelines-slug-page-tsx-6d47eb0c95)
 
 <a id="file-src-app-portal-agency-pipelines-slug-scoutingcommand-tsx-15bc8216b1"></a>
 
@@ -7504,17 +7592,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (7):**
+**Exports (8):**
 
-- `ScoutingCommand({ prospects, referenceNow, onNew, onEdit, onQualify, onDismiss, }: { prospects: ScoutingProspectView[]; referenceNow: number; onNew: () => void; onEdit: (prospect: ScoutingProspectView) => void; onQualif…`
+- `ScoutingCommand({ prospects, referenceNow, quota, onNew, onEdit, onQualify, onDismiss, }: { prospects: ScoutingProspectView[]; referenceNow: number; /** Self-set targets with server-derived progress. Absent = none set y…`
 - `type ProspectQualificationState = "unreviewed" | "researching" | "ready" | "outreach" | "engaged" | "not-now"`
 - `type ProspectOutreachChannel = "call" | "email" | "sms" | "whatsapp" | "dm" | "in-person"`
 - `type ProspectOutreachOutcome = "attempted" | "no-answer" | "left-message" | "sent" | "replied" | "interested" | "not-now" | "not-fit" | "wrong-contact" | "meeting-booked"`
 - `type ProspectInspectionCheck = "business-verified" | "contact-route-verified" | "opportunity-confirmed" | "decision-maker-identified" | "timing-understood"`
 - `type ProspectFollowUpStatus = "scheduled" | "completed" | "skipped"`
 - `interface ScoutingProspectView (32 members)`
+- `interface ScoutingQuotaViewModel (2 members)`
 
-**Depends on (2):** [`src/lib/enquiries/leadTiming.ts`](lib.md#file-src-lib-enquiries-leadtiming-ts-82b306bf2c) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
+**Depends on (4):** [`src/components/telephony/CallControls.tsx`](components.md#file-src-components-telephony-callcontrols-tsx-13a6a3e9b1) · [`src/components/telephony/EmailControls.tsx`](components.md#file-src-components-telephony-emailcontrols-tsx-b2da5be2fc) · [`src/lib/enquiries/leadTiming.ts`](lib.md#file-src-lib-enquiries-leadtiming-ts-82b306bf2c) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 
 **Used by (1):** [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.tsx`](#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspace-tsx-f2c8061bae)
 
@@ -7571,7 +7660,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default async PipelineView({ params, searchParams }: RouteProps)`
 
-**Depends on (20):** [`src/app/portal/agency/pipelines/[slug]/_FulfilmentProductSwitcher.tsx`](#file-src-app-portal-agency-pipelines-slug-fulfilmentproductswitcher-tsx-29f4fe40e6) · [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.tsx`](#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspace-tsx-f2c8061bae) · [`src/app/portal/agency/pipelines/[slug]/_PipelineBoard.tsx`](#file-src-app-portal-agency-pipelines-slug-pipelineboard-tsx-a12d247779) · [`src/built-ins/runtime/_runtime.ts`](built-ins.md#file-src-built-ins-runtime-runtime-ts-d2a0efb5ed) · [`src/lib/enquiries/enquiryClassification.ts`](lib.md#file-src-lib-enquiries-enquiryclassification-ts-e9934c6609) · [`src/lib/products/clientProductStageTruth.ts`](lib.md#file-src-lib-products-clientproductstagetruth-ts-d3dc49116c) · [`src/lib/products/fulfilmentProductPipelines.ts`](lib.md#file-src-lib-products-fulfilmentproductpipelines-ts-6cd47b1bfb) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/phases.ts`](server.md#file-src-server-phases-ts-fd96131909) · [`src/server/pipelines.ts`](server.md#file-src-server-pipelines-ts-b3d01c6a82) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/portalEditor.ts`](server.md#file-src-server-portaleditor-ts-f825920491) · [`src/server/productWorkspaces.ts`](server.md#file-src-server-productworkspaces-ts-c20e49f8a5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (23):** [`src/app/portal/agency/pipelines/[slug]/_CustomBoardWorkspace.tsx`](#file-src-app-portal-agency-pipelines-slug-customboardworkspace-tsx-04bfdb692d) · [`src/app/portal/agency/pipelines/[slug]/_FulfilmentProductSwitcher.tsx`](#file-src-app-portal-agency-pipelines-slug-fulfilmentproductswitcher-tsx-29f4fe40e6) · [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.tsx`](#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspace-tsx-f2c8061bae) · [`src/app/portal/agency/pipelines/[slug]/_PipelineBoard.tsx`](#file-src-app-portal-agency-pipelines-slug-pipelineboard-tsx-a12d247779) · [`src/built-ins/runtime/_runtime.ts`](built-ins.md#file-src-built-ins-runtime-runtime-ts-d2a0efb5ed) · [`src/lib/enquiries/enquiryClassification.ts`](lib.md#file-src-lib-enquiries-enquiryclassification-ts-e9934c6609) · [`src/lib/products/clientProductStageTruth.ts`](lib.md#file-src-lib-products-clientproductstagetruth-ts-d3dc49116c) · [`src/lib/products/fulfilmentProductPipelines.ts`](lib.md#file-src-lib-products-fulfilmentproductpipelines-ts-6cd47b1bfb) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/intelligence/scoutingQuota.ts`](lib.md#file-src-lib-server-intelligence-scoutingquota-ts-fe272dfda1) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/phases.ts`](server.md#file-src-server-phases-ts-fd96131909) · [`src/server/pipelines.ts`](server.md#file-src-server-pipelines-ts-b3d01c6a82) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/portalEditor.ts`](server.md#file-src-server-portaleditor-ts-f825920491) · [`src/server/productWorkspaces.ts`](server.md#file-src-server-productworkspaces-ts-c20e49f8a5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -7842,7 +7931,22 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `ActivityLogPanel({ clients }: { clients: Array<{ id: string; name: string }> })`
 
-**Depends on (1):** [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
+**Depends on (2):** [`src/components/ui/Pagination.tsx`](components.md#file-src-components-ui-pagination-tsx-310d3fab89) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
+
+**Used by (1):** [`src/app/portal/agency/settings/SettingsTabs.tsx`](#file-src-app-portal-agency-settings-settingstabs-tsx-e999a7955b)
+
+<a id="file-src-app-portal-agency-settings-agencyidentitypanel-tsx-6659ff738c"></a>
+
+### `src/app/portal/agency/settings/AgencyIdentityPanel.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `WorkspaceNamePanel({ initialName, slug, canManage }: { initialName: string; slug: string; canManage: boolean; })`
+- `BrandColourPanel({ initialColour, canManage }: { initialColour: string; canManage: boolean; })`
+
+**Depends on (2):** [`src/lib/brands/brandFieldValidation.ts`](lib.md#file-src-lib-brands-brandfieldvalidation-ts-ebf06bb114) · [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1)
 
 **Used by (1):** [`src/app/portal/agency/settings/SettingsTabs.tsx`](#file-src-app-portal-agency-settings-settingstabs-tsx-e999a7955b)
 
@@ -7954,7 +8058,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `SettingsTabs({ ctx }: { ctx: SettingsContext })`
 
-**Depends on (19):** [`src/app/portal/agency/company/_TradingCompaniesPanel.tsx`](#file-src-app-portal-agency-company-tradingcompaniespanel-tsx-5008a0b2c7) · [`src/app/portal/agency/freelancer-access/_FreelancerAccessConfigPanel.tsx`](#file-src-app-portal-agency-freelancer-access-freelanceraccessconfigpanel-tsx-7652c4a224) · [`src/app/portal/agency/settings/ActivityLogPanel.tsx`](#file-src-app-portal-agency-settings-activitylogpanel-tsx-8e0ad7148e) · [`src/app/portal/agency/settings/ApiAccessPanel.tsx`](#file-src-app-portal-agency-settings-apiaccesspanel-tsx-19d29349c2) · [`src/app/portal/agency/settings/AppearancePanel.tsx`](#file-src-app-portal-agency-settings-appearancepanel-tsx-f841fe15ee) · [`src/app/portal/agency/settings/ExternalAiConnectionPanel.tsx`](#file-src-app-portal-agency-settings-externalaiconnectionpanel-tsx-17f25eeae6) · [`src/app/portal/agency/settings/IntegrationConnectionsPanel.tsx`](#file-src-app-portal-agency-settings-integrationconnectionspanel-tsx-867350879d) · [`src/app/portal/agency/settings/RadarTriggersPanel.tsx`](#file-src-app-portal-agency-settings-radartriggerspanel-tsx-43932a7e50) · [`src/app/portal/agency/settings/SandboxModePanel.tsx`](#file-src-app-portal-agency-settings-sandboxmodepanel-tsx-81e8251ebd) · [`src/app/portal/agency/settings/TeamUsersPanel.tsx`](#file-src-app-portal-agency-settings-teamuserspanel-tsx-d54d9cb91d) · [`src/app/portal/agency/settings/WorkspaceLayoutPanel.tsx`](#file-src-app-portal-agency-settings-workspacelayoutpanel-tsx-c22a4436c3) · [`src/components/access/accessModel.ts`](components.md#file-src-components-access-accessmodel-ts-87afdaff76) · [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d) · [`src/components/workspaces/PluginSettingsPanel.tsx`](components.md#file-src-components-workspaces-pluginsettingspanel-tsx-1ae842fede) · [`src/lib/agencySettingsCapabilities.ts`](lib.md#file-src-lib-agencysettingscapabilities-ts-7bbdc779dd) · [`src/lib/chrome/settingsModules.ts`](lib.md#file-src-lib-chrome-settingsmodules-ts-f2347695f0) · [`src/lib/projects/releases.ts`](lib.md#file-src-lib-projects-releases-ts-c5050ad492) · [`src/lib/server/productionReadiness.ts`](lib.md#file-src-lib-server-productionreadiness-ts-4763c179fe) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (21):** [`src/app/portal/agency/company/_TradingCompaniesPanel.tsx`](#file-src-app-portal-agency-company-tradingcompaniespanel-tsx-5008a0b2c7) · [`src/app/portal/agency/freelancer-access/_FreelancerAccessConfigPanel.tsx`](#file-src-app-portal-agency-freelancer-access-freelanceraccessconfigpanel-tsx-7652c4a224) · [`src/app/portal/agency/settings/ActivityLogPanel.tsx`](#file-src-app-portal-agency-settings-activitylogpanel-tsx-8e0ad7148e) · [`src/app/portal/agency/settings/AgencyIdentityPanel.tsx`](#file-src-app-portal-agency-settings-agencyidentitypanel-tsx-6659ff738c) · [`src/app/portal/agency/settings/ApiAccessPanel.tsx`](#file-src-app-portal-agency-settings-apiaccesspanel-tsx-19d29349c2) · [`src/app/portal/agency/settings/AppearancePanel.tsx`](#file-src-app-portal-agency-settings-appearancepanel-tsx-f841fe15ee) · [`src/app/portal/agency/settings/ExternalAiConnectionPanel.tsx`](#file-src-app-portal-agency-settings-externalaiconnectionpanel-tsx-17f25eeae6) · [`src/app/portal/agency/settings/IntegrationConnectionsPanel.tsx`](#file-src-app-portal-agency-settings-integrationconnectionspanel-tsx-867350879d) · [`src/app/portal/agency/settings/RadarTriggersPanel.tsx`](#file-src-app-portal-agency-settings-radartriggerspanel-tsx-43932a7e50) · [`src/app/portal/agency/settings/SandboxModePanel.tsx`](#file-src-app-portal-agency-settings-sandboxmodepanel-tsx-81e8251ebd) · [`src/app/portal/agency/settings/TeamUsersPanel.tsx`](#file-src-app-portal-agency-settings-teamuserspanel-tsx-d54d9cb91d) · [`src/app/portal/agency/settings/WorkspaceLayoutPanel.tsx`](#file-src-app-portal-agency-settings-workspacelayoutpanel-tsx-c22a4436c3) · [`src/components/access/accessModel.ts`](components.md#file-src-components-access-accessmodel-ts-87afdaff76) · [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d) · [`src/components/workspaces/PluginSettingsPanel.tsx`](components.md#file-src-components-workspaces-pluginsettingspanel-tsx-1ae842fede) · [`src/lib/agencySettingsCapabilities.ts`](lib.md#file-src-lib-agencysettingscapabilities-ts-7bbdc779dd) · [`src/lib/chrome/settingsModules.ts`](lib.md#file-src-lib-chrome-settingsmodules-ts-f2347695f0) · [`src/lib/projects/releases.ts`](lib.md#file-src-lib-projects-releases-ts-c5050ad492) · [`src/lib/server/productionReadiness.ts`](lib.md#file-src-lib-server-productionreadiness-ts-4763c179fe) · [`src/lib/shared/timezones.ts`](lib.md#file-src-lib-shared-timezones-ts-5d8a6c5026) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (1):** [`src/app/portal/agency/settings/page.tsx`](#file-src-app-portal-agency-settings-page-tsx-05d4a95f14)
 
@@ -8085,6 +8189,20 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ## `src/app/portal/agency/tools/`
 
+<a id="file-src-app-portal-agency-tools-mytoolspalette-tsx-48d220c8ba"></a>
+
+### `src/app/portal/agency/tools/_MyToolsPalette.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `MyToolsPalette()`
+
+**Depends on (2):** [`src/components/chrome/pinnedTabsStore.ts`](components.md#file-src-components-chrome-pinnedtabsstore-ts-e04f9dfb99) · [`src/lib/chrome/savedToolUrl.ts`](lib.md#file-src-lib-chrome-savedtoolurl-ts-0f6f57b2b2)
+
+**Used by (1):** [`src/app/portal/agency/tools/page.tsx`](#file-src-app-portal-agency-tools-page-tsx-34a20a53ec)
+
 <a id="file-src-app-portal-agency-tools-page-tsx-34a20a53ec"></a>
 
 ### `src/app/portal/agency/tools/page.tsx`
@@ -8093,9 +8211,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `default async ToolsPage()`
+- `default async ToolsPage()` — docs/development/plans/my-tools-palette.md.
 
-**Depends on (2):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (3):** [`src/app/portal/agency/tools/_MyToolsPalette.tsx`](#file-src-app-portal-agency-tools-mytoolspalette-tsx-48d220c8ba) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -8859,10 +8977,25 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (2):**
 
-- `JourneyCommercialWorkspace({ pipeline, meetingPeople, referenceNow, clients, contractTemplates, canViewFinance, }: { pipeline: ReactNode; meetingPeople: JourneyMeetingPerson[]; referenceNow: number; clients: JourneyComm…`
+- `JourneyCommercialWorkspace({ pipeline, kanbans, meetingPeople, referenceNow, clients, contractTemplates, canViewFinance, }: { pipeline: ReactNode; /** The Kanbans desk — the board directory + create flow, server-assembl…`
 - `interface JourneyCommercialClient (16 members)`
 
 **Depends on (7):** [`src/app/portal/clients/[clientId]/_ContractsPanel.tsx`](#file-src-app-portal-clients-clientid-contractspanel-tsx-a0413ef5b1) · [`src/app/portal/clients/[clientId]/_FinanceTabClient.tsx`](#file-src-app-portal-clients-clientid-financetabclient-tsx-26301bc26b) · [`src/app/portal/clients/[clientId]/_PaymentPlansPanel.tsx`](#file-src-app-portal-clients-clientid-paymentplanspanel-tsx-5a60a55ed8) · [`src/app/portal/clients/_JourneyMeetingsWorkspace.tsx`](#file-src-app-portal-clients-journeymeetingsworkspace-tsx-1fdcf4ce27) · [`src/lib/clients/clientAquaHealth.ts`](lib.md#file-src-lib-clients-clientaquahealth-ts-423527fa78) · [`src/lib/clients/clientContracts.ts`](lib.md#file-src-lib-clients-clientcontracts-ts-e0bc41d74d) · [`src/lib/clients/clientPaymentPlans.ts`](lib.md#file-src-lib-clients-clientpaymentplans-ts-e2f45163b3)
+
+**Used by (1):** [`src/app/portal/clients/page.tsx`](#file-src-app-portal-clients-page-tsx-bffc1e671f)
+
+<a id="file-src-app-portal-clients-journeykanbansdesk-tsx-f0420491f0"></a>
+
+### `src/app/portal/clients/_JourneyKanbansDesk.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `JourneyKanbansDesk({ rows, level }: { rows: KanbanDirectoryRow[]; level: "hidden" | "view" | "use" | "manage"; })`
+- `interface KanbanDirectoryRow (7 members)` — Every board in one place, and the way to make your own. Ed, 2026-08-30: *"make a new tab on journey called kanbans and move all the kanbans here instead as its all too crowded ...…
+
+**Depends on (1):** [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1)
 
 **Used by (1):** [`src/app/portal/clients/page.tsx`](#file-src-app-portal-clients-page-tsx-bffc1e671f)
 
@@ -8926,9 +9059,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `default async ClientsList({ searchParams }: { searchParams: Promise<{ view?: string }> })` — sense for them).
+- `default async ClientsList({ searchParams }: { searchParams: Promise<{ view?: string }> })`
 
-**Depends on (52):** [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspaceServer.tsx`](#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspaceserver-tsx-90294b0e08) · [`src/app/portal/clients/_JourneyCommercialWorkspace.tsx`](#file-src-app-portal-clients-journeycommercialworkspace-tsx-77a037be14) · [`src/app/portal/clients/_JourneyMeetingsWorkspace.tsx`](#file-src-app-portal-clients-journeymeetingsworkspace-tsx-1fdcf4ce27) · [`src/app/portal/clients/_PeopleHub.tsx`](#file-src-app-portal-clients-peoplehub-tsx-62c6426811) · [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-server-foundationadapter-ts-e614648c40) · [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/built-ins/runtime/foundation-adapters/agencyFinanceFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-agencyfinancefoundation-ts-8c3647e20e) · [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-leadspipelinefoundation-ts-a0444ffabc) · [`src/components/chrome/AdvisorDrawerControl.tsx`](components.md#file-src-components-chrome-advisordrawercontrol-tsx-2c1a086faf) · [`src/components/chrome/NotificationAttentionProvider.tsx`](components.md#file-src-components-chrome-notificationattentionprovider-tsx-51754b1c61) · [`src/components/chrome/NotificationCentreButton.tsx`](components.md#file-src-components-chrome-notificationcentrebutton-tsx-aafe1b47bf) · [`src/components/chrome/PortalRouteCanvas.tsx`](components.md#file-src-components-chrome-portalroutecanvas-tsx-0b7aff101e) · [`src/components/chrome/RadarQuickLookControl.tsx`](components.md#file-src-components-chrome-radarquicklookcontrol-tsx-08e3954c6c) · [`src/components/chrome/Sidebar.tsx`](components.md#file-src-components-chrome-sidebar-tsx-a3b761358c) · [`src/components/chrome/ThemeInjector.tsx`](components.md#file-src-components-chrome-themeinjector-tsx-60b2716099) · [`src/components/chrome/Topbar.tsx`](components.md#file-src-components-chrome-topbar-tsx-9a91269432) · [`src/components/ui/ErrorBoundary.tsx`](components.md#file-src-components-ui-errorboundary-tsx-27181f6f14) · [`src/lib/chrome/agencySidebarPluginCatalog.ts`](lib.md#file-src-lib-chrome-agencysidebarplugincatalog-ts-73941e68df) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/clients/clientAquaHealth.ts`](lib.md#file-src-lib-clients-clientaquahealth-ts-423527fa78) · [`src/lib/clients/clientContracts.ts`](lib.md#file-src-lib-clients-clientcontracts-ts-e0bc41d74d) · [`src/lib/clients/clientPaymentPlans.ts`](lib.md#file-src-lib-clients-clientpaymentplans-ts-e2f45163b3) · [`src/lib/clients/clientTelemetry.ts`](lib.md#file-src-lib-clients-clienttelemetry-ts-d3462b0e3b) · [`src/lib/enquiries/enquiryClassification.ts`](lib.md#file-src-lib-enquiries-enquiryclassification-ts-e9934c6609) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/effectiveRole.ts`](lib.md#file-src-lib-server-auth-effectiverole-ts-800cbe7bd9) · [`src/lib/server/chrome/personalPanels.ts`](lib.md#file-src-lib-server-chrome-personalpanels-ts-7fc4b7fbf2) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/devIconPreference.ts`](lib.md#file-src-lib-server-deviconpreference-ts-ecd5778c16) · [`src/lib/server/identityResolution.ts`](lib.md#file-src-lib-server-identityresolution-ts-7b1487fea4) · [`src/lib/server/inbox/inboxService.ts`](lib.md#file-src-lib-server-inbox-inboxservice-ts-1c9968c293) · [`src/lib/server/inbox/inboxStore.ts`](lib.md#file-src-lib-server-inbox-inboxstore-ts-e9d74d18ec) · [`src/lib/server/inbox/operationalAlertPreferences.ts`](lib.md#file-src-lib-server-inbox-operationalalertpreferences-ts-6586a73a1d) · [`src/lib/server/inbox/operationalAlerts.ts`](lib.md#file-src-lib-server-inbox-operationalalerts-ts-564a396d10) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/server/sidebarAttention.ts`](lib.md#file-src-lib-server-sidebarattention-ts-5ea8532d70) · [`src/lib/server/websiteEnquiries.ts`](lib.md#file-src-lib-server-websiteenquiries-ts-e00ecfd23b) · [`src/lib/shared/internalWorkspace.ts`](lib.md#file-src-lib-shared-internalworkspace-ts-469a3bb9e7) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/agencySettings.ts`](server.md#file-src-server-agencysettings-ts-6d31afe153) · [`src/server/clientRelationships.ts`](server.md#file-src-server-clientrelationships-ts-25562cf9d9) · [`src/server/contractTemplates.ts`](server.md#file-src-server-contracttemplates-ts-b2d4ba6c70) · [`src/server/phases.ts`](server.md#file-src-server-phases-ts-fd96131909) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/portalEditor.ts`](server.md#file-src-server-portaleditor-ts-f825920491) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (55):** [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspaceServer.tsx`](#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspaceserver-tsx-90294b0e08) · [`src/app/portal/clients/_JourneyCommercialWorkspace.tsx`](#file-src-app-portal-clients-journeycommercialworkspace-tsx-77a037be14) · [`src/app/portal/clients/_JourneyKanbansDesk.tsx`](#file-src-app-portal-clients-journeykanbansdesk-tsx-f0420491f0) · [`src/app/portal/clients/_JourneyMeetingsWorkspace.tsx`](#file-src-app-portal-clients-journeymeetingsworkspace-tsx-1fdcf4ce27) · [`src/app/portal/clients/_PeopleHub.tsx`](#file-src-app-portal-clients-peoplehub-tsx-62c6426811) · [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-server-foundationadapter-ts-e614648c40) · [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/built-ins/runtime/foundation-adapters/agencyFinanceFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-agencyfinancefoundation-ts-8c3647e20e) · [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-leadspipelinefoundation-ts-a0444ffabc) · [`src/components/chrome/AdvisorDrawerControl.tsx`](components.md#file-src-components-chrome-advisordrawercontrol-tsx-2c1a086faf) · [`src/components/chrome/NotificationAttentionProvider.tsx`](components.md#file-src-components-chrome-notificationattentionprovider-tsx-51754b1c61) · [`src/components/chrome/NotificationCentreButton.tsx`](components.md#file-src-components-chrome-notificationcentrebutton-tsx-aafe1b47bf) · [`src/components/chrome/PortalRouteCanvas.tsx`](components.md#file-src-components-chrome-portalroutecanvas-tsx-0b7aff101e) · [`src/components/chrome/RadarQuickLookControl.tsx`](components.md#file-src-components-chrome-radarquicklookcontrol-tsx-08e3954c6c) · [`src/components/chrome/Sidebar.tsx`](components.md#file-src-components-chrome-sidebar-tsx-a3b761358c) · [`src/components/chrome/ThemeInjector.tsx`](components.md#file-src-components-chrome-themeinjector-tsx-60b2716099) · [`src/components/chrome/Topbar.tsx`](components.md#file-src-components-chrome-topbar-tsx-9a91269432) · [`src/components/ui/ErrorBoundary.tsx`](components.md#file-src-components-ui-errorboundary-tsx-27181f6f14) · [`src/lib/chrome/agencySidebarPluginCatalog.ts`](lib.md#file-src-lib-chrome-agencysidebarplugincatalog-ts-73941e68df) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/clients/clientAquaHealth.ts`](lib.md#file-src-lib-clients-clientaquahealth-ts-423527fa78) · [`src/lib/clients/clientContracts.ts`](lib.md#file-src-lib-clients-clientcontracts-ts-e0bc41d74d) · [`src/lib/clients/clientPaymentPlans.ts`](lib.md#file-src-lib-clients-clientpaymentplans-ts-e2f45163b3) · [`src/lib/clients/clientTelemetry.ts`](lib.md#file-src-lib-clients-clienttelemetry-ts-d3462b0e3b) · [`src/lib/enquiries/enquiryClassification.ts`](lib.md#file-src-lib-enquiries-enquiryclassification-ts-e9934c6609) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/effectiveRole.ts`](lib.md#file-src-lib-server-auth-effectiverole-ts-800cbe7bd9) · [`src/lib/server/chrome/personalPanels.ts`](lib.md#file-src-lib-server-chrome-personalpanels-ts-7fc4b7fbf2) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/lib/server/devIconPreference.ts`](lib.md#file-src-lib-server-deviconpreference-ts-ecd5778c16) · [`src/lib/server/identityResolution.ts`](lib.md#file-src-lib-server-identityresolution-ts-7b1487fea4) · [`src/lib/server/inbox/inboxService.ts`](lib.md#file-src-lib-server-inbox-inboxservice-ts-1c9968c293) · [`src/lib/server/inbox/inboxStore.ts`](lib.md#file-src-lib-server-inbox-inboxstore-ts-e9d74d18ec) · [`src/lib/server/inbox/operationalAlertPreferences.ts`](lib.md#file-src-lib-server-inbox-operationalalertpreferences-ts-6586a73a1d) · [`src/lib/server/inbox/operationalAlerts.ts`](lib.md#file-src-lib-server-inbox-operationalalerts-ts-564a396d10) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/server/sidebarAttention.ts`](lib.md#file-src-lib-server-sidebarattention-ts-5ea8532d70) · [`src/lib/server/websiteEnquiries.ts`](lib.md#file-src-lib-server-websiteenquiries-ts-e00ecfd23b) · [`src/lib/shared/internalWorkspace.ts`](lib.md#file-src-lib-shared-internalworkspace-ts-469a3bb9e7) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/agencySettings.ts`](server.md#file-src-server-agencysettings-ts-6d31afe153) · [`src/server/clientRelationships.ts`](server.md#file-src-server-clientrelationships-ts-25562cf9d9) · [`src/server/contractTemplates.ts`](server.md#file-src-server-contracttemplates-ts-b2d4ba6c70) · [`src/server/phases.ts`](server.md#file-src-server-phases-ts-fd96131909) · [`src/server/pipelines.ts`](server.md#file-src-server-pipelines-ts-b3d01c6a82) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/portalEditor.ts`](server.md#file-src-server-portaleditor-ts-f825920491) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -10273,7 +10406,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default PortalLayout({ children }: { children: ReactNode })`
 
-**Depends on (16):** [`src/components/chrome/ClientWorkspaceTransition.tsx`](components.md#file-src-components-chrome-clientworkspacetransition-tsx-c6dec0c3b1) · [`src/components/chrome/CommandCenterTransition.tsx`](components.md#file-src-components-chrome-commandcentertransition-tsx-7a5ebf9aef) · [`src/components/chrome/CompanySwitcher.tsx`](components.md#file-src-components-chrome-companyswitcher-tsx-606f77eb01) · [`src/components/chrome/DevModeLoadIn.tsx`](components.md#file-src-components-chrome-devmodeloadin-tsx-6f2d532159) · [`src/components/chrome/DevModeSwitcher.tsx`](components.md#file-src-components-chrome-devmodeswitcher-tsx-c267d44d77) · [`src/components/chrome/SandboxTopBar.tsx`](components.md#file-src-components-chrome-sandboxtopbar-tsx-6fb0a8000c) · [`src/components/chrome/SmartWorkSessionMonitor.tsx`](components.md#file-src-components-chrome-smartworksessionmonitor-tsx-4a1bafbb63) · [`src/components/ui/PortalLoadingCoordinator.tsx`](components.md#file-src-components-ui-portalloadingcoordinator-tsx-ab67a66ae6) · [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/companySwitcherState.ts`](lib.md#file-src-lib-server-auth-companyswitcherstate-ts-df33027a74) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/server/dashboardPlanning.ts`](server.md#file-src-server-dashboardplanning-ts-e7312f445b) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (18):** [`src/components/chrome/ClientWorkspaceTransition.tsx`](components.md#file-src-components-chrome-clientworkspacetransition-tsx-c6dec0c3b1) · [`src/components/chrome/CommandCenterTransition.tsx`](components.md#file-src-components-chrome-commandcentertransition-tsx-7a5ebf9aef) · [`src/components/chrome/CompanySwitcher.tsx`](components.md#file-src-components-chrome-companyswitcher-tsx-606f77eb01) · [`src/components/chrome/DevModeLoadIn.tsx`](components.md#file-src-components-chrome-devmodeloadin-tsx-6f2d532159) · [`src/components/chrome/DevModeSwitcher.tsx`](components.md#file-src-components-chrome-devmodeswitcher-tsx-c267d44d77) · [`src/components/chrome/SandboxTopBar.tsx`](components.md#file-src-components-chrome-sandboxtopbar-tsx-6fb0a8000c) · [`src/components/chrome/SmartWorkSessionMonitor.tsx`](components.md#file-src-components-chrome-smartworksessionmonitor-tsx-4a1bafbb63) · [`src/components/chrome/UserCssInjector.tsx`](components.md#file-src-components-chrome-usercssinjector-tsx-ac643ccf57) · [`src/components/ui/PortalLoadingCoordinator.tsx`](components.md#file-src-components-ui-portalloadingcoordinator-tsx-ab67a66ae6) · [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/companySwitcherState.ts`](lib.md#file-src-lib-server-auth-companyswitcherstate-ts-df33027a74) · [`src/lib/server/chrome/userChromeLayout.ts`](lib.md#file-src-lib-server-chrome-userchromelayout-ts-e39b7711f4) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/server/dashboardPlanning.ts`](server.md#file-src-server-dashboardplanning-ts-e7312f445b) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 

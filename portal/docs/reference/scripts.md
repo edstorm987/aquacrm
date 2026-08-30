@@ -2770,6 +2770,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-enquiry-notification-routing-test-ts-a2f189b581"></a>
+
+### `scripts/smoke-enquiry-notification-routing.test.ts`
+
+**What it is:** second company does not silently send on the founder's key.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-enquiry-read-scoping-test-ts-0996c541ec"></a>
 
 ### `scripts/smoke-enquiry-read-scoping.test.ts`
@@ -3526,6 +3538,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-journey-kanbans-desk-test-ts-4a179918c5"></a>
+
+### `scripts/smoke-journey-kanbans-desk.test.ts`
+
+**What it is:** endpoint that touched either would corrupt semantics silently.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-journey-meetings-funnels-test-ts-cd8dc0010a"></a>
 
 ### `scripts/smoke-journey-meetings-funnels.test.ts`
@@ -3970,6 +3994,30 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-metadata-contracts-test-ts-924866e984"></a>
+
+### `scripts/smoke-metadata-contracts.test.ts`
+
+**What it is:** the code instead of rotting.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/lib/data/metadataContracts.ts`](lib.md#file-src-lib-data-metadatacontracts-ts-0f567bbad3)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-metric-registry-test-ts-b9829306eb"></a>
+
+### `scripts/smoke-metric-registry.test.ts`
+
+**What it is:** calculations, no fabricated data.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (4):** [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/lib/data/metricRegistry.ts`](lib.md#file-src-lib-data-metricregistry-ts-c4bdf3678a) · [`src/lib/intelligence/commercialIntelligence.ts`](lib.md#file-src-lib-intelligence-commercialintelligence-ts-c3611e436c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-mfa-doors-test-ts-fd58cf015f"></a>
 
 ### `scripts/smoke-mfa-doors.test.ts`
@@ -4030,6 +4078,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-my-radar-topbar-test-ts-e5a99f82ea"></a>
+
+### `scripts/smoke-my-radar-topbar.test.ts`
+
+**What it is:** a fork, a nudge that speaks only in amber.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/lib/chrome/topbarControls.ts`](lib.md#file-src-lib-chrome-topbarcontrols-ts-e7f3bc1812)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-my-radar-test-ts-ecac907a42"></a>
 
 ### `scripts/smoke-my-radar.test.ts`
@@ -4039,6 +4099,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (1):** [`src/lib/intelligence/departmentAllocation.ts`](lib.md#file-src-lib-intelligence-departmentallocation-ts-effe208c44)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-my-tools-palette-test-ts-de0b78e8dd"></a>
+
+### `scripts/smoke-my-tools-palette.test.ts`
+
+**What it is:** and again in the client store.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (2):** [`src/lib/chrome/savedToolUrl.ts`](lib.md#file-src-lib-chrome-savedtoolurl-ts-0f6f57b2b2) · [`src/lib/server/chrome/userChromeLayout.ts`](lib.md#file-src-lib-server-chrome-userchromelayout-ts-e39b7711f4)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -5209,6 +5281,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-realm-runtime-cap-test-ts-1dda8dfe3e"></a>
+
+### `scripts/smoke-realm-runtime-cap.test.ts`
+
+**What it is:** tests exist for that, not for the cap.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-reclassification-retains-history-test-ts-ee6ed956d9"></a>
 
 ### `scripts/smoke-reclassification-retains-history.test.ts`
@@ -5437,6 +5521,30 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-scouting-outreach-test-ts-adec0bbb56"></a>
+
+### `scripts/smoke-scouting-outreach.test.ts`
+
+**What it is:** suppression could be walked around by clicking the other button.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-scouting-quota-test-ts-00977f6809"></a>
+
+### `scripts/smoke-scouting-quota.test.ts`
+
+**What it is:** already capture the work, never written back into `currentValue`.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-search-access-test-ts-7a50d2d5f3"></a>
 
 ### `scripts/smoke-search-access.test.ts`
@@ -5473,11 +5581,35 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-semantic-registry-test-ts-9231002b71"></a>
+
+### `scripts/smoke-semantic-registry.test.ts`
+
+**What it is:** classified.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (2):** [`src/lib/data/semanticRegistry.ts`](lib.md#file-src-lib-data-semanticregistry-ts-bcf874b035) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-service-role-usage-test-ts-953db26555"></a>
 
 ### `scripts/smoke-service-role-usage.test.ts`
 
 **What it is:** Service-role usage — measured, pinned, and only allowed to go DOWN knowingly. WHY THIS EXISTS RLS only gates requests made with the anon key; every `createSupabaseAdminClient()` c…
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-session-memoization-test-ts-e46933b88a"></a>
+
+### `scripts/smoke-session-memoization.test.ts`
+
+**What it is:** session onto another wherever a cache scope did exist.
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
@@ -5514,6 +5646,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 ### `scripts/smoke-settings-hub.test.ts`
 
 **What it is:** Plan: docs/development/plans/settings-consolidation.md
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-settings-restructure-test-ts-0f0078a222"></a>
+
+### `scripts/smoke-settings-restructure.test.ts`
+
+**What it is:** search over a hand-authored keyword registry.
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
@@ -5749,6 +5893,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-suite-coverage-test-ts-94a77de259"></a>
+
+### `scripts/smoke-suite-coverage.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-tag-form-capture-test-ts-a77cd0eb6b"></a>
 
 ### `scripts/smoke-tag-form-capture.test.ts`
@@ -5849,7 +6005,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ### `scripts/smoke-tools-directory.test.ts`
 
-**What it is:** (Freelancers). If any of those go missing, this fails.
+**What it is:** OPERATIONS, and this file proves the move orphaned nothing.
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 

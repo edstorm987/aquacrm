@@ -2,18 +2,28 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-08-30 from **9** source documents / **11,553 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-30 from **19** source documents / **18,962 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`AGENTS.md`](#source-agents-md) — 95 words · `63f2c50380ed`
 - [`CLAUDE.md`](#source-claude-md) — 3,545 words · `80e4ff9c47b9`
+- [`docs/data/adr/ADR-001-semantic-registry-in-code.md`](#source-docs-data-adr-adr-001-semantic-registry-in-code-md) — 217 words · `f092ef6a564d`
+- [`docs/data/adr/ADR-002-domain-modules-are-the-repository-seam.md`](#source-docs-data-adr-adr-002-domain-modules-are-the-repository-seam-md) — 218 words · `361439671762`
+- [`docs/data/adr/ADR-003-one-calculation-path-per-metric.md`](#source-docs-data-adr-adr-003-one-calculation-path-per-metric-md) — 233 words · `9143b1627c97`
+- [`docs/data/adr/ADR-004-metadata-governed-not-banned.md`](#source-docs-data-adr-adr-004-metadata-governed-not-banned-md) — 196 words · `2b11d24db9f0`
+- [`docs/data/ARCHITECTURE.md`](#source-docs-data-architecture-md) — 993 words · `0ea1aee9118c`
+- [`docs/data/DATA-DICTIONARY.md`](#source-docs-data-data-dictionary-md) — 955 words · `bad31fdda0bc`
+- [`docs/data/LINEAGE.md`](#source-docs-data-lineage-md) — 599 words · `1a9cf390899c`
+- [`docs/data/MIGRATION-PLAN.md`](#source-docs-data-migration-plan-md) — 894 words · `31c7fabdf764`
+- [`docs/data/SEMANTIC-LAYER.md`](#source-docs-data-semantic-layer-md) — 775 words · `eaaf6bafb960`
+- [`docs/data/SOURCE-INVENTORY.md`](#source-docs-data-source-inventory-md) — 1,661 words · `880977ed9e4b`
 - [`docs/DEVELOPMENT-HANDOFF.md`](#source-docs-development-handoff-md) — 1,552 words · `9199166a1f30`
 - [`docs/development-workspace-cleanup.md`](#source-docs-development-workspace-cleanup-md) — 793 words · `bdb46a5cecd3`
 - [`docs/development.md`](#source-docs-development-md) — 3,248 words · `dd5efef22882`
 - [`docs/development/CLOUD-RESUME.md`](#source-docs-development-cloud-resume-md) — 500 words · `03458cdf18bf`
-- [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 558 words · `27df7b0c7b2a`
-- [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 825 words · `fae37c7c58de`
+- [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 923 words · `66d4c02a3455`
+- [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,128 words · `74c433c50d90`
 - [`README.md`](#source-readme-md) — 437 words · `78865db66238`
 
 ---
@@ -460,6 +470,954 @@ checkpoint-committed that state. The current brief at the top of this file,
 source, and `docs/development/checklist.md` supersede older status prose, and
 `git status --short` supersedes all of them.
 <!-- AQUACRM_SOURCE_END path="CLAUDE.md" -->
+
+---
+
+<a id="source-docs-data-adr-adr-001-semantic-registry-in-code-md"></a>
+
+## Source document — `docs/data/adr/ADR-001-semantic-registry-in-code.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/data/adr/ADR-001-semantic-registry-in-code.md" sha256="f092ef6a564d26df854311e618626bfd2dadb8f2ae5aad085d845360972102da" -->
+# ADR-001 — The semantic layer lives in code, enforced by tests
+
+**Status:** accepted, 2026-08-30.
+
+## Context
+
+AquaCRM had selective semantics: excellent doc comments in `types.ts`, module
+headers stating boundaries (persons vs people), and prose chapters — but no
+single registry, and nothing failed when a new collection, metric or metadata
+key shipped without declared ownership, tenancy or sensitivity. Prose-only
+semantic layers rot; the repo's own history shows docs drifting from source
+("the DDL does not exist" incident, 2026-08-20).
+
+## Decision
+
+The authoritative semantic layer is three pure, client-safe TypeScript
+modules — `semanticRegistry.ts`, `metricRegistry.ts`,
+`metadataContracts.ts` — each paired with a smoke test that mechanically ties
+it to the code it describes: exact set-equality against
+`createEmptyPortalState()`, id extraction from the metric-defining source
+files, and a source-tree scan for metadata key accesses. Markdown under
+`docs/data/` is a generated-quality prose view; where they disagree, the
+registry wins.
+
+## Consequences
+
+- A new collection/metric/metadata key cannot ship unclassified — the suite
+  fails with instructions naming the one place to add it.
+- The registries never restate formulas or types (no second source of
+  truth): they add what code cannot carry (definitions, grain, tenancy,
+  sensitivity, retention, overlap links) and *point at* the authority.
+- Cost: touching those surfaces means one extra registry entry per change.
+  Accepted — that is the governance working.
+<!-- AQUACRM_SOURCE_END path="docs/data/adr/ADR-001-semantic-registry-in-code.md" -->
+
+---
+
+<a id="source-docs-data-adr-adr-002-domain-modules-are-the-repository-seam-md"></a>
+
+## Source document — `docs/data/adr/ADR-002-domain-modules-are-the-repository-seam.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/data/adr/ADR-002-domain-modules-are-the-repository-seam.md" sha256="361439671762eb20b119d1e94d18b2a0eb3807ea24e66c2f3e6548c9c39e17d3" -->
+# ADR-002 — The existing server domain modules ARE the repository seam
+
+**Status:** accepted, 2026-08-30.
+
+## Context
+
+The target architecture requires application code not to depend on storage
+layout, so collections can extract from the PortalState blob into tables
+without touching routes. One option was a new `repositories/` abstraction
+layer wrapping `getState()/mutate()`.
+
+## Decision
+
+No new layer. The existing server domain modules (`server/tenants.ts`,
+`persons.ts`, `users.ts`, `accessControl.ts`, …) are declared the repository
+seam: they are already the only sanctioned readers/writers of their
+collections ("every list/get MUST accept agencyId… there is no global list
+helper"), routes already consume their exported functions, and the storage
+backends are already abstracted beneath them. A parallel abstraction would
+duplicate 40+ modules' surfaces for zero behavioural gain — exactly the
+duplication `hazards-and-duplication.md` exists to prevent.
+
+The contract this ADR adds: **a collection may change its storage layout only
+behind its module's exported functions.** A module that still leaks raw
+PortalState shape across its boundary gets tightened when (not before) its
+slice migrates, with repository contract tests run against every supported
+backend at that point.
+
+## Consequences
+
+- Extraction phases (MIGRATION-PLAN 1–6) are module-internal changes plus
+  backfills; routes and UI stay untouched — the strangler requirement.
+- No big-bang refactor risk now; the cost moves into each slice, where the
+  parity tests already have to exist.
+<!-- AQUACRM_SOURCE_END path="docs/data/adr/ADR-002-domain-modules-are-the-repository-seam.md" -->
+
+---
+
+<a id="source-docs-data-adr-adr-003-one-calculation-path-per-metric-md"></a>
+
+## Source document — `docs/data/adr/ADR-003-one-calculation-path-per-metric.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/data/adr/ADR-003-one-calculation-path-per-metric.md" sha256="9143b1627c97a7081134d9cb312f88fbfaa6fb6ce52ef1b6f69b3744056cf813" -->
+# ADR-003 — One calculation path per metric, registry as identity, dedup by parity
+
+**Status:** accepted, 2026-08-30.
+
+## Context
+
+Nine-plus business quantities are computed in 2–4 places; two duplicates have
+genuinely different semantics (a hardcoded 5-minute SLA vs the configured
+guardrail; forms-vs-conversions numerators); `campaign-roas` collides in the
+flat descriptor id space with different rounding on each side. Deleting the
+"wrong" copies immediately would change numbers users see and break saved
+custom-KPI definitions — the destructive rewrite this project forbids.
+
+## Decision
+
+1. `metricRegistry.ts` assigns every metric one `canonicalId`
+   (`<kind>:<id>`) and names one `computedBy` authority; competing
+   calculations are linked as `same-quantity` overlaps rather than deleted.
+2. The existing collision is pinned (`KNOWN_DESCRIPTOR_ID_COLLISIONS`); any
+   NEW bare-id collision fails the suite.
+3. Golden boundary tests pin the current canonical behaviour (SLA boundary
+   inclusive, 14-day staleness inclusive, decision denominators, even-count
+   medians, >100% directional ratios, null-not-Infinity on zero spend).
+4. Dedup happens in MIGRATION-PLAN Phase 7, one quantity at a time: golden
+   parity first, then consumers move to the canonical path, then the
+   duplicate retires. `formulaText` strings must state the real calculation
+   (the `business-health` incident-blend omission is the cautionary case,
+   fixed with this ADR).
+
+## Consequences
+
+- Dashboards keep today's numbers until a recorded, tested switch — no
+  silent changes.
+- The registry cannot rot: set equality against the defining source files is
+  enforced, so "remove a competing calculation" shows up as a registry diff
+  reviewers can see.
+<!-- AQUACRM_SOURCE_END path="docs/data/adr/ADR-003-one-calculation-path-per-metric.md" -->
+
+---
+
+<a id="source-docs-data-adr-adr-004-metadata-governed-not-banned-md"></a>
+
+## Source document — `docs/data/adr/ADR-004-metadata-governed-not-banned.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/data/adr/ADR-004-metadata-governed-not-banned.md" sha256="2b11d24db9f0a69441192526aab9a6ba38df19e01abefa21fd469172cdea3973" -->
+# ADR-004 — Metadata bags are governed and shrunk by namespace, not banned
+
+**Status:** accepted, 2026-08-30.
+
+## Context
+
+`Client.metadata` and its siblings carry 123 distinct keys, including whole
+subsystems (the telemetry event stream, payment plans, portal provisioning,
+invoice facts). Banning the bag outright would force a big-bang typed-schema
+rewrite across hundreds of call sites; leaving it ungoverned keeps growing
+undefined contracts with no owner, sensitivity class or deletion behaviour.
+
+## Decision
+
+Every key is contracted in `metadataContracts.ts` (carrier, namespace, type,
+sensitivity, owner), and `smoke-metadata-contracts.test.ts` scans the source
+tree both ways: an uncatalogued key in code fails, and a catalogued key
+nothing touches fails (minus an explicit stored-data allowlist). The
+**namespace is the migration unit**: telemetry and finance extract first
+(MIGRATION-PLAN Phase 5), contact points with the people slice (Phase 2);
+`bespoke` keys survive as a small, named, typed-at-read set.
+
+Versioning: the catalogue itself is version-controlled and test-pinned;
+per-key `since`/schema-version stamps are added when a namespace's first
+migration needs them, not speculatively.
+
+## Consequences
+
+- The escape hatch closes going forward at zero migration cost today.
+- The erasure sweep gains a mechanical PII checklist
+  (`personalMetadataKeys()`), pinned so reclassification cannot silently
+  drop a key from the sweep.
+<!-- AQUACRM_SOURCE_END path="docs/data/adr/ADR-004-metadata-governed-not-banned.md" -->
+
+---
+
+<a id="source-docs-data-architecture-md"></a>
+
+## Source document — `docs/data/ARCHITECTURE.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/data/ARCHITECTURE.md" sha256="0ea1aee9118c14c9a4a20105b79eb3818f4b6fce9bd02d14e0251358924067ba" -->
+# Data architecture — current state and target
+
+*Written 2026-08-30 against the working tree. This document describes what
+exists, then the target planes, then the seams that get from one to the other
+without a destructive rewrite. The inventory of individual stores is in
+[SOURCE-INVENTORY.md](SOURCE-INVENTORY.md); the phased path is in
+[MIGRATION-PLAN.md](MIGRATION-PLAN.md); decisions are in [adr/](adr/).*
+
+## 1. Current state (verified)
+
+- **One operational document.** ~90 typed collections in a single
+  `PortalState` JSON, cached in-process, persisted whole (file/Postgres) or
+  patch-wise (Supabase RPC `apply_app_datastore_patch`), with two sidecar rows
+  for the largest collections. Sandbox **realms** are separate rows/files —
+  a genuine data boundary selected per request from the signed session cookie.
+- **A handful of real tables** beside it: profiles, brand_enquiries,
+  consent events, the five inbox tables (schema written, unapplied live),
+  nonces, lease/claim tables, storage buckets.
+- **Tenant isolation is application-code JS filtering.** Every record carries
+  `agencyId` as a JSON field; `server/tenants.ts` enforces the
+  "every list/get takes agencyId" discipline; the access kernel
+  (`accessControl.ts`) layers capabilities, scopes and environments on top.
+  The blob adapters use the service-role key, so **no RLS protects the
+  operational plane** — RLS exists and is load-bearing only for `profiles`
+  and (partially) `brand_enquiries`.
+- **Events are in-memory fire-and-forget.** `eventBus.ts` loses events on
+  process exit and does not cross serverless instances; `automationRuns` is
+  the only durable shadow. There is no outbox, no correlation/causation ids.
+- **Derived intelligence is strong but identity-fragmented.** The radar
+  evidence vault is typed, three-tier retained, honestly absent-vs-empty, and
+  golden-tested; but metric identity was split across three schemes and at
+  least nine business quantities were computed in 2–4 places
+  (SOURCE-INVENTORY §2).
+- **123 metadata keys** hide whole subsystems inside `Client.metadata`
+  (telemetry stream, payment plans, portal provisioning, invoice facts).
+
+## 2. Target architecture
+
+### 2.1 Operational plane
+
+Postgres/Supabase remains the fast transactional source of truth. The path
+away from the single document is **collection-by-collection extraction into
+tenant-scoped rows**, in the order the risk register demands (identity and
+money before preferences), each extraction behind the same seam:
+
+- **Repository seam = the existing server domain modules.** `tenants.ts`,
+  `persons.ts`, `users.ts`, `accessControl.ts` etc. are already the only
+  places that touch their collections; application code and routes never
+  reach into `PortalState` shape directly for those domains. ADR-002 makes
+  this the formal contract: a collection may only change its storage layout
+  behind its module's exported functions, so an extraction is invisible to
+  routes. (Modules that still leak raw state shape get tightened as their
+  slice migrates.)
+- File/memory adapters stay for development and tests — the backend interface
+  in `storage.ts` already abstracts them, and extractions must keep a
+  blob-resident fallback until parity is proven (the sidecar pattern's
+  `sidecarPopulated` discipline is the house template for this).
+- Every extracted table carries `agency_id` (and `client_id` where client
+  scoped) as **real columns with RLS policies**, following the
+  `inbox_*` template: deny-by-default grants plus scoped policies, service
+  role only where a worker genuinely needs it.
+
+### 2.2 Intelligence plane
+
+Medallion-inspired, claimed only where real:
+
+- **Raw** (exists today, keep): `brand_enquiries` capture rows,
+  `inbox_webhook_events` provider payloads (lease-claimed, idempotent by
+  `event_key`, retention-pruned), `commandCalendarExternalEvents`. These are
+  immutable-in-practice and idempotent. *Telemetry ingest is the gap*: events
+  get random ids and no dedupe — MIGRATION-PLAN phase 5 gives beacons a
+  deterministic identity before any "raw layer" claim covers them.
+- **Canonical** (exists in part): persons/organisations with identity
+  resolution, facets and classification history are genuinely canonical —
+  validated, deduplicated, provenance-carrying. Enquiry→person linking and
+  client lineage stamps qualify. The semantic registry
+  (`src/lib/data/semanticRegistry.ts`) is the machine-readable authority for
+  what belongs here.
+- **Derived** (exists, now with one identity): KPI/Radar/report models are
+  rebuildable projections. The radar evidence vault is the durable substrate;
+  `metricRegistry.ts` is the one metric identity; kpiRegistry stays a
+  projection that never recomputes.
+
+We do **not** describe these as Bronze/Silver/Gold: only the evidence vault
+and the webhook/enquiry rows are durably stored, versioned and rebuildable
+today, and the honest names above say exactly which properties hold where.
+
+### 2.3 Canonical semantic layer
+
+`src/lib/data/semanticRegistry.ts` — entities, distinctions, timestamp and
+value doctrines, and the enforced classification of every PortalState
+collection. `src/lib/data/metricRegistry.ts` — one stable id and one
+semantic record per metric, with every known competing calculation linked as
+`same-quantity`. `src/lib/data/metadataContracts.ts` — the governed metadata
+catalogue. All three are pure, client-safe, and pinned by smoke tests so they
+cannot drift from the code they describe. Prose views:
+[SEMANTIC-LAYER.md](SEMANTIC-LAYER.md), [DATA-DICTIONARY.md](DATA-DICTIONARY.md).
+
+### 2.4 Security and isolation
+
+- Tenancy stays enforced server-side at the module seam today; each extracted
+  table adds database-enforced RLS (2.1). The access kernel's element
+  capabilities are the resource/field-level permission vocabulary; pay
+  redaction (`redactPeopleEmployeePay`) is the field-level template.
+- Gated permission requests: `pending|approved|denied|cancelled` on the
+  request, expiry/revocation on the grant — see SEMANTIC-LAYER §approval for
+  why that decomposition is correct rather than a missing feature.
+- Known hazards stay on the register until closed: legacy fallback widening
+  on last-grant revocation (issue #174, Ed's decision pending), unbounded
+  agency-owner baseline, freelancer not client-pinned, 403-vs-404 convention
+  (#168).
+- Audit: activity log + access-kernel audit exist; the 50k cap's silent
+  eviction is a recorded risk (MIGRATION-PLAN phase 6 adds overflow to
+  durable storage before any compliance claim).
+
+### 2.5 Events and provenance
+
+Target: a **transactional outbox** written in the same mutation as the state
+change (an `outbox` collection first, a table when its slice extracts), with
+stable versioned past-tense names, actor/tenant/source, correlation and
+causation ids, `occurredAt` + `recordedAt`. The in-memory bus becomes a
+delivery mechanism fed from the outbox, not the record. Imports stay
+idempotent by provider ids (`event_key`, `external_message_id`,
+`submissionId`) and gain checksums where payloads lack ids. We do not claim
+event sourcing: state is not rebuildable from events and the docs must never
+say otherwise.
+
+## 3. What changed on 2026-08-30 (this phase)
+
+- Semantic registry + coverage enforcement (new, tested).
+- Canonical metric registry + collision pinning + golden boundary tests
+  (new, tested).
+- Metadata contracts + source-scan enforcement (new, tested).
+- `business-health` formula text corrected to the real blend.
+- This documentation suite.
+
+Everything else in §2 is target, not claim. LOOP-PROGRESS.md tracks the
+phase queue; genuinely open business definitions live in
+`../development/ED-QUESTIONS.md`.
+<!-- AQUACRM_SOURCE_END path="docs/data/ARCHITECTURE.md" -->
+
+---
+
+<a id="source-docs-data-data-dictionary-md"></a>
+
+## Source document — `docs/data/DATA-DICTIONARY.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/data/DATA-DICTIONARY.md" sha256="bad31fdda0bc37e304583ebf79d335455cfebdb6b34071cfb81b59a950bca7f0" -->
+# Data dictionary — authoritative fields of the core entities
+
+*Field-level companion to [SEMANTIC-LAYER.md](SEMANTIC-LAYER.md). Types are
+quoted from `src/server/types.ts` (the compile-time authority); this file adds
+the semantics a type cannot carry. Collections not detailed here are
+classified in `PORTAL_STATE_COVERAGE` and typed in types.ts; the 123 metadata
+keys are individually contracted in `src/lib/data/metadataContracts.ts` and
+not repeated here.*
+
+Conventions: timestamps are epoch ms UTC. `agencyId` on a record is the
+enforceable tenant boundary (JS-enforced today, column+RLS as slices
+extract). "SoT" = source of truth.
+
+## Agency (tenant) — `state.agencies`
+
+| Field | Type | Semantics |
+|---|---|---|
+| `id` | string | Stable tenant id. SoT for tenancy joins. |
+| `slug` | string | Unique, display/routing. |
+| `status` | `active\|paused\|archived` | Lifecycle; no deletion flow exists. |
+| `holdingAgencyId` + `companyId` | string? | Set **together or not at all**: marks this tenant as the portal backing one trading company; must stay two-way with `TradingCompany.portalAgencyId` or the third tier evaporates. |
+| `createdAt`/`updatedAt` | number | ingestion/bookkeeping. |
+
+## Client (workspace) — `state.clients`
+
+| Field | Type | Semantics |
+|---|---|---|
+| `id`, `agencyId` | string | id SoT; agencyId the boundary — every read path filters on it (`tenants.ts` discipline). |
+| `relationshipId` | string? | Groups several isolated workspaces of one buyer. |
+| `personId` | string? | The canonical human. Clients sharing `relationshipId` share `personId`. |
+| `companyId` | string? | Owning trading company. |
+| `stage` | `ClientStage` | Kept as a string union for agency-customised phases; the six `aqua-*` stages are the canonical progression. **Not** a delivery stage — per-product service stages live on assignments. |
+| `status` | `active\|paused\|archived` | Lifecycle distinct from stage. |
+| `metadata` | `Record<string,unknown>` | Governed escape hatch — every key contracted in `metadataContracts.ts`; new keys fail the suite. Finance/telemetry/inbox namespaces are extraction targets. |
+| `ownerEmail` | string? | PII; part of identity-resolution evidence. |
+
+## ServerUser — `state.users` (keyed by lower-cased email)
+
+| Field | Semantics |
+|---|---|
+| `agencyIds: string[]` | The real membership list (multi-agency, R025). |
+| `agencyId` | Legacy mirror of `agencyIds[0]` — kept for 56+ call sites; never write it independently. |
+| `clientId` | Required binding for `client-*`, `freelancer`, `end-customer` roles. |
+| `passwordHash` | scrypt `scrypt$N$r$p$salt$derived` — credential class; never leaves the server. |
+| `sessionRev` / `accessRev` | Revocation counters — bumping invalidates live sessions / cached access. SoT for "is this session still valid". |
+| `role` | One of the 8-value union; cross-checked against the session on every read (`resolveFreshSessionUser`). |
+
+## Person — `state.persons`
+
+| Field | Semantics |
+|---|---|
+| `emails[]` / `phones[]` | Each keeps normalised `value` + original `raw` + `label` + `isPrimary`; `PersonPhone.shared` marks switchboards that must never identify a person without a compatible name. |
+| `classification` (+ `classificationHistory[]`) | 9-valued, hand-set, append-only history `{from,to,at,by,note,sourceType,sourceId}`. |
+| `facets` | `{leadId?, contactId?, clientIds?, enquiryIds?}` — retained through reclassification, never deleted ("changing what somebody IS must never destroy what they DID"). |
+| `state` | **Derived** by `derivePersonState` — never hand-set. |
+| `organisationLinks[]` | `suggested\|confirmed\|rejected`; rejected links retained so a dismissed guess doesn't resurface. |
+
+## AccessGrant — `state.accessGrants`
+
+| Field | Semantics |
+|---|---|
+| `userId`, `scope`, `environment` | The binding: scope kinds `agency\|workspace\|client\|project` (parent ids legal only on workspace), environments `live\|sandbox` — revoke independently. |
+| `capabilities` (+ `templateId`) | Additive; templates merge only when same-agency, un-archived, and the template permits the scope kind + environment. Delegation requires the granter to hold everything granted. |
+| `allowedPaths` | Repo-relative; may only **narrow** (intersected with the project's own). |
+| `expiresAt` / `revokedAt`+`revokedBy`+`revokeReason` | Grant lifecycle; revocation bumps `accessRev` and is audited. Revoked grants retained forever. |
+| `requestId` | Provenance link to the approving request. |
+
+## Enquiry — `brand_enquiries` (Supabase, raw plane)
+
+| Column | Semantics |
+|---|---|
+| `id` uuid | SoT id. |
+| `name`,`email?`,`phone?`,`message?` | The canonical capture vocabulary (`CORE_KEYS`); client-database submissions map ONTO these with per-field provenance `configured\|detected\|absent` (`clientFormMapping.ts`), unrecognised answers kept in `additional[]`. |
+| `consent` bool | Enforced in the anon INSERT policy's WITH CHECK, not only app code. |
+| `agency_id` | The tenant column — migration written 2026-08-20, applied by hand; until applied, `metadata->>'agencyId'` is the fallback and inserts retry without the column on PGRST204. |
+| `created_at` | Ingestion time. Event time, where the source row carries one, maps to `core.submittedAt` and is deliberately kept distinct. |
+| `metadata` jsonb | Routing + provenance keys — all contracted (routing/identity/consent namespaces). |
+
+## Inbox family — `inbox_*` (Supabase; the properly-scoped template)
+
+All five tables carry a real `agency_id` column; grants deny anon and
+authenticated outright (service-role only). `inbox_messages.sent_at` =
+occurred; `created_at` = recorded; `external_message_id` dedupes provider
+redelivery (multipart ids included); `inbox_webhook_events.event_key` is the
+import idempotency key, claimed via lease RPC, pruned past retention.
+`encrypted_access_token` is AES-256-GCM via `PORTAL_VAULT_ENCRYPTION_KEY` —
+credential class, never in derived data.
+
+## ActivityEntry — `state.activity` (audit trail)
+
+`{id, ts (occurred), agencyId, clientId?, actorUserId?, actorEmail?,
+category (30-value union), action (past-tense verb, e.g. "client.created"),
+message, metadata?}` — idempotent by key (sha256 → id), secret-shaped
+metadata keys redacted before write, **hard cap 50,000 with silent
+oldest-first eviction** (recorded risk).
+
+## Radar evidence — `state.radarEvidence`
+
+Series keyed `${domain}:${familyId}`; per series: typed points (5-minute
+buckets, 14-day raw retention), hourly rollups (60d), daily (365d), rolling
+baseline (undefined under 3 points — never fabricated), `expectedDirection`,
+first/last seen. The metric registry records each KPI's `radarFamilyId` join.
+
+## Metric descriptor (derived, not stored) — `KpiDescriptor`
+
+22 fields projected verbatim from built snapshots; `series` caps at 24
+points. Identity and semantics come from `CanonicalMetricEntry`
+(`metricRegistry.ts`): `canonicalId` = `<kind>:<id>` is the stable join key;
+`computedBy` names the one calculation authority; `overlaps` link every known
+competing calculation. Bare-id collisions are pinned to exactly
+`["campaign-roas"]`.
+<!-- AQUACRM_SOURCE_END path="docs/data/DATA-DICTIONARY.md" -->
+
+---
+
+<a id="source-docs-data-lineage-md"></a>
+
+## Source document — `docs/data/LINEAGE.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/data/LINEAGE.md" sha256="1a9cf390899c6602a208b71b44e36edbdc16cf4261b712124c6a8138f8aca50f" -->
+# Lineage — how a number on a screen traces back to a record
+
+*Companion to [SOURCE-INVENTORY.md](SOURCE-INVENTORY.md). Machine-readable
+joins live in `src/lib/data/metricRegistry.ts` (`computedBy`,
+`radarFamilyId`, `overlaps`) and `src/lib/data/semanticRegistry.ts`
+(provenance per entity).*
+
+## 1. The three metric identity schemes and their join
+
+| Scheme | Example | Lives in |
+|---|---|---|
+| KPI / descriptor id | `lead-conversion` | `commandIntelligenceService.ts` makeKpi / `commercialIntelligence.ts` makeFormula |
+| Radar rule family id | `lead-conversion-rate` | `radarRuleCatalog.ts` (172 families × 12 lenses) |
+| Evidence series id | `sales:lead-conversion-rate` | `radarEvidence` vault (`${domain}:${familyId}`) |
+
+The join is declared per metric as `radarFamilyId` in the canonical registry
+(previously hand-passed as makeKpi's `familyId` argument with nothing
+checking it). Evidence sampling only records checks with
+`scope==="kpi" && lens==="threshold" && numeric value` — that filter is why
+some KPIs have rich histories and others plot a single honest point.
+
+## 2. Worked traces
+
+**Radar → canonical records.** A Radar check (e.g. `sales/lead-conversion-rate`
+threshold) reads the commercial lifecycle snapshot ← built from `pipelineCards`
++ `Lead` records + `clients` (all agency-filtered PortalState collections) ←
+cards/leads created from `brand_enquiries` rows via capture + identity
+resolution (which stamps `identityResolution` — confidence, reasons,
+explanation — onto the enquiry's metadata) ← raw form POST, consent-gated at
+the RLS policy. Every hop is inspectable: the check carries `evidence[]` and
+`sourceIds`, the Radar's source-dataset inspection lists the records, and the
+review trail lives in `identityResolutionReviews`.
+
+**KPI Explorer point → storage.** Descriptor `series` ← `CommandKpi.history`
+← evidence vault points (`radarEvidence`, retained 14d/60d/365d by tier) ←
+sweep writes ← the same snapshot builders. The descriptor never recomputes
+(pinned by `smoke-kpi-registry.test.ts`).
+
+**Traffic KPI → beacon (the weak edge).** `traffic-7d` ←
+`clientTelemetryService` ← `Client.metadata.telemetryEvents` (untyped bag,
+random event ids, **no dedupe** — a replayed beacon double-counts) ← Aqua Tag
+POST `/api/telemetry/collect` (rate-limited, consent-gated; only consent
+events get a durable audit row). Fixing this edge is MIGRATION-PLAN Phase 5.
+
+**Inbox message → provider (the strong edge).** Inbox row ←
+`append_inbox_provider_message` RPC ← webhook event claimed by lease
+(`claim_inbox_webhook_events`, idempotent by `event_key`, retention-pruned)
+← provider POST. Duplicate delivery cannot double-write
+(`external_message_id` ownership checks include multipart ids).
+
+## 3. Provenance strength by area (honest grades)
+
+| Area | Grade | Evidence |
+|---|---|---|
+| Inbox messaging | **Strong** | provider ids as idempotency facts, lease-claimed events, atomic RPCs, race reconciliation |
+| Enquiry capture | **Good** | per-field mapping provenance (`configured\|detected\|absent`), `purposeSource` (declared/chosen/guessed), submissionId + ingestionState, identity-resolution stamps |
+| Identity resolution | **Good** | frozen resolution + reasons + confidence per review; append-only classification history on Person |
+| Access kernel | **Good** | every mutation audited with actor + ids; grants keep request back-reference |
+| Connections | **Adequate** | connection-level status/test/actor stamps — but **no record-level back-reference** from data an integration wrote to the connection that wrote it |
+| Telemetry | **Weak** | random ids, no dedupe, no batch identity |
+| Imports generally | **Absent** | no import-batch records, no content checksums anywhere in `portal/src` |
+| Audit trail | **Capped** | idempotent + redacted, but 50k hard cap evicts silently |
+
+## 4. Deliberate non-lineage (by design, keep)
+
+Client-website submissions: Aqua stores only `{clientId, table, rowId,
+timestamp}` and never copies the client's row — a data-controller boundary
+(`types.ts:4375-4392`). The `rowId` may dangle after the client deletes the
+row; surfaces must render that honestly rather than caching a copy.
+
+## 5. Secrets never enter lineage
+
+Credential-class fields (scrypt hashes, `encrypted_access_token`, external
+assistant keys, vault-encrypted secrets) are excluded from derived datasets
+and redacted from activity metadata by pattern
+(`redactActivityValue`). Any new derived model must consult the sensitivity
+class in the semantic registry / metadata contracts before copying a field.
+<!-- AQUACRM_SOURCE_END path="docs/data/LINEAGE.md" -->
+
+---
+
+<a id="source-docs-data-migration-plan-md"></a>
+
+## Source document — `docs/data/MIGRATION-PLAN.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/data/MIGRATION-PLAN.md" sha256="31c7fabdf764fd708a7a82c33e3c0d16453b596207668005d83212d820db4262" -->
+# Migration plan — strangler, one coherent vertical slice at a time
+
+*Rules that bind every phase below: the PortalState/blob system is not
+deleted; existing APIs and UI behaviour are preserved; each phase is
+independently deployable and reversible; backfills are idempotent with
+dry-run, checkpoints, counts, reconciliation and rollback instructions;
+legacy fields are not removed until parity and rollback have been
+demonstrated; reads switch only after legacy-vs-canonical comparison. The
+house template for "two copies coexist until the new one is CONFIRMED" is the
+sidecar split's `sidecarPopulated` discipline (`storage.ts`) — every
+extraction below follows it.*
+
+## Phase 0 — semantic groundwork ✅ (2026-08-30, this branch)
+
+Semantic registry + enforced PortalState coverage; canonical metric registry
++ collision pinning + golden boundary tests; metadata contracts + source-scan
+enforcement; `business-health` formula text corrected; this doc suite.
+Reversible: pure additions + one prose string.
+
+## Phase 1 — tenancy / identity / roles (first extraction slice)
+
+**Goal:** `agencies`, `tradingCompanies`, `users`, `accessGrants`,
+`accessRoleTemplates`, `accessRequests` become tenant-scoped rows with RLS,
+behind their existing modules.
+
+1. Create tables (real columns incl. `agency_id`; users keep scrypt hashes;
+   grants/requests keyed as today) with `inbox_*`-style deny-by-default
+   grants + policies. Apply `20260820150000` (enquiry agency column) and the
+   inbox migration first — they are written, unapplied, and blocking
+   (needs Ed: `supabase db push`, see ED-QUESTIONS).
+2. Dual-presence, not dual-write: module writes go to the blob as today AND
+   enqueue an outbox record (Phase 3's mechanism, or a synchronous copy in
+   the same `mutate` while the outbox lands); a backfill job copies
+   collection → table with dry-run, per-collection checkpoints, row counts
+   and a reconciliation diff (id-set + field-hash comparison).
+3. Reads stay on the blob until the comparison report shows N days of zero
+   drift; then module reads flip behind a flag, blob copy retained.
+4. Rollback: flip the flag back; the blob never stopped being written.
+
+**Verification:** repository contract tests run the module API against
+memory + file + Postgres backends; tenant-isolation tests assert cross-agency
+reads return nothing at the SQL layer (new RLS tests), not only through the
+module; existing suites (`smoke-release-access-matrix`,
+`smoke-session-revocation`) must stay green untouched.
+
+## Phase 2 — people and organisations
+
+`persons`, `organisations`, `identityResolutionReviews` extract with the same
+mechanics. Identity-resolution and person-dedupe suites
+(`smoke-identity-resolution`, `smoke-person-identity-dedupe`) are the parity
+oracle: run against blob-backed and table-backed reads, diff by test name.
+Contact points normalise out of `Client.metadata.linkedContacts` (contact
+namespace) here — the metadata catalogue is the checklist.
+
+## Phase 3 — transactional outbox + event envelope
+
+Before more slices move, writes need a reliable event record:
+
+- `outbox` starts as a PortalState collection written **inside the same
+  `mutate()`** as the domain change (atomic with the state flush), drained to
+  the in-memory bus + automations by a claimer; becomes a table when Phase 1's
+  slice proves the extraction mechanics.
+- Envelope: stable versioned past-tense `name` (`client.created.v1`), actor,
+  tenant, source, `correlationId`, `causationId`, `occurredAt`, `recordedAt`.
+- Existing `emit()` call sites stay; `emit` gains an outbox-backed variant
+  adopted call-site-by-call-site.
+- **No event-sourcing claim**: state is not rebuildable from events; the
+  outbox supports reliability and lineage, nothing more.
+
+Verification: idempotency + replay tests (a drained record redelivered must
+no-op), crash-between-write-and-drain test.
+
+## Phase 4 — journey (enquiries → pipelines → conversion)
+
+Apply the enquiry agency-column migration outcome; move
+`enquiryContactDetails`, `pipelines`, `pipelineCards`. Conversion lineage
+stamps (`leadId`, `promotedFromLeadId` — crm-lineage namespace) become real
+columns. `smoke-enquiry-tenant-isolation`, `smoke-enquiry-dedupe`,
+`smoke-lead-identity-conflict` are the parity oracles.
+
+## Phase 5 — telemetry out of the metadata bag + import provenance
+
+The highest-risk derived-data dependency: `Client.metadata.telemetryEvents`
+(sole source of traffic/forms/conversion KPIs, no dedupe) becomes an
+append-only table keyed by a **deterministic event id** (site key + beacon
+content hash + time bucket) so replays stop double-counting; ingest stamps
+`connectionId`/site provenance. Golden KPI tests must produce identical
+numbers across the switch for a captured fixture week. Finance facts
+(`clientPaymentPlans`, invoice keys — finance namespace) extract next with
+the same care; money before convenience.
+
+## Phase 6 — communications & audit durability
+
+Inbox is already table-backed (apply the migration live — blocked on Ed);
+this phase adds activity-log overflow to durable storage before the 50k cap
+evicts, and record-level provenance back-references (`connectionId`) on
+integration-written records.
+
+## Phase 7 — derived intelligence dedup
+
+With the registry as the map (`sameQuantityPairs()`):
+
+1. `response-sla` reads the configured guardrail (remove the hardcoded 5m).
+2. Fold the four lead-conversion implementations onto
+   `commercialLifecycle`'s; agency-marketing's 0–1 ratio adapts at its
+   render site.
+3. Share one conversion-event predicate (today triplicated verbatim).
+4. Retire the `campaign-roas` bare-id collision: namespace the commercial
+   descriptor ids (`commercial:` prefix, as evidence/custom already do),
+   with saved custom-KPI definitions migrated by backfill.
+5. Each step: golden tests first (Phase 0 shipped the boundary pins), parity
+   diff, then the switch.
+
+## Backfill template (all phases)
+
+`npx tsx scripts/backfill-<slice>.ts --dry-run` → prints per-collection
+counts, id-set diff, field-hash mismatches, writes a checkpoint file; without
+`--dry-run` it copies in id-ordered batches, resumable from the checkpoint,
+re-runnable (upsert by id — idempotent), and finishes with a reconciliation
+report. Rollback per phase = flip the read flag; blob writes never stopped.
+**Never fake data to make a comparison pass; a mismatch is a finding.**
+
+## Standing constraints
+
+- `DATABASE_URL` / applied migrations need Ed's environment (ED-QUESTIONS).
+- Sandbox realms multiply every extraction: tables carry `realm_id` (default
+  `live`) or extractions exclude realm-scoped rows until designed — decide
+  per slice, recorded in its ADR.
+- Do not build against the empty first-cut tables (`clients`,
+  `client_portals`, `client_portal_members`, `audit_events`) without a
+  decision to adopt or drop them.
+<!-- AQUACRM_SOURCE_END path="docs/data/MIGRATION-PLAN.md" -->
+
+---
+
+<a id="source-docs-data-semantic-layer-md"></a>
+
+## Source document — `docs/data/SEMANTIC-LAYER.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/data/SEMANTIC-LAYER.md" sha256="eaaf6bafb960d4731a2de64e12c54b14bff7518f9569a0d6c0bd48cc57bf5e4c" -->
+# The canonical semantic layer
+
+*The machine-readable authority is `src/lib/data/semanticRegistry.ts`,
+enforced by `scripts/smoke-semantic-registry.test.ts` (every PortalState
+collection classified, exactly; relationships resolvable; retention stated
+wherever personal data is classified). This document is the prose view — if
+it disagrees with the registry, the registry wins and this file has a bug.*
+
+## 1. Entity map
+
+Thirty entities cover the concepts the product operates on. Grouped:
+
+- **Tenancy & identity** — `tenant` (Agency), `tradingCompany`, `workspace`
+  (five senses, mostly not a persisted entity), `userAccount`, `staffMember`,
+  `role`, `permission`, `resourceEntitlement` (grant/template),
+  `approvalRequest`.
+- **CRM** — `person`, `organisation`, `prospect`, `client`, `endCustomer`,
+  `contactPoint`.
+- **Journey** — `enquiry`, `journey` (pipeline), `opportunity` (card),
+  `lifecycleStage`.
+- **Communication** — `conversation`, `communication` (message),
+  `inboxItem` (derived), `action`.
+- **Delivery** — `project`, `fulfilmentItem`, `task`.
+- **Commerce** — `product`, `financialEvent`.
+- **Platform** — `provider`, `integrationEvent`, `auditEvent`, `evidenceItem`.
+
+Each entry in the registry carries: canonical definition, id rule, tenancy
+scope + tenant fields, source of truth, plane, provenance, timestamp
+semantics, sensitivity, retention, lifecycle states/transitions, confidence
+notes, relationships.
+
+## 2. The distinctions that keep the vocabulary honest
+
+Machine-readable as `SEMANTIC_DISTINCTIONS`; the load-bearing ones:
+
+| Not the same thing | The rule |
+|---|---|
+| **Person vs client** | A Person is a human; a Client is a *workspace*. `Client.personId` names the human; one buyer relationship (`relationshipId`) may own several isolated client workspaces sharing one person. |
+| **Organisation vs workspace** | Organisation = the customer's real-world company. Workspace = Aqua-side structure. `TradingCompany` = the agency's *own* business — a third thing that never "becomes an agency". |
+| **User account vs staff member** | A login (`users.ts`, keyed by email) vs an employment record (`people.ts`). Linked via `PeopleEmployee.userId`, deliberately separate storage. The CRM `Person` is a third record again. |
+| **Role vs permission vs entitlement** | Role: which surfaces a session may enter (8-value union, ceiling only narrows). Permission: one capability string (`element.<key>.<view\|use\|manage>`, manage⇒use⇒view). Entitlement: an `AccessGrant` binding capabilities to one user + scope + environment, optionally templated, path-narrowed, expiring. |
+| **Project vs fulfilment** | Project = technical artefact (repo, preview, editor). Fulfilment = the operating model delivering a sold service (phases, briefs, deliverables). Neither implies the other. |
+| **Enquiry vs prospect** | One inbound ask (raw row) vs a pursued relationship on a journey. Many enquiries per prospect via identity resolution. |
+
+## 3. Timestamp doctrine (`TIMESTAMP_DOCTRINE`)
+
+`occurred` (event time — sent_at, issuedAt) ≠ `created` (ingestion time) ≠
+`updated` (bookkeeping) ≠ `effective` (targets, grant windows) ≠ `measured`
+(readings). A client-form row's own timestamp maps to `core.submittedAt`
+precisely because it is the client's clock, not Aqua's
+(`clientFormMapping.ts` keeps them apart by construction).
+
+## 4. Value doctrine (`VALUE_DOCTRINE`)
+
+- **missing** = null/undefined, renders "—"; a missing date must never render
+  as today (regression #169).
+- **zero** = a real measured 0, only valid when the instrument was live —
+  `CommandDemandFlow.pageviews` is `number | null` so a fake zero is
+  *unrepresentable*.
+- **false** = an explicit negative answer.
+- **unknown** = instrumented but unanswerable now — Radar `blind`, surfaced
+  as a blind spot, never a pass.
+- **not-applicable** = the dimension doesn't exist — modelled by field
+  absence (radar memory: "absent means not retained; `[]` means genuinely
+  none").
+
+## 5. Approval-request lifecycle — why five states are four-plus-two
+
+The brief asks for pending/approved/denied/expired/revoked. As built, and as
+the registry records: the **request** is
+`pending → approved | denied | cancelled`, while **expiry and revocation are
+grant lifecycle** (`expiresAt` passive, `revokedAt` audited + `accessRev`
+bump). This decomposition is deliberate — a request that was approved stays
+approved as a historical fact even after its grant expires — and both records
+are retained in all terminal states. Approval must *narrow* the request
+(capabilities and expiry), self-approval is rejected, and every transition is
+audited.
+
+## 6. Metric semantics
+
+`src/lib/data/metricRegistry.ts` gives every metric one stable
+`canonicalId` (`<kind>:<id>`), one definition, grain, dimensions, window,
+timezone, direction, freshness, confidence, owner — and names `computedBy`,
+the single authoritative calculation site, instead of restating the formula
+(restating it would recreate the second-source-of-truth problem). Known
+competing calculations are linked as `same-quantity` overlaps;
+`smoke-metric-registry.test.ts` pins the registry to the defining source
+files, pins the one existing bare-id collision, and golden-tests the boundary
+semantics of the dedup-hazard metrics. Target/baseline authority stays with
+the layered `KpiTargetsConfig` (agency → company, with effective-from
+history) — the registry does not duplicate targets.
+
+## 7. Metadata namespaces
+
+`src/lib/data/metadataContracts.ts` catalogues all 123 keys across the
+client/enquiry/activity/auth-user bags into 16 namespaces (contact,
+crm-lineage, identity, routing, journey, portal-provisioning, portal-config,
+product, finance, telemetry, inbox, consent, delivery, files, bespoke,
+system), each with owner, type and sensitivity.
+`smoke-metadata-contracts.test.ts` scans the source tree: an uncatalogued key
+fails the suite, and dead entries fail it too. A namespace is the unit a
+strangler migration moves (MIGRATION-PLAN §phases).
+<!-- AQUACRM_SOURCE_END path="docs/data/SEMANTIC-LAYER.md" -->
+
+---
+
+<a id="source-docs-data-source-inventory-md"></a>
+
+## Source document — `docs/data/SOURCE-INVENTORY.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/data/SOURCE-INVENTORY.md" sha256="880977ed9e4b86a26a3dff73fdd23aae72a26356460135f4490453fa17fe827e" -->
+# Source inventory — every store, its authority, and its consumers
+
+*Compiled 2026-08-30 from a full survey of the working tree (storage adapters,
+migrations, server modules) — not from memory or older docs. Where a claim
+matters it names the file. Companion documents: [ARCHITECTURE.md](ARCHITECTURE.md),
+[SEMANTIC-LAYER.md](SEMANTIC-LAYER.md), [LINEAGE.md](LINEAGE.md).*
+
+## 0. The shape of the estate
+
+There are **two unrelated databases plus a filesystem tier**, and one giant
+JSON document that dwarfs everything else:
+
+1. **Supabase project** (`dghzbsxbdatskserctgt`; migrations in
+   `../../../supabase/migrations/`, 24 files). Holds the normalised tables
+   (profiles, enquiries, consent, the five inbox tables) **and** the
+   PortalState blob in `app_datastores`.
+2. **Optional plain Postgres** (`PORTAL_BACKEND=postgres` + `DATABASE_URL`;
+   DDL in `scripts/schema.sql`). Holds the PortalState blob in `portal_kv`,
+   the lease/claim tables, and `nonces`. A *different database* from Supabase.
+3. **Local `.data/`** (gitignored) — dev state file, inbox fallback, uploads,
+   dev-team ledgers.
+
+**PortalState** (`src/server/types.ts:4490+`) is ~90 top-level collections in
+one JSON document — measured live 2026-08-29 at **3.25 MB**, of which actual
+client business data was 181 KB (5.4%). Two collections are split into
+sidecar rows on Supabase (`devTeamWorkspaceFiles` 29%, `clientPortalTemplates`
+18.5% of the document).
+
+## 1. Store-by-store inventory
+
+Authority legend: **SoT** = source of truth for its concept. Freshness:
+how current a read is. Sensitivity: PII / credential / internal / none.
+
+### 1a. The PortalState blob (operational plane, ~90 collections)
+
+| Property | Value |
+|---|---|
+| Owner | `src/server/storage.ts` (cache, hydration, debounced flush, realm map) |
+| Backends | file (`.data/portal-state.json`) · memory · Postgres `portal_kv` row `__portal_state__` · Supabase `app_datastores` row `aquacrm-portal-state` (+ `:realm:<id>` suffix per sandbox realm) |
+| Authority | **SoT for every collection listed in `PORTAL_STATE_COVERAGE`** (`src/lib/data/semanticRegistry.ts`) — tenants, clients, users, access kernel, persons/organisations, pipelines, phases, tasks, products, radar evidence, and the rest |
+| Tenancy | `agencyId` **as a JSON field only** — enforced by JS filtering (`server/tenants.ts` withTenantScope discipline), NOT by the database. The Supabase adapter uses the service-role key, so RLS on `app_datastores` is bypassed for the main data path |
+| Freshness | in-process cache, sync reads; 250 ms debounced flush; `ensureHydrated({fresh:true})` re-reads remote |
+| Sensitivity | mixed — PII (persons, clients, enquiryContactDetails), **credentials** (`users` scrypt hashes, `externalAssistantApiKeys`), commercial (finance metadata) |
+| Consumers | every server domain module; all portal routes |
+| History | `app_datastore_history` snapshots last 100 versions per key (service-role-only) |
+
+Per-collection classification (entity, plane, note) is **machine-readable and
+test-enforced** in `src/lib/data/semanticRegistry.ts` (`PORTAL_STATE_COVERAGE`,
+pinned by `scripts/smoke-semantic-registry.test.ts`).
+
+### 1b. Normalised tables (Supabase)
+
+| Table | Authority | Tenancy | Sensitivity | Consumers | Notes |
+|---|---|---|---|---|---|
+| `profiles` | SoT for Supabase-auth → app-role bridge | `agency_id` column exists but is **null for everyone today** | PII | login route, client-portal auth | the only table the app reads with the anon key — the one place RLS is load-bearing |
+| `brand_enquiries` | **SoT for raw website enquiries** | `agency_id` column — migration `20260820150000` **written but applied by hand**; fallback `metadata->>'agencyId'`; insert paths retry without the column on PGRST204 | PII + consent | website-enquiry routes, inbox, erasure | anon may INSERT only, consent-gated in the policy's WITH CHECK |
+| `website_consent_events` | SoT for consent audit | site/brand keyed | consent evidence | write-only from the app | no read path in repo |
+| `inbox_channel_connections` / `_contact_identities` / `_conversations` / `_messages` / `_webhook_events` | SoT for Master Inbox messaging | **`agency_id` real column on all five — the only properly scoped store family** | PII + **encrypted OAuth tokens** (AES-256-GCM vault) | `inboxStore.ts`, operational alerts, erasure | ⚠ tables verified **absent from the live project** 2026-08-20 — migration on disk, never applied; production `useSupabase()` path would 404 |
+| `app_datastores` / `app_datastore_history` | carrier for 1a | none | everything | storage adapter only | service-role only |
+| `brands`, `shoots`, `shoot_photos` | website content | brand keyed | none | sibling websites + client-portal | deliberately anon-readable |
+| `clients`, `client_portals`, `client_portal_members`, `audit_events` | **no portal consumer — empty** | FK-scoped | — | none | superseded first-cut model or unfinished; do not build against without deciding which |
+
+### 1c. Postgres-direct auxiliaries (`DATABASE_URL` database)
+
+| Table | Authority | Notes |
+|---|---|---|
+| `portal_kv` | blob carrier (1a) | `scripts/schema.sql`; RLS explicitly deferred ("R8") |
+| `nonces` | SoT for single-use auth tokens (magic-link, email-verify, password-reset, csrf) | **DDL lives in TypeScript** (`nonceStore.ts:89-96`, lazy CREATE TABLE); no tenant column; a Supabase-only deployment silently gets the **memory** adapter — single-use guarantees do not survive across serverless instances there |
+| `editor_ai_reply_claims`, `lead_conversion_operations`, `product_workspace_leases` | cross-process mutexes / idempotency receipts | mirrored as RPCs on the Supabase side |
+
+### 1d. Blob/object stores
+
+| Store | Authority | Tenancy | Notes |
+|---|---|---|---|
+| Supabase Storage, 8 buckets | SoT for uploads (private `aquacrm-uploads`, public `aquacrm-public`, 6 brand buckets) | **path-prefix per user** (`auth.uid()`), not per agency | private bytes proxied by the app; no signed URLs |
+| Vercel Blob | private-upload middle tier | none in store — route guards only | ~12 API routes |
+| `.data/*-uploads/`, `.data/inbox-media/<agencyId>/`, `.data/inbox-call-recordings/<agencyId>/` | dev fallback | path-embedded at best | CVs and call audio are PII |
+| Git working trees (`client-projects/`, `aqua-editor/<projectId>` worktrees) | SoT for project source | directory per client/project | outside any DB |
+
+### 1e. Derived read models (rebuildable)
+
+| Model | Built by | Persisted? | Consumers |
+|---|---|---|---|
+| Business Radar snapshot (`BusinessIssueRadar`) | `engines/data/server/radar/businessIssueRadar.ts` | cache only; **evidence** persists (below) | Command Centre, Advisor, My Radar |
+| Radar evidence vault | `radarEvidenceVault.ts` | **yes** — `radarEvidence` (raw 14d / hourly 60d / daily 365d), `radarMemory` (180 scans), `radarSyntheticProbes` | evidence descriptors, KPI histories, anomaly checks |
+| Command intelligence snapshot (20 KPIs + scoped readings) | `lib/server/commandIntelligenceService.ts` | no — rebuilt per request; history hydrated from evidence vault | Command Centre, KPI Explorer |
+| Commercial intelligence (40 formulas, stages, sources, lineage, quality) | `lib/intelligence/commercialIntelligence.ts` | no | Journey, Command, Radar |
+| KPI descriptor registry | `lib/performance/kpiRegistry.ts` (projection only — **it never recomputes**) | no | KPI Explorer, marketing pulse |
+| Client record ledger | `clientRecordLedger.ts` | yes (projection collection) | client record surfaces |
+| Master-inbox item list | inbox service assembly | no | inbox surfaces |
+
+**Canonical metric identity now lives in `src/lib/data/metricRegistry.ts`**
+(test-enforced against the two defining source files). See
+[LINEAGE.md](LINEAGE.md) for the identity-scheme joins.
+
+## 2. Duplicate and conflicting definitions (verified in source)
+
+1. **`campaign-roas` — hard id collision.** Both a command KPI and a
+   commercial formula in one flat descriptor space; the picker's `.find()`
+   resolves to the command one, `computeCustomKpi`'s Map to the commercial
+   one; the two round/clamp differently. Pinned in
+   `KNOWN_DESCRIPTOR_ID_COLLISIONS` so it cannot multiply.
+2. **Lead conversion — four implementations** (`commercialLifecycle`,
+   `commercialIntelligence`, agency-marketing reports — which returns a 0–1
+   *ratio* where the others return 0–100 — and the marketingIntelligence
+   funnel variant).
+3. **Response compliance — two SLA thresholds.** `speed-to-lead` uses the
+   *configured* guardrail; `response-sla` hardcodes 5 minutes. An agency with
+   a 30-minute SLA sees two disagreeing percentages.
+4. **Portfolio retention** computed twice (`retention` vs `portfolio-retention`).
+5. **New leads 30d** computed twice (`recent-leads` vs `new-leads-30d`).
+6. **Source coverage** computed twice (`source-attribution` vs `source-coverage`).
+7. **Website conversion** — four sites, three denominators; the conversion
+   *event predicate* is triplicated verbatim (radarTelemetry,
+   commandIntelligenceService.scopedConversion, performanceAnalytics).
+8. **Revenue gap** recomputed verbatim in three files.
+9. **Business health** — the registered formula text described only the
+   company index and omitted the 30% incident blend (**fixed 2026-08-30** in
+   `measurementFor`).
+10. **Three metric identity schemes** — KPI id (`lead-conversion`), radar
+    family id (`lead-conversion-rate`), evidence series id
+    (`sales:lead-conversion-rate`) — joined by hand via `makeKpi`'s `familyId`
+    argument. The metric registry now records the join per metric.
+
+Every same-quantity pair is machine-readable via `sameQuantityPairs()` in
+`metricRegistry.ts` and pinned by `smoke-metric-registry.test.ts`.
+
+## 3. Low-confidence sources and missing lineage
+
+- **`Client.metadata.telemetryEvents`** — the raw Aqua Tag event stream, the
+  sole source for `traffic-7d`, `forms-7d`, `website-conversion` and ROAS
+  denominators, lives in an untyped bag read via a bare cast. **Telemetry
+  ingest has no dedupe**: event ids are random, so a replayed beacon
+  double-counts into every traffic KPI.
+- **`activity` hard cap 50,000 with silent oldest-first eviction** — the audit
+  trail can shed history without any surface saying so.
+- **No record-level provenance**: nothing written by an integration carries a
+  back-reference to the `IntegrationConnection.id` that produced it. No
+  content checksums or import-batch records exist anywhere.
+- **`nonces` on Supabase-only deployments degrade to memory** (see 1c).
+- **`profiles.agency_id` is null for everyone** — the agency-aware RLS ratchet
+  on `brand_enquiries` therefore currently degrades to "any internal user
+  manages every agency's rows" (documented in `ownedEnquiry.ts:5-29`).
+- **Radar evidence can be 24h stale** under the daily probe cron with no
+  surface saying so (issue #170, Ed's decision — recorded, not hidden).
+- **`rls_auto_enable()`** exists in the live Supabase project and in no
+  migration — dashboard drift that will not survive a rebuild.
+
+## 4. Which source is authoritative, per business concept
+
+| Concept | Authoritative source | Everything else |
+|---|---|---|
+| Tenant / company / client / person / organisation / user / grant | PortalState collection named in `PORTAL_STATE_COVERAGE` | UI caches, derived rows |
+| Raw website enquiry | `brand_enquiries` row | `enquiryContactDetails` augments; inbox projections derive |
+| Conversation / message | `inbox_*` tables (Supabase) or `.data/inbox-messaging.json` in dev | inbox item list derives |
+| Consent | `website_consent_events` (+ consent fields on the enquiry row) | — |
+| Single-use auth tokens | `nonces` (Postgres) | — |
+| Uploaded file bytes | Supabase Storage → Vercel Blob → `.data/` (precedence) | metadata.files entries reference |
+| Metric identity & semantics | `src/lib/data/metricRegistry.ts` | descriptors carry computed values |
+| Metric **values** | the `computedBy` site named per metric | any other computation of the same number is scheduled for dedup |
+| Metric history | radar evidence vault (`radarEvidence`) | descriptor `series` caps at 24 points |
+| Semantic definitions | `src/lib/data/semanticRegistry.ts` (+ this doc suite) | scattered doc comments remain valid but non-authoritative |
+| Metadata key meaning | `src/lib/data/metadataContracts.ts` | — |
+<!-- AQUACRM_SOURCE_END path="docs/data/SOURCE-INVENTORY.md" -->
 
 ---
 
@@ -1223,7 +2181,7 @@ request-memoization.
 
 ## Source document — `docs/development/ED-QUESTIONS.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/ED-QUESTIONS.md" sha256="27df7b0c7b2ad5cf1c1e4ee73e31f30fe143b9c6598f36437d4e692e8aaac3b6" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/ED-QUESTIONS.md" sha256="66d4c02a34553622af961eefd1142adcc2b098284a4820ed0fb5b9e54756a592" -->
 # Questions for Ed — blocked decisions, work continues around them
 
 **Started 2026-08-30.** Per your instruction: anything needing your input is
@@ -1299,6 +2257,62 @@ real numbers.
 role/agency. These need reconciling in the Supabase dashboard before cutover.
 Run `node scripts/supabase-cutover-preflight.mjs` to see the current list.
 
+## Q8 — Apply the written-but-unapplied database migrations (ACTION)
+
+Three things exist on disk but not in the live project, and the data
+architecture work (docs/data/MIGRATION-PLAN.md) is gated on them:
+
+1. `supabase/migrations/20260820150000_brand_enquiries_agency_scope.sql` —
+   the enquiry `agency_id` tenant column (until applied, tenancy rides in
+   `metadata->>'agencyId'` and the agency-aware RLS ratchet cannot bite).
+2. `supabase/migrations/20260811113000_master_inbox_messaging.sql` — the five
+   `inbox_*` tables; production's `useSupabase()` inbox path 404s without
+   them.
+3. The live project's `rls_auto_enable()` function exists in NO migration —
+   export it from the dashboard and commit it, or it dies on any rebuild.
+
+**Unblocks:** migration phases 1/4/6; honest RLS claims. You run
+`supabase db push` by hand — say when, and I'll verify with
+`supabase/rls-verify.sql` + the preflight script.
+
+## Q9 — Which response SLA is canonical?
+
+Two "response compliance" numbers exist side by side: the Radar/command KPI
+uses your **configured** guardrail (`speedToLeadTargetMinutes`), while the
+commercial formula `response-sla` **hardcodes 5 minutes**. Dedup
+(MIGRATION-PLAN phase 7) needs the business answer:
+
+- **Recommendation:** the configured guardrail is canonical everywhere;
+  5 minutes stays only as the default value of that guardrail.
+- Alternative: keep a fixed 5-minute industry benchmark as a *separate,
+  clearly-labelled* metric next to your own SLA.
+
+**Unblocks:** folding `response-sla` onto the canonical calculation.
+
+## Q10 — Which campaign ROAS is "the" ROAS?
+
+`campaign-roas` exists twice (command KPI: zero-clamped, rounded 2dp over
+built campaign rows; commercial formula: unrounded over raw records). They can
+disagree in the same explorer, and custom KPIs resolve to the opposite one
+than the picker does. **Recommendation:** the command KPI is canonical for
+dashboards; the commercial twin gets a namespaced id and a "raw/unrounded"
+label until retired. Saved custom-KPI definitions referencing it get a
+backfill.
+
+**Unblocks:** retiring the one descriptor-id collision
+(pinned in `src/lib/data/metricRegistry.ts` until then).
+
+## Q11 — First-cut Supabase tables: adopt or drop?
+
+`clients`, `client_portals`, `client_portal_members`, `audit_events` exist
+live (created by the initial security migration), are **empty**, and no
+portal code reads them. The extraction phases will create real tables for
+these concepts — reusing those names only works if we adopt and reshape them.
+**Recommendation:** drop them in a migration once phase 1 designs the real
+schemas, so nobody builds against the wrong model.
+
+**Unblocks:** clean table naming for migration phases 1–2.
+
 ---
 
 *Answered items: move them to the bottom with the decision and date, so this
@@ -1311,12 +2325,55 @@ file stays a live queue.*
 
 ## Source document — `docs/development/LOOP-PROGRESS.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/LOOP-PROGRESS.md" sha256="fae37c7c58deda4060a2d4a3d1031a83b609dea212e9337442d8ef24dca4066f" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/LOOP-PROGRESS.md" sha256="74c433c50d906a5ce84e68469b99ce64603094e85e92625db304f7541cd833d7" -->
 # Production-readiness loop — live ledger
 
 **Loop:** every 20 min (cron 5ced36da), started 2026-08-30. Blocked-on-Ed items
 live in [ED-QUESTIONS.md](ED-QUESTIONS.md) and are SKIPPED, not stalled on.
 Suite baseline at loop start: **5,460 tests / 0 fail / tsc clean.**
+
+## Data-architecture workstream (started 2026-08-30, branch claude/aquacrm-data-architecture-ia0vnx)
+
+**Phase 0 SHIPPED — semantic groundwork.** Full survey of every store,
+adapter, migration, KPI path and metadata bag, then the enforceable semantic
+layer:
+
+- `src/lib/data/semanticRegistry.ts` — 30 canonical entities (definitions,
+  id rules, tenancy, source of truth, provenance, timestamps, sensitivity,
+  retention, lifecycles, relationships), the six load-bearing distinctions,
+  timestamp + value doctrines, and `PORTAL_STATE_COVERAGE` classifying every
+  PortalState collection — **exact set-equality-enforced** by
+  `smoke-semantic-registry.test.ts`, so a new collection cannot ship
+  unclassified.
+- `src/lib/data/metricRegistry.ts` — one canonical id + semantics for all 60
+  metrics (20 command + 40 commercial), `computedBy` naming the single
+  calculation authority, `radarFamilyId` joins, and every known competing
+  calculation linked as `same-quantity`. `smoke-metric-registry.test.ts`
+  pins set equality against the defining source files, pins the ONE existing
+  bare-id collision (`campaign-roas`) so a new one fails, and adds 8 golden
+  boundary tests (SLA boundary inclusive, 14-day staleness, decision
+  denominators, even-count median, >100% directional ratio, null-not-Infinity
+  ROAS). Descriptors now stamp `canonicalId` (`<kind>:<id>`).
+- `src/lib/data/metadataContracts.ts` — all 123 metadata keys catalogued
+  (carrier, namespace, owner, type, sensitivity);
+  `smoke-metadata-contracts.test.ts` scans src both ways (uncatalogued key
+  fails; dead entry fails) — the escape hatch is closed going forward.
+- Real fix: `business-health` formulaText stated only the company index and
+  omitted the 30% incident blend — corrected to the actual calculation.
+- Docs: `docs/data/{ARCHITECTURE,SOURCE-INVENTORY,SEMANTIC-LAYER,
+  DATA-DICTIONARY,MIGRATION-PLAN,LINEAGE}.md` + ADR-001…004. All describe
+  what EXISTS, with target clearly separated.
+
+**Phase queue (from docs/data/MIGRATION-PLAN.md):**
+1. Tenancy/identity/roles extraction (tables + RLS behind existing modules;
+   blocked on Ed for `supabase db push` + DATABASE_URL — ED-QUESTIONS Q7).
+2. People/organisations extraction (dedupe suites as parity oracle).
+3. Transactional outbox (same-mutate write; envelope with correlation/
+   causation ids; no event-sourcing claim).
+4. Journey slice. 5. Telemetry out of the metadata bag + deterministic
+   beacon ids (the double-count fix). 6. Comms/audit durability.
+7. Metric dedup via `sameQuantityPairs()` (response-sla → configured
+   guardrail first; campaign-roas collision retirement; ED-QUESTIONS Q8/Q9).
 
 ## Done this loop (newest first)
 

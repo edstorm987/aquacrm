@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-30T07:46:01.268Z",
+  "generatedAt": "2026-08-30T10:57:10.864Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -300,6 +300,86 @@
       "bytes": 35159
     },
     {
+      "path": "docs/data/adr/ADR-001-semantic-registry-in-code.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-data-adr-adr-001-semantic-registry-in-code-md",
+      "sha256": "f092ef6a564d26df854311e618626bfd2dadb8f2ae5aad085d845360972102da",
+      "words": 217,
+      "bytes": 1548
+    },
+    {
+      "path": "docs/data/adr/ADR-002-domain-modules-are-the-repository-seam.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-data-adr-adr-002-domain-modules-are-the-repository-seam-md",
+      "sha256": "361439671762eb20b119d1e94d18b2a0eb3807ea24e66c2f3e6548c9c39e17d3",
+      "words": 218,
+      "bytes": 1578
+    },
+    {
+      "path": "docs/data/adr/ADR-003-one-calculation-path-per-metric.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-data-adr-adr-003-one-calculation-path-per-metric-md",
+      "sha256": "9143b1627c97a7081134d9cb312f88fbfaa6fb6ce52ef1b6f69b3744056cf813",
+      "words": 233,
+      "bytes": 1749
+    },
+    {
+      "path": "docs/data/adr/ADR-004-metadata-governed-not-banned.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-data-adr-adr-004-metadata-governed-not-banned-md",
+      "sha256": "2b11d24db9f0a69441192526aab9a6ba38df19e01abefa21fd469172cdea3973",
+      "words": 196,
+      "bytes": 1452
+    },
+    {
+      "path": "docs/data/ARCHITECTURE.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-data-architecture-md",
+      "sha256": "0ea1aee9118c14c9a4a20105b79eb3818f4b6fce9bd02d14e0251358924067ba",
+      "words": 993,
+      "bytes": 7701
+    },
+    {
+      "path": "docs/data/DATA-DICTIONARY.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-data-data-dictionary-md",
+      "sha256": "bad31fdda0bc37e304583ebf79d335455cfebdb6b34071cfb81b59a950bca7f0",
+      "words": 955,
+      "bytes": 7142
+    },
+    {
+      "path": "docs/data/LINEAGE.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-data-lineage-md",
+      "sha256": "1a9cf390899c6602a208b71b44e36edbdc16cf4261b712124c6a8138f8aca50f",
+      "words": 599,
+      "bytes": 4592
+    },
+    {
+      "path": "docs/data/MIGRATION-PLAN.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-data-migration-plan-md",
+      "sha256": "31c7fabdf764fd708a7a82c33e3c0d16453b596207668005d83212d820db4262",
+      "words": 894,
+      "bytes": 6851
+    },
+    {
+      "path": "docs/data/SEMANTIC-LAYER.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-data-semantic-layer-md",
+      "sha256": "eaaf6bafb960d4731a2de64e12c54b14bff7518f9569a0d6c0bd48cc57bf5e4c",
+      "words": 775,
+      "bytes": 6041
+    },
+    {
+      "path": "docs/data/SOURCE-INVENTORY.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-data-source-inventory-md",
+      "sha256": "880977ed9e4b86a26a3dff73fdd23aae72a26356460135f4490453fa17fe827e",
+      "words": 1661,
+      "bytes": 12413
+    },
+    {
       "path": "docs/DEVELOPMENT-HANDOFF.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-handoff-md",
@@ -359,9 +439,9 @@
       "path": "docs/development/ED-QUESTIONS.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-ed-questions-md",
-      "sha256": "27df7b0c7b2ad5cf1c1e4ee73e31f30fe143b9c6598f36437d4e692e8aaac3b6",
-      "words": 558,
-      "bytes": 3580
+      "sha256": "66d4c02a34553622af961eefd1142adcc2b098284a4820ed0fb5b9e54756a592",
+      "words": 923,
+      "bytes": 6311
     },
     {
       "path": "docs/development/findings/2026-08-22-agency-staff-can-read-salaries.md",
@@ -415,9 +495,9 @@
       "path": "docs/development/LOOP-PROGRESS.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-loop-progress-md",
-      "sha256": "fae37c7c58deda4060a2d4a3d1031a83b609dea212e9337442d8ef24dca4066f",
-      "words": 825,
-      "bytes": 5917
+      "sha256": "74c433c50d906a5ce84e68469b99ce64603094e85e92625db304f7541cd833d7",
+      "words": 1128,
+      "bytes": 8576
     },
     {
       "path": "docs/development/notes.md",
@@ -1039,9 +1119,9 @@
       "path": "docs/workspace/feature-index.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-feature-index-md",
-      "sha256": "bffbf6237ea7886388805bad24e32e7ccb8dbb7c3201f022ea591b567f4e9fa0",
-      "words": 5151,
-      "bytes": 48485
+      "sha256": "0814a92232a9ccf88bcb84179dfff5108fd12079c01f6571e30fe83e0eed514d",
+      "words": 5223,
+      "bytes": 49394
     },
     {
       "path": "docs/workspace/hazards-and-duplication.md",

@@ -389,7 +389,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (1):** [`src/lib/access/departmentProfiles.ts`](lib.md#file-src-lib-access-departmentprofiles-ts-343cc6ceea)
 
-**Used by (1):** [`src/components/chrome/Topbar.tsx`](#file-src-components-chrome-topbar-tsx-9a91269432)
+**Used by (2):** [`src/components/chrome/MyRadarQuickLookPanel.tsx`](#file-src-components-chrome-myradarquicklookpanel-tsx-028d2ead5a) · [`src/components/chrome/Topbar.tsx`](#file-src-components-chrome-topbar-tsx-9a91269432)
 
 <a id="file-src-components-chrome-devconsolebutton-tsx-febade8526"></a>
 
@@ -546,6 +546,49 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Depends on (3):** [`src/components/chrome/Sidebar.tsx`](#file-src-components-chrome-sidebar-tsx-a3b761358c) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411)
 
 **Used by (1):** [`src/components/chrome/Topbar.tsx`](#file-src-components-chrome-topbar-tsx-9a91269432)
+
+<a id="file-src-components-chrome-myradarbutton-tsx-21bf851e6d"></a>
+
+### `src/components/chrome/MyRadarButton.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `MyRadarButton({ activeDepartment, initial }: { activeDepartment?: string; initial: MyRadarTopbarSnapshot })`
+- `interface MyRadarTopbarSnapshot (3 members)`
+
+**Depends on (1):** [`src/lib/server/intelligence/myRadar.ts`](lib.md#file-src-lib-server-intelligence-myradar-ts-440d4e5adb)
+
+**Used by (2):** [`src/components/chrome/MyRadarControl.tsx`](#file-src-components-chrome-myradarcontrol-tsx-f3c638a4a3) · [`src/components/chrome/MyRadarQuickLookPanel.tsx`](#file-src-components-chrome-myradarquicklookpanel-tsx-028d2ead5a)
+
+<a id="file-src-components-chrome-myradarcontrol-tsx-f3c638a4a3"></a>
+
+### `src/components/chrome/MyRadarControl.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `async MyRadarControl({ activeDepartment }: { activeDepartment?: string })` — mount — baselines are weekly, so the window must be too.
+
+**Depends on (5):** [`src/components/chrome/MyRadarButton.tsx`](#file-src-components-chrome-myradarbutton-tsx-21bf851e6d) · [`src/lib/intelligence/departmentAllocation.ts`](lib.md#file-src-lib-intelligence-departmentallocation-ts-effe208c44) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/intelligence/myRadar.ts`](lib.md#file-src-lib-server-intelligence-myradar-ts-440d4e5adb) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by (1):** [`src/components/chrome/Topbar.tsx`](#file-src-components-chrome-topbar-tsx-9a91269432)
+
+<a id="file-src-components-chrome-myradarquicklookpanel-tsx-028d2ead5a"></a>
+
+### `src/components/chrome/MyRadarQuickLookPanel.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `MyRadarQuickLookPanel({ activeDepartment, snapshot, onSnapshot, onClose, }: { activeDepartment?: string; snapshot: MyRadarTopbarSnapshot; onSnapshot: (snapshot: MyRadarTopbarSnapshot) => void; onClose: () => void; })`
+
+**Depends on (6):** [`src/components/chrome/DepartmentSwitcher.tsx`](#file-src-components-chrome-departmentswitcher-tsx-b003716fea) · [`src/components/chrome/MyRadarButton.tsx`](#file-src-components-chrome-myradarbutton-tsx-21bf851e6d) · [`src/components/intelligence/MyRadarPanel.tsx`](#file-src-components-intelligence-myradarpanel-tsx-5a201da332) · [`src/lib/server/intelligence/myRadar.ts`](lib.md#file-src-lib-server-intelligence-myradar-ts-440d4e5adb) · [`src/server/dashboardPlanning.ts`](server.md#file-src-server-dashboardplanning-ts-e7312f445b) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 <a id="file-src-components-chrome-navcollapsetoggle-tsx-6db41bbba2"></a>
 
@@ -795,6 +838,20 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by (1):** [`src/app/portal/layout.tsx`](app.md#file-src-app-portal-layout-tsx-5b7a2a284d)
 
+<a id="file-src-components-chrome-savedrowcontrols-tsx-6d3aacb11a"></a>
+
+### `src/components/chrome/SavedRowControls.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `SavedRowControls({ tabId, label }: { tabId: string; label: string })` — The controls a saved tab keeps after it is merged into a nav panel. Ed, 2026-08-30: *"the saved tabs loose all their controls once reordered with the defaults we need the controls…
+
+**Depends on (2):** [`src/components/chrome/SavedTabIconPicker.tsx`](#file-src-components-chrome-savedtabiconpicker-tsx-85198ea1e1) · [`src/components/chrome/pinnedTabsStore.ts`](#file-src-components-chrome-pinnedtabsstore-ts-e04f9dfb99)
+
+**Used by (1):** [`src/components/chrome/Sidebar.tsx`](#file-src-components-chrome-sidebar-tsx-a3b761358c)
+
 <a id="file-src-components-chrome-savedspotarrival-tsx-38ab9d5a7f"></a>
 
 ### `src/components/chrome/SavedSpotArrival.tsx`
@@ -821,7 +878,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (3):** [`src/components/chrome/navIcons.ts`](#file-src-components-chrome-navicons-ts-1756139c14) · [`src/components/chrome/navTones.ts`](#file-src-components-chrome-navtones-ts-52a318b8bd) · [`src/lib/chrome/workspaces.ts`](lib.md#file-src-lib-chrome-workspaces-ts-d222438340)
 
-**Used by (1):** [`src/components/chrome/PinnedTabs.tsx`](#file-src-components-chrome-pinnedtabs-tsx-6a643b00e6)
+**Used by (2):** [`src/components/chrome/PinnedTabs.tsx`](#file-src-components-chrome-pinnedtabs-tsx-6a643b00e6) · [`src/components/chrome/SavedRowControls.tsx`](#file-src-components-chrome-savedrowcontrols-tsx-6d3aacb11a)
 
 <a id="file-src-components-chrome-scrollclasstoggle-tsx-a93fdb528e"></a>
 
@@ -862,7 +919,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `Sidebar({ panels, tenantLabel, currentPath, mobile = false, extra, navAlignment = "center", variant = "standard" }: Props)`
 - `type SidebarVariant = "standard" | "client"`
 
-**Depends on (7):** [`src/components/chrome/CompanySwitcher.tsx`](#file-src-components-chrome-companyswitcher-tsx-606f77eb01) · [`src/components/chrome/PinnedTabs.tsx`](#file-src-components-chrome-pinnedtabs-tsx-6a643b00e6) · [`src/components/chrome/SidebarFooter.tsx`](#file-src-components-chrome-sidebarfooter-tsx-37e10611ab) · [`src/components/chrome/SidebarNavLink.tsx`](#file-src-components-chrome-sidebarnavlink-tsx-f85c0a7a8a) · [`src/components/chrome/SidebarReorder.tsx`](#file-src-components-chrome-sidebarreorder-tsx-b9dfad5ef4) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/chrome/workspaces.ts`](lib.md#file-src-lib-chrome-workspaces-ts-d222438340)
+**Depends on (9):** [`src/components/chrome/CompanySwitcher.tsx`](#file-src-components-chrome-companyswitcher-tsx-606f77eb01) · [`src/components/chrome/PinnedTabs.tsx`](#file-src-components-chrome-pinnedtabs-tsx-6a643b00e6) · [`src/components/chrome/SavedRowControls.tsx`](#file-src-components-chrome-savedrowcontrols-tsx-6d3aacb11a) · [`src/components/chrome/SidebarFooter.tsx`](#file-src-components-chrome-sidebarfooter-tsx-37e10611ab) · [`src/components/chrome/SidebarNavLink.tsx`](#file-src-components-chrome-sidebarnavlink-tsx-f85c0a7a8a) · [`src/components/chrome/SidebarReorder.tsx`](#file-src-components-chrome-sidebarreorder-tsx-b9dfad5ef4) · [`src/lib/chrome/savedTabNav.ts`](lib.md#file-src-lib-chrome-savedtabnav-ts-22370ff8a3) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/chrome/workspaces.ts`](lib.md#file-src-lib-chrome-workspaces-ts-d222438340)
 
 **Used by (7):** [`src/app/portal/agency/layout.tsx`](app.md#file-src-app-portal-agency-layout-tsx-47dd48700a) · [`src/app/portal/clients/[clientId]/layout.tsx`](app.md#file-src-app-portal-clients-clientid-layout-tsx-2e7f1d7ce2) · [`src/app/portal/clients/page.tsx`](app.md#file-src-app-portal-clients-page-tsx-bffc1e671f) · [`src/app/portal/dev-team/layout.tsx`](app.md#file-src-app-portal-dev-team-layout-tsx-ceef463ed4) · [`src/app/portal/team/layout.tsx`](app.md#file-src-app-portal-team-layout-tsx-f6dab38395) · [`src/components/chrome/MobileNav.tsx`](#file-src-components-chrome-mobilenav-tsx-6225ed2a8e) · [`src/components/chrome/Topbar.tsx`](#file-src-components-chrome-topbar-tsx-9a91269432)
 
@@ -918,7 +975,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `SidebarReorder({ panelId, children, }: { panelId: string; children: ReactNode; })`
 
-**Depends on (1):** [`src/components/chrome/pinnedTabsStore.ts`](#file-src-components-chrome-pinnedtabsstore-ts-e04f9dfb99)
+**Depends on (2):** [`src/components/chrome/pinnedTabsStore.ts`](#file-src-components-chrome-pinnedtabsstore-ts-e04f9dfb99) · [`src/lib/chrome/savedTabNav.ts`](lib.md#file-src-lib-chrome-savedtabnav-ts-22370ff8a3)
 
 **Used by (1):** [`src/components/chrome/Sidebar.tsx`](#file-src-components-chrome-sidebar-tsx-a3b761358c)
 
@@ -988,7 +1045,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, sidebarVariant = "standard", isDemo, homeHref, homeLabel, showcaseMode, sandboxMode, publicShowcase, canUseDevMode, devMode…`
 
-**Depends on (21):** [`src/components/chrome/ColorModeToggle.tsx`](#file-src-components-chrome-colormodetoggle-tsx-f23ad79317) · [`src/components/chrome/DeferredPortalSearch.tsx`](#file-src-components-chrome-deferredportalsearch-tsx-9f037d8751) · [`src/components/chrome/DepartmentSwitcher.tsx`](#file-src-components-chrome-departmentswitcher-tsx-b003716fea) · [`src/components/chrome/DevConsoleControl.tsx`](#file-src-components-chrome-devconsolecontrol-tsx-f4e77f6e72) · [`src/components/chrome/InspectorModeControl.tsx`](#file-src-components-chrome-inspectormodecontrol-tsx-ee605c0889) · [`src/components/chrome/MobileNav.tsx`](#file-src-components-chrome-mobilenav-tsx-6225ed2a8e) · [`src/components/chrome/PinnedTabs.tsx`](#file-src-components-chrome-pinnedtabs-tsx-6a643b00e6) · [`src/components/chrome/PrivacyModeControl.tsx`](#file-src-components-chrome-privacymodecontrol-tsx-80575cf467) · [`src/components/chrome/ProfileMenu.tsx`](#file-src-components-chrome-profilemenu-tsx-539a3c435a) · [`src/components/chrome/PublicShowcaseControl.tsx`](#file-src-components-chrome-publicshowcasecontrol-tsx-9c30478e1a) · [`src/components/chrome/SavedSpotArrival.tsx`](#file-src-components-chrome-savedspotarrival-tsx-38ab9d5a7f) · [`src/components/chrome/ShowcaseModeControl.tsx`](#file-src-components-chrome-showcasemodecontrol-tsx-b73e80faff) · [`src/components/chrome/Sidebar.tsx`](#file-src-components-chrome-sidebar-tsx-a3b761358c) · [`src/components/chrome/TopbarBackButton.tsx`](#file-src-components-chrome-topbarbackbutton-tsx-eb0e817169) · [`src/components/chrome/TopbarOverflow.tsx`](#file-src-components-chrome-topbaroverflow-tsx-52395a7eeb) · [`src/lib/chrome/destinations.ts`](lib.md#file-src-lib-chrome-destinations-ts-3f8b490e69) · [`src/lib/chrome/sharedChromeLinkPrefetch.ts`](lib.md#file-src-lib-chrome-sharedchromelinkprefetch-ts-5da3605f67) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/server/chrome/activeDepartment.ts`](lib.md#file-src-lib-server-chrome-activedepartment-ts-14973fdc11) · [`src/lib/server/chrome/topbarControlPins.ts`](lib.md#file-src-lib-server-chrome-topbarcontrolpins-ts-45ceb56e13) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (22):** [`src/components/chrome/ColorModeToggle.tsx`](#file-src-components-chrome-colormodetoggle-tsx-f23ad79317) · [`src/components/chrome/DeferredPortalSearch.tsx`](#file-src-components-chrome-deferredportalsearch-tsx-9f037d8751) · [`src/components/chrome/DepartmentSwitcher.tsx`](#file-src-components-chrome-departmentswitcher-tsx-b003716fea) · [`src/components/chrome/DevConsoleControl.tsx`](#file-src-components-chrome-devconsolecontrol-tsx-f4e77f6e72) · [`src/components/chrome/InspectorModeControl.tsx`](#file-src-components-chrome-inspectormodecontrol-tsx-ee605c0889) · [`src/components/chrome/MobileNav.tsx`](#file-src-components-chrome-mobilenav-tsx-6225ed2a8e) · [`src/components/chrome/MyRadarControl.tsx`](#file-src-components-chrome-myradarcontrol-tsx-f3c638a4a3) · [`src/components/chrome/PinnedTabs.tsx`](#file-src-components-chrome-pinnedtabs-tsx-6a643b00e6) · [`src/components/chrome/PrivacyModeControl.tsx`](#file-src-components-chrome-privacymodecontrol-tsx-80575cf467) · [`src/components/chrome/ProfileMenu.tsx`](#file-src-components-chrome-profilemenu-tsx-539a3c435a) · [`src/components/chrome/PublicShowcaseControl.tsx`](#file-src-components-chrome-publicshowcasecontrol-tsx-9c30478e1a) · [`src/components/chrome/SavedSpotArrival.tsx`](#file-src-components-chrome-savedspotarrival-tsx-38ab9d5a7f) · [`src/components/chrome/ShowcaseModeControl.tsx`](#file-src-components-chrome-showcasemodecontrol-tsx-b73e80faff) · [`src/components/chrome/Sidebar.tsx`](#file-src-components-chrome-sidebar-tsx-a3b761358c) · [`src/components/chrome/TopbarBackButton.tsx`](#file-src-components-chrome-topbarbackbutton-tsx-eb0e817169) · [`src/components/chrome/TopbarOverflow.tsx`](#file-src-components-chrome-topbaroverflow-tsx-52395a7eeb) · [`src/lib/chrome/destinations.ts`](lib.md#file-src-lib-chrome-destinations-ts-3f8b490e69) · [`src/lib/chrome/sharedChromeLinkPrefetch.ts`](lib.md#file-src-lib-chrome-sharedchromelinkprefetch-ts-5da3605f67) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/server/chrome/activeDepartment.ts`](lib.md#file-src-lib-server-chrome-activedepartment-ts-14973fdc11) · [`src/lib/server/chrome/topbarControlPins.ts`](lib.md#file-src-lib-server-chrome-topbarcontrolpins-ts-45ceb56e13) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (4):** [`src/app/portal/agency/layout.tsx`](app.md#file-src-app-portal-agency-layout-tsx-47dd48700a) · [`src/app/portal/clients/[clientId]/layout.tsx`](app.md#file-src-app-portal-clients-clientid-layout-tsx-2e7f1d7ce2) · [`src/app/portal/clients/page.tsx`](app.md#file-src-app-portal-clients-page-tsx-bffc1e671f) · [`src/app/portal/team/layout.tsx`](app.md#file-src-app-portal-team-layout-tsx-f6dab38395)
 
@@ -1022,6 +1079,20 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Depends on (1):** [`src/lib/chrome/topbarControls.ts`](lib.md#file-src-lib-chrome-topbarcontrols-ts-e7f3bc1812)
 
 **Used by (1):** [`src/components/chrome/Topbar.tsx`](#file-src-components-chrome-topbar-tsx-9a91269432)
+
+<a id="file-src-components-chrome-usercssinjector-tsx-ac643ccf57"></a>
+
+### `src/components/chrome/UserCssInjector.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `UserCssInjector({ css }: { css: string })` — The person's own stylesheet, finally actually applied. Found by Ed (2026-08-30): the Appearance panel saved custom CSS and NOTHING ever injected it — the box was a diary. And the …
+
+**Depends on:** _No internal imports._
+
+**Used by (1):** [`src/app/portal/layout.tsx`](app.md#file-src-app-portal-layout-tsx-5b7a2a284d)
 
 <a id="file-src-components-chrome-welcomegate-tsx-cafed2b65a"></a>
 
@@ -1098,7 +1169,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (20):**
+**Exports (21):**
 
 - `placementKey(placement: SavedTabPlacement): string` — ─── Pure helpers ────────────────────────────────────────────────────────────
 - `samePlacement(left: SavedTabPlacement, right: SavedTabPlacement): boolean`
@@ -1113,17 +1184,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `setTabTone(tabs: readonly SavedTab[], id: string, tone: string | undefined, now = Date.now()): SavedTab[]` — Give a saved tab a chosen hover colour, or clear it back to the shell's.
 - `renameTab(tabs: readonly SavedTab[], id: string, label: string, now = Date.now()): SavedTab[]` — Rename a saved tab — Ed's shortcuts should read like his own words.
 - `moveTabTo(tabs: readonly SavedTab[], id: string, placement: SavedTabPlacement, index: number, now = Date.now()): SavedTab[]` — Put `id` at `index` within `placement`, renumbering that strip.
-- `normalizeTabs(value: unknown): SavedTab[]` — Coerce anything the server or an old browser hands back (defensive on load).
+- `normalizeTools(value: unknown): SavedTool[]` — The last gate before a value becomes an `href`. The server normalised on read, but this response could come from an older deploy — so the URL is judged a third time, here, where i…
+- `normalizeTabs(value: unknown): SavedTab[]`
 - `useChromeLayout(): UseChromeLayout`
 - `MAX_PINS_PER_LOCATION = 12` — Keep each strip a working set, not an archive.
 - `type PinLocation = "topbar" | "sidebar"` — The two strips a tab can be quick-pinned to from the star control.
-- `interface ChromeLayoutState (3 members)`
+- `interface ChromeLayoutState (4 members)`
 - `interface UseChromeLayout (11 members)`
-- `{ SavedTab, SavedTabPlacement, SavedTabSpot }`
+- `{ SavedTab, SavedTabPlacement, SavedTabSpot, SavedTool }`
 
-**Depends on (1):** [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (2):** [`src/lib/chrome/savedToolUrl.ts`](lib.md#file-src-lib-chrome-savedtoolurl-ts-0f6f57b2b2) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (5):** [`scripts/smoke-pinned-tabs.test.ts`](scripts.md#file-scripts-smoke-pinned-tabs-test-ts-6690991992) · [`src/app/portal/agency/settings/WorkspaceLayoutPanel.tsx`](app.md#file-src-app-portal-agency-settings-workspacelayoutpanel-tsx-c22a4436c3) · [`src/components/chrome/PinnedTabs.tsx`](#file-src-components-chrome-pinnedtabs-tsx-6a643b00e6) · [`src/components/chrome/SavedSpotArrival.tsx`](#file-src-components-chrome-savedspotarrival-tsx-38ab9d5a7f) · [`src/components/chrome/SidebarReorder.tsx`](#file-src-components-chrome-sidebarreorder-tsx-b9dfad5ef4)
+**Used by (7):** [`scripts/smoke-pinned-tabs.test.ts`](scripts.md#file-scripts-smoke-pinned-tabs-test-ts-6690991992) · [`src/app/portal/agency/settings/WorkspaceLayoutPanel.tsx`](app.md#file-src-app-portal-agency-settings-workspacelayoutpanel-tsx-c22a4436c3) · [`src/app/portal/agency/tools/_MyToolsPalette.tsx`](app.md#file-src-app-portal-agency-tools-mytoolspalette-tsx-48d220c8ba) · [`src/components/chrome/PinnedTabs.tsx`](#file-src-components-chrome-pinnedtabs-tsx-6a643b00e6) · [`src/components/chrome/SavedRowControls.tsx`](#file-src-components-chrome-savedrowcontrols-tsx-6d3aacb11a) · [`src/components/chrome/SavedSpotArrival.tsx`](#file-src-components-chrome-savedspotarrival-tsx-38ab9d5a7f) · [`src/components/chrome/SidebarReorder.tsx`](#file-src-components-chrome-sidebarreorder-tsx-b9dfad5ef4)
 
 <a id="file-src-components-chrome-savedspot-ts-3267e497e1"></a>
 
@@ -1608,12 +1680,12 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (2):**
 
-- `MyRadarPanel({ allocation, wellbeing, daysWorked, personLabel, headline, baselinesHref }: MyRadarPanelProps)`
-- `interface MyRadarPanelProps (6 members)`
+- `MyRadarPanel({ allocation, wellbeing, daysWorked, personLabel, headline, baselinesHref, variant = "page" }: MyRadarPanelProps)`
+- `interface MyRadarPanelProps (7 members)`
 
 **Depends on (2):** [`src/lib/access/departmentProfiles.ts`](lib.md#file-src-lib-access-departmentprofiles-ts-343cc6ceea) · [`src/lib/intelligence/departmentAllocation.ts`](lib.md#file-src-lib-intelligence-departmentallocation-ts-effe208c44)
 
-**Used by (2):** [`src/app/portal/agency/my-radar/page.tsx`](app.md#file-src-app-portal-agency-my-radar-page-tsx-065cdf2270) · [`src/app/portal/agency/page.tsx`](app.md#file-src-app-portal-agency-page-tsx-35a1d5c98a)
+**Used by (3):** [`src/app/portal/agency/my-radar/page.tsx`](app.md#file-src-app-portal-agency-my-radar-page-tsx-065cdf2270) · [`src/app/portal/agency/page.tsx`](app.md#file-src-app-portal-agency-page-tsx-35a1d5c98a) · [`src/components/chrome/MyRadarQuickLookPanel.tsx`](#file-src-components-chrome-myradarquicklookpanel-tsx-028d2ead5a)
 
 
 ## `src/components/marketing/`
@@ -1726,11 +1798,11 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports (2):**
 
 - `CallLinePicker()`
-- `CallButton({ phone, name, contactId, onCalled, }: { phone?: string; name?: string; contactId?: string; /** Fired once a call is actually placed, so the list can mark it contacted. */ onCalled?: () => void; })`
+- `CallButton({ phone, name, contactId, prospectId, onCalled, }: { phone?: string; name?: string; contactId?: string; /** When set, the server gates on the prospect's inspection + opt-out and records the attempt itself. */…`
 
 **Depends on (1):** [`src/lib/telephony/phoneNumbers.ts`](lib.md#file-src-lib-telephony-phonenumbers-ts-b7be228e55)
 
-**Used by (1):** [`src/app/portal/agency/leads-pipeline/contacts/_ContactsWorkspace.tsx`](app.md#file-src-app-portal-agency-leads-pipeline-contacts-contactsworkspace-tsx-9e6c6879f9)
+**Used by (2):** [`src/app/portal/agency/leads-pipeline/contacts/_ContactsWorkspace.tsx`](app.md#file-src-app-portal-agency-leads-pipeline-contacts-contactsworkspace-tsx-9e6c6879f9) · [`src/app/portal/agency/pipelines/[slug]/_ScoutingCommand.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-scoutingcommand-tsx-15bc8216b1)
 
 <a id="file-src-components-telephony-emailcontrols-tsx-b2da5be2fc"></a>
 
@@ -1741,11 +1813,11 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports (2):**
 
 - `EmailLinePicker()`
-- `EmailButton({ email, phone, name, contactId, onSent, }: { email?: string; /** Passed so the server can apply the same opt-out suppression the dialler does. */ phone?: string; name?: string; contactId?: string; onSent?: …`
+- `EmailButton({ email, phone, name, contactId, prospectId, onSent, }: { email?: string; /** Passed so the server can apply the same opt-out suppression the dialler does. */ phone?: string; name?: string; contactId?: strin…`
 
 **Depends on:** _No internal imports._
 
-**Used by (1):** [`src/app/portal/agency/leads-pipeline/contacts/_ContactsWorkspace.tsx`](app.md#file-src-app-portal-agency-leads-pipeline-contacts-contactsworkspace-tsx-9e6c6879f9)
+**Used by (2):** [`src/app/portal/agency/leads-pipeline/contacts/_ContactsWorkspace.tsx`](app.md#file-src-app-portal-agency-leads-pipeline-contacts-contactsworkspace-tsx-9e6c6879f9) · [`src/app/portal/agency/pipelines/[slug]/_ScoutingCommand.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-scoutingcommand-tsx-15bc8216b1)
 
 
 ## `src/components/ui/`
@@ -1828,6 +1900,21 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Depends on:** _No internal imports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-src-components-ui-pagination-tsx-310d3fab89"></a>
+
+### `src/components/ui/Pagination.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `pageWindow(page: number, pageCount: number, span = 1): Array<number | "gap">` — Which page numbers to render, and where the gaps fall. Exported separately from the component so the arithmetic can be tested without React: the whole point of this file is that p…
+- `Pagination({ page, pageCount, onPage, disabled = false, label = "Pagination" }: { /** Zero-based. Displayed one-based. */ page: number; pageCount: number; onPage: (page: number) => void; disabled?: boolean; label?: stri…`
+
+**Depends on:** _No internal imports._
+
+**Used by (1):** [`src/app/portal/agency/settings/ActivityLogPanel.tsx`](app.md#file-src-app-portal-agency-settings-activitylogpanel-tsx-8e0ad7148e)
 
 <a id="file-src-components-ui-portalloadingcoordinator-tsx-ab67a66ae6"></a>
 
