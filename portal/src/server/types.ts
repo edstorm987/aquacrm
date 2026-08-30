@@ -4487,6 +4487,48 @@ export interface ClientFormNotice {
   confirmationReason?: "no-email" | "not-configured" | "unavailable" | "send-failed";
 }
 
+// ─── Transactional outbox (data-architecture Phase 3 groundwork) ──────────
+//
+// The in-memory event bus is fire-and-forget: an event emitted just before a
+// serverless instance dies is simply gone, and nothing records what was
+// announced to whom. An OutboxEvent is the durable half — recorded INSIDE the
+// same `mutate()` as the domain change it announces, so the state change and
+// its event are one write, then drained to the bus at-least-once.
+//
+// This is reliability and lineage, NOT event sourcing: state is not
+// rebuildable from these records and nothing may claim it is
+// (docs/data/ARCHITECTURE.md §2.5).
+
+export type OutboxEventStatus = "pending" | "delivered";
+
+export interface OutboxEvent {
+  /** Idempotency key AND record id — recording the same id twice is a no-op. */
+  id: string;
+  /** Stable past-tense event name, e.g. "client.created". */
+  name: string;
+  /** Payload schema version for this name. Bump on breaking payload change. */
+  version: number;
+  agencyId: string;
+  clientId?: string;
+  /** Who caused it — absent for system-initiated events. */
+  actorUserId?: string;
+  /** The module that recorded it, e.g. "server/tenants". */
+  source: string;
+  /** Groups every event of one logical operation. Defaults to the event id. */
+  correlationId: string;
+  /** The event that directly caused this one, where there is one. */
+  causationId?: string;
+  /** When the business fact happened (event time). */
+  occurredAt: number;
+  /** When Aqua recorded it (ingestion time). Never conflate with occurredAt. */
+  recordedAt: number;
+  payload: Record<string, unknown>;
+  status: OutboxEventStatus;
+  deliveredAt?: number;
+  /** Delivery attempts so far (at-least-once — consumers must be idempotent). */
+  attempts: number;
+}
+
 export interface PortalState {
   agencies: Record<string, Agency>;
   tradingCompanies: Record<string, TradingCompany>;
@@ -4618,4 +4660,7 @@ export interface PortalState {
   peopleChannelReads: Record<string, PeopleChannelRead>;
   peopleTrainingModules: Record<string, PeopleTrainingModule>;
   staffProvisioningOperations: Record<string, StaffProvisioningOperation>;
+  // Durable domain events, recorded atomically with their domain mutation and
+  // drained to the in-memory bus. See `server/outbox.ts`.
+  outbox: Record<string, OutboxEvent>;
 }

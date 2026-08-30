@@ -115,15 +115,18 @@ cannot drift from the code they describe. Prose views:
 
 ### 2.5 Events and provenance
 
-Target: a **transactional outbox** written in the same mutation as the state
-change (an `outbox` collection first, a table when its slice extracts), with
-stable versioned past-tense names, actor/tenant/source, correlation and
-causation ids, `occurredAt` + `recordedAt`. The in-memory bus becomes a
-delivery mechanism fed from the outbox, not the record. Imports stay
-idempotent by provider ids (`event_key`, `external_message_id`,
-`submissionId`) and gain checksums where payloads lack ids. We do not claim
-event sourcing: state is not rebuildable from events and the docs must never
-say otherwise.
+The **transactional outbox groundwork exists** (2026-08-30,
+`server/outbox.ts` + `PortalState.outbox`): events are recorded inside the
+same `mutate()` as the domain change, with stable past-tense names + a
+payload version, actor/tenant/source, correlation and causation ids, and
+`occurredAt` kept strictly apart from `recordedAt`; the in-memory bus is the
+delivery mechanism, fed emit-then-mark at-least-once, with delivered rows
+pruned (14 days / 5,000 cap) and pending rows never pruned. One call site is
+adopted (`client.created`); the rest migrate call-site-by-call-site
+(MIGRATION-PLAN Phase 3). Imports stay idempotent by provider ids
+(`event_key`, `external_message_id`, `submissionId`) and gain checksums where
+payloads lack ids. We do not claim event sourcing: state is not rebuildable
+from events and the docs must never say otherwise.
 
 ## 3. What changed on 2026-08-30 (this phase)
 

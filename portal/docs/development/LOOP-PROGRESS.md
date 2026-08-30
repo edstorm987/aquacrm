@@ -36,6 +36,19 @@ layer:
   DATA-DICTIONARY,MIGRATION-PLAN,LINEAGE}.md` + ADR-001…004. All describe
   what EXISTS, with target clearly separated.
 
+**Phase 3 groundwork SHIPPED — transactional outbox** (`server/outbox.ts`,
+`PortalState.outbox` incl. parseBlob/empty + promotion disposition entry #92):
+record-inside-mutate (atomic with the domain change), emit-then-mark
+at-least-once drain into the existing bus, idempotent record by id,
+correlation/causation + occurredAt≠recordedAt envelope, 14d/5,000-cap prune
+that never touches pending. First adopted site: `tenants.createClient` →
+`client.created`, payload unchanged, pinned by source-scan.
+`smoke-outbox.test.ts` (8 tests incl. crash-window replay). Also folded the
+TRIPLICATED conversion-event predicate into `lib/shared/conversionEvent.ts`
+(radarTelemetry + commandIntelligenceService + performanceAnalytics now
+import it; restatement fails the suite) — first Phase-7 dedup that needed no
+business decision.
+
 **Phase queue (from docs/data/MIGRATION-PLAN.md):**
 1. Tenancy/identity/roles extraction (tables + RLS behind existing modules;
    blocked on Ed for `supabase db push` + DATABASE_URL — ED-QUESTIONS Q7).

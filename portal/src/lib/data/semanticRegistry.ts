@@ -755,6 +755,35 @@ export const SEMANTIC_ENTITIES: readonly SemanticEntity[] = [
     relationships: [{ to: "communication", kind: "references", via: "processing appends messages" }],
   },
   {
+    id: "domainEvent",
+    label: "Domain event (outbox record)",
+    definition:
+      "One durable announcement that a business fact happened — recorded atomically inside the " +
+      "same mutation as the domain change, then drained to the in-memory bus at-least-once. " +
+      "Carries actor, tenant, source, correlation and causation ids, and keeps occurredAt " +
+      "(event time) strictly apart from recordedAt (ingestion time). Reliability and lineage " +
+      "only — state is NOT rebuildable from these records and no event-sourcing claim is made.",
+    idRule: "OutboxEvent.id — caller-supplied idempotency key or minted obx_<uuid>; recording an existing id is a no-op.",
+    tenancy: "agency",
+    tenantFields: ["agencyId", "clientId (optional)"],
+    sourceOfTruth: "PortalState.outbox (server/outbox.ts)",
+    plane: "operational",
+    provenance: "Written by domain modules via recordOutboxEvent inside their own mutate(); versioned past-tense names.",
+    timestamps: { occurred: "occurredAt", created: "recordedAt", updated: "deliveredAt" },
+    sensitivity: "internal",
+    retention: "Delivered events pruned after 14 days (hard cap 5,000, oldest delivered first); pending events are never pruned.",
+    lifecycle: {
+      states: ["pending", "delivered"],
+      transitions: { pending: ["delivered"] },
+      notes: "Emit-then-mark: a crash between the two redelivers (duplicate a consumer must tolerate) rather than silently losing the event.",
+    },
+    relationships: [
+      { to: "tenant", kind: "belongs-to", via: "agencyId" },
+      { to: "domainEvent", kind: "references", via: "causationId / correlationId" },
+      { to: "auditEvent", kind: "references", via: "the same operation typically writes both; the audit entry is the human trail, this is the machine one" },
+    ],
+  },
+  {
     id: "auditEvent",
     label: "Audit event (activity entry)",
     definition:
@@ -928,6 +957,7 @@ export const PORTAL_STATE_COVERAGE: Readonly<Record<string, CollectionClassifica
 
   // Audit & activity
   activity: { entity: "auditEvent", plane: "operational", note: "The durable audit trail; 50k hard cap." },
+  outbox: { entity: "domainEvent", plane: "operational", note: "Transactional outbox: durable domain events, recorded atomically with their mutation, drained to the bus at-least-once (server/outbox.ts)." },
   clientRecordLedger: { entity: "auditEvent", plane: "derived", note: "Internal client history projection incl. entries a client must never see; actor lives on ActivityEntry." },
   subjectRequests: { plane: "operational", note: "GDPR subject requests driving erasure sweeps." },
 

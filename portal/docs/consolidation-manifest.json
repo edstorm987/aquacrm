@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-30T10:57:10.864Z",
+  "generatedAt": "2026-08-30T11:22:46.436Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -335,9 +335,9 @@
       "path": "docs/data/ARCHITECTURE.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-data-architecture-md",
-      "sha256": "0ea1aee9118c14c9a4a20105b79eb3818f4b6fce9bd02d14e0251358924067ba",
-      "words": 993,
-      "bytes": 7701
+      "sha256": "c00c30773721ed8a0eddebad6721d523094f46db15c453ad7ac34ced5cb78df3",
+      "words": 1020,
+      "bytes": 7948
     },
     {
       "path": "docs/data/DATA-DICTIONARY.md",
@@ -359,9 +359,9 @@
       "path": "docs/data/MIGRATION-PLAN.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-data-migration-plan-md",
-      "sha256": "31c7fabdf764fd708a7a82c33e3c0d16453b596207668005d83212d820db4262",
-      "words": 894,
-      "bytes": 6851
+      "sha256": "f964846b746d405cf3a88f2d85a287c71b533d8491a365064b9a738112327dc5",
+      "words": 951,
+      "bytes": 7336
     },
     {
       "path": "docs/data/SEMANTIC-LAYER.md",
@@ -495,9 +495,9 @@
       "path": "docs/development/LOOP-PROGRESS.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-loop-progress-md",
-      "sha256": "74c433c50d906a5ce84e68469b99ce64603094e85e92625db304f7541cd833d7",
-      "words": 1128,
-      "bytes": 8576
+      "sha256": "797ea1046595d47ad69da09a7430f0fbb47a5c097dfb737a4286948b37374854",
+      "words": 1217,
+      "bytes": 9405
     },
     {
       "path": "docs/development/notes.md",
@@ -1119,9 +1119,9 @@
       "path": "docs/workspace/feature-index.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-feature-index-md",
-      "sha256": "0814a92232a9ccf88bcb84179dfff5108fd12079c01f6571e30fe83e0eed514d",
-      "words": 5223,
-      "bytes": 49394
+      "sha256": "9bb33b985071c74312b797a241cc0828927e2aaace7ac66ad9d35eb1154a8b4c",
+      "words": 5285,
+      "bytes": 49965
     },
     {
       "path": "docs/workspace/hazards-and-duplication.md",

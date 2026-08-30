@@ -8,6 +8,7 @@ import "server-only";
 import crypto from "crypto";
 import { getState, mutate } from "./storage";
 import { emit } from "./eventBus";
+import { drainOutbox, recordOutboxEvent } from "./outbox";
 import type {
   Agency, AgencyStatus, BrandKit, Client, ClientStage, EndCustomer,
 } from "./types";
@@ -196,8 +197,18 @@ export function createClient(agencyId: string, input: CreateClientInput): Client
       updatedAt: now,
     };
     state.clients[id] = saved;
+    // Recorded INSIDE the same mutate as the client row — the state change
+    // and its announcement are one write, so a crash cannot separate them.
+    // The drain below hands it to the bus exactly as the old emit() did.
+    recordOutboxEvent(state, {
+      name: "client.created",
+      agencyId,
+      clientId: saved.id,
+      source: "server/tenants",
+      payload: { clientId: saved.id, name: saved.name },
+    });
   });
-  emit({ agencyId, clientId: saved.id }, "client.created", { clientId: saved.id, name: saved.name });
+  void drainOutbox();
   return saved;
 }
 

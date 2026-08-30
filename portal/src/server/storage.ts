@@ -151,6 +151,7 @@ const empty = (): PortalState => ({
   peopleChannelReads: {},
   peopleTrainingModules: {},
   staffProvisioningOperations: {},
+  outbox: {},
 });
 
 export function createEmptyPortalState(): PortalState {
@@ -858,6 +859,7 @@ function parseBlob(raw: string): PortalState {
       peopleChannelReads: parsed.peopleChannelReads ?? {},
       peopleTrainingModules: parsed.peopleTrainingModules ?? {},
       staffProvisioningOperations: parsed.staffProvisioningOperations ?? {},
+      outbox: parsed.outbox ?? {},
   };
 }
 

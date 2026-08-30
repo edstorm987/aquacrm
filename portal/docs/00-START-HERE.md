@@ -2,7 +2,7 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-08-30 from **19** source documents / **18,962 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-30 from **19** source documents / **19,135 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -12,10 +12,10 @@
 - [`docs/data/adr/ADR-002-domain-modules-are-the-repository-seam.md`](#source-docs-data-adr-adr-002-domain-modules-are-the-repository-seam-md) — 218 words · `361439671762`
 - [`docs/data/adr/ADR-003-one-calculation-path-per-metric.md`](#source-docs-data-adr-adr-003-one-calculation-path-per-metric-md) — 233 words · `9143b1627c97`
 - [`docs/data/adr/ADR-004-metadata-governed-not-banned.md`](#source-docs-data-adr-adr-004-metadata-governed-not-banned-md) — 196 words · `2b11d24db9f0`
-- [`docs/data/ARCHITECTURE.md`](#source-docs-data-architecture-md) — 993 words · `0ea1aee9118c`
+- [`docs/data/ARCHITECTURE.md`](#source-docs-data-architecture-md) — 1,020 words · `c00c30773721`
 - [`docs/data/DATA-DICTIONARY.md`](#source-docs-data-data-dictionary-md) — 955 words · `bad31fdda0bc`
 - [`docs/data/LINEAGE.md`](#source-docs-data-lineage-md) — 599 words · `1a9cf390899c`
-- [`docs/data/MIGRATION-PLAN.md`](#source-docs-data-migration-plan-md) — 894 words · `31c7fabdf764`
+- [`docs/data/MIGRATION-PLAN.md`](#source-docs-data-migration-plan-md) — 951 words · `f964846b746d`
 - [`docs/data/SEMANTIC-LAYER.md`](#source-docs-data-semantic-layer-md) — 775 words · `eaaf6bafb960`
 - [`docs/data/SOURCE-INVENTORY.md`](#source-docs-data-source-inventory-md) — 1,661 words · `880977ed9e4b`
 - [`docs/DEVELOPMENT-HANDOFF.md`](#source-docs-development-handoff-md) — 1,552 words · `9199166a1f30`
@@ -23,7 +23,7 @@
 - [`docs/development.md`](#source-docs-development-md) — 3,248 words · `dd5efef22882`
 - [`docs/development/CLOUD-RESUME.md`](#source-docs-development-cloud-resume-md) — 500 words · `03458cdf18bf`
 - [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 923 words · `66d4c02a3455`
-- [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,128 words · `74c433c50d90`
+- [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,217 words · `797ea1046595`
 - [`README.md`](#source-readme-md) — 437 words · `78865db66238`
 
 ---
@@ -648,7 +648,7 @@ migration needs them, not speculatively.
 
 ## Source document — `docs/data/ARCHITECTURE.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/data/ARCHITECTURE.md" sha256="0ea1aee9118c14c9a4a20105b79eb3818f4b6fce9bd02d14e0251358924067ba" -->
+<!-- AQUACRM_SOURCE_START path="docs/data/ARCHITECTURE.md" sha256="c00c30773721ed8a0eddebad6721d523094f46db15c453ad7ac34ced5cb78df3" -->
 # Data architecture — current state and target
 
 *Written 2026-08-30 against the working tree. This document describes what
@@ -766,15 +766,18 @@ cannot drift from the code they describe. Prose views:
 
 ### 2.5 Events and provenance
 
-Target: a **transactional outbox** written in the same mutation as the state
-change (an `outbox` collection first, a table when its slice extracts), with
-stable versioned past-tense names, actor/tenant/source, correlation and
-causation ids, `occurredAt` + `recordedAt`. The in-memory bus becomes a
-delivery mechanism fed from the outbox, not the record. Imports stay
-idempotent by provider ids (`event_key`, `external_message_id`,
-`submissionId`) and gain checksums where payloads lack ids. We do not claim
-event sourcing: state is not rebuildable from events and the docs must never
-say otherwise.
+The **transactional outbox groundwork exists** (2026-08-30,
+`server/outbox.ts` + `PortalState.outbox`): events are recorded inside the
+same `mutate()` as the domain change, with stable past-tense names + a
+payload version, actor/tenant/source, correlation and causation ids, and
+`occurredAt` kept strictly apart from `recordedAt`; the in-memory bus is the
+delivery mechanism, fed emit-then-mark at-least-once, with delivered rows
+pruned (14 days / 5,000 cap) and pending rows never pruned. One call site is
+adopted (`client.created`); the rest migrate call-site-by-call-site
+(MIGRATION-PLAN Phase 3). Imports stay idempotent by provider ids
+(`event_key`, `external_message_id`, `submissionId`) and gain checksums where
+payloads lack ids. We do not claim event sourcing: state is not rebuildable
+from events and the docs must never say otherwise.
 
 ## 3. What changed on 2026-08-30 (this phase)
 
@@ -1002,7 +1005,7 @@ class in the semantic registry / metadata contracts before copying a field.
 
 ## Source document — `docs/data/MIGRATION-PLAN.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/data/MIGRATION-PLAN.md" sha256="31c7fabdf764fd708a7a82c33e3c0d16453b596207668005d83212d820db4262" -->
+<!-- AQUACRM_SOURCE_START path="docs/data/MIGRATION-PLAN.md" sha256="f964846b746d405cf3a88f2d85a287c71b533d8491a365064b9a738112327dc5" -->
 # Migration plan — strangler, one coherent vertical slice at a time
 
 *Rules that bind every phase below: the PortalState/blob system is not
@@ -1059,21 +1062,27 @@ namespace) here — the metadata catalogue is the checklist.
 
 ## Phase 3 — transactional outbox + event envelope
 
-Before more slices move, writes need a reliable event record:
+**Groundwork SHIPPED 2026-08-30** (`server/outbox.ts`, `PortalState.outbox`,
+`smoke-outbox.test.ts`): `recordOutboxEvent` appends inside the caller's own
+`mutate()` (atomic with the domain change), `drainOutbox` hands pending rows
+to the existing bus emit-then-mark (a crash between the two redelivers rather
+than silently losing — at-least-once, consumers stay idempotent),
+`emitDurable` is the drop-in for detached emit sites, delivered rows prune
+after 14 days / 5,000-row cap with pending never pruned. Envelope carries
+name + version, actor, tenant, source, correlationId (defaults to the event
+id), causationId, and occurredAt strictly apart from recordedAt. First
+adopted call site: `tenants.createClient` → `client.created` (payload
+unchanged; pinned by source-scan). Company promotion classifies the
+collection as `leave` (events are the origin tenant's history).
 
-- `outbox` starts as a PortalState collection written **inside the same
-  `mutate()`** as the domain change (atomic with the state flush), drained to
-  the in-memory bus + automations by a claimer; becomes a table when Phase 1's
-  slice proves the extraction mechanics.
-- Envelope: stable versioned past-tense `name` (`client.created.v1`), actor,
-  tenant, source, `correlationId`, `causationId`, `occurredAt`, `recordedAt`.
-- Existing `emit()` call sites stay; `emit` gains an outbox-backed variant
-  adopted call-site-by-call-site.
+Remaining in this phase, call-site-by-call-site: adopt the other `emit()`
+sites (agency.created, client.updated/stage_changed, person.*, phase.*,
+auth events); a cross-process claim (lease) when the outbox extracts to a
+table — the in-blob version's serialization is per-process only, which the
+module documents honestly.
+
 - **No event-sourcing claim**: state is not rebuildable from events; the
   outbox supports reliability and lineage, nothing more.
-
-Verification: idempotency + replay tests (a drained record redelivered must
-no-op), crash-between-write-and-drain test.
 
 ## Phase 4 — journey (enquiries → pipelines → conversion)
 
@@ -2325,7 +2334,7 @@ file stays a live queue.*
 
 ## Source document — `docs/development/LOOP-PROGRESS.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/LOOP-PROGRESS.md" sha256="74c433c50d906a5ce84e68469b99ce64603094e85e92625db304f7541cd833d7" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/LOOP-PROGRESS.md" sha256="797ea1046595d47ad69da09a7430f0fbb47a5c097dfb737a4286948b37374854" -->
 # Production-readiness loop — live ledger
 
 **Loop:** every 20 min (cron 5ced36da), started 2026-08-30. Blocked-on-Ed items
@@ -2363,6 +2372,19 @@ layer:
 - Docs: `docs/data/{ARCHITECTURE,SOURCE-INVENTORY,SEMANTIC-LAYER,
   DATA-DICTIONARY,MIGRATION-PLAN,LINEAGE}.md` + ADR-001…004. All describe
   what EXISTS, with target clearly separated.
+
+**Phase 3 groundwork SHIPPED — transactional outbox** (`server/outbox.ts`,
+`PortalState.outbox` incl. parseBlob/empty + promotion disposition entry #92):
+record-inside-mutate (atomic with the domain change), emit-then-mark
+at-least-once drain into the existing bus, idempotent record by id,
+correlation/causation + occurredAt≠recordedAt envelope, 14d/5,000-cap prune
+that never touches pending. First adopted site: `tenants.createClient` →
+`client.created`, payload unchanged, pinned by source-scan.
+`smoke-outbox.test.ts` (8 tests incl. crash-window replay). Also folded the
+TRIPLICATED conversion-event predicate into `lib/shared/conversionEvent.ts`
+(radarTelemetry + commandIntelligenceService + performanceAnalytics now
+import it; restatement fails the suite) — first Phase-7 dedup that needed no
+business decision.
 
 **Phase queue (from docs/data/MIGRATION-PLAN.md):**
 1. Tenancy/identity/roles extraction (tables + RLS behind existing modules;

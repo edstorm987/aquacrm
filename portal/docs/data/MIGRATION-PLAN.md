@@ -54,21 +54,27 @@ namespace) here — the metadata catalogue is the checklist.
 
 ## Phase 3 — transactional outbox + event envelope
 
-Before more slices move, writes need a reliable event record:
+**Groundwork SHIPPED 2026-08-30** (`server/outbox.ts`, `PortalState.outbox`,
+`smoke-outbox.test.ts`): `recordOutboxEvent` appends inside the caller's own
+`mutate()` (atomic with the domain change), `drainOutbox` hands pending rows
+to the existing bus emit-then-mark (a crash between the two redelivers rather
+than silently losing — at-least-once, consumers stay idempotent),
+`emitDurable` is the drop-in for detached emit sites, delivered rows prune
+after 14 days / 5,000-row cap with pending never pruned. Envelope carries
+name + version, actor, tenant, source, correlationId (defaults to the event
+id), causationId, and occurredAt strictly apart from recordedAt. First
+adopted call site: `tenants.createClient` → `client.created` (payload
+unchanged; pinned by source-scan). Company promotion classifies the
+collection as `leave` (events are the origin tenant's history).
 
-- `outbox` starts as a PortalState collection written **inside the same
-  `mutate()`** as the domain change (atomic with the state flush), drained to
-  the in-memory bus + automations by a claimer; becomes a table when Phase 1's
-  slice proves the extraction mechanics.
-- Envelope: stable versioned past-tense `name` (`client.created.v1`), actor,
-  tenant, source, `correlationId`, `causationId`, `occurredAt`, `recordedAt`.
-- Existing `emit()` call sites stay; `emit` gains an outbox-backed variant
-  adopted call-site-by-call-site.
+Remaining in this phase, call-site-by-call-site: adopt the other `emit()`
+sites (agency.created, client.updated/stage_changed, person.*, phase.*,
+auth events); a cross-process claim (lease) when the outbox extracts to a
+table — the in-blob version's serialization is per-process only, which the
+module documents honestly.
+
 - **No event-sourcing claim**: state is not rebuildable from events; the
   outbox supports reliability and lineage, nothing more.
-
-Verification: idempotency + replay tests (a drained record redelivered must
-no-op), crash-between-write-and-drain test.
 
 ## Phase 4 — journey (enquiries → pipelines → conversion)
 

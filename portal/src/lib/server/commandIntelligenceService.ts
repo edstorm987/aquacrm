@@ -8,6 +8,7 @@ import {
 import type { Campaign, Lead } from "@/built-ins/modules/leads-pipeline/src/lib/domain";
 import { containerFor as leadsContainerFor } from "@aqua/plugin-leads-pipeline/server";
 import { buildCommercialIntelligence } from "@/lib/intelligence/commercialIntelligence";
+import { isConversionTelemetryEvent as scopedConversion } from "@/lib/shared/conversionEvent";
 import type {
   AdvisorDomain,
   BusinessIssueRadar,
@@ -586,9 +587,6 @@ function measurementFor(kpiId: string, format: CommandKpiFormat, sampleSize?: nu
   };
 }
 
-function scopedConversion(event: RadarTelemetryProperty["events"][number]): boolean {
-  return event.type === "conversion" || event.type === "form" || (event.type === "interaction" && event.metric === "conversion");
-}
 
 function sameHost(left?: string, right?: string): boolean {
   const leftHost = safeHost(left);

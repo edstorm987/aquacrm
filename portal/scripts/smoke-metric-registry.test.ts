@@ -235,6 +235,40 @@ test("golden: zero campaign spend keeps ROAS learning — never Infinity, never 
   assert.equal(roas.status, "learning");
 });
 
+// ── One conversion predicate ───────────────────────────────────────────────
+//
+// The conversion-event rule existed three times verbatim. It now lives once
+// in lib/shared/conversionEvent.ts; these pins keep the three consumers on
+// the shared import and stop a fourth copy appearing.
+
+test("the conversion-event predicate has exactly one definition and three known consumers import it", () => {
+  const consumers = [
+    "src/engines/data/server/radar/radarTelemetry.ts",
+    "src/lib/server/commandIntelligenceService.ts",
+    "src/lib/performance/performanceAnalytics.ts",
+  ];
+  for (const file of consumers) {
+    const source = readFileSync(join(ROOT, file), "utf-8");
+    assert.match(source, /from "@\/lib\/shared\/conversionEvent"/, `${file} must import the shared conversion predicate`);
+    assert.doesNotMatch(
+      source,
+      /type === "interaction" && [a-zA-Z.]*metric === "conversion"/,
+      `${file} restates the conversion predicate instead of importing it`,
+    );
+  }
+  const shared = readFileSync(join(ROOT, "src/lib/shared/conversionEvent.ts"), "utf-8");
+  assert.match(shared, /event\.type === "interaction" && event\.metric === "conversion"/);
+});
+
+test("the shared conversion predicate keeps the pinned rule", async () => {
+  const { isConversionTelemetryEvent } = await import("../src/lib/shared/conversionEvent");
+  assert.equal(isConversionTelemetryEvent({ type: "conversion" }), true);
+  assert.equal(isConversionTelemetryEvent({ type: "form" }), true);
+  assert.equal(isConversionTelemetryEvent({ type: "interaction", metric: "conversion" }), true);
+  assert.equal(isConversionTelemetryEvent({ type: "interaction", metric: "scroll" }), false);
+  assert.equal(isConversionTelemetryEvent({ type: "pageview" }), false);
+});
+
 // ── The descriptor ↔ registry join ─────────────────────────────────────────
 //
 // Descriptors now stamp `canonicalId` (`<kind>:<id>`). Every commercial

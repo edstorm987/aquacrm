@@ -2,7 +2,7 @@
 
 ← Back to [the reference index](00-index.md) · [the map](../WORKSPACE-FILE-TREE.md) · [development.md](../development.md)
 
-Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2500 source files; 0 per-source stubs.**
+Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2503 source files; 0 per-source stubs.**
 
 ## Engines — `src/engines/` (83)
 
@@ -90,7 +90,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/engines/sop/server/sopGuides.ts`](engines.md#file-src-engines-sop-server-sopguides-ts-2229afb22d)
 - [`src/engines/sop/server/sops.ts`](engines.md#file-src-engines-sop-server-sops-ts-8c9bee0d0c)
 
-## State layer — `src/server/` (67)
+## State layer — `src/server/` (68)
 
 - [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201)
 - [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37)
@@ -129,6 +129,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/server/legalDocuments.ts`](server.md#file-src-server-legaldocuments-ts-9db835baaf)
 - [`src/server/notepad.ts`](server.md#file-src-server-notepad-ts-bf33f74a4d)
 - [`src/server/organisations.ts`](server.md#file-src-server-organisations-ts-ba6f8d840f)
+- [`src/server/outbox.ts`](server.md#file-src-server-outbox-ts-de86d78655)
 - [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee)
 - [`src/server/performanceExperiments.ts`](server.md#file-src-server-performanceexperiments-ts-074cf348a4)
 - [`src/server/persons.ts`](server.md#file-src-server-persons-ts-c2f3c0cfec)
@@ -160,7 +161,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
 - [`src/server/zimanteTradingCompanies.ts`](server.md#file-src-server-zimantetradingcompanies-ts-ef9a41c5a6)
 
-## Shared logic — `src/lib/` (313)
+## Shared logic — `src/lib/` (314)
 
 - [`src/lib/a11y/contrastValidator.ts`](lib.md#file-src-lib-a11y-contrastvalidator-ts-7c6889cfca) — components. We default to 4.5 for the strictest check.
 - [`src/lib/a11y/isEmbedded.ts`](lib.md#file-src-lib-a11y-isembedded-ts-e91cac9938)
@@ -456,6 +457,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/server/websiteEnquiries.ts`](lib.md#file-src-lib-server-websiteenquiries-ts-e00ecfd23b)
 - [`src/lib/server/websiteEnquiryLeadSync.ts`](lib.md#file-src-lib-server-websiteenquiryleadsync-ts-90c226107f)
 - [`src/lib/shared/avatarDataUrl.ts`](lib.md#file-src-lib-shared-avatardataurl-ts-d7090d9647) — renders a static circular avatar — animation here is noise.
+- [`src/lib/shared/conversionEvent.ts`](lib.md#file-src-lib-shared-conversionevent-ts-7dd8f12b3c) — Does a telemetry event count as a conversion?
 - [`src/lib/shared/devProjectGrouping.ts`](lib.md#file-src-lib-shared-devprojectgrouping-ts-070f12451f) — through the projects GET and the grouping happens where it renders.
 - [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 - [`src/lib/shared/internalWorkspace.ts`](lib.md#file-src-lib-shared-internalworkspace-ts-469a3bb9e7)
@@ -1995,7 +1997,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/showcase/exit/route.ts`](app.md#file-src-app-showcase-exit-route-ts-2297ba275f)
 - [`src/app/showcase/route.ts`](app.md#file-src-app-showcase-route-ts-4c24dd82df)
 
-## Scripts — `scripts/` (522)
+## Scripts — `scripts/` (523)
 
 - [`scripts/attention-protection.test.ts`](scripts.md#file-scripts-attention-protection-test-ts-d64d01714c)
 - [`scripts/audit-actions.ts`](scripts.md#file-scripts-audit-actions-ts-862ea31175) — What state Actions is actually in — measured, not remembered. For every alert the checks currently …
@@ -2350,6 +2352,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-operations-hub.test.ts`](scripts.md#file-scripts-smoke-operations-hub-test-ts-e3d28f9969) — fails if any Operations function is missing a card on the hub.
 - [`scripts/smoke-operations-surface.test.ts`](scripts.md#file-scripts-smoke-operations-surface-test-ts-6ab56eaf77) — See docs/development/plans/information-architecture-v2.md.
 - [`scripts/smoke-organisations.test.ts`](scripts.md#file-scripts-smoke-organisations-test-ts-cba19e278b)
+- [`scripts/smoke-outbox.test.ts`](scripts.md#file-scripts-smoke-outbox-test-ts-1e7c5ed8b3) — client.created durably with the same payload the old emit carried.
 - [`scripts/smoke-page-reachability.test.ts`](scripts.md#file-scripts-smoke-page-reachability-test-ts-523f3df15c) — settings page — and each was only caught by somebody asking.
 - [`scripts/smoke-password-reset.test.ts`](scripts.md#file-scripts-smoke-password-reset-test-ts-ac13dd55c8) — reset).
 - [`scripts/smoke-payment-plan-invoice-recovery.test.ts`](scripts.md#file-scripts-smoke-payment-plan-invoice-recovery-test-ts-76f7b112b7)

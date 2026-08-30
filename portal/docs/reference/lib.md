@@ -1936,7 +1936,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface PerformanceMetricSet (9 members)`
 - `interface PerformanceAnalytics (11 members)`
 
-**Depends on (1):** [`src/lib/shared/formatDateTime.ts`](#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
+**Depends on (2):** [`src/lib/shared/conversionEvent.ts`](#file-src-lib-shared-conversionevent-ts-7dd8f12b3c) · [`src/lib/shared/formatDateTime.ts`](#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 
 **Used by (10):** [`scripts/smoke-performance-analytics.test.ts`](scripts.md#file-scripts-smoke-performance-analytics-test-ts-ecabb443b5) · [`scripts/smoke-performance-reports.test.ts`](scripts.md#file-scripts-smoke-performance-reports-test-ts-7f96fb9f61) · [`src/app/api/portal/performance/reports/route.ts`](app.md#file-src-app-api-portal-performance-reports-route-ts-59478ac39d) · [`src/app/portal/agency/performance/_PerformanceWorkspace.tsx`](app.md#file-src-app-portal-agency-performance-performanceworkspace-tsx-e8cc3b6ef7) · [`src/app/portal/agency/performance/page.tsx`](app.md#file-src-app-portal-agency-performance-page-tsx-092bf8160f) · [`src/app/portal/customer/_CustomerPortalViews.tsx`](app.md#file-src-app-portal-customer-customerportalviews-tsx-d55a5b8f78) · [`src/lib/performance/performanceReports.ts`](#file-src-lib-performance-performancereports-ts-dc7feb76be) · [`src/lib/server/integrations/googleSearchConsole.ts`](#file-src-lib-server-integrations-googlesearchconsole-ts-eb99f1443a) · [`src/server/agencyWebsite.ts`](server.md#file-src-server-agencywebsite-ts-eb7ef721d2) · [`src/server/clientMilestones.ts`](server.md#file-src-server-clientmilestones-ts-08c5910472)
 
@@ -3568,7 +3568,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async buildCommandIntelligenceSnapshot({ agencyId, radar, evidence, now = Date.now(), brandPortfolio: suppliedBrandPortfolio, }: CommandIntelligenceInput): Promise<CommandIntelligenceSnapshot>`
 
-**Depends on (18):** [`src/built-ins/modules/agency-marketing/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-agency-marketing-src-lib-domain-ts-4e2d2548b6) · [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-leadspipelinefoundation-ts-a0444ffabc) · [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/engines/data/server/kpi/companyHealthSnapshot.ts`](engines.md#file-src-engines-data-server-kpi-companyhealthsnapshot-ts-efcfa02aef) · [`src/engines/data/server/radar/radarEvidenceVault.ts`](engines.md#file-src-engines-data-server-radar-radarevidencevault-ts-b2576f422c) · [`src/engines/data/server/radar/radarTelemetry.ts`](engines.md#file-src-engines-data-server-radar-radartelemetry-ts-8d69c081db) · [`src/lib/brands/brandPortfolio.ts`](#file-src-lib-brands-brandportfolio-ts-85e5ae26f9) · [`src/lib/clients/clientWorkspace.ts`](#file-src-lib-clients-clientworkspace-ts-90fa37f756) · [`src/lib/intelligence/commandIntelligence.ts`](#file-src-lib-intelligence-commandintelligence-ts-365dc38397) · [`src/lib/intelligence/commercialIntelligence.ts`](#file-src-lib-intelligence-commercialintelligence-ts-c3611e436c) · [`src/lib/server/brandPortfolioService.ts`](#file-src-lib-server-brandportfolioservice-ts-76537b2419) · [`src/lib/server/pluginStorage.ts`](#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/server/pipelines.ts`](server.md#file-src-server-pipelines-ts-b3d01c6a82) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (19):** [`src/built-ins/modules/agency-marketing/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-agency-marketing-src-lib-domain-ts-4e2d2548b6) · [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-leadspipelinefoundation-ts-a0444ffabc) · [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/engines/data/server/kpi/companyHealthSnapshot.ts`](engines.md#file-src-engines-data-server-kpi-companyhealthsnapshot-ts-efcfa02aef) · [`src/engines/data/server/radar/radarEvidenceVault.ts`](engines.md#file-src-engines-data-server-radar-radarevidencevault-ts-b2576f422c) · [`src/engines/data/server/radar/radarTelemetry.ts`](engines.md#file-src-engines-data-server-radar-radartelemetry-ts-8d69c081db) · [`src/lib/brands/brandPortfolio.ts`](#file-src-lib-brands-brandportfolio-ts-85e5ae26f9) · [`src/lib/clients/clientWorkspace.ts`](#file-src-lib-clients-clientworkspace-ts-90fa37f756) · [`src/lib/intelligence/commandIntelligence.ts`](#file-src-lib-intelligence-commandintelligence-ts-365dc38397) · [`src/lib/intelligence/commercialIntelligence.ts`](#file-src-lib-intelligence-commercialintelligence-ts-c3611e436c) · [`src/lib/server/brandPortfolioService.ts`](#file-src-lib-server-brandportfolioservice-ts-76537b2419) · [`src/lib/server/pluginStorage.ts`](#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/shared/conversionEvent.ts`](#file-src-lib-shared-conversionevent-ts-7dd8f12b3c) · [`src/server/pipelines.ts`](server.md#file-src-server-pipelines-ts-b3d01c6a82) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (3):** [`src/app/api/portal/search/route.ts`](app.md#file-src-app-api-portal-search-route-ts-4b746a12f2) · [`src/engines/data/server/kpi/kpiRegistryService.ts`](engines.md#file-src-engines-data-server-kpi-kpiregistryservice-ts-715b322b4b) · [`src/lib/server/marketingIntelligence.ts`](#file-src-lib-server-marketingintelligence-ts-bc53756ee1)
 
@@ -5953,6 +5953,20 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Depends on:** _No internal imports._
 
 **Used by (2):** [`scripts/smoke-profile-picture-upload.test.ts`](scripts.md#file-scripts-smoke-profile-picture-upload-test-ts-f6005d0481) · [`src/app/api/auth/profile/avatar/route.ts`](app.md#file-src-app-api-auth-profile-avatar-route-ts-d5e57cc8d8)
+
+<a id="file-src-lib-shared-conversionevent-ts-7dd8f12b3c"></a>
+
+### `src/lib/shared/conversionEvent.ts`
+
+**What it is:** Does a telemetry event count as a conversion?
+
+**Exports (1):**
+
+- `isConversionTelemetryEvent(event: { type: string; metric?: string }): boolean` — Does a telemetry event count as a conversion?
+
+**Depends on:** _No internal imports._
+
+**Used by (3):** [`src/engines/data/server/radar/radarTelemetry.ts`](engines.md#file-src-engines-data-server-radar-radartelemetry-ts-8d69c081db) · [`src/lib/performance/performanceAnalytics.ts`](#file-src-lib-performance-performanceanalytics-ts-27d7ba0bbe) · [`src/lib/server/commandIntelligenceService.ts`](#file-src-lib-server-commandintelligenceservice-ts-8aba485964)
 
 <a id="file-src-lib-shared-devprojectgrouping-ts-070f12451f"></a>
 

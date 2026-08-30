@@ -101,7 +101,7 @@ export const ORIGIN_NEVER_CONTRIBUTES: Readonly<Record<string, readonly Collecti
   ],
   // Live work, money and history — an origin seeds an offer, not a business.
   operations: [
-    "activity", "completedActions", "pipelines", "pipelineCards", "tasks",
+    "activity", "outbox", "completedActions", "pipelines", "pipelineCards", "tasks",
     "pluginInstalls", "pluginData", "portalConnections", "clientPortalInstances",
     "performanceExperiments", "commandCalendarEntries", "commandCalendarSources",
     "commandCalendarExternalEvents", "commandCalendarEventCreateOperations",
