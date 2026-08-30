@@ -107,14 +107,28 @@ columns. `smoke-enquiry-tenant-isolation`, `smoke-enquiry-dedupe`,
 
 ## Phase 5 — telemetry out of the metadata bag + import provenance
 
-The highest-risk derived-data dependency: `Client.metadata.telemetryEvents`
-(sole source of traffic/forms/conversion KPIs, no dedupe) becomes an
-append-only table keyed by a **deterministic event id** (site key + beacon
-content hash + time bucket) so replays stop double-counting; ingest stamps
-`connectionId`/site provenance. Golden KPI tests must produce identical
-numbers across the switch for a captured fixture week. Finance facts
-(`clientPaymentPlans`, invoice keys — finance namespace) extract next with
-the same care; money before convenience.
+**First half SHIPPED 2026-08-30 — deterministic beacon identity + idempotent
+ingest** (`clientTelemetryService.ts`, `smoke-telemetry-idempotency.test.ts`):
+where a beacon carries its own `occurredAt` (the Aqua Tag stamps
+`Date.now()` once per event client-side), the event id is
+`evt_<sha256(siteKey + cleaned content + RAW occurredAt)>` — a replayed
+request maps to the same id, is answered with the event already recorded,
+and consumes neither the rate limit nor a second activity row nor a
+milestone sync; a beacon with no event time keeps a random id (no honest
+identity — possibly-distinct events are never suppressed, recorded not
+hidden). The suite also surfaced and fixed a REAL pre-existing bug: epoch-ms
+timestamps went through `cleanNumber`'s ±1e9 clamp, so every genuine
+`occurredAt` was flattened and event time silently became server ingestion
+time for every beacon — `cleanTimestamp` now validates a plausible epoch
+range instead, so occurred ≠ recorded is finally true for telemetry.
+
+**Remaining in this phase:** the events still live in
+`Client.metadata.telemetryEvents` (500-event cap — an evicted event can
+re-enter if replayed much later, accepted and documented); the append-only
+table extraction with `connectionId`/site provenance follows the Phase 1
+mechanics, with golden KPI parity for a captured fixture week before the
+read switch. Finance facts (`clientPaymentPlans`, invoice keys — finance
+namespace) extract next with the same care; money before convenience.
 
 ## Phase 6 — communications & audit durability
 

@@ -2,7 +2,7 @@
 
 ← Back to [the reference index](00-index.md) · [the map](../WORKSPACE-FILE-TREE.md) · [development.md](../development.md)
 
-Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2503 source files; 0 per-source stubs.**
+Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2504 source files; 0 per-source stubs.**
 
 ## Engines — `src/engines/` (83)
 
@@ -1997,7 +1997,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/showcase/exit/route.ts`](app.md#file-src-app-showcase-exit-route-ts-2297ba275f)
 - [`src/app/showcase/route.ts`](app.md#file-src-app-showcase-route-ts-4c24dd82df)
 
-## Scripts — `scripts/` (523)
+## Scripts — `scripts/` (524)
 
 - [`scripts/attention-protection.test.ts`](scripts.md#file-scripts-attention-protection-test-ts-d64d01714c)
 - [`scripts/audit-actions.ts`](scripts.md#file-scripts-audit-actions-ts-862ea31175) — What state Actions is actually in — measured, not remembered. For every alert the checks currently …
@@ -2492,6 +2492,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-tag-form-capture.test.ts`](scripts.md#file-scripts-smoke-tag-form-capture-test-ts-a77cd0eb6b)
 - [`scripts/smoke-task-checklist.test.ts`](scripts.md#file-scripts-smoke-task-checklist-test-ts-92a59afc9b)
 - [`scripts/smoke-task-templates.test.ts`](scripts.md#file-scripts-smoke-task-templates-test-ts-bda0882f1d)
+- [`scripts/smoke-telemetry-idempotency.test.ts`](scripts.md#file-scripts-smoke-telemetry-idempotency-test-ts-9f19109644) — provider retries cannot starve genuine new events.
 - [`scripts/smoke-telephony-caller-identity.test.ts`](scripts.md#file-scripts-smoke-telephony-caller-identity-test-ts-2ed21c8e2e) — from, which would make every callback arrive as "unknown".
 - [`scripts/smoke-telephony-inbound.test.ts`](scripts.md#file-scripts-smoke-telephony-inbound-test-ts-880e50ee50) — always returns true, so these run the real algorithm against real vectors.
 - [`scripts/smoke-template-preview-sample.test.ts`](scripts.md#file-scripts-smoke-template-preview-sample-test-ts-26ba23fdd7) — ever written.

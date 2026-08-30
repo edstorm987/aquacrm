@@ -74,6 +74,17 @@ imports through the CJS transform in spawned children — e.g.
 BUSINESS_TIME_ZONE exists but the child can't see it); cross-backend
 spawn-based contract tests are queued for an environment where those pass.
 
+**Phase 5 first half SHIPPED — telemetry idempotency.** Beacons carrying
+their own occurredAt get deterministic content+time ids
+(`clientTelemetryService.ts`): a replayed request records NOTHING twice
+(event, activity row, milestone sync) and doesn't consume the rate limit; a
+beacon with no event time keeps a random id — never guess-suppress. The
+suite surfaced a REAL pre-existing bug on the way: `cleanNumber`'s ±1e9
+clamp flattened every genuine epoch-ms occurredAt, so event time had
+silently been ingestion time for ALL telemetry — fixed with a
+`cleanTimestamp` epoch-range validator. `smoke-telemetry-idempotency.test.ts`
+(5 incl. rate-limit-starvation and stale-replay pins).
+
 **Phase queue (from docs/data/MIGRATION-PLAN.md):**
 1. Tenancy/identity/roles extraction (tables + RLS behind existing modules;
    blocked on Ed for `supabase db push` + DATABASE_URL — ED-QUESTIONS Q7).

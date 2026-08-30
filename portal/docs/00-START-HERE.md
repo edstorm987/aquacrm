@@ -2,7 +2,7 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-08-30 from **19** source documents / **19,533 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-30 from **19** source documents / **19,860 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -14,16 +14,16 @@
 - [`docs/data/adr/ADR-004-metadata-governed-not-banned.md`](#source-docs-data-adr-adr-004-metadata-governed-not-banned-md) — 196 words · `2b11d24db9f0`
 - [`docs/data/ARCHITECTURE.md`](#source-docs-data-architecture-md) — 1,020 words · `c00c30773721`
 - [`docs/data/DATA-DICTIONARY.md`](#source-docs-data-data-dictionary-md) — 955 words · `bad31fdda0bc`
-- [`docs/data/LINEAGE.md`](#source-docs-data-lineage-md) — 599 words · `1a9cf390899c`
-- [`docs/data/MIGRATION-PLAN.md`](#source-docs-data-migration-plan-md) — 1,121 words · `46137bffb60e`
+- [`docs/data/LINEAGE.md`](#source-docs-data-lineage-md) — 666 words · `ec581e8c8312`
+- [`docs/data/MIGRATION-PLAN.md`](#source-docs-data-migration-plan-md) — 1,262 words · `f3a9c8e8b533`
 - [`docs/data/SEMANTIC-LAYER.md`](#source-docs-data-semantic-layer-md) — 775 words · `eaaf6bafb960`
-- [`docs/data/SOURCE-INVENTORY.md`](#source-docs-data-source-inventory-md) — 1,661 words · `880977ed9e4b`
+- [`docs/data/SOURCE-INVENTORY.md`](#source-docs-data-source-inventory-md) — 1,689 words · `508db7acc293`
 - [`docs/DEVELOPMENT-HANDOFF.md`](#source-docs-development-handoff-md) — 1,552 words · `9199166a1f30`
 - [`docs/development-workspace-cleanup.md`](#source-docs-development-workspace-cleanup-md) — 793 words · `bdb46a5cecd3`
 - [`docs/development.md`](#source-docs-development-md) — 3,248 words · `dd5efef22882`
 - [`docs/development/CLOUD-RESUME.md`](#source-docs-development-cloud-resume-md) — 500 words · `03458cdf18bf`
 - [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 923 words · `66d4c02a3455`
-- [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,445 words · `566d8a61e73c`
+- [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,536 words · `920ee322006d`
 - [`README.md`](#source-readme-md) — 437 words · `78865db66238`
 
 ---
@@ -919,7 +919,7 @@ competing calculation. Bare-id collisions are pinned to exactly
 
 ## Source document — `docs/data/LINEAGE.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/data/LINEAGE.md" sha256="1a9cf390899c6602a208b71b44e36edbdc16cf4261b712124c6a8138f8aca50f" -->
+<!-- AQUACRM_SOURCE_START path="docs/data/LINEAGE.md" sha256="ec581e8c8312e042f4195977a4739ab6e3300ff1883a2cd026373f4c4d1ab4c5" -->
 # Lineage — how a number on a screen traces back to a record
 
 *Companion to [SOURCE-INVENTORY.md](SOURCE-INVENTORY.md). Machine-readable
@@ -958,11 +958,18 @@ review trail lives in `identityResolutionReviews`.
 sweep writes ← the same snapshot builders. The descriptor never recomputes
 (pinned by `smoke-kpi-registry.test.ts`).
 
-**Traffic KPI → beacon (the weak edge).** `traffic-7d` ←
-`clientTelemetryService` ← `Client.metadata.telemetryEvents` (untyped bag,
-random event ids, **no dedupe** — a replayed beacon double-counts) ← Aqua Tag
-POST `/api/telemetry/collect` (rate-limited, consent-gated; only consent
-events get a durable audit row). Fixing this edge is MIGRATION-PLAN Phase 5.
+**Traffic KPI → beacon (hardened 2026-08-30).** `traffic-7d` ←
+`clientTelemetryService` ← `Client.metadata.telemetryEvents` ← Aqua Tag POST
+`/api/telemetry/collect` (rate-limited, consent-gated). Beacons carrying
+their own `occurredAt` now get a **deterministic content+time id**, so a
+replayed request records nothing twice (event, activity row, milestone sync
+all idempotent) and replays don't consume the rate limit; beacons with no
+event time keep random ids — no honest identity to dedupe on. The same work
+fixed a silent pre-existing defect: the ±1e9 numeric clamp had been
+flattening every real epoch-ms `occurredAt`, replacing event time with
+ingestion time across all telemetry. Remaining weak half (Phase 5): the
+store is still the metadata bag with a 500-event cap and no
+`connectionId` back-reference.
 
 **Inbox message → provider (the strong edge).** Inbox row ←
 `append_inbox_provider_message` RPC ← webhook event claimed by lease
@@ -1005,7 +1012,7 @@ class in the semantic registry / metadata contracts before copying a field.
 
 ## Source document — `docs/data/MIGRATION-PLAN.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/data/MIGRATION-PLAN.md" sha256="46137bffb60ec2aab52682725400d3dae9afc398aad860859f7bbc7e6365d2d0" -->
+<!-- AQUACRM_SOURCE_START path="docs/data/MIGRATION-PLAN.md" sha256="f3a9c8e8b53397ed189f4b82c0781ba6fc17897120cd3704b22f7b8617c8a6ee" -->
 # Migration plan — strangler, one coherent vertical slice at a time
 
 *Rules that bind every phase below: the PortalState/blob system is not
@@ -1115,14 +1122,28 @@ columns. `smoke-enquiry-tenant-isolation`, `smoke-enquiry-dedupe`,
 
 ## Phase 5 — telemetry out of the metadata bag + import provenance
 
-The highest-risk derived-data dependency: `Client.metadata.telemetryEvents`
-(sole source of traffic/forms/conversion KPIs, no dedupe) becomes an
-append-only table keyed by a **deterministic event id** (site key + beacon
-content hash + time bucket) so replays stop double-counting; ingest stamps
-`connectionId`/site provenance. Golden KPI tests must produce identical
-numbers across the switch for a captured fixture week. Finance facts
-(`clientPaymentPlans`, invoice keys — finance namespace) extract next with
-the same care; money before convenience.
+**First half SHIPPED 2026-08-30 — deterministic beacon identity + idempotent
+ingest** (`clientTelemetryService.ts`, `smoke-telemetry-idempotency.test.ts`):
+where a beacon carries its own `occurredAt` (the Aqua Tag stamps
+`Date.now()` once per event client-side), the event id is
+`evt_<sha256(siteKey + cleaned content + RAW occurredAt)>` — a replayed
+request maps to the same id, is answered with the event already recorded,
+and consumes neither the rate limit nor a second activity row nor a
+milestone sync; a beacon with no event time keeps a random id (no honest
+identity — possibly-distinct events are never suppressed, recorded not
+hidden). The suite also surfaced and fixed a REAL pre-existing bug: epoch-ms
+timestamps went through `cleanNumber`'s ±1e9 clamp, so every genuine
+`occurredAt` was flattened and event time silently became server ingestion
+time for every beacon — `cleanTimestamp` now validates a plausible epoch
+range instead, so occurred ≠ recorded is finally true for telemetry.
+
+**Remaining in this phase:** the events still live in
+`Client.metadata.telemetryEvents` (500-event cap — an evicted event can
+re-enter if replayed much later, accepted and documented); the append-only
+table extraction with `connectionId`/site provenance follows the Phase 1
+mechanics, with golden KPI parity for a captured fixture week before the
+read switch. Finance facts (`clientPaymentPlans`, invoice keys — finance
+namespace) extract next with the same care; money before convenience.
 
 ## Phase 6 — communications & audit durability
 
@@ -1283,7 +1304,7 @@ strangler migration moves (MIGRATION-PLAN §phases).
 
 ## Source document — `docs/data/SOURCE-INVENTORY.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/data/SOURCE-INVENTORY.md" sha256="880977ed9e4b86a26a3dff73fdd23aae72a26356460135f4490453fa17fe827e" -->
+<!-- AQUACRM_SOURCE_START path="docs/data/SOURCE-INVENTORY.md" sha256="508db7acc293ee42643bea95c5b8648028e74cedec6bd1c12a0564418415029b" -->
 # Source inventory — every store, its authority, and its consumers
 
 *Compiled 2026-08-30 from a full survey of the working tree (storage adapters,
@@ -1415,9 +1436,12 @@ Every same-quantity pair is machine-readable via `sameQuantityPairs()` in
 
 - **`Client.metadata.telemetryEvents`** — the raw Aqua Tag event stream, the
   sole source for `traffic-7d`, `forms-7d`, `website-conversion` and ROAS
-  denominators, lives in an untyped bag read via a bare cast. **Telemetry
-  ingest has no dedupe**: event ids are random, so a replayed beacon
-  double-counts into every traffic KPI.
+  denominators, lives in an untyped bag read via a bare cast. **Ingest is
+  now idempotent (2026-08-30)** for beacons carrying their own event time
+  (deterministic content+time ids; replays record nothing twice and skip the
+  rate limit); the remaining weakness is the store itself — the metadata
+  bag, its 500-event cap, and no connection back-reference (Phase 5's
+  second half).
 - **`activity` hard cap 50,000 with silent oldest-first eviction** — the audit
   trail can shed history without any surface saying so.
 - **No record-level provenance**: nothing written by an integration carries a
@@ -2355,7 +2379,7 @@ file stays a live queue.*
 
 ## Source document — `docs/development/LOOP-PROGRESS.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/LOOP-PROGRESS.md" sha256="566d8a61e73cb7bd790dad10cf779e607c95566759f3739887e1c2ea3c217f2b" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/LOOP-PROGRESS.md" sha256="920ee322006de4b9aacfe1be9578e119e1b9c41d4d121cb71809b5117c9a1382" -->
 # Production-readiness loop — live ledger
 
 **Loop:** every 20 min (cron 5ced36da), started 2026-08-30. Blocked-on-Ed items
@@ -2431,6 +2455,17 @@ seam to flip for all plugin events). NOTE for Ed's machine: the container's
 imports through the CJS transform in spawned children — e.g.
 BUSINESS_TIME_ZONE exists but the child can't see it); cross-backend
 spawn-based contract tests are queued for an environment where those pass.
+
+**Phase 5 first half SHIPPED — telemetry idempotency.** Beacons carrying
+their own occurredAt get deterministic content+time ids
+(`clientTelemetryService.ts`): a replayed request records NOTHING twice
+(event, activity row, milestone sync) and doesn't consume the rate limit; a
+beacon with no event time keeps a random id — never guess-suppress. The
+suite surfaced a REAL pre-existing bug on the way: `cleanNumber`'s ±1e9
+clamp flattened every genuine epoch-ms occurredAt, so event time had
+silently been ingestion time for ALL telemetry — fixed with a
+`cleanTimestamp` epoch-range validator. `smoke-telemetry-idempotency.test.ts`
+(5 incl. rate-limit-starvation and stale-replay pins).
 
 **Phase queue (from docs/data/MIGRATION-PLAN.md):**
 1. Tenancy/identity/roles extraction (tables + RLS behind existing modules;

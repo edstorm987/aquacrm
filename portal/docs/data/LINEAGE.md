@@ -36,11 +36,18 @@ review trail lives in `identityResolutionReviews`.
 sweep writes ← the same snapshot builders. The descriptor never recomputes
 (pinned by `smoke-kpi-registry.test.ts`).
 
-**Traffic KPI → beacon (the weak edge).** `traffic-7d` ←
-`clientTelemetryService` ← `Client.metadata.telemetryEvents` (untyped bag,
-random event ids, **no dedupe** — a replayed beacon double-counts) ← Aqua Tag
-POST `/api/telemetry/collect` (rate-limited, consent-gated; only consent
-events get a durable audit row). Fixing this edge is MIGRATION-PLAN Phase 5.
+**Traffic KPI → beacon (hardened 2026-08-30).** `traffic-7d` ←
+`clientTelemetryService` ← `Client.metadata.telemetryEvents` ← Aqua Tag POST
+`/api/telemetry/collect` (rate-limited, consent-gated). Beacons carrying
+their own `occurredAt` now get a **deterministic content+time id**, so a
+replayed request records nothing twice (event, activity row, milestone sync
+all idempotent) and replays don't consume the rate limit; beacons with no
+event time keep random ids — no honest identity to dedupe on. The same work
+fixed a silent pre-existing defect: the ±1e9 numeric clamp had been
+flattening every real epoch-ms `occurredAt`, replacing event time with
+ingestion time across all telemetry. Remaining weak half (Phase 5): the
+store is still the metadata bag with a 500-event cap and no
+`connectionId` back-reference.
 
 **Inbox message → provider (the strong edge).** Inbox row ←
 `append_inbox_provider_message` RPC ← webhook event claimed by lease

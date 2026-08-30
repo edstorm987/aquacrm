@@ -3499,11 +3499,11 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `ensureClientTelemetry(agencyId: string, clientId: string): ClientTelemetrySnapshot | null`
 - `resetClientTelemetryKey(agencyId: string, clientId: string): ClientTelemetrySnapshot | null`
 - `clearClientTelemetry(agencyId: string, clientId: string): ClientTelemetrySnapshot | null`
-- `recordClientTelemetry(siteKey: string, input: Record<string, unknown>, userAgent?: string): { status: "recorded"; clientId: string; event: ClientTelemetryEvent } | { status: "rate-limited" } | null`
+- `recordClientTelemetry(siteKey: string, input: Record<string, unknown>, userAgent?: string): { status: "recorded"; clientId: string; event: ClientTelemetryEvent; deduplicated?: true } | { status: "rate-limited" } | null`
 
 **Depends on (5):** [`src/lib/clients/clientTelemetry.ts`](#file-src-lib-clients-clienttelemetry-ts-d3462b0e3b) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/clientMilestones.ts`](server.md#file-src-server-clientmilestones-ts-08c5910472) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
 
-**Used by (4):** [`src/app/api/telemetry/collect/route.ts`](app.md#file-src-app-api-telemetry-collect-route-ts-bdfa138d16) · [`src/app/api/tenants/client-telemetry/route.ts`](app.md#file-src-app-api-tenants-client-telemetry-route-ts-0409739029) · [`src/lib/server/clients/customerPortalProvisioning.ts`](#file-src-lib-server-clients-customerportalprovisioning-ts-9842a84345) · [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
+**Used by (5):** [`scripts/smoke-telemetry-idempotency.test.ts`](scripts.md#file-scripts-smoke-telemetry-idempotency-test-ts-9f19109644) · [`src/app/api/telemetry/collect/route.ts`](app.md#file-src-app-api-telemetry-collect-route-ts-bdfa138d16) · [`src/app/api/tenants/client-telemetry/route.ts`](app.md#file-src-app-api-tenants-client-telemetry-route-ts-0409739029) · [`src/lib/server/clients/customerPortalProvisioning.ts`](#file-src-lib-server-clients-customerportalprovisioning-ts-9842a84345) · [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
 
 <a id="file-src-lib-server-clients-customerportalprovisioning-ts-9842a84345"></a>
 

@@ -5953,6 +5953,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-telemetry-idempotency-test-ts-9f19109644"></a>
+
+### `scripts/smoke-telemetry-idempotency.test.ts`
+
+**What it is:** provider retries cannot starve genuine new events.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (4):** [`src/lib/server/clients/clientTelemetryService.ts`](lib.md#file-src-lib-server-clients-clienttelemetryservice-ts-92d317a118) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-telephony-caller-identity-test-ts-2ed21c8e2e"></a>
 
 ### `scripts/smoke-telephony-caller-identity.test.ts`

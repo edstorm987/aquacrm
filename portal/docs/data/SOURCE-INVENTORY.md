@@ -129,9 +129,12 @@ Every same-quantity pair is machine-readable via `sameQuantityPairs()` in
 
 - **`Client.metadata.telemetryEvents`** — the raw Aqua Tag event stream, the
   sole source for `traffic-7d`, `forms-7d`, `website-conversion` and ROAS
-  denominators, lives in an untyped bag read via a bare cast. **Telemetry
-  ingest has no dedupe**: event ids are random, so a replayed beacon
-  double-counts into every traffic KPI.
+  denominators, lives in an untyped bag read via a bare cast. **Ingest is
+  now idempotent (2026-08-30)** for beacons carrying their own event time
+  (deterministic content+time ids; replays record nothing twice and skip the
+  rate limit); the remaining weakness is the store itself — the metadata
+  bag, its 500-event cap, and no connection back-reference (Phase 5's
+  second half).
 - **`activity` hard cap 50,000 with silent oldest-first eviction** — the audit
   trail can shed history without any surface saying so.
 - **No record-level provenance**: nothing written by an integration carries a

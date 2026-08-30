@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-30T13:07:42.103Z",
+  "generatedAt": "2026-08-30T13:39:58.962Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -351,17 +351,17 @@
       "path": "docs/data/LINEAGE.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-data-lineage-md",
-      "sha256": "1a9cf390899c6602a208b71b44e36edbdc16cf4261b712124c6a8138f8aca50f",
-      "words": 599,
-      "bytes": 4592
+      "sha256": "ec581e8c8312e042f4195977a4739ab6e3300ff1883a2cd026373f4c4d1ab4c5",
+      "words": 666,
+      "bytes": 5047
     },
     {
       "path": "docs/data/MIGRATION-PLAN.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-data-migration-plan-md",
-      "sha256": "46137bffb60ec2aab52682725400d3dae9afc398aad860859f7bbc7e6365d2d0",
-      "words": 1121,
-      "bytes": 8680
+      "sha256": "f3a9c8e8b53397ed189f4b82c0781ba6fc17897120cd3704b22f7b8617c8a6ee",
+      "words": 1262,
+      "bytes": 9632
     },
     {
       "path": "docs/data/SEMANTIC-LAYER.md",
@@ -375,9 +375,9 @@
       "path": "docs/data/SOURCE-INVENTORY.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-data-source-inventory-md",
-      "sha256": "880977ed9e4b86a26a3dff73fdd23aae72a26356460135f4490453fa17fe827e",
-      "words": 1661,
-      "bytes": 12413
+      "sha256": "508db7acc293ee42643bea95c5b8648028e74cedec6bd1c12a0564418415029b",
+      "words": 1689,
+      "bytes": 12616
     },
     {
       "path": "docs/DEVELOPMENT-HANDOFF.md",
@@ -495,9 +495,9 @@
       "path": "docs/development/LOOP-PROGRESS.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-loop-progress-md",
-      "sha256": "566d8a61e73cb7bd790dad10cf779e607c95566759f3739887e1c2ea3c217f2b",
-      "words": 1445,
-      "bytes": 11082
+      "sha256": "920ee322006de4b9aacfe1be9578e119e1b9c41d4d121cb71809b5117c9a1382",
+      "words": 1536,
+      "bytes": 11775
     },
     {
       "path": "docs/development/notes.md",
