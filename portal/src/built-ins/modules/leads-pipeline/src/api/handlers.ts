@@ -60,7 +60,7 @@ import type {
 } from "../lib/domain";
 import { LeadIdentityConflictError } from "../server/leads";
 import { CommercialPaymentConflictError } from "../server/commercial";
-import { isLeadRelationshipCategory } from "../lib/domain";
+import { installmentAllocation, isLeadRelationshipCategory } from "../lib/domain";
 import { REQUIRED_PROSPECT_INSPECTION_CHECKS } from "../server/prospects";
 import { getPortalFormFields, validatePortalEntityFields } from "@/server/portalEditor";
 import { validatePortalFormValues } from "@/lib/forms/portalFormValues";
@@ -439,7 +439,16 @@ export async function recordCommercialPaymentHandler(req: Request, ctx: PluginCt
   }>(req);
   if (!body?.partyId || !body.partyKind || !body.method) return badRequest("party, amount, and method required.");
   try {
-    const pack = await buildContainer(ctx).commercial.recordPayment(body.partyKind, body.partyId, body, ctx.actor);
+    // Named fields, never the raw body: `source` is evidence about who wrote the
+    // row, so a caller must not be able to post itself a "stripe-subscription"
+    // provenance and forge a collected installment.
+    const pack = await buildContainer(ctx).commercial.recordPayment(body.partyKind, body.partyId, {
+      amountCents: body.amountCents,
+      method: body.method,
+      reference: body.reference,
+      paidAt: body.paidAt,
+      source: "manual",
+    }, ctx.actor);
     return pack ? json({ ok: true, pack }) : notFound("commercial_pack_not_found");
   } catch (err) {
     if (err instanceof CommercialPaymentConflictError) {
@@ -464,9 +473,13 @@ export async function createCommercialStripeCheckoutHandler(req: Request, ctx: P
     || pack.billingCadence === "installments";
   const interval = pack.billingCadence === "annual" ? "year" : "month";
   const intervalCount = pack.billingCadence === "quarterly" ? "3" : "1";
-  const checkoutAmount = pack.billingCadence === "installments"
-    ? Math.ceil(pack.totalCents / (pack.installmentCount ?? 2))
-    : pack.totalCents;
+  // A fixed recurring price cannot vary its final charge, so the old
+  // `ceil(total / count)` billed `count` rounded-up charges and collected up to
+  // count-1 cents MORE than the proposal total. `installmentAllocation` is the
+  // exact split; the leftover pennies are charged once, as a one-time line item
+  // that Stripe adds to the FIRST invoice of a subscription-mode Checkout (the
+  // same shape as a setup fee).
+  const { recurringCents: checkoutAmount, remainderCents: installmentRemainder } = installmentAllocation(pack);
   const origin = new URL(req.url).origin;
   const params = new URLSearchParams({
     mode: recurring ? "subscription" : "payment",
@@ -483,6 +496,14 @@ export async function createCommercialStripeCheckoutHandler(req: Request, ctx: P
     "metadata[partyId]": pack.partyId,
     "metadata[commercialPackId]": pack.id,
   });
+  if (installmentRemainder > 0) {
+    // No `recurring` key — a one-time price, so it lands on the first invoice
+    // once and never repeats. floor × count + remainder === totalCents exactly.
+    params.set("line_items[1][quantity]", "1");
+    params.set("line_items[1][price_data][currency]", pack.currency);
+    params.set("line_items[1][price_data][unit_amount]", String(installmentRemainder));
+    params.set("line_items[1][price_data][product_data][name]", `${pack.serviceLevel} · instalment balance`);
+  }
   if (recurring) {
     params.set("line_items[0][price_data][recurring][interval]", interval);
     params.set("line_items[0][price_data][recurring][interval_count]", intervalCount);
@@ -554,6 +575,7 @@ export async function commercialStripeWebhookHandler(req: Request, ctx: PluginCt
       status?: string;
       metadata?: Record<string, string>;
       subscription?: string;
+      cancel_at_period_end?: boolean;
       mode?: "payment" | "subscription";
       parent?: {
         subscription_details?: {
@@ -564,11 +586,17 @@ export async function commercialStripeWebhookHandler(req: Request, ctx: PluginCt
     } };
   };
   const object = event.data?.object;
-  if (!object || (event.type !== "checkout.session.completed" && event.type !== "invoice.paid")) {
+  // `customer.subscription.*` is how the STOP gets confirmed: our own 200 from
+  // the cancel call is a claim about a request, Stripe's own event is the fact.
+  const subscriptionLifecycle = event.type === "customer.subscription.updated"
+    || event.type === "customer.subscription.deleted";
+  if (!object || (event.type !== "checkout.session.completed" && event.type !== "invoice.paid" && !subscriptionLifecycle)) {
     return json({ ok: true, ignored: true });
   }
   let metadata = object.metadata ?? object.parent?.subscription_details?.metadata ?? {};
-  const subscriptionId = object.subscription ?? object.parent?.subscription_details?.subscription;
+  const subscriptionId = subscriptionLifecycle
+    ? object.id
+    : object.subscription ?? object.parent?.subscription_details?.subscription;
   if ((!metadata.partyKind || !metadata.partyId) && subscriptionId && stripe.secretKey) {
     try {
       const response = await stripeHttpRequest<{ metadata?: Record<string, string> }>({
@@ -585,8 +613,51 @@ export async function commercialStripeWebhookHandler(req: Request, ctx: PluginCt
   const partyKind = metadata.partyKind;
   const partyId = metadata.partyId;
   if ((partyKind !== "lead" && partyKind !== "contact") || !partyId) return json({ ok: true, ignored: true });
-  if (subscriptionId) {
+  // Attaching binds the pack to the subscription that is CURRENTLY collecting,
+  // so only an event that carries money does it. A `customer.subscription.*`
+  // event can arrive for a superseded subscription (an incomplete first attempt
+  // Stripe expires days later); attaching from it would repoint the pack at a
+  // dead subscription and then stamp its cancellation as this plan's stop,
+  // leaving the live subscription billing past the promised number with
+  // `already-stopped` refusing to ask again. Lifecycle events are matched
+  // against the attached id in the service instead.
+  if (subscriptionId && !subscriptionLifecycle) {
     await buildContainer(ctx).commercial.attachStripeSubscription(partyKind, partyId, subscriptionId);
+  }
+  if (subscriptionLifecycle) {
+    if (!subscriptionId) return json({ ok: true, ignored: true });
+    const stopped = event.type === "customer.subscription.deleted"
+      || object.status === "canceled"
+      || object.cancel_at_period_end === true;
+    if (!stopped) {
+      // Not an uninteresting update. Stripe reporting the subscription live and
+      // no longer cancelling is how an un-cancel in the dashboard reaches us,
+      // and a pack left stamped `subscriptionCancelConfirmedAt` would answer
+      // `already-stopped` for the rest of its life — so the reactivated
+      // subscription would bill past the promised count while the stored state
+      // insisted it had stopped. Clearing the stop record lets it be re-asked.
+      const live = object.status === "active" || object.status === "trialing";
+      if (!live || object.cancel_at_period_end !== false) return json({ ok: true, ignored: true });
+      const reopened = await buildContainer(ctx).commercial.recordSubscriptionCancellation(partyKind, partyId, {
+        subscriptionId,
+        reopenedAt: Date.now(),
+      });
+      return json({
+        ok: true,
+        commercialPackId: reopened?.id,
+        subscriptionReopened: true,
+        subscriptionCancelConfirmed: Boolean(reopened?.subscriptionCancelConfirmedAt),
+      });
+    }
+    const confirmed = await buildContainer(ctx).commercial.recordSubscriptionCancellation(partyKind, partyId, {
+      subscriptionId,
+      confirmedAt: Date.now(),
+    });
+    return json({
+      ok: true,
+      commercialPackId: confirmed?.id,
+      subscriptionCancelConfirmed: Boolean(confirmed?.subscriptionCancelConfirmedAt),
+    });
   }
   if (event.type === "checkout.session.completed" && (object.mode === "subscription" || subscriptionId)) {
     return json({ ok: true, subscriptionAttached: true });
@@ -597,30 +668,36 @@ export async function commercialStripeWebhookHandler(req: Request, ctx: PluginCt
     amountCents,
     method: "stripe",
     reference: object.id ?? event.id,
+    // Provenance, not just method: this row IS a collected subscription invoice,
+    // which is what the installment stop below is allowed to count.
+    source: subscriptionId ? "stripe-subscription" : "stripe-checkout",
+    stripeSubscriptionId: subscriptionId,
   }, ctx.actor);
-  if (
-    pack?.billingCadence === "installments"
-    && pack.installmentCount
-    && subscriptionId
-    && pack.payments.filter(payment => payment.method === "stripe").length >= pack.installmentCount
-    && stripe.secretKey
-  ) {
-    try {
-      const cancellation = await stripeHttpRequest<{ error?: { message?: string } }>({
-        secretKey: stripe.secretKey,
-        path: `/v1/subscriptions/${encodeURIComponent(subscriptionId)}`,
-        method: "POST",
-        form: new URLSearchParams({ cancel_at_period_end: "true" }),
-        idempotencyKey: `commercial-installments-complete:${ctx.agencyId}:${pack.id}:${subscriptionId}`,
-        outcome: "idempotent-write",
-        signal: req.signal,
-      });
-      if (!cancellation.ok) {
-        return json({ ok: false, error: cancellation.body.error?.message ?? `Stripe returned ${cancellation.status}.` }, 502);
-      }
-    } catch (error) {
-      return json({ ok: false, error: error instanceof Error ? error.message : "Stripe subscription update failed." }, 503);
-    }
+  if (pack && subscriptionId && stripe.secretKey) {
+    const secretKey = stripe.secretKey;
+    // The whole stop decision — is it due, was it already stopped, what is
+    // retained when Stripe refuses — belongs to the commercial service. This
+    // handler only performs the provider call and maps the outcome.
+    const stop = await buildContainer(ctx).commercial.completeInstallments(partyKind, partyId, {
+      subscriptionId,
+      requestStop: async () => {
+        const cancellation = await stripeHttpRequest<{ error?: { message?: string } }>({
+          secretKey,
+          path: `/v1/subscriptions/${encodeURIComponent(subscriptionId)}`,
+          method: "POST",
+          form: new URLSearchParams({ cancel_at_period_end: "true" }),
+          idempotencyKey: `commercial-installments-complete:${ctx.agencyId}:${pack.id}:${subscriptionId}`,
+          outcome: "idempotent-write",
+          signal: req.signal,
+        });
+        return cancellation.ok
+          ? { ok: true }
+          : { ok: false, error: cancellation.body.error?.message ?? `Stripe returned ${cancellation.status}.` };
+      },
+    });
+    // 502/503 so Stripe redelivers and the same idempotency key retries.
+    if (stop.status === "refused") return json({ ok: false, error: stop.error }, 502);
+    if (stop.status === "unavailable") return json({ ok: false, error: stop.error }, 503);
   }
   return json({ ok: true, commercialPackId: pack?.id });
 }

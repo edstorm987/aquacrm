@@ -1,12 +1,11 @@
 import "server-only";
 
 import crypto from "node:crypto";
-import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { get } from "@vercel/blob";
 
 import type { InboxOutboundAttachmentKind } from "@/lib/inbox/media";
-import { readSupabasePrivateUpload, type PrivateUploadStorageProvider } from "@/lib/server/privateUploadStorage";
+import { readLocalFileRange, readVercelBlobRange, type ByteRange } from "@/lib/server/privateMediaResponse";
+import { readSupabasePrivateUploadRange, type PrivateUploadStorageProvider } from "@/lib/server/privateUploadStorage";
 
 export type InboxMediaTargetKind = "website" | "social" | "client";
 
@@ -51,24 +50,37 @@ export function verifyInboxMediaToken(token: string): InboxMediaTokenPayload | n
   }
 }
 
-export async function readInboxMedia(payload: InboxMediaTokenPayload): Promise<Blob | Buffer | null> {
+/**
+ * Reads an attachment, honouring a byte range when one is asked for. Every
+ * provider streams: the whole object is never buffered just to hand back the
+ * few bytes a mounted player asked for. `range` is `null` for a full read.
+ */
+export async function readInboxMedia(
+  payload: InboxMediaTokenPayload,
+  range: ByteRange | null = null,
+): Promise<BodyInit | null> {
   if (payload.storageProvider === "supabase") {
     if (!payload.storageKey.startsWith(`inbox-media/${payload.agencyId}/`)) return null;
-    return readSupabasePrivateUpload(payload.storageKey);
+    return readSupabasePrivateUploadRange(payload.storageKey, range);
   }
   if (payload.storageProvider === "vercel-blob") {
     let pathname = "";
     try { pathname = new URL(payload.storageKey).pathname; } catch { return null; }
     if (!pathname.includes(`/inbox-media/${payload.agencyId}/`)) return null;
-    const stored = await get(payload.storageKey, { access: "private" });
-    if (!stored || stored.statusCode !== 200 || !stored.stream) return null;
-    return new Response(stored.stream).blob();
+    return readVercelBlobRange(payload.storageKey, range);
   }
   if (payload.storageProvider !== "local") return null;
   const root = resolve(process.cwd(), ".data", "inbox-media", payload.agencyId);
   const target = resolve(process.cwd(), ".data", "inbox-media", payload.storageKey);
   if (!target.startsWith(`${root}/`)) return null;
-  try { return await readFile(target); } catch { return null; }
+  return readLocalFileRange(target, range);
+}
+
+/** Full attachment bytes, for callers that must attach the object itself. */
+export async function readInboxMediaBytes(payload: InboxMediaTokenPayload): Promise<Buffer | null> {
+  const stored = await readInboxMedia(payload, null);
+  if (stored === null) return null;
+  return Buffer.from(await new Response(stored).arrayBuffer());
 }
 
 export function inboxMediaUrl(origin: string, token: string): string {

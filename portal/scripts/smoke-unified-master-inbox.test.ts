@@ -71,6 +71,12 @@ test("images, files and voice notes use durable inbox media", () => {
   assert.match(upload, /targetKind !== "website" && targetKind !== "social" && targetKind !== "client"/);
   assert.match(token, /createHmac\("sha256"/);
   assert.match(content, /verifyInboxMediaToken/);
+  // Voice notes mount as seekable audio, so the attachment route answers the
+  // shared byte-range contract and no provider buffers the whole object.
+  assert.match(content, /privateMediaResponse/);
+  assert.match(content, /request\.headers\.get\("range"\)/);
+  assert.match(token, /readLocalFileRange/);
+  assert.doesNotMatch(token, /\.blob\(\)/);
 });
 
 test("outbound providers receive real attachments", () => {

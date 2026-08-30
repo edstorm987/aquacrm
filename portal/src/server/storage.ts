@@ -151,6 +151,7 @@ const empty = (): PortalState => ({
   peopleChannelReads: {},
   peopleTrainingModules: {},
   staffProvisioningOperations: {},
+  clientProjectOperations: {},
   outbox: {},
 });
 
@@ -859,6 +860,7 @@ function parseBlob(raw: string): PortalState {
       peopleChannelReads: parsed.peopleChannelReads ?? {},
       peopleTrainingModules: parsed.peopleTrainingModules ?? {},
       staffProvisioningOperations: parsed.staffProvisioningOperations ?? {},
+      clientProjectOperations: parsed.clientProjectOperations ?? {},
       outbox: parsed.outbox ?? {},
   };
 }

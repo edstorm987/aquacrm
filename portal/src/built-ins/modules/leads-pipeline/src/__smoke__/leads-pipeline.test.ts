@@ -48,7 +48,7 @@ import {
 import { parseCsv, parseXlsxToDelimitedText } from "../server/csv";
 import { LeadIdentityConflictError, LeadService } from "../server/leads";
 import { CommercialAcceptanceStateError, CommercialPaymentConflictError } from "../server/commercial";
-import { CSV_COLUMN_VARIANTS, projectLeadCard } from "../lib/domain";
+import { CSV_COLUMN_VARIANTS, installmentAllocation, projectLeadCard } from "../lib/domain";
 
 const AGENCY_ID: AgencyId = "agency_leads_smoke";
 const ACTOR = "user_leads_smoke";
@@ -1288,6 +1288,261 @@ describe("leads-pipeline / commercial packs", () => {
       reference: "till-001",
     }, ACTOR), CommercialPaymentConflictError);
     assert.equal((await c.commercial.get("contact", "contact_payment_conflict"))?.payments.length, 1);
+  });
+
+  // ─── Installment plans stop exactly, and only when Stripe confirms ─────
+  //
+  // Three separate defects lived here: a hand-recorded "stripe" row counted
+  // towards the promised installments and cancelled the plan early; the
+  // rounded-up recurring price collected more than the proposal total; and a
+  // refused cancellation left no trace once Stripe stopped redelivering.
+
+  const installmentPack = async (partyId: string, opts: { totalCents: number; installmentCount: number }) => {
+    const w = buildWorld();
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+    });
+    await c.commercial.save({
+      partyKind: "lead",
+      partyId,
+      recipientEmail: `${partyId}@example.test`,
+      lineItems: [{ description: "Retainer", quantity: 1, unitCents: opts.totalCents }],
+      taxCents: 0,
+      currency: "gbp",
+      dueAt: Date.now() + 86_400_000,
+      billingCadence: "installments",
+      installmentCount: opts.installmentCount,
+      serviceLevel: "Retainer",
+      agreementTitle: "Agreement",
+      agreementBody: "Terms",
+    }, ACTOR);
+    const subscriptionId = `sub_${partyId}`;
+    await c.commercial.attachStripeSubscription("lead", partyId, subscriptionId);
+    const collectInvoice = (invoiceId: string, amountCents: number) =>
+      c.commercial.recordPayment("lead", partyId, {
+        amountCents,
+        method: "stripe",
+        reference: invoiceId,
+        source: "stripe-subscription",
+        stripeSubscriptionId: subscriptionId,
+      }, ACTOR);
+    return { w, c, partyId, subscriptionId, collectInvoice, pack: () => c.commercial.get("lead", partyId) };
+  };
+
+  test("an installment plan divides the promised total exactly, never a rounded-up multiple", () => {
+    // The defect: ceil(10000 / 3) = 3334 billed three times collects 10002.
+    const three = installmentAllocation({ billingCadence: "installments", totalCents: 10_000, installmentCount: 3 });
+    assert.equal(three.recurringCents, 3_333);
+    assert.equal(three.remainderCents, 1);
+    assert.equal(three.recurringCents * three.count + three.remainderCents, 10_000);
+
+    for (const totalCents of [1, 99, 100, 4_999, 10_000, 123_457]) {
+      for (let count = 2; count <= 12; count += 1) {
+        const split = installmentAllocation({ billingCadence: "installments", totalCents, installmentCount: count });
+        assert.equal(split.count, count);
+        assert.equal(
+          split.recurringCents * count + split.remainderCents,
+          totalCents,
+          `${count} installments of ${totalCents} collects the wrong total`,
+        );
+        assert.ok(split.remainderCents >= 0 && split.remainderCents < count,
+          "the remainder must be a one-off leftover, never another installment");
+      }
+    }
+    // A non-installment pack is charged once, in full.
+    assert.deepEqual(
+      installmentAllocation({ billingCadence: "one-off", totalCents: 10_000 }),
+      { count: 1, recurringCents: 10_000, remainderCents: 0 },
+    );
+  });
+
+  test("a hand-recorded Stripe row never completes the installment plan", async () => {
+    const world = await installmentPack("lead_installments_manual", { totalCents: 30_000, installmentCount: 3 });
+    const stopCalls: string[] = [];
+    const requestStop = async () => { stopCalls.push(world.subscriptionId); return { ok: true }; };
+
+    // Someone reconciling a Stripe dashboard payment by hand picks method
+    // "stripe". That says how the money moved, not that the subscription billed.
+    await world.c.commercial.recordPayment("lead", world.partyId, {
+      amountCents: 10_000,
+      method: "stripe",
+      reference: "MANUAL-BANK-1",
+    }, ACTOR);
+    await world.collectInvoice("in_1", 10_000);
+    await world.collectInvoice("in_2", 10_000);
+
+    // Manual row + two invoices used to be three "stripe" payments, so the plan
+    // was cancelled while an installment was still owed.
+    const early = await world.c.commercial.completeInstallments("lead", world.partyId, {
+      subscriptionId: world.subscriptionId, requestStop,
+    });
+    assert.equal(early.status, "not-due");
+    assert.equal(early.collected, 2);
+    assert.deepEqual(stopCalls, []);
+    assert.equal((await world.pack())?.subscriptionCancelRequestedAt, undefined);
+
+    await world.collectInvoice("in_3", 10_000);
+    const due = await world.c.commercial.completeInstallments("lead", world.partyId, {
+      subscriptionId: world.subscriptionId, requestStop,
+    });
+    assert.equal(due.status, "requested");
+    assert.equal(due.collected, 3);
+    assert.equal(stopCalls.length, 1);
+
+    const packed = await world.pack();
+    assert.equal(packed?.payments.length, 4);
+    assert.equal(packed?.payments.filter(payment => payment.source === "stripe-subscription").length, 3);
+    assert.equal(packed?.payments.find(payment => payment.reference === "MANUAL-BANK-1")?.source, "manual");
+    // Asked is not confirmed.
+    assert.ok(packed?.subscriptionCancelRequestedAt);
+    assert.equal(packed?.subscriptionCancelAttempts, 1);
+    assert.equal(packed?.subscriptionCancelConfirmedAt, undefined);
+  });
+
+  test("a redelivered invoice cannot count twice towards the promised installments", async () => {
+    const world = await installmentPack("lead_installments_redeliver", { totalCents: 20_000, installmentCount: 2 });
+    await world.collectInvoice("in_1", 10_000);
+    await world.collectInvoice("in_1", 10_000);
+    const stopCalls: string[] = [];
+    const outcome = await world.c.commercial.completeInstallments("lead", world.partyId, {
+      subscriptionId: world.subscriptionId,
+      requestStop: async () => { stopCalls.push("stop"); return { ok: true }; },
+    });
+    assert.equal(outcome.status, "not-due");
+    assert.equal(outcome.collected, 1, "the redelivery was counted as a second installment");
+    assert.deepEqual(stopCalls, []);
+    assert.equal((await world.pack())?.payments.length, 1);
+  });
+
+  test("a refused cancellation is retained and retried, and only Stripe confirms the stop", async () => {
+    const world = await installmentPack("lead_installments_refused", { totalCents: 20_000, installmentCount: 2 });
+    await world.collectInvoice("in_1", 10_000);
+    await world.collectInvoice("in_2", 10_000);
+
+    const refused = await world.c.commercial.completeInstallments("lead", world.partyId, {
+      subscriptionId: world.subscriptionId,
+      requestStop: async () => ({ ok: false, error: "Subscription is in an invalid state." }),
+    });
+    assert.equal(refused.status, "refused");
+    assert.equal(refused.status === "refused" && refused.error, "Subscription is in an invalid state.");
+    // The refusal outlives the response, so a permanent failure is still visible
+    // after Stripe's redelivery window closes.
+    const afterRefusal = await world.pack();
+    assert.equal(afterRefusal?.subscriptionCancelError, "Subscription is in an invalid state.");
+    assert.equal(afterRefusal?.subscriptionCancelAttempts, 1);
+    assert.ok(afterRefusal?.subscriptionCancelRequestedAt);
+    assert.equal(afterRefusal?.subscriptionCancelConfirmedAt, undefined);
+
+    // A transport failure is a separate answer: the outcome is unknown, not refused.
+    const unavailable = await world.c.commercial.completeInstallments("lead", world.partyId, {
+      subscriptionId: world.subscriptionId,
+      requestStop: async () => { throw new Error("Stripe did not answer in time."); },
+    });
+    assert.equal(unavailable.status, "unavailable");
+    assert.equal((await world.pack())?.subscriptionCancelAttempts, 2);
+
+    const accepted = await world.c.commercial.completeInstallments("lead", world.partyId, {
+      subscriptionId: world.subscriptionId,
+      requestStop: async () => ({ ok: true }),
+    });
+    assert.equal(accepted.status, "requested");
+    const afterRetry = await world.pack();
+    assert.equal(afterRetry?.subscriptionCancelAttempts, 3);
+    assert.equal(afterRetry?.subscriptionCancelError, undefined);
+    // Stripe accepting the request is still not Stripe confirming the stop.
+    assert.equal(afterRetry?.subscriptionCancelConfirmedAt, undefined);
+
+    // Only the provider's own customer.subscription.* event stamps that.
+    await world.c.commercial.recordSubscriptionCancellation("lead", world.partyId, {
+      subscriptionId: world.subscriptionId,
+      confirmedAt: Date.now(),
+    });
+    const confirmed = await world.pack();
+    assert.ok(confirmed?.subscriptionCancelConfirmedAt);
+    assert.equal(confirmed?.subscriptionCancelError, undefined);
+
+    // Once confirmed the plan is not asked to stop again.
+    let asked = false;
+    const again = await world.c.commercial.completeInstallments("lead", world.partyId, {
+      subscriptionId: world.subscriptionId,
+      requestStop: async () => { asked = true; return { ok: true }; },
+    });
+    assert.equal(again.status, "already-stopped");
+    assert.equal(asked, false);
+
+    // ...but a stop is a claim about Stripe's state, not a one-way latch. If
+    // someone un-cancels in the dashboard, Stripe reports the subscription
+    // active and no longer cancelling. Leaving `confirmedAt` stamped would
+    // answer "already-stopped" for the life of the pack while the reactivated
+    // subscription billed past the promised count.
+    await world.c.commercial.recordSubscriptionCancellation("lead", world.partyId, {
+      subscriptionId: world.subscriptionId,
+      reopenedAt: Date.now(),
+    });
+    const reopened = await world.pack();
+    assert.equal(reopened?.subscriptionCancelConfirmedAt, undefined,
+      "an un-cancelled subscription is still recorded as stopped");
+    assert.equal(reopened?.subscriptionCancelRequestedAt, undefined,
+      "the stale request record survives, so the retry history now describes a stop that was undone");
+    assert.equal(reopened?.subscriptionCancelAttempts, undefined);
+
+    let reAsked = false;
+    const afterReopen = await world.c.commercial.completeInstallments("lead", world.partyId, {
+      subscriptionId: world.subscriptionId,
+      requestStop: async () => { reAsked = true; return { ok: true }; },
+    });
+    assert.equal(afterReopen.status, "requested",
+      "the plan will never ask Stripe to stop again, so it bills past the promised count");
+    assert.equal(reAsked, true);
+
+    // A reopen for a DIFFERENT subscription must not clear this pack's stop.
+    await world.c.commercial.recordSubscriptionCancellation("lead", world.partyId, {
+      subscriptionId: world.subscriptionId,
+      confirmedAt: Date.now(),
+    });
+    await world.c.commercial.recordSubscriptionCancellation("lead", world.partyId, {
+      subscriptionId: "sub_someone_elses",
+      reopenedAt: Date.now(),
+    });
+    assert.ok((await world.pack())?.subscriptionCancelConfirmedAt,
+      "another subscription's reactivation cleared this pack's confirmed stop");
+
+    // An amendment of the wording must not erase the recorded stop.
+    await world.c.commercial.save({
+      partyKind: "lead",
+      partyId: world.partyId,
+      recipientEmail: `${world.partyId}@example.test`,
+      lineItems: [{ description: "Retainer", quantity: 1, unitCents: 20_000 }],
+      taxCents: 0,
+      currency: "gbp",
+      dueAt: Date.now() + 86_400_000,
+      billingCadence: "installments",
+      installmentCount: 2,
+      serviceLevel: "Retainer",
+      agreementTitle: "Agreement",
+      agreementBody: "Revised terms",
+    }, ACTOR);
+    assert.ok((await world.pack())?.subscriptionCancelConfirmedAt);
+    assert.ok((await world.pack())?.subscriptionCancelRequestedAt);
+  });
+
+  test("another subscription's webhook cannot complete this plan", async () => {
+    const world = await installmentPack("lead_installments_foreign", { totalCents: 20_000, installmentCount: 2 });
+    await world.collectInvoice("in_1", 10_000);
+    await world.collectInvoice("in_2", 10_000);
+    let asked = false;
+    const outcome = await world.c.commercial.completeInstallments("lead", world.partyId, {
+      subscriptionId: "sub_someone_else",
+      requestStop: async () => { asked = true; return { ok: true }; },
+    });
+    assert.equal(outcome.status, "not-due");
+    assert.equal(asked, false);
+    await world.c.commercial.recordSubscriptionCancellation("lead", world.partyId, {
+      subscriptionId: "sub_someone_else",
+      confirmedAt: Date.now(),
+    });
+    assert.equal((await world.pack())?.subscriptionCancelConfirmedAt, undefined);
   });
 
   test("a simultaneous invoice edit cannot replace an acknowledged payment", async () => {

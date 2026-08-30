@@ -59,6 +59,10 @@ test("call mode retains consent, recording, notes, outcome and follow-up", () =>
   assert.match(upload, /storePrivateUpload/);
   assert.match(content, /requireRole/);
   assert.match(content, /inbox-calls\/\$\{session\.agencyId\}/);
+  // A mounted recording seeks, so delivery goes through the shared byte-range
+  // contract (206/416) rather than a whole-object 200 — see issues #144.
+  assert.match(content, /privateMediaResponse/);
+  assert.match(content, /request\.headers\.get\("range"\)/);
 });
 
 test("every recorder site negotiates its format through the one shared helper", () => {

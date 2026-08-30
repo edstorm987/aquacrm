@@ -24,6 +24,12 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
+process.env.PORTAL_BACKEND ??= "memory";
+
+import { listPlugins } from "../src/built-ins/runtime/_registry";
+import { isSettingUnwired } from "../src/lib/plugins/unwiredSettings";
+import { AGENCY_SCOPED_SETTINGS_MODULE_IDS } from "../src/lib/chrome/settingsModules";
+
 const TABS = readFileSync("src/app/portal/agency/settings/SettingsTabs.tsx", "utf8");
 
 describe("everything is editable INSIDE Settings", () => {
@@ -119,6 +125,116 @@ describe("the tab list stays honest", () => {
     const ids = [...TABS.matchAll(/\{ id: "([a-z]+)", label:/g)].map(match => match[1]);
     for (const id of ids) {
       assert.ok(union.includes(`"${id}"`), `"${id}" is rendered but missing from TabId`);
+    }
+  });
+});
+
+// ─── The other half of the hub's refusal ──────────────────────────────────
+
+describe("a module the hub refuses to edit is editable where its scope IS clear", () => {
+  // `settingsModules.ts` sends the four `scopePolicy: "client"` modules away
+  // from the agency hub on purpose — an agency-scoped form would write values
+  // the client-scoped read never looks at. That refusal is only honest if the
+  // client workspace actually has the editor.
+  //
+  // It did not. Until 2026-08-30 only `ecommerce` mounted the panel;
+  // `affiliates`, `memberships` and `client-crm` shipped read-only <dl>s that
+  // PRINTED the configured values — client-CRM's went as far as instructing the
+  // operator to "define a schema by setting `install.config.customAttributeSchema`",
+  // a key nothing in the product could write. So the hub said "edit it in the
+  // client workspace" and three of the four had nowhere to do it.
+
+  const CLIENT_SCOPED = ["client-crm", "affiliates", "ecommerce", "memberships"] as const;
+
+  it("the list under test is the same one the hub defers to", () => {
+    // If a module is added to CLIENT_SCOPED_SETTINGS_MODULES and not here, the
+    // hub starts sending people to a page this test never checked.
+    const source = readFileSync("src/lib/chrome/settingsModules.ts", "utf8");
+    const declared = /CLIENT_SCOPED_SETTINGS_MODULES = \[([^\]]+)\]/.exec(source)?.[1] ?? "";
+    const ids = [...declared.matchAll(/"([a-z-]+)"/g)].map(match => match[1]);
+    assert.deepEqual([...ids].sort(), [...CLIENT_SCOPED].sort());
+  });
+
+  for (const pluginId of CLIENT_SCOPED) {
+    it(`${pluginId}'s Settings page mounts the canonical panel, client-scoped`, () => {
+      const page = readFileSync(
+        `src/built-ins/modules/${pluginId}/src/pages/SettingsPage.tsx`,
+        "utf8",
+      );
+      assert.match(
+        page,
+        /import \{ PluginSettingsPanel \} from "@\/components\/workspaces\/PluginSettingsPanel"/,
+        "one editor, many doors — a per-module copy would drift silently",
+      );
+      assert.match(page, /<PluginSettingsPanel initial=\{settings\}/,
+        "the page reads settings but never renders the editor");
+      // The clientId is the whole reason this page exists rather than a hub row.
+      assert.match(page, /clientId=\{props\.clientId\}/,
+        "the panel must post at client scope, or the save lands where the read never looks");
+      assert.match(page, /describePluginSettings\(/);
+      assert.match(page, /clientId: props\.clientId/,
+        "the server read must be client-scoped too, or one client sees another's values");
+    });
+  }
+});
+
+// ─── No agency-scoped module is left with nowhere to be edited ────────────
+
+describe("an agency-scoped module with a working setting has a door in the hub", () => {
+  // The hub list is hand-maintained, so a module can declare a setting the code
+  // genuinely reads and simply never be named — a wired value editable from
+  // nowhere. This derives the obligation instead of trusting the list.
+  //
+  // The rule is deliberately "has at least one WIRED field", not "declares
+  // settings": `public-funnel`, `fulfillment`, `website-editor` and
+  // `leads-pipeline` declare only fields nothing reads, and a cog opening a
+  // panel of "Not connected" controls teaches people that cogs are decoration.
+  // Wire one of theirs and this test starts demanding the row.
+  //
+  // 2026-08-30 (review): `leads-pipeline` was briefly listed on the grounds
+  // that `campaigns.fromName` is read when a blast is composed. It is not — the
+  // module contains no `install.config` read at all, and `fromName` only looked
+  // wired because `lib/integrations/catalog.ts` declares an SMTP credential of
+  // the same id. It is in `UNWIRED_SETTINGS` now, so this test no longer owes
+  // it a row. That is the failure mode this rule is FOR, so it is worth saying
+  // out loud: `isSettingUnwired` is only as good as the sweep behind it.
+
+  it("every agency-scoped module with a wired field is in the hub list", () => {
+    const owed = listPlugins()
+      .filter(plugin => plugin.scopePolicy === "agency")
+      .filter(plugin => (plugin.settings?.groups ?? [])
+        .flatMap(group => group.fields ?? [])
+        .some(field => !isSettingUnwired(plugin.id, field.id)))
+      .map(plugin => plugin.id);
+
+    // Guard the guard: an empty registry, or an `isSettingUnwired` that
+    // answered `true` to everything, would make `owed` empty and the assertion
+    // below pass while proving nothing. Anchored on named modules rather than a
+    // count — the count was `>= 4` until 2026-08-30, and the fourth was
+    // `leads-pipeline`, owed only because of the `fromName` id collision. Three
+    // is the true figure: `agency-hr` is listed in the hub but declares only
+    // unwired fields, so it is not OWED a row by this rule (it has one anyway —
+    // a separate finding, and removing it is a product call, not a test's).
+    for (const anchor of ["agency-finance", "agency-marketing", "email-sender"]) {
+      assert.ok(owed.includes(anchor),
+        `${anchor} reads its own settings, so the derivation must owe it a row — found ${owed.join(", ")}`);
+    }
+    const missing = owed.filter(id => !AGENCY_SCOPED_SETTINGS_MODULE_IDS.includes(id));
+    assert.deepEqual(
+      missing,
+      [],
+      "these modules read a setting nothing can edit — add a row to AGENCY_SCOPED_SETTINGS_MODULES "
+      + "(or wire an editor into the module itself)",
+    );
+  });
+
+  it("every listed module is actually registered, so the row is not silently dropped", () => {
+    // `settings/page.tsx` filters out a null describe. A row for an
+    // unregistered plugin therefore looks like a fix and renders nothing —
+    // `bos-auth-gate` declares `loginPath` and is exactly this case.
+    const registered = new Set(listPlugins().map(plugin => plugin.id));
+    for (const id of AGENCY_SCOPED_SETTINGS_MODULE_IDS) {
+      assert.ok(registered.has(id), `"${id}" is listed in the settings hub but is not a registered plugin`);
     }
   });
 });

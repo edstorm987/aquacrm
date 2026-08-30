@@ -251,10 +251,25 @@ test("a plan the store already holds does not lock the operator out of unrelated
     capital: { ...saved.capital, decisions: [{ ...saved.capital.decisions[0]!, documentId: "legal-minute-2" }] },
   }, "executive_test", null, { expectedRevision: saved.revision });
 
-  // The evidence is removed from the legal register by a different surface, so
-  // the retained plan is now citing a document that is not there through no
-  // act of the person editing objectives.
-  assert.ok(legalDocuments.deleteLegalDocument(agency.id, "legal-minute-2"), "the cited document is gone from the register");
+  // The evidence is gone from the legal register, so the retained plan is now
+  // citing a document that is not there through no act of the person editing
+  // objectives.
+  //
+  // The register no longer LETS that happen on a click — `deleteLegalDocument`
+  // refuses a purge that would strand a citation, and names it:
+  let refused: unknown;
+  try { legalDocuments.deleteLegalDocument(agency.id, "legal-minute-2"); } catch (error) { refused = error; }
+  assert.ok(refused instanceof Error, "a permanent delete of cited evidence was allowed through");
+  assert.match(refused.message, /Approve capital and distribution/,
+    "a permanent delete no longer names the decision it would strand");
+  assert.ok(legalDocuments.getLegalDocument(agency.id, "legal-minute-2"), "a refused delete still removed the row");
+
+  // …but a dangling cite can still arrive from outside this path — data written
+  // before that guard existed, or a restore. That is the state under test here,
+  // so it is seeded at the store rather than pretended into being through an
+  // API that would now refuse it.
+  storage.mutate(state => { delete state.legalDocuments["legal-minute-2"]; });
+  assert.equal(legalDocuments.getLegalDocument(agency.id, "legal-minute-2"), null, "the cited document is gone from the register");
 
   // Every Battle Table editor PUTs the whole profile, so the untouched capital
   // plan rides along. That must not refuse work that has nothing to do with it.

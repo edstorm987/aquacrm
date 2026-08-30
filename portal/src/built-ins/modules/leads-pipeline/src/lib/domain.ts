@@ -102,12 +102,27 @@ export interface CommercialLineItem {
 // provider's reason plus the message id so the send can be retried honestly.
 export type CommercialDeliveryStatus = "queued" | "delivered" | "failed";
 
+/**
+ * Where a payment row actually came from.
+ *
+ * `method` says how the money moved, which is NOT the same question — a human
+ * can record a `stripe` payment by hand from the Stripe dashboard. Only a row
+ * this system wrote from a verified `invoice.paid` webhook is evidence that
+ * Stripe collected an installment, so only `stripe-subscription` counts towards
+ * the installment plan's stop condition.
+ */
+export type CommercialPaymentSource = "manual" | "stripe-checkout" | "stripe-subscription";
+
 export interface CommercialPayment {
   id: string;
   amountCents: number;
   method: CommercialPaymentMethod;
   reference?: string;
   paidAt: number;
+  /** Provenance of the row. Absent on rows written before provenance was stamped. */
+  source?: CommercialPaymentSource;
+  /** The Stripe subscription that collected it — set only on `stripe-subscription` rows. */
+  stripeSubscriptionId?: string;
   /** Stamped only on confirmed receipt delivery. */
   receiptSentAt?: number;
   receiptDeliveryStatus?: CommercialDeliveryStatus;
@@ -187,6 +202,20 @@ export interface CommercialPack {
   stripeCheckoutVersion?: number;
   stripeCheckoutFinancialHash?: string;
   stripeSubscriptionId?: string;
+  /**
+   * The stop lifecycle of an installment subscription.
+   *
+   * "We asked Stripe to stop" and "Stripe stopped" are different facts and are
+   * recorded as different fields. `subscriptionCancelRequestedAt`/`Attempts`
+   * record what this system did, `subscriptionCancelError` retains the exact
+   * refusal so a permanent failure is visible after Stripe's redelivery window
+   * instead of silently expiring, and `subscriptionCancelConfirmedAt` is
+   * stamped ONLY from Stripe's own `customer.subscription.*` confirmation.
+   */
+  subscriptionCancelRequestedAt?: number;
+  subscriptionCancelAttempts?: number;
+  subscriptionCancelError?: string;
+  subscriptionCancelConfirmedAt?: number;
   financeInvoiceId?: string;
   /** Retry handle for the last proposal email, kept for failed attempts too. */
   emailMessageId?: string;
@@ -202,6 +231,29 @@ export interface CommercialPack {
   acceptedContentHash?: string;
   createdAt: number;
   updatedAt: number;
+}
+
+/**
+ * How an installment plan divides the promised total EXACTLY.
+ *
+ * A Stripe subscription bills one fixed recurring price, so a rounded-up
+ * `ceil(total / count)` collected up to `count - 1` cents MORE than the
+ * proposal said — money the customer never agreed to. The allocation is
+ * therefore the same one the client payment plans already use: every
+ * installment is the floor, and the leftover pennies are charged once.
+ *
+ * The invariant this exists to hold: `recurringCents * count + remainderCents`
+ * is exactly `totalCents`, for every total and every count.
+ */
+export function installmentAllocation(
+  pack: Pick<CommercialPack, "billingCadence" | "totalCents" | "installmentCount">,
+): { count: number; recurringCents: number; remainderCents: number } {
+  if (pack.billingCadence !== "installments") {
+    return { count: 1, recurringCents: pack.totalCents, remainderCents: 0 };
+  }
+  const count = Math.max(1, Math.round(pack.installmentCount ?? 2));
+  const recurringCents = Math.floor(pack.totalCents / count);
+  return { count, recurringCents, remainderCents: pack.totalCents - recurringCents * count };
 }
 
 export interface SaveCommercialPackInput {

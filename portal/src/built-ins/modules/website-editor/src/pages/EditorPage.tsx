@@ -48,6 +48,7 @@ import {
   updateSite, type Site,
 } from "../lib/sites";
 import { promoteSiteToGitHub, type PromoteResult } from "../lib/promote";
+import { getState as getContentState, publish as publishContent } from "../lib/content";
 import {
   type Funnel, listFunnels, refreshFunnels, createFunnel, onFunnelsChange,
 } from "../lib/funnels";
@@ -666,6 +667,7 @@ function VisualEditorPageInner() {
                 onPatch={patchSelected}
                 onSave={saveSelected}
                 onRevert={revertSelected}
+                aiAvailable={aiAvailable}
               />
             )}
           </>
@@ -964,16 +966,33 @@ function CodeStage({
 // ── Publish modal ───────────────────────────────────────────────────────────
 //
 // One-click "ship to GitHub". Three steps run in sequence:
-//   1. POST /api/portal/content/<siteId>/publish      — drafts → published
-//   2. POST /api/portal/pages/<siteId>/<pageId>/publish — current editor page
+//   1. POST /api/portal/website-editor/content/publish — drafts → published
+//   2. POST /api/portal/website-editor/pages/publish   — current editor page
 //      (best-effort; ignored if no draft exists)
-//   3. POST /api/portal/promote/<siteId>              — bundles published
+//   3. POST /api/portal/website-editor/promote          — bundles published
 //      overrides + pages + per-site config into a GitHub PR
-// On success the operator sees the PR URL and can click through.
+//
+// ── Two things fixed here on 2026-08-30 (issue #28) ──────────────────────
+//
+// Steps 1 and the diff preload used to call `/api/portal/content/<siteId>`
+// and `/api/portal/content/<siteId>/publish` — legacy top-level paths from the
+// pre-plugin app that this module does not declare and `src/app` does not
+// serve. Publishing therefore 404'd on its first step, and the preview silently
+// caught the failure and showed "no unpublished changes", which reads exactly
+// like a clean tree. Both now go through `lib/content.ts`, the module's own
+// client for the registered `/content/*` handlers.
+//
+// And step 3's server is still the Round-1 stub, which answers
+// `{ ok: true, pending: true }` and opens no pull request. "Pull request
+// opened" was shown for that answer. A pending promote now says so — the
+// content and page publishes really did happen and are reported as such; the
+// PR is named as not raised.
 
 interface PublishPreview {
   changedContentKeys: string[];
   changedPages: Array<{ id: string; slug: string; title: string }>;
+  /** Halves of the diff that could not be read. Named, never shown as empty. */
+  unreadable: string[];
 }
 
 function PublishModal({
@@ -1001,42 +1020,51 @@ function PublishModal({
   }, [phase, onClose]);
 
   // Preload a diff summary so the operator can see what's about to ship.
-  // Fails open: if either request fails, surface an empty preview so the
-  // operator can still publish (the actual publish chain has its own
-  // error reporting).
+  // Publishing stays available if a read fails — but a failed read is SAID,
+  // not shown as an empty diff, because "no unpublished changes" and "could not
+  // find out" are different answers and only one of them is reassuring.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      let changed: string[] = [];
+      const changed: string[] = [];
       let changedPages: PublishPreview["changedPages"] = [];
+      let contentPreviewFailed = false;
+      let pagesPreviewFailed = false;
       try {
-        const contentRes = await fetch(`/api/portal/content/${encodeURIComponent(site.id)}?admin=1`, { cache: "no-store" });
-        if (contentRes.ok) {
-          const contentJson = await contentRes.json() as {
-            draft?: Record<string, { value: string; type: string }>;
-            published?: Record<string, { value: string; type: string }>;
-          };
-          const draft     = contentJson.draft ?? {};
-          const published = contentJson.published ?? {};
-          const all = new Set<string>([...Object.keys(draft), ...Object.keys(published)]);
-          for (const k of all) {
-            const a = draft[k];
-            const b = published[k];
-            if (!a && b) { changed.push(k); continue; }
-            if (a && !b) { changed.push(k); continue; }
-            if (a && b && (a.value !== b.value || a.type !== b.type)) changed.push(k);
-          }
+        const state = await getContentState(site.id);
+        const draft = state.draft ?? {};
+        const published = state.published ?? {};
+        // `publishDraft` empties the draft bucket, so a key only sits in it
+        // because it was edited since the last publish. `setDraftOverrides`
+        // merges without pruning, though, so a key re-typed back to its
+        // published value can linger — hence the value comparison rather than
+        // mere presence.
+        for (const k of Object.keys(draft)) {
+          if (draft[k] !== published[k]) changed.push(k);
         }
-      } catch { /* fall through with empty content list */ }
+      } catch {
+        // Never let a failed read read as "nothing to publish" — that is the
+        // silent-clean-tree the legacy 404 produced for months.
+        contentPreviewFailed = true;
+      }
       try {
         const pagesAll = await listEditorPages(site.id, true);
         changedPages = pagesAll
           .filter(p => JSON.stringify(p.blocks) !== JSON.stringify(p.publishedBlocks ?? []))
           .map(p => ({ id: p.id, slug: p.slug, title: p.title || p.slug }));
-      } catch { /* fall through with empty pages list */ }
+      } catch {
+        pagesPreviewFailed = true;
+      }
 
       if (cancelled) return;
-      setPreview({ changedContentKeys: changed.sort(), changedPages });
+      setPreview({
+        changedContentKeys: changed.sort(),
+        changedPages,
+        unreadable: [
+          ...(contentPreviewFailed ? ["content edits"] : []),
+          ...(pagesPreviewFailed ? ["page blocks"] : []),
+        ],
+      });
     })();
     return () => { cancelled = true; };
   }, [site.id]);
@@ -1045,20 +1073,11 @@ function PublishModal({
     setPhase("running");
     setError(null);
 
-    // 1. Publish content drafts. 409 means no changes — that's fine.
+    // 1. Publish content drafts. An empty draft is not an error — the handler
+    //    republishes the current state and clears the draft bucket.
     setStep("Publishing content drafts…");
     try {
-      const res = await fetch(`/api/portal/content/${encodeURIComponent(site.id)}/publish`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ message }),
-      });
-      if (!res.ok && res.status !== 409) {
-        const body = await res.text();
-        setError(`Content publish failed: ${body.slice(0, 200)}`);
-        setPhase("error");
-        return;
-      }
+      await publishContent(site.id, message || undefined);
     } catch (e) {
       setError(`Content publish failed: ${e instanceof Error ? e.message : String(e)}`);
       setPhase("error");
@@ -1073,8 +1092,9 @@ function PublishModal({
       } catch { /* ignore — promote will still pick up published state */ }
     }
 
-    // 3. Bundle into a GitHub PR.
-    setStep("Opening GitHub pull request…");
+    // 3. Ask the promote endpoint to bundle the published state into a GitHub
+    //    PR. Still the Round-1 stub, so the answer may be `pending`.
+    setStep("Requesting GitHub promote…");
     try {
       const out = await promoteSiteToGitHub(site.id, { message });
       setResult(out);
@@ -1099,15 +1119,21 @@ function PublishModal({
 
         {phase === "idle" && (
           <>
-            <h2 className="font-display text-xl text-brand-cream">Ship {site.name} to GitHub</h2>
+            <h2 className="font-display text-xl text-brand-cream">Publish {site.name}</h2>
 
             {preview === null ? (
               <p className="text-[12px] text-brand-cream/45">Reading current state…</p>
             ) : preview.changedContentKeys.length === 0 && preview.changedPages.length === 0 ? (
-              <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3 text-[12px] text-brand-cream/65">
-                No unpublished changes. Re-shipping anyway will refresh the
-                committed snapshot files (timestamp updates).
-              </div>
+              /* Only a diff that was actually READ can say "nothing pending".
+                 With a half unreadable both lists are empty for a reason that
+                 has nothing to do with the tree being clean, so the clean-tree
+                 line is suppressed and the amber notice below is the answer. */
+              preview.unreadable.length > 0 ? null : (
+                <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3 text-[12px] text-brand-cream/65">
+                  No unpublished changes. Publishing again re-publishes the current
+                  state inside Aqua and records a new snapshot in its history.
+                </div>
+              )
             ) : (
               <div className="rounded-lg border border-cyan-400/15 bg-cyan-500/5 p-3 space-y-2">
                 <p className="text-[11px] tracking-wider uppercase text-cyan-300">Will publish</p>
@@ -1137,12 +1163,22 @@ function PublishModal({
               </div>
             )}
 
+            {preview !== null && preview.unreadable.length > 0 && (
+              /* A read that failed is a blind spot, not a clean tree. */
+              <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                Could not read {preview.unreadable.join(" or ")}, so this preview is incomplete —
+                there may be pending changes it does not show, and its silence is not a clean
+                tree. Publishing still works; it publishes whatever is actually pending on the
+                server.
+              </p>
+            )}
+
             <p className="text-[11px] text-brand-cream/55 leading-relaxed">
-              Opens a pull request with{" "}
+              Publishes your drafts inside Aqua. Bundling{" "}
               <code className="font-mono text-brand-cream/85">portal.overrides.json</code>,{" "}
-              <code className="font-mono text-brand-cream/85">portal.pages.json</code>, and{" "}
-              <code className="font-mono text-brand-cream/85">portal.site.json</code>.
-              Merge to deploy.
+              <code className="font-mono text-brand-cream/85">portal.pages.json</code> and{" "}
+              <code className="font-mono text-brand-cream/85">portal.site.json</code> into a
+              GitHub pull request is not built yet, so nothing will reach your repository.
             </p>
             <label className="block">
               <span className="text-[10px] tracking-wider uppercase text-brand-cream/45">Commit note (optional)</span>
@@ -1167,8 +1203,9 @@ function PublishModal({
               </button>
             </div>
             <p className="text-[10px] text-brand-cream/35 leading-relaxed">
-              GitHub credentials come from <Link href="/admin/portal-settings" className="text-cyan-300 hover:text-cyan-200">Portal settings</Link>.
-              Need to set them? Open that page first.
+              GitHub credentials live in <Link href="/admin/portal-settings" className="text-cyan-300 hover:text-cyan-200">Portal settings</Link>{" "}
+              and will be used once the promote step is built. Setting them now does not make
+              this button reach GitHub.
             </p>
           </>
         )}
@@ -1183,12 +1220,32 @@ function PublishModal({
         {phase === "done" && result?.ok && (
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 flex items-center justify-center text-[12px]">✓</span>
-              <h2 className="font-display text-lg text-brand-cream">Pull request opened</h2>
+              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[12px] ${
+                result.prUrl
+                  ? "bg-emerald-500/15 border border-emerald-400/30 text-emerald-300"
+                  : "bg-amber-500/15 border border-amber-400/30 text-amber-200"
+              }`}>{result.prUrl ? "✓" : "!"}</span>
+              <h2 className="font-display text-lg text-brand-cream">
+                {result.prUrl ? "Pull request opened" : "Published here — no pull request raised"}
+              </h2>
             </div>
-            <p className="text-[12px] text-brand-cream/65">
-              Review and merge to ship. Your host (Vercel et al.) will pick up the new content on the next build.
-            </p>
+            {result.prUrl ? (
+              <p className="text-[12px] text-brand-cream/65">
+                Review and merge to ship. Your host (Vercel et al.) will pick up the new content on the next build.
+              </p>
+            ) : (
+              /* The promote handler is still the Round-1 stub: it accepts the
+                 request and opens nothing. Saying "Pull request opened" for
+                 that answer is a claim of delivery that did not happen — the
+                 operator would go looking for a PR that does not exist. */
+              <p className="text-[12px] text-amber-200/90 leading-relaxed">
+                Your content and page changes were published inside Aqua and are live on the
+                portal. Shipping them to GitHub is not built yet — the promote endpoint accepts
+                the request and opens no pull request, so nothing has reached your repository
+                and there is nothing to merge.
+                {result.note ? <span className="block mt-1 text-brand-cream/45 text-[11px]">{result.note}</span> : null}
+              </p>
+            )}
             {result.prUrl && (
               <a
                 href={result.prUrl}

@@ -112,6 +112,17 @@ export async function deployProjectPreviewToVercel(input: {
   localPath: string;
   projectSlug: string;
   config?: VercelDeploymentConfig;
+  /**
+   * A deployment an unfinished deploy operation already created. It is read back
+   * and reused, so a retry after a lost save does not stack a second preview.
+   */
+  adoptDeploymentId?: string;
+  /**
+   * Durable checkpoint, awaited the moment Vercel answers with a deployment id
+   * and BEFORE this returns to its caller — a save failure then leaves a
+   * reconcilable id rather than an untracked preview.
+   */
+  onDeploymentCreated?: (deployment: VercelPreviewDeployment) => Promise<void> | void;
 }, dependencies: DeployDependencies = {}): Promise<VercelPreviewDeployment> {
   assertLiveProviderAccess("Vercel deployment");
   if (!isProvisionedClientProjectPath(input.localPath)) {
@@ -124,6 +135,32 @@ export async function deployProjectPreviewToVercel(input: {
     ? { token: managed.token, teamId: managed.teamId || undefined }
     : vercelDeploymentConfigFromEnv());
   const fetchImpl = dependencies.fetchImpl ?? fetch;
+
+  if (input.adoptDeploymentId) {
+    const existing = await vercelRequest(
+      fetchImpl,
+      config,
+      `/v13/deployments/${encodeURIComponent(input.adoptDeploymentId)}`,
+      { method: "GET" },
+    );
+    if (existing.ok) {
+      const body = await existing.json().catch(() => ({})) as VercelDeploymentResponse;
+      if (body.id && body.url && body.readyState !== "CANCELED") {
+        const adopted: VercelPreviewDeployment = {
+          deploymentId: body.id,
+          projectName: body.name ?? input.projectSlug,
+          previewUrl: `https://${body.url}`,
+          readyState: body.readyState ?? "QUEUED",
+          createdAt: body.created ?? Date.now(),
+          // Nothing was uploaded on this attempt: the preview already exists.
+          fileCount: 0,
+        };
+        await input.onDeploymentCreated?.(adopted);
+        return adopted;
+      }
+    }
+  }
+
   const files = collectFiles(input.localPath);
 
   for (const file of files) {
@@ -160,7 +197,7 @@ export async function deployProjectPreviewToVercel(input: {
   }
   if (!deployment.id || !deployment.url) throw new Error("Vercel returned an incomplete deployment response.");
 
-  return {
+  const created: VercelPreviewDeployment = {
     deploymentId: deployment.id,
     projectName: deployment.name ?? input.projectSlug,
     previewUrl: `https://${deployment.url}`,
@@ -168,4 +205,7 @@ export async function deployProjectPreviewToVercel(input: {
     createdAt: deployment.created ?? Date.now(),
     fileCount: files.length,
   };
+  // Durable before returning: the deployment exists at Vercel from here on.
+  await input.onDeploymentCreated?.(created);
+  return created;
 }

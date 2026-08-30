@@ -911,6 +911,7 @@ export const PORTAL_STATE_COVERAGE: Readonly<Record<string, CollectionClassifica
   accessGrants: { entity: "resourceEntitlement", plane: "operational", note: "Grants; revoked retained as audit." },
   accessRequests: { entity: "approvalRequest", plane: "operational", note: "pending|approved|denied|cancelled." },
   staffProvisioningOperations: { entity: "staffMember", plane: "operational", note: "Idempotency ledger for staff provisioning." },
+  clientProjectOperations: { entity: "client", plane: "operational", note: "Idempotency ledger for client-website provision/publish/deploy; retries adopt the recorded folder, repository or deployment." },
 
   // CRM people & organisations
   persons: { entity: "person", plane: "operational", note: "Canonical humans with facets + classification history." },

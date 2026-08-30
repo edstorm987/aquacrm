@@ -53,6 +53,28 @@ test("the sweep scheduler wraps the existing builders without new behaviour", ()
   assert.match(sweeps, /export async function runRadarScheduledSweep/);
   assert.match(sweeps, /catch \(error\)/);
   assert.match(sweeps, /radar_sweep_failed/);
+  // …and it is STRICTLY per-tenant: the app-wide Infra probe must not sit inside
+  // the per-agency helper. It did, which made every tenant's daily evidence
+  // rollup depend on a fresh app-wide DB probe succeeding. → issues #131.
+  const scheduled = sweeps.slice(sweeps.indexOf("export async function runRadarScheduledSweep"));
+  assert.doesNotMatch(scheduled.slice(0, scheduled.indexOf("export interface RadarProbeRefreshResult")),
+    /runRadarInfraSweep\(/,
+    "runRadarScheduledSweep runs the app-wide Infra probe per tenant again — N agencies, N DB round-trips, and one probe failure costs every tenant its evidence sample (issues #131)");
+});
+
+test("the taxonomy states the cadence the deployment actually delivers", () => {
+  const sweeps = read("src/engines/data/server/radar/radarSweeps.ts");
+  // Declared intent and shipped schedule are separate fields, because they
+  // disagree today: Evidence declared `cadenceMs: HOUR` while the only thing
+  // that ever rolled it up was the daily cron/inbox tick. → issues #131, #170.
+  assert.match(sweeps, /scheduledCadenceMs: number \| null/);
+  assert.match(sweeps, /evidence:\s*\{[^}]*cadenceMs:\s*HOUR[^}]*scheduledCadenceMs:\s*DAY[^}]*\}/s,
+    "the Evidence rollup must state its real daily schedule alongside the hourly intent");
+  // The Pulse and the compliance subset have no schedule of their own.
+  assert.match(sweeps, /pulse:\s*\{[^}]*scheduledCadenceMs:\s*null[^}]*\}/s);
+  // Deep + Infra ride the daily probe cron until the hosting decision changes.
+  assert.match(sweeps, /deep:\s*\{[^}]*scheduledCadenceMs:\s*DAY[^}]*\}/s);
+  assert.match(sweeps, /infra:\s*\{[^}]*scheduledCadenceMs:\s*DAY[^}]*\}/s);
 });
 
 test("the scan route and cron loop delegate to the sweep scheduler", () => {
@@ -66,6 +88,13 @@ test("the scan route and cron loop delegate to the sweep scheduler", () => {
   assert.match(cron, /runRadarScheduledSweep\(agency\.id\)/);
   assert.match(cron, /radarSweeps\.push\(await runRadarScheduledSweep\(agency\.id\)\)/);
   assert.match(cron, /radarSweeps/);
+  // …and it probes the app-wide Infra sweep ONCE per tick, before the loop and in
+  // its own try/catch — the same shape cron/radar-probes already used. Inside the
+  // loop it was N round-trips and a shared failure. → issues #131.
+  assert.match(cron, /runRadarInfraSweep\(\)/);
+  assert.ok(cron.indexOf("runRadarInfraSweep()") < cron.indexOf("for (const agency"),
+    "the Infra probe moved back inside/after the per-agency loop — it is app-wide and belongs once per tick (issues #131)");
+  assert.match(cron, /radarInfra/);
 });
 
 test("a dedicated probe cron gives the Deep + Infra sweeps a real fast cadence", () => {

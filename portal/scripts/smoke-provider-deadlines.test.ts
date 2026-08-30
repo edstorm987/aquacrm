@@ -181,6 +181,32 @@ test("the commercial handler uses the bounded Stripe client and stable operation
   assert.match(source, /commercial-checkout:/);
   assert.match(source, /commercial-installments-complete:/);
   assert.doesNotMatch(source, /fetch\([^\n]*api\.stripe\.com/);
+
+  // The installment stop is DECIDED by the commercial service, not here — the
+  // handler supplies the provider call and maps the outcome. Its behaviour
+  // (counting, retained refusal, confirm-only-from-Stripe) is driven in
+  // src/built-ins/modules/leads-pipeline/src/__smoke__/leads-pipeline.test.ts;
+  // this pins the wiring that carries it to HTTP.
+  assert.match(source, /commercial\.completeInstallments\(/);
+  assert.match(source, /stop\.status === "refused"\) return json\(\{ ok: false, error: stop\.error \}, 502\)/);
+  assert.match(source, /stop\.status === "unavailable"\) return json\(\{ ok: false, error: stop\.error \}, 503\)/);
+  // "a payment whose method is stripe" is NOT "an installment Stripe collected".
+  assert.doesNotMatch(source, /payments\.filter\([^\n]*method === "stripe"\)/);
+  // A subscription price cannot vary, so the split must be exact, never ceil().
+  assert.match(source, /installmentAllocation\(pack\)/);
+  assert.doesNotMatch(source, /Math\.ceil\(pack\.totalCents/);
+  // The manual entry route must not forward a caller-supplied `source`, or a
+  // request could post itself the provenance of a collected Stripe installment.
+  assert.doesNotMatch(source, /recordPayment\(body\.partyKind, body\.partyId, body,/);
+  assert.match(source, /source: "manual",/);
+  // Only an event that carries money may re-point the pack at a subscription. A
+  // `customer.subscription.*` event can arrive for a SUPERSEDED subscription
+  // (an incomplete first attempt Stripe expires days later); attaching from it
+  // would repoint the pack at the dead one and then stamp its cancellation as
+  // this plan's stop, leaving the live subscription billing past the promised
+  // number while `already-stopped` refuses to ask again.
+  assert.match(source, /if \(subscriptionId && !subscriptionLifecycle\) \{\n\s*await [^\n]*attachStripeSubscription\(/);
+  assert.doesNotMatch(source, /if \(subscriptionId\) \{\n\s*await [^\n]*attachStripeSubscription\(/);
 });
 
 test("OpenAI generation settles on deadline even when the provider adapter ignores cancellation", async () => {

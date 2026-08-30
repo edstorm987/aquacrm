@@ -4345,6 +4345,42 @@ export interface StaffProvisioningOperation {
   completedAt?: number;
 }
 
+export type ClientProjectOperationKind = "provision" | "publish" | "deploy";
+export type ClientProjectOperationStatus = "pending" | "external-created" | "succeeded" | "failed";
+
+/**
+ * Durable checkpoint for one client-website operation that creates something
+ * OUTSIDE AquaCRM — a local git repository, a GitHub repository, a Vercel
+ * deployment — before the client record naming it is durable.
+ *
+ * The intent is written before the external call and the milestone the moment
+ * the external system answers, so a retry after a lost save adopts what already
+ * exists instead of minting a duplicate (a `-2` sibling folder, a second
+ * repository, an untracked preview deployment).
+ */
+export interface ClientProjectOperation {
+  id: string;
+  agencyId: string;
+  clientId: string;
+  kind: ClientProjectOperationKind;
+  status: ClientProjectOperationStatus;
+  propertyId?: string;
+  projectSlug?: string;
+  localPath?: string;
+  initialCommit?: string;
+  repoOwner?: string;
+  repoFullName?: string;
+  repoUrl?: string;
+  cloneUrl?: string;
+  deploymentId?: string;
+  previewUrl?: string;
+  attempts: number;
+  lastError?: string;
+  createdAt: number;
+  updatedAt: number;
+  completedAt?: number;
+}
+
 // ─── PortalState — the single typed object behind storage ─────────────────
 
 export type CustomKpiOp = "ratio" | "rate" | "sum" | "diff";
@@ -4674,6 +4710,9 @@ export interface PortalState {
   peopleChannelReads: Record<string, PeopleChannelRead>;
   peopleTrainingModules: Record<string, PeopleTrainingModule>;
   staffProvisioningOperations: Record<string, StaffProvisioningOperation>;
+  // Durable checkpoints for client-website provision/publish/deploy, so a retry
+  // after a lost save adopts the external thing that already exists.
+  clientProjectOperations: Record<string, ClientProjectOperation>;
   // Durable domain events, recorded atomically with their domain mutation and
   // drained to the in-memory bus. See `server/outbox.ts`.
   outbox: Record<string, OutboxEvent>;

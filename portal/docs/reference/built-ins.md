@@ -50,7 +50,7 @@ One large generated volume for this area. Every source file has an anchored entr
 - `async listAffiliatesHandler(req: Request, ctx: PluginCtx): Promise<Response>` — ─── Affiliates ──────────────────────────────────────────────────────────
 - `async createAffiliateHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async updateAffiliateHandler(req: Request, ctx: PluginCtx): Promise<Response>`
-- `async deleteAffiliateHandler(req: Request, ctx: PluginCtx): Promise<Response>`
+- `async deleteAffiliateHandler(req: Request, ctx: PluginCtx): Promise<Response>` — earned is still Ed's open decision (issues #177/#178).
 - `async listCodesHandler(req: Request, ctx: PluginCtx): Promise<Response>` — ─── Codes ───────────────────────────────────────────────────────────────
 - `async createCodeHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async updateCodeHandler(req: Request, ctx: PluginCtx): Promise<Response>`
@@ -68,9 +68,9 @@ One large generated volume for this area. Every source file has an anchored entr
 - `async meCreateCodeHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async recordOrderHandler(req: Request, ctx: PluginCtx): Promise<Response>` — handler is also reachable via POST /attributions/record.
 
-**Depends on (3):** [`src/built-ins/modules/affiliates/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-affiliates-src-lib-aquaplugintypes-ts-2b0fcd59fe) · [`src/built-ins/modules/affiliates/src/lib/domain.ts`](#file-src-built-ins-modules-affiliates-src-lib-domain-ts-a3d544dd96) · [`src/built-ins/modules/affiliates/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-affiliates-src-server-foundationadapter-ts-1b0d780160)
+**Depends on (4):** [`src/built-ins/modules/affiliates/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-affiliates-src-lib-aquaplugintypes-ts-2b0fcd59fe) · [`src/built-ins/modules/affiliates/src/lib/domain.ts`](#file-src-built-ins-modules-affiliates-src-lib-domain-ts-a3d544dd96) · [`src/built-ins/modules/affiliates/src/server/dependencies.ts`](#file-src-built-ins-modules-affiliates-src-server-dependencies-ts-534e6383d3) · [`src/built-ins/modules/affiliates/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-affiliates-src-server-foundationadapter-ts-1b0d780160)
 
-**Used by (1):** [`src/built-ins/modules/affiliates/src/api/routes.ts`](#file-src-built-ins-modules-affiliates-src-api-routes-ts-7f4070fb34)
+**Used by (2):** [`scripts/smoke-affiliate-dependencies.test.ts`](scripts.md#file-scripts-smoke-affiliate-dependencies-test-ts-14e2c02556) · [`src/built-ins/modules/affiliates/src/api/routes.ts`](#file-src-built-ins-modules-affiliates-src-api-routes-ts-7f4070fb34)
 
 <a id="file-src-built-ins-modules-affiliates-src-api-routes-ts-7f4070fb34"></a>
 
@@ -142,12 +142,12 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (2):**
 
-- `MyAffiliatePanel({ affiliate, codes, attributions, payouts, apiBase }: MyAffiliatePanelProps)`
-- `interface MyAffiliatePanelProps (5 members)`
+- `MyAffiliatePanel({ affiliate, codes, attributions, payouts, apiBase, stripeConnectAvailable, }: MyAffiliatePanelProps)`
+- `interface MyAffiliatePanelProps (6 members)`
 
 **Depends on (2):** [`src/built-ins/modules/affiliates/src/lib/domain.ts`](#file-src-built-ins-modules-affiliates-src-lib-domain-ts-a3d544dd96) · [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1)
 
-**Used by (1):** [`src/built-ins/modules/affiliates/src/pages/MyAffiliatePage.tsx`](#file-src-built-ins-modules-affiliates-src-pages-myaffiliatepage-tsx-ce070fdca9)
+**Used by (2):** [`scripts/smoke-affiliate-payout-ownership.test.ts`](scripts.md#file-scripts-smoke-affiliate-payout-ownership-test-ts-4524d5574c) · [`src/built-ins/modules/affiliates/src/pages/MyAffiliatePage.tsx`](#file-src-built-ins-modules-affiliates-src-pages-myaffiliatepage-tsx-ce070fdca9)
 
 <a id="file-src-built-ins-modules-affiliates-src-components-payoutslist-tsx-056435e833"></a>
 
@@ -155,14 +155,15 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (2):**
+**Exports (3):**
 
-- `PayoutsList({ payouts, affiliates, balances, apiBase, canMutate }: PayoutsListProps)`
-- `interface PayoutsListProps (5 members)`
+- `processViaStripeBlockReason(args: { stripeConnectAvailable: boolean; affiliate: Affiliate | undefined; }): string | null` — Why "Process via Stripe" cannot run, or null when it can. The install-level capability is checked FIRST and separately from the affiliate's onboarding state: an install with no St…
+- `PayoutsList({ payouts, affiliates, balances, apiBase, canMutate, stripeConnectAvailable, }: PayoutsListProps)`
+- `interface PayoutsListProps (6 members)`
 
 **Depends on (2):** [`src/built-ins/modules/affiliates/src/lib/domain.ts`](#file-src-built-ins-modules-affiliates-src-lib-domain-ts-a3d544dd96) · [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1)
 
-**Used by (1):** [`src/built-ins/modules/affiliates/src/pages/PayoutsPage.tsx`](#file-src-built-ins-modules-affiliates-src-pages-payoutspage-tsx-6288b54477)
+**Used by (2):** [`scripts/smoke-affiliate-payout-ownership.test.ts`](scripts.md#file-scripts-smoke-affiliate-payout-ownership-test-ts-4524d5574c) · [`src/built-ins/modules/affiliates/src/pages/PayoutsPage.tsx`](#file-src-built-ins-modules-affiliates-src-pages-payoutspage-tsx-6288b54477)
 
 
 ## `src/built-ins/modules/affiliates/src/lib/`
@@ -199,7 +200,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (2):** [`src/built-ins/modules/affiliates/src/lib/tenancy.ts`](#file-src-built-ins-modules-affiliates-src-lib-tenancy-ts-c6cd4f86ab) · [`src/built-ins/modules/affiliates/src/server/ports.ts`](#file-src-built-ins-modules-affiliates-src-server-ports-ts-725ff423ff)
 
-**Used by (12):** [`src/built-ins/modules/affiliates/index.ts`](#file-src-built-ins-modules-affiliates-index-ts-68c0702721) · [`src/built-ins/modules/affiliates/src/__smoke__/affiliates.test.ts`](#file-src-built-ins-modules-affiliates-src-smoke-affiliates-test-ts-e464cf139b) · [`src/built-ins/modules/affiliates/src/api/handlers.ts`](#file-src-built-ins-modules-affiliates-src-api-handlers-ts-b2da5fb28d) · [`src/built-ins/modules/affiliates/src/api/routes.ts`](#file-src-built-ins-modules-affiliates-src-api-routes-ts-7f4070fb34) · [`src/built-ins/modules/affiliates/src/pages/AffiliatesPage.tsx`](#file-src-built-ins-modules-affiliates-src-pages-affiliatespage-tsx-e8b972b380) · [`src/built-ins/modules/affiliates/src/pages/AttributionsPage.tsx`](#file-src-built-ins-modules-affiliates-src-pages-attributionspage-tsx-d26060a720) · [`src/built-ins/modules/affiliates/src/pages/CodesPage.tsx`](#file-src-built-ins-modules-affiliates-src-pages-codespage-tsx-448e60731f) · [`src/built-ins/modules/affiliates/src/pages/MyAffiliatePage.tsx`](#file-src-built-ins-modules-affiliates-src-pages-myaffiliatepage-tsx-ce070fdca9) · [`src/built-ins/modules/affiliates/src/pages/PayoutsPage.tsx`](#file-src-built-ins-modules-affiliates-src-pages-payoutspage-tsx-6288b54477) · [`src/built-ins/modules/affiliates/src/pages/SettingsPage.tsx`](#file-src-built-ins-modules-affiliates-src-pages-settingspage-tsx-df417c4c18) · [`src/built-ins/modules/affiliates/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-affiliates-src-server-foundationadapter-ts-1b0d780160) · [`src/built-ins/modules/affiliates/src/server/index.ts`](#file-src-built-ins-modules-affiliates-src-server-index-ts-8d6bc6d6e0)
+**Used by (13):** [`scripts/smoke-affiliate-dependencies.test.ts`](scripts.md#file-scripts-smoke-affiliate-dependencies-test-ts-14e2c02556) · [`src/built-ins/modules/affiliates/index.ts`](#file-src-built-ins-modules-affiliates-index-ts-68c0702721) · [`src/built-ins/modules/affiliates/src/__smoke__/affiliates.test.ts`](#file-src-built-ins-modules-affiliates-src-smoke-affiliates-test-ts-e464cf139b) · [`src/built-ins/modules/affiliates/src/api/handlers.ts`](#file-src-built-ins-modules-affiliates-src-api-handlers-ts-b2da5fb28d) · [`src/built-ins/modules/affiliates/src/api/routes.ts`](#file-src-built-ins-modules-affiliates-src-api-routes-ts-7f4070fb34) · [`src/built-ins/modules/affiliates/src/pages/AffiliatesPage.tsx`](#file-src-built-ins-modules-affiliates-src-pages-affiliatespage-tsx-e8b972b380) · [`src/built-ins/modules/affiliates/src/pages/AttributionsPage.tsx`](#file-src-built-ins-modules-affiliates-src-pages-attributionspage-tsx-d26060a720) · [`src/built-ins/modules/affiliates/src/pages/CodesPage.tsx`](#file-src-built-ins-modules-affiliates-src-pages-codespage-tsx-448e60731f) · [`src/built-ins/modules/affiliates/src/pages/MyAffiliatePage.tsx`](#file-src-built-ins-modules-affiliates-src-pages-myaffiliatepage-tsx-ce070fdca9) · [`src/built-ins/modules/affiliates/src/pages/PayoutsPage.tsx`](#file-src-built-ins-modules-affiliates-src-pages-payoutspage-tsx-6288b54477) · [`src/built-ins/modules/affiliates/src/pages/SettingsPage.tsx`](#file-src-built-ins-modules-affiliates-src-pages-settingspage-tsx-df417c4c18) · [`src/built-ins/modules/affiliates/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-affiliates-src-server-foundationadapter-ts-1b0d780160) · [`src/built-ins/modules/affiliates/src/server/index.ts`](#file-src-built-ins-modules-affiliates-src-server-index-ts-8d6bc6d6e0)
 
 <a id="file-src-built-ins-modules-affiliates-src-lib-domain-ts-a3d544dd96"></a>
 
@@ -404,13 +405,13 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ### `src/built-ins/modules/affiliates/src/pages/SettingsPage.tsx`
 
-_No file-level doc-comment; purpose is inferred from the path and exports._
+**What it is:** are different questions.
 
 **Exports (1):**
 
 - `default async SettingsPage(props: PluginPageProps)`
 
-**Depends on (2):** [`src/built-ins/modules/affiliates/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-affiliates-src-lib-aquaplugintypes-ts-2b0fcd59fe) · [`src/built-ins/modules/affiliates/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-affiliates-src-server-foundationadapter-ts-1b0d780160)
+**Depends on (5):** [`src/built-ins/modules/affiliates/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-affiliates-src-lib-aquaplugintypes-ts-2b0fcd59fe) · [`src/built-ins/modules/affiliates/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-affiliates-src-server-foundationadapter-ts-1b0d780160) · [`src/components/workspaces/PluginSettingsPanel.tsx`](components.md#file-src-components-workspaces-pluginsettingspanel-tsx-1ae842fede) · [`src/lib/server/plugins/pluginSettingsAccess.ts`](lib.md#file-src-lib-server-plugins-pluginsettingsaccess-ts-356847ec69) · [`src/lib/server/plugins/pluginSettingsSurface.ts`](lib.md#file-src-lib-server-plugins-pluginsettingssurface-ts-f5a8104127)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -510,7 +511,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (1):** [`src/built-ins/modules/affiliates/src/server/index.ts`](#file-src-built-ins-modules-affiliates-src-server-index-ts-8d6bc6d6e0)
 
-**Used by (1):** [`scripts/smoke-affiliate-dependencies.test.ts`](scripts.md#file-scripts-smoke-affiliate-dependencies-test-ts-14e2c02556)
+**Used by (2):** [`scripts/smoke-affiliate-dependencies.test.ts`](scripts.md#file-scripts-smoke-affiliate-dependencies-test-ts-14e2c02556) · [`src/built-ins/modules/affiliates/src/api/handlers.ts`](#file-src-built-ins-modules-affiliates-src-api-handlers-ts-b2da5fb28d)
 
 <a id="file-src-built-ins-modules-affiliates-src-server-foundationadapter-ts-1b0d780160"></a>
 
@@ -518,21 +519,24 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** reads from `metadata.referralCodeId` the storefront stamps.
 
-**Exports (9):**
+**Exports (12):**
 
 - `registerAffiliatesFoundation(deps: AffiliatesFoundation): void`
 - `clearAffiliatesFoundation(): void`
 - `isFoundationRegistered(): boolean`
 - `requireFoundation(): AffiliatesFoundation`
+- `stripeConnectFor(args: { agencyId: AgencyId; clientId: ClientId; }): StripeConnectPort | null` — The Stripe Connect driver for one client scope, or null when that client has no configured Stripe. Exported so a handler or a page can ask the same question the container asks wit…
+- `isStripeConnectAvailable(args: { agencyId: AgencyId; clientId: ClientId; }): boolean` — Whether automated Stripe Connect payouts are actually available in this scope. Mounted surfaces gate on this so the customer is never offered a "Set up payouts via Stripe" button …
+- `isStripeTransferAvailable(args: { agencyId: AgencyId; clientId: ClientId; }): boolean` — Whether an AUTOMATED PAYOUT can actually complete in this scope. Stricter than {@link isStripeConnectAvailable} by design — see `stripeConnectTransferReady` on the foundation. Gat…
 - `containerFor(args: ContainerForArgs): AffiliatesContainer`
 - `containerWithDeps(args: { agencyId: AgencyId; clientId: ClientId; storage: PluginStorage; tenant: TenantPort; user: UserPort; activity: ActivityLogPort; events: EventBusPort; pluginInstalls: PluginInstallStorePort; ecom…` — containerWithDeps. Lets tests skip the singleton.
 - `_containerFromCtx(args: { agencyId: AgencyId; clientId: ClientId; storage: PluginStorage; }): AffiliatesContainer | null` — registered yet — the manifest's onInstall is best-effort.
-- `interface AffiliatesFoundation (7 members)`
+- `interface AffiliatesFoundation (8 members)`
 - `interface ContainerForArgs (4 members)`
 
 **Depends on (4):** [`src/built-ins/modules/affiliates/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-affiliates-src-lib-aquaplugintypes-ts-2b0fcd59fe) · [`src/built-ins/modules/affiliates/src/lib/tenancy.ts`](#file-src-built-ins-modules-affiliates-src-lib-tenancy-ts-c6cd4f86ab) · [`src/built-ins/modules/affiliates/src/server/index.ts`](#file-src-built-ins-modules-affiliates-src-server-index-ts-8d6bc6d6e0) · [`src/built-ins/modules/affiliates/src/server/ports.ts`](#file-src-built-ins-modules-affiliates-src-server-ports-ts-725ff423ff)
 
-**Used by (10):** [`src/built-ins/modules/affiliates/index.ts`](#file-src-built-ins-modules-affiliates-index-ts-68c0702721) · [`src/built-ins/modules/affiliates/src/__smoke__/affiliates.test.ts`](#file-src-built-ins-modules-affiliates-src-smoke-affiliates-test-ts-e464cf139b) · [`src/built-ins/modules/affiliates/src/api/handlers.ts`](#file-src-built-ins-modules-affiliates-src-api-handlers-ts-b2da5fb28d) · [`src/built-ins/modules/affiliates/src/pages/AffiliatesPage.tsx`](#file-src-built-ins-modules-affiliates-src-pages-affiliatespage-tsx-e8b972b380) · [`src/built-ins/modules/affiliates/src/pages/AttributionsPage.tsx`](#file-src-built-ins-modules-affiliates-src-pages-attributionspage-tsx-d26060a720) · [`src/built-ins/modules/affiliates/src/pages/CodesPage.tsx`](#file-src-built-ins-modules-affiliates-src-pages-codespage-tsx-448e60731f) · [`src/built-ins/modules/affiliates/src/pages/MyAffiliatePage.tsx`](#file-src-built-ins-modules-affiliates-src-pages-myaffiliatepage-tsx-ce070fdca9) · [`src/built-ins/modules/affiliates/src/pages/PayoutsPage.tsx`](#file-src-built-ins-modules-affiliates-src-pages-payoutspage-tsx-6288b54477) · [`src/built-ins/modules/affiliates/src/pages/SettingsPage.tsx`](#file-src-built-ins-modules-affiliates-src-pages-settingspage-tsx-df417c4c18) · [`src/built-ins/modules/affiliates/src/server/index.ts`](#file-src-built-ins-modules-affiliates-src-server-index-ts-8d6bc6d6e0)
+**Used by (12):** [`scripts/smoke-affiliate-dependencies.test.ts`](scripts.md#file-scripts-smoke-affiliate-dependencies-test-ts-14e2c02556) · [`scripts/smoke-affiliate-payout-ownership.test.ts`](scripts.md#file-scripts-smoke-affiliate-payout-ownership-test-ts-4524d5574c) · [`src/built-ins/modules/affiliates/index.ts`](#file-src-built-ins-modules-affiliates-index-ts-68c0702721) · [`src/built-ins/modules/affiliates/src/__smoke__/affiliates.test.ts`](#file-src-built-ins-modules-affiliates-src-smoke-affiliates-test-ts-e464cf139b) · [`src/built-ins/modules/affiliates/src/api/handlers.ts`](#file-src-built-ins-modules-affiliates-src-api-handlers-ts-b2da5fb28d) · [`src/built-ins/modules/affiliates/src/pages/AffiliatesPage.tsx`](#file-src-built-ins-modules-affiliates-src-pages-affiliatespage-tsx-e8b972b380) · [`src/built-ins/modules/affiliates/src/pages/AttributionsPage.tsx`](#file-src-built-ins-modules-affiliates-src-pages-attributionspage-tsx-d26060a720) · [`src/built-ins/modules/affiliates/src/pages/CodesPage.tsx`](#file-src-built-ins-modules-affiliates-src-pages-codespage-tsx-448e60731f) · [`src/built-ins/modules/affiliates/src/pages/MyAffiliatePage.tsx`](#file-src-built-ins-modules-affiliates-src-pages-myaffiliatepage-tsx-ce070fdca9) · [`src/built-ins/modules/affiliates/src/pages/PayoutsPage.tsx`](#file-src-built-ins-modules-affiliates-src-pages-payoutspage-tsx-6288b54477) · [`src/built-ins/modules/affiliates/src/pages/SettingsPage.tsx`](#file-src-built-ins-modules-affiliates-src-pages-settingspage-tsx-df417c4c18) · [`src/built-ins/modules/affiliates/src/server/index.ts`](#file-src-built-ins-modules-affiliates-src-server-index-ts-8d6bc6d6e0)
 
 <a id="file-src-built-ins-modules-affiliates-src-server-index-ts-8d6bc6d6e0"></a>
 
@@ -553,7 +557,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `{ OnboardingService, snapshotToStatus } from "./onboarding"`
 - `{ StartStripeOnboardingArgs, StartStripeOnboardingResult } from "./onboarding"`
 - `{ ActivityLogPort, AffiliateEventName, EcommerceOrderProjection, EcommerceOrdersPort, EventBusPort, ListActivityFilter, LogActivityInput, PluginInstallStorePort, StoragePort, StripeConnectAccountSnapshot, StripeConnectPort, StripeOnboardingStatusValue, TenantPort, UserPort } from "./ports"`
-- `{ registerAffiliatesFoundation, clearAffiliatesFoundation, isFoundationRegistered, requireFoundation, containerFor, containerWithDeps, _containerFromCtx } from "./foundationAdapter"`
+- `{ registerAffiliatesFoundation, clearAffiliatesFoundation, isFoundationRegistered, requireFoundation, containerFor, containerWithDeps, isStripeConnectAvailable, isStripeTransferAvailable, stripeConnectFor, _containerFromCtx } from "./foundationAdapter"`
 - `{ AffiliatesFoundation, ContainerForArgs } from "./foundationAdapter"`
 
 **Depends on (9):** [`src/built-ins/modules/affiliates/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-affiliates-src-lib-aquaplugintypes-ts-2b0fcd59fe) · [`src/built-ins/modules/affiliates/src/lib/tenancy.ts`](#file-src-built-ins-modules-affiliates-src-lib-tenancy-ts-c6cd4f86ab) · [`src/built-ins/modules/affiliates/src/server/affiliates.ts`](#file-src-built-ins-modules-affiliates-src-server-affiliates-ts-ff2053d92d) · [`src/built-ins/modules/affiliates/src/server/attributions.ts`](#file-src-built-ins-modules-affiliates-src-server-attributions-ts-20c6bdc228) · [`src/built-ins/modules/affiliates/src/server/codes.ts`](#file-src-built-ins-modules-affiliates-src-server-codes-ts-1071e2a13f) · [`src/built-ins/modules/affiliates/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-affiliates-src-server-foundationadapter-ts-1b0d780160) · [`src/built-ins/modules/affiliates/src/server/onboarding.ts`](#file-src-built-ins-modules-affiliates-src-server-onboarding-ts-aee6945150) · [`src/built-ins/modules/affiliates/src/server/payouts.ts`](#file-src-built-ins-modules-affiliates-src-server-payouts-ts-d7b8ca8418) · [`src/built-ins/modules/affiliates/src/server/ports.ts`](#file-src-built-ins-modules-affiliates-src-server-ports-ts-725ff423ff)
@@ -1344,7 +1348,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on:** _No internal imports._
 
-**Used by (30):** [`scripts/smoke-finance-accounting-semantics.test.ts`](scripts.md#file-scripts-smoke-finance-accounting-semantics-test-ts-c4a37c37dc) · [`scripts/smoke-finance-budget-control.test.ts`](scripts.md#file-scripts-smoke-finance-budget-control-test-ts-42bd7dec97) · [`scripts/smoke-finance-close-deal.test.ts`](scripts.md#file-scripts-smoke-finance-close-deal-test-ts-3990c09e11) · [`scripts/smoke-finance-commercial-plan-convergence.test.ts`](scripts.md#file-scripts-smoke-finance-commercial-plan-convergence-test-ts-9c06b27992) · [`scripts/smoke-finance-delight-expense.test.ts`](scripts.md#file-scripts-smoke-finance-delight-expense-test-ts-cfc7ee62eb) · [`scripts/smoke-finance-idempotency.test.ts`](scripts.md#file-scripts-smoke-finance-idempotency-test-ts-3fe907cb63) · [`scripts/smoke-finance-operations.test.ts`](scripts.md#file-scripts-smoke-finance-operations-test-ts-e78a44d0fd) · [`scripts/smoke-finance-plan-assignment.test.ts`](scripts.md#file-scripts-smoke-finance-plan-assignment-test-ts-fed2e879fc) · [`scripts/smoke-finance-recurring-occurrence.test.ts`](scripts.md#file-scripts-smoke-finance-recurring-occurrence-test-ts-7b9a40d177) · [`scripts/smoke-finance-refund-ledger.test.ts`](scripts.md#file-scripts-smoke-finance-refund-ledger-test-ts-407d521d99) · [`scripts/smoke-finance-runtime-validation.test.ts`](scripts.md#file-scripts-smoke-finance-runtime-validation-test-ts-e9d8d503cc) · [`scripts/smoke-finance-stripe.test.ts`](scripts.md#file-scripts-smoke-finance-stripe-test-ts-fb2e5939d5) · [`src/built-ins/modules/agency-finance/src/__smoke__/finance.test.ts`](#file-src-built-ins-modules-agency-finance-src-smoke-finance-test-ts-9173d00ca6) · [`src/built-ins/modules/agency-finance/src/components/ExpensesList.tsx`](#file-src-built-ins-modules-agency-finance-src-components-expenseslist-tsx-d934a54e61) · [`src/built-ins/modules/agency-finance/src/components/IncomeSheet.tsx`](#file-src-built-ins-modules-agency-finance-src-components-incomesheet-tsx-a1de000b5e) · [`src/built-ins/modules/agency-finance/src/components/InvoicesList.tsx`](#file-src-built-ins-modules-agency-finance-src-components-invoiceslist-tsx-31caa8acf2) · [`src/built-ins/modules/agency-finance/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-agency-finance-src-lib-aquaplugintypes-ts-9ba9f50217) · [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/server/budgets.ts`](#file-src-built-ins-modules-agency-finance-src-server-budgets-ts-68627fbd45) · [`src/built-ins/modules/agency-finance/src/server/categories.ts`](#file-src-built-ins-modules-agency-finance-src-server-categories-ts-0be5c9df8a) · [`src/built-ins/modules/agency-finance/src/server/expenses.ts`](#file-src-built-ins-modules-agency-finance-src-server-expenses-ts-d9e0a2d7ee) · [`src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-agency-finance-src-server-foundationadapter-ts-e614648c40) · [`src/built-ins/modules/agency-finance/src/server/income.ts`](#file-src-built-ins-modules-agency-finance-src-server-income-ts-c2bed9b4ae) · [`src/built-ins/modules/agency-finance/src/server/index.ts`](#file-src-built-ins-modules-agency-finance-src-server-index-ts-ad7d7dcdb6) · [`src/built-ins/modules/agency-finance/src/server/invoices.ts`](#file-src-built-ins-modules-agency-finance-src-server-invoices-ts-9bb7236640) · [`src/built-ins/modules/agency-finance/src/server/operations.ts`](#file-src-built-ins-modules-agency-finance-src-server-operations-ts-709a74d1a7) · [`src/built-ins/modules/agency-finance/src/server/payments.ts`](#file-src-built-ins-modules-agency-finance-src-server-payments-ts-41e2ea2ab7) · [`src/built-ins/modules/agency-finance/src/server/plans.ts`](#file-src-built-ins-modules-agency-finance-src-server-plans-ts-a69439dacc) · [`src/built-ins/modules/agency-finance/src/server/pnl.ts`](#file-src-built-ins-modules-agency-finance-src-server-pnl-ts-85af791e42) · [`src/built-ins/modules/agency-finance/src/server/ports.ts`](#file-src-built-ins-modules-agency-finance-src-server-ports-ts-915a5d5a35)
+**Used by (31):** [`scripts/smoke-finance-accounting-semantics.test.ts`](scripts.md#file-scripts-smoke-finance-accounting-semantics-test-ts-c4a37c37dc) · [`scripts/smoke-finance-budget-control.test.ts`](scripts.md#file-scripts-smoke-finance-budget-control-test-ts-42bd7dec97) · [`scripts/smoke-finance-close-deal.test.ts`](scripts.md#file-scripts-smoke-finance-close-deal-test-ts-3990c09e11) · [`scripts/smoke-finance-commercial-plan-convergence.test.ts`](scripts.md#file-scripts-smoke-finance-commercial-plan-convergence-test-ts-9c06b27992) · [`scripts/smoke-finance-delight-expense.test.ts`](scripts.md#file-scripts-smoke-finance-delight-expense-test-ts-cfc7ee62eb) · [`scripts/smoke-finance-idempotency.test.ts`](scripts.md#file-scripts-smoke-finance-idempotency-test-ts-3fe907cb63) · [`scripts/smoke-finance-operations.test.ts`](scripts.md#file-scripts-smoke-finance-operations-test-ts-e78a44d0fd) · [`scripts/smoke-finance-plan-assignment.test.ts`](scripts.md#file-scripts-smoke-finance-plan-assignment-test-ts-fed2e879fc) · [`scripts/smoke-finance-recurring-occurrence.test.ts`](scripts.md#file-scripts-smoke-finance-recurring-occurrence-test-ts-7b9a40d177) · [`scripts/smoke-finance-refund-ledger.test.ts`](scripts.md#file-scripts-smoke-finance-refund-ledger-test-ts-407d521d99) · [`scripts/smoke-finance-runtime-validation.test.ts`](scripts.md#file-scripts-smoke-finance-runtime-validation-test-ts-e9d8d503cc) · [`scripts/smoke-finance-stripe.test.ts`](scripts.md#file-scripts-smoke-finance-stripe-test-ts-fb2e5939d5) · [`scripts/smoke-legal-document-dependencies.test.ts`](scripts.md#file-scripts-smoke-legal-document-dependencies-test-ts-4acf172dc2) · [`src/built-ins/modules/agency-finance/src/__smoke__/finance.test.ts`](#file-src-built-ins-modules-agency-finance-src-smoke-finance-test-ts-9173d00ca6) · [`src/built-ins/modules/agency-finance/src/components/ExpensesList.tsx`](#file-src-built-ins-modules-agency-finance-src-components-expenseslist-tsx-d934a54e61) · [`src/built-ins/modules/agency-finance/src/components/IncomeSheet.tsx`](#file-src-built-ins-modules-agency-finance-src-components-incomesheet-tsx-a1de000b5e) · [`src/built-ins/modules/agency-finance/src/components/InvoicesList.tsx`](#file-src-built-ins-modules-agency-finance-src-components-invoiceslist-tsx-31caa8acf2) · [`src/built-ins/modules/agency-finance/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-agency-finance-src-lib-aquaplugintypes-ts-9ba9f50217) · [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/server/budgets.ts`](#file-src-built-ins-modules-agency-finance-src-server-budgets-ts-68627fbd45) · [`src/built-ins/modules/agency-finance/src/server/categories.ts`](#file-src-built-ins-modules-agency-finance-src-server-categories-ts-0be5c9df8a) · [`src/built-ins/modules/agency-finance/src/server/expenses.ts`](#file-src-built-ins-modules-agency-finance-src-server-expenses-ts-d9e0a2d7ee) · [`src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-agency-finance-src-server-foundationadapter-ts-e614648c40) · [`src/built-ins/modules/agency-finance/src/server/income.ts`](#file-src-built-ins-modules-agency-finance-src-server-income-ts-c2bed9b4ae) · [`src/built-ins/modules/agency-finance/src/server/index.ts`](#file-src-built-ins-modules-agency-finance-src-server-index-ts-ad7d7dcdb6) · [`src/built-ins/modules/agency-finance/src/server/invoices.ts`](#file-src-built-ins-modules-agency-finance-src-server-invoices-ts-9bb7236640) · [`src/built-ins/modules/agency-finance/src/server/operations.ts`](#file-src-built-ins-modules-agency-finance-src-server-operations-ts-709a74d1a7) · [`src/built-ins/modules/agency-finance/src/server/payments.ts`](#file-src-built-ins-modules-agency-finance-src-server-payments-ts-41e2ea2ab7) · [`src/built-ins/modules/agency-finance/src/server/plans.ts`](#file-src-built-ins-modules-agency-finance-src-server-plans-ts-a69439dacc) · [`src/built-ins/modules/agency-finance/src/server/pnl.ts`](#file-src-built-ins-modules-agency-finance-src-server-pnl-ts-85af791e42) · [`src/built-ins/modules/agency-finance/src/server/ports.ts`](#file-src-built-ins-modules-agency-finance-src-server-ports-ts-915a5d5a35)
 
 <a id="file-src-built-ins-modules-agency-finance-src-lib-time-ts-0e56d3d596"></a>
 
@@ -1596,7 +1600,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (7):** [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/lib/ids.ts`](#file-src-built-ins-modules-agency-finance-src-lib-ids-ts-fe74c173de) · [`src/built-ins/modules/agency-finance/src/lib/runtimeValidation.ts`](#file-src-built-ins-modules-agency-finance-src-lib-runtimevalidation-ts-bf1019ef4b) · [`src/built-ins/modules/agency-finance/src/lib/tenancy.ts`](#file-src-built-ins-modules-agency-finance-src-lib-tenancy-ts-b0727e7982) · [`src/built-ins/modules/agency-finance/src/lib/time.ts`](#file-src-built-ins-modules-agency-finance-src-lib-time-ts-0e56d3d596) · [`src/built-ins/modules/agency-finance/src/server/ports.ts`](#file-src-built-ins-modules-agency-finance-src-server-ports-ts-915a5d5a35) · [`src/built-ins/modules/agency-finance/src/server/rowIndex.ts`](#file-src-built-ins-modules-agency-finance-src-server-rowindex-ts-cd62f3dd25)
 
-**Used by (5):** [`scripts/smoke-finance-budget-control.test.ts`](scripts.md#file-scripts-smoke-finance-budget-control-test-ts-42bd7dec97) · [`scripts/smoke-finance-operations.test.ts`](scripts.md#file-scripts-smoke-finance-operations-test-ts-e78a44d0fd) · [`src/built-ins/modules/agency-finance/src/server/expenses.ts`](#file-src-built-ins-modules-agency-finance-src-server-expenses-ts-d9e0a2d7ee) · [`src/built-ins/modules/agency-finance/src/server/index.ts`](#file-src-built-ins-modules-agency-finance-src-server-index-ts-ad7d7dcdb6) · [`src/built-ins/modules/agency-finance/src/server/operations.ts`](#file-src-built-ins-modules-agency-finance-src-server-operations-ts-709a74d1a7)
+**Used by (6):** [`scripts/smoke-finance-budget-control.test.ts`](scripts.md#file-scripts-smoke-finance-budget-control-test-ts-42bd7dec97) · [`scripts/smoke-finance-operations.test.ts`](scripts.md#file-scripts-smoke-finance-operations-test-ts-e78a44d0fd) · [`scripts/smoke-legal-document-dependencies.test.ts`](scripts.md#file-scripts-smoke-legal-document-dependencies-test-ts-4acf172dc2) · [`src/built-ins/modules/agency-finance/src/server/expenses.ts`](#file-src-built-ins-modules-agency-finance-src-server-expenses-ts-d9e0a2d7ee) · [`src/built-ins/modules/agency-finance/src/server/index.ts`](#file-src-built-ins-modules-agency-finance-src-server-index-ts-ad7d7dcdb6) · [`src/built-ins/modules/agency-finance/src/server/operations.ts`](#file-src-built-ins-modules-agency-finance-src-server-operations-ts-709a74d1a7)
 
 <a id="file-src-built-ins-modules-agency-finance-src-server-categories-ts-0be5c9df8a"></a>
 
@@ -1764,7 +1768,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (9):** [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/lib/idempotency.ts`](#file-src-built-ins-modules-agency-finance-src-lib-idempotency-ts-1b35d44cd8) · [`src/built-ins/modules/agency-finance/src/lib/ids.ts`](#file-src-built-ins-modules-agency-finance-src-lib-ids-ts-fe74c173de) · [`src/built-ins/modules/agency-finance/src/lib/runtimeValidation.ts`](#file-src-built-ins-modules-agency-finance-src-lib-runtimevalidation-ts-bf1019ef4b) · [`src/built-ins/modules/agency-finance/src/lib/tenancy.ts`](#file-src-built-ins-modules-agency-finance-src-lib-tenancy-ts-b0727e7982) · [`src/built-ins/modules/agency-finance/src/lib/time.ts`](#file-src-built-ins-modules-agency-finance-src-lib-time-ts-0e56d3d596) · [`src/built-ins/modules/agency-finance/src/server/budgets.ts`](#file-src-built-ins-modules-agency-finance-src-server-budgets-ts-68627fbd45) · [`src/built-ins/modules/agency-finance/src/server/ports.ts`](#file-src-built-ins-modules-agency-finance-src-server-ports-ts-915a5d5a35) · [`src/built-ins/modules/agency-finance/src/server/rowIndex.ts`](#file-src-built-ins-modules-agency-finance-src-server-rowindex-ts-cd62f3dd25)
 
-**Used by (2):** [`scripts/smoke-finance-operations.test.ts`](scripts.md#file-scripts-smoke-finance-operations-test-ts-e78a44d0fd) · [`src/built-ins/modules/agency-finance/src/server/index.ts`](#file-src-built-ins-modules-agency-finance-src-server-index-ts-ad7d7dcdb6)
+**Used by (3):** [`scripts/smoke-finance-operations.test.ts`](scripts.md#file-scripts-smoke-finance-operations-test-ts-e78a44d0fd) · [`scripts/smoke-legal-document-dependencies.test.ts`](scripts.md#file-scripts-smoke-legal-document-dependencies-test-ts-4acf172dc2) · [`src/built-ins/modules/agency-finance/src/server/index.ts`](#file-src-built-ins-modules-agency-finance-src-server-index-ts-ad7d7dcdb6)
 
 <a id="file-src-built-ins-modules-agency-finance-src-server-payments-ts-41e2ea2ab7"></a>
 
@@ -1787,7 +1791,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
     - `async recordRefund(actor: UserId, input: CreateRefundInput): Promise<{ refund: Refund; payment: Payment; invoice: Invoice | null; deduped: boolean; }>`
     - `async reconcileCumulativeRefund(actor: UserId, input: { externalRef: string; totalRefundedCents: number; providerId: string; providerEventId?: string; refundedAt?: number; reason?: string; }): Promise<{ refund: Refund |…`
     - `async listDisputes(): Promise<PaymentDispute[]>`
-    - `async markDisputed(externalRef: string | undefined, actor: UserId, input: { providerId?: string; providerEventId?: string; amountCents?: number; openedAt?: number; } = {}): Promise<Payment | null>`
+    - `async markDisputed(externalRef: string | undefined, actor: UserId, input: { providerId?: string; providerEventId?: string; amountCents?: number; openedAt?: number; } = {}): Promise<{ payment: Payment; deduped: boolean }…`
     - `async record(actor: UserId, input: CreatePaymentInput): Promise<{ payment: Payment; invoice: Invoice; settled: boolean; deduped: boolean }>`
 
 **Depends on (9):** [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/lib/idempotency.ts`](#file-src-built-ins-modules-agency-finance-src-lib-idempotency-ts-1b35d44cd8) · [`src/built-ins/modules/agency-finance/src/lib/paymentAllocation.ts`](#file-src-built-ins-modules-agency-finance-src-lib-paymentallocation-ts-48a646bd87) · [`src/built-ins/modules/agency-finance/src/lib/runtimeValidation.ts`](#file-src-built-ins-modules-agency-finance-src-lib-runtimevalidation-ts-bf1019ef4b) · [`src/built-ins/modules/agency-finance/src/lib/tenancy.ts`](#file-src-built-ins-modules-agency-finance-src-lib-tenancy-ts-b0727e7982) · [`src/built-ins/modules/agency-finance/src/lib/time.ts`](#file-src-built-ins-modules-agency-finance-src-lib-time-ts-0e56d3d596) · [`src/built-ins/modules/agency-finance/src/server/invoices.ts`](#file-src-built-ins-modules-agency-finance-src-server-invoices-ts-9bb7236640) · [`src/built-ins/modules/agency-finance/src/server/ports.ts`](#file-src-built-ins-modules-agency-finance-src-server-ports-ts-915a5d5a35) · [`src/built-ins/modules/agency-finance/src/server/rowIndex.ts`](#file-src-built-ins-modules-agency-finance-src-server-rowindex-ts-cd62f3dd25)
@@ -1856,7 +1860,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (2):** [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/lib/tenancy.ts`](#file-src-built-ins-modules-agency-finance-src-lib-tenancy-ts-b0727e7982)
 
-**Used by (26):** [`scripts/smoke-client-journey.test.ts`](scripts.md#file-scripts-smoke-client-journey-test-ts-4687798ba0) · [`scripts/smoke-finance-accounting-semantics.test.ts`](scripts.md#file-scripts-smoke-finance-accounting-semantics-test-ts-c4a37c37dc) · [`scripts/smoke-finance-budget-control.test.ts`](scripts.md#file-scripts-smoke-finance-budget-control-test-ts-42bd7dec97) · [`scripts/smoke-finance-close-deal.test.ts`](scripts.md#file-scripts-smoke-finance-close-deal-test-ts-3990c09e11) · [`scripts/smoke-finance-commercial-plan-convergence.test.ts`](scripts.md#file-scripts-smoke-finance-commercial-plan-convergence-test-ts-9c06b27992) · [`scripts/smoke-finance-delight-expense.test.ts`](scripts.md#file-scripts-smoke-finance-delight-expense-test-ts-cfc7ee62eb) · [`scripts/smoke-finance-idempotency.test.ts`](scripts.md#file-scripts-smoke-finance-idempotency-test-ts-3fe907cb63) · [`scripts/smoke-finance-operations.test.ts`](scripts.md#file-scripts-smoke-finance-operations-test-ts-e78a44d0fd) · [`scripts/smoke-finance-plan-assignment.test.ts`](scripts.md#file-scripts-smoke-finance-plan-assignment-test-ts-fed2e879fc) · [`scripts/smoke-finance-recurring-occurrence.test.ts`](scripts.md#file-scripts-smoke-finance-recurring-occurrence-test-ts-7b9a40d177) · [`scripts/smoke-finance-refund-ledger.test.ts`](scripts.md#file-scripts-smoke-finance-refund-ledger-test-ts-407d521d99) · [`scripts/smoke-finance-runtime-validation.test.ts`](scripts.md#file-scripts-smoke-finance-runtime-validation-test-ts-e9d8d503cc) · [`scripts/smoke-finance-stripe.test.ts`](scripts.md#file-scripts-smoke-finance-stripe-test-ts-fb2e5939d5) · [`src/built-ins/modules/agency-finance/src/__smoke__/finance.test.ts`](#file-src-built-ins-modules-agency-finance-src-smoke-finance-test-ts-9173d00ca6) · [`src/built-ins/modules/agency-finance/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-agency-finance-src-lib-aquaplugintypes-ts-9ba9f50217) · [`src/built-ins/modules/agency-finance/src/server/budgets.ts`](#file-src-built-ins-modules-agency-finance-src-server-budgets-ts-68627fbd45) · [`src/built-ins/modules/agency-finance/src/server/categories.ts`](#file-src-built-ins-modules-agency-finance-src-server-categories-ts-0be5c9df8a) · [`src/built-ins/modules/agency-finance/src/server/expenses.ts`](#file-src-built-ins-modules-agency-finance-src-server-expenses-ts-d9e0a2d7ee) · [`src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-agency-finance-src-server-foundationadapter-ts-e614648c40) · [`src/built-ins/modules/agency-finance/src/server/income.ts`](#file-src-built-ins-modules-agency-finance-src-server-income-ts-c2bed9b4ae) · [`src/built-ins/modules/agency-finance/src/server/index.ts`](#file-src-built-ins-modules-agency-finance-src-server-index-ts-ad7d7dcdb6) · [`src/built-ins/modules/agency-finance/src/server/invoices.ts`](#file-src-built-ins-modules-agency-finance-src-server-invoices-ts-9bb7236640) · [`src/built-ins/modules/agency-finance/src/server/operations.ts`](#file-src-built-ins-modules-agency-finance-src-server-operations-ts-709a74d1a7) · [`src/built-ins/modules/agency-finance/src/server/payments.ts`](#file-src-built-ins-modules-agency-finance-src-server-payments-ts-41e2ea2ab7) · [`src/built-ins/modules/agency-finance/src/server/plans.ts`](#file-src-built-ins-modules-agency-finance-src-server-plans-ts-a69439dacc) · [`src/built-ins/modules/agency-finance/src/server/rowIndex.ts`](#file-src-built-ins-modules-agency-finance-src-server-rowindex-ts-cd62f3dd25)
+**Used by (27):** [`scripts/smoke-client-journey.test.ts`](scripts.md#file-scripts-smoke-client-journey-test-ts-4687798ba0) · [`scripts/smoke-finance-accounting-semantics.test.ts`](scripts.md#file-scripts-smoke-finance-accounting-semantics-test-ts-c4a37c37dc) · [`scripts/smoke-finance-budget-control.test.ts`](scripts.md#file-scripts-smoke-finance-budget-control-test-ts-42bd7dec97) · [`scripts/smoke-finance-close-deal.test.ts`](scripts.md#file-scripts-smoke-finance-close-deal-test-ts-3990c09e11) · [`scripts/smoke-finance-commercial-plan-convergence.test.ts`](scripts.md#file-scripts-smoke-finance-commercial-plan-convergence-test-ts-9c06b27992) · [`scripts/smoke-finance-delight-expense.test.ts`](scripts.md#file-scripts-smoke-finance-delight-expense-test-ts-cfc7ee62eb) · [`scripts/smoke-finance-idempotency.test.ts`](scripts.md#file-scripts-smoke-finance-idempotency-test-ts-3fe907cb63) · [`scripts/smoke-finance-operations.test.ts`](scripts.md#file-scripts-smoke-finance-operations-test-ts-e78a44d0fd) · [`scripts/smoke-finance-plan-assignment.test.ts`](scripts.md#file-scripts-smoke-finance-plan-assignment-test-ts-fed2e879fc) · [`scripts/smoke-finance-recurring-occurrence.test.ts`](scripts.md#file-scripts-smoke-finance-recurring-occurrence-test-ts-7b9a40d177) · [`scripts/smoke-finance-refund-ledger.test.ts`](scripts.md#file-scripts-smoke-finance-refund-ledger-test-ts-407d521d99) · [`scripts/smoke-finance-runtime-validation.test.ts`](scripts.md#file-scripts-smoke-finance-runtime-validation-test-ts-e9d8d503cc) · [`scripts/smoke-finance-stripe.test.ts`](scripts.md#file-scripts-smoke-finance-stripe-test-ts-fb2e5939d5) · [`scripts/smoke-legal-document-dependencies.test.ts`](scripts.md#file-scripts-smoke-legal-document-dependencies-test-ts-4acf172dc2) · [`src/built-ins/modules/agency-finance/src/__smoke__/finance.test.ts`](#file-src-built-ins-modules-agency-finance-src-smoke-finance-test-ts-9173d00ca6) · [`src/built-ins/modules/agency-finance/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-agency-finance-src-lib-aquaplugintypes-ts-9ba9f50217) · [`src/built-ins/modules/agency-finance/src/server/budgets.ts`](#file-src-built-ins-modules-agency-finance-src-server-budgets-ts-68627fbd45) · [`src/built-ins/modules/agency-finance/src/server/categories.ts`](#file-src-built-ins-modules-agency-finance-src-server-categories-ts-0be5c9df8a) · [`src/built-ins/modules/agency-finance/src/server/expenses.ts`](#file-src-built-ins-modules-agency-finance-src-server-expenses-ts-d9e0a2d7ee) · [`src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-agency-finance-src-server-foundationadapter-ts-e614648c40) · [`src/built-ins/modules/agency-finance/src/server/income.ts`](#file-src-built-ins-modules-agency-finance-src-server-income-ts-c2bed9b4ae) · [`src/built-ins/modules/agency-finance/src/server/index.ts`](#file-src-built-ins-modules-agency-finance-src-server-index-ts-ad7d7dcdb6) · [`src/built-ins/modules/agency-finance/src/server/invoices.ts`](#file-src-built-ins-modules-agency-finance-src-server-invoices-ts-9bb7236640) · [`src/built-ins/modules/agency-finance/src/server/operations.ts`](#file-src-built-ins-modules-agency-finance-src-server-operations-ts-709a74d1a7) · [`src/built-ins/modules/agency-finance/src/server/payments.ts`](#file-src-built-ins-modules-agency-finance-src-server-payments-ts-41e2ea2ab7) · [`src/built-ins/modules/agency-finance/src/server/plans.ts`](#file-src-built-ins-modules-agency-finance-src-server-plans-ts-a69439dacc) · [`src/built-ins/modules/agency-finance/src/server/rowIndex.ts`](#file-src-built-ins-modules-agency-finance-src-server-rowindex-ts-cd62f3dd25)
 
 <a id="file-src-built-ins-modules-agency-finance-src-server-reports-ts-62ac84c815"></a>
 
@@ -2590,14 +2594,15 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (7):**
+**Exports (8):**
 
-- `async withMarketingRecordLock<T>(agencyId: string, collection: string, work: () => Promise<T>): Promise<T>`
+- `async withMarketingRecordLock<T>(ctx: MarketingLockContext, collection: string, work: () => Promise<T>): Promise<T>`
 - `async listMarketingRecords<T extends { id: string }>(config: MarketingRecordStorage<T>): Promise<T[]>`
 - `async getMarketingRecord<T extends { id: string }>(config: MarketingRecordStorage<T>, id: string): Promise<T | null>`
 - `async setMarketingRecord<T extends { id: string }>(config: MarketingRecordStorage<T>, row: T): Promise<void>`
 - `async deleteMarketingRecord<T extends { id: string }>(config: MarketingRecordStorage<T>, id: string): Promise<void>`
 - `nextRecordVersion(previous: number): number`
+- `interface MarketingLockContext (2 members)`
 - `interface MarketingRecordStorage<T extends { id: string }> (4 members)`
 
 **Depends on (1):** [`src/built-ins/modules/agency-marketing/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-agency-marketing-src-lib-aquaplugintypes-ts-e7a4c4e8ae)
@@ -3798,13 +3803,13 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ### `src/built-ins/modules/client-crm/src/pages/SettingsPage.tsx`
 
-_No file-level doc-comment; purpose is inferred from the path and exports._
+**What it is:** textarea that quietly swallows JSON.
 
 **Exports (1):**
 
 - `default async SettingsPage(props: PluginPageProps)`
 
-**Depends on (2):** [`src/built-ins/modules/client-crm/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-client-crm-src-lib-aquaplugintypes-ts-283533f57f) · [`src/built-ins/modules/client-crm/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-client-crm-src-server-foundationadapter-ts-661f8db302)
+**Depends on (5):** [`src/built-ins/modules/client-crm/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-client-crm-src-lib-aquaplugintypes-ts-283533f57f) · [`src/built-ins/modules/client-crm/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-client-crm-src-server-foundationadapter-ts-661f8db302) · [`src/components/workspaces/PluginSettingsPanel.tsx`](components.md#file-src-components-workspaces-pluginsettingspanel-tsx-1ae842fede) · [`src/lib/server/plugins/pluginSettingsAccess.ts`](lib.md#file-src-lib-server-plugins-pluginsettingsaccess-ts-356847ec69) · [`src/lib/server/plugins/pluginSettingsSurface.ts`](lib.md#file-src-lib-server-plugins-pluginsettingssurface-ts-f5a8104127)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -4690,11 +4695,12 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** The plugin manifest's setup wizard collects these on first install.
 
-**Exports (11):**
+**Exports (12):**
 
 - `async createCheckoutSession(keys: StripeKeys, input: CheckoutSessionInput): Promise<CheckoutSessionResult>`
 - `async constructWebhookEvent(keys: StripeKeys, rawBody: string, signature: string): Promise<unknown>` — Verify and parse an incoming webhook. Throws on signature mismatch.
 - `async createBillingPortalSession(keys: StripeKeys, input: BillingPortalInput): Promise<BillingPortalResult>`
+- `tryReadStripeKeysFromInstall(config: Record<string, unknown> | null | undefined): StripeKeys | null` — The Stripe keys on an install's *effective* config, or **null** when there is no usable secret key. Null — not a throw, and never a stub — is what lets a caller ask "does this cli…
 - `readStripeKeysFromInstall(config: Record<string, unknown>): StripeKeys`
 - `interface StripeKeys (2 members)`
 - `interface StripeLineItem (6 members)`
@@ -5291,7 +5297,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on (8):** [`src/built-ins/modules/email-sender/src/api/handlers.ts`](#file-src-built-ins-modules-email-sender-src-api-handlers-ts-103f6a498c) · [`src/built-ins/modules/email-sender/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-email-sender-src-lib-aquaplugintypes-ts-f756e7c435) · [`src/built-ins/modules/email-sender/src/lib/domain.ts`](#file-src-built-ins-modules-email-sender-src-lib-domain-ts-86c3b3b8a6) · [`src/built-ins/modules/email-sender/src/lib/tenancy.ts`](#file-src-built-ins-modules-email-sender-src-lib-tenancy-ts-40262249aa) · [`src/built-ins/modules/email-sender/src/server/drivers/index.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-index-ts-d560aeeed7) · [`src/built-ins/modules/email-sender/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-email-sender-src-server-foundationadapter-ts-1889ff7cf0) · [`src/built-ins/modules/email-sender/src/server/health.ts`](#file-src-built-ins-modules-email-sender-src-server-health-ts-6083b8a5b2) · [`src/built-ins/modules/email-sender/src/server/ports.ts`](#file-src-built-ins-modules-email-sender-src-server-ports-ts-d83f489d16)
+**Depends on (10):** [`src/built-ins/modules/email-sender/src/api/handlers.ts`](#file-src-built-ins-modules-email-sender-src-api-handlers-ts-103f6a498c) · [`src/built-ins/modules/email-sender/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-email-sender-src-lib-aquaplugintypes-ts-f756e7c435) · [`src/built-ins/modules/email-sender/src/lib/domain.ts`](#file-src-built-ins-modules-email-sender-src-lib-domain-ts-86c3b3b8a6) · [`src/built-ins/modules/email-sender/src/lib/tenancy.ts`](#file-src-built-ins-modules-email-sender-src-lib-tenancy-ts-40262249aa) · [`src/built-ins/modules/email-sender/src/server/drivers/index.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-index-ts-d560aeeed7) · [`src/built-ins/modules/email-sender/src/server/drivers/postmark.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-postmark-ts-61f9e25b51) · [`src/built-ins/modules/email-sender/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-email-sender-src-server-foundationadapter-ts-1889ff7cf0) · [`src/built-ins/modules/email-sender/src/server/health.ts`](#file-src-built-ins-modules-email-sender-src-server-health-ts-6083b8a5b2) · [`src/built-ins/modules/email-sender/src/server/identities.ts`](#file-src-built-ins-modules-email-sender-src-server-identities-ts-75d1b791e3) · [`src/built-ins/modules/email-sender/src/server/ports.ts`](#file-src-built-ins-modules-email-sender-src-server-ports-ts-d83f489d16)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -5324,14 +5330,14 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async listIdentitiesHandler(req: Request, ctx: PluginCtx): Promise<Response>` — ─── Identities (admin) ──────────────────────────────────────────────────
 - `async createIdentityHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async updateIdentityHandler(req: Request, ctx: PluginCtx): Promise<Response>`
-- `async verifyIdentityHandler(req: Request, ctx: PluginCtx): Promise<Response>`
-- `async getProviderHandler(req: Request, ctx: PluginCtx): Promise<Response>` — ─── Provider config (admin) ─────────────────────────────────────────────
+- `async verifyIdentityHandler(req: Request, ctx: PluginCtx): Promise<Response>` — the caller must not be able to read "we asked and were told no" as success.
+- `async getProviderHandler(req: Request, ctx: PluginCtx): Promise<Response>` — one" rather than "here it is again".
 - `async updateProviderHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async testSendHandler(req: Request, ctx: PluginCtx): Promise<Response>` — ─── Test send (admin) ───────────────────────────────────────────────────
 - `async postmarkWebhookHandler(req: Request, ctx: PluginCtx): Promise<Response>` — ─── Webhook (public, no auth — provider signs) ──────────────────────────
 - `async internalEnqueueHandler(req: Request, ctx: PluginCtx): Promise<Response>` — ─── Internal enqueue (plugin-to-plugin via foundation routing) ──────────
 
-**Depends on (4):** [`src/built-ins/modules/email-sender/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-email-sender-src-lib-aquaplugintypes-ts-f756e7c435) · [`src/built-ins/modules/email-sender/src/lib/domain.ts`](#file-src-built-ins-modules-email-sender-src-lib-domain-ts-86c3b3b8a6) · [`src/built-ins/modules/email-sender/src/server/delivery.ts`](#file-src-built-ins-modules-email-sender-src-server-delivery-ts-bf2e19a271) · [`src/built-ins/modules/email-sender/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-email-sender-src-server-foundationadapter-ts-1889ff7cf0)
+**Depends on (5):** [`src/built-ins/modules/email-sender/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-email-sender-src-lib-aquaplugintypes-ts-f756e7c435) · [`src/built-ins/modules/email-sender/src/lib/domain.ts`](#file-src-built-ins-modules-email-sender-src-lib-domain-ts-86c3b3b8a6) · [`src/built-ins/modules/email-sender/src/server/delivery.ts`](#file-src-built-ins-modules-email-sender-src-server-delivery-ts-bf2e19a271) · [`src/built-ins/modules/email-sender/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-email-sender-src-server-foundationadapter-ts-1889ff7cf0) · [`src/built-ins/modules/email-sender/src/server/provider.ts`](#file-src-built-ins-modules-email-sender-src-server-provider-ts-4d7c6a58a3)
 
 **Used by (2):** [`src/built-ins/modules/email-sender/src/__smoke__/email-sender.test.ts`](#file-src-built-ins-modules-email-sender-src-smoke-email-sender-test-ts-c954269146) · [`src/built-ins/modules/email-sender/src/api/routes.ts`](#file-src-built-ins-modules-email-sender-src-api-routes-ts-d09f0da0c7)
 
@@ -5391,19 +5397,21 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** on individual messages via `clientId`.
 
-**Exports (27):**
+**Exports (29):**
 
 - `EMAIL_DELIVERY_DISABLED_REASON = "Email delivery is disabled because no provider is configured. The message remains queued."`
 - `type ProviderKind = "postmark" | "sendgrid" | "resend" | "smtp" | "none"` — ─── Provider ────────────────────────────────────────────────────────────
 - `type ProviderStatus = "active" | "unconfigured" | "error"`
+- `type PublicProviderConfig = Omit<ProviderConfig, "webhookSecret"> & { webhookSecretMasked?: string; }` — `ProviderConfig` as anything outside the server may see it. The send token and the account token were already masked on the row, but the webhook signing secret was not: it sat on …
 - `type SenderIdentityStatus = "active" | "pending" | "failed"` — ─── Sender identity ─────────────────────────────────────────────────────
+- `type IdentityVerification = | { verified: true; evidence: string } | { verified: false; reason: string }` — What a driver answers when asked to confirm a sender address.
 - `type EmailStatus = "queued" | "sending" | "sent" | "failed" | "bounced"` — ─── EmailMessage ────────────────────────────────────────────────────────
 - `type WebhookEventKind = "Delivery" | "Bounce" | "SpamComplaint" | "Open"` — ─── Webhook event ───────────────────────────────────────────────────────
 - `type SubscribedEventName = | "forms.notification.requested" | "membership.subscription_changed" | "affiliate.payout_completed" | "auth.bootstrap.signup"` — shape is plain data so the registry can inspect without invoking.
-- `interface ProviderConfig (10 members)`
-- `interface UpdateProviderInput (5 members)`
+- `interface ProviderConfig (11 members)`
+- `interface UpdateProviderInput (6 members)`
 - `interface SmtpConfig (4 members)` — (so PROVIDER_API_KEY = SMTP password when provider === "smtp").
-- `interface SenderIdentity (10 members)`
+- `interface SenderIdentity (13 members)`
 - `interface CreateIdentityInput (4 members)`
 - `interface UpdateIdentityPatch (4 members)`
 - `interface EmailAttachment (3 members)`
@@ -5423,7 +5431,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (1):** [`src/built-ins/modules/email-sender/src/lib/tenancy.ts`](#file-src-built-ins-modules-email-sender-src-lib-tenancy-ts-40262249aa)
 
-**Used by (16):** [`src/built-ins/modules/email-sender/src/__smoke__/email-sender.test.ts`](#file-src-built-ins-modules-email-sender-src-smoke-email-sender-test-ts-c954269146) · [`src/built-ins/modules/email-sender/src/__smoke__/smtp-driver.test.ts`](#file-src-built-ins-modules-email-sender-src-smoke-smtp-driver-test-ts-85079b6968) · [`src/built-ins/modules/email-sender/src/api/handlers.ts`](#file-src-built-ins-modules-email-sender-src-api-handlers-ts-103f6a498c) · [`src/built-ins/modules/email-sender/src/server/delivery.ts`](#file-src-built-ins-modules-email-sender-src-server-delivery-ts-bf2e19a271) · [`src/built-ins/modules/email-sender/src/server/drivers/index.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-index-ts-d560aeeed7) · [`src/built-ins/modules/email-sender/src/server/drivers/noop.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-noop-ts-562c641f7b) · [`src/built-ins/modules/email-sender/src/server/drivers/postmark.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-postmark-ts-61f9e25b51) · [`src/built-ins/modules/email-sender/src/server/drivers/smtp.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-smtp-ts-51c25e94b8) · [`src/built-ins/modules/email-sender/src/server/emails.ts`](#file-src-built-ins-modules-email-sender-src-server-emails-ts-aec3ac0c79) · [`src/built-ins/modules/email-sender/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-email-sender-src-server-foundationadapter-ts-1889ff7cf0) · [`src/built-ins/modules/email-sender/src/server/health.ts`](#file-src-built-ins-modules-email-sender-src-server-health-ts-6083b8a5b2) · [`src/built-ins/modules/email-sender/src/server/identities.ts`](#file-src-built-ins-modules-email-sender-src-server-identities-ts-75d1b791e3) · [`src/built-ins/modules/email-sender/src/server/index.ts`](#file-src-built-ins-modules-email-sender-src-server-index-ts-7639c339f5) · [`src/built-ins/modules/email-sender/src/server/ports.ts`](#file-src-built-ins-modules-email-sender-src-server-ports-ts-d83f489d16) · [`src/built-ins/modules/email-sender/src/server/provider.ts`](#file-src-built-ins-modules-email-sender-src-server-provider-ts-4d7c6a58a3) · [`src/built-ins/modules/email-sender/src/server/webhook.ts`](#file-src-built-ins-modules-email-sender-src-server-webhook-ts-420e6f3bdc)
+**Used by (17):** [`src/built-ins/modules/email-sender/src/__smoke__/email-sender.test.ts`](#file-src-built-ins-modules-email-sender-src-smoke-email-sender-test-ts-c954269146) · [`src/built-ins/modules/email-sender/src/__smoke__/smtp-driver.test.ts`](#file-src-built-ins-modules-email-sender-src-smoke-smtp-driver-test-ts-85079b6968) · [`src/built-ins/modules/email-sender/src/api/handlers.ts`](#file-src-built-ins-modules-email-sender-src-api-handlers-ts-103f6a498c) · [`src/built-ins/modules/email-sender/src/pages/SettingsClient.tsx`](#file-src-built-ins-modules-email-sender-src-pages-settingsclient-tsx-d80561787d) · [`src/built-ins/modules/email-sender/src/server/delivery.ts`](#file-src-built-ins-modules-email-sender-src-server-delivery-ts-bf2e19a271) · [`src/built-ins/modules/email-sender/src/server/drivers/index.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-index-ts-d560aeeed7) · [`src/built-ins/modules/email-sender/src/server/drivers/noop.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-noop-ts-562c641f7b) · [`src/built-ins/modules/email-sender/src/server/drivers/postmark.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-postmark-ts-61f9e25b51) · [`src/built-ins/modules/email-sender/src/server/drivers/smtp.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-smtp-ts-51c25e94b8) · [`src/built-ins/modules/email-sender/src/server/emails.ts`](#file-src-built-ins-modules-email-sender-src-server-emails-ts-aec3ac0c79) · [`src/built-ins/modules/email-sender/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-email-sender-src-server-foundationadapter-ts-1889ff7cf0) · [`src/built-ins/modules/email-sender/src/server/health.ts`](#file-src-built-ins-modules-email-sender-src-server-health-ts-6083b8a5b2) · [`src/built-ins/modules/email-sender/src/server/identities.ts`](#file-src-built-ins-modules-email-sender-src-server-identities-ts-75d1b791e3) · [`src/built-ins/modules/email-sender/src/server/index.ts`](#file-src-built-ins-modules-email-sender-src-server-index-ts-7639c339f5) · [`src/built-ins/modules/email-sender/src/server/ports.ts`](#file-src-built-ins-modules-email-sender-src-server-ports-ts-d83f489d16) · [`src/built-ins/modules/email-sender/src/server/provider.ts`](#file-src-built-ins-modules-email-sender-src-server-provider-ts-4d7c6a58a3) · [`src/built-ins/modules/email-sender/src/server/webhook.ts`](#file-src-built-ins-modules-email-sender-src-server-webhook-ts-420e6f3bdc)
 
 <a id="file-src-built-ins-modules-email-sender-src-lib-ids-ts-d6fc9bd640"></a>
 
@@ -5454,7 +5462,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on:** _No internal imports._
 
-**Used by (3):** [`src/built-ins/modules/email-sender/src/pages/LogsPage.tsx`](#file-src-built-ins-modules-email-sender-src-pages-logspage-tsx-c55f62840a) · [`src/built-ins/modules/email-sender/src/pages/OutboxPage.tsx`](#file-src-built-ins-modules-email-sender-src-pages-outboxpage-tsx-a8a936a037) · [`src/built-ins/modules/email-sender/src/pages/SettingsPage.tsx`](#file-src-built-ins-modules-email-sender-src-pages-settingspage-tsx-2efb9eaa32)
+**Used by (3):** [`src/built-ins/modules/email-sender/src/pages/LogsPage.tsx`](#file-src-built-ins-modules-email-sender-src-pages-logspage-tsx-c55f62840a) · [`src/built-ins/modules/email-sender/src/pages/OutboxPage.tsx`](#file-src-built-ins-modules-email-sender-src-pages-outboxpage-tsx-a8a936a037) · [`src/built-ins/modules/email-sender/src/pages/SettingsClient.tsx`](#file-src-built-ins-modules-email-sender-src-pages-settingsclient-tsx-d80561787d)
 
 <a id="file-src-built-ins-modules-email-sender-src-lib-tenancy-ts-40262249aa"></a>
 
@@ -5529,17 +5537,31 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
-<a id="file-src-built-ins-modules-email-sender-src-pages-settingspage-tsx-2efb9eaa32"></a>
+<a id="file-src-built-ins-modules-email-sender-src-pages-settingsclient-tsx-d80561787d"></a>
 
-### `src/built-ins/modules/email-sender/src/pages/SettingsPage.tsx`
+### `src/built-ins/modules/email-sender/src/pages/SettingsClient.tsx`
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
+- `default SettingsClient(props: { provider: PublicProviderConfig; identities: SenderIdentity[]; webhookUrl: string; })`
+
+**Depends on (2):** [`src/built-ins/modules/email-sender/src/lib/domain.ts`](#file-src-built-ins-modules-email-sender-src-lib-domain-ts-86c3b3b8a6) · [`src/built-ins/modules/email-sender/src/lib/safeDate.ts`](#file-src-built-ins-modules-email-sender-src-lib-safedate-ts-4a512d87f0)
+
+**Used by (1):** [`src/built-ins/modules/email-sender/src/pages/SettingsPage.tsx`](#file-src-built-ins-modules-email-sender-src-pages-settingspage-tsx-2efb9eaa32)
+
+<a id="file-src-built-ins-modules-email-sender-src-pages-settingspage-tsx-2efb9eaa32"></a>
+
+### `src/built-ins/modules/email-sender/src/pages/SettingsPage.tsx`
+
+**What it is:** client component beside it.
+
+**Exports (1):**
+
 - `default async SettingsPage(props: PluginPageProps)`
 
-**Depends on (3):** [`src/built-ins/modules/email-sender/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-email-sender-src-lib-aquaplugintypes-ts-f756e7c435) · [`src/built-ins/modules/email-sender/src/lib/safeDate.ts`](#file-src-built-ins-modules-email-sender-src-lib-safedate-ts-4a512d87f0) · [`src/built-ins/modules/email-sender/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-email-sender-src-server-foundationadapter-ts-1889ff7cf0)
+**Depends on (4):** [`src/built-ins/modules/email-sender/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-email-sender-src-lib-aquaplugintypes-ts-f756e7c435) · [`src/built-ins/modules/email-sender/src/pages/SettingsClient.tsx`](#file-src-built-ins-modules-email-sender-src-pages-settingsclient-tsx-d80561787d) · [`src/built-ins/modules/email-sender/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-email-sender-src-server-foundationadapter-ts-1889ff7cf0) · [`src/built-ins/modules/email-sender/src/server/provider.ts`](#file-src-built-ins-modules-email-sender-src-server-provider-ts-4d7c6a58a3)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -5607,18 +5629,20 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ### `src/built-ins/modules/email-sender/src/server/drivers/postmark.ts`
 
-**What it is:** itself is small + has no @postmark/* dependency — uses fetch.
+**What it is:** has no @postmark/* dependency — it uses fetch, injectable for tests.
 
-**Exports (1):**
+**Exports (2):**
 
 - `class PostmarkDriver`
     - `constructor(private fetchImpl: typeof fetch = fetch)`
     - `async send({ ctx, message }: { ctx: DriverContext; message: EmailMessage }): Promise<SendResult | SendFailure>`
+    - `async verifyIdentity({ ctx, identity }: { ctx: DriverContext; identity: SenderIdentity; }): Promise<IdentityVerification>`
     - `async verifyWebhook({ ctx, rawBody, signatureHeader }: { ctx: DriverContext; rawBody: string; signatureHeader: string; }): Promise<PostmarkWebhookEvent | null>`
+- `POSTMARK_ACCOUNT_TOKEN_MISSING = "Postmark's sender-signature API needs the account-level API token. "`
 
 **Depends on (2):** [`src/built-ins/modules/email-sender/src/lib/domain.ts`](#file-src-built-ins-modules-email-sender-src-lib-domain-ts-86c3b3b8a6) · [`src/built-ins/modules/email-sender/src/server/ports.ts`](#file-src-built-ins-modules-email-sender-src-server-ports-ts-d83f489d16)
 
-**Used by (1):** [`src/built-ins/modules/email-sender/src/server/drivers/index.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-index-ts-d560aeeed7)
+**Used by (2):** [`src/built-ins/modules/email-sender/src/__smoke__/email-sender.test.ts`](#file-src-built-ins-modules-email-sender-src-smoke-email-sender-test-ts-c954269146) · [`src/built-ins/modules/email-sender/src/server/drivers/index.ts`](#file-src-built-ins-modules-email-sender-src-server-drivers-index-ts-d560aeeed7)
 
 <a id="file-src-built-ins-modules-email-sender-src-server-drivers-smtp-ts-51c25e94b8"></a>
 
@@ -5716,22 +5740,25 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ### `src/built-ins/modules/email-sender/src/server/identities.ts`
 
-**What it is:** provider is active).
+**What it is:** `pending` and record WHY on the row.
 
-**Exports (1):**
+**Exports (4):**
 
+- `driverCannotVerify(provider: ProviderKind): string`
 - `class IdentityService`
-    - `constructor(private agencyId: AgencyId, private storage: StoragePort, private activity: ActivityLogPort, private events: EventBusPort)`
+    - `constructor(private agencyId: AgencyId, private storage: StoragePort, private activity: ActivityLogPort, private events: EventBusPort, private provider?: ProviderService, private drivers?: Map<ProviderKind, EmailDriver>)`
     - `async list(): Promise<SenderIdentity[]>`
     - `async get(id: string): Promise<SenderIdentity | null>`
     - `async getDefault(): Promise<SenderIdentity | null>`
     - `async create(input: CreateIdentityInput, actor: UserId): Promise<SenderIdentity>`
     - `async update(id: string, patch: UpdateIdentityPatch, actor: UserId): Promise<SenderIdentity | null>`
-    - `async verifyDomain(id: string, actor: UserId): Promise<SenderIdentity | null>`
+    - `async verifyDomain(id: string, actor: UserId): Promise<IdentityVerificationOutcome | null>`
+- `NO_PROVIDER_TO_VERIFY_WITH = "No email provider is configured, so nothing can confirm this address. "`
+- `interface IdentityVerificationOutcome (2 members)` — What `verifyDomain` reports back: the row as it now stands, plus the outcome.
 
-**Depends on (5):** [`src/built-ins/modules/email-sender/src/lib/domain.ts`](#file-src-built-ins-modules-email-sender-src-lib-domain-ts-86c3b3b8a6) · [`src/built-ins/modules/email-sender/src/lib/ids.ts`](#file-src-built-ins-modules-email-sender-src-lib-ids-ts-d6fc9bd640) · [`src/built-ins/modules/email-sender/src/lib/tenancy.ts`](#file-src-built-ins-modules-email-sender-src-lib-tenancy-ts-40262249aa) · [`src/built-ins/modules/email-sender/src/lib/time.ts`](#file-src-built-ins-modules-email-sender-src-lib-time-ts-fccd94feb0) · [`src/built-ins/modules/email-sender/src/server/ports.ts`](#file-src-built-ins-modules-email-sender-src-server-ports-ts-d83f489d16)
+**Depends on (6):** [`src/built-ins/modules/email-sender/src/lib/domain.ts`](#file-src-built-ins-modules-email-sender-src-lib-domain-ts-86c3b3b8a6) · [`src/built-ins/modules/email-sender/src/lib/ids.ts`](#file-src-built-ins-modules-email-sender-src-lib-ids-ts-d6fc9bd640) · [`src/built-ins/modules/email-sender/src/lib/tenancy.ts`](#file-src-built-ins-modules-email-sender-src-lib-tenancy-ts-40262249aa) · [`src/built-ins/modules/email-sender/src/lib/time.ts`](#file-src-built-ins-modules-email-sender-src-lib-time-ts-fccd94feb0) · [`src/built-ins/modules/email-sender/src/server/ports.ts`](#file-src-built-ins-modules-email-sender-src-server-ports-ts-d83f489d16) · [`src/built-ins/modules/email-sender/src/server/provider.ts`](#file-src-built-ins-modules-email-sender-src-server-provider-ts-4d7c6a58a3)
 
-**Used by (2):** [`src/built-ins/modules/email-sender/src/server/emails.ts`](#file-src-built-ins-modules-email-sender-src-server-emails-ts-aec3ac0c79) · [`src/built-ins/modules/email-sender/src/server/index.ts`](#file-src-built-ins-modules-email-sender-src-server-index-ts-7639c339f5)
+**Used by (3):** [`src/built-ins/modules/email-sender/src/__smoke__/email-sender.test.ts`](#file-src-built-ins-modules-email-sender-src-smoke-email-sender-test-ts-c954269146) · [`src/built-ins/modules/email-sender/src/server/emails.ts`](#file-src-built-ins-modules-email-sender-src-server-emails-ts-aec3ac0c79) · [`src/built-ins/modules/email-sender/src/server/index.ts`](#file-src-built-ins-modules-email-sender-src-server-index-ts-7639c339f5)
 
 <a id="file-src-built-ins-modules-email-sender-src-server-index-ts-7639c339f5"></a>
 
@@ -5739,7 +5766,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** Server-side barrel — services + container builder + foundation adapter.
 
-**Exports (16):**
+**Exports (17):**
 
 - `buildEmailSenderContainer(deps: EmailSenderDeps): EmailSenderContainer`
 - `interface EmailSenderDeps (8 members)` — ─── Container ────────────────────────────────────────────────────────────
@@ -5748,8 +5775,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `{ DeliveryService } from "./delivery"`
 - `{ WebhookService } from "./webhook"`
 - `{ WebhookHandleResult } from "./webhook"`
-- `{ IdentityService } from "./identities"`
-- `{ ProviderService } from "./provider"`
+- `{ IdentityService, NO_PROVIDER_TO_VERIFY_WITH, driverCannotVerify } from "./identities"`
+- `{ IdentityVerificationOutcome } from "./identities"`
+- `{ ProviderService, redactProviderConfig } from "./provider"`
 - `{ buildEmailSenderHealth } from "./health"`
 - `{ DeliveryFailureCode, DeliveryResult } from "./delivery"`
 - `{ ActivityLogPort, DriverContext, EmailDriver, EmailEventName, EventBusPort, ListActivityFilter, LogActivityInput, MarketingTemplate, MarketingTemplatePort, PluginInstallStorePort, StoragePort, TenantPort } from "./ports"`
@@ -5780,8 +5808,8 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface PluginInstallStorePort (1 members)`
 - `interface MarketingTemplate (6 members)` — templateless enqueues still work.
 - `interface MarketingTemplatePort (2 members)`
-- `interface DriverContext (4 members)`
-- `interface EmailDriver (3 members)`
+- `interface DriverContext (5 members)`
+- `interface EmailDriver (4 members)`
 
 **Depends on (2):** [`src/built-ins/modules/email-sender/src/lib/domain.ts`](#file-src-built-ins-modules-email-sender-src-lib-domain-ts-86c3b3b8a6) · [`src/built-ins/modules/email-sender/src/lib/tenancy.ts`](#file-src-built-ins-modules-email-sender-src-lib-tenancy-ts-40262249aa)
 
@@ -5791,14 +5819,16 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ### `src/built-ins/modules/email-sender/src/server/provider.ts`
 
-**What it is:** from API responses); this row carries the masked tail + status.
+**What it is:** from the module's own Settings page through the provider PATCH route.
 
-**Exports (1):**
+**Exports (2):**
 
+- `redactProviderConfig(config: ProviderConfig): PublicProviderConfig` — The only shape that may leave the server — an API body, or a prop handed to a client component (which is serialised into the page and reaches the browser just the same). The webho…
 - `class ProviderService`
     - `constructor(private agencyId: AgencyId, private storage: StoragePort, private activity: ActivityLogPort, private events: EventBusPort)`
     - `async get(): Promise<ProviderConfig>`
     - `async _readApiKey(): Promise<string | undefined>`
+    - `async _readAccountToken(): Promise<string | undefined>`
     - `async update(input: UpdateProviderInput, actor: UserId): Promise<ProviderConfig>`
     - `async markError(reason: string): Promise<void>`
     - `async markActive(): Promise<void>`
@@ -5806,7 +5836,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (4):** [`src/built-ins/modules/email-sender/src/lib/domain.ts`](#file-src-built-ins-modules-email-sender-src-lib-domain-ts-86c3b3b8a6) · [`src/built-ins/modules/email-sender/src/lib/tenancy.ts`](#file-src-built-ins-modules-email-sender-src-lib-tenancy-ts-40262249aa) · [`src/built-ins/modules/email-sender/src/lib/time.ts`](#file-src-built-ins-modules-email-sender-src-lib-time-ts-fccd94feb0) · [`src/built-ins/modules/email-sender/src/server/ports.ts`](#file-src-built-ins-modules-email-sender-src-server-ports-ts-d83f489d16)
 
-**Used by (3):** [`src/built-ins/modules/email-sender/src/server/delivery.ts`](#file-src-built-ins-modules-email-sender-src-server-delivery-ts-bf2e19a271) · [`src/built-ins/modules/email-sender/src/server/index.ts`](#file-src-built-ins-modules-email-sender-src-server-index-ts-7639c339f5) · [`src/built-ins/modules/email-sender/src/server/webhook.ts`](#file-src-built-ins-modules-email-sender-src-server-webhook-ts-420e6f3bdc)
+**Used by (6):** [`src/built-ins/modules/email-sender/src/api/handlers.ts`](#file-src-built-ins-modules-email-sender-src-api-handlers-ts-103f6a498c) · [`src/built-ins/modules/email-sender/src/pages/SettingsPage.tsx`](#file-src-built-ins-modules-email-sender-src-pages-settingspage-tsx-2efb9eaa32) · [`src/built-ins/modules/email-sender/src/server/delivery.ts`](#file-src-built-ins-modules-email-sender-src-server-delivery-ts-bf2e19a271) · [`src/built-ins/modules/email-sender/src/server/identities.ts`](#file-src-built-ins-modules-email-sender-src-server-identities-ts-75d1b791e3) · [`src/built-ins/modules/email-sender/src/server/index.ts`](#file-src-built-ins-modules-email-sender-src-server-index-ts-7639c339f5) · [`src/built-ins/modules/email-sender/src/server/webhook.ts`](#file-src-built-ins-modules-email-sender-src-server-webhook-ts-420e6f3bdc)
 
 <a id="file-src-built-ins-modules-email-sender-src-server-webhook-ts-420e6f3bdc"></a>
 
@@ -6618,10 +6648,11 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** CSV-import idempotency check + AudienceFilter resolution stay O(1).
 
-**Exports (63):**
+**Exports (67):**
 
 - `isLeadRelationshipCategory(value: unknown): value is LeadRelationshipCategory`
 - `inferLeadRelationshipCategory(value: { relationshipCategory?: unknown; source?: string; tags?: string[]; }): LeadRelationshipCategory`
+- `installmentAllocation(pack: Pick<CommercialPack, "billingCadence" | "totalCents" | "installmentCount">): { count: number; recurringCents: number; remainderCents: number }` — How an installment plan divides the promised total EXACTLY. A Stripe subscription bills one fixed recurring price, so a rounded-up `ceil(total / count)` collected up to `count - 1…
 - `projectLeadCard(lead: Lead): LeadCard`
 - `LEAD_RELATIONSHIP_CATEGORIES = [`
 - `LEAD_RELATIONSHIP_CATEGORY_LABELS: Record<LeadRelationshipCategory, string>`
@@ -6637,6 +6668,8 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type MeetingAttemptChannel = "call" | "email" | "sms" | "whatsapp" | "in-person"`
 - `type MeetingAttemptOutcome = "attempted" | "reached" | "reminder-sent" | "no-show" | "rescheduled" | "completed"`
 - `type LeadRelationshipCategory = typeof LEAD_RELATIONSHIP_CATEGORIES[number]`
+- `type CommercialDeliveryStatus = "queued" | "delivered" | "failed"` — provider's reason plus the message id so the send can be retried honestly.
+- `type CommercialPaymentSource = "manual" | "stripe-checkout" | "stripe-subscription"` — Where a payment row actually came from. `method` says how the money moved, which is NOT the same question — a human can record a `stripe` payment by hand from the Stripe dashboard…
 - `type ProspectStatus = "scouting" | "qualified" | "dismissed"` — ─── Scouting prospect ───────────────────────────────────────────────────
 - `type ProspectQualificationState = "unreviewed" | "researching" | "ready" | "outreach" | "engaged" | "not-now"`
 - `type ProspectOutreachChannel = "call" | "email" | "sms" | "whatsapp" | "dm" | "in-person"`
@@ -6645,15 +6678,16 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type ProspectFollowUpStatus = "scheduled" | "completed" | "skipped"`
 - `type LeadJourneyEventType = | "lead-captured" | "enquiry-received" | "contact-recorded" | "stage-changed" | "meeting-scheduled" | "converted" // Archiving is part of the journey, not a hole in it. Issue #62: the control…` — ─── Lead ─────────────────────────────────────────────────────────────────
 - `type ContactType = "lead" | "customer" | "account" | "vendor" | "employee" | "other"` — ─── Contact ──────────────────────────────────────────────────────────────
-- `type CampaignStatus = "draft" | "scheduled" | "active" | "paused" | "sending" | "sent" | "completed"` — ─── Campaign ─────────────────────────────────────────────────────────────
+- `type CampaignStatus = | "draft" | "scheduled" | "active" | "paused" | "sending" | "queued" | "partially-sent" | "failed" | "sent" | "completed"` — place the operator finds out whether the emails actually left the building.
 - `type CampaignChannel = "email" | "newsletter" | "cold-outreach" | "dm" | "direct-mail" | "print" | "google-ads" | "meta-ads" | "linkedin-ads" | "organic" | "social" | "event" | "referral" | "charity" | "other"`
 - `type CampaignKind = "social-media" | "physical" | "newsletter" | "cold" | "dm" | "charity" | "paid" | "organic" | "event" | "other"`
 - `type CampaignPlacement = | "instagram-feed" | "instagram-story" | "instagram-reel" | "facebook-feed" | "facebook-story" | "linkedin-feed" | "google-display"`
 - `interface MeetingAttempt (5 members)`
 - `interface SalesPresentation (3 members)`
 - `interface CommercialLineItem (3 members)`
-- `interface CommercialPayment (8 members)`
-- `interface CommercialPack (38 members)`
+- `interface CommercialPayment (13 members)`
+- `interface CommercialPackRevision (8 members)` — A superseded set of commercial terms. Amending an issued pack does not overwrite what the recipient saw — the prior version is pushed here, carrying its own acceptance if it had o…
+- `interface CommercialPack (56 members)`
 - `interface SaveCommercialPackInput (20 members)`
 - `interface CustomFieldDefinition (6 members)`
 - `interface ProspectOutreachAttempt (8 members)`
@@ -6679,7 +6713,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface CampaignCreative (14 members)`
 - `interface CampaignStep (7 members)`
 - `interface AudienceFilter (5 members)`
-- `interface Campaign (30 members)`
+- `interface Campaign (34 members)`
 - `interface CreateCampaignInput (21 members)`
 - `interface UpdateCampaignPatch (22 members)`
 - `interface CsvImportResult (4 members)` — ─── CSV import ───────────────────────────────────────────────────────────
@@ -6774,7 +6808,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default async CampaignsPage(props: PluginPageProps)`
 
-**Depends on (6):** [`src/app/portal/agency/leads-pipeline/campaigns/_CampaignsWorkspace.tsx`](app.md#file-src-app-portal-agency-leads-pipeline-campaigns-campaignsworkspace-tsx-812fc04381) · [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca) · [`src/built-ins/modules/leads-pipeline/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-foundationadapter-ts-9f18a9a0ea) · [`src/built-ins/runtime/_runtime.ts`](#file-src-built-ins-runtime-runtime-ts-d2a0efb5ed) · [`src/server/pipelines.ts`](server.md#file-src-server-pipelines-ts-b3d01c6a82) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40)
+**Depends on (7):** [`src/app/portal/agency/leads-pipeline/campaigns/_CampaignsWorkspace.tsx`](app.md#file-src-app-portal-agency-leads-pipeline-campaigns-campaignsworkspace-tsx-812fc04381) · [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca) · [`src/built-ins/modules/leads-pipeline/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-foundationadapter-ts-9f18a9a0ea) · [`src/built-ins/runtime/_runtime.ts`](#file-src-built-ins-runtime-runtime-ts-d2a0efb5ed) · [`src/lib/server/leadsPipelinePorts.ts`](lib.md#file-src-lib-server-leadspipelineports-ts-65fb36de0a) · [`src/server/pipelines.ts`](server.md#file-src-server-pipelines-ts-b3d01c6a82) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -6813,7 +6847,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ### `src/built-ins/modules/leads-pipeline/src/server/campaigns.ts`
 
-**What it is:** so re-running send() on a half-failed campaign collapses dupes.
+**What it is:** retry collapses onto the same outbox row rather than duplicating it.
 
 **Exports (2):**
 
@@ -6836,22 +6870,31 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (2):**
+**Exports (8):**
 
+- `collectedSubscriptionInstallments(pack: CommercialPack, subscriptionId: string): number` — How many of the promised installments Stripe has actually collected. Counts DEDUPED invoices attributable to one subscription, not "payments whose method is stripe": a row a human…
+- `commercialFinancialHash(terms: PayableTerms): string` — A change here means any Checkout session created earlier was priced for terms that no longer exist, so the stored session must be dropped rather than reused.
+- `commercialContentHash(terms: ReviewableTerms): string` — A change here means the recipient would be reading different terms.
 - `class CommercialPaymentConflictError`
     - `constructor()`
+- `class CommercialAcceptanceStateError` — Acceptance was attempted against terms that are not the version on offer — a draft that was never sent, or a version superseded by an amendment.
+    - `constructor(readonly agreementStatus: CommercialDocumentStatus)`
 - `class CommercialService`
     - `constructor(private agencyId: AgencyId, private storage: PluginStorage, private activity: ActivityLogPort, private events: EventBusPort, private email?: EmailEnqueuePort)`
     - `async get(kind: CommercialPartyKind, partyId: string): Promise<CommercialPack | null>`
     - `async getByToken(token: string): Promise<CommercialPack | null>`
     - `async save(input: SaveCommercialPackInput, actor: UserId): Promise<CommercialPack>`
-    - `async attachStripe(kind: CommercialPartyKind, partyId: string, checkout: { id: string; url: string }): Promise<CommercialPack | null>`
+    - `async attachStripe(kind: CommercialPartyKind, partyId: string, checkout: { id: string; url: string; forVersion: number; forFinancialHash: string; }): Promise<{ pack: CommercialPack; attached: boolean } | null>`
     - `async attachStripeSubscription(kind: CommercialPartyKind, partyId: string, subscriptionId: string): Promise<CommercialPack | null>`
+    - `async completeInstallments(kind: CommercialPartyKind, partyId: string, input: { subscriptionId: string; requestStop: () => Promise<{ ok: boolean; error?: string }>; }): Promise<InstallmentStopOutcome>`
+    - `async recordSubscriptionCancellation(kind: CommercialPartyKind, partyId: string, outcome: { subscriptionId: string; attemptedAt?: number; failure?: string; confirmedAt?: number; /** Stripe says this subscription is live…`
     - `async send(kind: CommercialPartyKind, partyId: string, baseUrl: string, actor: UserId): Promise<CommercialPack>`
     - `async accept(token: string, acceptedBy: string): Promise<CommercialPack | null>`
-    - `async recordPayment(kind: CommercialPartyKind, partyId: string, input: { amountCents: number; method: CommercialPaymentMethod; reference?: string; paidAt?: number; }, actor: UserId): Promise<CommercialPack | null>`
+    - `async recordPayment(kind: CommercialPartyKind, partyId: string, input: RecordCommercialPaymentInput, actor: UserId): Promise<CommercialPack | null>`
     - `async setFinanceInvoiceId(kind: CommercialPartyKind, partyId: string, financeInvoiceId: string): Promise<void>`
     - `async stripIdentityForErasure(kind: CommercialPartyKind, partyId: string): Promise<boolean>`
+- `type InstallmentStopOutcome = | { status: "not-due" | "already-stopped" | "requested"; collected: number; promised: number } | { status: "refused" | "unavailable"; collected: number; promised: number; error: string }` — What happened when the installment plan's stop was evaluated. `requested` is deliberately not called "cancelled": Stripe accepting the call means it was asked, and only a later `c…
+- `interface RecordCommercialPaymentInput (6 members)`
 
 **Depends on (6):** [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca) · [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/built-ins/modules/leads-pipeline/src/lib/ids.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-ids-ts-77fae66661) · [`src/built-ins/modules/leads-pipeline/src/lib/tenancy.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-tenancy-ts-7c7be8ab2d) · [`src/built-ins/modules/leads-pipeline/src/lib/time.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-time-ts-6221b77bb3) · [`src/built-ins/modules/leads-pipeline/src/server/ports.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-ports-ts-3da7bed047)
 
@@ -6932,7 +6975,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface LeadsPipelineDeps (8 members)` — ─── Container ────────────────────────────────────────────────────────────
 - `interface LeadsPipelineContainer (5 members)`
 - `{ LeadIdentityConflictError, LeadService } from "./leads"`
-- `{ CommercialPaymentConflictError, CommercialService } from "./commercial"`
+- `{ CommercialAcceptanceStateError, CommercialPaymentConflictError, CommercialService, commercialContentHash, commercialFinancialHash } from "./commercial"`
 - `{ ProspectService } from "./prospects"`
 - `{ ContactService } from "./contacts"`
 - `{ CampaignService, PLUGIN_ID } from "./campaigns"`
@@ -7002,7 +7045,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface EventBusPort (2 members)`
 - `interface PluginInstallStorePort (1 members)` — ─── Plugin install store (read-only) ─────────────────────────────────────
 - `interface EmailEnqueueInput (7 members)` — ─── Email enqueue (adapter onto T2 R024 email-sender) ────────────────────
-- `interface EmailEnqueueResult (3 members)`
+- `interface EmailEnqueueResult (4 members)`
 - `interface EmailEnqueuePort (2 members)`
 - `interface PipelineCardRef (3 members)` — ─── Pipeline port (adapter onto T1 R034 foundation pipelines) ───────────
 - `interface AddLeadCardInput (8 members)`
@@ -7072,7 +7115,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (4):** [`src/built-ins/modules/memberships/src/api/routes.ts`](#file-src-built-ins-modules-memberships-src-api-routes-ts-ed5b6ef79e) · [`src/built-ins/modules/memberships/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-memberships-src-lib-aquaplugintypes-ts-0c0e63626a) · [`src/built-ins/modules/memberships/src/lib/domain.ts`](#file-src-built-ins-modules-memberships-src-lib-domain-ts-1e3d826e85) · [`src/built-ins/modules/memberships/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-memberships-src-server-foundationadapter-ts-adbdd97bed)
 
-**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+**Used by (1):** [`src/built-ins/modules/memberships/src/__smoke__/memberships.test.ts`](#file-src-built-ins-modules-memberships-src-smoke-memberships-test-ts-00ac23cdbb)
 
 
 ## `src/built-ins/modules/memberships/src/__smoke__/`
@@ -7085,7 +7128,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on (4):** [`src/built-ins/modules/memberships/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-memberships-src-lib-aquaplugintypes-ts-0c0e63626a) · [`src/built-ins/modules/memberships/src/lib/tenancy.ts`](#file-src-built-ins-modules-memberships-src-lib-tenancy-ts-cc5efd3e52) · [`src/built-ins/modules/memberships/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-memberships-src-server-foundationadapter-ts-adbdd97bed) · [`src/built-ins/modules/memberships/src/server/ports.ts`](#file-src-built-ins-modules-memberships-src-server-ports-ts-25661d85b4)
+**Depends on (5):** [`src/built-ins/modules/memberships/index.ts`](#file-src-built-ins-modules-memberships-index-ts-ffebb58de1) · [`src/built-ins/modules/memberships/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-memberships-src-lib-aquaplugintypes-ts-0c0e63626a) · [`src/built-ins/modules/memberships/src/lib/tenancy.ts`](#file-src-built-ins-modules-memberships-src-lib-tenancy-ts-cc5efd3e52) · [`src/built-ins/modules/memberships/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-memberships-src-server-foundationadapter-ts-adbdd97bed) · [`src/built-ins/modules/memberships/src/server/ports.ts`](#file-src-built-ins-modules-memberships-src-server-ports-ts-25661d85b4)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -7103,7 +7146,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async listPlansHandler(req: Request, ctx: PluginCtx): Promise<Response>` — ─── Plans ────────────────────────────────────────────────────────────────
 - `async createPlanHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async updatePlanHandler(req: Request, ctx: PluginCtx): Promise<Response>`
-- `async deletePlanHandler(req: Request, ctx: PluginCtx): Promise<Response>`
+- `async deletePlanHandler(req: Request, ctx: PluginCtx): Promise<Response>` — the absence of one, made visible instead of silent.
 - `async listBenefitsHandler(req: Request, ctx: PluginCtx): Promise<Response>` — ─── Benefits ────────────────────────────────────────────────────────────
 - `async createBenefitHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async updateBenefitHandler(req: Request, ctx: PluginCtx): Promise<Response>`
@@ -7116,9 +7159,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async meCancelHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async mePortalHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 
-**Depends on (3):** [`src/built-ins/modules/memberships/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-memberships-src-lib-aquaplugintypes-ts-0c0e63626a) · [`src/built-ins/modules/memberships/src/lib/domain.ts`](#file-src-built-ins-modules-memberships-src-lib-domain-ts-1e3d826e85) · [`src/built-ins/modules/memberships/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-memberships-src-server-foundationadapter-ts-adbdd97bed)
+**Depends on (4):** [`src/built-ins/modules/memberships/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-memberships-src-lib-aquaplugintypes-ts-0c0e63626a) · [`src/built-ins/modules/memberships/src/lib/domain.ts`](#file-src-built-ins-modules-memberships-src-lib-domain-ts-1e3d826e85) · [`src/built-ins/modules/memberships/src/server/dependencies.ts`](#file-src-built-ins-modules-memberships-src-server-dependencies-ts-95d50c25a8) · [`src/built-ins/modules/memberships/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-memberships-src-server-foundationadapter-ts-adbdd97bed)
 
-**Used by (1):** [`src/built-ins/modules/memberships/src/api/routes.ts`](#file-src-built-ins-modules-memberships-src-api-routes-ts-ed5b6ef79e)
+**Used by (2):** [`scripts/smoke-membership-plan-dependencies.test.ts`](scripts.md#file-scripts-smoke-membership-plan-dependencies-test-ts-dddf387354) · [`src/built-ins/modules/memberships/src/api/routes.ts`](#file-src-built-ins-modules-memberships-src-api-routes-ts-ed5b6ef79e)
 
 <a id="file-src-built-ins-modules-memberships-src-api-routes-ts-ed5b6ef79e"></a>
 
@@ -7246,7 +7289,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (2):** [`src/built-ins/modules/memberships/src/lib/tenancy.ts`](#file-src-built-ins-modules-memberships-src-lib-tenancy-ts-cc5efd3e52) · [`src/built-ins/modules/memberships/src/server/ports.ts`](#file-src-built-ins-modules-memberships-src-server-ports-ts-25661d85b4)
 
-**Used by (13):** [`src/built-ins/modules/memberships/index.ts`](#file-src-built-ins-modules-memberships-index-ts-ffebb58de1) · [`src/built-ins/modules/memberships/src/__smoke__/memberships.test.ts`](#file-src-built-ins-modules-memberships-src-smoke-memberships-test-ts-00ac23cdbb) · [`src/built-ins/modules/memberships/src/api/handlers.ts`](#file-src-built-ins-modules-memberships-src-api-handlers-ts-d98278c673) · [`src/built-ins/modules/memberships/src/api/routes.ts`](#file-src-built-ins-modules-memberships-src-api-routes-ts-ed5b6ef79e) · [`src/built-ins/modules/memberships/src/pages/BenefitsPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-benefitspage-tsx-febeb03943) · [`src/built-ins/modules/memberships/src/pages/MyMembershipPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-mymembershippage-tsx-2d0306300c) · [`src/built-ins/modules/memberships/src/pages/PlansPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-planspage-tsx-bef9fb0e53) · [`src/built-ins/modules/memberships/src/pages/ReportsPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-reportspage-tsx-e6208055f5) · [`src/built-ins/modules/memberships/src/pages/SettingsPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-settingspage-tsx-01cadc606b) · [`src/built-ins/modules/memberships/src/pages/SubscriberDetailPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-subscriberdetailpage-tsx-f6daf32e37) · [`src/built-ins/modules/memberships/src/pages/SubscribersPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-subscriberspage-tsx-79db94bdd5) · [`src/built-ins/modules/memberships/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-memberships-src-server-foundationadapter-ts-adbdd97bed) · [`src/built-ins/modules/memberships/src/server/index.ts`](#file-src-built-ins-modules-memberships-src-server-index-ts-4aa1588796)
+**Used by (14):** [`scripts/smoke-membership-plan-dependencies.test.ts`](scripts.md#file-scripts-smoke-membership-plan-dependencies-test-ts-dddf387354) · [`src/built-ins/modules/memberships/index.ts`](#file-src-built-ins-modules-memberships-index-ts-ffebb58de1) · [`src/built-ins/modules/memberships/src/__smoke__/memberships.test.ts`](#file-src-built-ins-modules-memberships-src-smoke-memberships-test-ts-00ac23cdbb) · [`src/built-ins/modules/memberships/src/api/handlers.ts`](#file-src-built-ins-modules-memberships-src-api-handlers-ts-d98278c673) · [`src/built-ins/modules/memberships/src/api/routes.ts`](#file-src-built-ins-modules-memberships-src-api-routes-ts-ed5b6ef79e) · [`src/built-ins/modules/memberships/src/pages/BenefitsPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-benefitspage-tsx-febeb03943) · [`src/built-ins/modules/memberships/src/pages/MyMembershipPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-mymembershippage-tsx-2d0306300c) · [`src/built-ins/modules/memberships/src/pages/PlansPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-planspage-tsx-bef9fb0e53) · [`src/built-ins/modules/memberships/src/pages/ReportsPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-reportspage-tsx-e6208055f5) · [`src/built-ins/modules/memberships/src/pages/SettingsPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-settingspage-tsx-01cadc606b) · [`src/built-ins/modules/memberships/src/pages/SubscriberDetailPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-subscriberdetailpage-tsx-f6daf32e37) · [`src/built-ins/modules/memberships/src/pages/SubscribersPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-subscriberspage-tsx-79db94bdd5) · [`src/built-ins/modules/memberships/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-memberships-src-server-foundationadapter-ts-adbdd97bed) · [`src/built-ins/modules/memberships/src/server/index.ts`](#file-src-built-ins-modules-memberships-src-server-index-ts-4aa1588796)
 
 <a id="file-src-built-ins-modules-memberships-src-lib-domain-ts-1e3d826e85"></a>
 
@@ -7431,13 +7474,13 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ### `src/built-ins/modules/memberships/src/pages/SettingsPage.tsx`
 
-_No file-level doc-comment; purpose is inferred from the path and exports._
+**What it is:** the counts above it answer a different question and stay.
 
 **Exports (1):**
 
 - `default async SettingsPage(props: PluginPageProps)`
 
-**Depends on (2):** [`src/built-ins/modules/memberships/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-memberships-src-lib-aquaplugintypes-ts-0c0e63626a) · [`src/built-ins/modules/memberships/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-memberships-src-server-foundationadapter-ts-adbdd97bed)
+**Depends on (5):** [`src/built-ins/modules/memberships/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-memberships-src-lib-aquaplugintypes-ts-0c0e63626a) · [`src/built-ins/modules/memberships/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-memberships-src-server-foundationadapter-ts-adbdd97bed) · [`src/components/workspaces/PluginSettingsPanel.tsx`](components.md#file-src-components-workspaces-pluginsettingspanel-tsx-1ae842fede) · [`src/lib/server/plugins/pluginSettingsAccess.ts`](lib.md#file-src-lib-server-plugins-pluginsettingsaccess-ts-356847ec69) · [`src/lib/server/plugins/pluginSettingsSurface.ts`](lib.md#file-src-lib-server-plugins-pluginsettingssurface-ts-f5a8104127)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -7508,7 +7551,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (3):** [`src/built-ins/modules/memberships/src/lib/domain.ts`](#file-src-built-ins-modules-memberships-src-lib-domain-ts-1e3d826e85) · [`src/built-ins/modules/memberships/src/server/index.ts`](#file-src-built-ins-modules-memberships-src-server-index-ts-4aa1588796) · [`src/built-ins/modules/memberships/src/server/ports.ts`](#file-src-built-ins-modules-memberships-src-server-ports-ts-25661d85b4)
 
-**Used by (1):** [`scripts/smoke-membership-plan-dependencies.test.ts`](scripts.md#file-scripts-smoke-membership-plan-dependencies-test-ts-dddf387354)
+**Used by (2):** [`scripts/smoke-membership-plan-dependencies.test.ts`](scripts.md#file-scripts-smoke-membership-plan-dependencies-test-ts-dddf387354) · [`src/built-ins/modules/memberships/src/api/handlers.ts`](#file-src-built-ins-modules-memberships-src-api-handlers-ts-d98278c673)
 
 <a id="file-src-built-ins-modules-memberships-src-server-foundationadapter-ts-adbdd97bed"></a>
 
@@ -7516,7 +7559,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** config inside the factory closure.
 
-**Exports (11):**
+**Exports (12):**
 
 - `registerMembershipsFoundation(deps: MembershipsFoundation): void`
 - `clearMembershipsFoundation(): void`
@@ -7526,13 +7569,14 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `isStripeAvailable(args: { agencyId: AgencyId; clientId: ClientId }): boolean` — "Stripe not configured" message than throw 500.
 - `containerWithDeps(args: { agencyId: AgencyId; clientId: ClientId; storage: PluginStorage; tenant: TenantPort; user: UserPort; activity: ActivityLogPort; events: EventBusPort; pluginInstalls: PluginInstallStorePort; stri…`
 - `_containerFromCtx(args: { agencyId: AgencyId; clientId: ClientId; storage: PluginStorage; }): MembershipsContainer | null` — registered.
+- `STRIPE_NOT_CONFIGURED_MESSAGE = "Stripe not configured for this client. Add the Stripe secret key in the ecommerce plugin's settings."` — 422 body must know where to go.
 - `interface MembershipsFoundation (6 members)`
 - `interface ContainerForArgs (4 members)`
 - `interface ContainerWithDepsArgs (1 members)` — the registered singleton. Mirrors agency-hr's `containerWithDeps`.
 
 **Depends on (4):** [`src/built-ins/modules/memberships/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-memberships-src-lib-aquaplugintypes-ts-0c0e63626a) · [`src/built-ins/modules/memberships/src/lib/tenancy.ts`](#file-src-built-ins-modules-memberships-src-lib-tenancy-ts-cc5efd3e52) · [`src/built-ins/modules/memberships/src/server/index.ts`](#file-src-built-ins-modules-memberships-src-server-index-ts-4aa1588796) · [`src/built-ins/modules/memberships/src/server/ports.ts`](#file-src-built-ins-modules-memberships-src-server-ports-ts-25661d85b4)
 
-**Used by (11):** [`src/built-ins/modules/memberships/index.ts`](#file-src-built-ins-modules-memberships-index-ts-ffebb58de1) · [`src/built-ins/modules/memberships/src/__smoke__/memberships.test.ts`](#file-src-built-ins-modules-memberships-src-smoke-memberships-test-ts-00ac23cdbb) · [`src/built-ins/modules/memberships/src/api/handlers.ts`](#file-src-built-ins-modules-memberships-src-api-handlers-ts-d98278c673) · [`src/built-ins/modules/memberships/src/pages/BenefitsPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-benefitspage-tsx-febeb03943) · [`src/built-ins/modules/memberships/src/pages/MyMembershipPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-mymembershippage-tsx-2d0306300c) · [`src/built-ins/modules/memberships/src/pages/PlansPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-planspage-tsx-bef9fb0e53) · [`src/built-ins/modules/memberships/src/pages/ReportsPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-reportspage-tsx-e6208055f5) · [`src/built-ins/modules/memberships/src/pages/SettingsPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-settingspage-tsx-01cadc606b) · [`src/built-ins/modules/memberships/src/pages/SubscriberDetailPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-subscriberdetailpage-tsx-f6daf32e37) · [`src/built-ins/modules/memberships/src/pages/SubscribersPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-subscriberspage-tsx-79db94bdd5) · [`src/built-ins/modules/memberships/src/server/index.ts`](#file-src-built-ins-modules-memberships-src-server-index-ts-4aa1588796)
+**Used by (13):** [`scripts/smoke-membership-plan-dependencies.test.ts`](scripts.md#file-scripts-smoke-membership-plan-dependencies-test-ts-dddf387354) · [`scripts/smoke-membership-subscription-lifecycle.test.ts`](scripts.md#file-scripts-smoke-membership-subscription-lifecycle-test-ts-d229a2fed2) · [`src/built-ins/modules/memberships/index.ts`](#file-src-built-ins-modules-memberships-index-ts-ffebb58de1) · [`src/built-ins/modules/memberships/src/__smoke__/memberships.test.ts`](#file-src-built-ins-modules-memberships-src-smoke-memberships-test-ts-00ac23cdbb) · [`src/built-ins/modules/memberships/src/api/handlers.ts`](#file-src-built-ins-modules-memberships-src-api-handlers-ts-d98278c673) · [`src/built-ins/modules/memberships/src/pages/BenefitsPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-benefitspage-tsx-febeb03943) · [`src/built-ins/modules/memberships/src/pages/MyMembershipPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-mymembershippage-tsx-2d0306300c) · [`src/built-ins/modules/memberships/src/pages/PlansPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-planspage-tsx-bef9fb0e53) · [`src/built-ins/modules/memberships/src/pages/ReportsPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-reportspage-tsx-e6208055f5) · [`src/built-ins/modules/memberships/src/pages/SettingsPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-settingspage-tsx-01cadc606b) · [`src/built-ins/modules/memberships/src/pages/SubscriberDetailPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-subscriberdetailpage-tsx-f6daf32e37) · [`src/built-ins/modules/memberships/src/pages/SubscribersPage.tsx`](#file-src-built-ins-modules-memberships-src-pages-subscriberspage-tsx-79db94bdd5) · [`src/built-ins/modules/memberships/src/server/index.ts`](#file-src-built-ins-modules-memberships-src-server-index-ts-4aa1588796)
 
 <a id="file-src-built-ins-modules-memberships-src-server-index-ts-4aa1588796"></a>
 
@@ -7540,18 +7584,19 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** Server-side barrel — services + container builder + foundation adapter.
 
-**Exports (11):**
+**Exports (12):**
 
 - `buildMembershipsContainer(deps: MembershipsDeps): MembershipsContainer`
 - `interface MembershipsDeps (9 members)` — ─── Container ────────────────────────────────────────────────────────────
 - `interface MembershipsContainer (4 members)`
-- `{ PlanService } from "./plans"`
+- `{ PlanService, SEED_REPORT_KEY } from "./plans"`
+- `{ SeedDefaultsFailure, SeedDefaultsResult, SeedReport } from "./plans"`
 - `{ BenefitService } from "./benefits"`
 - `{ SubscriptionService } from "./subscriptions"`
 - `{ WebhookService } from "./webhook"`
 - `{ WebhookHandleResult } from "./webhook"`
 - `{ ActivityLogPort, EventBusPort, ListActivityFilter, LogActivityInput, MembershipEventName, PluginInstallStorePort, StoragePort, StripeBillingPortalInput, StripeBillingPortalSession, StripeCheckoutSession, StripeCheckoutSessionInput, StripeCustomer, StripeCustomerInput, StripePort, StripePrice, StripePriceInput, StripeSubscription, StripeSubscriptionInput, StripeWebhookEvent, TenantPort, UserPort } from "./ports"`
-- `{ registerMembershipsFoundation, clearMembershipsFoundation, isFoundationRegistered, isStripeAvailable, requireFoundation, containerFor, containerWithDeps, _containerFromCtx } from "./foundationAdapter"`
+- `{ registerMembershipsFoundation, clearMembershipsFoundation, isFoundationRegistered, isStripeAvailable, requireFoundation, STRIPE_NOT_CONFIGURED_MESSAGE, containerFor, containerWithDeps, _containerFromCtx } from "./foundationAdapter"`
 - `{ MembershipsFoundation, ContainerForArgs } from "./foundationAdapter"`
 
 **Depends on (8):** [`src/built-ins/modules/memberships/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-memberships-src-lib-aquaplugintypes-ts-0c0e63626a) · [`src/built-ins/modules/memberships/src/lib/tenancy.ts`](#file-src-built-ins-modules-memberships-src-lib-tenancy-ts-cc5efd3e52) · [`src/built-ins/modules/memberships/src/server/benefits.ts`](#file-src-built-ins-modules-memberships-src-server-benefits-ts-93c989a4f5) · [`src/built-ins/modules/memberships/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-memberships-src-server-foundationadapter-ts-adbdd97bed) · [`src/built-ins/modules/memberships/src/server/plans.ts`](#file-src-built-ins-modules-memberships-src-server-plans-ts-770bb1f081) · [`src/built-ins/modules/memberships/src/server/ports.ts`](#file-src-built-ins-modules-memberships-src-server-ports-ts-25661d85b4) · [`src/built-ins/modules/memberships/src/server/subscriptions.ts`](#file-src-built-ins-modules-memberships-src-server-subscriptions-ts-45c34b6545) · [`src/built-ins/modules/memberships/src/server/webhook.ts`](#file-src-built-ins-modules-memberships-src-server-webhook-ts-f6a18edd69)
@@ -7564,7 +7609,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** signups use the new ones.
 
-**Exports (1):**
+**Exports (5):**
 
 - `class PlanService`
     - `constructor(private agencyId: AgencyId, private clientId: ClientId, private storage: StoragePort, private activity: ActivityLogPort, private events: EventBusPort, private stripe: StripePort)`
@@ -7575,7 +7620,12 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
     - `async update(id: string, patch: UpdatePlanPatch, actor: UserId): Promise<Plan | null>`
     - `async archive(id: string, actor: UserId): Promise<Plan | null>`
     - `async delete(id: string, actor: UserId): Promise<boolean>`
-    - `async seedDefaults(actor: UserId, currency: Currency = "usd"): Promise<{ seeded: number; existed: number }>`
+    - `async seedDefaults(actor: UserId, currency: Currency = "usd"): Promise<SeedDefaultsResult>`
+    - `async getSeedReport(): Promise<SeedReport | null>`
+- `SEED_REPORT_KEY = "memberships/plans/seed-report"` — Where the outcome of the default-plan seed is recorded.
+- `interface SeedDefaultsFailure (3 members)` — One default plan that could not be created, and why.
+- `interface SeedDefaultsResult (3 members)`
+- `interface SeedReport (2 members)` — The persisted record of the last seed attempt, read back by the healthcheck.
 
 **Depends on (6):** [`src/built-ins/modules/memberships/src/lib/domain.ts`](#file-src-built-ins-modules-memberships-src-lib-domain-ts-1e3d826e85) · [`src/built-ins/modules/memberships/src/lib/ids.ts`](#file-src-built-ins-modules-memberships-src-lib-ids-ts-f22b0fcc0a) · [`src/built-ins/modules/memberships/src/lib/runtimeValidation.ts`](#file-src-built-ins-modules-memberships-src-lib-runtimevalidation-ts-7e2f1caabe) · [`src/built-ins/modules/memberships/src/lib/tenancy.ts`](#file-src-built-ins-modules-memberships-src-lib-tenancy-ts-cc5efd3e52) · [`src/built-ins/modules/memberships/src/lib/time.ts`](#file-src-built-ins-modules-memberships-src-lib-time-ts-6c7312a9a9) · [`src/built-ins/modules/memberships/src/server/ports.ts`](#file-src-built-ins-modules-memberships-src-server-ports-ts-25661d85b4)
 
@@ -10249,7 +10299,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default PropertiesPanel({ block, onPatch, onDuplicate, onRemove, onClose }: PropertiesPanelProps)`
 
-**Depends on (6):** [`src/built-ins/modules/website-editor/src/components/AssetPicker.tsx`](#file-src-built-ins-modules-website-editor-src-components-assetpicker-tsx-f07f6664e0) · [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913) · [`src/built-ins/modules/website-editor/src/components/blockStyles.ts`](#file-src-built-ins-modules-website-editor-src-components-blockstyles-ts-4baaa846b8) · [`src/built-ins/modules/website-editor/src/lib/sites.ts`](#file-src-built-ins-modules-website-editor-src-lib-sites-ts-7f50908a93) · [`src/built-ins/modules/website-editor/src/lib/splitTests.ts`](#file-src-built-ins-modules-website-editor-src-lib-splittests-ts-5a0b783aee) · [`src/built-ins/modules/website-editor/src/types/block.ts`](#file-src-built-ins-modules-website-editor-src-types-block-ts-68d8cdbe7f)
+**Depends on (7):** [`src/built-ins/modules/website-editor/src/components/AssetPicker.tsx`](#file-src-built-ins-modules-website-editor-src-components-assetpicker-tsx-f07f6664e0) · [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913) · [`src/built-ins/modules/website-editor/src/components/blockStyles.ts`](#file-src-built-ins-modules-website-editor-src-components-blockstyles-ts-4baaa846b8) · [`src/built-ins/modules/website-editor/src/lib/featureBackends.ts`](#file-src-built-ins-modules-website-editor-src-lib-featurebackends-ts-5198844225) · [`src/built-ins/modules/website-editor/src/lib/sites.ts`](#file-src-built-ins-modules-website-editor-src-lib-sites-ts-7f50908a93) · [`src/built-ins/modules/website-editor/src/lib/splitTests.ts`](#file-src-built-ins-modules-website-editor-src-lib-splittests-ts-5a0b783aee) · [`src/built-ins/modules/website-editor/src/types/block.ts`](#file-src-built-ins-modules-website-editor-src-types-block-ts-68d8cdbe7f)
 
 **Used by (1):** [`src/built-ins/modules/website-editor/src/components/editor/EditorBlockStage.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editorblockstage-tsx-90a4d3c20c)
 
@@ -10471,7 +10521,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (2):**
 
-- `default EditorPropertiesSidebar({ selected, onClose, onPatch, onSave, onRevert, }: Props)`
+- `default EditorPropertiesSidebar({ selected, onClose, onPatch, onSave, onRevert, aiAvailable = false, }: Props)`
 - `interface SelectedElement (5 members)`
 
 **Depends on (2):** [`src/built-ins/modules/website-editor/src/components/editor/ImageInpaintModal.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-imageinpaintmodal-tsx-132ea3f08a) · [`src/built-ins/modules/website-editor/src/components/editor/ImageVariationsModal.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-imagevariationsmodal-tsx-d0f78a1ceb)
@@ -11242,7 +11292,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (1):** [`src/built-ins/modules/website-editor/src/types/content.ts`](#file-src-built-ins-modules-website-editor-src-types-content-ts-bdc6a59e37)
 
-**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+**Used by (1):** [`src/built-ins/modules/website-editor/src/pages/EditorPage.tsx`](#file-src-built-ins-modules-website-editor-src-pages-editorpage-tsx-147aac838c)
 
 <a id="file-src-built-ins-modules-website-editor-src-lib-customcode-ts-d18c49cfa0"></a>
 
@@ -11620,7 +11670,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on:** _No internal imports._
 
-**Used by (1):** [`src/built-ins/modules/website-editor/src/pages/EditorPage.tsx`](#file-src-built-ins-modules-website-editor-src-pages-editorpage-tsx-147aac838c)
+**Used by (2):** [`src/built-ins/modules/website-editor/src/components/canvas/PropertiesPanel.tsx`](#file-src-built-ins-modules-website-editor-src-components-canvas-propertiespanel-tsx-a7d683fb3c) · [`src/built-ins/modules/website-editor/src/pages/EditorPage.tsx`](#file-src-built-ins-modules-website-editor-src-pages-editorpage-tsx-147aac838c)
 
 <a id="file-src-built-ins-modules-website-editor-src-lib-findreplace-ts-b6a3a1e011"></a>
 
@@ -12005,7 +12055,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports (3):**
 
 - `async promoteSiteToGitHub(siteId: string, opts: PromoteOptions = {}): Promise<PromoteResult>`
-- `interface PromoteResult (5 members)`
+- `interface PromoteResult (8 members)`
 - `interface PromoteOptions (4 members)`
 
 **Depends on (1):** [`src/built-ins/modules/website-editor/src/lib/sites.ts`](#file-src-built-ins-modules-website-editor-src-lib-sites-ts-7f50908a93)
@@ -12561,7 +12611,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default VisualEditorPage()` — a pass-through (foundation handles plugin gating upstream).
 
-**Depends on (23):** [`src/built-ins/modules/website-editor/src/components/canvas/blockTreeOps.ts`](#file-src-built-ins-modules-website-editor-src-components-canvas-blocktreeops-ts-825c40c7ad) · [`src/built-ins/modules/website-editor/src/components/devicePreview.tsx`](#file-src-built-ins-modules-website-editor-src-components-devicepreview-tsx-0fee6b9bce) · [`src/built-ins/modules/website-editor/src/components/editor/EditorBlockStage.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editorblockstage-tsx-90a4d3c20c) · [`src/built-ins/modules/website-editor/src/components/editor/EditorFunnelStage.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editorfunnelstage-tsx-eb24cbb707) · [`src/built-ins/modules/website-editor/src/components/editor/EditorOutliner.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editoroutliner-tsx-50801dc75d) · [`src/built-ins/modules/website-editor/src/components/editor/EditorPropertiesSidebar.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editorpropertiessidebar-tsx-47e3d37588) · [`src/built-ins/modules/website-editor/src/components/editor/EditorTopBar.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editortopbar-tsx-5488c17b23) · [`src/built-ins/modules/website-editor/src/components/editor/GenerateModal.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-generatemodal-tsx-adc29a5f75) · [`src/built-ins/modules/website-editor/src/components/editor/LivePreview.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-livepreview-tsx-5c55fe2a65) · [`src/built-ins/modules/website-editor/src/components/editor/PagePickerToolbar.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-pagepickertoolbar-tsx-10e3a921af) · [`src/built-ins/modules/website-editor/src/components/pageTemplates.ts`](#file-src-built-ins-modules-website-editor-src-components-pagetemplates-ts-a6b20b21c8) · [`src/built-ins/modules/website-editor/src/lib/confirm.ts`](#file-src-built-ins-modules-website-editor-src-lib-confirm-ts-33ae610d92) · [`src/built-ins/modules/website-editor/src/lib/devicePresets.ts`](#file-src-built-ins-modules-website-editor-src-lib-devicepresets-ts-fdbbacbde1) · [`src/built-ins/modules/website-editor/src/lib/editorDeepLink.ts`](#file-src-built-ins-modules-website-editor-src-lib-editordeeplink-ts-70a964fc9b) · [`src/built-ins/modules/website-editor/src/lib/editorMode.ts`](#file-src-built-ins-modules-website-editor-src-lib-editormode-ts-0e8c99e000) · [`src/built-ins/modules/website-editor/src/lib/editorPages.ts`](#file-src-built-ins-modules-website-editor-src-lib-editorpages-ts-e5b139ae15) · [`src/built-ins/modules/website-editor/src/lib/featureBackends.ts`](#file-src-built-ins-modules-website-editor-src-lib-featurebackends-ts-5198844225) · [`src/built-ins/modules/website-editor/src/lib/funnels.ts`](#file-src-built-ins-modules-website-editor-src-lib-funnels-ts-1e196119cd) · [`src/built-ins/modules/website-editor/src/lib/pluginRequired.tsx`](#file-src-built-ins-modules-website-editor-src-lib-pluginrequired-tsx-30c1037542) · [`src/built-ins/modules/website-editor/src/lib/promote.ts`](#file-src-built-ins-modules-website-editor-src-lib-promote-ts-7b7a91818b) · [`src/built-ins/modules/website-editor/src/lib/sites.ts`](#file-src-built-ins-modules-website-editor-src-lib-sites-ts-7f50908a93) · [`src/built-ins/modules/website-editor/src/types/block.ts`](#file-src-built-ins-modules-website-editor-src-types-block-ts-68d8cdbe7f) · [`src/built-ins/modules/website-editor/src/types/editorPage.ts`](#file-src-built-ins-modules-website-editor-src-types-editorpage-ts-8ec7c1cdce)
+**Depends on (24):** [`src/built-ins/modules/website-editor/src/components/canvas/blockTreeOps.ts`](#file-src-built-ins-modules-website-editor-src-components-canvas-blocktreeops-ts-825c40c7ad) · [`src/built-ins/modules/website-editor/src/components/devicePreview.tsx`](#file-src-built-ins-modules-website-editor-src-components-devicepreview-tsx-0fee6b9bce) · [`src/built-ins/modules/website-editor/src/components/editor/EditorBlockStage.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editorblockstage-tsx-90a4d3c20c) · [`src/built-ins/modules/website-editor/src/components/editor/EditorFunnelStage.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editorfunnelstage-tsx-eb24cbb707) · [`src/built-ins/modules/website-editor/src/components/editor/EditorOutliner.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editoroutliner-tsx-50801dc75d) · [`src/built-ins/modules/website-editor/src/components/editor/EditorPropertiesSidebar.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editorpropertiessidebar-tsx-47e3d37588) · [`src/built-ins/modules/website-editor/src/components/editor/EditorTopBar.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editortopbar-tsx-5488c17b23) · [`src/built-ins/modules/website-editor/src/components/editor/GenerateModal.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-generatemodal-tsx-adc29a5f75) · [`src/built-ins/modules/website-editor/src/components/editor/LivePreview.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-livepreview-tsx-5c55fe2a65) · [`src/built-ins/modules/website-editor/src/components/editor/PagePickerToolbar.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-pagepickertoolbar-tsx-10e3a921af) · [`src/built-ins/modules/website-editor/src/components/pageTemplates.ts`](#file-src-built-ins-modules-website-editor-src-components-pagetemplates-ts-a6b20b21c8) · [`src/built-ins/modules/website-editor/src/lib/confirm.ts`](#file-src-built-ins-modules-website-editor-src-lib-confirm-ts-33ae610d92) · [`src/built-ins/modules/website-editor/src/lib/content.ts`](#file-src-built-ins-modules-website-editor-src-lib-content-ts-c979a99f42) · [`src/built-ins/modules/website-editor/src/lib/devicePresets.ts`](#file-src-built-ins-modules-website-editor-src-lib-devicepresets-ts-fdbbacbde1) · [`src/built-ins/modules/website-editor/src/lib/editorDeepLink.ts`](#file-src-built-ins-modules-website-editor-src-lib-editordeeplink-ts-70a964fc9b) · [`src/built-ins/modules/website-editor/src/lib/editorMode.ts`](#file-src-built-ins-modules-website-editor-src-lib-editormode-ts-0e8c99e000) · [`src/built-ins/modules/website-editor/src/lib/editorPages.ts`](#file-src-built-ins-modules-website-editor-src-lib-editorpages-ts-e5b139ae15) · [`src/built-ins/modules/website-editor/src/lib/featureBackends.ts`](#file-src-built-ins-modules-website-editor-src-lib-featurebackends-ts-5198844225) · [`src/built-ins/modules/website-editor/src/lib/funnels.ts`](#file-src-built-ins-modules-website-editor-src-lib-funnels-ts-1e196119cd) · [`src/built-ins/modules/website-editor/src/lib/pluginRequired.tsx`](#file-src-built-ins-modules-website-editor-src-lib-pluginrequired-tsx-30c1037542) · [`src/built-ins/modules/website-editor/src/lib/promote.ts`](#file-src-built-ins-modules-website-editor-src-lib-promote-ts-7b7a91818b) · [`src/built-ins/modules/website-editor/src/lib/sites.ts`](#file-src-built-ins-modules-website-editor-src-lib-sites-ts-7f50908a93) · [`src/built-ins/modules/website-editor/src/types/block.ts`](#file-src-built-ins-modules-website-editor-src-types-block-ts-68d8cdbe7f) · [`src/built-ins/modules/website-editor/src/types/editorPage.ts`](#file-src-built-ins-modules-website-editor-src-types-editorpage-ts-8ec7c1cdce)
 
 **Used by (1):** [`src/built-ins/modules/website-editor/src/pages/EditorRoutePage.tsx`](#file-src-built-ins-modules-website-editor-src-pages-editorroutepage-tsx-d7e8b2f724)
 
@@ -13408,7 +13458,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (13):** [`src/built-ins/runtime/_types.ts`](#file-src-built-ins-runtime-types-ts-bae4cd6b2a) · [`src/built-ins/runtime/_validate.ts`](#file-src-built-ins-runtime-validate-ts-7537e6b17c) · [`src/built-ins/runtime/foundation-adapters/_eventSubscribers.ts`](#file-src-built-ins-runtime-foundation-adapters-eventsubscribers-ts-6334555da4) · [`src/built-ins/runtime/foundation-adapters/affiliatesFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-affiliatesfoundation-ts-bab72f48dc) · [`src/built-ins/runtime/foundation-adapters/agencyFinanceFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-agencyfinancefoundation-ts-8c3647e20e) · [`src/built-ins/runtime/foundation-adapters/agencyHrFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-agencyhrfoundation-ts-f82a67d656) · [`src/built-ins/runtime/foundation-adapters/agencyMarketingFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-agencymarketingfoundation-ts-5b00836f2d) · [`src/built-ins/runtime/foundation-adapters/clientCrmFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-clientcrmfoundation-ts-49db2e4fd5) · [`src/built-ins/runtime/foundation-adapters/ecommerceFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-ecommercefoundation-ts-96609f2fd3) · [`src/built-ins/runtime/foundation-adapters/emailSenderFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-emailsenderfoundation-ts-5aa21ab460) · [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-leadspipelinefoundation-ts-a0444ffabc) · [`src/built-ins/runtime/foundation-adapters/membershipsFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-membershipsfoundation-ts-f01e9eeeea) · [`src/built-ins/runtime/foundation-adapters/publicFunnelFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-publicfunnelfoundation-ts-18280e9710)
 
-**Used by (20):** [`scripts/smoke-app-route-tenancy.test.ts`](scripts.md#file-scripts-smoke-app-route-tenancy-test-ts-c2561f3f7d) · [`scripts/smoke-client-portal-placement.test.ts`](scripts.md#file-scripts-smoke-client-portal-placement-test-ts-1e85efb390) · [`scripts/smoke-client-sidebar-catalog.test.ts`](scripts.md#file-scripts-smoke-client-sidebar-catalog-test-ts-2fe38ae86b) · [`scripts/smoke-finance-section-gates.test.ts`](scripts.md#file-scripts-smoke-finance-section-gates-test-ts-bb835c5a2c) · [`scripts/smoke-plugin-api-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-api-host-gates-test-ts-a532a714e3) · [`scripts/smoke-plugin-api-tenancy.test.ts`](scripts.md#file-scripts-smoke-plugin-api-tenancy-test-ts-8bbf35181d) · [`scripts/smoke-plugin-page-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-page-host-gates-test-ts-a2690cdf7e) · [`scripts/smoke-plugin-settings-surface.test.ts`](scripts.md#file-scripts-smoke-plugin-settings-surface-test-ts-2205532d69) · [`scripts/smoke-unwired-settings.test.ts`](scripts.md#file-scripts-smoke-unwired-settings-test-ts-acfbdd281e) · [`src/app/api/portal/plugins/health/route.ts`](app.md#file-src-app-api-portal-plugins-health-route-ts-e01f64510d) · [`src/app/portal/agency/[...rest]/page.tsx`](app.md#file-src-app-portal-agency-rest-page-tsx-27d1ad6afa) · [`src/app/portal/agency/marketing/page.tsx`](app.md#file-src-app-portal-agency-marketing-page-tsx-e2b361f4ba) · [`src/app/portal/clients/[clientId]/page.tsx`](app.md#file-src-app-portal-clients-clientid-page-tsx-f2587fcff8) · [`src/app/portal/customer/layout.tsx`](app.md#file-src-app-portal-customer-layout-tsx-51035d393e) · [`src/built-ins/runtime/_pathMapping.ts`](#file-src-built-ins-runtime-pathmapping-ts-4b40ea0169) · [`src/built-ins/runtime/_routeResolver.ts`](#file-src-built-ins-runtime-routeresolver-ts-bbf700f5cc) · [`src/built-ins/runtime/_runtime.ts`](#file-src-built-ins-runtime-runtime-ts-d2a0efb5ed) · [`src/built-ins/runtime/foundation-adapters/pluginRegistryAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-pluginregistryadapter-ts-8a92b62f94) · [`src/lib/server/plugins/pluginSecretConfig.ts`](lib.md#file-src-lib-server-plugins-pluginsecretconfig-ts-8cb887a277) · [`src/lib/server/plugins/pluginSettingsSurface.ts`](lib.md#file-src-lib-server-plugins-pluginsettingssurface-ts-f5a8104127)
+**Used by (21):** [`scripts/smoke-app-route-tenancy.test.ts`](scripts.md#file-scripts-smoke-app-route-tenancy-test-ts-c2561f3f7d) · [`scripts/smoke-client-portal-placement.test.ts`](scripts.md#file-scripts-smoke-client-portal-placement-test-ts-1e85efb390) · [`scripts/smoke-client-sidebar-catalog.test.ts`](scripts.md#file-scripts-smoke-client-sidebar-catalog-test-ts-2fe38ae86b) · [`scripts/smoke-finance-section-gates.test.ts`](scripts.md#file-scripts-smoke-finance-section-gates-test-ts-bb835c5a2c) · [`scripts/smoke-plugin-api-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-api-host-gates-test-ts-a532a714e3) · [`scripts/smoke-plugin-api-tenancy.test.ts`](scripts.md#file-scripts-smoke-plugin-api-tenancy-test-ts-8bbf35181d) · [`scripts/smoke-plugin-page-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-page-host-gates-test-ts-a2690cdf7e) · [`scripts/smoke-plugin-settings-surface.test.ts`](scripts.md#file-scripts-smoke-plugin-settings-surface-test-ts-2205532d69) · [`scripts/smoke-settings-hub.test.ts`](scripts.md#file-scripts-smoke-settings-hub-test-ts-326468fa4c) · [`scripts/smoke-unwired-settings.test.ts`](scripts.md#file-scripts-smoke-unwired-settings-test-ts-acfbdd281e) · [`src/app/portal/agency/[...rest]/page.tsx`](app.md#file-src-app-portal-agency-rest-page-tsx-27d1ad6afa) · [`src/app/portal/agency/marketing/page.tsx`](app.md#file-src-app-portal-agency-marketing-page-tsx-e2b361f4ba) · [`src/app/portal/clients/[clientId]/page.tsx`](app.md#file-src-app-portal-clients-clientid-page-tsx-f2587fcff8) · [`src/app/portal/customer/layout.tsx`](app.md#file-src-app-portal-customer-layout-tsx-51035d393e) · [`src/built-ins/runtime/_pathMapping.ts`](#file-src-built-ins-runtime-pathmapping-ts-4b40ea0169) · [`src/built-ins/runtime/_routeResolver.ts`](#file-src-built-ins-runtime-routeresolver-ts-bbf700f5cc) · [`src/built-ins/runtime/_runtime.ts`](#file-src-built-ins-runtime-runtime-ts-d2a0efb5ed) · [`src/built-ins/runtime/foundation-adapters/pluginRegistryAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-pluginregistryadapter-ts-8a92b62f94) · [`src/lib/server/plugins/pluginHealthRunner.ts`](lib.md#file-src-lib-server-plugins-pluginhealthrunner-ts-feda990895) · [`src/lib/server/plugins/pluginSecretConfig.ts`](lib.md#file-src-lib-server-plugins-pluginsecretconfig-ts-8cb887a277) · [`src/lib/server/plugins/pluginSettingsSurface.ts`](lib.md#file-src-lib-server-plugins-pluginsettingssurface-ts-f5a8104127)
 
 <a id="file-src-built-ins-runtime-routeresolver-ts-bbf700f5cc"></a>
 
@@ -13455,7 +13505,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (7):** [`src/built-ins/runtime/_registry.ts`](#file-src-built-ins-runtime-registry-ts-504f0b067d) · [`src/built-ins/runtime/_types.ts`](#file-src-built-ins-runtime-types-ts-bae4cd6b2a) · [`src/built-ins/runtime/foundation-adapters/index.ts`](#file-src-built-ins-runtime-foundation-adapters-index-ts-dcf532e6f2) · [`src/server/outbox.ts`](server.md#file-src-server-outbox-ts-de86d78655) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (12):** [`src/app/api/portal/plugins/health/route.ts`](app.md#file-src-app-api-portal-plugins-health-route-ts-e01f64510d) · [`src/app/portal/agency/[...rest]/page.tsx`](app.md#file-src-app-portal-agency-rest-page-tsx-27d1ad6afa) · [`src/app/portal/agency/marketing/page.tsx`](app.md#file-src-app-portal-agency-marketing-page-tsx-e2b361f4ba) · [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspaceServer.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspaceserver-tsx-90294b0e08) · [`src/app/portal/agency/pipelines/[slug]/page.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-page-tsx-6d47eb0c95) · [`src/built-ins/modules/leads-pipeline/src/pages/CampaignsPage.tsx`](#file-src-built-ins-modules-leads-pipeline-src-pages-campaignspage-tsx-706988f838) · [`src/built-ins/runtime/foundation-adapters/pluginRuntimeAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-pluginruntimeadapter-ts-ad61c52b09) · [`src/lib/server/auth/showcaseMode.ts`](lib.md#file-src-lib-server-auth-showcasemode-ts-20762473eb) · [`src/lib/server/embedAllowResolver.ts`](lib.md#file-src-lib-server-embedallowresolver-ts-c444b1bd8b) · [`src/lib/server/seeds/demoSeed.ts`](lib.md#file-src-lib-server-seeds-demoseed-ts-8b209d4159) · [`src/lib/server/seeds/founderSeed.ts`](lib.md#file-src-lib-server-seeds-founderseed-ts-a8d60a4bd5) · [`src/server/agencyBootstrap.ts`](server.md#file-src-server-agencybootstrap-ts-7ff459b170)
+**Used by (12):** [`src/app/portal/agency/[...rest]/page.tsx`](app.md#file-src-app-portal-agency-rest-page-tsx-27d1ad6afa) · [`src/app/portal/agency/marketing/page.tsx`](app.md#file-src-app-portal-agency-marketing-page-tsx-e2b361f4ba) · [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspaceServer.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspaceserver-tsx-90294b0e08) · [`src/app/portal/agency/pipelines/[slug]/page.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-page-tsx-6d47eb0c95) · [`src/built-ins/modules/leads-pipeline/src/pages/CampaignsPage.tsx`](#file-src-built-ins-modules-leads-pipeline-src-pages-campaignspage-tsx-706988f838) · [`src/built-ins/runtime/foundation-adapters/pluginRuntimeAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-pluginruntimeadapter-ts-ad61c52b09) · [`src/lib/server/auth/showcaseMode.ts`](lib.md#file-src-lib-server-auth-showcasemode-ts-20762473eb) · [`src/lib/server/embedAllowResolver.ts`](lib.md#file-src-lib-server-embedallowresolver-ts-c444b1bd8b) · [`src/lib/server/plugins/pluginHealthRunner.ts`](lib.md#file-src-lib-server-plugins-pluginhealthrunner-ts-feda990895) · [`src/lib/server/seeds/demoSeed.ts`](lib.md#file-src-lib-server-seeds-demoseed-ts-8b209d4159) · [`src/lib/server/seeds/founderSeed.ts`](lib.md#file-src-lib-server-seeds-founderseed-ts-a8d60a4bd5) · [`src/server/agencyBootstrap.ts`](server.md#file-src-server-agencybootstrap-ts-7ff459b170)
 
 <a id="file-src-built-ins-runtime-types-ts-bae4cd6b2a"></a>
 
@@ -13524,7 +13574,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (1):** [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (37):** [`scripts/smoke-client-sidebar-catalog.test.ts`](scripts.md#file-scripts-smoke-client-sidebar-catalog-test-ts-2fe38ae86b) · [`scripts/smoke-finance-section-gates.test.ts`](scripts.md#file-scripts-smoke-finance-section-gates-test-ts-bb835c5a2c) · [`scripts/smoke-plugin-api-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-api-host-gates-test-ts-a532a714e3) · [`scripts/smoke-plugin-api-tenancy.test.ts`](scripts.md#file-scripts-smoke-plugin-api-tenancy-test-ts-8bbf35181d) · [`scripts/smoke-plugin-page-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-page-host-gates-test-ts-a2690cdf7e) · [`scripts/smoke-portal-role-brandkit.test.ts`](scripts.md#file-scripts-smoke-portal-role-brandkit-test-ts-0d497171f7) · [`scripts/smoke-unwired-settings.test.ts`](scripts.md#file-scripts-smoke-unwired-settings-test-ts-acfbdd281e) · [`src/app/api/portal/[module]/[...rest]/route.ts`](app.md#file-src-app-api-portal-module-rest-route-ts-b2456019c9) · [`src/app/api/portal/plugins/health/route.ts`](app.md#file-src-app-api-portal-plugins-health-route-ts-e01f64510d) · [`src/app/portal/agency/[...rest]/page.tsx`](app.md#file-src-app-portal-agency-rest-page-tsx-27d1ad6afa) · [`src/app/portal/clients/[clientId]/[...rest]/page.tsx`](app.md#file-src-app-portal-clients-clientid-rest-page-tsx-f215f5ac0f) · [`src/app/portal/customer/[...rest]/page.tsx`](app.md#file-src-app-portal-customer-rest-page-tsx-88df60b027) · [`src/built-ins/modules/website-editor/src/pages/EditorRoutePage.tsx`](#file-src-built-ins-modules-website-editor-src-pages-editorroutepage-tsx-d7e8b2f724) · [`src/built-ins/runtime/_pageScope.ts`](#file-src-built-ins-runtime-pagescope-ts-3cc574306e) · [`src/built-ins/runtime/_presets.ts`](#file-src-built-ins-runtime-presets-ts-91b4e14e96) · [`src/built-ins/runtime/_registry.ts`](#file-src-built-ins-runtime-registry-ts-504f0b067d) · [`src/built-ins/runtime/_routeResolver.ts`](#file-src-built-ins-runtime-routeresolver-ts-bbf700f5cc) · [`src/built-ins/runtime/_runtime.ts`](#file-src-built-ins-runtime-runtime-ts-d2a0efb5ed) · [`src/built-ins/runtime/_validate.ts`](#file-src-built-ins-runtime-validate-ts-7537e6b17c) · [`src/built-ins/runtime/foundation-adapters/activityLogAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-activitylogadapter-ts-83c88f8691) · [`src/built-ins/runtime/foundation-adapters/clientStoreAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-clientstoreadapter-ts-d9f633b076) · [`src/built-ins/runtime/foundation-adapters/eventBusAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-eventbusadapter-ts-7779dab897) · [`src/built-ins/runtime/foundation-adapters/index.ts`](#file-src-built-ins-runtime-foundation-adapters-index-ts-dcf532e6f2) · [`src/built-ins/runtime/foundation-adapters/phaseStoreAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-phasestoreadapter-ts-8ef086bb47) · [`src/built-ins/runtime/foundation-adapters/pluginInstallStoreAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-plugininstallstoreadapter-ts-2a7e1c6e0d) · [`src/built-ins/runtime/foundation-adapters/pluginRegistryAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-pluginregistryadapter-ts-8a92b62f94) · [`src/built-ins/runtime/foundation-adapters/pluginRuntimeAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-pluginruntimeadapter-ts-ad61c52b09) · [`src/built-ins/runtime/foundation-adapters/portalVariantAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-portalvariantadapter-ts-8738bd92b5) · [`src/built-ins/runtime/foundation-adapters/publicMediaAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-publicmediaadapter-ts-4b47d9ab84) · [`src/lib/chrome/agencySidebarPluginCatalog.ts`](lib.md#file-src-lib-chrome-agencysidebarplugincatalog-ts-73941e68df) · [`src/lib/chrome/clientSidebarPluginCatalog.ts`](lib.md#file-src-lib-chrome-clientsidebarplugincatalog-ts-a302bba740) · [`src/lib/chrome/pluginHealth.ts`](lib.md#file-src-lib-chrome-pluginhealth-ts-d71c78b8c0) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/server/plugins/pluginSecretConfig.ts`](lib.md#file-src-lib-server-plugins-pluginsecretconfig-ts-8cb887a277) · [`src/lib/server/plugins/pluginSettingsSurface.ts`](lib.md#file-src-lib-server-plugins-pluginsettingssurface-ts-f5a8104127) · [`src/lib/server/plugins/readOnlyPluginStorage.ts`](lib.md#file-src-lib-server-plugins-readonlypluginstorage-ts-2e4e793f30)
+**Used by (37):** [`scripts/smoke-client-sidebar-catalog.test.ts`](scripts.md#file-scripts-smoke-client-sidebar-catalog-test-ts-2fe38ae86b) · [`scripts/smoke-finance-section-gates.test.ts`](scripts.md#file-scripts-smoke-finance-section-gates-test-ts-bb835c5a2c) · [`scripts/smoke-plugin-api-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-api-host-gates-test-ts-a532a714e3) · [`scripts/smoke-plugin-api-tenancy.test.ts`](scripts.md#file-scripts-smoke-plugin-api-tenancy-test-ts-8bbf35181d) · [`scripts/smoke-plugin-page-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-page-host-gates-test-ts-a2690cdf7e) · [`scripts/smoke-portal-role-brandkit.test.ts`](scripts.md#file-scripts-smoke-portal-role-brandkit-test-ts-0d497171f7) · [`scripts/smoke-unwired-settings.test.ts`](scripts.md#file-scripts-smoke-unwired-settings-test-ts-acfbdd281e) · [`src/app/api/portal/[module]/[...rest]/route.ts`](app.md#file-src-app-api-portal-module-rest-route-ts-b2456019c9) · [`src/app/portal/agency/[...rest]/page.tsx`](app.md#file-src-app-portal-agency-rest-page-tsx-27d1ad6afa) · [`src/app/portal/clients/[clientId]/[...rest]/page.tsx`](app.md#file-src-app-portal-clients-clientid-rest-page-tsx-f215f5ac0f) · [`src/app/portal/customer/[...rest]/page.tsx`](app.md#file-src-app-portal-customer-rest-page-tsx-88df60b027) · [`src/built-ins/modules/website-editor/src/pages/EditorRoutePage.tsx`](#file-src-built-ins-modules-website-editor-src-pages-editorroutepage-tsx-d7e8b2f724) · [`src/built-ins/runtime/_pageScope.ts`](#file-src-built-ins-runtime-pagescope-ts-3cc574306e) · [`src/built-ins/runtime/_presets.ts`](#file-src-built-ins-runtime-presets-ts-91b4e14e96) · [`src/built-ins/runtime/_registry.ts`](#file-src-built-ins-runtime-registry-ts-504f0b067d) · [`src/built-ins/runtime/_routeResolver.ts`](#file-src-built-ins-runtime-routeresolver-ts-bbf700f5cc) · [`src/built-ins/runtime/_runtime.ts`](#file-src-built-ins-runtime-runtime-ts-d2a0efb5ed) · [`src/built-ins/runtime/_validate.ts`](#file-src-built-ins-runtime-validate-ts-7537e6b17c) · [`src/built-ins/runtime/foundation-adapters/activityLogAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-activitylogadapter-ts-83c88f8691) · [`src/built-ins/runtime/foundation-adapters/clientStoreAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-clientstoreadapter-ts-d9f633b076) · [`src/built-ins/runtime/foundation-adapters/eventBusAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-eventbusadapter-ts-7779dab897) · [`src/built-ins/runtime/foundation-adapters/index.ts`](#file-src-built-ins-runtime-foundation-adapters-index-ts-dcf532e6f2) · [`src/built-ins/runtime/foundation-adapters/phaseStoreAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-phasestoreadapter-ts-8ef086bb47) · [`src/built-ins/runtime/foundation-adapters/pluginInstallStoreAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-plugininstallstoreadapter-ts-2a7e1c6e0d) · [`src/built-ins/runtime/foundation-adapters/pluginRegistryAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-pluginregistryadapter-ts-8a92b62f94) · [`src/built-ins/runtime/foundation-adapters/pluginRuntimeAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-pluginruntimeadapter-ts-ad61c52b09) · [`src/built-ins/runtime/foundation-adapters/portalVariantAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-portalvariantadapter-ts-8738bd92b5) · [`src/built-ins/runtime/foundation-adapters/publicMediaAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-publicmediaadapter-ts-4b47d9ab84) · [`src/lib/chrome/agencySidebarPluginCatalog.ts`](lib.md#file-src-lib-chrome-agencysidebarplugincatalog-ts-73941e68df) · [`src/lib/chrome/clientSidebarPluginCatalog.ts`](lib.md#file-src-lib-chrome-clientsidebarplugincatalog-ts-a302bba740) · [`src/lib/chrome/pluginHealth.ts`](lib.md#file-src-lib-chrome-pluginhealth-ts-d71c78b8c0) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/server/plugins/pluginHealthRunner.ts`](lib.md#file-src-lib-server-plugins-pluginhealthrunner-ts-feda990895) · [`src/lib/server/plugins/pluginSecretConfig.ts`](lib.md#file-src-lib-server-plugins-pluginsecretconfig-ts-8cb887a277) · [`src/lib/server/plugins/pluginSettingsSurface.ts`](lib.md#file-src-lib-server-plugins-pluginsettingssurface-ts-f5a8104127) · [`src/lib/server/plugins/readOnlyPluginStorage.ts`](lib.md#file-src-lib-server-plugins-readonlypluginstorage-ts-2e4e793f30)
 
 <a id="file-src-built-ins-runtime-validate-ts-7537e6b17c"></a>
 
@@ -13544,6 +13594,22 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 
 ## `src/built-ins/runtime/foundation-adapters/`
+
+<a id="file-src-built-ins-runtime-foundation-adapters-affiliatesstripeconnectadapter-ts-b8a3703af3"></a>
+
+### `src/built-ins/runtime/foundation-adapters/_affiliatesStripeConnectAdapter.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (3):**
+
+- `async getAffiliatesStripeConnectClient(secretKey: string, injected?: StripeConnectClientLike): Promise<StripeConnectClientLike>`
+- `makeAffiliatesStripeConnectPort(keys: StripeKeys, injected?: StripeConnectClientLike): StripeConnectPort` — Build the concrete `StripeConnectPort` for one set of per-install keys. Every method resolves the SDK client lazily, so constructing the port is synchronous — the affiliates conta…
+- `interface StripeConnectClientLike (4 members)`
+
+**Depends on:** _No internal imports._
+
+**Used by (2):** [`scripts/smoke-affiliate-payout-ownership.test.ts`](scripts.md#file-scripts-smoke-affiliate-payout-ownership-test-ts-4524d5574c) · [`src/built-ins/runtime/foundation-adapters/affiliatesFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-affiliatesfoundation-ts-bab72f48dc)
 
 <a id="file-src-built-ins-runtime-foundation-adapters-crosspluginports-ts-9ec00c7981"></a>
 
@@ -13592,6 +13658,24 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by (10):** [`src/built-ins/runtime/foundation-adapters/affiliatesFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-affiliatesfoundation-ts-bab72f48dc) · [`src/built-ins/runtime/foundation-adapters/agencyFinanceFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-agencyfinancefoundation-ts-8c3647e20e) · [`src/built-ins/runtime/foundation-adapters/agencyHrFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-agencyhrfoundation-ts-f82a67d656) · [`src/built-ins/runtime/foundation-adapters/agencyMarketingFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-agencymarketingfoundation-ts-5b00836f2d) · [`src/built-ins/runtime/foundation-adapters/clientCrmFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-clientcrmfoundation-ts-49db2e4fd5) · [`src/built-ins/runtime/foundation-adapters/ecommerceFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-ecommercefoundation-ts-96609f2fd3) · [`src/built-ins/runtime/foundation-adapters/emailSenderFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-emailsenderfoundation-ts-5aa21ab460) · [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-leadspipelinefoundation-ts-a0444ffabc) · [`src/built-ins/runtime/foundation-adapters/membershipsFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-membershipsfoundation-ts-f01e9eeeea) · [`src/built-ins/runtime/foundation-adapters/publicFunnelFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-publicfunnelfoundation-ts-18280e9710)
 
+<a id="file-src-built-ins-runtime-foundation-adapters-membershipsstripeadapter-ts-e751323a46"></a>
+
+### `src/built-ins/runtime/foundation-adapters/_membershipsStripeAdapter.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (5):**
+
+- `async getMembershipsStripeClient(secretKey: string, injected?: StripeClientLike): Promise<StripeClientLike>`
+- `readMembershipsStripeKeys(config: Record<string, unknown> | null | undefined): MembershipsStripeKeys | null` — Stripe keys off an ecommerce install's *effective* config (vault merged in). Returns null — not a throwing stub — when no secret key is present. Null is what makes `isStripeAvaila…
+- `makeMembershipsStripePort(keys: MembershipsStripeKeys, injected?: StripeClientLike): StripePort` — Build the concrete `StripePort` for one set of per-install keys. Every method resolves the SDK client lazily, so constructing the port is synchronous — the memberships container b…
+- `interface MembershipsStripeKeys (2 members)`
+- `interface StripeClientLike (6 members)`
+
+**Depends on:** _No internal imports._
+
+**Used by (2):** [`scripts/smoke-membership-subscription-lifecycle.test.ts`](scripts.md#file-scripts-smoke-membership-subscription-lifecycle-test-ts-d229a2fed2) · [`src/built-ins/runtime/foundation-adapters/membershipsFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-membershipsfoundation-ts-f01e9eeeea)
+
 <a id="file-src-built-ins-runtime-foundation-adapters-activitylogadapter-ts-83c88f8691"></a>
 
 ### `src/built-ins/runtime/foundation-adapters/activityLogAdapter.ts`
@@ -13612,13 +13696,15 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (1):**
+**Exports (3):**
 
+- `affiliatesStripeConnectKeysFor(args: { agencyId: string; clientId: string; }): StripeKeys | null` — The Stripe keys affiliates would use for this scope, or null when the client has no configured Stripe. Exported so a caller (and the smoke tests) can ask the same question the fac…
+- `affiliatesStripeConnectFor(args: { agencyId: string; clientId: string }, injectedClient?: StripeConnectClientLike): StripeConnectPort | null` — The registered factory, exported for tests: given a scope (and optionally an injected SDK client), either a real `StripeConnectPort` or null.
 - `ensureAffiliatesFoundationRegistered(): void`
 
-**Depends on (2):** [`src/built-ins/runtime/foundation-adapters/_crossPluginPorts.ts`](#file-src-built-ins-runtime-foundation-adapters-crosspluginports-ts-9ec00c7981) · [`src/built-ins/runtime/foundation-adapters/_foundationPorts.ts`](#file-src-built-ins-runtime-foundation-adapters-foundationports-ts-4b979334a9)
+**Depends on (4):** [`src/built-ins/runtime/foundation-adapters/_affiliatesStripeConnectAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-affiliatesstripeconnectadapter-ts-b8a3703af3) · [`src/built-ins/runtime/foundation-adapters/_crossPluginPorts.ts`](#file-src-built-ins-runtime-foundation-adapters-crosspluginports-ts-9ec00c7981) · [`src/built-ins/runtime/foundation-adapters/_foundationPorts.ts`](#file-src-built-ins-runtime-foundation-adapters-foundationports-ts-4b979334a9) · [`src/lib/server/plugins/pluginSecretConfig.ts`](lib.md#file-src-lib-server-plugins-pluginsecretconfig-ts-8cb887a277)
 
-**Used by (1):** [`src/built-ins/runtime/_registry.ts`](#file-src-built-ins-runtime-registry-ts-504f0b067d)
+**Used by (2):** [`scripts/smoke-affiliate-payout-ownership.test.ts`](scripts.md#file-scripts-smoke-affiliate-payout-ownership-test-ts-4524d5574c) · [`src/built-ins/runtime/_registry.ts`](#file-src-built-ins-runtime-registry-ts-504f0b067d)
 
 <a id="file-src-built-ins-runtime-foundation-adapters-agencyfinancecompensation-ts-418099f71c"></a>
 
@@ -13820,13 +13906,15 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (1):**
+**Exports (3):**
 
+- `membershipsStripeKeysFor(args: { agencyId: string; clientId: string; }): MembershipsStripeKeys | null` — The Stripe keys memberships would use for this scope, or null when the client has no configured Stripe. Exported so a caller (and the smoke tests) can ask the same question the fa…
+- `membershipsStripeFor(args: { agencyId: string; clientId: string }, injectedClient?: StripeClientLike): StripePort | null` — The registered factory, exported for tests: given a scope (and optionally an injected SDK client), either a real `StripePort` or null.
 - `ensureMembershipsFoundationRegistered(): void`
 
-**Depends on (1):** [`src/built-ins/runtime/foundation-adapters/_foundationPorts.ts`](#file-src-built-ins-runtime-foundation-adapters-foundationports-ts-4b979334a9)
+**Depends on (3):** [`src/built-ins/runtime/foundation-adapters/_foundationPorts.ts`](#file-src-built-ins-runtime-foundation-adapters-foundationports-ts-4b979334a9) · [`src/built-ins/runtime/foundation-adapters/_membershipsStripeAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-membershipsstripeadapter-ts-e751323a46) · [`src/lib/server/plugins/pluginSecretConfig.ts`](lib.md#file-src-lib-server-plugins-pluginsecretconfig-ts-8cb887a277)
 
-**Used by (1):** [`src/built-ins/runtime/_registry.ts`](#file-src-built-ins-runtime-registry-ts-504f0b067d)
+**Used by (2):** [`scripts/smoke-membership-subscription-lifecycle.test.ts`](scripts.md#file-scripts-smoke-membership-subscription-lifecycle-test-ts-d229a2fed2) · [`src/built-ins/runtime/_registry.ts`](#file-src-built-ins-runtime-registry-ts-504f0b067d)
 
 <a id="file-src-built-ins-runtime-foundation-adapters-personclientseeding-ts-313518954c"></a>
 

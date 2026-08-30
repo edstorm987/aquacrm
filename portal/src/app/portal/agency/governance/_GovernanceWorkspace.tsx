@@ -20,6 +20,7 @@ import type { ControlStatus } from "@/lib/compliance/compliancePosture";
 import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
 import type {
+  AgencyWideSection,
   GovernanceSnapshot,
   LegalRegisterRow,
   SecurityControl,
@@ -76,6 +77,9 @@ export function GovernanceWorkspace({ initial, isOwner }: { initial: GovernanceS
   const [view, setView] = useState<View>("overview");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
+  // The scope a failed read was ASKING for. Held so the failure is an explicit
+  // state with a way out, not a sentence the user has to re-drive by hand.
+  const [failedScope, setFailedScope] = useState<string | null>(null);
 
   // The scope selector used to move first and the read second, so a refused
   // read left the PREVIOUS company's posture on screen labelled as the new one —
@@ -84,6 +88,10 @@ export function GovernanceWorkspace({ initial, isOwner }: { initial: GovernanceS
   const reload = useCallback(async (scope: string) => {
     setLoading(true);
     setStatus("");
+    // Cleared on EVERY read, so a retry control can only ever offer the scope
+    // whose read just failed — never a stale one from an earlier failure that a
+    // later, unrelated reload happened to fail after.
+    setFailedScope(null);
     try {
       const query = scope ? `?companyId=${encodeURIComponent(scope)}` : "";
       const response = await fetch(`/api/portal/governance${query}`);
@@ -103,7 +111,12 @@ export function GovernanceWorkspace({ initial, isOwner }: { initial: GovernanceS
   }, []);
 
   function onScopeChange(next: string) {
-    void reload(next).then(ok => { if (ok) setCompanyId(next); });
+    void reload(next).then(ok => {
+      // The selector only moves once the evidence behind it arrived, so a
+      // refused read can never leave one company's records under another's name.
+      if (ok) { setCompanyId(next); setFailedScope(null); }
+      else setFailedScope(next);
+    });
   }
 
   const { posture } = snapshot;
@@ -138,6 +151,15 @@ export function GovernanceWorkspace({ initial, isOwner }: { initial: GovernanceS
         </label>
       </header>
 
+      {/* The scope label is read from the SNAPSHOT, not from the selector, so it
+          can only ever name the scope the figures below were actually built for. */}
+      <p className="mt-3 text-xs text-black/50">
+        Showing evidence for <span className="font-medium text-black/70">{snapshot.companyName}</span>.
+        {snapshot.companyId
+          ? " Records shared across the agency are included; another company's records are not."
+          : " Every company's records are included."}
+      </p>
+
       {/* The disclaimer is rendered before any status, never tucked in a footer. */}
       <p className="mt-4 flex gap-2 rounded-lg border border-amber-600/25 bg-amber-50 px-4 py-3 text-sm text-amber-900">
         <TriangleAlert size={18} className="mt-0.5 shrink-0" />
@@ -153,7 +175,21 @@ export function GovernanceWorkspace({ initial, isOwner }: { initial: GovernanceS
         </div>
       ) : null}
 
-      {status ? <p className="mt-3 rounded-md border border-black/10 bg-black/[0.03] px-3 py-2 text-sm text-black/60">{status}</p> : null}
+      {status ? (
+        <p className="mt-3 flex flex-wrap items-center gap-3 rounded-md border border-black/10 bg-black/[0.03] px-3 py-2 text-sm text-black/60" role="status">
+          <span>{status}</span>
+          {failedScope !== null ? (
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => onScopeChange(failedScope)}
+              className="min-h-8 rounded-md border border-black/20 bg-white px-2.5 text-xs font-semibold text-black/75 hover:border-black/40 disabled:opacity-50"
+            >
+              Try that scope again
+            </button>
+          ) : null}
+        </p>
+      ) : null}
 
       <nav className="mt-5 flex flex-wrap gap-1.5">
         {VIEWS.map(item => {
@@ -177,7 +213,7 @@ export function GovernanceWorkspace({ initial, isOwner }: { initial: GovernanceS
         {view === "erasure" ? <ErasureSection snapshot={snapshot} isOwner={isOwner} onChanged={() => reload(companyId)} /> : null}
         {view === "requests" ? <SubjectRequestSection snapshot={snapshot} isOwner={isOwner} onChanged={() => reload(companyId)} /> : null}
         {view === "subprocessors" ? <SubprocessorSection rows={snapshot.subprocessors} /> : null}
-        {view === "security" ? <SecuritySection controls={snapshot.security} /> : null}
+        {view === "security" ? <SecuritySection controls={snapshot.security} snapshot={snapshot} /> : null}
       </div>
     </div>
   );
@@ -573,6 +609,8 @@ function SubjectRequestSection({ snapshot, isOwner, onChanged }: { snapshot: Gov
         Every data-subject request, and the one-month clock each runs on (GDPR Art. 12(3), from the date it was <strong>received</strong>). Identity must be verified before a request can be fulfilled — the register refuses otherwise.
       </p>
 
+      <AgencyWideNote snapshot={snapshot} id="requests" />
+
       <div className="grid gap-3 sm:grid-cols-4">
         <ClockTile label="Open" value={clock.open} />
         <ClockTile label="Overdue" value={clock.overdue} tone={clock.overdue > 0 ? "alert" : undefined} />
@@ -629,6 +667,7 @@ function SubjectRequestSection({ snapshot, isOwner, onChanged }: { snapshot: Gov
             ? "No retention period is set for any category, so nothing expires — data is kept indefinitely. Setting a period below is what turns the stated policy into an enforced one."
             : `With the current periods, a sweep would remove ${retentionPreview.total} record${retentionPreview.total === 1 ? "" : "s"} right now. Nothing has been deleted — this is a count.`}
         </p>
+        <AgencyWideNote snapshot={snapshot} id="retention" />
         <RetentionForm categories={retentionCategories} preview={retentionPreview} isOwner={isOwner} onChanged={onChanged} />
       </div>
     </section>
@@ -788,7 +827,7 @@ function SubprocessorSection({ rows }: { rows: SubprocessorRow[] }) {
 
 // ─── Security posture ────────────────────────────────────────────────────────
 
-function SecuritySection({ controls }: { controls: SecurityControl[] }) {
+function SecuritySection({ controls, snapshot }: { controls: SecurityControl[]; snapshot: GovernanceSnapshot }) {
   const groups = controls.reduce<Record<string, SecurityControl[]>>((accumulator, control) => {
     (accumulator[control.group] ??= []).push(control);
     return accumulator;
@@ -798,6 +837,7 @@ function SecuritySection({ controls }: { controls: SecurityControl[] }) {
       <p className="text-sm text-black/60">
         What the app can honestly say about its own security controls — and, next to each, what that does not prove. Nothing here is green: &quot;in code&quot; means the mechanism ships, not that it has been independently reviewed.
       </p>
+      <AgencyWideNote snapshot={snapshot} id="security" />
       {Object.entries(groups).map(([group, items]) => (
         <div key={group} className="rounded-lg border border-black/10 bg-white">
           <h3 className="border-b border-black/10 px-4 py-2.5 text-sm font-semibold text-black/75">{group}</h3>
@@ -823,6 +863,27 @@ function SecuritySection({ controls }: { controls: SecurityControl[] }) {
 }
 
 // ─── Small bits ──────────────────────────────────────────────────────────────
+
+/**
+ * The label for a section the scope selector does NOT filter.
+ *
+ * Some registers here have no company dimension at all — the security controls
+ * are facts about the code, and the subject-request and retention registers are
+ * keyed to the agency. Rendering them silently under a company's name would
+ * claim a narrowing that never happened, so each says out loud that it is
+ * agency-wide and why (issues #68). The reason comes from the snapshot, so the
+ * page cannot invent one the server did not state.
+ */
+function AgencyWideNote({ snapshot, id }: { snapshot: GovernanceSnapshot; id: AgencyWideSection["id"] }) {
+  const section = snapshot.agencyWideSections.find(item => item.id === id);
+  if (!section) return null;
+  return (
+    <p className="rounded-md border border-black/10 bg-black/[0.03] px-3 py-2 text-xs leading-5 text-black/60">
+      <span className="font-semibold text-black/70">Agency-wide{snapshot.companyId ? ` — not narrowed to ${snapshot.companyName}` : ""}.</span>{" "}
+      {section.reason}
+    </p>
+  );
+}
 
 function Stat({ label, value, tone }: { label: string; value: number; tone: string }) {
   return (

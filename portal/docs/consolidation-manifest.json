@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-30T21:29:37.747Z",
+  "generatedAt": "2026-08-30T22:40:33.196Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -1167,9 +1167,9 @@
       "path": "docs/workspace/radar.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-radar-md",
-      "sha256": "3ce82366eef05f6cb142833c4657adf87afa9380de13139aaac26db8c49892a0",
-      "words": 3319,
-      "bytes": 29250
+      "sha256": "094abc931f838551ba12cba295eeae59986f3a3e14570beb3da5b229b5bf637a",
+      "words": 3419,
+      "bytes": 30051
     },
     {
       "path": "docs/workspace/scripts-config-docs.md",

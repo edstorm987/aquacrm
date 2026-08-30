@@ -42,8 +42,20 @@ import type { AquaPlugin } from "../src/built-ins/runtime/_types";
  * the first run of this test every one of them looked "read", by the very list
  * asserting they are not. A detector that its own findings disarm is worse than
  * no detector, because it reports a clean sweep.
+ *
+ * `lib/integrations/catalog.ts` is the same shape of file for a different
+ * subject: it DECLARES the field ids an integration provider asks for
+ * (`{ id: "fromName", label: "Sender name" }` for SMTP/Milesymedia). It reads no
+ * plugin install config at all. Added 2026-08-30, because that one line was the
+ * ONLY thing in the repository making `leads-pipeline/fromName` look consulted —
+ * an id collision between an SMTP credential and a plugin setting. The module
+ * that declares it contains zero occurrences of `install.config`, so nothing
+ * there can read any setting; a hub row justified by "read for real when a blast
+ * is composed" was resting on this collision. Excluding a declaration file makes
+ * the sweep STRICTER (one more finding), which is the direction that costs the
+ * operator nothing but an honest label.
  */
-const NOT_A_READER = /lib\/plugins\/unwiredSettings\.ts$/;
+const NOT_A_READER = /lib\/plugins\/unwiredSettings\.ts$|lib\/integrations\/catalog\.ts$/;
 
 function readTree(dir: string, skip: RegExp): string[] {
   const out: string[] = [];
@@ -109,11 +121,17 @@ describe("settings fields that nothing reads", () => {
       + "look wired and this sweep would report a clean bill of health it did not earn",
     );
     // And a field that IS read must classify as read, or every result is noise.
-    // `journey-pipelines` is a feature flag, so use a real settings field the
-    // code consults: client-crm's custom attribute schema.
+    //
+    // The anchor must be a field read by CODE. It used to be
+    // `client-crm/customAttributeSchema`, which turned out to be read by
+    // nothing — it classified as wired because its own Settings page mentioned
+    // `install.config.<id>` in a comment, so the guard was resting on prose and
+    // would have survived the field being deleted outright. Re-anchored
+    // 2026-08-30 on `affiliates/defaultPayoutMethod`, which
+    // `affiliates/src/api/handlers.ts` consults when it creates a payout.
     const { unwired } = sweep();
     assert.ok(
-      !unwired.includes("client-crm/customAttributeSchema"),
+      !unwired.includes("affiliates/defaultPayoutMethod"),
       "a field the module genuinely reads must not be reported unwired — the detector is inverted",
     );
   });

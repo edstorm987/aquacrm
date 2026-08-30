@@ -1,7 +1,8 @@
 "use client";
 
-import { Download, Eye, FileUp, Pencil, Plus, ShieldCheck, Trash2, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Archive, Download, Eye, FileUp, Pencil, Plus, ShieldCheck, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import type { LegalDocumentDependant, LegalDocumentDependencyInventory } from "@/server/legalDocumentDependencies";
 import type { LegalDocument, LegalDocumentCategory, LegalDocumentStatus } from "@/server/types";
 import { dateInputValue, formatUkDate } from "@/lib/shared/formatDateTime";
 
@@ -24,6 +25,7 @@ export function LegalCompliancePanel({ initialDocuments, canEdit }: { initialDoc
   const [query, setQuery] = useState("");
   const [uploading, setUploading] = useState(false);
   const [selected, setSelected] = useState<LegalDocument | null>(null);
+  const [removing, setRemoving] = useState<LegalDocument | null>(null);
   const [status, setStatus] = useState("");
   const now = Date.now();
   const upcoming = documents.filter(item => item.status !== "archived" && item.status !== "expired" && (item.reminderAt ?? item.expiresAt ?? Infinity) <= now + 45 * DAY).length;
@@ -36,16 +38,6 @@ export function LegalCompliancePanel({ initialDocuments, canEdit }: { initialDoc
       (!q || `${item.title} ${item.counterparty ?? ""} ${item.reference ?? ""} ${item.notes ?? ""} ${item.fileName}`.toLowerCase().includes(q)),
     );
   }, [documents, filter, query]);
-
-  async function remove(document: LegalDocument) {
-    if (!window.confirm(`Delete "${document.title}" and its stored file?`)) return;
-    const response = await fetch(`/api/portal/company/legal?id=${encodeURIComponent(document.id)}`, { method: "DELETE" });
-    if (response.ok) {
-      setDocuments(current => current.filter(item => item.id !== document.id));
-      setSelected(null);
-      setStatus("Document deleted.");
-    } else setStatus("Document could not be deleted.");
-  }
 
   return <div className="mt-7 space-y-7">
     <header className="flex flex-wrap items-end justify-between gap-4">
@@ -74,8 +66,109 @@ export function LegalCompliancePanel({ initialDocuments, canEdit }: { initialDoc
     {visible.length ? <div className="overflow-x-auto"><table className="w-full min-w-[820px] text-sm"><thead className="border-b border-black/10 text-left text-[11px] uppercase tracking-wide text-black/40"><tr><th className="py-3">Document</th><th className="py-3">Type</th><th className="py-3">Counterparty / reference</th><th className="py-3">Deadline</th><th className="py-3">Status</th><th className="py-3 text-right">Actions</th></tr></thead><tbody>{visible.map(document => <tr key={document.id} className="border-b border-black/[0.07]"><td className="py-3 pr-3"><p className="font-medium text-black/80">{document.title}</p><p className="mt-0.5 text-xs text-black/40">{document.fileName} · {fileSize(document.size)}</p></td><td className="py-3 capitalize text-black/55">{categoryLabel(document.category)}</td><td className="py-3 text-black/55">{[document.counterparty, document.reference].filter(Boolean).join(" · ") || "—"}</td><td className="py-3">{deadline(document, now)}</td><td className="py-3"><Status value={effectiveStatus(document, now)} /></td><td className="py-3 text-right"><div className="inline-flex gap-1"><button title="Inspect" aria-label={`Inspect ${document.title}`} onClick={() => setSelected(document)} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/45"><Eye size={15} /></button><a title="Open document" aria-label={`Open ${document.title}`} target="_blank" href={`/api/portal/company/legal/content?id=${encodeURIComponent(document.id)}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/45"><Download size={15} /></a></div></td></tr>)}</tbody></table></div> : <div className="grid min-h-52 place-items-center border-y border-dashed border-black/15 text-center"><div><ShieldCheck size={28} className="mx-auto text-black/20" /><p className="mt-3 text-sm font-medium text-black/65">No legal records to show</p><p className="mt-1 text-xs text-black/40">Upload your first contract, insurance policy, letter or template.</p></div></div>}
     {status ? <p role="status" className="text-xs font-medium text-black/50">{status}</p> : null}
     {uploading ? <UploadDialog onClose={() => setUploading(false)} onUploaded={document => { setDocuments(current => [document, ...current]); setUploading(false); setStatus("Document uploaded."); }} /> : null}
-    {selected ? <DocumentDialog document={selected} canEdit={canEdit} onClose={() => setSelected(null)} onUpdated={document => { setDocuments(current => current.map(item => item.id === document.id ? document : item)); setSelected(document); setStatus("Document updated."); }} onDelete={() => void remove(selected)} /> : null}
+    {selected ? <DocumentDialog document={selected} canEdit={canEdit} onClose={() => setSelected(null)} onUpdated={document => { setDocuments(current => current.map(item => item.id === document.id ? document : item)); setSelected(document); setStatus("Document updated."); }} onDelete={() => setRemoving(selected)} /> : null}
+    {removing ? <RemoveDialog
+      document={removing}
+      onClose={() => setRemoving(null)}
+      onArchived={document => { setDocuments(current => current.map(item => item.id === document.id ? document : item)); setRemoving(null); setSelected(null); setStatus(`“${document.title}” archived. The record and its file are kept, and anything citing it still resolves.`); }}
+      onDeleted={(document, detached) => { setDocuments(current => current.filter(item => item.id !== document.id)); setRemoving(null); setSelected(null); setStatus(detached.length ? `“${document.title}” permanently deleted, and ${detached.length === 1 ? "1 record was" : `${detached.length} records were`} detached from it.` : `“${document.title}” permanently deleted. Nothing cited it.`); }}
+    /> : null}
   </div>;
+}
+
+/**
+ * Removing filed evidence is not a yes/no question, so this is not a
+ * `window.confirm`.
+ *
+ * Archiving is the default and the safe answer: the record and its file stay,
+ * and every obligation or decision citing it still resolves. A permanent
+ * delete has to be chosen deliberately, and when anything still cites the
+ * document it also has to be told — by name — what it is about to detach. The
+ * inventory shown here is the same one the server enforces on DELETE, so the
+ * dialog cannot promise a removal the server will refuse, or hide one it will
+ * allow.
+ */
+function RemoveDialog({ document, onClose, onArchived, onDeleted }: {
+  document: LegalDocument;
+  onClose: () => void;
+  onArchived: (document: LegalDocument) => void;
+  onDeleted: (document: LegalDocument, detached: LegalDocumentDependant[]) => void;
+}) {
+  const [inventory, setInventory] = useState<LegalDocumentDependencyInventory | null>(null);
+  const [loadError, setLoadError] = useState("");
+  const [detach, setDetach] = useState(false);
+  const [busy, setBusy] = useState<"archive" | "delete" | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      const response = await fetch(`/api/portal/company/legal?dependencies=${encodeURIComponent(document.id)}`).catch(() => null);
+      const result = await response?.json().catch(() => null) as { ok?: boolean; dependencies?: LegalDocumentDependencyInventory } | null;
+      if (!live) return;
+      // A failed lookup is never reported as "nothing depends on it" — that is
+      // exactly the false reassurance this dialog exists to remove.
+      if (!response?.ok || !result?.dependencies) return setLoadError("What still cites this document could not be checked, so permanent deletion is not offered. Archive it, or try again.");
+      setInventory(result.dependencies);
+    })();
+    return () => { live = false; };
+  }, [document.id]);
+
+  const dependants = inventory?.dependants ?? [];
+  const deleteBlocked = !inventory || (dependants.length > 0 && !detach);
+
+  async function archive() {
+    setBusy("archive"); setError("");
+    const response = await fetch("/api/portal/company/legal", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: document.id, patch: { status: "archived" } }) });
+    const result = await response.json().catch(() => null) as { ok?: boolean; document?: LegalDocument; error?: string } | null;
+    setBusy(null);
+    if (!response.ok || !result?.document) return setError(result?.error ?? "The document could not be archived.");
+    onArchived(result.document);
+  }
+
+  async function purge() {
+    setBusy("delete"); setError("");
+    const response = await fetch(`/api/portal/company/legal?id=${encodeURIComponent(document.id)}${detach ? "&detach=true" : ""}`, { method: "DELETE" });
+    const result = await response.json().catch(() => null) as { ok?: boolean; error?: string; detached?: LegalDocumentDependant[]; dependencies?: LegalDocumentDependencyInventory } | null;
+    setBusy(null);
+    if (!response.ok || !result?.ok) {
+      // A refusal re-seeds the inventory: whatever appeared between the preview
+      // and the attempt is now on screen rather than behind a stale count.
+      if (result?.dependencies) { setInventory(result.dependencies); setDetach(false); }
+      return setError(result?.error ?? "The document could not be deleted.");
+    }
+    onDeleted(document, result.detached ?? []);
+  }
+
+  return <Modal title={`Remove “${document.title}”`} onClose={onClose}>
+    <p className="text-sm leading-6 text-black/60">Archiving keeps the record and its stored file, and everything citing it keeps working. Permanent deletion destroys the file — there is no undo.</p>
+
+    <div className="mt-5 rounded-md border border-black/10 p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-black/40">What cites this document</p>
+      {loadError ? <p role="alert" className="mt-2 text-sm text-amber-700">{loadError}</p>
+        : !inventory ? <p className="mt-2 text-sm text-black/45">Checking…</p>
+        : !dependants.length ? <p className="mt-2 text-sm text-black/60">Nothing cites it. Deleting it strands no record.</p>
+        : <ul className="mt-2 space-y-2">{dependants.map(dependant => <li key={`${dependant.kind}:${dependant.id}`} className="text-sm text-black/70">
+          <span className="font-medium">{dependant.label}</span>
+          <span className="block text-xs text-black/40">{dependant.kind === "finance-obligation" ? "Financial obligation" : "Executive decision"} · {dependant.location}</span>
+        </li>)}</ul>}
+    </div>
+
+    {dependants.length ? <label className="mt-4 flex items-start gap-2 text-sm text-black/65">
+      <input type="checkbox" checked={detach} onChange={event => setDetach(event.target.checked)} className="mt-1" />
+      <span>Detach {dependants.length === 1 ? "this record" : `these ${dependants.length} records`} from the document as part of the deletion. Their evidence link is cleared and the detach is recorded in the activity log.</span>
+    </label> : null}
+
+    {error ? <p role="alert" className="mt-4 text-sm text-red-700">{error}</p> : null}
+
+    <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
+      <button type="button" disabled={Boolean(busy) || deleteBlocked} onClick={() => void purge()} title={deleteBlocked && dependants.length ? "Tick the detach confirmation first." : undefined} className="inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-40 disabled:hover:bg-transparent"><Trash2 size={15} /> {busy === "delete" ? "Deleting..." : "Delete permanently"}</button>
+      <div className="flex gap-2">
+        <button type="button" onClick={onClose} className="min-h-10 px-3 text-sm">Cancel</button>
+        <button type="button" disabled={Boolean(busy)} onClick={() => void archive()} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50"><Archive size={15} /> {busy === "archive" ? "Archiving..." : "Archive instead"}</button>
+      </div>
+    </div>
+  </Modal>;
 }
 
 function UploadDialog({ onClose, onUploaded }: { onClose: () => void; onUploaded: (document: LegalDocument) => void }) {

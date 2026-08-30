@@ -480,7 +480,21 @@ describe("a failed read is preserved, not converted into emptiness", () => {
       !/function onScopeChange\(next: string\) \{\s*setCompanyId\(next\);/.test(governance),
       "a refused governance read labels the previous company's snapshot as the new scope again",
     );
-    assert.match(governance, /reload\(next\)\.then\(ok => \{ if \(ok\) setCompanyId\(next\); \}\)/);
+    // Pinned by INTENT, not by the exact one-line form it used to have: the
+    // selector may move only inside the success branch of the resolved read.
+    // (It now also records the refused scope so the operator gets a retry —
+    // a stricter surface, which a literal regex would have called a regression.)
+    const scopeChange = governance.slice(
+      governance.indexOf("function onScopeChange(next: string)"),
+      governance.indexOf("const { posture }"),
+    );
+    assert.ok(scopeChange.length > 0, "onScopeChange has moved or been renamed; this pin no longer reads it");
+    assert.match(scopeChange, /reload\(next\)\.then\(/,
+      "the scope change no longer waits for the read before relabelling");
+    const okBranch = scopeChange.indexOf("if (ok)");
+    const moves = scopeChange.indexOf("setCompanyId(next)");
+    assert.ok(okBranch >= 0 && moves > okBranch,
+      "setCompanyId is reached without the read having succeeded, so a refused read labels the previous company's snapshot as the new scope");
     assert.ok(governance.includes("finally {"), "and an unguarded fetch must not leave the spinner running for ever");
   });
 

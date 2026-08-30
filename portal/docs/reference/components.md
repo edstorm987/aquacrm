@@ -1969,14 +1969,14 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (4):**
 
-- `PluginSettingsPanel({ initial, clientId }: { initial: PluginSettingsView; clientId?: string })`
+- `PluginSettingsPanel({ initial, clientId, canEdit = true }: { initial: PluginSettingsView; clientId?: string; canEdit?: boolean; })` — `canEdit` is the CALLER's answer to "can this viewer actually save?", and it must match `POST /api/portal/plugins/settings`, which requires an agency owner or manager. A client-sc…
 - `interface PluginSettingsFieldView (10 members)`
 - `interface PluginSettingsGroupView (4 members)`
 - `interface PluginSettingsView (5 members)`
 
 **Depends on (2):** [`src/lib/plugins/pluginSetupStatus.ts`](lib.md#file-src-lib-plugins-pluginsetupstatus-ts-82a3c6194e) · [`src/lib/plugins/unwiredSettings.ts`](lib.md#file-src-lib-plugins-unwiredsettings-ts-2bbb67e7f7)
 
-**Used by (3):** [`src/app/portal/agency/settings/SettingsTabs.tsx`](app.md#file-src-app-portal-agency-settings-settingstabs-tsx-e999a7955b) · [`src/built-ins/modules/agency-finance/src/pages/SettingsPage.tsx`](built-ins.md#file-src-built-ins-modules-agency-finance-src-pages-settingspage-tsx-37294c59ec) · [`src/built-ins/modules/ecommerce/src/pages/SettingsPage.tsx`](built-ins.md#file-src-built-ins-modules-ecommerce-src-pages-settingspage-tsx-97f4e23c22)
+**Used by (6):** [`src/app/portal/agency/settings/SettingsTabs.tsx`](app.md#file-src-app-portal-agency-settings-settingstabs-tsx-e999a7955b) · [`src/built-ins/modules/affiliates/src/pages/SettingsPage.tsx`](built-ins.md#file-src-built-ins-modules-affiliates-src-pages-settingspage-tsx-df417c4c18) · [`src/built-ins/modules/agency-finance/src/pages/SettingsPage.tsx`](built-ins.md#file-src-built-ins-modules-agency-finance-src-pages-settingspage-tsx-37294c59ec) · [`src/built-ins/modules/client-crm/src/pages/SettingsPage.tsx`](built-ins.md#file-src-built-ins-modules-client-crm-src-pages-settingspage-tsx-25d1cd87b4) · [`src/built-ins/modules/ecommerce/src/pages/SettingsPage.tsx`](built-ins.md#file-src-built-ins-modules-ecommerce-src-pages-settingspage-tsx-97f4e23c22) · [`src/built-ins/modules/memberships/src/pages/SettingsPage.tsx`](built-ins.md#file-src-built-ins-modules-memberships-src-pages-settingspage-tsx-01cadc606b)
 
 <a id="file-src-components-workspaces-pluginworkspacenav-tsx-34bb1220e7"></a>
 

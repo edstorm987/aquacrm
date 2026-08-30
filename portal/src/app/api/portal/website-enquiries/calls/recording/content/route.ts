@@ -1,11 +1,15 @@
-import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import { get } from "@vercel/blob";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
-import { readSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
+import {
+  privateMediaResponse,
+  readLocalFileRange,
+  readVercelBlobRange,
+  type ByteRange,
+} from "@/lib/server/privateMediaResponse";
+import { readSupabasePrivateUploadRange } from "@/lib/server/privateUploadStorage";
 import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
 import { loadOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
 import { ensureHydrated } from "@/server/storage";
@@ -37,25 +41,32 @@ export async function GET(request: NextRequest) {
       "cache-control": "private, max-age=60",
       "x-content-type-options": "nosniff",
     });
-    if (recording.size) headers.set("content-length", String(recording.size));
 
+    // The player mounts with `preload="metadata"` and seeks, so the range
+    // contract is shared with every other private-media route.
+    let read: ((range: ByteRange | null) => Promise<BodyInit | null>) | null = null;
     if (recording.storageProvider === "supabase") {
       if (!recording.storageKey.startsWith(`inbox-calls/${session.agencyId}/`)) return notFound();
-      const stored = await readSupabasePrivateUpload(recording.storageKey);
-      return stored ? new Response(stored, { headers }) : notFound();
-    }
-    if (recording.storageProvider === "vercel-blob") {
+      read = range => readSupabasePrivateUploadRange(recording.storageKey, range);
+    } else if (recording.storageProvider === "vercel-blob") {
       let pathname = "";
       try { pathname = new URL(recording.storageKey).pathname; } catch { return notFound(); }
       if (!pathname.includes(`/inbox-calls/${session.agencyId}/`)) return notFound();
-      const result = await get(recording.storageKey, { access: "private" });
-      return result?.statusCode === 200 && result.stream ? new Response(result.stream, { headers }) : notFound();
+      read = range => readVercelBlobRange(recording.storageKey, range);
+    } else if (recording.storageProvider === "local") {
+      const root = resolve(process.cwd(), ".data", "inbox-call-recordings", session.agencyId);
+      const path = resolve(process.cwd(), ".data", "inbox-call-recordings", recording.storageKey);
+      if (!path.startsWith(`${root}/`)) return notFound();
+      read = range => readLocalFileRange(path, range);
     }
-    if (recording.storageProvider !== "local") return notFound();
-    const root = resolve(process.cwd(), ".data", "inbox-call-recordings", session.agencyId);
-    const path = resolve(process.cwd(), ".data", "inbox-call-recordings", recording.storageKey);
-    if (!path.startsWith(`${root}/`)) return notFound();
-    try { return new Response(await readFile(path), { headers }); } catch { return notFound(); }
+    if (!read) return notFound();
+    const response = await privateMediaResponse({
+      rangeHeader: request.headers.get("range"),
+      size: Number.isInteger(recording.size) && recording.size > 0 ? recording.size : null,
+      headers,
+      read,
+    });
+    return response ?? notFound();
   } catch (error) {
     return authErrorResponse(error);
   }

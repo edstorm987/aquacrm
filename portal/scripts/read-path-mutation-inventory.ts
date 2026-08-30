@@ -179,7 +179,7 @@ export const CAUSE_RULINGS: Record<string, CauseRuling> = {
   },
   runRadarInfraSweep: {
     category: "cron", verdict: "deliberate",
-    note: "`/api/cron/radar-probes`. Direct. See #170 — Ed's open decision there is the CADENCE, not the write.",
+    note: "`/api/cron/radar-probes`, and since 2026-08-30 `/api/cron/inbox` too — the app-wide Infra probe moved OUT of the per-agency `runRadarScheduledSweep` and up into the tick, so both crons now call it directly, once each (issues #131). Direct in both. See #170 — Ed's open decision there is the CADENCE, not the write.",
   },
   processAutomationSweep: {
     category: "cron", verdict: "deliberate",

@@ -2,7 +2,7 @@
 
 > Source maps, subsystem dossiers, components, routes, state and built-in module notes.
 >
-> Consolidated 2026-08-30 from **23** source documents / **54,991 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-30 from **23** source documents / **55,091 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -20,7 +20,7 @@
 - [`docs/workspace/kpi-intelligence.md`](#source-docs-workspace-kpi-intelligence-md) — 2,283 words · `d641f1291cbc`
 - [`docs/workspace/plugins.md`](#source-docs-workspace-plugins-md) — 2,193 words · `85bf55b735d1`
 - [`docs/workspace/portal-ui.md`](#source-docs-workspace-portal-ui-md) — 3,935 words · `422ade585983`
-- [`docs/workspace/radar.md`](#source-docs-workspace-radar-md) — 3,319 words · `3ce82366eef0`
+- [`docs/workspace/radar.md`](#source-docs-workspace-radar-md) — 3,419 words · `094abc931f83`
 - [`docs/workspace/scripts-config-docs.md`](#source-docs-workspace-scripts-config-docs-md) — 705 words · `6c64dba30a6b`
 - [`docs/workspace/shared-logic.md`](#source-docs-workspace-shared-logic-md) — 3,900 words · `971a7bc40ccd`
 - [`docs/workspace/state-layer.md`](#source-docs-workspace-state-layer-md) — 1,047 words · `b891d38adf8e`
@@ -3478,7 +3478,7 @@ _(Full hazard list: [hazards-and-duplication.md](hazards-and-duplication.md).)_
 
 ## Source document — `docs/workspace/radar.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/radar.md" sha256="3ce82366eef05f6cb142833c4657adf87afa9380de13139aaac26db8c49892a0" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/radar.md" sha256="094abc931f838551ba12cba295eeae59986f3a3e14570beb3da5b229b5bf637a" -->
 # Chapter — Radar (omega dossier)
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
@@ -3793,12 +3793,20 @@ available in-app" (service-role limit). See §1 sweep note and the plan Part D.
   Lifted here 2026-08-21 from the radar handoffs when they were archived — it was the only
   live home this fact had, and `plans/radar-upgrade.md` still lists probe cadence as an open
   question, which reads as "the cron does not exist" to anyone working from live docs.
-- ⚠ **Current scheduler mismatch (issue #131):** Evidence declares an hourly cadence but
-  is only rolled up by manual full scan or daily `cron/inbox`. That daily route calls
-  `runRadarScheduledSweep()` per agency, and the helper reruns the app-wide Infra probe inside
-  each call; an Infra failure also prevents that tenant's evidence sample. The dedicated
-  ten-minute probe cron already models the intended shape correctly (Infra once, Deep per
-  agency), but the daily evidence path does not.
+- ✅ **Scheduler scope + cadence honesty (issue #131) — fixed 2026-08-30.** `cron/inbox` now
+  probes the app-wide Infra sweep **once per tick**, before the per-agency loop and in its own
+  `try`/`catch` (the shape `cron/radar-probes` already used), and `runRadarScheduledSweep()` is
+  strictly per-tenant: Deep probes → module health → Pulse rebuild → evidence rollup → cache
+  invalidation. N agencies no longer means N identical database round-trips, and a transient
+  Infra failure no longer returns before the evidence rollup and costs every tenant a day of
+  evidence. The taxonomy also stopped conflating intent with reality: `RadarSweepDefinition`
+  now carries **`scheduledCadenceMs`** — what `vercel.json` actually delivers — alongside the
+  intended `cadenceMs`, so the Evidence rollup states its real **daily** schedule instead of an
+  hourly one nothing runs. Pinned by `scripts/smoke-radar-sweep-isolation.test.ts` (the cron
+  handler is driven for zero/one/many tenants with the Infra probe counted, an Infra failure
+  forced, one tenant failed and an overlapping retry tick) and `scripts/smoke-radar-sweeps.test.ts`.
+  **Still Ed's call (issue #170):** whether `vercel.json` returns to a sub-daily cron schedule —
+  a Vercel plan decision, deliberately not made here.
 
 _See the [KPI dossier](kpi-intelligence.md) for the metrics that ride Radar's
 evidence vault, and the [Advisor dossier](advisor.md) for how findings become

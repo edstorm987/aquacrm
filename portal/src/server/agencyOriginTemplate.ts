@@ -80,6 +80,7 @@ export const ORIGIN_NEVER_CONTRIBUTES: Readonly<Record<string, readonly Collecti
     "peopleFeedback", "peopleProcessConfig", "peopleContracts", "peopleChannels",
     "peopleMessages", "peopleChannelReads", "peopleTrainingModules",
     "freelancerAccessConfig", "freelancerJobOverride", "staffProvisioningOperations",
+    "clientProjectOperations",
     "clientMilestones", "clientDelight", "clientRecordLedger",
     "identityResolutionReviews", "enquiryContactDetails",
     // Enquiry events belonging to a specific client's website. A notice holds

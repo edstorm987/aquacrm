@@ -9,6 +9,7 @@ import type {
   CommercialPartyKind,
   CommercialPayment,
   CommercialPaymentMethod,
+  CommercialPaymentSource,
   SaveCommercialPackInput,
 } from "../lib/domain";
 import type { PluginStorage } from "../lib/aquaPluginTypes";
@@ -62,6 +63,53 @@ export class CommercialAcceptanceStateError extends Error {
       : "These terms are not the version that was sent for signature, so they cannot be accepted.");
     this.name = "CommercialAcceptanceStateError";
   }
+}
+
+/**
+ * What happened when the installment plan's stop was evaluated.
+ *
+ * `requested` is deliberately not called "cancelled": Stripe accepting the call
+ * means it was asked, and only a later `customer.subscription.*` event is
+ * allowed to stamp `subscriptionCancelConfirmedAt`.
+ */
+export type InstallmentStopOutcome =
+  | { status: "not-due" | "already-stopped" | "requested"; collected: number; promised: number }
+  | { status: "refused" | "unavailable"; collected: number; promised: number; error: string };
+
+export interface RecordCommercialPaymentInput {
+  amountCents: number;
+  method: CommercialPaymentMethod;
+  reference?: string;
+  paidAt?: number;
+  /** Provenance. Omitted means a person recorded this row by hand. */
+  source?: CommercialPaymentSource;
+  /** Required with `source: "stripe-subscription"` — the subscription that collected it. */
+  stripeSubscriptionId?: string;
+}
+
+/**
+ * How many of the promised installments Stripe has actually collected.
+ *
+ * Counts DEDUPED invoices attributable to one subscription, not "payments whose
+ * method is stripe": a row a human recorded by hand — reconciling a bank
+ * transfer, say, and picking "stripe" — is not evidence that the subscription
+ * billed, and counting it cancelled the plan early.
+ *
+ * Rows written before payments carried their provenance have no `source` at
+ * all. Their method is the only thing known about them, so they are counted
+ * rather than dropped: under-counting would let the subscription bill past the
+ * number the customer agreed to, which is the harm this stop exists to prevent.
+ */
+export function collectedSubscriptionInstallments(pack: CommercialPack, subscriptionId: string): number {
+  const invoices = new Set<string>();
+  for (const payment of pack.payments) {
+    const attributable = payment.source === "stripe-subscription"
+      ? payment.stripeSubscriptionId === subscriptionId
+      : payment.source === undefined && payment.method === "stripe";
+    if (!attributable) continue;
+    invoices.add(canonicalPaymentReference(payment.reference ?? payment.id));
+  }
+  return invoices.size;
 }
 
 /** Everything the recipient reads on the proposal page before agreeing. */
@@ -276,6 +324,13 @@ export class CommercialService {
       stripeCheckoutVersion: keepCheckout ? existing?.stripeCheckoutVersion : undefined,
       stripeCheckoutFinancialHash: keepCheckout ? existing?.stripeCheckoutFinancialHash : undefined,
       stripeSubscriptionId: existing?.stripeSubscriptionId,
+      // The stop lifecycle is a fact about the live subscription, which an
+      // amendment of the wording does not cancel — dropping it here would erase
+      // a recorded cancellation failure and make the plan look untouched.
+      subscriptionCancelRequestedAt: existing?.subscriptionCancelRequestedAt,
+      subscriptionCancelAttempts: existing?.subscriptionCancelAttempts,
+      subscriptionCancelError: existing?.subscriptionCancelError,
+      subscriptionCancelConfirmedAt: existing?.subscriptionCancelConfirmedAt,
       financeInvoiceId: existing?.financeInvoiceId,
       // The delivery record is a fact about the version that was emailed. An
       // amendment has never been emailed, so carrying "delivered" onto it would
@@ -362,6 +417,113 @@ export class CommercialService {
     const pack = await this.get(kind, partyId);
     if (!pack) return null;
     const next = { ...pack, stripeSubscriptionId: subscriptionId, updatedAt: now() };
+    await this.persist(next);
+    return next;
+  }
+
+  /**
+   * Stop the installment subscription once — and only once — Stripe has
+   * actually collected every promised installment.
+   *
+   * The decision, the counting rule and the durable record of what happened all
+   * live here rather than in the HTTP handler, so the caller supplies only the
+   * provider call itself (`requestStop`) and maps the outcome onto a status
+   * code. That keeps the honest part — "asked" is not "confirmed", a refusal is
+   * retained rather than acknowledged as success — testable without Stripe.
+   */
+  async completeInstallments(kind: CommercialPartyKind, partyId: string, input: {
+    subscriptionId: string;
+    requestStop: () => Promise<{ ok: boolean; error?: string }>;
+  }): Promise<InstallmentStopOutcome> {
+    const pack = await this.get(kind, partyId);
+    if (!pack || pack.billingCadence !== "installments" || !pack.installmentCount) {
+      return { status: "not-due", collected: 0, promised: 0 };
+    }
+    // A webhook for some other subscription cannot complete this plan.
+    if (pack.stripeSubscriptionId && pack.stripeSubscriptionId !== input.subscriptionId) {
+      return { status: "not-due", collected: 0, promised: pack.installmentCount };
+    }
+    const collected = collectedSubscriptionInstallments(pack, input.subscriptionId);
+    if (collected < pack.installmentCount) {
+      return { status: "not-due", collected, promised: pack.installmentCount };
+    }
+    if (pack.subscriptionCancelConfirmedAt) return { status: "already-stopped", collected, promised: pack.installmentCount };
+    const attemptedAt = now();
+    let result: { ok: boolean; error?: string };
+    try {
+      result = await input.requestStop();
+    } catch (error) {
+      // The provider never answered, so whether it stopped is unknown. Retain
+      // the attempt and let the caller ask Stripe to redeliver.
+      const failure = error instanceof Error ? error.message : String(error);
+      await this.recordSubscriptionCancellation(kind, partyId, { subscriptionId: input.subscriptionId, attemptedAt, failure });
+      return { status: "unavailable", collected, promised: pack.installmentCount, error: failure };
+    }
+    const failure = result.ok ? undefined : result.error ?? "Stripe refused the cancellation.";
+    // Persist BEFORE answering: a refusal that only lived in the HTTP status
+    // would vanish the moment Stripe stopped redelivering.
+    await this.recordSubscriptionCancellation(kind, partyId, { subscriptionId: input.subscriptionId, attemptedAt, failure });
+    return failure
+      ? { status: "refused", collected, promised: pack.installmentCount, error: failure }
+      : { status: "requested", collected, promised: pack.installmentCount };
+  }
+
+  /**
+   * Record where the installment subscription's stop has actually got to.
+   *
+   * "We asked Stripe to cancel" is not "Stripe cancelled", so the two are
+   * separate facts here. An attempt stamps the request and counts the try; a
+   * refusal retains its exact reason so a permanent failure stays visible after
+   * Stripe stops redelivering; `confirmedAt` is stamped only when Stripe itself
+   * says the subscription will not bill again, never from our own 200.
+   */
+  async recordSubscriptionCancellation(kind: CommercialPartyKind, partyId: string, outcome: {
+    subscriptionId: string;
+    attemptedAt?: number;
+    failure?: string;
+    confirmedAt?: number;
+    /** Stripe says this subscription is live again — clears the stop record. */
+    reopenedAt?: number;
+  }): Promise<CommercialPack | null> {
+    return withCommercialLock(this.agencyId, () => this.recordSubscriptionCancellationUnlocked(kind, partyId, outcome));
+  }
+
+  private async recordSubscriptionCancellationUnlocked(kind: CommercialPartyKind, partyId: string, outcome: {
+    subscriptionId: string;
+    attemptedAt?: number;
+    failure?: string;
+    confirmedAt?: number;
+    reopenedAt?: number;
+  }): Promise<CommercialPack | null> {
+    const pack = await this.get(kind, partyId);
+    if (!pack) return null;
+    // A confirmation for some other subscription says nothing about this pack's.
+    if (pack.stripeSubscriptionId && pack.stripeSubscriptionId !== outcome.subscriptionId) return pack;
+    const next: CommercialPack = { ...pack, updatedAt: now() };
+    if (outcome.attemptedAt) {
+      next.subscriptionCancelRequestedAt = pack.subscriptionCancelRequestedAt ?? outcome.attemptedAt;
+      next.subscriptionCancelAttempts = (pack.subscriptionCancelAttempts ?? 0) + 1;
+      next.subscriptionCancelError = outcome.failure;
+    } else if (outcome.failure) {
+      next.subscriptionCancelError = outcome.failure;
+    }
+    if (outcome.confirmedAt) {
+      next.subscriptionCancelConfirmedAt = pack.subscriptionCancelConfirmedAt ?? outcome.confirmedAt;
+      next.subscriptionCancelError = undefined;
+    }
+    // A stop is a claim about Stripe's state, not a one-way latch. If someone
+    // un-cancels in the dashboard, Stripe reports the subscription active and
+    // not cancelling again — and a pack still stamped `confirmedAt` would
+    // short-circuit `completeInstallments` to "already-stopped" for good, so
+    // the subscription would quietly bill past the promised count with the
+    // stored state insisting it had stopped. Clearing the whole attempt record
+    // (not just the confirmation) is what lets the stop be re-requested.
+    if (outcome.reopenedAt) {
+      next.subscriptionCancelConfirmedAt = undefined;
+      next.subscriptionCancelRequestedAt = undefined;
+      next.subscriptionCancelAttempts = undefined;
+      next.subscriptionCancelError = undefined;
+    }
     await this.persist(next);
     return next;
   }
@@ -511,21 +673,11 @@ export class CommercialService {
     return next;
   }
 
-  async recordPayment(kind: CommercialPartyKind, partyId: string, input: {
-    amountCents: number;
-    method: CommercialPaymentMethod;
-    reference?: string;
-    paidAt?: number;
-  }, actor: UserId): Promise<CommercialPack | null> {
+  async recordPayment(kind: CommercialPartyKind, partyId: string, input: RecordCommercialPaymentInput, actor: UserId): Promise<CommercialPack | null> {
     return withCommercialLock(this.agencyId, () => this.recordPaymentUnlocked(kind, partyId, input, actor));
   }
 
-  private async recordPaymentUnlocked(kind: CommercialPartyKind, partyId: string, input: {
-    amountCents: number;
-    method: CommercialPaymentMethod;
-    reference?: string;
-    paidAt?: number;
-  }, actor: UserId): Promise<CommercialPack | null> {
+  private async recordPaymentUnlocked(kind: CommercialPartyKind, partyId: string, input: RecordCommercialPaymentInput, actor: UserId): Promise<CommercialPack | null> {
     const pack = await this.get(kind, partyId);
     if (!pack) return null;
     const amountCents = Math.round(input.amountCents);
@@ -557,6 +709,10 @@ export class CommercialService {
       method: input.method,
       reference,
       paidAt: input.paidAt ?? now(),
+      // Default "manual": anything that did not name its own provenance was
+      // entered by a person, whatever payment method they picked.
+      source: input.source ?? "manual",
+      stripeSubscriptionId: input.source === "stripe-subscription" ? input.stripeSubscriptionId : undefined,
     };
     const ledgerKey = paymentKey(pack.id, canonicalReference);
     if (this.storage.setIfAbsent) {

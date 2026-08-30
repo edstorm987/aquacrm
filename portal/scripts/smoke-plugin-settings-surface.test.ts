@@ -20,11 +20,12 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 process.env.PORTAL_BACKEND ??= "memory";
 
 import { ensureHydrated, getState } from "../src/server/storage";
-import { createAgency } from "../src/server/tenants";
+import { createAgency, createClient } from "../src/server/tenants";
 import { getInstall, upsertInstall } from "../src/server/pluginInstalls";
 import { listPlugins, getPlugin } from "../src/built-ins/runtime/_registry";
 import { validatePlugin } from "../src/built-ins/runtime/_validate";
@@ -308,5 +309,107 @@ describe("declared secrets must say where they are stored", () => {
     );
     // …and the real manifest passes.
     assert.equal(validatePlugin(finance).ok, true, validatePlugin(finance).errors.join(" | "));
+  });
+});
+
+// ─── 4. Client-scoped modules, edited in the client workspace ─────────────
+
+// `lib/chrome/settingsModules.ts` keeps the four `scopePolicy: "client"`
+// modules OUT of the agency Settings hub, because an agency-scoped form would
+// write values the client-scoped read never looks at. That is only defensible
+// if their own Settings pages carry the editor — and until 2026-08-30, three of
+// the four (`affiliates`, `memberships`, `client-crm`) rendered a read-only
+// summary instead, so the settings they declared were reachable by nothing.
+//
+// Section 1 above already proves the WRITE PATH accepts every declared field.
+// What it does not prove is the property those pages depend on: that a save made
+// under one client is read back under that client and is invisible to the next.
+
+describe("client-scoped module settings are per client, both directions", () => {
+  const CASES = [
+    { pluginId: "affiliates", fieldId: "defaultPayoutMethod", a: "paypal", b: "manual" },
+    { pluginId: "memberships", fieldId: "defaultCurrency", a: "gbp", b: "eur" },
+    { pluginId: "client-crm", fieldId: "defaultTags", a: "vip", b: "trial" },
+  ] as const;
+
+  for (const { pluginId, fieldId, a, b } of CASES) {
+    it(`${pluginId}.${fieldId} saved for one client never leaks into another`, async () => {
+      await ensureHydrated();
+      seq += 1;
+      const agency = createAgency({ name: "Scoped Co", slug: `scoped-co-${Date.now()}-${seq}` });
+      const one = createClient(agency.id, { name: "Client One", slug: `one-${seq}` });
+      const two = createClient(agency.id, { name: "Client Two", slug: `two-${seq}` });
+      for (const client of [one, two]) {
+        upsertInstall({
+          pluginId,
+          scope: { agencyId: agency.id, clientId: client.id },
+          enabled: true,
+          config: {},
+          features: {},
+        });
+      }
+
+      writePluginSettings({
+        pluginId,
+        scope: { agencyId: agency.id, clientId: one.id },
+        values: { [fieldId]: a },
+        actorUserId: "user_settings_test",
+      });
+      writePluginSettings({
+        pluginId,
+        scope: { agencyId: agency.id, clientId: two.id },
+        values: { [fieldId]: b },
+        actorUserId: "user_settings_test",
+      });
+
+      const read = (clientId: string) => describePluginSettings(pluginId, { agencyId: agency.id, clientId })
+        ?.groups.flatMap(group => group.fields).find(field => field.id === fieldId)?.value;
+
+      assert.equal(read(one.id), a, `${pluginId}: the value saved for this client did not come back`);
+      assert.equal(read(two.id), b, `${pluginId}: one client's save overwrote another's`);
+      // The install the write landed on must be the client's own, not the
+      // agency row the read path falls back to.
+      assert.equal(getInstall({ agencyId: agency.id, clientId: one.id }, pluginId)?.config[fieldId], a);
+    });
+  }
+});
+
+describe("a settings panel never offers a Save the endpoint will refuse", () => {
+  // The mounted client-scoped pages are visible to client-owner/client-staff,
+  // but POST /api/portal/plugins/settings takes only agency admins. Rendering
+  // them an editable form with an enabled Save is a control that cannot do what
+  // it offers — they get the values read-only instead.
+  const src = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+
+  it("the endpoint and the panels read the same write-role list", () => {
+    const shared = src("src/lib/server/plugins/pluginSettingsAccess.ts");
+    assert.match(shared, /PLUGIN_SETTINGS_WRITE_ROLES\s*=\s*\["agency-owner",\s*"agency-manager"\]/,
+      "the shared write-role list changed shape; the endpoint and the panels can no longer be compared");
+    const route = src("src/app/api/portal/plugins/settings/route.ts");
+    assert.match(route, /PLUGIN_SETTINGS_WRITE_ROLES/,
+      "the settings endpoint hardcodes its own role list again, so widening it would silently leave the panels behind");
+  });
+
+  it("every client-scoped settings page gates the panel on that list", () => {
+    for (const moduleId of ["memberships", "client-crm", "affiliates"]) {
+      const page = src(`src/built-ins/modules/${moduleId}/src/pages/SettingsPage.tsx`);
+      assert.match(page, /canEditPluginSettings\(\)/,
+        `${moduleId}: the settings page renders the panel without asking whether this viewer can save`);
+      assert.match(page, /canEdit=\{canEdit\}/,
+        `${moduleId}: the answer is computed but not passed to the panel`);
+    }
+  });
+
+  it("the panel drops the Save control entirely when it cannot be used", () => {
+    const panel = src("src/components/workspaces/PluginSettingsPanel.tsx");
+    assert.match(panel, /canEdit = true/, "canEdit lost its default, so agency-only callers change behaviour");
+    assert.match(panel, /canEdit\s*\n?\s*\?\s*<Field/,
+      "the read-only branch is gone: every viewer gets an editable field again");
+    assert.match(panel, /canEdit \? \(/, "the Save button is rendered unconditionally again");
+    assert.match(panel, /ReadOnlyField/, "there is no read-only rendering for a viewer who cannot save");
+    // A read-only render must still never print a secret's value.
+    const readOnly = panel.slice(panel.indexOf("function ReadOnlyField"));
+    assert.match(readOnly.slice(0, 800), /field\.secret\s*\n?\s*\?\s*\(field\.configured \? "Configured" : "Not set"\)/,
+      "the read-only field renders a secret's value instead of only its configured state");
   });
 });

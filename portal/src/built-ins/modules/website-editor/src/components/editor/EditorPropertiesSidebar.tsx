@@ -34,10 +34,23 @@ interface Props {
   onPatch: (key: string, value: string) => void;
   onSave: (key: string) => void;
   onRevert: (key: string) => void;
+  /**
+   * Whether the @aqua/plugin-ai-builder API answered its status probe. The
+   * "Generate variations" / "Edit with mask" buttons open modals that POST to
+   * `/api/portal/ai-builder/image/{variations,inpaint}` — routes that only
+   * exist when that plugin is installed and reachable by this role. They used
+   * to render unconditionally, so with AI Builder absent the operator got a
+   * modal that spun and then failed, while the top bar's ✨ Generate button had
+   * already been hidden by the same probe. One probe, one answer.
+   *
+   * Defaults to `false`: a caller that has not probed must not offer the
+   * controls, because "unknown" and "available" are not the same thing.
+   */
+  aiAvailable?: boolean;
 }
 
 export default function EditorPropertiesSidebar({
-  selected, onClose, onPatch, onSave, onRevert,
+  selected, onClose, onPatch, onSave, onRevert, aiAvailable = false,
 }: Props) {
   const [draft, setDraft] = useState("");
   const [dirty, setDirty] = useState(false);
@@ -132,7 +145,7 @@ export default function EditorPropertiesSidebar({
           <img src={draft} alt="" className="rounded-md border border-white/5 max-h-32 object-contain mx-auto" />
         )}
 
-        {selected.type === "image-src" && draft && (
+        {selected.type === "image-src" && draft && aiAvailable && (
           <div className="pt-2 border-t border-white/5 space-y-2">
             <p className="text-[10px] tracking-[0.28em] uppercase text-cyan-400/80">AI tools</p>
             <div className="flex gap-2">
@@ -153,14 +166,14 @@ export default function EditorPropertiesSidebar({
         )}
       </div>
 
-      {aiMode === "variations" && selected.type === "image-src" && (
+      {aiMode === "variations" && selected.type === "image-src" && aiAvailable && (
         <ImageVariationsModal
           sourceUrl={draft}
           onClose={() => setAiMode(null)}
           onPick={(url) => { handleChange(url); setAiMode(null); }}
         />
       )}
-      {aiMode === "inpaint" && selected.type === "image-src" && (
+      {aiMode === "inpaint" && selected.type === "image-src" && aiAvailable && (
         <ImageInpaintModal
           sourceUrl={draft}
           onClose={() => setAiMode(null)}

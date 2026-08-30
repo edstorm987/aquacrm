@@ -48,7 +48,20 @@ export interface PluginSettingsView {
 
 const control = "min-h-10 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black outline-none focus:border-black/35";
 
-export function PluginSettingsPanel({ initial, clientId }: { initial: PluginSettingsView; clientId?: string }) {
+/**
+ * `canEdit` is the CALLER's answer to "can this viewer actually save?", and it
+ * must match `POST /api/portal/plugins/settings`, which requires an agency
+ * owner or manager. A client-scoped page is visible to `client-owner` and
+ * `client-staff` too, and rendering them an editable form with an enabled Save
+ * whose every submission 403s is a control that cannot do what it offers — so
+ * they get the values read-only instead, which is what they saw before this
+ * panel was mounted. Defaults to true so agency-only callers are unchanged.
+ */
+export function PluginSettingsPanel({ initial, clientId, canEdit = true }: {
+  initial: PluginSettingsView;
+  clientId?: string;
+  canEdit?: boolean;
+}) {
   const [settings, setSettings] = useState(initial);
   const [draft, setDraft] = useState<Record<string, string | boolean>>({});
   const [busy, setBusy] = useState(false);
@@ -118,25 +131,33 @@ export function PluginSettingsPanel({ initial, clientId }: { initial: PluginSett
           </div>
           <div className="grid gap-4 px-4 py-4 sm:grid-cols-2">
             {group.fields.map(field => (
-              <Field key={field.id} field={field} pluginId={settings.pluginId} draft={draft[field.id]} onChange={value => set(field.id, value)} />
+              canEdit
+                ? <Field key={field.id} field={field} pluginId={settings.pluginId} draft={draft[field.id]} onChange={value => set(field.id, value)} />
+                : <ReadOnlyField key={field.id} field={field} />
             ))}
           </div>
         </div>
       ))}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          onClick={() => void save()}
-          disabled={busy || !settings.installed}
-          className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50"
-        >
-          {busy ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} Save settings
-        </button>
-        {note ? (
-          <span className={`text-sm ${note.tone === "ok" ? "text-emerald-700" : "text-red-700"}`}>{note.text}</span>
-        ) : null}
-      </div>
+      {canEdit ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => void save()}
+            disabled={busy || !settings.installed}
+            className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {busy ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} Save settings
+          </button>
+          {note ? (
+            <span className={`text-sm ${note.tone === "ok" ? "text-emerald-700" : "text-red-700"}`}>{note.text}</span>
+          ) : null}
+        </div>
+      ) : (
+        <p className="text-sm text-black/50">
+          These are read-only here. Your agency changes {settings.pluginName} settings for this workspace.
+        </p>
+      )}
     </section>
   );
 }
@@ -193,6 +214,33 @@ function SetupBanner({ setup, pluginName }: { setup: PluginSetupStatus | undefin
           {unmapped.map(item => item.label).join(", ")}.
         </p>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * The same values, with no control that can change them.
+ *
+ * Mounted for a viewer the settings API will refuse (see `canEdit`). It keeps
+ * the "Not connected" notice, because a client reading a field that nothing
+ * consumes should learn that here just as the agency does — but a secret's
+ * value is never rendered, only its configured state, exactly as the editable
+ * field does.
+ */
+function ReadOnlyField({ field }: { field: PluginSettingsFieldView }) {
+  const shown = field.secret
+    ? (field.configured ? "Configured" : "Not set")
+    : typeof field.value === "boolean"
+      ? (field.value ? "On" : "Off")
+      : (String(field.value ?? "").trim() || "Not set");
+  return (
+    <div className="block text-xs font-medium text-black/55">
+      <span className="flex flex-wrap items-center gap-2">
+        {field.label}
+        {field.secret ? <SecretState field={field} /> : null}
+      </span>
+      <span className="mt-1 block text-sm font-normal text-black/80">{shown}</span>
+      {field.helpText ? <span className="mt-1 block text-[11px] font-normal leading-4 text-black/40">{field.helpText}</span> : null}
     </div>
   );
 }

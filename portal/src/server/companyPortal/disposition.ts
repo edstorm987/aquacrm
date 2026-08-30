@@ -808,6 +808,12 @@ export const PROMOTION_DISPOSITION = {
     keying: "own-id",
     reason: "Password-free staff account recovery checkpoints belong to the holding agency and never follow a promoted company.",
   },
+  clientProjectOperations: {
+    disposition: "leave",
+    ownership: "agency-scoped",
+    keying: "own-id",
+    reason: "Provision/publish/deploy recovery checkpoints belong to the holding agency that owns the folder, repository and Vercel deployment; they never follow a promoted company.",
+  },
   outbox: {
     disposition: "leave",
     ownership: "agency-scoped",
@@ -855,7 +861,7 @@ type _NoStaleCollections = AssertNever<StaleCollections>;
  * is the human-readable half — a smoke test pins it, so the next collection
  * announces itself in a test name as well as in the compiler.
  */
-export const PROMOTION_COLLECTION_COUNT = 92;
+export const PROMOTION_COLLECTION_COUNT = 93;
 
 /** Every classified collection name, in `PortalState` order. */
 export const PROMOTION_COLLECTIONS = Object.keys(PROMOTION_DISPOSITION) as Array<

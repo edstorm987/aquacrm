@@ -3,8 +3,27 @@ import "server-only";
 import crypto from "node:crypto";
 
 import { logActivity } from "./activity";
+import {
+  applyLegalDocumentDetach,
+  collectLegalDocumentDependants,
+  describeLegalDocumentDependants,
+  type LegalDocumentDependant,
+} from "./legalDocumentDependencies";
 import { getState, mutate } from "./storage";
 import type { LegalDocument, LegalDocumentCategory, LegalDocumentStatus } from "./types";
+
+/**
+ * A permanent delete that was refused because records still cite the document.
+ * It carries the exact dependants so the caller answers with the inventory
+ * rather than a bare failure — the same named-conflict shape the capital
+ * register uses.
+ */
+export class LegalDocumentInUseError extends Error {
+  constructor(public readonly document: LegalDocument, public readonly dependants: LegalDocumentDependant[]) {
+    super(`“${document.title}” was not deleted: ${describeLegalDocumentDependants(dependants)} Archive it to keep the evidence, or confirm a detach to clear those citations first.`);
+    this.name = "LegalDocumentInUseError";
+  }
+}
 
 /**
  * Reserved `reference` prefix for compliance *framework declarations* — the
@@ -223,11 +242,77 @@ export function updateLegalDocument(
   return updated;
 }
 
-export function deleteLegalDocument(agencyId: string, id: string): LegalDocument | null {
+/**
+ * Permanently remove a register row.
+ *
+ * `detach` clears every finance obligation and governance decision still
+ * citing the document IN THE SAME transaction as the row. Without it a purge
+ * with dependants is refused, because the alternative — the row gone and the
+ * citations still holding its id — is the silent damage this guard exists to
+ * prevent: an obligation quietly loses its evidence link and a decision prints
+ * a document id nobody can open.
+ *
+ * Returns the removed document together with what it actually detached, so the
+ * caller reports a reconciliation it verified rather than one it assumed.
+ */
+export function deleteLegalDocument(
+  agencyId: string,
+  id: string,
+  options?: { detach?: boolean; actorUserId?: string },
+): { document: LegalDocument; detached: LegalDocumentDependant[] } | null {
   const existing = getLegalDocument(agencyId, id);
   if (!existing) return null;
-  mutate(state => { delete state.legalDocuments[id]; });
-  return existing;
+  let detached: LegalDocumentDependant[] = [];
+  let refused = false;
+  mutate(state => {
+    const dependants = collectLegalDocumentDependants(state, agencyId, id);
+    if (dependants.length && !options?.detach) { refused = true; return; }
+    detached = options?.detach ? applyLegalDocumentDetach(state, agencyId, id) : [];
+    delete state.legalDocuments[id];
+  });
+  if (refused) throw new LegalDocumentInUseError(existing, collectLegalDocumentDependants(getState(), agencyId, id));
+  logActivity({
+    agencyId,
+    actorUserId: options?.actorUserId ?? existing.createdBy,
+    category: "settings",
+    action: "legal.document_deleted",
+    message: detached.length
+      ? `Permanently deleted legal document "${existing.title}" and detached it from ${describeLegalDocumentDependants(detached)}`
+      : `Permanently deleted legal document "${existing.title}". Nothing cited it.`,
+    metadata: {
+      documentId: id,
+      detachedCount: String(detached.length),
+      detached: detached.map(dependant => `${dependant.kind}:${dependant.id}`).join(","),
+    },
+  });
+  return { document: existing, detached };
+}
+
+/**
+ * Puts a just-deleted register row back exactly as it was.
+ *
+ * The compensating half of a permanent delete. `deleteLegalDocument` is the
+ * authoritative dependant check, so it has to run BEFORE the stored binary is
+ * touched — otherwise a citation appearing mid-delete destroys the file and
+ * leaves the row advertising evidence nobody can open. That ordering means the
+ * row is already gone when the provider delete runs, so a provider refusal has
+ * to restore it rather than report a delete that half-happened.
+ *
+ * Deliberately NOT `createLegalDocument`: this restores the original
+ * `createdAt`/`createdBy`/`id`, because the document was never really deleted.
+ * Returns false when a row with that id exists again (nothing to restore).
+ *
+ * It cannot re-attach citations a `detach` purge already cleared — the caller
+ * must report that residue rather than imply a clean rollback.
+ */
+export function restoreLegalDocument(document: LegalDocument): boolean {
+  let restored = false;
+  mutate(state => {
+    if (state.legalDocuments[document.id]) return;
+    state.legalDocuments[document.id] = document;
+    restored = true;
+  });
+  return restored;
 }
 
 function clean(value: unknown, max: number): string {

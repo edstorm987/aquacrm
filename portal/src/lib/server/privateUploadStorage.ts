@@ -5,6 +5,7 @@ import { dirname, join, resolve, sep } from "node:path";
 import { del, put } from "@vercel/blob";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { sliceStream, type ByteRange } from "@/lib/server/privateMediaResponse";
 import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
 import { isSandboxDataRealm } from "@/server/dataRealm";
 
@@ -94,6 +95,43 @@ export async function readSupabasePrivateUpload(storageKey: string): Promise<Blo
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin.storage.from(bucket).download(storageKey);
   return error ? null : data;
+}
+
+/**
+ * Ranged read of a private Supabase object.
+ *
+ * `storage.download()` returns a whole `Blob` and cannot take a `Range`, so a
+ * ranged read goes straight at the storage object endpoint with the service
+ * role credential and the caller's range. A store that answers `206` is passed
+ * through untouched; one that ignores the range is sliced on the way out, so
+ * the response is byte-exact either way and the whole object is never buffered.
+ */
+export async function readSupabasePrivateUploadRange(
+  storageKey: string,
+  range: ByteRange | null,
+  fetchImpl: typeof fetch = fetch,
+): Promise<BodyInit | null> {
+  if (!range) return readSupabasePrivateUpload(storageKey);
+  if (!supabasePrivateUploadsConfigured() || !storageKey.trim()) return null;
+  const bucket = process.env.NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET?.trim()
+    || DEFAULT_SUPABASE_UPLOAD_BUCKET;
+  const base = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim().replace(/\/+$/, "");
+  const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "").trim();
+  const path = storageKey.split("/").map(encodeURIComponent).join("/");
+  let response: Response;
+  try {
+    response = await fetchImpl(`${base}/storage/v1/object/${encodeURIComponent(bucket)}/${path}`, {
+      headers: {
+        authorization: `Bearer ${serviceKey}`,
+        apikey: serviceKey,
+        range: `bytes=${range.start}-${range.end}`,
+      },
+    });
+  } catch {
+    return null;
+  }
+  if (!response.ok || !response.body) return null;
+  return response.status === 206 ? response.body : sliceStream(response.body, range);
 }
 
 async function removeSupabasePrivateUpload(storageKey: string): Promise<void> {

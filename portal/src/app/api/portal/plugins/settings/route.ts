@@ -10,6 +10,7 @@ import {
   writePluginSettings,
 } from "@/lib/server/plugins/pluginSettingsSurface";
 import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
+import { PLUGIN_SETTINGS_WRITE_ROLES } from "@/lib/server/plugins/pluginSettingsAccess";
 
 /**
  * The one endpoint behind the generic plugin settings surface.
@@ -27,7 +28,10 @@ import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/
  * sensitive, and every plugin's Settings tab is already an admin surface.
  */
 
-const SETTINGS_ADMINS = ["agency-owner", "agency-manager"] as const;
+// One list, shared with the panels that decide whether to render a Save button
+// (see lib/server/plugins/pluginSettingsAccess.ts). This route stays the
+// enforcement point; the shared constant only stops the two drifting apart.
+const SETTINGS_ADMINS = PLUGIN_SETTINGS_WRITE_ROLES;
 
 function requestedClientId(url: URL | Record<string, unknown>) {
   return url instanceof URL

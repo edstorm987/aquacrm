@@ -5,7 +5,8 @@
 // Swept on 2026-08-28: the thirteen modules declare **51 settings fields**, and
 // **25 of them are referenced exactly once in the entire repository — by the
 // manifest line that declares them.** Nothing reads the saved value. The value
-// is collected, validated, stored, and never consulted.
+// is collected, validated, stored, and never consulted. (28 as of the two
+// 2026-08-30 addenda at the end of this comment.)
 //
 // That is the "no masks" failure in its purest form. Every other gap this
 // codebase has labelled — funnels with no API, palette blocks with no renderer,
@@ -36,6 +37,53 @@
 // from source and fails when this list and the code disagree in EITHER
 // direction — a newly-unwired field, or one that is now read and should have
 // been removed from here.
+//
+// ── 2026-08-30: two more, uncovered by giving them an editor ──────────────
+//
+// `affiliates/payoutCadence` and `memberships/defaultTrialDays` were absent
+// from the sweep because the modules' read-only Settings pages PRINTED them
+// (`{install.config.payoutCadence ?? "monthly"}`). The detector is deliberately
+// generous, and a printed value looks exactly like a consulted one to it.
+// Replacing those read-only pages with the real editor removed the print, and
+// the sweep immediately reported both — correctly. Nothing schedules payouts by
+// cadence, and no plan is created with the install's trial length (the new-plan
+// modal defaults to 0, `seedDefaults` hardcodes 7/14 days).
+//
+// They are listed rather than deleted for the reason above, and rather than
+// guessed at because both are product decisions: what a cadence should DO with
+// no payout scheduler, and whether an install default may silently change the
+// trial length of a plan an operator is typing.
+//
+// ── 2026-08-30 (review): a third, hidden behind an id collision ───────────
+//
+// `leads-pipeline/fromName` was classified "read" for one reason only: the
+// unrelated `lib/integrations/catalog.ts` declares an SMTP credential whose id
+// also happens to be `fromName`, and the sweep's host-source check matches a
+// quoted id anywhere. The leads-pipeline module contains **zero** occurrences of
+// `install.config` or `ctx.install`, so it cannot read any of the three settings
+// it declares — `defaultLeadSource` and `newColumnLabel` were already listed
+// here, and `fromName` belongs with them.
+//
+// This mattered beyond the label: the collision was the sole evidence for the
+// claim that `campaigns.fromName` is "read for real when a blast is composed",
+// which was in turn the sole justification for giving leads-pipeline a row in
+// the agency Settings hub. The row is withdrawn in `lib/chrome/settingsModules.ts`
+// and the detector no longer counts a declaration catalogue as a reader.
+//
+// ── 2026-08-30 (review): and a fourth, hidden behind a comment ────────────
+//
+// `client-crm/customAttributeSchema` was classified "read" only because
+// client-CRM's own Settings page carried the phrase `install.config.` + the
+// field id in a COMMENT — prose telling the operator to hand-edit storage. No
+// code reads it; the manifest's own help text says "v1 freeform; structured
+// editor is future". Giving the field an editor (2026-08-30) turned a dead key
+// into a live textarea that accepts JSON and ignores it, which is worse than the
+// prose was — so it is labelled here.
+//
+// The sweep's guard-the-guard ("a field the module genuinely reads must not be
+// reported unwired") used to be anchored on this field, i.e. on the comment. It
+// is now anchored on `affiliates/defaultPayoutMethod`, which is read by real
+// code in `affiliates/src/api/handlers.ts` when a payout is created.
 
 export interface UnwiredSetting {
   pluginId: string;
@@ -53,6 +101,7 @@ export const unwiredKey = (pluginId: string, fieldId: string): string => `${plug
  */
 export const UNWIRED_SETTINGS: readonly UnwiredSetting[] = [
   { pluginId: "affiliates", fieldId: "autoApproveAfterDays" },
+  { pluginId: "affiliates", fieldId: "payoutCadence" },
   { pluginId: "agency-finance", fieldId: "expenseApprovalThresholdCents" },
   { pluginId: "agency-hr", fieldId: "leaveAutoRestoreDays" },
   { pluginId: "agency-hr", fieldId: "defaultPtoDaysPerYear" },
@@ -60,6 +109,7 @@ export const UNWIRED_SETTINGS: readonly UnwiredSetting[] = [
   { pluginId: "agency-marketing", fieldId: "defaultLeadAssignee" },
   { pluginId: "agency-marketing", fieldId: "autoSendOnTemplate" },
   { pluginId: "client-crm", fieldId: "autoCreateOnSignup" },
+  { pluginId: "client-crm", fieldId: "customAttributeSchema" },
   { pluginId: "ecommerce", fieldId: "stripePublishableKey" },
   { pluginId: "ecommerce", fieldId: "lowStockThreshold" },
   { pluginId: "fulfillment", fieldId: "defaultStage" },
@@ -68,7 +118,9 @@ export const UNWIRED_SETTINGS: readonly UnwiredSetting[] = [
   { pluginId: "fulfillment", fieldId: "notifyClientOnAdvance" },
   { pluginId: "leads-pipeline", fieldId: "defaultLeadSource" },
   { pluginId: "leads-pipeline", fieldId: "newColumnLabel" },
+  { pluginId: "leads-pipeline", fieldId: "fromName" },
   { pluginId: "memberships", fieldId: "billingPortalReturnUrl" },
+  { pluginId: "memberships", fieldId: "defaultTrialDays" },
   { pluginId: "memberships", fieldId: "memberPortalHeading" },
   { pluginId: "memberships", fieldId: "showAnnualToggle" },
   { pluginId: "public-funnel", fieldId: "redirectAfterCapture" },

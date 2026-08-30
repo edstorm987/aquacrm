@@ -35,6 +35,19 @@ export interface ProvisionedClientProject {
   createdAt: number;
 }
 
+/**
+ * The slug, folder and property id a provisioning attempt intends to use. It is
+ * chosen — and recorded durably — BEFORE any folder is created, so a retry after
+ * a lost save re-enters the same folder instead of suffixing a `-2` sibling.
+ */
+export interface ClientProjectPlan {
+  propertyId: string;
+  projectSlug: string;
+  localPath: string;
+  /** True when this plan re-enters a folder an unfinished operation already owns. */
+  adopted: boolean;
+}
+
 const TEXT_FILE_NAMES = new Set([".gitignore"]);
 const TEXT_EXTENSIONS = new Set([".css", ".html", ".js", ".json", ".md", ".txt"]);
 
@@ -110,19 +123,79 @@ function initialiseRepository(targetPath: string, projectName: string): string {
   return run(["rev-parse", "HEAD"]);
 }
 
-export function provisionClientProject(input: ProvisionClientProjectInput): ProvisionedClientProject {
+export function clientProjectDirectory(input: { clientName: string; clientSlug: string }): string {
+  const { projectsRoot } = projectRoots();
+  return path.join(projectsRoot, slugifyProject(input.clientSlug || input.clientName));
+}
+
+/**
+ * Choose the slug/folder/property id for a provisioning attempt without touching
+ * the filesystem. `adopt` carries the milestone of an unfinished operation: when
+ * it names a folder inside this client's directory the plan re-enters it rather
+ * than suffixing, which is what stops a retry minting a `-2` sibling.
+ */
+export function planClientProject(input: {
+  clientName: string;
+  clientSlug: string;
+  projectName: string;
+  propertyId?: string;
+  adopt?: { propertyId?: string; projectSlug?: string; localPath?: string };
+}): ClientProjectPlan {
+  const clientDirectory = clientProjectDirectory(input);
+  const desiredSlug = slugifyProject(input.projectName);
+  const adopt = input.adopt;
+  if (adopt?.localPath && adopt.projectSlug && adopt.propertyId) {
+    const adopted = path.resolve(adopt.localPath);
+    if (path.dirname(adopted) === path.resolve(clientDirectory)) {
+      return {
+        propertyId: adopt.propertyId,
+        projectSlug: adopt.projectSlug,
+        localPath: adopted,
+        adopted: true,
+      };
+    }
+  }
+  const { slug: projectSlug, targetPath } = uniqueProjectPath(clientDirectory, desiredSlug);
+  return {
+    propertyId: input.propertyId ?? `prop_${randomUUID()}`,
+    projectSlug,
+    localPath: targetPath,
+    adopted: false,
+  };
+}
+
+export function provisionClientProject(
+  input: ProvisionClientProjectInput,
+  plan?: ClientProjectPlan,
+): ProvisionedClientProject {
   const starter = CLIENT_PROJECT_STARTERS[input.starterId];
   if (!starter) throw new Error("Unknown client project starter.");
 
-  const { templatesRoot, projectsRoot } = projectRoots();
+  const { templatesRoot } = projectRoots();
   const templatePath = path.join(templatesRoot, starter.id);
   if (!existsSync(templatePath)) throw new Error(`Starter "${starter.id}" is not installed.`);
 
-  const clientDirectory = path.join(projectsRoot, slugifyProject(input.clientSlug || input.clientName));
+  const resolved = plan ?? planClientProject(input);
+  let targetPath = resolved.localPath;
+  let projectSlug = resolved.projectSlug;
+  const propertyId = input.propertyId ?? resolved.propertyId;
+  const clientDirectory = path.dirname(targetPath);
   mkdirSync(clientDirectory, { recursive: true });
-  const desiredSlug = slugifyProject(input.projectName);
-  const { slug: projectSlug, targetPath } = uniqueProjectPath(clientDirectory, desiredSlug);
-  const propertyId = input.propertyId ?? `prop_${randomUUID()}`;
+  if (resolved.adopted) {
+    // An adopted folder is a half-finished attempt this operation already owns —
+    // clear it so the retry rebuilds it exactly, at the same path, once.
+    if (existsSync(targetPath)) rmSync(targetPath, { force: true, recursive: true });
+  } else if (existsSync(targetPath)) {
+    // The plan picked this name before the folder existed and a concurrent
+    // provision claimed it in between (the durable record now sits between the
+    // two). `cpSync` defaults to `force: true`, so continuing would merge this
+    // starter over the other project's files and the failure path would then
+    // delete them; step aside onto a fresh suffix instead. The caller records
+    // the returned slug/path, so the ledger still names what was built.
+    const stepAside = uniqueProjectPath(clientDirectory, slugifyProject(input.projectName));
+    projectSlug = stepAside.slug;
+    targetPath = stepAside.targetPath;
+  }
   const createdAt = Date.now();
 
   try {
