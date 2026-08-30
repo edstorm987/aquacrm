@@ -4,6 +4,49 @@
 live in [ED-QUESTIONS.md](ED-QUESTIONS.md) and are SKIPPED, not stalled on.
 Suite baseline at loop start: **5,460 tests / 0 fail / tsc clean.**
 
+## Data-architecture workstream (started 2026-08-30, branch claude/aquacrm-data-architecture-ia0vnx)
+
+**Phase 0 SHIPPED — semantic groundwork.** Full survey of every store,
+adapter, migration, KPI path and metadata bag, then the enforceable semantic
+layer:
+
+- `src/lib/data/semanticRegistry.ts` — 30 canonical entities (definitions,
+  id rules, tenancy, source of truth, provenance, timestamps, sensitivity,
+  retention, lifecycles, relationships), the six load-bearing distinctions,
+  timestamp + value doctrines, and `PORTAL_STATE_COVERAGE` classifying every
+  PortalState collection — **exact set-equality-enforced** by
+  `smoke-semantic-registry.test.ts`, so a new collection cannot ship
+  unclassified.
+- `src/lib/data/metricRegistry.ts` — one canonical id + semantics for all 60
+  metrics (20 command + 40 commercial), `computedBy` naming the single
+  calculation authority, `radarFamilyId` joins, and every known competing
+  calculation linked as `same-quantity`. `smoke-metric-registry.test.ts`
+  pins set equality against the defining source files, pins the ONE existing
+  bare-id collision (`campaign-roas`) so a new one fails, and adds 8 golden
+  boundary tests (SLA boundary inclusive, 14-day staleness, decision
+  denominators, even-count median, >100% directional ratio, null-not-Infinity
+  ROAS). Descriptors now stamp `canonicalId` (`<kind>:<id>`).
+- `src/lib/data/metadataContracts.ts` — all 123 metadata keys catalogued
+  (carrier, namespace, owner, type, sensitivity);
+  `smoke-metadata-contracts.test.ts` scans src both ways (uncatalogued key
+  fails; dead entry fails) — the escape hatch is closed going forward.
+- Real fix: `business-health` formulaText stated only the company index and
+  omitted the 30% incident blend — corrected to the actual calculation.
+- Docs: `docs/data/{ARCHITECTURE,SOURCE-INVENTORY,SEMANTIC-LAYER,
+  DATA-DICTIONARY,MIGRATION-PLAN,LINEAGE}.md` + ADR-001…004. All describe
+  what EXISTS, with target clearly separated.
+
+**Phase queue (from docs/data/MIGRATION-PLAN.md):**
+1. Tenancy/identity/roles extraction (tables + RLS behind existing modules;
+   blocked on Ed for `supabase db push` + DATABASE_URL — ED-QUESTIONS Q7).
+2. People/organisations extraction (dedupe suites as parity oracle).
+3. Transactional outbox (same-mutate write; envelope with correlation/
+   causation ids; no event-sourcing claim).
+4. Journey slice. 5. Telemetry out of the metadata bag + deterministic
+   beacon ids (the double-count fix). 6. Comms/audit durability.
+7. Metric dedup via `sameQuantityPairs()` (response-sla → configured
+   guardrail first; campaign-roas collision retirement; ED-QUESTIONS Q8/Q9).
+
 ## Done this loop (newest first)
 
 - **Ed's five findings, all fixed + pinned** — (1) search registry now

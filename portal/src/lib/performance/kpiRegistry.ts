@@ -50,6 +50,16 @@ export type KpiKind = "command" | "commercial" | "evidence" | "custom";
  */
 export interface KpiDescriptor {
   id: string;
+  /**
+   * Globally unique stable identity: `<kind>:<id>`. The descriptor id space
+   * is flat and already collides once (`campaign-roas` is both a command KPI
+   * and a commercial formula), so anything that keys metrics durably — saved
+   * views, custom-KPI operands, lineage — should key on THIS. Every value
+   * must resolve in the canonical metric registry
+   * (`lib/data/metricRegistry.ts`); `smoke-metric-registry.test.ts` enforces
+   * the join for command/commercial kinds.
+   */
+  canonicalId: string;
   label: string;
   shortLabel: string;
   /** The metric's own grouping label — a Radar domain for command/evidence, a
@@ -104,6 +114,7 @@ export interface KpiDescriptor {
 export function describeCommandKpi(kpi: CommandKpi): KpiDescriptor {
   return {
     id: kpi.id,
+    canonicalId: `command:${kpi.id}`,
     label: kpi.label,
     shortLabel: kpi.shortLabel,
     category: kpi.domain,
@@ -157,6 +168,7 @@ const COMMERCIAL_UNIT_FORMAT: Record<CommercialMetricUnit, CommandKpiFormat> = {
 export function describeCommercialFormula(metric: CommercialFormulaMetric, measuredAt: number): KpiDescriptor {
   return {
     id: metric.id,
+    canonicalId: `commercial:${metric.id}`,
     label: metric.label,
     shortLabel: metric.label,
     category: metric.category,
@@ -342,6 +354,9 @@ export function computeCustomKpi(definition: CustomKpiDefinition, byId: Map<stri
   const combinator = denominator ? ` ${CUSTOM_OP_SYMBOL[definition.op]} ${denominator.shortLabel}` : "";
   return {
     id: `custom:${definition.id}`,
+    // Custom KPIs are operator-defined, so their prefixed id IS the stable
+    // identity — there is no registry entry to join to.
+    canonicalId: `custom:${definition.id}`,
     label: definition.label,
     shortLabel: definition.label,
     category: definition.category || "custom",
@@ -393,6 +408,8 @@ function evidenceStatus(status: string | undefined): CommandKpiStatus {
 export function describeEvidenceSeries(summary: RadarEvidenceSeriesSummary): KpiDescriptor {
   return {
     id: `evidence:${summary.id}`,
+    // Evidence series are raw durable histories, namespaced by construction.
+    canonicalId: `evidence:${summary.id}`,
     label: summary.familyLabel || summary.familyId,
     shortLabel: summary.familyLabel || summary.familyId,
     category: summary.domain,

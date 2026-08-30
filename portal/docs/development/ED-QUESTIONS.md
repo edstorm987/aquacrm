@@ -73,6 +73,62 @@ real numbers.
 role/agency. These need reconciling in the Supabase dashboard before cutover.
 Run `node scripts/supabase-cutover-preflight.mjs` to see the current list.
 
+## Q8 — Apply the written-but-unapplied database migrations (ACTION)
+
+Three things exist on disk but not in the live project, and the data
+architecture work (docs/data/MIGRATION-PLAN.md) is gated on them:
+
+1. `supabase/migrations/20260820150000_brand_enquiries_agency_scope.sql` —
+   the enquiry `agency_id` tenant column (until applied, tenancy rides in
+   `metadata->>'agencyId'` and the agency-aware RLS ratchet cannot bite).
+2. `supabase/migrations/20260811113000_master_inbox_messaging.sql` — the five
+   `inbox_*` tables; production's `useSupabase()` inbox path 404s without
+   them.
+3. The live project's `rls_auto_enable()` function exists in NO migration —
+   export it from the dashboard and commit it, or it dies on any rebuild.
+
+**Unblocks:** migration phases 1/4/6; honest RLS claims. You run
+`supabase db push` by hand — say when, and I'll verify with
+`supabase/rls-verify.sql` + the preflight script.
+
+## Q9 — Which response SLA is canonical?
+
+Two "response compliance" numbers exist side by side: the Radar/command KPI
+uses your **configured** guardrail (`speedToLeadTargetMinutes`), while the
+commercial formula `response-sla` **hardcodes 5 minutes**. Dedup
+(MIGRATION-PLAN phase 7) needs the business answer:
+
+- **Recommendation:** the configured guardrail is canonical everywhere;
+  5 minutes stays only as the default value of that guardrail.
+- Alternative: keep a fixed 5-minute industry benchmark as a *separate,
+  clearly-labelled* metric next to your own SLA.
+
+**Unblocks:** folding `response-sla` onto the canonical calculation.
+
+## Q10 — Which campaign ROAS is "the" ROAS?
+
+`campaign-roas` exists twice (command KPI: zero-clamped, rounded 2dp over
+built campaign rows; commercial formula: unrounded over raw records). They can
+disagree in the same explorer, and custom KPIs resolve to the opposite one
+than the picker does. **Recommendation:** the command KPI is canonical for
+dashboards; the commercial twin gets a namespaced id and a "raw/unrounded"
+label until retired. Saved custom-KPI definitions referencing it get a
+backfill.
+
+**Unblocks:** retiring the one descriptor-id collision
+(pinned in `src/lib/data/metricRegistry.ts` until then).
+
+## Q11 — First-cut Supabase tables: adopt or drop?
+
+`clients`, `client_portals`, `client_portal_members`, `audit_events` exist
+live (created by the initial security migration), are **empty**, and no
+portal code reads them. The extraction phases will create real tables for
+these concepts — reusing those names only works if we adopt and reshape them.
+**Recommendation:** drop them in a migration once phase 1 designs the real
+schemas, so nobody builds against the wrong model.
+
+**Unblocks:** clean table naming for migration phases 1–2.
+
 ---
 
 *Answered items: move them to the bottom with the decision and date, so this
