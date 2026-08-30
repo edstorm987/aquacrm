@@ -43,6 +43,12 @@ type Pack = {
   invoiceNumber: string;
   invoiceStatus: string;
   agreementStatus: string;
+  version: number;
+  sentVersion?: number;
+  acceptedVersion?: number;
+  acceptedAt?: number;
+  acceptedBy?: string;
+  revisions?: { version: number; acceptedAt?: number; acceptedBy?: string }[];
   lineItems: Line[];
   subtotalCents: number;
   taxCents: number;
@@ -57,6 +63,7 @@ type Pack = {
   notes?: string;
   signedDocumentName?: string;
   signedDocumentDataUrl?: string;
+  signedDocumentVersion?: number;
   payments: Payment[];
   stripeCheckoutUrl?: string;
   emailMessageId?: string;
@@ -162,6 +169,12 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
   const total = subtotal + taxCents;
   const paid = pack?.payments.reduce((sum, payment) => sum + payment.amountCents, 0) ?? 0;
   const balance = Math.max(0, (pack?.totalCents ?? total) - paid);
+  // An acceptance that belongs to superseded terms. It is still a real signature —
+  // it just does not cover what is on screen now, and saying nothing would read
+  // as if these terms were agreed.
+  const supersededAcceptance = pack?.acceptedAt
+    ? undefined
+    : [...(pack?.revisions ?? [])].reverse().find(revision => revision.acceptedAt);
 
   function applyProduct(productId: string) {
     setSelectedProductId(productId);
@@ -224,8 +237,28 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
         setError(result.error ?? "Could not save invoice and agreement.");
         return null;
       }
+      const previous = pack;
       setPack(result.pack);
-      showNotice("Invoice and agreement saved.");
+      // A save that changed issued terms does not edit what the client saw — it
+      // supersedes it. Saying so is the difference between an honest amendment
+      // and silently moving an acceptance onto wording nobody agreed to.
+      if (previous && result.pack.version > previous.version) {
+        showNotice(
+          `Terms changed, so this is now version ${result.pack.version} as a new unsent draft.`
+          + (previous.acceptedVersion
+            ? ` The acceptance of version ${previous.acceptedVersion} is kept against those terms and does not cover these.`
+            : "")
+          + " Send it again for signature."
+          + (previous.stripeCheckoutUrl && !result.pack.stripeCheckoutUrl
+            ? " The old Stripe payment page was priced for the previous terms and has been detached — create a new one."
+            : ""),
+          "warn",
+        );
+      } else if (previous?.stripeCheckoutUrl && !result.pack.stripeCheckoutUrl) {
+        showNotice("Saved. The amounts changed, so the old Stripe payment page was detached — create a new one before offering card payment.", "warn");
+      } else {
+        showNotice("Invoice and agreement saved.");
+      }
       return result.pack;
     } finally {
       setBusy("");
@@ -362,9 +395,14 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
               <Gap ok={pack?.deliveryStatus
                 ? pack.deliveryStatus === "delivered"
                 : pack?.invoiceStatus === "sent" || pack?.invoiceStatus === "accepted" || pack?.invoiceStatus === "paid"} label="Invoice emailed" />
-              <Gap ok={pack?.agreementStatus === "accepted" || Boolean(pack?.signedDocumentDataUrl)} label="Agreement signed" />
+              <Gap ok={pack?.agreementStatus === "accepted" || (Boolean(pack?.signedDocumentDataUrl) && pack?.signedDocumentVersion === pack?.version)} label="Agreement signed" />
               <Gap ok={paid > 0} label="Payment recorded" />
             </div>
+            {pack?.acceptedAt && pack.acceptedVersion
+              ? <p className="mt-3 text-xs leading-5 text-emerald-700">Version {pack.acceptedVersion} accepted{pack.acceptedBy ? ` by ${pack.acceptedBy}` : ""} on {formatUkDate(pack.acceptedAt, { dateStyle: "medium" })}.</p>
+              : supersededAcceptance
+                ? <p role="status" className="mt-3 border-l-2 border-amber-600 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">Version {supersededAcceptance.version} was accepted{supersededAcceptance.acceptedBy ? ` by ${supersededAcceptance.acceptedBy}` : ""}{supersededAcceptance.acceptedAt ? ` on ${formatUkDate(supersededAcceptance.acceptedAt, { dateStyle: "medium" })}` : ""}, then the terms were amended. That acceptance covers version {supersededAcceptance.version} only — these are version {pack?.version} and are unsigned until sent and accepted again.</p>
+                : null}
             {packRead === "unavailable" ? <p role="status" className="mt-5 border-l-2 border-amber-500 bg-amber-50 px-3 py-2 text-sm text-amber-900">These are default terms, not this party&rsquo;s. Their existing pack could not be read, so saving is held back rather than replacing an agreement nobody has seen. Reload to try again.</p> : null}
             {!catalogueAvailable ? <p role="status" className="mt-3 border-l-2 border-amber-500 bg-amber-50 px-3 py-2 text-sm text-amber-900">The product catalogue could not be read, so the picker below is empty because of a failure rather than because no product exists.</p> : null}
             <button type="button" onClick={() => void save()} disabled={Boolean(busy) || packRead !== "ready"} title={packRead !== "ready" ? "The existing commercial record has not been read" : undefined} className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50"><FilePenLine size={16} /> {busy === "save" ? "Saving..." : "Save draft"}</button>

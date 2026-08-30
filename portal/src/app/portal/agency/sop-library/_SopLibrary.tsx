@@ -34,6 +34,9 @@ import {
 } from "lucide-react";
 
 import type { SopDocument, SopGuide } from "@/server/types";
+// Type-only, so the server-only dependency module is never pulled into the
+// client bundle — the shape is shared with the route that produces it.
+import type { SopDependant, SopDependencyInventory } from "@/engines/sop/server/sopDependencies";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
 import { BlockRenderer } from "@/engines/editor/elements/BlockRenderer";
 import type { Block } from "@/engines/editor/elements";
@@ -60,6 +63,45 @@ type EditorDraft = {
 
 const EMPTY_DRAFT: EditorDraft = { title: "", category: "", categories: [], tags: "", content: "" };
 
+/** The retirement confirmation's own state, including the un-answered read. */
+type RetiringSop = {
+  sop: SopDocument;
+  inventory: SopDependencyInventory | null;
+  loading: boolean;
+  busy: boolean;
+  /** The inventory could not be read — never presented as "nothing depends on it". */
+  readFailed?: boolean;
+};
+
+/** How each reference site is named to a person deciding whether to retire. */
+const DEPENDANT_KIND_LABELS: Record<SopDependant["kind"], string> = {
+  "task": "Actions",
+  "task-checklist-item": "Action checklist steps",
+  "task-template-step": "Action template steps",
+  "guide": "Guides",
+  "product": "Services",
+  "product-process-step": "Service process steps",
+  "client-product-variation": "Client service variations",
+  "development-resource": "Development resources",
+  "training-assignment": "Training assignments",
+};
+
+const dependantKindLabel = (kind: string): string =>
+  DEPENDANT_KIND_LABELS[kind as SopDependant["kind"]] ?? kind;
+
+/** Dependants grouped the way the inventory counts them, for display. */
+function groupDependants(dependants: SopDependant[]): { kind: string; items: SopDependant[] }[] {
+  const groups = new Map<string, SopDependant[]>();
+  for (const dependant of dependants) {
+    const existing = groups.get(dependant.kind);
+    if (existing) existing.push(dependant);
+    else groups.set(dependant.kind, [dependant]);
+  }
+  return [...groups.entries()]
+    .map(([kind, items]) => ({ kind, items }))
+    .sort((a, b) => dependantKindLabel(a.kind).localeCompare(dependantKindLabel(b.kind)));
+}
+
 export function SopLibrary({ initialSops, initialCategories, initialGuides = [], canManageGuides = false }: {
   initialSops: SopDocument[];
   initialCategories: string[];
@@ -83,6 +125,8 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
   const [deletingCategory, setDeletingCategory] = useState<{ category: string; replacementCategory: string } | null>(null);
   const [guideEditor, setGuideEditor] = useState<GuideEditorState | null>(null);
   const [viewingGuide, setViewingGuide] = useState<SopGuide | null>(null);
+  const [retiring, setRetiring] = useState<RetiringSop | null>(null);
+  const [stranded, setStranded] = useState<{ title: string; inventory: SopDependencyInventory } | null>(null);
   const [error, setError] = useState("");
 
   function upsertGuide(guide: SopGuide) {
@@ -189,16 +233,84 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
     setCreatingCategory(false);
   }
 
-  async function remove(sop: SopDocument) {
-    if (!window.confirm(`Delete “${sop.title}”? This cannot be undone.`)) return;
+  // ── Retiring a procedure: ask what breaks BEFORE offering to delete ───────
+  //
+  // A bare `window.confirm` could only say "this cannot be undone", which is the
+  // least useful true sentence available: deletion removes the source row and
+  // nothing else, so guides, actions, templates, services and training keep an
+  // id that now resolves to nothing — and those surfaces fail SILENTLY, by
+  // rendering one fewer step. This reads the server's dependency inventory (the
+  // same one the DELETE response echoes) and names every record that would be
+  // left holding the id, so the choice is informed rather than blind.
+  //
+  // It deliberately does not BLOCK the deletion, and offers no "detach" or
+  // "reassign" button: the retirement policy is still an open product decision
+  // (issues #176), and inventing one in a dialog would be worse than the gap.
+  async function openRetirement(sop: SopDocument) {
     setError("");
-    const response = await fetch(`/api/portal/sops?id=${encodeURIComponent(sop.id)}`, { method: "DELETE" });
-    const result = await response.json().catch(() => null) as { ok?: boolean; error?: string } | null;
-    if (!response.ok || !result?.ok) {
+    setRetiring({ sop, inventory: null, loading: true, busy: false });
+    // The request THROWING (offline, aborted, a proxy cutting the connection)
+    // is a failed read like any other, and must land in the same explicit
+    // state. Left unhandled it rejects out of this handler and the dialog sits
+    // on "Checking what still uses this procedure…" forever with the delete
+    // button disabled — a silent stall, which is the failure mode this whole
+    // dialog exists to remove.
+    let inventory: SopDependencyInventory | null = null;
+    try {
+      const response = await fetch(`/api/portal/sops?dependencies=${encodeURIComponent(sop.id)}`);
+      const result = await response.json().catch(() => null) as {
+        ok?: boolean;
+        dependencies?: SopDependencyInventory;
+        error?: string;
+      } | null;
+      if (response.ok && result?.ok && result.dependencies) inventory = result.dependencies;
+    } catch {
+      inventory = null;
+    }
+    setRetiring(current => {
+      if (!current || current.sop.id !== sop.id) return current;
+      // A failed read must not be shown as "nothing depends on this" — that is
+      // the exact false reassurance this dialog exists to prevent.
+      return { ...current, loading: false, inventory, readFailed: !inventory };
+    });
+  }
+
+  async function confirmRetirement() {
+    if (!retiring || retiring.loading || retiring.busy) return;
+    const sop = retiring.sop;
+    setError("");
+    setRetiring(current => current ? { ...current, busy: true } : current);
+    type DeleteAnswer = { ok?: boolean; stranded?: SopDependencyInventory; error?: string };
+    let result: DeleteAnswer | null = null;
+    let responseOk = false;
+    try {
+      const response = await fetch(`/api/portal/sops?id=${encodeURIComponent(sop.id)}`, { method: "DELETE" });
+      responseOk = response.ok;
+      result = await response.json().catch(() => null) as DeleteAnswer | null;
+    } catch {
+      // A request that never completed is not a deletion. Fall through to the
+      // refusal branch rather than rejecting out of the handler, which would
+      // leave the button stuck on "Deleting…" and claim nothing either way.
+      responseOk = false;
+    }
+    if (!responseOk || !result?.ok) {
+      // The refusal has to be readable WHERE the person is: this dialog is a
+      // full-screen overlay, so the page-level banner alone would be hidden
+      // behind it and a refused deletion would look like nothing happened.
+      // The route's storage-refusal message ("…is still stored…") is the one
+      // that matters most here.
       setError(result?.error ?? "The SOP could not be deleted.");
+      setRetiring(current => current ? { ...current, busy: false } : current);
       return;
     }
     setSops(current => current.filter(item => item.id !== sop.id));
+    setRetiring(null);
+    // What the deletion actually left behind, kept on screen afterwards: the
+    // records below still name a procedure that no longer exists, and nothing
+    // else in the app will say so.
+    setStranded(result.stranded && result.stranded.total > 0
+      ? { title: sop.title, inventory: result.stranded }
+      : null);
   }
 
   async function deleteCategory() {
@@ -408,7 +520,7 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
                 <div className="flex shrink-0 items-center gap-1 self-end sm:self-auto">
                   {sop.kind === "file" ? <a href={`/api/portal/sops/content?id=${encodeURIComponent(sop.id)}`} target="_blank" rel="noreferrer" title="Open file" className="grid size-9 place-items-center rounded-md text-black/45 hover:bg-black/[0.04] hover:text-black"><Download size={16} /></a> : null}
                   {canManageGuides ? <><button type="button" title="Move, categorise or tag SOP" onClick={() => setOrganisingSop(sop)} className="grid size-9 place-items-center rounded-md text-black/40 hover:bg-black/[0.04] hover:text-black"><FolderInput size={16} /></button>
-                  <button type="button" title="Delete SOP" onClick={() => void remove(sop)} className="grid size-9 place-items-center rounded-md text-black/35 hover:bg-red-50 hover:text-red-700"><Trash2 size={16} /></button></> : null}
+                  <button type="button" title="Delete SOP" onClick={() => void openRetirement(sop)} className="grid size-9 place-items-center rounded-md text-black/35 hover:bg-red-50 hover:text-red-700"><Trash2 size={16} /></button></> : null}
                 </div>
               </article>
             )) : <div className="mm-surface-card rounded-lg border border-dashed border-black/15 px-4 py-12 text-center text-sm text-black/45">
@@ -472,6 +584,64 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
           <div className="flex justify-end gap-2">
             <button type="button" onClick={() => setDeletingCategory(null)} className={secondaryButton}>Cancel</button>
             <button type="button" onClick={() => void deleteCategory()} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-red-700 px-4 text-sm font-semibold text-white hover:bg-red-800"><Trash2 size={14} /> Delete category</button>
+          </div>
+        </div>
+      </Modal> : null}
+      {canManageGuides && retiring ? <Modal title="Delete SOP" onClose={() => setRetiring(null)}>
+        <div className="grid gap-4">
+          <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+            <strong className="block">Delete “{retiring.sop.title}”?</strong>
+            <span className="mt-1 block text-red-700/75">This cannot be undone.</span>
+          </div>
+          {retiring.loading ? <p className="text-sm text-black/55">Checking what still uses this procedure…</p> : null}
+          {!retiring.loading && retiring.readFailed ? <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            <strong className="block">Its dependencies could not be checked.</strong>
+            <span className="mt-1 block text-amber-900/75">This is not the same as nothing depending on it — records elsewhere may still reference this SOP and will not say so once it is gone.</span>
+          </div> : null}
+          {!retiring.loading && retiring.inventory ? (retiring.inventory.total === 0
+            ? <p className="text-sm text-black/60">Nothing else references this procedure right now.</p>
+            : <div className="grid gap-3">
+              <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                <strong className="block">{retiring.inventory.total} record{retiring.inventory.total === 1 ? "" : "s"} still use{retiring.inventory.total === 1 ? "s" : ""} this SOP.</strong>
+                <span className="mt-1 block text-amber-900/75">Deleting removes only the procedure itself. Each record below keeps a reference that will no longer resolve, and those screens will simply show one fewer step rather than reporting a problem — so fix them by hand, before or after.</span>
+              </div>
+              <div className="grid max-h-64 gap-3 overflow-y-auto rounded-md border border-black/10 p-3">
+                {groupDependants(retiring.inventory.dependants).map(group => <div key={group.kind} className="grid gap-1">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-black/45">{dependantKindLabel(group.kind)} ({group.items.length})</p>
+                  <ul className="grid gap-1 text-sm text-black/70">
+                    {group.items.map((dependant, index) => <li key={`${dependant.kind}:${dependant.id}:${index}`} className="truncate">{dependant.label}</li>)}
+                  </ul>
+                </div>)}
+              </div>
+            </div>) : null}
+          {error ? <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setRetiring(null)} className={secondaryButton}>Cancel</button>
+            <button
+              type="button"
+              disabled={retiring.loading || retiring.busy}
+              onClick={() => void confirmRetirement()}
+              className="inline-flex min-h-10 items-center gap-2 rounded-md bg-red-700 px-4 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+            ><Trash2 size={14} /> {retiring.busy ? "Deleting…" : "Delete anyway"}</button>
+          </div>
+        </div>
+      </Modal> : null}
+      {stranded ? <Modal title="What the deletion left behind" onClose={() => setStranded(null)}>
+        <div className="grid gap-4">
+          <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            <strong className="block">“{stranded.title}” was deleted, and {stranded.inventory.total} record{stranded.inventory.total === 1 ? "" : "s"} still reference{stranded.inventory.total === 1 ? "s" : ""} it.</strong>
+            <span className="mt-1 block text-amber-900/75">Nothing was detached or reassigned automatically. These are the records to correct.</span>
+          </div>
+          <div className="grid max-h-64 gap-3 overflow-y-auto rounded-md border border-black/10 p-3">
+            {groupDependants(stranded.inventory.dependants).map(group => <div key={group.kind} className="grid gap-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-black/45">{dependantKindLabel(group.kind)} ({group.items.length})</p>
+              <ul className="grid gap-1 text-sm text-black/70">
+                {group.items.map((dependant, index) => <li key={`${dependant.kind}:${dependant.id}:${index}`} className="truncate">{dependant.label}</li>)}
+              </ul>
+            </div>)}
+          </div>
+          <div className="flex justify-end">
+            <button type="button" onClick={() => setStranded(null)} className={secondaryButton}>Close</button>
           </div>
         </div>
       </Modal> : null}

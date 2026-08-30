@@ -47,7 +47,7 @@ import {
 } from "../server/subscribers";
 import { parseCsv, parseXlsxToDelimitedText } from "../server/csv";
 import { LeadIdentityConflictError, LeadService } from "../server/leads";
-import { CommercialPaymentConflictError } from "../server/commercial";
+import { CommercialAcceptanceStateError, CommercialPaymentConflictError } from "../server/commercial";
 import { CSV_COLUMN_VARIANTS, projectLeadCard } from "../lib/domain";
 
 const AGENCY_ID: AgencyId = "agency_leads_smoke";
@@ -857,6 +857,191 @@ describe("leads-pipeline / commercial packs", () => {
       payment.receiptDeliveryStatus === "delivered" && (payment.receiptSentAt ?? 0) > 0));
     assert.ok(w.activityLog.some(entry => entry.action === "commercial.payment.recorded"));
     assert.ok(w.events.some(event => event.name === "commercial.payment.recorded"));
+  });
+
+  // ── Acceptance is bound to an immutable sent version (issues #41) ──
+  //
+  // The public token is minted at the FIRST draft save, so holding the link has
+  // never been the same as being offered the terms. These three tests pin the
+  // three halves of that: a draft cannot be signed, an acceptance names the exact
+  // version it covers and never migrates onto later wording, and a payment
+  // session cannot outlive the amounts it was priced for.
+  const versionedTerms = (partyId: string, overrides: Partial<Parameters<
+    ReturnType<typeof buildLeadsPipelineContainer>["commercial"]["save"]>[0]> = {}) => ({
+    partyKind: "lead" as const,
+    partyId,
+    recipientName: "Buyer",
+    recipientEmail: `${partyId}@example.test`,
+    lineItems: [{ description: "Retainer", quantity: 1, unitCents: 100_000 }],
+    taxCents: 0,
+    currency: "gbp" as const,
+    dueAt: Date.UTC(2026, 8, 30),
+    billingCadence: "one-off" as const,
+    serviceLevel: "Retainer",
+    agreementTitle: "Service level agreement",
+    agreementBody: "Milesymedia will provide the retainer described above.",
+    ...overrides,
+  });
+
+  test("a draft proposal cannot be accepted from its public link, and acceptance names the sent version", async () => {
+    const w = buildWorld({ withEmail: true });
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+      emailEnqueue: w.emailEnqueue,
+    });
+    const draft = await c.commercial.save(versionedTerms("lead_version_gate"), ACTOR);
+    assert.equal(draft.version, 1);
+    assert.equal(draft.agreementStatus, "draft");
+    assert.equal(draft.sentVersion, undefined);
+    assert.ok(draft.publicToken);
+
+    await assert.rejects(
+      c.commercial.accept(draft.publicToken, "Buyer"),
+      (error: unknown) => error instanceof CommercialAcceptanceStateError,
+    );
+    const stillDraft = await c.commercial.get("lead", "lead_version_gate");
+    assert.equal(stillDraft?.agreementStatus, "draft");
+    assert.equal(stillDraft?.acceptedAt, undefined);
+    assert.equal(w.activityLog.some(entry => entry.action === "commercial.agreement.accepted"), false);
+
+    const sent = await c.commercial.send("lead", "lead_version_gate", "https://milesymedia.test", ACTOR);
+    assert.equal(sent.sentVersion, 1);
+
+    const accepted = await c.commercial.accept(sent.publicToken, "Buyer Name");
+    assert.equal(accepted?.agreementStatus, "accepted");
+    assert.equal(accepted?.acceptedVersion, 1);
+    assert.equal(accepted?.acceptedContentHash, sent.contentHash);
+    assert.equal(accepted?.acceptedBy, "Buyer Name");
+    assert.ok(w.activityLog.some(entry =>
+      entry.action === "commercial.agreement.accepted" && /version 1/.test(entry.message)));
+
+    // A repeat POST must not move the acceptance onto a later moment or name.
+    const again = await c.commercial.accept(sent.publicToken, "Someone Else");
+    assert.equal(again?.acceptedBy, "Buyer Name");
+    assert.equal(again?.acceptedAt, accepted?.acceptedAt);
+    assert.equal(again?.acceptedVersion, 1);
+    assert.equal(w.activityLog.filter(entry => entry.action === "commercial.agreement.accepted").length, 1);
+  });
+
+  test("editing accepted terms supersedes them as an unsent draft and keeps the old acceptance whole", async () => {
+    const w = buildWorld({ withEmail: true });
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+      emailEnqueue: w.emailEnqueue,
+    });
+    await c.commercial.save(versionedTerms("lead_amend_after_accept"), ACTOR);
+    const sent = await c.commercial.send("lead", "lead_amend_after_accept", "https://milesymedia.test", ACTOR);
+    const accepted = await c.commercial.accept(sent.publicToken, "Buyer Name");
+    assert.equal(accepted?.acceptedVersion, 1);
+
+    // Re-saving the SAME terms is not an amendment: nothing the client read moved.
+    const resaved = await c.commercial.save(versionedTerms("lead_amend_after_accept"), ACTOR);
+    assert.equal(resaved.version, 1);
+    assert.equal(resaved.agreementStatus, "accepted");
+    assert.equal(resaved.acceptedVersion, 1);
+    assert.equal(resaved.acceptedAt, accepted?.acceptedAt);
+    assert.equal(resaved.revisions, undefined);
+
+    const amended = await c.commercial.save(versionedTerms("lead_amend_after_accept", {
+      agreementBody: "Milesymedia will provide the retainer and a materially wider scope.",
+      lineItems: [{ description: "Retainer", quantity: 1, unitCents: 250_000 }],
+    }), ACTOR);
+    assert.equal(amended.version, 2);
+    assert.equal(amended.totalCents, 250_000);
+    assert.equal(amended.agreementStatus, "draft");
+    assert.equal(amended.invoiceStatus, "draft");
+    assert.equal(amended.acceptedAt, undefined);
+    assert.equal(amended.acceptedBy, undefined);
+    assert.equal(amended.acceptedVersion, undefined);
+    assert.equal(amended.acceptedContentHash, undefined);
+    assert.equal(amended.sentAt, undefined);
+    assert.equal(amended.sentVersion, undefined);
+    // The delivery record belongs to the version that was emailed. Version 2 has
+    // never been emailed, so nothing may still say it was — the agency readiness
+    // panel reads deliveryStatus for its "Invoice emailed" gap.
+    assert.equal(amended.deliveryStatus, undefined);
+    assert.equal(amended.deliveryAttemptedAt, undefined);
+    assert.equal(amended.emailMessageId, undefined);
+    assert.equal(amended.deliveryError, undefined);
+
+    // The acceptance of version 1 is a fact about version 1 and survives intact.
+    const superseded = amended.revisions?.at(-1);
+    assert.equal(amended.revisions?.length, 1);
+    assert.equal(superseded?.version, 1);
+    assert.equal(superseded?.contentHash, accepted?.contentHash);
+    assert.equal(superseded?.acceptedBy, "Buyer Name");
+    assert.equal(superseded?.acceptedAt, accepted?.acceptedAt);
+    assert.equal(superseded?.totalCents, 100_000);
+    assert.ok(w.activityLog.some(entry =>
+      entry.action === "commercial.amended" && /version 2/.test(entry.message)));
+
+    // The new wording is not on offer until it is sent, so it cannot be accepted.
+    await assert.rejects(
+      c.commercial.accept(amended.publicToken, "Buyer Name"),
+      (error: unknown) => error instanceof CommercialAcceptanceStateError,
+    );
+    assert.equal((await c.commercial.get("lead", "lead_amend_after_accept"))?.agreementStatus, "draft");
+
+    // Sent again, version 2 can be accepted on its own terms.
+    const resent = await c.commercial.send("lead", "lead_amend_after_accept", "https://milesymedia.test", ACTOR);
+    assert.equal(resent.sentVersion, 2);
+    const acceptedTwo = await c.commercial.accept(resent.publicToken, "Buyer Name");
+    assert.equal(acceptedTwo?.acceptedVersion, 2);
+    assert.equal(acceptedTwo?.acceptedContentHash, amended.contentHash);
+    assert.notEqual(acceptedTwo?.acceptedContentHash, accepted?.acceptedContentHash);
+  });
+
+  test("changing what is payable detaches the Stripe session priced for the old terms", async () => {
+    const w = buildWorld({ withEmail: true });
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+      emailEnqueue: w.emailEnqueue,
+    });
+    const draft = await c.commercial.save(versionedTerms("lead_stale_checkout"), ACTOR);
+    const attached = await c.commercial.attachStripe("lead", "lead_stale_checkout", {
+      id: "cs_old",
+      url: "https://checkout.test/cs_old",
+      forVersion: draft.version,
+      forFinancialHash: draft.financialHash,
+    });
+    assert.equal(attached?.attached, true);
+    assert.equal(attached?.pack.stripeCheckoutUrl, "https://checkout.test/cs_old");
+    assert.equal(attached?.pack.stripeCheckoutFinancialHash, draft.financialHash);
+
+    // Rewording costs nothing, so the session still matches the money.
+    const reworded = await c.commercial.save(versionedTerms("lead_stale_checkout", {
+      agreementBody: "Milesymedia will provide the retainer described above, in clearer words.",
+    }), ACTOR);
+    assert.equal(reworded.stripeCheckoutUrl, "https://checkout.test/cs_old");
+
+    const repriced = await c.commercial.save(versionedTerms("lead_stale_checkout", {
+      agreementBody: "Milesymedia will provide the retainer described above, in clearer words.",
+      lineItems: [{ description: "Retainer", quantity: 1, unitCents: 250_000 }],
+    }), ACTOR);
+    assert.equal(repriced.totalCents, 250_000);
+    assert.equal(repriced.stripeCheckoutId, undefined);
+    assert.equal(repriced.stripeCheckoutUrl, undefined);
+    assert.equal(repriced.stripeCheckoutFinancialHash, undefined);
+
+    // A session priced for the superseded amount is refused, not stored.
+    const stale = await c.commercial.attachStripe("lead", "lead_stale_checkout", {
+      id: "cs_stale",
+      url: "https://checkout.test/cs_stale",
+      forVersion: draft.version,
+      forFinancialHash: draft.financialHash,
+    });
+    assert.equal(stale?.attached, false);
+    assert.equal(stale?.pack.stripeCheckoutUrl, undefined);
+    assert.equal((await c.commercial.get("lead", "lead_stale_checkout"))?.stripeCheckoutId, undefined);
+
+    // And the proposal email cannot advertise a payment link for the old amount.
+    await c.commercial.send("lead", "lead_stale_checkout", "https://milesymedia.test", ACTOR);
+    assert.equal(w.enqueued.length, 1);
+    assert.equal(/cs_old/.test(w.enqueued[0]?.bodyText ?? ""), false);
+    assert.equal(/cs_old/.test(w.enqueued[0]?.bodyHtml ?? ""), false);
   });
 
   test("a refused proposal email leaves the pack unsent, retains the error, and a retry sends it", async () => {

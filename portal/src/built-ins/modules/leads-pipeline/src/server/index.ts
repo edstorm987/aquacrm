@@ -2,7 +2,13 @@
 // adapter exports. Same shape as agency-hr / public-funnel.
 
 export { LeadIdentityConflictError, LeadService } from "./leads";
-export { CommercialPaymentConflictError, CommercialService } from "./commercial";
+export {
+  CommercialAcceptanceStateError,
+  CommercialPaymentConflictError,
+  CommercialService,
+  commercialContentHash,
+  commercialFinancialHash,
+} from "./commercial";
 export { ProspectService } from "./prospects";
 export { ContactService } from "./contacts";
 export { CampaignService, PLUGIN_ID } from "./campaigns";

@@ -109,14 +109,20 @@ export interface MarketingTemplatePort {
 
 import type {
   EmailMessage,
+  IdentityVerification,
   PostmarkWebhookEvent,
   ProviderKind,
   SendFailure,
   SendResult,
+  SenderIdentity,
 } from "../lib/domain";
 
 export interface DriverContext {
   apiKey?: string;
+  // Postmark separates the per-server SEND token from the account-level token
+  // its sender-signature API requires. A driver that can verify identities
+  // needs the second one; `apiKey` alone cannot answer the question.
+  accountToken?: string;
   webhookSecret?: string;
   agencyId: AgencyId;
   // SMTP-specific transport config. Populated only when the active
@@ -136,4 +142,15 @@ export interface EmailDriver {
     rawBody: string;
     signatureHeader: string;
   }): Promise<PostmarkWebhookEvent | null>;
+  // Ask the provider whether it will accept mail FROM this address.
+  //
+  // OPTIONAL, and the absence is meaningful rather than a gap to paper over:
+  // a driver that cannot ask (SMTP has no sender registry; the SendGrid and
+  // Resend stubs are not wired) must NOT implement this, and `IdentityService`
+  // then leaves the identity `pending` and says which provider could not
+  // answer. Nothing else in this module may mark an identity `active`.
+  verifyIdentity?(args: {
+    ctx: DriverContext;
+    identity: SenderIdentity;
+  }): Promise<IdentityVerification>;
 }

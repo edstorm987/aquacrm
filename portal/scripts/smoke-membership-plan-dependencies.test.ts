@@ -35,6 +35,12 @@ import { describe, it } from "node:test";
 
 import { buildMembershipsContainer } from "../src/built-ins/modules/memberships/src/server/index";
 import { planDependencyInventory } from "../src/built-ins/modules/memberships/src/server/dependencies";
+import {
+  clearMembershipsFoundation,
+  registerMembershipsFoundation,
+} from "../src/built-ins/modules/memberships/src/server/foundationAdapter";
+import { deletePlanHandler } from "../src/built-ins/modules/memberships/src/api/handlers";
+import type { PluginCtx } from "../src/built-ins/modules/memberships/src/lib/aquaPluginTypes";
 import type { ActivityLogPort, EventBusPort, StoragePort } from "../src/built-ins/modules/memberships/src/server/ports";
 
 const AGENCY_ID = "agency_plan_deps";
@@ -98,6 +104,45 @@ async function seedWorld() {
     pluginInstalls: { getInstall() { return null; } },
   } as never);
   return { storage, services };
+}
+
+// The mounted route — `DELETE /api/portal/memberships/plans?id=…` — resolves its
+// container through the registered foundation rather than the one seedWorld
+// builds, so the tests below register a foundation over the SAME storage. No
+// Stripe: `stripeFor` answers null, which is what an install without keys looks
+// like, and deleting a plan touches Stripe on no path.
+function mountedCtx(storage: MemoryStorage): PluginCtx {
+  clearMembershipsFoundation();
+  registerMembershipsFoundation({
+    tenant: { getClient() { return null; }, getClientForAgency() { return null; } },
+    user: { getUser() { return null; } },
+    activity: {
+      logActivity(input: unknown) { return { id: "act", ts: Date.now(), ...(input as object) } as never; },
+      listActivity() { return [] as never; },
+    },
+    events: { emit() {} },
+    pluginInstalls: { getInstall() { return null; } },
+    stripeFor: () => null,
+  } as never);
+  return {
+    agencyId: AGENCY_ID,
+    clientId: CLIENT_ID,
+    actor: ACTOR,
+    storage,
+    install: {
+      id: "inst_plan_deps", pluginId: "memberships",
+      agencyId: AGENCY_ID, clientId: CLIENT_ID, enabled: true, config: {}, features: {},
+    } as never,
+    services: {} as PluginCtx["services"],
+  };
+}
+
+async function deleteViaRoute(ctx: PluginCtx, planId: string) {
+  const response = await deletePlanHandler(
+    new Request(`https://portal.test/api/portal/memberships/plans?id=${planId}`, { method: "DELETE" }),
+    ctx,
+  );
+  return { status: response.status, body: await response.json() as Record<string, unknown> };
 }
 
 describe("the inventory says who is still on the plan", () => {
@@ -169,5 +214,92 @@ describe("what plan DELETE does today, recorded rather than asserted as correct"
       "archiving a plan lost its subscribers — the documented ordinary retirement path is broken");
     const inventory = await planDependencyInventory(services, storage, PLAN_ID);
     assert.equal(inventory.billableSubscribers, 1, "the archived plan's member stopped being billable");
+  });
+});
+
+// ── The mounted route now ASKS before it destroys ──────────────────────────
+//
+// The block above records what `PlanService.delete` does when it is called: it
+// still hard-deletes, because no purge policy has been decided and inventing one
+// here would be the decision. What HAS changed is that the only caller — the
+// mounted `DELETE /api/portal/memberships/plans` route — asks the inventory
+// first and refuses while anyone is still on the plan, naming archive as the
+// path that works.
+//
+// Every assertion below fails against the previous handler, which passed the id
+// straight to `plans.delete` and answered `{ ok: true }`.
+
+describe("DELETE /plans refuses to strand subscribers", () => {
+  it("answers 422 with the inventory, and names the path that works", async () => {
+    const { storage } = await seedWorld();
+    const ctx = mountedCtx(storage);
+
+    const { status, body } = await deleteViaRoute(ctx, PLAN_ID);
+
+    assert.equal(status, 422, "a plan with a paying subscriber on it was deleted by the mounted route");
+    assert.equal(body.ok, false);
+    assert.equal(body.reason, "plan_has_subscribers");
+
+    // The measurement is IN the refusal, so a confirmation surface does not
+    // have to ask a second time to say who is affected.
+    const dependencies = body.dependencies as {
+      total: number; billableSubscribers: number; wouldBecomeUnreachable: boolean;
+    };
+    assert.equal(dependencies.total, 1);
+    assert.equal(dependencies.billableSubscribers, 1, "the refusal did not carry the billable count");
+    assert.equal(dependencies.wouldBecomeUnreachable, true);
+
+    // …and it states how to deal with it rather than only saying no.
+    assert.match(String(body.error), /archive/i,
+      "the refusal does not name the archive path — an admin is told no with nowhere to go");
+  });
+
+  it("changes nothing — the plan and the subscriber are both still there afterwards", async () => {
+    const { storage } = await seedWorld();
+    const ctx = mountedCtx(storage);
+
+    await deleteViaRoute(ctx, PLAN_ID);
+
+    // Reload through the same foundation the route used, not the seed container.
+    const { status, body } = await deleteViaRoute(ctx, PLAN_ID);
+    assert.equal(status, 422, "the second attempt succeeded — the first one deleted something after all");
+    assert.equal((body.dependencies as { total: number }).total, 1);
+
+    assert.ok(storage.data.has(`memberships/plans/${PLAN_ID}`), "the plan row was removed by a refused delete");
+    assert.deepEqual(storage.data.get("memberships/plans/index"), [PLAN_ID, OTHER_PLAN_ID],
+      "the plan index was edited by a refused delete");
+    assert.ok(storage.data.has(`memberships/subscribers/${MEMBER}`), "the subscriber row was touched");
+  });
+
+  it("is a guard, not a ban — a plan nobody is on still deletes", async () => {
+    const { storage } = await seedWorld();
+    const ctx = mountedCtx(storage);
+
+    const { status, body } = await deleteViaRoute(ctx, OTHER_PLAN_ID);
+    assert.equal(status, 200, `a plan with no subscribers was refused: ${JSON.stringify(body)}`);
+    assert.equal(body.ok, true);
+    assert.equal(storage.data.has(`memberships/plans/${OTHER_PLAN_ID}`), false, "the empty plan survived a 200");
+  });
+
+  it("still refuses after archiving, because archiving moves nobody off", async () => {
+    // The remedy the refusal names is archive, and archive is deliberately NOT
+    // a licence to purge afterwards: the subscriber is still on the plan and
+    // still being billed. Whether an explicit purge should exist for that state
+    // is Ed's open decision (issues #177/#178) — this pins that the route does
+    // not quietly grant one.
+    const { storage, services } = await seedWorld();
+    const ctx = mountedCtx(storage);
+    await services.plans.archive(PLAN_ID, ACTOR);
+
+    const { status, body } = await deleteViaRoute(ctx, PLAN_ID);
+    assert.equal(status, 422, "archiving a plan became a back door to deleting it with subscribers on it");
+    assert.equal((body.dependencies as { billableSubscribers: number }).billableSubscribers, 1);
+  });
+
+  it("still answers 404 for a plan that does not exist", async () => {
+    const { storage } = await seedWorld();
+    const ctx = mountedCtx(storage);
+    const { status } = await deleteViaRoute(ctx, "plan_never_existed");
+    assert.equal(status, 404, "an unknown id must stay a 404, not become a dependency refusal");
   });
 });

@@ -26,8 +26,10 @@
 // TODAY so that whoever decides has the current behaviour written down.
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { before, describe, it } from "node:test";
 import { createRequire } from "node:module";
+import { NextRequest } from "next/server";
 
 process.env.PORTAL_BACKEND ??= "memory";
 
@@ -37,7 +39,7 @@ require_.cache[serverOnly] = {
   id: serverOnly, filename: serverOnly, loaded: true, exports: {}, paths: [], children: [],
 } as never;
 
-import { ensureHydrated, getState, mutate } from "../src/server/storage";
+import { ensureHydrated, flushPendingWrites, getState, mutate } from "../src/server/storage";
 import { createAgency, createClient } from "../src/server/tenants";
 import { createWrittenSop, deleteSopRecord } from "../src/engines/sop/server/sops";
 import {
@@ -45,6 +47,10 @@ import {
   sopDependencyInventory,
   sopHasDependants,
 } from "../src/engines/sop/server/sopDependencies";
+import { DELETE as sopsDelete, GET as sopsGet } from "../src/app/api/portal/sops/route";
+import { SESSION_COOKIE_NAME, issueSession } from "../src/lib/server/auth/auth";
+import { createUser } from "../src/server/users";
+import type { SopDependencyInventory } from "../src/engines/sop/server/sopDependencies";
 
 let agencyId = "";
 let sopId = "";
@@ -196,5 +202,207 @@ describe("what deletion does today, recorded rather than asserted as correct", (
     // nothing, and the surfaces rendering them fail SILENTLY by showing less.
     assert.equal(getState().tasks["task_dep"].sopIds?.includes(sopId), true,
       "the task no longer holds the dangling id — if that is deliberate, record the policy here");
+  });
+});
+
+// ── Both callers ask the same question, of the same implementation ──────────
+//
+// The inventory existing is not the point; being CONSULTED is. Until it was
+// wired up, the delete route removed the row without ever asking, and the
+// library's confirmation was a bare `window.confirm("This cannot be undone")` —
+// technically true and useless, because what a person needs to know is not that
+// deletion is permanent but WHAT ELSE it breaks.
+//
+// These pin the decision-free half: a retirement preview a confirmation surface
+// can read, and a delete response that states what it stranded. They still
+// assert NO policy — deletion is allowed to proceed and detaches nothing, which
+// remains Ed's open decision (issues #176).
+
+const routeAgency = { id: "", sopId: "", loneSopId: "", token: "" };
+
+before(async () => {
+  // Its own hydration: each root hook enters the data realm for itself, and
+  // without this the records below are written to a scratch state the first
+  // hydration then replaces — which shows up as a 401 on every request here.
+  await ensureHydrated();
+  const agency = createAgency({ name: "SOP retirement route", slug: `sop-retire-${Date.now()}` });
+  routeAgency.id = agency.id;
+  const owner = createUser({
+    email: `retire-owner-${agency.id}@sop-deps.test`,
+    name: "Owner",
+    role: "agency-owner",
+    agencyId: agency.id,
+    password: "retire-smoke-password-1!",
+  });
+  routeAgency.token = issueSession({
+    userId: owner.id,
+    email: owner.email,
+    role: owner.role,
+    agencyId: agency.id,
+    agencyIds: [agency.id],
+    activeAgencyId: agency.id,
+    sessionRev: owner.sessionRev ?? 0,
+  });
+
+  routeAgency.sopId = createWrittenSop({
+    agencyId: agency.id, title: "Escalate an incident", content: "…", actorUserId: owner.id,
+  }).id;
+  routeAgency.loneSopId = createWrittenSop({
+    agencyId: agency.id, title: "Nothing uses me", content: "…", actorUserId: owner.id,
+  }).id;
+
+  const now = Date.now();
+  mutate(state => {
+    state.tasks["task_route_dep"] = {
+      id: "task_route_dep", agencyId: agency.id, title: "Handle the incident", status: "open",
+      priority: "normal", createdAt: now, updatedAt: now, createdBy: owner.id,
+      sopIds: [routeAgency.sopId],
+      // Nested: the site a per-collection sweep misses, so its presence in the
+      // route's answer proves the route uses the real inventory.
+      checklist: [{ id: "chk_route_dep", label: "Page the on-call", sopId: routeAgency.sopId }],
+    } as never;
+    state.sopGuides["guide_route_dep"] = {
+      id: "guide_route_dep", agencyId: agency.id, title: "Incident response",
+      sopIds: [routeAgency.sopId], createdAt: now, updatedAt: now, updatedBy: owner.id,
+    } as never;
+  });
+  // The route handlers re-enter `ensureHydrated()`, which reloads the backend
+  // and would drop these still-pending writes — including the user the session
+  // resolves against, which would 401 every request below for the wrong reason.
+  await flushPendingWrites();
+});
+
+const authed = (search: string, method: "GET" | "DELETE" = "GET") => new NextRequest(
+  `http://localhost/api/portal/sops${search}`,
+  { method, headers: { cookie: `${SESSION_COOKIE_NAME}=${routeAgency.token}` } },
+);
+
+describe("the delete path consults the inventory instead of guessing", () => {
+  it("offers a retirement preview a confirmation surface can read", async () => {
+    const response = await sopsGet(authed(`?dependencies=${encodeURIComponent(routeAgency.sopId)}`));
+    assert.equal(response.status, 200);
+    const body = await response.json() as { ok: boolean; dependencies?: SopDependencyInventory };
+    assert.equal(body.ok, true);
+    assert.ok(body.dependencies, "the route answered without a dependency inventory — a confirmation "
+      + "surface has nothing to show and falls back to 'this cannot be undone'");
+    assert.equal(body.dependencies.total, 3, JSON.stringify(body.dependencies.byKind));
+    assert.deepEqual(Object.keys(body.dependencies.byKind).sort(),
+      ["guide", "task", "task-checklist-item"],
+      "the preview missed the NESTED checklist reference — it is not reading the shared inventory");
+    // Labels, not bare ids: the dialog must name the thing a person goes and fixes.
+    for (const dependant of body.dependencies.dependants) {
+      assert.ok(dependant.label.trim().length > 0, `${dependant.kind} arrived with no label`);
+    }
+  });
+
+  it("still lists SOPs when no preview was asked for, and 404s an unknown one", async () => {
+    const list = await sopsGet(authed(""));
+    assert.equal(list.status, 200);
+    const body = await list.json() as { ok: boolean; sops?: unknown[] };
+    assert.ok(Array.isArray(body.sops), "the list read regressed while adding the preview");
+
+    assert.equal((await sopsGet(authed("?dependencies=sop_does_not_exist"))).status, 404,
+      "an unknown SOP answered a preview — an empty inventory would read as 'safe to delete'");
+  });
+
+  it("names another agency's SOP as unknown rather than inventorying it", async () => {
+    // `otherSopId` belongs to the first fixture's agency and is never deleted,
+    // so a 404 here can only mean the boundary held.
+    const foreign = await sopsGet(authed(`?dependencies=${encodeURIComponent(otherSopId)}`));
+    assert.equal(foreign.status, 404, "the preview crossed the agency boundary");
+  });
+
+  it("the DELETE response states what it stranded, rather than a bare ok", async () => {
+    const response = await sopsDelete(authed(`?id=${encodeURIComponent(routeAgency.sopId)}`, "DELETE"));
+    assert.equal(response.status, 200);
+    const body = await response.json() as { ok: boolean; stranded?: SopDependencyInventory };
+    assert.equal(body.ok, true);
+    assert.ok(body.stranded, "the deletion reported success without saying what it left holding a "
+      + "dangling id — the surfaces holding it fail silently, so this response is the only telling");
+    assert.equal(body.stranded.total, 3);
+    assert.equal(body.stranded.sopId, routeAgency.sopId);
+    assert.deepEqual(Object.keys(body.stranded.byKind).sort(), ["guide", "task", "task-checklist-item"]);
+
+    // The row is gone and — deliberately, until a policy is decided — nothing
+    // was detached. The response describes that truthfully; it does not claim a
+    // reconciliation that did not happen.
+    assert.equal(getState().sops[routeAgency.sopId], undefined, "the source row survived");
+    assert.equal(getState().tasks["task_route_dep"].sopIds?.includes(routeAgency.sopId), true,
+      "deletion now detaches dependants — a retirement policy has landed, and this test plus the "
+      + "strand-everything test above should be rewritten to assert it");
+  });
+
+  it("an unreferenced SOP is deleted with an empty stranded inventory, not a missing one", async () => {
+    const response = await sopsDelete(authed(`?id=${encodeURIComponent(routeAgency.loneSopId)}`, "DELETE"));
+    assert.equal(response.status, 200);
+    const body = await response.json() as { ok: boolean; stranded?: SopDependencyInventory };
+    assert.equal(body.stranded?.total, 0, "a clean deletion must still answer with the inventory it "
+      + "checked — absent and empty are different claims");
+  });
+});
+
+describe("the library's confirmation shows the dependants instead of a bare warning", () => {
+  const source = readFileSync(
+    new URL("../src/app/portal/agency/sop-library/_SopLibrary.tsx", import.meta.url), "utf8",
+  );
+
+  it("no longer deletes a SOP behind window.confirm", () => {
+    // The SOP delete path specifically — the guide delete confirm is a different
+    // decision and is not in scope here.
+    assert.doesNotMatch(source, /window\.confirm\(`Delete “\$\{sop\.title\}”/,
+      "the SOP delete is back behind a bare confirm, which cannot name what it breaks");
+    assert.match(source, /dependencies=\$\{encodeURIComponent\(sop\.id\)\}/,
+      "the confirmation does not read the dependency preview");
+  });
+
+  it("a failed dependency read is never presented as 'nothing depends on this'", () => {
+    assert.match(source, /readFailed/,
+      "a failed inventory read has no distinct state, so it would render as an empty dependant list "
+      + "— the exact false reassurance this dialog exists to prevent");
+  });
+
+  it("keeps the stranded records on screen after the deletion", () => {
+    assert.match(source, /result\.stranded/,
+      "the DELETE response's stranded inventory is discarded, so nothing tells the person which "
+      + "records now hold an id that resolves to nothing");
+  });
+
+  // ── The two ways this dialog could go quiet instead of saying something ───
+  //
+  // Replacing `window.confirm` with a persistent overlay introduces states the
+  // native dialog could not reach: a request that never completes now has
+  // somewhere to get STUCK, and a refusal the route worded carefully now has
+  // somewhere to be HIDDEN. Both would present as "nothing happened", which is
+  // the failure mode this whole item is about.
+
+  const between = (from: string, to: string): string => {
+    const start = source.indexOf(from);
+    const end = source.indexOf(to, start + 1);
+    assert.ok(start >= 0 && end > start, `could not slice the source between ${from} and ${to}`);
+    return source.slice(start, end);
+  };
+
+  it("a request that never completes is a failed read, not a dialog stuck on 'checking'", () => {
+    // `.catch(() => null)` on `response.json()` does NOT cover this: the throw
+    // is on `fetch` itself, before there is a response to parse. Unhandled it
+    // rejects out of the handler, leaving `loading: true` and the delete button
+    // disabled forever with no explanation.
+    assert.match(between("async function openRetirement", "async function confirmRetirement"), /try \{/,
+      "the dependency preview's fetch can throw out of the handler, stranding the dialog on "
+      + "'Checking what still uses this procedure…' with no way forward and nothing said");
+    assert.match(between("async function confirmRetirement", "async function deleteCategory"), /try \{/,
+      "the DELETE fetch can throw out of the handler, leaving the button on 'Deleting…' forever "
+      + "— neither a deletion nor a stated failure");
+  });
+
+  it("states a refused deletion INSIDE the dialog, not behind it", () => {
+    // The route's storage-refusal answer ("…is still stored — the storage
+    // provider refused to remove its file…") is the message that matters most
+    // here, and the dialog is `fixed inset-0`, so the page-level banner alone
+    // is covered by it: the person clicks Delete and sees nothing change.
+    const dialog = between('<Modal title="Delete SOP"', '<Modal title="What the deletion left behind"');
+    assert.match(dialog, /error \? <div role="alert"/,
+      "a refused deletion is only written to the page banner, which this full-screen dialog "
+      + "covers — the refusal reads as nothing having happened");
   });
 });

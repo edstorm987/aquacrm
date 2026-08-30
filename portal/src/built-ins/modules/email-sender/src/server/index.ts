@@ -4,8 +4,9 @@ export { EmailService } from "./emails";
 export { DeliveryService } from "./delivery";
 export { WebhookService } from "./webhook";
 export type { WebhookHandleResult } from "./webhook";
-export { IdentityService } from "./identities";
-export { ProviderService } from "./provider";
+export { IdentityService, NO_PROVIDER_TO_VERIFY_WITH, driverCannotVerify } from "./identities";
+export type { IdentityVerificationOutcome } from "./identities";
+export { ProviderService, redactProviderConfig } from "./provider";
 export { buildEmailSenderHealth } from "./health";
 export type { DeliveryFailureCode, DeliveryResult } from "./delivery";
 
@@ -84,7 +85,12 @@ export function buildEmailSenderContainer(deps: EmailSenderDeps): EmailSenderCon
   const storage = deps.storage as StoragePort;
   const drivers = deps.drivers ?? defaultDriverRegistry();
   const provider = new ProviderService(deps.agencyId, storage, deps.activity, deps.events);
-  const identities = new IdentityService(deps.agencyId, storage, deps.activity, deps.events);
+  // Identities are handed the provider config and the driver registry because
+  // verification is the PROVIDER's answer — without these the service has
+  // nothing to ask, and says so rather than stamping an address active.
+  const identities = new IdentityService(
+    deps.agencyId, storage, deps.activity, deps.events, provider, drivers,
+  );
   const emails = new EmailService(
     deps.agencyId, storage, deps.activity, deps.events,
     identities, deps.marketingTemplates,

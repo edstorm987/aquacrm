@@ -1,7 +1,10 @@
+import { createHash } from "node:crypto";
+
 import { makeId } from "../lib/ids";
 import { now } from "../lib/time";
 import type { AgencyId, UserId } from "../lib/tenancy";
 import type {
+  CommercialDocumentStatus,
   CommercialPack,
   CommercialPartyKind,
   CommercialPayment,
@@ -48,6 +51,86 @@ export class CommercialPaymentConflictError extends Error {
   }
 }
 
+/**
+ * Acceptance was attempted against terms that are not the version on offer —
+ * a draft that was never sent, or a version superseded by an amendment.
+ */
+export class CommercialAcceptanceStateError extends Error {
+  constructor(readonly agreementStatus: CommercialDocumentStatus) {
+    super(agreementStatus === "draft"
+      ? "This proposal has not been sent for signature yet, so it cannot be accepted."
+      : "These terms are not the version that was sent for signature, so they cannot be accepted.");
+    this.name = "CommercialAcceptanceStateError";
+  }
+}
+
+/** Everything the recipient reads on the proposal page before agreeing. */
+type ReviewableTerms = Pick<CommercialPack,
+  | "lineItems" | "subtotalCents" | "taxCents" | "totalCents" | "currency" | "dueAt"
+  | "billingCadence" | "installmentCount" | "serviceLevel" | "agreementTitle"
+  | "agreementBody" | "notes">;
+
+/** The subset a payment session is priced from. */
+type PayableTerms = Pick<CommercialPack,
+  | "lineItems" | "subtotalCents" | "taxCents" | "totalCents" | "currency"
+  | "billingCadence" | "installmentCount" | "dueAt">;
+
+function digest(parts: unknown): string {
+  return createHash("sha256").update(JSON.stringify(parts)).digest("hex").slice(0, 32);
+}
+
+/**
+ * A change here means any Checkout session created earlier was priced for terms
+ * that no longer exist, so the stored session must be dropped rather than reused.
+ */
+export function commercialFinancialHash(terms: PayableTerms): string {
+  return digest([
+    terms.lineItems.map(item => [item.description, item.quantity, item.unitCents]),
+    terms.subtotalCents,
+    terms.taxCents,
+    terms.totalCents,
+    terms.currency,
+    terms.billingCadence,
+    terms.installmentCount ?? null,
+    terms.dueAt,
+  ]);
+}
+
+/** A change here means the recipient would be reading different terms. */
+export function commercialContentHash(terms: ReviewableTerms): string {
+  return digest([
+    commercialFinancialHash(terms),
+    terms.serviceLevel,
+    terms.agreementTitle,
+    terms.agreementBody,
+    terms.notes ?? "",
+  ]);
+}
+
+/**
+ * Backfill the version identity for a pack persisted before acceptance was
+ * version-bound. What is stored IS version 1, and a pack already marked
+ * sent/accepted had exactly that content delivered and agreed, so the milestone
+ * versions are 1 as well. Without this an older accepted pack would look like it
+ * had accepted nothing, and its next save would read as an amendment.
+ */
+function withVersionIdentity(pack: CommercialPack): CommercialPack {
+  if (typeof pack.version === "number" && pack.contentHash && pack.financialHash) return pack;
+  const version = pack.version ?? 1;
+  const contentHash = pack.contentHash ?? commercialContentHash(pack);
+  const accepted = pack.agreementStatus === "accepted";
+  return {
+    ...pack,
+    version,
+    contentHash,
+    financialHash: pack.financialHash ?? commercialFinancialHash(pack),
+    sentVersion: pack.sentVersion ?? (pack.agreementStatus === "draft" ? undefined : version),
+    acceptedVersion: pack.acceptedVersion ?? (accepted ? version : undefined),
+    acceptedContentHash: pack.acceptedContentHash ?? (accepted ? contentHash : undefined),
+    signedDocumentVersion: pack.signedDocumentVersion ?? (pack.signedDocumentDataUrl ? version : undefined),
+  };
+}
+
 export class CommercialService {
   constructor(
     private agencyId: AgencyId,
@@ -58,8 +141,9 @@ export class CommercialService {
   ) {}
 
   async get(kind: CommercialPartyKind, partyId: string): Promise<CommercialPack | null> {
-    const pack = await this.storage.get<CommercialPack>(partyKey(kind, partyId));
-    if (pack?.agencyId !== this.agencyId) return null;
+    const stored = await this.storage.get<CommercialPack>(partyKey(kind, partyId));
+    if (stored?.agencyId !== this.agencyId) return null;
+    const pack = withVersionIdentity(stored);
     const ledgerKeys = await this.storage.list(paymentPrefix(pack.id));
     if (!ledgerKeys.length) return pack;
     const paymentsById = new Map(pack.payments.map(payment => [payment.id, payment]));
@@ -111,6 +195,50 @@ export class CommercialService {
       const year = new Date(ts).getUTCFullYear();
       invoiceNumber = await this.allocateInvoiceNumber(input.partyKind, input.partyId, year, ts);
     }
+
+    const terms: ReviewableTerms = {
+      lineItems,
+      subtotalCents,
+      taxCents,
+      totalCents: subtotalCents + taxCents,
+      currency: input.currency ?? existing?.currency ?? "gbp",
+      dueAt: input.dueAt,
+      billingCadence: input.billingCadence,
+      installmentCount: input.billingCadence === "installments" ? Math.max(2, Math.round(input.installmentCount ?? 2)) : undefined,
+      serviceLevel: input.serviceLevel.trim() || "Custom service",
+      agreementTitle: input.agreementTitle.trim() || "Service level agreement",
+      agreementBody: input.agreementBody.trim(),
+      notes: input.notes?.trim() || undefined,
+    };
+    const contentHash = commercialContentHash(terms);
+    const financialHash = commercialFinancialHash(terms);
+    // An "issued" pack is one the recipient has already been shown. Editing its
+    // reviewable content does not rewrite what they saw: it SUPERSEDES it with a
+    // new draft version, and the superseded version keeps its own acceptance.
+    // That is the whole point — an acceptance must name terms, not a record.
+    const issued = existing ? existing.agreementStatus !== "draft" || existing.sentVersion !== undefined : false;
+    const amends = Boolean(existing) && issued && existing?.contentHash !== contentHash;
+    const version = existing ? (amends ? existing.version + 1 : existing.version) : 1;
+    const revisions = amends && existing
+      ? [...(existing.revisions ?? []), {
+        version: existing.version,
+        contentHash: existing.contentHash,
+        totalCents: existing.totalCents,
+        currency: existing.currency,
+        agreementTitle: existing.agreementTitle,
+        supersededAt: ts,
+        acceptedAt: existing.acceptedAt,
+        acceptedBy: existing.acceptedBy,
+      }]
+      : existing?.revisions;
+    // Milestones belong to the version that earned them. An amendment starts a
+    // new draft, so nothing sent/accepted-shaped may be carried onto it.
+    const carried = amends ? null : existing;
+    // A Checkout session is priced for one exact set of payable terms. Once those
+    // change the stored session no longer matches the invoice, so it is dropped
+    // instead of being left for "Pay securely" to open at the old amount.
+    const keepCheckout = Boolean(existing) && existing?.financialHash === financialHash;
+
     const pack: CommercialPack = {
       id: existing?.id ?? makeId("com"),
       agencyId: this.agencyId,
@@ -124,33 +252,45 @@ export class CommercialService {
       recipientEmail: input.recipientEmail.trim().toLowerCase(),
       publicToken: existing?.publicToken ?? `${makeId("proposal")}${makeId("").replace(/^_/, "")}`,
       invoiceNumber,
-      invoiceStatus: existing?.invoiceStatus ?? "draft",
-      agreementStatus: existing?.agreementStatus ?? "draft",
-      lineItems,
-      subtotalCents,
-      taxCents,
-      totalCents: subtotalCents + taxCents,
-      currency: input.currency ?? existing?.currency ?? "gbp",
-      dueAt: input.dueAt,
-      billingCadence: input.billingCadence,
-      installmentCount: input.billingCadence === "installments" ? Math.max(2, Math.round(input.installmentCount ?? 2)) : undefined,
-      serviceLevel: input.serviceLevel.trim() || "Custom service",
-      agreementTitle: input.agreementTitle.trim() || "Service level agreement",
-      agreementBody: input.agreementBody.trim(),
-      notes: input.notes?.trim() || undefined,
+      // A superseded invoice returns to draft unless it has actually been paid;
+      // money that changed hands is a fact the amendment cannot undo.
+      invoiceStatus: amends && existing?.invoiceStatus !== "paid" ? "draft" : existing?.invoiceStatus ?? "draft",
+      agreementStatus: amends ? "draft" : existing?.agreementStatus ?? "draft",
+      version,
+      contentHash,
+      financialHash,
+      revisions: revisions?.length ? revisions : undefined,
+      sentVersion: carried?.sentVersion,
+      ...terms,
       signedDocumentName: input.signedDocumentName ?? existing?.signedDocumentName,
       signedDocumentDataUrl: input.signedDocumentDataUrl ?? existing?.signedDocumentDataUrl,
+      // A countersigned copy signs one version. The modal re-sends the same data
+      // URL on every save, so only a genuinely NEW file re-stamps the version —
+      // otherwise an amendment would inherit a signature of the old wording.
+      signedDocumentVersion: input.signedDocumentDataUrl && input.signedDocumentDataUrl !== existing?.signedDocumentDataUrl
+        ? version
+        : existing?.signedDocumentVersion,
       payments: existing?.payments ?? [],
-      stripeCheckoutId: existing?.stripeCheckoutId,
-      stripeCheckoutUrl: existing?.stripeCheckoutUrl,
+      stripeCheckoutId: keepCheckout ? existing?.stripeCheckoutId : undefined,
+      stripeCheckoutUrl: keepCheckout ? existing?.stripeCheckoutUrl : undefined,
+      stripeCheckoutVersion: keepCheckout ? existing?.stripeCheckoutVersion : undefined,
+      stripeCheckoutFinancialHash: keepCheckout ? existing?.stripeCheckoutFinancialHash : undefined,
       stripeSubscriptionId: existing?.stripeSubscriptionId,
       financeInvoiceId: existing?.financeInvoiceId,
-      emailMessageId: existing?.emailMessageId,
-      deliveryStatus: existing?.deliveryStatus,
-      deliveryError: existing?.deliveryError,
-      deliveryAttemptedAt: existing?.deliveryAttemptedAt,
-      sentAt: existing?.sentAt,
-      acceptedAt: existing?.acceptedAt,
+      // The delivery record is a fact about the version that was emailed. An
+      // amendment has never been emailed, so carrying "delivered" onto it would
+      // leave the agency's readiness panel reporting an email that never went
+      // out for these terms. (A failed or queued send never sets sentVersion, so
+      // it never amends — a retry keeps its error and its retry handle.)
+      emailMessageId: carried?.emailMessageId,
+      deliveryStatus: carried?.deliveryStatus,
+      deliveryError: carried?.deliveryError,
+      deliveryAttemptedAt: carried?.deliveryAttemptedAt,
+      sentAt: carried?.sentAt,
+      acceptedAt: carried?.acceptedAt,
+      acceptedBy: carried?.acceptedBy,
+      acceptedVersion: carried?.acceptedVersion,
+      acceptedContentHash: carried?.acceptedContentHash,
       createdAt: existing?.createdAt ?? ts,
       updatedAt: ts,
     };
@@ -159,23 +299,59 @@ export class CommercialService {
       agencyId: this.agencyId,
       actorUserId: actor,
       category: "leads",
-      action: existing ? "commercial.updated" : "commercial.created",
-      message: `${existing ? "Updated" : "Created"} commercial pack ${pack.invoiceNumber} for ${pack.partyKind} ${pack.partyId}.`,
-      metadata: { commercialPackId: pack.id, partyKind: pack.partyKind, partyId: pack.partyId },
+      action: amends ? "commercial.amended" : existing ? "commercial.updated" : "commercial.created",
+      message: amends
+        ? `Amended commercial pack ${pack.invoiceNumber} for ${pack.partyKind} ${pack.partyId} as version ${pack.version}. Version ${version - 1}${existing?.acceptedAt ? ", and the acceptance recorded against it," : ""} is retained; the new terms are an unsent draft and must be sent again for signature.`
+        : `${existing ? "Updated" : "Created"} commercial pack ${pack.invoiceNumber} for ${pack.partyKind} ${pack.partyId}.`,
+      metadata: {
+        commercialPackId: pack.id,
+        partyKind: pack.partyKind,
+        partyId: pack.partyId,
+        version: pack.version,
+        supersededVersion: amends ? version - 1 : undefined,
+        checkoutInvalidated: !keepCheckout && Boolean(existing?.stripeCheckoutId),
+      },
     });
     return pack;
   }
 
-  async attachStripe(kind: CommercialPartyKind, partyId: string, checkout: { id: string; url: string }): Promise<CommercialPack | null> {
+  /**
+   * Store a Checkout session against the exact terms it was priced for.
+   *
+   * `forFinancialHash` is the hash of the pack the caller built the session from.
+   * If the invoice moved on in between, that session is already stale, so it is
+   * refused rather than stored — `attached:false` — and the caller must price a
+   * new one. Storing it would recreate the very defect this binding exists to
+   * close: a payment link that charges terms nobody is looking at.
+   */
+  async attachStripe(kind: CommercialPartyKind, partyId: string, checkout: {
+    id: string;
+    url: string;
+    forVersion: number;
+    forFinancialHash: string;
+  }): Promise<{ pack: CommercialPack; attached: boolean } | null> {
     return withCommercialLock(this.agencyId, () => this.attachStripeUnlocked(kind, partyId, checkout));
   }
 
-  private async attachStripeUnlocked(kind: CommercialPartyKind, partyId: string, checkout: { id: string; url: string }): Promise<CommercialPack | null> {
+  private async attachStripeUnlocked(kind: CommercialPartyKind, partyId: string, checkout: {
+    id: string;
+    url: string;
+    forVersion: number;
+    forFinancialHash: string;
+  }): Promise<{ pack: CommercialPack; attached: boolean } | null> {
     const pack = await this.get(kind, partyId);
     if (!pack) return null;
-    const next = { ...pack, stripeCheckoutId: checkout.id, stripeCheckoutUrl: checkout.url, updatedAt: now() };
+    if (pack.financialHash !== checkout.forFinancialHash) return { pack, attached: false };
+    const next: CommercialPack = {
+      ...pack,
+      stripeCheckoutId: checkout.id,
+      stripeCheckoutUrl: checkout.url,
+      stripeCheckoutVersion: checkout.forVersion,
+      stripeCheckoutFinancialHash: checkout.forFinancialHash,
+      updatedAt: now(),
+    };
     await this.persist(next);
-    return next;
+    return { pack: next, attached: true };
   }
 
   async attachStripeSubscription(kind: CommercialPartyKind, partyId: string, subscriptionId: string): Promise<CommercialPack | null> {
@@ -245,6 +421,9 @@ export class CommercialService {
       deliveryError: undefined,
       deliveryAttemptedAt: ts,
       sentAt: delivered ? ts : pack.sentAt,
+      // Only a confirmed delivery puts a version in front of the recipient, and
+      // only the version in front of them can be accepted.
+      sentVersion: delivered ? pack.version : pack.sentVersion,
       updatedAt: ts,
     };
     await this.persist(next);
@@ -297,15 +476,37 @@ export class CommercialService {
   private async acceptUnlocked(token: string, acceptedBy: string): Promise<CommercialPack | null> {
     const pack = await this.getByToken(token);
     if (!pack) return null;
+    // Already bound to a version: never re-stamp. A second POST must not move the
+    // acceptance onto whatever the terms happen to say now.
+    if (pack.agreementStatus === "accepted") return pack;
+    // The public token exists from the first draft save, so the token alone is
+    // not permission to sign. Only the version whose delivery was confirmed is
+    // on offer.
+    if (pack.agreementStatus !== "sent" || pack.sentVersion !== pack.version) {
+      throw new CommercialAcceptanceStateError(pack.agreementStatus);
+    }
     const ts = now();
-    const next = { ...pack, agreementStatus: "accepted" as const, acceptedAt: ts, updatedAt: ts };
+    const next: CommercialPack = {
+      ...pack,
+      agreementStatus: "accepted",
+      acceptedAt: ts,
+      acceptedBy,
+      acceptedVersion: pack.version,
+      acceptedContentHash: pack.contentHash,
+      updatedAt: ts,
+    };
     await this.persist(next);
     await this.activity.logActivity({
       agencyId: this.agencyId,
       category: "leads",
       action: "commercial.agreement.accepted",
-      message: `${pack.partyKind} ${pack.partyId} accepted ${pack.agreementTitle}.`,
-      metadata: { commercialPackId: pack.id, acceptedBy },
+      message: `${pack.partyKind} ${pack.partyId} accepted version ${pack.version} of ${pack.agreementTitle}.`,
+      metadata: {
+        commercialPackId: pack.id,
+        acceptedBy,
+        acceptedVersion: pack.version,
+        acceptedContentHash: pack.contentHash,
+      },
     });
     return next;
   }

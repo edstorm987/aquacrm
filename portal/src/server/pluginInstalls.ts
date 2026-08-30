@@ -64,6 +64,14 @@ export function listInstalledForAgencyOnly(agencyId: string): PluginInstall[] {
     .filter(p => p.agencyId === agencyId && p.clientId === undefined);
 }
 
+// Every install belonging to an agency — its own plus every one of its
+// clients'. This is the set the plugin health sweep asks and the set Radar's
+// `systems:module-health` counts over, so the two cannot disagree about which
+// modules were supposed to answer.
+export function listInstallsForAgency(agencyId: string): PluginInstall[] {
+  return Object.values(getState().pluginInstalls).filter(p => p.agencyId === agencyId);
+}
+
 // ─── Mutating writes — used by the plugin runtime ─────────────────────────
 
 export interface UpsertPluginInstallInput {
@@ -115,6 +123,46 @@ export function patchInstall(
       features: patch.features ? { ...existing.features, ...patch.features } : existing.features,
       setupAnswers: patch.setupAnswers ?? existing.setupAnswers,
     };
+    state.pluginInstalls[id] = saved;
+  });
+  return saved;
+}
+
+// ─── Health — written by the host's sweep, never by a module ──────────────
+//
+// `health` / `healthCheckedAt` are EVIDENCE that the host ran the module's own
+// `healthcheck` hook and recorded what it said. They are deliberately absent
+// from `PluginInstallPatch` (the module-facing patch shape in
+// `built-ins/runtime/_types.ts`) and from `patchInstall` above: a module able
+// to write its own health could mark itself green while broken, which is the
+// one thing this field must never be able to say.
+//
+// `upsertInstall` does not carry these forward, and that is correct — a
+// re-install has not been health-checked, and reading it as "never asked" is
+// honest where inheriting the old verdict would not be.
+
+export interface PluginHealthRecord {
+  /**
+   * The module's own verdict. ABSENT when the module ships no `healthcheck`:
+   * the host asked and there was nothing to answer with. That is a different
+   * fact from "never asked" (no `healthCheckedAt` at all), and neither of them
+   * is a pass.
+   */
+  health?: { ok: boolean; message?: string };
+  healthCheckedAt: number;
+}
+
+export function recordInstallHealth(
+  scope: PluginInstallScope,
+  pluginId: string,
+  record: PluginHealthRecord,
+): PluginInstall | null {
+  const id = makeInstallId(scope, pluginId);
+  let saved: PluginInstall | null = null;
+  mutate(state => {
+    const existing = state.pluginInstalls[id];
+    if (!existing) return;
+    saved = { ...existing, health: record.health, healthCheckedAt: record.healthCheckedAt };
     state.pluginInstalls[id] = saved;
   });
   return saved;

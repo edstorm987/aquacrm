@@ -3,6 +3,7 @@
 
 import type { PluginCtx } from "../lib/aquaPluginTypes";
 import { containerFor, isStripeConnectAvailable } from "../server/foundationAdapter";
+import { affiliateDependencyInventory } from "../server/dependencies";
 import type {
   AffiliateFilter,
   AttributionFilter,
@@ -81,12 +82,58 @@ export async function updateAffiliateHandler(req: Request, ctx: PluginCtx): Prom
   }
 }
 
+// Deleting an affiliate detaches money.
+//
+// `AffiliateService.delete` drops the row, the by-user lookup, the enrollment
+// claim and the index entry — and nothing else. Attributions and payouts are
+// records of commission earned and money owed or sent; orphaning them does not
+// break a screen loudly, it hides the money quietly, because every surface that
+// would show it filters on an affiliate that no longer resolves. A referral code
+// is sharper still: it stays ACTIVE, so a live link keeps pointing at nobody.
+//
+// `affiliateDependencyInventory` counts exactly those, and until now nothing
+// asked it before deleting. This route refuses while anything is still
+// attached and names the working path: status "removed" keeps every record with
+// its owner, and `AttributionService.recordOrder` requires an ACTIVE affiliate,
+// so a removed one stops attracting new attributions.
+//
+// It decides no purge or retention policy — what happens to commission already
+// earned is still Ed's open decision (issues #177/#178).
 export async function deleteAffiliateHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   const guard = methodGuard(req, "DELETE");
   if (guard) return guard;
   const id = new URL(req.url).searchParams.get("id");
   if (!id) return badRequest("id required.");
-  const ok = await buildContainer(ctx).affiliates.delete(id, ctx.actor);
+  const c = buildContainer(ctx);
+  const affiliate = await c.affiliates.get(id);
+  if (!affiliate) return notFound("affiliate not found");
+
+  const dependencies = await affiliateDependencyInventory(c, id);
+  if (dependencies.total > 0) {
+    const parts = [
+      `${dependencies.byKind["referral-code"]} referral code(s)`,
+      `${dependencies.byKind.attribution} attribution(s)`,
+      `${dependencies.byKind.payout} payout(s)`,
+    ].join(", ");
+    const sharp = [
+      dependencies.hasFinancialDependants ? "commission and payout records would be detached from their owner" : null,
+      dependencies.activeReferralCodes > 0
+        ? `${dependencies.activeReferralCodes} referral code(s) would stay ACTIVE with no affiliate behind them`
+        : null,
+    ].filter(Boolean).join("; ");
+    return json({
+      ok: false,
+      error:
+        `Cannot delete ${affiliate.displayName}: ${dependencies.total} record(s) still point at this `
+        + `affiliate (${parts})${sharp ? ` — ${sharp}` : ""}. Set the affiliate's status to "removed" `
+        + `instead (PATCH status "removed") — every record keeps its owner, and a removed affiliate `
+        + `earns no new attributions.`,
+      reason: "affiliate_has_dependants",
+      dependencies,
+    }, 422);
+  }
+
+  const ok = await c.affiliates.delete(id, ctx.actor);
   return ok ? json({ ok: true }) : notFound("affiliate not found");
 }
 

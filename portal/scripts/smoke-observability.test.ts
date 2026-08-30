@@ -1,10 +1,12 @@
 // T1 R030 smoke — basic observability.
-// Run via `npm run smoke:observability` (tsx --test).
+// Run via `npm run smoke:observability` (tsx --test, react-server condition).
 //
-// Two surfaces:
+// Three surfaces:
 //   - Pure runtime: requestLog formatter + skip rules (no server-only).
-//   - Source-marker: /healthz/full route + app/error.tsx wiring +
-//     observability.ts Sentry lazy-load.
+//   - Behavioural (#132): the mounted server boundary (src/instrumentation.ts)
+//     actually reports through captureError, and the capability probe refuses
+//     to call monitoring ready from a DSN string alone.
+//   - Source-marker: /healthz/full route + app/error.tsx copy.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
@@ -15,6 +17,17 @@ import {
   formatRequestLog,
   shouldSkipRequestLog,
 } from "../src/lib/server/requestLog";
+import {
+  describeRequestError,
+  onRequestError,
+  register,
+} from "../src/instrumentation";
+import {
+  hasObservabilityDsn,
+  inspectObservabilityCapability,
+  isSentrySdkInstalled,
+} from "../src/lib/server/observabilityCapability";
+import { resolveSentryDsn } from "../src/lib/server/observability";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
@@ -134,6 +147,165 @@ describe("Observability — app/error.tsx wires Sentry (R030)", () => {
     assert.ok(src.includes("digest"));
     assert.ok(src.includes("reset"));
   });
+
+  // #132: the boundary used to promise "We've logged the issue" after a bare
+  // console.error. A browser-only render error still reaches no sink, so the
+  // copy must branch on whether the failure actually came from the server.
+  it("never claims a report it did not make", () => {
+    const src = readFileSync(ERROR_TSX, "utf8");
+    assert.equal(
+      /logged the issue/i.test(src),
+      false,
+      "error.tsx must not claim the issue was logged when nothing captured it",
+    );
+    assert.ok(
+      src.includes("describeErrorReporting"),
+      "the reporting claim must be derived from the digest, not hard-coded copy",
+    );
+    assert.ok(src.includes("recorded this failure in the deployment logs"));
+    assert.ok(src.includes("was not sent anywhere automatically"));
+  });
+});
+
+// ─── #132: the server boundary is genuinely mounted ────────────────────
+
+describe("Observability — src/instrumentation.ts is the mounted server boundary (#132)", () => {
+  it("derives route, method and client tenancy from a failed request", () => {
+    const crumb = describeRequestError(
+      { path: "/api/portal/clients/acme-ltd/invoices?draft=1", method: "POST" },
+      { routePath: "/api/portal/clients/[clientId]/invoices", routeType: "route", routerKind: "App Router" },
+    );
+    assert.equal(crumb.clientId, "acme-ltd");
+    assert.equal(crumb.extra.route, "/api/portal/clients/[clientId]/invoices");
+    assert.equal(crumb.extra.path, "/api/portal/clients/acme-ltd/invoices?draft=1");
+    assert.equal(crumb.extra.method, "POST");
+    assert.equal(crumb.extra.routeType, "route");
+  });
+
+  it("does not invent a tenant it cannot read, and keeps the portal scope", () => {
+    const crumb = describeRequestError(
+      { path: "/portal/agency/settings", method: "GET" },
+      { routePath: "/portal/agency/settings", routeType: "render", renderSource: "server-rendering" },
+    );
+    assert.equal(crumb.clientId, undefined);
+    assert.equal(crumb.agencyId, undefined);
+    assert.equal(crumb.extra.portalScope, "agency");
+    assert.equal(crumb.extra.renderSource, "server-rendering");
+  });
+
+  it("reports a caught server error through captureError (not a bare rethrow)", async () => {
+    const previousEnv = process.env.NODE_ENV;
+    const previousDsn = process.env.SENTRY_DSN;
+    const errors: unknown[][] = [];
+    const originalError = console.error;
+    console.error = (...args: unknown[]) => { errors.push(args); };
+    try {
+      delete process.env.SENTRY_DSN;
+      process.env.NODE_ENV = "development";
+      // Awaited on purpose: Next awaits this callback so the queued Sentry
+      // event is flushed before a serverless runtime freezes the function.
+      await onRequestError(
+        new Error("boom from a route handler"),
+        { path: "/api/portal/clients/acme-ltd/invoices", method: "POST", headers: {} },
+        {
+          routerKind: "App Router",
+          routePath: "/api/portal/clients/[clientId]/invoices",
+          routeType: "route",
+          revalidateReason: undefined,
+        },
+      );
+    } finally {
+      console.error = originalError;
+      if (previousEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = previousEnv;
+      if (previousDsn === undefined) delete process.env.SENTRY_DSN;
+      else process.env.SENTRY_DSN = previousDsn;
+    }
+    const captured = errors.find(args => args[0] === "[observability]");
+    assert.ok(captured, "onRequestError must route the error into observability.captureError");
+    assert.equal((captured?.[1] as Error).message, "boom from a route handler");
+  });
+
+  it("register() warns at boot when a DSN is set but nothing can deliver", () => {
+    const previousEnv = process.env.NODE_ENV;
+    const previousDsn = process.env.SENTRY_DSN;
+    const warnings: unknown[][] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => { warnings.push(args); };
+    try {
+      process.env.NODE_ENV = "development";
+      process.env.SENTRY_DSN = "https://public@o0.ingest.sentry.io/0";
+      register();
+    } finally {
+      console.warn = originalWarn;
+      if (previousEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = previousEnv;
+      if (previousDsn === undefined) delete process.env.SENTRY_DSN;
+      else process.env.SENTRY_DSN = previousDsn;
+    }
+    if (isSentrySdkInstalled()) {
+      // Once the optional SDK is installed there is nothing to warn about.
+      assert.equal(warnings.some(args => String(args[0]).includes("is not installed")), false);
+      return;
+    }
+    assert.ok(
+      warnings.some(args => String(args[0]).includes("@sentry/nextjs is not installed")),
+      "a DSN without the SDK must be announced, not silently swallowed",
+    );
+  });
+});
+
+describe("Observability — capability probe, not an environment string (#132)", () => {
+  const DSN = { SENTRY_DSN: "https://public@o0.ingest.sentry.io/0" } as NodeJS.ProcessEnv;
+
+  it("refuses to report ready when the DSN is set but the SDK is missing", () => {
+    const capability = inspectObservabilityCapability(DSN, false);
+    assert.equal(capability.dsnConfigured, true);
+    assert.equal(capability.sdkState, "missing");
+    assert.equal(capability.capturing, false);
+    assert.equal(capability.status, "needs-setup");
+    assert.ok(capability.summary.includes("no error is delivered"));
+    assert.notEqual(capability.action, "No action needed.");
+  });
+
+  it("reports ready only when a DSN and the SDK are both present", () => {
+    const capability = inspectObservabilityCapability(DSN, true);
+    assert.equal(capability.capturing, true);
+    assert.equal(capability.status, "ready");
+  });
+
+  it("stays optional — and honest about deployment logs — with no DSN", () => {
+    const capability = inspectObservabilityCapability({}, false);
+    assert.equal(capability.dsnConfigured, false);
+    assert.equal(capability.status, "optional");
+    assert.ok(capability.summary.includes("deployment logs"));
+    assert.notEqual(capability.action, "No action needed.");
+  });
+
+  // The capability probe is only honest while it inspects the same DSN keys the
+  // server loader initialises Sentry with. Reading NEXT_PUBLIC_SENTRY_DSN here
+  // but only SENTRY_DSN there made the checklist say "captured and reported to
+  // Sentry" for a deployment whose loader bailed out before importing anything.
+  it("inspects the same DSN keys the server loader actually uses", () => {
+    for (const env of [
+      { SENTRY_DSN: "https://public@o0.ingest.sentry.io/0" },
+      { NEXT_PUBLIC_SENTRY_DSN: "https://public@o0.ingest.sentry.io/0" },
+      { SENTRY_DSN: "   " },
+      {},
+    ] as NodeJS.ProcessEnv[]) {
+      assert.equal(
+        hasObservabilityDsn(env),
+        resolveSentryDsn(env) !== null,
+        `capability probe and Sentry loader disagree for ${JSON.stringify(env)}`,
+      );
+    }
+  });
+
+  it("matches the repository's real dependency state", () => {
+    // Documents today's truth: @sentry/nextjs is not installed, so a DSN
+    // alone can never make this repository report captured errors.
+    assert.equal(isSentrySdkInstalled(), existsSync(join(ROOT, "node_modules", "@sentry", "nextjs")));
+  });
 });
 
 describe("Observability — Sentry lazy-load is no-throw without DSN (R030)", () => {
@@ -143,6 +315,26 @@ describe("Observability — Sentry lazy-load is no-throw without DSN (R030)", ()
     assert.ok(src.includes("not installed"));
     assert.ok(src.includes("export function captureError"));
     assert.ok(src.includes("export function recordBreadcrumb"));
+  });
+
+  // src/instrumentation.ts put observability.ts inside the Next server build
+  // graph for the first time. A literal `import("@sentry/nextjs")` is resolved
+  // by webpack at build time, so while the optional package is uninstalled it
+  // fails `next build` outright with "Module not found". The specifier must stay
+  // opaque to the bundler for the optional-dependency contract to survive.
+  it("keeps the optional Sentry import opaque to the bundler (#132)", () => {
+    // Comments quote the broken form on purpose, so read the code only.
+    const code = readFileSync(OBS, "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/^\s*\/\/.*$/gm, "");
+    const src = readFileSync(OBS, "utf8");
+    assert.equal(
+      /import\(\s*["'`]@sentry\/nextjs/.test(code),
+      false,
+      "a literal dynamic-import specifier makes next build fail while @sentry/nextjs is uninstalled",
+    );
+    assert.ok(src.includes("webpackIgnore"), "webpack must be told to leave the specifier alone");
+    assert.ok(src.includes("turbopackIgnore"), "turbopack must be told to leave the specifier alone");
   });
 
   it("requestLog.ts skips emit when NODE_ENV=test (smoke runs quiet)", () => {

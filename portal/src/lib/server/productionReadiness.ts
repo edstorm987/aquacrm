@@ -1,3 +1,8 @@
+import {
+  inspectObservabilityCapability,
+  type ObservabilityCapability,
+} from "./observabilityCapability";
+
 export type ReadinessStatus = "ready" | "needs-setup" | "optional";
 export type ReadinessGroup = "core" | "communication" | "money" | "development" | "intelligence";
 
@@ -35,6 +40,12 @@ export interface ReadinessContext {
   billingConfiguredClientCount?: number;
   activeExternalAssistantKeyCount?: number;
   managedIntegrationProviders?: string[];
+  /**
+   * Pre-resolved error-monitoring capability. Defaults to probing the
+   * runtime (DSN + a resolvable `@sentry/nextjs`); injectable so callers
+   * and tests can describe both sides without touching module resolution.
+   */
+  observabilityCapability?: ObservabilityCapability;
 }
 
 function has(env: NodeJS.ProcessEnv, name: string): boolean {
@@ -101,7 +112,11 @@ export function inspectProductionReadiness(
     || (has(env, "MILESYMEDIA_ASSISTANT_API_TOKEN") && has(env, "MILESYMEDIA_ASSISTANT_AGENCY_ID"));
   const billingConfigured = context.billingConfiguredClientCount ?? 0;
   const activeClients = context.activeClientCount ?? 0;
-  const monitoringReady = has(env, "SENTRY_DSN") || has(env, "NEXT_PUBLIC_SENTRY_DSN");
+  // A DSN string is not evidence of monitoring: `@sentry/nextjs` is an
+  // optional dependency and every capture is a silent no-op while it is
+  // absent. Report the capability, never the environment variable (#132).
+  const monitoring = context.observabilityCapability
+    ?? inspectObservabilityCapability(env);
 
   const items: ReadinessItem[] = [
     {
@@ -221,9 +236,9 @@ export function inspectProductionReadiness(
     {
       id: "monitoring",
       label: "Error monitoring",
-      status: monitoringReady ? "ready" : "optional",
-      summary: monitoringReady ? "Application errors can be reported externally." : "Built-in site signals work; external application error reporting is optional.",
-      action: monitoringReady ? "No action needed." : "Connect Sentry before launch for faster incident diagnosis.",
+      status: monitoring.status,
+      summary: monitoring.summary,
+      action: monitoring.action,
       required: false,
       group: "development",
       envKeys: ["SENTRY_DSN", "NEXT_PUBLIC_SENTRY_DSN"],

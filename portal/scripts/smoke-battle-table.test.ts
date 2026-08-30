@@ -463,7 +463,7 @@ test("Battle Table retains a bounded ownership, investment, dividend and authori
       transactions: [{ id: "capital-1", kind: "capital-contribution", title: "Founder capital", shareholderId: "holder-ed", amountCents: 10_000, currency: "gbp", shares: 100, occurredAt: 123_456, status: "completed", approvalId: "decision-1" }],
       investments: [{ id: "investment-1", name: "Growth reserve", kind: "fund", currency: "usd", costBasisCents: 50_000, currentValueCents: 56_000, incomeReceivedCents: 1_000, valuedAt: 123_456, status: "active", risk: "medium" }],
       dividends: [{ id: "dividend-1", title: "2026 distribution", period: "FY 2026", currency: "gbp", declaredCents: 25_000, paidCents: 0, status: "approved", allocations: [{ shareholderId: "holder-ed", amountCents: 25_000 }], approvalId: "decision-1" }],
-      decisions: [{ id: "decision-1", title: "Approve capital and distribution", kind: "board", status: "approved", summary: "Approved after reviewing cash and reserves.", votesForPercent: 150, votesAgainstPercent: -20, relatedRecordIds: ["capital-1", "dividend-1"] }],
+      decisions: [{ id: "decision-1", title: "Approve capital and distribution", kind: "board", status: "approved", summary: "Approved after reviewing cash and reserves.", votesForPercent: 70, votesAgainstPercent: 30, relatedRecordIds: ["capital-1", "dividend-1"] }],
     },
   }, "executive_test");
 
@@ -471,9 +471,25 @@ test("Battle Table retains a bounded ownership, investment, dividend and authori
   assert.equal(updated.capital.shareholders[0]?.shares, 100);
   assert.equal(updated.capital.investments[0]?.currency, "USD");
   assert.equal(updated.capital.dividends[0]?.allocations[0]?.amountCents, 25_000);
-  assert.equal(updated.capital.decisions[0]?.votesForPercent, 100);
-  assert.equal(updated.capital.decisions[0]?.votesAgainstPercent, 0);
+  assert.equal(updated.capital.decisions[0]?.votesForPercent, 70);
+  assert.equal(updated.capital.decisions[0]?.votesAgainstPercent, 30);
   assert.deepEqual(company.getCompanyProfile(agency.id).capital, updated.capital);
+
+  // Bounds are no longer applied by silently rewriting an impossible value:
+  // 150% for and -20% against are refused by name (issues #65), because
+  // storing them as 100% and 0% would invent the vote that was recorded.
+  // The whole graph contract lives in scripts/smoke-company-capital-invariants.test.ts.
+  let refusal: unknown;
+  try {
+    company.updateCompanyProfile(agency.id, {
+      ...updated,
+      capital: { ...updated.capital, decisions: [{ ...updated.capital.decisions[0]!, votesForPercent: 150, votesAgainstPercent: -20 }] },
+    }, "executive_test");
+  } catch (error) {
+    refusal = error;
+  }
+  assert.ok(refusal instanceof company.CompanyCapitalConflictError, "an impossible vote is refused rather than clamped");
+  assert.deepEqual(company.getCompanyProfile(agency.id).capital.decisions[0], updated.capital.decisions[0], "the refused save left the retained decision untouched");
 });
 
 test("Battle Table is the third command station and owns every executive control", () => {

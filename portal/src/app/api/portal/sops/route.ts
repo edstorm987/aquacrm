@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
 import { deletePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { createInteractiveSop, createWrittenSop, deleteSopRecord, getSop, listSops, updateSop } from "@/engines/sop/server/sops";
+import { sopDependencyInventory } from "@/engines/sop/server/sopDependencies";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 import type { BlockTreeJSON } from "@/engines/editor/elements";
@@ -19,6 +20,18 @@ async function agencySession(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const session = await agencySession(request);
+    // Retirement preview: `?dependencies=<id>` answers "what would still be
+    // holding this id afterwards?" from the SAME inventory the DELETE response
+    // echoes, so the confirmation UI and the server command ask the question of
+    // one implementation rather than each guessing. It decides nothing — the
+    // retirement policy itself is still an open product decision (issues #176).
+    const dependenciesFor = new URL(request.url).searchParams.get("dependencies")?.trim();
+    if (dependenciesFor) {
+      if (!getSop(session.agencyId, dependenciesFor)) {
+        return NextResponse.json({ ok: false, error: "SOP not found" }, { status: 404 });
+      }
+      return NextResponse.json({ ok: true, dependencies: sopDependencyInventory(session.agencyId, dependenciesFor) });
+    }
     return NextResponse.json({ ok: true, sops: listSops(session.agencyId) });
   } catch (error) {
     return authErrorResponse(error);
@@ -112,6 +125,12 @@ export async function DELETE(request: NextRequest) {
     const sop = getSop(session.agencyId, id);
     if (!sop) return NextResponse.json({ ok: false, error: "SOP not found" }, { status: 404 });
 
+    // Taken BEFORE anything is removed, so it describes the state the deletion
+    // actually acted on. Deletion does not detach these — no retirement policy
+    // has been decided (issues #176) — so the response says what it stranded
+    // rather than implying a reconciliation that did not happen.
+    const stranded = sopDependencyInventory(session.agencyId, id);
+
     // Storage first: the record is the only handle on the stored object, so it
     // must survive a provider refusal instead of being deleted regardless.
     const removal = await deletePrivateUpload({
@@ -128,7 +147,7 @@ export async function DELETE(request: NextRequest) {
       }, { status: 502 });
     }
     if (!deleteSopRecord(session.agencyId, id)) return NextResponse.json({ ok: false, error: "SOP not found" }, { status: 404 });
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, stranded });
   } catch (error) {
     return authErrorResponse(error);
   }

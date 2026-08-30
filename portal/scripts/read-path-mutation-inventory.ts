@@ -112,10 +112,17 @@ export const PASS_THROUGH: Record<string, string> = {
  */
 export const CAUSE_RULINGS: Record<string, CauseRuling> = {
   // ── Flagged, and correctly — but it cannot write ────────────────────────
-  runOne: {
+  // Renamed from `runOne` on 2026-08-30 when the asking moved out of the route
+  // into `lib/server/plugins/pluginHealthRunner.ts`, so the radar sweep could
+  // run the same hooks on a cadence and PERSIST the answers. The persisting
+  // half deliberately did NOT come back here: `runPluginHealthSweep` is the
+  // writer and the route still calls only `runInstallHealthcheck`, which is why
+  // this stays a read path with one ruling rather than becoming a real write.
+  runInstallHealthcheck: {
     category: "audit", verdict: "deliberate",
     note:
-      "The plugin-health route (2026-08-28). `runOne` invokes a MODULE's own "
+      "The plugin-health route (2026-08-28; runner extracted 2026-08-30). It "
+      + "invokes a MODULE's own "
       + "`healthcheck`, and `makeCtx` hands every hook that module's real "
       + "read/write storage — so the analyser is right that a write is reachable "
       + "from a GET, and a silent exemption would be indistinguishable from a "
@@ -280,7 +287,7 @@ export const DECLARED_READ_ROUTES: DeclaredEntry[] = [
   // only on a SUCCESSFUL read, and only if it was not already set.
   { path: "/api/portal/client-forms/[noticeId]", cause: "markClientFormNoticeSeen" },
   // Added 2026-08-28 with the plugin-health route. The analyser is RIGHT to
-  // flag it: `runOne` invokes a module's own `healthcheck`, which is
+  // flag it: `runInstallHealthcheck` invokes a module's own `healthcheck`, which is
   // third-party-ish code, and `makeCtx` hands every hook the module's real
   // read/write storage — so on the face of it, polling health could write.
   //
@@ -293,7 +300,7 @@ export const DECLARED_READ_ROUTES: DeclaredEntry[] = [
   // The entry stays because the analyser sees the CALL, not the wrapper, and a
   // silent exemption would be indistinguishable from a missed finding. If the
   // wrapper is ever removed, this declaration is the thing that looks wrong.
-  { path: "/api/portal/plugins/health", cause: "runOne" },
+  { path: "/api/portal/plugins/health", cause: "runInstallHealthcheck" },
   { path: "/api/portal/inbox/meta/callback", cause: "logActivity" },
   { path: "/api/portal/search", cause: "cachedCandidates" },
   { path: "/api/v1/advisor/context", cause: "authenticateExternalAssistant" },

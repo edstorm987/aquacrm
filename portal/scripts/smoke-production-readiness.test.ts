@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { inspectProductionReadiness } from "../src/lib/server/productionReadiness";
+import {
+  inspectObservabilityCapability,
+  isSentrySdkInstalled,
+} from "../src/lib/server/observabilityCapability";
 
 function productionEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return {
@@ -97,6 +101,38 @@ describe("production readiness", () => {
     assert.equal(result.ready, true);
     assert.equal(result.items.find(item => item.id === "billing")?.status, "optional");
     assert.equal(result.items.find(item => item.id === "monitoring")?.status, "optional");
+  });
+
+  // #132: a DSN string is not evidence. @sentry/nextjs is an optional
+  // dependency and every capture is a silent no-op while it is absent, so
+  // the checklist must ask for setup instead of reporting "ready".
+  it("does not call error monitoring ready from a DSN string alone", () => {
+    const env = productionEnv({ SENTRY_DSN: "https://public@o0.ingest.sentry.io/0" });
+    const result = inspectProductionReadiness(env, {
+      observabilityCapability: inspectObservabilityCapability(env, false),
+    });
+    const monitoring = result.items.find(item => item.id === "monitoring");
+    assert.equal(monitoring?.status, "needs-setup");
+    assert.ok(monitoring?.summary.includes("no error is delivered"));
+    assert.notEqual(monitoring?.action, "No action needed.");
+  });
+
+  it("reports error monitoring ready once the DSN and the SDK are both present", () => {
+    const env = productionEnv({ SENTRY_DSN: "https://public@o0.ingest.sentry.io/0" });
+    const result = inspectProductionReadiness(env, {
+      observabilityCapability: inspectObservabilityCapability(env, true),
+    });
+    assert.equal(result.items.find(item => item.id === "monitoring")?.status, "ready");
+    // Monitoring is not a required launch gate either way.
+    assert.equal(result.ready, true);
+  });
+
+  it("probes the live dependency state when no capability is supplied", () => {
+    const result = inspectProductionReadiness(
+      productionEnv({ SENTRY_DSN: "https://public@o0.ingest.sentry.io/0" }),
+    );
+    const monitoring = result.items.find(item => item.id === "monitoring");
+    assert.equal(monitoring?.status, isSentrySdkInstalled() ? "ready" : "needs-setup");
   });
 
   it("reports optional service connections without exposing their values", () => {

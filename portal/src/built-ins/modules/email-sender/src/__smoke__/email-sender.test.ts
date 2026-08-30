@@ -43,9 +43,17 @@ import {
   EVENT_SUBSCRIPTIONS,
   registerEmailSenderFoundation,
 } from "../server/foundationAdapter";
-import { NoopDriver, PostmarkDriver } from "../server/drivers";
+import { NoopDriver, PostmarkDriver, SmtpDriver } from "../server/drivers";
 import { buildEmailSenderHealth } from "../server/health";
-import { testSendHandler } from "../api/handlers";
+import { driverCannotVerify, NO_PROVIDER_TO_VERIFY_WITH } from "../server/identities";
+import { POSTMARK_ACCOUNT_TOKEN_MISSING } from "../server/drivers/postmark";
+import {
+  getProviderHandler,
+  testSendHandler,
+  updateIdentityHandler,
+  updateProviderHandler,
+  verifyIdentityHandler,
+} from "../api/handlers";
 
 const AGENCY_ID: AgencyId = "agency_email_smoke";
 const ACTOR: UserId = "user_admin";
@@ -68,6 +76,7 @@ interface World {
 function buildWorld(opts?: {
   withMarketingTemplates?: boolean;
   postmarkResponse?: { status: number; json: unknown };
+  sendersResponse?: { status: number; json: unknown };
 }): World {
   const agency: Agency = {
     id: AGENCY_ID, name: "Smoke Email Agency", slug: "smoke-email",
@@ -136,8 +145,20 @@ function buildWorld(opts?: {
     status: 200,
     json: { To: "anywhere", SubmittedAt: "2026-05-04T12:00:00Z", MessageID: "pm_test_1", ErrorCode: 0, Message: "OK" },
   };
+  // The sender-signature endpoint is a DIFFERENT call from /email, so the mock
+  // routes on the URL: a test that never configures signatures must not have
+  // its verification silently answered by the send response.
+  const senders = opts?.sendersResponse;
   const fetchImpl: typeof fetch = async (input, init) => {
-    fetchCalls.push({ url: typeof input === "string" ? input : (input as URL).toString(), init });
+    const url = typeof input === "string" ? input : (input as URL).toString();
+    fetchCalls.push({ url, init });
+    if (url.includes("/senders")) {
+      const reply = senders ?? { status: 500, json: { Message: "no senders response configured in this world" } };
+      return new Response(JSON.stringify(reply.json), {
+        status: reply.status,
+        headers: { "content-type": "application/json" },
+      });
+    }
     return new Response(JSON.stringify(postmark.json), {
       status: postmark.status,
       headers: { "content-type": "application/json" },
@@ -146,6 +167,7 @@ function buildWorld(opts?: {
   const drivers = new Map<ProviderKind, EmailDriver>([
     ["postmark", new PostmarkDriver(fetchImpl)],
     ["none", new NoopDriver()],
+    ["smtp", new SmtpDriver()],
   ]);
 
   return {
@@ -515,5 +537,440 @@ describe("email-sender smoke", () => {
     }) as EmailMessage | null;
     assert.ok(m4, "auth subscriber returned a welcome message");
     assert.match(m4!.subject, /Welcome to Smoke Email Agency/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Setup must be reachable, and "verified" must be earned.
+//
+// Before this block, `verifyDomain` set `status: "active"` and stamped
+// `verifiedAt` for ANY address the moment it was called — no provider was
+// contacted, no credential was needed, and provider `none` was no obstacle.
+// Every surface downstream (the health `identities` component, the Settings
+// table's "Verified" column, the API response) then reported a pass nobody had
+// earned, and it was indistinguishable from a real one.
+//
+// The other half of the same defect: no screen anywhere called the provider,
+// identity or test routes, and the manifest declared `provider` and
+// `webhookSecret` as settings fields that the generic hub panel wrote to
+// `install.config` — a store neither DeliveryService nor WebhookService reads.
+// ─────────────────────────────────────────────────────────────────────────
+
+function makeCtx(world: World): PluginCtx {
+  return {
+    agencyId: AGENCY_ID,
+    actor: ACTOR,
+    storage: world.storage,
+    install: {
+      id: "install_email_verify",
+      pluginId: "email-sender",
+      agencyId: AGENCY_ID,
+      enabled: true,
+      config: {},
+      features: {},
+      installedAt: 0,
+    },
+    services: {
+      clients: null, pluginInstalls: null, pluginRuntime: null, registry: null,
+      phases: null, activity: world.activity, events: world.events,
+      variants: null, tenant: world.tenant,
+    },
+  };
+}
+
+const CONFIRMED_SENDERS = {
+  status: 200,
+  json: {
+    TotalCount: 1,
+    SenderSignatures: [
+      { ID: 4242, Domain: "verified.example", EmailAddress: "Hello@Verified.Example", Confirmed: true },
+    ],
+  },
+};
+
+describe("email-sender setup — verification must be earned, and configurable", () => {
+  function freshWorld(sendersResponse?: { status: number; json: unknown }) {
+    const world = buildWorld({ sendersResponse });
+    const services = containerWithDeps({
+      agencyId: AGENCY_ID,
+      storage: world.storage,
+      tenant: world.tenant,
+      activity: world.activity,
+      events: world.events,
+      pluginInstalls: world.pluginInstalls,
+      drivers: world.drivers,
+    });
+    return { world, services };
+  }
+
+  test("no provider configured — verification cannot pass, and says why", async () => {
+    const { world, services } = freshWorld();
+    const identity = await services.identities.create(
+      { name: "Aqua", email: "hello@verified.example", isDefault: true }, ACTOR,
+    );
+    assert.equal(identity.status, "pending");
+
+    const outcome = await services.identities.verifyDomain(identity.id, ACTOR);
+    assert.ok(outcome);
+    assert.equal(outcome!.verification.verified, false);
+    assert.equal(outcome!.identity.status, "pending", "an unasked provider cannot activate an identity");
+    assert.equal(outcome!.identity.verifiedAt, undefined, "and must not stamp a verification date");
+    assert.equal(outcome!.identity.verificationError, NO_PROVIDER_TO_VERIFY_WITH);
+    assert.ok(outcome!.identity.verificationCheckedAt, "but it does record that we asked");
+    assert.equal(
+      world.inspect.events.filter(e => e.name === "email.identity.verified").length,
+      0,
+      "no verified event may be emitted without evidence",
+    );
+    assert.equal(world.inspect.fetchCalls.length, 0, "and nothing was called to produce it");
+
+    // The blind spot stays visible rather than being smoothed over.
+    const health = buildEmailSenderHealth(
+      await services.provider.get(), await services.identities.list(), [],
+    );
+    assert.equal(health.components?.identities?.ok, false);
+    assert.match(health.components?.identities?.message ?? "", /0\/1 active/);
+  });
+
+  test("Postmark without the account token — refused with the missing-credential reason", async () => {
+    const { world, services } = freshWorld(CONFIRMED_SENDERS);
+    await services.provider.update({ provider: "postmark", apiKey: "pm_server_token" }, ACTOR);
+    const identity = await services.identities.create(
+      { name: "Aqua", email: "hello@verified.example", isDefault: true }, ACTOR,
+    );
+    const outcome = await services.identities.verifyDomain(identity.id, ACTOR);
+    assert.equal(outcome!.verification.verified, false);
+    assert.equal(outcome!.identity.status, "pending");
+    assert.equal(outcome!.identity.verificationError, POSTMARK_ACCOUNT_TOKEN_MISSING);
+    assert.equal(
+      world.inspect.fetchCalls.filter(c => c.url.includes("/senders")).length, 0,
+      "the driver must not pretend to call an endpoint it has no credential for",
+    );
+  });
+
+  test("Postmark answers 'not a sender signature' — the identity stays pending, in Postmark's words", async () => {
+    const { services } = freshWorld({
+      status: 200,
+      json: { TotalCount: 0, SenderSignatures: [] },
+    });
+    await services.provider.update(
+      { provider: "postmark", apiKey: "pm_server_token", accountToken: "pm_account_token" }, ACTOR,
+    );
+    const identity = await services.identities.create(
+      { name: "Aqua", email: "stranger@nowhere.example", isDefault: true }, ACTOR,
+    );
+    const outcome = await services.identities.verifyDomain(identity.id, ACTOR);
+    assert.equal(outcome!.verification.verified, false);
+    assert.equal(outcome!.identity.status, "pending");
+    assert.match(outcome!.identity.verificationError ?? "", /no sender signature for stranger@nowhere\.example/);
+  });
+
+  test("Postmark knows the address but it is unconfirmed — still not active", async () => {
+    const { services } = freshWorld({
+      status: 200,
+      json: {
+        TotalCount: 1,
+        SenderSignatures: [{ ID: 7, EmailAddress: "hello@verified.example", Confirmed: false }],
+      },
+    });
+    await services.provider.update(
+      { provider: "postmark", apiKey: "pm_server_token", accountToken: "pm_account_token" }, ACTOR,
+    );
+    const identity = await services.identities.create(
+      { name: "Aqua", email: "hello@verified.example", isDefault: true }, ACTOR,
+    );
+    const outcome = await services.identities.verifyDomain(identity.id, ACTOR);
+    assert.equal(outcome!.verification.verified, false);
+    assert.equal(outcome!.identity.status, "pending");
+    assert.match(outcome!.identity.verificationError ?? "", /not confirmed yet/);
+  });
+
+  test("Postmark confirms it — NOW the identity is active, with the evidence recorded", async () => {
+    const { world, services } = freshWorld(CONFIRMED_SENDERS);
+    await services.provider.update(
+      { provider: "postmark", apiKey: "pm_server_token", accountToken: "pm_account_token" }, ACTOR,
+    );
+    const identity = await services.identities.create(
+      { name: "Aqua", email: "hello@verified.example", isDefault: true }, ACTOR,
+    );
+    const outcome = await services.identities.verifyDomain(identity.id, ACTOR);
+    assert.equal(outcome!.verification.verified, true);
+    assert.equal(outcome!.identity.status, "active");
+    assert.equal(outcome!.identity.verificationSource, "postmark");
+    assert.ok(outcome!.identity.verifiedAt, "a real verification does stamp the date");
+    assert.equal(outcome!.identity.verificationError, undefined);
+
+    const call = world.inspect.fetchCalls.find(c => c.url.includes("/senders"));
+    assert.ok(call, "the account-level senders API was actually called");
+    const headers = call!.init?.headers as Record<string, string>;
+    assert.equal(headers["X-Postmark-Account-Token"], "pm_account_token");
+    assert.equal(
+      world.inspect.events.filter(e => e.name === "email.identity.verified").length, 1,
+    );
+
+    // Editing the address throws the evidence away — it was earned by a
+    // different mailbox.
+    const moved = await services.identities.update(
+      identity.id, { email: "someone-else@verified.example" }, ACTOR,
+    );
+    assert.equal(moved?.status, "pending");
+    assert.equal(moved?.verifiedAt, undefined);
+    assert.equal(moved?.verificationSource, undefined);
+    assert.equal(
+      moved?.verificationCheckedAt, undefined,
+      "nobody has asked about the NEW address, so the 'last asked' stamp goes too",
+    );
+  });
+
+  // The re-check case. Keeping a once-earned `active` through a failed
+  // re-check is defensible; showing only the old "confirmed by …" while the
+  // provider has just said no is not — the refusal is the newer evidence.
+  test("a failed re-check keeps the status but records — and shows — the refusal", async () => {
+    const { services } = freshWorld(CONFIRMED_SENDERS);
+    await services.provider.update(
+      { provider: "postmark", apiKey: "pm_server_token", accountToken: "pm_account_token" }, ACTOR,
+    );
+    const identity = await services.identities.create(
+      { name: "Aqua", email: "hello@verified.example", isDefault: true }, ACTOR,
+    );
+    const first = await services.identities.verifyDomain(identity.id, ACTOR);
+    assert.equal(first!.identity.status, "active");
+
+    // The provider is taken away; the next check cannot produce evidence.
+    await services.provider.update({ provider: "none" }, ACTOR);
+    const second = await services.identities.verifyDomain(identity.id, ACTOR);
+    assert.equal(second!.verification.verified, false);
+    assert.equal(second!.identity.status, "active", "one failed re-check does not destroy evidence");
+    assert.equal(second!.identity.verificationError, NO_PROVIDER_TO_VERIFY_WITH,
+      "but the refusal is recorded on the row rather than dropped");
+    assert.ok(second!.identity.verificationCheckedAt);
+
+    const { readFileSync } = await import("node:fs");
+    const client = readFileSync(new URL("../pages/SettingsClient.tsx", import.meta.url), "utf8");
+    assert.match(
+      client, /the last re-check failed/,
+      "and the settings table must say so instead of printing only the old confirmation",
+    );
+  });
+
+  test("a driver that cannot verify does not get to activate anything", async () => {
+    const { services } = freshWorld(CONFIRMED_SENDERS);
+    await services.provider.update(
+      { provider: "smtp", apiKey: "smtp-password", smtp: { host: "mail.test", port: 587, user: "u", secure: "starttls" } },
+      ACTOR,
+    );
+    const identity = await services.identities.create(
+      { name: "Aqua", email: "hello@verified.example", isDefault: true }, ACTOR,
+    );
+    const outcome = await services.identities.verifyDomain(identity.id, ACTOR);
+    assert.equal(outcome!.verification.verified, false);
+    assert.equal(outcome!.identity.status, "pending");
+    assert.equal(outcome!.identity.verificationError, driverCannotVerify("smtp"));
+  });
+
+  test("the verify route answers 422 with the provider's reason — never a cheerful 200", async () => {
+    const { world, services } = freshWorld(CONFIRMED_SENDERS);
+    registerEmailSenderFoundation({
+      tenant: world.tenant, activity: world.activity, events: world.events,
+      pluginInstalls: world.pluginInstalls, drivers: world.drivers,
+    });
+    const ctx = makeCtx(world);
+    const identity = await services.identities.create(
+      { name: "Aqua", email: "hello@verified.example", isDefault: true }, ACTOR,
+    );
+
+    const refused = await verifyIdentityHandler(new Request("http://local.test/api/portal/email-sender/identities/verify", {
+      method: "POST", body: JSON.stringify({ id: identity.id }),
+    }), ctx);
+    assert.equal(refused.status, 422, "an unverified identity must not be reported as verified");
+    const refusedBody = await refused.json() as { ok: boolean; error?: string };
+    assert.equal(refusedBody.ok, false);
+    assert.equal(refusedBody.error, NO_PROVIDER_TO_VERIFY_WITH);
+
+    // …and the same route succeeds once the provider really does confirm it.
+    await services.provider.update(
+      { provider: "postmark", apiKey: "pm_server_token", accountToken: "pm_account_token" }, ACTOR,
+    );
+    const accepted = await verifyIdentityHandler(new Request("http://local.test/api/portal/email-sender/identities/verify", {
+      method: "POST", body: JSON.stringify({ id: identity.id }),
+    }), ctx);
+    assert.equal(accepted.status, 200);
+    const acceptedBody = await accepted.json() as { ok: boolean; evidence?: string };
+    assert.equal(acceptedBody.ok, true);
+    assert.match(acceptedBody.evidence ?? "", /sender signature 4242 is confirmed/);
+  });
+
+  test("the identity PATCH route is not a second door to an unearned 'active'", async () => {
+    const { world, services } = freshWorld(CONFIRMED_SENDERS);
+    registerEmailSenderFoundation({
+      tenant: world.tenant, activity: world.activity, events: world.events,
+      pluginInstalls: world.pluginInstalls, drivers: world.drivers,
+    });
+    const ctx = makeCtx(world);
+    const identity = await services.identities.create(
+      { name: "Aqua", email: "hello@verified.example", isDefault: true }, ACTOR,
+    );
+    const response = await updateIdentityHandler(new Request("http://local.test/api/portal/email-sender/identities", {
+      method: "PATCH",
+      body: JSON.stringify({ id: identity.id, patch: { status: "active" } }),
+    }), ctx);
+    assert.equal(response.status, 422);
+    assert.match((await response.json() as { error: string }).error, /only when the provider confirms/);
+    assert.equal((await services.identities.get(identity.id))?.status, "pending");
+  });
+
+  // The webhook secret is what proves a delivery callback really came from the
+  // provider. Anyone holding it can post a forged "delivered" or "bounced"
+  // event at the public webhook route, so it is a credential, not a display
+  // field — and a prop handed to a client component is serialised into the page
+  // and reaches the browser exactly like an API body does.
+  test("the webhook signing secret is never handed to the browser", async () => {
+    const { world, services } = freshWorld(CONFIRMED_SENDERS);
+    registerEmailSenderFoundation({
+      tenant: world.tenant, activity: world.activity, events: world.events,
+      pluginInstalls: world.pluginInstalls, drivers: world.drivers,
+    });
+    const ctx = makeCtx(world);
+    await services.provider.update(
+      { provider: "postmark", apiKey: "pm_server_token", webhookSecret: "wh_super_secret_9911" },
+      ACTOR,
+    );
+    // Server-side the real value is still there — WebhookService compares it.
+    assert.equal((await services.provider.get()).webhookSecret, "wh_super_secret_9911");
+
+    const responses: [string, Response][] = [
+      ["GET provider", await getProviderHandler(
+        new Request("http://local.test/api/portal/email-sender/provider"), ctx,
+      )],
+      ["PATCH provider", await updateProviderHandler(
+        new Request("http://local.test/api/portal/email-sender/provider", {
+          method: "PATCH", body: JSON.stringify({ provider: "postmark" }),
+        }), ctx,
+      )],
+    ];
+    for (const [label, response] of responses) {
+      const body = await response.text();
+      assert.ok(
+        !body.includes("wh_super_secret_9911"),
+        `${label} must not return the signing secret`,
+      );
+      assert.match(body, /"webhookSecretMasked":"9911"/, `${label} reports only the tail`);
+    }
+    // The secret survived being read back as a tail — a masked response must
+    // not have quietly overwritten the stored value.
+    assert.equal((await services.provider.get()).webhookSecret, "wh_super_secret_9911");
+
+    const { readFileSync } = await import("node:fs");
+    const page = readFileSync(new URL("../pages/SettingsPage.tsx", import.meta.url), "utf8");
+    assert.match(
+      page, /provider=\{redactProviderConfig\(provider\)\}/,
+      "the settings page must redact before handing the row to the client component",
+    );
+    const client = readFileSync(new URL("../pages/SettingsClient.tsx", import.meta.url), "utf8");
+    assert.doesNotMatch(
+      client, /props\.provider\.webhookSecret\b/,
+      "the client surface must have no stored secret to render back",
+    );
+  });
+
+  test("the identity PATCH cannot stamp verification evidence through unlisted keys", async () => {
+    const { world, services } = freshWorld(CONFIRMED_SENDERS);
+    registerEmailSenderFoundation({
+      tenant: world.tenant, activity: world.activity, events: world.events,
+      pluginInstalls: world.pluginInstalls, drivers: world.drivers,
+    });
+    const ctx = makeCtx(world);
+    const identity = await services.identities.create(
+      { name: "Aqua", email: "hello@verified.example", isDefault: true }, ACTOR,
+    );
+    // `status: "active"` is refused outright. These keys were the way round it:
+    // the row spread the whole patch, so a caller could write the verification
+    // stamp the Settings table renders, or move the row out of its own tenant.
+    const response = await updateIdentityHandler(new Request("http://local.test/api/portal/email-sender/identities", {
+      method: "PATCH",
+      body: JSON.stringify({
+        id: identity.id,
+        patch: {
+          name: "Renamed",
+          verifiedAt: 1234567890,
+          verificationSource: "postmark",
+          agencyId: "agency_somebody_else",
+        },
+      }),
+    }), ctx);
+    assert.equal(response.status, 200);
+    const row = await services.identities.get(identity.id);
+    assert.equal(row?.name, "Renamed", "the declared field is still editable");
+    assert.equal(row?.verifiedAt, undefined, "a verification date is evidence, not an input");
+    assert.equal(row?.verificationSource, undefined, "and so is the provider that vouched");
+    assert.equal(row?.status, "pending");
+    assert.equal(row?.agencyId, AGENCY_ID, "the row cannot be reassigned out of its tenant");
+  });
+
+  test("test-send reports the provider's own refusal and keeps the durable row", async () => {
+    const { world, services } = freshWorld(CONFIRMED_SENDERS);
+    registerEmailSenderFoundation({
+      tenant: world.tenant, activity: world.activity, events: world.events,
+      pluginInstalls: world.pluginInstalls, drivers: world.drivers,
+    });
+    const ctx = makeCtx(world);
+    await services.identities.create(
+      { name: "Aqua", email: "hello@verified.example", isDefault: true }, ACTOR,
+    );
+    const response = await testSendHandler(new Request("http://local.test/api/portal/email-sender/test", {
+      method: "POST", body: JSON.stringify({ to: "someone@example.com" }),
+    }), ctx);
+    assert.equal(response.status, 409, "provider none refuses rather than claiming a send");
+    const body = await response.json() as { ok: boolean; messageId?: string };
+    assert.equal(body.ok, false);
+    assert.equal((await services.emails.get(body.messageId!))?.status, "queued");
+  });
+});
+
+describe("email-sender setup — the controls exist and write to the store that is read", () => {
+  test("the Settings page drives the real provider / identity / verify / test routes", async () => {
+    const { readFileSync } = await import("node:fs");
+    const client = readFileSync(
+      new URL("../pages/SettingsClient.tsx", import.meta.url), "utf8",
+    );
+    for (const marker of [
+      "/api/portal/email-sender",
+      "\"provider\", { method: \"PATCH\"",
+      "\"identities\", {\n      method: \"POST\"",
+      "\"identities/verify\", { method: \"POST\"",
+      "\"test\", { method: \"POST\"",
+    ]) {
+      assert.ok(client.includes(marker), `the settings surface must call ${marker}`);
+    }
+    // A page that only reports cannot configure anything — the defect this
+    // replaces. At minimum it must accept a credential and submit it.
+    assert.match(client, /type="password"/);
+    const page = readFileSync(new URL("../pages/SettingsPage.tsx", import.meta.url), "utf8");
+    assert.match(page, /SettingsClient/, "the server page mounts the editable surface");
+  });
+
+  test("the manifest declares no settings field the sending path does not read", async () => {
+    const manifest = (await import("../../index")).default;
+    const declared = manifest.settings.groups.flatMap(group => group.fields.map(field => field.id));
+    // `provider` and `webhookSecret` were declared here and written to
+    // `install.config` by the generic hub panel; nothing in this module reads
+    // `install.config` for either, so the form saved and changed nothing.
+    // They now live on the module's own Settings page, which PATCHes the
+    // ProviderService row that DeliveryService and WebhookService actually read.
+    assert.deepEqual(declared.sort(), ["defaultFromEmail", "defaultFromName"]);
+
+    const { readdirSync, readFileSync } = await import("node:fs");
+    const serverDir = new URL("../server/", import.meta.url);
+    const codeLines = readdirSync(serverDir)
+      .filter(name => name.endsWith(".ts"))
+      .flatMap(name => readFileSync(new URL(name, serverDir), "utf8").split("\n"))
+      // Comments EXPLAIN the rule (provider.ts says at length why the config
+      // record is not the store); only executable lines can break it.
+      .filter(line => !/^\s*(\/\/|\*|\/\*)/.test(line));
+    assert.deepEqual(
+      codeLines.filter(line => line.includes("install.config")),
+      [],
+      "no server service may read install.config — that is the store the hub writes and delivery ignores",
+    );
   });
 });

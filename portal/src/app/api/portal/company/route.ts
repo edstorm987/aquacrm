@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
-import { CompanyProfileConflictError, CompanyReviewLockedError, getCompanyProfile, updateCompanyProfile } from "@/server/company";
+import { CompanyCapitalConflictError, CompanyProfileConflictError, CompanyReviewLockedError, getCompanyProfile, updateCompanyProfile } from "@/server/company";
 import { ensureHydrated } from "@/server/storage";
 import type { CompanyProfile } from "@/server/types";
 import { getActiveTradingCompanyId } from "@/lib/server/tradingCompanyContext";
@@ -36,6 +36,11 @@ export async function PUT(request: Request) {
   } catch (error) {
     if (error instanceof CompanyProfileConflictError) {
       return NextResponse.json({ ok: false, error: error.message, conflict: "stale-revision", company: error.current }, { status: 409 });
+    }
+    // The capital plan is a graph, so it is refused whole with every offending
+    // record named rather than persisted in an impossible or dangling state.
+    if (error instanceof CompanyCapitalConflictError) {
+      return NextResponse.json({ ok: false, error: error.message, conflict: "capital-invariants", conflicts: error.conflicts }, { status: 409 });
     }
     if (error instanceof CompanyReviewLockedError) {
       return NextResponse.json({ ok: false, error: error.message, conflict: "locked-review", reviewId: error.reviewId }, { status: 409 });

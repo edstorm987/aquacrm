@@ -9,6 +9,7 @@ import { databaseStorageHealth } from "@/lib/server/databaseStorageHealth";
 import { recordRadarEvidence } from "@/engines/data/server/radar/radarEvidenceVault";
 import { recordRadarSweep } from "@/engines/data/server/radar/radarMemory";
 import { runAgencySyntheticProbes } from "@/engines/data/server/radar/radarSyntheticProbes";
+import { runPluginHealthSweep, type PluginHealthSweepResult } from "@/lib/server/plugins/pluginHealthRunner";
 
 /**
  * Radar sweep scheduler (Stage 1 of the radar upgrade).
@@ -167,6 +168,30 @@ export async function runRadarInfraSweep(now = Date.now()): Promise<RadarInfraHe
 }
 
 /**
+ * Module health — ask every enabled module its own `healthcheck` and PERSIST
+ * the answer onto the install record.
+ *
+ * Rides the same structure as the Infra sweep and for the same reason: the
+ * Pulse must never do this itself. Running ten third-party hooks with I/O in
+ * them on a render is exactly the cost the sweep split exists to move off the
+ * live path, so the Pulse reads what this last wrote.
+ *
+ * Without it, `systems:module-health` counted failures out of a `health` field
+ * that had no writer anywhere — a confident, permanent zero. The runner is
+ * shared with `/api/portal/plugins/health`, so the number Radar counts and the
+ * rows a person reads in the Dev Console come from one piece of code.
+ *
+ * Never throws: `runPluginHealthSweep` turns every hook failure into a recorded
+ * unhealthy answer rather than an exception.
+ */
+export async function runRadarModuleHealthSweep(
+  agencyId: string,
+  options: { force?: boolean; now?: number } = {},
+): Promise<PluginHealthSweepResult> {
+  return runPluginHealthSweep(agencyId, options);
+}
+
+/**
  * Evidence rollup — persist temporal memory + the durable evidence vault from a
  * freshly built radar. Returns the memory digest so callers can fold it back
  * into the response (as the scan route does).
@@ -194,6 +219,9 @@ export async function runRadarFullSweep(
 ): Promise<RadarFullSweepResult> {
   await runAgencySyntheticProbes(agencyId, { force: true });
   await runRadarInfraSweep(options.now);
+  // Forced: "run everything now" must re-ask the modules, not reuse an answer
+  // from inside the cadence window — otherwise the scan reports yesterday.
+  await runRadarModuleHealthSweep(agencyId, { force: true, now: options.now });
   const radar = await buildBusinessIssueRadar(agencyId, options.now);
   reconcileAgencyTasksWithRadar(agencyId, radar);
   const memory = runRadarEvidenceRollup(agencyId, radar);
@@ -223,6 +251,9 @@ export async function runRadarScheduledSweep(
   try {
     await runAgencySyntheticProbes(agencyId);
     await runRadarInfraSweep(options.now);
+    // Unforced: the runner's own cadence gate decides, so a cron tick that runs
+    // more than once a day does not re-run ten modules' I/O for nothing.
+    await runRadarModuleHealthSweep(agencyId, { now: options.now });
     const radar = await buildBusinessIssueRadar(agencyId, options.now);
     runRadarEvidenceRollup(agencyId, radar);
     invalidateBusinessIssueRadarCache(agencyId);

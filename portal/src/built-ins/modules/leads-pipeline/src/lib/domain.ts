@@ -117,6 +117,25 @@ export interface CommercialPayment {
   eventEmittedAt?: number;
 }
 
+/**
+ * A superseded set of commercial terms.
+ *
+ * Amending an issued pack does not overwrite what the recipient saw — the prior
+ * version is pushed here, carrying its own acceptance if it had one, so "they
+ * accepted it" can never silently mean later, unseen terms.
+ */
+export interface CommercialPackRevision {
+  version: number;
+  contentHash: string;
+  totalCents: number;
+  currency: CommercialPack["currency"];
+  agreementTitle: string;
+  /** When this version stopped being the current one. */
+  supersededAt: number;
+  acceptedAt?: number;
+  acceptedBy?: string;
+}
+
 export interface CommercialPack {
   id: string;
   agencyId: AgencyId;
@@ -132,6 +151,19 @@ export interface CommercialPack {
   invoiceNumber: string;
   invoiceStatus: CommercialDocumentStatus;
   agreementStatus: CommercialDocumentStatus;
+  /**
+   * Monotonic revision of the terms. Bumped only when the reviewable content
+   * actually changes; acceptance and delivery bind to this number.
+   */
+  version: number;
+  /** Hash of everything the recipient reads on the proposal page. */
+  contentHash: string;
+  /** Hash of the payable terms alone — a change invalidates a payment session. */
+  financialHash: string;
+  /** Superseded versions, oldest first. */
+  revisions?: CommercialPackRevision[];
+  /** The version whose delivery was confirmed. Only this version is acceptable. */
+  sentVersion?: number;
   lineItems: CommercialLineItem[];
   subtotalCents: number;
   taxCents: number;
@@ -146,9 +178,14 @@ export interface CommercialPack {
   notes?: string;
   signedDocumentName?: string;
   signedDocumentDataUrl?: string;
+  /** The version the attached countersigned copy was signed against. */
+  signedDocumentVersion?: number;
   payments: CommercialPayment[];
   stripeCheckoutId?: string;
   stripeCheckoutUrl?: string;
+  /** The exact version + financial hash the stored Checkout session was priced for. */
+  stripeCheckoutVersion?: number;
+  stripeCheckoutFinancialHash?: string;
   stripeSubscriptionId?: string;
   financeInvoiceId?: string;
   /** Retry handle for the last proposal email, kept for failed attempts too. */
@@ -159,6 +196,10 @@ export interface CommercialPack {
   /** Stamped only on confirmed delivery of the proposal email. */
   sentAt?: number;
   acceptedAt?: number;
+  acceptedBy?: string;
+  /** The exact version + content hash the recipient agreed to. */
+  acceptedVersion?: number;
+  acceptedContentHash?: string;
   createdAt: number;
   updatedAt: number;
 }

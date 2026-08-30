@@ -516,8 +516,20 @@ export async function createCommercialStripeCheckoutHandler(req: Request, ctx: P
     if (!response.ok || !checkout.id || !checkout.url) {
       return unprocessable(checkout.error?.message ?? "Stripe could not create the payment page.");
     }
-    const updated = await c.commercial.attachStripe(pack.partyKind, pack.partyId, { id: checkout.id, url: checkout.url });
-    return json({ ok: true, pack: updated, checkoutUrl: checkout.url });
+    // Bind the session to the exact terms it was priced from. If the invoice was
+    // amended while Stripe was answering, the session is already stale and is
+    // refused rather than stored against terms it does not match.
+    const outcome = await c.commercial.attachStripe(pack.partyKind, pack.partyId, {
+      id: checkout.id,
+      url: checkout.url,
+      forVersion: pack.version,
+      forFinancialHash: pack.financialHash,
+    });
+    if (!outcome) return notFound("commercial_pack_not_found");
+    if (!outcome.attached) {
+      return unprocessable("The invoice changed while the payment page was being created, so it was not attached. Create the payment page again for the current terms.");
+    }
+    return json({ ok: true, pack: outcome.pack, checkoutUrl: checkout.url });
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
   }

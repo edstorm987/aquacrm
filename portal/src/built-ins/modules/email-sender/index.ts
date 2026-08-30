@@ -78,38 +78,35 @@ const manifest: AquaPlugin = {
 
   // No storefront blocks. Email is server-side only.
 
+  // ── What is NOT declared here, and why ──────────────────────────────────
+  //
+  // `provider` and `webhookSecret` used to be declared as settings fields.
+  // The generic Settings-hub panel therefore rendered them and wrote them to
+  // `install.config` — and NOTHING in this module reads `install.config` for
+  // either one. `DeliveryService` reads the ProviderService row; so does
+  // `WebhookService`. The hub form saved without error, showed the value back
+  // on reload, and changed nothing about which provider mail left through or
+  // which webhook signatures were accepted.
+  //
+  // That is precisely the trap `lib/chrome/settingsModules.ts` warns about
+  // ("write agency-scoped values that the read path never looks at, so the
+  // form would save successfully and change nothing"), and it was holding a
+  // signature secret. The API key was worse off still: never declared at all,
+  // so no surface anywhere could supply it.
+  //
+  // One store, one editor: the provider kind, its credentials and the webhook
+  // secret are set on this module's own Settings page, which PATCHes
+  // `/api/portal/email-sender/provider` — the row delivery actually reads.
+  // What stays here is the pair `onInstall` genuinely consumes.
   settings: {
     groups: [
       {
-        id: "provider",
-        label: "Provider",
-        fields: [
-          {
-            id: "provider",
-            label: "Provider",
-            type: "select",
-            default: "none",
-            options: [
-              { value: "none", label: "(none — disable real send)" },
-              { value: "postmark", label: "Postmark" },
-              { value: "sendgrid", label: "SendGrid (R11 stub)" },
-              { value: "resend", label: "Resend (R11 stub)" },
-              { value: "smtp", label: "SMTP" },
-            ],
-            helpText: "Defaults to 'none' on install, which keeps messages queued. Configure Postmark or SMTP and complete a successful test send to become active.",
-          },
-          {
-            id: "webhookSecret",
-            label: "Webhook secret",
-            type: "text",
-            default: "",
-            helpText: "Required for Postmark webhook signature verification — events without a matching secret are rejected.",
-          },
-        ],
-      },
-      {
         id: "defaults",
         label: "Defaults",
+        description:
+          "Used once, when the module is installed, to seed the first sender identity. "
+          + "The provider, its API key and the webhook secret are set on the module's own "
+          + "Settings page, because those are the values the sending path reads.",
         fields: [
           {
             id: "defaultFromName",
@@ -122,7 +119,7 @@ const manifest: AquaPlugin = {
             label: "Default From email (bootstrapped first identity address)",
             type: "text",
             default: "no-reply@example.com",
-            helpText: "Used by onInstall to seed the first sender identity. Verify via Settings before sending.",
+            helpText: "Used by onInstall to seed the first sender identity. Verify it with your provider before sending.",
           },
         ],
       },

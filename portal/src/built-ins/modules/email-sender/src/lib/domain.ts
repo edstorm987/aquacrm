@@ -14,9 +14,19 @@ export type ProviderStatus = "active" | "unconfigured" | "error";
 export interface ProviderConfig {
   agencyId: AgencyId;
   provider: ProviderKind;
-  apiKeyMasked?: string;             // last 4 chars only; full key in install.config
+  // Last 4 characters only. The full key lives in the plugin's own private
+  // storage slot (`provider/api-key`), which is server-side and is never put
+  // on `install.config` — that record is handed to page props and so to the
+  // browser.
+  apiKeyMasked?: string;
+  // Postmark's sender-signature API is ACCOUNT-level, so it needs a different
+  // credential from the per-server send token. Masked here for the same reason.
+  accountTokenMasked?: string;
   defaultFromIdentityId?: string;
-  webhookSecret?: string;            // for delivery-status webhook signature verify
+  // The webhook SIGNING secret. Server-only: `WebhookService` compares it
+  // against what the provider sends. It is a credential like the tokens
+  // above, so it never leaves the server — see `PublicProviderConfig`.
+  webhookSecret?: string;
   status: ProviderStatus;
   testedAt?: number;
   errorMessage?: string;
@@ -27,9 +37,27 @@ export interface ProviderConfig {
   updatedAt: number;
 }
 
+/**
+ * `ProviderConfig` as anything outside the server may see it.
+ *
+ * The send token and the account token were already masked on the row, but the
+ * webhook signing secret was not: it sat on `ProviderConfig` in clear text, so
+ * returning that row from an API route — or handing it to a client component as
+ * a prop — puts a signing secret in the browser. It is verifying evidence that
+ * a webhook really came from the provider, so it gets the same treatment as the
+ * other two: a 4-character tail, and a blank box means "keep the stored one".
+ *
+ * Server code keeps using `ProviderConfig` (WebhookService needs the real
+ * value); every outward-facing surface uses this.
+ */
+export type PublicProviderConfig = Omit<ProviderConfig, "webhookSecret"> & {
+  webhookSecretMasked?: string;
+};
+
 export interface UpdateProviderInput {
   provider?: ProviderKind;
-  apiKey?: string;                   // full key — masked + stored in install.config
+  apiKey?: string;                   // full key — masked in the config row, stored privately
+  accountToken?: string;             // Postmark account-level token, same treatment
   defaultFromIdentityId?: string;
   webhookSecret?: string;
   smtp?: SmtpConfig;
@@ -61,9 +89,29 @@ export interface SenderIdentity {
   verifiedAt?: number;
   isDefault: boolean;
   status: SenderIdentityStatus;
+  // ── Verification evidence ──────────────────────────────────────────────
+  //
+  // `status: "active"` is a claim that the ACTIVE PROVIDER confirmed this
+  // address. These three fields are what makes that claim checkable, and they
+  // exist because it used to be unearned: `verifyDomain` marked any address
+  // active on the spot without asking anybody.
+  //
+  //  • `verificationSource` — which provider vouched, e.g. "postmark".
+  //  • `verificationCheckedAt` — when we last ASKED (set on success and on
+  //    failure, so "we tried and were told no" is distinguishable from
+  //    "nobody has ever asked").
+  //  • `verificationError` — why the last attempt did not produce evidence.
+  verificationSource?: ProviderKind;
+  verificationCheckedAt?: number;
+  verificationError?: string;
   createdAt: number;
   updatedAt: number;
 }
+
+/** What a driver answers when asked to confirm a sender address. */
+export type IdentityVerification =
+  | { verified: true; evidence: string }
+  | { verified: false; reason: string };
 
 export interface CreateIdentityInput {
   name: string;
