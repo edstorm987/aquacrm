@@ -14,7 +14,8 @@
 
 import { isSettingUnwired, UNWIRED_SETTING_NOTICE } from "@/lib/plugins/unwiredSettings";
 import { useState } from "react";
-import { Check, KeyRound, Loader2, ShieldCheck, TriangleAlert } from "lucide-react";
+import { Check, CircleAlert, KeyRound, Loader2, ShieldCheck, TriangleAlert } from "lucide-react";
+import type { PluginSetupStatus } from "@/lib/plugins/pluginSetupStatus";
 
 export interface PluginSettingsFieldView {
   id: string;
@@ -41,6 +42,8 @@ export interface PluginSettingsView {
   pluginName: string;
   installed: boolean;
   groups: PluginSettingsGroupView[];
+  /** Optional so a server mid-deploy that predates it still renders. */
+  setup?: PluginSetupStatus;
 }
 
 const control = "min-h-10 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black outline-none focus:border-black/35";
@@ -100,6 +103,13 @@ export function PluginSettingsPanel({ initial, clientId }: { initial: PluginSett
         ) : null}
       </header>
 
+      {/* Finish setup — the plan's item 3, built over the vault rather than over
+          `setupAnswers`. It COLLECTS nothing itself: it names what is missing
+          and the fields below (already vault-backed, already write-only for
+          secrets) remain the only place a value is entered. See
+          `lib/plugins/pluginSetupStatus.ts` for why. */}
+      <SetupBanner setup={settings.setup} pluginName={settings.pluginName} />
+
       {settings.groups.map(group => (
         <div key={group.id} className="rounded-md border border-black/10 bg-white">
           <div className="border-b border-black/10 px-4 py-3">
@@ -128,6 +138,62 @@ export function PluginSettingsPanel({ initial, clientId }: { initial: PluginSett
         ) : null}
       </div>
     </section>
+  );
+}
+
+/**
+ * What this module still needs before it works.
+ *
+ * Shown only while something is outstanding — a permanent green "setup
+ * complete" panel is chrome nobody reads, and this page already shows each
+ * field's own configured state.
+ *
+ * It is a SIGNPOST, not a second form. Every value is typed into the
+ * vault-backed field below, so there is exactly one place a Stripe key can be
+ * entered and exactly one place it is stored.
+ */
+function SetupBanner({ setup, pluginName }: { setup: PluginSetupStatus | undefined; pluginName: string }) {
+  if (!setup) return null;
+  const { missing, unmapped } = setup;
+  if (!missing.length && !unmapped.length) return null;
+
+  return (
+    <div className="rounded-md border border-amber-200 bg-amber-50/70 px-4 py-3">
+      {missing.length ? (
+        <>
+          <p className="flex items-center gap-2 text-sm font-semibold text-amber-900">
+            <CircleAlert size={15} aria-hidden="true" />
+            Finish setting up {pluginName}
+          </p>
+          <p className="mt-1 text-xs text-amber-900/75">
+            {/* The count is over what this page can actually collect, so it can
+                always reach "done" by acting on the fields below. */}
+            {setup.satisfied} of {setup.required} required {setup.required === 1 ? "value is" : "values are"} in place.
+            Fill the rest in below and save.
+          </p>
+          <ul className="mt-2 space-y-1.5">
+            {missing.map(item => (
+              <li key={item.fieldId} className="text-xs text-amber-900/85">
+                <strong className="font-semibold">{item.label}</strong>
+                <span className="text-amber-900/55"> · {item.groupLabel} · needed for {item.stepTitle}</span>
+                {item.helpText ? <span className="mt-0.5 block text-amber-900/60">{item.helpText}</span> : null}
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+
+      {/* A requirement with no field behind it cannot be finished here. Saying
+          so is the point: a checklist item nobody can action is worse than an
+          absent one, and this is the manifest bug made visible. */}
+      {unmapped.length ? (
+        <p className={`text-xs text-amber-900/70 ${missing.length ? "mt-3 border-t border-amber-200 pt-2" : ""}`}>
+          {unmapped.length === 1 ? "One value this module requires has" : `${unmapped.length} values this module requires have`}
+          {" "}no settings field on this page and cannot be entered here:{" "}
+          {unmapped.map(item => item.label).join(", ")}.
+        </p>
+      ) : null}
+    </div>
   );
 }
 

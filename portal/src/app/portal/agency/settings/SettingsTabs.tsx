@@ -8,8 +8,8 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { ArrowUpRight, Bell, Boxes, Briefcase, Check, CircleUserRound, FlaskConical, KeyRound, Save, ScrollText, ShieldCheck, SlidersHorizontal, Sparkles, UsersRound } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { ArrowUpRight, Bell, Boxes, Briefcase, Building2, Check, CircleUserRound, FlaskConical, KeyRound, Palette, LifeBuoy, PanelLeft, Plug, Radar, Save, ScrollText, Settings as SettingsIcon, ShieldCheck, SlidersHorizontal, Sparkles, UsersRound } from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { ProductionReadiness, ReadinessStatus } from "@/lib/server/productionReadiness";
 import type { AgencyWorkspaceSettings, ClientStage, SandboxSessionEnvironment } from "@/server/types";
 import type { AgencySettingsCapabilities } from "@/lib/agencySettingsCapabilities";
@@ -26,6 +26,19 @@ import {
   formatReleaseDate,
 } from "@/lib/projects/releases";
 import { PortalViewportLoading } from "@/components/ui/PortalViewportLoading";
+import { IntegrationConnectionsPanel } from "./IntegrationConnectionsPanel";
+import { FreelancerAccessConfigPanel, type JobRow as FreelancerJobRow } from "../freelancer-access/_FreelancerAccessConfigPanel";
+import { PluginSettingsPanel, type PluginSettingsView } from "@/components/workspaces/PluginSettingsPanel";
+import { CLIENT_SCOPED_SETTINGS_MODULES } from "@/lib/chrome/settingsModules";
+import { timezoneOptions } from "@/lib/shared/timezones";
+import type { FreelancerAccessConfig } from "@/server/types";
+import { WorkspaceNamePanel, BrandColourPanel } from "./AgencyIdentityPanel";
+import { AppearancePanel } from "./AppearancePanel";
+import { WorkspaceLayoutPanel } from "./WorkspaceLayoutPanel";
+import { RadarTriggersPanel } from "./RadarTriggersPanel";
+import { ApiAccessPanel } from "./ApiAccessPanel";
+import { TradingCompaniesPanel } from "../company/_TradingCompaniesPanel";
+import type { TradingCompany } from "@/server/types";
 
 const AccessControlPanel = dynamic(
   () => import("@/components/access/AccessControlPanel").then(module => module.AccessControlPanel),
@@ -51,6 +64,14 @@ interface SettingsContext {
   };
   tradingCompanies: Array<{ id: string; name: string }>;
   clients: Array<{ id: string; name: string }>;
+  freelancerAccess: FreelancerAccessConfig;
+  freelancerJobs: FreelancerJobRow[];
+  /** Agency-scoped module settings, ready to render in place. */
+  moduleSettings: PluginSettingsView[];
+  /** This person's own stylesheet, already validated on read. */
+  customCss: string;
+  companySummaries: CompanySummaryRow[];
+  workspaceSummary: { clientCount: number; productCount: number; staffCount: number; healthScore: number };
   devProjects?: Array<{ id: string; name: string }>;
   team: Array<{
     id: string;
@@ -62,31 +83,165 @@ interface SettingsContext {
   }>;
 }
 
-type TabId = "account" | "team" | "access" | "workspace" | "environment" | "freelancer" | "defaults" | "notifications" | "updates" | "logs" | "launch";
+// Ed, 2026-08-30: trading companies into business details, team merged with
+// roles & access, modules joined with workspaces, and My account brought inside
+// settings. Three ids retire and one arrives; the retired three become aliases
+// below so every existing deep link still lands.
+//
+// Lowercase letters only — smoke-settings-hub extracts ids with
+// /\{ id: "([a-z]+)", label:/, so a hyphen or a digit silently escapes both of
+// its structural checks rather than failing them.
+type TabId = "account" | "profile" | "access" | "workspace" | "appearance" | "layout" | "connections" | "radar" | "api" | "environment" | "defaults" | "notifications" | "updates" | "logs" | "launch" | "help";
 
 const TABS: { id: TabId; label: string; icon: ReactNode }[] = [
-  { id: "account", label: "Account", icon: <CircleUserRound size={16} /> },
-  { id: "team", label: "Team", icon: <UsersRound size={16} /> },
-  { id: "access", label: "Roles & access", icon: <KeyRound size={16} /> },
-  { id: "workspace", label: "Workspace", icon: <Boxes size={16} /> },
-  { id: "environment", label: "Environment", icon: <FlaskConical size={16} /> },
-  { id: "freelancer", label: "Freelancer access", icon: <Briefcase size={16} /> },
+  { id: "account", label: "Business details", icon: <Building2 size={16} /> },
+  { id: "profile", label: "My account", icon: <CircleUserRound size={16} /> },
+  { id: "workspace", label: "Workspaces & modules", icon: <Boxes size={16} /> },
   { id: "defaults", label: "Defaults", icon: <SlidersHorizontal size={16} /> },
+  { id: "appearance", label: "Appearance & branding", icon: <Palette size={16} /> },
+  { id: "layout", label: "Sidebar & saved tabs", icon: <PanelLeft size={16} /> },
+  { id: "access", label: "Team, roles & access", icon: <UsersRound size={16} /> },
+  { id: "connections", label: "Connections", icon: <Plug size={16} /> },
+  { id: "radar", label: "Radar triggers", icon: <Radar size={16} /> },
+  { id: "api", label: "API & MCP keys", icon: <KeyRound size={16} /> },
+  { id: "environment", label: "Environment", icon: <FlaskConical size={16} /> },
   { id: "notifications", label: "Notifications", icon: <Bell size={16} /> },
   { id: "updates", label: "What’s new", icon: <Sparkles size={16} /> },
   { id: "logs", label: "Activity log", icon: <ScrollText size={16} /> },
-  { id: "launch", label: "Launch", icon: <ShieldCheck size={16} /> },
+  { id: "launch", label: "Setup & launch", icon: <ShieldCheck size={16} /> },
+  { id: "help", label: "Help", icon: <LifeBuoy size={16} /> },
 ];
+
+// ─── Grouping ─────────────────────────────────────────────────────────────
+//
+// Eleven tabs in a horizontal strip measured 1,352px of content inside a 603px
+// container on 2026-08-29 — `overflow-x-auto` with no affordance, so SIX of the
+// eleven were simply invisible. That is the whole of Ed's *"settings are all
+// over the place"*: they were not scattered across the app so much as scrolled
+// off the edge of one.
+//
+// Grouped by the question somebody arrives with, not by which subsystem owns
+// the data. Ids are UNCHANGED so existing `#hash` deep links keep working —
+// `/portal/agency/settings#notifications` is linked from elsewhere in the app.
+//
+// A group may also carry a LINK row: somewhere settings-shaped that lives on
+// another page. It points AT the canonical editor and never mounts it — the
+// rule `smoke-settings-hub` pins, learned by breaking it.
+type CompanySummaryRow = TradingCompany & {
+  clientCount: number; productCount: number; staffCount: number; healthScore: number;
+};
+
+interface SettingsGroup {
+  label: string;
+  tabs: TabId[];
+  links?: { label: string; href: string; detail: string }[];
+}
+
+/**
+ * What each tab is ABOUT, for the settings search (Ed, 2026-08-30: "we need a
+ * settings search as well please"). Hand-authored keywords rather than an
+ * extracted index: every pane is hardcoded JSX with no field ids to walk, so
+ * honest curation beats a fake registry. When a control MOVES tab, move its
+ * words — the smoke test checks every retired tab name still finds its new home.
+ */
+const TAB_KEYWORDS: Record<TabId, string> = {
+  account: "business details legal name support email phone website company number vat tax address timezone trading companies brands invoices identity workspace name",
+  profile: "my account profile avatar picture two-factor 2fa mfa authenticator password permissions personal",
+  workspace: "workspaces modules plugins installed enable disable settings cog clients journey fulfilment stages",
+  defaults: "defaults currency tax rate payment terms invoice prefix",
+  appearance: "appearance branding brand colour color theme css styling custom stylesheet",
+  layout: "sidebar saved tabs pins order arrange topbar",
+  access: "team staff people roles access grants permissions elements freelancer invite manager scopes",
+  connections: "connections integrations resend email smtp twilio sms whatsapp stripe supabase meta instagram facebook api keys channels",
+  radar: "radar triggers monitoring probes runtime alerts",
+  api: "api keys mcp external assistant tokens",
+  environment: "environment sandbox showcase demo mode data realm",
+  notifications: "notifications alerts advisor guardrails email digests",
+  updates: "what's new whats new updates releases changelog version",
+  logs: "activity log audit history events pages",
+  launch: "setup launch checklist onboarding readiness production",
+  help: "help support documentation guide",
+};
+
+const GROUPS: SettingsGroup[] = [
+  {
+    label: "Business",
+    // Trading companies moved INSIDE Business details on 2026-08-30 (Ed:
+    // "trading companies should be inside business details"), so the tab that
+    // used to sit here is gone rather than reordered.
+    tabs: ["account", "profile", "workspace", "defaults", "appearance", "layout"],
+  },
+  {
+    label: "People & access",
+    // Ed, 2026-08-29: *"e.g. Staff instead of saying Freelancer access"* — three
+    // people-shaped tabs sat apart in a flat strip and read as three unrelated
+    // things. One group is the rename he was reaching for.
+    //
+    // 2026-08-30: and then one TAB, because "team" and "access" were two halves
+    // of one question — who is here, and what may they do.
+    tabs: ["access"],
+  },
+  {
+    label: "Operations",
+    // "modules" folded into "workspace": a module IS a workspace from the
+    // owner's side, and two tabs meant guessing which one held the setting.
+    tabs: ["connections", "radar", "api", "environment", "notifications"],
+  },
+  {
+    label: "Status & help",
+    tabs: ["launch", "updates", "logs", "help"],
+  },
+];
+
+const TAB_BY_ID = new Map(TABS.map(tab => [tab.id, tab]));
+
+/**
+ * Hashes that used to be tabs of their own.
+ *
+ * The same rule `LEGACY_TAB_ALIASES` follows in `lib/clients/clientWorkspace.ts`
+ * — merge concepts, keep the old ids resolving, so external links and muscle
+ * memory both survive. Without this a bookmark lands on the first tab with no
+ * hint that the thing moved.
+ */
+const LEGACY_TAB_ALIASES: Record<string, TabId> = {
+  // Showcase Mode was consolidated into the single Environment surface.
+  showcase: "environment",
+  // Freelancer access joined Roles & access on 2026-08-29 — it is the same
+  // question (what may this person see and do) asked about a contractor.
+  freelancer: "access",
+  // The old Settings integrations tab id, from before that work moved to
+  // Company and back again.
+  integrations: "connections",
+  // ── Retired 2026-08-30, aliased the same day ──────────────────────────
+  //
+  // These three are the whole reason the merge is safe. Two live deep links
+  // point at #team (account/page.tsx and account/permissions/page.tsx), the
+  // sidebar and search both emit tab hashes, and a bookmark that lands on the
+  // first tab with no explanation is how somebody concludes their settings
+  // were deleted.
+  companies: "account",
+  team: "access",
+  modules: "workspace",
+};
 
 export function SettingsTabs({ ctx }: { ctx: SettingsContext }) {
   const [active, setActive] = useState<TabId>("account");
+  const [settingsQuery, setSettingsQuery] = useState("");
+  // Tabs whose name, group or keywords contain every word of the query. Words
+  // rather than a substring so "brand colour" finds Appearance even though the
+  // registry says "brand colour color" in a different order.
+  const searchWords = settingsQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const matchingTabs = searchWords.length
+    ? new Set(TABS.filter(tab => {
+        const haystack = `${tab.label} ${TAB_KEYWORDS[tab.id]}`.toLowerCase();
+        return searchWords.every(word => haystack.includes(word));
+      }).map(tab => tab.id))
+    : null;
 
   useEffect(() => {
     const syncHash = () => {
       const hash = window.location.hash.slice(1);
-      // Preserve old bookmarks while Showcase Mode is consolidated into the
-      // single Environment surface.
-      const requested = (hash === "showcase" ? "environment" : hash) as TabId;
+      const requested = (LEGACY_TAB_ALIASES[hash] ?? hash) as TabId;
       if (TABS.some(tab => tab.id === requested)) setActive(requested);
     };
     syncHash();
@@ -107,65 +262,262 @@ export function SettingsTabs({ ctx }: { ctx: SettingsContext }) {
 
   return (
     <>
-      <label className="grid gap-1.5 text-xs font-medium text-black/50 sm:hidden">
+      {/* Below the rail's width: a grouped select. `optgroup` is a one-line
+          change that turns eleven flat options into four labelled sets, and it
+          is the native control so it stays usable one-handed. */}
+      <label className="grid gap-1.5 text-xs font-medium text-black/50 lg:hidden">
         Settings section
         <select value={active} onChange={event => selectTab(event.target.value as TabId)} className={control} aria-label="Settings section">
-          {TABS.map(tab => <option key={tab.id} value={tab.id}>{tab.label}</option>)}
+          {GROUPS.map(group => (
+            <optgroup key={group.label} label={group.label}>
+              {group.tabs.map(id => <option key={id} value={id}>{TAB_BY_ID.get(id)?.label ?? id}</option>)}
+            </optgroup>
+          ))}
         </select>
       </label>
-      <nav role="tablist" aria-label="Settings sections" className="-mb-px hidden gap-1 overflow-x-auto border-b border-black/10 sm:flex">
-        {TABS.map(t => {
-          const isActive = active === t.id;
-          return (
-            <button
-              key={t.id}
-              role="tab"
-              aria-selected={isActive}
-              aria-controls={`settings-pane-${t.id}`}
-              onClick={() => selectTab(t.id)}
-              className={[
-                "inline-flex shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-sm transition",
-                isActive
-                  ? "border-brand text-brand"
-                  : "border-transparent text-black/55 hover:text-black/80",
-              ].join(" ")}
-            >
-              <span className={isActive ? "text-brand" : "text-black/45"}>{t.icon}</span>
-              {t.label}
-            </button>
-          );
-        })}
-      </nav>
 
-      <div className="mt-6 flex flex-col gap-5">
+      <div className="mt-6 grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start">
+        {/* The rail. Every section visible at once — the point of the change. */}
+        <nav aria-label="Settings sections" className="hidden lg:block">
+          <label className="mb-3 block px-2">
+            <span className="sr-only">Search settings</span>
+            <input
+              value={settingsQuery}
+              onChange={event => setSettingsQuery(event.target.value)}
+              placeholder="Search settings…"
+              className="min-h-9 w-full rounded-md border border-black/15 bg-white px-2.5 text-sm outline-none focus:border-black/35"
+            />
+          </label>
+          {GROUPS.map(group => {
+            const visible = matchingTabs ? group.tabs.filter(id => matchingTabs.has(id)) : group.tabs;
+            if (!visible.length) return null;
+            return (
+            <div key={group.label} className="mb-4 last:mb-0">
+              <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-black/35">{group.label}</p>
+              <ul className="flex flex-col">
+                {visible.map(id => {
+                  const tab = TAB_BY_ID.get(id);
+                  if (!tab) return null;
+                  const isActive = active === id;
+                  return (
+                    <li key={id}>
+                      <button
+                        type="button"
+                        aria-current={isActive ? "page" : undefined}
+                        onClick={() => selectTab(id)}
+                        className={[
+                          "flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] transition",
+                          isActive ? "bg-black/[0.06] font-semibold text-black/85" : "text-black/60 hover:bg-black/[0.03] hover:text-black/85",
+                        ].join(" ")}
+                      >
+                        <span className={isActive ? "text-brand" : "text-black/35"}>{tab.icon}</span>
+                        {tab.label}
+                      </button>
+                    </li>
+                  );
+                })}
+                {group.links?.map(link => (
+                  <li key={link.href}>
+                    {/* A door, drawn as a door. The arrow says it leaves. */}
+                    <Link
+                      href={link.href}
+                      className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] text-black/60 transition hover:bg-black/[0.03] hover:text-black/85"
+                      title={link.detail}
+                    >
+                      <span className="text-black/35"><ArrowUpRight size={16} /></span>
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            );
+          })}
+        </nav>
+
+      <div className="flex min-w-0 flex-col gap-5">
         {active === "account"     && <GeneralPane ctx={ctx} />}
-        {active === "team"        && <TeamPane ctx={ctx} />}
+        {/* Team and Roles & access merged 2026-08-30 (Ed: "team and roles and
+            access should be merged"). `AccessPane` now renders the people list
+            above the element grid — who is here, then what they may do. The
+            `#team` hash still resolves here through LEGACY_TAB_ALIASES. */}
         {active === "access"      && <AccessPane ctx={ctx} />}
+        {active === "profile"     && <ProfilePane ctx={ctx} />}
         {active === "workspace"   && <WorkspacePane ctx={ctx} />}
+        {active === "appearance" && (
+          <>
+            {/* Ed: "brand colour just send this over to the styling settings
+                surely thats better". Yes — it is styling. Sibling section, not
+                merged into AppearancePanel: the CSS below is per-PERSON and
+                ungated, the colour is per-AGENCY and owner/manager only, and
+                one panel holding two scopes at two permission levels is how a
+                preference becomes a tenant write by accident. */}
+            <Section eyebrow="Brand">
+              <BrandColourPanel
+                initialColour={ctx.agency?.primaryColor ?? ""}
+                canManage={ctx.capabilities.manageSettings}
+              />
+            </Section>
+            <Section eyebrow="Appearance">
+              <AppearancePanel initialCss={ctx.customCss} />
+            </Section>
+          </>
+        )}
+        {active === "layout" && (
+          <Section eyebrow="Sidebar & saved tabs">
+            <WorkspaceLayoutPanel />
+          </Section>
+        )}
+        {active === "connections" && (
+          <Section eyebrow="Connections">
+            {/* Mounted, not linked. Ed reversed the 2026-08-2x decision to send
+                this work to Company on 2026-08-29: *"bring it all into settings
+                rather than taking us out of settings."* Company → Connections
+                still works and still renders the SAME panel — four doors onto
+                one editor, which is the rule; a second copy would not be. */}
+            <IntegrationConnectionsPanel clients={ctx.clients} canManage={ctx.capabilities.manageSettings} />
+          </Section>
+        )}
+        {active === "api" && (
+          <Section eyebrow="API & MCP keys">
+            {/* The key creator was already in Settings — buried inside Setup &
+                launch, where nobody looks for an API key. Same panel, findable
+                name. */}
+            {ctx.capabilities.manageExternalAi
+              ? <ExternalAiConnectionPanel />
+              : <SettingsPermissionNotice capability="manage external AI access" />}
+            <div className="mt-8 border-t border-black/[0.07] pt-6">
+              <ApiAccessPanel />
+            </div>
+          </Section>
+        )}
+        {active === "radar" && (
+          <Section eyebrow="Radar triggers">
+            {/* Lazy — the radar sweep is the most expensive read in the app and
+                must not run for somebody changing their invoice prefix. */}
+            <RadarTriggersPanel />
+          </Section>
+        )}
         {active === "environment" && <Section eyebrow="Environment"><SandboxModePanel environment={ctx.sandbox} canManage={ctx.capabilities.manageSettings} /></Section>}
-        {active === "freelancer"  && <Section eyebrow="Freelancer access"><div className="grid gap-4"><p className="max-w-2xl text-sm leading-6 text-black/58">Control what a freelancer sees and can do in their own workspace — brief, dates, their fee, deliverables, whether the client is named or anonymised, and which actions they can take. Privacy-first by default.</p><Link href="/portal/agency/freelancer-access" className="inline-flex min-h-10 w-fit items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white hover:bg-black/85">Configure freelancer access <ArrowUpRight size={15} /></Link></div></Section>}
         {active === "defaults"    && <DefaultsPane ctx={ctx} />}
         {active === "notifications" && <NotificationsPane ctx={ctx} />}
         {active === "updates"     && <UpdatesPane />}
         {active === "logs"        && <Section eyebrow="Activity log">{ctx.capabilities.viewActivityLog ? <ActivityLogPanel clients={ctx.clients} /> : <SettingsPermissionNotice capability="view and export the workspace activity log" />}</Section>}
+        {active === "help" && <HelpPane />}
         {active === "launch"      && <LaunchPane readiness={ctx.readiness} canManageExternalAi={ctx.capabilities.manageExternalAi} />}
+      </div>
       </div>
     </>
   );
 }
 
-function TeamPane({ ctx }: { ctx: SettingsContext }) {
+/**
+ * Every agency-scoped module's settings, edited here.
+ *
+ * The same generic `PluginSettingsPanel` each module's own settings page
+ * mounts — so this is a second DOOR onto one editor, never a second copy.
+ * Client-scoped modules are named but not rendered: their values belong to a
+ * client, and an agency-scoped form for them would save successfully and change
+ * nothing.
+ */
+/**
+ * Help — where to look, and what to do when something is wrong.
+ *
+ * Ed, 2026-08-29: *"a help tab as well please."*
+ *
+ * Deliberately NOT a tutorial of the product. That is
+ * `plans/aqua-explorer-guided-help.md`, and it is parked until the information
+ * architecture stops moving — a guide written now would need rewriting on every
+ * rename. What belongs here instead is the small set of things that are true
+ * regardless of how the app is arranged: how to get unstuck, and where the
+ * answers live.
+ */
+function HelpPane() {
   return (
-    <Section eyebrow="Team">
-      <TeamUsersPanel
-        initialUsers={ctx.team}
-        canManage={ctx.capabilities.manageTeam}
-        canCreateManagers={ctx.user.role === "agency-owner"}
-        companies={ctx.tradingCompanies}
-      />
+    <Section eyebrow="Help">
+      <div className="grid gap-6">
+        <div>
+          <h3 className="text-sm font-semibold text-black/80">If something looks wrong</h3>
+          <ul className="mt-2 grid gap-2 text-xs leading-5 text-black/60">
+            <li><strong className="font-semibold text-black/75">The workspace looks broken after custom CSS.</strong> Add <code className="rounded bg-black/[0.05] px-1 font-mono">?nocss=1</code> to any URL to load without your stylesheet, then clear it in Appearance.</li>
+            <li><strong className="font-semibold text-black/75">A setting saved but nothing changed.</strong> Some declared settings are not yet read by anything — those say so on the field itself rather than pretending.</li>
+            <li><strong className="font-semibold text-black/75">You cannot find a page.</strong> Search covers every screen, including ones with no menu entry. Press the search control in the topbar and type part of the name.</li>
+            <li><strong className="font-semibold text-black/75">The sidebar is a mess.</strong> Sidebar &amp; saved tabs has a one-click reset.</li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 className="text-sm font-semibold text-black/80">Where things live</h3>
+          <ul className="mt-2 grid gap-2 text-xs leading-5 text-black/60">
+            <li><strong className="font-semibold text-black/75">Connections</strong> — Stripe, Twilio, Resend, Meta. Also on Company → Connections; the same editor either way.</li>
+            <li><strong className="font-semibold text-black/75">Modules</strong> — Finance, Staff &amp; HR, Marketing and Email sending. Client-scoped modules are configured inside each client.</li>
+            <li><strong className="font-semibold text-black/75">Setup &amp; launch</strong> — what is still not configured, and whether this workspace is ready.</li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 className="text-sm font-semibold text-black/80">Reaching a person</h3>
+          <p className="mt-1 text-xs leading-5 text-black/60">
+            The Dev Console in the topbar captures a finding with a screenshot and the page you were
+            on, which is far more useful than a description written afterwards.
+          </p>
+        </div>
+      </div>
     </Section>
   );
 }
+
+function ModulesPane({ ctx }: { ctx: SettingsContext }) {
+  // Ed, 2026-08-30: *"workspaces should show all ... workspaces with a settings
+  // cog next to it and you just do the settings for each workspace but inside
+  // the settings thing."* The stack of every panel became a list with a cog per
+  // workspace — scan first, open one on demand. Same `PluginSettingsPanel`
+  // renderer; nothing about how a setting is described or saved changed.
+  //
+  // Departments are deliberately NOT rows here: a department is a compile-time
+  // access preset with no settings of its own, and a cog that opens an empty
+  // panel teaches people cogs are decoration.
+  const [openModule, setOpenModule] = useState<string | null>(null);
+  return (
+    <Section eyebrow="Workspaces">
+      {ctx.moduleSettings.length ? (
+        <ul className="divide-y divide-black/[0.07]">
+          {ctx.moduleSettings.map(settings => {
+            const open = openModule === settings.pluginId;
+            return (
+              <li key={settings.pluginId} className="py-2">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-medium text-black/80">{settings.pluginName}</span>
+                  <button
+                    type="button"
+                    onClick={() => setOpenModule(open ? null : settings.pluginId)}
+                    aria-expanded={open}
+                    aria-label={`${open ? "Close" : "Open"} settings for ${settings.pluginName}`}
+                    className={`grid size-9 place-items-center rounded-md transition ${open ? "bg-black/[0.07] text-black/80" : "text-black/40 hover:bg-black/[0.05] hover:text-black/70"}`}
+                  >
+                    <SettingsIcon size={16} aria-hidden />
+                  </button>
+                </div>
+                {open ? (
+                  <div className="mt-3 rounded-md border border-black/10 bg-black/[0.015] p-4">
+                    <PluginSettingsPanel initial={settings} />
+                  </div>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="text-sm text-black/50">No agency-scoped modules are installed.</p>
+      )}
+      <p className="mt-6 border-t border-black/[0.07] pt-4 text-xs leading-5 text-black/45">
+        {CLIENT_SCOPED_SETTINGS_MODULES.join(", ")} are configured per client, inside that
+        client&apos;s workspace — their settings belong to the client, not to the agency.
+      </p>
+    </Section>
+  );
+}
+
 
 function AccessPane({ ctx }: { ctx: SettingsContext }) {
   // During a dev-server RSC/client hot swap, the browser can briefly retain a
@@ -184,6 +536,21 @@ function AccessPane({ ctx }: { ctx: SettingsContext }) {
     canManageProjectAccess: access.canManage,
   });
   return (
+    <>
+      {/* Merged 2026-08-30 (Ed: "team and roles and access should be merged").
+          People first, then powers: who is on the team, then what each of them
+          may see and do. Two capability flags on purpose — `manageTeam` is the
+          role matrix, `access.canManage` is a live-realm access grant — and
+          they deliberately do NOT imply each other. */}
+      <Section eyebrow="Team">
+        <TeamUsersPanel
+          initialUsers={ctx.team}
+          canManage={ctx.capabilities.manageTeam}
+          canCreateManagers={ctx.user.role === "agency-owner"}
+          companies={ctx.tradingCompanies}
+        />
+      </Section>
+
     <Section eyebrow="Roles and access">
       <AccessControlPanel
         scope={scopes[0]!}
@@ -194,7 +561,28 @@ function AccessPane({ ctx }: { ctx: SettingsContext }) {
         title="Roles, workspaces and elements"
         description="Create reusable roles, assign people to exact scopes and decide whether every registered workspace element is hidden, view-only, usable or manageable."
       />
+
+      {/* Ed, 2026-08-29: *"freelancer access can go with roles and access."*
+          It is the same question — what a person may see and do — asked about a
+          contractor instead of a staff member. Two tabs made it read as two
+          unrelated systems. */}
+      <div className="mt-8 border-t border-black/[0.07] pt-6">
+        <h3 className="text-sm font-semibold text-black/80">Freelancer access</h3>
+        <p className="mt-1 mb-4 max-w-2xl text-sm leading-6 text-black/58">
+          What a freelancer sees and can do in their own workspace — brief, dates, their fee,
+          deliverables, whether the client is named or anonymised. Privacy-first by default.
+        </p>
+        <FreelancerAccessConfigPanel initial={ctx.freelancerAccess} jobs={ctx.freelancerJobs} />
+        {/* The standalone page still exists and is linked from Freelancers.
+            Keeping a door here too costs one line and means a bookmark, a
+            support answer or a deep link never dead-ends — the editor is the
+            same one either way. */}
+        <Link href="/portal/agency/freelancer-access" className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-black/50 hover:text-black/80">
+          Open the full freelancer access page <ArrowUpRight size={13} />
+        </Link>
+      </div>
     </Section>
+    </>
   );
 }
 
@@ -239,14 +627,35 @@ function GeneralPane({ ctx }: { ctx: SettingsContext }) {
   return (
     <>
       <Section eyebrow="Business">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <Stat label="Active" value={ctx.agency?.name ?? "—"} />
-          <Stat label="Slug" value={ctx.agency?.slug ?? "—"} />
-          <Stat label="Brand colour" value={ctx.agency?.primaryColor ?? "—"} />
-        </div>
+        {/* Editable at last (Ed, 2026-08-30: "allow these to be changed").
+            These were three read-only Stat tiles because no non-founder write
+            path existed. The name edits HERE; the colour edits in Appearance &
+            branding, where styling lives — one control each, no second copy.
+            The slug stays fixed with the reason on the field. */}
+        <WorkspaceNamePanel
+          initialName={ctx.agency?.name ?? ""}
+          slug={ctx.agency?.slug ?? ""}
+          canManage={ctx.capabilities.manageSettings}
+        />
         <div className="mt-5 border-t border-black/10 pt-5">
           <BusinessSettingsForm initial={ctx.settings} canManage={ctx.capabilities.manageSettings} />
         </div>
+      </Section>
+
+      {/* Ed, 2026-08-30: *"trading companies should be inside business details."*
+          They ARE business details — the legal entities this workspace trades
+          as — and a tab of their own put them a click away from the legal name
+          and VAT number they belong beside.
+
+          The same panel Company → Companies uses, from the same state. One
+          editor, two doors; a second copy would be the thing the settings-hub
+          rule exists to prevent. */}
+      <Section eyebrow="Trading companies">
+        <TradingCompaniesPanel
+          companies={ctx.companySummaries}
+          canEdit={ctx.capabilities.manageSettings}
+          workspace={ctx.workspaceSummary}
+        />
       </Section>
       <Section eyebrow="Quick links">
         <div className="flex flex-wrap gap-2">
@@ -342,6 +751,12 @@ function BusinessSettingsForm({ initial, canManage }: { initial: AgencyWorkspace
     timezone: initial.timezone,
   });
   const [status, setStatus] = useState("");
+  // Every zone this runtime knows, plus UTC — which Intl's list omits and the
+  // old five-option select could store — plus whatever is already saved, so a
+  // custom zone is never missing from its own picker. Keyed on the STORED
+  // value, not `form.timezone`: re-deriving per keystroke would reshuffle the
+  // suggestion list under the cursor while somebody is typing into it.
+  const zones = useMemo(() => timezoneOptions(initial.timezone), [initial.timezone]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -364,7 +779,7 @@ function BusinessSettingsForm({ initial, canManage }: { initial: AgencyWorkspace
         <Field label="Company number"><input value={form.companyNumber} onChange={event => setForm(value => ({ ...value, companyNumber: event.target.value }))} className={control} disabled={!canManage} /></Field>
         <Field label="VAT or tax number"><input value={form.taxNumber} onChange={event => setForm(value => ({ ...value, taxNumber: event.target.value }))} className={control} disabled={!canManage} /></Field>
         <div className="sm:col-span-2"><Field label="Business address"><textarea rows={3} value={form.businessAddress} onChange={event => setForm(value => ({ ...value, businessAddress: event.target.value }))} className={`${control} resize-none py-2`} disabled={!canManage} /></Field></div>
-        <Field label="Timezone (scheduling support pending)"><select value={form.timezone} onChange={event => setForm(value => ({ ...value, timezone: event.target.value }))} className={control} disabled={!canManage}><option value="Europe/London">Europe/London</option><option value="UTC">UTC</option><option value="America/New_York">America/New_York</option><option value="America/Los_Angeles">America/Los_Angeles</option><option value="Europe/Paris">Europe/Paris</option></select></Field>
+        <Field label="Timezone (scheduling support pending)"><input list="workspace-timezones" value={form.timezone} onChange={event => setForm(value => ({ ...value, timezone: event.target.value }))} className={control} placeholder="Europe/London" autoComplete="off" spellCheck={false} disabled={!canManage} /><datalist id="workspace-timezones">{zones.map(zone => <option key={zone} value={zone} />)}</datalist></Field>
       </div>
       <SaveRow status={status} canManage={canManage} />
     </form>
@@ -419,6 +834,11 @@ function PermissionsPane({ ctx }: { ctx: SettingsContext }) {
 }
 
 function WorkspacePane({ ctx }: { ctx: SettingsContext }) {
+  // Ed, 2026-08-30: *"modules and workspaces should be joined too."* From the
+  // owner's side a module IS a workspace — the thing it installs is the thing
+  // in the sidebar — so two tabs meant guessing which one held the setting you
+  // wanted. `ModulesPane` is rendered below rather than deleted: it is the same
+  // surface, one scroll lower, and its own pinned strings stay put.
   return (
     <>
       <Section eyebrow="Workspace">
@@ -436,6 +856,10 @@ function WorkspacePane({ ctx }: { ctx: SettingsContext }) {
           <SettingsDestination title="Money and growth" detail="Invoices, income, expenses, campaigns, attribution, internal automations, and client-care activity." links={[["Finance", "/portal/agency/agency-finance"], ["Marketing", "/portal/agency/marketing"], ["Marketing automations", "/portal/agency/marketing?view=automations"], ["Client care", "/portal/agency/you-deserve-it"]]} />
         </div>
       </Section>
+
+      {/* Modules, joined to Workspaces 2026-08-30. Same surface, one scroll
+          lower, rather than a tab you had to guess between. */}
+      <ModulesPane ctx={ctx} />
     </>
   );
 }

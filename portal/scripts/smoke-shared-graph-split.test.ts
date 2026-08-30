@@ -176,7 +176,16 @@ test("healthy owner chrome defers repair, alert sweep, and delegated-staff acces
   const agencySource = readFileSync(AGENCY_LAYOUT, "utf8");
   assert.match(agencySource, /!installs\.some\(install => install\.pluginId === "leads-pipeline" && install\.enabled\)[\s\S]*await import\("@\/lib\/server\/plugins\/ensureLeadsPipelineInstall"\)/);
   assert.match(agencySource, /if \(!perfMode && !session\.publicShowcase && !delegatedStaff\) \{\s*const \{ getRequestOperationalAlerts \} = await import\("@\/lib\/server\/inbox\/operationalAlerts"\)/);
-  assert.match(agencySource, /if \(delegatedStaff\) \{[\s\S]*import\("@\/server\/accessControl"\)[\s\S]*import\("@\/lib\/server\/access\/workspaceElementAccess"\)/);
+  // The delegated-staff narrowing moved into the SHARED assembler on
+  // 2026-08-30 (so the department-switch route could ask "which nav does this
+  // session have" without forking the answer). The deferral guarantee is
+  // unchanged — the assembler still reaches the access graphs through dynamic
+  // import, and the static-graph walk above proves it — only the file holding
+  // the pattern moved.
+  const assemblerSource = readFileSync(join(ROOT, "src/lib/server/chrome/agencyBasePanels.ts"), "utf8");
+  assert.match(assemblerSource, /if \(!delegatedStaff\) return basePanels;[\s\S]*import\("@\/server\/accessControl"\)[\s\S]*import\("@\/lib\/server\/access\/workspaceElementAccess"\)/);
+  assert.match(agencySource, /assembleAgencyBasePanels\(session\)/,
+    "the layout no longer uses the shared assembler — the route and the layout can fork again");
 
   for (const controlPath of [
     join(ROOT, "src/components/chrome/RadarQuickLookControl.tsx"),

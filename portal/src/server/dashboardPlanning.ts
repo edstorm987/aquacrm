@@ -310,7 +310,7 @@ export function upsertDashboardDayPlan(input: {
   return plan;
 }
 
-export function clockInDashboard(input: { agencyId: string; userId: string; focus?: string; date?: string; currentPath?: string; now?: number }): DashboardWorkSession {
+export function clockInDashboard(input: { agencyId: string; userId: string; focus?: string; date?: string; currentPath?: string; departmentId?: string; now?: number }): DashboardWorkSession {
   const now = input.now ?? Date.now();
   const snapshot = dashboardPlanningSnapshot(input.agencyId, input.userId, cleanDate(input.date), now);
   if (snapshot.activeSession) return snapshot.activeSession;
@@ -320,6 +320,7 @@ export function clockInDashboard(input: { agencyId: string; userId: string; focu
     agencyId: input.agencyId,
     userId: input.userId,
     date: cleanDate(input.date),
+    departmentId: input.departmentId,
     startedAt: now,
     focus,
     currentMode: "aqua",
@@ -338,7 +339,7 @@ export function clockInDashboard(input: { agencyId: string; userId: string; focu
     currentPath: cleanRoute(input.currentPath),
     routeActiveMs: {},
     routeSwitches: 0,
-    activityBlocks: [activityBlock("aqua", now, "clock", focus)],
+    activityBlocks: [activityBlock("aqua", now, "clock", focus, undefined, input.departmentId)],
     createdAt: now,
     updatedAt: now,
   };
@@ -605,7 +606,14 @@ function closeOpenActivityBlock(blocks: DashboardWorkActivityBlock[], at: number
   return blocks.map((block, index) => index === blocks.length - 1 && !block.endedAt ? { ...block, endedAt: Math.max(block.startedAt, at) } : block);
 }
 
-function activityBlock(mode: DashboardWorkActivityMode, startedAt: number, source: DashboardWorkActivityBlock["source"], focus?: string, note?: string): DashboardWorkActivityBlock {
+function activityBlock(
+  mode: DashboardWorkActivityMode,
+  startedAt: number,
+  source: DashboardWorkActivityBlock["source"],
+  focus?: string,
+  note?: string,
+  departmentId?: string,
+): DashboardWorkActivityBlock {
   return {
     id: `activity_${crypto.randomBytes(6).toString("hex")}`,
     mode,
@@ -613,7 +621,50 @@ function activityBlock(mode: DashboardWorkActivityMode, startedAt: number, sourc
     focus,
     note,
     source,
+    departmentId,
   };
+}
+
+/**
+ * Put a different hat on without clocking out.
+ *
+ * Closes the open block and starts a new one under the new department, so the
+ * hours before the switch stay attributed to the department that earned them.
+ * Re-attributing the whole session would overstate whichever hat happened to be
+ * on last — the exact averaging error the department view exists to remove.
+ *
+ * Returns null when there is nothing running: switching hats while clocked out
+ * is a nav preference, not a time record, and inventing a session for it would
+ * put hours on the clock that nobody worked.
+ */
+export function switchDashboardWorkDepartment(input: {
+  agencyId: string;
+  userId: string;
+  departmentId?: string;
+  now?: number;
+}): DashboardWorkSession | null {
+  const now = input.now ?? Date.now();
+  const active = Object.values(getState().dashboardWorkSessions)
+    .filter(session => session.agencyId === input.agencyId && session.userId === input.userId && !session.endedAt)
+    .sort((a, b) => b.startedAt - a.startedAt)[0];
+  if (!active) return null;
+
+  const blocks = active.activityBlocks ?? [];
+  const open = blocks.find(block => !block.endedAt);
+  // Already wearing it: no new block, so a stray refresh cannot shred the day
+  // into dozens of one-second slivers.
+  if ((open?.departmentId ?? undefined) === (input.departmentId ?? undefined)) return active;
+
+  const updated: DashboardWorkSession = {
+    ...active,
+    activityBlocks: [
+      ...closeOpenActivityBlock(blocks, now),
+      activityBlock(open?.mode ?? active.currentMode ?? "aqua", now, "declaration", open?.focus, undefined, input.departmentId),
+    ],
+    updatedAt: now,
+  };
+  mutate(state => { state.dashboardWorkSessions[updated.id] = updated; });
+  return updated;
 }
 
 export function deleteDashboardWorkSession(agencyId: string, userId: string, id: string): boolean {

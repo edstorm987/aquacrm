@@ -8,6 +8,7 @@ import {
   CircleAlert,
   FileSignature,
   GitBranch,
+  SquareKanban,
   HeartHandshake,
   Search,
   ShieldCheck,
@@ -46,10 +47,14 @@ export interface JourneyCommercialClient {
   aquaHealth: ClientAquaHealth;
 }
 
-type JourneyDesk = "pipeline" | "meetings" | "payments" | "contracts" | "aqua-health";
+type JourneyDesk = "pipeline" | "kanbans" | "meetings" | "payments" | "contracts" | "aqua-health";
 
 const DESKS: Array<{ id: JourneyDesk; label: string; detail: string; icon: typeof GitBranch }> = [
   { id: "pipeline", label: "Pipeline", detail: "Enquiries to clients", icon: GitBranch },
+  // Ed, 2026-08-30: *"make a new tab on journey called kanbans and move all the
+  // kanbans here instead as its all too crowded."* A directory of every board,
+  // plus creating his own.
+  { id: "kanbans", label: "Kanbans", detail: "Every board in one place", icon: SquareKanban },
   { id: "meetings", label: "Meetings", detail: "Book, run and close", icon: CalendarClock },
   { id: "payments", label: "Payments", detail: "Request and reconcile", icon: WalletCards },
   { id: "contracts", label: "Contracts", detail: "Draft, send and accept", icon: FileSignature },
@@ -58,6 +63,7 @@ const DESKS: Array<{ id: JourneyDesk; label: string; detail: string; icon: typeo
 
 export function JourneyCommercialWorkspace({
   pipeline,
+  kanbans,
   meetingPeople,
   referenceNow,
   clients,
@@ -65,6 +71,8 @@ export function JourneyCommercialWorkspace({
   canViewFinance,
 }: {
   pipeline: ReactNode;
+  /** The Kanbans desk — the board directory + create flow, server-assembled. */
+  kanbans: ReactNode;
   meetingPeople: JourneyMeetingPerson[];
   referenceNow: number;
   clients: JourneyCommercialClient[];
@@ -89,7 +97,7 @@ export function JourneyCommercialWorkspace({
 
   return (
     <section className="min-w-0" data-testid="journey-commercial-workspace">
-      <nav aria-label="Journey workspaces" className="grid gap-px overflow-hidden rounded-lg border border-black/10 bg-black/10 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+      <nav aria-label="Journey workspaces" className="grid gap-px overflow-hidden rounded-lg border border-black/10 bg-black/10 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         {DESKS.map(item => {
           const Icon = item.icon;
           const active = item.id === desk;
@@ -102,6 +110,7 @@ export function JourneyCommercialWorkspace({
       </nav>
 
       {desk === "pipeline" ? <div className="mt-5 min-w-0">{pipeline}</div> : null}
+      {desk === "kanbans" ? <div className="mt-5 min-w-0">{kanbans}</div> : null}
       {desk === "meetings" ? <div className="mt-7 min-w-0"><JourneyMeetingsWorkspace people={meetingPeople} referenceNow={referenceNow} /></div> : null}
 
       {desk !== "pipeline" && desk !== "meetings" ? <>

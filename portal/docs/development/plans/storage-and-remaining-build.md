@@ -86,31 +86,80 @@ The third one will be a one-line addition.
 
 **Result:** the main document drops from 3.25 MB to roughly **1.2 MB**.
 
-### 2. Plugin-health screen — NEXT
+### 2. ✅ Plugin-health screen — DONE 2026-08-29
 
-The route exists (`/api/portal/plugins/health`, built 2026-08-28) and ten
-modules answer it. Nothing displays it.
+A "Module health" section in the Dev Console, beside worker activity, over the
+route built 2026-08-28. Reading rules live in `lib/chrome/pluginHealth.ts`
+rather than in the component, so they can be driven by a test —
+`smoke-plugin-health-panel.test.ts`, 20 cases.
 
-Home: the Dev Console, beside the other operational panels. Shows each installed
-module, its status, its own message, and — importantly — **`supported: false`
-distinctly from unhealthy**, because a module with no healthcheck is unknown,
-not broken. That distinction is already in the route and must survive into the
-UI.
+`supported: false` survived into the UI as intended: a hollow grey ring and the
+words "not reporting", never a colour that reads as a fault.
 
-**Small.** A panel over an endpoint that is already tested.
+Two things the plan did not anticipate, both found while building:
 
-### 3. `setup` wizard renderer
+- **A green module can have a red component.** `HealthStatus` carries an
+  optional `components` map and `client-crm` is the live proof the two levels
+  disagree — top-level `ok: true` alongside `segments: { ok: false }`. Showing
+  only the headline would have hidden a real failure behind a green dot, so
+  there is a fourth tone, `degraded`, that names the failing component.
+- **Degraded must not re-score the route's totals.** The route counts
+  `unhealthy` as `status.ok === false` and nothing else. `degraded` is a display
+  tone only; the panel prints the route's own summary rather than deriving one,
+  which is the bug the Dev Console already shipped once with its worker count.
 
-`ecommerce` declares a `SetupStep[]` and nothing renders it. The ANSWERS path
-already works — `installPlugin({ setupAnswers })` forwards to `onInstall` — so
-what is missing is only the collecting UI.
+Rows sort problems-first rather than by `pluginId` — the route's stable order is
+right for an API and wrong for a 366px popover where one broken module must not
+land under the fold.
 
-The one real decision: **where it appears.** A first-install wizard belongs in
-the install flow, but there is no install flow surface today; plugins are
-installed programmatically. Simplest honest answer is a "Finish setup" panel on
-the plugin's settings page, shown while required answers are missing.
+### 3. ✅ `setup` requirements, over the vault — DONE 2026-08-29
 
-**Medium**, and the only piece here that needs a product opinion.
+**The premise above was wrong, and building to it would have lost credentials
+rather than stored them.** Recorded here because the correction is the useful
+part.
+
+The ANSWERS path forwards but does not arrive. `installPlugin({ setupAnswers })`
+does reach `onInstall` — and **zero of the ten `onInstall` implementations read
+it**. `ecommerce`, the only module declaring `setup`, signs the parameter
+`_setupAnswers`; the underscore is deliberate and the body only seeds an empty
+`collections` list.
+
+Worse, `ecommerce`'s three `setup` fields are the same three the
+`settings.groups.stripe` group already collects — except the settings fields
+carry `secretVault: { provider: "stripe" }` and the setup fields carry nothing.
+A renderer built to the plan would have taken a live Stripe secret key and a
+webhook secret, handed them to a function that drops them, and sat beside a form
+that stores the same two values correctly. The operator would have had every
+reason to believe Stripe was configured.
+
+**What `setup` is actually good for:** `SettingsField` has no `required` flag.
+`SetupStep.fields[].required` is the only place in the system that says which
+values a module cannot work without. So `setup` is now read as a REQUIREMENTS
+declaration, and the vault-backed settings surface stays the only writer —
+nothing new touches a secret.
+
+Shipped:
+
+- `lib/plugins/pluginSetupStatus.ts` — pure comparison of declared requirements
+  against `describePluginSettings`' existing `configured` flag, which already
+  resolves the vault. A required id with no settings field behind it is reported
+  as `unmapped` rather than dropped, because a checklist item nobody can action
+  is worse than an absent one.
+- A Finish-setup banner on `PluginSettingsPanel`. It is a **signpost, not a
+  second form**: it names what is missing and the vault-backed field below stays
+  the only input, so there is exactly one place a Stripe key can be entered.
+- `ecommerce/src/pages/SettingsPage.tsx` + its `pages`/`navItems` entries. The
+  panel is generic and only `agency-finance` had ever mounted it, so ecommerce's
+  own Stripe group had no surface at all — the same "declared, never consumed"
+  defect one level up. Without this the banner would have rendered for nobody.
+- `smoke-plugin-setup-completion.test.ts`, 16 cases, including a guard holding
+  the real manifest's two blocks against each other so a rename cannot silently
+  make a requirement uncollectable.
+
+**Still open, and deliberately not decided here:** `setup` remains dead as an
+install-time mechanism. Either an `onInstall` should start consuming answers or
+the field should be retired from the manifest type. Nothing depends on the
+answer today.
 
 ### 4. Client records → rows *(Move B)*, then enquiries permissions
 

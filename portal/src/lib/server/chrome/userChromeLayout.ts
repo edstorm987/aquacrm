@@ -33,10 +33,21 @@ import "server-only";
 
 import { normaliseTopbarControls } from "@/lib/chrome/topbarControls";
 import { getState, mutate } from "@/server/storage";
-import type { SavedTab, SavedTabPlacement, SavedTabSpot, UserChromeLayout } from "@/server/types";
+import type { SavedTab, SavedTabPlacement, SavedTabSpot, SavedTool, UserChromeLayout } from "@/server/types";
+import { savedToolHref } from "@/lib/chrome/savedToolUrl";
+import { customCssForInjection } from "@/lib/chrome/customCss";
 
 /** Keep a strip a working set rather than an archive. */
 export const MAX_SAVED_TABS = 40;
+
+/**
+ * A palette somebody curated, not a feed — over the cap the form REFUSES to
+ * add rather than evicting the oldest, because losing a card someone placed is
+ * worse than asking them to tidy.
+ */
+export const MAX_SAVED_TOOLS = 48;
+const MAX_TOOL_LABEL = 60;
+const MAX_TOOL_NOTE = 160;
 
 /** Longest label a saved tab may carry, so one cannot break the nav's layout. */
 const MAX_LABEL = 60;
@@ -46,7 +57,7 @@ export function chromeLayoutKey(agencyId: string, userId: string): string {
 }
 
 function emptyLayout(agencyId: string, userId: string): UserChromeLayout {
-  return { agencyId, userId, panelOrder: [], itemOrder: {}, savedTabs: [], topbarControls: [], updatedAt: 0 };
+  return { agencyId, userId, panelOrder: [], itemOrder: {}, savedTabs: [], savedTools: [], topbarControls: [], updatedAt: 0 };
 }
 
 /**
@@ -79,12 +90,22 @@ export function normaliseLayout(value: unknown, agencyId: string, userId: string
   const savedTabs = Array.isArray(record.savedTabs)
     ? record.savedTabs.map(normaliseSavedTab).filter((tab): tab is SavedTab => tab !== null).slice(0, MAX_SAVED_TABS)
     : [];
+  const savedTools = Array.isArray(record.savedTools)
+    ? record.savedTools.map(normaliseSavedTool).filter((tool): tool is SavedTool => tool !== null).slice(0, MAX_SAVED_TOOLS)
+    : [];
   return {
     agencyId,
     userId,
     panelOrder,
     itemOrder,
     savedTabs,
+    savedTools,
+    // Re-validated on READ, not only on write. A record written before a rule
+    // existed — or edited by hand in the state file — must not reach a <style>
+    // tag just because it was stored once.
+    ...(customCssForInjection(typeof record.customCss === "string" ? record.customCss : undefined)
+      ? { customCss: customCssForInjection(record.customCss as string) }
+      : {}),
     // Normalised against the live registry, so a pin for a control this deploy
     // no longer has is dropped rather than holding an empty slot open.
     topbarControls: normaliseTopbarControls(record.topbarControls),
@@ -117,6 +138,35 @@ function normaliseSpot(value: unknown): SavedTabSpot | undefined {
   };
 }
 
+/**
+ * A saved tool, or null for anything malformed. Dropped rather than repaired —
+ * the same rule the tabs follow — and the URL is re-validated HERE, on the way
+ * OUT of storage, for the reason written on `savedToolUrl.ts`: the realm files
+ * are hand-edited, records outlive rules, and this value ends in an `href`.
+ */
+export function normaliseSavedTool(value: unknown): SavedTool | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Partial<SavedTool>;
+  const url = savedToolHref(typeof record.url === "string" ? record.url : undefined);
+  if (!url) return null;
+  const label = typeof record.label === "string" ? record.label.trim().slice(0, MAX_TOOL_LABEL) : "";
+  if (!label) return null;
+  const id = typeof record.id === "string" && record.id ? record.id : "";
+  if (!id) return null;
+  return {
+    id,
+    label,
+    url,
+    ...(typeof record.note === "string" && record.note.trim()
+      ? { note: record.note.trim().slice(0, MAX_TOOL_NOTE) }
+      : {}),
+    ...(typeof record.icon === "string" && record.icon.trim() ? { icon: record.icon.trim() } : {}),
+    order: typeof record.order === "number" && Number.isFinite(record.order) ? record.order : 0,
+    createdAt: typeof record.createdAt === "number" ? record.createdAt : 0,
+    updatedAt: typeof record.updatedAt === "number" ? record.updatedAt : 0,
+  };
+}
+
 export function normaliseSavedTab(value: unknown): SavedTab | null {
   if (!value || typeof value !== "object") return null;
   const record = value as Partial<SavedTab>;
@@ -142,6 +192,10 @@ export function normaliseSavedTab(value: unknown): SavedTab | null {
     // A key, not a component name and not arbitrary text — it is looked up in
     // the nav icon map, and an unknown key falls back to the derived icon.
     icon: typeof record.icon === "string" && record.icon.trim() ? record.icon.trim().slice(0, 60) : undefined,
+    // Likewise a key into `navTones`, never a colour. This value ends up in a
+    // style attribute, so what is stored must be something the client can only
+    // look up — an unknown key resolves to no tone at all rather than to CSS.
+    tone: typeof record.tone === "string" && record.tone.trim() ? record.tone.trim().slice(0, 40) : undefined,
     createdAt: typeof record.createdAt === "number" ? record.createdAt : 0,
     updatedAt: typeof record.updatedAt === "number" ? record.updatedAt : 0,
   };
@@ -159,7 +213,7 @@ export function normaliseSavedTab(value: unknown): SavedTab | null {
 export function saveUserChromeLayout(
   agencyId: string,
   userId: string,
-  input: Pick<UserChromeLayout, "panelOrder" | "itemOrder" | "savedTabs" | "topbarControls">,
+  input: Pick<UserChromeLayout, "panelOrder" | "itemOrder" | "savedTabs" | "savedTools" | "topbarControls"> & { customCss?: string },
   now = Date.now(),
 ): UserChromeLayout {
   const next = normaliseLayout({ ...input, updatedAt: now }, agencyId, userId);
@@ -180,7 +234,10 @@ export function resetUserChromeOrder(agencyId: string, userId: string, now = Dat
   return saveUserChromeLayout(
     agencyId,
     userId,
-    { panelOrder: [], itemOrder: {}, savedTabs: current.savedTabs, topbarControls: current.topbarControls },
+    // The palette survives too — cards the person made, not an arrangement.
+    // The stylesheet survives too (Ed, 2026-08-30): "reset my sidebar" erased
+    // customCss because the writer treats an absent field as "clear".
+    { panelOrder: [], itemOrder: {}, savedTabs: current.savedTabs, topbarControls: current.topbarControls, savedTools: current.savedTools, ...(current.customCss ? { customCss: current.customCss } : {}) },
     now,
   );
 }

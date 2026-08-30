@@ -1,4 +1,7 @@
 import { redirect } from "next/navigation";
+import { JourneyKanbansDesk, type KanbanDirectoryRow } from "./_JourneyKanbansDesk";
+import { listPipelines, pipelineCardCounts } from "@/server/pipelines";
+import { currentWorkspaceElementAccess, workspaceElementLevel } from "@/lib/server/access/workspaceElementAccess";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { requireRole } from "@/lib/server/auth/auth";
 import { devDocsAccessible } from "@/lib/server/dev/devDocs";
@@ -87,6 +90,40 @@ interface JourneyClientMetadata {
 // /portal/clients — agency-side client list. Client-* roles redirect
 // straight to their own client portal (a list of "all clients" makes no
 // sense for them).
+
+/**
+ * Every board as a directory row — counts only, no card payloads, so the
+ * Kanbans desk adds no meaningful weight to an already heavy page. The
+ * per-client task kanban is deliberately absent: different tenancy surface.
+ */
+async function assembleKanbanRows(agencyId: string): Promise<KanbanDirectoryRow[]> {
+  const counts = pipelineCardCounts(agencyId);
+  const { listAgencyProducts: listProducts } = await import("@/server/agencyProducts");
+  const activeProducts = listProducts(agencyId, true).filter(product => product.active);
+  const rows: KanbanDirectoryRow[] = [];
+  for (const pipeline of listPipelines(agencyId)) {
+    if (pipeline.kind === "leads") {
+      rows.push({ id: pipeline.id, name: "Sales & leads", kindLabel: "Journey board", columnCount: pipeline.columns.length, cardCount: counts[pipeline.id] ?? 0, href: "/portal/agency/pipelines/leads", deletable: false });
+    } else if (pipeline.kind === "fulfilment") {
+      rows.push({ id: pipeline.id, name: "Fulfilment", kindLabel: "Delivery stages", columnCount: pipeline.columns.length, cardCount: counts[pipeline.id] ?? 0, href: "/portal/agency/fulfilment?view=stages", deletable: false });
+    } else if (pipeline.kind === "custom") {
+      rows.push({ id: pipeline.id, name: pipeline.name, kindLabel: "Custom", columnCount: pipeline.columns.length, cardCount: counts[pipeline.id] ?? 0, href: `/portal/agency/pipelines/${pipeline.slug}`, deletable: true });
+    }
+  }
+  for (const product of activeProducts) {
+    rows.push({ id: `product:${product.id}`, name: `${product.name} stages`, kindLabel: "Product delivery", columnCount: 0, cardCount: 0, href: `/portal/agency/pipelines/fulfilment?product=${product.id}`, deletable: false });
+  }
+  return rows;
+}
+
+async function kanbansLevel(): Promise<"hidden" | "view" | "use" | "manage"> {
+  try {
+    const { access } = await currentWorkspaceElementAccess("growth");
+    return workspaceElementLevel(access, "growth.leads");
+  } catch {
+    return "hidden";
+  }
+}
 
 export default async function ClientsList({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   await ensureHydrated();
@@ -478,6 +515,7 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
                   }))}
                   journeyWorkspace={session.publicShowcase ? null : <JourneyCommercialWorkspace
                     pipeline={<LeadsPipelineWorkspaceServer agencyId={agency.id} userId={session.userId} />}
+                    kanbans={<JourneyKanbansDesk rows={await assembleKanbanRows(agency.id)} level={await kanbansLevel()} />}
                     meetingPeople={journeyMeetingPeople}
                     referenceNow={Date.now()}
                     clients={journeyClients}

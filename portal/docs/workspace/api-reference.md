@@ -241,6 +241,7 @@ not live.
 | `/api/portal/people` | GET, POST | HR station: employees, leave, shifts, training, applications; provisions Supabase identity | agency | **LIVE (auth)** |
 | `/api/portal/people/cv` | GET | Stream a job-application CV file | agency-session | **LIVE (Storage)** |
 | `/api/portal/dashboard-planning` | GET, POST | My-Day: clock in/out, work sessions, day/week plans | agency (staff gated by station) | |
+| `/api/portal/intelligence/my-radar` | GET | Topbar My Radar quick-look: the caller's fresh 7-day department reading + their own open Actions. Read-only; tenant and user from the session, the request carries no ids | agency (staff gated by `staff.overview`; client-named Actions behind the client-association gate) | |
 | `/api/portal/[module]/[...rest]` | GET, POST, PATCH, PUT, DELETE | **Built-in module API catch-all** → plugin handlers | authenticated (scope inferred) | varies by plugin |
 | `/api/portal/client-crm/pipelines` | GET, POST, PATCH, DELETE | Journey boards a client builds for themselves | agency viewers + client-owner/staff | feature `journey-pipelines` |
 | `/api/portal/client-crm/pipelines/board` | GET | One board, joined server-side (cards + contacts + idle flags + stage totals). No `pipelineId` → the client's default board | agency viewers + client-owner/staff | feature `journey-pipelines` |

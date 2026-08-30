@@ -80,6 +80,10 @@ describe("checked client mutations", () => {
       "src/built-ins/modules/ecommerce/src/components/admin/ProductsList.tsx",
       "src/built-ins/modules/agency-finance/src/components/InvoicesList.tsx",
       "src/app/portal/agency/inbox/_MasterInbox.tsx",
+      // Joined the cohort 2026-08-30, ahead of the inbox merge. Its five raw
+      // fetches all tested `response.ok` only, so a 200 carrying {ok:false}
+      // read as success — a reply that never sent would clear the draft.
+      "src/app/portal/agency/inbox/_UnifiedInboxWorkspace.tsx",
       "src/app/portal/team/_TeamWorkspace.tsx",
       "src/built-ins/modules/affiliates/src/components/AffiliatesList.tsx",
       "src/built-ins/modules/affiliates/src/components/AttributionsList.tsx",

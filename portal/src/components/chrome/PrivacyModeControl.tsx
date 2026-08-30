@@ -3,7 +3,16 @@
 import { Eye, EyeOff } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-const STORAGE_KEY = "milesymedia-privacy-mode";
+// The key and the setter live in `lib/chrome/privacyMode` so the Settings
+// mirror writes the same thing this button does. Two copies would drift
+// silently — the button saying on and the panel off, each right about its own
+// storage.
+import {
+  PRIVACY_MODE_EVENT,
+  PRIVACY_MODE_STORAGE_KEY as STORAGE_KEY,
+  privacyModeEnabled,
+  setPrivacyMode,
+} from "@/lib/chrome/privacyMode";
 const HOLD_MS = 900;
 type PrivacyCategory = "identity" | "contact" | "money" | "account";
 
@@ -29,10 +38,19 @@ export function PrivacyModeControl({
   const longPressTriggered = useRef(false);
 
   useEffect(() => {
-    const active = window.sessionStorage.getItem(STORAGE_KEY) === "on";
+    const active = privacyModeEnabled();
     setPrivateMode(active);
     document.documentElement.toggleAttribute("data-privacy-mode", active);
+    // The same switch also lives in Settings → Appearance. Without this the
+    // button would keep showing the old state until a reload, which reads as
+    // "the setting did not take".
+    const sync = (event: Event) => {
+      const detail = (event as CustomEvent<{ enabled?: boolean }>).detail;
+      setPrivateMode(typeof detail?.enabled === "boolean" ? detail.enabled : privacyModeEnabled());
+    };
+    window.addEventListener(PRIVACY_MODE_EVENT, sync);
     return () => {
+      window.removeEventListener(PRIVACY_MODE_EVENT, sync);
       if (timer.current) window.clearTimeout(timer.current);
     };
   }, []);

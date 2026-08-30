@@ -50,7 +50,7 @@ export default async function AccountPage() {
               ? "Manage the personal details used in your client portal."
               : isAgencyStaff
                 ? "Your basic details. An owner or manager manages your email and role."
-                : <>Your basic details. Email and role are managed from <Link href="/portal/agency/settings#team" className="font-medium underline decoration-black/25 underline-offset-2 hover:text-black">Team settings</Link>.</>}
+                : <>Your basic details. Email and role are managed from <Link href="/portal/agency/settings#access" className="font-medium underline decoration-black/25 underline-offset-2 hover:text-black">Team settings</Link>.</>}
           </p>
           </div>
         </header>

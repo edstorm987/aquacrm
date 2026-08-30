@@ -9,7 +9,13 @@ describe("Command Center overlay theme", () => {
       readFile(new URL("../src/app/portal/agency/assistant/AssistantWorkspace.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/components/chrome/ProfileMenu.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/components/chrome/NotificationCentreButton.tsx", import.meta.url), "utf8"),
-      readFile(new URL("../src/app/portal/agency/_DashboardCommandCenter.tsx", import.meta.url), "utf8"),
+      // 2026-08-29: the radar UI moved into `_BusinessRadarDashboard.tsx` (lazily
+      // loaded) to shrink the Command Centre route graph. These assertions are
+      // about the SURFACE, so both files are read as one.
+      Promise.all([
+        readFile(new URL("../src/app/portal/agency/_DashboardCommandCenter.tsx", import.meta.url), "utf8"),
+        readFile(new URL("../src/app/portal/agency/_BusinessRadarDashboard.tsx", import.meta.url), "utf8"),
+      ]).then(parts => parts.join("\n")),
       readFile(new URL("../src/app/portal/agency/actions/_ActionsWorkspace.tsx", import.meta.url), "utf8"),
     ]);
 

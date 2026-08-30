@@ -1,6 +1,6 @@
 {
   "name": "aquacrm",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "private": true,
   "description": "AquaCRM website, business operating system, and secure client portals.",
   "scripts": {
@@ -14,7 +14,7 @@
     "start": "next start -p 3032",
     "typecheck": "tsc --noEmit",
     "smoke": "node scripts/smoke.mjs",
-    "smoke:all": "NODE_OPTIONS='--conditions react-server' node --import tsx --test scripts/smoke-*.test.ts src/built-ins/modules/fulfillment/src/__smoke__/lifecycle.test.ts && npm run smoke:website-editor",
+    "smoke:all": "NODE_OPTIONS='--conditions react-server' node --import tsx --test scripts/smoke-*.test.ts 'src/built-ins/modules/!(website-editor)/src/__smoke__/*.test.ts' && npm run smoke:website-editor",
     "smoke:website-editor": "node scripts/run-website-editor-smoke.mjs",
     "smoke:post-deploy": "node scripts/post-deploy-smoke.mjs",
     "smoke:postgres": "node scripts/smoke-postgres.mjs",
@@ -121,7 +121,8 @@
     "launch:audit": "tsx scripts/launch-audit.ts",
     "launch:audit:production-handoff": "VERCEL_ENV=production node --env-file='../Dev Team/vercel-env.local' ./node_modules/tsx/dist/cli.mjs scripts/launch-audit.ts",
     "dev:sandbox:real": "node scripts/dev-preflight.mjs && NEXT_DIST_DIR=.next-dev-3032 PORTAL_ALLOW_SHARED_STATE=1 PORTAL_BACKEND=file PORTAL_DEV_MODE=true PORTAL_DEV_AGENCY=milesymedia next dev --webpack -p 3032",
-    "dev:worker": "node scripts/dev-preflight.mjs && PORTAL_BACKEND=file PORTAL_DEV_MODE=true PORTAL_DEV_AGENCY=milesymedia next dev --webpack",
+    "dev:worker": "node scripts/dev-preflight.mjs && PORTAL_BACKEND=file PORTAL_DEV_MODE=true PORTAL_DEV_AGENCY=milesymedia next dev --turbopack",
+    "dev:worker:webpack": "node scripts/dev-preflight.mjs && PORTAL_BACKEND=file PORTAL_DEV_MODE=true PORTAL_DEV_AGENCY=milesymedia next dev --webpack",
     "sandbox:fork": "node scripts/fork-sandbox.mjs",
     "worker:checkin": "node scripts/worker-checkin.mjs",
     "worker:thoughts": "node scripts/worker-thoughts.mjs"

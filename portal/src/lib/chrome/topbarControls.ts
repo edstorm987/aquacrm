@@ -22,6 +22,14 @@
 /** Every control that can be collapsed into the mobile drawer, in bar order. */
 export const TOPBAR_CONTROL_IDS = [
   "company",
+  // "Working as" — the department hat. Sits by the company switcher because
+  // both answer "which context am I in", and both change what the rest of the
+  // chrome shows.
+  "department",
+  // "My Radar" — your own week's peek. Distinct from "radar", which is the
+  // BUSINESS Radar quick look. Sits by "department" because they are two halves
+  // of one habit: the hat, and the judgement of the hat.
+  "my-radar",
   "search",
   "advisor",
   "privacy",

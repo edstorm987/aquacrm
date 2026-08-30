@@ -28,6 +28,11 @@ import { topbarControlPins } from "@/lib/server/chrome/topbarControlPins";
 import type { TopbarControl } from "@/components/chrome/TopbarOverflow";
 import { Sparkles } from "lucide-react";
 import type { SidebarVariant } from "@/components/chrome/Sidebar";
+import { DepartmentSwitcher } from "@/components/chrome/DepartmentSwitcher";
+import { MyRadarControl } from "@/components/chrome/MyRadarControl";
+import { getActiveDepartmentId } from "@/lib/server/chrome/activeDepartment";
+import { isAgencyRole } from "@/server/types";
+import { destinationSearchItemsFor } from "@/lib/chrome/destinations";
 
 interface Props {
   title: string;
@@ -81,7 +86,23 @@ interface Props {
 }
 
 export async function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, sidebarVariant = "standard", isDemo, homeHref, homeLabel, showcaseMode, sandboxMode, publicShowcase, canUseDevMode, devModeActive, devConsole, previewActive, notifications, radarControl, companySwitcher, advisorControl, privacyTerms, searchRecordsEnabled, inspecting, inspectingLabel }: Props) {
-  const searchItems = panels?.flatMap(panel => panel.items.map(item => ({ label: item.label, href: item.href }))) ?? [];
+  // Search indexes the APP, not the sidebar.
+  //
+  // It used to be `panels.flatMap(...)` alone — so the 20-odd routes with no
+  // nav row were also unsearchable, and the two systems that should cover each
+  // other's gaps had the same gap. Nav rows still come FIRST (they carry the
+  // person's own labels and any plugin-contributed rows), with every remaining
+  // destination behind them, deduped by href so a page in both appears once.
+  const navSearchItems = panels?.flatMap(panel => panel.items.map(item => ({ label: item.label, href: item.href }))) ?? [];
+  const navHrefs = new Set(navSearchItems.map(item => item.href.split("?")[0]));
+  const searchItems = [
+    ...navSearchItems,
+    // Role-filtered (Ed, 2026-08-30): the registry half of search must meet
+    // the same standard as the sidebar half — a viewer is never shown a door
+    // their role cannot open. Dev surfaces ride the same visibility the dev
+    // console icon already earns.
+    ...destinationSearchItemsFor(role, Boolean(devConsole || canUseDevMode)).filter(item => !navHrefs.has(item.href)),
+  ];
   const recordsEnabled = searchRecordsEnabled ?? (role === "agency-owner" || role === "agency-manager" || role === "agency-staff");
   const advisorEnabled = !publicShowcase && (role === "agency-owner" || role === "agency-manager");
 
@@ -101,9 +122,29 @@ export async function Topbar({ title, subtitle, role, email, name, avatarUrl, pa
   // element made HERE and handed on inside an array is a child of this
   // component as far as the reconciler is concerned — without one it warns, and
   // a later reorder would reconcile by position instead of identity.
+  // Read here rather than inside the switcher: the sidebar is narrowed on the
+  // server from this same value, so the control and the nav must be reading one
+  // answer, not two taken a moment apart.
+  const activeDepartment = await getActiveDepartmentId();
+
   const collapsible = ([
     !publicShowcase && companySwitcher
       ? { id: "company", label: "Company switcher", node: <div key="company" className="mm-private-chrome hidden lg:block">{companySwitcher}</div> }
+      : null,
+    // Agency side only, and never in a showcase or public shell. A department
+    // hat is a statement about working IN this business; a client or an end
+    // customer has no department to wear, and offering one would be nonsense
+    // rather than merely useless.
+    !publicShowcase && !showcaseMode && isAgencyRole(role)
+      ? { id: "department", label: "Working as", node: <DepartmentSwitcher key="department" active={activeDepartment} /> }
+      : null,
+    // The judgement of the hat, beside the hat — same gate as "department", and
+    // handed the same server-read department so the embedded switcher, the
+    // standalone switcher and the nav all read one answer, not two taken a
+    // moment apart. The control itself may still decide not to render (a staff
+    // account whose overview view was revoked must not be handed the meters).
+    !publicShowcase && !showcaseMode && isAgencyRole(role)
+      ? { id: "my-radar", label: "My Radar", node: <MyRadarControl key="my-radar" activeDepartment={activeDepartment} /> }
       : null,
     searchItems.length
       ? { id: "search", label: "Search workspace", node: <DeferredPortalSearch key="search" items={searchItems} recordsEnabled={recordsEnabled} /> }

@@ -100,8 +100,8 @@ export function TwoFactorPanel() {
 
       {enrolled ? (
         <p className="mt-4 border-t border-black/10 pt-3 text-[11px] leading-5 text-black/45">
-          Lost your authenticator? Two-factor can only be reset by your workspace owner — there are
-          no backup codes yet.
+          Lost your authenticator? Use one of the recovery codes you saved when you set this up —
+          each one signs you in once. If those are gone too, your workspace owner can reset it.
         </p>
       ) : null}
     </section>

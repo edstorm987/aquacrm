@@ -162,6 +162,16 @@ const ecommercePlugin: AquaPlugin = {
       panelId: "marketing",
       order: 60,
     },
+    {
+      // Last in the settings panel, beside Shipping. Without this the settings
+      // page would be a route with nothing linking to it — which is how the
+      // Stripe group went unrendered in the first place.
+      id: "ecommerce-settings",
+      label: "Store settings",
+      href: "/portal/clients/:clientId/ecommerce/settings",
+      panelId: "settings",
+      order: 70,
+    },
   ],
 
   pages: [
@@ -178,6 +188,10 @@ const ecommercePlugin: AquaPlugin = {
     { path: "inventory",                   title: "Inventory",     component: () => import("./src/pages/InventoryPage") },
     { path: "shipping",                    title: "Shipping",      component: () => import("./src/pages/ShippingPage") },
     { path: "discounts",                   title: "Discounts",     component: () => import("./src/pages/DiscountsPage") },
+    // The surface for `settings.groups` (vault-backed Stripe keys, store
+    // defaults) and for the `setup` requirements above it. Declared here since
+    // 2026-08-29; before that the module's own settings were undeclarable.
+    { path: "settings",                    title: "Settings",      component: () => import("./src/pages/SettingsPage") },
   ],
 
   api: [...apiRoutes],

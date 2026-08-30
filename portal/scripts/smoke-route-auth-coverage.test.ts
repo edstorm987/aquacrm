@@ -92,6 +92,7 @@ const PUBLIC: Record<string, string> = {
   "v1/embed/consume": "redeems an embed session token",
   "telemetry/collect": "anonymous client telemetry collector; rate-limited",
   "webhooks/meta": "Meta's webhook — HMAC-signed, verified against the raw body",
+  "webhooks/twilio/voice": "Twilio's inbound-call webhook — HMAC-SHA1 signed; the `To` number selects the connection whose auth token verifies it, and an unrecognised `To` is refused before any secret is read",
 
   // Cron.
   "cron/inbox": "scheduled inbox sweep; deployment-scheduled, not user-reachable",

@@ -391,7 +391,7 @@ async function handleAccountSignup(req: NextRequest) {
   const verification = await sendTransactionalEmail({
     to: user.email,
     agencyId: agency.id,
-    externalRef: `verify-email:${user.id}`,
+    externalRef: `verify-email:${user.id}:${crypto.randomUUID()}`,
     signal: req.signal,
     subject: "Verify your AquaCRM account",
     bodyText: `Confirm your Milesymedia email address using this secure link. It expires in 24 hours.\n\n${verifyUrl}`,

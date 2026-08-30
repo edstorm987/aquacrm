@@ -132,6 +132,7 @@ test("every surface a collapsed control opens carries the marker", () => {
   // so the list is asserted rather than left to reviewers to remember.
   for (const file of [
     "src/components/chrome/DevConsoleButton.tsx",
+    "src/components/chrome/MyRadarButton.tsx",
     "src/components/chrome/NotificationCentreButton.tsx",
     "src/components/chrome/RadarQuickLookButton.tsx",
     "src/components/chrome/ClientRadarQuickLookButton.tsx",

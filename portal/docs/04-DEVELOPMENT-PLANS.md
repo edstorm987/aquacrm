@@ -2,12 +2,13 @@
 
 > Every active, completed and archived phased implementation plan and handoff.
 >
-> Consolidated 2026-08-29 from **54** source documents / **112,970 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-30 from **57** source documents / **115,417 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`docs/development/plans/advisor-omega-upgrade.md`](#source-docs-development-plans-advisor-omega-upgrade-md) — 434 words · `fcbc2bc9848b`
 - [`docs/development/plans/aqua-engine-and-dev-team-plugin.md`](#source-docs-development-plans-aqua-engine-and-dev-team-plugin-md) — 587 words · `e75595be128a`
+- [`docs/development/plans/aqua-explorer-guided-help.md`](#source-docs-development-plans-aqua-explorer-guided-help-md) — 698 words · `594c1a8edcab`
 - [`docs/development/plans/aqua-tag-handoff.md`](#source-docs-development-plans-aqua-tag-handoff-md) — 2,708 words · `f13dd11ee6f3`
 - [`docs/development/plans/aqua-tag-system.md`](#source-docs-development-plans-aqua-tag-system-md) — 2,097 words · `1f183c8fb493`
 - [`docs/development/plans/archive/dev-console-topbar.md`](#source-docs-development-plans-archive-dev-console-topbar-md) — 1,157 words · `c94523eaf66e`
@@ -45,6 +46,7 @@
 - [`docs/development/plans/marketing-workspace-overhaul.md`](#source-docs-development-plans-marketing-workspace-overhaul-md) — 1,849 words · `bd9978c633e9`
 - [`docs/development/plans/meta-inbox-connect.md`](#source-docs-development-plans-meta-inbox-connect-md) — 1,197 words · `d6cced05adb9`
 - [`docs/development/plans/mfa-login.md`](#source-docs-development-plans-mfa-login-md) — 1,513 words · `0fd93f642387`
+- [`docs/development/plans/my-tools-palette.md`](#source-docs-development-plans-my-tools-palette-md) — 721 words · `2c0e92ade761`
 - [`docs/development/plans/operations-command-surface.md`](#source-docs-development-plans-operations-command-surface-md) — 823 words · `12b5eadfe027`
 - [`docs/development/plans/plugin-data-erasure.md`](#source-docs-development-plans-plugin-data-erasure-md) — 3,211 words · `c3c5118204c0`
 - [`docs/development/plans/promote-trading-company.md`](#source-docs-development-plans-promote-trading-company-md) — 4,457 words · `c989e63654eb`
@@ -54,9 +56,10 @@
 - [`docs/development/plans/rls-enable.md`](#source-docs-development-plans-rls-enable-md) — 1,521 words · `b4aecbed9830`
 - [`docs/development/plans/runtime-verification.md`](#source-docs-development-plans-runtime-verification-md) — 1,390 words · `f5df534faefb`
 - [`docs/development/plans/security-hardening.md`](#source-docs-development-plans-security-hardening-md) — 1,001 words · `473530125c79`
+- [`docs/development/plans/settings-consolidation.md`](#source-docs-development-plans-settings-consolidation-md) — 561 words · `eb976f93f4af`
 - [`docs/development/plans/sop-engine.md`](#source-docs-development-plans-sop-engine-md) — 607 words · `6db77e50137b`
 - [`docs/development/plans/staff-team-system.md`](#source-docs-development-plans-staff-team-system-md) — 2,305 words · `7931339ee018`
-- [`docs/development/plans/storage-and-remaining-build.md`](#source-docs-development-plans-storage-and-remaining-build-md) — 1,068 words · `381dedef44f2`
+- [`docs/development/plans/storage-and-remaining-build.md`](#source-docs-development-plans-storage-and-remaining-build-md) — 1,535 words · `e64b344f91ca`
 - [`docs/development/plans/supabase-cutover-and-policy-drafts.md`](#source-docs-development-plans-supabase-cutover-and-policy-drafts-md) — 2,976 words · `31f7d543ae10`
 - [`docs/development/plans/you-deserve-it-upgrade.md`](#source-docs-development-plans-you-deserve-it-upgrade-md) — 1,191 words · `b6fb7d73e876`
 - [`public/health-check/DELIVERY-PLAN.md`](#source-public-health-check-delivery-plan-md) — 642 words · `623e142b3266`
@@ -194,6 +197,100 @@ new system. It is a **name** plus a **fourth mode**. What already exists:
 - `src/app/portal/dev-team/**` — gate: founder-only → founder-or-unlocked
 - `src/lib/server/dev/devTeamUpdates.ts` — the report + delivery
 <!-- AQUACRM_SOURCE_END path="docs/development/plans/aqua-engine-and-dev-team-plugin.md" -->
+
+---
+
+<a id="source-docs-development-plans-aqua-explorer-guided-help-md"></a>
+
+## Source document — `docs/development/plans/aqua-explorer-guided-help.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/aqua-explorer-guided-help.md" sha256="594c1a8edcab8271afbff1237f064728a24230e54d3c1c802f81cd7beffbec4a" -->
+# Aqua Explorer — guided help, as a skill and as a screen
+
+**Horizon:** Someday · **Status:** idea, deliberately not started · **Added:** 2026-08-29
+· **Source:** Ed, live
+
+> ⚠ **NAME COLLISION — read before writing any code.**
+> `AquaExplorer*` is already taken. `src/lib/integrations/aquaExplorerBridge.ts`
+> is a re-export alias of the Aqua **Tag** bridge, kept so the Project Explorer
+> and its tests keep working (see
+> [hazards-and-duplication.md](../../workspace/hazards-and-duplication.md)).
+> That is a completely different thing from the idea below. Either pick a
+> different product name, or rename the bridge first — do not let two unrelated
+> "Explorer"s exist, which is exactly the duplication that chapter exists to
+> prevent.
+
+## The idea, in Ed's words
+
+> *"Aqua Explorer we could build as a skill for the assistant actually, and it
+> could just be like a help — think like a tutorial almost, just ask a question
+> or something. But maybe we have it in settings, a UI version, just like
+> everything-tutorial perhaps as well."*
+
+Two faces on one body of knowledge:
+
+- **Ask it.** A skill the Aqua Advisor can use, so "where do I set the Stripe
+  keys" or "how do I import a call list" is answered in the assistant, in place,
+  without leaving what you were doing.
+- **Browse it.** A screen in Settings that is the same material laid out as a
+  tutorial — the everything-guide, for when you do not yet know the question.
+
+The second is what makes the first work. A person who does not know a feature
+exists cannot ask about it, and that is the actual failure mode this product
+has: measured 2026-08-29, ~169 destinations, ~60 of them tab-views buried inside
+pages, against 55 navigation entries.
+
+## Why it is NOT being built yet
+
+Ed's reasoning, and it is the right call:
+
+> *"I think this will be very useful once we've finalised everything — as if we
+> built it now and I change things, we have to pointlessly change this idea to
+> adapt with it."*
+
+A guide is a **mirror of the product's shape**. Every rename, merge or moved tab
+is a second edit in the guide, and a guide that lags is worse than none — it
+sends people confidently to the wrong place. Until the information architecture
+settles, the maintenance cost is paid on every change for a benefit that only
+arrives at the end.
+
+**The signal that it is time:** the navigation stops moving. Concretely — no
+panel merges or tab consolidations for a few weeks, and
+`smoke-page-reachability` / `smoke-portal-destinations` stop needing edits.
+
+## What it should be built ON, when the time comes
+
+Do not hand-write the content. Almost all of it already exists and is already
+kept honest by tests — a hand-written guide would be a fourth copy that drifts:
+
+| Source | What it already knows |
+|---|---|
+| `src/lib/chrome/destinations.ts` | every page, its label and its area; a test walks the route tree so it cannot go stale |
+| `docs/workspace/feature-index.md` | feature → files, i.e. "does this already exist" |
+| `docs/workspace/*.md` | per-area chapters written for humans |
+| `ACCESS_ELEMENT_KEYS` + `ELEMENT_CAPABILITIES` | what each area IS, in the app's own vocabulary, with descriptions |
+| `DEPARTMENT_PROFILES` | which job needs which surfaces |
+
+The last two matter most: the guide should show a person what **their role can
+actually reach**, not the whole product. A tutorial that explains features
+somebody's seat forbids is a tour of a locked building.
+
+## Open questions to settle at build time — not now
+
+- One body of content rendered two ways, or a skill that reads the Settings
+  screen's own data? (Prefer the former; two renderers of one source.)
+- Does it explain **tab-views**, not just pages? That is where the burial
+  actually is, so probably yes — which means the destination registry needs to
+  reach one level deeper first.
+- Is it per-role from day one, or global with a "you cannot reach this" note?
+
+## Related
+
+- [information-architecture-v2.md](information-architecture-v2.md) — the IA this
+  guide would describe; it must stop moving first.
+- `scripts/smoke-portal-destinations.test.ts` — the mechanism that keeps a
+  generated guide honest.
+<!-- AQUACRM_SOURCE_END path="docs/development/plans/aqua-explorer-guided-help.md" -->
 
 ---
 
@@ -9406,6 +9503,114 @@ plan in flight._
 
 ---
 
+<a id="source-docs-development-plans-my-tools-palette-md"></a>
+
+## Source document — `docs/development/plans/my-tools-palette.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/my-tools-palette.md" sha256="2c0e92ade7617c25af96810337c8872afcfe94d0662c702d51744ae2f4a64c1e" -->
+# Tools — my own palette of saved links
+
+**Horizon:** Next · **Status:** specced, not started · **Added:** 2026-08-30
+· **Source:** Ed, live
+
+> Ed, verbatim: *"we should actually be able to save links in here and make
+> cards. like a painters pallete thing… i might use a specific website for idk
+> colour pallete generator i might want to grab the url create a tool save the
+> url link name it colour pallete tool and then it makes a card i click the card
+> and boom sends me there in a new tab… so we have calender notes chat in tools
+> and no more workspace directory since this should all be in operations
+> already."*
+
+## ⚠ The premise is wrong for four destinations — read this first
+
+Ed's reason for deleting the Workspace directory is that it duplicates
+Operations. **It mostly does, but not entirely.** Measured 2026-08-30:
+
+- Tools lists **21** destinations, Operations lists **10**, and **10 overlap**.
+- Of the 11 that are Tools-only, most are reachable from the sidebar anyway
+  (Command Centre, Inbox, Settings, Operations itself, Actions, Notepad, and
+  Calendar — which gained a second door in the profile menu on 2026-08-30).
+
+**But `scripts/smoke-tools-directory.test.ts:13-15` records that the AquaOasis
+agency override deliberately parks three plugin workspaces OUT of the sidebar,
+making the Tools directory their _only_ door:**
+
+| Workspace | Route prefix |
+| --- | --- |
+| People records (agency-hr) | `/portal/agency/agency-hr` |
+| Email operations (email-sender) | `/portal/agency/email-sender` |
+| Marketing operations (agency-marketing) | `/portal/agency/agency-marketing` |
+
+The same override also drops the **Activity log** (`/portal/agency/activity-inbox`).
+Freelancers is safe — Operations carries it under *Money & people*.
+
+**Deleting the directory without rehoming those four orphans them.** They would
+still exist, still be routable by hand, and be reachable from nowhere. That is
+precisely what `smoke-page-reachability.test.ts` exists to catch, and
+`smoke-tools-directory.test.ts` would fail loudly — correctly.
+
+### Do this first, in order
+
+1. Decide where the three parked plugin workspaces belong. Most likely
+   Operations, since they are business functions — but note that the override
+   parked them deliberately, so find out *why* before undoing it. Check
+   `src/lib/chrome/sidebarLayout.ts` and the AquaOasis override.
+2. Rehome the Activity log (it may belong with the merged Master Inbox, which is
+   also being reworked — see the inbox merge).
+3. Only then remove the Workspace directory section from
+   `src/app/portal/agency/tools/page.tsx` (currently `:320-345`), and update
+   `smoke-tools-directory.test.ts` — which encodes an *earlier* Ed request
+   (*"not all directories are listed, we should get them all in"*). That is a
+   reversal of a stated decision, so change the test deliberately and record why.
+
+## What Tools becomes
+
+A personal workbench, not a directory:
+
+- **Calendar**, **Notes**, **Chat** — the three built-ins that stay.
+- **My tools** — user-created cards, each a saved external link.
+
+### The saved-link card
+
+- Fields: `name`, `url`, optional `note`, optional colour/emoji for the tile.
+- Click opens in a **new tab** — `target="_blank"` with `rel="noopener noreferrer"`
+  (without `noopener`, the opened page gets a handle on the portal tab).
+- Grid of tiles matching the existing card styling so it does not read as a
+  bolted-on feature.
+- Reorderable. The repo already has a drag-to-arrange pattern from the mobile
+  topbar work (`dcae0f5`) — reuse it rather than writing a second one.
+
+### Storage — the decision that needs making
+
+Per-user, not per-agency: this is *Ed's* palette, and a freelancer's tools are
+not the owner's. Candidate homes:
+
+- the portal user record (like `mfaRecovery`), or
+- a keyed plugin-storage document scoped to the user.
+
+Whichever is chosen, it must round-trip through the data-realm rules — a demo
+realm must not see live tools.
+
+### Safety — this accepts arbitrary user URLs
+
+- Validate the scheme. **Allow `https:` (and `http:` if you must); reject
+  `javascript:`, `data:`, `vbscript:` and `file:`.** An unvalidated `href` from
+  a text field is a stored-XSS hole the moment it renders as a link.
+- The repo already refuses remote `url()` and `@import` in the CSS-injection
+  box (`src/lib/chrome/customCss.ts`) — match that posture and reuse its
+  reasoning.
+- Cap the number and the field lengths so one paste cannot bloat the state
+  document.
+
+### Tests to write
+
+- A scheme validator test with `javascript:` and `data:` payloads.
+- A test that saved links render `rel="noopener noreferrer"`.
+- A per-user isolation test: user A's tools never appear for user B.
+<!-- AQUACRM_SOURCE_END path="docs/development/plans/my-tools-palette.md" -->
+
+---
+
 <a id="source-docs-development-plans-operations-command-surface-md"></a>
 
 ## Source document — `docs/development/plans/operations-command-surface.md`
@@ -10952,6 +11157,91 @@ plan in flight._
 
 ---
 
+<a id="source-docs-development-plans-settings-consolidation-md"></a>
+
+## Source document — `docs/development/plans/settings-consolidation.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/settings-consolidation.md" sha256="eb976f93f4af51e3dbd03d4aeb662250eaba21d6394432d5c2675ffeaa6d98cf" -->
+# Settings consolidation — an index, not a second copy of the app
+
+**Horizon:** Next · **Status:** planning · **Size:** S · **Added:** 2026-08-29
+· **Source:** Ed, live
+
+> Ed, 2026-08-29: *"we've got a lot of settings all over the place, each
+> workspace having their own — I think we should compile them all into the main
+> settings as well so we can do either. E.g. Staff instead of saying Freelancer
+> access."*
+
+## ⚠ The first version of this plan was mostly wrong — read this first
+
+Written and corrected the same day. The original claimed integrations were
+unreachable from Settings and made a "Connections tab" its headline phase. That
+was built, and `smoke-company-connections` failed within one suite run:
+
+> **"removes the duplicate Settings integration tab and points work to Company"**
+
+A Settings integrations tab **existed and was deliberately removed.** Company →
+Connections is canonical, and Settings, the performance dashboard, project
+workspaces and client properties all link to it. The tab was re-added and
+reverted the same hour.
+
+Two things follow, and they matter more than the remaining work:
+
+1. **The deep-link tabs are the design, not a defect.** `account`, `freelancer`
+   and `launch` being "a paragraph and a button" was read as sprawl. It is the
+   hub doing exactly what it says: *"read-mostly info + deep-link buttons…
+   reusing the canonical surfaces for real editing."*
+2. **A hub that mounts every editor is not a hub — it is a second copy of the
+   app**, and the copies drift silently because each looks correct on its own
+   screen.
+
+So the honest scope is much smaller than "revamp".
+
+## What is genuinely still worth doing
+
+**Access is spread across five surfaces** — Settings → Roles & access, Settings
+→ Team, Settings → Freelancer access, People → Access, and
+`/portal/account/permissions`. Some of that is legitimate (a person's own
+permissions are not the agency's roles), but three people-shaped tabs in one hub
+is the naming problem Ed named.
+
+**Eight module settings pages have no index.** finance, client-crm, affiliates,
+agency-hr, agency-marketing, ecommerce, email-sender and memberships each have a
+settings page reachable only by navigating into that module. This is the real
+*"each workspace having their own"*, and the only genuine gap the sweep found.
+
+## Phase 1 — Modules index
+
+A tab listing every installed module that declares `settings.groups`, each row
+linking to that module's own settings page. Derived from the plugin registry so
+a new module appears without an edit here.
+
+An INDEX, not a mount — the same rule that the Connections mistake taught. Each
+module keeps its own page; Settings gains a way to find them. That is Ed's *"so
+we can do either"*, done the way the hub already works.
+
+## Phase 2 — Merge and rename the people tabs
+
+`Team`, `Roles & access` and `Freelancer access` become one **People & access**
+tab that links onward to Staff Command, keeping the old ids as aliases the way
+`LEGACY_TAB_ALIASES` does for the client workspace, so external links survive.
+
+## What is deliberately NOT done
+
+- **No Connections tab.** Removed on purpose; Company → Connections is canonical.
+- **`/portal/clients/[clientId]/settings` stays.** Different tenant scope.
+- **No editor is mounted twice.** `smoke-settings-hub` pins this.
+
+## Related
+
+- `scripts/smoke-company-connections.test.ts` — the decision this plan first
+  contradicted; read it before proposing any integrations change.
+- `src/lib/clients/clientWorkspace.ts` — `LEGACY_TAB_ALIASES`, the proven rename
+  pattern for phase 2.
+<!-- AQUACRM_SOURCE_END path="docs/development/plans/settings-consolidation.md" -->
+
+---
+
 <a id="source-docs-development-plans-sop-engine-md"></a>
 
 ## Source document — `docs/development/plans/sop-engine.md`
@@ -11223,7 +11513,7 @@ plan in flight._
 
 ## Source document — `docs/development/plans/storage-and-remaining-build.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/storage-and-remaining-build.md" sha256="381dedef44f230f140bd7b158f3e2f9cdd6aefc18e0d690f4c5db69a9f348a14" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/storage-and-remaining-build.md" sha256="e64b344f91ca940330f27710a1fcb15d84cf3fcc8bb7c1e0fe78ab49b8a5f4fb" -->
 # What's left, and the order to build it
 
 **Written 2026-08-29.** Ed: *"continue get it done — write a plan docs first
@@ -11312,31 +11602,80 @@ The third one will be a one-line addition.
 
 **Result:** the main document drops from 3.25 MB to roughly **1.2 MB**.
 
-### 2. Plugin-health screen — NEXT
+### 2. ✅ Plugin-health screen — DONE 2026-08-29
 
-The route exists (`/api/portal/plugins/health`, built 2026-08-28) and ten
-modules answer it. Nothing displays it.
+A "Module health" section in the Dev Console, beside worker activity, over the
+route built 2026-08-28. Reading rules live in `lib/chrome/pluginHealth.ts`
+rather than in the component, so they can be driven by a test —
+`smoke-plugin-health-panel.test.ts`, 20 cases.
 
-Home: the Dev Console, beside the other operational panels. Shows each installed
-module, its status, its own message, and — importantly — **`supported: false`
-distinctly from unhealthy**, because a module with no healthcheck is unknown,
-not broken. That distinction is already in the route and must survive into the
-UI.
+`supported: false` survived into the UI as intended: a hollow grey ring and the
+words "not reporting", never a colour that reads as a fault.
 
-**Small.** A panel over an endpoint that is already tested.
+Two things the plan did not anticipate, both found while building:
 
-### 3. `setup` wizard renderer
+- **A green module can have a red component.** `HealthStatus` carries an
+  optional `components` map and `client-crm` is the live proof the two levels
+  disagree — top-level `ok: true` alongside `segments: { ok: false }`. Showing
+  only the headline would have hidden a real failure behind a green dot, so
+  there is a fourth tone, `degraded`, that names the failing component.
+- **Degraded must not re-score the route's totals.** The route counts
+  `unhealthy` as `status.ok === false` and nothing else. `degraded` is a display
+  tone only; the panel prints the route's own summary rather than deriving one,
+  which is the bug the Dev Console already shipped once with its worker count.
 
-`ecommerce` declares a `SetupStep[]` and nothing renders it. The ANSWERS path
-already works — `installPlugin({ setupAnswers })` forwards to `onInstall` — so
-what is missing is only the collecting UI.
+Rows sort problems-first rather than by `pluginId` — the route's stable order is
+right for an API and wrong for a 366px popover where one broken module must not
+land under the fold.
 
-The one real decision: **where it appears.** A first-install wizard belongs in
-the install flow, but there is no install flow surface today; plugins are
-installed programmatically. Simplest honest answer is a "Finish setup" panel on
-the plugin's settings page, shown while required answers are missing.
+### 3. ✅ `setup` requirements, over the vault — DONE 2026-08-29
 
-**Medium**, and the only piece here that needs a product opinion.
+**The premise above was wrong, and building to it would have lost credentials
+rather than stored them.** Recorded here because the correction is the useful
+part.
+
+The ANSWERS path forwards but does not arrive. `installPlugin({ setupAnswers })`
+does reach `onInstall` — and **zero of the ten `onInstall` implementations read
+it**. `ecommerce`, the only module declaring `setup`, signs the parameter
+`_setupAnswers`; the underscore is deliberate and the body only seeds an empty
+`collections` list.
+
+Worse, `ecommerce`'s three `setup` fields are the same three the
+`settings.groups.stripe` group already collects — except the settings fields
+carry `secretVault: { provider: "stripe" }` and the setup fields carry nothing.
+A renderer built to the plan would have taken a live Stripe secret key and a
+webhook secret, handed them to a function that drops them, and sat beside a form
+that stores the same two values correctly. The operator would have had every
+reason to believe Stripe was configured.
+
+**What `setup` is actually good for:** `SettingsField` has no `required` flag.
+`SetupStep.fields[].required` is the only place in the system that says which
+values a module cannot work without. So `setup` is now read as a REQUIREMENTS
+declaration, and the vault-backed settings surface stays the only writer —
+nothing new touches a secret.
+
+Shipped:
+
+- `lib/plugins/pluginSetupStatus.ts` — pure comparison of declared requirements
+  against `describePluginSettings`' existing `configured` flag, which already
+  resolves the vault. A required id with no settings field behind it is reported
+  as `unmapped` rather than dropped, because a checklist item nobody can action
+  is worse than an absent one.
+- A Finish-setup banner on `PluginSettingsPanel`. It is a **signpost, not a
+  second form**: it names what is missing and the vault-backed field below stays
+  the only input, so there is exactly one place a Stripe key can be entered.
+- `ecommerce/src/pages/SettingsPage.tsx` + its `pages`/`navItems` entries. The
+  panel is generic and only `agency-finance` had ever mounted it, so ecommerce's
+  own Stripe group had no surface at all — the same "declared, never consumed"
+  defect one level up. Without this the banner would have rendered for nobody.
+- `smoke-plugin-setup-completion.test.ts`, 16 cases, including a guard holding
+  the real manifest's two blocks against each other so a rename cannot silently
+  make a requirement uncollectable.
+
+**Still open, and deliberately not decided here:** `setup` remains dead as an
+install-time mechanism. Either an `onInstall` should start consuming answers or
+the field should be retired from the manifest type. Nothing depends on the
+answer today.
 
 ### 4. Client records → rows *(Move B)*, then enquiries permissions
 

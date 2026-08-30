@@ -82,3 +82,16 @@ export async function consumeResetNonce(nonce: string, expSec: number): Promise<
   // `password-reset` kind added to NonceKind union in nonceStore.ts.
   return getNonceStore().consumeNonce(nonce, "password-reset", ttlMs);
 }
+
+/**
+ * Give a consumed reset nonce back — ONLY when the provider write it was
+ * protecting failed after the consume. Ed's finding (2026-08-30): consume-first
+ * is right for single-use, but it meant a transient Supabase outage burnt the
+ * person's only link, so the failure mode of "email provider hiccuped" was
+ * "request a whole new reset". The release is scoped to the failure path; a
+ * successful reset still spends the nonce exactly once.
+ */
+export async function restoreResetNonce(nonce: string): Promise<void> {
+  const { getNonceStore } = await import("@/lib/server/auth/nonceStore");
+  await getNonceStore().releaseNonce(nonce, "password-reset");
+}

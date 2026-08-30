@@ -36,6 +36,14 @@ export type NonceKind = "magic-link" | "email-verify" | "password-reset" | "csrf
 export interface NonceStore {
   kind: "memory" | "postgres";
   consumeNonce(token: string, kind: NonceKind, ttlMs: number): Promise<boolean>;
+  /**
+   * Undo one consume, for exactly one situation: the caller consumed the nonce
+   * and then the side effect it was protecting FAILED before completing (a
+   * provider outage mid password-reset, say). Without this, single-use +
+   * consume-first means a transient failure burns the person's only link.
+   * Release only a nonce THIS request consumed — never as a retry mechanism.
+   */
+  releaseNonce(token: string, kind: NonceKind): Promise<void>;
   gcExpiredNonces(now?: number): Promise<number>;
   // Test-only — clears every entry. Postgres adapter TRUNCATEs.
   _resetForTests?: () => Promise<void>;
@@ -57,6 +65,10 @@ function createMemoryAdapter(): NonceStore {
       if (expiresAt <= now) return false;  // ttl 0 or negative — caller error
       map.set(token, { kind, expiresAt });
       return true;
+    },
+    async releaseNonce(token, kind) {
+      const entry = map.get(token);
+      if (entry && entry.kind === kind) map.delete(token);
     },
     async gcExpiredNonces(now = Date.now()) {
       let deleted = 0;
@@ -110,6 +122,11 @@ function createPostgresAdapter(): NonceStore {
         [token, kind, now + ttlMs],
       );
       return result.rowCount === 1;
+    },
+    async releaseNonce(token, kind) {
+      await ensureTable();
+      const pool = await getQuery();
+      await pool.query("DELETE FROM nonces WHERE token = $1 AND kind = $2", [token, kind]);
     },
     async gcExpiredNonces(now = Date.now()) {
       await ensureTable();

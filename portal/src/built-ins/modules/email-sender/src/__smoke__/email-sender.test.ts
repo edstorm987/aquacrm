@@ -457,12 +457,17 @@ describe("email-sender smoke", () => {
       router.set(s.event, (payload: unknown) =>
         (fn as (p: unknown) => Promise<unknown>).call(services.emails, payload));
     }
-    assert.equal(subs.length, 4, "4 subscribers declared");
+    assert.equal(subs.length, 5, "5 subscribers declared");
     assert.deepEqual(
       subs.map(s => s.event).sort(),
       [
         "affiliate.payout_completed",
         "auth.bootstrap.signup",
+        // Added with the client-CRM add-on (25eae14). This census sat at 4 for
+        // as long as the file was absent from `smoke:all` — the count was
+        // right when written and wrong the moment CRM shipped, with nothing
+        // running to say so.
+        "crm.automation.email_requested",
         "forms.notification.requested",
         "membership.subscription_changed",
       ],

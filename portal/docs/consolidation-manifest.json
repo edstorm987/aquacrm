@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-29T17:18:01.883Z",
+  "generatedAt": "2026-08-30T07:46:01.268Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -324,6 +324,14 @@
       "bytes": 24685
     },
     {
+      "path": "docs/development/AUDIT-2026-08-30.md",
+      "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
+      "anchor": "source-docs-development-audit-2026-08-30-md",
+      "sha256": "32afb89f6627314039f21b2e14f98a253326093e8cdefe839c9e43280a79f321",
+      "words": 670,
+      "bytes": 4746
+    },
+    {
       "path": "docs/development/audits.md",
       "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
       "anchor": "source-docs-development-audits-md",
@@ -338,6 +346,22 @@
       "sha256": "a65ea36d7b84454f92695501b2d892db67921d9c882e47c6de1d4c6293937b62",
       "words": 20719,
       "bytes": 163376
+    },
+    {
+      "path": "docs/development/CLOUD-RESUME.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-development-cloud-resume-md",
+      "sha256": "03458cdf18bf59b0c4e89981c5bae78202b0b045cdc83b8569d6b3c6ed0a12be",
+      "words": 500,
+      "bytes": 3774
+    },
+    {
+      "path": "docs/development/ED-QUESTIONS.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-development-ed-questions-md",
+      "sha256": "27df7b0c7b2ad5cf1c1e4ee73e31f30fe143b9c6598f36437d4e692e8aaac3b6",
+      "words": 558,
+      "bytes": 3580
     },
     {
       "path": "docs/development/findings/2026-08-22-agency-staff-can-read-salaries.md",
@@ -388,6 +412,14 @@
       "bytes": 282321
     },
     {
+      "path": "docs/development/LOOP-PROGRESS.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-development-loop-progress-md",
+      "sha256": "fae37c7c58deda4060a2d4a3d1031a83b609dea212e9337442d8ef24dca4066f",
+      "words": 825,
+      "bytes": 5917
+    },
+    {
       "path": "docs/development/notes.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-notes-md",
@@ -410,6 +442,14 @@
       "sha256": "e75595be128a5673797ad452e9b0310825641416e2d0f8fdc85eddbc6a2864b6",
       "words": 587,
       "bytes": 4180
+    },
+    {
+      "path": "docs/development/plans/aqua-explorer-guided-help.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-aqua-explorer-guided-help-md",
+      "sha256": "594c1a8edcab8271afbff1237f064728a24230e54d3c1c802f81cd7beffbec4a",
+      "words": 698,
+      "bytes": 4182
     },
     {
       "path": "docs/development/plans/aqua-tag-handoff.md",
@@ -708,6 +748,14 @@
       "bytes": 10857
     },
     {
+      "path": "docs/development/plans/my-tools-palette.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-my-tools-palette-md",
+      "sha256": "2c0e92ade7617c25af96810337c8872afcfe94d0662c702d51744ae2f4a64c1e",
+      "words": 721,
+      "bytes": 4723
+    },
+    {
       "path": "docs/development/plans/operations-command-surface.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-operations-command-surface-md",
@@ -780,6 +828,14 @@
       "bytes": 7892
     },
     {
+      "path": "docs/development/plans/settings-consolidation.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-settings-consolidation-md",
+      "sha256": "eb976f93f4af51e3dbd03d4aeb662250eaba21d6394432d5c2675ffeaa6d98cf",
+      "words": 561,
+      "bytes": 3604
+    },
+    {
       "path": "docs/development/plans/sop-engine.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-sop-engine-md",
@@ -799,9 +855,9 @@
       "path": "docs/development/plans/storage-and-remaining-build.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-storage-and-remaining-build-md",
-      "sha256": "381dedef44f230f140bd7b158f3e2f9cdd6aefc18e0d690f4c5db69a9f348a14",
-      "words": 1068,
-      "bytes": 6768
+      "sha256": "e64b344f91ca940330f27710a1fcb15d84cf3fcc8bb7c1e0fe78ab49b8a5f4fb",
+      "words": 1535,
+      "bytes": 9801
     },
     {
       "path": "docs/development/plans/supabase-cutover-and-policy-drafts.md",
@@ -919,9 +975,9 @@
       "path": "docs/WORKSPACE-FILE-TREE.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-file-tree-md",
-      "sha256": "9e3de848465cd704c9b59dc9931a809f5d28313ca475d64a9ff988c516b53120",
-      "words": 1365,
-      "bytes": 10713
+      "sha256": "642c698fbd42414f6b6092f98c148ab2ff2fd0a7948502b9e4ccf4b4362b02a7",
+      "words": 1385,
+      "bytes": 10811
     },
     {
       "path": "docs/workspace/advisor.md",
@@ -943,9 +999,9 @@
       "path": "docs/workspace/api-reference.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-api-reference-md",
-      "sha256": "834697014ecf45f1e8ab251a9d1fd805e720bfc2a26fd9e85ac8b3238842717b",
-      "words": 8190,
-      "bytes": 57375
+      "sha256": "b88eee0137fe53f4111ee1f1b0d01cbedeaef362ae69f25f3ead38e9a5ea6b18",
+      "words": 8236,
+      "bytes": 57695
     },
     {
       "path": "docs/workspace/aqua-tag.md",
@@ -975,9 +1031,9 @@
       "path": "docs/workspace/env-and-sellability.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-env-and-sellability-md",
-      "sha256": "73e225f93a527d2d2ac6ea92c6dad72b5538380f87fbe4c51d5f1676a21e58f5",
-      "words": 3089,
-      "bytes": 24694
+      "sha256": "6541a737c2ee5049803bb94d55ef3d7ca1a876a873d746980a737e14933b7a2d",
+      "words": 3202,
+      "bytes": 25444
     },
     {
       "path": "docs/workspace/feature-index.md",
@@ -1015,9 +1071,9 @@
       "path": "docs/workspace/portal-ui.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-portal-ui-md",
-      "sha256": "ab4485ad8dbd1e3be4180cd84bf627e4c2c7b21458e6e958d439553bcf4a8627",
-      "words": 3812,
-      "bytes": 33456
+      "sha256": "422ade5859836d9f6a9c8d5d6dd85ab9a8f5c79c1d3be18ff34d18833b881730",
+      "words": 3935,
+      "bytes": 34406
     },
     {
       "path": "docs/workspace/radar.md",

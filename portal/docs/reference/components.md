@@ -377,6 +377,20 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by (1):** [`src/components/chrome/Topbar.tsx`](#file-src-components-chrome-topbar-tsx-9a91269432)
 
+<a id="file-src-components-chrome-departmentswitcher-tsx-b003716fea"></a>
+
+### `src/components/chrome/DepartmentSwitcher.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `DepartmentSwitcher({ active }: { active?: string })` — cannot do one without the other. See `api/portal/chrome/department`.
+
+**Depends on (1):** [`src/lib/access/departmentProfiles.ts`](lib.md#file-src-lib-access-departmentprofiles-ts-343cc6ceea)
+
+**Used by (1):** [`src/components/chrome/Topbar.tsx`](#file-src-components-chrome-topbar-tsx-9a91269432)
+
 <a id="file-src-components-chrome-devconsolebutton-tsx-febade8526"></a>
 
 ### `src/components/chrome/DevConsoleButton.tsx`
@@ -417,7 +431,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `DevConsolePanel({ draft, onDraftChange, onAttentionChange, onClose, }: { draft: FindingDraft; /** A setState updater, not a value — several screenshots can resolve at once * and a closed-over draft would drop all but th…`
 
-**Depends on (6):** [`src/components/chrome/DevConsoleButton.tsx`](#file-src-components-chrome-devconsolebutton-tsx-febade8526) · [`src/components/chrome/devConsoleLoad.ts`](#file-src-components-chrome-devconsoleload-ts-387623cacb) · [`src/lib/chrome/devModeLoadIn.ts`](lib.md#file-src-lib-chrome-devmodeloadin-ts-dcaae38ef2) · [`src/lib/server/dev/devConsoleStatus.ts`](lib.md#file-src-lib-server-dev-devconsolestatus-ts-f02de5665f) · [`src/lib/server/dev/devTeamFindings.ts`](lib.md#file-src-lib-server-dev-devteamfindings-ts-e4af23d1a3) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
+**Depends on (7):** [`src/components/chrome/DevConsoleButton.tsx`](#file-src-components-chrome-devconsolebutton-tsx-febade8526) · [`src/components/chrome/devConsoleLoad.ts`](#file-src-components-chrome-devconsoleload-ts-387623cacb) · [`src/lib/chrome/devModeLoadIn.ts`](lib.md#file-src-lib-chrome-devmodeloadin-ts-dcaae38ef2) · [`src/lib/chrome/pluginHealth.ts`](lib.md#file-src-lib-chrome-pluginhealth-ts-d71c78b8c0) · [`src/lib/server/dev/devConsoleStatus.ts`](lib.md#file-src-lib-server-dev-devconsolestatus-ts-f02de5665f) · [`src/lib/server/dev/devTeamFindings.ts`](lib.md#file-src-lib-server-dev-devteamfindings-ts-e4af23d1a3) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -622,7 +636,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `PinnedTabsBar()` — The topbar strip — quick back-and-forth shortcuts.
 - `SidebarPinnedTabs()` — The sidebar's own "Saved" section — shortcuts that were not dropped into a nav panel. Anything dropped INTO a panel is rendered by the sidebar itself as an ordinary nav row (`appl…
 
-**Depends on (7):** [`src/components/chrome/SavedTabIconPicker.tsx`](#file-src-components-chrome-savedtabiconpicker-tsx-85198ea1e1) · [`src/components/chrome/SpotPicker.tsx`](#file-src-components-chrome-spotpicker-tsx-24905f090d) · [`src/components/chrome/navIcons.ts`](#file-src-components-chrome-navicons-ts-1756139c14) · [`src/components/chrome/pinnedTabsStore.ts`](#file-src-components-chrome-pinnedtabsstore-ts-e04f9dfb99) · [`src/components/chrome/savedSpot.ts`](#file-src-components-chrome-savedspot-ts-3267e497e1) · [`src/components/chrome/useLongPress.ts`](#file-src-components-chrome-uselongpress-ts-de8a6dc583) · [`src/lib/chrome/sharedChromeLinkPrefetch.ts`](lib.md#file-src-lib-chrome-sharedchromelinkprefetch-ts-5da3605f67)
+**Depends on (8):** [`src/components/chrome/SavedTabIconPicker.tsx`](#file-src-components-chrome-savedtabiconpicker-tsx-85198ea1e1) · [`src/components/chrome/SpotPicker.tsx`](#file-src-components-chrome-spotpicker-tsx-24905f090d) · [`src/components/chrome/navIcons.ts`](#file-src-components-chrome-navicons-ts-1756139c14) · [`src/components/chrome/navTones.ts`](#file-src-components-chrome-navtones-ts-52a318b8bd) · [`src/components/chrome/pinnedTabsStore.ts`](#file-src-components-chrome-pinnedtabsstore-ts-e04f9dfb99) · [`src/components/chrome/savedSpot.ts`](#file-src-components-chrome-savedspot-ts-3267e497e1) · [`src/components/chrome/useLongPress.ts`](#file-src-components-chrome-uselongpress-ts-de8a6dc583) · [`src/lib/chrome/sharedChromeLinkPrefetch.ts`](lib.md#file-src-lib-chrome-sharedchromelinkprefetch-ts-5da3605f67)
 
 **Used by (2):** [`src/components/chrome/Sidebar.tsx`](#file-src-components-chrome-sidebar-tsx-a3b761358c) · [`src/components/chrome/Topbar.tsx`](#file-src-components-chrome-topbar-tsx-9a91269432)
 
@@ -665,7 +679,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `PrivacyModeControl({ canEnterShowcase, showcaseMode = false, sensitiveTerms = [], }: { canEnterShowcase: boolean; showcaseMode?: boolean; sensitiveTerms?: string[]; })`
 
-**Depends on:** _No internal imports._
+**Depends on (1):** [`src/lib/chrome/privacyMode.ts`](lib.md#file-src-lib-chrome-privacymode-ts-5d95d06163)
 
 **Used by (2):** [`src/app/portal/customer/_CustomerPortalChrome.tsx`](app.md#file-src-app-portal-customer-customerportalchrome-tsx-ec588f2c59) · [`src/components/chrome/Topbar.tsx`](#file-src-components-chrome-topbar-tsx-9a91269432)
 
@@ -803,9 +817,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `SavedTabIconPicker({ current, anchor, onPick, onClose, }: { current?: string; /** The element the picker sits under — it is portalled, so it needs telling. */ anchor: HTMLElement | null; onPick: (icon: string | undefine…` — the press handler entirely, so its buttons are ordinary buttons again.
+- `SavedTabIconPicker({ current, currentTone, anchor, onPick, onPickTone, onClose, }: { current?: string; /** The chosen hover colour key, if any. */ currentTone?: string; /** The element the picker sits under — it is port…` — the press handler entirely, so its buttons are ordinary buttons again.
 
-**Depends on (2):** [`src/components/chrome/navIcons.ts`](#file-src-components-chrome-navicons-ts-1756139c14) · [`src/lib/chrome/workspaces.ts`](lib.md#file-src-lib-chrome-workspaces-ts-d222438340)
+**Depends on (3):** [`src/components/chrome/navIcons.ts`](#file-src-components-chrome-navicons-ts-1756139c14) · [`src/components/chrome/navTones.ts`](#file-src-components-chrome-navtones-ts-52a318b8bd) · [`src/lib/chrome/workspaces.ts`](lib.md#file-src-lib-chrome-workspaces-ts-d222438340)
 
 **Used by (1):** [`src/components/chrome/PinnedTabs.tsx`](#file-src-components-chrome-pinnedtabs-tsx-6a643b00e6)
 
@@ -974,7 +988,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, sidebarVariant = "standard", isDemo, homeHref, homeLabel, showcaseMode, sandboxMode, publicShowcase, canUseDevMode, devMode…`
 
-**Depends on (18):** [`src/components/chrome/ColorModeToggle.tsx`](#file-src-components-chrome-colormodetoggle-tsx-f23ad79317) · [`src/components/chrome/DeferredPortalSearch.tsx`](#file-src-components-chrome-deferredportalsearch-tsx-9f037d8751) · [`src/components/chrome/DevConsoleControl.tsx`](#file-src-components-chrome-devconsolecontrol-tsx-f4e77f6e72) · [`src/components/chrome/InspectorModeControl.tsx`](#file-src-components-chrome-inspectormodecontrol-tsx-ee605c0889) · [`src/components/chrome/MobileNav.tsx`](#file-src-components-chrome-mobilenav-tsx-6225ed2a8e) · [`src/components/chrome/PinnedTabs.tsx`](#file-src-components-chrome-pinnedtabs-tsx-6a643b00e6) · [`src/components/chrome/PrivacyModeControl.tsx`](#file-src-components-chrome-privacymodecontrol-tsx-80575cf467) · [`src/components/chrome/ProfileMenu.tsx`](#file-src-components-chrome-profilemenu-tsx-539a3c435a) · [`src/components/chrome/PublicShowcaseControl.tsx`](#file-src-components-chrome-publicshowcasecontrol-tsx-9c30478e1a) · [`src/components/chrome/SavedSpotArrival.tsx`](#file-src-components-chrome-savedspotarrival-tsx-38ab9d5a7f) · [`src/components/chrome/ShowcaseModeControl.tsx`](#file-src-components-chrome-showcasemodecontrol-tsx-b73e80faff) · [`src/components/chrome/Sidebar.tsx`](#file-src-components-chrome-sidebar-tsx-a3b761358c) · [`src/components/chrome/TopbarBackButton.tsx`](#file-src-components-chrome-topbarbackbutton-tsx-eb0e817169) · [`src/components/chrome/TopbarOverflow.tsx`](#file-src-components-chrome-topbaroverflow-tsx-52395a7eeb) · [`src/lib/chrome/sharedChromeLinkPrefetch.ts`](lib.md#file-src-lib-chrome-sharedchromelinkprefetch-ts-5da3605f67) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/server/chrome/topbarControlPins.ts`](lib.md#file-src-lib-server-chrome-topbarcontrolpins-ts-45ceb56e13) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (21):** [`src/components/chrome/ColorModeToggle.tsx`](#file-src-components-chrome-colormodetoggle-tsx-f23ad79317) · [`src/components/chrome/DeferredPortalSearch.tsx`](#file-src-components-chrome-deferredportalsearch-tsx-9f037d8751) · [`src/components/chrome/DepartmentSwitcher.tsx`](#file-src-components-chrome-departmentswitcher-tsx-b003716fea) · [`src/components/chrome/DevConsoleControl.tsx`](#file-src-components-chrome-devconsolecontrol-tsx-f4e77f6e72) · [`src/components/chrome/InspectorModeControl.tsx`](#file-src-components-chrome-inspectormodecontrol-tsx-ee605c0889) · [`src/components/chrome/MobileNav.tsx`](#file-src-components-chrome-mobilenav-tsx-6225ed2a8e) · [`src/components/chrome/PinnedTabs.tsx`](#file-src-components-chrome-pinnedtabs-tsx-6a643b00e6) · [`src/components/chrome/PrivacyModeControl.tsx`](#file-src-components-chrome-privacymodecontrol-tsx-80575cf467) · [`src/components/chrome/ProfileMenu.tsx`](#file-src-components-chrome-profilemenu-tsx-539a3c435a) · [`src/components/chrome/PublicShowcaseControl.tsx`](#file-src-components-chrome-publicshowcasecontrol-tsx-9c30478e1a) · [`src/components/chrome/SavedSpotArrival.tsx`](#file-src-components-chrome-savedspotarrival-tsx-38ab9d5a7f) · [`src/components/chrome/ShowcaseModeControl.tsx`](#file-src-components-chrome-showcasemodecontrol-tsx-b73e80faff) · [`src/components/chrome/Sidebar.tsx`](#file-src-components-chrome-sidebar-tsx-a3b761358c) · [`src/components/chrome/TopbarBackButton.tsx`](#file-src-components-chrome-topbarbackbutton-tsx-eb0e817169) · [`src/components/chrome/TopbarOverflow.tsx`](#file-src-components-chrome-topbaroverflow-tsx-52395a7eeb) · [`src/lib/chrome/destinations.ts`](lib.md#file-src-lib-chrome-destinations-ts-3f8b490e69) · [`src/lib/chrome/sharedChromeLinkPrefetch.ts`](lib.md#file-src-lib-chrome-sharedchromelinkprefetch-ts-5da3605f67) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/server/chrome/activeDepartment.ts`](lib.md#file-src-lib-server-chrome-activedepartment-ts-14973fdc11) · [`src/lib/server/chrome/topbarControlPins.ts`](lib.md#file-src-lib-server-chrome-topbarcontrolpins-ts-45ceb56e13) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (4):** [`src/app/portal/agency/layout.tsx`](app.md#file-src-app-portal-agency-layout-tsx-47dd48700a) · [`src/app/portal/clients/[clientId]/layout.tsx`](app.md#file-src-app-portal-clients-clientid-layout-tsx-2e7f1d7ce2) · [`src/app/portal/clients/page.tsx`](app.md#file-src-app-portal-clients-page-tsx-bffc1e671f) · [`src/app/portal/team/layout.tsx`](app.md#file-src-app-portal-team-layout-tsx-f6dab38395)
 
@@ -1061,13 +1075,30 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by (5):** [`scripts/smoke-chrome-layout.test.ts`](scripts.md#file-scripts-smoke-chrome-layout-test-ts-80b420a476) · [`src/components/chrome/PinnedTabs.tsx`](#file-src-components-chrome-pinnedtabs-tsx-6a643b00e6) · [`src/components/chrome/SavedTabIconPicker.tsx`](#file-src-components-chrome-savedtabiconpicker-tsx-85198ea1e1) · [`src/components/chrome/SidebarNavLink.tsx`](#file-src-components-chrome-sidebarnavlink-tsx-f85c0a7a8a) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411)
 
+<a id="file-src-components-chrome-navtones-ts-52a318b8bd"></a>
+
+### `src/components/chrome/navTones.ts`
+
+**What it is:** do both; a pastel vanishes at 9% and a neon screams at 100%.
+
+**Exports (4):**
+
+- `navToneColor(key: string | undefined): string | undefined` — The colour for a stored key, or undefined. Undefined for an unknown key is deliberate and is the whole safety story: a record carrying anything that is not in this map — a stale k…
+- `navToneStyle(key: string | undefined): React.CSSProperties` — The `style` a row carrying this tone should get. Returns an empty object rather than `undefined` so callers can spread it unconditionally — a tone-less row must render exactly as …
+- `NAV_TONES: NavTone[]`
+- `interface NavTone (3 members)` — do both; a pastel vanishes at 9% and a neon screams at 100%.
+
+**Depends on:** _No internal imports._
+
+**Used by (4):** [`scripts/smoke-nav-tone.test.ts`](scripts.md#file-scripts-smoke-nav-tone-test-ts-9105de1958) · [`src/app/portal/agency/settings/WorkspaceLayoutPanel.tsx`](app.md#file-src-app-portal-agency-settings-workspacelayoutpanel-tsx-c22a4436c3) · [`src/components/chrome/PinnedTabs.tsx`](#file-src-components-chrome-pinnedtabs-tsx-6a643b00e6) · [`src/components/chrome/SavedTabIconPicker.tsx`](#file-src-components-chrome-savedtabiconpicker-tsx-85198ea1e1)
+
 <a id="file-src-components-chrome-pinnedtabsstore-ts-e04f9dfb99"></a>
 
 ### `src/components/chrome/pinnedTabsStore.ts`
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (19):**
+**Exports (20):**
 
 - `placementKey(placement: SavedTabPlacement): string` — ─── Pure helpers ────────────────────────────────────────────────────────────
 - `samePlacement(left: SavedTabPlacement, right: SavedTabPlacement): boolean`
@@ -1079,6 +1110,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `removeTab(tabs: readonly SavedTab[], href: string): SavedTab[]`
 - `toggleTab(tabs: readonly SavedTab[], entry: { href: string; label: string; spot?: SavedTabSpot }, placement: SavedTabPlacement, now = Date.now()): SavedTab[]` — Pin here if it is absent or elsewhere; unpin if it is already here.
 - `setTabIcon(tabs: readonly SavedTab[], id: string, icon: string | undefined, now = Date.now()): SavedTab[]` — Give a saved tab a chosen icon, or clear it back to the derived one.
+- `setTabTone(tabs: readonly SavedTab[], id: string, tone: string | undefined, now = Date.now()): SavedTab[]` — Give a saved tab a chosen hover colour, or clear it back to the shell's.
 - `renameTab(tabs: readonly SavedTab[], id: string, label: string, now = Date.now()): SavedTab[]` — Rename a saved tab — Ed's shortcuts should read like his own words.
 - `moveTabTo(tabs: readonly SavedTab[], id: string, placement: SavedTabPlacement, index: number, now = Date.now()): SavedTab[]` — Put `id` at `index` within `placement`, renumbering that strip.
 - `normalizeTabs(value: unknown): SavedTab[]` — Coerce anything the server or an old browser hands back (defensive on load).
@@ -1086,12 +1118,12 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `MAX_PINS_PER_LOCATION = 12` — Keep each strip a working set, not an archive.
 - `type PinLocation = "topbar" | "sidebar"` — The two strips a tab can be quick-pinned to from the star control.
 - `interface ChromeLayoutState (3 members)`
-- `interface UseChromeLayout (10 members)`
+- `interface UseChromeLayout (11 members)`
 - `{ SavedTab, SavedTabPlacement, SavedTabSpot }`
 
 **Depends on (1):** [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (4):** [`scripts/smoke-pinned-tabs.test.ts`](scripts.md#file-scripts-smoke-pinned-tabs-test-ts-6690991992) · [`src/components/chrome/PinnedTabs.tsx`](#file-src-components-chrome-pinnedtabs-tsx-6a643b00e6) · [`src/components/chrome/SavedSpotArrival.tsx`](#file-src-components-chrome-savedspotarrival-tsx-38ab9d5a7f) · [`src/components/chrome/SidebarReorder.tsx`](#file-src-components-chrome-sidebarreorder-tsx-b9dfad5ef4)
+**Used by (5):** [`scripts/smoke-pinned-tabs.test.ts`](scripts.md#file-scripts-smoke-pinned-tabs-test-ts-6690991992) · [`src/app/portal/agency/settings/WorkspaceLayoutPanel.tsx`](app.md#file-src-app-portal-agency-settings-workspacelayoutpanel-tsx-c22a4436c3) · [`src/components/chrome/PinnedTabs.tsx`](#file-src-components-chrome-pinnedtabs-tsx-6a643b00e6) · [`src/components/chrome/SavedSpotArrival.tsx`](#file-src-components-chrome-savedspotarrival-tsx-38ab9d5a7f) · [`src/components/chrome/SidebarReorder.tsx`](#file-src-components-chrome-sidebarreorder-tsx-b9dfad5ef4)
 
 <a id="file-src-components-chrome-savedspot-ts-3267e497e1"></a>
 
@@ -1548,7 +1580,40 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (1):** [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (6):** [`src/app/portal/agency/_NewClientButton.tsx`](app.md#file-src-app-portal-agency-newclientbutton-tsx-933174699b) · [`src/app/portal/agency/actions/_ActionsWorkspace.tsx`](app.md#file-src-app-portal-agency-actions-actionsworkspace-tsx-3feedac0a1) · [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspace-tsx-f2c8061bae) · [`src/app/portal/agency/products/_ProductsWorkspace.tsx`](app.md#file-src-app-portal-agency-products-productsworkspace-tsx-e5310b5705) · [`src/app/portal/clients/[clientId]/settings/_ClientCustomFieldsSettings.tsx`](app.md#file-src-app-portal-clients-clientid-settings-clientcustomfieldssettings-tsx-9f3a22f6fd) · [`src/app/portal/clients/[clientId]/settings/page.tsx`](app.md#file-src-app-portal-clients-clientid-settings-page-tsx-d6ae064267)
+**Used by (8):** [`src/app/portal/agency/_NewClientButton.tsx`](app.md#file-src-app-portal-agency-newclientbutton-tsx-933174699b) · [`src/app/portal/agency/actions/_ActionsWorkspace.tsx`](app.md#file-src-app-portal-agency-actions-actionsworkspace-tsx-3feedac0a1) · [`src/app/portal/agency/pipelines/[slug]/_DetailsEditor.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-detailseditor-tsx-3ebc0eecb9) · [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspace-tsx-f2c8061bae) · [`src/app/portal/agency/pipelines/[slug]/_leadTypes.ts`](app.md#file-src-app-portal-agency-pipelines-slug-leadtypes-ts-27bc220ff8) · [`src/app/portal/agency/products/_ProductsWorkspace.tsx`](app.md#file-src-app-portal-agency-products-productsworkspace-tsx-e5310b5705) · [`src/app/portal/clients/[clientId]/settings/_ClientCustomFieldsSettings.tsx`](app.md#file-src-app-portal-clients-clientid-settings-clientcustomfieldssettings-tsx-9f3a22f6fd) · [`src/app/portal/clients/[clientId]/settings/page.tsx`](app.md#file-src-app-portal-clients-clientid-settings-page-tsx-d6ae064267)
+
+
+## `src/components/intelligence/`
+
+<a id="file-src-components-intelligence-departmentbaselines-tsx-35fb3587f8"></a>
+
+### `src/components/intelligence/DepartmentBaselines.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `DepartmentBaselines({ initial }: { initial: BaselineValue[] })`
+- `interface BaselineValue (2 members)`
+
+**Depends on (1):** [`src/lib/access/departmentProfiles.ts`](lib.md#file-src-lib-access-departmentprofiles-ts-343cc6ceea)
+
+**Used by (1):** [`src/app/portal/agency/my-radar/page.tsx`](app.md#file-src-app-portal-agency-my-radar-page-tsx-065cdf2270)
+
+<a id="file-src-components-intelligence-myradarpanel-tsx-5a201da332"></a>
+
+### `src/components/intelligence/MyRadarPanel.tsx`
+
+**What it is:** would invent evidence; hiding it would understate the week.
+
+**Exports (2):**
+
+- `MyRadarPanel({ allocation, wellbeing, daysWorked, personLabel, headline, baselinesHref }: MyRadarPanelProps)`
+- `interface MyRadarPanelProps (6 members)`
+
+**Depends on (2):** [`src/lib/access/departmentProfiles.ts`](lib.md#file-src-lib-access-departmentprofiles-ts-343cc6ceea) · [`src/lib/intelligence/departmentAllocation.ts`](lib.md#file-src-lib-intelligence-departmentallocation-ts-effe208c44)
+
+**Used by (2):** [`src/app/portal/agency/my-radar/page.tsx`](app.md#file-src-app-portal-agency-my-radar-page-tsx-065cdf2270) · [`src/app/portal/agency/page.tsx`](app.md#file-src-app-portal-agency-page-tsx-35a1d5c98a)
 
 
 ## `src/components/marketing/`
@@ -1648,6 +1713,39 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Depends on:** _No internal imports._
 
 **Used by (3):** [`src/components/resource-tools/AccessibilityAuditTool.tsx`](#file-src-components-resource-tools-accessibilityaudittool-tsx-3a3f3fc7d7) · [`src/components/resource-tools/SeoAuditTool.tsx`](#file-src-components-resource-tools-seoaudittool-tsx-37cbd4c528) · [`src/components/resource-tools/SiteSpeedTool.tsx`](#file-src-components-resource-tools-sitespeedtool-tsx-8d38aed0ac)
+
+
+## `src/components/telephony/`
+
+<a id="file-src-components-telephony-callcontrols-tsx-13a6a3e9b1"></a>
+
+### `src/components/telephony/CallControls.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `CallLinePicker()`
+- `CallButton({ phone, name, contactId, onCalled, }: { phone?: string; name?: string; contactId?: string; /** Fired once a call is actually placed, so the list can mark it contacted. */ onCalled?: () => void; })`
+
+**Depends on (1):** [`src/lib/telephony/phoneNumbers.ts`](lib.md#file-src-lib-telephony-phonenumbers-ts-b7be228e55)
+
+**Used by (1):** [`src/app/portal/agency/leads-pipeline/contacts/_ContactsWorkspace.tsx`](app.md#file-src-app-portal-agency-leads-pipeline-contacts-contactsworkspace-tsx-9e6c6879f9)
+
+<a id="file-src-components-telephony-emailcontrols-tsx-b2da5be2fc"></a>
+
+### `src/components/telephony/EmailControls.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `EmailLinePicker()`
+- `EmailButton({ email, phone, name, contactId, onSent, }: { email?: string; /** Passed so the server can apply the same opt-out suppression the dialler does. */ phone?: string; name?: string; contactId?: string; onSent?: …`
+
+**Depends on:** _No internal imports._
+
+**Used by (1):** [`src/app/portal/agency/leads-pipeline/contacts/_ContactsWorkspace.tsx`](app.md#file-src-app-portal-agency-leads-pipeline-contacts-contactsworkspace-tsx-9e6c6879f9)
 
 
 ## `src/components/ui/`
@@ -1757,7 +1855,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on:** _No internal imports._
 
-**Used by (19):** [`scripts/smoke-portal-viewport-loading.test.ts`](scripts.md#file-scripts-smoke-portal-viewport-loading-test-ts-cacaebcde8) · [`src/app/portal/agency/_CommandIntelligenceWorkspace.tsx`](app.md#file-src-app-portal-agency-commandintelligenceworkspace-tsx-0d26b4df14) · [`src/app/portal/agency/_DashboardCommandCenter.tsx`](app.md#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff) · [`src/app/portal/agency/actions/_LazyActionsWorkspace.tsx`](app.md#file-src-app-portal-agency-actions-lazyactionsworkspace-tsx-01a7a18ff2) · [`src/app/portal/agency/assistant/_LazyAssistantWorkspace.tsx`](app.md#file-src-app-portal-agency-assistant-lazyassistantworkspace-tsx-e9b2f2bd21) · [`src/app/portal/agency/automations/_AutomationsWorkspace.tsx`](app.md#file-src-app-portal-agency-automations-automationsworkspace-tsx-aea9bd99ae) · [`src/app/portal/agency/loading.tsx`](app.md#file-src-app-portal-agency-loading-tsx-3625ca2df5) · [`src/app/portal/agency/page.tsx`](app.md#file-src-app-portal-agency-page-tsx-35a1d5c98a) · [`src/app/portal/agency/people/_PeopleCommand.tsx`](app.md#file-src-app-portal-agency-people-peoplecommand-tsx-7c4b4f6969) · [`src/app/portal/agency/settings/SettingsTabs.tsx`](app.md#file-src-app-portal-agency-settings-settingstabs-tsx-e999a7955b) · [`src/app/portal/clients/[clientId]/loading.tsx`](app.md#file-src-app-portal-clients-clientid-loading-tsx-3d538aa67f) · [`src/app/portal/customer/loading.tsx`](app.md#file-src-app-portal-customer-loading-tsx-dd1a24127a) · [`src/app/portal/dev-team/library/page.tsx`](app.md#file-src-app-portal-dev-team-library-page-tsx-771759ca38) · [`src/app/portal/dev-team/loading.tsx`](app.md#file-src-app-portal-dev-team-loading-tsx-f86dd01882) · [`src/app/portal/dev-team/page.tsx`](app.md#file-src-app-portal-dev-team-page-tsx-c6f9c5a6b0) · [`src/app/portal/freelancer/loading.tsx`](app.md#file-src-app-portal-freelancer-loading-tsx-57b5cdba88) · [`src/app/portal/layout.tsx`](app.md#file-src-app-portal-layout-tsx-5b7a2a284d) · [`src/app/portal/loading.tsx`](app.md#file-src-app-portal-loading-tsx-6fac5be192) · [`src/app/portal/team/loading.tsx`](app.md#file-src-app-portal-team-loading-tsx-9a4d225d98)
+**Used by (20):** [`scripts/smoke-portal-viewport-loading.test.ts`](scripts.md#file-scripts-smoke-portal-viewport-loading-test-ts-cacaebcde8) · [`src/app/portal/agency/_BusinessRadarDashboard.tsx`](app.md#file-src-app-portal-agency-businessradardashboard-tsx-798d90e2ac) · [`src/app/portal/agency/_CommandIntelligenceWorkspace.tsx`](app.md#file-src-app-portal-agency-commandintelligenceworkspace-tsx-0d26b4df14) · [`src/app/portal/agency/_DashboardCommandCenter.tsx`](app.md#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff) · [`src/app/portal/agency/actions/_LazyActionsWorkspace.tsx`](app.md#file-src-app-portal-agency-actions-lazyactionsworkspace-tsx-01a7a18ff2) · [`src/app/portal/agency/assistant/_LazyAssistantWorkspace.tsx`](app.md#file-src-app-portal-agency-assistant-lazyassistantworkspace-tsx-e9b2f2bd21) · [`src/app/portal/agency/automations/_AutomationsWorkspace.tsx`](app.md#file-src-app-portal-agency-automations-automationsworkspace-tsx-aea9bd99ae) · [`src/app/portal/agency/loading.tsx`](app.md#file-src-app-portal-agency-loading-tsx-3625ca2df5) · [`src/app/portal/agency/page.tsx`](app.md#file-src-app-portal-agency-page-tsx-35a1d5c98a) · [`src/app/portal/agency/people/_PeopleCommand.tsx`](app.md#file-src-app-portal-agency-people-peoplecommand-tsx-7c4b4f6969) · [`src/app/portal/agency/settings/SettingsTabs.tsx`](app.md#file-src-app-portal-agency-settings-settingstabs-tsx-e999a7955b) · [`src/app/portal/clients/[clientId]/loading.tsx`](app.md#file-src-app-portal-clients-clientid-loading-tsx-3d538aa67f) · [`src/app/portal/customer/loading.tsx`](app.md#file-src-app-portal-customer-loading-tsx-dd1a24127a) · [`src/app/portal/dev-team/library/page.tsx`](app.md#file-src-app-portal-dev-team-library-page-tsx-771759ca38) · [`src/app/portal/dev-team/loading.tsx`](app.md#file-src-app-portal-dev-team-loading-tsx-f86dd01882) · [`src/app/portal/dev-team/page.tsx`](app.md#file-src-app-portal-dev-team-page-tsx-c6f9c5a6b0) · [`src/app/portal/freelancer/loading.tsx`](app.md#file-src-app-portal-freelancer-loading-tsx-57b5cdba88) · [`src/app/portal/layout.tsx`](app.md#file-src-app-portal-layout-tsx-5b7a2a284d) · [`src/app/portal/loading.tsx`](app.md#file-src-app-portal-loading-tsx-6fac5be192) · [`src/app/portal/team/loading.tsx`](app.md#file-src-app-portal-team-loading-tsx-9a4d225d98)
 
 <a id="file-src-components-ui-skiptocontent-tsx-d3e34b3e3b"></a>
 
@@ -1787,11 +1885,11 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `PluginSettingsPanel({ initial, clientId }: { initial: PluginSettingsView; clientId?: string })`
 - `interface PluginSettingsFieldView (10 members)`
 - `interface PluginSettingsGroupView (4 members)`
-- `interface PluginSettingsView (4 members)`
+- `interface PluginSettingsView (5 members)`
 
-**Depends on (1):** [`src/lib/plugins/unwiredSettings.ts`](lib.md#file-src-lib-plugins-unwiredsettings-ts-2bbb67e7f7)
+**Depends on (2):** [`src/lib/plugins/pluginSetupStatus.ts`](lib.md#file-src-lib-plugins-pluginsetupstatus-ts-82a3c6194e) · [`src/lib/plugins/unwiredSettings.ts`](lib.md#file-src-lib-plugins-unwiredsettings-ts-2bbb67e7f7)
 
-**Used by (1):** [`src/built-ins/modules/agency-finance/src/pages/SettingsPage.tsx`](built-ins.md#file-src-built-ins-modules-agency-finance-src-pages-settingspage-tsx-37294c59ec)
+**Used by (3):** [`src/app/portal/agency/settings/SettingsTabs.tsx`](app.md#file-src-app-portal-agency-settings-settingstabs-tsx-e999a7955b) · [`src/built-ins/modules/agency-finance/src/pages/SettingsPage.tsx`](built-ins.md#file-src-built-ins-modules-agency-finance-src-pages-settingspage-tsx-37294c59ec) · [`src/built-ins/modules/ecommerce/src/pages/SettingsPage.tsx`](built-ins.md#file-src-built-ins-modules-ecommerce-src-pages-settingspage-tsx-97f4e23c22)
 
 <a id="file-src-components-workspaces-pluginworkspacenav-tsx-34bb1220e7"></a>
 

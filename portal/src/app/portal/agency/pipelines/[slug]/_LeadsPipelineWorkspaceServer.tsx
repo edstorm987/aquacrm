@@ -1,4 +1,5 @@
 import { agencyProductsForRead, listAgencyProducts } from "@/server/agencyProducts";
+import { scoutingQuotaProgress } from "@/lib/server/intelligence/scoutingQuota";
 import { installPlugin, setPluginEnabled } from "@/built-ins/runtime/_runtime";
 import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
@@ -80,6 +81,7 @@ export async function LeadsPipelineWorkspaceServer({ agencyId, userId }: { agenc
         archivedAt: lead.archivedAt,
       }))}
       columns={pipeline.columns.map(column => ({ id: column.id, label: column.label, color: column.color }))}
+      scoutingQuota={scoutingQuotaProgress(agencyId, userId, prospectList)}
       prospects={prospectList.filter(prospect => prospect.status === "scouting").map(prospect => ({
         id: prospect.id,
         name: prospect.name,

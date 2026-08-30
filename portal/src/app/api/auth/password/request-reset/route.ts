@@ -73,7 +73,9 @@ export async function POST(req: NextRequest) {
   const sent = await sendTransactionalEmail({
     to: user.email,
     agencyId: user.agencyId,
-    externalRef: `password-reset:${user.id}`,
+    // Suffixed per send: a second reset request inside the provider's dedupe
+    // window must be a second email, not a silent no-op (Ed, 2026-08-30).
+    externalRef: `password-reset:${user.id}:${crypto.randomUUID()}`,
     signal: req.signal,
     subject: `Reset your ${authBrand.name} password`,
     bodyText: `Use this secure link to reset your ${authBrand.name} password. It expires in 24 hours.\n\n${resetUrl}`,

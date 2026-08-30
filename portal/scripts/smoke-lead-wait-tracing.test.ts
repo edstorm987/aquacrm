@@ -120,8 +120,9 @@ describe("lead wait-time tracing", () => {
   });
 
   it("wires the timing ledger into Journey, Inbox and repeat-enquiry alerts", async () => {
-    const [workspace, page, inbox, detailCard, alerts, statusRoute, handlers] = await Promise.all([
+    const [workspace, leadShared, page, inbox, detailCard, alerts, statusRoute, handlers] = await Promise.all([
       readFile(new URL("../src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../src/app/portal/agency/pipelines/[slug]/_leadShared.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/agency/pipelines/[slug]/page.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/agency/inbox/_MasterInbox.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/agency/inbox/_EnquiryDetailCard.tsx", import.meta.url), "utf8"),
@@ -130,7 +131,9 @@ describe("lead wait-time tracing", () => {
       readFile(new URL("../src/built-ins/modules/leads-pipeline/src/api/handlers.ts", import.meta.url), "utf8"),
     ]);
     assert.match(workspace, /Awaiting first reply/);
-    assert.match(workspace, /Time and journey trace/);
+    // `LeadTimingTrace` moved to `_leadShared` on 2026-08-29 — the workspace and
+    // the details editor both render it. The board-level watch stayed put.
+    assert.match(leadShared, /Time and journey trace/);
     assert.match(workspace, /Wait-time watch/);
     assert.match(page, /cardUpdatedAtByLeadId/);
     // The enquiry timeline (including the elapsed trace) now lives in the detail card.

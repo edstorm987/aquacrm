@@ -516,6 +516,18 @@ export async function POST(req: NextRequest) {
     try {
       const result = await notifyBrandEnquiry({
         agencyId: agency.id,
+        // The CONFIGURED route only — deliberately not `owningClientId`.
+        //
+        // A registered site is a decision Ed made ("this domain belongs to that
+        // client"), so its alert goes out through that client's own Resend
+        // connection to that client's inbox, falling back to the workspace
+        // connection when they have none. `identityResolution.clientId` is a
+        // guess about the VISITOR, not about whose site this is — routing mail
+        // on it would post one client an enquiry that arrived on somebody
+        // else's unregistered site, because the submitter happened to match a
+        // contact of theirs. That guess is fine for the ledger entry, which
+        // stays inside the portal; it is not fine for outbound mail.
+        clientId: routedClientId,
         id: captured.id,
         brandName: brandDefinition.name,
         name,

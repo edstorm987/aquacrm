@@ -222,7 +222,17 @@
     ".next-fin/types/**/*.ts",
     ".next-fin/dev/types/**/*.ts",
     ".next-f2/types/**/*.ts",
-    ".next-f2/dev/types/**/*.ts"
+    ".next-f2/dev/types/**/*.ts",
+    ".next-look/types/**/*.ts",
+    ".next-look/dev/types/**/*.ts",
+    ".next-look-turbo/types/**/*.ts",
+    ".next-look-turbo/dev/types/**/*.ts",
+    ".next-belt/types/**/*.ts",
+    ".next-belt/dev/types/**/*.ts",
+    ".next-verify/types/**/*.ts",
+    ".next-verify/dev/types/**/*.ts",
+    ".next-looploop-turbo/types/**/*.ts",
+    ".next-looploop-turbo/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

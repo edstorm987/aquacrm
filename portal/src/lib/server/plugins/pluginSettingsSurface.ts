@@ -34,6 +34,7 @@ import {
 } from "@/lib/server/integrations/integrationConnections";
 import type { IntegrationProvider } from "@/lib/integrations/catalog";
 import { pluginSettingsFields, vaultTargetOf, type PluginSecretScope } from "./pluginSecretConfig";
+import { describeSetupCompletion, type PluginSetupStatus } from "@/lib/plugins/pluginSetupStatus";
 
 export type PluginSettingsValue = string | number | boolean | null;
 
@@ -69,6 +70,16 @@ export interface PluginSettingsView {
   pluginName: string;
   installed: boolean;
   groups: PluginSettingsGroupView[];
+  /**
+   * Which of the module's REQUIRED first-install values are still missing.
+   *
+   * `setup` is read as a requirements declaration only — it is the one place
+   * that marks a field `required`, which `SettingsField` does not — and every
+   * value is still stored through `writePluginSettings` and the vault. See
+   * `lib/plugins/pluginSetupStatus.ts` for why the `setupAnswers`/`onInstall`
+   * path is deliberately not used.
+   */
+  setup: PluginSetupStatus;
 }
 
 export class PluginSettingsError extends Error {}
@@ -145,7 +156,16 @@ export function describePluginSettings(
     }),
   }));
 
-  return { pluginId, pluginName: plugin.name, installed: Boolean(install), groups };
+  return {
+    pluginId,
+    pluginName: plugin.name,
+    installed: Boolean(install),
+    groups,
+    // Computed from the SAME `groups` just built, so "configured" means exactly
+    // what the field beside it says — a second resolve could disagree with the
+    // form it is describing.
+    setup: describeSetupCompletion(plugin.setup, groups),
+  };
 }
 
 // ─── Write ────────────────────────────────────────────────────────────────

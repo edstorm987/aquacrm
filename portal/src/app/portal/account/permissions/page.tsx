@@ -106,7 +106,7 @@ export default async function PermissionsPage() {
         ) : (
           <p className="mt-4 text-xs text-black/45">
             Permissions are based on each person&apos;s role. The business owner
-            can update access in <Link href="/portal/agency/settings#team" className="font-medium text-black/65 underline decoration-black/25 underline-offset-2 hover:text-black">Team settings</Link>.
+            can update access in <Link href="/portal/agency/settings#access" className="font-medium text-black/65 underline decoration-black/25 underline-offset-2 hover:text-black">Team settings</Link>.
           </p>
         )}
       </div>

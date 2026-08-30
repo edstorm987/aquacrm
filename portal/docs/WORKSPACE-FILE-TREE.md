@@ -5,9 +5,11 @@ so edits land in the right place and nothing gets built twice. The detail lives
 in per-area **chapters** in [`docs/workspace/`](workspace/) — this page is the
 table of contents and the shared rules.
 
-**1,733** `.ts`/`.tsx` files in `src` (722 under `src/built-ins`), **308** `scripts/*.test.ts`.
+**1,939** `.ts`/`.tsx` files in `src`, **487** `scripts/*.test.ts`.
 Big, but every concern has one owning place — the chapters tell you where.
-Counts re-taken 2026-08-24; re-take them rather than trusting them:
+Counts re-taken 2026-08-29 (they read 1,733 / 308 from 2026-08-24 — the page
+says to re-take them rather than trust them, and that was correct); re-take them
+again rather than trusting these:
 `find src -type f \( -name '*.ts' -o -name '*.tsx' \) | wc -l`.
 
 > This map was reconciled for non-security structure only. Current delivery and

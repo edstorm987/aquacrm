@@ -150,8 +150,55 @@ describe("the non-plugin app API routes — the class with no class-level guard"
     // not resolve and the route answers 404 rather than reporting that scope's
     // health. Read-only: it calls hooks and returns what they say. It exists
     // because ten modules implemented a healthcheck and nothing called any.
-    assert.equal(routes.length, 151,
-      `there are now ${routes.length} non-plugin routes under src/app/api/portal, not 151.`
+    // 151 → 152 on 2026-08-29: `telephony/call`, which places an outbound call
+    // to anyone in the CRM rather than only to a website enquiry. Audited
+    // before the number moved. Tenant from the SESSION via the shared
+    // `routeTenantScope(session, { clientId })`; the OPTIONAL `clientId` in the
+    // body is resolved through that same guard and answers 404 when it belongs
+    // to another agency, so a caller cannot dial from another tenant's Twilio
+    // connection. The number it dials is taken from the request — which is the
+    // point of a dialler — but is normalised, checked against the agency's own
+    // do-not-call records, and refused with 409 before any provider call. It
+    // exists because the voice bridge worked and only the enquiry composer
+    // could reach it.
+    // 152 → 153 on 2026-08-29: `telephony/email`, the same outreach surface in
+    // the other channel. Audited before the number moved. Tenant from the
+    // SESSION through the shared `routeTenantScope`; the OPTIONAL clientId is
+    // resolved through it and 404s when it is another agency's, so a message
+    // cannot be sent from another tenant's Resend/SMTP connection. It applies
+    // the same do-not-contact suppression the dialler does, because a flag one
+    // channel ignores reads as compliance while the other carries on.
+    // 153 → 154 on 2026-08-29: `chrome/department`, which puts a department hat
+    // on. Audited before the number moved. Tenant from the SESSION only — the
+    // body carries a department id validated against a closed list of five and
+    // nothing else, no client id and no agency id. It writes the person's own
+    // work session and their own cookie; there is no path through it that
+    // reaches another tenant's data.
+    // 154 → 155 on 2026-08-30: `agency/identity`, the first write path a
+    // non-founder has had for the workspace name and brand colour. Its tenant
+    // comes from `requireRole(["agency-owner", "agency-manager"]).agencyId` —
+    // the session, never the request. It accepts exactly two fields (name, a
+    // brand patch validated against a four-key allow-list) and deliberately
+    // IGNORES a slug in the body: the slug is authority — public enquiry routes
+    // resolve the founder tenant by it — and must not move on a rename.
+    // 155 → 156 on 2026-08-30: `intelligence/my-radar`, the topbar quick-look's
+    // fresh read of one person's week plus their own open Actions. Audited
+    // before the number moved. Its tenant comes from the SESSION
+    // (`getSessionFromRequest` + the AGENCY_ROLES check) — never the request,
+    // which carries no ids at all. Read-only, no `flushPendingWrites`.
+    // agency-staff is additionally gated on the `staff.overview` element (the
+    // gate `dashboard-planning` applies, because it is the same working-time
+    // data), and an Action naming a client is filtered through
+    // `canReadClientAssociation` exactly as GET `portal/tasks` filters it —
+    // the STORED task's clientId is read; nothing client-shaped is accepted
+    // from the caller.
+    // 156 → 158 on 2026-08-30: `pipelines/boards` + `pipelines/cards`,
+    // Ed's own kanbans. Both take their tenant from requireRole().agencyId —
+    // the session, never the request — and both refuse any pipeline whose
+    // kind is not "custom", which is the wall keeping the free-card API off
+    // lead and fulfilment cards and their event/transaction semantics.
+    assert.equal(routes.length, 158,
+      `there are now ${routes.length} non-plugin routes under src/app/api/portal, not 158.`
       + " A new one has appeared: decide where IT gets its tenant from, then update this count.");
   });
 
@@ -213,6 +260,14 @@ describe("the non-plugin app API routes — the class with no class-level guard"
       "portal/settings/integrations/route.ts",
       "portal/tasks/route.ts",
       "portal/tasks/templates/route.ts",
+      // Takes an OPTIONAL clientId and resolves it through the shared
+      // `routeTenantScope(session, { clientId })`, 404-ing when it does not
+      // belong to the session agency — so a call can never be placed on
+      // another tenant's Twilio connection. Audited when it joined this list
+      // (2026-08-29).
+      "portal/telephony/call/route.ts",
+      // Same guard, same reason, same audit date as telephony/call.
+      "portal/telephony/email/route.ts",
       // Takes a clientId from the body and pairs it with the SESSION agency
       // before writing: `client.agencyId !== agencyId` → 404. Audited when it
       // joined this list (2026-08-27).

@@ -465,6 +465,29 @@ export function listCards(pipelineId: string): PipelineCard[] {
     .sort((a, b) => a.order - b.order);
 }
 
+/**
+ * Edit a CUSTOM card's payload in place. Custom-kind only, deliberately: lead
+ * and client cards derive their content from the records they point at, and an
+ * editable copy here would be a second truth that drifts. Added 2026-08-30 for
+ * Ed's own kanbans (deleteCard existed; edit did not).
+ */
+export function updateCardPayload(
+  agencyId: string,
+  cardId: string,
+  payload: Record<string, unknown>,
+): PipelineCard | null {
+  let saved: PipelineCard | null = null;
+  mutate(state => {
+    const card = state.pipelineCards[cardId];
+    if (!card || card.kind !== "custom") return;
+    const pipeline = state.pipelines[card.pipelineId];
+    if (!pipeline || pipeline.agencyId !== agencyId) return;
+    card.payload = payload;
+    saved = card;
+  });
+  return saved;
+}
+
 export function deleteCard(agencyId: string, cardId: string): boolean {
   let removed = false;
   mutate(state => {

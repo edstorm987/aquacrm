@@ -15,6 +15,7 @@ import "server-only";
 // keeps things working without env config (intentional — production
 // deploys MUST set the env or the warning is logged at every sign-in).
 
+import { cache } from "react";
 import { cookies } from "next/headers";
 import type { NextRequest } from "next/server";
 import type { Role, SandboxSessionEnvironment, ServerUser, SessionPayload } from "@/server/types";
@@ -215,7 +216,25 @@ async function sessionFromToken(token: string | undefined): Promise<SessionPaylo
   return session;
 }
 
-export async function getSession(): Promise<SessionPayload | null> {
+// Perf (Ed's audit): one navigation renders layout + page + nested server
+// components, and every one of them asks "who is this?" — previously each
+// caller re-ran the whole resolution (cookie verify → the authoritative-user
+// lookup inside `resolveFreshSessionUser` → Supabase `auth.getUser()`),
+// repeating network and state work within a single request. React `cache()`
+// dedupes the no-arg call within one RSC render, so a request resolves the
+// session ONCE and every caller (`requireSession`/`requireRole`/
+// `getCurrentUser`/pages) shares that result — the freshness/revocation check
+// still runs, exactly once per request, never skipped. The cookie jar is
+// fixed for the request's lifetime, so nothing the memo captures can change
+// underneath it; the NEXT request gets a fresh cache scope, so rotation and
+// revocation land on the very next navigation exactly as before. Outside an
+// RSC render `cache()` is a pass-through, so API-route and test callers keep
+// per-call behaviour. `getSessionFromRequest()` below is deliberately NOT
+// wrapped: it takes an explicit request (proxy/middleware/API surfaces with
+// no RSC cache scope), and its contract is per-call resolution of whatever
+// request it is handed — memoisation belongs only to the ambient-cookies
+// render path here.
+export const getSession = cache(async (): Promise<SessionPayload | null> => {
   const c = await cookies();
   const session = await sessionFromToken(c.get(COOKIE_NAME)?.value);
   if (!session) return null;
@@ -231,7 +250,7 @@ export async function getSession(): Promise<SessionPayload | null> {
     return null;
   }
   return session;
-}
+});
 
 export async function getSessionFromRequest(req: NextRequest): Promise<SessionPayload | null> {
   return sessionFromToken(req.cookies.get(COOKIE_NAME)?.value);

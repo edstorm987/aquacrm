@@ -279,7 +279,13 @@ describe("dashboard command centre surface", () => {
       readFile(new URL("../src/app/portal/agency/_CommandCentreKpiTrajectory.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/agency/_CommandStationNav.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/agency/_CommandDeckPopup.tsx", import.meta.url), "utf8"),
-      readFile(new URL("../src/app/portal/agency/_DashboardCommandCenter.tsx", import.meta.url), "utf8"),
+      // 2026-08-29: the radar UI moved into `_BusinessRadarDashboard.tsx` (lazily
+      // loaded) to shrink the Command Centre route graph. These assertions are
+      // about the SURFACE, so both files are read as one.
+      Promise.all([
+        readFile(new URL("../src/app/portal/agency/_DashboardCommandCenter.tsx", import.meta.url), "utf8"),
+        readFile(new URL("../src/app/portal/agency/_BusinessRadarDashboard.tsx", import.meta.url), "utf8"),
+      ]).then(parts => parts.join("\n")),
       readFile(new URL("../src/app/portal/agency/_DayBriefingPanel.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/agency/_DayKpiIntelligencePanel.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/api/portal/dashboard-planning/route.ts", import.meta.url), "utf8"),

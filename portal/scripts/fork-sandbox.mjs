@@ -42,7 +42,12 @@ if (!Number.isInteger(port) || port < 1024 || port > 65535) {
 const root = process.cwd();
 const shared = resolve(root, ".data", "portal-state.json");
 const mine = resolve(root, ".data", `portal-state.${name}.json`);
-const distDir = `.next-${name}`;
+// Turbopack and webpack cannot share a build directory — their caches are not
+// compatible and mixing them produces confusing stale-build failures. The
+// worker lane runs Turbopack (measured 2026-08-29: 3.17 GB → 1.54 GB and
+// 2–9× faster to compile than webpack over the same seven routes), so the
+// directory says so. `dev:worker:webpack` is the fallback; give it its own.
+const distDir = `.next-${name}-turbo`;
 
 if (existsSync(mine)) {
   const age = Math.round((Date.now() - statSync(mine).mtimeMs) / 60000);

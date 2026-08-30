@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
 import { moveTabTo, useChromeLayout } from "./pinnedTabsStore";
+import { savedTabIdFromNavId } from "@/lib/chrome/savedTabNav";
 
 // Dragging the sidebar into the order somebody wants — and dropping saved tabs
 // into it.
@@ -74,6 +75,8 @@ export function SidebarReorder({
   children: ReactNode;
 }) {
   const { itemOrder, savedTabs, save } = useChromeLayout();
+  const [draggingSavedTab, setDraggingSavedTab] = useState<string | null>(null);
+  const [overReturn, setOverReturn] = useState(false);
   const router = useRouter();
   const listRef = useRef<HTMLDivElement | null>(null);
   const [marker, setMarker] = useState<number | null>(null);
@@ -111,6 +114,10 @@ export function SidebarReorder({
     const row = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-nav-id]");
     if (!row?.dataset.navId) return;
     setDragging(true);
+    // Ed, 2026-08-30: *"if i drag it down a section should apear to bring back
+    // to saved tabs."* Only a merged SAVED tab has anywhere to go back to, so
+    // the zone appears for those and stays out of the way for ordinary rows.
+    setDraggingSavedTab(savedTabIdFromNavId(row.dataset.navId));
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData(NAV_TYPE, row.dataset.navId);
     // A readable text/plain payload as well, so dropping a nav row into an
@@ -134,6 +141,8 @@ export function SidebarReorder({
     const list = listRef.current;
     setMarker(null);
     setDragging(false);
+    setDraggingSavedTab(null);
+    setOverReturn(false);
     if (!list || !carriesSomethingWeWant(event)) return;
     event.preventDefault();
 
@@ -197,7 +206,7 @@ export function SidebarReorder({
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDragLeave={() => setMarker(null)}
-      onDragEnd={() => { setMarker(null); setDragging(false); }}
+      onDragEnd={() => { setMarker(null); setDragging(false); setDraggingSavedTab(null); setOverReturn(false); }}
       onDrop={onDrop}
       onKeyDown={onKeyDown}
       className={`mm-sidebar-reorderable relative ${dragging ? "is-dragging" : ""}`}
@@ -210,6 +219,46 @@ export function SidebarReorder({
         <style>{optimistic.map((id, index) => `[data-reorderable-panel="${panelId}"] li[data-nav-id="${id}"]{order:${index}}`).join("")}</style>
       ) : null}
       {children}
+
+      {/* The way back. Dropping here restores the tab's `sidebar` placement AND
+          drops its id from every panel order — half of that alone leaves either
+          a dangling id or a tab whose placement lies about where it lives. */}
+      {draggingSavedTab ? (
+        <div
+          data-saved-return-zone
+          onDragOver={event => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setOverReturn(true); }}
+          onDragLeave={() => setOverReturn(false)}
+          onDrop={event => {
+            event.preventDefault();
+            event.stopPropagation();
+            const tabId = draggingSavedTab;
+            const navId = `saved:${tabId}`;
+            const nextOrder: Record<string, string[]> = {};
+            for (const [id, ids] of Object.entries(itemOrder)) {
+              const kept = ids.filter(value => value !== navId);
+              if (kept.length) nextOrder[id] = kept;
+            }
+            save({
+              itemOrder: nextOrder,
+              savedTabs: moveTabTo(savedTabs, tabId, { kind: "sidebar" }, savedTabs.length),
+            });
+            setDraggingSavedTab(null);
+            setOverReturn(false);
+            setMarker(null);
+            setDragging(false);
+            router.refresh();
+          }}
+          className={[
+            "mt-1 rounded-md border border-dashed px-2 py-2 text-center text-[11px] font-medium transition",
+            overReturn
+              ? "border-brand bg-brand/[0.08] text-brand"
+              : "border-black/20 text-black/45",
+          ].join(" ")}
+        >
+          Drop here to move back to Saved tabs
+        </div>
+      ) : null}
+
       <span role="status" aria-live="polite" className="sr-only">{announcement}</span>
     </div>
   );

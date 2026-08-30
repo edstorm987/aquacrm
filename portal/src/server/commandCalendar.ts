@@ -12,6 +12,8 @@ import type {
 
 export interface CommandCalendarEntryInput {
   type?: CommandCalendarEntryType;
+  recurrence?: unknown;
+  metric?: unknown;
   title?: string;
   notes?: string;
   startsAt?: number | null;
@@ -99,6 +101,14 @@ function cleanFields(input: CommandCalendarEntryInput) {
     targetValue: type === "goal" || type === "target" ? cleanNumber(input.targetValue) : undefined,
     currentValue: type === "goal" || type === "target" ? cleanNumber(input.currentValue) : undefined,
     targetUnit: type === "goal" || type === "target" ? input.targetUnit?.trim().slice(0, 30) || undefined : undefined,
+    // Quota fields ride the same goal/target-only rule as the three above: on
+    // any other entry type they are dropped, not stored.
+    recurrence: (type === "goal" || type === "target")
+      && (input.recurrence === "daily" || input.recurrence === "weekly")
+      ? input.recurrence as "daily" | "weekly" : undefined,
+    metric: (type === "goal" || type === "target")
+      && ["prospects-scouted", "calls-made", "emails-sent", "leads-qualified", "clients-converted"].includes(input.metric as string)
+      ? input.metric as CommandCalendarEntry["metric"] : undefined,
   };
 }
 

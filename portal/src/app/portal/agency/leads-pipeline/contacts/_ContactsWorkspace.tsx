@@ -26,6 +26,9 @@ import {
   LEAD_RELATIONSHIP_CATEGORY_LABELS,
   type LeadRelationshipCategory,
 } from "@/built-ins/modules/leads-pipeline/src/lib/domain";
+import { CallButton, CallLinePicker } from "@/components/telephony/CallControls";
+import { EmailButton, EmailLinePicker } from "@/components/telephony/EmailControls";
+import { formatPhoneForDisplay } from "@/lib/telephony/phoneNumbers";
 
 type CustomFieldType = "text" | "number" | "date" | "url" | "select" | "multi-select" | "checkbox";
 type CustomFieldValue = string | string[] | boolean;
@@ -980,6 +983,14 @@ export function ContactsWorkspace({ referenceNow, contacts, leads, initialCustom
           ))}
         </ListPanel>
 
+        {/* Pick the line once — burner or official — and every Call below uses
+            it. Choosing per row would be the same decision a hundred times a
+            morning. */}
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <CallLinePicker />
+          <EmailLinePicker />
+        </div>
+
         <ListPanel title={`Contacts (${filteredContacts.length})`}>
           {filteredContacts.length === 0 ? <Empty label={contacts.length === 0 ? "No contacts yet." : "No contacts match these filters."} /> : filteredContacts.map(row => (
             <PersonCard
@@ -1053,8 +1064,26 @@ function PersonCard({
         <div className="min-w-0">
           <h3 className="truncate text-sm font-semibold text-black/90">{row.name || row.company || row.email}</h3>
           <p className="mt-0.5 truncate text-xs text-black/50">{row.company ? `${row.company} · ` : ""}{row.email}</p>
+          {row.phone ? <p className="mt-0.5 truncate text-xs text-black/40">{formatPhoneForDisplay(row.phone)}</p> : null}
         </div>
-        <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[11px] font-medium text-black/55">{badge}</span>
+        <div className="flex shrink-0 items-start gap-2">
+          {/* Marking contacted on a placed call is the point: the next pass
+              down the list has to know you already rang them. */}
+          <CallButton
+            phone={row.phone}
+            name={row.name || row.company || row.email}
+            contactId={row.id}
+            onCalled={onMarkContacted}
+          />
+          <EmailButton
+            email={row.email}
+            phone={row.phone}
+            name={row.name || row.company || row.email}
+            contactId={row.id}
+            onSent={onMarkContacted}
+          />
+          <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[11px] font-medium text-black/55">{badge}</span>
+        </div>
       </div>
       {row.tags.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1">
@@ -1112,9 +1141,13 @@ function PersonCard({
         />
       )}
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-black/10 pt-3">
-        {row.phone && <a href={`tel:${row.phone}`} className="rounded-md border border-black/10 px-2 py-1 text-xs text-black/70 hover:bg-black/[0.03]">Call</a>}
-        <a href={`mailto:${row.email}`} className="rounded-md border border-black/10 px-2 py-1 text-xs text-black/70 hover:bg-black/[0.03]">Email</a>
-        <a href={`mailto:${row.email}?subject=${encodeURIComponent("Meeting time")}`} className="rounded-md border border-black/10 px-2 py-1 text-xs text-black/70 hover:bg-black/[0.03]">Email invite</a>
+        {/* The protected pair, same as the ones this card mounts higher up
+            (Ed's opt-out finding, 2026-08-30): the raw tel:/mailto: routes
+            here sat BESIDE suppression-enforcing controls, so the fence could
+            be walked around by clicking the other button. These go through the
+            telephony routes, which 409 an opted-out contact and log. */}
+        {row.phone && <CallButton phone={row.phone} name={row.name} contactId={row.id} />}
+        <EmailButton email={row.email} phone={row.phone} name={row.name} contactId={row.id} />
         <button type="button" onClick={onOpenCommercial} className="rounded-md bg-black px-2 py-1 text-xs font-semibold text-white hover:bg-black/85">Invoice & agreement</button>
         {onMarkContacted && (
           <button type="button" onClick={onMarkContacted} disabled={contactedBusy} className="rounded-md border border-black/10 px-2 py-1 text-xs text-black/70 hover:bg-black/[0.03] disabled:opacity-50">

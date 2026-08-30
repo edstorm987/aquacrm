@@ -16,7 +16,12 @@ import type {
   PeopleWorkspaceStationId,
 } from "@/server/types";
 
-export type GovernedWorkspaceId = "staff" | "fulfilment";
+// "growth" joined 2026-08-30 for the Kanbans desk: growth.* elements existed
+// in the access model and department profiles for months, but NO server route
+// ever enforced one — the gap the kanban gating closed. The legacy fallback
+// mirrors fulfilment's, which matches the de-facto behaviour every agency role
+// already had, so nothing narrows silently.
+export type GovernedWorkspaceId = "staff" | "fulfilment" | "growth";
 export type WorkspaceElementLevel = "hidden" | "view" | "use" | "manage";
 
 export const STAFF_STATION_ELEMENT_KEYS: Readonly<Record<PeopleWorkspaceStationId, AccessElementKey>> = {
@@ -76,6 +81,7 @@ const ELEMENTS_BY_WORKSPACE: Readonly<Record<GovernedWorkspaceId, readonly Acces
     ...Object.values(STAFF_COMMAND_ELEMENT_KEYS),
   ])],
   fulfilment: [...new Set(Object.values(FULFILMENT_VIEW_ELEMENT_KEYS))],
+  growth: ["growth.overview", "growth.leads", "growth.contacts", "growth.outreach", "growth.campaigns"],
 };
 
 const LEVEL_RANK: Readonly<Record<WorkspaceElementLevel, number>> = {
@@ -189,6 +195,17 @@ function fulfilmentLegacyLevels(actor: CurrentAccessActor): Partial<Record<Acces
   return levels;
 }
 
+function growthLegacyLevels(actor: CurrentAccessActor): Partial<Record<AccessElementKey, WorkspaceElementLevel>> {
+  const levels: Partial<Record<AccessElementKey, WorkspaceElementLevel>> = {};
+  const level: WorkspaceElementLevel = actor.session.role === "agency-owner" || actor.session.role === "agency-manager"
+    ? "manage"
+    : actor.session.role === "agency-staff"
+      ? "use"
+      : "hidden";
+  ELEMENTS_BY_WORKSPACE.growth.forEach(key => { levels[key] = level; });
+  return levels;
+}
+
 function capReadOnlySession(
   actor: CurrentAccessActor,
   levels: Partial<Record<AccessElementKey, WorkspaceElementLevel>>,
@@ -219,7 +236,9 @@ export function resolveActorWorkspaceElementAccess(
       ])) as Partial<Record<AccessElementKey, WorkspaceElementLevel>>
     : workspace === "staff"
       ? staffLegacyLevels(actor)
-      : fulfilmentLegacyLevels(actor);
+      : workspace === "growth"
+        ? growthLegacyLevels(actor)
+        : fulfilmentLegacyLevels(actor);
   return {
     workspace,
     canonical,

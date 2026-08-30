@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { CallButton, CallLinePicker } from "@/components/telephony/CallControls";
+import { EmailButton, EmailLinePicker } from "@/components/telephony/EmailControls";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -26,6 +28,8 @@ import {
   SkipForward,
   Tag,
   Upload,
+  Flame,
+  Target,
 } from "lucide-react";
 import { formatElapsed } from "@/lib/enquiries/leadTiming";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
@@ -132,9 +136,23 @@ const QUEUES: Array<{ id: Queue; label: string }> = [
   { id: "parked", label: "Parked" },
 ];
 
+export interface ScoutingQuotaViewModel {
+  quotas: Array<{
+    entryId: string;
+    title: string;
+    metric: "prospects-scouted" | "calls-made" | "emails-sent" | "leads-qualified" | "clients-converted";
+    recurrence: "daily" | "weekly";
+    target: number;
+    current: number;
+    streakDays: number;
+  }>;
+  streakDays: number;
+}
+
 export function ScoutingCommand({
   prospects,
   referenceNow,
+  quota,
   onNew,
   onEdit,
   onQualify,
@@ -142,6 +160,8 @@ export function ScoutingCommand({
 }: {
   prospects: ScoutingProspectView[];
   referenceNow: number;
+  /** Self-set targets with server-derived progress. Absent = none set yet. */
+  quota?: ScoutingQuotaViewModel;
   onNew: () => void;
   onEdit: (prospect: ScoutingProspectView) => void;
   onQualify: (prospect: ScoutingProspectView) => void;
@@ -238,6 +258,30 @@ export function ScoutingCommand({
     } finally {
       setBusy(null);
     }
+  }
+
+  // The module's own inspectionComplete() mirrors the server's required
+  // checks; the buttons use it so they can explain themselves instead of
+  // letting the log call 4xx silently after the call was already made.
+  const selectedInspected = selected ? inspectionComplete(selected) : false;
+
+  /**
+   * Ed: *"if i want to cold call a bunch of people i can go press call button
+   * ... and logging what i do how many times."* Logged as `attempted`/`sent`
+   * ONLY after the action actually happened (the call POST succeeded, the
+   * composer sent) — never on render or picker open, because recordOutreach
+   * advances qualificationState and auto-completes due follow-ups, and a
+   * misclick must not do either.
+   */
+  function onOutreachLogged(channel: "call" | "email") {
+    // The SERVER records the attempt now, atomically with delivery (a
+    // fire-and-forget log request could be lost to navigation, and device
+    // calls never fired a callback at all). This is refresh + the nudge to
+    // record the OUTCOME once the call ends.
+    setNotice({ tone: "success", text: channel === "call"
+      ? "Call logged — record the outcome below once you hang up."
+      : "Email sent and logged." });
+    router.refresh();
   }
 
   async function recordOutreach(event: React.FormEvent<HTMLFormElement>) {
@@ -357,6 +401,20 @@ export function ScoutingCommand({
         </div>
       </header>
 
+      {/* Ed: "quotas ... set myself a target ... make it super cool". Rings
+          with DERIVED progress — the counters come from the outreach records
+          themselves, so this can never disagree with the timeline below it. */}
+      <ScoutingQuotaStrip quota={quota} />
+
+      {/* Which line calls go out on, and which address emails send from.
+          Mounted once for the whole scouting queue — the buttons on each
+          prospect read the choice from the shared sender store. Works before
+          Twilio is connected: the device (tel:) sender is the fallback. */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-black/10 bg-white px-4 py-2.5 sm:px-5">
+        <CallLinePicker />
+        <EmailLinePicker />
+      </div>
+
       <div className="grid border-b border-black/10 sm:grid-cols-2 lg:grid-cols-5">
         <CommandMetric icon={<CalendarClock size={15} />} label="Due now" value={dueCount} tone={overdueCount ? "critical" : dueCount ? "warning" : "calm"} detail={overdueCount ? `${overdueCount} overdue` : "Follow-up queue"} onClick={() => setQueue("due")} />
         <CommandMetric icon={<ShieldAlert size={15} />} label="Untouched" value={untouchedCount} tone={untouchedCount ? "warning" : "calm"} detail="No attempt yet" onClick={() => setQueue("untouched")} />
@@ -460,11 +518,48 @@ export function ScoutingCommand({
 
                 <section className="border-b border-black/10 px-4 py-5 sm:px-6">
                   <h4 className="text-xs font-semibold uppercase tracking-wide text-black/45">Contact routes</h4>
+                  {selected.doNotContact ? (
+                    <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-800">
+                      This prospect has opted out of contact. The call and email
+                      routes are closed; the record stays for reference.
+                    </p>
+                  ) : !selectedInspected ? (
+                    <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+                      Complete the three required inspection checks below before
+                      reaching out — the server refuses to log outreach until
+                      the business, contact route and opportunity are verified.
+                    </p>
+                  ) : null}
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {selected.phone ? <a href={`tel:${selected.phone}`} className={CONTACT_ROUTE_CLASS}><Phone size={14} /> Call</a> : null}
-                    {selected.phone ? <a href={`sms:${selected.phone}`} className={CONTACT_ROUTE_CLASS}><MessageCircle size={14} /> Text</a> : null}
-                    {selected.phone ? <a href={`https://wa.me/${selected.phone.replace(/[^0-9]/g, "")}`} target="_blank" rel="noreferrer" className={CONTACT_ROUTE_CLASS}><MessageCircle size={14} /> WhatsApp</a> : null}
-                    {selected.email ? <a href={`mailto:${selected.email}`} className={CONTACT_ROUTE_CLASS}><Mail size={14} /> Email</a> : null}
+                    {/* The protected pair replaces the bare tel:/mailto: routes
+                        (Ed's opt-out finding, 2026-08-30): these go through the
+                        telephony routes, which enforce suppression server-side
+                        and log the attempt — a raw anchor did neither. */}
+                    {selected.phone && !selected.doNotContact && selectedInspected ? (
+                      <CallButton
+                        phone={selected.phone}
+                        name={selected.name}
+                        prospectId={selected.id}
+                        onCalled={() => onOutreachLogged("call")}
+                      />
+                    ) : null}
+                    {selected.email && !selected.doNotContact && selectedInspected ? (
+                      <EmailButton
+                        email={selected.email}
+                        phone={selected.phone}
+                        name={selected.name}
+                        prospectId={selected.id}
+                        onSent={() => onOutreachLogged("email")}
+                      />
+                    ) : null}
+                    {/* Text/WhatsApp have no protected equivalent yet, so the
+                        same gates apply to the raw links: closed for opted-out
+                        AND for un-inspected prospects (Ed, 2026-08-30 — they
+                        were a way around the inspection fence). They still log
+                        nothing; the outreach form below is how those are
+                        recorded until a protected pair exists. */}
+                    {selected.phone && !selected.doNotContact && selectedInspected ? <a href={`sms:${selected.phone}`} className={CONTACT_ROUTE_CLASS}><MessageCircle size={14} /> Text</a> : null}
+                    {selected.phone && !selected.doNotContact && selectedInspected ? <a href={`https://wa.me/${selected.phone.replace(/[^0-9]/g, "")}`} target="_blank" rel="noreferrer" className={CONTACT_ROUTE_CLASS}><MessageCircle size={14} /> WhatsApp</a> : null}
                     {selected.website ? <a href={selected.website} target="_blank" rel="noreferrer" className={CONTACT_ROUTE_CLASS}><Globe2 size={14} /> Website</a> : null}
                     {selected.googleMapsUrl ? <a href={selected.googleMapsUrl} target="_blank" rel="noreferrer" className={CONTACT_ROUTE_CLASS}><MapPin size={14} /> Google Maps</a> : null}
                     {selected.instagramUrl ? <a href={selected.instagramUrl} target="_blank" rel="noreferrer" className={CONTACT_ROUTE_CLASS}><ExternalLink size={14} /> Instagram</a> : null}
@@ -715,4 +810,135 @@ function sourceLabel(source: string): string {
 
 function formatDateTime(value: number): string {
   return formatUkDate(value, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
+// Ed's finding (2026-08-30): three of these metrics have NO per-actor
+// attribution on their records (capturedAt/qualified/converted carry no user),
+// so a "personal" quota on them silently counted the whole workspace. Labelled
+// honestly rather than removed — for a one-person agency they are the same
+// number, and the label is what keeps the ring truthful when staff join.
+const QUOTA_METRIC_LABELS: Record<ScoutingQuotaViewModel["quotas"][number]["metric"], string> = {
+  "prospects-scouted": "prospects scouted (whole workspace)",
+  "calls-made": "calls made",
+  "emails-sent": "emails sent",
+  "leads-qualified": "leads qualified (whole workspace)",
+  "clients-converted": "clients converted (whole workspace)",
+};
+
+function ScoutingQuotaStrip({ quota }: { quota?: ScoutingQuotaViewModel }) {
+  const [creating, setCreating] = useState(false);
+  const [metric, setMetric] = useState<ScoutingQuotaViewModel["quotas"][number]["metric"]>("calls-made");
+  const [recurrence, setRecurrence] = useState<"daily" | "weekly">("daily");
+  const [target, setTarget] = useState("20");
+  const [note, setNote] = useState<string | null>(null);
+  const router = useRouter();
+
+  const [saving, setSaving] = useState(false);
+  async function createQuota(event: React.FormEvent) {
+    event.preventDefault();
+    if (saving) return;   // a slow submit must not create the target twice
+    const value = Number(target);
+    if (!Number.isFinite(value) || value <= 0) { setNote("Pick a number above zero."); return; }
+    setSaving(true);
+    try {
+      // The same store and route the Actions calendar already uses for
+      // goal/target entries — one target system, another door onto it.
+      const response = await fetch("/api/portal/calendar", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          type: "target",
+          title: `${value} ${QUOTA_METRIC_LABELS[metric]} ${recurrence === "daily" ? "a day" : "a week"}`,
+          startsAt: Date.now(),
+          allDay: true,
+          targetValue: value,
+          targetUnit: QUOTA_METRIC_LABELS[metric],
+          recurrence,
+          metric,
+        }),
+      });
+      const payload = await response.json() as { ok?: boolean; error?: string };
+      if (!response.ok || !payload.ok) throw new Error(payload.error ?? "The target could not be saved.");
+      setCreating(false);
+      setNote(null);
+      router.refresh();
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 border-b border-black/10 bg-white px-4 py-2.5 sm:px-5">
+      {(quota?.quotas ?? []).map(item => <QuotaRing key={item.entryId} quota={item} />)}
+      {quota && quota.streakDays > 1 ? (
+        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800" title="Consecutive days with at least one outreach attempt">
+          <Flame size={13} aria-hidden /> {quota.streakDays}-day streak
+        </span>
+      ) : null}
+      {creating ? (
+        <form onSubmit={createQuota} className="flex flex-wrap items-center gap-2 text-xs">
+          <input value={target} onChange={event => setTarget(event.target.value)} inputMode="numeric" className="w-16 rounded-md border border-black/15 px-2 py-1.5 text-sm" aria-label="Target number" />
+          <select value={metric} onChange={event => setMetric(event.target.value as typeof metric)} className="rounded-md border border-black/15 px-2 py-1.5 text-sm" aria-label="What to count">
+            {Object.entries(QUOTA_METRIC_LABELS).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+          </select>
+          <select value={recurrence} onChange={event => setRecurrence(event.target.value as "daily" | "weekly")} className="rounded-md border border-black/15 px-2 py-1.5 text-sm" aria-label="How often it resets">
+            <option value="daily">a day</option>
+            <option value="weekly">a week</option>
+          </select>
+          <button type="submit" disabled={saving} className="rounded-md bg-black/85 px-2.5 py-1.5 font-semibold text-white hover:bg-black disabled:opacity-50">{saving ? "Saving…" : "Set"}</button>
+          <button type="button" onClick={() => { setCreating(false); setNote(null); }} className="text-black/50 hover:text-black/75">Cancel</button>
+          {note ? <span role="alert" className="text-red-700">{note}</span> : null}
+        </form>
+      ) : (
+        <button type="button" onClick={() => setCreating(true)} className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-black/25 px-2.5 py-1.5 text-xs font-medium text-black/55 hover:border-black/45 hover:text-black/80">
+          <Target size={13} aria-hidden /> Set a target
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * One quota as a ring. SVG stroke-dasharray, no library. Hitting the target
+ * swaps the number for a check and one congratulatory line; the pulse rides a
+ * CSS transition that prefers-reduced-motion already clamps app-wide, and the
+ * DONE state itself is a static change — nobody needs motion to see it.
+ */
+function QuotaRing({ quota }: { quota: ScoutingQuotaViewModel["quotas"][number] }) {
+  const done = quota.current >= quota.target;
+  const fraction = Math.min(1, quota.current / quota.target);
+  const radius = 15;
+  const circumference = 2 * Math.PI * radius;
+  return (
+    <span
+      className="inline-flex items-center gap-2"
+      title={`${quota.current} of ${quota.target} ${QUOTA_METRIC_LABELS[quota.metric]} ${quota.recurrence === "daily" ? "today" : "this week"}`}
+    >
+      <svg width="38" height="38" viewBox="0 0 38 38" aria-hidden className={done ? "scale-105 transition-transform" : "transition-transform"}>
+        <circle cx="19" cy="19" r={radius} fill="none" stroke="rgb(0 0 0 / 0.08)" strokeWidth="3.5" />
+        <circle
+          cx="19" cy="19" r={radius} fill="none"
+          stroke={done ? "#187554" : "var(--brand-primary, #0B6F6D)"}
+          strokeWidth="3.5" strokeLinecap="round"
+          strokeDasharray={`${fraction * circumference} ${circumference}`}
+          transform="rotate(-90 19 19)"
+          style={{ transition: "stroke-dasharray 400ms ease" }}
+        />
+        {done ? <path d="M12 19.5l4.5 4.5L26 14.5" fill="none" stroke="#187554" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /> : null}
+      </svg>
+      <span className="text-xs leading-4">
+        <strong className="block font-semibold text-black/80">
+          {done ? "Target hit!" : `${quota.current}/${quota.target}`}
+        </strong>
+        <span className="text-black/45">
+          {QUOTA_METRIC_LABELS[quota.metric]} {quota.recurrence === "daily" ? "today" : "this week"}
+          {done && quota.recurrence === "weekly" ? (
+            <> · <a href="/portal/agency/you-deserve-it" className="font-medium text-brand hover:underline">Pick something from You deserve it →</a></>
+          ) : null}
+        </span>
+      </span>
+    </span>
+  );
 }

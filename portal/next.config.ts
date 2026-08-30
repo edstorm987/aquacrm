@@ -95,6 +95,13 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
+  // Dev-only: lets a verification browser reach this dev server as 127.0.0.1.
+  // localhost and 127.0.0.1 are different origins to Next's dev-asset guard,
+  // and different COOKIE JARS to the browser — which is exactly why the
+  // automated browser walk uses 127.0.0.1: it cannot collide with the live
+  // localhost:3051 session. Ignored in production builds.
+  allowedDevOrigins: ["127.0.0.1"],
+
   reactStrictMode: true,
   // Per-process build dir. Two dev servers sharing one `.next` fight over the
   // same compiler output and lock files (that's what left a stale folder-lock

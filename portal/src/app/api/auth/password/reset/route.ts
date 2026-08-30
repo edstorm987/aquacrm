@@ -15,18 +15,25 @@
 //      drop a one-shot toast on the login page.
 
 import { NextResponse, type NextRequest } from "next/server";
-import { ensureHydrated } from "@/server/storage";
+import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import {
   verifyPasswordResetToken,
   consumeResetNonce,
+  restoreResetNonce,
 } from "@/lib/server/auth/passwordReset";
 import { getUserById, setUserPassword, validatePassword } from "@/server/users";
 import { logActivity } from "@/server/activity";
-import { updateSupabasePassword } from "@/lib/supabase/admin";
+import { findSupabaseUserByEmail, provisionSupabaseIdentity, updateSupabasePassword } from "@/lib/supabase/admin";
 
 interface Body {
   token?: unknown;
   newPassword?: unknown;
+}
+
+function supabaseProfileRole(role: string): "owner" | "staff" | "client" {
+  if (role === "agency-owner") return "owner";
+  if (role === "agency-manager" || role === "agency-staff") return "staff";
+  return "client";
 }
 
 export async function POST(req: NextRequest) {
@@ -75,9 +82,48 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "email_mismatch" }, { status: 400 });
   }
 
+  // A portal user with no Supabase identity used to end up here holding a
+  // BURNT token and a 500: the nonce is consumed above, and
+  // `updateSupabasePassword` throws when there is nobody to update. Anyone
+  // created by magic link has no Supabase row, so the people most likely to
+  // need a reset were the ones it failed for, and their one-use link was
+  // already spent — the retry could not work either.
+  //
+  // Provision instead, mirroring `api/portal/customer/setup/route.ts:78-91`.
+  // Login checks Supabase, so an identity that does not exist yet has to be
+  // created or the new password would not sign anybody in.
+  // Two phases with different restore rules (Ed's finding, 2026-08-30): the
+  // LOOKUP is a read — if it fails nothing committed anywhere, so handing the
+  // nonce back is safe. The WRITE is ambiguous — a network failure after
+  // Supabase committed would make a restored nonce a second use of a link
+  // whose password already changed. So the nonce is only restored when the
+  // failure provably happened before any write.
+  let lookupPhase = true;
   try {
-    await updateSupabasePassword(user.email, newPassword);
+    const existing = await findSupabaseUserByEmail(user.email);
+    lookupPhase = false;
+    if (existing) {
+      await updateSupabasePassword(user.email, newPassword);
+    } else {
+      await provisionSupabaseIdentity({
+        email: user.email,
+        password: newPassword,
+        name: user.name,
+        // Portal roles are finer-grained than the three Supabase profile roles.
+        // `agency-owner` is the only owner; freelancers map to "client"
+        // following `server/staffProvisioning.ts:353`; everyone customer-shaped
+        // is a client; the remaining agency roles are staff.
+        role: supabaseProfileRole(user.role),
+        agencyId: user.agencyId || undefined,
+      });
+    }
   } catch (error) {
+    // Restore ONLY when the failure happened during the read-only lookup —
+    // before anything could have committed. An ambiguous write failure keeps
+    // the nonce spent: the person requests a fresh link, which costs a minute;
+    // a restored nonce over a committed password change would be a reusable
+    // reset link, which costs more.
+    if (lookupPhase) await restoreResetNonce(tok.payload.nonce).catch(() => {});
     return NextResponse.json(
       { ok: false, error: error instanceof Error ? error.message : "supabase_update_failed" },
       { status: 500 },
@@ -104,6 +150,14 @@ export async function POST(req: NextRequest) {
     action: "password_reset",
     message: `${user.email} reset their password.`,
   });
+
+  // The `sessionRev` bump is the load-bearing guarantee of this whole flow —
+  // it is what makes every existing cookie stale. Without a flush it can sit in
+  // the 250ms write debounce and be lost when the serverless instance goes
+  // away, which would mean "your password changed" without the sessions
+  // actually being killed. `login`, `signup` and `customer/setup` all flush;
+  // this route was the one that did not.
+  await flushPendingWrites();
 
   return NextResponse.json({ ok: true, redirect: "/login?reset=1" });
 }

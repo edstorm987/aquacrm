@@ -24,11 +24,18 @@
 //
 // ── What this file does NOT claim ────────────────────────────────────────
 //
-// It does not say these fields should be implemented. `storefront` blocks and a
-// `setup` wizard are real product decisions with real UX behind them, and
-// inventing either would be worse than naming the gap. It says only: right now
-// a module author writing one of these gets silence, and nothing in the type
-// tells them so.
+// It does not say these fields should be implemented. `storefront` blocks are a
+// real product decision with real UX behind them, and inventing one would be
+// worse than naming the gap. It says only: right now a module author writing
+// one of these gets silence, and nothing in the type tells them so.
+//
+// `setup` left this list on 2026-08-29, and how it left is the point. It was
+// NOT resolved by building the UI its note described — that path forwards
+// answers to ten `onInstall` implementations, none of which read them, so a
+// form built over it would have discarded a live Stripe secret key. It was
+// resolved by finding the one part of the field that could be honestly
+// consumed (`fields[].required`, the only required-marker in the manifest) and
+// leaving the dead half dead, with the contract updated to say which is which.
 
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
@@ -119,16 +126,6 @@ const UNCONSUMED: Array<{ field: string; declaredBy: string[]; note: string }> =
       + "field itself. (`routes` and `headInjections` are SUB-FIELDS of this one, not separate "
       + "findings — an earlier version of this list wrongly counted them as top-level fields.)",
   },
-  {
-    field: "setup",
-    declaredBy: ["ecommerce"],
-    note:
-      "ecommerce declares a first-install wizard and nothing renders it. The ANSWERS path works — "
-      + "installPlugin({ setupAnswers }) forwards to onInstall — so only the collecting UI is "
-      + "missing, and where that UI belongs in the install flow is a product decision. "
-      + "`setupAnswers` in _runtime.ts is a different thing whose similar name is how this stayed "
-      + "hidden. The canonical contract now warns at the field itself.",
-  },
 ];
 
 describe("manifest fields the host actually consumes", () => {
@@ -169,10 +166,10 @@ describe("manifest fields the host actually consumes", () => {
 
   it("the contract WARNS at each unconsumed field, where an author will read it", () => {
     // The list in this file is only read by someone who already suspects a
-    // problem. The person about to declare a `setup` wizard is, by definition,
-    // not suspicious — they are in `_types.ts` looking at the field, and until
-    // 2026-08-28 it said nothing. A warning that can be silently deleted is no
-    // warning, so its presence is asserted here.
+    // problem. The person about to declare `storefront` blocks is, by
+    // definition, not suspicious — they are in `_types.ts` looking at the
+    // field, and until 2026-08-28 it said nothing. A warning that can be
+    // silently deleted is no warning, so its presence is asserted here.
     const contract = readFileSync("src/built-ins/runtime/_types.ts", "utf8");
     for (const entry of UNCONSUMED) {
       const declaration = new RegExp(`\\n  ${entry.field}\\??:`);

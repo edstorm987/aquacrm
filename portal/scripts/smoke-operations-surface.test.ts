@@ -142,9 +142,16 @@ describe("agency Operations surface (IA v2)", () => {
     const topbar = read("src/components/chrome/Topbar.tsx");
     const sidebar = read("src/components/chrome/Sidebar.tsx");
     // Topbar's search source flattens ALL panels with no hidden filter.
+    //
+    // Renamed to `navSearchItems` on 2026-08-29 when search gained a second
+    // source (`destinationSearchItems`, so pages with no nav row are findable
+    // too). The CONTRACT is unchanged and is what is asserted: the panel flatten
+    // still happens and still has no `hidden` filter. Matching the old variable
+    // name would have failed on a rename while a real regression — adding a
+    // hidden filter — would still have passed.
     assert.ok(
-      /searchItems\s*=\s*panels\?\.flatMap/.test(topbar),
-      "Topbar should build searchItems from panels.flatMap (all panels, hidden included)",
+      /(nav)?[Ss]earchItems\s*=\s*panels\?\.flatMap/.test(topbar),
+      "Topbar should build its nav search rows from panels.flatMap (all panels, hidden included)",
     );
     assert.ok(
       !/searchItems[\s\S]{0,120}hidden/.test(topbar),

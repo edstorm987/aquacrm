@@ -129,9 +129,12 @@ describe("Lead identity conflict boundary", () => {
   });
 
   it("keeps the sales-record dialog and draft open when save is refused", () => {
+    // The sales-record dialog moved into `_DetailsEditor` on 2026-08-29. The
+    // guarantee is unchanged: a refused save must leave the dialog and the
+    // typed draft alone, so the user can fix the conflict rather than retype it.
     const source = readFileSync(join(
       process.cwd(),
-      "src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.tsx",
+      "src/app/portal/agency/pipelines/[slug]/_DetailsEditor.tsx",
     ), "utf8");
     assert.match(source, /const result = await onSave\(\{/);
     assert.match(source, /if \(result\.ok\) setOpen\(false\);/);

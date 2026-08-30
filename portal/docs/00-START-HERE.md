@@ -2,7 +2,7 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-08-29 from **6** source documents / **9,670 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-30 from **9** source documents / **11,553 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -11,6 +11,9 @@
 - [`docs/DEVELOPMENT-HANDOFF.md`](#source-docs-development-handoff-md) — 1,552 words · `9199166a1f30`
 - [`docs/development-workspace-cleanup.md`](#source-docs-development-workspace-cleanup-md) — 793 words · `bdb46a5cecd3`
 - [`docs/development.md`](#source-docs-development-md) — 3,248 words · `dd5efef22882`
+- [`docs/development/CLOUD-RESUME.md`](#source-docs-development-cloud-resume-md) — 500 words · `03458cdf18bf`
+- [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 558 words · `27df7b0c7b2a`
+- [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 825 words · `fae37c7c58de`
 - [`README.md`](#source-readme-md) — 437 words · `78865db66238`
 
 ---
@@ -1138,6 +1141,283 @@ documentation, because updating the docs *is* part of finishing the work.
 project is documented, change this page too — it is the one thing everything
 else hangs from.*
 <!-- AQUACRM_SOURCE_END path="docs/development.md" -->
+
+---
+
+<a id="source-docs-development-cloud-resume-md"></a>
+
+## Source document — `docs/development/CLOUD-RESUME.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/development/CLOUD-RESUME.md" sha256="03458cdf18bf59b0c4e89981c5bae78202b0b045cdc83b8569d6b3c6ed0a12be" -->
+# Cloud resume brief — 2026-08-30
+
+Ed switched to cloud mid-session. This commit is the FULL local state pushed to
+main on his explicit instruction ("get all my local onto main, i dont care if
+it breaks"). Read this first, then LOOP-PROGRESS.md, AUDIT-2026-08-30.md and
+ED-QUESTIONS.md — those three are the live queues.
+
+## State at handoff
+
+- Suite was **5,494 / 0 fail / tsc clean** before the final ~30 minutes of
+  work. Since that run: getSession memoization (agent, its own 137/137 pass),
+  the Kanbans feature (complete build, tsc clean, its new smoke
+  `smoke-journey-kanbans-desk.test.ts` written but NOT yet executed), and the
+  route census moved 156→158. **First job on resume: run the canonical suite**
+  — `NODE_OPTIONS='--conditions react-server' node --import tsx --test
+  scripts/smoke-*.test.ts 'src/built-ins/modules/!(website-editor)/src/__smoke__/*.test.ts'`
+  — and fix anything red before new work. Expect possible small failures in
+  the kanban smoke (never run) and anything pinning clients/page.tsx or
+  [slug]/page.tsx source.
+- An in-flight design (Plan agent) for the proxy/access-kernel alignment (audit
+  item A1) did not return before handoff — re-derive from
+  AUDIT-2026-08-30.md's A1 row if needed.
+
+## What landed today (all in this push)
+
+Settings restructure (16 tabs, aliases, search, editable identity via new
+/api/portal/agency/identity), timezone picker, logs pagination, Tools palette
+(savedTools + savedToolUrl allow-list), Operations belt + luxury finish,
+workspaces→Operations move, My Radar topbar control (+ gated
+/api/portal/intelligence/my-radar), inbox merge (3 tabs + cog modal + combined
+Needs-you count) + premium messaging redesign, scouting tab + outreach
+(server-gated + server-recorded) + quota rings/streak, convert→fulfilment
+handoff, growth governed workspace, Kanbans desk + custom boards
+(/api/portal/pipelines/boards + /cards), MFA lockout fixes + cold-start
+hydrate/flush, password-reset provisioning + scoped nonce restore, founder
+email gate closed on the SEND path (name/reply-to too), per-send idempotency
+keys, prospect-aware suppression, department stamp gating via
+agencyBasePanels, role-filtered search registry, custom CSS actually injected
+(?nocss=1 real), CSV formula defusal, realm-runtime LRU cap, getSession
+request-memoization.
+
+## Live queues (in priority order)
+
+1. Canonical suite green (above).
+2. AUDIT-2026-08-30.md — A1 (proxy↔kernel) and A8 remainder (lazy stations,
+   settings pane splits, SMTP deadline, inbox waterfalls), activity-log races +
+   windowed All, inbox URL resync, pipeline search → growth.leads.
+3. LOOP-PROGRESS.md queue — command-centre regrouping design
+   (scratchpad/design-command-centre.md may be gone on cloud; judged flags are
+   reproduced in LOOP-PROGRESS), info-icons pass, website demo Stage 1
+   (per-visitor realms — see the one-sentence rule in the demo plan: NOTHING
+   demo ever in the live realm), performance re-measure.
+4. ED-QUESTIONS.md — blocked on Ed (D1 customer passwords, Resend domain,
+   Twilio, demo retention, terms).
+
+## Rules that keep this codebase safe (hard-won today)
+
+- Grep scripts/*.test.ts before "fixing" anything absent — tests pin decisions.
+- Never run the smoke suite while a file-backend dev server shares .data.
+- Browser-verify on a fork lane via 127.0.0.1 ONLY (localhost cookie jar is
+  shared across ports and will clobber Ed's live session; allowedDevOrigins
+  covers 127.0.0.1; /dev mints the cookie before its redirect hops host).
+- docs/0*.md and docs/reference/* are GENERATED — edit sources, re-run
+  consolidate-authored-docs.mjs / generate-symbol-reference.mjs.
+- website-editor __smoke__ files need OPPOSITE node conditions — never sweep
+  them into the main suite glob.
+<!-- AQUACRM_SOURCE_END path="docs/development/CLOUD-RESUME.md" -->
+
+---
+
+<a id="source-docs-development-ed-questions-md"></a>
+
+## Source document — `docs/development/ED-QUESTIONS.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/development/ED-QUESTIONS.md" sha256="27df7b0c7b2ad5cf1c1e4ee73e31f30fe143b9c6598f36437d4e692e8aaac3b6" -->
+# Questions for Ed — blocked decisions, work continues around them
+
+**Started 2026-08-30.** Per your instruction: anything needing your input is
+written here and skipped; everything else proceeds. Answer inline or in chat —
+each item says exactly what it unblocks.
+
+---
+
+## Q1 — Do end-customers get PASSWORD sign-in, or is magic-link their only door?
+
+`smoke-mfa-doors.test.ts:56` says magic-link is their door, and their signup
+provisions no Supabase identity — so today a password-reset email would arrive
+and `/login` would still refuse them.
+
+- **If passwords: yes** → I wire the login route (spec 4 edit 6, ready).
+- **If magic-link only** → I change the customer portal's "Reset password"
+  button to send a magic link instead.
+
+*Everything else in the reset flow is already fixed and shipped either way.*
+**Unblocks:** end-customer password reset. **Recommendation:** magic-link only —
+fewer credentials to support, and the flow already exists.
+
+## Q2 — Resend sending domain (ACTION, not a question)
+
+`.env.local` uses `onboarding@resend.dev` — Resend's sandbox sender, which only
+delivers to *you*. Until a real domain is verified in Resend (DNS records) and
+`RESEND_API_KEY` + a real from-address are in Vercel, **no customer ever
+receives an email in production**, whatever I build.
+
+**Unblocks:** password reset, enquiry notifications, all transactional mail.
+
+## Q3 — Twilio account + numbers
+
+The outreach journey's calling half (press-to-call, number picker, inbound
+answering) is built/being built against the existing telephony layer, but live
+calls need: your Twilio account SID/auth token in Connections, at least one
+purchased number, and the voice webhook URL set in Twilio's console to
+`<production-domain>/api/webhooks/twilio/voice`.
+
+**Unblocks:** real dialling and inbound answering. Everything ships
+webhook-verified and dormant until then.
+
+## Q4 — Public demo: how long before a visitor's sandbox is wiped?
+
+The self-serve demo design is staged (per-visitor data realms). The consent
+copy must state the retention period, and the reaper enforces it. Pick one:
+**24h / 72h / 7 days**. **Recommendation:** 72h — long enough to come back
+after a weekend, short enough to keep storage trivial.
+
+Also: **do not publish any "we delete after X" wording until I confirm the
+reaper is live** — deletion machinery didn't exist until this work.
+
+## Q5 — Terms of service + privacy wording for the demo gate
+
+I build the checkbox, record consent with a timestamp and version, and link the
+pages — **the words are yours** (legal). A name + phone number is personal
+data: it needs a lawful basis and sits under your governance/DPO erasure
+surface (I'm wiring demo signups into it). You may want your solicitor's eyes
+on the demo T&Cs before the gate goes live.
+
+**Unblocks:** the public demo gate going live (build proceeds behind a flag).
+
+## Q6 — Aqua as a public subscription product
+
+You said: sell AquaCRM as a subscription to agencies. Pricing, plan tiers, and
+Stripe products are yours to define. The demo/website work does NOT wait on
+this — but the pricing page will ship with placeholder tiers until you set
+real numbers.
+
+## Q7 — Supabase cutover residue (from the live preflight)
+
+1 portal user would be **locked out at cutover** and 2 auth users have no
+role/agency. These need reconciling in the Supabase dashboard before cutover.
+Run `node scripts/supabase-cutover-preflight.mjs` to see the current list.
+
+---
+
+*Answered items: move them to the bottom with the decision and date, so this
+file stays a live queue.*
+<!-- AQUACRM_SOURCE_END path="docs/development/ED-QUESTIONS.md" -->
+
+---
+
+<a id="source-docs-development-loop-progress-md"></a>
+
+## Source document — `docs/development/LOOP-PROGRESS.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/development/LOOP-PROGRESS.md" sha256="fae37c7c58deda4060a2d4a3d1031a83b609dea212e9337442d8ef24dca4066f" -->
+# Production-readiness loop — live ledger
+
+**Loop:** every 20 min (cron 5ced36da), started 2026-08-30. Blocked-on-Ed items
+live in [ED-QUESTIONS.md](ED-QUESTIONS.md) and are SKIPPED, not stalled on.
+Suite baseline at loop start: **5,460 tests / 0 fail / tsc clean.**
+
+## Done this loop (newest first)
+
+- **Ed's five findings, all fixed + pinned** — (1) search registry now
+  role-filtered (destinationSearchItemsFor; staff/freelancers no longer shown
+  owner/Dev doors); (2) department stamp server-gated via the NEW shared
+  assembler `agencyBasePanels.ts` — departmentHasVisibleNav finally has its
+  consumer, layout + route can never fork; (3) MFA verify route hydrates +
+  flushes (cold-serverless safe); (4) custom CSS: POST→PUT, UserCssInjector in
+  portal layout, ?nocss=1 real; (5) reset nonce restored on provider failure
+  (releaseNonce added to both nonce adapters). Opt-out bypass (email route
+  browser-phone trust + raw tel:/mailto:) still OPEN — queued with scouting
+  Stage 1 which rebuilds those controls.
+- **My Radar topbar control landed** (agent): 4 files, gated route, census→156,
+  17 new assertions. One regression it introduced (static access-graph import
+  in the hot path) caught by smoke-shared-graph-split and fixed by deferring.
+- **Ops luxury finish applied** (materials/rail/discs/grain/sheen + dark +
+  reduced-motion).
+
+- **Operations luxury finish** — crate as material object (accent hairline,
+  layered shadows, lacquered band, radial contact shadow), machined-metal rail,
+  embossed discs, dot-grain floor, cinematic-gated sheen, full dark
+  restatements + reduced-motion resets. 20 ops tests green.
+- **Tools palette** — SavedTool on UserChromeLayout, allow-list URL validation
+  (write + server read + client read), add/edit/reorder/remove cards,
+  noopener+noreferrer, showcase-gated. 92 tests green incl. 12 new.
+- **Convert → fulfilment handoff** — "Continue in fulfilment →" on the
+  post-convert banner (`?client=` param existed all along).
+- **Needs-you badge** — combines alerts + actions queue server-side, no double
+  counting; showcase keeps null slot + zero count. Assertions repointed.
+- **Scouting tab** — promoted out of the quick-filter strip; stage filters hide
+  in scouting mode; #scouting deep links intact.
+- **ED-QUESTIONS.md** created; docs consolidated (137 sources).
+
+## In flight
+
+- (none)
+
+## Browser-verify status — WALK COMPLETE (2026-08-30)
+
+The working recipe, hard-won — follow it exactly:
+1. `node scripts/fork-sandbox.mjs <name> <port>` then start with its printed
+   command (own state file + dist dir).
+2. `allowedDevOrigins: ["127.0.0.1"]` is now in next.config.ts — REQUIRED, or
+   assets are blocked cross-origin and hydration silently fails page-wide.
+3. Browse ONLY via 127.0.0.1 (own cookie jar). NEVER touch localhost:<lane> —
+   localhost cookies are shared across ports and my earlier localhost visits
+   clobbered Ed's live :3051 session cookie (owned + told him).
+4. Session: hit /dev once on 127.0.0.1 (cookie mints before its redirect hops
+   host), then navigate back to 127.0.0.1 URLs directly.
+5. After a lane restart, force-reload the tab — stale pre-restart assets also
+   present as dead hydration.
+6. The pane's screenshot scaling can glitch after restarts; DOM/JS probes are
+   authoritative. NEVER run the smoke suite while a file-backend lane shares
+   .data (contention fails the concurrent-writes test).
+
+VERIFIED in-browser on the lane: ops luxury belt renders (discs/rails/bands);
+My Radar popover opens with switcher+today+tasks+meters; Tools palette add →
+card with rel="noopener noreferrer" target=_blank; javascript: URL refused
+with the explanation and no card; Scouting tab selects and hides the stage
+strip; inbox shows Needs you 5 / Inbox / Updates (badge no longer 0); cog →
+Connections modal opens and Escape closes it.
+
+## Design docs ready to build (scratchpad, judged 6–9 with fixes named)
+
+Path prefix: /private/tmp/claude-501/.../scratchpad/
+- `design-inbox-polish.md` — two-pane premium messaging. NOTE: judge flag — its
+  proposed sub-12px pin fails as written (16 literals exist); drop that pin.
+  Touches _UnifiedInboxWorkspace + _MasterInbox chip row ONLY.
+- `design-command-centre.md` — station regrouping + progressive disclosure.
+  Flags: attention-protection pins 'Attention shield'/'Focus protection'
+  strings; the 220KB perf pin is real — CommandPanelShell adds bytes.
+- `design-kanbans.md` — Journey Kanbans tab + custom boards. Flag: MUST keep
+  `data-testid="pipeline-columns"` in [slug]/page.tsx source, and the Journey
+  catch-all render branch needs the new desk value or it renders a blank.
+- Scouting journey staged plan: `wd3bqii71` task output (also journal
+  wf_ad38416b-aa8) — Stage 1 = call/email buttons + attempt logging on
+  prospect rows; quotas reuse CommandCalendarEntry goal/target (auto-increment
+  missing — that's the build); rewards hook into You-deserve-it later.
+
+## Queue (priority order)
+
+1. Radar agent lands → verify, full suite
+2. Scouting journey Stage 1 (outreach buttons + logging + quota ring)
+3. Inbox premium messaging pass
+4. Kanbans tab (with the testid + catch-all fixes)
+5. Command Centre regrouping (biggest; stage it)
+6. Info icons / plain-English pass app-wide (Ed: "information icons everywhere
+   where needed") — do per-surface as each is touched, then a sweep
+7. Website demo Stage 1 (gate + /for-agencies + terms shell)
+8. Performance re-measure + docs accuracy sweep + data-compliance check
+   (demo PII → governance erasure surface)
+
+## Rules every tick follows
+
+- Plan → read existing code → check test pins → build; agents only on disjoint
+  file sets. Full canonical suite + tsc before claiming done.
+- `smoke:all` node glob EXCLUDES website-editor (its gate needs opposite
+  conditions) — never sweep those files in.
+- Blocked on Ed → ED-QUESTIONS.md, move on.
+<!-- AQUACRM_SOURCE_END path="docs/development/LOOP-PROGRESS.md" -->
 
 ---
 

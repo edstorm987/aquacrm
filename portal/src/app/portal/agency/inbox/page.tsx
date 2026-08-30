@@ -14,7 +14,7 @@ import { synchroniseInboxIdentityResolutions } from "@/lib/server/inbox/inboxSer
 import { clearIdentityResolutionReviews } from "@/lib/server/identityResolution";
 
 import { MasterInbox } from "./_MasterInbox";
-import { AgencyActionsPage } from "../actions/_ActionsPage";
+import { AgencyActionsPage, assembleAgencyActions } from "../actions/_ActionsPage";
 import type { InboxOutboundAttachment } from "@/lib/inbox/media";
 import { cleanClientRequests } from "@/lib/clients/clientRequests";
 import { clientWorkspaceDisplayName } from "@/lib/clients/clientWorkspace";
@@ -124,9 +124,15 @@ export default async function AgencyInboxPage() {
     return b.submittedAt - a.submittedAt;
   });
 
+  // One assembly feeds both the Needs-you slot and its badge, so the tab can
+  // never again say 0 while the queue below it holds work. Showcase keeps its
+  // null slot AND a zero count.
+  const preparedActions = session.publicShowcase ? null : await assembleAgencyActions();
+
   return <MasterInbox
     referenceNow={Date.now()}
-    actionsSlot={session.publicShowcase ? null : <AgencyActionsPage />}
+    actionsSlot={preparedActions ? <AgencyActionsPage prepared={preparedActions} /> : null}
+    openActionCount={preparedActions?.openActionCount ?? 0}
     alerts={alerts}
     websiteForms={websiteForms}
     websiteFormsError={websiteFormsResult.error}

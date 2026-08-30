@@ -40,6 +40,8 @@ export function PipelineBoard({
   showProductOverview = true,
   embedded = false,
   editable = true,
+  onMoveCard,
+  cardNoun = "client",
 }: {
   title: string;
   eyebrow: string;
@@ -48,6 +50,15 @@ export function PipelineBoard({
   boards: BoardLink[];
   columns: Column[];
   cards: Card[];
+  /**
+   * Custom-board transport (2026-08-30): the default POST is move-client,
+   * which treats card.id as a CLIENT id — for a custom card that would 404.
+   * When present this replaces only the network call; the optimistic override,
+   * busy state and conflict handling stay shared.
+   */
+  onMoveCard?: (cardId: string, columnId: string) => Promise<{ ok: boolean; columnId?: string; error?: string }>;
+  /** What a card IS here — the empty-column copy says "Drop a client here" otherwise. */
+  cardNoun?: string;
   productKey?: string;
   productViews?: Array<{ key: string; label: string }>;
   productBasePath?: string;
@@ -80,6 +91,14 @@ export function PipelineBoard({
     setError("");
     let loadedConflict = false;
     try {
+      if (onMoveCard) {
+        const result = await onMoveCard(card.id, columnId);
+        if (!result.ok) {
+          setOverrides(current => ({ ...current, [card.id]: previous }));
+          setError(result.error ?? "The card could not be moved.");
+        }
+        return;
+      }
       const response = await fetch("/api/portal/pipelines/move-client", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -196,7 +215,7 @@ export function PipelineBoard({
                       </select>
                     </li>
                   ))}
-                  {columnCards.length === 0 ? <li className="grid flex-1 place-items-center rounded-md border border-dashed border-black/10 p-4 text-center text-xs text-black/35">{editable ? "Drop a client here" : "No clients in this stage"}</li> : null}
+                  {columnCards.length === 0 ? <li className="grid flex-1 place-items-center rounded-md border border-dashed border-black/10 p-4 text-center text-xs text-black/35">{editable ? `Drop a ${cardNoun} here` : `No ${cardNoun}s in this stage`}</li> : null}
                 </ul>
               </section>
             );

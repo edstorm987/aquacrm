@@ -93,7 +93,12 @@ test("Settings and legacy controls converge on the canonical sandbox endpoint", 
   const requestHelper = read("src/lib/client/sandboxModeRequest.ts");
 
   assert.match(settings, /id: "environment", label: "Environment"/);
-  assert.match(settings, /hash === "showcase" \? "environment"/);
+  // The `#showcase` bookmark must still open Environment. Asserted as the
+  // ALIAS ENTRY rather than the old inline `hash === "showcase" ? …` ternary:
+  // that expression moved into `LEGACY_TAB_ALIASES` on 2026-08-29 when three
+  // retired tab ids needed the same treatment. Matching the expression would
+  // fail on a refactor while a real regression — dropping the alias — passed.
+  assert.match(settings, /showcase: "environment"/);
   assert.match(panel, /Empty workspace/);
   assert.match(panel, /Demo data/);
   assert.match(panel, /Production snapshot/);

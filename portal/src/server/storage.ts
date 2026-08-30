@@ -486,10 +486,66 @@ interface RealmRuntime {
 
 const realmRuntimes = new Map<string, RealmRuntime>();
 
+/**
+ * How many realms a single process keeps parsed at once.
+ *
+ * This Map was insert-only: nothing ever removed an entry, so every realm a
+ * warm instance touched kept a fully parsed `PortalState` alive for the life of
+ * the process. With one live realm and a handful of sandboxes that was free.
+ * With a realm PER DEMO VISITOR it is a memory leak with a queue of visitors
+ * feeding it — a ~250 KB document parses to roughly 1–3 MB of heap, so a warm
+ * lambda would fall over somewhere in the low hundreds.
+ *
+ * 25 is generous: a request touches exactly one realm, so this only has to
+ * cover the working set of a warm instance, not the number of live demos.
+ */
+const MAX_REALM_RUNTIMES = 25;
+
+/**
+ * Never evict a realm that still owes a write.
+ *
+ * Dropping a dirty runtime silently loses everything it was holding — this is
+ * the one thing an eviction policy here can get catastrophically wrong, so it
+ * is checked explicitly rather than inferred from a timer being unset.
+ */
+function realmRuntimeIsEvictable(runtime: RealmRuntime): boolean {
+  return runtime.flushTimer === null
+    && runtime.flushInFlight === null
+    && runtime.pendingPatchOperations.length === 0
+    && runtime.mutationVersion === runtime.persistedVersion;
+}
+
+/**
+ * Drop the least-recently-used CLEAN realms until the map is back under the
+ * cap. Map preserves insertion order and `realmRuntime` re-inserts on every
+ * touch, so iteration order is LRU-first.
+ *
+ * The live realm and the realm currently being served are never candidates:
+ * evicting the one in flight would re-hydrate it mid-request.
+ */
+function evictColdRealmRuntimes(keepRealmId: string): void {
+  if (realmRuntimes.size <= MAX_REALM_RUNTIMES) return;
+  for (const [realmId, runtime] of realmRuntimes) {
+    if (realmRuntimes.size <= MAX_REALM_RUNTIMES) return;
+    if (realmId === keepRealmId || realmId === LIVE_DATA_REALM_ID) continue;
+    if (!realmRuntimeIsEvictable(runtime)) continue;
+    realmRuntimes.delete(realmId);
+  }
+  // Deliberately no fallback that force-drops a dirty runtime. If every realm
+  // over the cap owes a write, the right outcome is to hold the memory and let
+  // the flushes finish — losing a visitor's data to save heap is not a trade
+  // this code gets to make.
+}
+
 function realmRuntime(realmId = getActiveDataRealmId()): RealmRuntime {
   const valid = normaliseDataRealmId(realmId);
   const existing = realmRuntimes.get(valid);
-  if (existing) return existing;
+  if (existing) {
+    // Re-insert so Map iteration order stays least-recently-used first.
+    realmRuntimes.delete(valid);
+    realmRuntimes.set(valid, existing);
+    return existing;
+  }
   const created: RealmRuntime = {
     cache: null,
     // Persistence and write capability are different properties. Memory is
@@ -509,6 +565,7 @@ function realmRuntime(realmId = getActiveDataRealmId()): RealmRuntime {
     sidecarPopulated: new Set<string>(),
   };
   realmRuntimes.set(valid, created);
+  evictColdRealmRuntimes(valid);
   return created;
 }
 

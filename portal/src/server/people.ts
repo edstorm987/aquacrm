@@ -1362,6 +1362,57 @@ function lastReadAt(agencyId: string, channelId: string, userId: string): number
   return getState().peopleChannelReads?.[channelReadKey(agencyId, channelId, userId)]?.lastReadAt ?? 0;
 }
 
+export interface TeamChatChannelSummary {
+  id: string;
+  name: string;
+  kind: PeopleChannel["kind"];
+  /** Bumped on every post, so a channel can be sorted without loading messages. */
+  updatedAt: number;
+  /** Messages since this member last read, excluding their own. */
+  unread: number;
+  /** The most recent line, for a one-line preview. Empty for a new channel. */
+  lastBody: string;
+}
+
+/**
+ * Team-chat channels as ROWS, for surfacing chat inside the merged inbox.
+ *
+ * Ed, 2026-08-30, asked for team chat to live in the one inbox. Channels, never
+ * individual messages: every other source in that stream is a thread, and
+ * flooding it with one row per message would defeat the merge it exists to be.
+ *
+ * `lastReadAt` is module-private and stays that way — this is the read-only
+ * projection callers need, so no caller has to know how reads are keyed.
+ *
+ * Unread deliberately counts EVERY unread message, not just directs and
+ * mentions. `chatAttentionForUser` is narrower on purpose because it drives an
+ * alert, and alerting on every team message would be noise; a channel row
+ * showing "3" when three things were said is just the count.
+ */
+export function teamChatChannelSummaries(agencyId: string, userId: string): TeamChatChannelSummary[] {
+  if (!agencyId || !userId) return [];
+  return listPeopleChannels(agencyId, userId).map(channel => {
+    const readAt = lastReadAt(agencyId, channel.id, userId);
+    const messages = listPeopleMessages(agencyId, channel.id, 500);
+    let unread = 0;
+    for (const message of messages) {
+      if (message.createdAt > readAt && message.authorUserId !== userId) unread += 1;
+    }
+    const latest = messages.reduce<typeof messages[number] | null>(
+      (newest, message) => (!newest || message.createdAt > newest.createdAt ? message : newest),
+      null,
+    );
+    return {
+      id: channel.id,
+      name: channel.name,
+      kind: channel.kind,
+      updatedAt: channel.updatedAt,
+      unread,
+      lastBody: latest?.body ?? "",
+    };
+  });
+}
+
 export interface ChatAttention {
   directCount: number; // unread 1:1 direct messages from other people
   mentionCount: number; // unread @mentions of the member in team channels

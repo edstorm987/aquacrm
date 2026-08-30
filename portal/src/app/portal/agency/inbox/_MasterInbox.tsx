@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { WebsiteSourcesConfig } from "./_WebsiteSourcesConfig";
 import { IntegrationConnectionsPanel } from "@/app/portal/agency/settings/IntegrationConnectionsPanel";
-import { useMemo, useState, type ReactNode } from "react";
-import { AlertTriangle, ArrowRight, Bell, Bot, Building2, Check, ChevronDown, CircleCheck, Clock3, ExternalLink, FileText, Inbox, LifeBuoy, ListChecks, Mail, MessageCircle, Phone, Radio, RotateCcw, Search, Send, Trash2, UserPlus, Users, X, type LucideIcon } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { AlertTriangle, ArrowRight, Bell, Bot, Building2, Check, ChevronDown, CircleCheck, Clock3, ExternalLink, FileText, Inbox, LifeBuoy, ListChecks, Mail, MessageCircle, Phone, Radio, RotateCcw, Search, Send, Settings, Trash2, UserPlus, Users, X, type LucideIcon } from "lucide-react";
 
 import type { OperationalAlertView } from "@/lib/intelligence/operationalAttention";
 import type { WebsiteEnquiry } from "@/lib/server/websiteEnquiries";
@@ -65,7 +65,32 @@ type Update = {
   ts: number;
 };
 
-type View = "all" | "attention" | "actions" | "social" | "forms" | "chatbot" | "support" | "conversations" | "updates" | "channels";
+type View = "all" | "attention" | "actions" | "social" | "forms" | "chatbot" | "support" | "conversations" | "updates" | "channels" | "connections";
+
+/**
+ * Ten views became three TABS on 2026-08-30.
+ *
+ * Ed: *"merge needs attention and actions ... and also merge social inbox,
+ * enquiries, chatbots and all into one together but can add a filter to sort
+ * ... so we have one inbox nothings missed in different places."*
+ *
+ * The view ids are deliberately NOT renamed. Thirty-three `?view=` deep links
+ * exist across search, Radar, form capture, the operational alerts and the
+ * `/portal/agency/actions` redirect; renaming would break every one of them and
+ * the smoke tests that pin them. A retired view is now a SOURCE inside the
+ * merged tab rather than a tab of its own, so every old link still lands on
+ * exactly the right content.
+ */
+type InboxTab = "needs-you" | "inbox" | "updates";
+
+const TAB_OF: Record<View, InboxTab> = {
+  attention: "needs-you", actions: "needs-you",
+  all: "inbox", social: "inbox", forms: "inbox", chatbot: "inbox",
+  support: "inbox", conversations: "inbox",
+  // `channels` and `connections` open the settings modal over the merged tab.
+  channels: "inbox", connections: "inbox",
+  updates: "updates",
+};
 
 // Company routing, on the read side.
 //
@@ -103,14 +128,17 @@ function companyFilterOptions(items: Array<Pick<WebsiteEnquiry, "routedCompanyId
     .sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id));
 }
 
-export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsError, conversations, socialInbox, socialInboxError, metaReadiness, currentUserId, communicationReadiness, clientProfiles, updates, canErase, canManageChannels, channelClients, actionsSlot, readOnly = false }: { referenceNow: number; alerts: OperationalAlertView[]; websiteForms: WebsiteEnquiry[]; websiteFormsError: string | null; conversations: Conversation[]; socialInbox: InboxSnapshot; socialInboxError: string | null; metaReadiness: MetaInboxReadiness; currentUserId: string; communicationReadiness: OutboundCommunicationReadiness; clientProfiles: UnifiedClientProfile[]; updates: Update[]; canErase: boolean; canManageChannels: boolean; channelClients: Array<{ id: string; name: string }>; actionsSlot?: ReactNode; readOnly?: boolean }) {
+export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsError, conversations, socialInbox, socialInboxError, metaReadiness, currentUserId, communicationReadiness, clientProfiles, updates, canErase, canManageChannels, channelClients, actionsSlot, openActionCount = 0, readOnly = false }: { referenceNow: number; alerts: OperationalAlertView[]; websiteForms: WebsiteEnquiry[]; websiteFormsError: string | null; conversations: Conversation[]; socialInbox: InboxSnapshot; socialInboxError: string | null; metaReadiness: MetaInboxReadiness; currentUserId: string; communicationReadiness: OutboundCommunicationReadiness; clientProfiles: UnifiedClientProfile[]; updates: Update[]; canErase: boolean; canManageChannels: boolean; channelClients: Array<{ id: string; name: string }>; actionsSlot?: ReactNode; openActionCount?: number; readOnly?: boolean }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedView = searchParams.get("view");
-  const initialView: View = requestedView === "all" || requestedView === "attention" || requestedView === "actions" || requestedView === "social" || requestedView === "forms" || requestedView === "chatbot" || requestedView === "support" || requestedView === "conversations" || requestedView === "updates" || requestedView === "channels"
+  const initialView: View = requestedView === "all" || requestedView === "attention" || requestedView === "actions" || requestedView === "social" || requestedView === "forms" || requestedView === "chatbot" || requestedView === "support" || requestedView === "conversations" || requestedView === "updates" || requestedView === "channels" || requestedView === "connections"
     ? requestedView
     : "attention";
   const [view, setView] = useState<View>(initialView);
+  const tab = TAB_OF[view];
+  // `channels`/`connections` are a modal over the merged tab, not a tab.
+  const [connectionsOpen, setConnectionsOpen] = useState(initialView === "channels" || initialView === "connections");
   const [query, setQuery] = useState("");
   const [teamNote, setTeamNote] = useState("");
   const [teamNoteError, setTeamNoteError] = useState<string | null>(null);
@@ -313,18 +341,57 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
       </div>
     </header>
 
-    <nav className="flex gap-6 overflow-x-auto border-b border-black/10" aria-label="Inbox view">
-      <Tab active={view === "attention"} onClick={() => setView("attention")} label="Needs attention" count={attentionAlerts.length} icon={AlertTriangle} attentionAll />
-      <Tab active={view === "actions"} onClick={() => setView("actions")} label="Actions" icon={ListChecks} />
-      <Tab active={view === "all"} onClick={() => setView("all")} label="All" count={websiteForms.filter(item => item.status !== "resolved").length + socialInbox.conversations.reduce((sum, item) => sum + item.unreadCount, 0) + conversations.filter(item => item.status === "open").length} icon={Inbox} />
-      <Tab active={view === "social"} onClick={() => setView("social")} label="Social inbox" count={socialInbox.conversations.reduce((sum, item) => sum + item.unreadCount, 0)} icon={Radio} />
-      <Tab active={view === "forms"} onClick={() => setView("forms")} label="Enquiries" count={websiteForms.filter(item => item.channel === "form" && item.status !== "resolved").length} icon={FileText} attentionHref="/portal/agency/inbox?view=forms" />
-      <Tab active={view === "chatbot"} onClick={() => setView("chatbot")} label="Chatbot" count={websiteForms.filter(item => item.channel === "chatbot" && item.status !== "resolved").length} icon={Bot} attentionHref="/portal/agency/inbox?view=chatbot" />
-      <Tab active={view === "support"} onClick={() => setView("support")} label="Support" count={websiteForms.filter(item => item.channel === "support" && item.status !== "resolved").length + conversations.filter(item => ["support-ticket", "cancel", "move-provider"].includes(item.type) && item.status === "open").length} icon={LifeBuoy} attentionHref="/portal/agency/inbox?view=support" />
-      <Tab active={view === "conversations"} onClick={() => setView("conversations")} label="Client messages" count={conversations.filter(item => !["support-ticket", "cancel", "move-provider"].includes(item.type) && item.status === "open").length} icon={MessageCircle} />
-      <Tab active={view === "updates"} onClick={() => setView("updates")} label="Updates" count={updates.length} icon={Bell} />
-      <Tab active={view === "channels"} onClick={() => setView("channels")} label="Channels" icon={Inbox} />
+    <nav className="flex items-center gap-6 overflow-x-auto border-b border-black/10" aria-label="Inbox view">
+      <Tab
+        active={tab === "needs-you"}
+        onClick={() => setView("attention")}
+        label="Needs you"
+        // Alerts the client can see PLUS the server-counted actions queue.
+        // The queue's own `attention:` rows are excluded server-side, so each
+        // alert counts once however many surfaces it appears on.
+        count={attentionAlerts.length + openActionCount}
+        icon={AlertTriangle}
+        attentionAll
+      />
+      <Tab
+        active={tab === "inbox"}
+        onClick={() => setView("all")}
+        label="Inbox"
+        count={
+          websiteForms.filter(item => item.status !== "resolved").length
+          + socialInbox.conversations.reduce((sum, item) => sum + item.unreadCount, 0)
+          + conversations.filter(item => item.status === "open").length
+        }
+        icon={Inbox}
+      />
+      <Tab active={tab === "updates"} onClick={() => setView("updates")} label="Updates" count={updates.length} icon={Bell} />
+      {!readOnly ? (
+        <button
+          type="button"
+          onClick={() => setConnectionsOpen(true)}
+          aria-haspopup="dialog"
+          aria-label="Inbox connections"
+          title="Connections"
+          className="ml-auto mb-2 grid size-9 shrink-0 place-items-center rounded-md text-black/45 hover:bg-black/[0.05] hover:text-black/75"
+        >
+          <Settings size={17} aria-hidden />
+        </button>
+      ) : null}
     </nav>
+
+    {/* One stream, but never an undifferentiated pile — Ed: "make sure its all
+        clear what is what". Each source keeps its name, its icon and its own
+        count, and selecting one narrows the tab rather than navigating away. */}
+    {tab === "inbox" ? (
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by source">
+        <SourceChip active={view === "all"} onClick={() => setView("all")} icon={Inbox} label="Everything" />
+        <SourceChip active={view === "forms"} onClick={() => setView("forms")} icon={FileText} label="Enquiries" attentionHref="/portal/agency/inbox?view=forms" count={websiteForms.filter(item => item.channel === "form" && item.status !== "resolved").length} />
+        <SourceChip active={view === "chatbot"} onClick={() => setView("chatbot")} icon={Bot} label="Chatbot" attentionHref="/portal/agency/inbox?view=chatbot" count={websiteForms.filter(item => item.channel === "chatbot" && item.status !== "resolved").length} />
+        <SourceChip active={view === "support"} onClick={() => setView("support")} icon={LifeBuoy} label="Support" attentionHref="/portal/agency/inbox?view=support" count={websiteForms.filter(item => item.channel === "support" && item.status !== "resolved").length + conversations.filter(item => ["support-ticket", "cancel", "move-provider"].includes(item.type) && item.status === "open").length} />
+        <SourceChip active={view === "social"} onClick={() => setView("social")} icon={Radio} label="Social" count={socialInbox.conversations.reduce((sum, item) => sum + item.unreadCount, 0)} />
+        <SourceChip active={view === "conversations"} onClick={() => setView("conversations")} icon={MessageCircle} label="Client messages" count={conversations.filter(item => !["support-ticket", "cancel", "move-provider"].includes(item.type) && item.status === "open").length} />
+      </div>
+    ) : null}
 
     <fieldset disabled={readOnly} className="contents">
 
@@ -341,9 +408,13 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
       focusThreadKey={focusThreadKey}
     /> : null}
 
-    {view === "actions" ? actionsSlot ?? null : null}
+    {/* Merged 2026-08-30. They were always one job — a signal and the queue of
+        work it creates — and were split across two tabs, so resolving something
+        meant remembering which half it lived in. The alerts list first because
+        it is the shorter and more urgent of the two. */}
+    {tab === "needs-you" ? actionsSlot ?? null : null}
 
-    {view === "attention" ? <section>
+    {tab === "needs-you" ? <section>
       <SectionHeader title="What needs you now" detail="Every signal has an exact resolution path. Fix it now, remind yourself later, or dismiss it until the evidence changes." />
       <div className="mt-3 grid gap-2">
         {visibleAlerts.map(alert => {
@@ -463,7 +534,7 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
       <form onSubmit={sendTeamNote} className="mm-surface-card h-fit rounded-md p-4"><div className="flex items-center gap-2"><Users size={17} className="text-black/40" /><h2 className="text-sm font-semibold text-black/75">Team notes</h2></div><p className="mt-1 text-xs leading-5 text-black/45">Leave a shared internal update for everyone working in AquaOasis-Web.</p><textarea value={teamNote} onChange={event => setTeamNote(event.target.value)} rows={5} className="mt-3 w-full rounded-md border border-black/15 px-3 py-2 text-sm" placeholder="What should the team know?" />{teamNoteError ? <p role="alert" className="mt-2 text-xs text-red-700">{teamNoteError}</p> : null}<button disabled={busy || !teamNote.trim()} className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white disabled:opacity-40"><Send size={14} />{busy ? "Posting..." : "Post note"}</button></form>
     </section> : null}
 
-    {view === "channels" ? <section className="grid gap-6">
+    {connectionsOpen ? <ConnectionsModal onClose={() => setConnectionsOpen(false)}><section className="grid gap-6">
       <div>
         <SectionHeader title="Your connections" detail="Press Connect to link an account — email, SMS, WhatsApp and more — then edit, test or remove it any time. Email connections carry their own sender, so replying from the inbox just works." />
         <div className="mt-3">
@@ -483,7 +554,7 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
         <Channel icon={<MessageCircle size={19} />} name="Meta social messages" detail={socialInbox.connections.length ? `${socialInbox.connections.filter(item => item.status === "connected").length} of ${socialInbox.connections.length} Instagram and Facebook channels live.` : "Instagram &amp; Facebook — connect via the social setup (separate from the accounts above)."} connected={socialInbox.connections.some(item => item.status === "connected")} />
       </div>
       </div>
-    </section> : null}
+    </section></ConnectionsModal> : null}
     </fieldset>
   </div>;
 }
@@ -692,6 +763,101 @@ function ConversationSection({ title, detail, items, openId, replyDrafts, busy, 
     </div>
     {!items.length ? <Empty icon={<MessageCircle size={25} />} title="No messages here" detail="New messages will appear with their client, project, site, urgency, and next action." /> : null}
   </section>;
+}
+
+/**
+ * A source inside the merged Inbox tab.
+ *
+ * Named, counted and icon-bearing on purpose. Ed's one worry about merging was
+ * *"make sure its all clear what is what"* — a stream where six sources become
+ * an anonymous pile is worse than the six tabs it replaced, so the source never
+ * stops announcing itself.
+ */
+function SourceChip({ active, onClick, label, count, icon: Icon, attentionHref }: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  count?: number;
+  icon: LucideIcon;
+  /**
+   * The destination an operational alert points at for this source. Carried
+   * over from the tab this chip replaced: the alert hrefs did not change, so
+   * the dot has to follow the source or a live signal goes dark.
+   */
+  attentionHref?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={[
+        "inline-flex min-h-9 items-center gap-2 rounded-full border px-3 text-sm transition",
+        active
+          ? "border-black/25 bg-black/[0.06] font-semibold text-black/85"
+          : "border-black/12 bg-white text-black/60 hover:border-black/25 hover:text-black/80",
+      ].join(" ")}
+    >
+      <Icon size={14} aria-hidden />
+      {label}
+      {count ? (
+        <span className="rounded-full bg-black/[0.08] px-1.5 text-[11px] font-semibold text-black/60">{count}</span>
+      ) : null}
+      <AttentionDot href={attentionHref} />
+    </button>
+  );
+}
+
+/**
+ * The connections surface, as a dialog over the inbox.
+ *
+ * Ed: *"add a settings icon here and make this go to a modal of connections
+ * rather than having the tab."* It was a tenth tab competing with the messages
+ * for the same strip, for something touched once a month.
+ *
+ * Escape closes, the backdrop closes, and focus moves into the dialog on open
+ * so a keyboard user is not left behind on the cog.
+ */
+function ConnectionsModal({ onClose, children }: { onClose: () => void; children: ReactNode }) {
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) { if (event.key === "Escape") onClose(); }
+    document.addEventListener("keydown", onKey);
+    const previous = document.activeElement as HTMLElement | null;
+    panelRef.current?.focus();
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      // Back to the cog, not to the top of the document.
+      previous?.focus?.();
+    };
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:p-8">
+      <button type="button" aria-label="Close connections" onClick={onClose} className="absolute inset-0 cursor-default" />
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Inbox connections"
+        tabIndex={-1}
+        className="relative w-full max-w-4xl rounded-md border border-black/10 bg-white p-5 shadow-xl outline-none"
+      >
+        <div className="mb-3 flex items-center justify-between gap-4">
+          <h2 className="text-lg font-semibold text-black/85">Connections</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid size-8 place-items-center rounded-md text-black/50 hover:bg-black/[0.06] hover:text-black/80"
+            aria-label="Close"
+          >
+            <X size={16} aria-hidden />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
 }
 
 function Tab({ active, onClick, label, count, icon: Icon, attentionHref, attentionAll }: { active: boolean; onClick: () => void; label: string; count?: number; icon: LucideIcon; attentionHref?: string; attentionAll?: boolean }) {

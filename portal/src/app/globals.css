@@ -4047,6 +4047,306 @@ html[data-color-mode="dark"] .mm-dev-mode-switcher-persona[data-active="true"] {
 .mm-route-canvas[data-portal-area="settings"],
 .mm-route-canvas[data-portal-area="account"] { --area-accent: #62676f; }
 
+/* ── Operations hub — the belt ─────────────────────────────────────────────
+   Ed, 2026-08-30: "make it look very cool like a conveyor belt or something
+   ... rather than blocks".
+
+   Stations are flex items that wrap into lanes; the rail is ONE pseudo-element
+   per station whose overhang is exactly half the station gap, so adjacent
+   segments abut into a continuous belt and every wrapped lane gets its own
+   rail for free.
+
+   NOTHING here assumes a station count, a crate count or a lane count. A new
+   business function is one object in a `functions` array; a new group is one
+   object in OPS_GROUPS and inherits the tenant brand until it is given an
+   accent. That is deliberate — the previous designs all needed a hand-authored
+   coordinate table that would strand any 19th function. */
+.ops-belt {
+  position: relative;
+  --ops-crate-min: 13.5rem;
+  --ops-crate-gap: 0.75rem;
+  --ops-station-gap: 1.75rem;
+}
+/* The machine floor: the one shipped texture precedent (the loader dot-grid)
+   at ambient level. A masked pseudo, never a mask on the nav, so children are
+   untouched. */
+.ops-belt::before {
+  content: ""; position: absolute; inset: -12px -6px -6px; z-index: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgb(0 0 0 / 0.05) 1px, transparent 1px);
+  background-size: 24px 24px;
+  mask-image: radial-gradient(120% 100% at 50% 40%, #000 30%, transparent 78%);
+}
+.ops-stations {
+  display: flex; flex-wrap: wrap; align-items: flex-start;
+  row-gap: 2rem; column-gap: var(--ops-station-gap);
+}
+.ops-station {
+  --ops-accent: var(--brand-primary);
+  --area-accent: var(--ops-accent);          /* feeds mm-area-icon */
+  position: relative;                        /* NEVER add overflow here — it
+                                                clips the focus ring on the
+                                                first and last crate of a lane */
+  padding-bottom: 19px;                      /* 10px clearance + 9px rail */
+  flex: var(--ops-n) 1 calc(var(--ops-n) * var(--ops-crate-min)
+                            + (var(--ops-n) - 1) * var(--ops-crate-gap));
+  min-width: 0;
+}
+.ops-crates { display: flex; gap: var(--ops-crate-gap); list-style: none; margin: 0; padding: 0; }
+.ops-crate  { flex: 1 1 0; min-width: 0; max-width: 22rem; }
+
+.ops-station::after {                        /* the belt itself */
+  content: ""; position: absolute; z-index: 0;
+  left: calc(-1 * var(--ops-station-gap) / 2);
+  right: calc(-1 * var(--ops-station-gap) / 2);
+  bottom: 0; height: 9px; border-radius: 999px;
+  /* Treads over a shaded METAL BODY — a lit top, an accent-tinted middle and
+     a darkened underside — so the rail reads as a machined cylinder sitting
+     in a groove rather than stripes floating on the canvas. */
+  background-image:
+    repeating-linear-gradient(115deg,
+      color-mix(in srgb, var(--ops-accent) 30%, transparent) 0 5px,
+      transparent 5px 13px),
+    linear-gradient(180deg,
+      rgb(255 255 255 / 0.5) 0,
+      color-mix(in srgb, var(--ops-accent) 7%, rgb(0 0 0 / 0.03)) 45%,
+      rgb(0 0 0 / 0.07) 100%);
+  border-block: 1px solid color-mix(in srgb, var(--ops-accent) 16%, var(--mm-border));
+  box-shadow:
+    inset 0 1px 2px rgb(0 0 0 / 0.08),        /* the groove it sits in */
+    0 1px 0 rgb(255 255 255 / 0.5);           /* lit lip under the rail */
+  mask-image: linear-gradient(to right, transparent 0, #000 12px,
+                              #000 calc(100% - 12px), transparent 100%);
+}
+.ops-station-disc {
+  position: absolute; left: -11px; bottom: -6px;
+  width: 22px; height: 22px; border-radius: 999px; z-index: 2;
+  display: grid; place-items: center;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.9), rgb(255 255 255 / 0) 60%),
+    var(--mm-surface);
+  border: 1px solid color-mix(in srgb, var(--ops-accent) 28%, rgb(0 0 0 / 0.12));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.85),
+    inset 0 -1px 1px rgb(0 0 0 / 0.07),
+    0 1px 2px rgb(0 0 0 / 0.12);
+  font-variant-numeric: tabular-nums;
+}
+.ops-crate-link {
+  position: relative;
+  /* The finish pass (Ed: "ultra premium feel... luxury"). The crate is a
+     MATERIAL object now: an accent-tinted hairline border, a whisper of the
+     station's own colour falling from the band, a machined top-light, and a
+     shadow stack that stains toward the accent. All of it feeds off
+     --ops-accent, which the old Tailwind hover (brand-only) never could.
+     NOTE: background-image is deliberately NOT in the transition list —
+     transitioning it is a CSS no-op and listing it reads as intent. */
+  border-color: color-mix(in srgb, var(--ops-accent) 16%, var(--mm-border));
+  background-image:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--ops-accent) 5%, transparent) 0,
+      transparent 46%),
+    linear-gradient(180deg, rgb(255 255 255 / 0.55), rgb(255 255 255 / 0) 32%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.65),
+    inset 0 0 0 1px rgb(255 255 255 / 0.10),
+    0 1px 2px rgb(0 0 0 / 0.05),
+    0 3px 8px -2px rgb(0 0 0 / 0.04),
+    0 14px 28px -14px color-mix(in srgb, var(--ops-accent) 24%, rgb(0 0 0 / 0.30));
+  transition:
+    transform var(--mm-motion-fast) var(--mm-ease-standard),
+    border-color 150ms var(--mm-ease-standard),
+    box-shadow 150ms var(--mm-ease-standard);
+}
+.ops-crate-link:focus-visible { z-index: 1; }   /* ring above rail and neighbour */
+/* Scoped emboss on the chip — .mm-area-icon itself is shared, do not touch it. */
+.ops-crate-link .mm-area-icon {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.5),
+    inset 0 -1px 0 rgb(0 0 0 / 0.05);
+}
+.ops-crate-band {
+  position: absolute; inset: 0 0 auto; height: 3px;
+  border-radius: 0.375rem 0.375rem 0 0;
+  /* A 1px lit top edge over the body reads as enamel, not a printed stripe. */
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--ops-accent) 66%, white) 0 1px,
+    color-mix(in srgb, var(--ops-accent) 82%, transparent) 1px 100%);
+}
+.ops-crate-patch {                           /* the contact patch — this is what
+                                                makes a crate REST on the belt
+                                                rather than float above it */
+  position: absolute; bottom: -6px; left: 50%; translate: -50% 0;
+  width: 46px; height: 5px; border-radius: 999px;
+  /* A radial falloff, not a flat pill — it deepens visually as it widens
+     under the lifting crate, so hover only needs to change the width. */
+  background: radial-gradient(50% 100% at 50% 50%,
+    rgb(0 0 0 / 0.22), rgb(0 0 0 / 0) 74%);
+  transition: width 150ms var(--mm-ease-standard);
+}
+.ops-crate-link:active {
+  transform: translateY(1px) scale(0.995);
+  transition-duration: 60ms;                     /* press snaps, release glides */
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.4),
+    inset 0 2px 3px rgb(0 0 0 / 0.04),
+    0 1px 2px rgb(0 0 0 / 0.06);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ops-crate-link:hover .ops-crate-patch { width: 58px; }
+  .ops-crate .ops-crate-link:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--ops-accent) 36%, var(--mm-border));
+    background-image:
+      linear-gradient(180deg,
+        color-mix(in srgb, var(--ops-accent) 8%, transparent) 0,
+        color-mix(in srgb, var(--ops-accent) 2%, transparent) 55%),
+      linear-gradient(180deg, rgb(255 255 255 / 0.6), rgb(255 255 255 / 0) 32%);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.7),
+      inset 0 0 0 1px rgb(255 255 255 / 0.12),
+      0 2px 4px rgb(0 0 0 / 0.05),
+      0 18px 36px -14px color-mix(in srgb, var(--ops-accent) 34%, rgb(0 0 0 / 0.32));
+  }
+  .ops-crate .ops-crate-link:hover .ops-crate-band {
+    box-shadow: 0 2px 10px -2px color-mix(in srgb, var(--ops-accent) 45%, transparent);
+  }
+  .ops-crate .ops-crate-link:hover .mm-area-icon {
+    background: color-mix(in srgb, var(--ops-accent) 17%, var(--mm-surface));
+  }
+  /* Anchored on the station HEAD, not the crate, so a mouse sweeping a lane
+     never flickers. Degrades to nothing where :has() is unsupported. */
+  .ops-stations:has(.ops-station-head:hover)
+    .ops-station:not(:has(.ops-station-head:hover)) .ops-crate { opacity: .45; }
+  .ops-crate { transition: opacity var(--mm-motion-fast) var(--mm-ease-standard); }
+}
+
+/* Cinematic-only sheen sweep across a hovered crate. ::after because the
+   mobile feeder tick owns ::before. Defined ONLY under the gate, so
+   non-cinematic sessions pay nothing; perf mode (data-ops-lite) vetoes. */
+@media (hover: hover) and (pointer: fine) {
+  html[data-cinematic-mode="true"] .ops-belt:not([data-ops-lite="true"]) .ops-crate-link::after {
+    content: ""; position: absolute; inset: 0; border-radius: inherit;
+    pointer-events: none; opacity: 0;
+    background: linear-gradient(105deg,
+      transparent 42%, rgb(255 255 255 / 0.30) 50%, transparent 58%);
+    background-size: 250% 100%; background-position-x: 135%;
+  }
+  html[data-cinematic-mode="true"] .ops-belt:not([data-ops-lite="true"]) .ops-crate-link:hover::after {
+    opacity: 1;
+    background-position-x: -35%;
+    transition: background-position-x 650ms var(--mm-ease-out);
+  }
+}
+
+/* The one opt-in animation: the treads run once as you navigate away. Gated on
+   ="true" because the attribute is not guaranteed present on this route and the
+   documented default is off — gating on ="false" would animate for everyone who
+   has never touched the switch. */
+/* Moves ONLY the tread layer — the metal body underneath stays put. */
+@keyframes ops-belt-run { to { background-position-x: 26px, 0; } }
+html[data-cinematic-mode="true"] .ops-belt:not([data-ops-lite="true"])
+  .ops-station:has(.ops-crate-link:active)::after {
+  animation: ops-belt-run 380ms var(--mm-ease-out) both;
+}
+
+/* The blanket reduced-motion rule clamps duration to .01ms and iteration-count
+   to 1, which FREEZES a keyframe at its end frame — the treads would snap to a
+   permanently offset position. Reset explicitly, following .aq-orb. */
+@media (prefers-reduced-motion: reduce) {
+  .ops-station::after { animation: none !important; background-position: 0 0 !important; }
+  .ops-crate-link, .ops-crate-link:active, .ops-crate-link:hover { transform: none !important; transition: none !important; }
+  .ops-crate-patch { transition: none !important; }
+  .ops-crate-link::after { transition: none !important; opacity: 0 !important; }
+}
+
+/* Below the shell breakpoint the belt ROTATES into a vertical spine. Same DOM,
+   same order. There is deliberately no horizontal scroller at any width: an
+   18-crate sideways belt at 390px would be the worst offender in the app. */
+@media (max-width: 767px) {
+  .ops-stations, .ops-crates { flex-direction: column; }
+  .ops-station { flex: 1 1 auto; width: 100%; padding-bottom: 0; }
+  .ops-crate { flex: 1 1 auto; max-width: none; }
+  .ops-station::after {
+    left: 17px; right: auto; top: 0; bottom: 0; width: 6px; height: auto;
+    background-image: repeating-linear-gradient(25deg,
+      color-mix(in srgb, var(--ops-accent) 30%, transparent) 0 5px,
+      transparent 5px 13px);
+    mask-image: linear-gradient(to bottom, transparent 0, #000 12px,
+                                #000 calc(100% - 12px), transparent 100%);
+  }
+  .ops-station-disc { left: 8px; bottom: auto; top: 2px; }
+  .ops-station-head { padding-left: 44px !important; }
+  /* Crates sit to the right of the rail and are opaque, so the belt visibly
+     passes UNDER each box and reappears in the gaps. */
+  .ops-crate { margin-left: 44px; }
+  .ops-crate-link { z-index: 1; }
+  .ops-crate-link::before {                  /* feeder tick, rail → crate */
+    content: ""; position: absolute; left: -12px; top: 50%;
+    width: 12px; height: 1px; background: rgb(0 0 0 / 0.12);
+  }
+}
+@media (max-width: 359px) {
+  .ops-station::after { left: 9px; }
+  .ops-station-disc  { left: 0; }
+  .ops-station-head  { padding-left: 30px !important; }
+  .ops-crate { margin-left: 30px; }
+}
+
+/* The dark pass is a CLASS sweep (bg-white, text-black/NN, …). It cannot see
+   --ops-accent, so the accent-derived surfaces are restated here. */
+html[data-color-mode="dark"] .mm-portal-root .ops-station::after {
+  background-image:
+    repeating-linear-gradient(115deg,
+      color-mix(in srgb, var(--ops-accent) 55%, transparent) 0 5px, transparent 5px 13px),
+    linear-gradient(180deg, rgb(255 255 255 / 0.10) 0,
+      color-mix(in srgb, var(--ops-accent) 14%, rgb(255 255 255 / 0.03)) 45%,
+      rgb(0 0 0 / 0.30) 100%);
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.4), 0 1px 0 rgb(255 255 255 / 0.06);
+}
+html[data-color-mode="dark"] .mm-portal-root .ops-crate-link {
+  border-color: color-mix(in srgb, var(--ops-accent) 26%, var(--mm-border));
+  background-image:
+    linear-gradient(180deg, color-mix(in srgb, var(--ops-accent) 9%, transparent) 0, transparent 46%),
+    linear-gradient(180deg, rgb(255 255 255 / 0.06), rgb(255 255 255 / 0) 32%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.09),
+    0 1px 2px rgb(0 0 0 / 0.35),
+    0 14px 28px -14px rgb(0 0 0 / 0.6);
+}
+html[data-color-mode="dark"] .mm-portal-root .ops-crate-link .mm-area-icon {
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08);
+}
+html[data-color-mode="dark"] .mm-portal-root .ops-crate-band {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--ops-accent) 70%, white) 0 1px,
+    color-mix(in srgb, var(--ops-accent) 92%, transparent) 1px 100%);
+}
+html[data-color-mode="dark"] .mm-portal-root .ops-crate-patch {
+  background: radial-gradient(50% 100% at 50% 50%, rgb(255 255 255 / 0.16), transparent 74%);
+}
+html[data-color-mode="dark"] .mm-portal-root .ops-belt::before {
+  background-image: radial-gradient(rgb(255 255 255 / 0.05) 1px, transparent 1px);
+}
+html[data-color-mode="dark"] .mm-portal-root .ops-station-disc {
+  border-color: color-mix(in srgb, var(--ops-accent) 40%, rgb(255 255 255 / 0.18));
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.10), rgb(255 255 255 / 0) 60%), var(--mm-surface);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.10), 0 1px 2px rgb(0 0 0 / 0.5);
+}
+html[data-color-mode="dark"] .mm-portal-root .ops-crate-link::before { background: rgb(255 255 255 / 0.14); }
+
+/* Station accents. Every literal is lifted verbatim from the area palette
+   above, so no new hue enters the system. A group with no entry inherits the
+   tenant brand and looks correct on day one. */
+.ops-station[data-ops-station="sell-deliver"] { --ops-accent: #19786f; }
+.ops-station[data-ops-station="grow"]         { --ops-accent: #a74478; }
+.ops-station[data-ops-station="money-people"] { --ops-accent: #187554; }
+.ops-station[data-ops-station="standards"]    { --ops-accent: #5c6675; }
+.ops-station[data-ops-station="reward"]       { --ops-accent: #be4365; }
+.ops-station[data-ops-station="records"]      { --ops-accent: #0b78a6; }
+/* "surfaces" deliberately has no entry — it inherits the tenant brand. */
+
 .mm-surface-card {
   border-color: color-mix(in srgb, var(--area-accent, #0b6f6d) 14%, var(--mm-border));
   background-color: var(--mm-surface);

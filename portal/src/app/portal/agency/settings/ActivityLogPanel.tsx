@@ -2,6 +2,7 @@
 
 import { ChevronDown, Download, RefreshCw, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { Pagination } from "@/components/ui/Pagination";
 import { formatUkDateTime, isoDateTimeValue } from "@/lib/shared/formatDateTime";
 
 interface ActivityEntry {
@@ -44,6 +45,13 @@ export function ActivityLogPanel({ clients }: { clients: Array<{ id: string; nam
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [applied, setApplied] = useState<Filters>(EMPTY_FILTERS);
   const [data, setData] = useState<ActivityResponse | null>(null);
+  // Ed, 2026-08-30: *"show like 10 results and be pages ... or you can change
+  // it to show all or show 50 per page or 10 or 25 or 100."* Ten by default;
+  // "All" is an explicit huge limit, NEVER an omitted param — the route's
+  // missing-param fallback used to return one record, and omitting the value
+  // is how that class of bug comes back.
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState<number | "all">(10);
   const [entries, setEntries] = useState<ActivityEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -56,18 +64,22 @@ export function ActivityLogPanel({ clients }: { clients: Array<{ id: string; nam
   }, [filters]);
 
   useEffect(() => {
-    void load(0, false);
-  }, [params]);
+    setPage(0);
+    void load(0, pageSize);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load is stable per params/pageSize
+  }, [params, pageSize]);
 
-  async function load(offset: number, append: boolean) {
+  async function load(toPage: number, size: number | "all") {
     setLoading(true);
     setError("");
+    const limit = size === "all" ? 50_000 : size;
+    const offset = size === "all" ? 0 : toPage * size;
     try {
-      const response = await fetch(`/api/portal/settings/activity-log?${params}&limit=100&offset=${offset}`, { cache: "no-store" });
+      const response = await fetch(`/api/portal/settings/activity-log?${params}&limit=${limit}&offset=${offset}`, { cache: "no-store" });
       const json = await response.json() as ActivityResponse;
       if (!response.ok || !json.ok) throw new Error(json.error || "Could not load activity.");
       setData(json);
-      setEntries(current => append ? [...current, ...json.entries] : json.entries);
+      setEntries(json.entries);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not load activity.");
     } finally {
@@ -122,7 +134,7 @@ export function ActivityLogPanel({ clients }: { clients: Array<{ id: string; nam
           <span className="mx-2 text-black/20">·</span>
           {data?.agencyTotal ?? 0} recorded
         </p>
-        <button type="button" onClick={() => void load(0, false)} className="inline-flex items-center gap-2 text-xs font-medium text-black/55 hover:text-black">
+        <button type="button" onClick={() => { setPage(0); void load(0, pageSize); }} className="inline-flex items-center gap-2 text-xs font-medium text-black/55 hover:text-black">
           <RefreshCw size={13} className={loading ? "animate-spin" : ""} />Refresh
         </button>
       </div>
@@ -134,11 +146,33 @@ export function ActivityLogPanel({ clients }: { clients: Array<{ id: string; nam
         {entries.map(entry => <ActivityRow key={entry.id} entry={entry} clientName={clients.find(client => client.id === entry.clientId)?.name} />)}
       </div>
 
-      {data?.hasMore ? (
-        <div className="border-t border-black/10 pt-4 text-center">
-          <button type="button" onClick={() => void load(entries.length, true)} disabled={loading} className="min-h-10 rounded-md border border-black/15 bg-white px-4 text-sm font-medium text-black/70 disabled:opacity-50">Load more</button>
-        </div>
-      ) : null}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-black/10 pt-4">
+        <Pagination
+          label="Activity log pages"
+          page={page}
+          pageCount={pageSize === "all" ? 1 : Math.max(1, Math.ceil((data?.total ?? 0) / pageSize))}
+          disabled={loading}
+          onPage={next => { setPage(next); void load(next, pageSize); }}
+        />
+        <label className="flex items-center gap-2 text-xs text-black/55">
+          Per page
+          <select
+            value={String(pageSize)}
+            onChange={event => {
+              const value = event.target.value === "all" ? "all" as const : Number(event.target.value);
+              setPageSize(value);
+            }}
+            className="min-h-9 rounded-md border border-black/15 bg-white px-2 text-sm text-black/70"
+            aria-label="Results per page"
+          >
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+            <option value="all">All</option>
+          </select>
+        </label>
+      </div>
     </div>
   );
 }

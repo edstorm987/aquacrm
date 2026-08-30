@@ -1594,6 +1594,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-custom-css-test-ts-8fa6fa8140"></a>
+
+### `scripts/smoke-custom-css.test.ts`
+
+**What it is:** that broke things.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/lib/chrome/customCss.ts`](lib.md#file-src-lib-chrome-customcss-ts-751b456d48)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-customer-booking-capability-test-ts-c2dc9e3ead"></a>
 
 ### `scripts/smoke-customer-booking-capability.test.ts`
@@ -1699,6 +1711,66 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (1):** [`src/app/portal/agency/dayCommandTruth.ts`](app.md#file-src-app-portal-agency-daycommandtruth-ts-382dd10f5c)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-department-allocation-test-ts-5c9901e42a"></a>
+
+### `scripts/smoke-department-allocation.test.ts`
+
+**What it is:** for reads as a failure.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/lib/intelligence/departmentAllocation.ts`](lib.md#file-src-lib-intelligence-departmentallocation-ts-effe208c44)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-department-lens-test-ts-36aa779f14"></a>
+
+### `scripts/smoke-department-lens.test.ts`
+
+**What it is:** disagreed would be a breach rather than a bug.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (4):** [`src/lib/access/departmentProfiles.ts`](lib.md#file-src-lib-access-departmentprofiles-ts-343cc6ceea) · [`src/lib/access/navElementKeys.ts`](lib.md#file-src-lib-access-navelementkeys-ts-bebe1ec3e3) · [`src/lib/chrome/departmentLens.ts`](lib.md#file-src-lib-chrome-departmentlens-ts-6c583d18f2) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-department-profiles-test-ts-087baae536"></a>
+
+### `scripts/smoke-department-profiles.test.ts`
+
+**What it is:** on a trial who nobody has met.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (2):** [`src/lib/access/departmentProfiles.ts`](lib.md#file-src-lib-access-departmentprofiles-ts-343cc6ceea) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-department-switcher-test-ts-3608e721e9"></a>
+
+### `scripts/smoke-department-switcher.test.ts`
+
+**What it is:** `smoke-department-lens`, from the switcher's side.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (3):** [`src/lib/access/departmentProfiles.ts`](lib.md#file-src-lib-access-departmentprofiles-ts-343cc6ceea) · [`src/lib/chrome/departmentLens.ts`](lib.md#file-src-lib-chrome-departmentlens-ts-6c583d18f2) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-department-wiring-test-ts-01b5974499"></a>
+
+### `scripts/smoke-department-wiring.test.ts`
+
+**What it is:** the wrong thing".
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1887,6 +1959,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 ### `scripts/smoke-dev-editor-walkthrough.test.ts`
 
 **What it is:** change touches no frame state.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-dev-lane-bundler-test-ts-20afc01691"></a>
+
+### `scripts/smoke-dev-lane-bundler.test.ts`
+
+**What it is:** fallback would leave nothing to fall back to.
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
@@ -3698,7 +3782,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ### `scripts/smoke-manifest-fields-consumed.test.ts`
 
-**What it is:** tells them so.
+**What it is:** leaving the dead half dead, with the contract updated to say which is which.
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
@@ -3934,6 +4018,30 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-my-radar-panel-test-ts-0a455882ef"></a>
+
+### `scripts/smoke-my-radar-panel.test.ts`
+
+**What it is:** system, not a shape, and this follows that.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-my-radar-test-ts-ecac907a42"></a>
+
+### `scripts/smoke-my-radar.test.ts`
+
+**What it is:** the first day of every period.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/lib/intelligence/departmentAllocation.ts`](lib.md#file-src-lib-intelligence-departmentallocation-ts-effe208c44)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-nav-audit-test-ts-d32b505d03"></a>
 
 ### `scripts/smoke-nav-audit.test.ts`
@@ -3943,6 +4051,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (4):** [`src/app/portal/agency/[...rest]/_retiredStaffRoute.ts`](app.md#file-src-app-portal-agency-rest-retiredstaffroute-ts-af00e4c1fc) · [`src/built-ins/modules/agency-hr/index.ts`](built-ins.md#file-src-built-ins-modules-agency-hr-index-ts-f0d299063e) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-nav-tone-test-ts-9105de1958"></a>
+
+### `scripts/smoke-nav-tone.test.ts`
+
+**What it is:** hold that turned into a drag renamed on drop.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/components/chrome/navTones.ts`](components.md#file-src-components-chrome-navtones-ts-52a318b8bd)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -4075,6 +4195,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (2):** [`src/server/organisations.ts`](server.md#file-src-server-organisations-ts-ba6f8d840f) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-page-reachability-test-ts-523f3df15c"></a>
+
+### `scripts/smoke-page-reachability.test.ts`
+
+**What it is:** settings page — and each was only caught by somebody asking.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -4342,6 +4474,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-plugin-health-panel-test-ts-aecf83055f"></a>
+
+### `scripts/smoke-plugin-health-panel.test.ts`
+
+**What it is:** component, so all of the above can be driven directly here.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/lib/chrome/pluginHealth.ts`](lib.md#file-src-lib-chrome-pluginhealth-ts-d71c78b8c0)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-plugin-health-route-test-ts-e71d45300f"></a>
 
 ### `scripts/smoke-plugin-health-route.test.ts`
@@ -4378,6 +4522,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-plugin-setup-completion-test-ts-dc01c2efa5"></a>
+
+### `scripts/smoke-plugin-setup-completion.test.ts`
+
+**What it is:** silently makes a requirement uncollectable fails here rather than on screen.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (2):** [`src/lib/plugins/pluginSetupStatus.ts`](lib.md#file-src-lib-plugins-pluginsetupstatus-ts-82a3c6194e) · [`src/lib/server/plugins/pluginSettingsSurface.ts`](lib.md#file-src-lib-server-plugins-pluginsettingssurface-ts-f5a8104127)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-portal-connections-test-ts-1df1229e13"></a>
 
 ### `scripts/smoke-portal-connections.test.ts`
@@ -4399,6 +4555,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-portal-destinations-test-ts-b2601df99d"></a>
+
+### `scripts/smoke-portal-destinations.test.ts`
+
+**What it is:** registry entry fails here, on the day it is added, with the line to paste.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/lib/chrome/destinations.ts`](lib.md#file-src-lib-chrome-destinations-ts-3f8b490e69)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -4606,6 +4774,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (3):** [`src/lib/portal/portalBespokeProductModules.ts`](lib.md#file-src-lib-portal-portalbespokeproductmodules-ts-2dbbdfe9ab) · [`src/lib/portal/portalProductModules.ts`](lib.md#file-src-lib-portal-portalproductmodules-ts-4c2c99cb26) · [`src/lib/portal/portalProducts.ts`](lib.md#file-src-lib-portal-portalproducts-ts-7c7e423e18)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-product-releases-test-ts-1420ca8b2f"></a>
+
+### `scripts/smoke-product-releases.test.ts`
+
+**What it is:** would put superseded internal notes in front of a hired caller.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/lib/projects/releases.ts`](lib.md#file-src-lib-projects-releases-ts-c5050ad492)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -5329,6 +5509,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-settings-hub-test-ts-326468fa4c"></a>
+
+### `scripts/smoke-settings-hub.test.ts`
+
+**What it is:** Plan: docs/development/plans/settings-consolidation.md
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-shared-chrome-speed-test-ts-cd4191f6b2"></a>
 
 ### `scripts/smoke-shared-chrome-speed.test.ts`
@@ -5590,6 +5782,30 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (1):** [`src/lib/tasks/taskTemplates.ts`](lib.md#file-src-lib-tasks-tasktemplates-ts-6aee71d67c)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-telephony-caller-identity-test-ts-2ed21c8e2e"></a>
+
+### `scripts/smoke-telephony-caller-identity.test.ts`
+
+**What it is:** from, which would make every callback arrive as "unknown".
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (3):** [`src/lib/server/email/outboundCommunications.ts`](lib.md#file-src-lib-server-email-outboundcommunications-ts-2c4deea1df) · [`src/lib/telephony/callerIdentity.ts`](lib.md#file-src-lib-telephony-calleridentity-ts-41bffc243e) · [`src/lib/telephony/phoneNumbers.ts`](lib.md#file-src-lib-telephony-phonenumbers-ts-b7be228e55)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-telephony-inbound-test-ts-880e50ee50"></a>
+
+### `scripts/smoke-telephony-inbound.test.ts`
+
+**What it is:** always returns true, so these run the real algorithm against real vectors.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/lib/telephony/twilioSignature.ts`](lib.md#file-src-lib-telephony-twiliosignature-ts-bff6e7eefd)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 

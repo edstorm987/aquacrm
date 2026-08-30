@@ -1,15 +1,25 @@
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import { requireRole } from "@/lib/server/auth/auth";
+import { performanceModePreference } from "@/lib/server/performanceMode";
 import { AGENCY_ROLES } from "@/server/types";
 import {
+  Activity,
   Banknote,
   BookOpen,
   ChevronRight,
   Gift,
   HardHat,
+  Inbox,
+  LayoutDashboard,
+  ListChecks,
+  Lock,
+  Mail,
   Megaphone,
+  Network,
   PackageCheck,
   Route,
+  Settings,
   ShieldCheck,
   Tags,
   UsersRound,
@@ -154,6 +164,95 @@ const OPS_GROUPS: OpsGroup[] = [
       },
     ],
   },
+  // Ed, 2026-08-30: *"just put all the workspaces in operations just have
+  // additional spaces or something."*
+  //
+  // The Tools page carried a 19-entry workspace directory, and Tools is being
+  // reduced to calendar / notes / chat plus his own saved links. Four of those
+  // entries had NO other door: the AquaOasis agency override deliberately parks
+  // People records, Email operations and Marketing operations out of the
+  // sidebar, and drops the Activity log too (see smoke-tools-directory.test.ts).
+  // Deleting the directory without these two groups would have left four real
+  // workspaces reachable from nowhere.
+  //
+  // The copy is carried over verbatim from the Tools cards rather than rewritten
+  // — same destination, same description, one less place to keep in sync.
+  {
+    id: "records",
+    title: "Records & operations",
+    caption: "The systems behind the functions.",
+    functions: [
+      {
+        // Departments is the landing page; its workspace nav reaches
+        // Leave / Employees / Roles / Settings.
+        href: "/portal/agency/agency-hr/departments",
+        label: "People records",
+        detail: "Org chart of departments, leave requests, employee records, roles, and HR configuration.",
+        action: "Open people records",
+        icon: Network,
+      },
+      {
+        href: "/portal/agency/email-sender",
+        label: "Email operations",
+        detail: "Queued and sent messages, sender identities, provider readiness, failures, and bounces.",
+        action: "Open email operations",
+        icon: Mail,
+      },
+      {
+        href: "/portal/agency/agency-marketing",
+        label: "Marketing operations",
+        detail: "Templates, reporting, the content calendar, touchpoints, performance, and system settings.",
+        action: "Open marketing operations",
+        icon: Megaphone,
+      },
+      {
+        href: "/portal/agency/activity-inbox",
+        label: "Activity log",
+        detail: "The complete history of client, portal, sales, billing, support, and project updates.",
+        action: "Open activity log",
+        icon: Activity,
+      },
+    ],
+  },
+  {
+    id: "surfaces",
+    title: "Surfaces",
+    caption: "The rest of the workspace, from one place.",
+    functions: [
+      {
+        href: "/portal/agency",
+        label: "Command Centre",
+        detail: "Your day, business monitoring, decisions, strategy, and Radar in one place.",
+        action: "Open command centre",
+        icon: LayoutDashboard,
+      },
+      {
+        href: "/portal/agency/inbox",
+        label: "Master inbox",
+        detail: "Every message and actionable item that needs your attention, unified.",
+        action: "Open master inbox",
+        icon: Inbox,
+      },
+      {
+        href: "/portal/agency/actions",
+        label: "Actions",
+        detail: "The live queue of work to resolve, each with its evidence and resolution path.",
+        action: "Open actions",
+        icon: ListChecks,
+      },
+      {
+        href: "/portal/agency/settings",
+        label: "Agency settings",
+        detail: "Brand kit, roles, plugins, billing, and the rest of the agency-wide configuration.",
+        action: "Open agency settings",
+        icon: Settings,
+      },
+      // Deliberately NOT a card for /portal/agency/operations — this page. A
+      // hub that lists itself is a loop, and smoke-operations-hub.test.ts fails
+      // on it. Calendar and Notepad stay in Tools, which is becoming the
+      // personal workbench.
+    ],
+  },
 ];
 
 const OPS_COUNT = OPS_GROUPS.reduce((total, group) => total + group.functions.length, 0);
@@ -166,6 +265,13 @@ const PUBLIC_SHOWCASE_OPERATION_PATHS = new Set([
 
 export default async function OperationsPage() {
   const session = await requireRole([...AGENCY_ROLES]);
+  // Performance mode vetoes the belt animation even when cinematic mode is on.
+  // Performance wins — that is what the switch is for.
+  const perfMode = await performanceModePreference();
+  // Staff and freelancers can see these two crates but cannot open them; the
+  // sidebar gates the same pair. Labelling them is honest; HIDING them would be
+  // a permissions change smuggled into a visual redesign, so it is not done here.
+  const ownerOnly = session.role !== "agency-owner" && session.role !== "agency-manager";
   const operationGroups = session.publicShowcase
     ? OPS_GROUPS.map(group => ({ ...group, functions: group.functions.filter(item => PUBLIC_SHOWCASE_OPERATION_PATHS.has(item.href)) })).filter(group => group.functions.length > 0)
     : OPS_GROUPS;
@@ -193,29 +299,72 @@ export default async function OperationsPage() {
           <span className="text-xs font-medium text-black/40">{operationCount} functions</span>
         </div>
 
-        <div className="mt-5 space-y-8">
-          {operationGroups.map(group => (
-            <div key={group.id} aria-labelledby={`ops-group-${group.id}`}>
-              <div className="flex items-baseline justify-between gap-4">
-                <h3 id={`ops-group-${group.id}`} className="text-sm font-semibold text-black/70">{group.title}</h3>
-                <span className="text-xs font-medium text-black/35">{group.caption}</span>
-              </div>
-              <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {group.functions.map(fn => {
-                  const Icon = fn.icon;
-                  return (
-                    <Link key={fn.href} href={fn.href} className="group flex min-h-48 flex-col rounded-md border border-black/10 bg-white p-5 shadow-sm transition hover:border-brand/35 hover:bg-brand/[0.025] hover:shadow-md">
-                      <span className="grid size-10 place-items-center rounded-md border border-brand/15 bg-brand/[0.07] text-brand"><Icon size={19} aria-hidden /></span>
-                      <strong className="mt-4 text-base font-semibold text-black/85">{fn.label}</strong>
-                      <span className="mt-1 text-sm leading-5 text-black/50">{fn.detail}</span>
-                      <span className="mt-auto inline-flex items-center gap-1.5 pt-4 text-xs font-semibold text-brand">{fn.action} <ChevronRight size={14} className="transition group-hover:translate-x-0.5" aria-hidden /></span>
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
+        <nav aria-label="Business functions" className="ops-belt mt-5" data-ops-lite={perfMode ? "true" : "false"}>
+          <ol className="ops-stations">
+            {operationGroups.map((group, index) => (
+              <li
+                key={group.id}
+                className="ops-station"
+                data-ops-station={group.id}
+                aria-labelledby={`ops-group-${group.id}`}
+                style={{ "--ops-n": group.functions.length } as CSSProperties}
+              >
+                <div className="ops-station-head flex items-baseline justify-between gap-2 pl-6 pb-2">
+                  {/* aria-hidden: the <ol> already announces position, and
+                      "01 Sell and deliver" is double-speak. */}
+                  <span className="ops-station-disc text-xs font-semibold text-black/55" aria-hidden>
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <h3 id={`ops-group-${group.id}`} className="text-sm font-semibold text-black/75">{group.title}</h3>
+                  <span className="text-xs font-medium text-black/40">{group.caption}</span>
+                </div>
+                <ol className="ops-crates">
+                  {group.functions.map(fn => {
+                    const Icon = fn.icon;
+                    const locked = ownerOnly
+                      && (fn.href === "/portal/agency/people" || fn.href === "/portal/agency/freelancers");
+                    return (
+                      <li key={fn.href} className="ops-crate">
+                        <Link
+                          href={fn.href}
+                          // The finish lives in the ops-* CSS block, fed by the STATION accent —
+                          // which Tailwind's brand-only hover utilities could never see.
+                          // mm-hover-lift is dropped deliberately: its hover shadow would
+                          // clobber the layered stack (it wins specificity).
+                          className="ops-crate-link group flex min-h-[7.75rem] flex-col rounded-md border bg-white p-3"
+                        >
+                          <span className="ops-crate-band" aria-hidden />
+                          <span className="mm-area-icon grid size-8 place-items-center rounded-md"><Icon size={17} aria-hidden /></span>
+                          <strong className="mt-2.5 text-sm font-semibold leading-4 text-black/85">{fn.label}</strong>
+                          {/* line-clamp is visual truncation only — the full
+                              sentence stays in the accessible tree and in
+                              browser find. An earlier draft hid this behind a
+                              hover panel; that fails on touch and was cut. */}
+                          <span className="mt-1 line-clamp-2 text-xs leading-4 text-black/55">{fn.detail}</span>
+                          <span className="ops-crate-foot mt-auto flex items-center gap-1.5 pt-2">
+                            {locked ? (
+                              <span className="inline-flex items-center gap-1 text-xs font-medium text-black/55">
+                                <span aria-hidden className="inline-block size-2 rounded-full border border-dashed border-current" />
+                                <Lock size={11} aria-hidden />
+                                {/* Shape, glyph AND word — never colour alone. */}
+                                <span className="hidden min-[360px]:inline">Owner only</span>
+                                <span className="sr-only min-[360px]:hidden">Owner only</span>
+                              </span>
+                            ) : null}
+                            <span className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-brand">
+                              {fn.action}<ChevronRight size={14} className="transition group-hover:translate-x-0.5" aria-hidden />
+                            </span>
+                          </span>
+                          <span className="ops-crate-patch" aria-hidden />
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </li>
+            ))}
+          </ol>
+        </nav>
       </section>
     </div>
   );

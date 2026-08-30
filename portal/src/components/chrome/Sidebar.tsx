@@ -13,7 +13,9 @@ import type { NavPanel } from "@/lib/chrome/sidebarLayout";
 import { SidebarFooter } from "./SidebarFooter";
 import { CompanySwitcher } from "./CompanySwitcher";
 import { WORKSPACES } from "@/lib/chrome/workspaces";
+import { savedTabIdFromNavId } from "@/lib/chrome/savedTabNav";
 import { SidebarNavLink } from "./SidebarNavLink";
+import { SavedRowControls } from "./SavedRowControls";
 import { SidebarPinnedTabs } from "./PinnedTabs";
 import { SidebarReorder } from "./SidebarReorder";
 
@@ -203,6 +205,10 @@ function NavItems({ panel, currentPath }: { panel: NavPanel; currentPath: string
     <SidebarReorder panelId={panel.id}>
       <ul className="mt-0.5 flex flex-col">
         {panel.items.map(item => {
+          // A merged saved tab keeps its identity, so it keeps its controls.
+          // Before 2026-08-30 dragging one into a panel silently stripped
+          // rename / icon / unpin and left no route back to the Saved section.
+          const savedTabId = savedTabIdFromNavId(item.id);
           return (
             // `aria-keyshortcuts` is how the row tells assistive technology
             // that Alt+Arrow moves it — the alternative was a visible drag grip
@@ -213,14 +219,34 @@ function NavItems({ panel, currentPath }: { panel: NavPanel; currentPath: string
               draggable
               aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
             >
-              <SidebarNavLink
-                id={item.id}
-                href={item.href}
-                label={item.label}
-                icon={item.icon}
-                badge={item.badge}
-                attentionCount={item.attentionCount}
-              />
+              {savedTabId ? (
+                // The controls are a SIBLING of the link, never a child — a
+                // button inside an anchor is invalid and unreachable by
+                // keyboard. `group` reveals it on hover; focus-within keeps it
+                // reachable without a pointer.
+                <div className="group relative flex items-center">
+                  <div className="min-w-0 flex-1"><SidebarNavLink
+                    id={item.id}
+                    href={item.href}
+                    label={item.label}
+                    icon={item.icon}
+                    badge={item.badge}
+                    attentionCount={item.attentionCount}
+                  /></div>
+                  <div className="absolute right-1 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
+                    <SavedRowControls tabId={savedTabId} label={item.label} />
+                  </div>
+                </div>
+              ) : (
+                <SidebarNavLink
+                  id={item.id}
+                  href={item.href}
+                  label={item.label}
+                  icon={item.icon}
+                  badge={item.badge}
+                  attentionCount={item.attentionCount}
+                />
+              )}
             </li>
           );
         })}

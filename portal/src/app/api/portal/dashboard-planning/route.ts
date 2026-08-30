@@ -18,6 +18,7 @@ import {
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
+import { getActiveDepartmentId } from "@/lib/server/chrome/activeDepartment";
 
 async function agencySession(request: NextRequest) {
   await ensureHydrated();
@@ -130,7 +131,18 @@ export async function POST(request: NextRequest) {
         evidenceSnapshot: body.weekEvidenceSnapshot,
       });
     } else if (body.action === "clock-in") {
-      clockInDashboard({ agencyId: session.agencyId, userId: session.userId, date: body.date, focus: body.focus, currentPath: body.currentPath });
+      // The hat already on when you clock in. Without this the first block of
+      // every day was unattributed however the switcher was set — the nav said
+      // "Working as Sales" and the hours went nowhere.
+      const activeDepartment = await getActiveDepartmentId();
+      clockInDashboard({
+        agencyId: session.agencyId,
+        userId: session.userId,
+        date: body.date,
+        focus: body.focus,
+        currentPath: body.currentPath,
+        ...(activeDepartment ? { departmentId: activeDepartment } : {}),
+      });
     } else if (body.action === "clock-out") {
       clockOutDashboard({ agencyId: session.agencyId, userId: session.userId, review: body.clockOutReview });
     } else if (body.action === "heartbeat") {

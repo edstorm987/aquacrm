@@ -79,7 +79,7 @@ export interface ElementCapabilityDefinition {
   key: string;
   label: string;
   detail: string;
-  group: "Workspace" | "Staff" | "Fulfilment" | "Client" | "Development" | "Project";
+  group: "Workspace" | "Growth" | "Staff" | "Fulfilment" | "Client" | "Development" | "Project";
   scopeKinds: AccessScopeKind[];
 }
 
@@ -117,6 +117,11 @@ export const ELEMENT_CAPABILITIES: readonly ElementCapabilityDefinition[] = [
   { key: "staff.training", label: "Staff training", detail: "Onboarding, training and progression.", group: "Staff", scopeKinds: ["agency", "workspace"] },
   { key: "staff.pay", label: "Pay and commission", detail: "Sensitive compensation and commission surfaces.", group: "Staff", scopeKinds: ["agency", "workspace"] },
   { key: "staff.chat", label: "Team chat", detail: "Internal team communication.", group: "Staff", scopeKinds: ["agency", "workspace"] },
+  { key: "growth.overview", label: "Pipeline overview", detail: "Scouting and sales headline numbers, conversion and stage health.", group: "Growth", scopeKinds: ["agency", "workspace"] },
+  { key: "growth.leads", label: "Leads board", detail: "The pipeline board and moving leads between stages.", group: "Growth", scopeKinds: ["agency", "workspace"] },
+  { key: "growth.contacts", label: "Contacts and imports", detail: "The contact list, CSV imports and contact records.", group: "Growth", scopeKinds: ["agency", "workspace"] },
+  { key: "growth.outreach", label: "Calling and outreach", detail: "The dialler, outreach email and which line or address they send from.", group: "Growth", scopeKinds: ["agency", "workspace"] },
+  { key: "growth.campaigns", label: "Campaigns", detail: "Bulk campaign creation and sending.", group: "Growth", scopeKinds: ["agency", "workspace"] },
   { key: "fulfilment.overview", label: "Fulfilment overview", detail: "Delivery health, attention and flow summaries.", group: "Fulfilment", scopeKinds: ["agency", "workspace", "client"] },
   { key: "fulfilment.services", label: "Services", detail: "Service definitions and active client delivery.", group: "Fulfilment", scopeKinds: ["agency", "workspace", "client"] },
   { key: "fulfilment.projects", label: "Projects", detail: "Technical and non-technical delivery projects.", group: "Fulfilment", scopeKinds: ["agency", "workspace", "client", "project"] },

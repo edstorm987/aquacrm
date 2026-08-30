@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "node:test";
 import type { AdvisorDomain } from "../src/engines/data/radar/businessRadar";
 import { buildRadarCheckMatrix } from "../src/engines/data/radar/radarCheckEngine";
@@ -12,6 +13,24 @@ import { isReservedSyntheticHostname, isUnsafeSyntheticAddress } from "../src/en
 import type { RadarTelemetrySnapshot } from "../src/engines/data/server/radar/radarTelemetry";
 import type { RadarPolicyConfiguration } from "../src/server/types";
 import { BUSINESS_RADAR_RULE_CATALOG, RADAR_CHECKS_PER_DOMAIN, RADAR_RULE_LENSES, RADAR_SIGNAL_FAMILIES } from "../src/engines/data/radar/radarRuleCatalog";
+
+// NOTE (2026-08-29): the Command Centre's radar UI now lives in TWO files.
+// `BusinessRadarDashboard` and its eight helpers were lifted out of
+// `_DashboardCommandCenter.tsx` (2,787 → 2,050 lines) and are loaded lazily,
+// because dev-server memory grows per compiled route and this was the largest
+// route graph in the app.
+//
+// These assertions are about the radar SURFACE, not about which file holds it,
+// so the source is read as both files concatenated. An assertion that pinned
+// the location would fail on a refactor while a real regression — the markup
+// disappearing — still passed.
+function commandCentreSource(): string {
+  return [
+    "src/app/portal/agency/_DashboardCommandCenter.tsx",
+    "src/app/portal/agency/_BusinessRadarDashboard.tsx",
+    "src/app/portal/agency/_radarShared.ts",
+  ].map(file => readFileSync(join(process.cwd(), file), "utf8")).join("\n");
+}
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -76,7 +95,7 @@ test("critical radar findings survive model omission and reach visible Advisor U
 test("the main dashboard exposes an active, actionable radar mode", () => {
   const page = read("src/app/portal/agency/page.tsx");
   const stationNav = read("src/app/portal/agency/_CommandStationNav.tsx");
-  const dashboard = read("src/app/portal/agency/_DashboardCommandCenter.tsx");
+  const dashboard = commandCentreSource();
   const policyPanel = read("src/app/portal/agency/_RadarPolicyPanel.tsx");
   assert.match(page, /getCachedBusinessIssueRadar/);
   assert.match(page, /businessRadar=\{businessRadar\}/);
@@ -98,7 +117,7 @@ test("the Command Centre exposes twenty source-backed decision KPIs and dedicate
   const workspace = read("src/app/portal/agency/_CommandIntelligenceWorkspace.tsx");
   const trajectory = read("src/app/portal/agency/_CommandCentreKpiTrajectory.tsx");
   const daySensor = read("src/app/portal/agency/_DayCommandSensorPanel.tsx");
-  const dashboard = read("src/app/portal/agency/_DashboardCommandCenter.tsx");
+  const dashboard = commandCentreSource();
   const stationNav = read("src/app/portal/agency/_CommandStationNav.tsx");
   const page = read("src/app/portal/agency/page.tsx");
   const kpiIds = [...snapshot.matchAll(/makeKpi\(\{ id: "([^"]+)"/g)].map(match => match[1]);
@@ -213,7 +232,7 @@ test("the command Radar shows its last full run and can force a complete persist
   assert.match(sweeps, /reconcileAgencyTasksWithRadar\(agencyId, radar\)/);
   assert.match(route, /export async function GET\(\)/);
   assert.match(route, /export async function POST\(\)/);
-  assert.match(read("src/app/portal/agency/_DashboardCommandCenter.tsx"), /method: showBusy \? "POST" : "GET"/);
+  assert.match(commandCentreSource(), /method: showBusy \? "POST" : "GET"/);
   assert.match(read("src/engines/data/server/radar/radarMemory.ts"), /lastSweepAt: includeCurrentSweep \? now : memory\?\.lastSweepAt/);
 });
 
@@ -366,7 +385,7 @@ test("radar actively probes every expected live property with SSRF-safe canaries
   const storage = read("src/server/storage.ts");
   const radar = read("src/engines/data/server/radar/businessIssueRadar.ts");
   const sweeps = read("src/engines/data/server/radar/radarSweeps.ts");
-  const dashboard = read("src/app/portal/agency/_DashboardCommandCenter.tsx");
+  const dashboard = commandCentreSource();
   assert.match(probes, /assertPublicDestination/);
   assert.match(probes, /isUnsafeSyntheticAddress/);
   assert.match(probes, /redirect: "manual"/);
@@ -406,7 +425,7 @@ test("radar retains temporal memory, recovery, and source-flapping evidence", ()
   const radarRoute = read("src/app/api/portal/advisor/radar/route.ts");
   const cron = read("src/app/api/cron/inbox/route.ts");
   const sweeps = read("src/engines/data/server/radar/radarSweeps.ts");
-  const dashboard = read("src/app/portal/agency/_DashboardCommandCenter.tsx");
+  const dashboard = commandCentreSource();
   const advisor = read("src/lib/server/assistants/advisorSkillContext.ts");
   assert.match(types, /RadarMemoryState/);
   assert.match(storage, /radarMemory: parsed\.radarMemory \?\? \{\}/);
@@ -437,7 +456,7 @@ test("radar retains every KPI in a durable evidence vault with historical detect
   const storage = read("src/server/storage.ts");
   const radar = read("src/engines/data/server/radar/businessIssueRadar.ts");
   const sweeps = read("src/engines/data/server/radar/radarSweeps.ts");
-  const dashboard = read("src/app/portal/agency/_DashboardCommandCenter.tsx");
+  const dashboard = commandCentreSource();
   const advisor = read("src/lib/server/assistants/advisorSkillContext.ts");
   assert.match(types, /RadarEvidenceState/);
   assert.match(types, /RadarEvidenceHourlyRollup/);
@@ -466,7 +485,7 @@ test("radar wires property traffic, form, tag, server, and Advisor check context
   const telemetry = read("src/engines/data/server/radar/radarTelemetry.ts");
   const observations = read("src/engines/data/server/radar/radarObservations.ts");
   const advisor = read("src/lib/server/assistants/advisorSkillContext.ts");
-  const dashboard = read("src/app/portal/agency/_DashboardCommandCenter.tsx");
+  const dashboard = commandCentreSource();
   const sentinels = read("src/engines/data/radar/radarSentinels.ts");
   assert.match(engine, /metric:form-submissions/);
   assert.match(engine, /metric:aqua-tag-coverage/);

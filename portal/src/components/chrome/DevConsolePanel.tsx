@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  AlertTriangle, ArrowUpRight, Bug, Camera, Check, CheckCircle2, Hammer,
-  LoaderCircle, MapPin, ScanEye, ShieldCheck, Sparkles, TriangleAlert, Upload,
-  Users, Wrench, X,
+  Activity, AlertTriangle, ArrowUpRight, Bug, Camera, Check, CheckCircle2,
+  Hammer, LoaderCircle, MapPin, ScanEye, ShieldCheck, Sparkles, TriangleAlert,
+  Upload, Users, Wrench, X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 
@@ -18,6 +18,11 @@ import {
   readableError, runDevConsoleLoad, workerTotal, type ConsoleStatus,
 } from "@/components/chrome/devConsoleLoad";
 import type { Finding, FindingSeverity } from "@/lib/server/dev/devTeamFindings";
+import {
+  failingComponents, healthHeadline, healthSummaryLine, healthTone,
+  readableHealthError, sortForDisplay,
+  type PluginHealthReport, type PluginHealthRow, type PluginHealthTone,
+} from "@/lib/chrome/pluginHealth";
 
 // The Dev Console popover body — lazily loaded, so none of this ships until the
 // console is first opened.
@@ -94,9 +99,18 @@ export function DevConsolePanel({
   const [error, setError] = useState("");
   /** The slow half failed on its own. The console still works; the rows do not. */
   const [statusError, setStatusError] = useState("");
+  /** The third read: what the installed modules say about themselves. Fired
+   *  alongside the other two and painted on its own, because a health surface
+   *  that can take the console down with it is worse than no health surface. */
+  const [health, setHealth] = useState<PluginHealthReport | null>(null);
+  const [healthError, setHealthError] = useState("");
   const [now, setNow] = useState(() => Date.now());
   /** Bumped per load, so a superseded response cannot repaint a fresher one. */
   const loadId = useRef(0);
+  /** Health has its own generation counter — it is a different route on a
+   *  different clock, and sharing `loadId` would let either read cancel the
+   *  other's in-flight response. */
+  const healthLoadId = useRef(0);
 
   const [pagePath, setPagePath] = useState("");
   const [saving, setSaving] = useState(false);
@@ -133,7 +147,40 @@ export function DevConsolePanel({
     });
   }, [onAttentionChange]);
 
+  // Module health is a SEPARATE read on a separate route, and it is not awaited
+  // with the console's own two. Ten `healthcheck` hooks doing real I/O is the
+  // slowest thing this popover asks for — the route bounds each one at 5s — and
+  // making the findings composer wait on it would trade the console's whole
+  // reason for existing (capture, immediately) for a panel further down.
+  //
+  // It also fails alone. `setHealthError` never touches `setError`, so a module
+  // that cannot answer greys out one section instead of red-barring a console
+  // whose other halves are fine.
+  const loadHealth = useCallback(async () => {
+    const id = healthLoadId.current + 1;
+    healthLoadId.current = id;
+    setHealthError("");
+    try {
+      const response = await fetch("/api/portal/plugins/health", { cache: "no-store" });
+      const result = await response.json().catch(() => null) as
+        { ok?: boolean; error?: string } & Partial<PluginHealthReport> | null;
+      if (!response.ok || !result?.ok || !result.health || !result.summary) {
+        throw new Error(readableHealthError(result?.error, response.status));
+      }
+      if (healthLoadId.current !== id) return;
+      setHealth({
+        scope: result.scope ?? { agencyId: "" },
+        health: result.health,
+        summary: result.summary,
+      });
+    } catch (caught) {
+      if (healthLoadId.current !== id) return;
+      setHealthError(caught instanceof Error ? caught.message : "Could not read module health.");
+    }
+  }, []);
+
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void loadHealth(); }, [loadHealth]);
 
   // Capture is the point, so the console opens ready to type — on the page you
   // are already standing on.
@@ -469,6 +516,31 @@ export function DevConsolePanel({
           )}
         </Section>
 
+        {/* Module health — the ten modules that answer, and the three that
+            deliberately do not. Sits beside worker activity because both are
+            "what is true right now", and both arrive after the fast half. */}
+        <Section title="Module health" count={health ? health.health.length : 0}>
+          {healthError && !health ? (
+            <Clear icon={<TriangleAlert size={18} className="text-amber-600" />} copy={healthError} />
+          ) : !health ? (
+            <Waiting copy="Asking the modules how they are…" />
+          ) : health.health.length ? (
+            <>
+              {/* The ROUTE's tally, printed as given. The Dev Console has
+                  already shipped the other bug once — a worker count derived
+                  from a capped list, disagreeing with the station beside it. */}
+              <p className="px-4 pb-1.5 text-[10px] text-black/40">{healthSummaryLine(health.summary)}</p>
+              <ul className="divide-y divide-black/[0.07]">
+                {sortForDisplay(health.health).map(row => (
+                  <HealthRow key={row.installId} row={row} />
+                ))}
+              </ul>
+            </>
+          ) : (
+            <Clear icon={<Activity size={18} className="text-black/30" />} copy="No modules installed in this scope." />
+          )}
+        </Section>
+
         {status?.activeAreas.length ? (
           <div className="flex flex-wrap items-center gap-1.5 border-t border-black/[0.07] px-4 py-3">
             <span className="text-[10px] font-semibold uppercase text-black/45">Files changing</span>
@@ -543,6 +615,74 @@ function Section({ title, count, children }: { title: string; count: number; chi
       {children}
     </section>
   );
+}
+
+/**
+ * One module's row.
+ *
+ * The whole point of this panel is the distinction the route already protects:
+ * a module with no `healthcheck` is UNKNOWN, not broken. It gets a hollow grey
+ * ring rather than a filled dot, and the word "not reporting" rather than any
+ * colour that reads as a fault — painting those three modules red would
+ * re-introduce in CSS the exact defect the route was written to avoid.
+ *
+ * `degraded` is the second honest case: `client-crm` returns top-level
+ * `ok: true` while reporting `segments: { ok: false }`, and a panel that showed
+ * only the headline would hide a real failure behind a green dot.
+ */
+function HealthRow({ row }: { row: PluginHealthRow }) {
+  const tone = healthTone(row);
+  const failing = failingComponents(row);
+  return (
+    <li className="flex items-start gap-3 px-4 py-3">
+      <HealthDot tone={tone} />
+      <span className="min-w-0 flex-1">
+        <span className="flex flex-wrap items-baseline gap-x-2">
+          <strong className="text-xs font-semibold leading-5 text-black/75">{row.pluginId}</strong>
+          <span className={`text-[9px] font-semibold uppercase ${TONE_LABEL_CLASS[tone]}`}>{TONE_LABEL[tone]}</span>
+          {/* Only worth the pixels when it is slow enough to matter — the route
+              gives up at 5s, so a number climbing toward it is the signal. */}
+          {row.durationMs >= 1_000 ? (
+            <span className="text-[10px] tabular-nums text-black/35">{(row.durationMs / 1_000).toFixed(1)}s</span>
+          ) : null}
+        </span>
+        <span className="mt-0.5 block text-[11px] leading-4 text-black/45">{healthHeadline(row)}</span>
+        {failing.length ? (
+          <span className="mt-1 flex flex-wrap gap-1">
+            {failing.map(component => (
+              <span key={component.name} className="inline-flex items-center gap-1 rounded-md border border-amber-300/60 bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-800">
+                <code className="font-mono">{component.name}</code>
+                {component.message ? <span className="text-amber-700/80">{component.message}</span> : null}
+              </span>
+            ))}
+          </span>
+        ) : null}
+      </span>
+    </li>
+  );
+}
+
+const TONE_LABEL: Record<PluginHealthTone, string> = {
+  healthy: "Healthy",
+  degraded: "Degraded",
+  unhealthy: "Unhealthy",
+  unknown: "Not reporting",
+};
+
+const TONE_LABEL_CLASS: Record<PluginHealthTone, string> = {
+  healthy: "text-emerald-700",
+  degraded: "text-amber-700",
+  unhealthy: "text-red-700",
+  unknown: "text-black/35",
+};
+
+/** Filled for a verdict, hollow for the absence of one. */
+function HealthDot({ tone }: { tone: PluginHealthTone }) {
+  if (tone === "unknown") {
+    return <span className="mt-1.5 size-2 shrink-0 rounded-full border border-black/25" aria-hidden="true" />;
+  }
+  const fill = tone === "unhealthy" ? "bg-red-600" : tone === "degraded" ? "bg-amber-500" : "bg-[#0b6f6d]";
+  return <span className={`mt-1.5 size-2 shrink-0 rounded-full ${fill}`} aria-hidden="true" />;
 }
 
 function Waiting({ copy }: { copy: string }) {

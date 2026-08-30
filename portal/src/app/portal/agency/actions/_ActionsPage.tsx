@@ -27,15 +27,18 @@ import { LazyActionsWorkspace } from "./_LazyActionsWorkspace";
 
 const WEEK = 7 * 24 * 60 * 60 * 1000;
 
-export async function AgencyActionsPage({
-  initialView = "list",
-  heading = "Actions",
-  description,
-}: {
-  initialView?: ActionsView;
-  heading?: string;
-  description?: string;
-}) {
+/**
+ * Everything the Actions surface is made of, gathered once.
+ *
+ * Extracted from the component on 2026-08-30 so the Master Inbox can COUNT
+ * this queue without rendering it twice. Ed: *"needs you notifications is
+ * wrong it says 0 but theres actions in there — its meant to combine the
+ * actions + others things into one."* The badge was `attentionAlerts.length`
+ * alone, because the actions lived in an opaque server slot the client could
+ * not see into. The inbox page now assembles once, hands the data to the slot
+ * AND the count to the tab.
+ */
+export async function assembleAgencyActions() {
   await ensureHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
   const clients = listClients(session.agencyId);
@@ -168,19 +171,59 @@ export async function AgencyActionsPage({
     });
   }
 
+  const externalProposals = listExternalAssistantActionProposals(session.agencyId);
+  const generatedActions = actions
+    .filter(action => !acceptedSourceIds.has(action.id))
+    .sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority) || (a.dueAt ?? Number.MAX_SAFE_INTEGER) - (b.dueAt ?? Number.MAX_SAFE_INTEGER));
+
+  // What the "Needs you" badge owes: every open item in this queue that the
+  // inbox's own alert count does NOT already cover. The `attention:` entries
+  // are those same alerts re-entering as actions, so counting them here would
+  // double-count each alert once per surface.
+  const openActionCount =
+    generatedActions.filter(action => !action.id.startsWith("attention:")).length
+    + initialTasks.filter(task => task.status !== "done").length
+    + commandRecommendations.length
+    + externalProposals.length;
+
+  return {
+    session, clients, initialTasks, calendarIntegration, businessRadar,
+    generatedActions, commandRecommendations, externalProposals,
+    calendarEvents, team, openActionCount,
+  };
+}
+
+export async function AgencyActionsPage({
+  initialView = "list",
+  heading = "Actions",
+  description,
+  prepared,
+}: {
+  initialView?: ActionsView;
+  heading?: string;
+  description?: string;
+  /**
+   * Pass the result of `assembleAgencyActions()` to reuse one assembly for
+   * both the slot and the badge. Standalone mounts (the Calendar page) omit it
+   * and assemble here.
+   */
+  prepared?: Awaited<ReturnType<typeof assembleAgencyActions>>;
+}) {
+  const data = prepared ?? await assembleAgencyActions();
+  const { session, clients } = data;
   return <LazyActionsWorkspace
-    initialTasks={initialTasks}
-    initialExternalProposals={listExternalAssistantActionProposals(session.agencyId)}
-    generatedActions={actions.filter(action => !acceptedSourceIds.has(action.id)).sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority) || (a.dueAt ?? Number.MAX_SAFE_INTEGER) - (b.dueAt ?? Number.MAX_SAFE_INTEGER))}
-    commandRecommendations={commandRecommendations}
-    recommendationsGeneratedAt={businessRadar.generatedAt}
+    initialTasks={data.initialTasks}
+    initialExternalProposals={data.externalProposals}
+    generatedActions={data.generatedActions}
+    commandRecommendations={data.commandRecommendations}
+    recommendationsGeneratedAt={data.businessRadar.generatedAt}
     advisorConfigured={isAssistantConfigured(session.agencyId)}
-    team={team}
+    team={data.team}
     clients={clients.map(client => ({ id: client.id, name: client.name, status: client.status, stage: client.stage }))}
     sops={listSops(session.agencyId)}
-    calendarEvents={calendarEvents}
+    calendarEvents={data.calendarEvents}
     initialCalendarEntries={listCommandCalendarEntries(session.agencyId, session.userId)}
-    initialCalendarIntegration={calendarIntegration}
+    initialCalendarIntegration={data.calendarIntegration}
     taskCustomFields={getPortalFormFields(session.agencyId, "tasks")}
     initialView={initialView}
     heading={heading}

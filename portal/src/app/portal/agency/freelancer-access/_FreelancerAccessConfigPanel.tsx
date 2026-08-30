@@ -6,7 +6,7 @@ import type { FreelancerAccessConfig } from "@/server/types";
 // Agency-set policy editor for the freelancer workspace ("all configurable"):
 // an agency-wide default + optional per-job overrides. Theme-token colours.
 
-interface JobRow { id: string; title: string; override: FreelancerAccessConfig | null; }
+export interface JobRow { id: string; title: string; override: FreelancerAccessConfig | null; }
 
 function Toggle({ label, hint, checked, onChange }: {
   label: string; hint?: string; checked: boolean; onChange: (v: boolean) => void;

@@ -108,6 +108,12 @@ function defaultMainItems(input: BuildSidebarInput): NavItem[] {
       // are the only rendered rows on "main". Routes are UNCHANGED. See
       // docs/development/plans/information-architecture-v2.md.
       items.push({ id: "operations-home", label: "Operations",     href: "/portal/agency/operations",      panelId: "main", order: -8 });
+      // My Radar — the week judged by department rather than as one number.
+      // On "main" beside Operations because it answers a question about YOUR
+      // time, not about the business's records, and burying it under Ops would
+      // make it a report rather than the thing you check before deciding what
+      // to do today.
+      items.push({ id: "my-radar",    label: "My Radar",           href: "/portal/agency/my-radar",        panelId: "main", order: -7.5 });
       items.push({ id: "pipelines",   label: "Journey",            href: "/portal/clients?view=journey",   panelId: "ops",  order: -7 });
       items.push({ id: "fulfilment",  label: "Fulfilment",         href: "/portal/agency/fulfilment",      panelId: "ops",  order: -6 });
       // Aqua Tags — the tag control tower is a Fulfilment view (?view=tags); this is its only sidebar entry.
@@ -414,10 +420,11 @@ export function applyOrder<T>(items: readonly T[], order: readonly string[], idO
   });
 }
 
-/** The id a saved tab uses as a nav row, namespaced so it cannot collide. */
-export function savedTabNavId(tabId: string): string {
-  return `saved:${tabId}`;
-}
+// Both live in `./savedTabNav`, which has no server-only dependency, because
+// client components need them too. Re-exported here so existing server-side
+// callers keep working.
+export { savedTabIdFromNavId, savedTabNavId } from "./savedTabNav";
+import { savedTabNavId } from "./savedTabNav";
 
 /**
  * Apply one person's arrangement to the panels they are allowed to see.

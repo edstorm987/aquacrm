@@ -2,11 +2,12 @@
 
 > Verified findings, independent reviews, browser audits and the testing record.
 >
-> Consolidated 2026-08-29 from **10** source documents / **110,204 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-30 from **11** source documents / **110,874 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`docs/context/auditor-brief.md`](#source-docs-context-auditor-brief-md) — 1,437 words · `360272738775`
+- [`docs/development/AUDIT-2026-08-30.md`](#source-docs-development-audit-2026-08-30-md) — 670 words · `32afb89f6627`
 - [`docs/development/audits.md`](#source-docs-development-audits-md) — 36,747 words · `a2883afd9cc4`
 - [`docs/development/findings/2026-08-22-agency-staff-can-read-salaries.md`](#source-docs-development-findings-2026-08-22-agency-staff-can-read-salaries-md) — 502 words · `7c087bfecb74`
 - [`docs/development/findings/2026-08-22-app-audit-salvage.md`](#source-docs-development-findings-2026-08-22-app-audit-salvage-md) — 1,294 words · `16f6f10e5bc4`
@@ -172,6 +173,45 @@ Commander reads audits.md ──▶ PASS/NITS → mark done in state.md + todo.m
 ```
 ```
 <!-- AQUACRM_SOURCE_END path="docs/context/auditor-brief.md" -->
+
+---
+
+<a id="source-docs-development-audit-2026-08-30-md"></a>
+
+## Source document — `docs/development/AUDIT-2026-08-30.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/development/AUDIT-2026-08-30.md" sha256="32afb89f6627314039f21b2e14f98a253326093e8cdefe839c9e43280a79f321" -->
+# Ed's audit — 2026-08-30 (second wave)
+
+Live queue. Every item verified against source before fixing; status updated as
+each lands. Severity order, not arrival order.
+
+## Critical — being fixed now
+
+| # | Finding | Status |
+|---|---|---|
+| A2 | Scouting opt-out not truly server-enforced: resolveCaller gathers contacts+leads, NOT prospects — the records carrying doNotContact. sms/wa.me links bypass inspection+suppression+logging | fixing |
+| A4 | Resend idempotency key `outreach:${contactId ?? to}` identifies the RECIPIENT, so distinct follow-ups dedupe/reject. Reset + magic-link emails have similar fixed keys | fixing |
+| A7 | Reset flow: ambiguous Supabase failure restores the single-use nonce even if Supabase committed; success-then-portal-failure leaves nonce spent with old sessions alive; duplicate full user scans | fixing |
+| A3 | EmailButton keeps open/subject/body state across prospect switches — a draft for A silently readdresses to B | fixing |
+| A5 | Delivery and journey logging are two requests; nav/network failure loses history+quota. Device (tel:) calls fire onCalled before any call happens → never meaningfully counted | fixing |
+| A-quota | "Personal" quotas count agency-wide records for prospects-scouted / leads-qualified / clients-converted (no per-actor attribution exists on those records) | fixing — label honestly + only offer per-user metrics as personal |
+| A-css | resetUserChromeOrder omits customCss → sidebar reset erases the stylesheet | fixing |
+| A-tools | My Tools can save before initial load completes; unordered full-record PUTs clobber newer changes | fixing — ready gate |
+| A6 | Non-founder agencies with their own Resend key still inherit founder MILESYMEDIA_FROM_NAME / REPLY_TO | fixing |
+
+## Large / architectural — planned, not this tick
+
+| # | Finding | Plan |
+|---|---|---|
+| A1 | Proxy vs access kernel | **PLAN COMPLETE (2026-08-30, Plan agent).** Key verdicts: the proxy CANNOT consult the kernel (Edge runtime, storage unreachable, and it reads the cookie payload UNVERIFIED — it is a fast optimistic boundary, not the boundary; note its header comment claiming HMAC verification is stale). Target model: kernel projection `resolveActorWorkspaceElementAccess` is the ONE decider; proxy keeps a deny-by-default containment list extracted to a new edge-safe `src/lib/access/staffSurfaceRoots.ts` guarded by an hr-policy-convergence-style tripwire (a root may join only when its leaves provably call the kernel). Stages: 0 extract-don't-change (repoint smoke-next-route-contracts:39-41 + smoke-workspace-element-runtime:226-227); 1 open my-radar + chrome/department API roots for staff AND element-gate /portal/agency/my-radar page FIRST (order matters); 2 telephony onto growth.outreach view/use (keep role belts; census unchanged); 3 settings resolver — canonical agency-scope grants first, getAgencySettingsCapabilities as documented legacy fallback, ADD the missing capReadOnlySession parity; 4 growth nav row in agencyBasePanels so sales hats work (gated on Ed decision); 5 the proxy list dissolves family-by-family, NEVER deleted (it contains requireRole([AGENCY_ROLES]) routes that admit staff). ED DECISIONS: manageTeam→staff.people.manage vs workspace.settings.manage; may staff be GRANTED into settings at all; where staff growth surfaces live; #174 legacy-widening extends to settings. Also: buildAgencyAccessScopeChoices lacks the growth workspace scope choice — add alongside. |
+| A8 | Perf: getSession not request-memoized (repeat Supabase getUser); Journey eagerly imports Scouting station; Inbox ships hidden workspaces + serial waterfalls; Settings static-imports every pane + serializes all data; SMTP lacks deadline; provider outcome metadata discarded | Dedicated perf tick: memoize getSession (React cache()), dynamic-import stations, defer hidden-tab data. Each lands with the graph-split smoke |
+| A-log | Activity Log: stale-response races, 50k-row "All" render, repeated client lookups, CSV formula injection | CSV injection fix goes in the critical wave (prefix guard); races + windowed All next |
+| A-inbox-url | Inbox URL view/thread/form state does not resync on navigation | With the inbox agent's pass (its file) — queued after it reports |
+| A-search | Pipeline search maps pipelines to fulfilment.services not growth.leads | One-line after the growth workspace lands (this session added it) |
+| A-quota-race | Quota form allows duplicate targets during slow submissions | Disable-while-submitting + server-side same-metric+recurrence upsert |
+| A-untracked | Essential new modules untracked — tracked diff cannot reproduce checkout | ED-QUESTIONS: needs Ed's go-ahead to commit (standing rule: never commit unasked) |
+<!-- AQUACRM_SOURCE_END path="docs/development/AUDIT-2026-08-30.md" -->
 
 ---
 

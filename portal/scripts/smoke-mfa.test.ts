@@ -961,6 +961,51 @@ describe("recovery codes — the way back in when the authenticator is gone", ()
     assert.equal(recoveryCodeMatches("AAAAA-AAAAA", hashes), -1);
     assert.equal(recoveryCodeMatches("", hashes), -1);
   });
+
+  const read = (...p: string[]) => require("node:fs").readFileSync(
+    require("node:path").join(__dirname, "..", ...p), "utf-8");
+
+  // ─── The lockout window, closed 2026-08-30 ─────────────────────────────
+  //
+  // Codes used to be issued ONLY on the login route's check-code branch. Enrol
+  // on the account page, lose the phone before the next sign-in, and there
+  // were no codes, no un-enrol path and no owner reset. The account was gone.
+  // These three pin the floor that was put under it.
+
+  it("issues the codes at enrolment, not only at the first gated login", () => {
+    const verify = read("src", "app", "api", "portal", "mfa", "verify", "route.ts");
+    assert.match(verify, /issueRecoveryCodesIfMissing/,
+      "enrolling can once again leave somebody with a factor and no way back in");
+    assert.match(verify, /recoveryCodes/,
+      "the codes are generated but never returned, so nobody can save them");
+  });
+
+  it("does not let a failed lookup undo a factor that is already proven", () => {
+    // The factor is verified with Supabase before this point. Throwing here
+    // would tell the caller enrolment failed while leaving them enrolled.
+    const verify = read("src", "app", "api", "portal", "mfa", "verify", "route.ts");
+    assert.match(verify, /try \{[\s\S]*issueRecoveryCodesIfMissing[\s\S]*\} catch/,
+      "a portal-user lookup failure would fail the whole verification");
+  });
+
+  it("holds the panel open on the one showing instead of closing over it", () => {
+    // `onVerified` usually closes the panel. Calling it in the same breath as
+    // receiving the codes would show them for exactly one render.
+    const setup = read("src", "components", "auth", "TwoFactorSetup.tsx");
+    assert.match(setup, /if \(result\.recoveryCodes\?\.length\) \{[\s\S]{0,220}return;/,
+      "the codes no longer stop the panel closing — they would be shown and lost");
+    assert.match(setup, /data-testid="mfa-recovery-codes"/);
+    assert.match(setup, /I have saved these/,
+      "there is no acknowledgement step, so the codes can be dismissed by accident");
+  });
+
+  it("no longer tells people there are no backup codes", () => {
+    // The copy predated the codes and stayed false for ten days.
+    const panel = read("src", "app", "portal", "account", "TwoFactorPanel.tsx");
+    assert.doesNotMatch(panel, /no backup codes yet/,
+      "the panel claims there are no recovery codes, which has not been true since 2026-08-20");
+    assert.match(panel, /recovery codes/i);
+  });
 });
 
 describe("the account page's honest answer to \"is it on?\"", () => {

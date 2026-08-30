@@ -63,6 +63,10 @@ const ARCHIVED_MULTI_AGENCY = join(ROOT, "src", "archive", "multi-agency");
 const CATCHALL = join(ROOT, "src", "app", "portal", "agency", "[...rest]", "page.tsx");
 const AGENCY_HOME = join(ROOT, "src", "app", "portal", "agency", "page.tsx");
 const TOOLS_PAGE = join(ROOT, "src", "app", "portal", "agency", "tools", "page.tsx");
+// The workspace directory moved from Tools to Operations on 2026-08-30 (Ed:
+// "just put all the workspaces in operations"). Reachability requirements that
+// used to land on Tools now land here. See smoke-tools-directory.test.ts.
+const OPS_PAGE_NAV = join(ROOT, "src", "app", "portal", "agency", "operations", "page.tsx");
 const COMPANY_WORKSPACE = join(ROOT, "src", "app", "portal", "agency", "company", "_CompanyWorkspace.tsx");
 const BATTLE_TABLE = join(ROOT, "src", "app", "portal", "agency", "_BattleTableWorkspace.tsx");
 const MASTER_INBOX = join(ROOT, "src", "app", "portal", "agency", "inbox", "_MasterInbox.tsx");
@@ -249,13 +253,16 @@ describe("standalone portal nav audit", () => {
     // P5 (2026-08-20) — deliberate contract update. Tools and Battle Table used
     // to launch the agency-hr copy of the staff directory; both now launch the
     // one canonical surface at /portal/agency/people.
+    // These moved to Operations with the directory; the requirement is
+    // unchanged — each must stay reachable from somewhere real.
+    const opsPage = read(OPS_PAGE_NAV);
     for (const href of [
       "/portal/agency/activity-inbox",
       "/portal/agency/people",
       "/portal/agency/email-sender",
       "/portal/agency/agency-marketing",
-    ]) assert.ok(tools.includes(href), `${href} missing from Tools`);
-    assert.ok(tools.includes('href: "/portal/agency/people"'), "Tools should launch People operations at the canonical staff surface");
+    ]) assert.ok(opsPage.includes(href), `${href} missing from Operations`);
+    assert.ok(opsPage.includes('href: "/portal/agency/people"'), "Operations should launch People operations at the canonical staff surface");
     assert.ok(battleTable.includes('href: "/portal/agency/people"'), "Battle Table should launch People operations");
     assert.ok(company.includes('href="/portal/agency/people"'), "Company workspace should launch People operations at the canonical staff surface");
     assert.ok(inbox.includes('href="/portal/agency/email-sender"'), "Master Inbox should launch Email operations");
@@ -483,11 +490,26 @@ describe("standalone portal nav audit", () => {
     const targets = [
       ['"/portal/account"', join(ROOT, "src", "app", "portal", "account", "page.tsx")],
       ['"/portal/account/permissions"', join(ROOT, "src", "app", "portal", "account", "permissions", "page.tsx")],
+      // Ed asked for his calendar in the profile menu (2026-08-30). It is an
+      // agency-side target, so it is gated below as well as listed here.
+      ['"/portal/agency/calendar"', join(ROOT, "src", "app", "portal", "agency", "calendar", "page.tsx")],
     ];
     for (const [marker, path] of targets) {
       assert.ok(src.includes(marker), `${marker} missing from ProfileMenu`);
       assert.ok(existsSync(path), `${path} missing`);
     }
+  });
+
+  it("never offers the agency calendar to a client-portal viewer", () => {
+    // The calendar lives under /portal/agency, which a client role cannot
+    // reach. The sibling test above proves the page exists; this one proves the
+    // link is gated, so adding it did not widen what the customer surface shows.
+    const src = read(PROFILE);
+    const idx = src.indexOf('"/portal/agency/calendar"');
+    assert.ok(idx > 0, "the calendar link is gone from ProfileMenu");
+    const guard = src.slice(Math.max(0, idx - 400), idx);
+    assert.match(guard, /role\.startsWith\("agency-"\)/,
+      "the calendar link is no longer gated on an agency role — a client viewer would be shown a page they cannot open");
   });
 
   it("keeps AquaOasis-Web single-agency and parks the old multi-agency controls", () => {
@@ -641,11 +663,12 @@ describe("standalone portal nav audit", () => {
     // 5. Because the AquaOasis agency override in sidebarLayout.ts filters the
     //    agency sidebar down to a fixed list of core ids, agency-hr contributes
     //    no sidebar row at all — so its surviving pages need an explicit entry
-    //    point or they are orphaned. Tools carries it.
-    const tools = read(TOOLS_PAGE);
+    //    point or they are orphaned. Operations carries it (it was Tools until
+    //    the directory moved on 2026-08-30).
+    const opsForHr = read(OPS_PAGE_NAV);
     assert.ok(
-      tools.includes('href: "/portal/agency/agency-hr/departments"'),
-      "Tools must keep an entry point into the surviving agency-hr pages, or Departments/Leave/Employees/Roles/Settings become unreachable",
+      opsForHr.includes('href: "/portal/agency/agency-hr/departments"'),
+      "Operations must keep an entry point into the surviving agency-hr pages, or Departments/Leave/Employees/Roles/Settings become unreachable",
     );
   });
 

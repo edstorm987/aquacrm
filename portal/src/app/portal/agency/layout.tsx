@@ -33,6 +33,7 @@ import { listOperationalAlertViews } from "@/lib/server/inbox/operationalAlertPr
 import { NotificationAttentionProvider } from "@/components/chrome/NotificationAttentionProvider";
 import { RadarQuickLookControl } from "@/components/chrome/RadarQuickLookControl";
 import { withPersonalChrome } from "@/lib/server/chrome/personalPanels";
+import { assembleAgencyBasePanels } from "@/lib/server/chrome/agencyBasePanels";
 
 export default async function AgencyLayout({ children }: { children: ReactNode }) {
   await ensureHydrated();
@@ -74,54 +75,12 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
     ensureLeadsPipelineInstall(agency.id, session.userId);
     installs = listInstalledFor({ agencyId: agency.id });
   }
+  // Assembled by the SHARED assembler — the department-switch route runs the
+  // same function, so "which nav does this session have" can never fork
+  // between the layout and the server that stamps hours against it.
+  // Extracted 2026-08-30; see lib/server/chrome/agencyBasePanels.ts.
   const eff = effectiveRole(session);
-  let basePanels = buildSidebar({
-    role: session.role,
-    scope: "agency",
-    installedPlugins: installs,
-    pluginCatalog: AGENCY_SIDEBAR_PLUGIN_CATALOG,
-    permissions: eff.permissions,
-    isFounder: eff.isFounder,
-    devModeAvailable: canUseDevMode(),
-    devTeamAvailable: devDocsAccessible(session),
-    publicShowcase: session.publicShowcase,
-  });
-  if (delegatedStaff) {
-    const [
-      { requireCurrentAccessActor },
-      {
-        FULFILMENT_VIEW_ELEMENT_KEYS,
-        resolveActorWorkspaceElementAccess,
-        STAFF_COMMAND_ELEMENT_KEYS,
-        workspaceElementLevel,
-      },
-    ] = await Promise.all([
-      import("@/server/accessControl"),
-      import("@/lib/server/access/workspaceElementAccess"),
-    ]);
-    const actor = await requireCurrentAccessActor();
-    const staffAccess = resolveActorWorkspaceElementAccess(actor, "staff");
-    const fulfilmentAccess = resolveActorWorkspaceElementAccess(actor, "fulfilment");
-    const hasPeople = Object.values(STAFF_COMMAND_ELEMENT_KEYS)
-      .some(key => workspaceElementLevel(staffAccess, key) !== "hidden");
-    const hasFulfilment = Object.values(FULFILMENT_VIEW_ELEMENT_KEYS)
-      .some(key => workspaceElementLevel(fulfilmentAccess, key) !== "hidden");
-    basePanels = [{
-      id: "main",
-      label: "",
-      order: 0,
-      items: [
-        { id: "team", label: "My workspace", href: "/portal/team", panelId: "main", order: 0 },
-        ...(hasPeople ? [{ id: "people", label: "Staff", href: "/portal/agency/people", panelId: "main" as const, order: 10 }] : []),
-        ...(hasFulfilment ? [{ id: "fulfilment", label: "Fulfilment", href: "/portal/agency/fulfilment", panelId: "main" as const, order: 20 }] : []),
-      ],
-    }, {
-      id: "settings",
-      label: "Settings",
-      order: 90,
-      items: [{ id: "account", label: "My profile", href: "/portal/account", panelId: "settings", order: 0 }],
-    }] satisfies NavPanel[];
-  }
+  let basePanels = await assembleAgencyBasePanels(session);
   // Performance mode (server-read cookie): the sidebar attention sweep runs a
   // full portfolio scan + a live Supabase fetch on EVERY agency page. When perf
   // mode is on we skip it entirely — the sidebar still renders, badges simply

@@ -27,6 +27,9 @@ export function TwoFactorSetup({
   );
   const [message, setMessage] = useState("");
   const [showSecret, setShowSecret] = useState(false);
+  // Held rather than passed straight to `onVerified`, because these are shown
+  // exactly once and the caller's job is usually to close the panel.
+  const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
 
   useEffect(() => {
     if (mode !== "enrol") return;
@@ -49,13 +52,51 @@ export function TwoFactorSetup({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ factorId: factor?.factorId, code }),
       });
-      const result = await response.json() as { ok?: boolean; error?: string };
+      const result = await response.json() as { ok?: boolean; error?: string; recoveryCodes?: string[] };
       if (!result.ok) throw new Error(result.error ?? "That code was not right.");
+      // A fresh set comes back only on the enrolment that created it. Show it
+      // and hold the panel open — calling `onVerified` here would close over
+      // the one and only showing. Re-confirming an existing factor returns
+      // nothing and carries on as before.
+      if (result.recoveryCodes?.length) {
+        setRecoveryCodes(result.recoveryCodes);
+        setState("ready");
+        return;
+      }
       onVerified();
     } catch (error) {
       setState("error");
       setMessage(error instanceof Error ? error.message : String(error));
     }
+  }
+
+  if (recoveryCodes) {
+    return (
+      <div
+        className="mt-5 grid gap-3 rounded-md border border-black/12 bg-black/[0.02] p-4"
+        data-testid="mfa-recovery-codes"
+      >
+        <p className="flex items-center gap-2 text-sm font-semibold text-black/75">
+          <ShieldCheck size={15} aria-hidden className="text-black/45" />
+          Save your recovery codes
+        </p>
+        <p className="text-sm leading-6 text-black/60">
+          Your authenticator now protects this account. If you ever lose it, any
+          one of these one-time codes signs you in instead. They are shown only
+          this once — copy them somewhere safe before you close this.
+        </p>
+        <ol className="grid grid-cols-2 gap-x-6 gap-y-1 rounded-md border border-black/10 bg-white p-3 font-mono text-sm text-black/80">
+          {recoveryCodes.map(recoveryCode => <li key={recoveryCode}>{recoveryCode}</li>)}
+        </ol>
+        <button
+          type="button"
+          onClick={onVerified}
+          className="justify-self-start rounded-md bg-black/85 px-3.5 py-2 text-sm font-semibold text-white hover:bg-black"
+        >
+          I have saved these
+        </button>
+      </div>
+    );
   }
 
   if (state === "loading") {

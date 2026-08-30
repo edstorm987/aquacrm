@@ -70,16 +70,35 @@ export async function sendTransactionalEmail(
   const smtp = requestedProvider === "resend"
     ? {}
     : requestedValues ?? resolveIntegrationValues(input.agencyId, "smtp", { clientId: input.clientId });
-  const apiKey = resend.apiKey || (!requestedProvider ? process.env.RESEND_API_KEY?.trim() : undefined);
-  const resendFromEmail = resend.fromEmail || (!requestedProvider ? process.env.MILESYMEDIA_FROM_EMAIL?.trim() : undefined);
+  // ── The founder gate, applied to the SEND path at last ──────────────────
+  //
+  // The readiness check above has always gated the environment credentials on
+  // `mayUseEnvironmentCredentials`; this line did not — so the UI told a
+  // second agency "not connected" while its mail went out on the founder's
+  // key, from his address, with his reply-to. Documented for months in
+  // env-and-sellability.md §1.1 as deliberately unfixed; RESOLVED 2026-08-30
+  // because the scouting outreach work multiplies traffic through this path
+  // and a public demo tenant is on the roadmap. The realm fence protects
+  // sandboxes; this protects LIVE tenants that are not the founder's.
+  //
+  // smoke-transactional-email.test.ts pinned the OLD behaviour and was
+  // updated in the same change — that is the decision being recorded, not a
+  // test drifting.
+  const envMailAllowed = mayUseEnvironmentCredentials(input.agencyId);
+  const apiKey = resend.apiKey || (!requestedProvider && envMailAllowed ? process.env.RESEND_API_KEY?.trim() : undefined);
+  const resendFromEmail = resend.fromEmail || (!requestedProvider && envMailAllowed ? process.env.MILESYMEDIA_FROM_EMAIL?.trim() : undefined);
 
   if (apiKey && resendFromEmail) {
-    const fromName = input.fromName?.trim() || resend.fromName || workspace.legalName || process.env.MILESYMEDIA_FROM_NAME?.trim() || "AquaOasis-Web";
+    // The founder's display name and reply-to are environment values too — a
+    // buyer with their OWN key still inherited them, so replies routed to the
+    // wrong business (Ed's finding, 2026-08-30). Same gate as the key.
+    const fromName = input.fromName?.trim() || resend.fromName || workspace.legalName
+      || (envMailAllowed ? process.env.MILESYMEDIA_FROM_NAME?.trim() : undefined) || "AquaCRM";
     const result = await sendResendEmail({
       apiKey,
       to: input.to,
       from: `${fromName} <${resendFromEmail}>`,
-      replyTo: resend.replyTo || workspace.supportEmail || process.env.MILESYMEDIA_REPLY_TO?.trim() || resendFromEmail,
+      replyTo: resend.replyTo || workspace.supportEmail || (envMailAllowed ? process.env.MILESYMEDIA_REPLY_TO?.trim() : undefined) || resendFromEmail,
       subject: input.subject,
       text: input.bodyText,
       html: input.bodyHtml,

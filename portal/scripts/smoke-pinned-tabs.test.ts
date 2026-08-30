@@ -242,3 +242,77 @@ describe("the small helpers the UI leans on", () => {
     assert.equal(spotFor(null as unknown as Element), null);
   });
 });
+
+// ── Merging a saved tab into a panel must be reversible ──────────────────
+//
+// Ed, 2026-08-30: *"it cannot revert sidebar saved tabs back to saved tabs once
+// i have merged them in with the others"* and *"the saved tabs loose all their
+// controls once reordered with the defaults."*
+//
+// One bug from two ends. `applyPersonalChrome` renders a panel-placed tab as an
+// ordinary NavItem, so it stopped being recognisable as a saved tab the moment
+// it was arranged — losing rename, icon and unpin, and leaving no route back.
+// Arranging something took away the ability to un-arrange it.
+describe("a saved tab merged into a panel can still be got back", () => {
+  it("round-trips between the nav id and the tab id", async () => {
+    const { savedTabNavId, savedTabIdFromNavId } = await import("../src/lib/chrome/sidebarLayout");
+    assert.equal(savedTabIdFromNavId(savedTabNavId("tab_7")), "tab_7");
+    // A real nav row is not a saved tab and must never be treated as one —
+    // offering "move back to Saved tabs" on the Command Centre row would be
+    // an action with nowhere to go.
+    assert.equal(savedTabIdFromNavId("agency-command-centre"), null);
+    assert.equal(savedTabIdFromNavId("saved:"), null, "an empty id is not a tab");
+    // Ids containing the delimiter must survive, or a tab whose id has a colon
+    // becomes unreachable.
+    assert.equal(savedTabIdFromNavId(savedTabNavId("a:b")), "a:b");
+  });
+
+  it("moving one back to the Saved section restores its placement", () => {
+    const tabs = normalizeTabs([
+      { id: "t1", href: "/portal/agency/inbox", label: "Inbox", placement: { kind: "panel", panelId: "ops" }, order: 0 },
+      { id: "t2", href: "/portal/agency", label: "Home", placement: { kind: "sidebar" }, order: 0 },
+    ]);
+    const moved = moveTabTo(tabs, "t1", { kind: "sidebar" }, 1);
+    const back = findTab(moved, "/portal/agency/inbox");
+    assert.ok(back, "the tab survived the move");
+    assert.deepEqual(back!.placement, { kind: "sidebar" },
+      "the tab is still claiming to live in a panel it was dragged out of");
+  });
+
+  it("keeps the controls on a merged row, as a sibling of the link", () => {
+    const { readFileSync } = require("node:fs") as typeof import("node:fs");
+    const { join } = require("node:path") as typeof import("node:path");
+    const root = join(__dirname, "..");
+    const sidebar = readFileSync(join(root, "src/components/chrome/Sidebar.tsx"), "utf8");
+    assert.match(sidebar, /savedTabIdFromNavId\(item\.id\)/,
+      "merged saved tabs are no longer recognised, so they lose their controls again");
+    assert.match(sidebar, /<SavedRowControls/);
+
+    const controls = readFileSync(join(root, "src/components/chrome/SavedRowControls.tsx"), "utf8");
+    for (const label of ["Rename this shortcut", "Change the icon", "Move back to Saved tabs", "Unpin this page"]) {
+      assert.ok(controls.includes(label), `the merged row lost "${label}"`);
+    }
+    // A <button> inside an <a> is invalid and unreachable by keyboard.
+    assert.doesNotMatch(sidebar, /<SidebarNavLink[^>]*>\s*<SavedRowControls/,
+      "the controls are nested inside the link");
+  });
+
+  it("drops the nav id from every panel order when a tab goes back", () => {
+    // Restoring the placement alone leaves a dangling id in itemOrder that
+    // positions a row no longer in the panel; dropping the order alone leaves
+    // the tab rendering in the panel with a placement that lies. Both, always.
+    const { readFileSync } = require("node:fs") as typeof import("node:fs");
+    const { join } = require("node:path") as typeof import("node:path");
+    const root = join(__dirname, "..");
+    for (const file of ["src/components/chrome/SavedRowControls.tsx", "src/components/chrome/SidebarReorder.tsx"]) {
+      const source = readFileSync(join(root, file), "utf8");
+      assert.match(source, /itemOrder: nextOrder/, `${file} does not clear the panel order`);
+      assert.match(source, /moveTabTo\(savedTabs, tabId, \{ kind: "sidebar" \}/, `${file} does not restore the placement`);
+    }
+    const reorder = readFileSync(join(root, "src/components/chrome/SidebarReorder.tsx"), "utf8");
+    assert.match(reorder, /data-saved-return-zone/,
+      "there is no drop target, so a merged tab can only be moved back through the menu");
+    assert.match(reorder, /draggingSavedTab \?/,
+      "the return zone is not gated on dragging a saved tab, so it shows for ordinary nav rows");
+  });
+});

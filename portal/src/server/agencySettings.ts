@@ -2,11 +2,14 @@ import "server-only";
 
 import { logActivity } from "./activity";
 import { getState, mutate } from "./storage";
+import { DEPARTMENT_PROFILES } from "@/lib/access/departmentProfiles";
+import { isValidTimezone, normaliseTimezone } from "@/lib/shared/timezones";
 import type {
   AdvisorCustomSkill,
   AdvisorSkillRecipeId,
   AgencyWorkspaceSettings,
   ClientStage,
+  DepartmentBaselineSetting,
   RadarActivationCondition,
   RadarBaselineStrategy,
   RadarEvaluationWindow,
@@ -95,6 +98,31 @@ export function getAgencyWorkspaceSettings(agencyId: string): AgencyWorkspaceSet
   };
 }
 
+/**
+ * Baselines, cleaned.
+ *
+ * Unknown department ids are DROPPED rather than kept: a baseline for a
+ * department that does not exist can never be met, so it would sit on the radar
+ * as a permanent, unfixable starvation. Duplicates collapse to the last value,
+ * because two baselines for one department is a question with no answer.
+ */
+function cleanDepartmentBaselines(value: unknown): DepartmentBaselineSetting[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const known = new Set(DEPARTMENT_PROFILES.map(profile => profile.id as string));
+  const byId = new Map<string, number>();
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object") continue;
+    const entry = raw as { departmentId?: unknown; weeklyHours?: unknown };
+    const departmentId = typeof entry.departmentId === "string" ? entry.departmentId.trim() : "";
+    if (!known.has(departmentId)) continue;
+    const hours = typeof entry.weeklyHours === "number" && Number.isFinite(entry.weeklyHours)
+      ? Math.min(Math.max(entry.weeklyHours, 0), 168)
+      : 0;
+    byId.set(departmentId, hours);
+  }
+  return byId.size ? [...byId].map(([departmentId, weeklyHours]) => ({ departmentId, weeklyHours })) : undefined;
+}
+
 export function updateAgencyWorkspaceSettings(
   agencyId: string,
   patch: Partial<Omit<AgencyWorkspaceSettings, "agencyId" | "updatedAt">>,
@@ -110,7 +138,7 @@ export function updateAgencyWorkspaceSettings(
     businessAddress: cleanOptional(patch.businessAddress ?? current.businessAddress, 1_000),
     companyNumber: cleanOptional(patch.companyNumber ?? current.companyNumber, 80),
     taxNumber: cleanOptional(patch.taxNumber ?? current.taxNumber, 80),
-    timezone: cleanOptional(patch.timezone ?? current.timezone, 80) || DEFAULTS.timezone,
+    timezone: cleanTimezone(patch.timezone ?? current.timezone, current.timezone),
     defaultCurrency: cleanCurrency(patch.defaultCurrency ?? current.defaultCurrency),
     defaultTaxRatePercent: cleanNumber(patch.defaultTaxRatePercent ?? current.defaultTaxRatePercent, 0, 100),
     defaultPaymentTermsDays: cleanWholeNumber(patch.defaultPaymentTermsDays ?? current.defaultPaymentTermsDays, 0, 365),
@@ -119,6 +147,7 @@ export function updateAgencyWorkspaceSettings(
     createPortalByDefault: patch.createPortalByDefault ?? current.createPortalByDefault,
     portalAccessDays: cleanNumber(patch.portalAccessDays ?? current.portalAccessDays, 1, 90),
     clientWelcomeMessage: cleanOptional(patch.clientWelcomeMessage ?? current.clientWelcomeMessage, 2_000),
+    departmentBaselines: cleanDepartmentBaselines(patch.departmentBaselines ?? current.departmentBaselines),
     advisor: cleanAdvisorSettings(patch.advisor, current.advisor),
     notifications: {
       ...current.notifications,
@@ -158,6 +187,25 @@ function cleanUrl(value: unknown): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * The store's last-resort guard on the workspace zone.
+ *
+ * Until the picker became a searchable free-text input (2026-08-30), the five
+ * <option>s in SettingsTabs were the only thing between a POST body and
+ * storage — the route handed `timezone` straight through and this file only
+ * trimmed it. The invariant belongs HERE, where every caller passes: the
+ * Settings route, the Dev Team editor adapter, and anything later.
+ *
+ * Invalid input keeps the zone already stored rather than resetting to the
+ * default: somebody typing a typo must not silently relocate a workspace that
+ * was correctly configured.
+ */
+function cleanTimezone(value: unknown, fallback: string): string {
+  const zone = cleanOptional(value, 80);
+  if (!zone || !isValidTimezone(zone)) return fallback || DEFAULTS.timezone;
+  return normaliseTimezone(zone);
 }
 
 function cleanCurrency(value: unknown): string {

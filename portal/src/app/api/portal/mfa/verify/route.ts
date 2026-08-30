@@ -1,6 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { createRouteSupabaseClient } from "@/lib/supabase/route";
+import { issueRecoveryCodesIfMissing } from "@/lib/server/auth/mfa";
+import { ensureHydrated, flushPendingWrites } from "@/server/storage";
+import { getUserByLogin } from "@/server/users";
 
 /**
  * Verifying a code — both to finish enrolment and to raise a session to aal2.
@@ -51,5 +54,43 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "That code was not right. Try the current one." }, { status: 400 });
   }
 
-  return applyCookies(NextResponse.json({ ok: true }));
+  // ─── Close the lockout window ──────────────────────────────────────────
+  //
+  // Until 2026-08-30 recovery codes were issued ONLY on the login route's
+  // check-code success branch. That left a hole with no floor under it: enrol
+  // here, lose the phone before the next sign-in, and there were no codes, no
+  // un-enrol path and no owner reset — the account was unreachable for good.
+  //
+  // Codes are issued at the moment the factor is proven instead, which is the
+  // first instant they can be. `issueRecoveryCodesIfMissing` is idempotent and
+  // returns the plaintext ONLY when it just created and STORED a set, so
+  // raising an already-enrolled session returns undefined rather than a second
+  // printout, and a set the server could not store is never shown.
+  //
+  // A failure to look up the portal user must not fail the verification — the
+  // factor is already proven at this point, and refusing here would leave the
+  // caller enrolled in Supabase but told it did not work.
+  let recoveryCodes: string[] | undefined;
+  const email = user.user.email;
+  if (email) {
+    try {
+      // Cold-start correctness (found by Ed, 2026-08-30): without hydration a
+      // fresh serverless instance holds EMPTY state, the portal user is not
+      // found, and enrolment completes with no codes — reintroducing the exact
+      // lockout window this code exists to close. And without a flush the
+      // stored hashes can sit in the write debounce and die with the instance:
+      // codes SHOWN that no later sign-in can validate, which is worse than
+      // none. Hydrate before the lookup; flush after the store.
+      await ensureHydrated();
+      const portalUser = getUserByLogin(email);
+      if (portalUser) {
+        recoveryCodes = await issueRecoveryCodesIfMissing(portalUser.id);
+        if (recoveryCodes) await flushPendingWrites();
+      }
+    } catch {
+      recoveryCodes = undefined;
+    }
+  }
+
+  return applyCookies(NextResponse.json({ ok: true, recoveryCodes }));
 }

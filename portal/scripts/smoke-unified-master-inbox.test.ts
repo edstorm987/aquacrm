@@ -9,14 +9,32 @@ test("Master Inbox leads with attention and retains a real all-channel conversat
   const unified = read("src/app/portal/agency/inbox/_UnifiedInboxWorkspace.tsx");
   assert.match(inbox, /type View = "all" \|/);
   assert.match(inbox, /: "attention";/);
-  assert.match(inbox, /label="Needs attention"/);
-  assert.match(inbox, /label="All"/);
+  // Both labels changed on 2026-08-30 when ten tabs became three. "Needs
+  // attention" absorbed Actions and became "Needs you"; "All" became the
+  // "Everything" source inside the merged Inbox tab. The guarantee this test
+  // exists for is unchanged — attention still leads, and the all-channel desk
+  // is still a real desk rather than a link to six separate ones.
+  assert.match(inbox, /label="Needs you"/);
+  assert.match(inbox, /label="Everything"/);
+  assert.match(inbox, /label="Inbox"/);
   assert.match(inbox, /<UnifiedInboxWorkspace/);
   assert.match(unified, /Every conversation, one desk/);
   assert.match(unified, /kind: "website"/);
   assert.match(unified, /kind: "social"/);
   assert.match(unified, /kind: "client"/);
   assert.match(unified, /buildThreads\(websiteForms, conversations, socialInbox\.conversations, clientProfiles\)/);
+});
+
+test("the two-pane redesign keeps its messaging affordances", () => {
+  // Added 2026-08-30 with the premium messaging redesign: the queue rail
+  // folded into chips, threads render as grouped bubbles under day dividers,
+  // and below lg the desk stacks list-then-thread with a back button.
+  const unified = read("src/app/portal/agency/inbox/_UnifiedInboxWorkspace.tsx");
+  assert.match(unified, /aria-label="Back to conversations"/); // mobile stacking exists
+  assert.match(unified, /function relativeTime/); // relative-time rows
+  assert.match(unified, /function dayLabel/); // day dividers
+  // The hex body was the one surface the dark class sweep could not invert.
+  assert.doesNotMatch(unified, /#fbfbfa/);
 });
 
 test("unified composers send through each source system", () => {

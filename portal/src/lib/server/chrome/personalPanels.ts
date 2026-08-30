@@ -20,6 +20,8 @@ import "server-only";
 import { getSession } from "@/lib/server/auth/auth";
 import { applyPersonalChrome, type NavPanel } from "@/lib/chrome/sidebarLayout";
 import { getUserChromeLayout } from "@/lib/server/chrome/userChromeLayout";
+import { applyDepartmentLens } from "@/lib/chrome/departmentLens";
+import { getActiveDepartmentId } from "@/lib/server/chrome/activeDepartment";
 
 /**
  * `panels`, arranged the way this person arranged them.
@@ -33,13 +35,19 @@ export async function withPersonalChrome(panels: NavPanel[]): Promise<NavPanel[]
   try {
     const session = await getSession();
     if (!session) return panels;
+    // The department hat first, the personal arrangement second. Order matters:
+    // arranging is about the rows you HAVE, so narrowing after arranging would
+    // leave a person's order applied to rows they cannot currently see.
+    const department = await getActiveDepartmentId();
+    const lensed = applyDepartmentLens(panels, department);
+
     const layout = getUserChromeLayout(session.agencyId, session.userId);
     // Nothing arranged and nothing saved: return the very same array, so a
     // person who has never touched this gets today's behaviour exactly.
     if (!layout.panelOrder.length && !Object.keys(layout.itemOrder).length && !layout.savedTabs.length) {
-      return panels;
+      return lensed;
     }
-    return applyPersonalChrome(panels, {
+    return applyPersonalChrome(lensed, {
       panelOrder: layout.panelOrder,
       itemOrder: layout.itemOrder,
       savedTabs: layout.savedTabs.map(tab => ({

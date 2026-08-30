@@ -48,7 +48,12 @@ test("settings consolidates private showcase into Environment while public and l
   const publicControl = read("src/components/chrome/PublicShowcaseControl.tsx");
   const styles = read("src/app/globals.css");
   assert.match(settings, /label: "Environment"/);
-  assert.match(settings, /hash === "showcase" \? "environment"/);
+  // The `#showcase` bookmark must still open Environment. Asserted as the
+  // ALIAS ENTRY rather than the old inline `hash === "showcase" ? …` ternary:
+  // that expression moved into `LEGACY_TAB_ALIASES` on 2026-08-29 when three
+  // retired tab ids needed the same treatment. Matching the expression would
+  // fail on a refactor while a real regression — dropping the alias — passed.
+  assert.match(settings, /showcase: "environment"/);
   assert.match(panel, /Enter Sandbox Mode/);
   assert.match(panel, /Production snapshot/);
   assert.match(panel, /Reset selected data/);
@@ -141,7 +146,10 @@ test("public showcase chrome links to the read-only access summary, not Agency S
   const sidebar = read("src/lib/chrome/sidebarLayout.ts");
   const agencyLayout = read("src/app/portal/agency/layout.tsx");
   assert.match(sidebar, /input\.publicShowcase[\s\S]*label: "Permissions"[\s\S]*href: "\/portal\/account\/permissions"/);
-  assert.match(agencyLayout, /publicShowcase: session\.publicShowcase/);
+  // The buildSidebar call moved into the shared assembler on 2026-08-30; the
+  // guarantee — showcase flows into the sidebar assembly — moved with it.
+  assert.match(read("src/lib/server/chrome/agencyBasePanels.ts"), /publicShowcase: session\.publicShowcase/);
+  assert.match(agencyLayout, /assembleAgencyBasePanels\(session\)/);
   assert.match(agencyLayout, /session\.publicShowcase \? agency\.name : INTERNAL_WORKSPACE_NAME/);
   assert.match(read("src/app/portal/agency/page.tsx"), /session\.publicShowcase \? agency\.name : INTERNAL_WORKSPACE_NAME/);
   const clientLayout = read("src/app/portal/clients/[clientId]/layout.tsx");
@@ -266,7 +274,9 @@ test("public showcase agency workspaces cannot expose owner mutation controls", 
 
   const inboxPage = read("src/app/portal/agency/inbox/page.tsx");
   const inbox = read("src/app/portal/agency/inbox/_MasterInbox.tsx");
-  assert.match(inboxPage, /actionsSlot=\{session\.publicShowcase \? null/);
+  // 2026-08-30: the null-for-showcase decision now lives one line up, on the
+  // single assembly that feeds both the slot and the badge.
+  assert.match(inboxPage, /preparedActions = session\.publicShowcase \? null/);
   assert.match(inboxPage, /readOnly=\{Boolean\(session\.publicShowcase\)\}/);
   assert.match(inbox, /<fieldset disabled=\{readOnly\} className="contents">/);
 

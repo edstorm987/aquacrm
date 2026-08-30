@@ -410,6 +410,22 @@ export const ACCESS_ELEMENT_KEYS = [
   "staff.training",
   "staff.pay",
   "staff.chat",
+  // ─── Growth / sales ─────────────────────────────────────────────────────
+  //
+  // Added 2026-08-29. Until now the leads pipeline, contacts, campaigns and the
+  // outreach dialler were governed only by the coarse agency roles
+  // (owner/manager/staff), so "this person works sales and sees nothing else"
+  // was not expressible — the element vocabulary simply did not reach sales.
+  // That is the gap that blocked a hired caller having a seat of their own.
+  //
+  // Split at the lines a real sales seat is drawn along: a commission caller
+  // needs contacts and outreach, may need the board, and has no business in
+  // campaign sending or pipeline configuration.
+  "growth.overview",
+  "growth.leads",
+  "growth.contacts",
+  "growth.outreach",
+  "growth.campaigns",
   "fulfilment.overview",
   "fulfilment.services",
   "fulfilment.projects",
@@ -1720,6 +1736,21 @@ export interface CommandCalendarEntry {
   targetValue?: number;
   currentValue?: number;
   targetUnit?: string;
+  /**
+   * A rolling quota rather than a dated goal — "20 calls, every day".
+   *
+   * Ed, 2026-08-30: *"quotas as well like number of prospects, set myself a
+   * target."* Goal/target entries were dated calendar items; a quota repeats.
+   * Only meaningful on goal/target types, like the three fields above.
+   */
+  recurrence?: "daily" | "weekly";
+  /**
+   * What the quota counts. Progress is DERIVED at read time from the stores
+   * that already record the work (outreach attempts, prospect creation,
+   * conversions) — `currentValue` stays hand-editable for dated goals, but a
+   * metric-carrying quota never needs it written.
+   */
+  metric?: "prospects-scouted" | "calls-made" | "emails-sent" | "leads-qualified" | "clients-converted";
   createdAt: number;
   updatedAt: number;
 }
@@ -1854,6 +1885,25 @@ export interface DashboardWorkActivityBlock {
   focus?: string;
   note?: string;
   source: "clock" | "activity" | "declaration" | "idle" | "legacy";
+  /**
+   * Which department this stretch of work belongs to.
+   *
+   * Ed's operating model, 2026-08-29: *"you have to judge the departments not
+   * the person… if you judge the departments you'll see if enough is allocated
+   * or not or whether expansion is needed."* That question is unanswerable
+   * without this field — `focus` is free text, so before it existed there was
+   * no way to total the hours a department actually received.
+   *
+   * On the BLOCK rather than only the session because the hat changes during a
+   * day: two hours of calling then an afternoon of delivery is one session and
+   * two departments, and attributing the whole session to whichever hat was on
+   * at clock-in would quietly overstate one and starve the other.
+   *
+   * Absent means unattributed — work that happened before the department was
+   * chosen. Not "miscellaneous": a real category that a radar must show as a
+   * gap rather than silently fold into a department.
+   */
+  departmentId?: string;
 }
 
 export interface DashboardClockOutReview {
@@ -1871,6 +1921,8 @@ export interface DashboardWorkSession {
   agencyId: string;
   userId: string;
   date: string;
+  /** The department the hat was set to at clock-in. Blocks carry their own. */
+  departmentId?: string;
   startedAt: number;
   endedAt?: number;
   focus?: string;
@@ -2301,6 +2353,14 @@ export interface RetentionPolicy {
   clientFormNoticeDays?: number;
 }
 
+export interface DepartmentBaselineSetting {
+  /** A `DepartmentId` from `lib/access/departmentProfiles`. */
+  departmentId: string;
+  /** Hours a week. Zero means "planned to receive nothing", which is a real
+   *  and different statement from having no baseline at all. */
+  weeklyHours: number;
+}
+
 export interface AgencyWorkspaceSettings {
   agencyId: string;
   /** Unset per field = keep forever. See RetentionPolicy. */
@@ -2322,6 +2382,20 @@ export interface AgencyWorkspaceSettings {
   portalAccessDays: number;
   clientWelcomeMessage?: string;
   sopCategories?: string[];
+  /**
+   * Hours a week each department is MEANT to receive.
+   *
+   * Ed's operating model, 2026-08-29: *"the owner needs to margin their time
+   * out in Command Centre — what's going to do today, we need to allocate
+   * time… we need to make projections and baselines for what we want to
+   * achieve."* This is the baseline half.
+   *
+   * Without it, `summariseDepartmentAllocation` can total hours but cannot say
+   * whether a department is STARVED or merely unplanned — and that distinction
+   * is the entire point. A department absent from this list is reported as
+   * `unplanned`, never as behind.
+   */
+  departmentBaselines?: DepartmentBaselineSetting[];
   /** Per-agency / per-company KPI target overrides (Phase 4). Additive; optional. */
   kpiTargets?: KpiTargetsConfig;
   /** Agency-shared saved KPI comparison views (the shared half of saved views). Additive; optional. */
@@ -3700,6 +3774,61 @@ export interface SavedTab {
    * which is why it is not populated at save time.
    */
   icon?: string;
+  /**
+   * A hover/active colour the person CHOSE, as a key into
+   * `components/chrome/navTones`.
+   *
+   * Ed, 2026-08-29: *"we should be able to edit hover colours too… this way I
+   * can make my own sidebars however I want."* Absent means the shell's own
+   * `--nav-tone`, which is what every other nav row uses — so a tab with no
+   * tone is not a tab with a broken one.
+   *
+   * Stored as a KEY, never as a raw colour. A stored `#hex` would be a value
+   * this codebase renders straight into a style attribute from a document that
+   * round-trips through JSON, and it would also freeze one theme's palette into
+   * a record that has to survive a redesign. A key resolves against the current
+   * palette every render, which is the same rule `icon` already follows.
+   */
+  tone?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
+ * A link the person saved for themselves, rendered as a card on Tools.
+ *
+ * Ed, 2026-08-30: *"we should actually be able to save links in here and make
+ * cards. like a painters pallete thing… i might want to grab the url create a
+ * tool save the url link name it colour pallete tool and then it makes a card i
+ * click the card and boom sends me there in a new tab."*
+ *
+ * ── Why this is not a `SavedTab` with an "external" flag ──────────────────
+ *
+ * A `SavedTab` is an IN-APP path, and three things downstream are built on
+ * that: it can be dropped into a nav panel and rendered as a nav row
+ * (`applyPersonalChrome`), it resolves its icon by matching its href against
+ * the live nav tree, and its `spot` is a selector inside a page THIS app
+ * rendered. An external variant would hand all three of those a foreign origin
+ * they were written assuming was internal. A separate list keeps the external
+ * case out of the chrome entirely.
+ */
+export interface SavedTool {
+  id: string;
+  /** The person's own name for it — what the card says. */
+  label: string;
+  /**
+   * Where it goes. `https:` or `http:` ONLY, checked by
+   * `lib/chrome/savedToolUrl.ts` on write AND again on read, because this value
+   * is rendered straight into an `href` and `javascript:` in an href executes
+   * on click — stored XSS with no script tag anywhere near it.
+   */
+  url: string;
+  /** A line of the person's own context. Absent is the normal state. */
+  note?: string;
+  /** Chosen icon, as a key into `components/chrome/navIcons` — same rule as SavedTab.icon. */
+  icon?: string;
+  /** Where it sits in the grid. */
+  order: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -3712,6 +3841,33 @@ export interface UserChromeLayout {
   /** panelId → nav item ids in the person's order. Unlisted items keep theirs. */
   itemOrder: Record<string, string[]>;
   savedTabs: SavedTab[];
+  /**
+   * This person's own palette of saved external links — see `SavedTool`.
+   *
+   * Stored HERE rather than in a store of its own because it is the same KIND
+   * of thing as the rest of this record: one person's shortcuts, keyed
+   * `${agencyId}|${userId}`, already realm-scoped, already normalised
+   * defensively on read, already removed with the account. A second store
+   * would have had to re-earn every one of those.
+   */
+  savedTools: SavedTool[];
+  /**
+   * This person's own stylesheet.
+   *
+   * Ed, 2026-08-29: *"I'd like to add a CSS injection into settings so if users
+   * want to apply custom CSS styling for whatever reason we can allow for
+   * that."*
+   *
+   * Stored HERE — on the per-person chrome layout — and nowhere else, because
+   * the scope is the safety story. An agency-wide stylesheet would let one
+   * person break every colleague's and every client's chrome, including the
+   * controls needed to undo it. Per person, one broken workspace, and
+   * `?nocss=1` gets them back.
+   *
+   * Validated by `lib/chrome/customCss.ts` on write AND on read: a record that
+   * predates a rule, or was edited by hand, must not reach a `<style>` tag.
+   */
+  customCss?: string;
   /**
    * Chrome control ids this person keeps on the topbar itself rather than
    * behind the mobile overflow drawer. Ids, not controls — see

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { RotateCcw } from "lucide-react";
 
 import { NAV_ICONS, SAVED_TAB_ICON_CHOICES } from "./navIcons";
+import { NAV_TONES } from "./navTones";
 import { WORKSPACES } from "@/lib/chrome/workspaces";
 
 // Choosing what a saved tab looks like.
@@ -32,14 +33,20 @@ import { WORKSPACES } from "@/lib/chrome/workspaces";
 
 export function SavedTabIconPicker({
   current,
+  currentTone,
   anchor,
   onPick,
+  onPickTone,
   onClose,
 }: {
   current?: string;
+  /** The chosen hover colour key, if any. */
+  currentTone?: string;
   /** The element the picker sits under — it is portalled, so it needs telling. */
   anchor: HTMLElement | null;
   onPick: (icon: string | undefined) => void;
+  /** Omitted where a tab's colour is not editable — the row simply has no swatches. */
+  onPickTone?: (tone: string | undefined) => void;
   onClose: () => void;
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -87,7 +94,7 @@ export function SavedTabIconPicker({
     <div
       ref={wrapRef}
       role="dialog"
-      aria-label="Choose an icon"
+      aria-label="Choose an icon and colour"
       style={{ position: "fixed", left, top }}
       className="z-[190] w-64 rounded-lg border border-black/10 bg-white p-2 shadow-xl shadow-black/10"
     >
@@ -128,6 +135,48 @@ export function SavedTabIconPicker({
           </div>
         </div>
       ))}
+
+      {/* Colour lives with the icon rather than behind a gesture of its own.
+          Both answer "what does this row look like", and inventing a third
+          hold zone on a 40px row would make all three harder to hit. */}
+      {onPickTone ? (
+        <div className="mt-1 border-t border-black/[0.07] pt-1.5">
+          <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-black/35">Hover colour</p>
+          <div className="flex flex-wrap gap-1 px-1">
+            <button
+              type="button"
+              onClick={() => { onPickTone(undefined); onClose(); }}
+              title="Default — the same as every other row"
+              aria-label="Default hover colour"
+              aria-pressed={!currentTone}
+              className={[
+                "grid size-7 place-items-center rounded-full border transition",
+                !currentTone ? "border-brand" : "border-black/15 hover:border-black/35",
+              ].join(" ")}
+            >
+              <RotateCcw size={12} className="text-black/40" aria-hidden />
+            </button>
+            {NAV_TONES.map(tone => {
+              const active = currentTone === tone.key;
+              return (
+                <button
+                  key={tone.key}
+                  type="button"
+                  onClick={() => { onPickTone(tone.key); onClose(); }}
+                  title={tone.label}
+                  aria-label={tone.label}
+                  aria-pressed={active}
+                  className={[
+                    "size-7 rounded-full border-2 transition",
+                    active ? "border-black/70" : "border-transparent hover:border-black/20",
+                  ].join(" ")}
+                  style={{ background: tone.color }}
+                />
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
     </div>,
     document.body,
   );

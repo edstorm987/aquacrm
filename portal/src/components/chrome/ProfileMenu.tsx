@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Clapperboard, FlaskConical, Gauge, LogOut, NotebookPen, ShieldCheck, UserRound } from "lucide-react";
+import { CalendarDays, ChevronDown, Clapperboard, FlaskConical, Gauge, LogOut, NotebookPen, ShieldCheck, UserRound } from "lucide-react";
 import type { Role } from "@/server/types";
 import { CUSTOMER_PORTAL_ROLES } from "@/server/types";
 import { CINEMATIC_MODE_EVENT, CINEMATIC_MODE_STORAGE_KEY, cinematicModeEnabled, setCinematicMode } from "@/lib/chrome/cinematicMode";
@@ -313,6 +313,17 @@ export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "Aqua
               </Link>
             ) : (
               <>
+                {role.startsWith("agency-") ? (
+                  <Link
+                    href="/portal/agency/calendar"
+                    role="menuitem"
+                    onClick={() => setOpen(false)}
+                    className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm text-[#2A2520] hover:bg-[#F4ECD9]"
+                  >
+                    <CalendarDays size={16} className="text-[#8E7340]" aria-hidden="true" />
+                    <span className="flex-1">My calendar</span>
+                  </Link>
+                ) : null}
                 <Link
                   href="/portal/account/permissions"
                   role="menuitem"

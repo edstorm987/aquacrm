@@ -83,7 +83,15 @@ export async function PUT(request: Request) {
       panelOrder: Array.isArray(body.panelOrder) ? body.panelOrder : current.panelOrder,
       itemOrder: body.itemOrder && typeof body.itemOrder === "object" ? body.itemOrder : current.itemOrder,
       savedTabs: Array.isArray(body.savedTabs) ? body.savedTabs : current.savedTabs,
+      // Same presence rule: the palette client always sends this field; the
+      // sidebar and pin clients never do, and must not clear it.
+      savedTools: Array.isArray(body.savedTools) ? body.savedTools : current.savedTools,
       topbarControls: Array.isArray(body.topbarControls) ? body.topbarControls : current.topbarControls,
+      // Absent means "leave it alone"; an empty string means "clear it". The
+      // difference matters because the sidebar saves this record on every drag,
+      // and treating a missing field as empty would wipe somebody's stylesheet
+      // the first time they reordered a nav row.
+      ...(typeof body.customCss === "string" ? { customCss: body.customCss } : { customCss: current.customCss }),
     });
     await flushPendingWrites();
     return NextResponse.json({ ok: true, layout });

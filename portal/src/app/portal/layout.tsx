@@ -9,6 +9,8 @@ import { PortalViewportLoading } from "@/components/ui/PortalViewportLoading";
 import { PortalLoadingCoordinator } from "@/components/ui/PortalLoadingCoordinator";
 import { ensureHydrated } from "@/server/storage";
 import { getSession, isSessionFresh } from "@/lib/server/auth/auth";
+import { getUserChromeLayout } from "@/lib/server/chrome/userChromeLayout";
+import { UserCssInjector } from "@/components/chrome/UserCssInjector";
 import { buildCompanySwitcherState } from "@/lib/server/auth/companySwitcherState";
 import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import { CommandCenterTransition } from "@/components/chrome/CommandCenterTransition";
@@ -38,6 +40,10 @@ async function AuthenticatedPortalLayout({ children }: { children: ReactNode }) 
   if (!session) redirect("/login?brand=aquacrm&next=/portal");
   const currentUser = getUserById(session.userId);
   const internalOperator = AGENCY_ROLES.includes(session.role);
+  // The person's own stylesheet — validated again on this read (the store
+  // re-checks on the way out), injected by a client component so ?nocss=1 can
+  // actually rescue a broken page. Empty string renders nothing.
+  const userCss = getUserChromeLayout(session.agencyId, session.userId).customCss ?? "";
   const companySwitcherState = internalOperator && currentUser && isSessionFresh(session, currentUser)
     ? buildCompanySwitcherState(session, currentUser)
     : null;
@@ -50,6 +56,7 @@ async function AuthenticatedPortalLayout({ children }: { children: ReactNode }) 
     <CompanySwitcherStateProvider initialState={companySwitcherState}>
       <CommandCenterTransition />
       <ClientWorkspaceTransition />
+      <UserCssInjector css={userCss} />
       {/* The cinematic plays for TWO journeys, so it is mounted for both:
           a demo session (a persona hop — an identity change), and a founder in
           Dev Mode routing into the Dev Console workspace (plain navigation,

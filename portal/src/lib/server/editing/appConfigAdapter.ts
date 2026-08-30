@@ -1,4 +1,5 @@
 import "server-only";
+import { isValidTimezone } from "@/lib/shared/timezones";
 
 import type { EditAdapter, EditDocument, EditIntent, EditPlan, EditTarget } from "@/engines/editor/editing/engine";
 import type { PropField, PropFieldType } from "@/engines/editor/elements/definition";
@@ -138,15 +139,6 @@ function plainText(limit: number, allowNewlines = false) {
     if (/[<>]/.test(value)) return "Angle brackets are not allowed here.";
     return null;
   };
-}
-
-function isValidTimezone(value: string): boolean {
-  try {
-    new Intl.DateTimeFormat("en-GB", { timeZone: value });
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 /** `cleanUrl` in agencySettings stores `new URL(...).toString()`, so match it. */

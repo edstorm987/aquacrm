@@ -145,6 +145,19 @@ test("only the plans that genuinely have no phases yield none", async () => {
   const allowed = new Set([
     "advisor-omega-upgrade",
     "aqua-engine-and-dev-team-plugin",
+    // An IDEA, recorded deliberately unstarted (2026-08-29). Ed's reasoning is
+    // the point: a guided-help surface mirrors the product's shape, so building
+    // it before the information architecture settles means reworking it on every
+    // rename. It has no phases because there is no work in flight — giving it
+    // phases would put a Someday idea on the roadmap as if it were queued.
+    "aqua-explorer-guided-help",
+    // Specced, not started (2026-08-30). Ed asked for a palette of his own
+    // saved links in Tools and said it was for "once all finished", so it is
+    // written down rather than queued. Its numbered section is a REHOMING
+    // ORDER — three plugin workspaces have no door but the one being removed —
+    // not deliverable phases. Giving it phases would report work in flight that
+    // Ed deliberately parked.
+    "my-tools-palette",
     "dev-team-ui-polish",
     "aqua-tag-handoff",
     "dev-docs-handoff",

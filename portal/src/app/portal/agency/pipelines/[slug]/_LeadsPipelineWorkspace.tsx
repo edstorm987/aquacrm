@@ -24,6 +24,25 @@ import {
 } from "@/built-ins/modules/leads-pipeline/src/lib/domain";
 import { PortalCustomFields, type PortalCustomFieldValues } from "@/components/forms/PortalCustomFields";
 import type { PortalFormFieldDefinition } from "@/server/types";
+import { ArchivedLeads, type ArchivedLeadView } from "./_ArchivedLeads";
+import { ConvertLeadModal } from "./_ConvertLeadModal";
+import { DetailsEditor } from "./_DetailsEditor";
+import { LeadTimingTrace, sourceLabel, splitTags, stageLabel } from "./_leadShared";
+import type {
+  AgencyProductOption, AttemptChannel, AttemptOutcome, ClientConversionPackage,
+  LeadDetailsPatch, LeadJourneyEventView, LeadMeetingDraft, LeadSaveResult,
+  LeadView, MeetingAttempt, MeetingMode, MeetingStatus,
+  SalesPresentation,
+} from "./_leadTypes";
+// Re-exported so the server component and page keep importing these from here.
+export type {
+  AgencyProductOption, AttemptChannel, AttemptOutcome, ClientConversionPackage,
+  LeadDetailsPatch, LeadJourneyEventView, LeadMeetingDraft, LeadSaveResult,
+  LeadView, MeetingAttempt, MeetingMode, MeetingStatus,
+  SalesPresentation,
+};
+// Re-exported: the server component and page import this shape from here.
+export type { ArchivedLeadView };
 
 interface PipelineColumnView {
   id: string;
@@ -31,100 +50,27 @@ interface PipelineColumnView {
   color?: string;
 }
 
-interface LeadView {
-  id: string;
-  clientId?: string;
-  email: string;
-  name?: string;
-  phone?: string;
-  company?: string;
-  source: string;
-  relationshipCategory?: LeadRelationshipCategory;
-  tags: string[];
-  notes?: string;
-  capturedAt: number;
-  lastEnquiryAt?: number;
-  lastEnquiryRespondedAt?: number;
-  enquiryCount?: number;
-  firstContactedAt?: number;
-  lastContactedAt?: number;
-  currentStageId?: string;
-  stageEnteredAt?: number;
-  convertedAt?: number;
-  journeyEvents?: LeadJourneyEventView[];
-  nextMeetingAt?: number;
-  meetingLink?: string;
-  meetingNotes?: string;
-  meetingMode?: MeetingMode;
-  meetingLocation?: string;
-  meetingStatus?: MeetingStatus;
-  meetingConfirmedAt?: number;
-  meetingReminderAt?: number;
-  meetingReminderSentAt?: number;
-  meetingAttempts?: MeetingAttempt[];
-  salesPresentations?: SalesPresentation[];
-  callRecordingUrl?: string;
-  sessionNotes?: string;
-  inspirationLinks?: string[];
-  potentialProblems?: string;
-  potentialSolutions?: string;
-  pricePoints?: string;
-  budgetRange?: string;
-  designFeedback?: string;
-  supportNotes?: string;
-  existingServicePlan?: string;
-  existingProductId?: string;
-  existingProjectValue?: string;
-  existingBillingCadence?: string;
-  niche?: string;
-  sentCount?: number;
-  columnId: string;
-  brandId?: string;
-  brandName?: string;
-  serviceIds: string[];
-  serviceNames: string[];
-  enquiryId?: string;
-  enquiryClassification?: WebsiteEnquiryClassification;
-  customFields: PortalCustomFieldValues;
-}
 
-/**
- * An archived lead, as the Archived view needs it.
- *
- * Deliberately NOT a `LeadView`: the board's shape carries a column, services,
- * timings and custom fields, none of which mean anything once a lead is off the
- * board — and requiring them would make the server assemble a full board row
- * for a lead that will never appear on it.
- */
-export interface ArchivedLeadView {
-  id: string;
-  email: string;
-  name?: string;
-  phone?: string;
-  company?: string;
-  tags: string[];
-  capturedAt: number;
-  archivedAt?: number;
-}
 
-interface LeadJourneyEventView {
-  id: string;
-  type: "lead-captured" | "enquiry-received" | "contact-recorded" | "stage-changed" | "meeting-scheduled" | "converted" | "archived" | "restored";
-  at: number;
-  source?: string;
-  enquiryId?: string;
-  fromStage?: string;
-  toStage?: string;
-  channel?: string;
-  outcome?: string;
-  note?: string;
-  scheduledFor?: number;
-  clientId?: string;
-}
 
 type ProspectView = ScoutingProspectView;
 
+export interface ScoutingQuotaSnapshot {
+  quotas: Array<{
+    entryId: string;
+    title: string;
+    metric: "prospects-scouted" | "calls-made" | "emails-sent" | "leads-qualified" | "clients-converted";
+    recurrence: "daily" | "weekly";
+    target: number;
+    current: number;
+    streakDays: number;
+  }>;
+  streakDays: number;
+}
+
 interface LeadsPipelineWorkspaceProps {
+  /** Self-set outreach quotas with derived progress — see scoutingQuota.ts. */
+  scoutingQuota?: ScoutingQuotaSnapshot;
   focusedLeadId?: string;
   referenceNow: number;
   columns: PipelineColumnView[];
@@ -146,19 +92,6 @@ interface LeadsPipelineWorkspaceProps {
   customFields: PortalFormFieldDefinition[];
 }
 
-interface AgencyProductOption {
-  id: string;
-  kind: "product" | "package";
-  name: string;
-  category: string;
-  description: string;
-  buyerHeadline?: string;
-  portalRequirement: "required" | "optional" | "none";
-  includedProductIds: string[];
-  pricing: "fixed" | "from" | "recurring" | "custom";
-  priceCents?: number;
-  billingInterval?: "month" | "quarter" | "year";
-}
 
 const EMPTY_FORM = {
   name: "",
@@ -202,71 +135,12 @@ const EMPTY_PROSPECT = {
 };
 
 type WorkFilter = "all" | "waiting" | "scouting" | "new" | "contacted" | "meeting" | "proposal" | "awaiting-payment" | "won" | "archived";
-type MeetingMode = "google-meet" | "phone" | "in-person" | "other";
-type MeetingStatus = "scheduled" | "confirmed" | "completed" | "no-show" | "cancelled" | "rescheduled";
-type AttemptChannel = "call" | "email" | "sms" | "whatsapp" | "in-person";
-type AttemptOutcome = "attempted" | "reached" | "reminder-sent" | "no-show" | "rescheduled" | "completed";
 
-interface MeetingAttempt {
-  id: string;
-  at: number;
-  channel: AttemptChannel;
-  outcome: AttemptOutcome;
-  notes?: string;
-}
 
-interface SalesPresentation {
-  id: string;
-  title: string;
-  url: string;
-}
 
-interface LeadDetailsPatch {
-  email?: string;
-  name?: string;
-  phone?: string;
-  company?: string;
-  relationshipCategory?: LeadRelationshipCategory;
-  tags?: string[];
-  notes?: string;
-  callRecordingUrl?: string;
-  sessionNotes?: string;
-  inspirationLinks?: string[];
-  potentialProblems?: string;
-  potentialSolutions?: string;
-  pricePoints?: string;
-  budgetRange?: string;
-  designFeedback?: string;
-  supportNotes?: string;
-  customFields?: PortalCustomFieldValues;
-}
 
-interface LeadSaveResult {
-  ok: boolean;
-  error?: string;
-}
 
-interface LeadMeetingDraft {
-  date: string;
-  link: string;
-  notes: string;
-  mode: MeetingMode;
-  location: string;
-  status: MeetingStatus;
-  confirmed: boolean;
-  reminderAt: string;
-  attemptChannel: AttemptChannel;
-  attemptOutcome: AttemptOutcome | "";
-  attemptNotes: string;
-  salesPresentations: SalesPresentation[];
-}
 
-interface ClientConversionPackage {
-  productId: string;
-  createPortal: boolean;
-  projectValue: string;
-  billingCadence: string;
-}
 
 const CLOSE_LEAD_CHANNELS: Array<{ value: string; label: string }> = [
   { value: "stripe", label: "Stripe — card pay-link" },
@@ -344,7 +218,7 @@ function CloseLeadDealModal({ target, onClose, onClosed }: { target: { clientId:
   );
 }
 
-export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, prospects, leads, archivedLeads, importHref, campaignsHref, boards, brands, products, customFields }: LeadsPipelineWorkspaceProps) {
+export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, prospects, leads, archivedLeads, importHref, campaignsHref, boards, brands, products, customFields, scoutingQuota }: LeadsPipelineWorkspaceProps) {
   const router = useRouter();
   const [clock, setClock] = useState(referenceNow);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -1031,11 +905,43 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
         </div>
       </details>
 
-      <section id="journey-board" className="mm-surface-card rounded-lg border border-black/10 p-3">
+      {/* Ed, 2026-08-30: *"the whole scouting thing needs its own tab as its
+          very important."* It was one of ten stage filters buried inside the
+          board card — the cold-outreach engine of the business, rendered as a
+          peer of "Archived". Now the workspace has two modes, and the stage
+          filters only appear in board mode. The #scouting hash and every
+          existing deep link keep working: the hash effect below sets the same
+          state this tab sets. */}
+      <div className="flex gap-6 border-b border-black/10" role="tablist" aria-label="Pipeline mode">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={workFilter !== "scouting"}
+          onClick={() => setWorkFilter("all")}
+          className={`relative min-h-11 py-3 text-sm font-medium ${workFilter !== "scouting" ? "text-black" : "text-black/45 hover:text-black/70"}`}
+        >
+          Journey board
+          {workFilter !== "scouting" ? <span className="absolute inset-x-0 bottom-0 h-0.5 bg-black" /> : null}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={workFilter === "scouting"}
+          onClick={() => setWorkFilter("scouting")}
+          className={`relative min-h-11 py-3 text-sm font-medium ${workFilter === "scouting" ? "text-black" : "text-black/45 hover:text-black/70"}`}
+        >
+          Scouting
+          {prospects.length ? <span className="ml-1.5 rounded-full bg-black/[0.08] px-1.5 text-[11px] font-semibold text-black/60">{prospects.length}</span> : null}
+          {workFilter === "scouting" ? <span className="absolute inset-x-0 bottom-0 h-0.5 bg-black" /> : null}
+        </button>
+      </div>
+
+      {/* Stage filters filter LEADS; scouting shows prospects, so in scouting
+          mode the whole strip card is only a way to leave by accident. */}
+      {workFilter !== "scouting" ? <section id="journey-board" className="mm-surface-card rounded-lg border border-black/10 p-3">
         <div className="flex flex-wrap items-center gap-2">
           <QuickFilter active={workFilter === "all"} onClick={() => setWorkFilter("all")}>All</QuickFilter>
           <QuickFilter active={workFilter === "waiting"} onClick={() => setWorkFilter("waiting")}>Waiting {waitingLeadCount || ""}</QuickFilter>
-          <QuickFilter active={workFilter === "scouting"} onClick={() => setWorkFilter("scouting")}>Scouting</QuickFilter>
           <QuickFilter active={workFilter === "new"} onClick={() => setWorkFilter("new")}>New</QuickFilter>
           <QuickFilter active={workFilter === "contacted"} onClick={() => setWorkFilter("contacted")}>Contacted</QuickFilter>
           <QuickFilter active={workFilter === "meeting"} onClick={() => setWorkFilter("meeting")}>Meeting</QuickFilter>
@@ -1115,7 +1021,7 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
             </div>
           </details>
         </div>
-      </section>
+      </section> : null}
 
       {(error || success) && (
         <div className={`rounded-lg border px-4 py-3 text-sm ${error ? "border-red-200 bg-red-50 text-red-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>
@@ -1135,6 +1041,14 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
                 <Link href={`/portal/clients/${convertedClient.id}?tab=systems&systemView=properties`} className="rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-50">
                   Open Development
                 </Link>
+                {/* Ed, 2026-08-30: *"fulfilment all inside journey so i can
+                    quickly transition to client and continue it there."* The
+                    fulfilment page has accepted ?client= all along — this
+                    banner just never offered it. The journey now ends where
+                    the delivery work begins. */}
+                <Link href={`/portal/agency/fulfilment?client=${convertedClient.id}`} className="rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-50">
+                  Continue in fulfilment →
+                </Link>
               </div>
             )}
           </div>
@@ -1153,6 +1067,7 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
       ) : workFilter === "scouting" ? (
         <div id="scouting" className="scroll-mt-24">
           <ScoutingCommand
+            quota={scoutingQuota}
             prospects={filteredProspects}
             referenceNow={clock}
             onNew={() => openProspectForm()}
@@ -1962,736 +1877,15 @@ function JourneyMetric({ label, value, detail, tone = "neutral" }: { label: stri
   return <div className="rounded-lg border border-black/10 bg-white p-4"><dt className="text-xs font-medium text-black/45">{label}</dt><dd className={`mt-2 text-2xl font-semibold ${valueStyle}`}>{value}</dd><p className="mt-1 text-xs text-black/42">{detail}</p></div>;
 }
 
-function sourceLabel(source: string): string {
-  return source.replace(/[-_]+/g, " ").replace(/\b\w/g, character => character.toUpperCase());
-}
 
-function ConvertLeadModal({
-  lead,
-  busy,
-  updating,
-  products,
-  onCancel,
-  onSubmit,
-}: {
-  lead: LeadView;
-  busy: boolean;
-  updating: boolean;
-  products: AgencyProductOption[];
-  onCancel: () => void;
-  onSubmit: (conversion: ClientConversionPackage) => void;
-}) {
-  const clientName = lead.company || lead.name || lead.email;
-  const initialProduct = products.find(product => product.id === lead.existingProductId)
-    ?? inferProduct(lead, products)
-    ?? products[0];
-  const [productId, setProductId] = useState(initialProduct?.id ?? "");
-  const selectedProduct = products.find(product => product.id === productId);
-  const [projectValue, setProjectValue] = useState(
-    lead.existingProjectValue || lead.pricePoints || lead.budgetRange || priceLabel(initialProduct),
-  );
-  const [billingCadence, setBillingCadence] = useState(
-    lead.existingBillingCadence || defaultBillingCadence(initialProduct),
-  );
-  const [createPortal, setCreatePortal] = useState(initialProduct?.portalRequirement !== "none");
-  const [validation, setValidation] = useState<string | null>(null);
 
-  function chooseProduct(nextProductId: string) {
-    const product = products.find(item => item.id === nextProductId);
-    setProductId(nextProductId);
-    if (!product) return;
-    setCreatePortal(product.portalRequirement !== "none");
-    if (!projectValue.trim()) setProjectValue(priceLabel(product));
-    if (!lead.existingBillingCadence) setBillingCadence(defaultBillingCadence(product));
-    setValidation(null);
-  }
 
-  function submit() {
-    if (!selectedProduct) {
-      setValidation("Choose a product or package.");
-      return;
-    }
-    onSubmit({
-      productId: selectedProduct.id,
-      createPortal,
-      projectValue: projectValue.trim(),
-      billingCadence,
-    });
-  }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" role="presentation">
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="convert-lead-title"
-        className="max-h-[calc(100vh-32px)] w-full max-w-3xl overflow-y-auto rounded-md bg-[#fbfaf8] shadow-2xl"
-      >
-        <header className="flex items-start justify-between gap-4 border-b border-black/10 px-5 py-5 sm:px-7">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-brand">Client handoff</p>
-            <h2 id="convert-lead-title" className="mt-2 font-serif text-3xl text-black/90">
-              Start {clientName}&apos;s delivery.
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-black/52">
-              Their sales history moves with them. Choose the product or package that was agreed and its editable setup will carry into delivery.
-            </p>
-          </div>
-          <button type="button" onClick={onCancel} className="grid size-9 shrink-0 place-items-center rounded-md border border-black/10 text-black/48 hover:bg-black/[0.03]" aria-label="Close client handoff">
-            <X size={16} aria-hidden="true" />
-          </button>
-        </header>
 
-        <div className="grid gap-6 px-5 py-6 sm:px-7">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="text-xs font-medium text-black/62">
-              Product or package
-              <select value={productId} onChange={event => chooseProduct(event.target.value)} className="mt-1.5 w-full rounded-md border border-black/12 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/15">
-                {products.map(product => (
-                  <option key={product.id} value={product.id}>
-                    {product.name}{product.kind === "package" ? " (package)" : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="text-xs font-medium text-black/62">
-              Agreed project value
-              <input value={projectValue} onChange={event => setProjectValue(event.target.value)} placeholder="£6,500 + £195 monthly care" className="mt-1.5 w-full rounded-md border border-black/12 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/15" />
-            </label>
-          </div>
 
-          {selectedProduct ? (
-            <section className="rounded-md border border-black/10 bg-white p-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-sm font-semibold text-black/80">{selectedProduct.name}</h3>
-                <span className="rounded-full bg-black/[0.05] px-2 py-0.5 text-[10px] font-medium text-black/50">{selectedProduct.category}</span>
-                {selectedProduct.kind === "package" ? <span className="text-[10px] font-semibold uppercase text-brand">{selectedProduct.includedProductIds.length} included products</span> : null}
-              </div>
-              <p className="mt-2 text-xs leading-5 text-black/50">{selectedProduct.buyerHeadline || selectedProduct.description || "Configured in Products."}</p>
-              <p className="mt-2 text-xs font-medium text-black/65">{priceLabel(selectedProduct) || "Custom quote"}</p>
-            </section>
-          ) : (
-            <p className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-              Create an active product or package before converting this lead.
-            </p>
-          )}
 
-          {selectedProduct?.portalRequirement !== "none" ? (
-            <label className="flex items-start gap-3 rounded-md border border-black/10 bg-white p-4 text-sm text-black/65">
-              <input
-                type="checkbox"
-                checked={createPortal}
-                onChange={event => setCreatePortal(event.target.checked)}
-                disabled={selectedProduct?.portalRequirement === "required"}
-                className="mt-0.5 size-4 accent-black"
-              />
-              <span>
-                <span className="block font-medium text-black/78">Create their AquaCRM client portal</span>
-                <span className="mt-1 block text-xs leading-5 text-black/45">
-                  {selectedProduct?.portalRequirement === "required"
-                    ? "Included and required by this product."
-                    : "Optional. It can also be created later from the client record."}
-                </span>
-              </span>
-            </label>
-          ) : null}
 
-          <label className="max-w-sm text-xs font-medium text-black/62">
-            Payment schedule
-            <select value={billingCadence} onChange={event => setBillingCadence(event.target.value)} className="mt-1.5 w-full rounded-md border border-black/12 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand">
-              <option value="Project">Project</option>
-              <option value="Project + ongoing care">Project + ongoing care</option>
-              <option value="Monthly">Monthly</option>
-              <option value="One-off">One-off</option>
-              <option value="As agreed">As agreed</option>
-            </select>
-          </label>
 
-          <div className="border-y border-black/8 py-4 text-sm text-black/58">
-            <p><strong className="font-medium text-black/78">What happens now:</strong> the client record is created with this product&apos;s agreed snapshot. {createPortal ? "Their portal begins in onboarding." : "No client portal will be created yet."}</p>
-          </div>
-
-          {validation && <p role="alert" className="text-sm text-red-700">{validation}</p>}
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <button type="button" onClick={onCancel} className="min-h-10 rounded-md border border-black/12 bg-white px-4 text-sm font-medium text-black/62">Cancel</button>
-            <button type="button" onClick={submit} disabled={busy} className="min-h-10 rounded-md bg-black px-5 text-sm font-semibold text-white disabled:opacity-45">
-              {busy ? "Preparing client..." : updating ? "Update client" : createPortal ? "Create client and portal" : "Create client"}
-            </button>
-          </div>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function LeadTimingTrace({
-  lead,
-  events,
-  clock,
-}: {
-  lead: Pick<LeadView, "capturedAt" | "lastEnquiryAt" | "lastEnquiryRespondedAt" | "enquiryCount" | "firstContactedAt" | "lastContactedAt" | "currentStageId" | "stageEnteredAt" | "convertedAt">;
-  events: LeadJourneyEventView[];
-  clock: number;
-}) {
-  const timing = leadTimingSnapshot(lead, clock);
-  return (
-    <section className="mb-3 border-y border-black/10 py-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div><p className="text-[10px] font-semibold uppercase tracking-wide text-black/35">Time and journey trace</p><p className="mt-1 text-xs text-black/45">Every recorded wait, response and stage change stays attached to this lead.</p></div>
-        <span className="rounded-full bg-black/[0.05] px-2.5 py-1 text-[10px] font-medium text-black/55">{lead.enquiryCount ?? 0} enquir{(lead.enquiryCount ?? 0) === 1 ? "y" : "ies"}</span>
-      </div>
-      <dl className="mt-4 grid gap-px overflow-hidden rounded-md border border-black/10 bg-black/10 sm:grid-cols-4">
-        <TimingDatum label="Total journey" value={formatElapsed(timing.journeyAgeMs)} />
-        <TimingDatum label="First response" value={timing.firstResponseMs === undefined ? "Waiting" : formatElapsed(timing.firstResponseMs)} />
-        <TimingDatum label="Current stage" value={formatElapsed(timing.stageAgeMs)} />
-        <TimingDatum label="Since last contact" value={lead.lastContactedAt === undefined ? "No contact" : formatElapsed(timing.followUpWaitMs ?? 0)} />
-      </dl>
-      <div className="mt-4 max-h-48 overflow-y-auto border-l border-black/15 pl-4">
-        {[...events].sort((a, b) => b.at - a.at).map(event => (
-          <div key={event.id} className="relative pb-4 last:pb-0">
-            <span className="absolute -left-[19px] top-1 size-2 rounded-full border border-white bg-brand" />
-            <div className="flex flex-wrap items-baseline justify-between gap-2"><strong className="text-xs font-semibold text-black/68">{journeyEventLabel(event)}</strong><time className="text-[10px] text-black/35">{formatUkDateTime(event.at)} · {formatElapsed(clock - event.at)} ago</time></div>
-            <p className="mt-1 text-[11px] leading-4 text-black/45">{journeyEventDetail(event)}</p>
-          </div>
-        ))}
-        {!events.length ? <p className="text-xs text-black/40">Timing begins with this lead&apos;s capture record.</p> : null}
-      </div>
-    </section>
-  );
-}
-
-function TimingDatum({ label, value }: { label: string; value: string }) {
-  return <div className="bg-white px-3 py-3"><dt className="text-[10px] text-black/38">{label}</dt><dd className="mt-1 text-sm font-semibold tabular-nums text-black/72">{value}</dd></div>;
-}
-
-function journeyEventLabel(event: LeadJourneyEventView): string {
-  if (event.type === "enquiry-received") return "Enquiry received";
-  if (event.type === "lead-captured") return "Lead captured";
-  if (event.type === "contact-recorded") return "Contact recorded";
-  if (event.type === "stage-changed") return `Entered ${stageLabel(event.toStage)}`;
-  if (event.type === "meeting-scheduled") return "Meeting scheduled";
-  // Before the archive/restore events existed this fell through to "Converted
-  // to client" for anything unrecognised, so a new event type silently claimed
-  // the most consequential label on the screen.
-  if (event.type === "archived") return "Archived";
-  if (event.type === "restored") return "Restored to the board";
-  if (event.type === "converted") return "Converted to client";
-  return "Recorded";
-}
-
-function journeyEventDetail(event: LeadJourneyEventView): string {
-  if (event.type === "stage-changed") return event.fromStage ? `${stageLabel(event.fromStage)} to ${stageLabel(event.toStage)}` : `Started in ${stageLabel(event.toStage)}`;
-  if (event.type === "contact-recorded") return [event.channel && stageLabel(event.channel), event.outcome && stageLabel(event.outcome), event.note].filter(Boolean).join(" · ") || "Contact recorded.";
-  if (event.type === "enquiry-received" || event.type === "lead-captured") return [event.source && sourceLabel(event.source), event.enquiryId && `Submission ${event.enquiryId}`].filter(Boolean).join(" · ") || "Journey started.";
-  if (event.type === "meeting-scheduled" && event.scheduledFor) return `Meeting booked for ${formatUkDateTime(event.scheduledFor)}.`;
-  if (event.type === "archived") return "Taken off the active board. The record and its history were kept.";
-  if (event.type === "restored") return "Put back on the active board with its history intact.";
-  return event.note || (event.clientId ? `Client ${event.clientId}` : "Recorded in the journey history.");
-}
-
-function stageLabel(value?: string): string {
-  if (!value) return "stage";
-  return value.replaceAll("-", " ").replace(/\b\w/g, character => character.toUpperCase());
-}
-
-function DetailsEditor({
-  buttonLabel = "Open lead",
-  email,
-  name,
-  phone,
-  company,
-  tags,
-  notes,
-  callRecordingUrl,
-  sessionNotes,
-  inspirationLinks,
-  potentialProblems,
-  potentialSolutions,
-  pricePoints,
-  budgetRange,
-  designFeedback,
-  supportNotes,
-  capturedAt,
-  lastEnquiryAt,
-  lastEnquiryRespondedAt,
-  enquiryCount,
-  firstContactedAt,
-  lastContactedAt,
-  currentStageId,
-  stageEnteredAt,
-  convertedAt,
-  journeyEvents,
-  clock,
-  meetingAt,
-  meetingLink,
-  meetingNotes,
-  meetingMode,
-  meetingLocation,
-  meetingStatus,
-  meetingConfirmedAt,
-  meetingReminderAt,
-  meetingReminderSentAt,
-  meetingAttempts,
-  salesPresentations,
-  customFields,
-  customFieldValues,
-  busy,
-  onSave,
-}: {
-  buttonLabel?: string;
-  email: string;
-  name?: string;
-  phone?: string;
-  company?: string;
-  tags: string[];
-  notes?: string;
-  callRecordingUrl?: string;
-  sessionNotes?: string;
-  inspirationLinks?: string[];
-  potentialProblems?: string;
-  potentialSolutions?: string;
-  pricePoints?: string;
-  budgetRange?: string;
-  designFeedback?: string;
-  supportNotes?: string;
-  capturedAt: number;
-  lastEnquiryAt?: number;
-  lastEnquiryRespondedAt?: number;
-  enquiryCount?: number;
-  firstContactedAt?: number;
-  lastContactedAt?: number;
-  currentStageId?: string;
-  stageEnteredAt?: number;
-  convertedAt?: number;
-  journeyEvents?: LeadJourneyEventView[];
-  clock: number;
-  meetingAt?: number;
-  meetingLink?: string;
-  meetingNotes?: string;
-  meetingMode?: MeetingMode;
-  meetingLocation?: string;
-  meetingStatus?: MeetingStatus;
-  meetingConfirmedAt?: number;
-  meetingReminderAt?: number;
-  meetingReminderSentAt?: number;
-  meetingAttempts?: MeetingAttempt[];
-  salesPresentations?: SalesPresentation[];
-  customFields: PortalFormFieldDefinition[];
-  customFieldValues: PortalCustomFieldValues;
-  busy: boolean;
-  onSave: (patch: LeadDetailsPatch, meeting: LeadMeetingDraft) => Promise<LeadSaveResult>;
-}) {
-  const [draft, setDraft] = useState({
-    email,
-    name: name ?? "",
-    phone: phone ?? "",
-    company: company ?? "",
-    tags: tags.join(", "),
-    notes: notes ?? "",
-    callRecordingUrl: callRecordingUrl ?? "",
-    sessionNotes: sessionNotes ?? "",
-    inspirationLinks: (inspirationLinks ?? []).join("\n"),
-    potentialProblems: potentialProblems ?? "",
-    potentialSolutions: potentialSolutions ?? "",
-    pricePoints: pricePoints ?? "",
-    budgetRange: budgetRange ?? "",
-    designFeedback: designFeedback ?? "",
-    supportNotes: supportNotes ?? "",
-    meetingDate: localDateTimeInputValue(meetingAt),
-    meetingLink: meetingLink ?? "",
-    meetingNotes: meetingNotes ?? "",
-    meetingMode: meetingMode ?? "google-meet" as MeetingMode,
-    meetingLocation: meetingLocation ?? "",
-    meetingStatus: meetingStatus ?? "scheduled" as MeetingStatus,
-    meetingConfirmed: Boolean(meetingConfirmedAt),
-    reminderAt: localDateTimeInputValue(meetingReminderAt),
-    attemptChannel: "call" as AttemptChannel,
-    attemptOutcome: "" as AttemptOutcome | "",
-    attemptNotes: "",
-    salesPresentations: salesPresentations ?? [],
-    customFields: customFieldValues,
-  });
-  const [open, setOpen] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => { setSaveError(null); setOpen(true); }}
-        className="mt-3 w-full rounded-md border border-black/10 bg-black/[0.02] px-3 py-2 text-left text-xs font-medium text-black/65 hover:bg-black/[0.04]"
-      >
-        {buttonLabel}
-      </button>
-      {open && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 p-4 sm:p-8">
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="sales-record-title"
-            className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-md border border-black/10 bg-[#f7f6f2] shadow-[0_30px_90px_rgba(0,0,0,0.25)]"
-          >
-            <header className="flex items-start justify-between gap-4 border-b border-black/10 bg-white px-5 py-4 sm:px-7">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-black/35">Sales record</p>
-                <h2 id="sales-record-title" className="mt-1 text-xl font-semibold text-black/85">
-                  {draft.company || draft.name || "Lead details"}
-                </h2>
-                <p className="mt-1 text-xs text-black/45">Everything learned before this person becomes a client.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => { setSaveError(null); setOpen(false); }}
-                aria-label="Close sales record"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-black/10 bg-white text-black/55"
-              >
-                <X size={16} aria-hidden="true" />
-              </button>
-            </header>
-            <div className="overflow-y-auto p-5 sm:p-7">
-              <div className="grid gap-3">
-        <LeadTimingTrace
-          lead={{ capturedAt, lastEnquiryAt, lastEnquiryRespondedAt, enquiryCount, firstContactedAt, lastContactedAt, currentStageId, stageEnteredAt, convertedAt }}
-          events={journeyEvents ?? []}
-          clock={clock}
-        />
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-black/35">Contact</p>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <SmallInput label="Name" value={draft.name} onChange={value => setDraft(d => ({ ...d, name: value }))} />
-          <SmallInput label="Email" value={draft.email} onChange={value => setDraft(d => ({ ...d, email: value }))} type="email" placeholder="Add before invoicing or conversion" />
-          <SmallInput label="Phone" value={draft.phone} onChange={value => setDraft(d => ({ ...d, phone: value }))} />
-          <SmallInput label="Company" value={draft.company} onChange={value => setDraft(d => ({ ...d, company: value }))} />
-          <SmallInput label="Tags" value={draft.tags} onChange={value => setDraft(d => ({ ...d, tags: value }))} />
-        </div>
-        <label className="text-[11px] font-medium text-black/55">
-          Notes
-          <textarea
-            value={draft.notes}
-            onChange={e => setDraft(d => ({ ...d, notes: e.target.value }))}
-            rows={2}
-            className="mt-1 w-full rounded-md border border-black/10 bg-white px-2 py-1.5 text-xs text-black/75"
-          />
-        </label>
-        <PortalCustomFields fields={customFields} values={draft.customFields} onChange={values => setDraft(current => ({ ...current, customFields: values }))} legend="Lead custom fields" />
-        <div className="mt-2 border-t border-black/8 pt-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-black/35">Meeting</p>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            <label className="text-[11px] font-medium text-black/55">
-              Date and time
-              <input
-                type="datetime-local"
-                value={draft.meetingDate}
-                onInput={event => {
-                  const value = event.currentTarget.value;
-                  setDraft(current => ({ ...current, meetingDate: value }));
-                }}
-                onChange={event => setDraft(current => ({ ...current, meetingDate: event.target.value }))}
-                className="mt-1 w-full rounded-md border border-black/10 bg-white px-2 py-1.5 text-xs text-black/75"
-              />
-            </label>
-            <SmallInput
-              label="Meeting link"
-              value={draft.meetingLink}
-              onChange={value => setDraft(current => ({ ...current, meetingLink: value }))}
-              placeholder="https://meet.google.com/..."
-            />
-            <label className="text-[11px] font-medium text-black/55">
-              Format
-              <select value={draft.meetingMode} onChange={event => setDraft(current => ({ ...current, meetingMode: event.target.value as MeetingMode }))} className="mt-1 w-full rounded-md border border-black/10 bg-white px-2 py-1.5 text-xs text-black/75">
-                <option value="google-meet">Google Meet</option>
-                <option value="phone">Phone</option>
-                <option value="in-person">In person</option>
-                <option value="other">Other</option>
-              </select>
-            </label>
-            <SmallInput
-              label={draft.meetingMode === "in-person" ? "Location" : "Location or joining detail"}
-              value={draft.meetingLocation}
-              onChange={value => setDraft(current => ({ ...current, meetingLocation: value }))}
-              placeholder={draft.meetingMode === "in-person" ? "Confirmed address" : "Optional"}
-            />
-            <label className="text-[11px] font-medium text-black/55">
-              Status
-              <select value={draft.meetingStatus} onChange={event => setDraft(current => ({ ...current, meetingStatus: event.target.value as MeetingStatus }))} className="mt-1 w-full rounded-md border border-black/10 bg-white px-2 py-1.5 text-xs text-black/75">
-                <option value="scheduled">Scheduled</option>
-                <option value="confirmed">Confirmed</option>
-                <option value="completed">Completed</option>
-                <option value="no-show">No-show</option>
-                <option value="rescheduled">Rescheduled</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
-            </label>
-            <label className="text-[11px] font-medium text-black/55">
-              Reminder due
-              <input type="datetime-local" value={draft.reminderAt} onChange={event => setDraft(current => ({ ...current, reminderAt: event.target.value }))} className="mt-1 w-full rounded-md border border-black/10 bg-white px-2 py-1.5 text-xs text-black/75" />
-            </label>
-          </div>
-          <label className="mt-3 flex items-center gap-2 text-xs font-medium text-black/60">
-            <input type="checkbox" checked={draft.meetingConfirmed} onChange={event => setDraft(current => ({ ...current, meetingConfirmed: event.target.checked, meetingStatus: event.target.checked ? "confirmed" : current.meetingStatus }))} />
-            Time, format and location confirmed
-          </label>
-          {draft.meetingMode === "google-meet" && draft.meetingLink && !isGoogleMeetUrl(draft.meetingLink) ? (
-            <p className="mt-2 text-xs text-amber-700">This is not a Google Meet URL. An action will remain open until a meet.google.com link is saved.</p>
-          ) : null}
-          <div className="mt-2">
-            <SmallTextarea
-              label="Meeting notes"
-              value={draft.meetingNotes}
-              onChange={value => setDraft(current => ({ ...current, meetingNotes: value }))}
-              placeholder="Purpose, preparation and next step."
-            />
-          </div>
-          <div className="mt-3 rounded-md border border-black/10 bg-white p-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-black/40">
-                  <Presentation size={13} aria-hidden="true" />
-                  Sales presentations
-                </p>
-                <p className="mt-1 text-[11px] text-black/45">Keep the decks you may present on this call ready to open.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setDraft(current => ({
-                  ...current,
-                  salesPresentations: [
-                    ...current.salesPresentations,
-                    { id: `presentation_${Date.now()}`, title: "", url: "" },
-                  ],
-                }))}
-                className="inline-flex min-h-8 items-center gap-1 rounded-md border border-black/10 bg-white px-2 text-[11px] font-medium text-black/65 hover:bg-black/[0.03]"
-              >
-                <Plus size={13} aria-hidden="true" />
-                Add presentation
-              </button>
-            </div>
-            {draft.salesPresentations.length ? (
-              <div className="mt-3 grid gap-2">
-                {draft.salesPresentations.map((presentation, index) => (
-                  <div key={presentation.id} className="grid gap-2 rounded-md border border-black/8 bg-black/[0.015] p-2 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.4fr)_auto]">
-                    <input
-                      value={presentation.title}
-                      onChange={event => setDraft(current => ({
-                        ...current,
-                        salesPresentations: current.salesPresentations.map((item, itemIndex) =>
-                          itemIndex === index ? { ...item, title: event.target.value } : item),
-                      }))}
-                      aria-label={`Presentation ${index + 1} title`}
-                      placeholder="Website proposal"
-                      className="min-h-9 rounded-md border border-black/10 bg-white px-2 text-xs text-black/75"
-                    />
-                    <input
-                      value={presentation.url}
-                      onChange={event => setDraft(current => ({
-                        ...current,
-                        salesPresentations: current.salesPresentations.map((item, itemIndex) =>
-                          itemIndex === index ? { ...item, url: event.target.value } : item),
-                      }))}
-                      aria-label={`Presentation ${index + 1} link`}
-                      placeholder="https://..."
-                      inputMode="url"
-                      className="min-h-9 rounded-md border border-black/10 bg-white px-2 text-xs text-black/75"
-                    />
-                    <div className="flex items-center gap-1">
-                      {presentation.url ? (
-                        <a
-                          href={presentation.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          aria-label={`Open ${presentation.title || `presentation ${index + 1}`}`}
-                          className="flex h-9 w-9 items-center justify-center rounded-md border border-black/10 bg-white text-black/55 hover:bg-black/[0.03]"
-                        >
-                          <ExternalLink size={14} aria-hidden="true" />
-                        </a>
-                      ) : null}
-                      <button
-                        type="button"
-                        onClick={() => setDraft(current => ({
-                          ...current,
-                          salesPresentations: current.salesPresentations.filter((_, itemIndex) => itemIndex !== index),
-                        }))}
-                        aria-label={`Remove presentation ${index + 1}`}
-                        className="flex h-9 w-9 items-center justify-center rounded-md border border-black/10 bg-white text-black/45 hover:bg-red-50 hover:text-red-700"
-                      >
-                        <Trash2 size={14} aria-hidden="true" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-3 rounded-md border border-dashed border-black/10 px-3 py-4 text-center text-[11px] text-black/40">No sales presentations attached.</p>
-            )}
-          </div>
-          <div className="mt-3 rounded-md border border-black/10 bg-white p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-black/35">Record an attempt</p>
-            <p className="mt-1 text-[11px] text-black/45">Optional. Add one each time you call, message, remind, reschedule, or record a no-show.</p>
-            <div className="mt-2 grid gap-2 sm:grid-cols-2">
-              <label className="text-[11px] font-medium text-black/55">
-                Channel
-                <select value={draft.attemptChannel} onChange={event => setDraft(current => ({ ...current, attemptChannel: event.target.value as AttemptChannel }))} className="mt-1 w-full rounded-md border border-black/10 bg-white px-2 py-1.5 text-xs text-black/75">
-                  <option value="call">Call</option>
-                  <option value="email">Email</option>
-                  <option value="sms">Text</option>
-                  <option value="whatsapp">WhatsApp</option>
-                  <option value="in-person">In person</option>
-                </select>
-              </label>
-              <label className="text-[11px] font-medium text-black/55">
-                Outcome
-                <select value={draft.attemptOutcome} onChange={event => setDraft(current => ({ ...current, attemptOutcome: event.target.value as AttemptOutcome | "" }))} className="mt-1 w-full rounded-md border border-black/10 bg-white px-2 py-1.5 text-xs text-black/75">
-                  <option value="">No new attempt</option>
-                  <option value="attempted">Attempted</option>
-                  <option value="reached">Reached</option>
-                  <option value="reminder-sent">Reminder sent</option>
-                  <option value="no-show">No-show</option>
-                  <option value="rescheduled">Rescheduled</option>
-                  <option value="completed">Completed</option>
-                </select>
-              </label>
-            </div>
-            <div className="mt-2">
-              <SmallInput label="Attempt note" value={draft.attemptNotes} onChange={value => setDraft(current => ({ ...current, attemptNotes: value }))} placeholder="Called, left voicemail, agreed a new time..." />
-            </div>
-            {meetingAttempts?.length ? (
-              <div className="mt-3 border-t border-black/8 pt-2">
-                {meetingAttempts.slice().reverse().slice(0, 5).map(attempt => (
-                  <p key={attempt.id} className="py-1 text-[11px] text-black/50">
-                    <strong className="font-medium text-black/65">{attempt.outcome.replaceAll("-", " ")}</strong> by {attempt.channel.replaceAll("-", " ")} · {formatUkDateTime(attempt.at)}
-                    {attempt.notes ? ` · ${attempt.notes}` : ""}
-                  </p>
-                ))}
-              </div>
-            ) : null}
-            {meetingReminderSentAt ? <p className="mt-2 text-[11px] font-medium text-emerald-700">Reminder recorded {formatUkDateTime(meetingReminderSentAt)}</p> : null}
-          </div>
-        </div>
-        <div className="mt-2 border-t border-black/8 pt-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-black/35">Buying context</p>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            <SmallInput label="Budget" value={draft.budgetRange} onChange={value => setDraft(d => ({ ...d, budgetRange: value }))} />
-            <SmallInput label="Price points" value={draft.pricePoints} onChange={value => setDraft(d => ({ ...d, pricePoints: value }))} />
-            <SmallInput label="Call recording" value={draft.callRecordingUrl} onChange={value => setDraft(d => ({ ...d, callRecordingUrl: value }))} placeholder="https://" />
-            <SmallTextarea label="Inspiration links" value={draft.inspirationLinks} onChange={value => setDraft(d => ({ ...d, inspirationLinks: value }))} placeholder="One link per line" />
-          </div>
-          <div className="mt-2 grid gap-2">
-            <SmallTextarea label="Problems to solve" value={draft.potentialProblems} onChange={value => setDraft(d => ({ ...d, potentialProblems: value }))} />
-            <SmallTextarea label="Potential solutions" value={draft.potentialSolutions} onChange={value => setDraft(d => ({ ...d, potentialSolutions: value }))} />
-            <SmallTextarea label="Session notes" value={draft.sessionNotes} onChange={value => setDraft(d => ({ ...d, sessionNotes: value }))} />
-            <SmallTextarea label="Design direction" value={draft.designFeedback} onChange={value => setDraft(d => ({ ...d, designFeedback: value }))} />
-            <SmallTextarea label="Support considerations" value={draft.supportNotes} onChange={value => setDraft(d => ({ ...d, supportNotes: value }))} />
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={async () => {
-            setSaveError(null);
-            const result = await onSave({
-              email: draft.email.trim(),
-              name: draft.name.trim() || undefined,
-              phone: draft.phone.trim() || undefined,
-              company: draft.company.trim() || undefined,
-              tags: splitTags(draft.tags),
-              notes: draft.notes.trim() || undefined,
-              callRecordingUrl: draft.callRecordingUrl.trim() || undefined,
-              sessionNotes: draft.sessionNotes.trim() || undefined,
-              inspirationLinks: draft.inspirationLinks.split(/\r?\n|,/).map(value => value.trim()).filter(Boolean),
-              potentialProblems: draft.potentialProblems.trim() || undefined,
-              potentialSolutions: draft.potentialSolutions.trim() || undefined,
-              pricePoints: draft.pricePoints.trim() || undefined,
-              budgetRange: draft.budgetRange.trim() || undefined,
-              designFeedback: draft.designFeedback.trim() || undefined,
-              supportNotes: draft.supportNotes.trim() || undefined,
-              customFields: draft.customFields,
-            }, {
-              date: draft.meetingDate,
-              link: draft.meetingLink.trim(),
-              notes: draft.meetingNotes.trim(),
-              mode: draft.meetingMode,
-              location: draft.meetingLocation.trim(),
-              status: draft.meetingStatus,
-              confirmed: draft.meetingConfirmed,
-              reminderAt: draft.reminderAt,
-              attemptChannel: draft.attemptChannel,
-              attemptOutcome: draft.attemptOutcome,
-              attemptNotes: draft.attemptNotes.trim(),
-              salesPresentations: draft.salesPresentations
-                .map(presentation => ({
-                  ...presentation,
-                  title: presentation.title.trim(),
-                  url: presentation.url.trim(),
-                }))
-                .filter(presentation => presentation.title && presentation.url),
-            });
-            if (result.ok) setOpen(false);
-            else setSaveError(result.error ?? "Could not save this sales record.");
-          }}
-          disabled={busy}
-          className="mt-2 min-h-11 rounded-md bg-black px-4 text-sm font-medium text-white hover:bg-black/85 disabled:opacity-50"
-        >
-          {busy ? "Saving..." : "Save lead"}
-        </button>
-        {saveError ? <p role="alert" className="mt-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">{saveError}</p> : null}
-              </div>
-            </div>
-          </section>
-        </div>
-      )}
-    </>
-  );
-}
-
-function SmallInput({
-  label,
-  value,
-  onChange,
-  placeholder,
-  type = "text",
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-  type?: React.HTMLInputTypeAttribute;
-}) {
-  return (
-    <label className="text-[11px] font-medium text-black/55">
-      {label}
-      <input
-        type={type}
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="mt-1 w-full rounded-md border border-black/10 bg-white px-2 py-1.5 text-xs text-black/75"
-      />
-    </label>
-  );
-}
-
-function SmallTextarea({
-  label,
-  value,
-  onChange,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-}) {
-  return (
-    <label className="text-[11px] font-medium text-black/55">
-      {label}
-      <textarea
-        value={value}
-        onChange={event => onChange(event.target.value)}
-        placeholder={placeholder}
-        rows={2}
-        className="mt-1 w-full resize-y rounded-md border border-black/10 bg-white px-2 py-1.5 text-xs leading-5 text-black/75"
-      />
-    </label>
-  );
-}
 
 function Field({
   label,
@@ -2756,54 +1950,7 @@ function QuickFilter({
   );
 }
 
-function splitTags(value: string): string[] {
-  return value.split(",").map(tag => tag.trim()).filter(Boolean);
-}
 
-function inferProduct(lead: LeadView, products: AgencyProductOption[]): AgencyProductOption | undefined {
-  const context = [
-    lead.tags.join(" "),
-    lead.notes,
-    lead.potentialProblems,
-    lead.potentialSolutions,
-    lead.pricePoints,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-  const signals = [
-    { pattern: /\b(web|website|site|seo)\b/, names: /\b(web|website|seo)\b/i },
-    { pattern: /\b(brand|branding|logo|identity)\b/, names: /\b(brand|branding|logo|identity)\b/i },
-    { pattern: /\b(photo|photography|shoot|images)\b/, names: /\b(photo|photography|shoot)\b/i },
-    { pattern: /\b(google|profile|local search|maps)\b/, names: /\b(google|profile|local)\b/i },
-    { pattern: /\b(content|social|copy)\b/, names: /\b(content|social|copy)\b/i },
-    { pattern: /\b(automation|workflow|system)\b/, names: /\b(automation|workflow|system)\b/i },
-    { pattern: /\b(software|app|platform)\b/, names: /\b(software|app|platform)\b/i },
-    { pattern: /\b(care|support|maintenance|monthly)\b/, names: /\b(care|support|maintenance)\b/i },
-  ];
-  for (const signal of signals) {
-    if (!signal.pattern.test(context)) continue;
-    const match = products.find(product => signal.names.test(`${product.name} ${product.category}`));
-    if (match) return match;
-  }
-  return products.find(product => /\bwebsite\b/i.test(product.name)) ?? products[0];
-}
-
-function defaultBillingCadence(product?: AgencyProductOption): string {
-  if (product?.pricing === "recurring") {
-    const interval = product.billingInterval ?? "month";
-    return interval === "month" ? "Monthly" : interval === "quarter" ? "Quarterly" : "Yearly";
-  }
-  return product?.pricing === "fixed" || product?.pricing === "from" ? "Project" : "As agreed";
-}
-
-function priceLabel(product?: AgencyProductOption): string {
-  if (!product || product.priceCents === undefined || product.pricing === "custom") return "";
-  const amount = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(product.priceCents / 100);
-  if (product.pricing === "from") return `From ${amount}`;
-  if (product.pricing === "recurring") return `${amount} / ${product.billingInterval ?? "month"}`;
-  return amount;
-}
 
 function clientWorkspaceNotice(data: {
   client?: { name: string };
@@ -2824,82 +1971,6 @@ function clientWorkspaceNotice(data: {
   return `${name}: ${workspace}${login}${portal}`;
 }
 
-/**
- * The Archived view — the half of "Archive" that never existed.
- *
- * Deliberately a plain list rather than the column board: an archived lead has
- * no column, and rendering it in one would invite somebody to drag it, which
- * would mean restoring it by accident.
- */
-function ArchivedLeads({
-  leads,
-  busy,
-  onRestore,
-  onPurge,
-}: {
-  leads: ArchivedLeadView[];
-  busy: string | null;
-  onRestore: (id: string) => void;
-  onPurge: (id: string, label: string) => void;
-}) {
-  if (!leads.length) {
-    return (
-      <section className="mm-surface-card rounded-lg border border-dashed border-black/10 p-8 text-center">
-        <h2 className="text-sm font-semibold text-black/75">Nothing archived</h2>
-        <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-black/45">
-          Archiving a lead takes them off the active board and keeps their record and history here. If they enquire again they come back automatically, with everything they did still attached.
-        </p>
-      </section>
-    );
-  }
-  return (
-    <section className="mm-surface-card rounded-lg border border-black/10 p-3">
-      <div className="mb-3 flex items-start gap-3 rounded-md bg-black/[0.02] p-3">
-        <span aria-hidden className="inline-flex size-9 shrink-0 items-center justify-center rounded-md bg-black/[0.05] text-black/55"><Archive size={16} /></span>
-        <p className="text-xs leading-5 text-black/50">
-          Off the active board, still here. Restore puts a lead back where it left — and if the same person enquires again, they are restored automatically rather than becoming a second record.
-        </p>
-      </div>
-      <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {leads.map(lead => {
-          const label = lead.name || lead.company || lead.email || lead.phone || "lead";
-          return (
-            <li key={lead.id} className="mm-surface-card rounded-lg border border-black/10 p-3">
-              <h3 className="truncate text-sm font-semibold text-black/85">{label}</h3>
-              <p className="mt-0.5 truncate text-xs text-black/50">{lead.company ? `${lead.company} · ` : ""}{lead.email || lead.phone || "Contact details pending"}</p>
-              <p className="mt-2 text-[11px] text-black/42">
-                Archived {lead.archivedAt ? formatUkDateTime(lead.archivedAt) : "—"} · captured {formatUkDateTime(lead.capturedAt)}
-              </p>
-              {lead.tags.length > 0 ? (
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {lead.tags.slice(0, 3).map(tag => <span key={tag} className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[11px] text-black/55">{tag}</span>)}
-                </div>
-              ) : null}
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => onRestore(lead.id)}
-                  disabled={busy === `restore:${lead.id}`}
-                  className="min-h-10 flex-1 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
-                >
-                  {busy === `restore:${lead.id}` ? "Restoring..." : "Restore"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onPurge(lead.id, label)}
-                  disabled={busy === `purge:${lead.id}`}
-                  className="min-h-10 rounded-md border border-red-200 bg-white px-3 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
-                >
-                  {busy === `purge:${lead.id}` ? "Deleting..." : "Delete permanently"}
-                </button>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
-  );
-}
 
 function matchesWorkFilter(lead: LeadView, filter: WorkFilter, clock: number): boolean {
   if (filter === "all") return true;
@@ -2943,11 +2014,3 @@ function matchesQuery(lead: LeadView, query: string): boolean {
   ].some(value => (value ?? "").toLowerCase().includes(q));
 }
 
-function isGoogleMeetUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" && url.hostname === "meet.google.com" && url.pathname.length > 1;
-  } catch {
-    return false;
-  }
-}

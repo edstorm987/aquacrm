@@ -1,6 +1,25 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "node:test";
+
+// NOTE (2026-08-29): the Command Centre's radar UI now lives in TWO files.
+// `BusinessRadarDashboard` and its eight helpers were lifted out of
+// `_DashboardCommandCenter.tsx` (2,787 → 2,050 lines) and are loaded lazily,
+// because dev-server memory grows per compiled route and this was the largest
+// route graph in the app.
+//
+// These assertions are about the radar SURFACE, not about which file holds it,
+// so the source is read as both files concatenated. An assertion that pinned
+// the location would fail on a refactor while a real regression — the markup
+// disappearing — still passed.
+function commandCentreSource(): string {
+  return [
+    "src/app/portal/agency/_DashboardCommandCenter.tsx",
+    "src/app/portal/agency/_BusinessRadarDashboard.tsx",
+    "src/app/portal/agency/_radarShared.ts",
+  ].map(file => readFileSync(join(process.cwd(), file), "utf8")).join("\n");
+}
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -39,7 +58,7 @@ test("evidence inspection exposes an index, complete series, and archive without
 
 test("manual inspection covers every Radar layer and links from Command Centre", () => {
   const workspace = read("src/app/portal/agency/radar/RadarInspectionWorkspace.tsx");
-  const dashboard = read("src/app/portal/agency/_DashboardCommandCenter.tsx");
+  const dashboard = commandCentreSource();
   const stationNav = read("src/app/portal/agency/_CommandStationNav.tsx");
   assert.match(stationNav, /label="Command Centre"/);
   assert.doesNotMatch(stationNav, /Radar workspace/);

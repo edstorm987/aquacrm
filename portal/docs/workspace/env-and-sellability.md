@@ -41,7 +41,20 @@ deployment, not only after a sale. Both are in §1.
 
 Ordered by when a second company would actually trip over it.
 
-### 1.1 — Their mail leaves as Ed's address. **(runtime-verified bug)**
+### 1.1 — Their mail leaves as Ed's address. **(RESOLVED 2026-08-30)**
+
+> **Fixed.** The send path now gates the environment fallback on
+> `mayUseEnvironmentCredentials(input.agencyId)`, matching the readiness check
+> it disagreed with. A non-founder agency with no connection gets
+> `{ delivered: false, via: "unconfigured" }` and no HTTP call is attempted —
+> pinned by the final test in `scripts/smoke-transactional-email.test.ts`,
+> whose failure message carries this history. Resolved the day the scouting
+> outreach work multiplied traffic through the path. The OTHER leaks this
+> section's table flags (openai / github / meta callers appending bare
+> `process.env` fallbacks after the gated resolve) remain open and listed in
+> the demo-tenant preconditions.
+
+The record of what it was, kept for the next reader:
 
 `lib/server/transactionalEmail.ts` has the founder gate on the *readiness* check
 and **not** on the *send* path.

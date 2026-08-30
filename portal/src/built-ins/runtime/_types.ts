@@ -613,19 +613,29 @@ export interface AquaPlugin {
   onEraseClient?: (ctx: PluginCtx, clientId: string, subject?: ErasureSubject) => Promise<void>;
 
   /**
-   * A first-install wizard.
+   * What a module cannot work without, declared per first-install step.
    *
-   * ⚠ **Nothing renders this today.** Swept on 2026-08-28: `ecommerce` is the
-   * only module that declares one, and no host code reads `plugin.setup`. The
-   * ANSWERS path exists and works — `installPlugin({ setupAnswers })` forwards
-   * them to `onInstall` — so what is missing is only the UI that would collect
-   * them. Declaring steps here therefore does nothing at all today.
+   * ⚠ **Read for `required` only — the ANSWERS path is still dead.** Swept
+   * again on 2026-08-29: `installPlugin({ setupAnswers })` does forward to
+   * `onInstall`, and **not one of the ten `onInstall` implementations reads
+   * it**. `ecommerce`, the only module declaring `setup`, signs the parameter
+   * `_setupAnswers`. So steps declared here are never COLLECTED, and a value
+   * typed into a UI built over that path would be silently discarded.
+   *
+   * What IS consumed, since 2026-08-29: `fields[].required`, by
+   * `lib/plugins/pluginSetupStatus.ts`, which compares it against
+   * `describePluginSettings` to drive the Finish-setup banner. This is the only
+   * place in the manifest that marks a field required — `SettingsField` has no
+   * such flag — which is the whole reason the field survives.
+   *
+   * **So: declare `setup` to say what a module needs. Declare the matching
+   * field in `settings.groups` to let anyone enter it** — that is the
+   * vault-backed writer, and for a `password` field it is the only safe one.
+   * A required id with no settings field behind it is reported as `unmapped`
+   * and cannot be filled in anywhere.
    *
    * Do not confuse it with `setupAnswers` in `_runtime.ts`: that is install
    * options, a different thing whose similar name is how this stayed hidden.
-   *
-   * Pinned by `scripts/smoke-manifest-fields-consumed.test.ts`, which fails the
-   * day a consumer appears so this warning can be deleted with it.
    */
   setup?: SetupStep[];
 

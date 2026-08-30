@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import type { SavedTab, SavedTabPlacement, SavedTabSpot } from "@/server/types";
+import { savedToolHref } from "@/lib/chrome/savedToolUrl";
+import type { SavedTab, SavedTabPlacement, SavedTabSpot, SavedTool } from "@/server/types";
 
 // Saved tabs — a person's own shortcuts into the portal.
 //
@@ -43,7 +44,7 @@ const CHANGE_EVENT = "mm-saved-tabs-changed";
 /** Keep each strip a working set, not an archive. */
 export const MAX_PINS_PER_LOCATION = 12;
 
-export type { SavedTab, SavedTabPlacement, SavedTabSpot };
+export type { SavedTab, SavedTabPlacement, SavedTabSpot, SavedTool };
 
 /** The two strips a tab can be quick-pinned to from the star control. */
 export type PinLocation = "topbar" | "sidebar";
@@ -52,9 +53,10 @@ export interface ChromeLayoutState {
   panelOrder: string[];
   itemOrder: Record<string, string[]>;
   savedTabs: SavedTab[];
+  savedTools: SavedTool[];
 }
 
-const EMPTY: ChromeLayoutState = { panelOrder: [], itemOrder: {}, savedTabs: [] };
+const EMPTY: ChromeLayoutState = { panelOrder: [], itemOrder: {}, savedTabs: [], savedTools: [] };
 
 // ─── Pure helpers ────────────────────────────────────────────────────────────
 
@@ -111,6 +113,9 @@ export function upsertTab(
     spot: entry.spot ?? existing?.spot,
     // A chosen icon survives a move between strips, like the spot does.
     icon: entry.icon ?? existing?.icon,
+    // …and so does a chosen tone. Dragging a tab to the topbar and back must
+    // not quietly repaint it.
+    tone: existing?.tone,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };
@@ -153,6 +158,11 @@ export function setTabIcon(tabs: readonly SavedTab[], id: string, icon: string |
   return tabs.map(tab => (tab.id === id ? { ...tab, icon: icon || undefined, updatedAt: now } : tab));
 }
 
+/** Give a saved tab a chosen hover colour, or clear it back to the shell's. */
+export function setTabTone(tabs: readonly SavedTab[], id: string, tone: string | undefined, now = Date.now()): SavedTab[] {
+  return tabs.map(tab => (tab.id === id ? { ...tab, tone: tone || undefined, updatedAt: now } : tab));
+}
+
 /** Rename a saved tab — Ed's shortcuts should read like his own words. */
 export function renameTab(tabs: readonly SavedTab[], id: string, label: string, now = Date.now()): SavedTab[] {
   const clean = label.trim().slice(0, 60);
@@ -182,6 +192,33 @@ export function moveTabTo(
 }
 
 /** Coerce anything the server or an old browser hands back (defensive on load). */
+/**
+ * The last gate before a value becomes an `href`. The server normalised on
+ * read, but this response could come from an older deploy — so the URL is
+ * judged a third time, here, where it is about to be rendered.
+ */
+export function normalizeTools(value: unknown): SavedTool[] {
+  if (!Array.isArray(value)) return [];
+  const out: SavedTool[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object") continue;
+    const record = raw as Partial<SavedTool>;
+    const url = savedToolHref(typeof record.url === "string" ? record.url : undefined);
+    const label = typeof record.label === "string" ? record.label.trim() : "";
+    const id = typeof record.id === "string" ? record.id : "";
+    if (!url || !label || !id) continue;
+    out.push({
+      id, label, url,
+      ...(typeof record.note === "string" && record.note.trim() ? { note: record.note.trim() } : {}),
+      ...(typeof record.icon === "string" && record.icon.trim() ? { icon: record.icon.trim() } : {}),
+      order: typeof record.order === "number" ? record.order : 0,
+      createdAt: typeof record.createdAt === "number" ? record.createdAt : 0,
+      updatedAt: typeof record.updatedAt === "number" ? record.updatedAt : 0,
+    });
+  }
+  return out.sort((a, b) => a.order - b.order).slice(0, 48);
+}
+
 export function normalizeTabs(value: unknown): SavedTab[] {
   if (!Array.isArray(value)) return [];
   const out: SavedTab[] = [];
@@ -199,6 +236,7 @@ export function normalizeTabs(value: unknown): SavedTab[] {
       order: typeof raw.order === "number" ? raw.order : out.length,
       spot: normalizeSpot(raw.spot),
       icon: typeof raw.icon === "string" && raw.icon.trim() ? raw.icon.trim() : undefined,
+      tone: typeof raw.tone === "string" && raw.tone.trim() ? raw.tone.trim() : undefined,
       createdAt: typeof raw.createdAt === "number" ? raw.createdAt : 0,
       updatedAt: typeof raw.updatedAt === "number" ? raw.updatedAt : 0,
     });
@@ -276,6 +314,7 @@ export interface UseChromeLayout extends ChromeLayoutState {
   toggle: (entry: { href: string; label: string; spot?: SavedTabSpot }, placement: SavedTabPlacement) => void;
   rename: (id: string, label: string) => void;
   setIcon: (id: string, icon: string | undefined) => void;
+  setTone: (id: string, tone: string | undefined) => void;
   move: (id: string, placement: SavedTabPlacement, index: number) => void;
   remove: (href: string) => void;
   clear: () => void;
@@ -307,6 +346,7 @@ async function loadOnce(): Promise<void> {
           panelOrder: Array.isArray(data.layout.panelOrder) ? data.layout.panelOrder : [],
           itemOrder: data.layout.itemOrder && typeof data.layout.itemOrder === "object" ? data.layout.itemOrder : {},
           savedTabs: normalizeTabs(data.layout.savedTabs),
+          savedTools: normalizeTools((data.layout as { savedTools?: unknown }).savedTools),
         };
       }
     } catch {
@@ -380,6 +420,10 @@ export function useChromeLayout(): UseChromeLayout {
     put({ ...shared, savedTabs: renameTab(shared.savedTabs, id, label) });
   }, []);
 
+  const setTone = useCallback((id: string, tone: string | undefined) => {
+    put({ ...shared, savedTabs: setTabTone(shared.savedTabs, id, tone) });
+  }, [put, shared]);
+
   const setIcon = useCallback((id: string, icon: string | undefined) => {
     put({ ...shared, savedTabs: setTabIcon(shared.savedTabs, id, icon) });
   }, []);
@@ -401,5 +445,5 @@ export function useChromeLayout(): UseChromeLayout {
     void fetch(ENDPOINT, { method: "DELETE" }).catch(() => { /* best-effort */ });
   }, []);
 
-  return { ...state, ready, save, pin, toggle, rename, setIcon, move, remove, clear, resetOrder };
+  return { ...state, ready, save, pin, toggle, rename, setIcon, setTone, move, remove, clear, resetOrder };
 }

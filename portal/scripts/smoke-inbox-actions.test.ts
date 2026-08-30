@@ -34,20 +34,25 @@ describe("inbox + actions unification", () => {
       /requestedView === "actions"/,
       "?view=actions must initialise the view like the other tabs",
     );
-    // A dedicated tab, placed by rendering the slot when active.
-    assert.match(
-      MASTER_INBOX,
-      /setView\("actions"\)/,
-      "there must be an Actions tab wired to setView(\"actions\")",
-    );
-    assert.match(MASTER_INBOX, /label="Actions"/, "the Actions tab must be labelled Actions");
-    // The Actions workspace arrives as a server-rendered slot prop, not an
-    // import into this client component.
+    // MERGED 2026-08-30 — a deliberate reversal, not a regression.
+    //
+    // Ed: *"merge needs attention and actions please!!!"* They were always one
+    // job — a signal, and the queue of work that signal creates — and splitting
+    // them across two tabs meant resolving something required remembering which
+    // half it lived in.
+    //
+    // What this test still guarantees is unchanged: the Actions workspace
+    // arrives as a SERVER-RENDERED SLOT and is never imported into this client
+    // component. Only the trigger moved, from its own tab to the merged one.
+    assert.match(MASTER_INBOX, /"needs-you"/,
+      "the merged tab is gone — attention and actions have been split again");
+    assert.match(MASTER_INBOX, /actions: "needs-you"/,
+      "?view=actions no longer maps to a tab, so /portal/agency/actions redirects nowhere");
     assert.match(MASTER_INBOX, /actionsSlot/, "MasterInbox must accept an actionsSlot prop");
     assert.match(
       MASTER_INBOX,
-      /view === "actions" \? actionsSlot/,
-      "the slot must render only when the Actions tab is active",
+      /tab === "needs-you" \? actionsSlot/,
+      "the slot must render on the merged tab",
     );
     // It stays a client component and never imports the server ActionsPage.
     assert.match(MASTER_INBOX, /^"use client";/, "MasterInbox stays a client component");
@@ -64,10 +69,24 @@ describe("inbox + actions unification", () => {
       /import\s*\{\s*AgencyActionsPage\b[\s\S]*?from\s*"\.\.\/actions\/_ActionsPage"/,
       "inbox page must import AgencyActionsPage from the actions module",
     );
+    // Reshaped 2026-08-30: the page now assembles the actions ONCE and feeds
+    // both the slot and the Needs-you badge (Ed: "it says 0 but theres actions
+    // in there"). The guarantee is identical — a showcase session gets a null
+    // slot and a zero count — it is just expressed through `preparedActions`.
     assert.match(
       INBOX_PAGE,
-      /actionsSlot=\{session\.publicShowcase \? null : <AgencyActionsPage\s*\/>\}/,
+      /const preparedActions = session\.publicShowcase \? null : await assembleAgencyActions\(\);/,
+      "the showcase null-slot guarantee has moved or gone",
+    );
+    assert.match(
+      INBOX_PAGE,
+      /actionsSlot=\{preparedActions \? <AgencyActionsPage prepared=\{preparedActions\} \/> : null\}/,
       "inbox page must pass AgencyActionsPage outside the read-only public showcase",
+    );
+    assert.match(
+      INBOX_PAGE,
+      /openActionCount=\{preparedActions\?\.openActionCount \?\? 0\}/,
+      "the Needs-you badge no longer receives the actions count — it will read 0 with a full queue again",
     );
   });
 

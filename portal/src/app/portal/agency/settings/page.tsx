@@ -24,6 +24,12 @@ import {
   requireCurrentAccessActor,
 } from "@/server/accessControl";
 import { listDevProjects } from "@/engines/editor/server/devProjects";
+import { getFreelancerAccessConfig, listFreelancerJobsForConfig } from "@/server/freelancerWorkspace";
+import { describePluginSettings } from "@/lib/server/plugins/pluginSettingsSurface";
+import { AGENCY_SCOPED_SETTINGS_MODULE_IDS } from "@/lib/chrome/settingsModules";
+import { getUserChromeLayout } from "@/lib/server/chrome/userChromeLayout";
+import { agencyProductsForRead } from "@/server/agencyProducts";
+import { calculateServiceBrandHealth } from "@/lib/performance/companyHealth";
 
 type AgencyTeamRole = Extract<Role, "agency-owner" | "agency-manager" | "agency-staff">;
 
@@ -70,7 +76,61 @@ export default async function AgencySettingsPage() {
     return typeof paymentLink === "string" && paymentLink.trim().length > 0;
   }).length;
 
+  // Ed, 2026-08-29: *"bring it all into settings rather than taking us out of
+  // settings — so I can do it all inside."* Everything below is loaded so the
+  // hub can EDIT it in place rather than link away.
+  const freelancerAccess = getFreelancerAccessConfig(agency.id);
+  const freelancerJobs = listFreelancerJobsForConfig(agency.id);
+
+  // Only AGENCY-scoped modules. `client-crm`, `affiliates`, `ecommerce` and
+  // `memberships` declare `scopePolicy: "client"` — their settings are per
+  // client (a client's own Stripe keys, their own segments), so there is no
+  // single agency value to edit and showing one here would be a lie about
+  // whose credentials you were typing.
+  const moduleSettings = AGENCY_SCOPED_SETTINGS_MODULE_IDS
+    .map(pluginId => describePluginSettings(pluginId, { agencyId: agency.id }))
+    .filter((settings): settings is NonNullable<typeof settings> => Boolean(settings));
+
+  // Trading companies, with the same per-company counts the Company page
+  // computes. All in-memory array work over the already-hydrated state — not a
+  // sweep like Radar — so it can load with the page rather than on selection.
+  const agencyProducts = agencyProductsForRead(agency.id, true);
+  const agencyUsers = listUsersForAgency(agency.id).filter(person => person.role.startsWith("agency-"));
+  const companySummaries = listTradingCompanies(agency.id, true).map(company => {
+    const companyClients = clients.filter(client => client.companyId === company.id);
+    const productCount = agencyProducts.filter(product => product.companyIds?.includes(company.id)).length;
+    const staffCount = agencyUsers.filter(person => person.companyIds?.includes(company.id)).length;
+    return {
+      ...company,
+      clientCount: companyClients.length,
+      productCount,
+      staffCount,
+      healthScore: calculateServiceBrandHealth({
+        status: company.status,
+        hasWebsite: Boolean(company.website),
+        hasDescription: Boolean(company.description),
+        clientCount: companyClients.length,
+        activeClientCount: companyClients.filter(client => client.status === "active").length,
+        productCount,
+        staffCount,
+      }).overall,
+    };
+  });
+
+  const chromeLayout = getUserChromeLayout(agency.id, session.userId);
+
   const ctx = {
+    companySummaries,
+    workspaceSummary: {
+      clientCount: clients.length,
+      productCount: agencyProducts.length,
+      staffCount: agencyUsers.length,
+      healthScore: 0,
+    },
+    customCss: chromeLayout.customCss ?? "",
+    freelancerAccess,
+    freelancerJobs,
+    moduleSettings,
     user: {
       name: user?.name,
       email: session.email,

@@ -19,6 +19,7 @@ import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { getInstall, listInstalledFor } from "@/server/pluginInstalls";
 import { installPlugin as runtimeInstallPlugin } from "@/built-ins/runtime/_runtime";
 import type { Agency, Client, PhaseDefinition, ServerUser } from "@/server/types";
+import { ensureDemoSalesUser } from "@/lib/server/seeds/demoSalesSeat";
 
 // ─── Demo tenant constants ────────────────────────────────────────────────
 //
@@ -166,6 +167,24 @@ async function seedDemoAgencyImpl(actor?: string): Promise<SeedDemoResult> {
   // workspace bounces to the bare account page — so give the demo staff a real
   // employee so `/portal/team` is a meaningful, seeded workspace.
   ensureDemoStaffEmployee(agency.id, actor);
+
+  // A demo caller login for trialling a commission hire. Creating a USER is
+  // realm-local and safe here; granting them a seat is not — see below.
+  ensureDemoSalesUser(agency.id);
+
+  // The sales SEAT is NOT granted here, and that is a boundary rather than an
+  // omission. `withAccessControlPlaneTransaction` runs every grant and template
+  // write `runInDataRealm(LIVE_DATA_REALM_ID, …)`: the access authority is a
+  // single live-realm record whatever realm you are browsing. This seed runs in
+  // whichever realm called it, so granting from here looked the actor up in a
+  // state that does not contain them — `actor_not_found`, and 24 Dev Mode tests
+  // with it.
+  //
+  // So provisioning a seat is a deliberate live-realm act:
+  // `ensureDemoSalesSeat` in `demoSalesSeat.ts`, called from a live context.
+  // Doing it silently on every demo seed would have coupled demo data to the
+  // permission authority, which is exactly the coupling the realm split exists
+  // to prevent.
 
   const existingClients = listClients(agency.id);
   let client: Client | undefined = existingClients.find(c => c.slug === DEMO_CLIENT_SLUG);

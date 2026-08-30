@@ -1,4 +1,4 @@
-export const APP_VERSION = "0.8.0";
+export const APP_VERSION = "0.9.0";
 export const RELEASE_STORAGE_KEY = "aquacrm:last-seen-release";
 export const RELEASE_SEEN_EVENT = "aquacrm:release-seen";
 
@@ -16,6 +16,57 @@ export interface ProductRelease {
 export const PRODUCT_RELEASES: ProductRelease[] = [
   {
     version: APP_VERSION,
+    releasedAt: "2026-08-29",
+    title: "Reach people, and see where your time went",
+    summary:
+      "Calling and outreach from the contact list itself, a workspace that adapts to the job you are doing, "
+      + "and an honest read on which part of the business is actually getting your hours.",
+    highlights: [
+      {
+        title: "Call and email straight from your list",
+        detail:
+          "Import a CSV, pick which number or address you are working from — a burner line or the official one — "
+          + "and call or email each contact without leaving the list. Incoming calls tell you who is ringing and "
+          + "whether they are a client, a lead, or somebody you tried last week. Anyone who asks to be taken off "
+          + "the list is refused on every channel, not just the one they said it on.",
+      },
+      {
+        title: "Work as a department, not as everything at once",
+        detail:
+          "Choose which job you are doing — sales, delivery, finance, marketing or support — and the workspace "
+          + "narrows to it. The same setting is the seat you hire someone into, so a new caller sees their work "
+          + "and nothing else.",
+      },
+      {
+        title: "My Radar",
+        detail:
+          "Set what each part of the business should get each week, then see what it actually got. A one-person "
+          + "agency reads its five departments the way a larger one reads its team — the point being to spot the "
+          + "area that is starved rather than average it away.",
+      },
+      {
+        title: "The editor, end to end",
+        detail:
+          "The Dev Editor now opens a projects workspace, edits several files at once with real syntax colouring, "
+          + "and writes, publishes and merges its changes. It tells you when a file has moved underneath you.",
+      },
+      {
+        title: "A workspace that fits a phone",
+        detail:
+          "Keep the controls you actually use on the top bar instead of in the drawer, hold to rename or recolour "
+          + "a saved tab, and drag it where you want it. Search now covers every screen in the app, including the "
+          + "ones with no menu entry.",
+      },
+      {
+        title: "Safer, and lighter",
+        detail:
+          "Closed a set of cross-tenant and role gaps found by review, split the largest stored records so the "
+          + "workspace loads faster, and corrected how long Radar keeps its evidence.",
+      },
+    ],
+  },
+  {
+    version: "0.8.0",
     releasedAt: "2026-08-09",
     title: "Connected operations",
     summary: "A clearer AquaCRM that joins delivery, performance, enquiries, finance, and daily decisions in one working system.",

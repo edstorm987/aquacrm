@@ -8,6 +8,9 @@
 // readable, accessible view of pipeline state.
 
 import Link from "next/link";
+import { CustomBoardWorkspace } from "./_CustomBoardWorkspace";
+import { currentWorkspaceElementAccess, workspaceElementLevel } from "@/lib/server/access/workspaceElementAccess";
+import { scoutingQuotaProgress } from "@/lib/server/intelligence/scoutingQuota";
 import { notFound, redirect } from "next/navigation";
 import { ensureHydrated } from "@/server/storage";
 import { requireRole } from "@/lib/server/auth/auth";
@@ -38,6 +41,16 @@ import { clientProductWorkspaces } from "@/server/productWorkspaces";
 interface RouteProps {
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ product?: string; lead?: string }>;
+}
+
+/** The viewer's level on Ed's own boards — growth.leads, resolved once. */
+async function customBoardLevel(): Promise<"hidden" | "view" | "use" | "manage"> {
+  try {
+    const { access } = await currentWorkspaceElementAccess("growth");
+    return workspaceElementLevel(access, "growth.leads");
+  } catch {
+    return "hidden";
+  }
 }
 
 export default async function PipelineView({ params, searchParams }: RouteProps) {
@@ -110,6 +123,7 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
           focusedLeadId={query.lead}
           referenceNow={Date.now()}
           columns={pipeline.columns.map(col => ({ id: col.id, label: col.label, color: col.color }))}
+          scoutingQuota={scoutingQuotaProgress(agency.id, session.userId, prospectList)}
           prospects={prospectList.filter(prospect => prospect.status === "scouting").map(prospect => ({
             id: prospect.id,
             name: prospect.name,
@@ -396,6 +410,63 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
     } else {
       bucket.push({ id: card.id, label: "Custom card" });
     }
+  }
+
+  // Ed's own kanbans (2026-08-30). The custom kind gets the REAL board — the
+  // drag-drop PipelineBoard through CustomBoardWorkspace — instead of the
+  // read-only scaffold below, which literally labelled every card "Custom
+  // card". PipelineBoard emits data-testid="pipeline-view"/"pipeline-columns"
+  // itself, so this branch supplies only the header the smoke pins here
+  // (aria-label="Work boards") and the workspace.
+  if (pipeline.kind === "custom") {
+    const level = await customBoardLevel();
+    if (level === "hidden") notFound();
+    return (
+      <div className="flex flex-col gap-6">
+        <header className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-black/45">{pipelineKindLabel(pipeline.kind)}</div>
+            <h1 className="text-2xl font-semibold tracking-tight text-black/90">{pipelineName(pipeline.name, pipeline.kind)}</h1>
+          </div>
+          <nav aria-label="Work boards" className="flex flex-wrap gap-2">
+            {boardLinks.map(item => (
+              <Link
+                key={item.slug}
+                href={`/portal/agency/pipelines/${item.slug}`}
+                aria-current={item.slug === pipeline.slug ? "page" : undefined}
+                className={[
+                  "inline-flex min-h-10 items-center rounded-md border px-3 text-xs font-medium",
+                  item.slug === pipeline.slug
+                    ? "border-black bg-black text-white"
+                    : "border-black/10 bg-white text-black/65 hover:border-black/20",
+                ].join(" ")}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+        </header>
+        <CustomBoardWorkspace
+          boardId={pipeline.id}
+          name={pipelineName(pipeline.name, pipeline.kind)}
+          slug={pipeline.slug}
+          columns={pipeline.columns.map(column => ({ id: column.id, label: column.label, ...(column.color ? { color: column.color } : {}) }))}
+          cards={listCards(pipeline.id).flatMap(card => card.kind === "custom"
+            ? [{
+                id: card.id,
+                label: typeof (card.payload as Record<string, unknown>).title === "string"
+                  ? (card.payload as Record<string, unknown>).title as string
+                  : "Untitled card",
+                ...(typeof (card.payload as Record<string, unknown>).note === "string"
+                  ? { sub: (card.payload as Record<string, unknown>).note as string }
+                  : {}),
+                columnId: card.columnId,
+              }]
+            : [])}
+          editable={level === "use" || level === "manage"}
+        />
+      </div>
+    );
   }
 
   return (

@@ -13,6 +13,13 @@ import {
   type RemoteOperationRetry,
 } from "@/lib/server/remoteOperation";
 import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
+// Shared, not reimplemented. Inbound caller identification has to agree with
+// what this file dialled — a second copy that drifted would mean a prospect
+// called on Monday arriving unrecognised when they ring back on Tuesday.
+import { normalisePhone } from "@/lib/telephony/phoneNumbers";
+
+// Kept exported: several modules already import it from here.
+export { normalisePhone };
 
 export type OutboundCommunicationChannel = "email" | "sms" | "whatsapp" | "call";
 
@@ -295,15 +302,7 @@ function valuesForConnection(
   return resolveScopedIntegrationConnectionValues(agencyId, connectionId, clientId);
 }
 
-export function normalisePhone(value: string): string | null {
-  const trimmed = value.trim();
-  const digits = trimmed.replace(/\D/g, "");
-  if (digits.length < 7 || digits.length > 15) return null;
-  if (trimmed.startsWith("+")) return `+${digits}`;
-  if (trimmed.startsWith("00")) return `+${digits.slice(2)}`;
-  if (trimmed.startsWith("0")) return `+44${digits.slice(1)}`;
-  return `+${digits}`;
-}
+
 
 function escapeXml(value: string): string {
   return value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");

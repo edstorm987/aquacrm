@@ -41,6 +41,9 @@ import { devTeamAccessible } from "@/lib/server/dev/devTeamAccess";
 import { resolveServerCommandStation } from "./commandStationRouting";
 import { PortalViewportLoading } from "@/components/ui/PortalViewportLoading";
 import { currentAssistantBusinessContext } from "@/lib/server/assistants/assistantContextScope";
+import { MyRadarPanel } from "@/components/intelligence/MyRadarPanel";
+import { readMyRadar } from "@/lib/server/intelligence/myRadar";
+import { allocationHeadline } from "@/lib/intelligence/departmentAllocation";
 
 // Fallback for the requested secondary station. The server imports and builds
 // only the workspace named by `?station=`; Suspense then lets the surrounding
@@ -279,8 +282,31 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
     });
   }
 
+  // Ed, 2026-08-29: *"the owner needs to margin their time out in Command
+  // Centre — what's going to do today, we need to allocate time."* So the
+  // department read sits ABOVE the dashboard: it is the thing you look at
+  // before deciding what to do, not a report you review afterwards.
+  //
+  // Rendered as a SIBLING of `DashboardCommandCenter` rather than inside it.
+  // That component is 2,787 lines and already takes twenty-odd props; threading
+  // a new subsystem through it would make the busiest file in the app busier
+  // for no gain, and this panel needs nothing from it.
+  const myRadar = readMyRadar({
+    agencyId: agency.id,
+    userId: session.userId,
+    from: Date.now() - 7 * 24 * 60 * 60 * 1000,
+    to: Date.now(),
+  });
+
   return (
     <div className="mm-command-center-workspace mx-auto flex w-full max-w-[1600px] flex-col gap-5 pb-6" data-testid="agency-pipelines-hub">
+      <MyRadarPanel
+        allocation={myRadar.allocation}
+        wellbeing={myRadar.wellbeing}
+        daysWorked={myRadar.daysWorked}
+        headline={allocationHeadline(myRadar.allocation)}
+        baselinesHref="/portal/agency/my-radar"
+      />
       <DashboardCommandCenter
         canManage={canManageWorkspace}
         scanPaused={scanPaused}

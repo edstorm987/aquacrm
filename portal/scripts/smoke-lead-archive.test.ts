@@ -278,13 +278,26 @@ describe("permanent deletion is a second, deliberate act", () => {
   });
 
   it("the Archived view exists and offers restore", () => {
-    const source = readFileSync(join(ROOT, "src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.tsx"), "utf-8");
-    assert.match(source, /function ArchivedLeads\(/, "there is no Archived view to restore from");
-    assert.match(source, /workFilter === "archived"/, "the Archived view is not reachable from the board");
+    // The view moved to its own module on 2026-08-29 — the first cut of a
+    // 2,953-line workspace. Both halves of the guarantee are still asserted, but
+    // each against the file that now holds it: the VIEW in `_ArchivedLeads`, and
+    // the way IN from the board still in the workspace. Reading only the
+    // workspace would have passed while the view was deleted.
+    const view = readFileSync(join(ROOT, "src/app/portal/agency/pipelines/[slug]/_ArchivedLeads.tsx"), "utf-8");
+    assert.match(view, /function ArchivedLeads\(/, "there is no Archived view to restore from");
+    assert.match(view, /onRestore/, "the Archived view offers no way back");
+
+    const workspace = readFileSync(join(ROOT, "src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.tsx"), "utf-8");
+    assert.match(workspace, /workFilter === "archived"/, "the Archived view is not reachable from the board");
+    assert.match(workspace, /<ArchivedLeads/, "the board no longer renders the Archived view");
   });
 
   it("a new journey event cannot silently inherit the 'Converted to client' label", () => {
-    const source = readFileSync(join(ROOT, "src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.tsx"), "utf-8");
+    // `journeyEventLabel` moved to `_leadShared` on 2026-08-29 because BOTH the
+    // workspace and the extracted details editor call it. That is exactly why it
+    // is shared, and exactly why this assertion follows it rather than staying
+    // pointed at the workspace.
+    const source = readFileSync(join(ROOT, "src/app/portal/agency/pipelines/[slug]/_leadShared.tsx"), "utf-8");
     // The old fall-through returned "Converted to client" for anything it did
     // not recognise, so adding `archived` labelled it as the most consequential
     // thing on the screen.

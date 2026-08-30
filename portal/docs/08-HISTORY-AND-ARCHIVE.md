@@ -2,7 +2,7 @@
 
 > The append-only change record, dated handoffs and superseded historical summaries.
 >
-> Consolidated 2026-08-29 from **18** source documents / **129,283 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-30 from **18** source documents / **129,283 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 

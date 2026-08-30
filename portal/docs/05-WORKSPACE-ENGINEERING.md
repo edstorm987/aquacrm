@@ -2,24 +2,24 @@
 
 > Source maps, subsystem dossiers, components, routes, state and built-in module notes.
 >
-> Consolidated 2026-08-29 from **23** source documents / **54,006 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-30 from **23** source documents / **54,308 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`docs/development/STRUCTURE.md`](#source-docs-development-structure-md) — 883 words · `52f8d6f96fdd`
-- [`docs/WORKSPACE-FILE-TREE.md`](#source-docs-workspace-file-tree-md) — 1,365 words · `9e3de848465c`
+- [`docs/WORKSPACE-FILE-TREE.md`](#source-docs-workspace-file-tree-md) — 1,385 words · `642c698fbd42`
 - [`docs/workspace/advisor.md`](#source-docs-workspace-advisor-md) — 1,445 words · `d5b9b4fc79dc`
 - [`docs/workspace/api-and-routes.md`](#source-docs-workspace-api-and-routes-md) — 946 words · `8bbf0d2e9c9f`
-- [`docs/workspace/api-reference.md`](#source-docs-workspace-api-reference-md) — 8,190 words · `834697014ecf`
+- [`docs/workspace/api-reference.md`](#source-docs-workspace-api-reference-md) — 8,236 words · `b88eee0137fe`
 - [`docs/workspace/aqua-tag.md`](#source-docs-workspace-aqua-tag-md) — 3,463 words · `d662b63850cb`
 - [`docs/workspace/components.md`](#source-docs-workspace-components-md) — 1,142 words · `5ef3bf2f75be`
 - [`docs/workspace/database.md`](#source-docs-workspace-database-md) — 2,273 words · `4ed0007a7dd9`
-- [`docs/workspace/env-and-sellability.md`](#source-docs-workspace-env-and-sellability-md) — 3,089 words · `73e225f93a52`
+- [`docs/workspace/env-and-sellability.md`](#source-docs-workspace-env-and-sellability-md) — 3,202 words · `6541a737c2ee`
 - [`docs/workspace/feature-index.md`](#source-docs-workspace-feature-index-md) — 5,151 words · `bffbf6237ea7`
 - [`docs/workspace/hazards-and-duplication.md`](#source-docs-workspace-hazards-and-duplication-md) — 6,053 words · `5403d85950f1`
 - [`docs/workspace/kpi-intelligence.md`](#source-docs-workspace-kpi-intelligence-md) — 2,283 words · `d641f1291cbc`
 - [`docs/workspace/plugins.md`](#source-docs-workspace-plugins-md) — 2,193 words · `85bf55b735d1`
-- [`docs/workspace/portal-ui.md`](#source-docs-workspace-portal-ui-md) — 3,812 words · `ab4485ad8dbd`
+- [`docs/workspace/portal-ui.md`](#source-docs-workspace-portal-ui-md) — 3,935 words · `422ade585983`
 - [`docs/workspace/radar.md`](#source-docs-workspace-radar-md) — 3,319 words · `3ce82366eef0`
 - [`docs/workspace/scripts-config-docs.md`](#source-docs-workspace-scripts-config-docs-md) — 705 words · `6c64dba30a6b`
 - [`docs/workspace/shared-logic.md`](#source-docs-workspace-shared-logic-md) — 3,900 words · `971a7bc40ccd`
@@ -138,7 +138,7 @@ Rules:
 
 ## Source document — `docs/WORKSPACE-FILE-TREE.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/WORKSPACE-FILE-TREE.md" sha256="9e3de848465cd704c9b59dc9931a809f5d28313ca475d64a9ff988c516b53120" -->
+<!-- AQUACRM_SOURCE_START path="docs/WORKSPACE-FILE-TREE.md" sha256="642c698fbd42414f6b6092f98c148ab2ff2fd0a7948502b9e4ccf4b4362b02a7" -->
 # Workspace file tree — the contents page
 
 This is the **index** to a full map of the AquaCRM portal: what every part does,
@@ -146,9 +146,11 @@ so edits land in the right place and nothing gets built twice. The detail lives
 in per-area **chapters** in [`docs/workspace/`](workspace/) — this page is the
 table of contents and the shared rules.
 
-**1,733** `.ts`/`.tsx` files in `src` (722 under `src/built-ins`), **308** `scripts/*.test.ts`.
+**1,939** `.ts`/`.tsx` files in `src`, **487** `scripts/*.test.ts`.
 Big, but every concern has one owning place — the chapters tell you where.
-Counts re-taken 2026-08-24; re-take them rather than trusting them:
+Counts re-taken 2026-08-29 (they read 1,733 / 308 from 2026-08-24 — the page
+says to re-take them rather than trust them, and that was correct); re-take them
+again rather than trusting these:
 `find src -type f \( -name '*.ts' -o -name '*.tsx' \) | wc -l`.
 
 > This map was reconciled for non-security structure only. Current delivery and
@@ -591,7 +593,7 @@ switcher — membership-only, session ∩ live record), `showcase-mode`, `dev-mo
 
 ## Source document — `docs/workspace/api-reference.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/api-reference.md" sha256="834697014ecf45f1e8ab251a9d1fd805e720bfc2a26fd9e85ac8b3238842717b" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/api-reference.md" sha256="b88eee0137fe53f4111ee1f1b0d01cbedeaef362ae69f25f3ead38e9a5ea6b18" -->
 # Chapter — Hand-maintained API reference
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md) · [API & routes overview](api-and-routes.md)
@@ -835,6 +837,7 @@ not live.
 | `/api/portal/people` | GET, POST | HR station: employees, leave, shifts, training, applications; provisions Supabase identity | agency | **LIVE (auth)** |
 | `/api/portal/people/cv` | GET | Stream a job-application CV file | agency-session | **LIVE (Storage)** |
 | `/api/portal/dashboard-planning` | GET, POST | My-Day: clock in/out, work sessions, day/week plans | agency (staff gated by station) | |
+| `/api/portal/intelligence/my-radar` | GET | Topbar My Radar quick-look: the caller's fresh 7-day department reading + their own open Actions. Read-only; tenant and user from the session, the request carries no ids | agency (staff gated by `staff.overview`; client-named Actions behind the client-association gate) | |
 | `/api/portal/[module]/[...rest]` | GET, POST, PATCH, PUT, DELETE | **Built-in module API catch-all** → plugin handlers | authenticated (scope inferred) | varies by plugin |
 | `/api/portal/client-crm/pipelines` | GET, POST, PATCH, DELETE | Journey boards a client builds for themselves | agency viewers + client-owner/staff | feature `journey-pipelines` |
 | `/api/portal/client-crm/pipelines/board` | GET | One board, joined server-side (cards + contacts + idle flags + stage totals). No `pipelineId` → the client's default board | agency viewers + client-owner/staff | feature `journey-pipelines` |
@@ -1738,7 +1741,7 @@ ingestion; the blob backend holds everything else described across the
 
 ## Source document — `docs/workspace/env-and-sellability.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/env-and-sellability.md" sha256="73e225f93a527d2d2ac6ea92c6dad72b5538380f87fbe4c51d5f1676a21e58f5" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/env-and-sellability.md" sha256="6541a737c2ee5049803bb94d55ef3d7ca1a876a873d746980a737e14933b7a2d" -->
 # Chapter — Env-only settings & the cost of selling AquaCRM
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md) · Sibling: [feature-index](feature-index.md) · [hazards-and-duplication](hazards-and-duplication.md)
@@ -1782,7 +1785,20 @@ deployment, not only after a sale. Both are in §1.
 
 Ordered by when a second company would actually trip over it.
 
-### 1.1 — Their mail leaves as Ed's address. **(runtime-verified bug)**
+### 1.1 — Their mail leaves as Ed's address. **(RESOLVED 2026-08-30)**
+
+> **Fixed.** The send path now gates the environment fallback on
+> `mayUseEnvironmentCredentials(input.agencyId)`, matching the readiness check
+> it disagreed with. A non-founder agency with no connection gets
+> `{ delivered: false, via: "unconfigured" }` and no HTTP call is attempted —
+> pinned by the final test in `scripts/smoke-transactional-email.test.ts`,
+> whose failure message carries this history. Resolved the day the scouting
+> outreach work multiplied traffic through the path. The OTHER leaks this
+> section's table flags (openai / github / meta callers appending bare
+> `process.env` fallbacks after the gated resolve) remain open and listed in
+> the demo-tenant preconditions.
+
+The record of what it was, kept for the next reader:
 
 `lib/server/transactionalEmail.ts` has the founder gate on the *readiness* check
 and **not** on the *send* path.
@@ -3105,7 +3121,7 @@ Plus **10 per-plugin boot bindings** (`*Foundation.ts`, side-effect-imported by
 
 ## Source document — `docs/workspace/portal-ui.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/portal-ui.md" sha256="ab4485ad8dbd1e3be4180cd84bf627e4c2c7b21458e6e958d439553bcf4a8627" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/portal-ui.md" sha256="422ade5859836d9f6a9c8d5d6dd85ab9a8f5c79c1d3be18ff34d18833b881730" -->
 # Chapter — Portal UI (`src/app/portal/`)
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
@@ -3178,7 +3194,11 @@ revisit lifecycle as [issue #142](../development/issues.md).
 - `command-center/page.tsx` — **re-exports the agency root `page.tsx` (alias).**
 
 **Command Centre / founder-home components**
-- `_DashboardCommandCenter.tsx` ⊕ **(2469L)** — the Command Centre dashboard shell.
+- `_DashboardCommandCenter.tsx` ⊕ **(2050L)** — the Command Centre dashboard shell.
+  Split 2026-08-29 (was 2787L): the Business Radar moved out to
+  `_BusinessRadarDashboard.tsx` (773L), with `_radarShared.ts` (138L) holding what
+  both sides use. Six radar smoke tests were repointed at the file that now holds
+  the behaviour rather than being loosened.
 - `_CommandIntelligenceWorkspace.tsx` (1026L) — command intelligence / KPI workspace (saved views: private in-browser + agency-shared via `/api/portal/kpi-registry/views`, 2026-08-20).
 - `_CommercialIntelligenceWorkspace.tsx` — commercial intelligence summary.
 - `_CommandCentreKpiTrajectory.tsx`, `_CommandDeckPopup.tsx`, `_CommandStationNav.tsx`.
@@ -3216,7 +3236,15 @@ revisit lifecycle as [issue #142](../development/issues.md).
 - `_ActionsWorkspace.tsx` (1203L), `_ActionsPage.tsx`, `_TodayView.tsx`; `calendar/page.tsx` reuses the actions page.
 
 **Journey — pipelines / leads / contacts / people**
-- `pipelines/[slug]/page.tsx` — single-pipeline kanban; `_LeadsPipelineWorkspace.tsx` ⊕ **(2689L — the biggest UI file)**, `_LeadsPipelineWorkspaceServer.tsx` (data loader), `_PipelineBoard.tsx`, `_ScoutingCommand.tsx` (718L), `_FulfilmentProductSwitcher.tsx`.
+- `pipelines/[slug]/page.tsx` — single-pipeline kanban; `_LeadsPipelineWorkspace.tsx` ⊕ **(1960L)**, `_LeadsPipelineWorkspaceServer.tsx` (data loader), `_PipelineBoard.tsx`, `_ScoutingCommand.tsx` (718L), `_FulfilmentProductSwitcher.tsx`.
+  **Split 2026-08-29 (was 2953L — it had been the biggest UI file).** Four modules came
+  out: `_DetailsEditor.tsx` (537L), `_ConvertLeadModal.tsx` (221L), `_ArchivedLeads.tsx`
+  (114L). Two shared leaves carry what BOTH sides need — `_leadTypes.ts` (173L) for the
+  types and `_leadShared.tsx` (102L) for `sourceLabel`, `stageLabel`, `LeadTimingTrace`,
+  `journeyEventLabel`. Neither extracted module imports the workspace and the workspace
+  imports neither leaf back, so there is no cycle. The parent re-exports the moved types,
+  so `page.tsx` and `_LeadsPipelineWorkspaceServer.tsx` were untouched.
+  *If you are hunting a string that used to be in the workspace, check `_leadShared` first.*
 - `leads-pipeline/` — `_UpcomingMeetings.tsx`, `_WorkflowSteps.tsx`; `campaigns/_CampaignsWorkspace.tsx` (1182L), `_CampaignCreativeStudio.tsx`; **`contacts/_ContactsWorkspace.tsx` (1494L)** — the CSV rolodex *(overlaps agency/contacts — see hazards)*, `_CommercialPackModal.tsx`.
 - `contacts/page.tsx` + `_ContactsIndex.tsx` — the canonical people index; `contacts/[personId]/` `_ContactCard.tsx` (797L) + `_Interactions.tsx`; `contacts/companies/[organisationId]/` — single company record.
 - `people/page.tsx` + `_PeopleCommand.tsx` — the **Staff Command** console. Tabs: Overview / Recruitment / **Directory** / Access / Time & leave / Onboarding / Pay. The Directory tab (search + department/status filters, a **"who's around"** presence strip) opens a **per-person tabbed staff card** (Overview / Work / Jobs* / Pay / Access / Leave & shifts / Training / Notes) that aggregates identity + assigned work + days-worked + pay + access + leave + training. **Presence** is a 3-state derivation (online/idle/offline) from work-session heartbeat freshness (`presenceFromSessions`, `PRESENCE_ONLINE_MS`/`PRESENCE_IDLE_MS`) — an abandoned open session reads offline, not online. The **Capacity & hiring** tab is a **read-only** surface of the Radar `team` domain via [`server/staffCapacity.ts`](../../src/server/staffCapacity.ts) (`staffCapacitySnapshot`/`shapeStaffCapacity` → health / attention / capacity-by-area / hiring / coverage buckets; no Radar engine edit). The **Jobs** sub-tab (*freelancers/contractors only) drives the freelancer **one-time-job flow** (`listPeopleFreelancerJobs`/`savePeopleFreelancerJob`/`setPeopleFreelancerJobStatus`, `PeopleFreelancerJob` — proposed→active→delivered→paid; Finance stays the authority on money, linked by `paymentRef`) and shares named HTTP(S) deliverables. Received private freelancer submissions are listed there with guarded download links. The Work tab carries a **delegation** panel (reassign owner/unassigned open tasks — `delegatableTasks` — or create-and-assign, via the existing `/api/portal/tasks`). **Recognition** (`PeopleRecognition`, `awardPeopleRecognition`/`currentEmployeeOfMonth`, `award-recognition` action) marks an **employee of the month** (⭐ on the row + card header + Overview banner) and shoutouts. The **Time & leave** tab opens with a **holidays calendar** (`HolidaysCalendar`) — a month grid of approved leave + published shifts across the team. The **Org chart** tab (`staffOrgChart` → `OrgChart`) renders the reporting-line tree from `managerEmployeeId` (owner on top, freelancers as a distinct layer, department composition, cycle-safe `unplaced` list); the card Overview's **"Reports to"** select edits `managerEmployeeId`. **Configurable process** (`PeopleProcessConfig`, `getPeopleProcessConfig`): an onboarding-template editor (Onboarding tab) shapes what new hires get; a hiring-process editor (Recruitment tab) sets each stage's label + guidance — **stage ids stay fixed** so the Radar `team` reads keep working. **Staff contracts** (`PeopleContract`, reuses `contractTemplates`): a **Contracts** tab (all staff contracts grouped by status) + a per-card Contracts sub-tab (draft from template/blank → send for sign-off); the staff member reviews + acknowledges (types their name) in their progression station (`MyContracts`). Distinct from client contracts (`client.metadata.contracts`) and the Legal vault — a unified cross-domain contracts view doesn't exist yet. The **owner** appears as a derived card (synthetic `owner:<userId>`, not a seeded record). Data comes from `peopleSnapshot` → `staffDirectory`/`staffCard` in [`server/people.ts`](../../src/server/people.ts). Canonical staff spine is `PeopleEmployee` (see [hazards](hazards-and-duplication.md): agency-hr's `Staff` is a separate, to-be-reconciled directory). Plan: [staff-team-system](../development/plans/staff-team-system.md).

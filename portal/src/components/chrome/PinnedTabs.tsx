@@ -12,6 +12,7 @@ import { chosenNavIcon } from "./navIcons";
 import { SpotPicker } from "./SpotPicker";
 import type { SavedSpot } from "./savedSpot";
 import { sharedChromeLinkPrefetch } from "@/lib/chrome/sharedChromeLinkPrefetch";
+import { navToneStyle } from "./navTones";
 
 // The full current location (path + query) — a saved tab must remember
 // ?tab=…/?view=… so it returns you to the exact working VIEW, not just the base
@@ -357,7 +358,7 @@ export function PinnedTabsBar() {
  */
 export function SidebarPinnedTabs() {
   const currentHref = useCurrentHref();
-  const { savedTabs, pin, remove, rename, setIcon } = useChromeLayout();
+  const { savedTabs, pin, remove, rename, setIcon, setTone } = useChromeLayout();
   const items = tabsAt(savedTabs, SIDEBAR);
   if (!items.length) return null;
   return (
@@ -377,6 +378,7 @@ export function SidebarPinnedTabs() {
             onRemove={() => remove(item.href)}
             onRename={value => rename(item.id, value)}
             onIcon={icon => setIcon(item.id, icon)}
+            onTone={tone => setTone(item.id, tone)}
           />
         ))}
       </ul>
@@ -385,25 +387,38 @@ export function SidebarPinnedTabs() {
 }
 
 /** One saved row in the sidebar. Hold it to rename; hold its icon to change it. */
-function SidebarSavedRow({ tab, active, onMove, onRemove, onRename, onIcon }: {
+function SidebarSavedRow({ tab, active, onMove, onRemove, onRename, onIcon, onTone }: {
   tab: SavedTab; active: boolean;
   onMove: () => void; onRemove: () => void;
   onRename: (label: string) => void; onIcon: (icon: string | undefined) => void;
+  onTone: (tone: string | undefined) => void;
 }) {
   const [renaming, setRenaming] = useState(false);
   const [picking, setPicking] = useState(false);
-  const hold = useLongPress(() => setRenaming(true), !renaming);
-  const holdIcon = useLongPress(() => setPicking(true), !renaming);
+  // Editing is exclusive: while either popover is open the row is not a drag
+  // handle and not a second hold target. Holding a row that is already showing
+  // a rename box used to re-arm the same press underneath it.
+  const editing = renaming || picking;
+  const hold = useLongPress(() => setRenaming(true), !editing);
+  const holdIcon = useLongPress(() => setPicking(true), !editing);
   const iconRef = useRef<HTMLSpanElement | null>(null);
   const Chosen = chosenNavIcon(tab.icon);
   const item = tab;
 
   return (
     <li
-              {...hold}
               className="group relative"
-              draggable
+              // Not draggable mid-edit: the rename box sits ON the row, and a
+              // browser that starts a native drag from an input steals the
+              // pointer before a single character is typed.
+              draggable={!editing}
+              style={navToneStyle(item.tone)}
               onDragStart={event => {
+                // A press that became a drag is a drag. Without this the hold
+                // timer keeps running through the whole gesture and a rename
+                // box opens the moment the row is dropped.
+                hold.onPointerUp();
+                holdIcon.onPointerUp();
                 event.dataTransfer.effectAllowed = "move";
                 event.dataTransfer.setData("application/x-aqua-saved-tab", item.id);
                 event.dataTransfer.setData("text/plain", item.label);
@@ -417,6 +432,9 @@ function SidebarSavedRow({ tab, active, onMove, onRemove, onRename, onIcon }: {
                 title={item.spot?.text ? `${item.label} — lands on “${item.spot.text}”` : item.label}
                 className={`mm-sidebar-link flex min-h-10 items-center gap-2 rounded-md px-2 py-2 ${active ? "is-active font-medium" : "text-black/80"}`}
               >
+                {/* Hold the ICON for appearance. `stopPropagation` keeps this
+                    press off the label's rename hold — they are siblings under
+                    one link and would otherwise both arm on one pointerdown. */}
                 <span
                   ref={iconRef}
                   className="mm-sidebar-link-icon relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
@@ -430,7 +448,11 @@ function SidebarSavedRow({ tab, active, onMove, onRemove, onRename, onIcon }: {
                       ? <MapPin size={15} className="text-amber-500" aria-hidden />
                       : <Star size={16} className="fill-amber-400 text-amber-500" aria-hidden />}
                 </span>
-                <span className="mm-sidebar-link-label flex-1 truncate pr-12">{item.label}</span>
+                {/* Hold the NAME to rename — Ed's own division of the row.
+                    The hold lived on the whole <li> before, so holding the
+                    padding, or the gap beside the unpin buttons, opened a
+                    rename nobody asked for. */}
+                <span {...hold} className="mm-sidebar-link-label flex-1 truncate pr-12">{item.label}</span>
               </Link>
               <span className="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition focus-within:opacity-100 group-hover:opacity-100">
                 <button
@@ -453,7 +475,14 @@ function SidebarSavedRow({ tab, active, onMove, onRemove, onRename, onIcon }: {
                 </button>
               </span>
               {picking ? (
-                <SavedTabIconPicker current={tab.icon} anchor={iconRef.current} onPick={onIcon} onClose={() => setPicking(false)} />
+                <SavedTabIconPicker
+                  current={tab.icon}
+                  currentTone={tab.tone}
+                  anchor={iconRef.current}
+                  onPick={onIcon}
+                  onPickTone={onTone}
+                  onClose={() => setPicking(false)}
+                />
               ) : null}
               {renaming ? (
                 <div className="absolute inset-x-1 top-1/2 z-[70] -translate-y-1/2 rounded-md bg-white p-1 shadow">
