@@ -1,12 +1,9 @@
-import { rm } from "node:fs/promises";
-import { resolve } from "node:path";
-import { del } from "@vercel/blob";
 import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
-import { deleteSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
-import { deleteLegalDocument, listLegalDocuments, updateLegalDocument } from "@/server/legalDocuments";
-import { ensureHydrated, isSandboxDataRealm } from "@/server/storage";
+import { deletePrivateUpload } from "@/lib/server/privateUploadStorage";
+import { deleteLegalDocument, getLegalDocument, listLegalDocuments, updateLegalDocument } from "@/server/legalDocuments";
+import { ensureHydrated } from "@/server/storage";
 import type { LegalDocument } from "@/server/types";
 import { getActiveTradingCompanyId } from "@/lib/server/tradingCompanyContext";
 import { recordBelongsToCompany } from "@/server/tradingCompanies";
@@ -37,17 +34,24 @@ export async function DELETE(request: Request) {
     const session = await requireRole(["agency-owner", "agency-manager"]);
     const id = new URL(request.url).searchParams.get("id");
     if (!id) return NextResponse.json({ ok: false, error: "Document required." }, { status: 400 });
-    const document = deleteLegalDocument(session.agencyId, id);
+    const document = getLegalDocument(session.agencyId, id);
     if (!document) return NextResponse.json({ ok: false, error: "Document not found." }, { status: 404 });
-    if (!isSandboxDataRealm()) {
-      if (document.storageProvider === "supabase") await deleteSupabasePrivateUpload(document.storageKey).catch(() => false);
-      else if (document.storageProvider === "vercel-blob") await del(document.storageKey).catch(() => undefined);
-      else {
-        const root = resolve(process.cwd(), ".data", "legal-uploads");
-        const path = resolve(root, document.storageKey);
-        if (path.startsWith(`${root}/`)) await rm(path, { force: true }).catch(() => undefined);
-      }
+    // The record is the only handle on the stored file, so it is removed only
+    // once the provider has actually removed the binary.
+    const removal = await deletePrivateUpload({
+      storageProvider: document.storageProvider,
+      storageKey: document.storageKey,
+      localDirectory: "legal-uploads",
+    });
+    if (!removal.ok) {
+      return NextResponse.json({
+        ok: false,
+        code: "storage_delete_failed",
+        error: `“${document.title}” is still stored — the storage provider refused to remove its file, so the document has been kept to retry.`,
+        detail: removal.error,
+      }, { status: 502 });
     }
+    if (!deleteLegalDocument(session.agencyId, id)) return NextResponse.json({ ok: false, error: "Document not found." }, { status: 404 });
     return NextResponse.json({ ok: true });
   } catch (error) { return authErrorResponse(error); }
 }

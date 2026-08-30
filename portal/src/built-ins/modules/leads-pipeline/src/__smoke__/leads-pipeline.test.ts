@@ -134,7 +134,14 @@ function buildWorld(opts: { withEmail?: boolean; withPipeline?: boolean } = {}) 
   // Delivery outcome the stub provider reports back from `send()`. Tests flip this
   // to simulate an explicit provider refusal ("failed") or a provider that only
   // accepts the message into its queue without confirming delivery ("queued").
-  const emailDelivery: { mode: "delivered" | "queued" | "failed"; error?: string } = { mode: "delivered" };
+  const emailDelivery: {
+    mode: "delivered" | "queued" | "failed";
+    error?: string;
+    code?: string;
+    // Addresses that always come back refused, whatever the global mode —
+    // lets one blast contain both a delivery and a failure.
+    failRecipients: Set<string>;
+  } = { mode: "delivered", failRecipients: new Set() };
   const emailEnqueue: EmailEnqueuePort | undefined = opts.withEmail
     ? {
         enqueue(input) {
@@ -144,9 +151,24 @@ function buildWorld(opts: { withEmail?: boolean; withPipeline?: boolean } = {}) 
         send(input) {
           enqueued.push(input);
           const messageId = `msg_${enqueued.length}`;
-          if (emailDelivery.mode === "queued") return { messageId };
+          const recipients = Array.isArray(input.to) ? input.to : [input.to];
+          if (recipients.some(address => emailDelivery.failRecipients.has(address))) {
+            return { messageId, delivered: false, error: "Mailbox rejected the recipient." };
+          }
+          // The email-sender adapter returns no verdict at all when it could
+          // only enqueue — that is "queued", never a delivery.
+          if (emailDelivery.mode === "queued") {
+            return emailDelivery.code
+              ? { messageId, delivered: false, error: emailDelivery.error, code: emailDelivery.code }
+              : { messageId };
+          }
           if (emailDelivery.mode === "failed") {
-            return { messageId, delivered: false, error: emailDelivery.error ?? "Mailbox rejected the recipient." };
+            return {
+              messageId,
+              delivered: false,
+              error: emailDelivery.error ?? "Mailbox rejected the recipient.",
+              code: emailDelivery.code,
+            };
           }
           return { messageId, delivered: true };
         },
@@ -1281,7 +1303,7 @@ describe("leads-pipeline / CampaignService", () => {
     assert.equal(unfunded?.budgetPotId, undefined, "a campaign can be deliberately removed from a budget pot");
   });
 
-  test("happy path enqueues one email per audience lead", async () => {
+  test("happy path delivers one email per audience lead", async () => {
     const w = buildWorld({ withEmail: true });
     const c = buildLeadsPipelineContainer({
       agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
@@ -1299,12 +1321,190 @@ describe("leads-pipeline / CampaignService", () => {
     assert.equal(sent.status, "sent");
     assert.equal(sent.recipients, 2);
     assert.equal(sent.sentCount, 2);
+    assert.equal(sent.failedCount, 0);
+    assert.equal(sent.queuedCount, 0);
+    assert.deepEqual(sent.pendingLeadIds, []);
+    assert.ok((sent.sentAt ?? 0) > 0, "a confirmed delivery earns a sent date");
     assert.equal(w.enqueued.length, 2);
     assert.equal(w.enqueued[0]?.triggeredByPlugin, "leads-pipeline");
     // sentCount stamped on Lead
     const aLead = await c.leads.getByEmail("a@x.com");
     assert.equal(aLead?.sentCount, 1);
     assert.ok((aLead?.lastContactedAt ?? 0) > 0);
+  });
+
+  test("an unconfigured provider leaves the campaign queued, never sent", async () => {
+    const w = buildWorld({ withEmail: true });
+    // email-sender's honest answer when no provider is configured: the row
+    // stays durably queued, and nothing was delivered.
+    w.emailDelivery.mode = "queued";
+    w.emailDelivery.code = "provider_unconfigured";
+    w.emailDelivery.error = "Email delivery is disabled — no provider configured.";
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+      emailEnqueue: w.emailEnqueue,
+    });
+    await c.leads.upsert({ email: "a@x.com", source: "manual", tags: ["vip"] }, ACTOR);
+    await c.leads.upsert({ email: "b@x.com", source: "manual", tags: ["vip"] }, ACTOR);
+    const camp = await c.campaigns.create({
+      name: "Unconfigured blast", subject: "Hi", bodyHtml: "<p>Hey</p>",
+      audienceFilter: { tags: ["vip"] },
+    }, ACTOR);
+
+    const result = await c.campaigns.send(camp.id, ACTOR);
+
+    assert.equal(result.status, "queued", "nothing was delivered, so the campaign is not sent");
+    assert.equal(result.sentCount, 0);
+    assert.equal(result.queuedCount, 2);
+    assert.equal(result.failedCount, 0);
+    assert.equal(result.pendingLeadIds?.length, 2);
+    assert.equal(result.sentAt, undefined, "a campaign that delivered nothing has no sent date");
+    assert.ok(result.lastSendError, "the campaign says why nobody has it yet");
+    // The leads were NOT contacted — stamping them would erase the fact that
+    // they are still owed this email.
+    for (const email of ["a@x.com", "b@x.com"]) {
+      const lead = await c.leads.getByEmail(email);
+      assert.equal(lead?.sentCount, 0, `${email} must not be counted as emailed`);
+      assert.equal(lead?.lastContactedAt, undefined, `${email} must not be stamped as contacted`);
+    }
+    assert.equal(
+      w.events.some(event => event.name === "leads.campaign.sent"),
+      false,
+      "no delivery means no leads.campaign.sent",
+    );
+    assert.equal(w.events.filter(event => event.name === "leads.campaign.send_failed").length, 1);
+    // The stored row agrees with the returned one.
+    const reread = await c.campaigns.get(camp.id);
+    assert.equal(reread?.status, "queued");
+    assert.equal(reread?.sentCount, 0);
+  });
+
+  test("a partial failure is reported, and a retry re-attempts only the unfinished recipients", async () => {
+    const w = buildWorld({ withEmail: true });
+    w.emailDelivery.failRecipients.add("b@x.com");
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+      emailEnqueue: w.emailEnqueue,
+    });
+    await c.leads.upsert({ email: "a@x.com", source: "manual", tags: ["vip"] }, ACTOR);
+    await c.leads.upsert({ email: "b@x.com", source: "manual", tags: ["vip"] }, ACTOR);
+    const camp = await c.campaigns.create({
+      name: "Half blast", subject: "Hi", bodyHtml: "<p>Hey</p>",
+      audienceFilter: { tags: ["vip"] },
+    }, ACTOR);
+
+    const first = await c.campaigns.send(camp.id, ACTOR);
+
+    assert.equal(first.status, "partially-sent");
+    assert.equal(first.recipients, 2);
+    assert.equal(first.sentCount, 1);
+    assert.equal(first.failedCount, 1);
+    const bLead = await c.leads.getByEmail("b@x.com");
+    assert.equal(bLead?.sentCount, 0, "the refused recipient is not counted as emailed");
+    assert.deepEqual(first.pendingLeadIds, [bLead?.id]);
+
+    // Fix the mailbox and re-send: only b@x.com is attempted again.
+    w.emailDelivery.failRecipients.delete("b@x.com");
+    const attemptsBefore = w.enqueued.length;
+    const second = await c.campaigns.send(camp.id, ACTOR);
+
+    assert.equal(w.enqueued.length - attemptsBefore, 1, "the retry emails only the unfinished recipient");
+    assert.equal(w.enqueued.at(-1)?.to, "b@x.com");
+    assert.equal(second.status, "sent");
+    assert.equal(second.sentCount, 2, "confirmed deliveries accumulate across attempts");
+    assert.equal(second.recipients, 2, "the audience snapshot is not re-counted");
+    assert.equal(second.failedCount, 0);
+    assert.deepEqual(second.pendingLeadIds, []);
+    assert.equal(second.lastSendError, undefined);
+    const aLead = await c.leads.getByEmail("a@x.com");
+    assert.equal(aLead?.sentCount, 1, "the already-delivered recipient is not emailed twice");
+    assert.equal((await c.leads.getByEmail("b@x.com"))?.sentCount, 1);
+  });
+
+  test("a lead with no email address keeps the campaign unfinished", async () => {
+    const w = buildWorld({ withEmail: true });
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+      emailEnqueue: w.emailEnqueue,
+    });
+    await c.leads.upsert({ email: "a@x.com", source: "manual", tags: ["vip"] }, ACTOR);
+    // Phone-only lead. `email: ""` rather than omitted because LeadService
+    // .upsert dereferences `input.email` unconditionally.
+    const { lead: noEmail } = await c.leads.upsert({ email: "", phone: "+447700900000", source: "manual", tags: ["vip"] }, ACTOR);
+    const camp = await c.campaigns.create({
+      name: "Missing address", subject: "Hi", bodyHtml: "<p>Hey</p>",
+      audienceFilter: { tags: ["vip"] },
+    }, ACTOR);
+
+    const result = await c.campaigns.send(camp.id, ACTOR);
+
+    assert.equal(result.status, "partially-sent");
+    assert.equal(result.sentCount, 1);
+    assert.equal(result.failedCount, 1);
+    assert.deepEqual(result.pendingLeadIds, [noEmail.id]);
+  });
+
+  test("an adapter that can only enqueue reports queued, not sent", async () => {
+    const w = buildWorld({ withEmail: true });
+    const full = w.emailEnqueue;
+    assert.ok(full, "the email world was requested");
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+      // Only `enqueue` — the shape the foundation shipped before delivery was
+      // wired. It can accept a message but can never confirm one.
+      emailEnqueue: { enqueue: full.enqueue.bind(full) },
+    });
+    await c.leads.upsert({ email: "a@x.com", source: "manual", tags: ["vip"] }, ACTOR);
+    const camp = await c.campaigns.create({
+      name: "Enqueue only", subject: "Hi", bodyHtml: "<p>Hey</p>",
+      audienceFilter: { tags: ["vip"] },
+    }, ACTOR);
+
+    const result = await c.campaigns.send(camp.id, ACTOR);
+
+    assert.equal(result.status, "queued");
+    assert.equal(result.sentCount, 0);
+    assert.equal(result.queuedCount, 1);
+    assert.equal((await c.leads.getByEmail("a@x.com"))?.sentCount, 0);
+  });
+
+  test("a campaign whose audience resolves to nobody is never stamped sent", async () => {
+    const w = buildWorld({ withEmail: true });
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+      emailEnqueue: w.emailEnqueue,
+    });
+    await c.leads.upsert({ email: "a@x.com", source: "manual", tags: ["other"] }, ACTOR);
+    const camp = await c.campaigns.create({
+      name: "Nobody blast", subject: "Hi", bodyHtml: "<p>Hey</p>",
+      audienceFilter: { tags: ["vip"] },
+    }, ACTOR);
+
+    const result = await c.campaigns.send(camp.id, ACTOR);
+
+    assert.equal(w.enqueued.length, 0, "there was nobody to email");
+    assert.notEqual(result.status, "sent", "zero confirmed deliveries is not a send");
+    assert.equal(result.sentCount, 0);
+    assert.equal(result.sentAt, undefined, "nothing was delivered, so there is no sent date");
+    assert.ok(result.lastSendError, "the campaign says why nobody got it");
+    assert.equal(
+      w.events.some(event => event.name === "leads.campaign.sent"),
+      false,
+      "no delivery means no leads.campaign.sent",
+    );
+    // Still editable and still re-sendable once the audience has people in it.
+    const retagged = await c.campaigns.update(camp.id, { name: "Nobody blast v2" }, ACTOR);
+    assert.equal(retagged?.name, "Nobody blast v2");
+    await c.leads.upsert({ email: "b@x.com", source: "manual", tags: ["vip"] }, ACTOR);
+    const second = await c.campaigns.send(camp.id, ACTOR);
+    assert.equal(second.status, "sent");
+    assert.equal(second.sentCount, 1);
+    assert.equal(second.recipients, 1);
   });
 
   test("newsletter campaigns enqueue through the email sender", async () => {

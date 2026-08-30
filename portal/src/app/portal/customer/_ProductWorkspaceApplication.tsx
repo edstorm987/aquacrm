@@ -19,7 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
 import type { PortalProductSelection, PortalProductMode } from "@/lib/portal/portalProducts";
 import type { PortalProductModulePage } from "@/lib/portal/portalProductModules";
@@ -33,6 +33,11 @@ import {
   type PortalWorkspaceCollectionStatus,
   type PortalWorkspaceOutputStatus,
 } from "@/lib/portal/portalProductWorkspaces";
+import {
+  runWorkspaceUploadBatch,
+  WORKSPACE_UPLOAD_BATCH_LIMIT,
+  workspaceUploadBatchNotice,
+} from "@/lib/portal/productWorkspaceUploadBatch";
 import type { CustomerFile } from "./_portalData";
 
 export type ProductWorkspaceRole = "agency" | "customer" | "preview";
@@ -101,6 +106,9 @@ export function ProductWorkspaceApplication({
   const [selectionLimit, setSelectionLimit] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Per-collection record of the files that already uploaded AND attached in
+  // this session, so retrying a part-failed batch does not upload them twice.
+  const uploadedKeys = useRef<Record<string, Set<string>>>({});
   const readOnly = role === "preview";
   const management = role === "agency";
   const pageState = workspace.pages[page.id];
@@ -152,63 +160,69 @@ export function ProductWorkspaceApplication({
     if (!selectedFiles?.length || readOnly || !management) return;
     setBusy(`upload-${collection.id}`);
     setNotice(null);
-    try {
-      let nextWorkspace = workspace;
-      const nextFiles = [...files];
-      for (const file of Array.from(selectedFiles).slice(0, 30)) {
-        const form = new FormData();
-        form.set("clientId", clientId);
-        form.set("category", collection.status === "review" ? "preview" : "deliverable");
-        form.set("productId", product.id);
-        form.set("workspacePageId", page.id);
-        form.set("collectionId", collection.id);
-        form.set("customerVisible", collection.status !== "draft" && collection.status !== "archived" ? "true" : "false");
-        form.set("file", file);
-        const upload = await fetch("/api/tenants/client-files/upload", { method: "POST", body: form });
-        const uploaded = await upload.json() as { ok: boolean; error?: string; file?: CustomerFile };
-        if (!upload.ok || !uploaded.ok || !uploaded.file) throw new Error(uploaded.error || `Could not upload ${file.name}.`);
-        nextFiles.unshift(uploaded.file);
-        let attachedWorkspace: PortalProductWorkspace | undefined;
-        let attachRevision = nextWorkspace.revision;
-        for (let attempt = 0; attempt < 2 && !attachedWorkspace; attempt += 1) {
-          const attach = await fetch("/api/tenants/product-workspaces", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              clientId,
-              productId: product.id,
-              pageId: page.id,
-              action: "attach-file",
-              expectedRevision: attachRevision,
-              collectionId: collection.id,
-              fileId: uploaded.file.id,
-              title: uploaded.file.name,
-            }),
-          });
-          const attached = await attach.json() as { ok: boolean; error?: string; workspace?: PortalProductWorkspace };
-          if (attach.ok && attached.ok && attached.workspace) {
-            attachedWorkspace = attached.workspace;
-            break;
+    // Files that already converged in this session, so a retry after a
+    // mid-batch failure resumes rather than uploading them a second time.
+    const completedKeys = uploadedKeys.current[collection.id] ?? new Set<string>();
+    uploadedKeys.current[collection.id] = completedKeys;
+    const outcome = await runWorkspaceUploadBatch<CustomerFile, PortalProductWorkspace>(
+      Array.from(selectedFiles),
+      workspace,
+      {
+        upload: async file => {
+          const form = new FormData();
+          form.set("clientId", clientId);
+          form.set("category", collection.status === "review" ? "preview" : "deliverable");
+          form.set("productId", product.id);
+          form.set("workspacePageId", page.id);
+          form.set("collectionId", collection.id);
+          form.set("customerVisible", collection.status !== "draft" && collection.status !== "archived" ? "true" : "false");
+          form.set("file", file);
+          const upload = await fetch("/api/tenants/client-files/upload", { method: "POST", body: form });
+          const uploaded = await upload.json() as { ok: boolean; error?: string; file?: CustomerFile };
+          if (!upload.ok || !uploaded.ok || !uploaded.file) throw new Error(uploaded.error || `Could not upload ${file.name}.`);
+          return uploaded.file;
+        },
+        attach: async (uploaded, current) => {
+          let attachRevision = current.revision;
+          for (let attempt = 0; attempt < 2; attempt += 1) {
+            const attach = await fetch("/api/tenants/product-workspaces", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                clientId,
+                productId: product.id,
+                pageId: page.id,
+                action: "attach-file",
+                expectedRevision: attachRevision,
+                collectionId: collection.id,
+                fileId: uploaded.id,
+                title: uploaded.name,
+              }),
+            });
+            const attached = await attach.json() as { ok: boolean; error?: string; workspace?: PortalProductWorkspace };
+            if (attach.ok && attached.ok && attached.workspace) return attached.workspace;
+            if (attach.status === 409 && attached.workspace && attempt === 0) {
+              attachRevision = attached.workspace.revision;
+              continue;
+            }
+            throw new Error(attached.error || `Could not add ${uploaded.name} to the collection.`);
           }
-          if (attach.status === 409 && attached.workspace && attempt === 0) {
-            attachRevision = attached.workspace.revision;
-            nextWorkspace = attached.workspace;
-            continue;
-          }
-          throw new Error(attached.error || `Could not add ${file.name} to the collection.`);
-        }
-        if (!attachedWorkspace) throw new Error(`Could not add ${file.name} to the collection.`);
-        nextWorkspace = attachedWorkspace;
-      }
-      setFiles(nextFiles);
-      setWorkspace(nextWorkspace);
-      setNotice(`${selectedFiles.length} ${selectedFiles.length === 1 ? "file" : "files"} added to ${collection.title}.`);
-      router.refresh();
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "The files could not be uploaded.");
-    } finally {
-      setBusy(null);
-    }
+          throw new Error(`Could not add ${uploaded.name} to the collection.`);
+        },
+        // Commit each converged file immediately, so a failure on a later file
+        // cannot discard the ones that already landed.
+        onFileCommitted: (uploaded, current, key) => {
+          completedKeys.add(key);
+          setFiles(previous => [uploaded, ...previous]);
+          setWorkspace(current);
+        },
+      },
+      { alreadyCompleted: completedKeys },
+    );
+    setWorkspace(outcome.workspace);
+    setNotice(workspaceUploadBatchNotice(outcome, collection.title));
+    if (outcome.completed.length > 0) router.refresh();
+    setBusy(null);
   }
 
   async function addUpdate() {
@@ -510,9 +524,12 @@ function WorkspaceCollections({
               ) : <div className="px-5 py-12 text-center"><ImageIcon className="mx-auto text-black/18" /><p className="mt-3 text-sm font-medium text-black/55">This collection is ready for its first files.</p><p className="mt-1 text-xs text-black/38">Uploads remain private to this client and delivery team.</p></div>}
 
               {management ? (
-                <label className="flex min-h-14 cursor-pointer items-center justify-center gap-2 border-t border-black/10 bg-[#faf9f6] px-4 text-xs font-medium text-black/58">
+                <label className="flex min-h-14 cursor-pointer flex-wrap items-center justify-center gap-x-2 gap-y-0.5 border-t border-black/10 bg-[#faf9f6] px-4 py-2 text-center text-xs font-medium text-black/58">
                   <CloudUpload size={15} className="text-[var(--portal-accent)]" />
                   {busy === `upload-${collection.id}` ? "Uploading and securing files..." : media ? "Upload photographs or media" : "Upload delivery files"}
+                  {busy === `upload-${collection.id}` ? null : (
+                    <span className="w-full text-[11px] font-normal text-black/38">Up to {WORKSPACE_UPLOAD_BATCH_LIMIT} files per upload.</span>
+                  )}
                   <input type="file" multiple disabled={busy !== null} accept={media ? ".jpg,.jpeg,.png,.webp,.heic,.heif,.mp4,.zip" : ".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp,.csv,.txt,.mp4,.zip"} className="sr-only" onChange={event => { void uploadFiles(collection, event.target.files); event.currentTarget.value = ""; }} />
                 </label>
               ) : null}

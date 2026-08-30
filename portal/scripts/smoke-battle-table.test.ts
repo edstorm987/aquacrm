@@ -7,6 +7,11 @@ import {
   createBattleNavigationState,
   reconcileBattleNavigationState,
 } from "../src/app/portal/agency/battleNavigation";
+import {
+  changedCompanyFields,
+  describeCompanyConflict,
+  rebaseCompanyProfile,
+} from "../src/app/portal/agency/companyProfileConflict";
 
 const require = createRequire(import.meta.url);
 const serverOnlyPath = require.resolve("server-only");
@@ -208,6 +213,242 @@ test("Battle Table retains a complete evidence-backed quarterly strategy cycle",
   assert.equal(updated.reviews[0]?.implementationHandover, "Create objectives and weekly actions from the strategy.");
   assert.equal(updated.reviews[0]?.updatedAt, 123_456);
 });
+
+// ─── Concurrency and lock integrity (issues #66) ──────────────────────────────
+// Ten Battle Table stations and the Company workspace all PUT one whole
+// CompanyProfile. Before this, the last writer won silently and any edit of a
+// completed review flipped it back to draft while overwriting its captured
+// evidence. These pin both halves.
+
+test("a company plan write that lost the race is refused with the current state, not merged over it", async () => {
+  await storage.reset();
+  const agency = tenants.createAgency({ name: "Plan Concurrency", slug: "plan-concurrency" });
+  const loaded = company.getCompanyProfile(agency.id);
+  assert.equal(loaded.revision, 0, "an unwritten plan starts at revision 0");
+
+  const first = company.updateCompanyProfile(agency.id, { ...loaded, mission: "Owner A mission" }, "owner_a", null, { expectedRevision: loaded.revision });
+  assert.equal(first.revision, 1, "each accepted write advances the revision");
+  assert.equal(first.mission, "Owner A mission");
+
+  // The second tab still holds revision 0 and PUTs the whole profile.
+  let refusal: unknown;
+  try {
+    company.updateCompanyProfile(agency.id, { ...loaded, vision: "Owner B vision" }, "owner_b", null, { expectedRevision: loaded.revision });
+  } catch (error) {
+    refusal = error;
+  }
+  assert.ok(refusal instanceof company.CompanyProfileConflictError, "a stale whole-profile write is refused");
+  assert.equal((refusal as InstanceType<typeof company.CompanyProfileConflictError>).current.mission, "Owner A mission", "the refusal carries the live plan so the caller can rebase");
+  assert.equal(company.getCompanyProfile(agency.id).mission, "Owner A mission", "the losing write did not land");
+  assert.equal(company.getCompanyProfile(agency.id).vision, "", "the losing write did not land");
+  assert.equal(company.getCompanyProfile(agency.id).revision, 1, "a refused write does not advance the revision");
+
+  // Reload, reapply, retry: the retry carries the newer revision and succeeds
+  // without discarding the first owner's mission.
+  const latest = company.getCompanyProfile(agency.id);
+  const retried = company.updateCompanyProfile(agency.id, { ...latest, vision: "Owner B vision" }, "owner_b", null, { expectedRevision: latest.revision });
+  assert.equal(retried.revision, 2);
+  assert.equal(retried.mission, "Owner A mission");
+  assert.equal(retried.vision, "Owner B vision");
+});
+
+test("the company PUT demands the revision being edited and answers a stale one with a current-state 409", () => {
+  const route = read("src/app/api/portal/company/route.ts");
+  assert.match(route, /const expectedRevision = body\.revision/);
+  assert.match(route, /status: 400/, "a versionless whole-profile PUT is rejected outright");
+  assert.match(route, /CompanyProfileConflictError[\s\S]*conflict: "stale-revision", company: error\.current[\s\S]*status: 409/);
+  assert.match(route, /CompanyReviewLockedError[\s\S]*conflict: "locked-review"[\s\S]*status: 409/);
+
+  // Both versionless callers now send the profile they loaded and handle 409.
+  for (const path of ["src/app/portal/agency/_BattleTableWorkspace.tsx", "src/app/portal/agency/company/_CompanyWorkspace.tsx"]) {
+    const source = read(path);
+    assert.match(source, /response\.status === 409 && result\?\.conflict === "stale-revision"/, `${path} recognises the conflict`);
+    assert.match(source, /rebaseCompanyProfile\(conflict\)/, `${path} offers merge-and-retry rather than silent failure`);
+    assert.match(source, /Reapply my changes/, `${path} exposes the retry as a control`);
+  }
+});
+
+test("a locked quarterly cycle cannot be edited, unlocked or dropped in place", async () => {
+  await storage.reset();
+  const agency = tenants.createAgency({ name: "Locked Cycle", slug: "locked-cycle" });
+  const seeded = company.getCompanyProfile(agency.id);
+  const locked = company.updateCompanyProfile(agency.id, { ...seeded, reviews: [completeReview()] }, "executive_test", null, { expectedRevision: seeded.revision });
+  const retained = locked.reviews[0]!;
+  assert.equal(retained.status, "complete");
+  assert.equal(retained.version, 1, "an original cycle is version 1");
+
+  // An unrelated station saving the whole profile carries the locked cycle
+  // through untouched — that must stay a normal, accepted save.
+  const carried = company.updateCompanyProfile(agency.id, { ...locked, monthlyRevenueTargetCents: 777_000 }, "executive_test", null, { expectedRevision: locked.revision });
+  assert.equal(carried.monthlyRevenueTargetCents, 777_000);
+  assert.deepEqual(carried.reviews[0], retained, "an untouched locked cycle survives a neighbouring station's save");
+
+  const attempt = (reviews: unknown, label: string) => {
+    let refusal: unknown;
+    try {
+      company.updateCompanyProfile(agency.id, { ...carried, reviews: reviews as never }, "executive_test", null, { expectedRevision: carried.revision });
+    } catch (error) {
+      refusal = error;
+    }
+    assert.ok(refusal instanceof company.CompanyReviewLockedError, label);
+  };
+
+  attempt([{ ...retained, decisions: "Rewritten after the fact." }], "an in-place edit of a locked cycle is refused");
+  attempt([{ ...retained, status: "draft", completedAt: undefined }], "silently reverting a locked cycle to draft is refused");
+  attempt([{ ...retained, evidenceSnapshot: { ...retained.evidenceSnapshot!, revenueCents: 9_999_999 } }], "overwriting the captured evidence of a locked cycle is refused");
+  attempt([], "dropping a locked cycle from the decision record is refused");
+
+  const stored = company.getCompanyProfile(agency.id);
+  assert.deepEqual(stored.reviews[0], retained, "no refused attempt changed the retained record");
+  assert.equal(stored.revision, carried.revision, "a refused review write does not advance the revision");
+});
+
+test("a locked cycle is corrected by a numbered amendment that leaves the original evidence intact", async () => {
+  await storage.reset();
+  const agency = tenants.createAgency({ name: "Cycle Amendment", slug: "cycle-amendment" });
+  const seeded = company.getCompanyProfile(agency.id);
+  const locked = company.updateCompanyProfile(agency.id, { ...seeded, reviews: [completeReview()] }, "executive_test", null, { expectedRevision: seeded.revision });
+  const original = locked.reviews[0]!;
+
+  const amendment = {
+    ...original,
+    id: "review-q3-2026-amendment",
+    amendsReviewId: original.id,
+    version: 97, // a client cannot claim a version; the server assigns lineage
+    status: "draft" as const,
+    completedAt: undefined,
+    decisions: "Corrected: the commercial block moves to Tuesday and Thursday.",
+    evidenceSnapshot: { ...original.evidenceSnapshot!, revenueCents: 250_000, capturedAt: 999_999 },
+    updatedAt: 999_999,
+  };
+  const amended = company.updateCompanyProfile(agency.id, { ...locked, reviews: [amendment, original] }, "executive_test", null, { expectedRevision: locked.revision });
+
+  const kept = amended.reviews.find(review => review.id === original.id);
+  const published = amended.reviews.find(review => review.id === "review-q3-2026-amendment");
+  assert.deepEqual(kept, original, "the amended-from cycle is retained exactly as it was locked");
+  assert.equal(kept?.evidenceSnapshot?.revenueCents, 100_000, "the original evidence is not restated from the amendment");
+  assert.equal(published?.amendsReviewId, original.id);
+  assert.equal(published?.version, 2, "lineage is server-assigned, not claimed by the client");
+  assert.equal(published?.status, "draft");
+  assert.equal(published?.decisions, "Corrected: the commercial block moves to Tuesday and Thursday.");
+
+  // Locking the amendment freezes it in turn; the original is still untouched.
+  const sealed = company.updateCompanyProfile(agency.id, {
+    ...amended,
+    reviews: amended.reviews.map(review => review.id === published!.id ? { ...review, status: "complete" as const, completedAt: 1_000_000 } : review),
+  }, "executive_test", null, { expectedRevision: amended.revision });
+  assert.equal(sealed.reviews.find(review => review.id === published!.id)?.status, "complete");
+  assert.deepEqual(sealed.reviews.find(review => review.id === original.id), original);
+
+  // Reload round-trip: both cycles survive, and the workspace opens on the
+  // newest one in the lineage rather than the superseded original.
+  const reloaded = company.getCompanyProfile(agency.id);
+  assert.equal(reloaded.reviews.length, 2);
+  const { activeReviewForPeriod } = await import("../src/app/portal/agency/_QuarterlyStrategyReview");
+  assert.equal(activeReviewForPeriod(reloaded.reviews, "Q3 2026")?.id, published!.id, "the superseded original is not what the review stage reopens");
+});
+
+test("the quarterly stage stops unlocking a completed cycle and stops restating its evidence", () => {
+  const review = read("src/app/portal/agency/_QuarterlyStrategyReview.tsx");
+  // The old change() forced status:"draft"/completedAt:undefined on every
+  // keystroke, which is exactly how a locked cycle silently reopened.
+  assert.doesNotMatch(review, /\.\.\.patch, status: "draft", completedAt: undefined/);
+  assert.match(review, /function change\([\s\S]*if \(!editable\) return;/);
+  assert.match(review, /const locked = draft\.status === "complete"/);
+  assert.match(review, /const editable = canEdit && !locked/);
+  assert.match(review, /if \(!editable \|\| \(status === "complete" && !completionReady\)\) return;/);
+  assert.match(review, /Amend this cycle/, "a locked cycle offers an explicit amendment instead of a silent reopen");
+  // A locked cycle shows the readings it was locked against, never today's.
+  assert.match(review, /locked \? draft\.evidenceSnapshot \?\? evidence : evidence/);
+});
+
+test("a conflicted plan is rebased onto the newer version instead of overwriting it", () => {
+  const base = baseProfileFixture();
+  const attempted: import("../src/server/types").CompanyProfile = { ...base, mission: "My new mission", plans: [{ id: "plan-1", title: "My plan", horizon: "now", status: "active" }] };
+  // Someone else saved a different section in the meantime.
+  const latest: import("../src/server/types").CompanyProfile = { ...base, revision: 4, vision: "Their new vision", monthlyRevenueTargetCents: 2_000_000 };
+
+  assert.deepEqual(changedCompanyFields(base, attempted), ["mission", "plans"], "only the sections this editor touched are resent");
+
+  const rebased = rebaseCompanyProfile({ base, attempted, latest });
+  assert.equal(rebased.mission, "My new mission", "my change is reapplied");
+  assert.equal(rebased.plans[0]?.title, "My plan");
+  assert.equal(rebased.vision, "Their new vision", "their change is kept, not clobbered");
+  assert.equal(rebased.monthlyRevenueTargetCents, 2_000_000);
+  assert.equal(rebased.revision, 4, "the retry compares against the newer revision");
+  assert.match(describeCompanyConflict({ base, attempted, latest }), /2 changed sections/);
+});
+
+test("the Company workspace rebases from the last server-confirmed plan, not from its own edit buffer", () => {
+  // `company` in _CompanyWorkspace IS the direction form's edit buffer — the
+  // mission/vision/values textareas setCompany() straight into it and the form
+  // then submits with a bare save(). If the conflict base were read from that
+  // same buffer, base and attempted would be one object: the diff would be
+  // empty, "Reapply my changes" would resend the winner's plan verbatim and
+  // report success, and the banner would tell the owner nothing of theirs was
+  // lost while the reload had just thrown their typing away.
+  const buffer = { ...baseProfileFixture(), mission: "Typed but never saved" };
+  assert.deepEqual(changedCompanyFields(buffer, buffer), [], "diffing the edit buffer against itself reports no change");
+  assert.match(
+    describeCompanyConflict({ base: buffer, attempted: buffer, latest: { ...buffer, revision: 3 } }),
+    /nothing of yours was lost/,
+    "which is the false reassurance a self-diff would produce",
+  );
+
+  const source = read("src/app/portal/agency/company/_CompanyWorkspace.tsx");
+  assert.match(source, /const base = baseline;/, "the conflict base is the last profile the server confirmed");
+  assert.doesNotMatch(source, /const base = company;/, "the live edit buffer is never the conflict base");
+  assert.equal((source.match(/setBaseline\(/g) ?? []).length, 2, "the baseline moves only on a server answer: the 409 reload and the accepted write");
+});
+
+function baseProfileFixture(): import("../src/server/types").CompanyProfile {
+  return company.getCompanyProfile("agency-fixture", null);
+}
+
+function completeReview() {
+  return {
+    id: "review-q3-2026",
+    period: "Q3 2026",
+    status: "complete" as const,
+    executiveSummary: "Demand exists, but conversion and delivery capacity constrain growth.",
+    wins: "Retained every active client.",
+    misses: "Revenue remained below target.",
+    lessons: "Commercial activity needs a protected weekly allocation.",
+    marketSignals: "Website enquiries remain the strongest source.",
+    customerSignals: "Retention is strong while onboarding still creates friction.",
+    financialDiagnosis: "Revenue concentration remains too high.",
+    operatingDiagnosis: "Founder capacity is the principal constraint.",
+    strategicBets: "Productise onboarding",
+    risks: "Added demand could weaken delivery quality.",
+    stopDoing: "Unscoped reactive work.",
+    decisions: "Protect two commercial blocks each week.",
+    nextPriorities: "1. Prove acquisition",
+    successMeasures: "Five qualified leads monthly.",
+    ownerCommitment: "Review the scorecard every Friday.",
+    implementationHandover: "Create objectives and weekly actions from the strategy.",
+    scorecard: { growth: 2 as const, finance: 2 as const, customer: 4 as const, operations: 3 as const, capability: 3 as const },
+    evidenceSnapshot: {
+      revenueCents: 100_000,
+      revenueTargetCents: 500_000,
+      revenueProgressPercent: 20,
+      monthlyGrowthPercent: 5,
+      activeClients: 2,
+      clientsNeedingAttention: 1,
+      openLeads: 3,
+      openTasks: 8,
+      overdueTasks: 2,
+      healthScore: 31,
+      objectiveProgressPercent: 40,
+      objectivesAtRisk: 1,
+      capacityUtilisationPercent: 88,
+      connectedSources: 22,
+      totalSources: 27,
+      capturedAt: 123_456,
+    },
+    completedAt: 123_456,
+    updatedAt: 123_456,
+  };
+}
 
 test("Battle Table retains a bounded ownership, investment, dividend and authority register", async () => {
   await storage.reset();

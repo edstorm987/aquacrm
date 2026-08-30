@@ -122,6 +122,9 @@ function portalData(kind: "bare" | "rich"): CustomerPortalData {
         ]
       : [],
     paymentPlans: [],
+    // Both fixtures model a healthy render, so every contributing read answered.
+    // The unavailable variants are covered by smoke-truthful-surfaces (issues #57).
+    available: { invoices: true, messages: true },
     record: {},
     support: {},
     activity: rich

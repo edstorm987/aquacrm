@@ -332,22 +332,40 @@ function ManualContactDetails({ enquiryId }: { enquiryId: string }) {
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The read state is load-bearing, not cosmetic. A blank editor after a FAILED
+  // read is destructive: Save posts the whole record, so the operator would
+  // replace a stored company, title, notes and custom fields they were never
+  // shown (issues #57). Until the read answers, this form may not be saved.
+  const [readState, setReadState] = useState<"loading" | "ready" | "unavailable">("loading");
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    setReadState("loading");
     fetch(`/api/portal/website-enquiries/contact-details?enquiryId=${encodeURIComponent(enquiryId)}`)
-      .then(response => (response.ok ? response.json() : null))
-      .then((data: { ok?: boolean; details?: EnquiryContactDetails | null } | null) => {
-        if (cancelled || !data?.ok || !data.details) return;
-        const details = data.details;
-        setCompany(details.company ?? "");
-        setJobTitle(details.jobTitle ?? "");
-        setNotes(details.notes ?? "");
-        setCustomFields(Object.entries(details.customFields ?? {}).map(([key, value]) => ({ key, value })));
+      .then(async response => {
+        if (!response.ok) throw new Error(`read failed (${response.status})`);
+        return (await response.json()) as { ok?: boolean; details?: EnquiryContactDetails | null };
       })
-      .catch(() => { /* an empty form is the right starting point */ });
+      .then(data => {
+        if (cancelled) return;
+        if (!data?.ok) throw new Error("read refused");
+        const details = data.details;
+        // `ok` with no details is a real answer: nothing has been added by hand
+        // yet, so a blank editor IS the truth and Save is safe.
+        setCompany(details?.company ?? "");
+        setJobTitle(details?.jobTitle ?? "");
+        setNotes(details?.notes ?? "");
+        setCustomFields(Object.entries(details?.customFields ?? {}).map(([key, value]) => ({ key, value })));
+        setReadState("ready");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        // Deliberately NOT "an empty form is the right starting point".
+        setReadState("unavailable");
+      });
     return () => { cancelled = true; };
-  }, [enquiryId]);
+  }, [enquiryId, attempt]);
 
   const dirty = () => setSaved(false);
   const setCustom = (index: number, part: "key" | "value", value: string) => {
@@ -356,6 +374,12 @@ function ManualContactDetails({ enquiryId }: { enquiryId: string }) {
   };
 
   async function save() {
+    // Belt and braces — the button is disabled, but a save that overwrites an
+    // unseen record must be impossible, not merely inconvenient.
+    if (readState !== "ready") {
+      setError("These details were never read, so saving would overwrite what is stored. Retry the read first.");
+      return;
+    }
     setBusy(true);
     setError(null);
     setSaved(false);
@@ -377,31 +401,41 @@ function ManualContactDetails({ enquiryId }: { enquiryId: string }) {
     }
   }
 
+  const locked = readState !== "ready";
+
   return (
     <div className="mt-3 border-t border-black/[0.07] pt-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <SectionLabel>Added by hand</SectionLabel>
-        <span className="text-[11px] text-black/40">Fill in what the form didn&rsquo;t ask</span>
+        <span className="text-[11px] text-black/40">{readState === "unavailable" ? "Not read" : "Fill in what the form didn’t ask"}</span>
       </div>
+      {readState === "unavailable" ? (
+        <p role="status" className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] leading-5 text-amber-900">
+          The details already recorded against this enquiry could not be read, so this form is empty because of a failure, not because nothing is stored.
+          Saving now would replace what is there.
+          {" "}
+          <button type="button" onClick={() => setAttempt(current => current + 1)} className="font-semibold underline underline-offset-2">Retry the read</button>
+        </p>
+      ) : null}
       <div className="mt-2 grid gap-2 sm:grid-cols-2">
-        <input value={company} onChange={event => { setCompany(event.target.value); dirty(); }} placeholder="Company" aria-label="Company" className="min-h-9 rounded-md border border-black/12 bg-white px-2.5 text-xs outline-none focus:border-black/30" />
-        <input value={jobTitle} onChange={event => { setJobTitle(event.target.value); dirty(); }} placeholder="Job title" aria-label="Job title" className="min-h-9 rounded-md border border-black/12 bg-white px-2.5 text-xs outline-none focus:border-black/30" />
+        <input value={company} disabled={locked} onChange={event => { setCompany(event.target.value); dirty(); }} placeholder="Company" aria-label="Company" className="min-h-9 rounded-md border border-black/12 bg-white px-2.5 text-xs outline-none focus:border-black/30 disabled:bg-black/[0.03] disabled:text-black/35" />
+        <input value={jobTitle} disabled={locked} onChange={event => { setJobTitle(event.target.value); dirty(); }} placeholder="Job title" aria-label="Job title" className="min-h-9 rounded-md border border-black/12 bg-white px-2.5 text-xs outline-none focus:border-black/30 disabled:bg-black/[0.03] disabled:text-black/35" />
       </div>
-      <textarea value={notes} onChange={event => { setNotes(event.target.value); dirty(); }} rows={2} placeholder="Notes — what you've learned about this enquirer" aria-label="Notes" className="mt-2 w-full rounded-md border border-black/12 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-black/30" />
+      <textarea value={notes} disabled={locked} onChange={event => { setNotes(event.target.value); dirty(); }} rows={2} placeholder="Notes — what you've learned about this enquirer" aria-label="Notes" className="mt-2 w-full rounded-md border border-black/12 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-black/30 disabled:bg-black/[0.03] disabled:text-black/35" />
       {customFields.length ? (
         <div className="mt-2 grid gap-1.5">
           {customFields.map((field, index) => (
             <div key={index} className="grid grid-cols-[minmax(0,10rem)_minmax(0,1fr)_auto] gap-1.5">
-              <input value={field.key} onChange={event => setCustom(index, "key", event.target.value)} placeholder="Field" aria-label="Custom field name" className="min-h-8 rounded-md border border-black/12 bg-white px-2 text-xs outline-none focus:border-black/30" />
-              <input value={field.value} onChange={event => setCustom(index, "value", event.target.value)} placeholder="Value" aria-label="Custom field value" className="min-h-8 rounded-md border border-black/12 bg-white px-2 text-xs outline-none focus:border-black/30" />
-              <button type="button" onClick={() => { setCustomFields(current => current.filter((_, position) => position !== index)); dirty(); }} aria-label="Remove field" className="grid size-8 place-items-center rounded-md border border-black/10 text-black/35 hover:border-red-300 hover:text-red-600"><X size={13} aria-hidden /></button>
+              <input value={field.key} disabled={locked} onChange={event => setCustom(index, "key", event.target.value)} placeholder="Field" aria-label="Custom field name" className="min-h-8 rounded-md border border-black/12 bg-white px-2 text-xs outline-none focus:border-black/30 disabled:bg-black/[0.03] disabled:text-black/35" />
+              <input value={field.value} disabled={locked} onChange={event => setCustom(index, "value", event.target.value)} placeholder="Value" aria-label="Custom field value" className="min-h-8 rounded-md border border-black/12 bg-white px-2 text-xs outline-none focus:border-black/30 disabled:bg-black/[0.03] disabled:text-black/35" />
+              <button type="button" disabled={locked} onClick={() => { setCustomFields(current => current.filter((_, position) => position !== index)); dirty(); }} aria-label="Remove field" className="grid size-8 place-items-center rounded-md border border-black/10 text-black/35 hover:border-red-300 hover:text-red-600 disabled:opacity-40"><X size={13} aria-hidden /></button>
             </div>
           ))}
         </div>
       ) : null}
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <button type="button" onClick={() => { setCustomFields(current => [...current, { key: "", value: "" }]); dirty(); }} className="inline-flex min-h-8 items-center gap-1 rounded-md border border-black/12 px-2 text-[11px] font-medium text-black/60 hover:text-black">+ Add field</button>
-        <button type="button" onClick={() => void save()} disabled={busy} className="inline-flex min-h-8 items-center gap-1.5 rounded-md bg-black px-3 text-[11px] font-semibold text-white disabled:opacity-50">{busy ? "Saving…" : "Save details"}</button>
+        <button type="button" disabled={locked} onClick={() => { setCustomFields(current => [...current, { key: "", value: "" }]); dirty(); }} className="inline-flex min-h-8 items-center gap-1 rounded-md border border-black/12 px-2 text-[11px] font-medium text-black/60 hover:text-black disabled:opacity-40">+ Add field</button>
+        <button type="button" onClick={() => void save()} disabled={busy || locked} title={locked ? "The stored details have not been read yet" : undefined} className="inline-flex min-h-8 items-center gap-1.5 rounded-md bg-black px-3 text-[11px] font-semibold text-white disabled:opacity-50">{busy ? "Saving…" : "Save details"}</button>
         {saved ? <span className="text-[11px] text-emerald-600">Saved</span> : null}
         {error ? <span role="alert" className="text-[11px] text-red-600">{error}</span> : null}
       </div>

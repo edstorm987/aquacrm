@@ -2690,6 +2690,14 @@ export interface CompanyQuarterlyReview {
   id: string;
   period: string;
   status?: "draft" | "complete";
+  /**
+   * Lineage of a locked cycle. A completed review is immutable; correcting it
+   * means publishing an explicit superseding record that names the review it
+   * amends, so the original evidence and reasoning stay inspectable.
+   */
+  amendsReviewId?: string;
+  /** 1 for an original cycle, incremented per amendment. Server-assigned. */
+  version?: number;
   executiveSummary?: string;
   wins: string;
   misses?: string;
@@ -2897,6 +2905,12 @@ export interface CompanyProfile {
   objectives: CompanyObjective[];
   plans: CompanyPlan[];
   reviews: CompanyQuarterlyReview[];
+  /**
+   * Monotonic write counter used for optimistic concurrency. A writer sends the
+   * revision it loaded; a mismatch is refused with the current profile rather
+   * than silently overwriting another session's work.
+   */
+  revision: number;
   updatedAt: number;
 }
 

@@ -1,13 +1,10 @@
 import { NextResponse } from "next/server";
-import { ensureHydrated, flushPendingWrites, isSandboxDataRealm } from "@/server/storage";
+import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES, CLIENT_ROLES } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { logActivity } from "@/server/activity";
-import { unlink } from "node:fs/promises";
-import { join, resolve } from "node:path";
-import { del } from "@vercel/blob";
-import { deleteSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
+import { deletePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { cleanClientPaymentPlans } from "@/lib/clients/clientPaymentPlans";
 import { cleanClientRecordEntries } from "@/lib/clients/clientRelationshipRecord";
 import { removeClientRecordLedgerEvent, upsertClientFileLedgerEvent } from "@/lib/server/clients/clientRecordLedger";
@@ -34,6 +31,15 @@ export interface ClientFileRef {
   collectionId?: string;
   recordEntryId?: string;
   customerVisible?: boolean;
+  /**
+   * Set when the provider refused to remove the binary. The record is kept —
+   * with its `storageKey` — so the file is still listed, still reconcilable and
+   * can be retried, rather than vanishing from the portal while the object
+   * lives on in storage.
+   */
+  deleteState?: "delete-failed";
+  deleteError?: string;
+  deleteFailedAt?: number;
 }
 
 interface AddBody {
@@ -180,20 +186,37 @@ export async function POST(req: Request) {
     const before = files.length;
     const next = files.filter(f => f.id !== body.fileId);
     if (next.length === before) return NextResponse.json({ ok: false, error: "file not found" }, { status: 404 });
-    if (!isSandboxDataRealm()) {
-      if (target?.storageProvider === "supabase" && target.storageKey) {
-        await deleteSupabasePrivateUpload(target.storageKey).catch(() => false);
-      }
-      if (target?.storageProvider === "vercel-blob" && target.storageKey) {
-        await del(target.storageKey).catch(() => undefined);
-      }
-      if (target?.storageProvider === "local" && target.storageKey) {
-        const uploadRoot = resolve(process.cwd(), ".data", "client-uploads");
-        const targetPath = resolve(uploadRoot, target.storageKey);
-        if (targetPath.startsWith(`${uploadRoot}/`)) {
-          await unlink(targetPath).catch(() => undefined);
-        }
-      }
+    // Remove the binary FIRST and only drop the record when that converged.
+    // A swallowed provider error used to answer "removed" while the object was
+    // still stored and its only reference had just been deleted.
+    const removal = await deletePrivateUpload({
+      storageProvider: target?.storageProvider,
+      storageKey: target?.storageKey,
+      localDirectory: "client-uploads",
+    });
+    if (!removal.ok) {
+      const retained = files.map(file => file.id === body.fileId
+        ? { ...file, deleteState: "delete-failed" as const, deleteError: removal.error, deleteFailedAt: Date.now() }
+        : file);
+      updateClient(session.agencyId, body.clientId, { metadata: { files: retained } });
+      logActivity({
+        agencyId: session.agencyId,
+        clientId: client.id,
+        actorUserId: session.userId,
+        actorEmail: session.email,
+        category: "files",
+        action: "client_file.remove_failed",
+        message: `“${target?.name ?? "A project file"}” could not be removed from storage, so it is still stored.`,
+        metadata: { fileId: body.fileId, category: target?.category, error: removal.error },
+      });
+      await flushPendingWrites();
+      return NextResponse.json({
+        ok: false,
+        code: "storage_delete_failed",
+        error: `“${target?.name ?? "This file"}” is still stored — the storage provider refused to remove it, so it has been kept here to retry rather than hidden.`,
+        detail: removal.error,
+        files: retained,
+      }, { status: 502 });
     }
     const updated = updateClient(session.agencyId, body.clientId, { metadata: { files: next } });
     if (!updated) return NextResponse.json({ ok: false, error: "update failed" }, { status: 500 });

@@ -284,10 +284,16 @@ export function DevelopmentToolkitWorkspace({
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ action: "resource:delete", resourceId: resource.id }),
     });
-    if (response.ok) {
-      setResources(current => current.filter(item => item.id !== resource.id));
-      setTotal(value => Math.max(0, value - 1));
+    const result = await response.json().catch(() => null) as { ok?: boolean; error?: string } | null;
+    if (!response.ok || !result?.ok) {
+      // A refused storage delete keeps the resource on purpose. Saying nothing
+      // would read as "nothing happened" while the file is still stored.
+      setNotice(result?.error ?? "The resource could not be deleted.");
+      return;
     }
+    setResources(current => current.filter(item => item.id !== resource.id));
+    setTotal(value => Math.max(0, value - 1));
+    setNotice(`“${resource.title}” was deleted.`);
   }
 
   async function importWorkspace() {

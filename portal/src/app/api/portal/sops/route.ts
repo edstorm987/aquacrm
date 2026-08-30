@@ -1,12 +1,9 @@
-import { unlink } from "node:fs/promises";
-import { resolve } from "node:path";
-import { del } from "@vercel/blob";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
-import { deleteSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
-import { createInteractiveSop, createWrittenSop, deleteSopRecord, listSops, updateSop } from "@/engines/sop/server/sops";
-import { ensureHydrated, isSandboxDataRealm } from "@/server/storage";
+import { deletePrivateUpload } from "@/lib/server/privateUploadStorage";
+import { createInteractiveSop, createWrittenSop, deleteSopRecord, getSop, listSops, updateSop } from "@/engines/sop/server/sops";
+import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 import type { BlockTreeJSON } from "@/engines/editor/elements";
 
@@ -112,22 +109,25 @@ export async function DELETE(request: NextRequest) {
     const session = await agencySession(request);
     const id = new URL(request.url).searchParams.get("id")?.trim();
     if (!id) return NextResponse.json({ ok: false, error: "id required" }, { status: 400 });
-    const sop = deleteSopRecord(session.agencyId, id);
+    const sop = getSop(session.agencyId, id);
     if (!sop) return NextResponse.json({ ok: false, error: "SOP not found" }, { status: 404 });
 
-    if (!isSandboxDataRealm()) {
-      if (sop.storageProvider === "supabase" && sop.storageKey) {
-        await deleteSupabasePrivateUpload(sop.storageKey).catch(() => false);
-      }
-      if (sop.storageProvider === "vercel-blob" && sop.storageKey) {
-        await del(sop.storageKey).catch(() => undefined);
-      }
-      if (sop.storageProvider === "local" && sop.storageKey) {
-        const uploadRoot = resolve(process.cwd(), ".data", "sop-uploads");
-        const targetPath = resolve(uploadRoot, sop.storageKey);
-        if (targetPath.startsWith(`${uploadRoot}/`)) await unlink(targetPath).catch(() => undefined);
-      }
+    // Storage first: the record is the only handle on the stored object, so it
+    // must survive a provider refusal instead of being deleted regardless.
+    const removal = await deletePrivateUpload({
+      storageProvider: sop.storageProvider,
+      storageKey: sop.storageKey,
+      localDirectory: "sop-uploads",
+    });
+    if (!removal.ok) {
+      return NextResponse.json({
+        ok: false,
+        code: "storage_delete_failed",
+        error: `“${sop.title}” is still stored — the storage provider refused to remove its file, so the SOP has been kept to retry.`,
+        detail: removal.error,
+      }, { status: 502 });
     }
+    if (!deleteSopRecord(session.agencyId, id)) return NextResponse.json({ ok: false, error: "SOP not found" }, { status: 404 });
     return NextResponse.json({ ok: true });
   } catch (error) {
     return authErrorResponse(error);

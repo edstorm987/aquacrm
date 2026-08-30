@@ -102,7 +102,10 @@ export const emailEnqueuePort: EmailEnqueuePort = {
       isFoundationRegistered: () => boolean;
       containerFor: (args: { agencyId: string; storage: unknown; install?: unknown }) => {
         emails: { enqueue: (i: unknown) => Promise<{ id: string }> };
-        delivery: { deliver: (id: string) => Promise<{ ok: boolean; reason?: string }> };
+        delivery: {
+          deliver: (id: string) => Promise<{ ok: boolean; reason?: string; code?: string }>;
+          retry: (id: string) => Promise<{ ok: boolean; reason?: string; code?: string }>;
+        };
       };
     };
     if (!sender.isFoundationRegistered()) throw new Error("Email sender is not configured.");
@@ -123,10 +126,103 @@ export const emailEnqueuePort: EmailEnqueuePort = {
       triggeredByPlugin: input.triggeredByPlugin,
       externalRef: input.externalRef,
     });
-    const delivered = await container.delivery.deliver(message.id);
-    return { messageId: message.id, delivered: delivered.ok, error: delivered.reason };
+    const first = await container.delivery.deliver(message.id);
+    // A second send with the same `externalRef` collapses onto the SAME durable
+    // outbox row (EmailService.enqueue is idempotent on it), and `deliver()`
+    // refuses a row already in the terminal `failed`/`bounced` state. Without
+    // this hop a caller's retry — a campaign re-running its unfinished
+    // recipients — would report `terminal_state` forever and the provider would
+    // never be asked again. `retry()` is the same reset-and-deliver path the
+    // Outbox retry button uses; a row that already sent short-circuits to
+    // `ok: true` above, so nobody is emailed twice.
+    const delivered = first.code === "terminal_state"
+      ? await container.delivery.retry(message.id)
+      : first;
+    // `code` travels so the caller can tell "the provider refused this person"
+    // from "there is no provider yet, the row is still queued" — a campaign
+    // must not report the second as a failed delivery attempt.
+    return {
+      messageId: message.id,
+      delivered: delivered.ok,
+      error: delivered.reason,
+      code: delivered.code,
+    };
   },
 };
+
+// ─── Delivery readiness (same predicate email-sender's own Outbox uses) ───
+//
+// Campaign readiness must come from the PROVIDER, not from "the plugin row
+// exists and is enabled" — installing email-sender delivers nothing on its
+// own (issues #32). Lives here with the rest of the cross-plugin glue so the
+// leads-pipeline pages never import email-sender directly.
+
+export interface EmailSenderReadiness {
+  ready: boolean;
+  reason: string;
+}
+
+export async function emailSenderDeliveryReadiness(
+  agencyId: string,
+): Promise<EmailSenderReadiness> {
+  let sender: {
+    isFoundationRegistered: () => boolean;
+    containerFor: (args: { agencyId: string; storage: unknown; install?: unknown }) => {
+      provider: { get: () => Promise<{ provider: string; status: string; errorMessage?: string }> };
+      identities: { list: () => Promise<Array<{ status: string }>> };
+    };
+  };
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    sender = (await import("@aqua/plugin-email-sender/server" as any)) as never;
+  } catch {
+    return { ready: false, reason: "Email sender is not installed in this workspace." };
+  }
+  if (!sender.isFoundationRegistered()) {
+    return { ready: false, reason: "Email sender is not wired up on this server yet." };
+  }
+  const { makePluginStorage } = await import("@/lib/server/pluginStorage");
+  const { getInstall } = await import("@/server/pluginInstalls");
+  const install = getInstall({ agencyId }, "email-sender");
+  if (!install) return { ready: false, reason: "Email sender is not installed for this agency." };
+  if (!install.enabled) return { ready: false, reason: "Email sender is installed but switched off." };
+  // The probe runs while a page renders. A container/storage fault must degrade
+  // to "not ready, here is why" — never take the Campaigns page down, and never
+  // be reported as ready.
+  let provider: { provider: string; status: string; errorMessage?: string };
+  let identities: Array<{ status: string }>;
+  try {
+    const container = sender.containerFor({
+      agencyId,
+      storage: makePluginStorage(install.id),
+      install,
+    });
+    [provider, identities] = await Promise.all([
+      container.provider.get(),
+      container.identities.list(),
+    ]);
+  } catch (err) {
+    return {
+      ready: false,
+      reason: `Email sender could not be read: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+  if (provider.provider === "none") {
+    return { ready: false, reason: "No email provider is configured, so nothing can be delivered." };
+  }
+  if (provider.status !== "active") {
+    return {
+      ready: false,
+      reason: provider.errorMessage
+        ? `${provider.provider} is ${provider.status}: ${provider.errorMessage}`
+        : `${provider.provider} is ${provider.status} — run a test send before campaigning.`,
+    };
+  }
+  if (!identities.some(identity => identity.status === "active")) {
+    return { ready: false, reason: "No verified sender identity, so campaigns have no From address." };
+  }
+  return { ready: true, reason: `${provider.provider} is active and verified.` };
+}
 
 // ─── PipelinePort (adapter onto T1 R034 foundation pipelines) ────────────
 

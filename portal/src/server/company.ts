@@ -54,20 +54,47 @@ const defaults = (agencyId: string, companyId?: string | null): CompanyProfile =
   objectives: [],
   plans: [],
   reviews: [],
+  revision: 0,
   updatedAt: 0,
 });
 
-export function getCompanyProfile(agencyId: string, companyId?: string | null): CompanyProfile {
-  const key = profileKey(agencyId, companyId);
+function normaliseProfile(stored: CompanyProfile | undefined, agencyId: string, companyId?: string | null): CompanyProfile {
   const fallback = defaults(agencyId, companyId);
-  const stored = getState().companyProfiles[key];
   return {
     ...fallback,
     ...stored,
     capacity: cleanCapacity(stored?.capacity ?? fallback.capacity, fallback.capacity),
+    revision: cleanNumber(stored?.revision, 0, 0, Number.MAX_SAFE_INTEGER),
     agencyId,
     companyId: companyId || undefined,
   };
+}
+
+export function getCompanyProfile(agencyId: string, companyId?: string | null): CompanyProfile {
+  return normaliseProfile(getState().companyProfiles[profileKey(agencyId, companyId)], agencyId, companyId);
+}
+
+/**
+ * A write that lost the race. It carries the live profile so the caller can
+ * answer with the current state instead of a bare failure — the same
+ * current-state 409 shape the product workspaces use.
+ */
+export class CompanyProfileConflictError extends Error {
+  constructor(public readonly current: CompanyProfile, public readonly expectedRevision: number) {
+    super("This company plan changed in another session. The latest version has been loaded; reapply your change and save again.");
+    this.name = "CompanyProfileConflictError";
+  }
+}
+
+/**
+ * A locked quarterly cycle is decision memory: it cannot be edited in place or
+ * dropped. Correcting it means an explicit superseding amendment.
+ */
+export class CompanyReviewLockedError extends Error {
+  constructor(public readonly reviewId: string, public readonly period: string, message: string) {
+    super(message);
+    this.name = "CompanyReviewLockedError";
+  }
 }
 
 export function updateCompanyProfile(
@@ -75,27 +102,46 @@ export function updateCompanyProfile(
   input: Partial<CompanyProfile>,
   actorUserId: string,
   companyId?: string | null,
+  options?: { expectedRevision?: number },
 ): CompanyProfile {
-  const current = getCompanyProfile(agencyId, companyId);
-  const updated: CompanyProfile = {
-    agencyId,
-    companyId: companyId || undefined,
-    mission: cleanText(input.mission ?? current.mission, 2_000),
-    vision: cleanText(input.vision ?? current.vision, 2_000),
-    values: cleanList(input.values ?? current.values, 20, 100),
-    monthlyRevenueTargetCents: cleanMoney(input.monthlyRevenueTargetCents, current.monthlyRevenueTargetCents),
-    averageDealValueCents: cleanMoney(input.averageDealValueCents, current.averageDealValueCents),
-    salesCallCloseRatePercent: cleanNumber(input.salesCallCloseRatePercent, current.salesCallCloseRatePercent, 1, 100),
-    annualRevenueTargetCents: cleanMoney(input.annualRevenueTargetCents, current.annualRevenueTargetCents),
-    capacity: cleanCapacity(input.capacity ?? current.capacity, current.capacity),
-    projection: cleanProjection(input.projection ?? current.projection, current.projection),
-    capital: cleanCapital(input.capital ?? current.capital, current.capital),
-    objectives: cleanObjectives(input.objectives ?? current.objectives),
-    plans: cleanPlans(input.plans ?? current.plans),
-    reviews: cleanReviews(input.reviews ?? current.reviews),
-    updatedAt: Date.now(),
-  };
-  mutate(state => { state.companyProfiles[profileKey(agencyId, companyId)] = updated; });
+  const expectedRevision = options?.expectedRevision;
+  let conflict: CompanyProfile | null = null;
+  let updated: CompanyProfile | null = null;
+  mutate(state => {
+    const key = profileKey(agencyId, companyId);
+    const current = normaliseProfile(state.companyProfiles[key], agencyId, companyId);
+    if (expectedRevision !== undefined && expectedRevision !== current.revision) {
+      conflict = current;
+      return;
+    }
+    updated = {
+      agencyId,
+      companyId: companyId || undefined,
+      mission: cleanText(input.mission ?? current.mission, 2_000),
+      vision: cleanText(input.vision ?? current.vision, 2_000),
+      values: cleanList(input.values ?? current.values, 20, 100),
+      monthlyRevenueTargetCents: cleanMoney(input.monthlyRevenueTargetCents, current.monthlyRevenueTargetCents),
+      averageDealValueCents: cleanMoney(input.averageDealValueCents, current.averageDealValueCents),
+      salesCallCloseRatePercent: cleanNumber(input.salesCallCloseRatePercent, current.salesCallCloseRatePercent, 1, 100),
+      annualRevenueTargetCents: cleanMoney(input.annualRevenueTargetCents, current.annualRevenueTargetCents),
+      capacity: cleanCapacity(input.capacity ?? current.capacity, current.capacity),
+      projection: cleanProjection(input.projection ?? current.projection, current.projection),
+      capital: cleanCapital(input.capital ?? current.capital, current.capital),
+      objectives: cleanObjectives(input.objectives ?? current.objectives),
+      plans: cleanPlans(input.plans ?? current.plans),
+      reviews: cleanReviews(input.reviews ?? current.reviews, current.reviews),
+      revision: current.revision + 1,
+      updatedAt: Date.now(),
+    };
+    state.companyProfiles[key] = updated;
+  });
+  // TypeScript does not track assignments made inside the `mutate` callback,
+  // so read both outcomes back through an explicit widening (the same shape the
+  // versioned product-workspace commit uses).
+  const losingRace = conflict as CompanyProfile | null;
+  if (losingRace) throw new CompanyProfileConflictError(losingRace, expectedRevision as number);
+  const saved = updated as CompanyProfile | null;
+  if (!saved) throw new Error("The company plan could not be saved.");
   logActivity({
     agencyId,
     actorUserId,
@@ -104,7 +150,7 @@ export function updateCompanyProfile(
     message: companyId ? "Updated trading company direction, targets, or plans." : "Updated company direction, targets, or plans.",
     metadata: companyId ? { companyId } : undefined,
   });
-  return updated;
+  return saved;
 }
 
 function cleanCapital(value: unknown, fallback: CompanyCapitalPlan): CompanyCapitalPlan {
@@ -416,7 +462,71 @@ function cleanPlans(value: unknown): CompanyPlan[] {
   });
 }
 
-function cleanReviews(value: unknown): CompanyQuarterlyReview[] {
+/**
+ * A quarterly cycle that has been locked is the retained record of a decision.
+ * It is frozen: the incoming array may carry it forward unchanged, but any edit
+ * or omission is refused so a later strategy change has to be published as an
+ * explicit numbered amendment instead of quietly rewriting history.
+ */
+function cleanReviews(value: unknown, stored: CompanyQuarterlyReview[] = []): CompanyQuarterlyReview[] {
+  const lockedById = new Map(stored.filter(review => review.status === "complete").map(review => [review.id, review]));
+  const candidates = cleanReviewRecords(value);
+
+  for (const candidate of candidates) {
+    const locked = lockedById.get(candidate.id);
+    if (locked && !sameReview(locked, candidate)) {
+      throw new CompanyReviewLockedError(
+        locked.id,
+        locked.period,
+        `The ${locked.period} strategy review is locked. Publish an amendment that supersedes it rather than editing the retained record.`,
+      );
+    }
+  }
+
+  const present = new Set(candidates.map(candidate => candidate.id));
+  const dropped = [...lockedById.values()].find(review => !present.has(review.id));
+  if (dropped) {
+    throw new CompanyReviewLockedError(
+      dropped.id,
+      dropped.period,
+      `The ${dropped.period} strategy review is locked and cannot be removed from the decision record.`,
+    );
+  }
+
+  // Amendment lineage is server-assigned so a client cannot claim a version.
+  const byId = new Map(candidates.map(candidate => [candidate.id, candidate]));
+  return candidates.map(candidate => {
+    const locked = lockedById.get(candidate.id);
+    if (locked) return locked;
+    const amends = candidate.amendsReviewId && candidate.amendsReviewId !== candidate.id
+      ? lockedById.get(candidate.amendsReviewId) ?? byId.get(candidate.amendsReviewId)
+      : undefined;
+    // The base's version is only trusted when it comes from the stored locked
+    // record; a version arriving on the wire is never believed, so a crafted
+    // PUT cannot mint a lineage number for a cycle that has none.
+    return amends
+      ? { ...candidate, amendsReviewId: amends.id, version: (lockedById.get(amends.id)?.version ?? 1) + 1 }
+      : { ...candidate, amendsReviewId: undefined, version: 1 };
+  });
+}
+
+/**
+ * Field-for-field equality of a carried-forward locked review. Anything that
+ * differs — including the evidence snapshot a live save would have overwritten
+ * — counts as an edit. Lineage fields are server-owned and excluded.
+ */
+function sameReview(locked: CompanyQuarterlyReview, candidate: CompanyQuarterlyReview): boolean {
+  return reviewFingerprint(locked) === reviewFingerprint(candidate);
+}
+
+function reviewFingerprint(review: CompanyQuarterlyReview): string {
+  const entries = Object.entries(review as unknown as Record<string, unknown>)
+    .filter(([key, value]) => value !== undefined && key !== "version" && key !== "amendsReviewId")
+    .sort(([a], [b]) => a.localeCompare(b));
+  return JSON.stringify(entries);
+}
+
+function cleanReviewRecords(value: unknown): CompanyQuarterlyReview[] {
   if (!Array.isArray(value)) return [];
   return value.slice(0, 40).flatMap(raw => {
     if (!raw || typeof raw !== "object") return [];
@@ -430,6 +540,8 @@ function cleanReviews(value: unknown): CompanyQuarterlyReview[] {
       id: cleanId(item.id, "review"),
       period,
       status: item.status === "complete" ? "complete" : "draft",
+      amendsReviewId: cleanText(item.amendsReviewId, 80).toLowerCase().replace(/[^a-z0-9-]/g, "-") || undefined,
+      version: typeof item.version === "number" ? cleanNumber(item.version, 1, 1, 1_000) : undefined,
       executiveSummary: cleanText(item.executiveSummary, 8_000) || undefined,
       wins: cleanText(item.wins, 8_000),
       misses: cleanText(item.misses, 8_000) || undefined,

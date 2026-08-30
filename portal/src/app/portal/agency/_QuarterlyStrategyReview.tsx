@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { Bot, CheckCircle2, ClipboardCheck, Compass, Gauge, History, Save, ShieldAlert, Sparkles, Target } from "lucide-react";
+import { Bot, CheckCircle2, ClipboardCheck, Compass, FilePlus2, Gauge, History, Lock, Save, ShieldAlert, Sparkles, Target } from "lucide-react";
 
 import type { CompanyProfile, CompanyQuarterlyEvidenceSnapshot, CompanyQuarterlyReview, CompanyQuarterlyScorecard } from "@/server/types";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
@@ -20,10 +20,15 @@ export function QuarterlyStrategyReview({ company, evidence, currency, canEdit, 
   onSave: SaveCompany;
 }) {
   const defaultPeriod = currentQuarter();
-  const existing = company.reviews.find(review => review.period === defaultPeriod);
+  const existing = activeReviewForPeriod(company.reviews, defaultPeriod);
   const [draft, setDraft] = useState<CompanyQuarterlyReview>(() => draftFromReview(existing, defaultPeriod));
   const [stage, setStage] = useState<ReviewStage>("evidence");
   const [dirty, setDirty] = useState(false);
+  // A locked cycle is the retained record of a decision. It is read-only here;
+  // correcting it means publishing an amendment that supersedes it, so the
+  // original evidence and reasoning stay inspectable in History.
+  const locked = draft.status === "complete";
+  const editable = canEdit && !locked;
   const questions = useMemo(() => strategyQuestions(evidence), [evidence]);
   const required = [
     draft.executiveSummary,
@@ -43,18 +48,39 @@ export function QuarterlyStrategyReview({ company, evidence, currency, canEdit, 
   const completionReady = required.every(Boolean);
 
   function change(patch: Partial<CompanyQuarterlyReview>) {
-    setDraft(current => ({ ...current, ...patch, status: "draft", completedAt: undefined }));
+    // Editing no longer silently unlocks a completed cycle back to draft.
+    if (!editable) return;
+    setDraft(current => ({ ...current, ...patch }));
     setDirty(true);
   }
 
+  /** Open a superseding cycle that carries the locked one forward, unchanged. */
+  function amend() {
+    if (!canEdit || !locked) return;
+    setDraft({
+      ...draft,
+      id: `review-${Date.now()}`,
+      amendsReviewId: draft.id,
+      version: (draft.version ?? 1) + 1,
+      status: "draft",
+      completedAt: undefined,
+      evidenceSnapshot: undefined,
+      updatedAt: Date.now(),
+    });
+    setDirty(true);
+    setStage("evidence");
+  }
+
   async function persist(status: "draft" | "complete") {
-    if (!canEdit || (status === "complete" && !completionReady)) return;
+    if (!editable || (status === "complete" && !completionReady)) return;
     const now = Date.now();
     const review: CompanyQuarterlyReview = {
       ...draft,
       period: draft.period.trim() || defaultPeriod,
       status,
       scorecard: draft.scorecard ?? emptyScorecard,
+      // Evidence is only ever captured onto an open cycle; a locked one keeps
+      // the readings its decisions were actually taken against.
       evidenceSnapshot: evidence,
       completedAt: status === "complete" ? draft.completedAt ?? now : draft.completedAt,
       updatedAt: now,
@@ -73,7 +99,9 @@ export function QuarterlyStrategyReview({ company, evidence, currency, canEdit, 
     <div className="min-w-0 border-b border-[#d7b56d]/16 xl:border-b-0 xl:border-r">
       <header className="flex flex-wrap items-start justify-between gap-4 border-b border-[#d7b56d]/16 bg-[#071116]/78 p-4 sm:p-6">
         <div className="flex min-w-0 items-start gap-3"><span className="grid size-11 shrink-0 place-items-center border border-[#d7b56d]/32 bg-[#d7b56d]/[0.07] text-[#e4c783]"><ClipboardCheck size={19} /></span><div><p className="text-[9px] font-semibold uppercase text-[#e4c783]/60">QR-01 · Executive strategy cycle</p><h2 id="quarterly-strategy-heading" className="mt-1 text-xl font-semibold">Quarterly deep dive · {draft.period}</h2><p className="mt-1 max-w-2xl text-xs leading-5 text-white/38">A retained operating review: evidence, diagnosis, strategic choices, and measurable next-quarter commitments.</p></div></div>
-        <div className="flex flex-wrap items-center gap-2"><span className={`border px-3 py-2 text-[9px] font-semibold uppercase ${draft.status === "complete" ? "border-[#68f5d0]/30 bg-[#68f5d0]/[0.07] text-[#68f5d0]" : "border-[#d7b56d]/28 bg-[#d7b56d]/[0.06] text-[#e4c783]"}`}>{draft.status === "complete" ? "Cycle complete" : `${completion}% prepared`}</span>{canEdit ? <><button type="button" onClick={() => void persist("draft")} disabled={saving || !dirty} className="inline-flex min-h-9 items-center gap-2 border border-white/12 bg-white/[0.035] px-3 text-[9px] font-semibold uppercase text-white/62 disabled:opacity-35"><Save size={13} />Save draft</button><button type="button" onClick={() => void persist("complete")} disabled={saving || !completionReady} title={completionReady ? "Complete and retain this quarterly cycle" : "Complete every required diagnosis, decision, commitment, and score first"} className="inline-flex min-h-9 items-center gap-2 border border-[#68f5d0]/28 bg-[#68f5d0]/[0.08] px-3 text-[9px] font-semibold uppercase text-[#68f5d0] disabled:opacity-35"><CheckCircle2 size={13} />Lock review</button></> : null}</div>
+        <div className="flex flex-wrap items-center gap-2"><span className={`border px-3 py-2 text-[9px] font-semibold uppercase ${draft.status === "complete" ? "border-[#68f5d0]/30 bg-[#68f5d0]/[0.07] text-[#68f5d0]" : "border-[#d7b56d]/28 bg-[#d7b56d]/[0.06] text-[#e4c783]"}`}>{locked ? `Locked · v${draft.version ?? 1}` : `${completion}% prepared`}</span>{canEdit ? (locked
+          ? <button type="button" onClick={amend} className="inline-flex min-h-9 items-center gap-2 border border-[#d7b56d]/32 bg-[#d7b56d]/[0.08] px-3 text-[9px] font-semibold uppercase text-[#f1dba9]" title="This cycle is retained. Publish a superseding amendment rather than rewriting it."><FilePlus2 size={13} />Amend this cycle</button>
+          : <><button type="button" onClick={() => void persist("draft")} disabled={saving || !dirty} className="inline-flex min-h-9 items-center gap-2 border border-white/12 bg-white/[0.035] px-3 text-[9px] font-semibold uppercase text-white/62 disabled:opacity-35"><Save size={13} />Save draft</button><button type="button" onClick={() => void persist("complete")} disabled={saving || !completionReady} title={completionReady ? "Complete and retain this quarterly cycle" : "Complete every required diagnosis, decision, commitment, and score first"} className="inline-flex min-h-9 items-center gap-2 border border-[#68f5d0]/28 bg-[#68f5d0]/[0.08] px-3 text-[9px] font-semibold uppercase text-[#68f5d0] disabled:opacity-35"><CheckCircle2 size={13} />Lock review</button></>) : null}</div>
       </header>
 
       <nav className="grid grid-cols-2 border-b border-[#d7b56d]/15 sm:grid-cols-5" aria-label="Quarterly strategy stages">
@@ -84,24 +112,26 @@ export function QuarterlyStrategyReview({ company, evidence, currency, canEdit, 
         <StageButton active={stage === "history"} icon={<History size={14} />} label="History" onClick={() => setStage("history")} />
       </nav>
 
+      {locked && stage !== "history" ? <p role="note" className="flex items-start gap-2 border-b border-[#68f5d0]/22 bg-[#68f5d0]/[0.05] px-4 py-3 text-[10px] leading-4 text-[#8ff2d9] sm:px-6"><Lock size={13} className="mt-0.5 shrink-0" />This cycle is locked{draft.completedAt ? ` (completed ${formatUkDate(draft.completedAt, { dateStyle: "medium" })})` : ""}. Its evidence and reasoning are retained as they stood. Use <strong className="font-semibold">Amend this cycle</strong> to publish a superseding version instead of rewriting it.</p> : null}
+
       <div className="p-4 sm:p-6">
-        {stage === "evidence" ? <QuarterEvidence draft={draft} evidence={evidence} currency={currency} canEdit={canEdit} onChange={change} /> : null}
-        {stage === "diagnosis" ? <QuarterDiagnosis draft={draft} canEdit={canEdit} onChange={change} /> : null}
-        {stage === "strategy" ? <QuarterStrategy draft={draft} canEdit={canEdit} onChange={change} /> : null}
-        {stage === "commitment" ? <QuarterCommitment draft={draft} canEdit={canEdit} onChange={change} /> : null}
+        {stage === "evidence" ? <QuarterEvidence draft={draft} evidence={locked ? draft.evidenceSnapshot ?? evidence : evidence} locked={locked} currency={currency} canEdit={editable} onChange={change} /> : null}
+        {stage === "diagnosis" ? <QuarterDiagnosis draft={draft} canEdit={editable} onChange={change} /> : null}
+        {stage === "strategy" ? <QuarterStrategy draft={draft} canEdit={editable} onChange={change} /> : null}
+        {stage === "commitment" ? <QuarterCommitment draft={draft} canEdit={editable} onChange={change} /> : null}
         {stage === "history" ? <ReviewHistory reviews={company.reviews} currency={currency} /> : null}
       </div>
     </div>
 
     <aside className="grid content-start bg-[#061016]/84">
       <div className="border-b border-[#d7b56d]/16 p-5"><div className="flex items-start gap-2.5"><span className="grid size-9 shrink-0 place-items-center border border-[#68f5d0]/22 bg-[#68f5d0]/[0.055] text-[#68f5d0]"><Bot size={16} /></span><div><p className="text-[8px] font-semibold uppercase text-[#68f5d0]/60">Aqua strategy partner</p><h3 className="mt-1 text-sm font-semibold text-white/82">Questions raised by this quarter</h3></div></div><ol className="mt-4 divide-y divide-white/8 border-y border-white/8">{questions.map((question, index) => <li key={question} className="grid grid-cols-[26px_1fr] gap-2 py-3 text-[10px] leading-4 text-white/46"><span className="font-mono text-[#e4c783]/70">0{index + 1}</span><span>{question}</span></li>)}</ol><button type="button" onClick={() => window.dispatchEvent(new Event("aqua-advisor:open"))} className="mt-4 inline-flex min-h-9 w-full items-center justify-center gap-2 border border-[#62e8ff]/24 bg-[#62e8ff]/[0.055] text-[9px] font-semibold uppercase text-[#8ef1ff]"><Bot size={13} />Deep dive with Advisor</button></div>
-      <div className="p-5"><p className="text-[8px] font-semibold uppercase text-[#e4c783]/58">Cycle integrity</p><div className="mt-3 grid grid-cols-2 border border-white/8"><SmallReadout label="Evidence captured" value="Live" /><SmallReadout label="Required sections" value={`${required.filter(Boolean).length}/${required.length}`} /><SmallReadout label="Historical cycles" value={String(company.reviews.length)} /><SmallReadout label="Status" value={draft.status === "complete" ? "Locked" : "Draft"} /></div>{!completionReady ? <p className="mt-4 flex gap-2 text-[9px] leading-4 text-amber-200/55"><ShieldAlert size={13} className="mt-0.5 shrink-0" />A quarterly review cannot close until its diagnosis, strategy, measures, and owner commitment are explicit.</p> : null}</div>
+      <div className="p-5"><p className="text-[8px] font-semibold uppercase text-[#e4c783]/58">Cycle integrity</p><div className="mt-3 grid grid-cols-2 border border-white/8"><SmallReadout label="Evidence captured" value={locked ? "Retained" : "Live"} /><SmallReadout label="Required sections" value={`${required.filter(Boolean).length}/${required.length}`} /><SmallReadout label="Historical cycles" value={String(company.reviews.length)} /><SmallReadout label="Status" value={locked ? `Locked · v${draft.version ?? 1}` : "Draft"} /></div>{!completionReady ? <p className="mt-4 flex gap-2 text-[9px] leading-4 text-amber-200/55"><ShieldAlert size={13} className="mt-0.5 shrink-0" />A quarterly review cannot close until its diagnosis, strategy, measures, and owner commitment are explicit.</p> : null}</div>
     </aside>
   </section>;
 }
 
-function QuarterEvidence({ draft, evidence, currency, canEdit, onChange }: { draft: CompanyQuarterlyReview; evidence: CompanyQuarterlyEvidenceSnapshot; currency: string; canEdit: boolean; onChange: (patch: Partial<CompanyQuarterlyReview>) => void }) {
-  return <div><SectionHeading eyebrow="Evidence lock" title="What position did the business actually reach?" detail="These readings are captured into the review. Future changes cannot silently rewrite the context behind this quarter's decisions." />
+function QuarterEvidence({ draft, evidence, locked, currency, canEdit, onChange }: { draft: CompanyQuarterlyReview; evidence: CompanyQuarterlyEvidenceSnapshot; locked: boolean; currency: string; canEdit: boolean; onChange: (patch: Partial<CompanyQuarterlyReview>) => void }) {
+  return <div><SectionHeading eyebrow="Evidence lock" title="What position did the business actually reach?" detail={locked ? "These are the readings this cycle was locked against, not today's numbers. They are retained exactly as the decisions below were taken." : "These readings are captured into the review when it is locked. Once locked, no later save can rewrite the context behind this quarter's decisions."} />
     <div className="mt-5 grid grid-cols-2 border border-[#d7b56d]/16 md:grid-cols-4"><EvidenceReadout label="Revenue" value={money(evidence.revenueCents, currency)} detail={`${evidence.revenueProgressPercent}% of target`} /><EvidenceReadout label="Monthly growth" value={evidence.monthlyGrowthPercent === undefined ? "No baseline" : `${signed(evidence.monthlyGrowthPercent)}%`} detail="Previous month comparison" /><EvidenceReadout label="Business health" value={`${evidence.healthScore}/100`} detail="Executive health model" /><EvidenceReadout label="Capacity" value={`${evidence.capacityUtilisationPercent}%`} detail="Current utilisation" /><EvidenceReadout label="Active clients" value={String(evidence.activeClients)} detail={`${evidence.clientsNeedingAttention} need attention`} /><EvidenceReadout label="Open demand" value={String(evidence.openLeads)} detail="Leads in journey" /><EvidenceReadout label="Objectives" value={`${evidence.objectiveProgressPercent}%`} detail={`${evidence.objectivesAtRisk} at risk`} /><EvidenceReadout label="Evidence sources" value={`${evidence.connectedSources}/${evidence.totalSources}`} detail="Connected to the plot" /></div>
     <div className="mt-5 grid gap-4 lg:grid-cols-[180px_minmax(0,1fr)]"><ReviewText label="Review period" value={draft.period} disabled={!canEdit} onChange={period => onChange({ period })} placeholder="Q3 2026" rows={2} /><ReviewText label="Executive summary" value={draft.executiveSummary ?? ""} disabled={!canEdit} onChange={executiveSummary => onChange({ executiveSummary })} placeholder="In plain English: what state is the business in, and what changed most this quarter?" rows={4} /></div>
   </div>;
@@ -121,7 +151,8 @@ function QuarterCommitment({ draft, canEdit, onChange }: QuarterStageProps) {
 }
 
 function ReviewHistory({ reviews, currency }: { reviews: CompanyQuarterlyReview[]; currency: string }) {
-  return <div><SectionHeading eyebrow="Decision memory" title="Retained quarterly cycles" detail="Past evidence and reasoning remain inspectable, so a later strategy change can be explained rather than reconstructed." /><div className="mt-5 divide-y divide-white/10 border-y border-white/10">{reviews.map(review => <details key={review.id} className="group"><summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 px-3"><div><div className="flex flex-wrap items-center gap-2"><strong className="text-sm text-white/82">{review.period}</strong><span className={`border px-2 py-1 text-[8px] font-semibold uppercase ${review.status === "complete" ? "border-[#68f5d0]/22 text-[#68f5d0]" : "border-[#e4c783]/22 text-[#e4c783]"}`}>{review.status ?? "legacy"}</span></div><span className="mt-1 block text-[9px] uppercase text-white/28">Updated {formatUkDate(review.updatedAt, { dateStyle: "medium" })}{review.evidenceSnapshot ? ` · ${money(review.evidenceSnapshot.revenueCents, currency)} revenue position` : ""}</span></div><span className="text-[#e4c783] transition group-open:rotate-45">+</span></summary><div className="grid gap-5 px-3 pb-6 sm:grid-cols-2"><HistoryBlock label="Executive summary" value={review.executiveSummary} /><HistoryBlock label="Wins" value={review.wins} /><HistoryBlock label="Misses" value={review.misses} /><HistoryBlock label="Lessons" value={review.lessons} /><HistoryBlock label="Strategic bets" value={review.strategicBets} /><HistoryBlock label="Decisions" value={review.decisions} /><HistoryBlock label="Next priorities" value={review.nextPriorities} /><HistoryBlock label="Success measures" value={review.successMeasures} /></div></details>)}{!reviews.length ? <div className="py-16 text-center"><History size={24} className="mx-auto text-white/18" /><p className="mt-3 text-sm font-semibold text-white/45">No strategy cycle has been retained yet.</p><p className="mt-1 text-xs text-white/25">Save the current draft to establish the decision record.</p></div> : null}</div></div>;
+  const supersededIds = new Set(reviews.map(review => review.amendsReviewId).filter(Boolean) as string[]);
+  return <div><SectionHeading eyebrow="Decision memory" title="Retained quarterly cycles" detail="Past evidence and reasoning remain inspectable, so a later strategy change can be explained rather than reconstructed. A locked cycle is never edited — it is superseded by a numbered amendment." /><div className="mt-5 divide-y divide-white/10 border-y border-white/10">{reviews.map(review => <details key={review.id} className="group"><summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 px-3"><div><div className="flex flex-wrap items-center gap-2"><strong className="text-sm text-white/82">{review.period}</strong><span className={`border px-2 py-1 text-[8px] font-semibold uppercase ${review.status === "complete" ? "border-[#68f5d0]/22 text-[#68f5d0]" : "border-[#e4c783]/22 text-[#e4c783]"}`}>{review.status ?? "legacy"}</span><span className="border border-white/12 px-2 py-1 text-[8px] font-semibold uppercase text-white/45">v{review.version ?? 1}</span>{review.amendsReviewId ? <span className="border border-[#62e8ff]/22 px-2 py-1 text-[8px] font-semibold uppercase text-[#8ef1ff]">Amendment</span> : null}{supersededIds.has(review.id) ? <span className="border border-white/12 px-2 py-1 text-[8px] font-semibold uppercase text-white/38">Superseded</span> : null}</div><span className="mt-1 block text-[9px] uppercase text-white/28">Updated {formatUkDate(review.updatedAt, { dateStyle: "medium" })}{review.evidenceSnapshot ? ` · ${money(review.evidenceSnapshot.revenueCents, currency)} revenue position` : ""}</span></div><span className="text-[#e4c783] transition group-open:rotate-45">+</span></summary><div className="grid gap-5 px-3 pb-6 sm:grid-cols-2"><HistoryBlock label="Executive summary" value={review.executiveSummary} /><HistoryBlock label="Wins" value={review.wins} /><HistoryBlock label="Misses" value={review.misses} /><HistoryBlock label="Lessons" value={review.lessons} /><HistoryBlock label="Strategic bets" value={review.strategicBets} /><HistoryBlock label="Decisions" value={review.decisions} /><HistoryBlock label="Next priorities" value={review.nextPriorities} /><HistoryBlock label="Success measures" value={review.successMeasures} /></div></details>)}{!reviews.length ? <div className="py-16 text-center"><History size={24} className="mx-auto text-white/18" /><p className="mt-3 text-sm font-semibold text-white/45">No strategy cycle has been retained yet.</p><p className="mt-1 text-xs text-white/25">Save the current draft to establish the decision record.</p></div> : null}</div></div>;
 }
 
 type QuarterStageProps = { draft: CompanyQuarterlyReview; canEdit: boolean; onChange: (patch: Partial<CompanyQuarterlyReview>) => void };
@@ -132,6 +163,20 @@ function ReviewText({ label, value, disabled, onChange, placeholder, rows = 5 }:
 function ScorePicker({ label, value, disabled, onChange }: { label: string; value: 1 | 2 | 3 | 4 | 5; disabled: boolean; onChange: (value: 1 | 2 | 3 | 4 | 5) => void }) { return <fieldset disabled={disabled} className="border border-[#d7b56d]/14 p-3"><legend className="px-1 text-[8px] font-semibold uppercase text-white/42">{label}</legend><div className="mt-1 grid grid-cols-5 gap-1">{([1, 2, 3, 4, 5] as const).map(score => <button key={score} type="button" aria-pressed={value === score} onClick={() => onChange(score)} className={`grid aspect-square place-items-center border text-xs font-semibold ${value === score ? "border-[#e4c783]/55 bg-[#e4c783]/15 text-[#f1dba9]" : "border-white/10 text-white/32 hover:border-white/25"}`}>{score}</button>)}</div></fieldset>; }
 function SmallReadout({ label, value }: { label: string; value: string }) { return <div className="border-b border-r border-white/8 p-3"><p className="text-[7px] uppercase text-white/24">{label}</p><strong className="mt-1 block text-sm text-[#8ef1ff]">{value}</strong></div>; }
 function HistoryBlock({ label, value }: { label: string; value?: string }) { return <div><p className="text-[8px] font-semibold uppercase text-[#e4c783]/55">{label}</p><p className="mt-1 whitespace-pre-line text-xs leading-5 text-white/44">{value || "No record."}</p></div>; }
+
+/**
+ * The cycle a period is currently working from: the newest amendment in the
+ * lineage, not the original it superseded. Exported so the contract is testable
+ * without mounting the workspace.
+ */
+export function activeReviewForPeriod(reviews: CompanyQuarterlyReview[], period: string): CompanyQuarterlyReview | undefined {
+  const superseded = new Set(reviews.map(review => review.amendsReviewId).filter(Boolean) as string[]);
+  const candidates = reviews.filter(review => review.period === period);
+  const live = candidates.filter(review => !superseded.has(review.id));
+  return (live.length ? live : candidates)
+    .slice()
+    .sort((a, b) => (b.version ?? 1) - (a.version ?? 1) || b.updatedAt - a.updatedAt)[0];
+}
 
 function draftFromReview(review: CompanyQuarterlyReview | undefined, period: string): CompanyQuarterlyReview {
   return review ? { ...review, scorecard: review.scorecard ?? emptyScorecard } : { id: `review-${Date.now()}`, period, status: "draft", executiveSummary: "", wins: "", misses: "", lessons: "", marketSignals: "", customerSignals: "", financialDiagnosis: "", operatingDiagnosis: "", strategicBets: "", risks: "", stopDoing: "", decisions: "", nextPriorities: "", successMeasures: "", ownerCommitment: "", implementationHandover: "", scorecard: emptyScorecard, updatedAt: Date.now() };

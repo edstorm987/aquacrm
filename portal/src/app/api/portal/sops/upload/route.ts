@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
-import { PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
+import { attachStoredPrivateUpload, PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { createFileSop } from "@/engines/sop/server/sops";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
       .filter((value): value is string => typeof value === "string")
       .map(value => value.trim())
       .filter(Boolean) ?? [];
-    const sop = createFileSop({
+    const attached = await attachStoredPrivateUpload(stored, "sop-uploads", () => createFileSop({
       id,
       agencyId: session.agencyId,
       title,
@@ -132,7 +132,17 @@ export async function POST(request: NextRequest) {
       storageProvider: stored.storageProvider,
       storageKey: stored.storageKey,
       createdBy: session.userId,
-    });
+    }));
+    if (!attached.ok) {
+      return NextResponse.json({
+        ok: false,
+        error: attached.message,
+        code: attached.compensated ? "upload_record_failed" : "upload_orphaned",
+        detail: attached.detail,
+        storageKey: attached.compensated ? undefined : attached.storageKey,
+      }, { status: 500 });
+    }
+    const sop = attached.value;
     return NextResponse.json({ ok: true, sop }, { status: 201 });
   } catch (error) {
     if (error instanceof PrivateUploadStorageError) {

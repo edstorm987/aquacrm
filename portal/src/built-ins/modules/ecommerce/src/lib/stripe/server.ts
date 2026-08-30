@@ -182,13 +182,38 @@ export interface InstallStripeConfig {
   cancelUrl?: string;
 }
 
+/**
+ * The Stripe keys on an install's *effective* config, or **null** when there
+ * is no usable secret key.
+ *
+ * Null — not a throw, and never a stub — is what lets a caller ask "does this
+ * client actually have Stripe?" honestly. `readStripeKeysFromInstall` is the
+ * throwing variant for call sites that are already inside a Stripe operation.
+ *
+ * This is the canonical reader for the per-install Stripe keys the ecommerce
+ * setup wizard collects. Anything that needs those keys for another plugin in
+ * the same (agencyId, clientId) scope — memberships' billing, the affiliates
+ * Connect driver — reads them from here rather than re-deriving the shape.
+ * (`_membershipsStripeAdapter.readMembershipsStripeKeys` still carries its own
+ * copy; converging it is a follow-up, not this change.)
+ */
+export function tryReadStripeKeysFromInstall(
+  config: Record<string, unknown> | null | undefined,
+): StripeKeys | null {
+  const c = (config ?? {}) as InstallStripeConfig;
+  const secretKey = typeof c.stripeSecretKey === "string" ? c.stripeSecretKey.trim() : "";
+  if (!secretKey) return null;
+  const webhookSecret = typeof c.stripeWebhookSecret === "string" ? c.stripeWebhookSecret.trim() : "";
+  return {
+    secretKey,
+    webhookSecret: webhookSecret.length > 0 ? webhookSecret : undefined,
+  };
+}
+
 export function readStripeKeysFromInstall(config: Record<string, unknown>): StripeKeys {
-  const c = config as InstallStripeConfig;
-  if (!c.stripeSecretKey) {
+  const keys = tryReadStripeKeysFromInstall(config);
+  if (!keys) {
     throw new Error("Stripe secret key not configured for this install. See plugin settings.");
   }
-  return {
-    secretKey: c.stripeSecretKey,
-    webhookSecret: c.stripeWebhookSecret,
-  };
+  return keys;
 }

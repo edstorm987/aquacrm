@@ -117,7 +117,7 @@ const EMPTY_DRAFT: AssetDraft = {
   budget: "", spend: "", leads: "", conversions: "", rating: "", reviewCount: "", unansweredReviews: "", notes: "", companyIds: [],
 };
 
-export function MarketingChannelsWorkspace({ kind, assets, companies = [], defaultCompanyIds = [], defaultPlatform = "", inboxConnections = [], metaConfigured = false, inboxReturnUrl = "/portal/agency/marketing?view=social" }: { kind: MarketingAssetKind; assets: MarketingAsset[]; companies?: MarketingCompanyOption[]; defaultCompanyIds?: string[]; defaultPlatform?: string; inboxConnections?: InboxChannelConnection[]; metaConfigured?: boolean; inboxReturnUrl?: string }) {
+export function MarketingChannelsWorkspace({ kind, assets, companies = [], defaultCompanyIds = [], defaultPlatform = "", inboxConnections = [], inboxConnectionsAvailable = true, metaConfigured = false, inboxReturnUrl = "/portal/agency/marketing?view=social" }: { kind: MarketingAssetKind; assets: MarketingAsset[]; companies?: MarketingCompanyOption[]; defaultCompanyIds?: string[]; defaultPlatform?: string; inboxConnections?: InboxChannelConnection[]; inboxConnectionsAvailable?: boolean; metaConfigured?: boolean; inboxReturnUrl?: string }) {
   const router = useRouter();
   const config = CONFIG[kind];
   const [draft, setDraft] = useState<AssetDraft | null>(null);
@@ -247,6 +247,7 @@ export function MarketingChannelsWorkspace({ kind, assets, companies = [], defau
 
       {error ? <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
 
+      {kind === "social" && !inboxConnectionsAvailable ? <div role="status" className="mt-4 flex items-start gap-3 border-y border-amber-200 bg-amber-50 px-3 py-3"><PlugZap size={17} className="mt-0.5 shrink-0 text-amber-700" /><div><p className="text-xs font-semibold text-amber-900">Inbox connections could not be read</p><p className="mt-1 text-xs leading-5 text-amber-800/75">A profile shown without an inbox below may in fact be connected. Connect is withheld until the read succeeds, so an existing authorisation cannot be replaced by mistake. Reload to try again.</p></div></div> : null}
       {kind === "social" && !metaConfigured ? <div className="mt-4 flex items-start gap-3 border-y border-amber-200 bg-amber-50 px-3 py-3"><PlugZap size={17} className="mt-0.5 shrink-0 text-amber-700" /><div><p className="text-xs font-semibold text-amber-900">Profiles are ready for live messaging</p><p className="mt-1 text-xs leading-5 text-amber-800/75">Inject the Meta application values, then each Instagram or Facebook profile can be authorised here without changing the application again.</p></div></div> : null}
 
       <div className="mt-2 divide-y divide-black/[0.08]">
@@ -286,8 +287,9 @@ export function MarketingChannelsWorkspace({ kind, assets, companies = [], defau
             </select>
             <div className="flex items-center justify-end gap-1">
               {kind === "social" && inboxConnection ? <LinkButton href="/portal/agency/inbox?view=social" label={`Open ${asset.name} inbox`} title="Open inbox"><MessageSquareText size={15} /></LinkButton> : null}
-              {kind === "social" && !inboxConnection && connectable && metaConfigured ? <LinkButton href={connectHref} label={`Connect ${asset.name} inbox`} title="Connect inbox"><PlugZap size={15} /></LinkButton> : null}
-              {kind === "social" && !inboxConnection && connectable && !metaConfigured ? <button type="button" disabled aria-label={`${asset.name} inbox awaiting Meta values`} title="Awaiting Meta values" className="grid size-9 place-items-center rounded-md border border-black/10 text-black/25"><PlugZap size={15} /></button> : null}
+              {kind === "social" && !inboxConnection && connectable && !inboxConnectionsAvailable ? <button type="button" disabled aria-label={`${asset.name} inbox connections not read`} title="Connections not read" className="grid size-9 place-items-center rounded-md border border-black/10 text-black/25"><PlugZap size={15} /></button> : null}
+              {kind === "social" && !inboxConnection && connectable && inboxConnectionsAvailable && metaConfigured ? <LinkButton href={connectHref} label={`Connect ${asset.name} inbox`} title="Connect inbox"><PlugZap size={15} /></LinkButton> : null}
+              {kind === "social" && !inboxConnection && connectable && inboxConnectionsAvailable && !metaConfigured ? <button type="button" disabled aria-label={`${asset.name} inbox awaiting Meta values`} title="Awaiting Meta values" className="grid size-9 place-items-center rounded-md border border-black/10 text-black/25"><PlugZap size={15} /></button> : null}
               <button type="button" onClick={() => edit(asset)} aria-label={`Edit ${asset.name}`} title="Edit" className="grid size-9 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/[0.03]"><Pencil size={15} /></button>
               <button type="button" onClick={() => void remove(asset)} disabled={busy === `delete:${asset.id}`} aria-label={`Delete ${asset.name}`} title="Delete" className="grid size-9 place-items-center rounded-md border border-red-100 text-red-600 hover:bg-red-50"><Trash2 size={15} /></button>
             </div>

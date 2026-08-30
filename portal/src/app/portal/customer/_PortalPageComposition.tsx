@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { READ_UNAVAILABLE_LABEL } from "@/lib/readAvailability";
 import { formatPortalCopy } from "@/lib/portal/clientPortalDesign";
 import { portalBlockMatchesProducts, portalCustomPage, portalPageBlocks } from "@/lib/portal/clientPortalBuilder";
 import { portalProductModule } from "@/lib/portal/portalProductModules";
@@ -175,6 +176,16 @@ function EmptyBlock({ icon, label }: { icon: ReactNode; label: string }) {
 function metricRows(block: ClientPortalPageBlock, data: CustomerPortalData): Array<{ label: string; value: string; detail: string }> {
   if (block.dataSource === "billing") {
     const positions = summariseInvoicesByCurrency(data.invoices);
+    // A failed invoice read must not render as "0 invoices / No payment due"
+    // (issues #57): those are measurements, and nothing was measured.
+    if (!data.available.invoices) {
+      return [
+        { label: "Plan", value: data.servicePlan || "Active", detail: data.billingCadence || "Billing plan" },
+        { label: "Invoices", value: READ_UNAVAILABLE_LABEL, detail: "Billing could not be read" },
+        { label: "Recorded", value: READ_UNAVAILABLE_LABEL, detail: "Billing could not be read" },
+        { label: "Outstanding", value: READ_UNAVAILABLE_LABEL, detail: "Reload to try again" },
+      ];
+    }
     return [
       { label: "Plan", value: data.servicePlan || "Active", detail: data.billingCadence || "Billing plan" },
       { label: "Invoices", value: String(data.invoices.length), detail: `${data.invoices.filter(invoice => invoice.status === "paid").length} paid` },

@@ -73,7 +73,9 @@ export type LeadsEventName =
   | "leads.contact.promoted"
   | "leads.csv.imported"
   | "leads.campaign.created"
-  | "leads.campaign.sent";
+  | "leads.campaign.sent"
+  // Emitted instead of `sent` when a send attempt confirmed no deliveries.
+  | "leads.campaign.send_failed";
 
 // Cross-plugin events this plugin subscribes to.
 export type SubscribedEventName =
@@ -114,12 +116,22 @@ export interface EmailEnqueueInput {
 
 export interface EmailEnqueueResult {
   messageId: string;
+  // `true` = the provider confirmed delivery. `false` = the attempt was made
+  // and did not land. `undefined` = the message was only accepted into the
+  // outbox and NOTHING confirms it went anywhere.
   delivered?: boolean;
   error?: string;
+  // email-sender's `DeliveryFailureCode`. `provider_unconfigured` is the one
+  // that means "still durably queued, repair the configuration and it goes",
+  // as opposed to a refusal by a real provider.
+  code?: string;
 }
 
 export interface EmailEnqueuePort {
   enqueue(input: EmailEnqueueInput): Promise<EmailEnqueueResult> | EmailEnqueueResult;
+  // Enqueue AND attempt delivery, reporting the real outcome. CampaignService
+  // prefers this: `enqueue` alone can never tell a campaign whether anyone
+  // actually received it.
   send?(input: EmailEnqueueInput): Promise<EmailEnqueueResult> | EmailEnqueueResult;
 }
 

@@ -106,7 +106,7 @@ export async function customerProfilesHandler(request: Request, ctx: PluginCtx):
     const body = await safeJson<CreateMarketingCustomerProfileInput>(request);
     const input = body ? cleanInput(body) : null;
     if (!input) return json({ ok: false, error: "A customer profile name is required." }, 400);
-    return withMarketingRecordLock(ctx.agencyId, "customer-profiles", async () => {
+    return withMarketingRecordLock(ctx, "customer-profiles", async () => {
       const now = Date.now();
       const profile: MarketingCustomerProfile = {
         ...input,
@@ -123,7 +123,7 @@ export async function customerProfilesHandler(request: Request, ctx: PluginCtx):
   if (request.method === "PATCH") {
     const body = await safeJson<{ id: string; patch: UpdateMarketingCustomerProfilePatch; expectedUpdatedAt?: number }>(request);
     if (!body?.id || !body.patch) return json({ ok: false, error: "Profile id and changes are required." }, 400);
-    return withMarketingRecordLock(ctx.agencyId, "customer-profiles", async () => {
+    return withMarketingRecordLock(ctx, "customer-profiles", async () => {
       const existing = await getMarketingRecord<MarketingCustomerProfile>(customerProfileStorage(ctx), body.id);
       if (!existing || existing.agencyId !== ctx.agencyId) return json({ ok: false, error: "Customer profile not found." }, 404);
       if (body.expectedUpdatedAt !== undefined && body.expectedUpdatedAt !== existing.updatedAt) {
@@ -146,7 +146,7 @@ export async function customerProfilesHandler(request: Request, ctx: PluginCtx):
     if (!id) return json({ ok: false, error: "Profile id is required." }, 400);
     const expectedUpdatedAtRaw = new URL(request.url).searchParams.get("updatedAt");
     const expectedUpdatedAt = expectedUpdatedAtRaw ? Number(expectedUpdatedAtRaw) : undefined;
-    return withMarketingRecordLock(ctx.agencyId, "customer-profiles", async () => {
+    return withMarketingRecordLock(ctx, "customer-profiles", async () => {
       const existing = await getMarketingRecord<MarketingCustomerProfile>(customerProfileStorage(ctx), id);
       if (!existing || existing.agencyId !== ctx.agencyId) {
         return json({ ok: false, error: "Customer profile not found." }, 404);

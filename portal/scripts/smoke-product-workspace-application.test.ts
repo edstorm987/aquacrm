@@ -173,3 +173,99 @@ describe("product workspace application model", () => {
     assert.match(control, /reconcileClientProductWorkspaces/);
   });
 });
+
+describe("collection upload batch accounting", () => {
+  type Batch = typeof import("../src/lib/portal/productWorkspaceUploadBatch");
+  let batch: Batch;
+  const candidate = (name: string) => ({ name, size: name.length, lastModified: 1 } as unknown as File);
+
+  before(async () => {
+    batch = await import("../src/lib/portal/productWorkspaceUploadBatch");
+  });
+
+  function transport(failOn?: string) {
+    const uploaded: string[] = [];
+    const committed: string[] = [];
+    return {
+      uploaded,
+      committed,
+      runner: {
+        upload: async (file: File) => {
+          uploaded.push(file.name);
+          if (file.name === failOn) throw new Error(`Could not upload ${file.name}.`);
+          return { id: `f_${file.name}`, name: file.name };
+        },
+        attach: async (_uploaded: { id: string; name: string }, workspace: { revision: number }) => ({ revision: workspace.revision + 1 }),
+        onFileCommitted: (_uploaded: { id: string; name: string }, _workspace: { revision: number }, key: string) => {
+          committed.push(key);
+        },
+      },
+    };
+  }
+
+  it("declines the files beyond the cap out loud instead of dropping them silently", async () => {
+    const selection = Array.from({ length: 31 }, (_, index) => candidate(`shot-${index}.jpg`));
+    const { runner, uploaded } = transport();
+    const outcome = await batch.runWorkspaceUploadBatch(selection, { revision: 1 }, runner);
+
+    assert.equal(outcome.selected, 31);
+    assert.equal(outcome.attempted, batch.WORKSPACE_UPLOAD_BATCH_LIMIT);
+    assert.equal(outcome.declined, 1);
+    assert.equal(uploaded.length, batch.WORKSPACE_UPLOAD_BATCH_LIMIT, "the 31st file must not be uploaded");
+    assert.equal(outcome.completed.length, 30);
+
+    const notice = batch.workspaceUploadBatchNotice(outcome, "Final delivery");
+    assert.match(notice, /30 files added to Final delivery\./);
+    assert.doesNotMatch(notice, /31 files added/, "the notice must report what landed, not what was selected");
+    assert.match(notice, /1 not sent/);
+    assert.match(notice, /30 files per upload is the limit/);
+  });
+
+  it("keeps the files that already landed when a later file fails, and names where it stopped", async () => {
+    const selection = [candidate("a.jpg"), candidate("b.jpg"), candidate("c.jpg")];
+    const { runner, committed } = transport("b.jpg");
+    const outcome = await batch.runWorkspaceUploadBatch(selection, { revision: 1 }, runner);
+
+    assert.equal(outcome.completed.length, 1);
+    assert.equal(outcome.failedFile, "b.jpg");
+    assert.equal(outcome.workspace.revision, 2, "the converged file's workspace revision must be retained");
+    assert.deepEqual(committed, [batch.workspaceUploadFileKey(selection[0])], "each converged file is committed before the next is started");
+
+    const notice = batch.workspaceUploadBatchNotice(outcome, "Final delivery");
+    assert.match(notice, /1 file added to Final delivery\./);
+    assert.match(notice, /Stopped at b\.jpg/);
+  });
+
+  it("resumes a part-failed batch instead of uploading the completed files a second time", async () => {
+    const selection = [candidate("a.jpg"), candidate("b.jpg"), candidate("c.jpg")];
+    const completedKeys = new Set<string>();
+    const first = transport("b.jpg");
+    first.runner.onFileCommitted = (_uploaded, _workspace, key: string) => { completedKeys.add(key); };
+    const failed = await batch.runWorkspaceUploadBatch(selection, { revision: 1 }, first.runner);
+    assert.equal(failed.error !== undefined, true);
+    assert.deepEqual([...completedKeys], [batch.workspaceUploadFileKey(selection[0])]);
+
+    // The person retries with the SAME selection once the fault clears.
+    const retry = transport();
+    const outcome = await batch.runWorkspaceUploadBatch(selection, failed.workspace, retry.runner, { alreadyCompleted: completedKeys });
+
+    assert.deepEqual(retry.uploaded, ["b.jpg", "c.jpg"], "a.jpg already landed and must not be uploaded twice");
+    assert.equal(outcome.skipped, 1);
+    assert.equal(outcome.completed.length, 2);
+    assert.equal(outcome.error, undefined);
+
+    const notice = batch.workspaceUploadBatchNotice(outcome, "Final delivery");
+    assert.match(notice, /2 files added to Final delivery\./);
+    assert.match(notice, /1 already uploaded was skipped\./);
+  });
+
+  it("mounts the batch runner and the cap on the customer surface", async () => {
+    const application = await readFile(new URL("../src/app/portal/customer/_ProductWorkspaceApplication.tsx", import.meta.url), "utf8");
+    assert.match(application, /runWorkspaceUploadBatch/);
+    assert.match(application, /workspaceUploadBatchNotice/);
+    assert.match(application, /WORKSPACE_UPLOAD_BATCH_LIMIT\} files per upload/);
+    assert.match(application, /onFileCommitted/);
+    assert.doesNotMatch(application, /\.slice\(0, 30\)/, "the cap must be declared by the batch runner, not hidden in the loop");
+    assert.doesNotMatch(application, /selectedFiles\.length\} \$\{selectedFiles\.length === 1/, "the notice must not report the selected count as the added count");
+  });
+});

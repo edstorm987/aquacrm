@@ -7,6 +7,7 @@ import { getPipelineBySlug } from "@/server/pipelines";
 import { CampaignsWorkspace } from "@/app/portal/agency/leads-pipeline/campaigns/_CampaignsWorkspace";
 import { getInstall } from "@/server/pluginInstalls";
 import { installPlugin, setPluginEnabled } from "@/built-ins/runtime/_runtime";
+import { emailSenderDeliveryReadiness } from "@/lib/server/leadsPipelinePorts";
 
 const EMAIL_SENDER_PLUGIN_ID = "email-sender";
 
@@ -22,6 +23,11 @@ export default async function CampaignsPage(props: PluginPageProps) {
     await setPluginEnabled({ agencyId: props.agencyId }, EMAIL_SENDER_PLUGIN_ID, true);
     emailSenderInstall = getInstall({ agencyId: props.agencyId }, EMAIL_SENDER_PLUGIN_ID);
   }
+
+  // Installing and enabling the module delivers NOTHING on its own — it only
+  // creates an outbox. Readiness is the provider's answer, never the install
+  // row's (issues #32).
+  const readiness = await emailSenderDeliveryReadiness(props.agencyId);
 
   const { campaigns, leads } = containerFor({
     agencyId: props.agencyId,
@@ -39,7 +45,8 @@ export default async function CampaignsPage(props: PluginPageProps) {
       availableTags={availableTags}
       availableSources={availableSources}
       pipelineColumns={pipelineColumns}
-      emailSenderReady={Boolean(emailSenderInstall?.enabled)}
+      emailSenderReady={readiness.ready}
+      emailSenderReason={readiness.reason}
     />
   );
 }

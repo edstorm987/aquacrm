@@ -25,7 +25,7 @@ interface CampaignRow {
   channel?: CampaignChannel;
   kind?: CampaignKind;
   sourceKey?: string;
-  status: "draft" | "scheduled" | "active" | "paused" | "sending" | "sent" | "completed";
+  status: "draft" | "scheduled" | "active" | "paused" | "sending" | "queued" | "partially-sent" | "failed" | "sent" | "completed";
   budgetCents?: number;
   budgetPotId?: string;
   spendCents?: number;
@@ -39,7 +39,12 @@ interface CampaignRow {
   attributedLeads?: number;
   attributedClients?: number;
   recipients: number;
+  // Confirmed deliveries. `failedCount` + `queuedCount` are the people who
+  // did NOT receive it — a campaign never hides them behind "sent".
   sentCount: number;
+  failedCount?: number;
+  queuedCount?: number;
+  lastSendError?: string;
   sentAt?: number;
   createdAt: number;
   audienceFilter: {
@@ -57,6 +62,10 @@ interface CampaignsWorkspaceProps {
   availableSources: string[];
   pipelineColumns: string[];
   emailSenderReady: boolean;
+  // Why sending is (or is not) possible, in the operator's words. Optional so
+  // callers that have not yet been moved onto the real provider check still
+  // compile; the banner then says only that setup needs attention.
+  emailSenderReason?: string;
   companies?: CampaignCompanyOption[];
   defaultCompanyIds?: string[];
   defaultChannel?: CampaignChannel;
@@ -221,7 +230,7 @@ const CAMPAIGN_PLAYBOOKS: Record<CampaignKind, { focus: string; steps: string[];
   },
 };
 
-export function CampaignsWorkspace({ campaigns, availableTags, availableSources, pipelineColumns, emailSenderReady, companies = [], defaultCompanyIds = [], defaultChannel = "email", embedded = false, budgetPots = [], customerProfiles = [] }: CampaignsWorkspaceProps) {
+export function CampaignsWorkspace({ campaigns, availableTags, availableSources, pipelineColumns, emailSenderReady, emailSenderReason, companies = [], defaultCompanyIds = [], defaultChannel = "email", embedded = false, budgetPots = [], customerProfiles = [] }: CampaignsWorkspaceProps) {
   const router = useRouter();
   const [form, setForm] = useState(() => {
     const kind = kindForChannel(defaultChannel);
@@ -235,6 +244,7 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
   const draftCount = campaigns.filter(c => c.status === "draft").length;
   const sentCount = campaigns.filter(c => c.status === "sent").length;
   const totalSent = campaigns.reduce((sum, c) => sum + c.sentCount, 0);
+  const totalUndelivered = campaigns.reduce((sum, c) => sum + (c.failedCount ?? 0) + (c.queuedCount ?? 0), 0);
   const totalSpend = campaigns.reduce((sum, c) => sum + (c.spendCents ?? 0), 0);
   const laneCounts = useMemo(() => campaignLaneCounts(campaigns), [campaigns]);
 
@@ -323,7 +333,24 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
       });
       const data = await res.json() as { ok: boolean; error?: string; campaign?: CampaignRow };
       if (!data.ok) throw new Error(data.error ?? "Could not send campaign.");
-      setNotice(`Sent ${data.campaign?.sentCount ?? 0}/${data.campaign?.recipients ?? 0} emails.`);
+      // Report what the provider actually confirmed. A campaign that only
+      // reached the outbox must never be announced as sent.
+      const row = data.campaign;
+      const delivered = row?.sentCount ?? 0;
+      const undelivered = (row?.failedCount ?? 0) + (row?.queuedCount ?? 0);
+      const detail = `${delivered}/${row?.recipients ?? 0} delivered`
+        + (row?.failedCount ? ` · ${row.failedCount} failed` : "")
+        + (row?.queuedCount ? ` · ${row.queuedCount} queued, not delivered` : "");
+      // Zero confirmed deliveries is never a success notice — including the
+      // "nobody matched the audience" case, where there is nothing to retry
+      // but nothing was delivered either.
+      if (undelivered > 0 || delivered === 0) {
+        setError([
+          `${detail}.`,
+          row?.lastSendError,
+          undelivered > 0 ? "Re-send to retry only the unfinished recipients." : undefined,
+        ].filter(Boolean).join(" "));
+      } else setNotice(detail + ".");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -417,8 +444,8 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Stat label="Campaigns" value={String(campaigns.length)} icon={<Megaphone size={16} />} tone="blue" />
         <Stat label="Drafts" value={String(draftCount)} icon={<FilePenLine size={16} />} tone="amber" />
-        <Stat label="Sent campaigns" value={String(sentCount)} icon={<Send size={16} />} tone="emerald" />
-        <Stat label="Emails queued" value={String(totalSent)} icon={<Mail size={16} />} tone="violet" />
+        <Stat label="Fully delivered" value={String(sentCount)} icon={<Send size={16} />} tone="emerald" />
+        <Stat label="Emails delivered" value={totalUndelivered ? `${totalSent} · ${totalUndelivered} not` : String(totalSent)} icon={<Mail size={16} />} tone="violet" />
         <Stat label="Spend tracked" value={formatMoney(totalSpend)} icon={<PoundSterling size={16} />} tone="blue" />
       </section>
 
@@ -430,7 +457,12 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
 
       {!emailSenderReady && (
         <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          Email outbox setup needs attention before campaigns can send. Drafts and audience previews still work.
+          <strong className="font-semibold">Campaigns cannot be delivered yet.</strong>{" "}
+          {emailSenderReason ?? "Email outbox setup needs attention before campaigns can send."}{" "}
+          Sending now only parks the emails in the outbox — nobody receives them. Drafts and audience previews still work.{" "}
+          <Link href="/portal/agency/email-sender/settings" className="font-medium underline">
+            Configure email sending
+          </Link>
         </div>
       )}
 
@@ -565,7 +597,9 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
               </div>
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-black/55">
                 <span>{campaign.recipients} recipients</span>
-                <span>{campaign.sentCount} sent</span>
+                <span>{campaign.sentCount} delivered</span>
+                {campaign.failedCount ? <span className="font-medium text-red-700">{campaign.failedCount} failed</span> : null}
+                {campaign.queuedCount ? <span className="font-medium text-amber-700">{campaign.queuedCount} queued, not delivered</span> : null}
                 <span>{formatMoney(campaign.spendCents ?? 0)} spent</span>
                 {campaign.budgetCents ? <span>of {formatMoney(campaign.budgetCents)} budget</span> : null}
                 {campaign.budgetPotId
@@ -580,6 +614,13 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
                 {campaign.sentAt && <span>Sent {formatUkDate(campaign.sentAt, { dateStyle: "medium" })}</span>}
                 {campaign.steps?.length ? <span>{campaign.steps.filter(step => step.status === "done").length}/{campaign.steps.length} steps done</span> : null}
               </div>
+              {campaign.lastSendError && campaign.status !== "sent" ? (
+                <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-4 text-amber-900">
+                  {(campaign.failedCount ?? 0) + (campaign.queuedCount ?? 0) > 0
+                    ? <>{(campaign.failedCount ?? 0) + (campaign.queuedCount ?? 0)} recipient{(campaign.failedCount ?? 0) + (campaign.queuedCount ?? 0) === 1 ? " has" : "s have"} not received this yet: {campaign.lastSendError} Re-sending retries only those recipients.</>
+                    : campaign.lastSendError}
+                </p>
+              ) : null}
               {campaign.steps?.length ? <CampaignStepSummary steps={campaign.steps} /> : null}
               {campaign.creative?.asset ? <div className="mt-3 flex items-center gap-3 rounded-md border border-black/10 bg-black/[0.02] p-2">
                 <div className="h-14 w-20 overflow-hidden rounded-md bg-black/[0.04]">
@@ -607,7 +648,13 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
                     disabled={busy === `send:${campaign.id}`}
                     className="rounded-md bg-brand px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
                   >
-                    {busy === `send:${campaign.id}` ? "Sending..." : (campaign.channel === "newsletter" ? "Send newsletter" : "Send campaign")}
+                    {busy === `send:${campaign.id}`
+                      ? "Sending..."
+                      : campaign.status === "queued" || campaign.status === "partially-sent" || campaign.status === "failed"
+                        ? ((campaign.failedCount ?? 0) + (campaign.queuedCount ?? 0) > 0
+                          ? `Retry ${(campaign.failedCount ?? 0) + (campaign.queuedCount ?? 0)} unfinished`
+                          : "Try sending again")
+                        : (campaign.channel === "newsletter" ? "Send newsletter" : "Send campaign")}
                   </button>
                 )}
               </div>

@@ -686,7 +686,22 @@ export interface ContactFilter {
 
 // ─── Campaign ─────────────────────────────────────────────────────────────
 
-export type CampaignStatus = "draft" | "scheduled" | "active" | "paused" | "sending" | "sent" | "completed";
+// `sent` means every recipient was CONFIRMED delivered by the provider.
+// A blast that only reached the outbox is `queued`; one that reached some
+// people is `partially-sent`; one that reached nobody and was refused is
+// `failed`. Never collapse those into `sent` — the campaign row is the only
+// place the operator finds out whether the emails actually left the building.
+export type CampaignStatus =
+  | "draft"
+  | "scheduled"
+  | "active"
+  | "paused"
+  | "sending"
+  | "queued"
+  | "partially-sent"
+  | "failed"
+  | "sent"
+  | "completed";
 export type CampaignChannel = "email" | "newsletter" | "cold-outreach" | "dm" | "direct-mail" | "print" | "google-ads" | "meta-ads" | "linkedin-ads" | "organic" | "social" | "event" | "referral" | "charity" | "other";
 export type CampaignKind = "social-media" | "physical" | "newsletter" | "cold" | "dm" | "charity" | "paid" | "organic" | "event" | "other";
 
@@ -770,8 +785,21 @@ export interface Campaign {
   // Snapshotted at send time so the campaign row is auditable even
   // after leads change tags / get archived.
   recipients: number;
+  // Confirmed deliveries only — a provider that merely accepted the message
+  // into the outbox counts in `queuedCount`, never here.
   sentCount: number;
-  // Stamped when status flips to `"sent"`.
+  // Recipients the provider explicitly refused on the last send attempt.
+  failedCount?: number;
+  // Recipients whose message sits in the outbox with delivery unconfirmed
+  // (no provider configured, or a port that cannot confirm).
+  queuedCount?: number;
+  // Recipients still owed an email — the retry set. `failedCount + queuedCount`
+  // by construction; kept as ids so a retry re-attempts only those people.
+  pendingLeadIds?: string[];
+  // Why the last attempt did not fully land, in the operator's words.
+  lastSendError?: string;
+  // Stamped on the FIRST confirmed delivery. Absent while nothing has been
+  // delivered — a campaign that never left the outbox has no sent date.
   sentAt?: number;
   createdAt: number;
   updatedAt: number;

@@ -106,6 +106,11 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
   // banner's colour, so every notice carries the tone of the outcome it reports.
   const [noticeTone, setNoticeTone] = useState<"ok" | "warn">("ok");
   const [error, setError] = useState<string | null>(null);
+  // Which of the two opening reads answered. An unread pack must not be
+  // editable: Save PUTs the whole record, so default terms shown after a failed
+  // read would replace a real agreement the operator never saw (issues #57).
+  const [packRead, setPackRead] = useState<"loading" | "ready" | "unavailable">("loading");
+  const [catalogueAvailable, setCatalogueAvailable] = useState(true);
 
   function showNotice(text: string | null, tone: "ok" | "warn" = "ok") {
     setNotice(text);
@@ -115,17 +120,26 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
   useEffect(() => {
     void (async () => {
       const [response, productsResponse] = await Promise.all([
-        fetch(`${API}/commercial?partyKind=${party.kind}&partyId=${encodeURIComponent(party.id)}`),
-        fetch("/api/portal/products"),
+        fetch(`${API}/commercial?partyKind=${party.kind}&partyId=${encodeURIComponent(party.id)}`).catch(() => null),
+        fetch("/api/portal/products").catch(() => null),
       ]);
-      const result = await response.json() as { ok?: boolean; pack?: Pack | null; stripeConfigured?: boolean; error?: string };
-      const productsResult = await productsResponse.json().catch(() => null) as { products?: ProductTemplate[] } | null;
-      if (productsResponse.ok) setProducts((productsResult?.products ?? []).filter(product => product.active));
-      if (!response.ok || !result.ok) {
-        setError(result.error ?? "Could not load commercial records.");
+      const result = response ? await response.json().catch(() => null) as { ok?: boolean; pack?: Pack | null; stripeConfigured?: boolean; error?: string } | null : null;
+      const productsResult = productsResponse ? await productsResponse.json().catch(() => null) as { products?: ProductTemplate[] } | null : null;
+      if (productsResponse?.ok && productsResult) {
+        setProducts((productsResult.products ?? []).filter(product => product.active));
+        setCatalogueAvailable(true);
+      } else {
+        // An empty product picker is indistinguishable from "no products
+        // configured", so say which one this is (issues #57).
+        setCatalogueAvailable(false);
+      }
+      if (!response?.ok || !result?.ok) {
+        setError(result?.error ?? "Could not load commercial records.");
+        setPackRead("unavailable");
         return;
       }
       setStripeConfigured(Boolean(result.stripeConfigured));
+      setPackRead("ready");
       if (!result.pack) return;
       const value = result.pack;
       setPack(value);
@@ -175,6 +189,10 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
   }
 
   async function save(): Promise<Pack | null> {
+    if (packRead !== "ready") {
+      setError("The existing commercial record was never read, so saving would replace it with these default terms. Reopen once it loads.");
+      return null;
+    }
     setBusy("save");
     setError(null);
     showNotice(null);
@@ -347,7 +365,9 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
               <Gap ok={pack?.agreementStatus === "accepted" || Boolean(pack?.signedDocumentDataUrl)} label="Agreement signed" />
               <Gap ok={paid > 0} label="Payment recorded" />
             </div>
-            <button type="button" onClick={() => void save()} disabled={Boolean(busy)} className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50"><FilePenLine size={16} /> {busy === "save" ? "Saving..." : "Save draft"}</button>
+            {packRead === "unavailable" ? <p role="status" className="mt-5 border-l-2 border-amber-500 bg-amber-50 px-3 py-2 text-sm text-amber-900">These are default terms, not this party&rsquo;s. Their existing pack could not be read, so saving is held back rather than replacing an agreement nobody has seen. Reload to try again.</p> : null}
+            {!catalogueAvailable ? <p role="status" className="mt-3 border-l-2 border-amber-500 bg-amber-50 px-3 py-2 text-sm text-amber-900">The product catalogue could not be read, so the picker below is empty because of a failure rather than because no product exists.</p> : null}
+            <button type="button" onClick={() => void save()} disabled={Boolean(busy) || packRead !== "ready"} title={packRead !== "ready" ? "The existing commercial record has not been read" : undefined} className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50"><FilePenLine size={16} /> {busy === "save" ? "Saving..." : "Save draft"}</button>
             {pack ? <a href={`/proposal/${pack.publicToken}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-4 text-sm font-semibold"><ExternalLink size={16} /> Preview / download copy</a> : null}
             <button type="button" onClick={() => void action("commercial/send", sent => sent?.deliveryStatus === "delivered"
               ? { text: "Invoice and agreement delivered by email.", tone: "ok" }

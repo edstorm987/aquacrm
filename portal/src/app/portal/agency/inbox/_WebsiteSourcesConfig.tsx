@@ -179,6 +179,7 @@ export function WebsiteSourcesConfig() {
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [loading, setLoading] = useState(true);
+  const [unavailable, setUnavailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [host, setHost] = useState("");
   const [destination, setDestination] = useState(AGENCY);
@@ -191,13 +192,18 @@ export function WebsiteSourcesConfig() {
     void (async () => {
       try {
         const data = await (await fetch("/api/portal/website-sources")).json() as { ok: boolean; sources?: WebsiteSource[]; clients?: ClientOption[]; companies?: CompanyOption[]; formSchemasBySource?: Record<string, unknown> };
-        if (data.ok) {
-          setSources(data.sources ?? []); setClients(data.clients ?? []); setCompanies(data.companies ?? []);
-          const map: Record<string, FormSummary[]> = {};
-          for (const [id, schemas] of Object.entries(data.formSchemasBySource ?? {})) map[id] = toSummaries(schemas);
-          setFormsBySource(map);
-        }
-      } catch { /* leave the empty state */ }
+        if (!data.ok) throw new Error("read refused");
+        setSources(data.sources ?? []); setClients(data.clients ?? []); setCompanies(data.companies ?? []);
+        const map: Record<string, FormSummary[]> = {};
+        for (const [id, schemas] of Object.entries(data.formSchemasBySource ?? {})) map[id] = toSummaries(schemas);
+        setFormsBySource(map);
+        setUnavailable(false);
+      } catch {
+        // NOT "leave the empty state" — the empty state says "No sites routed",
+        // which is a statement about the configuration, and nothing was read
+        // (issues #57).
+        setUnavailable(true);
+      }
       finally { setLoading(false); }
     })();
   }, []);
@@ -345,6 +351,11 @@ export function WebsiteSourcesConfig() {
 
       {loading ? (
         <p className="mt-4 text-xs text-black/40">Loading…</p>
+      ) : unavailable ? (
+        <p role="status" className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-4 text-xs leading-5 text-amber-900">
+          Your registered sites could not be read, so this list is empty because of a failure — not because no site is routed.
+          Reload before changing any routing.
+        </p>
       ) : sources.length === 0 ? (
         <p className="mt-4 rounded-md border border-dashed border-black/12 bg-black/[0.015] px-3 py-4 text-xs leading-5 text-black/50">
           No sites registered yet — so everything routes to your inbox. Add a client&rsquo;s or company&rsquo;s

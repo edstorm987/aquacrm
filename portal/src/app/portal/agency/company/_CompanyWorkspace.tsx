@@ -12,6 +12,7 @@ import { CompanyConnectionsWorkspace } from "./_CompanyConnectionsWorkspace";
 import type { IntegrationProvider } from "@/lib/integrations/catalog";
 import { AttentionDot } from "@/components/chrome/NotificationAttentionProvider";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
+import { describeCompanyConflict, rebaseCompanyProfile, type CompanyProfileConflict } from "../companyProfileConflict";
 
 interface Actuals {
   monthRevenueCents: number;
@@ -39,10 +40,18 @@ const textarea = `${control} min-h-28 py-2`;
 
 export function CompanyWorkspace({ initial, companyName, actuals, staffCount, canEdit, legalDocuments, initialProducts, sops, tradingCompanies, serviceBrands, productDefaults, productCustomFields, clients, workspaceWebsite, initialView, initialIntegration }: { initial: CompanyProfile; companyName: string; actuals: Actuals; staffCount: number; canEdit: boolean; legalDocuments: LegalDocument[]; initialProducts: AgencyProduct[]; sops: SopDocument[]; tradingCompanies: TradingCompany[]; serviceBrands: ServiceBrandSummary[]; productDefaults: { taxRatePercent: number; paymentTermsDays: number }; productCustomFields: PortalFormFieldDefinition[]; clients: Array<{ id: string; name: string }>; workspaceWebsite?: string; initialView?: View; initialIntegration?: IntegrationProvider }) {
   const [company, setCompany] = useState(initial);
+  // `company` doubles as this workspace's edit buffer — the direction form types
+  // straight into it — so it cannot be the profile a conflict rebases FROM.
+  // `baseline` is the last profile the server confirmed, and it only ever moves
+  // on a server answer. Diffing the buffer against itself would report zero
+  // changed sections, which would make the banner claim nothing was lost while
+  // the reload discarded the edit.
+  const [baseline, setBaseline] = useState(initial);
   const [view, setView] = useState<View>(initialView ?? "overview");
   const [editingDirection, setEditingDirection] = useState(false);
   const [dialog, setDialog] = useState<"objective" | "plan" | "review" | null>(null);
   const [status, setStatus] = useState("");
+  const [conflict, setConflict] = useState<CompanyProfileConflict | null>(null);
 
   useEffect(() => {
     const requestedView = new URLSearchParams(window.location.search).get("view");
@@ -115,7 +124,10 @@ export function CompanyWorkspace({ initial, companyName, actuals, staffCount, ca
   ];
   const capacity = calculateCapacity(company, actuals, callsNeeded);
 
+  // The profile carries the `revision` it was loaded at. A stale write is
+  // refused with the live plan instead of overwriting whoever saved first.
   async function save(next = company, message = "Company updated.") {
+    const base = baseline;
     setStatus("Saving...");
     const response = await fetch("/api/portal/company", {
       method: "PUT",
@@ -123,13 +135,30 @@ export function CompanyWorkspace({ initial, companyName, actuals, staffCount, ca
       body: JSON.stringify(next),
     });
     const result = await response.json().catch(() => null);
+    if (response.status === 409 && result?.conflict === "stale-revision" && result.company) {
+      const latest = result.company as CompanyProfile;
+      const nextConflict: CompanyProfileConflict = { base, attempted: next, latest };
+      setCompany(latest);
+      setBaseline(latest);
+      setConflict(nextConflict);
+      setStatus(describeCompanyConflict(nextConflict));
+      return false;
+    }
     if (!response.ok || !result?.ok) {
       setStatus(result?.error ?? "Company changes could not be saved.");
       return false;
     }
+    setConflict(null);
     setCompany(result.company);
+    setBaseline(result.company);
     setStatus(message);
     return true;
+  }
+
+  /** Reapply only the sections this editor changed onto the newer plan. */
+  async function retryOntoLatest() {
+    if (!conflict) return;
+    await save(rebaseCompanyProfile(conflict), "Company updated on the latest plan.");
   }
 
   return (
@@ -142,6 +171,15 @@ export function CompanyWorkspace({ initial, companyName, actuals, staffCount, ca
         </div>
         {status ? <p role="status" className="text-xs font-medium text-black/50">{status}</p> : null}
       </header>
+
+      {conflict ? <div role="alert" className="mt-4 flex flex-wrap items-center gap-3 rounded-md border border-amber-300/60 bg-amber-50 px-4 py-3">
+        <CircleAlert size={16} className="shrink-0 text-amber-600" />
+        <p className="min-w-0 flex-1 text-xs leading-5 text-amber-900">{describeCompanyConflict(conflict)}</p>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => void retryOntoLatest()} className="inline-flex min-h-10 items-center rounded-md border border-amber-500/60 bg-amber-100 px-3 text-xs font-semibold text-amber-900">Reapply my changes</button>
+          <button type="button" onClick={() => { setConflict(null); setStatus(""); }} className="inline-flex min-h-10 items-center rounded-md border border-black/15 px-3 text-xs font-semibold text-black/60">Keep the newer plan</button>
+        </div>
+      </div> : null}
 
       <nav className="flex gap-1 overflow-x-auto border-b border-black/10" aria-label="Company systems">
         <Link href="/portal/agency?station=battle" className="inline-flex min-h-12 shrink-0 items-center gap-2 border-b-2 border-transparent px-3 text-sm font-medium text-black/50 hover:text-brand">

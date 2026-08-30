@@ -209,7 +209,14 @@ export interface StripeConnectPort {
     transferGroup?: string;
   }): Promise<{ transferId: string; created: number }>;
 
-  // Webhook signature verification. Returns false on mismatch / missing
+  // Webhook signature verification. Resolves false on mismatch / missing
   // signing secret. The handler treats false as 400.
-  verifyWebhookSignature(args: { rawBody: string; signature: string | null }): boolean;
+  //
+  // Async because a real driver resolves the Stripe SDK lazily (it is an
+  // optional peer dep, loaded through a dynamic import once an agency
+  // configures Stripe). A synchronous signature would have forced a driver to
+  // answer `false` while the SDK was still loading — i.e. to reject a VALID
+  // signature — which is exactly the kind of untrue answer this codebase
+  // refuses.
+  verifyWebhookSignature(args: { rawBody: string; signature: string | null }): Promise<boolean>;
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
-import { getCompanyProfile, updateCompanyProfile } from "@/server/company";
+import { CompanyProfileConflictError, CompanyReviewLockedError, getCompanyProfile, updateCompanyProfile } from "@/server/company";
 import { ensureHydrated } from "@/server/storage";
 import type { CompanyProfile } from "@/server/types";
 import { getActiveTradingCompanyId } from "@/lib/server/tradingCompanyContext";
@@ -24,9 +24,22 @@ export async function PUT(request: Request) {
     const session = await requireRole(["agency-owner", "agency-manager"]);
     const body = await request.json().catch(() => null) as Partial<CompanyProfile> | null;
     if (!body) return NextResponse.json({ ok: false, error: "Company details required." }, { status: 400 });
+    // Optimistic concurrency: a writer must say which version of the plan it
+    // edited, so a stale whole-profile PUT cannot silently overwrite a save
+    // made in another tab or by another owner.
+    const expectedRevision = body.revision;
+    if (typeof expectedRevision !== "number" || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
+      return NextResponse.json({ ok: false, error: "The plan revision being edited is required." }, { status: 400 });
+    }
     const companyId = await requestedCompanyId(request, session.agencyId);
-    return NextResponse.json({ ok: true, company: updateCompanyProfile(session.agencyId, body, session.userId, companyId) });
+    return NextResponse.json({ ok: true, company: updateCompanyProfile(session.agencyId, body, session.userId, companyId, { expectedRevision }) });
   } catch (error) {
+    if (error instanceof CompanyProfileConflictError) {
+      return NextResponse.json({ ok: false, error: error.message, conflict: "stale-revision", company: error.current }, { status: 409 });
+    }
+    if (error instanceof CompanyReviewLockedError) {
+      return NextResponse.json({ ok: false, error: error.message, conflict: "locked-review", reviewId: error.reviewId }, { status: 409 });
+    }
     return authErrorResponse(error);
   }
 }

@@ -77,19 +77,33 @@ export function GovernanceWorkspace({ initial, isOwner }: { initial: GovernanceS
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
 
+  // The scope selector used to move first and the read second, so a refused
+  // read left the PREVIOUS company's posture on screen labelled as the new one —
+  // and, because the fetch was unguarded, a network reject also left the
+  // spinner running for ever (issues #57). The label now follows its evidence.
   const reload = useCallback(async (scope: string) => {
     setLoading(true);
-    const query = scope ? `?companyId=${encodeURIComponent(scope)}` : "";
-    const response = await fetch(`/api/portal/governance${query}`);
-    const body = await response.json().catch(() => null) as { ok?: boolean; snapshot?: GovernanceSnapshot; error?: string } | null;
-    if (body?.ok && body.snapshot) setSnapshot(body.snapshot);
-    else setStatus(body?.error ?? "The governance data could not be read.");
-    setLoading(false);
+    setStatus("");
+    try {
+      const query = scope ? `?companyId=${encodeURIComponent(scope)}` : "";
+      const response = await fetch(`/api/portal/governance${query}`);
+      const body = await response.json().catch(() => null) as { ok?: boolean; snapshot?: GovernanceSnapshot; error?: string } | null;
+      if (!response.ok || !body?.ok || !body.snapshot) {
+        setStatus(body?.error ?? "The governance data could not be read, so the scope below is unchanged.");
+        return false;
+      }
+      setSnapshot(body.snapshot);
+      return true;
+    } catch {
+      setStatus("The governance data could not be read, so the scope below is unchanged.");
+      return false;
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   function onScopeChange(next: string) {
-    setCompanyId(next);
-    void reload(next);
+    void reload(next).then(ok => { if (ok) setCompanyId(next); });
   }
 
   const { posture } = snapshot;

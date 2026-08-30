@@ -13,6 +13,8 @@ describe("a customer's first minutes", () => {
   const page = () => strip(read("src", "app", "setup", "page.tsx"));
   const screens = () => read("src", "app", "setup", "_CustomerSetup.tsx");
   const layout = () => strip(read("src", "app", "portal", "customer", "layout.tsx"));
+  const installHelp = () => read("src", "app", "portal", "customer", "_InstallHelp.tsx");
+  const portalViews = () => read("src", "app", "portal", "customer", "_CustomerPortalViews.tsx");
 
   it("still marks a sandbox account's setup done, so it does not loop back", () => {
     // The .test guard returns early; without marking welcome complete there,
@@ -62,9 +64,76 @@ describe("a customer's first minutes", () => {
   it("tells iPhone users the one route that actually works there", () => {
     // `beforeinstallprompt` never fires in Safari, and iPhones are most of the
     // people who will see this.
-    const source = screens();
+    const source = installHelp();
     assert.match(source, /Add to Home Screen/);
     assert.match(source, /iPhone\|iPad\|iPod/);
+  });
+
+  it("keeps the promise that the install help is waiting under Support", () => {
+    // Setup's install scene signs off with "you can do this later — it is in
+    // your portal under Support". Setup is marked complete BEFORE that scene,
+    // and /setup redirects a completed customer away, so somebody who declined
+    // or closed the tab never sees it again. Support has to actually carry it.
+    assert.match(screens(), /it is in your portal under Support/,
+      "the promise copy moved — re-point this test or drop the promise");
+    const views = portalViews();
+    assert.match(views, /import \{[^}]*\bInstallHelp\b[^}]*\} from "\.\/_InstallHelp"/,
+      "the customer portal never imports the install help");
+    const supportAt = views.indexOf("function SupportView(");
+    const nextViewAt = views.indexOf("function SupportPromise(");
+    assert.ok(supportAt > 0 && nextViewAt > supportAt, "SupportView is not where this test thinks");
+    assert.match(views.slice(supportAt, nextViewAt), /<InstallHelp\b/,
+      "SupportView offers contact options but no way to install the portal");
+  });
+
+  it("keeps one copy of the install guidance, not two that drift apart", () => {
+    // Two copies is how the Support promise quietly stops matching what setup
+    // showed. Setup renders the same component the portal does.
+    const source = screens();
+    assert.match(source, /import \{ InstallHelp \} from "@\/app\/portal\/customer\/_InstallHelp"/,
+      "the setup scene does not use the shared install help");
+    assert.match(source, /<InstallHelp\b/);
+    assert.doesNotMatch(source, /beforeinstallprompt/,
+      "the setup scene kept its own install prompt listener — that is the second copy");
+    assert.doesNotMatch(source, /Add to Home Screen/,
+      "the setup scene kept its own instructions — that is the second copy");
+  });
+
+  it("does not leave a spent install button pretending it still works", () => {
+    // A `beforeinstallprompt` event is good for exactly one call. Firing it and
+    // never reading `userChoice` means a decline looks identical to an install,
+    // and the button stays on screen doing nothing.
+    const source = installHelp();
+    assert.match(source, /await event\.userChoice/, "the answer to the prompt is never read");
+    assert.match(source, /outcome === "accepted"/, "accept and decline are not told apart");
+    const installAt = source.indexOf("const install = useCallback");
+    const promptAt = source.indexOf("await event.prompt()");
+    assert.ok(installAt > 0 && promptAt > installAt);
+    assert.match(source.slice(installAt, promptAt), /setPrompt\(null\)/,
+      "the one-use prompt is not cleared, so the button survives being spent");
+    assert.match(source, /setDeclined\(true\)/, "a decline leaves no state to fall back from");
+  });
+
+  it("does not offer an install to somebody already inside the installed app", () => {
+    const source = installHelp();
+    assert.match(source, /\(display-mode: standalone\)/, "standalone is never detected");
+    assert.match(source, /navigator as Navigator & \{ standalone\?: boolean \}/,
+      "iOS reports standalone only through navigator.standalone");
+    assert.match(source, /if \(alreadyInstalled && hideWhenInstalled && !installed\) return null;/,
+      "the Support card never hides itself for an installed app");
+    const views = portalViews();
+    const supportAt = views.indexOf("function SupportView(");
+    const supportBody = views.slice(supportAt, views.indexOf("function SupportPromise("));
+    assert.match(supportBody, /hideWhenInstalled/,
+      "Support mounts the install help without asking it to hide when installed");
+    // Hiding only the help leaves its surrounding card behind: the Surface is
+    // server-rendered around it, so an installed app would get a bordered,
+    // padded, empty panel under the request form instead of nothing at all.
+    const wrapAt = supportBody.indexOf("<HideWhenInstalled>");
+    const cardAt = supportBody.indexOf("<Surface", wrapAt);
+    const helpAt = supportBody.indexOf("<InstallHelp", cardAt);
+    assert.ok(wrapAt > 0 && cardAt > wrapAt && helpAt > cardAt,
+      "the install card's own chrome is outside the hide, so an installed app is left an empty panel");
   });
 
   it("ships a manifest, so installing gives an app and not a bookmark", () => {

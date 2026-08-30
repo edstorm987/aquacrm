@@ -40,6 +40,7 @@ import { buildHiringCapacityAnalysis, emptyHiringCapacitySignals, HIRING_CAPACIT
 import type { CompanyCapacityAreaId, CompanyCapacityAreaPlan, CompanyObjective, CompanyPlan, CompanyProfile, CompanyQuarterlyEvidenceSnapshot } from "@/server/types";
 import { applyIntelligenceScope } from "./commandIntelligenceScope";
 import { createBattleNavigationState, reconcileBattleNavigationState } from "./battleNavigation";
+import { describeCompanyConflict, rebaseCompanyProfile, type CompanyProfileConflict } from "./companyProfileConflict";
 import {
   buildBattlefield,
   buildWarRoomDecisions,
@@ -153,6 +154,7 @@ export function BattleTableWorkspace({ payload, intelligence, onOpenIntelligence
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [conflict, setConflict] = useState<CompanyProfileConflict | null>(null);
   const calculations = useMemo(() => strategicCalculations(company, selectedScope.actuals), [company, selectedScope.actuals]);
 
   // The war room reads the live payload every scope already carries — the same
@@ -179,8 +181,13 @@ export function BattleTableWorkspace({ payload, intelligence, onOpenIntelligence
     return buildWarRoomPulse({ scope, now: warRoomNow });
   }, [warRoomScopes, selectedScope.id, warRoomNow]);
 
+  // Every station funnels through this one write, so this is where the plot
+  // either advances or honestly reports that somebody else moved it first. The
+  // profile carries the `revision` it was loaded at; the server refuses a stale
+  // one with the live plan rather than overwriting it.
   async function save(next: CompanyProfile, success = "Battle Table updated.") {
     if (!payload.canEdit) return false;
+    const base = company;
     setSaving(true);
     setMessage("");
     setError("");
@@ -191,8 +198,17 @@ export function BattleTableWorkspace({ payload, intelligence, onOpenIntelligence
         headers: { "content-type": "application/json" },
         body: JSON.stringify(next),
       });
-      const result = await response.json().catch(() => null) as { ok?: boolean; company?: CompanyProfile; error?: string } | null;
+      const result = await response.json().catch(() => null) as { ok?: boolean; company?: CompanyProfile; error?: string; conflict?: string } | null;
+      if (response.status === 409 && result?.conflict === "stale-revision" && result.company) {
+        const latest = result.company;
+        setProfiles(current => ({ ...current, [selectedScope.id]: latest }));
+        const nextConflict: CompanyProfileConflict = { base, attempted: next, latest };
+        setConflict(nextConflict);
+        setError(describeCompanyConflict(nextConflict));
+        return false;
+      }
       if (!response.ok || !result?.ok || !result.company) throw new Error(result?.error || "The executive plan could not be saved.");
+      setConflict(null);
       setProfiles(current => ({ ...current, [selectedScope.id]: result.company! }));
       setMessage(success);
       return true;
@@ -202,6 +218,12 @@ export function BattleTableWorkspace({ payload, intelligence, onOpenIntelligence
     } finally {
       setSaving(false);
     }
+  }
+
+  /** Reapply only the sections this editor changed onto the newer plan. */
+  async function retryOntoLatest() {
+    if (!conflict) return;
+    await save(rebaseCompanyProfile(conflict), "Battle Table updated on the latest plan.");
   }
 
   function selectSection(next: BattleTableSection) {
@@ -221,6 +243,7 @@ export function BattleTableWorkspace({ payload, intelligence, onOpenIntelligence
     if (scopes.some(scope => scope.id === nextScopeId)) setNavigation(current => ({ ...current, scopeId: nextScopeId }));
     setMessage("");
     setError("");
+    setConflict(null);
     selectSection(next);
   }
 
@@ -241,10 +264,19 @@ export function BattleTableWorkspace({ payload, intelligence, onOpenIntelligence
       </div>
     </header>
 
+    {conflict ? <div role="alert" className="relative flex flex-wrap items-center gap-3 border-b border-amber-300/30 bg-amber-300/[0.07] px-4 py-3 sm:px-6">
+      <CircleAlert size={16} className="shrink-0 text-amber-200" />
+      <p className="min-w-0 flex-1 text-[11px] leading-4 text-amber-100/85">{describeCompanyConflict(conflict)}</p>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={() => void retryOntoLatest()} disabled={saving} className="inline-flex min-h-9 items-center gap-2 border border-amber-300/40 bg-amber-300/[0.12] px-3 text-[9px] font-semibold uppercase text-amber-100 disabled:opacity-40">Reapply my changes</button>
+        <button type="button" onClick={() => { setConflict(null); setError(""); }} className="inline-flex min-h-9 items-center gap-2 border border-white/14 px-3 text-[9px] font-semibold uppercase text-white/60">Keep the newer plan</button>
+      </div>
+    </div> : null}
+
     <section className="relative grid border-b border-[#d7b56d]/20 bg-[#050d11]/96 lg:grid-cols-[minmax(240px,.55fr)_minmax(0,1fr)_auto] lg:items-stretch" aria-label="Battle Table scope">
       <label className="border-b border-[#d7b56d]/14 p-3 lg:border-b-0 lg:border-r sm:px-5">
         <span className="flex items-center gap-2 text-[8px] font-semibold uppercase text-[#e4c783]/60"><Building2 size={12} /> Projection scope</span>
-        <select value={selectedScope.id} onChange={event => { setNavigation(current => ({ ...current, scopeId: event.target.value })); setMessage(""); setError(""); }} className="mt-2 min-h-10 w-full border border-[#d7b56d]/24 bg-[#071116] px-3 text-xs font-semibold text-white outline-none focus:border-[#d7b56d]/60">
+        <select value={selectedScope.id} onChange={event => { setNavigation(current => ({ ...current, scopeId: event.target.value })); setMessage(""); setError(""); setConflict(null); }} className="mt-2 min-h-10 w-full border border-[#d7b56d]/24 bg-[#071116] px-3 text-xs font-semibold text-white outline-none focus:border-[#d7b56d]/60">
           <optgroup label="Combined"><option value="ecosystem">Whole Aqua ecosystem</option></optgroup>
           {scopes.some(scope => scope.kind === "company") ? <optgroup label="Trading brands">{scopes.filter(scope => scope.kind === "company").map(scope => <option key={scope.id} value={scope.id}>{scope.label}</option>)}</optgroup> : null}
         </select>

@@ -2,7 +2,7 @@
 // the other Aqua plugins.
 
 import type { PluginCtx } from "../lib/aquaPluginTypes";
-import { containerFor } from "../server/foundationAdapter";
+import { containerFor, isStripeConnectAvailable } from "../server/foundationAdapter";
 import type {
   AffiliateFilter,
   AttributionFilter,
@@ -241,12 +241,19 @@ export async function processPayoutHandler(req: Request, ctx: PluginCtx): Promis
 export async function stripeWebhookHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   const guard = methodGuard(req, "POST");
   if (guard) return guard;
-  const f = (await import("../server/foundationAdapter")).requireFoundation();
-  if (!f.stripeConnect) return unprocessable("Stripe Connect not configured for this install.");
+  if (!ctx.clientId) return badRequest("clientId scope missing");
+  // The signing secret is the CLIENT's, so the driver has to be resolved in
+  // this exact scope — a platform-wide port would verify one client's webhook
+  // against another client's secret.
+  const stripeConnect = (await import("../server/foundationAdapter")).stripeConnectFor({
+    agencyId: ctx.agencyId,
+    clientId: ctx.clientId,
+  });
+  if (!stripeConnect) return unprocessable("Stripe Connect not configured for this install.");
 
   const rawBody = await req.text();
   const signature = req.headers.get("stripe-signature");
-  if (!f.stripeConnect.verifyWebhookSignature({ rawBody, signature })) {
+  if (!(await stripeConnect.verifyWebhookSignature({ rawBody, signature }))) {
     return json({ ok: false, error: "invalid_signature" }, 400);
   }
   let event: { type?: string; data?: { object?: Record<string, unknown> } };
@@ -255,7 +262,6 @@ export async function stripeWebhookHandler(req: Request, ctx: PluginCtx): Promis
   } catch {
     return badRequest("invalid_json");
   }
-  if (!ctx.clientId) return badRequest("clientId scope missing");
   const c = buildContainer(ctx);
 
   if (event.type === "account.updated") {
@@ -313,14 +319,21 @@ export async function meEnrollHandler(req: Request, ctx: PluginCtx): Promise<Res
 export async function meHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   if (req.method !== "GET") return json({ ok: false, error: "method_not_allowed" }, 405);
   const c = buildContainer(ctx);
+  // Same question the mounted panel gates its "Set up payouts via Stripe" CTA
+  // on. Sent with every read so an API consumer sees the capability rather
+  // than discovering it from a 422 after the affiliate has clicked.
+  const stripeConnectAvailable = !!ctx.clientId && isStripeConnectAvailable({
+    agencyId: ctx.agencyId,
+    clientId: ctx.clientId,
+  });
   const affiliate = await c.affiliates.getByUser(ctx.actor);
-  if (!affiliate) return json({ ok: true, affiliate: null });
+  if (!affiliate) return json({ ok: true, affiliate: null, stripeConnectAvailable });
   const [codes, attributions, payouts] = await Promise.all([
     c.codes.list({ affiliateId: affiliate.id }),
     c.attributions.listForAffiliate(affiliate.id),
     c.payouts.listForAffiliate(affiliate.id),
   ]);
-  return json({ ok: true, affiliate, codes, attributions, payouts });
+  return json({ ok: true, affiliate, codes, attributions, payouts, stripeConnectAvailable });
 }
 
 // R12 — customer surface: "Set up payouts via Stripe" button posts

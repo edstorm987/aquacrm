@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Activity, ArrowLeft, ArrowUpRight, BarChart3, Building2, Gauge, Globe2, LockKeyhole, MapPin, Megaphone, RadioTower, Star, Target, UserRoundSearch, Users, Workflow } from "lucide-react";
 
+import { readOrUnavailable } from "@/lib/readAvailability";
 import { CampaignsWorkspace } from "@/app/portal/agency/leads-pipeline/campaigns/_CampaignsWorkspace";
 import { AutomationsWorkspace } from "@/app/portal/agency/automations/_AutomationsWorkspace";
 import { automationWorkspaceData } from "@/app/portal/agency/automations/_automationWorkspaceData";
@@ -17,6 +18,7 @@ import { installPlugin, setPluginEnabled } from "@/built-ins/runtime/_runtime";
 import { buildBudgetPotSnapshots } from "@/built-ins/modules/agency-finance/src/lib/budgetHealth";
 import { ensureAgencyFinanceFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/agencyFinanceFoundation";
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
+import { emailSenderDeliveryReadiness } from "@/lib/server/leadsPipelinePorts";
 import { requireRole } from "@/lib/server/auth/auth";
 import { listPlugins } from "@/built-ins/runtime/_registry";
 import { pageAllowsRoleAt } from "@/built-ins/runtime/_pageScope";
@@ -165,6 +167,14 @@ export default async function MarketingPage({
     emailInstall = getInstall({ agencyId: session.agencyId }, EMAIL_PLUGIN);
   }
 
+  // An ENABLED plugin row is not a deliverable outbox — it says the module is
+  // switched on, not that a provider is configured and an identity verified.
+  // Marketing is the high-traffic route to campaigns, so reading readiness off
+  // `emailInstall.enabled` here suppressed the "cannot be delivered yet" banner
+  // and lit the glance chip "Ready" on exactly the surface most people use.
+  // Same authority the campaigns route itself uses.
+  const emailReadiness = await emailSenderDeliveryReadiness(session.agencyId);
+
   let marketingInstall = getInstall({ agencyId: session.agencyId }, MARKETING_PLUGIN);
   if (!marketingInstall && canManage) {
     const result = await installPlugin(MARKETING_PLUGIN, {
@@ -221,7 +231,11 @@ export default async function MarketingPage({
       ])
     : [[], []] as [MarketingAsset[], MarketingCustomerProfile[]];
   const scopedMarketingAssets = marketingAssets.filter(asset => recordMatchesBrand(asset.companyIds, brandScope, selectedCompanyId));
-  const metaConnections = await listInboxConnections(session.agencyId).catch(() => []);
+  // A refused connection read used to become `[]`, and every profile then
+  // offered "Connect inbox" as though no account existed — an invitation to
+  // re-authorise something that is already connected (issues #57).
+  const metaConnectionRead = await readOrUnavailable(() => listInboxConnections(session.agencyId), []);
+  const metaConnections = metaConnectionRead.data;
   const metaReadiness = metaInboxReadiness(session.agencyId);
   const scopedCustomerProfiles = customerProfiles.filter(profile => recordMatchesBrand(profile.companyIds, brandScope, selectedCompanyId));
   const scopedCampaigns = attributedCampaigns.filter(campaign => recordMatchesBrand(campaign.companyIds, brandScope, selectedCompanyId));
@@ -337,7 +351,8 @@ export default async function MarketingPage({
           availableTags={scopedTags}
           availableSources={scopedSources}
           pipelineColumns={columns}
-          emailSenderReady={Boolean(emailInstall?.enabled)}
+          emailSenderReady={emailReadiness.ready}
+          emailSenderReason={emailReadiness.reason}
           companies={companyOptions}
           defaultCompanyIds={defaultCompanyIds}
           defaultChannel={composeChannel}
@@ -412,7 +427,7 @@ export default async function MarketingPage({
       {view === "pulse" || view === "demand" ? (
         <div className="space-y-7">
           {view === "pulse" ? <MarketingDataSpinePanel spine={spine} brandScope={brandScope} /> : null}
-          {view === "pulse" ? <MarketingAtAGlance overview={overview} customerProfiles={scopedCustomerProfiles} sourceRows={sourceRows} emailSenderReady={Boolean(emailInstall?.enabled)} automationStats={{ total: automationWorkflows.length, active: automationWorkflows.filter(workflow => workflow.status === "active").length }} canSeeCampaigns={canSeeCampaigns} /> : null}
+          {view === "pulse" ? <MarketingAtAGlance overview={overview} customerProfiles={scopedCustomerProfiles} sourceRows={sourceRows} emailSenderReady={emailReadiness.ready} automationStats={{ total: automationWorkflows.length, active: automationWorkflows.filter(workflow => workflow.status === "active").length }} canSeeCampaigns={canSeeCampaigns} /> : null}
           <MarketingSectionNavigation view={view} section={section} brandScope={brandScope} sections={visibleSections(MARKETING_VIEW_SECTIONS[view] ?? [])} />
           {visibleSections(orderedMarketingSections(view, section)).map(block => (
             <section key={block} id={marketingSectionAnchor(block)} className="scroll-mt-24">
@@ -480,6 +495,7 @@ export default async function MarketingPage({
             companies={companyOptions}
             defaultCompanyIds={defaultCompanyIds}
             inboxConnections={metaConnections}
+            inboxConnectionsAvailable={metaConnectionRead.available}
             metaConfigured={metaReadiness.configured}
             inboxReturnUrl={marketingChannelHref("social", brandScope)}
           />

@@ -17,9 +17,18 @@ export interface MyAffiliatePanelProps {
   attributions: Attribution[];
   payouts: Payout[];
   apiBase: string;
+  /**
+   * Whether this client's install actually has a Stripe Connect driver. False
+   * for every install whose ecommerce plugin carries no Stripe secret key — in
+   * which case the hosted-onboarding endpoints can only answer 422, so the
+   * panel says what really happens instead of offering the button.
+   */
+  stripeConnectAvailable: boolean;
 }
 
-export function MyAffiliatePanel({ affiliate, codes, attributions, payouts, apiBase }: MyAffiliatePanelProps) {
+export function MyAffiliatePanel({
+  affiliate, codes, attributions, payouts, apiBase, stripeConnectAvailable,
+}: MyAffiliatePanelProps) {
   if (!affiliate) {
     return <EnrollForm apiBase={apiBase} />;
   }
@@ -71,7 +80,9 @@ export function MyAffiliatePanel({ affiliate, codes, attributions, payouts, apiB
       {affiliate.status === "active" && <NewCodeForm apiBase={apiBase} />}
 
       <h2>Payouts setup</h2>
-      <StripeConnectPanel apiBase={apiBase} affiliate={affiliate} />
+      {stripeConnectAvailable
+        ? <StripeConnectPanel apiBase={apiBase} affiliate={affiliate} />
+        : <StripeConnectUnavailableNotice affiliate={affiliate} />}
 
 
       <h2>Recent attributions</h2>
@@ -174,6 +185,35 @@ function EnrollForm({ apiBase }: { apiBase: string }) {
         {error && <p role="alert" className="affiliates-form-error">{error}</p>}
         <button type="submit" disabled={busy}>{busy ? "Enrolling…" : "Enrol"}</button>
       </form>
+    </section>
+  );
+}
+
+/**
+ * What the affiliate sees when this store has no Stripe Connect driver at all.
+ *
+ * The setup CTA used to render unconditionally, so an affiliate on an install
+ * with no Stripe keys could click "Set up payouts via Stripe" and get a bare
+ * 422 — the surface offered an action the system could not perform. This says
+ * how the payout IS dealt with instead: off-system, by the store, against the
+ * payout email on file, and recorded here with a reference once sent. It
+ * promises no transfer that has not happened.
+ */
+function StripeConnectUnavailableNotice({ affiliate }: { affiliate: Affiliate }) {
+  return (
+    <section className="affiliates-stripe-unavailable">
+      <p>
+        This store does not have automated Stripe payouts switched on, so there is nothing for you to
+        connect. Payouts are sent to you off-system against{" "}
+        <strong>{affiliate.payoutEmail}</strong>, and each one appears below with its reference once
+        it has been sent.
+      </p>
+      {affiliate.stripeAccountId && (
+        <p className="affiliates-meta">
+          You connected a Stripe account earlier. It is kept on file, but nothing can be transferred
+          to it until the store switches Stripe payouts back on.
+        </p>
+      )}
     </section>
   );
 }

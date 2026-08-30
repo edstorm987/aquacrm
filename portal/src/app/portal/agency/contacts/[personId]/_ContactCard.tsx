@@ -48,6 +48,8 @@ interface Props {
   clients: Array<{ id: string; name: string; stage: string }>;
   allOrganisations: OrganisationRef[];
   interactions: PersonInteraction[];
+  /** False when the enquiry read was refused — the timeline below is partial. */
+  interactionsComplete?: boolean;
 }
 
 const STATE_LABELS: Record<PersonState, string> = {
@@ -72,6 +74,7 @@ export function ContactCard({
   clients,
   allOrganisations,
   interactions,
+  interactionsComplete = true,
 }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
@@ -394,7 +397,7 @@ export function ContactCard({
             </div>
           </section>
 
-          <Interactions interactions={interactions} personId={person.id} />
+          <Interactions interactions={interactions} personId={person.id} complete={interactionsComplete} />
 
           {/* ── Notes ─────────────────────────────────────────────────── */}
           <section className="rounded-lg border border-black/10 bg-white p-4">
