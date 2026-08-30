@@ -35,6 +35,7 @@ import "server-only";
 // first. Pending rows are never pruned — losing an undelivered event is the
 // one thing an outbox exists to prevent.
 
+import { AsyncLocalStorage } from "async_hooks";
 import { randomUUID } from "crypto";
 
 import { emit } from "./eventBus";
@@ -68,6 +69,38 @@ export interface RecordOutboxEventInput {
   now?: number;
 }
 
+// ─── Correlation scope ─────────────────────────────────────────────────────
+//
+// One logical OPERATION often announces several events — updating a client
+// emits client.updated and (on a stage move) client.stage_changed; a lead
+// conversion touches client, person and pipeline records. Left to the
+// per-event default, each row's correlationId is its own id and the lineage
+// between them is invisible. `runWithCorrelation` scopes an operation id over
+// everything recorded inside it (sync or async), so every event of the
+// operation shares one correlationId without threading a parameter through
+// every layer. An explicit `input.correlationId` still wins.
+
+interface CorrelationScope {
+  correlationId: string;
+  /** The event that caused this whole operation, where the caller knows it. */
+  causationId?: string;
+}
+
+const correlationStorage = new AsyncLocalStorage<CorrelationScope>();
+
+/** Run `fn` with every recorded event correlated under `correlationId`. */
+export function runWithCorrelation<T>(
+  scope: { correlationId: string; causationId?: string },
+  fn: () => T,
+): T {
+  return correlationStorage.run(scope, fn);
+}
+
+/** The active correlation scope, if any — for callers composing envelopes. */
+export function activeCorrelation(): CorrelationScope | undefined {
+  return correlationStorage.getStore();
+}
+
 /**
  * Append one event to the outbox. Call INSIDE the `mutate()` that makes the
  * domain change, so the change and its announcement are one write.
@@ -79,6 +112,7 @@ export function recordOutboxEvent(state: PortalState, input: RecordOutboxEventIn
   const existing = state.outbox[id];
   if (existing) return existing;
   const recordedAt = input.now ?? Date.now();
+  const scope = correlationStorage.getStore();
   const event: OutboxEvent = {
     id,
     name: input.name,
@@ -87,8 +121,8 @@ export function recordOutboxEvent(state: PortalState, input: RecordOutboxEventIn
     clientId: input.clientId,
     actorUserId: input.actorUserId,
     source: input.source,
-    correlationId: input.correlationId ?? id,
-    causationId: input.causationId,
+    correlationId: input.correlationId ?? scope?.correlationId ?? id,
+    causationId: input.causationId ?? scope?.causationId,
     occurredAt: input.occurredAt ?? recordedAt,
     recordedAt,
     payload: input.payload,

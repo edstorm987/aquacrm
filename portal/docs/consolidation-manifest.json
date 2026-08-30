@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-30T12:40:49.996Z",
+  "generatedAt": "2026-08-30T13:07:42.103Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -359,9 +359,9 @@
       "path": "docs/data/MIGRATION-PLAN.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-data-migration-plan-md",
-      "sha256": "5b1148d53b53b6f86325f118b8092b0cbd7a359ca2f59bca9696f03690059bbd",
-      "words": 1055,
-      "bytes": 8156
+      "sha256": "46137bffb60ec2aab52682725400d3dae9afc398aad860859f7bbc7e6365d2d0",
+      "words": 1121,
+      "bytes": 8680
     },
     {
       "path": "docs/data/SEMANTIC-LAYER.md",
@@ -495,9 +495,9 @@
       "path": "docs/development/LOOP-PROGRESS.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-loop-progress-md",
-      "sha256": "987da536edaacf1521ddec9a1cc7efac30e5305eccba8d288d4cff4aee174d35",
-      "words": 1328,
-      "bytes": 10207
+      "sha256": "566d8a61e73cb7bd790dad10cf779e607c95566759f3739887e1c2ea3c217f2b",
+      "words": 1445,
+      "bytes": 11082
     },
     {
       "path": "docs/development/notes.md",

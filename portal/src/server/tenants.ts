@@ -303,7 +303,10 @@ export function updateClient(agencyId: string, clientId: string, patch: UpdateCl
       updatedAt: now,
     };
     state.clients[clientId] = saved;
-    recordOutboxEvent(state, {
+    // One update is one OPERATION: both announcements share a correlation id,
+    // and the stage move names the update as its cause — the lineage a
+    // consumer needs to see they were the same edit, not two.
+    const updated = recordOutboxEvent(state, {
       name: "client.updated",
       agencyId,
       clientId,
@@ -316,6 +319,8 @@ export function updateClient(agencyId: string, clientId: string, patch: UpdateCl
         agencyId,
         clientId,
         source: "server/tenants",
+        correlationId: updated.correlationId,
+        causationId: updated.id,
         payload: { clientId, from: oldStage, to: saved.stage },
       });
     }

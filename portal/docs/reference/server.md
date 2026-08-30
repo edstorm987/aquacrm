@@ -860,8 +860,10 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (7):**
+**Exports (9):**
 
+- `runWithCorrelation<T>(scope: { correlationId: string; causationId?: string }, fn: () => T): T` — Run `fn` with every recorded event correlated under `correlationId`.
+- `activeCorrelation(): CorrelationScope | undefined` — The active correlation scope, if any — for callers composing envelopes.
 - `recordOutboxEvent(state: PortalState, input: RecordOutboxEventInput): OutboxEvent` — Append one event to the outbox. Call INSIDE the `mutate()` that makes the domain change, so the change and its announcement are one write. Idempotent: an id already present is lef…
 - `drainOutbox(now = Date.now()): number` — Deliver every pending outbox event to the bus (oldest first), then prune. Returns how many events were delivered. SYNCHRONOUS on purpose. Nothing in the loop awaits (emit schedule…
 - `emitDurable(input: RecordOutboxEventInput): OutboxEvent` — Record + drain in one call — the drop-in for `emit()` call sites that are not already inside a `mutate()`. The record is durable before the bus sees it; subscribers still receive …

@@ -61,6 +61,19 @@ the drain awaits, so async only detached writes from the caller's turn.
 Deliberately still plain: the port adapters (the one seam that later makes
 every plugin event durable at once) and module-internal emits.
 
+**Phase 3 foundation adoption COMPLETE + correlation scope** (commits
+241afa9 + this one): all 28 remaining foundation emit() sites announce
+through the outbox; manifest pin confines plain emit( under src/server to
+eventBus.ts + outbox.ts; drainOutbox made synchronous (suite-caught timing
+fix). `runWithCorrelation` ALS scope groups an operation's events under one
+correlationId; updateClient's updated/stage_changed pair shares correlation
+with causation stage←update. Port adapters stay plain deliberately (the one
+seam to flip for all plugin events). NOTE for Ed's machine: the container's
+31 "environmental" failures are a Node/tsx ESM-interop artifact (named
+imports through the CJS transform in spawned children — e.g.
+BUSINESS_TIME_ZONE exists but the child can't see it); cross-backend
+spawn-based contract tests are queued for an environment where those pass.
+
 **Phase queue (from docs/data/MIGRATION-PLAN.md):**
 1. Tenancy/identity/roles extraction (tables + RLS behind existing modules;
    blocked on Ed for `supabase db push` + DATABASE_URL — ED-QUESTIONS Q7).

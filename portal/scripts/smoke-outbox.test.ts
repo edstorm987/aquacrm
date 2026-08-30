@@ -26,9 +26,10 @@ import {
   emitDurable,
   listOutboxEvents,
   recordOutboxEvent,
+  runWithCorrelation,
 } from "../src/server/outbox";
 import { getState, mutate, reset } from "../src/server/storage";
-import { createAgency, createClient } from "../src/server/tenants";
+import { createAgency, createClient, updateClient } from "../src/server/tenants";
 
 const AGENCY = "agency-outbox-test";
 
@@ -177,6 +178,42 @@ test("the adopted call site: createClient records + delivers client.created dura
   const heard = received.filter(event => (event.payload as { clientId?: string }).clientId === client.id);
   assert.equal(heard.length, 1, "subscribers still hear the event exactly once");
   assert.equal(heard[0]!.agencyId, agency.id);
+});
+
+test("a correlation scope groups every event recorded inside it; explicit values still win", () => {
+  mutate(state => {
+    runWithCorrelation({ correlationId: "corr-op-1", causationId: "obx_root" }, () => {
+      recordOutboxEvent(state, { id: "obx_scoped_a", name: "outbox.scoped_a", agencyId: AGENCY, source: "t", payload: {} });
+      recordOutboxEvent(state, { id: "obx_scoped_b", name: "outbox.scoped_b", agencyId: AGENCY, source: "t", payload: {} });
+      recordOutboxEvent(state, { id: "obx_scoped_c", name: "outbox.scoped_c", agencyId: AGENCY, source: "t", payload: {}, correlationId: "corr-explicit", causationId: "obx_other" });
+    });
+    recordOutboxEvent(state, { id: "obx_unscoped", name: "outbox.unscoped", agencyId: AGENCY, source: "t", payload: {} });
+  });
+  const rows = getState().outbox;
+  assert.equal(rows["obx_scoped_a"]!.correlationId, "corr-op-1");
+  assert.equal(rows["obx_scoped_a"]!.causationId, "obx_root");
+  assert.equal(rows["obx_scoped_b"]!.correlationId, "corr-op-1", "both events of the operation share the correlation");
+  assert.equal(rows["obx_scoped_c"]!.correlationId, "corr-explicit", "an explicit correlation beats the scope");
+  assert.equal(rows["obx_scoped_c"]!.causationId, "obx_other");
+  assert.equal(rows["obx_unscoped"]!.correlationId, "obx_unscoped", "outside a scope the default returns");
+});
+
+test("a client update with a stage move records one operation: shared correlation, stage caused by the update", async () => {
+  const agency = createAgency({ name: "Correlated Co" });
+  const client = createClient(agency.id, { name: "Corr Client", stage: "discovery" });
+  updateClient(agency.id, client.id, { stage: "live" });
+  await drainOutbox();
+  await microtasks();
+
+  const rows = listOutboxEvents(agency.id);
+  const updated = rows.find(row => row.name === "client.updated");
+  const staged = rows.find(row => row.name === "client.stage_changed");
+  assert.ok(updated && staged, "both announcements recorded");
+  assert.equal(staged!.correlationId, updated!.correlationId, "one edit, one correlation");
+  assert.equal(staged!.causationId, updated!.id, "the stage move names the update as its cause");
+  assert.deepEqual(staged!.payload, { clientId: client.id, from: "discovery", to: "live" });
+  assert.equal(updated!.status, "delivered");
+  assert.equal(staged!.status, "delivered");
 });
 
 test("source pin: the adopted site records inside its own mutate, not via a detached emit", () => {

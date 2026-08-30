@@ -2,7 +2,7 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-08-30 from **19** source documents / **19,350 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-30 from **19** source documents / **19,533 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -15,7 +15,7 @@
 - [`docs/data/ARCHITECTURE.md`](#source-docs-data-architecture-md) — 1,020 words · `c00c30773721`
 - [`docs/data/DATA-DICTIONARY.md`](#source-docs-data-data-dictionary-md) — 955 words · `bad31fdda0bc`
 - [`docs/data/LINEAGE.md`](#source-docs-data-lineage-md) — 599 words · `1a9cf390899c`
-- [`docs/data/MIGRATION-PLAN.md`](#source-docs-data-migration-plan-md) — 1,055 words · `5b1148d53b53`
+- [`docs/data/MIGRATION-PLAN.md`](#source-docs-data-migration-plan-md) — 1,121 words · `46137bffb60e`
 - [`docs/data/SEMANTIC-LAYER.md`](#source-docs-data-semantic-layer-md) — 775 words · `eaaf6bafb960`
 - [`docs/data/SOURCE-INVENTORY.md`](#source-docs-data-source-inventory-md) — 1,661 words · `880977ed9e4b`
 - [`docs/DEVELOPMENT-HANDOFF.md`](#source-docs-development-handoff-md) — 1,552 words · `9199166a1f30`
@@ -23,7 +23,7 @@
 - [`docs/development.md`](#source-docs-development-md) — 3,248 words · `dd5efef22882`
 - [`docs/development/CLOUD-RESUME.md`](#source-docs-development-cloud-resume-md) — 500 words · `03458cdf18bf`
 - [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 923 words · `66d4c02a3455`
-- [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,328 words · `987da536edaa`
+- [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,445 words · `566d8a61e73c`
 - [`README.md`](#source-readme-md) — 437 words · `78865db66238`
 
 ---
@@ -1005,7 +1005,7 @@ class in the semantic registry / metadata contracts before copying a field.
 
 ## Source document — `docs/data/MIGRATION-PLAN.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/data/MIGRATION-PLAN.md" sha256="5b1148d53b53b6f86325f118b8092b0cbd7a359ca2f59bca9696f03690059bbd" -->
+<!-- AQUACRM_SOURCE_START path="docs/data/MIGRATION-PLAN.md" sha256="46137bffb60ec2aab52682725400d3dae9afc398aad860859f7bbc7e6365d2d0" -->
 # Migration plan — strangler, one coherent vertical slice at a time
 
 *Rules that bind every phase below: the PortalState/blob system is not
@@ -1089,9 +1089,18 @@ Deliberately still plain: the plugin PORT adapters
 (built-ins/runtime/foundation-adapters) and module-internal emits — the one
 seam a later phase flips to make every plugin event durable at once.
 
+**Correlation scope SHIPPED (2026-08-30, third pass):** `runWithCorrelation`
+(AsyncLocalStorage) groups every event recorded inside one operation under
+one correlationId — explicit values still win, defaults return outside the
+scope — and `updateClient`'s updated/stage_changed pair now shares a
+correlation with the stage move naming the update as its cause. Both pinned
+in `smoke-outbox.test.ts`.
+
 Remaining in this phase: flip that port-adapter seam (with volume review);
-a cross-process claim (lease) when the outbox extracts to a table — the
-in-blob version's single-instance serialization is what synchrony buys.
+wrap the other multi-record operations (lead conversion, company promotion)
+in `runWithCorrelation` as each is touched; a cross-process claim (lease)
+when the outbox extracts to a table — the in-blob version's single-instance
+serialization is what synchrony buys.
 
 - **No event-sourcing claim**: state is not rebuildable from events; the
   outbox supports reliability and lineage, nothing more.
@@ -2346,7 +2355,7 @@ file stays a live queue.*
 
 ## Source document — `docs/development/LOOP-PROGRESS.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/LOOP-PROGRESS.md" sha256="987da536edaacf1521ddec9a1cc7efac30e5305eccba8d288d4cff4aee174d35" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/LOOP-PROGRESS.md" sha256="566d8a61e73cb7bd790dad10cf779e607c95566759f3739887e1c2ea3c217f2b" -->
 # Production-readiness loop — live ledger
 
 **Loop:** every 20 min (cron 5ced36da), started 2026-08-30. Blocked-on-Ed items
@@ -2409,6 +2418,19 @@ trailing into smoke-company-portal's "a GET does not write" pin — nothing in
 the drain awaits, so async only detached writes from the caller's turn.
 Deliberately still plain: the port adapters (the one seam that later makes
 every plugin event durable at once) and module-internal emits.
+
+**Phase 3 foundation adoption COMPLETE + correlation scope** (commits
+241afa9 + this one): all 28 remaining foundation emit() sites announce
+through the outbox; manifest pin confines plain emit( under src/server to
+eventBus.ts + outbox.ts; drainOutbox made synchronous (suite-caught timing
+fix). `runWithCorrelation` ALS scope groups an operation's events under one
+correlationId; updateClient's updated/stage_changed pair shares correlation
+with causation stage←update. Port adapters stay plain deliberately (the one
+seam to flip for all plugin events). NOTE for Ed's machine: the container's
+31 "environmental" failures are a Node/tsx ESM-interop artifact (named
+imports through the CJS transform in spawned children — e.g.
+BUSINESS_TIME_ZONE exists but the child can't see it); cross-backend
+spawn-based contract tests are queued for an environment where those pass.
 
 **Phase queue (from docs/data/MIGRATION-PLAN.md):**
 1. Tenancy/identity/roles extraction (tables + RLS behind existing modules;

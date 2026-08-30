@@ -81,9 +81,18 @@ Deliberately still plain: the plugin PORT adapters
 (built-ins/runtime/foundation-adapters) and module-internal emits — the one
 seam a later phase flips to make every plugin event durable at once.
 
+**Correlation scope SHIPPED (2026-08-30, third pass):** `runWithCorrelation`
+(AsyncLocalStorage) groups every event recorded inside one operation under
+one correlationId — explicit values still win, defaults return outside the
+scope — and `updateClient`'s updated/stage_changed pair now shares a
+correlation with the stage move naming the update as its cause. Both pinned
+in `smoke-outbox.test.ts`.
+
 Remaining in this phase: flip that port-adapter seam (with volume review);
-a cross-process claim (lease) when the outbox extracts to a table — the
-in-blob version's single-instance serialization is what synchrony buys.
+wrap the other multi-record operations (lead conversion, company promotion)
+in `runWithCorrelation` as each is touched; a cross-process claim (lease)
+when the outbox extracts to a table — the in-blob version's single-instance
+serialization is what synchrony buys.
 
 - **No event-sourcing claim**: state is not rebuildable from events; the
   outbox supports reliability and lineage, nothing more.
