@@ -389,7 +389,12 @@ export const SEMANTIC_ENTITIES: readonly SemanticEntity[] = [
     provenance: "Converted from a lead, imported, or created manually; lifecycleStartReason records which.",
     timestamps: { created: "createdAt", updated: "updatedAt" },
     sensitivity: "personal",
-    retention: "clientErasure.ts sweeps the client's PII across state + Supabase enquiry rows (hard delete, select-verified).",
+    retention:
+      "clientErasure.ts sweeps the client's PII across state + Supabase enquiry rows (hard delete, select-verified). " +
+      "The sweep covers STORED DATA only, never the codebase: a demo/sample client's persona is hardcoded in source constants (demoSeed.ts, " +
+      "api/tenants/seed, website-editor block defaults), so erasing the record does not remove the person from the " +
+      "codebase and the next seed restores them — the seven source files are listed in " +
+      "docs/workspace/hazards-and-duplication.md.",
     lifecycle: {
       states: ["lead", "discovery", "design", "development", "onboarding", "live", "churned", "aqua-epic-intro", "aqua-blueprint", "aqua-diagnostics", "aqua-brand-builder", "aqua-traffic", "aqua-mastery"],
       notes: "ClientStage is a string union so agency-customised phases can extend it; the six aqua-* stages are the canonical progression. A client does NOT have one universal delivery stage — per-product service stages live in product assignments.",

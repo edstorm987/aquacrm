@@ -88,6 +88,13 @@ export const CLIENT_ASSOCIATION_ALTERNATIVE_AUTHORITY: Readonly<Record<string, s
   "phase-apply":
     "api/portal/phases/apply proves the client belongs to the session's agency before the "
     + "applier runs (phaseApplier.ts), and answers client_not_found for anything else.",
+  "portal-search":
+    "searchCandidateAccess decides discoverability by DESTINATION element: an Action's href is "
+    + "/portal/agency/actions, so it answers to workspace.actions, and owners/managers keep the "
+    + "complete index by design. That is deliberately coarser than this rule — a staff member "
+    + "holding Actions can see the TITLE of an Action naming a client they cannot open — and it "
+    + "is recorded rather than quietly changed, because search applies one model to every "
+    + "category and moving Actions alone would split it.",
 };
 
 /** The element this association answers to, or null when it is not classified. */

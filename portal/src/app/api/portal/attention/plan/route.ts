@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { requireClientAssociation } from "@/lib/server/access/clientAssociationElement";
 import {
   resolutionEvidenceFor,
   resolutionExplainFor,
   resolutionPlanFor,
 } from "@/lib/server/resolutionPlans";
 import { ensureHydrated } from "@/server/storage";
+import { listAgencyTasks } from "@/server/tasks";
 import { AGENCY_ROLES } from "@/server/types";
 
 /**
@@ -24,6 +26,20 @@ export async function GET(request: Request) {
     const alertId = new URL(request.url).searchParams.get("alert")?.trim();
     if (!alertId) {
       return NextResponse.json({ ok: false, error: "An alert id is required." }, { status: 400 });
+    }
+
+    // An alert whose id is `task:<id>` is an alert ABOUT an Action, and the
+    // evidence card answers with that Action's title and its notes verbatim
+    // (`taskEvidence` in resolutionPlans.ts). That is the same read
+    // `GET /api/portal/tasks` filters its list on, so it answers to the same
+    // association — otherwise the row the list withholds comes back by asking
+    // for the alert about it instead. Refused HERE rather than inside the
+    // evidence builder: the three calls below swallow their errors into
+    // `null`, and a refusal must be a 403, never a silently empty panel.
+    if (alertId.startsWith("task:")) {
+      const taskId = alertId.slice("task:".length);
+      const task = listAgencyTasks(session.agencyId).find(entry => entry.id === taskId);
+      await requireClientAssociation("agency-task", task?.clientId, "view");
     }
 
     // A null plan is the normal case, not an error — most resolutions are one

@@ -4,6 +4,15 @@
 
 **Status: ✅ BUILT — core shipped + browser-verified (2026-08-19), then RESHAPED to six sections (2026-08-20). Finishing work tracked in [dev-team-finish.md](dev-team-finish.md); the topbar entry point in [dev-console-topbar.md](archive/dev-console-topbar.md).**
 
+> **Phase ticks backfilled 2026-08-31.** The phases below carried no status
+> markers, so the board read this plan `0/5` — a ⭐⭐ plan that is mostly shipped
+> looked untouched. Each phase was re-checked against current source before it
+> was ticked; the citations are inline. The plan is now **4/5** and **stays on
+> the board**: Phase 3's Master-Inbox derivation and ship→release promotion are
+> genuinely absent from `src/`, and
+> [`plans/archive/README.md`](archive/README.md) forbids archiving anything with
+> an open phase. Park it, don't hide it.
+
 > **Production correction, 2026-08-26:** Dev Team is no longer coupled to the
 > local demo-persona switch. The current `devTeamAccessible()` predicate keeps
 > local founder fixtures behind Dev Mode but admits only the deployment's live
@@ -113,9 +122,10 @@ No git-worktree isolation (uncommitted tree). So: **disjoint files run parallel;
 **Everything else is a clean island** — each section lives in its own `app/portal/dev-team/<section>/` dir → **one agent per section, zero collision.**
 
 ## Phases
-**Phase 0 — Spine (I own, serial):** new `dev-team/` scope + `layout.tsx` (copy `team/`, swap gate + inline panels) + `founderDevOnly()` helper + the sidebar entry line + all new `types.ts`/`storage.ts` slots + the dev-mode entry redirect + fix the latent `dev-mode/route.ts:165` "finds an owner" exit bug (restore the exact enterer — same fix pattern the freelancer route just passed audit with). Stub `page.tsx` per section so routes resolve.
+**Phase 0 — Spine (I own, serial):** ✅ SHIPPED — new `dev-team/` scope + `layout.tsx` (copy `team/`, swap gate + inline panels) + `founderDevOnly()` helper + the sidebar entry line + all new `types.ts`/`storage.ts` slots + the dev-mode entry redirect + fix the latent `dev-mode/route.ts:165` "finds an owner" exit bug (restore the exact enterer — same fix pattern the freelancer route just passed audit with). Stub `page.tsx` per section so routes resolve.
+_Verified in source 2026-08-31: `src/app/portal/dev-team/layout.tsx` + `page.tsx`; the gate helper landed as `devTeamAccessible()` (`src/lib/server/dev/devTeamAccess.ts:44`), not `founderDevOnly()`; `api/auth/dev-mode/route.ts` lands `enter` on `/portal/dev-team` and `exit` now restores `devReturnUserId` — the exact enterer — falling back to "an owner" only for tokens minted before that field existed._
 
-**Phase 1 — Section islands (parallel agents, one per section):**
+**Phase 1 — Section islands (parallel agents, one per section):** ✅ SHIPPED (2026-08-19, browser-verified)
 - **Library** — thin wrapper rendering the dev-docs browser in the hub.
 - **Notes** — thin wrapper mounting `NotepadWorkspace`.
 - **Home/Status** — `BlockerStrip` + recently-edited feed.
@@ -123,11 +133,16 @@ No git-worktree isolation (uncommitted tree). So: **disjoint files run parallel;
 - **Profiles** — the POV click-list (reuse the mint), always-present Exit + "← Dev Team".
 - **Auditor** — Radar reskin + dev lenses *(uses recon B's map)*.
 
-**Phase 2 — Librarian (me or a dedicated agent):** reuse the LLM+store+drawer; build the curated-corpus context builder + grep-over-reference tool + gated route + key resolution. Queryable in-app AND exposed so I can query it too.
+_All six islands shipped and were browser-verified on 2026-08-19 (see Build progress below). Two later moved rather than regressed: the **2026-08-20 reshape to six sections** folded Auditor into `dev-team/findings` (`auditor/` still exists behind it), and **Profiles** left the `dev-team/` scope entirely when the way in/out became the topbar's Dev-Mode control. Neither is unfinished phase-1 work._
 
-**Phase 3 — Updates→Inbox→Changelog (I own — shared files):** `devUpdates` store + UI island + the `addDevTeamUpdateAlerts` derivation + ship→release promotion.
+**Phase 2 — Librarian (me or a dedicated agent):** ✅ SHIPPED — reuse the LLM+store+drawer; build the curated-corpus context builder + grep-over-reference tool + gated route + key resolution. Queryable in-app AND exposed so I can query it too.
+_Verified in source 2026-08-31: the gated route is `src/app/api/portal/dev/librarian/route.ts` (POST-only, read-only, tenant-first access kernel) over the file-finding skill `src/lib/server/dev/fileFinding.ts`; the surfaces are `components/editing/LibrarianPanel.tsx` + `librarianClient.ts` and the `components/chrome/LibrarianDrawerControl.tsx` drawer. The key worry is closed too — the Advisor's existing OpenAI backend is reused, so no new key was needed._
 
-**Phase 4 — Verify + polish:** parallel adversarial verifier per section (the pattern that just caught the erasure hole) + a founder browser-walk of the whole portal + docs (portal-ui chapter, regenerate symbol reference, api-reference).
+**Phase 3 — Updates→Inbox→Changelog (I own — shared files):** 🚧 HALF SHIPPED — `devUpdates` store + UI island + the `addDevTeamUpdateAlerts` derivation + ship→release promotion.
+_Verified in source 2026-08-31. **Done:** the store and the UI island — `src/lib/server/dev/devTeamUpdates.ts` (parse/append over `docs/development/updates.md`, locked + optimistic-replace), `api/portal/dev-team/updates/route.ts`, and the island now rendered as a Library view (`dev-team/updates/page.tsx` redirects to `library?view=updates`). **Not done:** `addDevTeamUpdateAlerts` does not exist anywhere in `src/`, so an update authored here never reaches the Master Inbox, and there is no ship→release promotion (`src/lib/releases.ts` does not exist). This is the phase that keeps the plan on the board — do not archive it until the Inbox derivation lands or is deliberately dropped._
+
+**Phase 4 — Verify + polish:** ✅ SHIPPED — parallel adversarial verifier per section (the pattern that just caught the erasure hole) + a founder browser-walk of the whole portal + docs (portal-ui chapter, regenerate symbol reference, api-reference).
+_Verified 2026-08-31: the polish pass is recorded below as complete and browser-verified with all five sections screenshotted on `:3032`, and the doc deliverables exist — `docs/workspace/portal-ui.md` and `docs/workspace/api-reference.md` both carry the dev-team surfaces._
 
 ## Done when (runtime-verified)
 Owner flips **Dev Mode** → cinematic → lands in the **Dev Team portal** with its own sidebar →

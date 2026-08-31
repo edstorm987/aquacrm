@@ -1883,6 +1883,21 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by (10):** [`src/app/portal/agency/[...rest]/page.tsx`](app.md#file-src-app-portal-agency-rest-page-tsx-27d1ad6afa) · [`src/app/portal/agency/layout.tsx`](app.md#file-src-app-portal-agency-layout-tsx-47dd48700a) · [`src/app/portal/clients/[clientId]/[...rest]/page.tsx`](app.md#file-src-app-portal-clients-clientid-rest-page-tsx-f215f5ac0f) · [`src/app/portal/clients/[clientId]/layout.tsx`](app.md#file-src-app-portal-clients-clientid-layout-tsx-2e7f1d7ce2) · [`src/app/portal/clients/page.tsx`](app.md#file-src-app-portal-clients-page-tsx-bffc1e671f) · [`src/app/portal/customer/[...rest]/page.tsx`](app.md#file-src-app-portal-customer-rest-page-tsx-88df60b027) · [`src/app/portal/customer/layout.tsx`](app.md#file-src-app-portal-customer-layout-tsx-51035d393e) · [`src/app/portal/dev-team/layout.tsx`](app.md#file-src-app-portal-dev-team-layout-tsx-ceef463ed4) · [`src/app/portal/freelancer/layout.tsx`](app.md#file-src-app-portal-freelancer-layout-tsx-cbfadd4dfa) · [`src/app/portal/team/layout.tsx`](app.md#file-src-app-portal-team-layout-tsx-f6dab38395)
 
+<a id="file-src-components-ui-infotip-tsx-b11a0c68a6"></a>
+
+### `src/components/ui/InfoTip.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `InfoTip({ label, children, tone = "light", size = 13, className }: InfoTipProps)`
+- `interface InfoTipProps (5 members)`
+
+**Depends on:** _No internal imports._
+
+**Used by (4):** [`scripts/smoke-info-tip.test.ts`](scripts.md#file-scripts-smoke-info-tip-test-ts-0588407fba) · [`src/app/portal/agency/_CommandIntelligenceWorkspace.tsx`](app.md#file-src-app-portal-agency-commandintelligenceworkspace-tsx-0d26b4df14) · [`src/app/portal/agency/fulfilment/_FulfilmentWorkspace.tsx`](app.md#file-src-app-portal-agency-fulfilment-fulfilmentworkspace-tsx-efb66537d4) · [`src/app/portal/agency/inbox/_MasterInbox.tsx`](app.md#file-src-app-portal-agency-inbox-masterinbox-tsx-2323adcb4b)
+
 <a id="file-src-components-ui-loadingskeleton-tsx-cd84920218"></a>
 
 ### `src/components/ui/LoadingSkeleton.tsx`

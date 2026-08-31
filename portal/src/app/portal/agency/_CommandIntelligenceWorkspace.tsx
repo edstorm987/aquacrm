@@ -43,6 +43,7 @@ import type {
   CommandKpiStatus,
 } from "@/lib/intelligence/commandIntelligence";
 import { dateInputValue, formatUkDate } from "@/lib/shared/formatDateTime";
+import { InfoTip } from "@/components/ui/InfoTip";
 import { describeCommandKpis, describeCommercialFormulas, describeCustomKpis, searchKpiDescriptors, suggestKpiTarget, type KpiDescriptor } from "@/lib/performance/kpiRegistry";
 import {
   KpiTargetRequestError,
@@ -1045,8 +1046,39 @@ function SectionHeading({ eyebrow, title, detail, icon, compact = false, titleId
   return <div className="flex min-w-0 items-start gap-2.5"><span className={`grid shrink-0 place-items-center border border-[#62e8ff]/18 bg-[#62e8ff]/[0.055] text-[#62e8ff] ${compact ? "size-7" : "size-8"}`}>{icon}</span><div className="min-w-0"><p className="text-[7px] font-semibold uppercase text-[#76dff1]/50">{eyebrow}</p><h3 id={titleId} className={`mt-0.5 font-semibold text-white/82 ${compact ? "text-xs" : "text-sm"}`}>{title}</h3><p className="mt-0.5 text-[9px] leading-4 text-white/30">{detail}</p></div></div>;
 }
 
+/**
+ * What each readout actually counts, in plain English.
+ *
+ * These labels are instrument shorthand — "Blind", "Learning", "Portfolio
+ * ROAS", "Unmapped labels" — and a statistic that reaches an operator
+ * untranslated is a statistic they cannot act on. Keyed by the label so the
+ * wording lives in one place and both the full and `compact` copies of a
+ * readout explain themselves identically. Every label used below must appear
+ * here; `smoke-info-tip.test.ts` fails if one is added without its meaning.
+ */
+const READOUT_MEANINGS: Record<string, string> = {
+  "Connected": "How many of the twenty decision KPIs currently have a live data source behind them. The rest are reading from nothing.",
+  "Critical": "KPIs that have crossed the threshold where they need a decision now, not at the next review.",
+  "Warning": "KPIs drifting towards their threshold. Nothing has broken yet, but the direction is wrong.",
+  "Learning": "KPIs that have a data source but not yet enough history to say what normal looks like, so no judgement is offered.",
+  "Blind": "KPIs with no data source at all. This is a gap in what you can see, not a clean bill of health.",
+  "Active": "Campaigns that are live, sending, or scheduled to start. A scheduled one is counted here before it has spent anything.",
+  "Active campaigns": "Campaigns that are live, sending, or scheduled to start. A scheduled one is counted here before it has spent anything.",
+  "Spend": "Money recorded against campaigns so far. Only what has actually been entered or imported.",
+  "Recorded spend": "Money recorded against campaigns so far. Only what has actually been entered or imported.",
+  "Attributed revenue": "Revenue that can be traced back to a specific campaign. Sales with no traceable source are not counted here.",
+  "Attributed return": "Revenue that can be traced back to a specific campaign. Sales with no traceable source are not counted here.",
+  "Portfolio ROAS": "Return on ad spend across every campaign: attributed revenue divided by recorded spend. 3x means three times as much traced back as was spent. It reads \"Learning\" until some spend has been recorded, because until then there is nothing to divide by.",
+  "Profiles": "Customer profiles saved in marketing — the written description of a type of buyer.",
+  "Validated": "Profiles somebody has confirmed against real evidence rather than assumption.",
+  "Mapped markets": "Locations on saved profiles that Aqua recognised and could place on the map.",
+  "Markets": "Locations on saved profiles that Aqua recognised and could place on the map.",
+  "Unmapped labels": "Locations written on profiles that Aqua could not recognise, so they are missing from the map. Usually a spelling or an informal name.",
+};
+
 function SummaryReadout({ label, value, tone, compact = false }: { label: string; value: string; tone: "cyan" | "green" | "amber" | "red" | "blue"; compact?: boolean }) {
-  return <div className={`${compact ? "min-h-[72px] p-3" : "min-h-[82px] p-3 sm:p-4"} border-b border-r border-[#62e8ff]/12 bg-[#020b11]`}><p className="text-[7px] font-semibold uppercase text-white/28">{label}</p><p className={`mt-1 truncate font-semibold tabular-nums ${compact ? "text-base" : "text-xl"} ${tone === "green" ? "text-[#68f5d0]" : tone === "amber" ? "text-amber-300" : tone === "red" ? "text-red-300" : tone === "blue" ? "text-sky-300" : "text-[#62e8ff]"}`}>{value}</p></div>;
+  const meaning = READOUT_MEANINGS[label];
+  return <div className={`${compact ? "min-h-[72px] p-3" : "min-h-[82px] p-3 sm:p-4"} border-b border-r border-[#62e8ff]/12 bg-[#020b11]`}><p className="flex items-center gap-1 text-[7px] font-semibold uppercase text-white/28">{label}{meaning ? <InfoTip label={label} tone="dark" size={11}>{meaning}</InfoTip> : null}</p><p className={`mt-1 truncate font-semibold tabular-nums ${compact ? "text-base" : "text-xl"} ${tone === "green" ? "text-[#68f5d0]" : tone === "amber" ? "text-amber-300" : tone === "red" ? "text-red-300" : tone === "blue" ? "text-sky-300" : "text-[#62e8ff]"}`}>{value}</p></div>;
 }
 
 function InspectorRow({ label, value }: { label: string; value: string }) { return <div className="grid grid-cols-[90px_minmax(0,1fr)] gap-3 py-2.5"><dt className="text-white/28">{label}</dt><dd className="break-words text-right font-medium text-white/58">{value}</dd></div>; }

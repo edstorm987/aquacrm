@@ -113,7 +113,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on:** _No internal imports._
 
-**Used by (2):** [`scripts/smoke-access-control-ui.test.ts`](#file-scripts-smoke-access-control-ui-test-ts-b983e0a0f7) · [`scripts/smoke-portal-viewport-loading.test.ts`](#file-scripts-smoke-portal-viewport-loading-test-ts-cacaebcde8)
+**Used by (3):** [`scripts/smoke-access-control-ui.test.ts`](#file-scripts-smoke-access-control-ui-test-ts-b983e0a0f7) · [`scripts/smoke-info-tip.test.ts`](#file-scripts-smoke-info-tip-test-ts-0588407fba) · [`scripts/smoke-portal-viewport-loading.test.ts`](#file-scripts-smoke-portal-viewport-loading-test-ts-cacaebcde8)
 
 <a id="file-scripts-client-workspace-navigation-test-ts-391d5d3396"></a>
 
@@ -990,7 +990,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on (5):** [`scripts/dev-console-request-scope.ts`](#file-scripts-dev-console-request-scope-ts-77ec79ae76) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (11):** [`scripts/dev-console-request-scope.ts`](#file-scripts-dev-console-request-scope-ts-77ec79ae76) · [`src/app/api/portal/attention/plan/route.ts`](app.md#file-src-app-api-portal-attention-plan-route-ts-685bff509c) · [`src/app/api/portal/tasks/checklist/route.ts`](app.md#file-src-app-api-portal-tasks-checklist-route-ts-b59c4dc5b2) · [`src/app/api/portal/tasks/route.ts`](app.md#file-src-app-api-portal-tasks-route-ts-d9832af3c1) · [`src/app/api/portal/tasks/templates/route.ts`](app.md#file-src-app-api-portal-tasks-templates-route-ts-e4e0721b20) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tasks.ts`](server.md#file-src-server-tasks-ts-875282c006) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3583,6 +3583,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (1):** [`src/app/portal/agency/inbox/_voiceRecorder.ts`](app.md#file-src-app-portal-agency-inbox-voicerecorder-ts-42dce7c006)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-info-tip-test-ts-0588407fba"></a>
+
+### `scripts/smoke-info-tip.test.ts`
+
+**What it is:** which `react-dom/server` refuses to load under. See the note in that file.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (2):** [`scripts/client-render-condition.ts`](#file-scripts-client-render-condition-ts-f87886323c) · [`src/components/ui/InfoTip.tsx`](components.md#file-src-components-ui-infotip-tsx-b11a0c68a6)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 

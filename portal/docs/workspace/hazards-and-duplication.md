@@ -15,6 +15,78 @@ data**. If you read one chapter before touching the codebase, read this one.
 - **What's live:** see the [API chapter's LIVE callout](api-and-routes.md#-live-supabase-callout-dont-break-real-data). Short version: all auth, all `brand_enquiries` enquiry endpoints, `telemetry/collect`, and all Storage-bucket file uploads.
 - **Dev/demo inboxes load ZERO enquiries** (`agency/inbox/page.tsx`: `session.isDemo ? []`). The enquiry-delete button and master-tag ingestion only appear in a **real** (non-demo) inbox — don't conclude they're broken from the sandbox.
 
+### A real person's identity is a SOURCE CONSTANT — erasure cannot reach it (2026-08-31)
+
+**The audit that produced this entry.** Demo- and sample-seeded PII was checked
+against the governance erasure surface for the first time on 2026-08-31. Two
+halves, and they answer differently.
+
+**The half that is fine.** Everything the demo seed *stores* is erasable, and
+proven so: a demo tenant seeded by the real `seedDemoAgency()` appears in
+`buildGovernanceSnapshot().erasureClients` (so the Governance workspace offers
+it), and `eraseClientCompletely()` removes the client record, the client-owner
+user carrying the demo email, and the seeded activity. Nothing about a demo
+tenant is exempt from the sweep. Pinned in
+`scripts/smoke-client-erasure.test.ts` → *"data-compliance check: demo-seeded
+PII against the erasure surface"*.
+
+**The half that is not.** A real person — Ed's client Felicia of Luv & Ker —
+is **hardcoded in seven source files as a runtime default**, and erasure
+operates on *state*, not on the codebase. Erase the demo client and the next
+seed puts the same name and email straight back. Worse, one of the seven is not
+demo data at all: `src/app/api/tenants/seed/route.ts` defaults its client-owner
+to `felicia@luvandker.com` — a **real address on a real domain**, not the
+`.demo` mirror — and that route answers any authenticated caller in production.
+(It refuses with 409 once any agency exists, so it cannot re-seed a populated
+install; the real address ships in the bundle either way.)
+
+The seven files, and what each holds:
+
+| File | What it hardcodes |
+| --- | --- |
+| `src/lib/server/seeds/demoSeed.ts` | `DEMO_CLIENT_NAME`/`DEMO_CLIENT_EMAIL` (`felicia@luvandker.demo`), `"Felicia (demo)"`, `luvandker.com` |
+| `src/app/api/tenants/seed/route.ts` | **`felicia@luvandker.com` — the real address**, `"Luv & Ker"`, `"Felicia"` |
+| `src/built-ins/modules/website-editor/src/components/blockRegistry.ts` | `Felicia` as the testimonial author, team-grid member and author-bio default |
+| `src/built-ins/modules/website-editor/src/components/blocks/AuthorBioBlock.tsx` | fallback bio: *"Crafted Odo by Felicia from her Ghanaian heritage…"* — **personal, ethnic-origin prose** shipped as a `??` default |
+| `src/built-ins/modules/website-editor/src/components/pageTemplates.ts` | `Felicia` as a template testimonial author |
+| `src/app/portal/clients/[clientId]/_BuildPortalWizard.tsx` | a `luv-and-ker` portal preset |
+| `src/lib/projects/projects.ts` | the published `Luv & Ker` case study |
+
+**What this means when you edit here.** Do not describe erasure as removing a
+person's data from AquaCRM without qualifying it — for these seven files it
+removes the row and not the persona. `semanticRegistry.ts`'s `client` entity now
+says so in its `retention` line, which is the machine-readable copy of this
+entry. And **do not add an eighth**: the same test sweeps `src/**` for the
+persona tokens (skipping comments and `placeholder` text) and fails on any file
+not listed above, so a new hardcoded default has to be argued for here first.
+
+**What the sweep deliberately does NOT catch — so seven is the count of runtime
+defaults, not of every appearance.** Lines whose only hit is inside a comment, or
+on a line containing `placeholder`, are exempt: a comment is context for the next
+reader and a form placeholder is example text the user overwrites. That exemption
+is a judgement, and it hides real occurrences that are still compiled into the
+bundle and rendered on screen — at least these:
+
+| File | Placeholder-shaped occurrence |
+| --- | --- |
+| `src/built-ins/modules/fulfillment/src/components/NewClientModal.tsx` | `placeholder="felicia@luvandker.com"` and `"e.g. Luv & Ker"` — the **real address**, shown in the new-client form |
+| `src/built-ins/modules/website-editor/src/pages/SitesPage.tsx` | `"e.g. Felicia Skincare"`, `"e.g. felicia.com"`, and two Odo/`Luv & Ker` assistant-prompt placeholders |
+| `src/built-ins/modules/website-editor/src/pages/EditorPage.tsx` | `luvandker.com` as the custom-domain placeholder |
+| `src/built-ins/modules/ecommerce/index.ts` | `https://luvandker.com/checkout/...` as the Stripe URL placeholders |
+
+If a reviewer decides placeholders are not exempt, the rule is one line in the
+test (`if (/placeholder/i.test(code)) return false;`) and these files join the
+table above. Until then, do not read "seven" as "seven places the name appears".
+
+**Two decisions for Ed — not taken unilaterally.** (1) Replacing the persona
+with a synthetic one is mechanically small, but it is *his* demo branding and it
+re-pins several website-editor smoke tests, so it is his call, not a worker's.
+(2) The demo-data **retention period** is Q4 in the DPO pack and stays open;
+until it is answered, nothing may publish "we delete after X" wording. The
+`AuthorBioBlock` ethnic-origin bio and the real `felicia@luvandker.com` default
+in the seed route are the two worth deciding first — those are special-category
+prose and a live address, not just a name.
+
 ---
 
 ## 🟠 Confirmed duplication (two real implementations — pick the right one)

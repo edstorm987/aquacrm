@@ -9,6 +9,7 @@ import {
   saveTaskAsTemplate,
   saveTaskTemplate,
 } from "@/server/taskTemplates";
+import { listAgencyTasks } from "@/server/tasks";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { AGENCY_ROLES, type AgencyTaskPriority, type AgencyTaskTemplateStep } from "@/server/types";
 
@@ -107,6 +108,13 @@ export async function POST(request: Request) {
       if (!taskId || !name.trim()) {
         return NextResponse.json({ ok: false, error: "A task and a name are required." }, { status: 400 });
       }
+      // Cloning an Action into a template COPIES its title, notes and steps
+      // into agency-wide content and hands them straight back in the response.
+      // That is a read of the source Action, so it answers to the association
+      // GET `portal/tasks` filters its list on — otherwise the one row the
+      // list withholds is readable by asking for a copy of it.
+      const source = listAgencyTasks(session.agencyId).find(entry => entry.id === taskId);
+      await requireClientAssociation("agency-task", source?.clientId, "view");
       const template = saveTaskAsTemplate(session.agencyId, taskId, name, session.userId);
       if (!template) return NextResponse.json({ ok: false, error: "Task not found." }, { status: 404 });
       await flushPendingWrites();

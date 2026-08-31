@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-31T04:08:56.610Z",
+  "generatedAt": "2026-08-31T05:02:01.296Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -687,9 +687,9 @@
       "path": "docs/development/plans/dev-team-finish.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-dev-team-finish-md",
-      "sha256": "ceb793dfd94d2380ba46c082a34bf6a0ad9f373efdc6e418d29e604b2d0d2e5b",
-      "words": 1701,
-      "bytes": 12134
+      "sha256": "b3a25b54c0709386cb2a0654d1e076fd24add55836a52e0d62b83dcf6d20d334",
+      "words": 1967,
+      "bytes": 14215
     },
     {
       "path": "docs/development/plans/dev-team-hub.md",
@@ -711,9 +711,9 @@
       "path": "docs/development/plans/dev-team-portal.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-dev-team-portal-md",
-      "sha256": "7d8d6bd3a80461eca2c0e343dcf2d592d46bd661afb209e51e5e71599c8b4722",
-      "words": 4294,
-      "bytes": 34115
+      "sha256": "679e21c1285c0beabf3ae5d09ce77b65167feca3a1d66cb92b59aa0b1f9cad34",
+      "words": 4666,
+      "bytes": 37033
     },
     {
       "path": "docs/development/plans/dev-team-ui-polish.md",
@@ -895,9 +895,9 @@
       "path": "docs/development/plans/rls-enable.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-rls-enable-md",
-      "sha256": "b4aecbed98300e4bdddaf752d4a15fcc41a8c5f839eb70ecf9c4c97b8c9ea37b",
-      "words": 1521,
-      "bytes": 12243
+      "sha256": "b805e52e8625b9b11c716ea7566b250b877ffd9825cb52cd5dddbb5d5f8d4a54",
+      "words": 1645,
+      "bytes": 13038
     },
     {
       "path": "docs/development/plans/runtime-verification.md",
@@ -1135,9 +1135,9 @@
       "path": "docs/workspace/hazards-and-duplication.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-hazards-and-duplication-md",
-      "sha256": "b2d1e0e72c27ef36649fce3eb6a49de0832dc39353f7d5b489cb8d4b9f2f1041",
-      "words": 7211,
-      "bytes": 55632
+      "sha256": "32487729482619bcd1cfbba638b0e42f78a0873b8f7c8ae092f73815981da1c7",
+      "words": 7921,
+      "bytes": 60659
     },
     {
       "path": "docs/workspace/kpi-intelligence.md",

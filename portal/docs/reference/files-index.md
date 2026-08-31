@@ -2,7 +2,7 @@
 
 ← Back to [the reference index](00-index.md) · [the map](../WORKSPACE-FILE-TREE.md) · [development.md](../development.md)
 
-Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2549 source files; 0 per-source stubs.**
+Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2551 source files; 0 per-source stubs.**
 
 ## Engines — `src/engines/` (83)
 
@@ -492,7 +492,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/telephony/phoneNumbers.ts`](lib.md#file-src-lib-telephony-phonenumbers-ts-b7be228e55) — The default country for numbers written without any international prefix.
 - [`src/lib/telephony/twilioSignature.ts`](lib.md#file-src-lib-telephony-twiliosignature-ts-bff6e7eefd) — indistinguishable from one that always returns true.
 
-## Shared components — `src/components/` (126)
+## Shared components — `src/components/` (127)
 
 - [`src/components/access/AccessBoundary.tsx`](components.md#file-src-components-access-accessboundary-tsx-5d487a86d6)
 - [`src/components/access/AccessControlPanel.tsx`](components.md#file-src-components-access-accesscontrolpanel-tsx-62b7a8e0aa)
@@ -613,6 +613,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/components/ui/ConfirmDialog.tsx`](components.md#file-src-components-ui-confirmdialog-tsx-95ce30ec9d)
 - [`src/components/ui/EmptyState.tsx`](components.md#file-src-components-ui-emptystate-tsx-1161404a4d) — inherits the tenant's brand tokens via globals.css.
 - [`src/components/ui/ErrorBoundary.tsx`](components.md#file-src-components-ui-errorboundary-tsx-27181f6f14)
+- [`src/components/ui/InfoTip.tsx`](components.md#file-src-components-ui-infotip-tsx-b11a0c68a6)
 - [`src/components/ui/LoadingSkeleton.tsx`](components.md#file-src-components-ui-loadingskeleton-tsx-cd84920218) — uses Tailwind's `animate-pulse` to match the Felicia-portal vocabulary.
 - [`src/components/ui/Pagination.tsx`](components.md#file-src-components-ui-pagination-tsx-310d3fab89)
 - [`src/components/ui/PortalLoadingCoordinator.tsx`](components.md#file-src-components-ui-portalloadingcoordinator-tsx-ab67a66ae6)
@@ -2029,7 +2030,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/showcase/exit/route.ts`](app.md#file-src-app-showcase-exit-route-ts-2297ba275f)
 - [`src/app/showcase/route.ts`](app.md#file-src-app-showcase-route-ts-4c24dd82df)
 
-## Scripts — `scripts/` (536)
+## Scripts — `scripts/` (537)
 
 - [`scripts/attention-protection.test.ts`](scripts.md#file-scripts-attention-protection-test-ts-d64d01714c)
 - [`scripts/audit-actions.ts`](scripts.md#file-scripts-audit-actions-ts-862ea31175) — What state Actions is actually in — measured, not remembered. For every alert the checks currently …
@@ -2327,6 +2328,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-inbox-attention-resolution.test.ts`](scripts.md#file-scripts-smoke-inbox-attention-resolution-test-ts-795c8b046f)
 - [`scripts/smoke-inbox-company-routing.test.ts`](scripts.md#file-scripts-smoke-inbox-company-routing-test-ts-275120e49f)
 - [`scripts/smoke-inbox-recorder-lifecycle.test.ts`](scripts.md#file-scripts-smoke-inbox-recorder-lifecycle-test-ts-d655c5138a)
+- [`scripts/smoke-info-tip.test.ts`](scripts.md#file-scripts-smoke-info-tip-test-ts-0588407fba) — which `react-dom/server` refuses to load under. See the note in that file.
 - [`scripts/smoke-inspector-exit.test.ts`](scripts.md#file-scripts-smoke-inspector-exit-test-ts-73836c8da2) — and you only find out once you are already inside somebody else's portal.
 - [`scripts/smoke-integration-connections.test.ts`](scripts.md#file-scripts-smoke-integration-connections-test-ts-369d5b60b2)
 - [`scripts/smoke-journey-kanban.test.ts`](scripts.md#file-scripts-smoke-journey-kanban-test-ts-a220df9495)
