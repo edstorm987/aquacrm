@@ -1,15 +1,18 @@
 import type { ReactNode } from "react";
 
-import { readPrimaryAgencyWebsite } from "@/server/agencyWebsite";
-import { ensureHydrated } from "@/server/storage";
+import { readPrimaryAgencyWebsiteForPublicRender } from "@/server/agencyWebsite";
 
 export default async function WebsiteLayout({ children }: { children: ReactNode }) {
-  await ensureHydrated();
   // A READ, not an ensure (issue #21). This is the PUBLIC website layout: a
   // stranger loading the marketing site used to create the tenant's website
   // record, which was the only read-time write an unauthenticated visitor could
   // trigger.
-  const website = readPrimaryAgencyWebsite();
+  //
+  // And a read that may FAIL without taking the page with it: this layout wraps
+  // every public page, so hydrating here made prerendering the marketing site
+  // depend on a live database, and a brief outage killed the whole deploy
+  // rather than one script tag. See readPrimaryAgencyWebsiteForPublicRender.
+  const website = await readPrimaryAgencyWebsiteForPublicRender();
   return (
     <>
       {children}

@@ -254,12 +254,32 @@ describe("removal #2 — a page render cannot run automations", () => {
     // The one that mattered most for a public launch: the marketing site's
     // layout called `ensurePrimaryAgencyWebsite()`, so a stranger loading the
     // home page created the tenant's website record.
+    //
+    // Both public surfaces now go through `readPrimaryAgencyWebsiteForPublicRender()`
+    // (2026-08-31), which exists for a different reason — it must not fail the
+    // page, or the build, when the store is unreachable. This assertion is
+    // about the OTHER property, which is unchanged: whatever the public
+    // surfaces call, it must never write. So it follows the indirection into
+    // the helper rather than matching a name.
     for (const file of ["src/app/(website)/layout.tsx", "src/app/(website)/client-centre/page.tsx"]) {
       const source = readFileSync(join(ROOT, file), "utf-8").replace(/\/\/[^\n]*/g, " ");
       assert.doesNotMatch(source, /ensurePrimaryAgencyWebsite\s*\(/,
         `${file} is public and writes on render again`);
-      assert.match(source, /readPrimaryAgencyWebsite\s*\(/);
+      assert.match(source, /readPrimaryAgencyWebsite(ForPublicRender)?\s*\(/,
+        `${file} no longer reads the website through a known read-only path`);
     }
+
+    // The indirection itself: the helper the public pages now call must be a
+    // read and a report, nothing else. A `mutate(` appearing inside it would
+    // reintroduce exactly the defect above, one level down where the two
+    // assertions on the pages could not see it.
+    const helper = /export async function readPrimaryAgencyWebsiteForPublicRender[\s\S]*?\n\}/
+      .exec(readFileSync(join(ROOT, "src/server/agencyWebsite.ts"), "utf-8"));
+    assert.ok(helper, "the public render helper is gone — re-point this assertion at whatever replaced it");
+    assert.doesNotMatch(helper[0], /\bmutate\s*\(|ensurePrimaryAgencyWebsite\s*\(/,
+      "the public render helper writes");
+    assert.match(helper[0], /captureError\(/,
+      "a swallowed store failure must still be reported, or an outage goes silent");
   });
 
   it("reading the primary website stores nothing, even with no record at all", async () => {

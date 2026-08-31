@@ -7,7 +7,8 @@ import {
   type ClientTelemetrySummary,
 } from "@/lib/clients/clientTelemetry";
 import { logActivity } from "@/server/activity";
-import { getState, mutate } from "@/server/storage";
+import { captureError } from "@/lib/server/observability";
+import { ensureHydrated, getState, mutate } from "@/server/storage";
 import type {
   AgencyWebsitePage,
   AgencyWebsiteProject,
@@ -112,6 +113,56 @@ export function ensureAgencyWebsite(agencyId: string): AgencyWebsiteProject {
  * Falls back to the in-memory defaults rather than null, so the public site
  * renders exactly as it did — the difference is that nothing is stored.
  */
+/**
+ * The public marketing site's read of its own agency record — safe to call
+ * while prerendering, and safe when the data store is unreachable.
+ *
+ * ── Why this exists ──────────────────────────────────────────────────────
+ *
+ * `(website)/layout.tsx` wraps every public page and called `ensureHydrated()`
+ * directly. `pickBackend()` promotes to Postgres the moment `DATABASE_URL` is
+ * set — which is production and nowhere else — so **prerendering the marketing
+ * site required a live database**, and a database that was merely slow or
+ * briefly unreachable did not degrade the page, it killed the whole deploy:
+ *
+ *     ✓ Compiled successfully in 2.8min
+ *       Generating static pages (75/301)
+ *     Error occurred prerendering page "/business-os"
+ *     Error: Connection terminated due to connection timeout
+ *     Export encountered an error on /(website)/business-os/page, exiting the build.
+ *
+ * Reproduced by pointing `DATABASE_URL` at a non-routable address (RFC 5737
+ * TEST-NET-2) and running the real build. It never reproduces locally, because
+ * with no `DATABASE_URL` the file backend answers instantly.
+ *
+ * Both callers already handle a `null` website — the layout omits the Aqua Tag
+ * script, and `/client-centre` treats it as "not updating". So the honest
+ * behaviour when the store cannot be read is to render the page WITHOUT the
+ * record rather than to fail. A marketing page missing its telemetry tag beats
+ * a marketing page that does not exist.
+ *
+ * The failure is never swallowed: it goes through `captureError`, which always
+ * writes the trace to the deployment log and additionally reports to Sentry
+ * when that is configured. This degrades the page, not the signal.
+ */
+export async function readPrimaryAgencyWebsiteForPublicRender(): Promise<AgencyWebsiteProject | null> {
+  try {
+    await ensureHydrated();
+    return readPrimaryAgencyWebsite();
+  } catch (error) {
+    captureError(error, {
+      extra: {
+        surface: "public-website",
+        // Distinguishes "the build could not reach the store" from "a visitor's
+        // request could not", which are the same bug with very different blast
+        // radii.
+        phase: process.env.NEXT_PHASE ?? "request",
+      },
+    });
+    return null;
+  }
+}
+
 export function readPrimaryAgencyWebsite(): AgencyWebsiteProject | null {
   const state = getState();
   const agency = Object.values(state.agencies).find(item => /milesy\s*media/i.test(item.name))

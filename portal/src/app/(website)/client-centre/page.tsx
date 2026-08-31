@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { getSession } from "@/lib/server/auth/auth";
-import { readPrimaryAgencyWebsite, websitePageIsUpdating } from "@/server/agencyWebsite";
-import { ensureHydrated } from "@/server/storage";
+import { readPrimaryAgencyWebsiteForPublicRender, websitePageIsUpdating } from "@/server/agencyWebsite";
 import { WebsitePageUpdating } from "../WebsitePageUpdating";
 import { MILESYMEDIA_HOME_PATH } from "@/lib/public/milesymediaRoutes";
 
@@ -63,8 +62,10 @@ export default async function ClientCentrePage({
 }: {
   searchParams: Promise<{ preview?: string }>;
 }) {
-  await ensureHydrated();
-  const website = readPrimaryAgencyWebsite();
+  // Same contract as the layout: an unreachable store degrades this page to
+  // "not updating" rather than failing the render (and, at build time, the
+  // deploy). See readPrimaryAgencyWebsiteForPublicRender.
+  const website = await readPrimaryAgencyWebsiteForPublicRender();
   const session = await getSession();
   const preview = (await searchParams).preview === "portal" && Boolean(session?.role.startsWith("agency-"));
   const updating = websitePageIsUpdating(website, "/client-centre");
