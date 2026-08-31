@@ -62,7 +62,9 @@ export const PLUGIN_HEALTH_CADENCE_MS = 6 * HOUR;
  * Matches Radar's default freshness guardrail (48h). Past this the answer is
  * not wrong, it is simply no longer proof — which is a blind spot, not a pass.
  */
-export const PLUGIN_HEALTH_STALE_MS = 48 * HOUR;
+// Moved to lib/plugins/pluginHealthConstants (dependency-free) so consumers
+// of the NUMBER stop paying for the runtime. Re-exported for existing callers.
+export { PLUGIN_HEALTH_STALE_MS } from "@/lib/plugins/pluginHealthConstants";
 
 export interface PluginHealthRow {
   pluginId: string;
