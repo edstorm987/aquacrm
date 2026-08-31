@@ -3147,8 +3147,31 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     acceptance gate. The 2026-08-25 real-browser continuation supplies broad 375/768/1280
     render evidence and found an eight-pixel Freelancer desktop overflow. **✅ Concrete overflow
     resolved 2026-08-25:** the global canvas rule no longer overrides the shell's intentional
-    width constraint, and the body overflow regression is browser-verified. The larger requirement
-    for a repeatable automated responsive/accessibility browser gate remains open.
+    width constraint, and the body overflow regression is browser-verified.
+
+    **✅ RESOLVED 2026-08-31 — the gate exists, is repeatable, and is green.**
+    `npm run browser:matrix` (`scripts/browser-matrix.mjs`) launches real Chromium over 13 pages ×
+    17 viewports: the six required primaries, 320×568, 200% zoom on desktop and mobile, and both
+    sides of every Tailwind breakpoint. Per page it measures document and `#main-content` overflow,
+    walks the keyboard with focus-indicator checks, runs axe across wcag2a/aa + wcag21a/aa +
+    best-practice, and reads the console and network logs. `smoke-ux.mjs` stays as markup smoke and
+    its labels are no longer treated as responsive evidence.
+    **`1,308 passed · 0 failed · 18 observations`**, from an opening 352 failures. Every
+    observation is named dev-server recompilation and is downgraded only when the target proves
+    itself a dev server through its own HMR socket — against a production target each one fails.
+    Three structural safeguards make a green run mean something: a MISSING required check fails the
+    run rather than being absent from it, `axeVerdict(null)` fails ("did not look" is not "found
+    nothing"), and a page that never navigated fails its console and network checks rather than
+    scoring an empty log as clean.
+    **208 of the original 352 failures were the gate itself measuring wrong** — a 0.14s CSS
+    transition sampled in the same task as the Tab press, a trap detector comparing description
+    strings rather than node identity, an instrumentation attribute written into React-owned DOM,
+    and the dev-server flag proven one page too late. All four fixed, each pinned by a test proven
+    two-sided. See `CAMPAIGN-LEDGER.md`, which also corrects three earlier entries that reported
+    those false failures as app defects.
+    **Still out of scope, deliberately:** the walk visits pages without opening dialogs or menus,
+    so modal containment and composite-widget keyboard models are untouched — that is #138. Keyboard
+    ACTIVATION is not provable this way either. Evidence label: **local-browser**, not deployed-live.
 
 138. **P2 — declared tabs, menus and one editor listbox do not implement the keyboard
     model their ARIA roles announce.** All 12 TSX files containing `role="tablist"` leave every
