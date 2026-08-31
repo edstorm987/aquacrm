@@ -189,7 +189,21 @@ export function overflowVerdictFrom(measurements, { tolerance = OVERFLOW_TOLERAN
   return { ...verdict, detail: `${worst.label ?? "document"}: ${verdict.detail}` };
 }
 
-export function consoleVerdict({ consoleErrors = [], pageErrors = [], navigated = true } = {}) {
+/**
+ * URLs that only a `next dev` server serves.
+ *
+ * `/_next/static/**` is Turbopack's chunk graph, which it cancels wholesale on
+ * every recompile. `/__nextjs_font/**` is the dev-only font route — a built app
+ * serves its fonts from `/_next/static/media/`, so this path cannot 404 in
+ * production because it does not exist there. Neither is evidence about the
+ * application, and neither is an allowlist: both are ignored ONLY when the
+ * target has identified itself as a dev server through its own HMR socket.
+ */
+export function isDevOnlyAsset(url) {
+  return typeof url === "string" && (url.includes("/_next/static/") || url.includes("/__nextjs_font/"));
+}
+
+export function consoleVerdict({ consoleErrors = [], pageErrors = [], navigated = true, devServer = false } = {}) {
   // A page that never loaded emits no console errors. Scoring that empty log as
   // "clean" is the same lie as `axeVerdict(null)` returning a pass, and it was
   // reachable: the driver records console/network outside the navigation
@@ -197,9 +211,23 @@ export function consoleVerdict({ consoleErrors = [], pageErrors = [], navigated 
   if (!navigated) {
     return { status: "fail", detail: "the page never loaded — an empty console log is not a clean one" };
   }
-  const all = [...consoleErrors, ...pageErrors];
+  // A cancelled chunk logs "Failed to load resource: …" against the chunk's own
+  // URL. The same recompilation is already an observation in the network
+  // verdict; failing the console for its echo reports one dev-server artefact
+  // twice. Only errors LOCATED at a dev-only asset are set aside — an error
+  // from application code at any URL still fails, dev server or not.
+  const errors = consoleErrors.map(e => (typeof e === "string" ? { text: e, url: undefined } : e));
+  const noise = devServer ? errors.filter(e => isDevOnlyAsset(e.url)) : [];
+  const all = [...errors.filter(e => !noise.includes(e)).map(e => e.text), ...pageErrors];
   if (all.length > 0) {
     return { status: "fail", detail: `${all.length} console error(s): ${all.slice(0, 3).join(" | ")}` };
+  }
+  if (noise.length > 0) {
+    return {
+      status: "observation",
+      detail: `${noise.length} console error(s) from cancelled dev-server assets — `
+        + "recompilation noise, not proof of anything; re-run against a production build for a release gate",
+    };
   }
   return { status: "pass", detail: "clean console" };
 }
@@ -223,7 +251,7 @@ export function networkVerdict({ failedRequests = [], devServer = false, navigat
   if (!navigated) {
     return { status: "fail", detail: "the page never loaded — an empty request log is not a clean one" };
   }
-  const noise = devServer ? failedRequests.filter(r => r.url?.includes("/_next/static/")) : [];
+  const noise = devServer ? failedRequests.filter(r => isDevOnlyAsset(r.url)) : [];
   const real = failedRequests.filter(r => !noise.includes(r));
   if (real.length > 0) {
     const shown = real.slice(0, 3).map(r => `${r.status ?? "failed"} ${r.url}`).join(" | ");
@@ -232,7 +260,7 @@ export function networkVerdict({ failedRequests = [], devServer = false, navigat
   if (noise.length > 0) {
     return {
       status: "observation",
-      detail: `${noise.length} cancelled /_next/static chunk request(s) — dev-server recompilation, `
+      detail: `${noise.length} cancelled dev-server asset request(s) — dev-server recompilation, `
         + "not proof of anything; re-run against a production build for a release gate",
     };
   }
@@ -274,6 +302,67 @@ export function focusIndicatorIsVisible({ outlineStyle, outlineWidth, boxShadow,
   // "there is a visible shadow", which is the weaker but still honest answer.
   if (restingBoxShadow === undefined || restingBoxShadow === null) return true;
   return boxShadow !== restingBoxShadow;
+}
+
+/**
+ * How long to wait before a focus indicator can be judged ABSENT.
+ *
+ * ── Why this exists ──────────────────────────────────────────────────────
+ *
+ * This gate reported 204 focus-indicator failures across the matrix, and every
+ * one of them was wrong. The chrome controls carry `transition-property: all`
+ * with a 0.14s duration, so `getComputedStyle` read in the same task as the Tab
+ * press returns the START of the transition — `outline: solid 0px` — for an
+ * element whose ring is on its way in. Measured directly on a live page:
+ *
+ *     IMMEDIATE   : solid 0px
+ *     AFTER 600ms : solid 2px
+ *
+ * A gate that fails working code is worse than no gate: the obvious response is
+ * to "fix" the CSS, which changes correct code to satisfy a broken measurement.
+ * So an apparent absence is re-sampled after the element's OWN declared
+ * transition has had time to finish, and only a still-absent indicator fails.
+ *
+ * Returns 0 when nothing is transitioning, so the overwhelmingly common case
+ * (an indicator visible on the first read) costs nothing. The cap keeps a
+ * pathological `transition: all 10s` from stalling a 1,326-check matrix.
+ */
+export const FOCUS_SETTLE_CAP_MS = 700;
+
+/** Parse a CSS time list ("0.14s, 0s" / "140ms") to the largest value in ms. */
+export function longestCssTimeMs(value) {
+  if (typeof value !== "string" || value.trim() === "") return 0;
+  let longest = 0;
+  for (const part of value.split(",")) {
+    const match = /^\s*(-?[\d.]+)(ms|s)\s*$/.exec(part);
+    if (!match) continue;
+    const ms = parseFloat(match[1]) * (match[2] === "s" ? 1000 : 1);
+    if (Number.isFinite(ms) && ms > longest) longest = ms;
+  }
+  return longest;
+}
+
+/**
+ * The settle BUDGET for one focus stop, in ms — how long the walk may keep
+ * re-reading before it will call an indicator genuinely absent. `0` means "the
+ * first read is final": either the indicator was already visible, or nothing is
+ * animating, so waiting could not change the answer.
+ *
+ * The budget has a floor well above the declared duration. A first attempt used
+ * `duration + 40ms` and still reported the topbar's "Working as" button ringless
+ * at 1920×1080 — the ring is there, and reads `solid 2px` if you look again;
+ * the transition simply had not started yet. A CSS duration says how long the
+ * animation runs, not when the browser gets round to starting it, and on a dev
+ * server under a full-page axe scan that gap is not small. The walk polls
+ * within the budget, so the floor costs nothing once the ring appears.
+ */
+export const FOCUS_SETTLE_FLOOR_MS = 250;
+
+export function focusSettleDelayMs(step = {}) {
+  if (focusIndicatorIsVisible(step)) return 0;
+  const total = longestCssTimeMs(step.transitionDuration) + longestCssTimeMs(step.transitionDelay);
+  if (total <= 0) return 0;
+  return Math.min(Math.max(Math.ceil(total) + 40, FOCUS_SETTLE_FLOOR_MS), FOCUS_SETTLE_CAP_MS);
 }
 
 // `next dev` injects its error overlay as a custom element that takes a Tab
@@ -534,49 +623,127 @@ function measureLayout() {
  * counts as a visible indicator — the judgement belongs with the other
  * verdicts, where it can be tested without a browser.
  */
-const RESTING_SHADOW_ATTR = "data-aqua-resting-shadow";
+//
+// The baseline is held in a page-global Map keyed by the element, NOT in a
+// `data-` attribute. An attribute was the first implementation and it made the
+// gate lie about the app: writing an instrumentation attribute onto React-owned
+// nodes produced a hydration-mismatch diff on the next dev recompile, which the
+// console verdict then reported as an application defect. A measurement that
+// mutates the thing it is measuring is not a measurement.
+const RESTING_SHADOW_KEY = "__aquaRestingShadows";
 
-/** Snapshot every focusable control's UNFOCUSED shadow, so the walk has a baseline. */
-function captureRestingShadows(attribute) {
+/**
+ * Snapshot every focusable control's UNFOCUSED shadow, and give each one a
+ * stable per-page ordinal.
+ *
+ * ── Why the ordinal ─────────────────────────────────────────────────────
+ *
+ * A keyboard trap is "focus keeps landing on the SAME element". The detector
+ * compared signature strings, and the signature was tag + id + visible text —
+ * which is empty for an `<input>`. Nine consecutive unlabelled checkboxes on
+ * the notification settings therefore all signed as `input`, and the gate
+ * reported a keyboard trap on four viewports. There is no trap: Tab moves
+ * through all nine perfectly well.
+ *
+ * String identity was the wrong tool. The ordinal makes the comparison mean
+ * what the check claims to mean — the same NODE, not the same description.
+ */
+function captureRestingShadows(key) {
   const selector = 'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])';
+  const state = { shadows: new Map(), ordinals: new Map(), next: 1 };
   for (const el of document.querySelectorAll(selector)) {
-    el.setAttribute(attribute, getComputedStyle(el).boxShadow);
+    state.shadows.set(el, getComputedStyle(el).boxShadow);
+    state.ordinals.set(el, state.next);
+    state.next += 1;
   }
+  window[key] = state;
 }
 
-function clearRestingShadows(attribute) {
-  for (const el of document.querySelectorAll(`[${attribute}]`)) el.removeAttribute(attribute);
+function clearRestingShadows(key) {
+  delete window[key];
 }
 
-function describeFocus(attribute) {
+function describeFocus(key) {
   const el = document.activeElement;
   if (!el || el === document.body) return { tag: "body", signature: "body", isBody: true };
   const style = getComputedStyle(el);
-  const label = el.getAttribute("aria-label") || el.textContent?.trim().slice(0, 40) || "";
+  const state = window[key] && window[key].ordinals instanceof Map ? window[key] : null;
+
+  // The element's accessible name, resolved the way a screen reader would
+  // rather than by reading `textContent` and hoping. An `<input>` has no text
+  // of its own; its name comes from a wrapping or associated `<label>`, and a
+  // report that cannot name the control it failed is a report nobody can act
+  // on.
+  const labelledBy = (el.getAttribute("aria-labelledby") || "")
+    .split(/\s+/).filter(Boolean)
+    .map(id => document.getElementById(id)?.textContent?.trim() || "")
+    .filter(Boolean).join(" ");
+  const associated = el.id ? document.querySelector(`label[for="${CSS.escape(el.id)}"]`)?.textContent : "";
+  const wrapping = typeof el.closest === "function" ? el.closest("label")?.textContent : "";
+  const label = (
+    el.getAttribute("aria-label")
+    || labelledBy
+    || (el.tagName === "INPUT" || el.tagName === "SELECT" || el.tagName === "TEXTAREA"
+      ? (associated || wrapping || el.getAttribute("placeholder") || el.getAttribute("title") || el.getAttribute("name") || "")
+      : el.textContent || "")
+  ).trim().replace(/\s+/g, " ").slice(0, 40);
+
+  // Node identity, so "the same signature three times" means the same node
+  // three times. An element that appeared after the snapshot is assigned one
+  // now rather than sharing the anonymous bucket with every other newcomer.
+  let ordinal = state?.ordinals.get(el);
+  if (state && ordinal === undefined) {
+    ordinal = state.next;
+    state.next += 1;
+    state.ordinals.set(el, ordinal);
+  }
+
   return {
     tag: el.tagName.toLowerCase(),
-    signature: `${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ""}${label ? `[${label}]` : ""}`,
+    signature: `${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ""}${label ? `[${label}]` : ""}`
+      + (ordinal === undefined ? "" : `@${ordinal}`),
     isBody: false,
     outlineStyle: style.outlineStyle,
     outlineWidth: style.outlineWidth,
     boxShadow: style.boxShadow,
-    restingBoxShadow: el.getAttribute(attribute),
+    restingBoxShadow: state && state.shadows.has(el) ? state.shadows.get(el) : null,
+    // Read so Node can tell "no indicator" from "the indicator is 140ms into
+    // arriving". See focusSettleDelayMs.
+    transitionDuration: style.transitionDuration,
+    transitionDelay: style.transitionDelay,
   };
 }
 
+const FOCUS_POLL_MS = 50;
+
 async function walkKeyboard(page, presses) {
   const steps = [];
-  await page.evaluate(captureRestingShadows, RESTING_SHADOW_ATTR);
+  await page.evaluate(captureRestingShadows, RESTING_SHADOW_KEY);
   for (let i = 0; i < presses; i += 1) {
     await page.keyboard.press("Tab");
-    const raw = await page.evaluate(describeFocus, RESTING_SHADOW_ATTR);
+    let raw = await page.evaluate(describeFocus, RESTING_SHADOW_KEY);
+    // An indicator that is mid-transition reads as absent. Poll ONLY on an
+    // apparent absence, and stop the moment the ring appears — so the common
+    // case (already visible) costs nothing and a real absence costs the budget
+    // once rather than on every stop.
+    const budget = raw.isBody ? 0 : focusSettleDelayMs(raw);
+    for (let waited = 0; waited < budget; waited += FOCUS_POLL_MS) {
+      await page.waitForTimeout(FOCUS_POLL_MS);
+      const settled = await page.evaluate(describeFocus, RESTING_SHADOW_KEY);
+      // Only trust the re-read if focus is still on the same control — a page
+      // that moves focus on its own must not have another element's ring
+      // credited to this stop.
+      if (settled.signature !== raw.signature) break;
+      raw = settled;
+      if (focusIndicatorIsVisible(raw)) break;
+    }
     steps.push({
       ...raw,
       isBody: raw.isBody || DEV_OVERLAY_TAGS.includes(raw.tag),
       visibleFocus: focusIndicatorIsVisible(raw),
     });
   }
-  await page.evaluate(clearRestingShadows, RESTING_SHADOW_ATTR);
+  await page.evaluate(clearRestingShadows, RESTING_SHADOW_KEY);
   return steps;
 }
 
@@ -636,7 +803,28 @@ async function main() {
     for (const entry of viewports) {
       const context = await browser.newContext({ viewport: cssViewport(entry), reducedMotion: "no-preference" });
       const session = await context.newPage();
+      // Attached before sign-in, not per target. `signIn` navigates to /dev,
+      // which opens the HMR socket — but the listener used to go on inside the
+      // target loop, so the FIRST page of the run was always judged with
+      // `devServer` still false and its cancelled chunks scored as real
+      // failures. It reported `/` red on one viewport out of seventeen, which
+      // is exactly the shape of a gate defect rather than an app defect.
+      session.on("websocket", ws => { if (/hmr|_next\/webpack/.test(ws.url())) devServer = true; });
       const authMode = await signIn(session);
+      // Whether the target is a dev server is a property of the TARGET, so it
+      // must be settled BEFORE anything is judged rather than discovered
+      // part-way through the run. Attaching the listener early was not enough:
+      // the socket opens shortly after `domcontentloaded`, which is after
+      // sign-in returns and can be after the first page has already been
+      // scored. Waiting for it explicitly, bounded, makes the first page and
+      // the seventeenth judged by the same rule. A production target has no
+      // such socket and simply spends the timeout once per viewport.
+      if (!devServer) {
+        await session.waitForEvent("websocket", {
+          predicate: ws => /hmr|_next\/webpack/.test(ws.url()),
+          timeout: 4000,
+        }).then(() => { devServer = true; }).catch(() => {});
+      }
       console.log(`\n— ${entry.label} (${entry.width}×${entry.height} @${entry.zoom}×, auth=${authMode})`);
 
       for (const target of pages) {
@@ -645,18 +833,19 @@ async function main() {
         const consoleErrors = [];
         const pageErrors = [];
         const failedRequests = [];
-        const onConsole = msg => { if (msg.type() === "error") consoleErrors.push(msg.text()); };
+        // The location URL is what separates a cancelled dev chunk from an
+        // application error; without it every console error looks alike.
+        const onConsole = msg => {
+          if (msg.type() !== "error") return;
+          consoleErrors.push({ text: msg.text(), url: msg.location()?.url });
+        };
         const onPageError = err => pageErrors.push(err.message);
         const onResponse = res => { if (res.status() >= 400) failedRequests.push({ url: res.url(), status: res.status() }); };
         const onRequestFailed = req => failedRequests.push({ url: req.url(), status: null });
-        // An HMR socket only exists in `next dev`. Derived from the target
-        // itself so no flag can talk the gate into forgiving a real failure.
-        const onWebSocket = ws => { if (/hmr|_next\/webpack/.test(ws.url())) devServer = true; };
         session.on("console", onConsole);
         session.on("pageerror", onPageError);
         session.on("response", onResponse);
         session.on("requestfailed", onRequestFailed);
-        session.on("websocket", onWebSocket);
 
         let navigated = false;
         try {
@@ -677,10 +866,9 @@ async function main() {
           session.off("pageerror", onPageError);
           session.off("response", onResponse);
           session.off("requestfailed", onRequestFailed);
-          session.off("websocket", onWebSocket);
         }
 
-        add(target.path, entry.id, "console", consoleVerdict({ consoleErrors, pageErrors, navigated }));
+        add(target.path, entry.id, "console", consoleVerdict({ consoleErrors, pageErrors, navigated, devServer }));
         add(target.path, entry.id, "network", networkVerdict({ failedRequests, devServer, navigated }));
 
         await mkdir(ARTEFACTS, { recursive: true }).catch(() => {});

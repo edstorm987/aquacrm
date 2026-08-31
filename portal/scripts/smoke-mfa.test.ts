@@ -1098,7 +1098,32 @@ describe("what the account page shows", () => {
 
   it("is reachable from the account page at all", () => {
     // The endpoints existed for two months with nowhere to reach them from.
-    assert.match(read("src", "app", "portal", "account", "page.tsx"), /<TwoFactorPanel \/>/);
+    assert.match(read("src", "app", "portal", "account", "page.tsx"), /<TwoFactorPanel available=\{/);
+  });
+
+  it("does not ask a question the deployment has already answered", () => {
+    // Two-factor here is Supabase TOTP. On a deployment with no Supabase auth
+    // the route answers an honest 503 — but the panel used to fire the request
+    // anyway, on every load, producing a console error and a failed request
+    // that can never resolve. The browser matrix reported it on all seventeen
+    // viewports: 34 of its 352 failures were this one component asking a
+    // question whose answer is fixed at deploy time.
+    //
+    // The capability is decided on the SERVER, where the environment actually
+    // is, and passed in. A client-side probe would reintroduce the request.
+    const page = read("src", "app", "portal", "account", "page.tsx");
+    assert.match(page, /getSupabasePublicConfig\(\) !== null/, "the server decides, from the real environment");
+    assert.match(panel(), /if \(available\) void refresh\(\)/, "no request when it cannot succeed");
+    assert.match(panel(), /if \(!available\) \{/, "and a stated reason in place of the control");
+    assert.match(panel(), /Unavailable/, "…labelled Unavailable, never as merely Off");
+  });
+
+  it("still says Off — not Unavailable — when the deployment CAN do it", () => {
+    // The failure this pins is the mirror image: a panel that reports
+    // "Unavailable" on a working deployment would talk a user out of turning
+    // on two-factor they are perfectly able to turn on. `available` defaults
+    // to true, and the unavailable branch is reached only by an explicit false.
+    assert.match(panel(), /\{ available = true \}/, "available defaults to true");
   });
 
   it("reuses the existing setup component rather than a second one", () => {

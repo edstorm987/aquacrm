@@ -28,8 +28,13 @@ import {
   consoleVerdict,
   cssViewport,
   findProvisionedChromium,
+  FOCUS_SETTLE_CAP_MS,
+  FOCUS_SETTLE_FLOOR_MS,
   focusIndicatorIsVisible,
+  focusSettleDelayMs,
+  isDevOnlyAsset,
   focusWalkVerdict,
+  longestCssTimeMs,
   shadowIsVisible,
   loadingStatusVerdict,
   networkVerdict,
@@ -250,8 +255,67 @@ test("an empty log from a page that never loaded is not a clean log", () => {
   assert.equal(networkVerdict({ failedRequests: [], navigated: true }).status, "pass");
 
   // And the driver must actually pass the flag through, or the fix is inert.
-  assert.match(SOURCE, /consoleVerdict\(\{ consoleErrors, pageErrors, navigated \}\)/);
+  assert.match(SOURCE, /consoleVerdict\(\{ consoleErrors, pageErrors, navigated, devServer \}\)/);
   assert.match(SOURCE, /networkVerdict\(\{ failedRequests, devServer, navigated \}\)/);
+});
+
+test("the dev-server caveat reaches the FIRST page of the run", () => {
+  // ── A third gate defect of the same shape ───────────────────────────────
+  //
+  // `devServer` is proven by the target's own HMR socket, but the listener was
+  // attached inside the per-page loop — so the first page of the run was always
+  // judged before any socket had been seen, and its cancelled Turbopack chunks
+  // scored as real failures. It showed up as `/` failing console and network on
+  // exactly one viewport out of seventeen, which is the signature of an
+  // artefact, not a defect. The listener now goes on the session page before
+  // sign-in, which itself navigates to /dev and opens the socket.
+  assert.match(
+    SOURCE,
+    /const session = await context\.newPage\(\);[\s\S]{0,600}?session\.on\("websocket"[\s\S]{0,200}?const authMode = await signIn\(session\);/,
+    "the HMR listener must be attached before the first navigation is judged",
+  );
+  // Still derived from the socket, never from a flag or an environment variable.
+  assert.match(SOURCE, /\/hmr\|_next\\\/webpack\/\.test\(ws\.url\(\)\)/);
+
+  // Attaching the listener early was necessary but not sufficient: the socket
+  // opens after `domcontentloaded`, so sign-in can return before it exists and
+  // the first page still gets judged under the wrong rule. The run waits for
+  // it, bounded, so page one and page 119 are judged identically.
+  assert.match(SOURCE, /await session\.waitForEvent\("websocket", \{/, "the run must settle the flag before judging");
+  assert.match(SOURCE, /timeout: 4000/, "…and bounded, so a production target is not stalled");
+});
+
+test("a cancelled dev asset is not reported twice, and only when it is one", () => {
+  // The same recompilation shows up as a failed request AND as a console error
+  // logged against that request's URL. The network verdict already called it an
+  // observation; the console verdict failed for the echo.
+  const chunk = { text: "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    url: "http://localhost:3041/_next/static/chunks/src_abc._.js" };
+  const font = { text: "Failed to load resource: net::ERR_ABORTED",
+    url: "http://localhost:3041/__nextjs_font/geist-latin.woff2" };
+
+  assert.equal(consoleVerdict({ consoleErrors: [chunk, font], devServer: true }).status, "observation");
+  assert.match(consoleVerdict({ consoleErrors: [chunk], devServer: true }).detail, /recompilation noise/);
+
+  // Against a production target — the release lane — the same errors fail.
+  assert.equal(consoleVerdict({ consoleErrors: [chunk, font], devServer: false }).status, "fail");
+
+  // An application error at ANY url still fails, dev server or not. This is the
+  // half that makes the caveat a caveat rather than an allowlist.
+  const real = { text: "Hydration failed", url: "http://localhost:3041/portal/agency" };
+  assert.equal(consoleVerdict({ consoleErrors: [real], devServer: true }).status, "fail");
+  assert.equal(consoleVerdict({ consoleErrors: [chunk, real], devServer: true }).status, "fail");
+  // A page error is never dev noise — it has no asset URL to be located at.
+  assert.equal(consoleVerdict({ pageErrors: ["TypeError: x"], devServer: true }).status, "fail");
+
+  // Plain strings (every existing caller and every test above) keep working.
+  assert.equal(consoleVerdict({ consoleErrors: ["Hydration failed"], devServer: true }).status, "fail");
+
+  assert.equal(isDevOnlyAsset("http://x/_next/static/chunks/a.js"), true);
+  assert.equal(isDevOnlyAsset("http://x/__nextjs_font/geist.woff2"), true);
+  assert.equal(isDevOnlyAsset("http://x/_next/static/media/geist.woff2"), true);
+  assert.equal(isDevOnlyAsset("http://x/api/portal/mfa/enrol"), false);
+  assert.equal(isDevOnlyAsset(undefined), false);
 });
 
 test("the keyboard walk fails on the three ways focus goes wrong", () => {
@@ -344,6 +408,128 @@ test("a resting drop-shadow is not a focus ring", () => {
   assert.equal(
     focusIndicatorIsVisible({ outlineStyle: "none", outlineWidth: "0px", boxShadow: resting, restingBoxShadow: null }),
     true,
+  );
+});
+
+test("an indicator that is mid-transition is not reported as absent", () => {
+  // ── The gate's own worst bug ────────────────────────────────────────────
+  //
+  // The matrix reported 204 focus-indicator failures. All 204 were false. The
+  // chrome controls declare `transition-property: all` at 0.14s, so reading
+  // computed style in the same task as the Tab press samples the START of the
+  // transition. Measured on a live page, the SAME element:
+  //
+  //     IMMEDIATE   : outline solid 0px
+  //     AFTER 600ms : outline solid 2px
+  //
+  // The ring was always there. Had the CSS been "fixed" to satisfy this gate,
+  // working code would have been changed to satisfy a broken measurement.
+  const midTransition = {
+    outlineStyle: "solid",
+    outlineWidth: "0px",
+    boxShadow: "none",
+    transitionDuration: "0.14s",
+    transitionDelay: "0s",
+  };
+  assert.equal(focusIndicatorIsVisible(midTransition), false, "the first read genuinely shows nothing…");
+  assert.equal(focusSettleDelayMs(midTransition), FOCUS_SETTLE_FLOOR_MS, "…so the walk gets a budget to re-read within");
+
+  // The budget has a FLOOR above the declared duration. `duration + 40ms` was
+  // the first attempt and it still reported the topbar's "Working as" button
+  // ringless at 1920×1080 — the ring reads `solid 2px` if you look again; the
+  // transition had not started. A CSS duration says how long an animation runs,
+  // not when the browser starts it.
+  assert.ok(FOCUS_SETTLE_FLOOR_MS > 180, "the floor must exceed a 0.14s transition plus a frame");
+  assert.equal(focusSettleDelayMs({ ...midTransition, transitionDuration: "0.01s" }), FOCUS_SETTLE_FLOOR_MS);
+
+  // The walk POLLS within the budget and stops the moment the ring appears, so
+  // the floor is paid only by a stop that really has no indicator.
+  assert.match(SOURCE, /if \(focusIndicatorIsVisible\(raw\)\) break;/, "a ring that appears ends the wait immediately");
+
+  // The fast path: an indicator already visible is never waited on, however
+  // long its transition. 1,326 checks cannot afford a wait per focus stop.
+  assert.equal(
+    focusSettleDelayMs({ ...midTransition, outlineWidth: "2px" }),
+    0,
+    "a visible indicator is final on the first read",
+  );
+  // And an element with no transition at all cannot change by waiting, so a
+  // genuinely missing ring still fails immediately.
+  assert.equal(focusSettleDelayMs({ ...midTransition, transitionDuration: "0s" }), 0);
+  assert.equal(focusSettleDelayMs({ outlineStyle: "none", outlineWidth: "0px" }), 0);
+
+  // A pathological `transition: all 10s` must not stall the matrix.
+  assert.equal(focusSettleDelayMs({ ...midTransition, transitionDuration: "10s" }), FOCUS_SETTLE_CAP_MS);
+});
+
+test("CSS time lists are parsed to their longest member", () => {
+  assert.equal(longestCssTimeMs("0.14s"), 140);
+  assert.equal(longestCssTimeMs("140ms"), 140);
+  assert.equal(longestCssTimeMs("0.14s, 0.3s, 0s"), 300, "the ring may be the slowest property of several");
+  assert.equal(longestCssTimeMs("0s"), 0);
+  assert.equal(longestCssTimeMs(""), 0);
+  assert.equal(longestCssTimeMs(undefined as unknown as string), 0);
+  // Unparseable input must read as "nothing is animating", never as a wait.
+  assert.equal(longestCssTimeMs("ease-in-out"), 0);
+});
+
+test("the focus walk does not mutate the page it is measuring", () => {
+  // The baseline shadow was originally stashed in a `data-` attribute on every
+  // focusable node. Writing to React-owned DOM made the next dev recompile
+  // report a hydration mismatch — which the console verdict then scored as an
+  // application defect. The gate was manufacturing the failure it reported.
+  assert.doesNotMatch(SOURCE, /setAttribute\(attribute/, "the baseline must not be written into the DOM");
+  assert.doesNotMatch(SOURCE, /data-aqua-resting-shadow/, "no instrumentation attribute may survive in the page");
+  assert.match(SOURCE, /window\[key\] = state;/, "the baseline lives in page-global state keyed by element");
+});
+
+test("a keyboard trap means the same NODE, not the same description", () => {
+  // ── The gate's second false positive ────────────────────────────────────
+  //
+  // The trap detector compares signature strings, and the signature was
+  // tag + id + textContent — all three empty for a bare `<input>`. Nine
+  // consecutive unlabelled checkboxes on the notification settings therefore
+  // read as ONE element focused nine times, and the gate reported a keyboard
+  // trap on four viewports. Tab moves through all nine correctly; a real user
+  // is not trapped anywhere.
+  //
+  // The fix is an ordinal assigned per element in the page, so the comparison
+  // means what the check says it means.
+  assert.match(SOURCE, /state\.ordinals\.set\(el, state\.next\)/, "every focusable gets a node ordinal");
+  assert.match(SOURCE, /`@\$\{ordinal\}`/, "the ordinal is part of the signature");
+
+  // Distinct nodes that describe identically must NOT read as a trap…
+  const checkboxes = [1, 2, 3, 4, 5].map(n => ({ signature: `input@${n}`, isBody: false, visibleFocus: true }));
+  assert.equal(focusWalkVerdict(checkboxes).status, "pass", "five distinct checkboxes are not a trap");
+
+  // …and one node focused three times still must.
+  const stuck = focusWalkVerdict([
+    { signature: "input@7", isBody: false, visibleFocus: true },
+    { signature: "input@7", isBody: false, visibleFocus: true },
+    { signature: "input@7", isBody: false, visibleFocus: true },
+  ]);
+  assert.equal(stuck.status, "fail");
+  assert.match(stuck.detail, /keyboard trap/);
+});
+
+test("a focus stop is named the way a screen reader would name it", () => {
+  // The report has to say WHICH control failed. `textContent` is empty for
+  // every input in the app, so a failure read "input" and named nothing
+  // actionable. The name is now resolved through aria-label, aria-labelledby,
+  // an associated `label[for]`, a wrapping `<label>`, then placeholder/title/name.
+  assert.match(SOURCE, /aria-labelledby/, "aria-labelledby participates in the name");
+  assert.match(SOURCE, /label\[for="\$\{CSS\.escape\(el\.id\)\}"\]/, "an associated label participates");
+  assert.match(SOURCE, /el\.closest\("label"\)/, "a wrapping label participates");
+});
+
+test("the walk re-reads the same element, or not at all", () => {
+  // The re-sample is only sound if focus has not moved in the meantime: a page
+  // that steals focus during the wait must not have the NEW element's ring
+  // credited to this stop, which would turn a real failure green.
+  assert.match(
+    SOURCE,
+    /if \(settled\.signature !== raw\.signature\) break;/,
+    "the poll must stop, and keep the original read, when focus moved",
   );
 });
 

@@ -17,8 +17,16 @@ import { TwoFactorSetup } from "@/components/auth/TwoFactorSetup";
  * The answer comes from the server every time rather than from anything
  * rendered into the page. A screen that says "protected" because it was told
  * to at build time is worse than no indicator, because it is believed.
+ *
+ * `available` is the one thing that is NOT asked at runtime: two-factor here is
+ * Supabase's TOTP, so a deployment with no Supabase auth cannot offer it at
+ * all. The route answers an honest 503 either way, but a panel that fires the
+ * request regardless spends every page load producing a console error and a
+ * failed request on a deployment where the answer can never change — which is
+ * exactly what the browser matrix found, on all seventeen viewports. Asking a
+ * question whose answer is already known is not caution.
  */
-export function TwoFactorPanel() {
+export function TwoFactorPanel({ available = true }: { available?: boolean }) {
   const [enrolled, setEnrolled] = useState<boolean | null>(null);
   const [failed, setFailed] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
@@ -38,17 +46,47 @@ export function TwoFactorPanel() {
     }
   }
 
-  useEffect(() => { void refresh(); }, []);
+  useEffect(() => { if (available) void refresh(); }, [available]);
+
+  // Not offered on this deployment. Says so plainly, in the same place the
+  // control would be, rather than showing a "Set up two-factor" button that can
+  // only ever fail — or, worse, an empty panel that reads as "off by choice".
+  if (!available) {
+    return (
+      <section className="mm-surface-card mt-5 rounded-lg border p-5 sm:p-6">
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <ShieldAlert size={16} className="text-black/30" aria-hidden="true" />
+          <h2 className="min-w-0 text-sm font-semibold text-black/75">Two-factor authentication</h2>
+          {/* `flex-wrap` on the row and `min-w-0` on the heading: at a 187px CSS
+            viewport (200% zoom on a 375px phone — WCAG 1.4.10 Reflow) this
+            three-part row measured 182px inside 121px and pushed the whole
+            account page 28px off the right edge. */}
+        <span className="ml-auto text-[11px] font-semibold uppercase tracking-wide text-black/40">
+            Unavailable
+          </span>
+        </div>
+        <p className="text-xs leading-5 text-black/55">
+          Two-factor sign-in needs Supabase authentication, which is not configured on this
+          deployment. Your workspace owner can switch it on by configuring Supabase auth; until
+          then, sign-in here is password-only.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section className="mm-surface-card mt-5 rounded-lg border p-5 sm:p-6">
-      <div className="mb-3 flex items-center gap-2">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         {enrolled ? (
           <ShieldCheck size={16} className="text-black/45" aria-hidden="true" />
         ) : (
           <ShieldAlert size={16} className="text-black/30" aria-hidden="true" />
         )}
-        <h2 className="text-sm font-semibold text-black/75">Two-factor authentication</h2>
+        <h2 className="min-w-0 text-sm font-semibold text-black/75">Two-factor authentication</h2>
+        {/* `flex-wrap` on the row and `min-w-0` on the heading: at a 187px CSS
+            viewport (200% zoom on a 375px phone — WCAG 1.4.10 Reflow) this
+            three-part row measured 182px inside 121px and pushed the whole
+            account page 28px off the right edge. */}
         <span className="ml-auto text-[11px] font-semibold uppercase tracking-wide text-black/40">
           {enrolled === null ? (failed ? "Unknown" : "Checking…") : enrolled ? "On" : "Off"}
         </span>

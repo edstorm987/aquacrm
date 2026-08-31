@@ -296,7 +296,11 @@ h2 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: clamp
 .delegation-states article > span { color: var(--teal-bright); font-size: .65rem; font-weight: 900; }
 .delegation-states strong { font-family: Georgia, "Times New Roman", serif; font-size: 1.55rem; font-weight: 400; }
 .delegation-states p { margin: 8px 0 0; color: rgba(255,255,255,.56); line-height: 1.65; }
-.delegation-states > small { display: block; max-width: 640px; margin-top: 26px; color: rgba(255,255,255,.42); line-height: 1.55; }
+/* .52 not .42: at .42 this 10pt disclaimer computed 4.06:1 against the
+   #071818 section, under the 4.5:1 WCAG AA minimum for body text. It is the
+   line that disclaims what the product does NOT promise, so it is exactly
+   the wrong sentence to make hard to read. .52 computes 5.59:1. */
+.delegation-states > small { display: block; max-width: 640px; margin-top: 26px; color: rgba(255,255,255,.52); line-height: 1.55; }
 
 .member-route { border-top: 1px solid #b8cac6; padding-top: 20px; font-size: .76rem; }
 .member-route a { color: var(--teal); font-weight: 900; }
@@ -726,6 +730,53 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   input, select, textarea { min-height: 48px; }
   footer nav a { min-height: 44px; display: flex; align-items: center; }
 }
+/* ── 200% zoom on a 375px phone ────────────────────────────────────────────
+   At 200% browser zoom a 375×812 phone reports a 187px CSS viewport, and the
+   browser matrix measured 70px of this page sitting off the right edge there.
+   WCAG 1.4.10 (Reflow) requires content to work at 320px CSS width, which is
+   what 400% zoom on a desktop and 200% on a phone both produce — so this is a
+   conformance failure, not a cosmetic one. Two causes, both flex/grid items
+   whose automatic minimum size is their min-content width:
+
+     · the header: brand (120px) + gap (24px) + Menu button (72px) = 216px in a
+       159px bar, and `min-width: auto` stopped the brand shrinking, so the
+       Menu button — the only navigation at this width — was pushed off-screen;
+     · the hero: `.proof-line` is forced to two columns below 680px, and two
+       min-content columns plus the gap come to 175px inside a 155px grid.
+
+   Nothing above 420px changes. */
+@media (max-width: 420px) {
+  .site-nav { gap: 10px; }
+  .brand { min-width: 0; gap: 8px; font-size: .82rem; }
+  .brand > span:first-child { flex: none; }
+  .brand > :not(:first-child) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .menu-button { flex: none; padding-inline: 10px; }
+  .hero-copy { min-width: 0; }
+  /* One column, so the widest label sets the width instead of two of them. */
+  .proof-line { grid-template-columns: 1fr; }
+  .proof-line > * { min-width: 0; overflow-wrap: anywhere; }
+  .actions > a, .actions > button { min-width: 0; overflow-wrap: anywhere; }
+
+  /* Grid tracks default to a min-content minimum, so ONE long word sets the
+     width of the whole column and nothing below it can shrink. `overflow-wrap:
+     anywhere` (not `break-word`) is the one value that also reduces the
+     min-content contribution, which is what actually frees the track. */
+  h1, h2, h3 { overflow-wrap: anywhere; }
+  h2 { font-size: clamp(1.8rem, 11vw, 2.3rem); }
+  .section-shell, .section-shell > * { min-width: 0; }
+  .section-shell > * { overflow-wrap: anywhere; }
+  /* Two 110px min-content columns do not fit in 187px. */
+  .capability-strip { grid-template-columns: 1fr; }
+  .capability-strip > * { min-width: 0; overflow-wrap: anywhere; }
+  /* The label wraps, but the trailing "→" is a separate flex item and stayed
+     on the first line, past the button's own right edge. Let the line break. */
+  .primary, .header-cta, .text-action, .actions > a, .actions > button {
+    flex-wrap: wrap;
+    padding-inline: 12px;
+    text-align: center;
+  }
+}
+
 .cookie-reopen { position: fixed; left: 14px; bottom: 14px; z-index: 69; min-height: 40px; border: 1px solid rgba(255,255,255,.24); border-radius: 999px; background: var(--night); color: #fff; padding: 0 15px; font: inherit; font-size: .72rem; font-weight: 800; box-shadow: var(--shadow); cursor: pointer; }
 .cookie-banner { position: fixed; inset: auto 16px 16px 16px; z-index: 70; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 28px; align-items: center; max-width: 1120px; margin: auto; border: 1px solid #b9cac6; border-radius: 8px; background: #fff; color: var(--ink); padding: 22px; box-shadow: 0 22px 70px rgba(4,26,26,.22); }
 .cookie-banner[hidden] { display: none; }

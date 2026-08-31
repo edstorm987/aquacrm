@@ -3,6 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <!-- Without these the browser falls back to requesting /favicon.ico, which
+       does not exist here (the assets are favicon-default*) — a 404 on every
+       cold visit. These static pages are served outside Next, so they cannot
+       inherit the root layout's metadata and must declare it themselves. -->
+  <link rel="icon" href="/favicon-default.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-default-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/favicon-default-192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/favicon-default-180.png" />
   <title>Milesymedia — Free Digital Health Check</title>
   <meta name="description" content="A guided look at where your business is leaking customers — built around small experiments, not jargon." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
