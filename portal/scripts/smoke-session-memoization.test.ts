@@ -24,10 +24,14 @@
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-const ROOT = resolve(import.meta.dirname, "..");
+// `import.meta.dirname` is undefined when this file is loaded through tsx's
+// CJS transform, which threw before a single assertion ran. `import.meta.url`
+// is populated in both loaders.
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const AUTH = join(ROOT, "src/lib/server/auth/auth.ts");
 const source = readFileSync(AUTH, "utf8");
 

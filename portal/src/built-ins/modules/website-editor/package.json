@@ -2,8 +2,7 @@
   "name": "@aqua/plugin-website-editor",
   "version": "0.1.0",
   "private": true,
-  "description": "Aqua portal website editor plugin — Preview/Design/Code visual editor, 70-block library, portal-variant admin (login/affiliates/orders/account).",
-  "type": "module",
+  "description": "Aqua portal website editor plugin \u2014 Preview/Design/Code visual editor, 70-block library, portal-variant admin (login/affiliates/orders/account).",
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",

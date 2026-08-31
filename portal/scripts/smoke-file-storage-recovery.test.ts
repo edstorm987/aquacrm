@@ -3,9 +3,13 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const ROOT = join(import.meta.dirname, "..");
+// `import.meta.dirname` is undefined when this file is loaded through tsx's
+// CJS transform, which threw before a single assertion ran. `import.meta.url`
+// is populated in both loaders.
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 function run(code: string, dataFile: string): string {
   const script = `void (async () => {\n${code}\n})().catch((error) => { console.error(error); process.exitCode = 1; });`;

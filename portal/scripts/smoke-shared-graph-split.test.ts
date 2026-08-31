@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, extname, join, normalize, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import ts from "typescript";
 
@@ -8,7 +9,10 @@ import { buildSidebar } from "../src/lib/chrome/sidebarLayout";
 import { AGENCY_SIDEBAR_PLUGIN_CATALOG } from "../src/lib/chrome/agencySidebarPluginCatalog";
 import type { PluginInstall } from "../src/server/types";
 
-const ROOT = resolve(import.meta.dirname, "..");
+// `import.meta.dirname` is undefined when this file is loaded through tsx's
+// CJS transform, which threw before a single assertion ran. `import.meta.url`
+// is populated in both loaders.
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const AGENCY_LAYOUT = join(ROOT, "src/app/portal/agency/layout.tsx");
 const AGENCY_PAGE = join(ROOT, "src/app/portal/agency/page.tsx");
 const SIDEBAR_LAYOUT = join(ROOT, "src/lib/chrome/sidebarLayout.ts");

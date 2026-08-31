@@ -2,8 +2,7 @@
   "name": "@aqua/plugin-public-funnel",
   "version": "0.1.0",
   "private": true,
-  "description": "Aqua portal public funnel — wires Health Check (and future Resources tools) completion to lead identity, session handoff and Business OS context. Lead identity is reused by canonical email and stable completion IDs make capture retries idempotent.",
-  "type": "module",
+  "description": "Aqua portal public funnel \u2014 wires Health Check (and future Resources tools) completion to lead identity, session handoff and Business OS context. Lead identity is reused by canonical email and stable completion IDs make capture retries idempotent.",
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",
@@ -16,10 +15,17 @@
     "smoke": "tsx --test src/__smoke__/funnel.test.ts",
     "test": "tsx --test src/__smoke__/funnel.test.ts"
   },
-  "peerDependencies": { "next": "^16.0.0", "react": "^19.0.0" },
-  "devDependencies": {
-    "@types/node": "^22.0.0", "@types/react": "^19.0.0",
-    "tsx": "^4.21.0", "typescript": "^5.6.0"
+  "peerDependencies": {
+    "next": "^16.0.0",
+    "react": "^19.0.0"
   },
-  "engines": { "node": ">=20.0.0" }
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
 }

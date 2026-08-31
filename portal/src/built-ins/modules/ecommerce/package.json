@@ -2,8 +2,7 @@
   "name": "@aqua/plugin-ecommerce",
   "version": "0.1.0",
   "private": true,
-  "description": "Aqua portal ecommerce plugin — products, variants, cart, Stripe checkout, orders, customers, inventory, shipping. Per-client install (scopePolicy: 'client'). Block ids contributed; T3's website-editor plugin owns the rendering.",
-  "type": "module",
+  "description": "Aqua portal ecommerce plugin \u2014 products, variants, cart, Stripe checkout, orders, customers, inventory, shipping. Per-client install (scopePolicy: 'client'). Block ids contributed; T3's website-editor plugin owns the rendering.",
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",

@@ -2,8 +2,7 @@
   "name": "@aqua/plugin-agency-marketing",
   "version": "0.1.0",
   "private": true,
-  "description": "Aqua portal agency-marketing plugin — campaigns, leads, email templates, reports. Agency-internal companion to agency-HR + agency-finance. scopePolicy: 'agency', core: false. Tracks-and-templates only; real email/SMS/social-API integration deferred.",
-  "type": "module",
+  "description": "Aqua portal agency-marketing plugin \u2014 campaigns, leads, email templates, reports. Agency-internal companion to agency-HR + agency-finance. scopePolicy: 'agency', core: false. Tracks-and-templates only; real email/SMS/social-API integration deferred.",
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",

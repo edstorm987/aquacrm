@@ -2,8 +2,7 @@
   "name": "@aqua/plugin-affiliates",
   "version": "0.1.0",
   "private": true,
-  "description": "Aqua portal affiliates plugin — referral codes, attributions, manual payouts, per-end-customer affiliate dashboard. Per-client install (scopePolicy: 'client', requires: ['ecommerce']). Manual mark-paid for v1; Stripe Connect / PayPal payouts deferred.",
-  "type": "module",
+  "description": "Aqua portal affiliates plugin \u2014 referral codes, attributions, manual payouts, per-end-customer affiliate dashboard. Per-client install (scopePolicy: 'client', requires: ['ecommerce']). Manual mark-paid for v1; Stripe Connect / PayPal payouts deferred.",
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",
