@@ -2,7 +2,7 @@
 
 > Every active, completed and archived phased implementation plan and handoff.
 >
-> Consolidated 2026-08-31 from **57** source documents / **115,417 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-31 from **57** source documents / **115,551 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -16,7 +16,7 @@
 - [`docs/development/plans/battle-table-overhaul.md`](#source-docs-development-plans-battle-table-overhaul-md) — 1,281 words · `6f88568cdd07`
 - [`docs/development/plans/client-health.md`](#source-docs-development-plans-client-health-md) — 1,471 words · `340b63d1ac0d`
 - [`docs/development/plans/client-owned-form-data.md`](#source-docs-development-plans-client-owned-form-data-md) — 4,950 words · `fb884cee1005`
-- [`docs/development/plans/compliance-legal.md`](#source-docs-development-plans-compliance-legal-md) — 1,912 words · `550bdb57cdf6`
+- [`docs/development/plans/compliance-legal.md`](#source-docs-development-plans-compliance-legal-md) — 2,046 words · `6de22eae94ad`
 - [`docs/development/plans/configurable-access-and-workspace-parity.md`](#source-docs-development-plans-configurable-access-and-workspace-parity-md) — 2,675 words · `b1bb328b9156`
 - [`docs/development/plans/connect-flow-real-codes.md`](#source-docs-development-plans-connect-flow-real-codes-md) — 889 words · `6ca3989c9692`
 - [`docs/development/plans/database-separation.md`](#source-docs-development-plans-database-separation-md) — 2,312 words · `dacec6a22461`
@@ -1694,7 +1694,7 @@ demonstrated. Delete it whenever.
 
 ## Source document — `docs/development/plans/compliance-legal.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/compliance-legal.md" sha256="550bdb57cdf6115663331447c5ec8183cee640e83f7384ef1a8c06273e6efcda" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/compliance-legal.md" sha256="6de22eae94ad46477f3274e7b1f213b29ea651d80fd51b19bf60938f933bd78a" -->
 # Plan — Compliance & Legal (GDPR, HIPAA track, evidence, breach defence)
 
 ← [todo.md](../todo.md) · [operations-command-surface.md](operations-command-surface.md) · [development.md](../../development.md)
@@ -1776,7 +1776,7 @@ minimum-necessary, and every BAA/DPA.
 - **Consent ledger** — surface the consent the tag already captures (per person/site) as auditable records; lawful-basis tracking.
 - **DSAR handling** — subject access / erasure / portability requests: a workflow to receive, fulfil (export a person's data), and **log the fulfilment as evidence**. Reuse `clientErasure` + a data-export.
 - **Retention** — per-data-type retention policies + auto-expiry (enquiries, telemetry, messages, recordings).
-- **Breach register** — record an incident, what data, who was notified, when (the 72-hour clock), with evidence.
+- **Breach register** — ✅ **SHIPPED 2026-08-31.** `lib/server/compliance/breachRegister.ts` + `POST /api/portal/governance/breaches` + the Governance **Breaches** view. Art. 33/34: the 72 hours run from **discovery**, not from data entry, so a breach found on Friday and logged on Monday reports as already late; an **unassessed** incident counts as still owing a decision and stays on the clock (silence is never read as "not notifiable"); a decision not to notify and a late notification must each carry their reason (Art. 33(5), Art. 33(1)); a notifiable breach cannot be closed with no notification recorded, and a late notification stays late after closure. `gdpr.breach-register` now reads the real register instead of regex-matching `/breach|incident/` over legal-document titles, and reports **blind** — never "no breaches" — when the register cannot be read. Pinned by `smoke-compliance-posture` + `smoke-governance-workspace`. **The app notifies nobody**: the ICO is told on the ICO's service and the register records that a human did it.
 - **Privacy policy / terms / cookie policy** — managed documents, versioned, with the consent version they map to.
 
 ## The document & evidence vault (verify, not assume)

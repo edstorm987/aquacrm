@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { createClientMilestone, deleteClientMilestone, listClientMilestones, updateClientMilestone } from "@/server/clientMilestones";
 import { ensureHydrated } from "@/server/storage";
+import { getClientForAgency } from "@/server/tenants";
 import { AGENCY_ROLES, type ClientMilestoneStatus } from "@/server/types";
 import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
@@ -25,6 +26,10 @@ export async function GET(request: Request) {
     const clientId = new URL(request.url).searchParams.get("clientId") ?? "";
     if (!clientId) return NextResponse.json({ ok: false, error: "clientId required" }, { status: 400 });
     const session = await requireRoleForClient([...AGENCY_ROLES], clientId);
+    // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
+    if (!getClientForAgency(session.agencyId, clientId)) {
+      return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+    }
     await requireCurrentClientWorkspaceElementAccess(clientId, "client.fulfilment", "view");
     return NextResponse.json({ ok: true, milestones: listClientMilestones(session.agencyId, clientId) });
   } catch (error) {
@@ -38,6 +43,10 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => null) as Body | null;
     if (!body?.clientId || !body.action) return NextResponse.json({ ok: false, error: "clientId and action required" }, { status: 400 });
     const session = await requireRoleForClient([...AGENCY_ROLES], body.clientId);
+    // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
+    if (!getClientForAgency(session.agencyId, body.clientId)) {
+      return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+    }
     await requireCurrentClientWorkspaceElementAccess(
       body.clientId,
       "client.fulfilment",

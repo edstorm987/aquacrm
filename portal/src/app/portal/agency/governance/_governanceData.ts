@@ -25,6 +25,7 @@ import { getSupabasePublicConfig } from "@/lib/supabase/config";
 
 import { listSubjectRequests, subjectRequestClock, type SubjectRequestClock } from "@/lib/server/compliance/subjectRequests";
 import { previewRetentionSweep, retentionPolicy, RETENTION_CATEGORIES } from "@/lib/server/compliance/retention";
+import { listBreachIncidents, summariseBreachClock, type BreachClock } from "@/lib/server/compliance/breachRegister";
 
 export type SecurityStatus = "in-code" | "configured" | "partial" | "not-verified" | "blind";
 
@@ -150,6 +151,42 @@ export interface GovernanceSnapshot {
    */
   retentionPreview: { total: number; removed: Record<string, number>; unset: string[] };
   retentionCategories: Array<{ id: string; label: string; describes: string; days?: number }>;
+  /**
+   * The breach register and its 72-hour clock (GDPR Art. 33/34).
+   *
+   * `compliancePosture` named this gap in the plainest terms it uses anywhere:
+   * "If something happened tonight there is nowhere in the app to record it and
+   * no clock counting the 72 hours." This is where somebody records it.
+   */
+  breaches: BreachRow[];
+  breachClock: BreachClock;
+}
+
+export interface BreachRow {
+  id: string;
+  title: string;
+  description: string;
+  companyIds?: string[];
+  discoveredAt: number;
+  recordedAt: number;
+  notifyDeadlineAt: number;
+  dataCategories: string[];
+  affectedEstimate?: number;
+  /** `undefined` means the Art. 33(1) decision has NOT been made. It is not a
+   * "no" — the UI must show it as an open question. */
+  notifiable?: boolean;
+  assessmentReason?: string;
+  authorityNotifiedAt?: number;
+  authorityReference?: string;
+  delayReason?: string;
+  subjectsNotifiedAt?: number;
+  closed: boolean;
+  outcome?: string;
+  /** Past the deadline with nothing notified — computed against the server's
+   * own `now`, the same moment the rest of this snapshot was built against. */
+  overdue: boolean;
+  /** Notified, but after the deadline. Kept visible after closure. */
+  notifiedLate: boolean;
 }
 
 export interface SubjectRequestRow {
@@ -219,6 +256,12 @@ export async function buildGovernanceSnapshot(options: BuildGovernanceOptions): 
   const subprocessors = buildSubprocessorRegister(legalDocuments);
   const security = buildSecurityPosture();
 
+  // Scoped on the same primitive as the register: an incident naming no
+  // company is an agency-level one and stays visible under every scope, while
+  // one naming another brand is not this company's incident (issues #68).
+  const scopedBreaches = listBreachIncidents(agencyId)
+    .filter(incident => recordBelongsToCompany(incident.companyId ? [incident.companyId] : [], companyId));
+
   // Erasure is irreversible, so the list you can pick from must not offer
   // another company's client. A client with no `companyId` belongs to no brand
   // and stays offered under every scope, matching the register's convention.
@@ -268,6 +311,34 @@ export async function buildGovernanceSnapshot(options: BuildGovernanceOptions): 
       describes: category.describes,
       days: retentionPolicy(agencyId)[category.id],
     })),
+    breaches: scopedBreaches.map(incident => ({
+      id: incident.id,
+      title: incident.title,
+      description: incident.description,
+      companyIds: incident.companyId ? [incident.companyId] : undefined,
+      discoveredAt: incident.discoveredAt,
+      recordedAt: incident.recordedAt,
+      notifyDeadlineAt: incident.notifyDeadlineAt,
+      dataCategories: incident.dataCategories,
+      affectedEstimate: incident.affectedEstimate,
+      notifiable: incident.notifiable,
+      assessmentReason: incident.assessmentReason,
+      authorityNotifiedAt: incident.authorityNotifiedAt,
+      authorityReference: incident.authorityReference,
+      delayReason: incident.delayReason,
+      subjectsNotifiedAt: incident.subjectsNotifiedAt,
+      closed: Boolean(incident.closedAt),
+      outcome: incident.outcome,
+      // An UNASSESSED incident is overdue too. Waiting to decide does not stop
+      // the 72 hours, and a register that only flagged the ones somebody had
+      // already admitted were notifiable would reward not deciding.
+      overdue: !incident.closedAt
+        && !incident.authorityNotifiedAt
+        && incident.notifiable !== false
+        && incident.notifyDeadlineAt < now,
+      notifiedLate: typeof incident.authorityNotifiedAt === "number" && incident.authorityNotifiedAt > incident.notifyDeadlineAt,
+    })),
+    breachClock: summariseBreachClock(scopedBreaches, now),
   };
 }
 

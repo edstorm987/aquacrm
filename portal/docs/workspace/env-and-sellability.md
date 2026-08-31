@@ -127,9 +127,9 @@ is to union those into `configuredOrigins()` — not a new store.
 Adjacent, same route, not env but same blocker: `isTradingBrandSlug(brand)`
 gates on Ed's hardcoded trading-brand slugs.
 
-### 1.3 — Readiness tells them they are permanently unready.
+### 1.3 — Readiness tells them they are permanently unready. **(RESOLVED 2026-08-31)**
 
-Full breakdown in §3.
+Full breakdown, and what the fix actually was, in §3.
 
 ### 1.4 — Google sign-in and Google Calendar can never be connected.
 
@@ -264,7 +264,12 @@ that are the only ones actually called, and no caller of their own anywhere in
 
 ---
 
-## 3. The `inspectProductionReadiness()` conflict
+## 3. The `inspectProductionReadiness()` conflict **(RESOLVED 2026-08-31)**
+
+> Everything from here to "Fix shape" is the record of what was wrong, kept
+> because the row-by-row table is still the map of which setting belongs to whom.
+> What changed is at the end of the section.
+
 
 `lib/server/productionReadiness.ts`. Called from two places, both passing the
 live `process.env`:
@@ -322,13 +327,60 @@ Connect Resend without it and the row goes green while
 `enquiryNotifications.ts:33` falls back to the literal `edwardhallam07@gmail.com`.
 Green light, buyer's enquiries in Ed's inbox.
 
-### Fix shape
+### Fix shape — done 2026-08-31
 
-1. `managedEmailReady` → `managedProviders.has("resend") || managedProviders.has("smtp")`.
-2. Split `enquiryEmailReady` so it checks the *resolved values* (`resolveIntegrationValues(agencyId,"resend").notifyTo`), not merely that a connection exists.
-3. Take `agencyId` as an argument and mark each `ReadinessItem` with a scope — `"platform"` (operator only) or `"company"` (every agency). Render only `"company"` rows for a non-founder, and compute `ready` from the required *company* rows.
-4. `envKeys` on each item is a founder-facing debugging aid. Keep it, but do not show it to a tenant — it names variables they cannot set.
-5. Only then: `google` becomes company-scoped or platform-scoped per the §1.4 decision.
+Steps 1–4 are implemented. The record of what each one was, and what it is now:
+
+1. ✅ `managedEmailReady` accepts `smtp` as well as `resend`.
+2. ✅ Better than proposed. Rather than re-deriving the answer here, readiness now
+   *asks the send paths themselves*: `transactionalEmailReadiness(agencyId)` and
+   `resolveEnquiryNotificationRouting(agencyId)` are the authorities, passed in as
+   `transactionalEmailConfigured` / `enquiryNotificationsConfigured` on
+   `ReadinessContext`. The enquiry half is true only when a key, a **resolved
+   recipient** and a verified sender all exist — the same three values
+   `notifyBrandEnquiry` refuses to send without — so the screen and the sender
+   cannot disagree. It also inherits the activation rule for free: credential
+   bytes saved but never activated are not a connection.
+3. ✅ `ReadinessItem.scope` is `"platform" | "company"`, and `ProductionReadiness`
+   now reports its `audience`. An agency the environment does not belong to
+   (`environmentCredentialsBelongToAgency`, from `mayUseEnvironmentCredentials`)
+   sees company rows only, has every env fallback withheld from its optional rows
+   too — a green "GitHub publishing" row would have been Ed's token — and gets
+   `ready` computed from its required company rows alone.
+4. ✅ `envKeys` is emptied for a company audience. It is not merely unrendered:
+   the readiness object is serialised into the browser through `SettingsTabs`.
+5. ⏸ `google` is scoped `"platform"`, which is what it IS today — one env-only
+   OAuth web client, no per-company path anywhere in the app — so a tenant is not
+   shown a row they cannot act on. Whether it should BECOME per-company is still
+   the open §1.4 decision; the classification records today's implementation and
+   does not settle it.
+
+Both callers build the context through the ONE shared builder,
+`readinessContextForAgency` (`lib/server/dev/devTeamAuditor.ts`): Settings had a
+hand-rolled copy of it and now imports it, which is what stops the two screens
+drifting apart again.
+
+Pinned by `scripts/smoke-production-readiness.test.ts` (the scope contract, both
+email directions, and the operator keeping the full view) and
+`scripts/smoke-dev-team-auditor.test.ts` (the same contract end-to-end through
+real vault connections: an SMTP company is judged on its own sender, and a
+company reaches `ready: true` with no redeploy).
+
+Still open from §1 after this: the ungated `openai` / `github` / `meta` env
+fallbacks in §1.1's table, `brand-enquiry` origins (§1.2), and everything in
+§2.3. Readiness no longer *reports* those as the buyer's, but the code paths
+still reach past the gate.
+
+**Also still open, and narrower than step 1 above reads.** Accepting `smtp`
+fixes the *account mail* half only. Public enquiry alerts leave through Resend
+and nothing else — `notifyBrandEnquiry` calls `sendResendEmail`, and
+`resolveEnquiryNotificationRouting` resolves `resend` values exclusively — so an
+SMTP-only workspace satisfies half of a REQUIRED row and still reads
+`ready: false` forever. That is the same "permanently unready" shape §1.3
+describes, just smaller. Until `notifyBrandEnquiry` has an SMTP path the row's
+action names the only thing that actually clears it (connect Resend); the action
+must not be softened back to "set a support email", which for an SMTP-only
+workspace is a remedy that leaves the row red.
 
 Note `devTeamAuditor.ts:403` already documents exactly this class of bug
 ("two screens disagreeing about one fact") for `managedIntegrationProviders`.

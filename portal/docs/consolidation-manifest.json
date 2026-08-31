@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-31T01:23:03.478Z",
+  "generatedAt": "2026-08-31T02:46:45.752Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -599,9 +599,9 @@
       "path": "docs/development/plans/compliance-legal.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-compliance-legal-md",
-      "sha256": "550bdb57cdf6115663331447c5ec8183cee640e83f7384ef1a8c06273e6efcda",
-      "words": 1912,
-      "bytes": 13809
+      "sha256": "6de22eae94ad46477f3274e7b1f213b29ea651d80fd51b19bf60938f933bd78a",
+      "words": 2046,
+      "bytes": 14750
     },
     {
       "path": "docs/development/plans/configurable-access-and-workspace-parity.md",
@@ -1087,9 +1087,9 @@
       "path": "docs/workspace/api-reference.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-api-reference-md",
-      "sha256": "b88eee0137fe53f4111ee1f1b0d01cbedeaef362ae69f25f3ead38e9a5ea6b18",
-      "words": 8236,
-      "bytes": 57695
+      "sha256": "f47b98abebb952777258786b470e92032c4009907418c454a39cf9900415d4f2",
+      "words": 8272,
+      "bytes": 57986
     },
     {
       "path": "docs/workspace/aqua-tag.md",
@@ -1119,9 +1119,9 @@
       "path": "docs/workspace/env-and-sellability.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-env-and-sellability-md",
-      "sha256": "6541a737c2ee5049803bb94d55ef3d7ca1a876a873d746980a737e14933b7a2d",
-      "words": 3202,
-      "bytes": 25444
+      "sha256": "3dfcad335c9f15c1dfd4980be5c49e70d58facb656564653493d12d1a6354490",
+      "words": 3641,
+      "bytes": 28429
     },
     {
       "path": "docs/workspace/feature-index.md",
@@ -1135,9 +1135,9 @@
       "path": "docs/workspace/hazards-and-duplication.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-hazards-and-duplication-md",
-      "sha256": "1cac9563fe95cbd412e155f6480d692bd5294e9ca1da5cf6292a3e73e225b684",
-      "words": 6864,
-      "bytes": 52909
+      "sha256": "37759774c91995895cca02e34f12aac756bcd0841503d5b58fb8fb7a678f1a91",
+      "words": 6956,
+      "bytes": 53700
     },
     {
       "path": "docs/workspace/kpi-intelligence.md",

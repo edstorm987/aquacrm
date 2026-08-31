@@ -72,9 +72,10 @@ export async function POST(request: Request) {
 
   try {
     const session = await requireRoleForClient([...AGENCY_ROLES], sourceClientId);
-    await requireCurrentClientWorkspaceElementAccess(sourceClientId, "client.relationship", "manage");
+    // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
     const source = getClientForAgency(session.agencyId, sourceClientId);
     if (!source) return NextResponse.json({ ok: false, error: "Client workspace not found." }, { status: 404 });
+    await requireCurrentClientWorkspaceElementAccess(sourceClientId, "client.relationship", "manage");
 
     if (action === "create") {
       const operationId = text(body?.operationId, 160) || `linked-workspace:${randomUUID()}`;
@@ -192,6 +193,10 @@ export async function POST(request: Request) {
     // Linking or detaching changes both workspace records, so an exact grant
     // to only the source is deliberately insufficient.
     await requireRoleForClient([...AGENCY_ROLES], targetClientId);
+    // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
+    if (!getClientForAgency(session.agencyId, targetClientId)) {
+      return NextResponse.json({ ok: false, error: "Client workspace not found." }, { status: 404 });
+    }
     await requireCurrentClientWorkspaceElementAccess(targetClientId, "client.relationship", "manage");
     if (action === "link") {
       if (targetClientId === sourceClientId) return NextResponse.json({ ok: false, error: "Choose a different workspace." }, { status: 400 });

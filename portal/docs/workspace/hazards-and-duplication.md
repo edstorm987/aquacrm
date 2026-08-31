@@ -33,7 +33,7 @@ Editing one does **not** change the others. Confirm which surface you're on befo
 
 ### Two "who is this person" models
 - `lib/clients/clientContacts.ts` — simple contacts embedded on a client.
-- `lib/server/identityResolution.ts` + `personInteractions.ts` — the resolution graph.
+- `lib/server/identityResolution.ts` + `personInteractionsService.ts` — the resolution graph.
 
 ### Two client activity logs
 - `lib/clients/clientRelationshipRecord.ts` (client-safe) vs `lib/server/clients/clientRecordLedger.ts`. Confirm canonical before writing history entries.
@@ -456,6 +456,19 @@ import the wrong one. The server halves are now suffixed `Service`:
 `commandIntelligenceService` · `advisorSkillsService` · `brandPortfolioService`.
 Rule going forward: a server counterpart of a client-safe module carries the
 `Service` suffix, never the bare twin name.
+
+**Straggler closed 2026-08-31:** the server half of `personInteractions` had kept
+the bare name and is now **`lib/server/personInteractionsService.ts`** (the bare
+`lib/server` filename no longer exists — do not link it). The rule is
+no longer a convention: `scripts/smoke-person-interactions.test.ts` sweeps both
+lib halves and fails on any shared filename.
+
+**Still outstanding (two pairs, chrome preference cookies):**
+`lib/server/devIconPreference.ts` ↔ `lib/chrome/devIconPreference.ts` and
+`lib/server/performanceMode.ts` ↔ `lib/chrome/performanceMode.ts`. They are
+pinned as known in that sweep's `KNOWN_UNRESOLVED` list so a NEW twin still
+fails; renaming them touches the agency/clients/dev-team layouts and was left
+out of the person-interactions change deliberately.
 
 ## Who decides the tenant on a plugin API call — SETTLED 2026-08-22
 

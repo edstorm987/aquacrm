@@ -411,4 +411,5 @@ Two Live-column edge cases (they don't match a naive `supabase/admin` grep):
 | `/api/portal/governance/erasure/preview` | POST | Non-destructive erasure blast-radius preview (owner/manager) | agency | new 2026-08-20 |
 | `/api/portal/governance/subject-access` | POST | GDPR Art. 15/20 subject access export — everything held about one person, as a JSON download (owner/manager) | agency | new 2026-08-28 |
 | `/api/portal/governance/retention` | POST | Set the retention period per category; blank clears to keep-forever. Returns a fresh preview, never sweeps (owner only) | agency | new 2026-08-28 |
+| `/api/portal/governance/breaches` | POST | GDPR Art. 33/34 breach register — `record`/`notify-authority`/`notify-subjects` (owner/manager), `assess`/`close` (owner only). The 72-hour clock runs from discovery; it records that a human notified, never notifies | agency | new 2026-08-31 |
 | `/api/portal/sop-guides` | GET/POST/PATCH/DELETE | SOP guides CRUD (ordered SOP sequences); GET all-roles, writes owner/manager | agency | new 2026-08-20 |

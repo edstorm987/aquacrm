@@ -98,7 +98,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `proxy(req: NextRequest)`
 - `config = {`
 
-**Depends on:** _No internal imports._
+**Depends on (1):** [`src/lib/staffWorkspacePolicy.ts`](lib.md#file-src-lib-staffworkspacepolicy-ts-3b2d90ae3d)
 
 **Used by (2):** [`scripts/smoke-sandbox-environment.test.ts`](scripts.md#file-scripts-smoke-sandbox-environment-test-ts-99a8655e6d) · [`scripts/smoke-showcase-mode.test.ts`](scripts.md#file-scripts-smoke-showcase-mode-test-ts-a1d2a86c7a)
 

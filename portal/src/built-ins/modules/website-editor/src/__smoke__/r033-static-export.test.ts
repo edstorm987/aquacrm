@@ -1,5 +1,14 @@
 // Smoke — R033 Static site export.
 //
+// @smoke-conditions react-server
+//
+// The directive above is read by `scripts/run-website-editor-smoke.mjs`. This
+// file reaches `handleExportSite`, which resolves the client's Supabase target
+// through a portal module guarded by `server-only` — without the react-server
+// resolution that package throws on import and the whole file dies before its
+// first assertion. Most sibling smokes need the opposite (they render client
+// components), which is why it is per-file rather than global.
+//
 // Asserts:
 //   - exportSiteToZip emits a valid store-only ZIP (PK\x03\x04 magic, EOCD)
 //   - homepage exports as `index.html` with title + content
@@ -15,6 +24,7 @@ import {
 } from "../server/staticExport";
 import { handleExportSite } from "../api/handlers/staticExport";
 import { createPage, publishPage, updatePage } from "../server/pages";
+import { PAGE_TEMPLATES } from "../components/pageTemplates";
 import type { PluginStorage, PluginCtx } from "../lib/aquaPluginTypes";
 import type { AgencyId, ClientId, BrandKit } from "../lib/tenancy";
 import type { Block } from "../types/block";
@@ -161,13 +171,111 @@ function findEntry(zip: Uint8Array, name: string): { offset: number; size: numbe
 
   const readmeEntry = findEntry(result.zip, "README.txt")!;
   const readme = decode(result.zip, readmeEntry.offset, readmeEntry.size);
-  expect("README warns forms won't work", readme.includes("Form submissions"));
+  // The README no longer carries the old "Form submissions (contact-form, …)"
+  // line — forms ARE rendered now, honestly, and this assertion had been
+  // pinning a string the rewritten README stopped emitting.
+  expect("README says unconnected forms are not connected", readme.includes("NOT connected"));
   expect("README warns commerce won't work", readme.includes("Commerce"));
+  expect("README lists nothing dropped for a fully-supported site",
+    !readme.includes("CANNOT reproduce"));
 
   const brandEntry = findEntry(result.zip, "assets/brand.css")!;
   const css = decode(result.zip, brandEntry.offset, brandEntry.size);
   expect("brand.css uses primaryColor", css.includes("#0ea5e9"));
   expect("brand.css uses accentColor", css.includes("#f97316"));
+
+  // ─── First-party template parity ───────────────────────────────────────
+  //
+  // The acceptance line is "compare a representative published page with its
+  // exported HTML". The representative page is the one the product itself
+  // offers: the Homepage starter template. Before this contract existed its
+  // hero, testimonials and CTA exported as EMPTY `<div data-block-type>`
+  // shells — the renderer only knew how to read `props.text`, and these blocks
+  // carry `headline` / `items` — with nothing on the page or in the README
+  // saying anything had been lost.
+  const homepageTemplate = PAGE_TEMPLATES.find(t => t.id === "homepage")!;
+  expect("first-party Homepage template exists", homepageTemplate !== undefined);
+
+  const tplStorage = memStorage();
+  const tplSiteId = "site_template";
+  const tplHome = await createPage(tplStorage, {
+    agencyId: a, clientId: c, siteId: tplSiteId, slug: "/", title: "Home",
+    isHomepage: true, blocks: homepageTemplate.build(),
+  } as never);
+  await publishPage(tplStorage, a, c, tplSiteId, tplHome.id);
+
+  const tplResult = await exportSiteToZip({
+    storage: tplStorage, agencyId: a, clientId: c, siteId: tplSiteId,
+    baseUrl: "https://example.com",
+  });
+  const tplEntry = findEntry(tplResult.zip, "index.html")!;
+  const tplHtml = decode(tplResult.zip, tplEntry.offset, tplEntry.size);
+
+  expect("hero eyebrow survives export", tplHtml.includes("Welcome"));
+  expect("hero headline survives export", tplHtml.includes("Build something beautiful"));
+  expect("hero subhead survives export", tplHtml.includes("value proposition"));
+  expect("hero CTA becomes a real link",
+    tplHtml.includes('href="/shop"') && tplHtml.includes("Shop now"));
+  expect("section heading survives export", tplHtml.includes("Featured products"));
+  expect("testimonials title survives export", tplHtml.includes("Loved by our customers"));
+  expect("testimonial quote survives export",
+    tplHtml.includes("This is the future of skincare."));
+  expect("second testimonial quote survives export",
+    tplHtml.includes("Shipped my whole site in a day."));
+  expect("testimonial attribution survives export", tplHtml.includes("Felicia"));
+  expect("cta headline survives export", tplHtml.includes("Ready to start?"));
+  expect("cta link survives export",
+    tplHtml.includes('href="/account"') && tplHtml.includes("Get started"));
+  // Parity includes heading level: HeroBlock renders h1, CtaBlock renders h2.
+  // Exporting both as h1 gives the client's page two h1s the live page has not.
+  expect("hero headline is the page's h1", tplHtml.includes("<h1>Build something beautiful</h1>"));
+  expect("cta headline is an h2, as CtaBlock renders it",
+    tplHtml.includes("<h2>Ready to start?</h2>"));
+  expect("the exported page has exactly one h1", (tplHtml.match(/<h1[ >]/g) ?? []).length === 1);
+  expect("no block exports as an empty shell",
+    !/data-block-type="(hero|cta|testimonials)"[^>]*><\/(div|section)>/.test(tplHtml));
+
+  // The block a static bundle genuinely cannot reproduce must be REJECTED
+  // VISIBLY — a note naming it — rather than leaving a silent gap.
+  expect("product-grid is marked unsupported in the HTML",
+    tplHtml.includes('data-block-type="product-grid" data-aqua-export="unsupported"'));
+  expect("product-grid rejection is visible to a reader",
+    tplHtml.includes("needs the live site") && tplHtml.includes("not included in this static export"));
+  expect("export reports the block types it could not reproduce",
+    tplResult.unexportableBlockTypes.includes("product-grid"));
+  expect("export does not report supported blocks as dropped",
+    !tplResult.unexportableBlockTypes.includes("hero") &&
+    !tplResult.unexportableBlockTypes.includes("testimonials"));
+
+  const tplReadmeEntry = findEntry(tplResult.zip, "README.txt")!;
+  const tplReadme = decode(tplResult.zip, tplReadmeEntry.offset, tplReadmeEntry.size);
+  expect("README warns that blocks were dropped", tplReadme.includes("CANNOT reproduce"));
+  expect("README names the dropped block type", tplReadme.includes("- product-grid"));
+
+  // The Contact template deliberately ships `action: ""` (issue #29). The
+  // exported form must say so and refuse to submit, not present a Send button
+  // that throws the visitor's message away.
+  const contactTemplate = PAGE_TEMPLATES.find(t => t.id === "contact")!;
+  const contactHtml = contactTemplate.build().map(b => renderBlockToHtml(b)).join("\n");
+  expect("template form renders its fields",
+    contactHtml.includes('name="message"') && contactHtml.includes('name="email"'));
+  expect("template form with no destination says so",
+    contactHtml.includes("no destination yet"));
+  expect("template form with no destination cannot be submitted",
+    /<button type="submit" disabled>/.test(contactHtml));
+
+  const wiredForm: Block = {
+    id: "f1", type: "form",
+    props: {
+      title: "Send us a message", action: "https://forms.example/submit", submitLabel: "Send",
+      fields: [{ name: "email", label: "Email", type: "email", required: true }],
+    },
+  };
+  const wiredHtml = renderBlockToHtml(wiredForm);
+  expect("a form with a destination posts to it",
+    wiredHtml.includes('action="https://forms.example/submit"') && wiredHtml.includes('method="post"'));
+  expect("a form with a destination is submittable",
+    !/<button type="submit" disabled>/.test(wiredHtml));
 
   // ─── Handler ───────────────────────────────────────────────────────────
   const ctx: PluginCtx = {
@@ -186,6 +294,42 @@ function findEntry(zip: Uint8Array, name: string): { offset: number; size: numbe
     (good.headers.get("content-disposition") ?? "").startsWith("attachment;"));
   const bytes = new Uint8Array(await good.arrayBuffer());
   expect("handler body is a ZIP", bytes[0] === 0x50 && bytes[1] === 0x4b);
+  expect("handler reports zero unsupported blocks for a fully-supported site",
+    good.headers.get("x-aqua-export-unsupported-blocks") === "0");
+
+  // A caller reading only the status code would call the template export a
+  // success. The headers make the shortfall impossible to miss.
+  const tplCtx: PluginCtx = {
+    storage: tplStorage, agencyId: a, clientId: c,
+  } as unknown as PluginCtx;
+  const tplRes = await handleExportSite(
+    new Request(`http://x/export?siteId=${tplSiteId}`), tplCtx,
+  );
+  expect("handler counts unsupported blocks",
+    tplRes.headers.get("x-aqua-export-unsupported-blocks") === "1");
+  expect("handler names the unsupported block types",
+    (tplRes.headers.get("x-aqua-export-unsupported-block-types") ?? "").includes("product-grid"));
+
+  // `Block.type` is an open string and page trees are stored unvalidated, so a
+  // stored type can carry a CR/LF. Putting that straight into a response header
+  // makes `new Response()` throw, and a working export would 500 for the sake of
+  // a diagnostic header. The download must survive its own reporting.
+  const hostileStorage = memStorage();
+  const hostileSiteId = "site_hostile";
+  const hostile = await createPage(hostileStorage, {
+    agencyId: a, clientId: c, siteId: hostileSiteId, slug: "/", title: "Home",
+    isHomepage: true,
+    blocks: [{ id: "x1", type: "evil\r\nx-injected: yes", props: {} } as Block],
+  } as never);
+  await publishPage(hostileStorage, a, c, hostileSiteId, hostile.id);
+  const hostileRes = await handleExportSite(
+    new Request(`http://x/export?siteId=${hostileSiteId}`),
+    { storage: hostileStorage, agencyId: a, clientId: c } as unknown as PluginCtx,
+  );
+  expect("a block type containing CRLF does not 500 the export", hostileRes.status === 200);
+  expect("and does not inject a header", hostileRes.headers.get("x-injected") === null);
+  expect("the count still reports the block was dropped",
+    hostileRes.headers.get("x-aqua-export-unsupported-blocks") === "1");
 
   console.log(`\n${passes} passed · ${failures} failed`);
   if (failures > 0) process.exit(1);

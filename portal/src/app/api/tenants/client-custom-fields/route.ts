@@ -19,9 +19,10 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: false, error: "clientId and customFields are required" }, { status: 400 });
     }
     const session = await requireRoleForClient([...AGENCY_ROLES], clientId);
-    await requireCurrentClientWorkspaceElementAccess(clientId, "client.settings", "manage");
+    // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
     const client = getClientForAgency(session.agencyId, clientId);
     if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.settings", "manage");
     const updated = updateClient(session.agencyId, clientId, {
       metadata: { customFields: body.customFields },
     });

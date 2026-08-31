@@ -69,6 +69,87 @@ test("the README tells the truth in both cases", async () => {
   assert.doesNotMatch(bare, /DO work/, "and must not claim otherwise");
 });
 
+test("the first-party template vocabulary survives an export, or says it did not", async () => {
+  // The renderer used to know twelve block types plus contact-form, and read
+  // only `props.text`. The first-party Homepage template's hero and CTA carry
+  // `headline`, so they exported as EMPTY `<div data-block-type="hero">`
+  // shells — no content, no warning, nothing in the README. A client would
+  // have found out from a visitor.
+  const { renderBlockToHtml, collectUnexportableBlockTypes, buildExportReadme } = await import(
+    "../src/built-ins/modules/website-editor/src/server/staticExport.ts"
+  );
+
+  const hero = renderBlockToHtml({
+    id: "h", type: "hero",
+    props: { eyebrow: "Welcome", headline: "Build something beautiful", subhead: "A tagline.", ctaLabel: "Shop now", ctaHref: "/shop" },
+  } as never);
+  assert.match(hero, /Build something beautiful/, "the hero headline must reach the exported page");
+  assert.match(hero, /href="\/shop"/, "and its call to action must be a real link");
+
+  const testimonials = renderBlockToHtml({
+    id: "t", type: "testimonials",
+    props: { title: "Loved by our customers", items: [{ quote: "This is the future.", author: "Felicia", role: "Founder" }] },
+  } as never);
+  assert.match(testimonials, /This is the future\./, "the quotes are the block — losing them loses everything");
+  assert.match(testimonials, /Felicia/);
+
+  // A block a static bundle genuinely cannot reproduce is REJECTED VISIBLY.
+  const grid = renderBlockToHtml({ id: "g", type: "product-grid", props: { collectionHandle: "all" } } as never);
+  assert.match(grid, /data-aqua-export="unsupported"/, "it must be machine-detectable");
+  assert.match(grid, /not included in this static export/, "and readable by whoever opens the page");
+
+  assert.deepEqual(
+    collectUnexportableBlockTypes([
+      { id: "s", type: "section", props: {}, children: [{ id: "g", type: "product-grid", props: {} }] },
+      { id: "h", type: "hero", props: {} },
+    ] as never),
+    ["product-grid"],
+    "nested blocks count too, and supported ones must not be reported as dropped",
+  );
+
+  const readme = buildExportReadme("site_1", "https://example.test", 1, undefined, ["product-grid"]);
+  assert.match(readme, /CANNOT reproduce \(1\)/, "the README must own the shortfall");
+  assert.match(readme, /- product-grid/, "and name it, not hedge with 'some blocks'");
+  assert.doesNotMatch(
+    buildExportReadme("site_1", "https://example.test", 1),
+    /CANNOT reproduce/,
+    "a fully-supported site must not be told it lost something",
+  );
+});
+
+test("an exported form does not disagree with the editor about being connected", async () => {
+  // `FormBlock` decides "connected" with `action.trim().length > 0`. The export
+  // renderer tested emptiness on the RAW string, so an action of a single space
+  // — which the editor shows as "no destination yet, cannot be sent" — exported
+  // as an enabled Send button posting to the page itself. That is issue #29's
+  // failure mode, reached one space at a time.
+  const { renderBlockToHtml } = await import(
+    "../src/built-ins/modules/website-editor/src/server/staticExport.ts"
+  );
+
+  const blank = renderBlockToHtml({
+    id: "f", type: "form",
+    props: { action: "   ", submitLabel: "Send", fields: [{ name: "email", label: "Email", type: "email" }] },
+  } as never);
+  assert.match(blank, /no destination yet/, "a whitespace action is no destination, as it is in the editor");
+  assert.match(blank, /<button type="submit" disabled>/, "and it must not be submittable");
+  assert.doesNotMatch(blank, /<form action=/, "nor post anywhere, least of all back to the page itself");
+});
+
+test("the README names the relative-Submit-URL trap instead of leaving it to be discovered", async () => {
+  // The renderer now emits generic `form` blocks with a live action. The block
+  // registry still DEFAULTS that action to "/api/contact", which is not a route
+  // here and certainly not one on the static host somebody drops this bundle
+  // on — so the bundle can contain an enabled Send button that loses the
+  // message. The README has to say so; it is the only place that can.
+  const { buildExportReadme } = await import(
+    "../src/built-ins/modules/website-editor/src/server/staticExport.ts"
+  );
+  const readme = buildExportReadme("site_1", "https://example.test", 1);
+  assert.match(readme, /Submit URL is RELATIVE/, "the trap must be named, not implied");
+  assert.match(readme, /\/api\/contact/, "and shown with the exact default that walks into it");
+});
+
 test("the export is given only the PUBLIC half of the connection", () => {
   // `findClientSupabaseConnection` returns the webhook secret too. The export
   // path uses a different function that CANNOT return it — a shape that makes

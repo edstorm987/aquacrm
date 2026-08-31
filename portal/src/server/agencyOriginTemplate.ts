@@ -94,6 +94,14 @@ export const ORIGIN_NEVER_CONTRIBUTES: Readonly<Record<string, readonly Collecti
     // requests would start life holding a compliance record that is not
     // theirs, with statutory clocks that were never running for them.
     "subjectRequests",
+    // The breach register (GDPR Art. 33/34). Never seeded, for the same reason
+    // as the DSAR register above and one sharper: Art. 33(5) documentation is
+    // evidence that THIS controller became aware of, assessed and notified a
+    // breach. Seeding it would hand a brand-new agency somebody else's
+    // incidents — and somebody else's decision NOT to notify, with that other
+    // controller's reasoning attached to their name — plus 72-hour clocks that
+    // were never running for them.
+    "breachIncidents",
   ],
   // Credentials and tenant-bound keys. The loudest never.
   secrets: [

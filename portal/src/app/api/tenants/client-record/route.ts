@@ -69,6 +69,10 @@ export async function POST(request: Request) {
     }
 
     const session = await requireRoleForClient([...AGENCY_ROLES], clientId);
+    // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
+    if (!getClientForAgency(session.agencyId, clientId)) {
+      return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+    }
     await requireCurrentClientWorkspaceElementAccess(clientId, "client.record", "use");
     return await withClientMetadataLedgerTransaction({ agencyId: session.agencyId, clientId, ledger: "record" }, async () => {
     const client = getClientForAgency(session.agencyId, clientId);

@@ -80,6 +80,9 @@ export async function POST(req: Request) {
   } catch (error) {
     return authErrorResponse(error);
   }
+  // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
+  const client = getClientForAgency(session.agencyId, clientId);
+  if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
   try {
     await requireCurrentClientWorkspaceElementAccess(clientId, clientFileWorkspaceElementKey({
       category,
@@ -94,8 +97,6 @@ export async function POST(req: Request) {
   if (session.role === "end-customer" && !customerCategories.includes(category)) {
     return NextResponse.json({ ok: false, error: "customers cannot add this file type" }, { status: 403 });
   }
-  const client = getClientForAgency(session.agencyId, clientId);
-  if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
   if (recordEntryId) {
     const recordEntries = Array.isArray(client.metadata?.clientRecordEntries) ? client.metadata.clientRecordEntries : [];
     if (!recordEntries.some(entry => entry && typeof entry === "object" && "id" in entry && entry.id === recordEntryId)) {

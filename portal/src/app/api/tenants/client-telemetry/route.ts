@@ -7,6 +7,7 @@ import {
   resetClientTelemetryKey,
 } from "@/lib/server/clients/clientTelemetryService";
 import { ensureHydrated } from "@/server/storage";
+import { getClientForAgency } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
 import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
@@ -18,6 +19,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "clientId required" }, { status: 400 });
     }
     const session = await requireRoleForClient([...AGENCY_ROLES], clientId);
+    // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
+    if (!getClientForAgency(session.agencyId, clientId)) {
+      return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+    }
     const { access } = await requireCurrentClientWorkspaceElementAccess(clientId, "client.systems", "view");
     const mayProvision = access.levels["client.systems"] === "use" || access.levels["client.systems"] === "manage";
     const telemetry = (mayProvision ? ensureClientTelemetry : readClientTelemetry)(
@@ -44,6 +49,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "clientId and action required" }, { status: 400 });
     }
     const session = await requireRoleForClient([...AGENCY_ROLES], body.clientId);
+    // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
+    if (!getClientForAgency(session.agencyId, body.clientId)) {
+      return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+    }
     await requireCurrentClientWorkspaceElementAccess(body.clientId, "client.systems", "manage");
     const telemetry = body.action === "reset-key"
       ? resetClientTelemetryKey(session.agencyId, body.clientId)

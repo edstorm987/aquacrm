@@ -1050,6 +1050,12 @@ function statusLabel(status: ReadinessStatus): string {
 function LaunchPane({ readiness, canManageExternalAi }: { readiness: ProductionReadiness; canManageExternalAi: boolean }) {
   const required = readiness.items.filter(item => item.required);
   const readyCount = required.filter(item => item.status === "ready").length;
+  // Whose readiness this pane is showing. For a company audience the platform
+  // rows — database, session security, file storage, monitoring — were filtered
+  // out server-side because only the operator can change them, so the heading
+  // must not keep claiming a verdict about the whole deployment off a check
+  // that only looked at this workspace's own connections.
+  const companyAudience = readiness.audience === "company";
 
   return (
     <>
@@ -1069,10 +1075,14 @@ function LaunchPane({ readiness, canManageExternalAi }: { readiness: ProductionR
         <div>
           <div className="text-[11px] font-semibold uppercase text-emerald-700">Launch readiness</div>
           <h2 id="launch-readiness-title" className="mt-1 text-xl font-semibold text-black/90">
-            {readiness.ready ? "Ready for production" : "Production setup is incomplete"}
+            {companyAudience
+              ? (readiness.ready ? "Your workspace is set up" : "Your workspace setup is incomplete")
+              : (readiness.ready ? "Ready for production" : "Production setup is incomplete")}
           </h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-black/55">
-            This checks the services that keep customer access, data, files, and email durable outside this computer.
+            {companyAudience
+              ? "This checks the services this workspace connects for itself — customer email, payments, publishing and AI. The database, file storage and security of the deployment belong to whoever runs it and are not checked here."
+              : "This checks the services that keep customer access, data, files, and email durable outside this computer."}
           </p>
         </div>
         <div className="shrink-0 text-left sm:text-right">

@@ -197,8 +197,20 @@ describe("the non-plugin app API routes — the class with no class-level guard"
     // the session, never the request — and both refuse any pipeline whose
     // kind is not "custom", which is the wall keeping the free-card API off
     // lead and fulfilment cards and their event/transaction semantics.
-    assert.equal(routes.length, 158,
-      `there are now ${routes.length} non-plugin routes under src/app/api/portal, not 158.`
+    // 158 → 159 on 2026-08-31: `governance/breaches`, the GDPR Art. 33/34
+    // breach register — the gap `compliancePosture` named as "there is nowhere
+    // in the app to record it and no clock counting the 72 hours". Audited
+    // before the number moved. Tenant from the SESSION only:
+    // `requireRole(["agency-owner","agency-manager"])` then
+    // `getActiveAgencyId(session)`, never the request. The body carries an
+    // `incidentId`, but every register call takes that id TOGETHER WITH the
+    // session's agencyId and answers 404 when the pair does not resolve, so
+    // another tenant's incident cannot be assessed, notified or closed. An
+    // optional `companyId` is checked against `listTradingCompanies(agencyId)`
+    // and 404s otherwise. `assess` and `close` re-gate to owner-only, because
+    // deciding a breach is not notifiable is a legal judgement.
+    assert.equal(routes.length, 159,
+      `there are now ${routes.length} non-plugin routes under src/app/api/portal, not 159.`
       + " A new one has appeared: decide where IT gets its tenant from, then update this count.");
   });
 

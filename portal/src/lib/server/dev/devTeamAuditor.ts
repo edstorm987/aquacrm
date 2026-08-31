@@ -34,6 +34,9 @@ import {
   type ReadinessContext,
 } from "@/lib/server/productionReadiness";
 import { listManagedIntegrationProviders } from "@/lib/server/integrations/integrationConnections";
+import { mayUseEnvironmentCredentials } from "@/lib/server/auth/founderAgency";
+import { transactionalEmailReadiness } from "@/lib/server/email/transactionalEmail";
+import { resolveEnquiryNotificationRouting } from "@/lib/server/email/enquiryNotifications";
 import { listExternalAssistantApiKeys } from "@/lib/server/assistants/externalAssistantKeys";
 import { listClients } from "@/server/tenants";
 
@@ -401,12 +404,28 @@ export async function scanAuditFindings(): Promise<AuditFinding[]> {
  * provider as offline while Settings reports it ready — two screens disagreeing
  * about one fact, with the auditor taking the wrong side.
  *
+ * The same reasoning now covers email and scope. `transactionalEmailReadiness`
+ * and `resolveEnquiryNotificationRouting` are the authorities the SEND paths
+ * consult, so readiness asks them rather than re-deriving an answer from
+ * `process.env` — which was blind to SMTP entirely, and called a bare Resend
+ * connection with no `notifyTo` "ready" while nothing had an inbox to land in.
+ * `environmentCredentialsBelongToAgency` is what stops a non-founder agency
+ * reading its verdict off the operator's environment.
+ *
  * Reads live state, so the caller must have hydrated storage first.
  */
 export function readinessContextForAgency(agencyId: string): ReadinessContext {
   const clients = listClients(agencyId);
   const activeClients = clients.filter(client => client.status === "active");
+  const enquiryRouting = resolveEnquiryNotificationRouting(agencyId);
   return {
+    agencyId,
+    environmentCredentialsBelongToAgency: mayUseEnvironmentCredentials(agencyId),
+    transactionalEmailConfigured: transactionalEmailReadiness(agencyId).configured,
+    // The same three values `notifyBrandEnquiry` refuses to send without.
+    enquiryNotificationsConfigured: Boolean(
+      enquiryRouting.apiKey && enquiryRouting.notifyTo && enquiryRouting.senderEmail,
+    ),
     activeClientCount: activeClients.length,
     billingConfiguredClientCount: activeClients.filter(client => {
       const paymentLink = client.metadata?.stripeLink;

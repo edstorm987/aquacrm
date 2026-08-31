@@ -8,7 +8,7 @@ import { AGENCY_ROLES } from "@/server/types";
 import { ProductDetailWorkspace } from "./_ProductDetailWorkspace";
 import { listTradingCompanies } from "@/server/tradingCompanies";
 import { listClients } from "@/server/tenants";
-import { ensureProductPortalTemplate, getClientPortalInstance } from "@/server/clientPortalDesigns";
+import { getClientPortalInstance, productPortalTemplateForRead } from "@/server/clientPortalDesigns";
 import { productSelectionFingerprint, resolveAgencyProductAssignment, resolvePortalProductAssignment } from "@/lib/products/productAssignments";
 import { portalProductSelectionFromAgencyProduct } from "@/lib/portal/portalProducts";
 import { clientProductVariations } from "@/lib/clients/clientProductVariations";
@@ -24,8 +24,11 @@ export default async function ProductDetailPage({ params, searchParams }: { para
   const product = getAgencyProduct(session.agencyId, productId);
   if (!product) notFound();
   const products = listAgencyProducts(session.agencyId, true);
+  // Read-only (issue #21): this used to call `ensureProductPortalTemplate`, so
+  // OPENING a product created its portal template. The seeder belongs to the
+  // surfaces that provision a product — see `productPortalTemplateForRead`.
   const portalTemplate = product.portalRequirement !== "none"
-    ? ensureProductPortalTemplate(session.agencyId, product, session.userId)
+    ? productPortalTemplateForRead(session.agencyId, product)
     : null;
   const currentProduct = portalProductSelectionFromAgencyProduct(product);
   const rolloutClients: ProductRolloutClient[] = listClients(session.agencyId, { includeArchived: true }).flatMap(client => {

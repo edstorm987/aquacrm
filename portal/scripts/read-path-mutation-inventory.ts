@@ -36,7 +36,7 @@
 //   • and a read that fails *because it tried to write* fails for a reason
 //     nothing in the request explains.
 //
-// ── One is already closed ─────────────────────────────────────────────────
+// ── What has been closed ──────────────────────────────────────────────────
 //
 // `listPeopleChannels` used to call `ensureTeamChannel`, so READING the chat
 // created the Team channel — and the Radar reaches that from the agency LAYOUT.
@@ -45,6 +45,32 @@
 // did not vanish from this file, because one hop further along it reaches
 // `releaseExpiredParks`; that is the next thing to rule on, and it is a much
 // smaller write.
+//
+// 2026-08-31 closed three more, all on the same pattern:
+//
+//   • `ensureProductPortalTemplate` came off THREE renders (a product's page,
+//     Fulfilment, and both Portal Studio routes). `productPortalTemplateForRead`
+//     builds the template a first touch WOULD create and returns it unsaved,
+//     with the same deterministic record and seed-version ids the first real
+//     write will persist — so an unsaved template is not a different template.
+//     The studio's master came off the same way: `getClientPortalTemplate`
+//     already answered with an unsaved Stunning Standard.
+//   • `getPipelineBySlug` no longer runs the legacy column migration. It is a
+//     pure function now, applied in memory on read and persisted by `addCard`,
+//     `moveCard` and `seedDefaultPipelines` — which were already writing.
+//     `listCards` reads through the SAME map, or a card left in a retired
+//     column would vanish from a board that no longer has that column.
+//   • `GET /api/portal/automations` no longer awaits `processAutomationSweep`,
+//     so LISTING automations can no longer execute one and email a customer.
+//     That is the write the Marketing render lost on 2026-08-27; it survived
+//     here because the analyser only inspects GET-ONLY routes and this file
+//     also exports POST. Nothing in the derived list below can show that, so
+//     `smoke-read-path-mutations` pins it against the route's source instead.
+//
+// Two of the three re-resolved rather than disappearing, which is the guard
+// working: Fulfilment now shows `ensureAgencyMasterSiteKey` and the pipelines
+// board shows `installPlugin` — both real writes the removed findings were
+// standing in front of.
 
 /** What KIND of write it is — the thing being ruled on. */
 export type MutationCategory =
@@ -209,24 +235,23 @@ export const CAUSE_RULINGS: Record<string, CauseRuling> = {
     category: "sweep-on-read", verdict: "deliberate",
     note: "Read 2026-08-27: the call is behind `if (session.isDemo && !session.publicShowcase)`, so it only ever runs for a DEMO session and only against the demo fixture. #21 named it (\"the demo Inbox clears identity reviews\") without that qualifier. Demo housekeeping, not a live-data write — a real session never reaches it, and a showcase visitor is excluded explicitly.",
   },
-  portalWorkspaceData: {
+  ensureAgencyMasterSiteKey: {
     category: "seeding", verdict: "open",
-    note: "Fulfilment reaches `ensureProductPortalTemplates` → `ensureProductPortalTemplate`. Exposed by the products removal, and the same CLASS as it: a first-touch seeder that belongs at provisioning.",
-  },
-  ensureProductPortalTemplate: {
-    category: "seeding", verdict: "open",
-    note: "A product's own page seeds its portal template while rendering. Direct. The next `ensureDefaultAgencyProducts`-shaped removal, and the same fix applies — seed at provisioning, repair in memory on read.",
-  },
-  getPipelineBySlug: {
-    category: "sweep-on-read", verdict: "open",
-    note: "Opening a pipeline board runs `upgradeLegacyLeadsPipeline` — a MIGRATION on render, the same shape as `migrateLegacyStageRefs`. Exposed by the products removal.",
-  },
-
-
-
-  loadPortalStudioProps: {
-    category: "seeding", verdict: "open",
-    note: "Portal editor and Dev Team studio. It reached `ensureDefaultAgencyProducts` until that was removed on 2026-08-27 and now reaches the portal-template seeder behind it — the guard tracks the chain each entry actually takes, which is how the second one became visible.",
+    note:
+      "Fulfilment's Tags control tower mints the agency's master tag key while "
+      + "rendering. Exposed on 2026-08-31 when the portal-template seeder came "
+      + "off this page — it was behind that one, the third time this guard has "
+      + "re-resolved a chain onto a real write the previous finding was hiding. "
+      + "Already half-ruled in source: it runs ONLY for `view === \"tags\"` and "
+      + "ONLY at Use level, because `getAgencyMasterSiteKey` exists expressly to "
+      + "read the durable key without creating one during a View-only request. "
+      + "Left open rather than fixed, because the read-repair pattern the other "
+      + "seeders used does NOT apply here: the key routes real form submissions "
+      + "into the inbox, so it must be unguessable — it cannot be derived "
+      + "deterministically from the agency id, and an unsaved one would hand out "
+      + "a snippet that answers to nothing. Closing it means a 'generate master "
+      + "tag' ACTION instead of a render, which is a UI decision, not a "
+      + "refactor.",
   },
   listOperationalAlerts: {
     category: "sweep-on-read", verdict: "open",
@@ -260,7 +285,7 @@ export const CAUSE_RULINGS: Record<string, CauseRuling> = {
   // ── The two that are not seeding ───────────────────────────────────────
   installPlugin: {
     category: "provisioning", verdict: "deliberate",
-    note: "The agency catch-all and Marketing activate a built-in tool when an OWNER OR MANAGER navigates to it — read 2026-08-27 and it is intentional, not an accident: both sites gate on the role, both only touch tools this app already ships, and the catch-all's own comment explains the friendly path (the sidebar wires entries optimistically and this surface closes the gap). Ruled deliberate rather than rewritten, because making activation an explicit confirm step is a product decision and Ed has not asked for one. → the open question for him is whether clicking a sidebar entry SHOULD silently install, or should say 'turn this on?' first.",
+    note: "The agency catch-all, Marketing and (since 2026-08-31, once the legacy column migration came off its read) the pipelines board activate a built-in tool when an OWNER OR MANAGER navigates to it — read 2026-08-27 and it is intentional, not an accident: both sites gate on the role, both only touch tools this app already ships, and the catch-all's own comment explains the friendly path (the sidebar wires entries optimistically and this surface closes the gap). Ruled deliberate rather than rewritten, because making activation an explicit confirm step is a product decision and Ed has not asked for one. → the open question for him is whether clicking a sidebar entry SHOULD silently install, or should say 'turn this on?' first.",
   },
 
 };
@@ -315,19 +340,20 @@ export const DECLARED_RENDERS: DeclaredEntry[] = [
   { path: "src/app/portal/agency/[...rest]/page.tsx", cause: "installPlugin" },
   { path: "src/app/portal/agency/assistant/page.tsx", cause: "getCachedBusinessIssueRadar" },
   { path: "src/app/portal/agency/calendar/page.tsx", cause: "AgencyActionsPage" },
-  { path: "src/app/portal/agency/fulfilment/page.tsx", cause: "portalWorkspaceData" },
+  { path: "src/app/portal/agency/fulfilment/page.tsx", cause: "ensureAgencyMasterSiteKey" },
   { path: "src/app/portal/agency/inbox/page.tsx", cause: "listOperationalAlerts" },
   { path: "src/app/portal/agency/layout.tsx", cause: "RadarQuickLookControl" },
   { path: "src/app/portal/agency/marketing/page.tsx", cause: "installPlugin" },
   { path: "src/app/portal/agency/page.tsx", cause: "listClientsNeedingAttention" },
   { path: "src/app/portal/agency/people/page.tsx", cause: "staffCapacitySnapshot" },
-  { path: "src/app/portal/agency/pipelines/[slug]/page.tsx", cause: "getPipelineBySlug" },
-  { path: "src/app/portal/agency/portals/editor/page.tsx", cause: "loadPortalStudioProps" },
-  { path: "src/app/portal/agency/products/[productId]/page.tsx", cause: "ensureProductPortalTemplate" },
+  // Was `getPipelineBySlug` until 2026-08-31. The legacy column migration came
+  // off the read, and the board's OTHER write — the plugin activation the
+  // catch-all and Marketing also do — is what it now resolves onto. Same
+  // `installPlugin` ruling, and the same open question for Ed.
+  { path: "src/app/portal/agency/pipelines/[slug]/page.tsx", cause: "installPlugin" },
   { path: "src/app/portal/clients/[clientId]/layout.tsx", cause: "listOperationalAlerts" },
   { path: "src/app/portal/clients/[clientId]/page.tsx", cause: "buildClientRadar" },
   { path: "src/app/portal/clients/page.tsx", cause: "clearIdentityResolutionReviews" },
-  { path: "src/app/portal/dev-team/editor/studio/page.tsx", cause: "loadPortalStudioProps" },
   { path: "src/app/portal/dev-team/tools/page.tsx", cause: "ApiSection" },
 ];
 

@@ -35,12 +35,17 @@ export async function POST(req: Request) {
   let session;
   try {
     session = await requireRoleForClient([...AGENCY_ROLES], body.clientId);
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+  // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
+  const client = getClientForAgency(session.agencyId, body.clientId);
+  if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+  try {
     await requireCurrentClientWorkspaceElementAccess(body.clientId, "client.relationship", "use");
   } catch (error) {
     return authErrorResponse(error);
   }
-  const client = getClientForAgency(session.agencyId, body.clientId);
-  if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
 
   const currentMeta = (client.metadata ?? {}) as { onboardingProgress?: OnboardingProgressMap };
   const nextProgress = tickMilestone(currentMeta.onboardingProgress, body.phaseStage, body.milestoneId, body.done);

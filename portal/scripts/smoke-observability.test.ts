@@ -36,7 +36,21 @@ const HEALTHZ_FULL = join(ROOT, "src", "app", "healthz", "full", "route.ts");
 // databaseStorageHealth() (radar upgrade Stage 4); the route now delegates to it.
 const DB_HEALTH = join(ROOT, "src", "lib", "server", "databaseStorageHealth.ts");
 const ERROR_TSX = join(ROOT, "src", "app", "error.tsx");
+const GLOBAL_ERROR_TSX = join(ROOT, "src", "app", "global-error.tsx");
 const OBS = join(ROOT, "src", "lib", "server", "observability.ts");
+
+/**
+ * Source with comments removed. The boundary files explain themselves at
+ * length, and every one of those explanations names the identifiers the
+ * contracts below look for — `retry`, `digest`, `console.error`, `globals.css`.
+ * Asserting against the raw file would therefore pass on prose alone, so the
+ * markers are matched against the code only.
+ */
+function codeOnly(path: string): string {
+  return readFileSync(path, "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/^\s*\/\/.*$/gm, "");
+}
 const REQ_LOG = join(ROOT, "src", "lib", "server", "requestLog.ts");
 
 describe("Observability — request log formatter (R030)", () => {
@@ -164,6 +178,114 @@ describe("Observability — app/error.tsx wires Sentry (R030)", () => {
     );
     assert.ok(src.includes("recorded this failure in the deployment logs"));
     assert.ok(src.includes("was not sent anywhere automatically"));
+  });
+
+  // #141: error.tsx used to call itself the "Top-level error boundary" and
+  // export `GlobalError`, which is what let the missing root boundary go
+  // unnoticed for so long. A React error boundary never wraps the layout
+  // above it, so this file is segment-level and must say so.
+  it("does not claim to be the root/global boundary", () => {
+    const src = readFileSync(ERROR_TSX, "utf8");
+    assert.equal(
+      /Top-level error boundary/i.test(src),
+      false,
+      "error.tsx is a route-segment boundary; calling itself top-level hid the missing global-error.tsx",
+    );
+    assert.equal(
+      /function GlobalError\b/.test(src),
+      false,
+      "the GlobalError name belongs to src/app/global-error.tsx, not to the segment boundary",
+    );
+    assert.ok(
+      src.includes("global-error.tsx"),
+      "error.tsx must point at the boundary that does catch root-layout failures",
+    );
+  });
+});
+
+// ─── #141: the root-layout boundary actually exists ────────────────────
+
+describe("Observability — app/global-error.tsx is the root boundary (#141)", () => {
+  it("exists as a client component (Next's builtin fallback no longer serves root failures)", () => {
+    assert.equal(
+      existsSync(GLOBAL_ERROR_TSX),
+      true,
+      "without src/app/global-error.tsx Next serves its own unbranded builtin document for root-layout failures",
+    );
+    const src = readFileSync(GLOBAL_ERROR_TSX, "utf8");
+    assert.ok(src.startsWith('"use client"'), "error boundaries must be Client Components");
+    assert.ok(/export default function \w+\(/.test(src), "the convention needs a default export");
+  });
+
+  // The file REPLACES the root layout when active, so the convention requires
+  // it to render its own document. Omitting these renders nothing at all.
+  it("renders its own <html>/<body> and does not depend on the root layout's styling", () => {
+    const src = readFileSync(GLOBAL_ERROR_TSX, "utf8");
+    assert.ok(src.includes("<html"), "global-error must define its own <html> tag");
+    assert.ok(src.includes("<body"), "global-error must define its own <body> tag");
+    // Comments name globals.css on purpose, so read the code only.
+    const code = codeOnly(GLOBAL_ERROR_TSX);
+    assert.equal(
+      /globals\.css|className=/.test(code),
+      false,
+      "global styles/Tailwind may be exactly what failed — global-error must be inline-styled and self-contained",
+    );
+  });
+
+  it("reports the digest and offers both a retry and a hard escape", () => {
+    const code = codeOnly(GLOBAL_ERROR_TSX);
+    assert.match(
+      code,
+      /console\.error\([^)]*error\.digest/,
+      "the browser-side log must carry the digest — it is the only reference the user can quote",
+    );
+    assert.match(
+      code,
+      /\{\s*error\.digest\s*&&/,
+      "the rendered fallback must show the digest, not only log it",
+    );
+    assert.match(code, /\bretry\b/, "Next 16 hands the root boundary a retry()");
+    assert.match(
+      code,
+      /window\.location\.assign\(\s*["']\//,
+      "the router shell is part of what failed, so the escape must be a hard document load",
+    );
+  });
+
+  // Same honesty contract as the segment boundary, from the same helper: a
+  // browser-only failure reached no sink, and the copy must not pretend it did.
+  it("never claims a report it did not make", () => {
+    const code = codeOnly(GLOBAL_ERROR_TSX);
+    assert.match(
+      code,
+      /describeErrorReporting\(\s*error\.digest\s*\)/,
+      "both boundaries must derive the reporting claim from the one shared helper, keyed on the digest",
+    );
+    // A forked copy of either sentence would drift away from error.tsx the
+    // first time the honesty copy is corrected, so neither may be inlined here.
+    const errorTsx = readFileSync(ERROR_TSX, "utf8");
+    for (const claim of [
+      "recorded this failure in the deployment logs",
+      "was not sent anywhere automatically",
+    ]) {
+      assert.ok(errorTsx.includes(claim), `error.tsx no longer carries the "${claim}" branch`);
+      assert.equal(
+        code.includes(claim),
+        false,
+        "global-error.tsx must not fork the honesty copy — it has to come from describeErrorReporting()",
+      );
+    }
+  });
+
+  // It runs in the browser bundle; observability.ts is server-only and would
+  // break the build (and leak the server graph) if pulled in here.
+  it("does not import the server-only observability module", () => {
+    const src = readFileSync(GLOBAL_ERROR_TSX, "utf8");
+    assert.equal(
+      /from\s+["'][^"']*server\/observability["']/.test(src),
+      false,
+      "src/lib/server/observability.ts is server-only and must not reach the client bundle",
+    );
   });
 });
 

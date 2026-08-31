@@ -145,3 +145,177 @@ describe("a ceiling refusal denies rather than falling back to legacy", () => {
     assert.ok(await requireAs(staffSession, theirs.id, "view"));
   });
 });
+
+// ─── The sequel: a refusal must not become 403 where the house answers 404 ───
+//
+// Issue #168. The fix above is right, and it had a consequence. `requireCurrent
+// ClientWorkspaceElementAccess` now refuses a ceiling-denied client outright —
+// and a ceiling refusal is exactly "another agency's client, or none at all".
+// Roughly thirty routes ran that gate BEFORE their own `getClientForAgency`
+// lookup, so they answered 403 for an id whose documented answer is 404 "client
+// not found", the same answer an id that never existed gets. (Nothing leaked —
+// 403 came back for both — but the convention at src/server/phaseApplier.ts:51
+// is that a client outside my agency is INDISTINGUISHABLE from one that does not
+// exist, and the UIs are written against that 404.)
+//
+// So: tenancy first, permission second — the order commented in full at
+// api/tenants/close-deal/route.ts. These drive the real handlers.
+
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
+const UNKNOWN_CLIENT_ID = "cli_no_such_client_at_all";
+
+interface RouteCase {
+  label: string;
+  call: (clientId: string) => Promise<Response>;
+}
+
+function jsonRequest(path: string, method: string, body: unknown): Request {
+  return new Request(`http://localhost${path}`, {
+    method,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+function getRequest(path: string, clientId: string): Request {
+  return new Request(`http://localhost${path}?clientId=${encodeURIComponent(clientId)}`);
+}
+
+async function nextGetRequest(path: string, clientId: string) {
+  const { NextRequest } = await import("next/server");
+  return new NextRequest(`http://localhost${path}?clientId=${encodeURIComponent(clientId)}`);
+}
+
+// A spread across the sweep: the two try/catch shapes, a handler whose tenancy
+// read sits inside a ledger transaction, a GET, and the two routes that had no
+// agency-scoped lookup at all before this change.
+const ROUTE_CASES: RouteCase[] = [
+  {
+    label: "POST /api/tenants/client-notes",
+    call: async clientId => (await import("../src/app/api/tenants/client-notes/route"))
+      .POST(jsonRequest("/api/tenants/client-notes", "POST", { clientId, notes: { notes: "hello" } })),
+  },
+  {
+    label: "POST /api/tenants/client-contacts",
+    call: async clientId => (await import("../src/app/api/tenants/client-contacts/route"))
+      .POST(jsonRequest("/api/tenants/client-contacts", "POST", { clientId, action: "save" })),
+  },
+  {
+    label: "POST /api/tenants/client-status",
+    call: async clientId => (await import("../src/app/api/tenants/client-status/route"))
+      .POST(jsonRequest("/api/tenants/client-status", "POST", { clientId, status: "active" })),
+  },
+  {
+    label: "PATCH /api/tenants/client-custom-fields",
+    call: async clientId => (await import("../src/app/api/tenants/client-custom-fields/route"))
+      .PATCH(jsonRequest("/api/tenants/client-custom-fields", "PATCH", { clientId, customFields: {} })),
+  },
+  {
+    label: "POST /api/tenants/client-approvals",
+    call: async clientId => (await import("../src/app/api/tenants/client-approvals/route"))
+      .POST(jsonRequest("/api/tenants/client-approvals", "POST", { clientId, action: "request", type: "design" })),
+  },
+  {
+    label: "POST /api/tenants/client-payment-plans",
+    call: async clientId => (await import("../src/app/api/tenants/client-payment-plans/route"))
+      .POST(jsonRequest("/api/tenants/client-payment-plans", "POST", { clientId, action: "create" })),
+  },
+  {
+    label: "GET /api/tenants/product-workspaces",
+    call: async clientId => (await import("../src/app/api/tenants/product-workspaces/route"))
+      .GET(getRequest("/api/tenants/product-workspaces", clientId)),
+  },
+  {
+    label: "GET /api/tenants/client-record-ledger",
+    call: async clientId => (await import("../src/app/api/tenants/client-record-ledger/route"))
+      .GET(getRequest("/api/tenants/client-record-ledger", clientId)),
+  },
+  {
+    label: "GET /api/tenants/client-milestones",
+    call: async clientId => (await import("../src/app/api/tenants/client-milestones/route"))
+      .GET(getRequest("/api/tenants/client-milestones", clientId)),
+  },
+  {
+    label: "GET /api/tenants/client-telemetry",
+    call: async clientId => (await import("../src/app/api/tenants/client-telemetry/route"))
+      .GET(await nextGetRequest("/api/tenants/client-telemetry", clientId)),
+  },
+];
+
+async function answerFor(session: string, routeCase: RouteCase, clientId: string) {
+  const response = await withSession(session, () => routeCase.call(clientId));
+  const body = await response.json().catch(() => ({})) as { error?: string };
+  return { status: response.status, error: body.error ?? "" };
+}
+
+describe("tenancy answers before the element gate (issues #168)", () => {
+  for (const routeCase of ROUTE_CASES) {
+    it(`${routeCase.label} answers 404 for another agency's client, not 403`, async () => {
+      const answer = await answerFor(ownerSession, routeCase, theirs.id);
+      assert.equal(
+        answer.status,
+        404,
+        `${routeCase.label} answered ${answer.status} (${answer.error}) — the element gate ran before the tenancy lookup`,
+      );
+      assert.match(answer.error, /client not found/i);
+    });
+
+    it(`${routeCase.label} answers a client id that does not exist identically`, async () => {
+      // The whole point of the convention: the two answers must be the same, so
+      // "not yours" is not distinguishable from "not there".
+      const outsider = await answerFor(ownerSession, routeCase, theirs.id);
+      const unknown = await answerFor(ownerSession, routeCase, UNKNOWN_CLIENT_ID);
+      assert.equal(unknown.status, 404);
+      assert.deepEqual(unknown, outsider, `${routeCase.label} distinguishes a stranger's client from a missing one`);
+    });
+  }
+
+  it("holds for an un-migrated legacy identity too, not just the owner", async () => {
+    // The staff identity above still gets `legacy` levels on its OWN client, so
+    // its 404 here cannot be the gate refusing — it is the tenancy lookup.
+    const answer = await answerFor(staffSession, ROUTE_CASES[0], theirs.id);
+    assert.equal(answer.status, 404, `staff got ${answer.status} (${answer.error})`);
+  });
+
+  it("still lets the owner through to their OWN client", async () => {
+    // The guard against "fixed it by 404ing everybody".
+    const answer = await answerFor(ownerSession, ROUTE_CASES[0], mine.id);
+    assert.notEqual(answer.status, 404, "the owner's own client must not read as missing");
+    assert.notEqual(answer.status, 403);
+  });
+});
+
+describe("no client route may put the element gate before its tenancy check", () => {
+  function routeFiles(dir: string): string[] {
+    const out: string[] = [];
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) out.push(...routeFiles(full));
+      else if (entry.name === "route.ts") out.push(full);
+    }
+    return out;
+  }
+
+  it("sweeps src/app/api/tenants so a NEW route cannot reintroduce the 403", () => {
+    // A line-order scan, deliberately crude: the gate must not appear before
+    // this handler has resolved the client within the caller's agency. Fourteen
+    // lines back is generous enough for the auth block that sits between them.
+    const offenders: string[] = [];
+    for (const file of routeFiles(join(process.cwd(), "src/app/api/tenants"))) {
+      const lines = readFileSync(file, "utf8").split("\n");
+      lines.forEach((line, index) => {
+        if (!line.includes("requireCurrentClientWorkspaceElementAccess(")) return;
+        if (line.trimStart().startsWith("import") || line.includes("} from")) return;
+        const before = lines.slice(Math.max(0, index - 14), index).join("\n");
+        // The CALL, with its paren — not the import, which names it without one
+        // and sits within a few lines of the gate in several of these files.
+        const tenancyFirst = before.includes("getClientForAgency(")
+          || (before.includes("scope.client") && before.includes("404"));
+        if (!tenancyFirst) offenders.push(`${file.slice(process.cwd().length + 1)}:${index + 1}`);
+      });
+    }
+    assert.deepEqual(offenders, [], `these gate before resolving the client in the caller's agency:\n${offenders.join("\n")}`);
+  });
+});

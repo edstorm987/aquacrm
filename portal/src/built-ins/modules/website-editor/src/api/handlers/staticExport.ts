@@ -7,8 +7,22 @@
 import type { PluginCtx } from "../../lib/aquaPluginTypes";
 import { fail, readQuery, requireClientScope } from "../helpers";
 import { exportSiteToZip } from "../../server/staticExport";
-import { clientSupabaseExportTarget } from "@/lib/server/clientForms/clientSupabaseExport";
 import type { AgencyId, ClientId, BrandKit } from "../../lib/tenancy";
+
+// Namespace, not a named import: this plugin is ESM ("type": "module") while
+// `portal/src/lib/**` is CommonJS to the smoke runner's loader, and a named
+// import across that boundary throws "does not provide an export named
+// 'clientSupabaseExportTarget'" at instantiation. Same one-implementation
+// indirection as `lib/menuKeys.ts` — see its header.
+import * as sharedSupabaseExport from "@/lib/server/clientForms/clientSupabaseExport";
+
+type SupabaseExportNs = typeof sharedSupabaseExport & {
+  default?: typeof sharedSupabaseExport;
+};
+const supabaseExportNs = sharedSupabaseExport as SupabaseExportNs;
+const clientSupabaseExportTarget =
+  supabaseExportNs.clientSupabaseExportTarget ??
+  supabaseExportNs.default!.clientSupabaseExportTarget;
 
 export async function handleExportSite(req: Request, ctx: PluginCtx): Promise<Response> {
   const scope = requireClientScope(ctx);
@@ -37,6 +51,15 @@ export async function handleExportSite(req: Request, ctx: PluginCtx): Promise<Re
     supabase,
   });
 
+  // `Block.type` is a deliberately OPEN string (see `types/block.ts`) and page
+  // trees are persisted unvalidated, so a stored type can contain a CR/LF that
+  // `new Response()` rejects outright — which would turn a working export into
+  // a 500 for the sake of a header. Keep the header to printable ASCII and let
+  // the README (which is not so constrained) carry the exact names.
+  const headerSafeTypes = result.unexportableBlockTypes
+    .map(t => t.replace(/[^\x20-\x7E]/g, "").replace(/,/g, " ").trim())
+    .filter(Boolean);
+
   const filename = `${q.siteId}-export-${new Date().toISOString().slice(0, 10)}.zip`;
   return new Response(result.zip as BodyInit, {
     status: 200,
@@ -45,6 +68,13 @@ export async function handleExportSite(req: Request, ctx: PluginCtx): Promise<Re
       "content-disposition": `attachment; filename="${filename}"`,
       "x-aqua-export-pages": String(result.pageCount),
       "x-aqua-export-files": String(result.fileCount),
+      // Not decoration: a caller that only reads the status code would report
+      // "exported" for a bundle whose product grids and pricing tables were
+      // dropped. The types are named, not just counted.
+      "x-aqua-export-unsupported-blocks": String(result.unexportableBlockTypes.length),
+      ...(headerSafeTypes.length
+        ? { "x-aqua-export-unsupported-block-types": headerSafeTypes.join(",") }
+        : {}),
     },
   });
 }

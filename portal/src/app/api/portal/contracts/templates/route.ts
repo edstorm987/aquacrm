@@ -54,9 +54,10 @@ export async function POST(request: Request) {
         // Global template CRUD remains an agency-library concern. Importing
         // one exact client's terms into that library additionally requires
         // Manage authority over that client's Commercial element.
-        await requireCurrentClientWorkspaceElementAccess(clientId, "client.commercial", "manage");
+        // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
         const client = getClientForAgency(session.agencyId, clientId);
         if (!client) return NextResponse.json({ ok: false, error: "Client not found." }, { status: 404 });
+        await requireCurrentClientWorkspaceElementAccess(clientId, "client.commercial", "manage");
         const contracts = Array.isArray(client.metadata?.contracts)
           ? client.metadata.contracts as ClientContract[]
           : [];

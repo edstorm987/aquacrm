@@ -538,7 +538,7 @@ describe("a failed read is preserved, not converted into emptiness", () => {
 
     // The server reader is what tells it — and it reports availability rather
     // than silently returning a short list.
-    const reader = code(read("src/lib/server/personInteractions.ts"));
+    const reader = code(read("src/lib/server/personInteractionsService.ts"));
     assert.ok(!/getRequestWebsiteEnquiries\(agencyId\)\.catch\(\(\) => \[\]\)/.test(reader));
     assert.ok(reader.includes("enquiriesAvailable: enquiryRead.available"));
   });

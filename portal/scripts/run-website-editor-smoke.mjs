@@ -1,4 +1,4 @@
-import { readdir } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -22,13 +22,37 @@ function withoutReactServerCondition(nodeOptions = "") {
     .trim();
 }
 
-function runSmokeFile(file) {
+// Most of these files render client components, so `--conditions react-server`
+// is stripped — under it React resolves to its server build and `useState`
+// disappears. But a smoke that reaches a portal module guarded by `server-only`
+// needs the opposite: without the condition that package throws on import, so
+// the test cannot run at all. Neither setting is right for all 49 files, so a
+// file that needs the server resolution says so on its first lines with
+//
+//   // @smoke-conditions react-server
+//
+// and gets it. Silence keeps today's behaviour.
+const SERVER_CONDITION_DIRECTIVE = /^\s*\/\/\s*@smoke-conditions\s+react-server\s*$/m;
+
+async function needsReactServerCondition(file) {
+  const head = (await readFile(file, "utf8")).slice(0, 4096);
+  return SERVER_CONDITION_DIRECTIVE.test(head);
+}
+
+function withReactServerCondition(nodeOptions = "") {
+  const base = withoutReactServerCondition(nodeOptions);
+  return `${base} --conditions react-server`.trim();
+}
+
+function runSmokeFile(file, reactServer) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ["--import", "tsx", file], {
       cwd: moduleRoot,
       env: {
         ...process.env,
-        NODE_OPTIONS: withoutReactServerCondition(process.env.NODE_OPTIONS),
+        NODE_OPTIONS: reactServer
+          ? withReactServerCondition(process.env.NODE_OPTIONS)
+          : withoutReactServerCondition(process.env.NODE_OPTIONS),
         TSX_TSCONFIG_PATH: join(portalRoot, "tsconfig.json"),
       },
       stdio: "inherit",
@@ -58,7 +82,7 @@ if (smokeFiles.length === 0) {
   const startedAt = Date.now();
 
   for (const file of smokeFiles) {
-    results.push(await runSmokeFile(file));
+    results.push(await runSmokeFile(file, await needsReactServerCondition(file)));
   }
 
   const failures = results.filter((result) => !result.ok);

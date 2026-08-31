@@ -9,7 +9,7 @@ import type { PortalRole } from "../lib/portalRole";
 import { pageId as makePageId, slugify } from "../lib/ids";
 import { storageKeys } from "./storage-keys";
 import { promoteBlockTreeMedia } from "./publicMediaPromotion";
-import { stabiliseCountdownDeadlines } from "@/engines/editor/elements/countdownDeadline";
+import { stabiliseCountdownDeadlines } from "./../lib/countdownDeadline";
 import type {
   CreatePageInput,
   EditorPage,

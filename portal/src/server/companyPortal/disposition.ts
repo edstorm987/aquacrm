@@ -357,6 +357,28 @@ export const PROMOTION_DISPOSITION = {
     needsConfirmation: true,
   },
 
+  breachIncidents: {
+    // The breach register. `leave`, for the same reason as the DSAR register
+    // above and one more that is sharper.
+    //
+    // Art. 33(5) documentation is evidence that THIS controller recorded,
+    // assessed and notified a breach. Copying it would hand a promoted portal
+    // an incident history it never had — and, worse, would hand it somebody
+    // else's decision not to notify, with that other controller's reasoning
+    // attached to its name.
+    //
+    // The 72-hour clock belongs to whoever became aware. It does not restart,
+    // transfer or duplicate because a portal was promoted; if an incident
+    // genuinely spans both, that is a controller-to-controller matter with its
+    // own paperwork, not a copy.
+    disposition: "leave",
+    ownership: "agency-scoped",
+    keying: "own-id",
+    reason:
+      "Art. 33(5) evidence that THIS controller recorded and assessed a breach. Copying it would attribute another controller's incidents — and its decisions NOT to notify — to the promoted portal, and the 72-hour clock belongs to whoever became aware.",
+    needsConfirmation: true,
+  },
+
   devProjects: {
     disposition: "leave",
     ownership: "agency-scoped",
@@ -861,7 +883,7 @@ type _NoStaleCollections = AssertNever<StaleCollections>;
  * is the human-readable half — a smoke test pins it, so the next collection
  * announces itself in a test name as well as in the compiler.
  */
-export const PROMOTION_COLLECTION_COUNT = 93;
+export const PROMOTION_COLLECTION_COUNT = 94;
 
 /** Every classified collection name, in `PortalState` order. */
 export const PROMOTION_COLLECTIONS = Object.keys(PROMOTION_DISPOSITION) as Array<

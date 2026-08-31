@@ -1143,7 +1143,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (2):**
 
-- `async GET()`
+- `async GET()` — compensated for by whoever happens to poll this endpoint.
 - `async POST(request: Request)`
 
 **Depends on (4):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/automations.ts`](server.md#file-src-server-automations-ts-3e92d448c5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
@@ -2250,6 +2250,24 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET(req: NextRequest)` — settings; this route never overlays a stale hard-coded catalogue.
 
 **Depends on (4):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientLifecycle.ts`](lib.md#file-src-lib-server-clients-clientlifecycle-ts-68f3ffa5f8) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
+## `src/app/api/portal/governance/breaches/`
+
+<a id="file-src-app-api-portal-governance-breaches-route-ts-454dc2232c"></a>
+
+### `src/app/api/portal/governance/breaches/route.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `async POST(request: Request)` — The breach register (GDPR Art. 33/34). `compliancePosture` named the gap this closes exactly: *"There is no breach register. If something happened tonight there is nowhere in the …
+- `runtime = "nodejs"`
+
+**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/compliance/breachRegister.ts`](lib.md#file-src-lib-server-compliance-breachregister-ts-23901fd01c) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -4020,7 +4038,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET(request: Request)`
 - `async POST(request: Request)`
 
-**Depends on (5):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/clientMilestones.ts`](server.md#file-src-server-clientmilestones-ts-08c5910472) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (6):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/clientMilestones.ts`](server.md#file-src-server-clientmilestones-ts-08c5910472) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -4229,7 +4247,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET(request: Request)`
 - `dynamic = "force-dynamic"`
 
-**Depends on (6):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientRecordLedger.ts`](lib.md#file-src-lib-server-clients-clientrecordledger-ts-634ccdb8f7) · [`src/server/clientRelationships.ts`](server.md#file-src-server-clientrelationships-ts-25562cf9d9) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (7):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientRecordLedger.ts`](lib.md#file-src-lib-server-clients-clientrecordledger-ts-634ccdb8f7) · [`src/server/clientRelationships.ts`](server.md#file-src-server-clientrelationships-ts-25562cf9d9) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -4322,7 +4340,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET(req: NextRequest)`
 - `async POST(req: NextRequest)`
 
-**Depends on (5):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientTelemetryService.ts`](lib.md#file-src-lib-server-clients-clienttelemetryservice-ts-92d317a118) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (6):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientTelemetryService.ts`](lib.md#file-src-lib-server-clients-clienttelemetryservice-ts-92d317a118) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -4875,9 +4893,23 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports (2):**
 
 - `describeErrorReporting(digest?: string): string` — What actually happened to this error, stated plainly. Exported so the observability smoke can pin the honesty contract instead of grepping copy.
-- `default GlobalError({ error, reset }: Props)`
+- `default SegmentError({ error, reset }: Props)`
 
 **Depends on:** _No internal imports._
+
+**Used by (1):** [`src/app/global-error.tsx`](#file-src-app-global-error-tsx-dbe8eed6a5)
+
+<a id="file-src-app-global-error-tsx-dbe8eed6a5"></a>
+
+### `src/app/global-error.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `default RootGlobalError({ error, retry, reset }: Props)`
+
+**Depends on (1):** [`src/app/error.tsx`](#file-src-app-error-tsx-6e8ea1514e)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -6192,7 +6224,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default async ContactCardPage({ params, }: { params: Promise<{ personId: string }>; })` — One route for every state a person can be in. The card decides which face to show from `derivePersonState`, so a link to a person keeps working as they move from enquiry to contac…
 
-**Depends on (8):** [`src/app/portal/agency/contacts/[personId]/_ContactCard.tsx`](#file-src-app-portal-agency-contacts-personid-contactcard-tsx-70424d3706) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/personInteractions.ts`](lib.md#file-src-lib-server-personinteractions-ts-11e81d2c2f) · [`src/server/organisations.ts`](server.md#file-src-server-organisations-ts-ba6f8d840f) · [`src/server/persons.ts`](server.md#file-src-server-persons-ts-c2f3c0cfec) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (8):** [`src/app/portal/agency/contacts/[personId]/_ContactCard.tsx`](#file-src-app-portal-agency-contacts-personid-contactcard-tsx-70424d3706) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/personInteractionsService.ts`](lib.md#file-src-lib-server-personinteractionsservice-ts-197db49a11) · [`src/server/organisations.ts`](server.md#file-src-server-organisations-ts-ba6f8d840f) · [`src/server/persons.ts`](server.md#file-src-server-persons-ts-c2f3c0cfec) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -6843,7 +6875,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `GovernanceWorkspace({ initial, isOwner }: { initial: GovernanceSnapshot; isOwner: boolean })`
+- `GovernanceWorkspace({ initial, isOwner, initialView }: { initial: GovernanceSnapshot; isOwner: boolean; initialView?: string })`
 
 **Depends on (4):** [`src/app/portal/agency/governance/_governanceData.ts`](#file-src-app-portal-agency-governance-governancedata-ts-ecdaa49f02) · [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1) · [`src/lib/compliance/compliancePosture.ts`](lib.md#file-src-lib-compliance-complianceposture-ts-e3798eba46) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 
@@ -6855,7 +6887,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (12):**
+**Exports (13):**
 
 - `async buildGovernanceSnapshot(options: BuildGovernanceOptions): Promise<GovernanceSnapshot>`
 - `AGENCY_WIDE_SECTIONS: readonly AgencyWideSection[]`
@@ -6866,11 +6898,12 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface SubprocessorRow (7 members)`
 - `interface ErasureClientRow (4 members)`
 - `interface AgencyWideSection (3 members)` — A section of this workspace that is genuinely group-wide and therefore does NOT narrow when a company is selected. Issue #68's prescription, followed literally: where a register h…
-- `interface GovernanceSnapshot (17 members)`
+- `interface GovernanceSnapshot (19 members)`
+- `interface BreachRow (19 members)`
 - `interface SubjectRequestRow (9 members)`
 - `interface BuildGovernanceOptions (3 members)`
 
-**Depends on (8):** [`src/lib/compliance/compliancePosture.ts`](lib.md#file-src-lib-compliance-complianceposture-ts-e3798eba46) · [`src/lib/server/compliance/retention.ts`](lib.md#file-src-lib-server-compliance-retention-ts-ba422f7289) · [`src/lib/server/compliance/subjectRequests.ts`](lib.md#file-src-lib-server-compliance-subjectrequests-ts-dfa2bdbaf1) · [`src/lib/server/compliancePostureSource.ts`](lib.md#file-src-lib-server-complianceposturesource-ts-5dd4c4aa77) · [`src/lib/supabase/config.ts`](lib.md#file-src-lib-supabase-config-ts-bce56de604) · [`src/server/legalDocuments.ts`](server.md#file-src-server-legaldocuments-ts-9db835baaf) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8)
+**Depends on (9):** [`src/lib/compliance/compliancePosture.ts`](lib.md#file-src-lib-compliance-complianceposture-ts-e3798eba46) · [`src/lib/server/compliance/breachRegister.ts`](lib.md#file-src-lib-server-compliance-breachregister-ts-23901fd01c) · [`src/lib/server/compliance/retention.ts`](lib.md#file-src-lib-server-compliance-retention-ts-ba422f7289) · [`src/lib/server/compliance/subjectRequests.ts`](lib.md#file-src-lib-server-compliance-subjectrequests-ts-dfa2bdbaf1) · [`src/lib/server/compliancePostureSource.ts`](lib.md#file-src-lib-server-complianceposturesource-ts-5dd4c4aa77) · [`src/lib/supabase/config.ts`](lib.md#file-src-lib-supabase-config-ts-bce56de604) · [`src/server/legalDocuments.ts`](server.md#file-src-server-legaldocuments-ts-9db835baaf) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8)
 
 **Used by (3):** [`src/app/api/portal/governance/route.ts`](#file-src-app-api-portal-governance-route-ts-e3ca8e530f) · [`src/app/portal/agency/governance/_GovernanceWorkspace.tsx`](#file-src-app-portal-agency-governance-governanceworkspace-tsx-a8bc5a021b) · [`src/app/portal/agency/governance/page.tsx`](#file-src-app-portal-agency-governance-page-tsx-47fb0f419b)
 
@@ -6882,7 +6915,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (2):**
 
-- `default async GovernancePage()` — The Governance workspace — the dedicated HOME for compliance, legal and security posture, KNOW-first. It surfaces where the agency stands from REAL evidence and, just as loudly, w…
+- `default async GovernancePage({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> })` — The Governance workspace — the dedicated HOME for compliance, legal and security posture, KNOW-first. It surfaces where the agency stands from REAL evidence and, just as loudly, w…
 - `dynamic = "force-dynamic"`
 
 **Depends on (4):** [`src/app/portal/agency/governance/_GovernanceWorkspace.tsx`](#file-src-app-portal-agency-governance-governanceworkspace-tsx-a8bc5a021b) · [`src/app/portal/agency/governance/_governanceData.ts`](#file-src-app-portal-agency-governance-governancedata-ts-ecdaa49f02) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
@@ -7764,7 +7797,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `portalWorkspaceData(agencyId: string, userId: string)`
+- `portalWorkspaceData(agencyId: string, userId: string)` — `userId` is kept in the signature but no longer used: since issue #21 this loader writes nothing, so there is no actor to attribute a write to. Callers still pass it, and a future…
 
 **Depends on (7):** [`src/app/portal/agency/portals/_PortalsWorkspace.tsx`](#file-src-app-portal-agency-portals-portalsworkspace-tsx-98e4936ea5) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/clientPortalDesigns.ts`](server.md#file-src-server-clientportaldesigns-ts-a391c1a4b9) · [`src/server/phases.ts`](server.md#file-src-server-phases-ts-fd96131909) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8)
 
@@ -8172,7 +8205,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default async AgencySettingsPage()`
 
-**Depends on (22):** [`src/app/portal/agency/settings/SettingsTabs.tsx`](#file-src-app-portal-agency-settings-settingstabs-tsx-e999a7955b) · [`src/engines/editor/server/devProjects.ts`](engines.md#file-src-engines-editor-server-devprojects-ts-4c77ac891a) · [`src/lib/agencySettingsCapabilities.ts`](lib.md#file-src-lib-agencysettingscapabilities-ts-7bbdc779dd) · [`src/lib/chrome/settingsModules.ts`](lib.md#file-src-lib-chrome-settingsmodules-ts-f2347695f0) · [`src/lib/performance/companyHealth.ts`](lib.md#file-src-lib-performance-companyhealth-ts-c24e507af4) · [`src/lib/server/assistants/externalAssistantKeys.ts`](lib.md#file-src-lib-server-assistants-externalassistantkeys-ts-0301a6f6a2) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/chrome/userChromeLayout.ts`](lib.md#file-src-lib-server-chrome-userchromelayout-ts-e39b7711f4) · [`src/lib/server/integrations/integrationConnections.ts`](lib.md#file-src-lib-server-integrations-integrationconnections-ts-0ca61152db) · [`src/lib/server/plugins/pluginSettingsSurface.ts`](lib.md#file-src-lib-server-plugins-pluginsettingssurface-ts-f5a8104127) · [`src/lib/server/productionReadiness.ts`](lib.md#file-src-lib-server-productionreadiness-ts-4763c179fe) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/agencySettings.ts`](server.md#file-src-server-agencysettings-ts-6d31afe153) · [`src/server/freelancerWorkspace.ts`](server.md#file-src-server-freelancerworkspace-ts-f31c25464f) · [`src/server/phases.ts`](server.md#file-src-server-phases-ts-fd96131909) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (21):** [`src/app/portal/agency/settings/SettingsTabs.tsx`](#file-src-app-portal-agency-settings-settingstabs-tsx-e999a7955b) · [`src/engines/editor/server/devProjects.ts`](engines.md#file-src-engines-editor-server-devprojects-ts-4c77ac891a) · [`src/lib/agencySettingsCapabilities.ts`](lib.md#file-src-lib-agencysettingscapabilities-ts-7bbdc779dd) · [`src/lib/chrome/settingsModules.ts`](lib.md#file-src-lib-chrome-settingsmodules-ts-f2347695f0) · [`src/lib/performance/companyHealth.ts`](lib.md#file-src-lib-performance-companyhealth-ts-c24e507af4) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/chrome/userChromeLayout.ts`](lib.md#file-src-lib-server-chrome-userchromelayout-ts-e39b7711f4) · [`src/lib/server/dev/devTeamAuditor.ts`](lib.md#file-src-lib-server-dev-devteamauditor-ts-55e1f27e86) · [`src/lib/server/plugins/pluginSettingsSurface.ts`](lib.md#file-src-lib-server-plugins-pluginsettingssurface-ts-f5a8104127) · [`src/lib/server/productionReadiness.ts`](lib.md#file-src-lib-server-productionreadiness-ts-4763c179fe) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/agencySettings.ts`](server.md#file-src-server-agencysettings-ts-6d31afe153) · [`src/server/freelancerWorkspace.ts`](server.md#file-src-server-freelancerworkspace-ts-f31c25464f) · [`src/server/phases.ts`](server.md#file-src-server-phases-ts-fd96131909) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 

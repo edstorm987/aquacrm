@@ -4490,6 +4490,91 @@ export interface SubjectRequest {
   createdBy: string;
 }
 
+/**
+ * A personal-data breach, and the 72-hour clock it runs against.
+ *
+ * GDPR Art. 33(1): "in the case of a personal data breach, the controller
+ * shall without undue delay and, where feasible, not later than 72 hours after
+ * having become aware of it, notify the supervisory authority… unless the
+ * breach is unlikely to result in a risk to the rights and freedoms of natural
+ * persons." Art. 33(5) requires the controller to DOCUMENT every breach —
+ * including the ones it decided not to notify — so the authority can verify
+ * that decision. Art. 34 adds the separate duty to tell the individuals when
+ * the risk to them is high.
+ *
+ * `compliancePosture` recorded `gdpr.breach-register` as missing, with the
+ * sharpest gap in the whole posture: *"There is no breach register. If
+ * something happened tonight there is nowhere in the app to record it and no
+ * clock counting the 72 hours."* This record is that register.
+ *
+ * ── Why the clock hangs off `discoveredAt` and not `recordedAt` ────────────
+ *
+ * The statute counts from "having become aware", not from when somebody got
+ * round to opening the app. A breach found on Friday and logged on Monday has
+ * already burned its 72 hours, and a register that started the clock at data
+ * entry would report a comfortable deadline for a notification that is
+ * already late. Both timestamps are therefore kept, and the deadline is
+ * derived from discovery alone.
+ */
+export interface BreachIncident {
+  id: string;
+  agencyId: string;
+  /** Which trading company's data was involved, when it is one company's. */
+  companyId?: string | null;
+  /** A short internal name for the incident. Never a person's name. */
+  title: string;
+  /**
+   * What happened, in the recorder's words. Art. 33(5) wants the facts, the
+   * effects and the remedial action — this is where they go. It is a
+   * compliance record, so it must describe categories of people and data, not
+   * identify individuals.
+   */
+  description: string;
+  /** When the agency BECAME AWARE. The 72 hours run from here. */
+  discoveredAt: number;
+  /** When this row was created, which can be much later than discovery. */
+  recordedAt: number;
+  /** discoveredAt + 72h. Stored rather than computed so a later change to the
+   * rule cannot silently move a deadline that has already passed. */
+  notifyDeadlineAt: number;
+  /** Categories of personal data involved, as named by the recorder. */
+  dataCategories: string[];
+  /** How many people are believed affected, when that is known at all. An
+   * absent estimate is a real state — Art. 33(1) does not allow waiting for
+   * the number before notifying. */
+  affectedEstimate?: number;
+  /**
+   * The Art. 33(1) risk assessment. Undecided until somebody decides: an
+   * unassessed breach is NOT "not notifiable", and the register must never
+   * treat silence as the safe answer.
+   */
+  notifiable?: boolean;
+  assessedAt?: number;
+  assessedBy?: string;
+  /** Why it is or is not notifiable. Required — Art. 33(5) exists so the
+   * decision not to notify can be checked, and a bare "no" cannot be. */
+  assessmentReason?: string;
+  /** Art. 33 — when the supervisory authority was actually told. */
+  authorityNotifiedAt?: number;
+  authorityNotifiedBy?: string;
+  /** The authority's own case reference, when they gave one. */
+  authorityReference?: string;
+  /**
+   * Art. 33(1) again: a notification later than 72 hours must be accompanied
+   * by the reasons for the delay. Recorded when the notification lands late.
+   */
+  delayReason?: string;
+  /** Art. 34 — when the affected individuals were told, if they were. */
+  subjectsNotifiedAt?: number;
+  subjectsNotifiedBy?: string;
+  /** Closed when the response is finished. Closing never clears the clock
+   * history — a late notification stays late on the record. */
+  closedAt?: number;
+  closedBy?: string;
+  outcome?: string;
+  createdBy: string;
+}
+
 export interface ClientFormNotice {
   id: string;
   agencyId: string;
@@ -4613,6 +4698,8 @@ export interface PortalState {
   clientFormNotices: Record<string, ClientFormNotice>;
   // Data-subject requests and their statutory clocks. See SubjectRequest.
   subjectRequests: Record<string, SubjectRequest>;
+  // Personal-data breaches and the 72-hour clock. See BreachIncident.
+  breachIncidents: Record<string, BreachIncident>;
   // Dev Editor Engine projects — repo + connections + tag + kind. See DevProject.
   devProjects: Record<string, DevProject>;
   // `${agencyId}|${projectId}` → Aqua Editor AI's own per-project config: its

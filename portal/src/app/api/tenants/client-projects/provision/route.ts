@@ -58,6 +58,9 @@ export async function POST(request: Request) {
     }
 
     const session = await requireRoleForClient([...AGENCY_ROLES], clientId);
+    // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
+    const client = getClientForAgency(session.agencyId, clientId);
+    if (!client) return NextResponse.json({ ok: false, error: "Client not found." }, { status: 404 });
     await requireCurrentClientWorkspaceElementAccess(clientId, "client.systems", "manage");
     if (process.env.VERCEL === "1") {
       return NextResponse.json({
@@ -65,8 +68,6 @@ export async function POST(request: Request) {
         error: "Create project files from the AquaCRM local workspace, then publish them with the connected GitHub account.",
       }, { status: 409 });
     }
-    const client = getClientForAgency(session.agencyId, clientId);
-    if (!client) return NextResponse.json({ ok: false, error: "Client not found." }, { status: 404 });
 
     const metadata = (client.metadata ?? {}) as {
       clientEmail?: string;

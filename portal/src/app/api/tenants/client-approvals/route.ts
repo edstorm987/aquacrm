@@ -55,6 +55,10 @@ export async function POST(req: Request) {
 
     if (action === "request") {
       const session = await requireRoleForClient([...AGENCY_ROLES], clientId);
+      // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
+      if (!getClientForAgency(session.agencyId, clientId)) {
+        return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+      }
       await requireCurrentClientWorkspaceElementAccess(clientId, "client.portal", "use");
       const type = body?.type === "design" || body?.type === "launch" ? body.type : null;
       if (!type) return NextResponse.json({ ok: false, error: "valid approval type required" }, { status: 400 });
@@ -95,6 +99,10 @@ export async function POST(req: Request) {
 
     if (action === "approve" || action === "request-changes") {
       const session = await requireRoleForClient(["end-customer"], clientId);
+      // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
+      if (!getClientForAgency(session.agencyId, clientId)) {
+        return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+      }
       await requireCurrentClientWorkspaceElementAccess(clientId, "client.portal", "use");
       const approvalId = typeof body?.approvalId === "string" ? body.approvalId : "";
       if (!approvalId) return NextResponse.json({ ok: false, error: "approvalId required" }, { status: 400 });

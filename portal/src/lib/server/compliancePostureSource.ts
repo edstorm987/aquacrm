@@ -2,12 +2,14 @@ import "server-only";
 
 import {
   buildCompliancePosture,
+  type BreachEvidence,
   type CompliancePosture,
   type ComplianceEvidenceInput,
   type ConsentEvidence,
   type ErasureEvidence,
   type LegalRecordEvidence,
 } from "@/lib/compliance/compliancePosture";
+import { listBreachIncidents, summariseBreachClock } from "@/lib/server/compliance/breachRegister";
 import { isHipaaTrackEnabled, listLegalDocuments } from "@/server/legalDocuments";
 import { getState } from "@/server/storage";
 import { listTradingCompanies, recordBelongsToCompany } from "@/server/tradingCompanies";
@@ -88,6 +90,7 @@ export async function buildCompliancePostureForAgency(options: CompliancePosture
     legalRecords,
     consent: await gatherConsentEvidence(agencyId),
     erasure: ERASURE_EVIDENCE,
+    breaches: gatherBreachEvidence(agencyId, companyId, now),
     audit: {
       activityEntries: activity.length,
       latestAt: activity.reduce<number | null>((latest, entry) => (latest === null || entry.ts > latest ? entry.ts : latest), null),
@@ -95,6 +98,38 @@ export async function buildCompliancePostureForAgency(options: CompliancePosture
   };
 
   return buildCompliancePosture(input);
+}
+
+/**
+ * The breach register, scoped and counted.
+ *
+ * Scoped on the SAME primitive as the legal register above, so a company's
+ * posture cannot be answered out of another brand's incident — an incident
+ * with no company is a shared/agency-level one and stays visible under every
+ * scope.
+ *
+ * The try/catch is not decoration. If the store cannot be read, this returns
+ * `registerAvailable: false` and the control goes `blind`. A register that
+ * could not be read produces exactly the same zeroes as a clean one, and the
+ * one thing this posture must never do is report "no breaches" because it
+ * could not look.
+ */
+export function gatherBreachEvidence(agencyId: string, companyId: string | null, now: number): BreachEvidence {
+  try {
+    const scoped = listBreachIncidents(agencyId)
+      .filter(incident => recordBelongsToCompany(incident.companyId ? [incident.companyId] : [], companyId));
+    const clock = summariseBreachClock(scoped, now);
+    return {
+      registerAvailable: true,
+      total: clock.total,
+      open: clock.open,
+      awaitingAssessment: clock.awaitingAssessment,
+      overdue: clock.overdue,
+      notifiedLate: clock.notifiedLate,
+    };
+  } catch {
+    return { registerAvailable: false, total: 0, open: 0, awaitingAssessment: 0, overdue: 0, notifiedLate: 0 };
+  }
 }
 
 /**

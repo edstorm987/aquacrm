@@ -21,7 +21,7 @@
 //   renders "Published" or "Draft" based purely on `status`.
 
 import type { Block } from "../types/block";
-import { stabiliseCountdownDeadlines } from "@/engines/editor/elements/countdownDeadline";
+import { stabiliseCountdownDeadlines } from "./countdownDeadline";
 import type { EditorPage } from "../types/editorPage";
 
 export function getDraftTree(page: EditorPage): Block[] {

@@ -1,7 +1,7 @@
 import "server-only";
 
 import { agencyProductsForRead, listAgencyProducts } from "@/server/agencyProducts";
-import { ensureProductPortalTemplates, ensureStunningPortalTemplate } from "@/server/clientPortalDesigns";
+import { getClientPortalTemplate, productPortalTemplatesForRead } from "@/server/clientPortalDesigns";
 import { listClients } from "@/server/tenants";
 import type { ClientPortalMode, Role } from "@/server/types";
 import type {
@@ -73,12 +73,18 @@ export function loadPortalStudioProps(input: {
   role: Role;
   query: PortalStudioQuery;
 }): PortalStudioProps {
-  const { agencyId, userId, role, query } = input;
+  const { agencyId, role, query } = input;
 
   agencyProductsForRead(agencyId);
   const products = listAgencyProducts(agencyId, true).filter(product => product.portalRequirement !== "none");
-  const masterTemplate = ensureStunningPortalTemplate(agencyId, userId);
-  const productTemplates = ensureProductPortalTemplates(agencyId, products, userId);
+  // OPENING the studio writes nothing (issue #21). It used to call
+  // `ensureStunningPortalTemplate` + `ensureProductPortalTemplates`, so merely
+  // looking at the editor created the master template and one template per
+  // product. `getClientPortalTemplate` already answers with an unsaved Stunning
+  // Standard when none is stored, and the product templates now come back the
+  // same way — with the same deterministic ids the first real save will use.
+  const masterTemplate = getClientPortalTemplate(agencyId)!;
+  const productTemplates = productPortalTemplatesForRead(agencyId, products);
 
   const templates: PortalStudioTemplate[] = [masterTemplate, ...productTemplates].map(template => ({
     id: template.id,

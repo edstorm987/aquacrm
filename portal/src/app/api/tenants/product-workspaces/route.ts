@@ -96,9 +96,10 @@ export async function GET(req: Request) {
   if (!clientId) return NextResponse.json({ ok: false, error: "clientId required" }, { status: 400 });
   try {
     const session = await requireRoleForClient([...AGENCY_ROLES, ...CLIENT_ROLES, "end-customer"], clientId);
-    await requireCurrentClientWorkspaceElementAccess(clientId, "client.fulfilment", "view");
+    // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
     const client = getClientForAgency(session.agencyId, clientId);
     if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.fulfilment", "view");
     return NextResponse.json({ ok: true, workspaces: clientProductWorkspaces(client) });
   } catch (error) {
     return authErrorResponse(error);
@@ -121,10 +122,11 @@ export async function POST(req: Request) {
     }
 
     const session = await requireRoleForClient([...AGENCY_ROLES, ...CLIENT_ROLES, "end-customer"], clientId);
-    await requireCurrentClientWorkspaceElementAccess(clientId, "client.fulfilment", "use");
-    const management = session.role !== "end-customer";
+    // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
     const client = getClientForAgency(session.agencyId, clientId);
     if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.fulfilment", "use");
+    const management = session.role !== "end-customer";
     const workspaces = clientProductWorkspaces(client);
     const existing = workspaces.find(item => item.productId === productId);
     if (!existing) return NextResponse.json({ ok: false, error: "product is not part of this portal" }, { status: 404 });

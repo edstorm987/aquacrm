@@ -25,7 +25,7 @@ import {
   listElementDefinitions,
   registerElementDefinitions,
   registerElementRenderers,
-} from "@/engines/editor/elements/registry";
+} from "../lib/elementRegistry";
 import { lazyBlock } from "./lazyBlock";
 
 // ─── Block component loaders (all default exports per 02) ─────────────────

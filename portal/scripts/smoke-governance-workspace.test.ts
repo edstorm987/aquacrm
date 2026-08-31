@@ -395,3 +395,196 @@ test("the sections a company scope cannot narrow say so instead of pretending", 
     );
   }
 });
+
+// ─── The breach register at the HTTP boundary ────────────────────────────────
+//
+// Before 2026-08-31 there was no such route: the compliance posture's own gap
+// read *"There is no breach register. If something happened tonight there is
+// nowhere in the app to record it and no clock counting the 72 hours."*
+// Every assertion below therefore fails against the old code — importing the
+// module threw, and the snapshot carried no `breaches`/`breachClock` at all.
+
+const breachRoute = require("../src/app/api/portal/governance/breaches/route") as typeof import("../src/app/api/portal/governance/breaches/route");
+
+const HOUR = 3_600_000;
+
+async function breachPost(body: Record<string, unknown>) {
+  const response = await breachRoute.POST(post("http://localhost/api/portal/governance/breaches", body));
+  return { status: response.status, body: await response.json() as Record<string, unknown> };
+}
+
+test("staff cannot reach the breach register at all", async () => {
+  const world = await seedWorld();
+  sessionCookie = world.staffCookie;
+  const refused = await breachPost({ action: "record", title: "x", description: "y" });
+  assert.equal(refused.status, 403, "the breach register is owner/manager only, like the rest of Governance");
+});
+
+test("a manager can log a breach the moment it is found — the clock cannot wait for the owner", async () => {
+  const world = await seedWorld();
+  sessionCookie = world.managerCookie;
+  const discoveredAt = Date.now() - 4 * HOUR;
+  const recorded = await breachPost({
+    action: "record",
+    title: "Export sent to the wrong address",
+    description: "A segment export reached an external recipient. Categories: email addresses.",
+    discoveredAt,
+    dataCategories: ["email addresses"],
+  });
+  assert.equal(recorded.status, 200);
+  const incident = recorded.body.incident as { id: string; discoveredAt: number; notifyDeadlineAt: number };
+  // The deadline is discovery + 72h — NOT "now + 72h", which would have handed
+  // back four hours it does not have.
+  assert.equal(incident.notifyDeadlineAt, discoveredAt + 72 * HOUR);
+  assert.match(String(recorded.body.notice), /notified nobody/i, "the response says out loud that recording is not notifying");
+
+  // And it reaches the snapshot the page renders, with its clock.
+  const overview = await overviewRoute.GET(get("http://localhost/api/portal/governance"));
+  const snap = (await overview.json() as { snapshot: {
+    breaches: Array<{ id: string; notifiable?: boolean; overdue: boolean }>;
+    breachClock: { open: number; awaitingAssessment: number };
+    posture: { groups: Array<{ controls: Array<{ id: string; status: string; gap: string }> }> };
+  } }).snapshot;
+  const row = snap.breaches.find(item => item.id === incident.id);
+  assert.ok(row, "the incident is on the governance snapshot");
+  assert.equal(row!.notifiable, undefined, "nobody has assessed it, and the snapshot says undecided rather than 'no'");
+  assert.equal(snap.breachClock.awaitingAssessment, 1);
+
+  // The posture control moved off the permanently-missing regex over legal
+  // document titles and now reads this register.
+  const control = snap.posture.groups.flatMap(group => group.controls).find(item => item.id === "gdpr.breach-register");
+  assert.ok(control, "the breach-register control is still present");
+  assert.equal(control!.status, "partial", "an undecided incident is not a pass");
+  assert.match(control!.gap, /no recorded Art\. 33\(1\) risk decision/);
+});
+
+test("recording a breach with no description is refused — Art. 33(5) wants the facts", async () => {
+  const world = await seedWorld();
+  sessionCookie = world.ownerCookie;
+  const refused = await breachPost({ action: "record", title: "Something happened", description: "  " });
+  assert.equal(refused.status, 400);
+  assert.match(String(refused.body.error), /Art\. 33\(5\)/);
+});
+
+test("only an owner records the notifiable decision, and it must carry a reason", async () => {
+  const world = await seedWorld();
+  sessionCookie = world.managerCookie;
+  const recorded = await breachPost({ action: "record", title: "Laptop lost", description: "Encrypted device, contact list only." });
+  const incidentId = (recorded.body.incident as { id: string }).id;
+
+  const managerAssess = await breachPost({ action: "assess", incidentId, notifiable: false, reason: "encrypted" });
+  assert.equal(managerAssess.status, 403, "a manager cannot decide a breach is not notifiable");
+
+  sessionCookie = world.ownerCookie;
+  const noReason = await breachPost({ action: "assess", incidentId, notifiable: false, reason: "   " });
+  assert.equal(noReason.status, 400);
+  assert.equal(noReason.body.code, "reason_required");
+  assert.match(String(noReason.body.error), /cannot be checked by anybody/);
+
+  const decided = await breachPost({ action: "assess", incidentId, notifiable: false, reason: "Full-disk encryption, key never left the vault." });
+  assert.equal(decided.status, 200);
+  assert.equal((decided.body.incident as { notifiable: boolean }).notifiable, false);
+});
+
+test("a notifiable breach cannot be closed away without a recorded notification", async () => {
+  const world = await seedWorld();
+  sessionCookie = world.ownerCookie;
+  const recorded = await breachPost({
+    action: "record",
+    title: "Database snapshot exposed",
+    description: "A snapshot bucket was publicly readable. Categories: names, email addresses.",
+    discoveredAt: Date.now() - 90 * HOUR,
+  });
+  const incidentId = (recorded.body.incident as { id: string }).id;
+
+  // Overdue from the moment it is logged, because it was found four days ago.
+  let overview = await overviewRoute.GET(get("http://localhost/api/portal/governance"));
+  let snap = (await overview.json() as { snapshot: { breachClock: { overdue: number } } }).snapshot;
+  assert.equal(snap.breachClock.overdue, 1, "an unassessed incident past 72 hours is overdue, not pending");
+
+  await breachPost({ action: "assess", incidentId, notifiable: true, reason: "Names and addresses were readable without authentication." });
+  const closedEarly = await breachPost({ action: "close", incidentId, outcome: "tidied up" });
+  assert.equal(closedEarly.status, 400);
+  assert.equal(closedEarly.body.code, "unresolved_notification");
+
+  // A late notification is refused without the Art. 33(1) reason for the delay.
+  const noDelayReason = await breachPost({ action: "notify-authority", incidentId });
+  assert.equal(noDelayReason.status, 400);
+  assert.equal(noDelayReason.body.code, "reason_required");
+
+  const notified = await breachPost({
+    action: "notify-authority",
+    incidentId,
+    reference: "ICO-9001",
+    delayReason: "The bucket's access log only arrived from the provider on day four.",
+  });
+  assert.equal(notified.status, 200);
+  assert.match(String(notified.body.notice), /marked late/);
+
+  const closed = await breachPost({ action: "close", incidentId, outcome: "Bucket locked down; recipients confirmed deletion." });
+  assert.equal(closed.status, 200);
+
+  overview = await overviewRoute.GET(get("http://localhost/api/portal/governance"));
+  const after = (await overview.json() as { snapshot: {
+    breachClock: { open: number; overdue: number; notifiedLate: number };
+    breaches: Array<{ id: string; closed: boolean; notifiedLate: boolean; delayReason?: string }>;
+  } }).snapshot;
+  assert.equal(after.breachClock.open, 0);
+  assert.equal(after.breachClock.overdue, 0);
+  // Closing does not launder it. This is the assertion that stops the register
+  // becoming a surface you can tidy into a false green.
+  assert.equal(after.breachClock.notifiedLate, 1, "a late notification stays late after closure");
+  const row = after.breaches.find(item => item.id === incidentId)!;
+  assert.equal(row.closed, true);
+  assert.equal(row.notifiedLate, true);
+  assert.match(row.delayReason!, /access log/);
+});
+
+test("the breach register narrows to the selected company, like the rest of the register", async () => {
+  const world = await seedTwoBrands();
+  sessionCookie = world.ownerCookie;
+  const alphaBreach = await breachPost({
+    action: "record",
+    companyId: world.alphaId,
+    title: "Alpha enquiry export",
+    description: "An enquiry export left the building. Categories: email addresses.",
+  });
+  assert.equal(alphaBreach.status, 200);
+  const alphaId = (alphaBreach.body.incident as { id: string }).id;
+
+  const beta = await readSnapshot(world.betaId);
+  assert.equal(beta.breaches.some(row => row.id === alphaId), false, "Beta must not be shown Alpha's incident");
+  assert.equal(beta.breachClock.total, 0);
+
+  const alpha = await readSnapshot(world.alphaId);
+  assert.equal(alpha.breaches.some(row => row.id === alphaId), true, "Alpha sees its own");
+
+  const group = await readSnapshot(null);
+  assert.equal(group.breaches.some(row => row.id === alphaId), true, "agency-wide sees every incident");
+});
+
+test("an unknown company on the record action is refused, not silently filed agency-wide", async () => {
+  const world = await seedWorld();
+  sessionCookie = world.ownerCookie;
+  const refused = await breachPost({
+    action: "record",
+    companyId: "company_does_not_exist",
+    title: "x",
+    description: "A description long enough to be real.",
+  });
+  assert.equal(refused.status, 404);
+});
+
+test("the Governance page renders the breach register and its posture link resolves to it", async () => {
+  const { readFileSync } = await import("node:fs");
+  const workspace = readFileSync("src/app/portal/agency/governance/_GovernanceWorkspace.tsx", "utf8");
+  assert.match(workspace, /id: "breaches", label: "Breaches"/, "the register has a view in the workspace nav");
+  assert.match(workspace, /<BreachSection/, "and that view is actually mounted");
+  // The screen must not let "nobody decided" render as a neutral resting state.
+  assert.match(workspace, /Decision owed/);
+  assert.match(workspace, /Notified late/);
+  // The posture control's resolution path has to land on the view that answers
+  // it, so the page has to honour `?view=`.
+  const page = readFileSync("src/app/portal/agency/governance/page.tsx", "utf8");
+  assert.match(page, /initialView/);
+});

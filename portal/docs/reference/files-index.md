@@ -2,7 +2,7 @@
 
 ← Back to [the reference index](00-index.md) · [the map](../WORKSPACE-FILE-TREE.md) · [development.md](../development.md)
 
-Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2533 source files; 0 per-source stubs.**
+Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2539 source files; 0 per-source stubs.**
 
 ## Engines — `src/engines/` (83)
 
@@ -163,7 +163,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
 - [`src/server/zimanteTradingCompanies.ts`](server.md#file-src-server-zimantetradingcompanies-ts-ef9a41c5a6)
 
-## Shared logic — `src/lib/` (323)
+## Shared logic — `src/lib/` (325)
 
 - [`src/lib/a11y/contrastValidator.ts`](lib.md#file-src-lib-a11y-contrastvalidator-ts-7c6889cfca) — components. We default to 4.5 for the strictest check.
 - [`src/lib/a11y/isEmbedded.ts`](lib.md#file-src-lib-a11y-isembedded-ts-e91cac9938)
@@ -352,6 +352,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/server/closeDeal.ts`](lib.md#file-src-lib-server-closedeal-ts-c7389d41c7) — conversion — the leads-pipeline flavour — is a separate, flagged follow-up.)
 - [`src/lib/server/commandIntelligenceService.ts`](lib.md#file-src-lib-server-commandintelligenceservice-ts-8aba485964)
 - [`src/lib/server/commercialProposal.ts`](lib.md#file-src-lib-server-commercialproposal-ts-3cca2c10db)
+- [`src/lib/server/compliance/breachRegister.ts`](lib.md#file-src-lib-server-compliance-breachregister-ts-23901fd01c)
 - [`src/lib/server/compliance/retention.ts`](lib.md#file-src-lib-server-compliance-retention-ts-ba422f7289)
 - [`src/lib/server/compliance/subjectAccessExport.ts`](lib.md#file-src-lib-server-compliance-subjectaccessexport-ts-0cf0955bd6)
 - [`src/lib/server/compliance/subjectRequests.ts`](lib.md#file-src-lib-server-compliance-subjectrequests-ts-dfa2bdbaf1)
@@ -426,7 +427,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/server/observabilityCapability.ts`](lib.md#file-src-lib-server-observabilitycapability-ts-6b60d0fb67) — from smoke tests that run without the `react-server` condition.
 - [`src/lib/server/onboardingMilestones.ts`](lib.md#file-src-lib-server-onboardingmilestones-ts-36940c3016)
 - [`src/lib/server/performanceMode.ts`](lib.md#file-src-lib-server-performancemode-ts-4cd4548229)
-- [`src/lib/server/personInteractions.ts`](lib.md#file-src-lib-server-personinteractions-ts-11e81d2c2f)
+- [`src/lib/server/personInteractionsService.ts`](lib.md#file-src-lib-server-personinteractionsservice-ts-197db49a11)
 - [`src/lib/server/pluginRequestScope.ts`](lib.md#file-src-lib-server-pluginrequestscope-ts-e0445d2dd4)
 - [`src/lib/server/plugins/ensureLeadsPipelineInstall.ts`](lib.md#file-src-lib-server-plugins-ensureleadspipelineinstall-ts-bc1dba2897)
 - [`src/lib/server/plugins/pluginHealthRunner.ts`](lib.md#file-src-lib-server-plugins-pluginhealthrunner-ts-feda990895)
@@ -476,6 +477,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/shared/localRepositoryPreviewPolling.ts`](lib.md#file-src-lib-shared-localrepositorypreviewpolling-ts-3632531a58)
 - [`src/lib/shared/localRepositoryPreviewUi.ts`](lib.md#file-src-lib-shared-localrepositorypreviewui-ts-c69a52caf0)
 - [`src/lib/shared/timezones.ts`](lib.md#file-src-lib-shared-timezones-ts-5d8a6c5026) — Zones the picker offers that `Intl.supportedValuesOf` does not list.
+- [`src/lib/staffWorkspacePolicy.ts`](lib.md#file-src-lib-staffworkspacepolicy-ts-3b2d90ae3d)
 - [`src/lib/supabase/admin.ts`](lib.md#file-src-lib-supabase-admin-ts-4eb1bf0db0)
 - [`src/lib/supabase/config.ts`](lib.md#file-src-lib-supabase-config-ts-bce56de604)
 - [`src/lib/supabase/enquiryAgencyColumn.ts`](lib.md#file-src-lib-supabase-enquiryagencycolumn-ts-988b0a5281)
@@ -618,7 +620,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/components/workspaces/PluginSettingsPanel.tsx`](components.md#file-src-components-workspaces-pluginsettingspanel-tsx-1ae842fede)
 - [`src/components/workspaces/PluginWorkspaceNav.tsx`](components.md#file-src-components-workspaces-pluginworkspacenav-tsx-34bb1220e7)
 
-## Plugins — `src/built-ins/` (752)
+## Plugins — `src/built-ins/` (754)
 
 - [`src/built-ins/modules/affiliates/index.ts`](built-ins.md#file-src-built-ins-modules-affiliates-index-ts-68c0702721) — `requires: ["ecommerce"]`, opt-in.
 - [`src/built-ins/modules/affiliates/src/__smoke__/affiliates.test.ts`](built-ins.md#file-src-built-ins-modules-affiliates-src-smoke-affiliates-test-ts-e464cf139b) — - side-effects: activity log + event bus
@@ -1167,7 +1169,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/built-ins/modules/website-editor/src/components/blocks/VariantPickerBlock.tsx`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-blocks-variantpickerblock-tsx-d3f25be48f)
 - [`src/built-ins/modules/website-editor/src/components/blocks/VideoBlock.tsx`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-blocks-videoblock-tsx-10b002f203)
 - [`src/built-ins/modules/website-editor/src/components/blocks/VideoEmbedBlock.tsx`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-blocks-videoembedblock-tsx-f3de7bb82d)
-- [`src/built-ins/modules/website-editor/src/components/blockStyles.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-blockstyles-ts-4baaa846b8) — verbatim — every block component still imports `../blockStyles`.
+- [`src/built-ins/modules/website-editor/src/components/blockStyles.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-blockstyles-ts-4baaa846b8) — every smoke that touches a block component with it.
 - [`src/built-ins/modules/website-editor/src/components/canvas/BlockToolbar.tsx`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-canvas-blocktoolbar-tsx-a65dc99b76)
 - [`src/built-ins/modules/website-editor/src/components/canvas/blockTreeOps.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-canvas-blocktreeops-ts-825c40c7ad) — this plugin's registry is what fills it.
 - [`src/built-ins/modules/website-editor/src/components/canvas/Canvas.tsx`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-canvas-canvas-tsx-24b99f1717)
@@ -1227,12 +1229,13 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/built-ins/modules/website-editor/src/lib/assetTags.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-assettags-ts-98427acbd4) — 3. extension → "png" / "jpg" / "svg" / etc. (lowercase)
 - [`src/built-ins/modules/website-editor/src/lib/blockAnimations.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-blockanimations-ts-5fc644797f) — smoke contexts.
 - [`src/built-ins/modules/website-editor/src/lib/blockBackends.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-blockbackends-ts-0dc6384826) — entry rather than leaving a stale warning in front of clients forever.
-- [`src/built-ins/modules/website-editor/src/lib/blockSchemaMigrations.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-blockschemamigrations-ts-aabee24552) — verbatim.
+- [`src/built-ins/modules/website-editor/src/lib/blockSchemaMigrations.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-blockschemamigrations-ts-aabee24552) — they are erased before any loader sees them.
 - [`src/built-ins/modules/website-editor/src/lib/blockTreeDiff.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-blocktreediff-ts-93b1a01e99) — No React, no foundation imports. Smoke ships in r034-*.
 - [`src/built-ins/modules/website-editor/src/lib/blockTreeJson.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-blocktreejson-ts-edd141ded5) — modal before save.
 - [`src/built-ins/modules/website-editor/src/lib/brandKitCss.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-brandkitcss-ts-6409c8fcad) — can opt into the extended ones.
 - [`src/built-ins/modules/website-editor/src/lib/confirm.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-confirm-ts-33ae610d92)
 - [`src/built-ins/modules/website-editor/src/lib/content.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-content-ts-c979a99f42) — `02/src/lib/admin/content.ts`.
+- [`src/built-ins/modules/website-editor/src/lib/countdownDeadline.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-countdowndeadline-ts-e95121bce2) — exactly one implementation, in `src/engines/editor/elements/countdownDeadline.ts`.
 - [`src/built-ins/modules/website-editor/src/lib/customCode.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-customcode-ts-d18c49cfa0) — inside a `<style>` block between brand vars and block styles.
 - [`src/built-ins/modules/website-editor/src/lib/customise.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-customise-ts-4a63351332)
 - [`src/built-ins/modules/website-editor/src/lib/customPages.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-custompages-ts-4b6c3c8144)
@@ -1245,6 +1248,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/built-ins/modules/website-editor/src/lib/editorMode.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-editormode-ts-0e8c99e000)
 - [`src/built-ins/modules/website-editor/src/lib/editorPages.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-editorpages-ts-e5b139ae15)
 - [`src/built-ins/modules/website-editor/src/lib/editorShortcuts.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-editorshortcuts-ts-b154729b3e) — SSR / smoke contexts.
+- [`src/built-ins/modules/website-editor/src/lib/elementRegistry.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-elementregistry-ts-84e7ab799d) — other caller.
 - [`src/built-ins/modules/website-editor/src/lib/embedBridge.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-embedbridge-ts-bd6fcf8bb8) — SSR / smoke contexts.
 - [`src/built-ins/modules/website-editor/src/lib/faviconUrls.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-faviconurls-ts-5ccf373b69) — *something*.
 - [`src/built-ins/modules/website-editor/src/lib/featureBackends.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-featurebackends-ts-5198844225) — gap is worse than none, because it tells people a working feature is broken.
@@ -1252,7 +1256,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/built-ins/modules/website-editor/src/lib/funnels.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-funnels-ts-1e196119cd)
 - [`src/built-ins/modules/website-editor/src/lib/gitOps.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-gitops-ts-96c8e832f7)
 - [`src/built-ins/modules/website-editor/src/lib/i18n.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-i18n-ts-ad3208c5fd) — been translated" banner.
-- [`src/built-ins/modules/website-editor/src/lib/ids.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-ids-ts-498ae77f15) — every call site is unchanged; the domain-specific helpers below stay put.
+- [`src/built-ins/modules/website-editor/src/lib/ids.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-ids-ts-498ae77f15) — one implementation, in `src/engines/editor/elements/ids.ts`.
 - [`src/built-ins/modules/website-editor/src/lib/jsonLdInjection.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-jsonldinjection-ts-95350382d2) — out of scope.
 - [`src/built-ins/modules/website-editor/src/lib/loginCustomisation.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-logincustomisation-ts-71bfe34bb8)
 - [`src/built-ins/modules/website-editor/src/lib/media.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-media-ts-840d461484)
@@ -1326,7 +1330,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/built-ins/modules/website-editor/src/server/sitemap.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-server-sitemap-ts-8da429a3f2) — Pure string builders — XML/text only, no foundation imports.
 - [`src/built-ins/modules/website-editor/src/server/sites.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-server-sites-ts-2ef002b8d2) — pages.ts.
 - [`src/built-ins/modules/website-editor/src/server/starterLoader.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-server-starterloader-ts-b7afd807b0) — test it resolves via fs. Both paths share the same shape.
-- [`src/built-ins/modules/website-editor/src/server/staticExport.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-server-staticexport-ts-5b7eb2eef9) — surrounding layout still flows.
+- [`src/built-ins/modules/website-editor/src/server/staticExport.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-server-staticexport-ts-5b7eb2eef9) — anywhere saying so.
 - [`src/built-ins/modules/website-editor/src/server/storage-keys.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-server-storage-keys-ts-6246e38445) — the boundary inspection trivial during code review.
 - [`src/built-ins/modules/website-editor/src/server/templateMarketplace.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-server-templatemarketplace-ts-64e738fbee) — to other agencies.
 - [`src/built-ins/modules/website-editor/src/server/themes.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-server-themes-ts-6072a56dcb) — `02/src/portal/server/themes.ts` (208 lines).
@@ -1373,7 +1377,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/built-ins/runtime/foundation-adapters/publicFunnelFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-publicfunnelfoundation-ts-18280e9710)
 - [`src/built-ins/runtime/foundation-adapters/publicMediaAdapter.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-publicmediaadapter-ts-4b47d9ab84)
 
-## App routes & UI — `src/app/` (639)
+## App routes & UI — `src/app/` (641)
 
 - [`src/app/(seeds)/aquaOasisDemoContent.ts`](app.md#file-src-app-seeds-aquaoasisdemocontent-ts-f2e90ac84c) — agency record (so a prod tenant flip doesn't spawn fake data).
 - [`src/app/(website)/business-os/page.tsx`](app.md#file-src-app-website-business-os-page-tsx-0cbb0528df)
@@ -1502,6 +1506,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/api/portal/freelancers/route.ts`](app.md#file-src-app-api-portal-freelancers-route-ts-2cc7157555)
 - [`src/app/api/portal/fulfillment/clients/route.ts`](app.md#file-src-app-api-portal-fulfillment-clients-route-ts-4439f42d53) — the caller's active agency through the resumable fulfillment lifecycle.
 - [`src/app/api/portal/fulfillment/presets/route.ts`](app.md#file-src-app-api-portal-fulfillment-presets-route-ts-ef379b8a7c)
+- [`src/app/api/portal/governance/breaches/route.ts`](app.md#file-src-app-api-portal-governance-breaches-route-ts-454dc2232c)
 - [`src/app/api/portal/governance/erasure/preview/route.ts`](app.md#file-src-app-api-portal-governance-erasure-preview-route-ts-f11f67253d)
 - [`src/app/api/portal/governance/hipaa/route.ts`](app.md#file-src-app-api-portal-governance-hipaa-route-ts-15cfe5ef95)
 - [`src/app/api/portal/governance/legal/route.ts`](app.md#file-src-app-api-portal-governance-legal-route-ts-abb1a6d7eb)
@@ -1650,6 +1655,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/dev/route.ts`](app.md#file-src-app-dev-route-ts-6562b040b9)
 - [`src/app/embed/account/page.tsx`](app.md#file-src-app-embed-account-page-tsx-43ebc12cba)
 - [`src/app/error.tsx`](app.md#file-src-app-error-tsx-6e8ea1514e)
+- [`src/app/global-error.tsx`](app.md#file-src-app-global-error-tsx-dbe8eed6a5)
 - [`src/app/healthz/full/route.ts`](app.md#file-src-app-healthz-full-route-ts-1932591a27) — rather than fabricating a green light (chapter #68 honesty).
 - [`src/app/healthz/route.ts`](app.md#file-src-app-healthz-route-ts-7b040b7b0a) — could probe storage in a later round if Ed needs it.
 - [`src/app/layout.tsx`](app.md#file-src-app-layout-tsx-cfb47de6ae)

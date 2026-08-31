@@ -1,5 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import {
+  STAFF_WORKSPACE_API_REFUSAL,
+  STAFF_WORKSPACE_ROLE,
+  isStaffDelegatedAgencyPagePath,
+  isStaffWorkspaceApiPath,
+} from "@/lib/staffWorkspacePolicy";
+
 // Edge proxy (Next 16 renamed `middleware.ts` → `proxy.ts`). Two jobs:
 //   1. Gate `/portal/*` behind an `lk_session_v1` cookie (presence-only;
 //      full HMAC + role check happens server-side in the route handlers).
@@ -148,39 +155,19 @@ export function proxy(req: NextRequest) {
   // Fulfilment are the migration exceptions: their leaf pages and APIs enforce
   // the canonical element grant, so an explicitly delegated person can mount
   // them without opening the rest of the agency shell.
-  if (payload?.role === "agency-staff") {
-    const delegatedAgencyPageRoots = [
-      "/portal/agency/people",
-      "/portal/agency/fulfilment",
-      "/portal/agency/portals",
-    ];
-    if (path.startsWith("/portal/agency")
-      && !delegatedAgencyPageRoots.some(root => path === root || path.startsWith(`${root}/`))) {
+  // The enumeration itself lives in `@/lib/staffWorkspacePolicy` — one list
+  // for the proxy, the shell and the tests, so a surface the employee
+  // workspace offers can never be a surface this boundary refuses. Do not
+  // re-declare either list here.
+  if (payload?.role === STAFF_WORKSPACE_ROLE) {
+    if (path.startsWith("/portal/agency") && !isStaffDelegatedAgencyPagePath(path)) {
       const url = req.nextUrl.clone();
       url.pathname = "/portal/team";
       url.search = "";
       return NextResponse.redirect(url);
     }
-    if (path.startsWith("/api/portal/")) {
-      const staffApiRoots = [
-        "/api/portal/access",
-        "/api/portal/dev",
-        "/api/portal/site-editor/files",
-        "/api/portal/dashboard-planning",
-        "/api/portal/tasks",
-        "/api/portal/calendar",
-        "/api/portal/people",
-        "/api/portal/notepad",
-        "/api/portal/team-chat",
-        "/api/portal/pipelines/move-client",
-        "/api/portal/products",
-        "/api/portal/aqua-tags/detect",
-        "/api/portal/website-sources",
-        "/api/portal/website-injections",
-      ];
-      if (!staffApiRoots.some(root => path === root || path.startsWith(`${root}/`))) {
-        return NextResponse.json({ ok: false, error: "This API is not available in the employee workspace." }, { status: 403 });
-      }
+    if (path.startsWith("/api/portal/") && !isStaffWorkspaceApiPath(path)) {
+      return NextResponse.json({ ok: false, error: STAFF_WORKSPACE_API_REFUSAL }, { status: 403 });
     }
   }
 

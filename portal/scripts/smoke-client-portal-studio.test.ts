@@ -460,6 +460,55 @@ describe("client portal design versions", () => {
     });
     assert.equal(published?.productSourceUpdatedAt, changedProduct.updatedAt);
   });
+
+  it("opens an UNSAVED product template by id instead of falling through to the master", async () => {
+    // Regression, 2026-08-31. When the studio stopped seeding product templates
+    // on render (issue #21), nothing stored them any more — and the design route
+    // resolves a template by id through `getClientPortalTemplate`, whose
+    // `?? master` fallback then handed the editor the agency MASTER while the
+    // header still said the product's name. Saving wrote the master.
+    const { agency, actorUserId } = await fresh();
+    const product = agencyProducts.createAgencyProduct(agency.id, {
+      name: "Website",
+      portalRequirement: "required",
+      portalTemplateKey: "website",
+      portalHeadline: "Your website, clearly managed.",
+    }, actorUserId);
+    const templateId = designs.productPortalTemplateRecordId(agency.id, product.id);
+    assert.equal(storage.getState().clientPortalTemplates[templateId], undefined,
+      "the fixture has to start with NOTHING stored, or this proves nothing");
+
+    const opened = designs.getPortalDesignRecord({
+      agencyId: agency.id,
+      scope: "template",
+      templateId,
+      actorUserId,
+    });
+    assert.equal(opened?.id, templateId, "the editor was handed a different record than the one it asked for");
+    assert.equal((opened as { productId?: string }).productId, product.id);
+    assert.equal(opened?.published.pages.home.title, "Your website, clearly managed.");
+
+    // …and the first save lands on THAT record, not on the master.
+    const masterId = designs.portalTemplateRecordId(agency.id);
+    const draft = structuredClone(opened!.draft);
+    draft.pages.home.title = "Edited in the studio";
+    const saved = designs.savePortalDesignDraft({
+      agencyId: agency.id,
+      scope: "template",
+      recordId: templateId,
+      document: draft,
+      actorUserId,
+    });
+    assert.equal(saved?.id, templateId, "saving an unsaved product template was refused or redirected");
+    assert.equal(storage.getState().clientPortalTemplates[templateId]?.draft.pages.home.title, "Edited in the studio");
+    assert.notEqual(storage.getState().clientPortalTemplates[masterId]?.draft.pages.home.title, "Edited in the studio",
+      "the product edit was written onto the agency master template");
+
+    // A template id for a product this agency does not own is still nothing.
+    const other = tenants.createAgency({ name: "Other agency", slug: "other-agency-studio" });
+    assert.equal(designs.getClientPortalTemplate(other.id, templateId), null,
+      "another agency can resolve this agency's product template");
+  });
 });
 
 describe("client portal studio surface", () => {
@@ -522,7 +571,16 @@ describe("client portal studio surface", () => {
     assert.match(studio, /Refresh draft from master/);
     assert.match(studio, /row-start-2/);
     assert.match(studio, /aria-live="polite"/);
-    assert.match(studioLoader, /ensureProductPortalTemplates/);
+    // The loader still assembles one template per product — but READ-ONLY since
+    // issue #21 (2026-08-31). Matched against the loader with its comments
+    // stripped, because the comment explaining the removal names the function it
+    // removed, and a source assertion that a comment can satisfy proves nothing.
+    const studioLoaderCode = studioLoader.replace(/\/\/[^\n]*/g, " ");
+    assert.match(studioLoaderCode, /productPortalTemplatesForRead\(agencyId, products\)/);
+    assert.doesNotMatch(studioLoaderCode, /ensureProductPortalTemplates?\s*\(/,
+      "opening the Portal Studio seeds product templates again");
+    assert.doesNotMatch(studioLoaderCode, /ensureStunningPortalTemplate\s*\(/,
+      "opening the Portal Studio creates the master template again");
     assert.match(studioLoader, /query\.productId/);
     // …and the route still mounts the studio through that loader.
     assert.match(editorPage, /loadPortalStudioProps/);

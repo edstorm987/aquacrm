@@ -120,6 +120,111 @@ describe("the removals, behaviourally", () => {
     assert.equal(storage.getState().agencyProducts[product.id]!.internalWorkspace, undefined,
       "reading the catalogue wrote the repair back to disk");
   });
+
+  it("reading a product's PORTAL TEMPLATE creates nothing, and says the same thing twice", async () => {
+    // Removal #3 (2026-08-31). `ensureProductPortalTemplate` was the seeder
+    // sitting behind `ensureDefaultAgencyProducts` on four renders — a product's
+    // own page, Fulfilment, and both Portal Studio routes. Same class, same fix.
+    const storage = await import("../src/server/storage");
+    const { createAgency } = await import("../src/server/tenants");
+    const { createAgencyProduct } = await import("../src/server/agencyProducts");
+    const { ensureProductPortalTemplate, productPortalTemplateForRead } =
+      await import("../src/server/clientPortalDesigns");
+    await storage.ensureHydrated();
+    await storage.reset();
+
+    const agency = createAgency({ name: "Read only templates", slug: "read-only-templates" });
+    const product = createAgencyProduct(agency.id, { name: "Website", portalRequirement: "required" }, "system");
+    assert.notEqual(product.portalRequirement, "none", "the fixture has to be a product that WANTS a portal");
+
+    const first = productPortalTemplateForRead(agency.id, product);
+    assert.ok(first.published, "the page would render without a template to show");
+    assert.equal(Object.keys(storage.getState().clientPortalTemplates).length, 0,
+      "opening a product created its portal template — and the master behind it");
+
+    // Stable: a read is not allowed to be a different answer each time, or the
+    // 'is this client on the current version?' comparison flips on every render.
+    const second = productPortalTemplateForRead(agency.id, product);
+    assert.equal(second.id, first.id);
+    assert.equal(second.publishedVersionId, first.publishedVersionId);
+    assert.deepEqual(second.versions.map(version => version.id), first.versions.map(version => version.id));
+
+    // …and the first real write persists the SAME record, under the same ids —
+    // so what the screen showed and what got stored are one template, not two
+    // that happen to look alike.
+    const saved = ensureProductPortalTemplate(agency.id, product, "user_1");
+    assert.equal(saved.id, first.id);
+    assert.equal(saved.publishedVersionId, first.publishedVersionId);
+    assert.ok(storage.getState().clientPortalTemplates[first.id], "the write did not persist the template");
+  });
+
+  it("opening a pipeline board migrates NOTHING, and a write still does", async () => {
+    // Removal #4 (2026-08-31). `getPipelineBySlug` ran the legacy column
+    // migration, so looking at a board rewrote the pipeline AND every card on
+    // it. A migration is the least idempotent thing in this file: it is not a
+    // first touch that settles, it is a rewrite of stored history.
+    const storage = await import("../src/server/storage");
+    const { createAgency } = await import("../src/server/tenants");
+    const { addCard, createPipeline, getPipelineBySlug, listCards, moveCard } =
+      await import("../src/server/pipelines");
+    await storage.ensureHydrated();
+    await storage.reset();
+
+    const agency = createAgency({ name: "Legacy board", slug: "legacy-board" });
+    const pipeline = createPipeline({
+      agencyId: agency.id,
+      kind: "leads",
+      name: "Leads",
+      slug: "leads",
+      columns: [
+        { id: "new", label: "New", order: 0 },
+        { id: "contacted", label: "Contacted", order: 1 },
+        { id: "qualified", label: "Qualified", order: 2 },
+        { id: "won", label: "Won", order: 3 },
+        { id: "lost", label: "Lost", order: 4 },
+      ],
+      allowedCardKinds: ["lead"],
+    });
+    // Stored the way a pre-migration agency actually has it — a card sitting in
+    // the retired `qualified` column. Written straight to state on purpose:
+    // `addCard` is a WRITE and would migrate the board before it landed.
+    storage.mutate(state => {
+      state.pipelineCards.legacy_card = {
+        id: "legacy_card", pipelineId: pipeline.id, columnId: "qualified", order: 0,
+        createdAt: 1, updatedAt: 1, kind: "lead",
+        lead: { name: "Old lead" },
+      } as never;
+    });
+
+    const read = getPipelineBySlug(agency.id, "leads")!;
+    assert.ok(read.columns.some(column => column.id === "proposal"), "the board did not get the modern columns");
+    assert.ok(read.columns.some(column => column.id === "scouting"));
+    assert.deepEqual(storage.getState().pipelines[pipeline.id]!.columns.map(column => column.id),
+      ["new", "contacted", "qualified", "won", "lost"],
+      "opening the board migrated the stored pipeline");
+    assert.equal(storage.getState().pipelines[pipeline.id]!.updatedAt, pipeline.updatedAt,
+      "the read stamped updatedAt, so looking at a board reads as an edit");
+
+    // The card has to be read through the SAME map, or it belongs to a column
+    // the board no longer has and simply disappears from it.
+    assert.equal(listCards(pipeline.id)[0]!.columnId, "proposal",
+      "the card is filed under a column the board does not have — it would vanish");
+    assert.equal(storage.getState().pipelineCards.legacy_card!.columnId, "qualified",
+      "reading the cards rewrote one on disk");
+
+    // A WRITE pays for the migration, because it was writing anyway — and it has
+    // to, or the modern column id the board offers would be rejected.
+    const moved = moveCard(agency.id, "legacy_card", "meeting");
+    assert.ok(moved, "moving a card to a modern column was refused on a legacy board");
+    assert.equal(storage.getState().pipelineCards.legacy_card!.columnId, "meeting");
+    assert.ok(storage.getState().pipelines[pipeline.id]!.columns.some(column => column.id === "proposal"),
+      "the write did not persist the migration, so the board stays legacy for ever");
+
+    // …and adding to a modern column works on a board that was legacy a moment
+    // ago, which is the failure this would otherwise cause.
+    assert.ok(addCard(agency.id, pipeline.id, { kind: "lead", lead: { name: "New lead" } as never, columnId: "scouting" }),
+      "adding to a modern column was refused");
+  });
 });
 
 describe("removal #2 — a page render cannot run automations", () => {
@@ -177,6 +282,24 @@ describe("removal #2 — a page render cannot run automations", () => {
     const cron = readFileSync(join(ROOT, "src/app/api/internal/sweep/route.ts"), "utf-8");
     assert.match(cron, /processAutomationSweep/,
       "nothing runs the automation sweep any more, so a waiting run never resumes");
+  });
+
+  it("and neither can LISTING them over the API", () => {
+    // The render lost this on 2026-08-27; `GET /api/portal/automations` kept it
+    // until 2026-08-31, because the derived inventory cannot see it: the
+    // analyser only inspects GET-ONLY routes and this file also exports POST.
+    // So the contract is pinned here, against the route's own source, rather
+    // than by the declared list.
+    const source = readFileSync(join(ROOT, "src/app/api/portal/automations/route.ts"), "utf-8");
+    const get = source.slice(source.indexOf("export async function GET"), source.indexOf("export async function POST"));
+    assert.ok(get.length > 100, "the GET handler moved — this assertion is no longer reading it");
+    assert.doesNotMatch(get.replace(/\/\/[^\n]*/g, " "), /processAutomationSweep\s*\(/,
+      "listing automations executes them again — this one can email a customer");
+    assert.match(get, /dueAutomationRuns\(session\.agencyId\)/,
+      "the GET no longer reports the backlog, so a stopped scheduler is invisible to its callers");
+    // The two deliberate doors stay open: an explicit operator request…
+    assert.match(source, /body\.action === "sweep"[\s\S]{0,200}processAutomationSweep/,
+      "the explicit sweep action is gone, so nobody can ask for one on demand");
   });
 });
 

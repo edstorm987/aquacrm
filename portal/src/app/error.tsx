@@ -1,10 +1,14 @@
 "use client";
-// Top-level error boundary (T1 R030 — chapter `04-observability.md`).
+// Route-segment error boundary (T1 R030 — chapter `04-observability.md`).
 //
-// Catches render errors anywhere in the App Router tree. Renders a
-// fallback UI with a reset action. Browser-side Sentry capture (when
-// added) installs via @sentry/nextjs's own client config — we don't
-// pull the server observability module into the client bundle.
+// Catches render errors in the root segment's page and everything nested
+// below it. It is NOT the root boundary: a React error boundary never wraps
+// the layout above it, so a failure inside `src/app/layout.tsx` or the App
+// Router shell bypasses this file entirely — `src/app/global-error.tsx`
+// (issues #141) is the fallback for that. Renders a fallback UI with a reset
+// action. Browser-side Sentry capture (when added) installs via
+// @sentry/nextjs's own client config — we don't pull the server observability
+// module into the client bundle.
 //
 // HONESTY (#132): this boundary must not claim a report it did not make.
 // A server-side failure carries a `digest`; Next hands that same error to
@@ -31,7 +35,7 @@ export function describeErrorReporting(digest?: string): string {
     : "This failure happened in your browser and was not sent anywhere automatically. If it keeps happening, tell us what you were doing.";
 }
 
-export default function GlobalError({ error, reset }: Props) {
+export default function SegmentError({ error, reset }: Props) {
   useEffect(() => {
     // Best-effort browser-side log; Sentry browser SDK (when installed)
     // auto-captures unhandled errors itself.

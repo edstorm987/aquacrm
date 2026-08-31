@@ -142,9 +142,10 @@ export async function POST(req: Request) {
     }
 
     const session = await requireRoleForClient([...AGENCY_ROLES], body.clientId);
-    await requireCurrentClientWorkspaceElementAccess(body.clientId, "client.systems", "use");
+    // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
     const client = getClientForAgency(session.agencyId, body.clientId);
     if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+    await requireCurrentClientWorkspaceElementAccess(body.clientId, "client.systems", "use");
 
     const meta = (client.metadata ?? {}) as { properties?: ClientProperty[] };
     const properties = Array.isArray(meta.properties) ? [...meta.properties] : [];

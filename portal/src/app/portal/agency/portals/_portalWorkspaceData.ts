@@ -2,7 +2,7 @@ import "server-only";
 
 import { phaseLabel } from "@/server/phases";
 import { agencyProductsForRead, listAgencyProducts } from "@/server/agencyProducts";
-import { ensureProductPortalTemplates, listClientPortalUpdateOffers } from "@/server/clientPortalDesigns";
+import { listClientPortalUpdateOffers, productPortalTemplatesForRead } from "@/server/clientPortalDesigns";
 import { listClients } from "@/server/tenants";
 import { listTradingCompanies } from "@/server/tradingCompanies";
 import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
@@ -10,12 +10,20 @@ import type { PortalTemplateProductRecord, PortalWorkspaceRecord } from "./_Port
 
 type PortalMode = PortalWorkspaceRecord["portalMode"];
 
+/**
+ * `userId` is kept in the signature but no longer used: since issue #21 this
+ * loader writes nothing, so there is no actor to attribute a write to. Callers
+ * still pass it, and a future write-on-demand here would need it back.
+ */
 export function portalWorkspaceData(agencyId: string, userId: string) {
+  void userId;
   const companies = new Map(listTradingCompanies(agencyId).map(company => [company.id, company.name]));
   const clients = listClients(agencyId, { includeArchived: true });
   agencyProductsForRead(agencyId);
   const agencyProducts = listAgencyProducts(agencyId, true);
-  const productTemplates = new Map(ensureProductPortalTemplates(agencyId, agencyProducts, userId)
+  // Read-only (issue #21): `ensureProductPortalTemplates` seeded a template for
+  // every product with a portal every time Fulfilment was rendered.
+  const productTemplates = new Map(productPortalTemplatesForRead(agencyId, agencyProducts)
     .map(template => [template.productId, template]));
 
   const products: PortalTemplateProductRecord[] = agencyProducts.map(product => ({

@@ -2,7 +2,7 @@
 
 > Source maps, subsystem dossiers, components, routes, state and built-in module notes.
 >
-> Consolidated 2026-08-31 from **23** source documents / **55,410 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-31 from **23** source documents / **55,977 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -10,13 +10,13 @@
 - [`docs/WORKSPACE-FILE-TREE.md`](#source-docs-workspace-file-tree-md) — 1,385 words · `642c698fbd42`
 - [`docs/workspace/advisor.md`](#source-docs-workspace-advisor-md) — 1,445 words · `d5b9b4fc79dc`
 - [`docs/workspace/api-and-routes.md`](#source-docs-workspace-api-and-routes-md) — 946 words · `8bbf0d2e9c9f`
-- [`docs/workspace/api-reference.md`](#source-docs-workspace-api-reference-md) — 8,236 words · `b88eee0137fe`
+- [`docs/workspace/api-reference.md`](#source-docs-workspace-api-reference-md) — 8,272 words · `f47b98abebb9`
 - [`docs/workspace/aqua-tag.md`](#source-docs-workspace-aqua-tag-md) — 3,463 words · `d662b63850cb`
 - [`docs/workspace/components.md`](#source-docs-workspace-components-md) — 1,142 words · `5ef3bf2f75be`
 - [`docs/workspace/database.md`](#source-docs-workspace-database-md) — 2,273 words · `4ed0007a7dd9`
-- [`docs/workspace/env-and-sellability.md`](#source-docs-workspace-env-and-sellability-md) — 3,202 words · `6541a737c2ee`
+- [`docs/workspace/env-and-sellability.md`](#source-docs-workspace-env-and-sellability-md) — 3,641 words · `3dfcad335c9f`
 - [`docs/workspace/feature-index.md`](#source-docs-workspace-feature-index-md) — 5,342 words · `bb81323b787b`
-- [`docs/workspace/hazards-and-duplication.md`](#source-docs-workspace-hazards-and-duplication-md) — 6,864 words · `1cac9563fe95`
+- [`docs/workspace/hazards-and-duplication.md`](#source-docs-workspace-hazards-and-duplication-md) — 6,956 words · `37759774c919`
 - [`docs/workspace/kpi-intelligence.md`](#source-docs-workspace-kpi-intelligence-md) — 2,283 words · `d641f1291cbc`
 - [`docs/workspace/plugins.md`](#source-docs-workspace-plugins-md) — 2,193 words · `85bf55b735d1`
 - [`docs/workspace/portal-ui.md`](#source-docs-workspace-portal-ui-md) — 3,935 words · `422ade585983`
@@ -593,7 +593,7 @@ switcher — membership-only, session ∩ live record), `showcase-mode`, `dev-mo
 
 ## Source document — `docs/workspace/api-reference.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/api-reference.md" sha256="b88eee0137fe53f4111ee1f1b0d01cbedeaef362ae69f25f3ead38e9a5ea6b18" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/api-reference.md" sha256="f47b98abebb952777258786b470e92032c4009907418c454a39cf9900415d4f2" -->
 # Chapter — Hand-maintained API reference
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md) · [API & routes overview](api-and-routes.md)
@@ -1007,6 +1007,7 @@ Two Live-column edge cases (they don't match a naive `supabase/admin` grep):
 | `/api/portal/governance/erasure/preview` | POST | Non-destructive erasure blast-radius preview (owner/manager) | agency | new 2026-08-20 |
 | `/api/portal/governance/subject-access` | POST | GDPR Art. 15/20 subject access export — everything held about one person, as a JSON download (owner/manager) | agency | new 2026-08-28 |
 | `/api/portal/governance/retention` | POST | Set the retention period per category; blank clears to keep-forever. Returns a fresh preview, never sweeps (owner only) | agency | new 2026-08-28 |
+| `/api/portal/governance/breaches` | POST | GDPR Art. 33/34 breach register — `record`/`notify-authority`/`notify-subjects` (owner/manager), `assess`/`close` (owner only). The 72-hour clock runs from discovery; it records that a human notified, never notifies | agency | new 2026-08-31 |
 | `/api/portal/sop-guides` | GET/POST/PATCH/DELETE | SOP guides CRUD (ordered SOP sequences); GET all-roles, writes owner/manager | agency | new 2026-08-20 |
 <!-- AQUACRM_SOURCE_END path="docs/workspace/api-reference.md" -->
 
@@ -1741,7 +1742,7 @@ ingestion; the blob backend holds everything else described across the
 
 ## Source document — `docs/workspace/env-and-sellability.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/env-and-sellability.md" sha256="6541a737c2ee5049803bb94d55ef3d7ca1a876a873d746980a737e14933b7a2d" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/env-and-sellability.md" sha256="3dfcad335c9f15c1dfd4980be5c49e70d58facb656564653493d12d1a6354490" -->
 # Chapter — Env-only settings & the cost of selling AquaCRM
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md) · Sibling: [feature-index](feature-index.md) · [hazards-and-duplication](hazards-and-duplication.md)
@@ -1871,9 +1872,9 @@ is to union those into `configuredOrigins()` — not a new store.
 Adjacent, same route, not env but same blocker: `isTradingBrandSlug(brand)`
 gates on Ed's hardcoded trading-brand slugs.
 
-### 1.3 — Readiness tells them they are permanently unready.
+### 1.3 — Readiness tells them they are permanently unready. **(RESOLVED 2026-08-31)**
 
-Full breakdown in §3.
+Full breakdown, and what the fix actually was, in §3.
 
 ### 1.4 — Google sign-in and Google Calendar can never be connected.
 
@@ -2008,7 +2009,12 @@ that are the only ones actually called, and no caller of their own anywhere in
 
 ---
 
-## 3. The `inspectProductionReadiness()` conflict
+## 3. The `inspectProductionReadiness()` conflict **(RESOLVED 2026-08-31)**
+
+> Everything from here to "Fix shape" is the record of what was wrong, kept
+> because the row-by-row table is still the map of which setting belongs to whom.
+> What changed is at the end of the section.
+
 
 `lib/server/productionReadiness.ts`. Called from two places, both passing the
 live `process.env`:
@@ -2066,13 +2072,60 @@ Connect Resend without it and the row goes green while
 `enquiryNotifications.ts:33` falls back to the literal `edwardhallam07@gmail.com`.
 Green light, buyer's enquiries in Ed's inbox.
 
-### Fix shape
+### Fix shape — done 2026-08-31
 
-1. `managedEmailReady` → `managedProviders.has("resend") || managedProviders.has("smtp")`.
-2. Split `enquiryEmailReady` so it checks the *resolved values* (`resolveIntegrationValues(agencyId,"resend").notifyTo`), not merely that a connection exists.
-3. Take `agencyId` as an argument and mark each `ReadinessItem` with a scope — `"platform"` (operator only) or `"company"` (every agency). Render only `"company"` rows for a non-founder, and compute `ready` from the required *company* rows.
-4. `envKeys` on each item is a founder-facing debugging aid. Keep it, but do not show it to a tenant — it names variables they cannot set.
-5. Only then: `google` becomes company-scoped or platform-scoped per the §1.4 decision.
+Steps 1–4 are implemented. The record of what each one was, and what it is now:
+
+1. ✅ `managedEmailReady` accepts `smtp` as well as `resend`.
+2. ✅ Better than proposed. Rather than re-deriving the answer here, readiness now
+   *asks the send paths themselves*: `transactionalEmailReadiness(agencyId)` and
+   `resolveEnquiryNotificationRouting(agencyId)` are the authorities, passed in as
+   `transactionalEmailConfigured` / `enquiryNotificationsConfigured` on
+   `ReadinessContext`. The enquiry half is true only when a key, a **resolved
+   recipient** and a verified sender all exist — the same three values
+   `notifyBrandEnquiry` refuses to send without — so the screen and the sender
+   cannot disagree. It also inherits the activation rule for free: credential
+   bytes saved but never activated are not a connection.
+3. ✅ `ReadinessItem.scope` is `"platform" | "company"`, and `ProductionReadiness`
+   now reports its `audience`. An agency the environment does not belong to
+   (`environmentCredentialsBelongToAgency`, from `mayUseEnvironmentCredentials`)
+   sees company rows only, has every env fallback withheld from its optional rows
+   too — a green "GitHub publishing" row would have been Ed's token — and gets
+   `ready` computed from its required company rows alone.
+4. ✅ `envKeys` is emptied for a company audience. It is not merely unrendered:
+   the readiness object is serialised into the browser through `SettingsTabs`.
+5. ⏸ `google` is scoped `"platform"`, which is what it IS today — one env-only
+   OAuth web client, no per-company path anywhere in the app — so a tenant is not
+   shown a row they cannot act on. Whether it should BECOME per-company is still
+   the open §1.4 decision; the classification records today's implementation and
+   does not settle it.
+
+Both callers build the context through the ONE shared builder,
+`readinessContextForAgency` (`lib/server/dev/devTeamAuditor.ts`): Settings had a
+hand-rolled copy of it and now imports it, which is what stops the two screens
+drifting apart again.
+
+Pinned by `scripts/smoke-production-readiness.test.ts` (the scope contract, both
+email directions, and the operator keeping the full view) and
+`scripts/smoke-dev-team-auditor.test.ts` (the same contract end-to-end through
+real vault connections: an SMTP company is judged on its own sender, and a
+company reaches `ready: true` with no redeploy).
+
+Still open from §1 after this: the ungated `openai` / `github` / `meta` env
+fallbacks in §1.1's table, `brand-enquiry` origins (§1.2), and everything in
+§2.3. Readiness no longer *reports* those as the buyer's, but the code paths
+still reach past the gate.
+
+**Also still open, and narrower than step 1 above reads.** Accepting `smtp`
+fixes the *account mail* half only. Public enquiry alerts leave through Resend
+and nothing else — `notifyBrandEnquiry` calls `sendResendEmail`, and
+`resolveEnquiryNotificationRouting` resolves `resend` values exclusively — so an
+SMTP-only workspace satisfies half of a REQUIRED row and still reads
+`ready: false` forever. That is the same "permanently unready" shape §1.3
+describes, just smaller. Until `notifyBrandEnquiry` has an SMTP path the row's
+action names the only thing that actually clears it (connect Resend); the action
+must not be softened back to "set a support email", which for an SMTP-only
+workspace is a remedy that leaves the row red.
 
 Note `devTeamAuditor.ts:403` already documents exactly this class of bug
 ("two screens disagreeing about one fact") for `managedIntegrationProviders`.
@@ -2266,7 +2319,7 @@ _(For which plugin owns a feature, see the [plugins chapter](plugins.md). For an
 
 ## Source document — `docs/workspace/hazards-and-duplication.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/hazards-and-duplication.md" sha256="1cac9563fe95cbd412e155f6480d692bd5294e9ca1da5cf6292a3e73e225b684" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/hazards-and-duplication.md" sha256="37759774c91995895cca02e34f12aac756bcd0841503d5b58fb8fb7a678f1a91" -->
 # Chapter — Hazards & duplication (read before editing)
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
@@ -2302,7 +2355,7 @@ Editing one does **not** change the others. Confirm which surface you're on befo
 
 ### Two "who is this person" models
 - `lib/clients/clientContacts.ts` — simple contacts embedded on a client.
-- `lib/server/identityResolution.ts` + `personInteractions.ts` — the resolution graph.
+- `lib/server/identityResolution.ts` + `personInteractionsService.ts` — the resolution graph.
 
 ### Two client activity logs
 - `lib/clients/clientRelationshipRecord.ts` (client-safe) vs `lib/server/clients/clientRecordLedger.ts`. Confirm canonical before writing history entries.
@@ -2725,6 +2778,19 @@ import the wrong one. The server halves are now suffixed `Service`:
 `commandIntelligenceService` · `advisorSkillsService` · `brandPortfolioService`.
 Rule going forward: a server counterpart of a client-safe module carries the
 `Service` suffix, never the bare twin name.
+
+**Straggler closed 2026-08-31:** the server half of `personInteractions` had kept
+the bare name and is now **`lib/server/personInteractionsService.ts`** (the bare
+`lib/server` filename no longer exists — do not link it). The rule is
+no longer a convention: `scripts/smoke-person-interactions.test.ts` sweeps both
+lib halves and fails on any shared filename.
+
+**Still outstanding (two pairs, chrome preference cookies):**
+`lib/server/devIconPreference.ts` ↔ `lib/chrome/devIconPreference.ts` and
+`lib/server/performanceMode.ts` ↔ `lib/chrome/performanceMode.ts`. They are
+pinned as known in that sweep's `KNOWN_UNRESOLVED` list so a NEW twin still
+fails; renaming them touches the agency/clients/dev-team layouts and was left
+out of the person-interactions change deliberately.
 
 ## Who decides the tenant on a plugin API call — SETTLED 2026-08-22
 

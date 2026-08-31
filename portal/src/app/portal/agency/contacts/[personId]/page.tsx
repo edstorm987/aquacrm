@@ -16,7 +16,7 @@ import {
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 
-import { personInteractions } from "@/lib/server/personInteractions";
+import { personInteractions } from "@/lib/server/personInteractionsService";
 
 import { ContactCard } from "./_ContactCard";
 
