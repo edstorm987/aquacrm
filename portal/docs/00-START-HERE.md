@@ -2,7 +2,7 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-08-31 from **20** source documents / **29,495 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-31 from **20** source documents / **30,049 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -21,7 +21,7 @@
 - [`docs/DEVELOPMENT-HANDOFF.md`](#source-docs-development-handoff-md) — 1,552 words · `9199166a1f30`
 - [`docs/development-workspace-cleanup.md`](#source-docs-development-workspace-cleanup-md) — 793 words · `bdb46a5cecd3`
 - [`docs/development.md`](#source-docs-development-md) — 3,248 words · `dd5efef22882`
-- [`docs/development/CAMPAIGN-LEDGER.md`](#source-docs-development-campaign-ledger-md) — 8,263 words · `aff8d4bf94da`
+- [`docs/development/CAMPAIGN-LEDGER.md`](#source-docs-development-campaign-ledger-md) — 8,817 words · `9d05e3f0b127`
 - [`docs/development/CLOUD-RESUME.md`](#source-docs-development-cloud-resume-md) — 500 words · `03458cdf18bf`
 - [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 2,209 words · `f8dfdfa9cfad`
 - [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,622 words · `98fe02dc9d94`
@@ -2161,7 +2161,7 @@ else hangs from.*
 
 ## Source document — `docs/development/CAMPAIGN-LEDGER.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/CAMPAIGN-LEDGER.md" sha256="aff8d4bf94dad182104e674c98c3ee58407a1020c5405d9c6009840d18f821b4" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/CAMPAIGN-LEDGER.md" sha256="9d05e3f0b127f7d08410bc57e9822c469f2f1131614a59b15c2c2d97140321c4" -->
 # Campaign ledger — every documented to-do, verified against source
 
 *Generated 2026-08-30 from a 131-agent triage: one independent read-only investigator
@@ -2703,6 +2703,78 @@ path is worth removing on its own merits. That is a **runtime** improvement,
 The Vercel build log for `6hDw2Zx8e8tjcxL7pTPMhgxtp4ae`. Until someone reads
 it, the cause is unknown. Guessing further from here would just produce more
 confident-sounding wrong answers.
+
+---
+
+## Post-merge follow-up — 2026-08-31
+
+### FIXED — the module boundary (the campaign's own top recommendation)
+
+Root `package.json` had no `type`; all twelve plugin packages declared
+`"type": "module"`. Removing those twelve declarations aligned them with the
+root and ended the CJS/ESM split.
+
+| | before | after |
+| --- | --- | --- |
+| website-editor gate | **0 / 49 files** | **49 / 49** |
+| canonical suite | 5,772 tests · 24 fail · 12 cancelled | 5,799 tests · **1 fail** · 0 cancelled |
+| module suites | 229 / 230 | **252 / 252** |
+
+The test count RISES because suites that used to die at import now run. Two
+consequences of uniform CJS were fixed rather than worked around: one
+top-level await wrapped in an async IIFE, and `import.meta.dirname` (undefined
+under the CJS transform) replaced with `dirname(fileURLToPath(import.meta.url))`
+in six suites — the pattern `smoke-next-route-contracts.test.ts` had already
+documented after hitting this alone.
+
+The one remaining failure, `smoke-public-contact.test.ts`, reads
+`/home/user/aquaoasis-web/website/components/ChatBot.tsx` — a sibling
+repository not present in this container. Environmental, not a defect.
+
+### FIXED — MFA enrolment answered 500 on every viewport
+
+`createRouteSupabaseClient` calls `requireSupabasePublicConfig()`, which
+THROWS when Supabase is absent; an uncaught throw in a route handler is a 500.
+So a deployment with no Supabase credentials reported "two-factor is broken"
+rather than "two-factor is not set up here". All three MFA handlers now
+consult `mfaUnavailableResponse()` and answer **503 with the reason**. Pinned
+by a sweep that counts guards against handlers, so a new MFA handler cannot
+silently omit it.
+
+### NOT FIXED — the focus-ring investigation failed, and this is what was ruled out
+
+The five-control focus fix did **not** land. Three hypotheses were tested
+against the real browser and all three are **disproven**:
+
+1. *Specificity* — the global rule uses `:where(...)` (zero specificity). Not
+   the cause: adding an `:is(...)` copy changed nothing.
+2. *Tailwind preflight* — it sets `border: 0 solid` on `*`, **not** `outline`.
+3. *Cascade layers* — the rule sits in `@layer components`, which loses to
+   `@layer utilities`. An UNLAYERED copy was served (verified present in
+   `document.styleSheets`) and the elements still computed `outline-width: 0`.
+
+The decisive and still-unexplained observation: on the six failing controls,
+`:focus-visible` **matches**, CDP reports the global outline rule as the only
+matching outline rule, and yet an inline `outline: 3px solid red !important`
+on a connected element **still computes to `0px`**. That is not a cascade
+problem. Something structural prevents outline rendering on these specific
+elements and it was not identified.
+
+The speculative CSS was reverted rather than shipped — it demonstrably did
+nothing, and leaving it with a confident comment would have been worse than
+leaving the bug. Anyone picking this up should start from that
+`!important`-is-ignored fact, not from the cascade.
+
+### Two findings recorded on `/portal/agency`
+
+- The React **hydration mismatch is gone** — resolved by the plugin-registry
+  graph split in PR #6, not by anything aimed at it.
+- A genuine **render-time side effect** remains: *"Can't perform a React state
+  update on a component that hasn't mounted yet… you have a side-effect in your
+  render function."* This matches the "hidden render-time mutation" that
+  `CLAUDE.md`'s continuation item 6 already lists as open residue. React does
+  not name the component, so it needs its own hunt.
+- One 404 resource request on that page, uninvestigated.
 <!-- AQUACRM_SOURCE_END path="docs/development/CAMPAIGN-LEDGER.md" -->
 
 ---

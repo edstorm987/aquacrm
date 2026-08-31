@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { createRouteSupabaseClient } from "@/lib/supabase/route";
-import { issueRecoveryCodesIfMissing } from "@/lib/server/auth/mfa";
+import { issueRecoveryCodesIfMissing, mfaUnavailableResponse } from "@/lib/server/auth/mfa";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getUserByLogin } from "@/server/users";
 
@@ -13,6 +13,12 @@ import { getUserByLogin } from "@/server/users";
  * security-critical code, which is how one of them ends up subtly weaker.
  */
 export async function POST(request: NextRequest) {
+  // A deployment with no Supabase auth cannot do two-factor at all. Say so
+  // with a 503 instead of letting requireSupabasePublicConfig() throw into
+  // an unhandled 500, which reads as "this is broken" rather than "not set up".
+  const unavailable = mfaUnavailableResponse();
+  if (unavailable) return unavailable;
+
   const { client, applyCookies } = createRouteSupabaseClient(request);
 
   // Stated, rather than inherited. Every `client.auth.mfa.*` call below already
