@@ -11,7 +11,7 @@ import type { RadarTelemetrySnapshot } from "@/engines/data/server/radar/radarTe
 import type { buildCompanyHealthSnapshot } from "@/engines/data/server/kpi/companyHealthSnapshot";
 import type { LegalDocument, PortalState, ServerUser, AgencyTask, Client } from "@/server/types";
 import { buildHiringCapacityAnalysis, buildHiringCapacitySignals } from "@/lib/performance/hiringCapacity";
-import { PLUGIN_HEALTH_STALE_MS } from "@/lib/server/plugins/pluginHealthRunner";
+import { PLUGIN_HEALTH_STALE_MS } from "@/lib/plugins/pluginHealthConstants";
 
 const DAY = 86_400_000;
 const HOUR = 3_600_000;

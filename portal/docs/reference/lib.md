@@ -2003,6 +2003,20 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ## `src/lib/plugins/`
 
+<a id="file-src-lib-plugins-pluginhealthconstants-ts-cc93050728"></a>
+
+### `src/lib/plugins/pluginHealthConstants.ts`
+
+**What it is:** must not cost the runtime it describes.
+
+**Exports (1):**
+
+- `PLUGIN_HEALTH_STALE_MS = 48 * HOUR` — How old a plugin-health report may be before Radar calls it stale.
+
+**Depends on:** _No internal imports._
+
+**Used by (2):** [`src/engines/data/server/radar/radarObservations.ts`](engines.md#file-src-engines-data-server-radar-radarobservations-ts-6bebaf275c) · [`src/lib/server/plugins/pluginHealthRunner.ts`](#file-src-lib-server-plugins-pluginhealthrunner-ts-feda990895)
+
 <a id="file-src-lib-plugins-pluginsetupstatus-ts-82a3c6194e"></a>
 
 ### `src/lib/plugins/pluginSetupStatus.ts`
@@ -5412,13 +5426,13 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async runPluginHealthSweep(agencyId: string, options: { now?: number; force?: boolean; actor?: string } = {}): Promise<PluginHealthSweepResult>` — Ask every enabled install in an agency and PERSIST the answers. Runs agency-scoped and client-scoped installs alike, because that is the set Radar's `systems:module-health` counts…
 - `HEALTHCHECK_TIMEOUT_MS = 5_000` — Long enough for a real check, short enough that a page can wait for it.
 - `PLUGIN_HEALTH_CADENCE_MS = 6 * HOUR` — Minimum gap between two persisted checks of the same install. Deliberately shorter than the daily sweep that drives it: a gate set AT the cadence makes a daily job skip itself on …
-- `PLUGIN_HEALTH_STALE_MS = 48 * HOUR` — How long a recorded answer counts as current evidence. Matches Radar's default freshness guardrail (48h). Past this the answer is not wrong, it is simply no longer proof — which i…
 - `interface PluginHealthRow (6 members)`
 - `interface PluginHealthSweepResult (6 members)`
+- `{ PLUGIN_HEALTH_STALE_MS } from "@/lib/plugins/pluginHealthConstants"`
 
-**Depends on (6):** [`src/built-ins/runtime/_registry.ts`](built-ins.md#file-src-built-ins-runtime-registry-ts-504f0b067d) · [`src/built-ins/runtime/_runtime.ts`](built-ins.md#file-src-built-ins-runtime-runtime-ts-d2a0efb5ed) · [`src/built-ins/runtime/_types.ts`](built-ins.md#file-src-built-ins-runtime-types-ts-bae4cd6b2a) · [`src/lib/server/plugins/readOnlyPluginStorage.ts`](#file-src-lib-server-plugins-readonlypluginstorage-ts-2e4e793f30) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (7):** [`src/built-ins/runtime/_registry.ts`](built-ins.md#file-src-built-ins-runtime-registry-ts-504f0b067d) · [`src/built-ins/runtime/_runtime.ts`](built-ins.md#file-src-built-ins-runtime-runtime-ts-d2a0efb5ed) · [`src/built-ins/runtime/_types.ts`](built-ins.md#file-src-built-ins-runtime-types-ts-bae4cd6b2a) · [`src/lib/plugins/pluginHealthConstants.ts`](#file-src-lib-plugins-pluginhealthconstants-ts-cc93050728) · [`src/lib/server/plugins/readOnlyPluginStorage.ts`](#file-src-lib-server-plugins-readonlypluginstorage-ts-2e4e793f30) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (5):** [`scripts/smoke-plugin-health-route.test.ts`](scripts.md#file-scripts-smoke-plugin-health-route-test-ts-e71d45300f) · [`scripts/smoke-radar-infra-health.test.ts`](scripts.md#file-scripts-smoke-radar-infra-health-test-ts-80f7f35f54) · [`src/app/api/portal/plugins/health/route.ts`](app.md#file-src-app-api-portal-plugins-health-route-ts-e01f64510d) · [`src/engines/data/server/radar/radarObservations.ts`](engines.md#file-src-engines-data-server-radar-radarobservations-ts-6bebaf275c) · [`src/engines/data/server/radar/radarSweeps.ts`](engines.md#file-src-engines-data-server-radar-radarsweeps-ts-f7254dc20d)
+**Used by (4):** [`scripts/smoke-plugin-health-route.test.ts`](scripts.md#file-scripts-smoke-plugin-health-route-test-ts-e71d45300f) · [`scripts/smoke-radar-infra-health.test.ts`](scripts.md#file-scripts-smoke-radar-infra-health-test-ts-80f7f35f54) · [`src/app/api/portal/plugins/health/route.ts`](app.md#file-src-app-api-portal-plugins-health-route-ts-e01f64510d) · [`src/engines/data/server/radar/radarSweeps.ts`](engines.md#file-src-engines-data-server-radar-radarsweeps-ts-f7254dc20d)
 
 <a id="file-src-lib-server-plugins-pluginsecretconfig-ts-8cb887a277"></a>
 
