@@ -866,3 +866,47 @@ build independent of whatever Vercel's cache happens to hold. It does not follow
 that it explains all five past failures, and **a green deployment now would be
 weak evidence either way** — `9f0ecc4d` was already green without it. Treat a
 further failure as a second, separate cause rather than as this one returning.
+
+---
+
+## The `/portal/agency` render-time side effect: narrowed, and the class closed
+
+`CLAUDE.md` item 6 lists a "hidden render-time mutation" as open residue, seen as
+
+    Can't perform a React state update on a component that hasn't mounted yet.
+
+It is timing dependent — it did not reproduce across **51 loads** of that page in
+three consecutive browser-matrix runs — so a browser walk is the wrong
+instrument. React's warning names a STRUCTURAL mistake, and structure can be read
+from source whether or not the timing lines up on the day you look.
+
+**Result: across 750 client components, zero cross-component render-phase
+updates.** No prop callback, `dispatch`, `emit` or `notify` is called from a
+render body anywhere in the app.
+
+The only render-phase state updates that exist are three of React's documented
+"adjusting state when props change" — a component calling its OWN setter behind
+a guard, which React re-renders immediately and never warns about:
+
+| component | why |
+| --- | --- |
+| `BattleTableWorkspace` | reconciles navigation against the scopes it was given |
+| `AppConfigEditor` | re-syncs when the server hands it a newer revision |
+| `EmailButton` | kills a draft when the recipient changes underneath it |
+
+Each already carried a comment explaining itself. All three are correct.
+
+**So the warning is not a synchronous cross-component update in application
+code.** What remains: an async callback — a promise, timer or observer —
+resolving before its target mounts, or something inside a dependency. That is a
+real narrowing, not a resolution, and the item stays open with the search space
+cut down.
+
+`scripts/smoke-render-phase-state.test.ts` keeps the negative result true. It
+fails if any component updates another during render, and separately if one of
+the three adjustments loses its guard (unguarded, they re-render forever). It
+also asserts the three are still present, so a refactor cannot produce a clean
+sheet for the wrong reason, and asserts the scan reached 500+ files, so a broken
+collector cannot report "none found" from having looked at nothing. Verified
+two-sided: a prop callback added to a render body fails it; removing
+`BattleTableWorkspace`'s guard fails it. 3.3s, four assertions.
