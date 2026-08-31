@@ -348,7 +348,7 @@ describe("Observability — src/instrumentation.ts is the mounted server boundar
     assert.equal((captured?.[1] as Error).message, "boom from a route handler");
   });
 
-  it("register() warns at boot when a DSN is set but nothing can deliver", () => {
+  it("register() warns at boot when a DSN is set but nothing can deliver", async () => {
     const previousEnv = process.env.NODE_ENV;
     const previousDsn = process.env.SENTRY_DSN;
     const warnings: unknown[][] = [];
@@ -357,7 +357,10 @@ describe("Observability — src/instrumentation.ts is the mounted server boundar
     try {
       process.env.NODE_ENV = "development";
       process.env.SENTRY_DSN = "https://public@o0.ingest.sentry.io/0";
-      register();
+      // `register` is async since the capability probe became a Node-only
+      // dynamic import (it must not reach the Edge bundle). Awaiting it is the
+      // difference between observing the warning and racing past it.
+      await register();
     } finally {
       console.warn = originalWarn;
       if (previousEnv === undefined) delete process.env.NODE_ENV;

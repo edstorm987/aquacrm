@@ -26,7 +26,14 @@ import {
   recordBreadcrumb,
   type ObservabilityBreadcrumb,
 } from "@/lib/server/observability";
-import { inspectObservabilityCapability } from "@/lib/server/observabilityCapability";
+// NOT a static import. Next loads this file in BOTH the Node and Edge
+// runtimes, and `observabilityCapability` resolves the optional Sentry package
+// with `node:module` + `node:path`, neither of which exists on Edge. A static
+// import therefore pulled Node builtins into the Edge instrumentation bundle,
+// which failed to compile — and a broken edge bundle answers 404 for routes
+// that are perfectly healthy in source (the browser matrix caught
+// `/api/portal/chrome/layout` and both telephony endpoints 404ing across every
+// viewport for exactly this reason). It is loaded below, on Node only.
 
 /** Path shapes that carry a tenant id we can attach without guessing. */
 const CLIENT_SCOPE = /^\/(?:api\/)?portal\/clients\/([^/?#]+)/;
@@ -67,7 +74,25 @@ export function describeRequestError(
  * makes a mis-configured monitoring setup (DSN set, SDK absent) visible in
  * the boot log instead of silently swallowing every later capture.
  */
-export function register(): void {
+export async function register(): Promise<void> {
+  // Edge has no `node:module`, so the capability probe cannot run there — and
+  // must not even be bundled there. On Edge the breadcrumb still records, with
+  // the capability reported as unknown rather than guessed at.
+  //
+  // The test is "is this EDGE", not "is this not nodejs". Next sets
+  // NEXT_RUNTIME to "nodejs" or "edge"; OUTSIDE Next it is undefined, which a
+  // `!== "nodejs"` check would have wrongly treated as Edge — skipping the
+  // probe in every plain Node process, the smoke suite included, so a DSN set
+  // without the SDK would have gone unannounced.
+  if (process.env.NEXT_RUNTIME === "edge") {
+    recordBreadcrumb("server.start", {
+      environment: process.env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV ?? "development",
+      sentry: "unknown-on-edge",
+    });
+    return;
+  }
+
+  const { inspectObservabilityCapability } = await import("@/lib/server/observabilityCapability");
   const capability = inspectObservabilityCapability();
   if (capability.dsnConfigured && !capability.capturing && process.env.NODE_ENV !== "test") {
     // eslint-disable-next-line no-console

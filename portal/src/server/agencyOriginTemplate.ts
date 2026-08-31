@@ -119,6 +119,11 @@ export const ORIGIN_NEVER_CONTRIBUTES: Readonly<Record<string, readonly Collecti
     "customKpis", "operationalAlertPreferences", "userChromeLayouts",
     "assistant", "editorAiConversations",
     "notepadFolders", "notepadNotes", "automationRuns",
+    // Real people who asked to see AquaCRM — the founder's own funnel, and
+    // named contact details. Seeding it into a new agency would hand one
+    // tenant another tenant's enquirers, which is the exact leak this
+    // classification exists to prevent. Never contributes.
+    "websiteDemoSignups",
   ],
   // The tenant's own identity and estate, which a new agency defines itself.
   tenancy: [

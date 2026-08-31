@@ -256,6 +256,30 @@ four surfaces source it.
   "Business" on the dashboard chip and "client" in the Activity log / Updates tab. Two sources of
   category wording still exist; picking one is Ed's call.
 
+### Two privacy notices — DELIBERATE, and `/privacy` is NOT the demo one (2026-08-31)
+`/privacy` is the **published AquaCRM marketing notice**, served as a static file:
+`next.config.ts` rewrites `/privacy` and `/privacy/` to `public/aquacrm-site/privacy/index.html`.
+That rewrite is in **`beforeFiles`**, which Next evaluates *ahead of the filesystem*, so a page at
+`src/app/(website)/privacy/` would never render — no 404, no flag, just silently unreachable. Its
+content is pinned by `scripts/smoke-privacy-notice-truth.test.ts` (it holds an open, deliberate
+contradiction with the Aqua Tag; read that test before editing it).
+
+The **AquaCRM demo** notice is a different document with a different subject, and lives at
+**`/demo-privacy`** (`src/app/(website)/demo-privacy/page.tsx`) behind `WEBSITE_DEMO_ENABLED`. It
+was originally built at `/privacy` and was shadowed by the rewrite above — caught in review
+2026-08-31 — which would have pointed the demo consent line at a document whose version is not the
+one stamped on the visitor's record. `scripts/smoke-website-demo-gate.test.ts` now fails if any
+demo route is shadowed by a `beforeFiles` rewrite. **Do not "tidy" `/demo-privacy` back onto
+`/privacy`, and do not add a page under any other `beforeFiles` source** (`/`, `/projects`,
+`/contact`, `/styles.css`, `/site-experience.js`, `/projects.js`, `/assets/*`).
+
+Related, and NOT fixed: `src/app/(website)/layout.tsx` injects `/aqua-tag.js` on **every** page in
+the route group under the *milesymedia* agency's site key and `data-property="milesymedia-website"`
+— the AquaCRM demo pages included, flag or no flag. `DemoGateForm` therefore carries
+`data-aqua-ignore` so the tag cannot read its field values into the live `form-capture` surface
+(pinned). The remaining pageview beacons still attribute AquaCRM demo traffic to the Milesymedia
+property; gating the layout's tag per brand is an open product decision.
+
 ### Two assistant conversation stores — DELIBERATE, do NOT unify (2026-08-21)
 `PortalState.assistant` (keyed `${agencyId}|${userId}`, via
 `src/lib/server/assistants/assistantStore.ts`) is the **Aqua Advisor's** — one private history

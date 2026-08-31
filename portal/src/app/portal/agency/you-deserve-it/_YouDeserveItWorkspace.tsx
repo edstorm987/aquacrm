@@ -137,6 +137,7 @@ export function YouDeserveItWorkspace({
   const [view, setView] = useState<View>("catalogue");
   const [planDraft, setPlanDraft] = useState<PlanDraft | null>(null);
   const [packageDraft, setPackageDraft] = useState<PackageDraft | null>(null);
+  const [planError, setPlanError] = useState("");
   const [catalogueSearch, setCatalogueSearch] = useState("");
   const [catalogueAudience, setCatalogueAudience] = useState<CatalogueAudience>("all");
   const [showArchived, setShowArchived] = useState(false);
@@ -170,13 +171,17 @@ export function YouDeserveItWorkspace({
   }
 
   async function updatePlan(record: ClientDelightRecord, patch: Partial<ClientDelightRecord>) {
+    setPlanError("");
     const response = await fetch("/api/tenants/client-delight", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ action: "update", id: record.id, ...patch }),
     });
-    const json = await response.json().catch(() => null) as { record?: ClientDelightRecord } | null;
-    if (response.ok && json?.record) upsertRecord(json.record);
+    const json = await response.json().catch(() => null) as { record?: ClientDelightRecord; error?: string } | null;
+    if (response.ok && json?.record) { upsertRecord(json.record); return; }
+    // A refused move (Finance has not signed the spend off yet) must say so and
+    // say what clears it — never fail silently and leave the row looking moved.
+    setPlanError(json?.error ?? "Could not update this experience.");
   }
 
   async function toggleStep(record: ClientDelightRecord, stepId: string) {
@@ -187,7 +192,8 @@ export function YouDeserveItWorkspace({
   async function removePlan(record: ClientDelightRecord) {
     if (!window.confirm(`Delete “${record.title}” for ${record.recipientName}?`)) return;
     const response = await fetch("/api/tenants/client-delight", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "delete", id: record.id }) });
-    if (response.ok) setRecords(current => current.filter(item => item.id !== record.id));
+    if (response.ok) { setPlanError(""); setRecords(current => current.filter(item => item.id !== record.id)); }
+    else setPlanError("Could not delete this experience.");
   }
 
   async function setPackageActive(item: ExperiencePackage, active: boolean) {
@@ -214,6 +220,10 @@ export function YouDeserveItWorkspace({
           <button type="button" onClick={() => setPlanDraft(emptyPlan(currency))} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white"><Sparkles size={15} /> Create live plan</button>
         </div>
       </header>
+
+      {planError ? (
+        <p role="alert" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-900">{planError}</p>
+      ) : null}
 
       <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Metric label="Curated packages" value={String(activePackages.length)} icon={<ShoppingBag size={17} />} tone="blue" />

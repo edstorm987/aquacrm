@@ -45,15 +45,24 @@
 // loudly instead of silently.
 
 import type {
+  ClientPortalBlockAlignment,
   ClientPortalBlockDataSource,
+  ClientPortalBlockSpacing,
+  ClientPortalBlockTone,
   ClientPortalBlockType,
+  ClientPortalBlockVisibilityRule,
+  ClientPortalBlockWidth,
+  ClientPortalMediaAspect,
+  ClientPortalMediaFit,
   ClientPortalPageBlock,
   ClientPortalProductMatch,
 } from "@/server/types";
 import type { Block, BlockType, ElementBinding, ElementVisibility } from "./block";
-import type { BlockDefinition } from "./definition";
+import type { BlockDefinition, PropField } from "./definition";
 import { servesSurface } from "./definition";
 import { getElementDefinition, registerElementDefinitions } from "./registry";
+import type { ElementSchema } from "./schema";
+import { buildElementSchema, validateElementProps } from "./schema";
 
 // ─── The pairing table ────────────────────────────────────────────────────
 
@@ -281,6 +290,250 @@ export function portalElementDefinition(type: ClientPortalBlockType): BlockDefin
   return getElementDefinition(pairing.alias ?? pairing.type);
 }
 
+// ─── The portal's own prop vocabulary ─────────────────────────────────────
+//
+// ELEMENT ENGINE P5. P3 merged the *list* of placeable things. The portal kept
+// its own, independent declaration of what a placeable thing's VALUES may be:
+// TWELVE hand-written `Set`s at the top of `clientPortalBuilder.ts` plus a
+// scattering of length caps buried in `normaliseBlocks`. That was registry B's
+// last piece in the STORE — a second answer to "is this a legal value for this
+// prop", sitting parallel to the shared `PropField`/`ElementSchema` contract
+// and invisible to it.
+//
+// ── What this does NOT yet converge (be exact about it) ───────────────────
+//
+// The portal's block inspector in `src/engines/editor/DevEditor.tsx` (see
+// `PortalBlockInspector` and `PortalMediaBlockEditor`) still hand-writes the
+// SAME vocabulary a third time: its own `<SelectField options={[…]}>` literals
+// for width, tone, spacing, alignment, visibility rule, product match, request
+// type, approval type, upload category, data source and media aspect/fit. Those
+// literals are not checked against the persisted unions either, so adding a
+// member below is a compile error here and still a silent omission there.
+//
+// It is deliberately NOT converged in this pass, for one reason: the panel's
+// option LABELS are authored operator copy ("Full width", "For every client",
+// "Let the client choose"), not the derived `optionLabel()` text below, so
+// pointing the panel at these tables would change what an operator reads. That
+// is a product decision, not a move. Until it is taken, the panel is a known
+// third copy — recorded here rather than left to be discovered.
+//
+// Two things were wrong with it, and both are fixed by moving the declaration
+// here:
+//
+//   • `validateElementProps` could say NOTHING about a portal block. A portal
+//     `hero` resolves through its alias to the WEBSITE `hero`, whose fields
+//     describe website props (`heading`, `subheading`, …), not `tone`/`eyebrow`
+//     /`body`. `portalElementSchema()` below is the portal's own generated
+//     contract, which is what an assistant has to plan against before it can
+//     propose a portal page (P6).
+//
+//   • The old `Set`s were NOT checked against the persisted unions. Adding a
+//     tone to `ClientPortalBlockTone` compiled cleanly and then silently
+//     coerced back to `"surface"` in the normaliser, because nothing tied the
+//     two together. `closedSet<T>()` below makes that a compile error.
+//
+// One table per side-channel `toElement` splits a stored block into, so the
+// vocabulary and the shape agree by construction:
+//
+//   PORTAL_PROP_FIELDS        → block props        (tone, width, title, body…)
+//   PORTAL_BINDING_FIELDS     → block.binding      (which records)
+//   PORTAL_VISIBILITY_FIELDS  → block.visibility   (who sees it)
+//   PORTAL_RESPONSIVE_FIELDS  → block.responsive
+//   PORTAL_MEDIA_FIELDS       → block.media
+//
+// `clientPortalBuilder` builds its normaliser sets and caps from these. The
+// stored record and the live HTML are unchanged, and
+// `scripts/smoke-portal-element-parity.test.ts` is what says so.
+//
+// NOT folded in here, deliberately: the `items[]` row caps and the `extension`
+// sandbox payload caps. They stay in the normaliser because they describe a
+// list row and a script payload, not authored props of the block — a prop-field
+// table naming `html` or `javascript` would describe a shape that does not
+// exist and would be read as one an assistant may propose.
+
+/**
+ * A closed value list, checked against the persisted union.
+ *
+ * Miss a member and `Exclude<...>` is not `never`, so the argument type
+ * collapses to `never` and the call stops compiling. This is the check the
+ * eleven hand-written `Set`s never had.
+ */
+function closedSet<T extends string>() {
+  return <const V extends readonly T[]>(values: Exclude<T, V[number]> extends never ? V : never): V => values;
+}
+
+export const PORTAL_WIDTHS = closedSet<ClientPortalBlockWidth>()(["full", "half"]);
+export const PORTAL_TONES = closedSet<ClientPortalBlockTone>()(["surface", "dark", "accent", "quiet"]);
+export const PORTAL_SPACINGS = closedSet<ClientPortalBlockSpacing>()(["none", "compact", "comfortable", "spacious"]);
+export const PORTAL_ALIGNMENTS = closedSet<ClientPortalBlockAlignment>()(["left", "center"]);
+export const PORTAL_DATA_SOURCES = closedSet<ClientPortalBlockDataSource>()(["portal-summary", "delivery", "billing", "results"]);
+export const PORTAL_VISIBILITY_RULES = closedSet<ClientPortalBlockVisibilityRule>()([
+  "always", "with-products", "without-products", "single-product", "multiple-products", "specific-products",
+]);
+export const PORTAL_PRODUCT_MATCHES = closedSet<ClientPortalProductMatch>()(["any", "all"]);
+export const PORTAL_REQUEST_TYPES = closedSet<NonNullable<ClientPortalPageBlock["requestType"]>>()([
+  "choose", "suggestion", "design-feedback", "support-ticket", "cancel", "move-provider",
+]);
+export const PORTAL_APPROVAL_TYPES = closedSet<NonNullable<ClientPortalPageBlock["approvalType"]>>()(["all", "design", "launch"]);
+export const PORTAL_UPLOAD_CATEGORIES = closedSet<NonNullable<ClientPortalPageBlock["uploadCategory"]>>()([
+  "brief", "recording", "inspiration", "design-feedback", "misc",
+]);
+export const PORTAL_MEDIA_ASPECTS = closedSet<ClientPortalMediaAspect>()(["landscape", "square", "portrait"]);
+export const PORTAL_MEDIA_FITS = closedSet<ClientPortalMediaFit>()(["cover", "contain"]);
+
+/**
+ * The character caps the normaliser truncates at.
+ *
+ * ONE declaration: the `PropField`s below carry these as `maxLength`, and
+ * `normaliseBlocks` slices at the same numbers. They used to be bare literals
+ * buried in the normaliser, so nothing that wanted to STATE the cap could reach
+ * it.
+ *
+ * Not yet true of the editor: `DevEditor`'s portal `Field` takes no `maxLength`
+ * at all, so an operator can still type past a cap and have the store silently
+ * truncate it on save. Wiring that up is a visible behaviour change to the
+ * inspector and belongs with the panel convergence noted above, not here.
+ */
+export const PORTAL_TEXT_LIMITS = {
+  eyebrow: 100,
+  title: 180,
+  body: 1_200,
+  actionLabel: 80,
+  actionHref: 500,
+  mediaUrl: 1_000,
+  mediaAlt: 240,
+  mediaCaption: 500,
+} as const;
+
+/** Turn `"with-products"` into `"With products"` for a palette label. */
+function optionLabel(value: string): string {
+  const words = value.replace(/-/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+function selectField(key: string, label: string, values: readonly string[]): PropField {
+  return { key, label, type: "select", options: values.map(value => ({ value, label: optionLabel(value) })) };
+}
+
+/** The authored props of a portal block — what an operator (or an assistant) writes. */
+export const PORTAL_PROP_FIELDS: readonly PropField[] = [
+  { key: "visible", label: "Visible", type: "boolean" },
+  selectField("width", "Width", PORTAL_WIDTHS),
+  selectField("tone", "Tone", PORTAL_TONES),
+  { key: "eyebrow", label: "Eyebrow", type: "text", maxLength: PORTAL_TEXT_LIMITS.eyebrow },
+  { key: "title", label: "Title", type: "text", maxLength: PORTAL_TEXT_LIMITS.title },
+  { key: "body", label: "Body", type: "textarea", maxLength: PORTAL_TEXT_LIMITS.body },
+  { key: "actionLabel", label: "Button label", type: "text", maxLength: PORTAL_TEXT_LIMITS.actionLabel },
+  { key: "actionHref", label: "Button link", type: "url", maxLength: PORTAL_TEXT_LIMITS.actionHref },
+];
+
+/** Which records a block reads. Stored flat; `toElement` moves these to `binding`. */
+export const PORTAL_BINDING_FIELDS: readonly PropField[] = [
+  selectField("dataSource", "Live data", PORTAL_DATA_SOURCES),
+  selectField("requestType", "Request type", PORTAL_REQUEST_TYPES),
+  selectField("approvalType", "Decisions shown", PORTAL_APPROVAL_TYPES),
+  selectField("uploadCategory", "Upload category", PORTAL_UPLOAD_CATEGORIES),
+];
+
+/** Who sees the block. `toElement` moves these to `visibility`. */
+export const PORTAL_VISIBILITY_FIELDS: readonly PropField[] = [
+  selectField("visibilityRule", "Who sees it", PORTAL_VISIBILITY_RULES),
+  selectField("productMatch", "Product match", PORTAL_PRODUCT_MATCHES),
+];
+
+/** `block.responsive`. */
+export const PORTAL_RESPONSIVE_FIELDS: readonly PropField[] = [
+  { key: "hideOnMobile", label: "Hide on mobile", type: "boolean" },
+  { key: "hideOnDesktop", label: "Hide on desktop", type: "boolean" },
+  selectField("spacing", "Spacing", PORTAL_SPACINGS),
+  selectField("alignment", "Alignment", PORTAL_ALIGNMENTS),
+];
+
+/** `block.media`, on the two types that carry one. */
+export const PORTAL_MEDIA_FIELDS: readonly PropField[] = [
+  { key: "url", label: "Media URL", type: "url", maxLength: PORTAL_TEXT_LIMITS.mediaUrl },
+  { key: "alt", label: "Alternative text", type: "text", maxLength: PORTAL_TEXT_LIMITS.mediaAlt },
+  { key: "caption", label: "Caption", type: "text", maxLength: PORTAL_TEXT_LIMITS.mediaCaption },
+  selectField("aspect", "Aspect", PORTAL_MEDIA_ASPECTS),
+  selectField("fit", "Fit", PORTAL_MEDIA_FITS),
+];
+
+/**
+ * The four side-channel tables, as generated schemas.
+ *
+ * `portalElementSchema` covers the AUTHORED props only, and deliberately so:
+ * `requestType` is a legal value on `request-form` and on nothing else, so a
+ * flat per-type schema naming it would describe a shape that does not exist —
+ * exactly what the prop table refuses to do for `html`/`javascript`.
+ *
+ * That left the other four tables declared and read by nobody, which is the
+ * dead-declaration hazard this directory exists to delete. So they are
+ * generated once here and CHECKED, per channel, by `portalVocabularyProblems`
+ * against every type's real stored record. A default `spacing` or media `fit`
+ * outside its closed list is now a named problem rather than a silent coercion.
+ */
+const PORTAL_SIDE_CHANNEL_SCHEMAS = {
+  binding: sideChannelSchema("portal:binding", PORTAL_BINDING_FIELDS),
+  visibility: sideChannelSchema("portal:visibility", PORTAL_VISIBILITY_FIELDS),
+  responsive: sideChannelSchema("portal:responsive", PORTAL_RESPONSIVE_FIELDS),
+  media: sideChannelSchema("portal:media", PORTAL_MEDIA_FIELDS),
+} as const;
+
+export type PortalSideChannel = keyof typeof PORTAL_SIDE_CHANNEL_SCHEMAS;
+
+function sideChannelSchema(type: string, fields: readonly PropField[]): ElementSchema {
+  return buildElementSchema({
+    type,
+    fields: [...fields],
+    // No defaults: a side channel's defaults live on the type's own record, and
+    // `portalVocabularyProblems` validates that record against this schema.
+    defaultProps: {},
+    isContainer: false,
+    surfaces: ["portal"],
+  });
+}
+
+/** The generated contract for one of a portal block's side channels. */
+export function portalSideChannelSchema(channel: PortalSideChannel): ElementSchema {
+  return PORTAL_SIDE_CHANNEL_SCHEMAS[channel];
+}
+
+const PORTAL_SCHEMA_CACHE = new Map<string, ElementSchema>();
+
+/**
+ * The portal's machine-checkable contract for one of its types.
+ *
+ * NOT a registry entry — adding sixteen of those is exactly the second registry
+ * P3 deleted. It is a generated view: the portal's prop fields, with this
+ * type's own authoring defaults, run through the same `buildElementSchema` the
+ * website definitions use. `undeclared` therefore names the stored keys that
+ * are not authored props (`items`, `media`, `dataSource`, `responsive`, …), so
+ * a caller can see they exist rather than discovering them by surprise.
+ *
+ * This is what `validateElementProps` needs to answer anything about a portal
+ * block. Before it, the alias handed back the WEBSITE element's schema, which
+ * describes different props entirely.
+ */
+export function portalElementSchema(type: ClientPortalBlockType): ElementSchema {
+  const pairing = portalElementPairing(type);
+  const cached = PORTAL_SCHEMA_CACHE.get(pairing.type);
+  if (cached) return cached;
+
+  // The type's real authoring defaults, straight from the record it inserts —
+  // one source, so a schema default can never disagree with what an operator
+  // actually gets. `id`/`type` are identity, not props.
+  const { id: _id, type: _type, ...defaults } = createPortalBlockRecord(pairing.type, "schema");
+  const schema = buildElementSchema({
+    type: pairing.type,
+    fields: [...PORTAL_PROP_FIELDS],
+    defaultProps: defaults as Record<string, unknown>,
+    isContainer: false,
+    surfaces: ["portal"],
+  });
+  PORTAL_SCHEMA_CACHE.set(pairing.type, schema);
+  return schema;
+}
+
 // ─── The two genuinely new elements ───────────────────────────────────────
 
 /**
@@ -391,6 +644,31 @@ export function portalVocabularyProblems(): PortalVocabularyProblem[] {
         type: pairing.type,
         message: `resolves to "${target}", which does not serve the portal surface`,
       });
+    }
+
+    // P5 — and the type's own authoring defaults must satisfy the portal's own
+    // generated schema. A default that the schema rejects means an operator
+    // inserts a block the same validator would refuse a moment later, which is
+    // the drift a generated contract exists to make impossible.
+    const record = createPortalBlockRecord(pairing.type, `check-${pairing.type}`);
+    const flat = record as unknown as Record<string, unknown>;
+    // `binding`/`visibility` are stored FLAT on the record — `toElement` is what
+    // moves them into their side channels — so they read the record directly;
+    // `responsive`/`media` are stored nested and read their own object. `media`
+    // is absent on every type but `image`/`video`, and an absent channel is
+    // nothing to check rather than a problem.
+    const channels: Array<[string, ElementSchema, Record<string, unknown> | undefined]> = [
+      ["default", portalElementSchema(pairing.type), flat],
+      ["binding", PORTAL_SIDE_CHANNEL_SCHEMAS.binding, flat],
+      ["visibility", PORTAL_SIDE_CHANNEL_SCHEMAS.visibility, flat],
+      ["responsive", PORTAL_SIDE_CHANNEL_SCHEMAS.responsive, record.responsive as unknown as Record<string, unknown>],
+      ["media", PORTAL_SIDE_CHANNEL_SCHEMAS.media, record.media as unknown as Record<string, unknown> | undefined],
+    ];
+    for (const [label, channelSchema, values] of channels) {
+      if (!values) continue;
+      for (const problem of validateElementProps(channelSchema, values)) {
+        problems.push({ type: pairing.type, message: `${label} ${problem.key} ${problem.message}` });
+      }
     }
   }
   return problems;

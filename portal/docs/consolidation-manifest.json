@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-31T02:46:45.752Z",
+  "generatedAt": "2026-08-31T04:08:56.610Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -423,9 +423,9 @@
       "path": "docs/development/CAMPAIGN-LEDGER.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-campaign-ledger-md",
-      "sha256": "9a89c8c4dfdd5fb1073388ece4080f9142c147122870882e822d2a7ee7c00fa5",
-      "words": 7339,
-      "bytes": 53611
+      "sha256": "fea7f9bed64aedb29f84300119924e580e741ba122d8f97db7f98d8ce0294c4c",
+      "words": 7842,
+      "bytes": 56545
     },
     {
       "path": "docs/development/checklist.md",
@@ -1087,9 +1087,9 @@
       "path": "docs/workspace/api-reference.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-api-reference-md",
-      "sha256": "f47b98abebb952777258786b470e92032c4009907418c454a39cf9900415d4f2",
-      "words": 8272,
-      "bytes": 57986
+      "sha256": "61910fdc1f8552442a4034409c595e6b07e22c348d7eaa456f608002a4a833d1",
+      "words": 8313,
+      "bytes": 58279
     },
     {
       "path": "docs/workspace/aqua-tag.md",
@@ -1135,9 +1135,9 @@
       "path": "docs/workspace/hazards-and-duplication.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-hazards-and-duplication-md",
-      "sha256": "37759774c91995895cca02e34f12aac756bcd0841503d5b58fb8fb7a678f1a91",
-      "words": 6956,
-      "bytes": 53700
+      "sha256": "b2d1e0e72c27ef36649fce3eb6a49de0832dc39353f7d5b489cb8d4b9f2f1041",
+      "words": 7211,
+      "bytes": 55632
     },
     {
       "path": "docs/workspace/kpi-intelligence.md",

@@ -357,6 +357,23 @@ export const PROMOTION_DISPOSITION = {
     needsConfirmation: true,
   },
 
+  websiteDemoSignups: {
+    // Public AquaCRM demo-gate signups. `na` — there is nothing here to
+    // promote, and that is a property of WHERE they live, not a judgement.
+    //
+    // These records carry no agency and no company. They are written in the
+    // `website-demo` data realm (`server/websiteDemo.ts`), never the live one,
+    // so a promotion working over live-realm state does not see them at all.
+    // The subject is a stranger who asked Zimante Group for a demo of its own
+    // product; promoting a trading company out of the group does not make that
+    // stranger the company's contact.
+    disposition: "na",
+    ownership: "app-wide",
+    keying: "singleton",
+    reason:
+      "Public demo-gate signups, held in the `website-demo` data realm with no agency or company key at all — a promotion over live-realm state never sees them, and the person asked Zimante Group for a demo, not the promoted company.",
+  },
+
   breachIncidents: {
     // The breach register. `leave`, for the same reason as the DSAR register
     // above and one more that is sharper.
@@ -883,7 +900,10 @@ type _NoStaleCollections = AssertNever<StaleCollections>;
  * is the human-readable half — a smoke test pins it, so the next collection
  * announces itself in a test name as well as in the compiler.
  */
-export const PROMOTION_COLLECTION_COUNT = 94;
+// 94 → 95 on 2026-08-31: `websiteDemoSignups`, the public AquaCRM demo gate's
+// consent records. Classified `na` before the number moved — they carry no
+// tenant key and live outside the live data realm entirely.
+export const PROMOTION_COLLECTION_COUNT = 95;
 
 /** Every classified collection name, in `PortalState` order. */
 export const PROMOTION_COLLECTIONS = Object.keys(PROMOTION_DISPOSITION) as Array<

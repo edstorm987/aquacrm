@@ -80,10 +80,10 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports (3):**
 
 - `describeRequestError(request: { path: string; method: string }, context: { routerKind?: string; routePath?: string; routeType?: string; renderSource?: string }): ObservabilityBreadcrumb & { extra: Record<string, unknown…` — Derive the observability breadcrumb for a failed server request. Pure and exported so the contract (route, method, tenancy) is testable without a live server.
-- `register(): void` — Called once per server runtime start. Warms the optional Sentry loader so `init()` happens at boot rather than inside the first failing request, and makes a mis-configured monitor…
+- `async register(): Promise<void>` — Called once per server runtime start. Warms the optional Sentry loader so `init()` happens at boot rather than inside the first failing request, and makes a mis-configured monitor…
 - `async onRequestError(error, request, context)` — Every server-side error Next catches lands here. Reports through the real observability path (deployment log always; Sentry when installed and configured) with the route and tenan…
 
-**Depends on (2):** [`src/lib/server/observability.ts`](lib.md#file-src-lib-server-observability-ts-30e894807d) · [`src/lib/server/observabilityCapability.ts`](lib.md#file-src-lib-server-observabilitycapability-ts-6b60d0fb67)
+**Depends on (1):** [`src/lib/server/observability.ts`](lib.md#file-src-lib-server-observability-ts-30e894807d)
 
 **Used by (1):** [`scripts/smoke-observability.test.ts`](scripts.md#file-scripts-smoke-observability-test-ts-86370e6873)
 

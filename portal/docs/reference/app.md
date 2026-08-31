@@ -41,6 +41,20 @@ One large generated volume for this area. Every source file has an anchored entr
 
 ## `src/app/(website)/`
 
+<a id="file-src-app-website-demogateform-tsx-66cbf39f64"></a>
+
+### `src/app/(website)/DemoGateForm.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `DemoGateForm({ termsVersion }: { termsVersion: string })` — The AquaCRM demo gate. Modelled on `LaunchGateForm` — same honeypot, same submit/status/error shape — but it posts to `/api/public/demo-interest` and its consent line names the de…
+
+**Depends on:** _No internal imports._
+
+**Used by (1):** [`src/app/(website)/for-agencies/page.tsx`](#file-src-app-website-for-agencies-page-tsx-873a1afaf9)
+
 <a id="file-src-app-website-launchgateform-tsx-01956e4ca2"></a>
 
 ### `src/app/(website)/LaunchGateForm.tsx`
@@ -54,6 +68,20 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Depends on:** _No internal imports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-src-app-website-legaldraftnotice-tsx-b66afa0377"></a>
+
+### `src/app/(website)/LegalDraftNotice.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `LegalDraftNotice({ version }: { version: string })` — The banner that stops a draft legal page from being mistaken for a real one. The demo terms and privacy notice ship as SHELLS: the structure is there so the gate can link to somet…
+
+**Depends on:** _No internal imports._
+
+**Used by (2):** [`src/app/(website)/demo-privacy/page.tsx`](#file-src-app-website-demo-privacy-page-tsx-c32bd7fb53) · [`src/app/(website)/terms/page.tsx`](#file-src-app-website-terms-page-tsx-4d8ad3c89a)
 
 <a id="file-src-app-website-websitepageupdating-tsx-e2eeb4b372"></a>
 
@@ -75,13 +103,17 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (1):**
+**Exports (5):**
 
-- `WebsiteShell({ children, compact = false, }: { children: ReactNode; compact?: boolean; })`
+- `WebsiteShell({ children, compact = false, brand = "milesymedia", }: { children: ReactNode; compact?: boolean; brand?: WebsiteShellBrand; })`
+- `AQUA_FOR_AGENCIES_PATH = "/for-agencies"`
+- `AQUA_TERMS_PATH = "/terms"`
+- `AQUA_PRIVACY_PATH = "/demo-privacy"` — The demo privacy notice is `/demo-privacy`, NOT `/privacy`. `/privacy` is already taken: `next.config.ts` rewrites it — in `beforeFiles`, which is evaluated ahead of the filesyste…
+- `type WebsiteShellBrand = "milesymedia" | "aquacrm"` — The public-website chrome. `brand` exists so the AquaCRM demo surfaces (`/for-agencies`, `/terms`, `/privacy`) reuse THIS shell rather than growing a second one. The two brands sh…
 
 **Depends on (1):** [`src/lib/public/milesymediaRoutes.ts`](lib.md#file-src-lib-public-milesymediaroutes-ts-52388356af)
 
-**Used by (7):** [`src/app/(website)/health-check/page.tsx`](#file-src-app-website-health-check-page-tsx-8deb062ed1) · [`src/app/(website)/milesymedia/contact/page.tsx`](#file-src-app-website-milesymedia-contact-page-tsx-242a67c0b6) · [`src/app/(website)/milesymedia/page.tsx`](#file-src-app-website-milesymedia-page-tsx-5a4829a926) · [`src/app/(website)/portfolio/beast-commerce/page.tsx`](#file-src-app-website-portfolio-beast-commerce-page-tsx-78949d0ea5) · [`src/app/(website)/portfolio/ocean-boulevard/page.tsx`](#file-src-app-website-portfolio-ocean-boulevard-page-tsx-55062bc5c3) · [`src/app/(website)/portfolio/page.tsx`](#file-src-app-website-portfolio-page-tsx-81e4241f25) · [`src/app/(website)/tools/page.tsx`](#file-src-app-website-tools-page-tsx-61b38f2ec9)
+**Used by (10):** [`src/app/(website)/demo-privacy/page.tsx`](#file-src-app-website-demo-privacy-page-tsx-c32bd7fb53) · [`src/app/(website)/for-agencies/page.tsx`](#file-src-app-website-for-agencies-page-tsx-873a1afaf9) · [`src/app/(website)/health-check/page.tsx`](#file-src-app-website-health-check-page-tsx-8deb062ed1) · [`src/app/(website)/milesymedia/contact/page.tsx`](#file-src-app-website-milesymedia-contact-page-tsx-242a67c0b6) · [`src/app/(website)/milesymedia/page.tsx`](#file-src-app-website-milesymedia-page-tsx-5a4829a926) · [`src/app/(website)/portfolio/beast-commerce/page.tsx`](#file-src-app-website-portfolio-beast-commerce-page-tsx-78949d0ea5) · [`src/app/(website)/portfolio/ocean-boulevard/page.tsx`](#file-src-app-website-portfolio-ocean-boulevard-page-tsx-55062bc5c3) · [`src/app/(website)/portfolio/page.tsx`](#file-src-app-website-portfolio-page-tsx-81e4241f25) · [`src/app/(website)/terms/page.tsx`](#file-src-app-website-terms-page-tsx-4d8ad3c89a) · [`src/app/(website)/tools/page.tsx`](#file-src-app-website-tools-page-tsx-61b38f2ec9)
 
 
 ## `src/app/(website)/business-os/`
@@ -116,6 +148,42 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `metadata = {`
 
 **Depends on (5):** [`src/app/(website)/WebsitePageUpdating.tsx`](#file-src-app-website-websitepageupdating-tsx-e2eeb4b372) · [`src/lib/public/milesymediaRoutes.ts`](lib.md#file-src-lib-public-milesymediaroutes-ts-52388356af) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/agencyWebsite.ts`](server.md#file-src-server-agencywebsite-ts-eb7ef721d2) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
+## `src/app/(website)/demo-privacy/`
+
+<a id="file-src-app-website-demo-privacy-page-tsx-c32bd7fb53"></a>
+
+### `src/app/(website)/demo-privacy/page.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `default DemoPrivacyPage()` — The demo privacy notice SHELL — the companion to `/terms`. Same rule as the terms page: no retention period is stated, because none has been chosen and no reaper enforces one (ED-…
+- `metadata = {`
+
+**Depends on (3):** [`src/app/(website)/LegalDraftNotice.tsx`](#file-src-app-website-legaldraftnotice-tsx-b66afa0377) · [`src/app/(website)/WebsiteShell.tsx`](#file-src-app-website-websiteshell-tsx-68245cf6be) · [`src/server/websiteDemo.ts`](server.md#file-src-server-websitedemo-ts-bbb8b5bc9b)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
+## `src/app/(website)/for-agencies/`
+
+<a id="file-src-app-website-for-agencies-page-tsx-873a1afaf9"></a>
+
+### `src/app/(website)/for-agencies/page.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `default ForAgenciesPage()`
+- `metadata = {`
+
+**Depends on (3):** [`src/app/(website)/DemoGateForm.tsx`](#file-src-app-website-demogateform-tsx-66cbf39f64) · [`src/app/(website)/WebsiteShell.tsx`](#file-src-app-website-websiteshell-tsx-68245cf6be) · [`src/server/websiteDemo.ts`](server.md#file-src-server-websitedemo-ts-bbb8b5bc9b)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -286,6 +354,24 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `default ResourcesPage()`
 
 **Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
+## `src/app/(website)/terms/`
+
+<a id="file-src-app-website-terms-page-tsx-4d8ad3c89a"></a>
+
+### `src/app/(website)/terms/page.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `default DemoTermsPage()` — The demo terms SHELL. What this page deliberately does NOT say: how long anything is kept. ED-QUESTIONS Q4 is explicit — no "we delete after X" wording until the retention period …
+- `metadata = {`
+
+**Depends on (3):** [`src/app/(website)/LegalDraftNotice.tsx`](#file-src-app-website-legaldraftnotice-tsx-b66afa0377) · [`src/app/(website)/WebsiteShell.tsx`](#file-src-app-website-websiteshell-tsx-68245cf6be) · [`src/server/websiteDemo.ts`](server.md#file-src-server-websitedemo-ts-bbb8b5bc9b)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3758,6 +3844,24 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 
+## `src/app/api/public/demo-interest/`
+
+<a id="file-src-app-api-public-demo-interest-route-ts-b7d2df07cb"></a>
+
+### `src/app/api/public/demo-interest/route.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `async POST(req: NextRequest)`
+- `runtime = "nodejs"`
+
+**Depends on (2):** [`src/lib/server/rateLimit.ts`](lib.md#file-src-lib-server-ratelimit-ts-4b02277298) · [`src/server/websiteDemo.ts`](server.md#file-src-server-websitedemo-ts-bbb8b5bc9b)
+
+**Used by (1):** [`scripts/smoke-website-demo-gate.test.ts`](scripts.md#file-scripts-smoke-website-demo-gate-test-ts-7a0b40dcbe)
+
+
 ## `src/app/api/public/form-capture/`
 
 <a id="file-src-app-api-public-form-capture-route-ts-34c5b0f2ed"></a>
@@ -5423,6 +5527,23 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by (2):** [`src/app/portal/agency/_BusinessRadarDashboard.tsx`](#file-src-app-portal-agency-businessradardashboard-tsx-798d90e2ac) · [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff)
 
+<a id="file-src-app-portal-agency-commandpanelshell-tsx-c36babc27c"></a>
+
+### `src/app/portal/agency/_CommandPanelShell.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (4):**
+
+- `useCommandPanelDisclosure(storageKey: string, defaultExpanded = false)` — Remembered per panel in `localStorage`. Absent storage means the panel keeps `defaultExpanded`, so a first-time reader gets the designed layout rather than everything folded shut.
+- `CommandPanelShell({ panelId, icon, eyebrow, title, expanded, onToggle, summary, emptyLabel, attention, action, children, }: { /** Id of the disclosed region; the toggle points `aria-controls` at it. */ panelId: string; …`
+- `type CommandPanelSummaryItem = { label: string; value: string; /** `attention` marks a value the reader must not scroll past. */ tone?: "neutral" | "attention"; }` — Progressive disclosure for a Command Centre panel. ONE shell for every collapsible Day Command panel — do not inline a second chevron/`aria-expanded` header next to this one. The …
+- `type CommandPanelAttention = { label: string; tone: "critical" | "warning" | "info"; }`
+
+**Depends on:** _No internal imports._
+
+**Used by (1):** [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff)
+
 <a id="file-src-app-portal-agency-commandstationnav-tsx-053095e614"></a>
 
 ### `src/app/portal/agency/_CommandStationNav.tsx`
@@ -5465,7 +5586,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type DashboardSignal = { id: string; title: string; detail: string; href: string; kind: string; priority: "normal" | "high" | "urgent"; dueAt?: number; }`
 - `type DashboardPlanningPayload = { today: string; weekStart: string; weekPlan: DashboardWeekPlan | null; dayPlan: DashboardDayPlan | null; weekPlans: DashboardDayPlan[]; sessions: DashboardWorkSession[]; activeSession: D…`
 
-**Depends on (25):** [`src/app/portal/agency/_BattleTableWorkspace.tsx`](#file-src-app-portal-agency-battletableworkspace-tsx-ec652c2c58) · [`src/app/portal/agency/_ClientsNeedingAttention.tsx`](#file-src-app-portal-agency-clientsneedingattention-tsx-854f87726b) · [`src/app/portal/agency/_ClockOutReviewDialog.tsx`](#file-src-app-portal-agency-clockoutreviewdialog-tsx-aa97724b87) · [`src/app/portal/agency/_CommandIntelligenceWorkspace.tsx`](#file-src-app-portal-agency-commandintelligenceworkspace-tsx-0d26b4df14) · [`src/app/portal/agency/_CommandStationNav.tsx`](#file-src-app-portal-agency-commandstationnav-tsx-053095e614) · [`src/app/portal/agency/_DayBriefingPanel.tsx`](#file-src-app-portal-agency-daybriefingpanel-tsx-722cdc61f0) · [`src/app/portal/agency/_DayCommandSensorPanel.tsx`](#file-src-app-portal-agency-daycommandsensorpanel-tsx-862e7d8831) · [`src/app/portal/agency/_DayKpiIntelligencePanel.tsx`](#file-src-app-portal-agency-daykpiintelligencepanel-tsx-8ca2970690) · [`src/app/portal/agency/_battleWarRoom.ts`](#file-src-app-portal-agency-battlewarroom-ts-31aacabefb) · [`src/app/portal/agency/_radarShared.ts`](#file-src-app-portal-agency-radarshared-ts-87f8108ec8) · [`src/app/portal/agency/commandPerformance.ts`](#file-src-app-portal-agency-commandperformance-ts-4c3c4f6dfd) · [`src/app/portal/agency/commandStationAttention.ts`](#file-src-app-portal-agency-commandstationattention-ts-933606bc3a) · [`src/app/portal/agency/commandStationRouting.ts`](#file-src-app-portal-agency-commandstationrouting-ts-1348113223) · [`src/app/portal/agency/radar/RadarInspectionWorkspace.tsx`](#file-src-app-portal-agency-radar-radarinspectionworkspace-tsx-ada28e340f) · [`src/app/portal/agency/serverStationNavigation.ts`](#file-src-app-portal-agency-serverstationnavigation-ts-a2741da569) · [`src/app/portal/agency/weeklyReviewDraft.ts`](#file-src-app-portal-agency-weeklyreviewdraft-ts-7af990eaf4) · [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d) · [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/lib/advisor/advisorActions.ts`](lib.md#file-src-lib-advisor-advisoractions-ts-5bfe1090c9) · [`src/lib/intelligence/attentionProtection.ts`](lib.md#file-src-lib-intelligence-attentionprotection-ts-ee09220b9a) · [`src/lib/intelligence/businessRecommendedActions.ts`](lib.md#file-src-lib-intelligence-businessrecommendedactions-ts-b89f9ec998) · [`src/lib/intelligence/commandIntelligence.ts`](lib.md#file-src-lib-intelligence-commandintelligence-ts-365dc38397) · [`src/lib/server/clients/clientAttention.ts`](lib.md#file-src-lib-server-clients-clientattention-ts-cadbc44f73) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (26):** [`src/app/portal/agency/_BattleTableWorkspace.tsx`](#file-src-app-portal-agency-battletableworkspace-tsx-ec652c2c58) · [`src/app/portal/agency/_ClientsNeedingAttention.tsx`](#file-src-app-portal-agency-clientsneedingattention-tsx-854f87726b) · [`src/app/portal/agency/_ClockOutReviewDialog.tsx`](#file-src-app-portal-agency-clockoutreviewdialog-tsx-aa97724b87) · [`src/app/portal/agency/_CommandIntelligenceWorkspace.tsx`](#file-src-app-portal-agency-commandintelligenceworkspace-tsx-0d26b4df14) · [`src/app/portal/agency/_CommandPanelShell.tsx`](#file-src-app-portal-agency-commandpanelshell-tsx-c36babc27c) · [`src/app/portal/agency/_CommandStationNav.tsx`](#file-src-app-portal-agency-commandstationnav-tsx-053095e614) · [`src/app/portal/agency/_DayBriefingPanel.tsx`](#file-src-app-portal-agency-daybriefingpanel-tsx-722cdc61f0) · [`src/app/portal/agency/_DayCommandSensorPanel.tsx`](#file-src-app-portal-agency-daycommandsensorpanel-tsx-862e7d8831) · [`src/app/portal/agency/_DayKpiIntelligencePanel.tsx`](#file-src-app-portal-agency-daykpiintelligencepanel-tsx-8ca2970690) · [`src/app/portal/agency/_battleWarRoom.ts`](#file-src-app-portal-agency-battlewarroom-ts-31aacabefb) · [`src/app/portal/agency/_radarShared.ts`](#file-src-app-portal-agency-radarshared-ts-87f8108ec8) · [`src/app/portal/agency/commandPerformance.ts`](#file-src-app-portal-agency-commandperformance-ts-4c3c4f6dfd) · [`src/app/portal/agency/commandStationAttention.ts`](#file-src-app-portal-agency-commandstationattention-ts-933606bc3a) · [`src/app/portal/agency/commandStationRouting.ts`](#file-src-app-portal-agency-commandstationrouting-ts-1348113223) · [`src/app/portal/agency/radar/RadarInspectionWorkspace.tsx`](#file-src-app-portal-agency-radar-radarinspectionworkspace-tsx-ada28e340f) · [`src/app/portal/agency/serverStationNavigation.ts`](#file-src-app-portal-agency-serverstationnavigation-ts-a2741da569) · [`src/app/portal/agency/weeklyReviewDraft.ts`](#file-src-app-portal-agency-weeklyreviewdraft-ts-7af990eaf4) · [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d) · [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/lib/advisor/advisorActions.ts`](lib.md#file-src-lib-advisor-advisoractions-ts-5bfe1090c9) · [`src/lib/intelligence/attentionProtection.ts`](lib.md#file-src-lib-intelligence-attentionprotection-ts-ee09220b9a) · [`src/lib/intelligence/businessRecommendedActions.ts`](lib.md#file-src-lib-intelligence-businessrecommendedactions-ts-b89f9ec998) · [`src/lib/intelligence/commandIntelligence.ts`](lib.md#file-src-lib-intelligence-commandintelligence-ts-365dc38397) · [`src/lib/server/clients/clientAttention.ts`](lib.md#file-src-lib-server-clients-clientattention-ts-cadbc44f73) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (1):** [`src/app/portal/agency/page.tsx`](#file-src-app-portal-agency-page-tsx-35a1d5c98a)
 

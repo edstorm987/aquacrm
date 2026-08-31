@@ -299,16 +299,25 @@ describe("no client route may put the element gate before its tenancy check", ()
   }
 
   it("sweeps src/app/api/tenants so a NEW route cannot reintroduce the 403", () => {
-    // A line-order scan, deliberately crude: the gate must not appear before
-    // this handler has resolved the client within the caller's agency. Fourteen
-    // lines back is generous enough for the auth block that sits between them.
+    // A line-order scan. It used to look a fixed FOURTEEN LINES back, which was
+    // a proximity heuristic rather than the contract: `client-delight` resolves
+    // every target id in a loop and 404s, then gates twice — and when a comment
+    // and a spend calculation were added between the two, the correct route
+    // fell out of the window and was reported as an offender.
+    //
+    // The window is now the enclosing handler. A `getClientForAgency(` ANYWHERE
+    // earlier in the same exported handler genuinely precedes the gate, which is
+    // what the contract says; and a handler with no tenancy resolution at all is
+    // still caught, so this is stricter than the line count, not laxer.
     const offenders: string[] = [];
     for (const file of routeFiles(join(process.cwd(), "src/app/api/tenants"))) {
       const lines = readFileSync(file, "utf8").split("\n");
+      let handlerStart = 0;
       lines.forEach((line, index) => {
+        if (/^export async function (GET|POST|PATCH|PUT|DELETE)\b/.test(line)) handlerStart = index;
         if (!line.includes("requireCurrentClientWorkspaceElementAccess(")) return;
         if (line.trimStart().startsWith("import") || line.includes("} from")) return;
-        const before = lines.slice(Math.max(0, index - 14), index).join("\n");
+        const before = lines.slice(handlerStart, index).join("\n");
         // The CALL, with its paren — not the import, which names it without one
         // and sits within a few lines of the gate in several of these files.
         const tenancyFirst = before.includes("getClientForAgency(")

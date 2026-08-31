@@ -78,6 +78,7 @@ const PUBLIC: Record<string, string> = {
 
   // Genuinely public surfaces.
   "public/contact": "the public contact form",
+  "public/demo-interest": "the AquaCRM demo gate — same-origin, honeypotted, rate-limited per caller AND per contact, 404s entirely unless WEBSITE_DEMO_ENABLED is set, and writes only into the website-demo realm: no lead, client or user is created",
   "public/brand-enquiry": "the public enquiry form",
   "public/careers": "the public careers application form",
   "public/form-capture": "the Aqua Tag's capture endpoint for our own sites",

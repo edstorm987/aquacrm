@@ -2,7 +2,7 @@
 
 > Source maps, subsystem dossiers, components, routes, state and built-in module notes.
 >
-> Consolidated 2026-08-31 from **23** source documents / **55,977 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-31 from **23** source documents / **56,273 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -10,13 +10,13 @@
 - [`docs/WORKSPACE-FILE-TREE.md`](#source-docs-workspace-file-tree-md) — 1,385 words · `642c698fbd42`
 - [`docs/workspace/advisor.md`](#source-docs-workspace-advisor-md) — 1,445 words · `d5b9b4fc79dc`
 - [`docs/workspace/api-and-routes.md`](#source-docs-workspace-api-and-routes-md) — 946 words · `8bbf0d2e9c9f`
-- [`docs/workspace/api-reference.md`](#source-docs-workspace-api-reference-md) — 8,272 words · `f47b98abebb9`
+- [`docs/workspace/api-reference.md`](#source-docs-workspace-api-reference-md) — 8,313 words · `61910fdc1f85`
 - [`docs/workspace/aqua-tag.md`](#source-docs-workspace-aqua-tag-md) — 3,463 words · `d662b63850cb`
 - [`docs/workspace/components.md`](#source-docs-workspace-components-md) — 1,142 words · `5ef3bf2f75be`
 - [`docs/workspace/database.md`](#source-docs-workspace-database-md) — 2,273 words · `4ed0007a7dd9`
 - [`docs/workspace/env-and-sellability.md`](#source-docs-workspace-env-and-sellability-md) — 3,641 words · `3dfcad335c9f`
 - [`docs/workspace/feature-index.md`](#source-docs-workspace-feature-index-md) — 5,342 words · `bb81323b787b`
-- [`docs/workspace/hazards-and-duplication.md`](#source-docs-workspace-hazards-and-duplication-md) — 6,956 words · `37759774c919`
+- [`docs/workspace/hazards-and-duplication.md`](#source-docs-workspace-hazards-and-duplication-md) — 7,211 words · `b2d1e0e72c27`
 - [`docs/workspace/kpi-intelligence.md`](#source-docs-workspace-kpi-intelligence-md) — 2,283 words · `d641f1291cbc`
 - [`docs/workspace/plugins.md`](#source-docs-workspace-plugins-md) — 2,193 words · `85bf55b735d1`
 - [`docs/workspace/portal-ui.md`](#source-docs-workspace-portal-ui-md) — 3,935 words · `422ade585983`
@@ -593,7 +593,7 @@ switcher — membership-only, session ∩ live record), `showcase-mode`, `dev-mo
 
 ## Source document — `docs/workspace/api-reference.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/api-reference.md" sha256="f47b98abebb952777258786b470e92032c4009907418c454a39cf9900415d4f2" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/api-reference.md" sha256="61910fdc1f8552442a4034409c595e6b07e22c348d7eaa456f608002a4a833d1" -->
 # Chapter — Hand-maintained API reference
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md) · [API & routes overview](api-and-routes.md)
@@ -918,7 +918,7 @@ not live.
 | `/api/tenants/product-workspaces` | GET, POST | Client product internal workspaces read/save | agency + client roles | |
 | `/api/tenants/seed` | POST | Dev-only seed (agency+owner+client+users) when store empty | dev / prod requires any session | |
 
-## `api/public/*` (6)
+## `api/public/*` (7 listed; 10 route files on disk)
 
 | Path | Methods | Purpose | Scope/auth | Live? |
 |---|---|---|---|---|
@@ -928,6 +928,7 @@ not live.
 | `/api/public/form-capture` | OPTIONS, POST | Aqua-Tag form-capture enrichment + master-tag routing → Supabase | public (CORS) | **LIVE (admin)** |
 | `/api/public/proposals/[token]` | POST | Accept a commercial proposal by public token | public (token) | |
 | `/api/public/aqua-tag-config` | GET, OPTIONS | Serve a site's enabled injections by key+host (cached, CORS) — tag-manager delivery seam | public (CORS) | |
+| `/api/public/demo-interest` | POST | AquaCRM demo gate — records name/contact + consent {timestamp, terms version} in the `website-demo` data realm, never the live one | public (same-origin, honeypot, rate-limited); **404 unless `WEBSITE_DEMO_ENABLED`** | |
 
 ## `api/v1/*` (10) — external assistant API (bearer-token)
 
@@ -2319,7 +2320,7 @@ _(For which plugin owns a feature, see the [plugins chapter](plugins.md). For an
 
 ## Source document — `docs/workspace/hazards-and-duplication.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/hazards-and-duplication.md" sha256="37759774c91995895cca02e34f12aac756bcd0841503d5b58fb8fb7a678f1a91" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/hazards-and-duplication.md" sha256="b2d1e0e72c27ef36649fce3eb6a49de0832dc39353f7d5b489cb8d4b9f2f1041" -->
 # Chapter — Hazards & duplication (read before editing)
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
@@ -2577,6 +2578,30 @@ four surfaces source it.
   — a second live category→label map that disagrees with `activityCategory`: `tenant` reads
   "Business" on the dashboard chip and "client" in the Activity log / Updates tab. Two sources of
   category wording still exist; picking one is Ed's call.
+
+### Two privacy notices — DELIBERATE, and `/privacy` is NOT the demo one (2026-08-31)
+`/privacy` is the **published AquaCRM marketing notice**, served as a static file:
+`next.config.ts` rewrites `/privacy` and `/privacy/` to `public/aquacrm-site/privacy/index.html`.
+That rewrite is in **`beforeFiles`**, which Next evaluates *ahead of the filesystem*, so a page at
+`src/app/(website)/privacy/` would never render — no 404, no flag, just silently unreachable. Its
+content is pinned by `scripts/smoke-privacy-notice-truth.test.ts` (it holds an open, deliberate
+contradiction with the Aqua Tag; read that test before editing it).
+
+The **AquaCRM demo** notice is a different document with a different subject, and lives at
+**`/demo-privacy`** (`src/app/(website)/demo-privacy/page.tsx`) behind `WEBSITE_DEMO_ENABLED`. It
+was originally built at `/privacy` and was shadowed by the rewrite above — caught in review
+2026-08-31 — which would have pointed the demo consent line at a document whose version is not the
+one stamped on the visitor's record. `scripts/smoke-website-demo-gate.test.ts` now fails if any
+demo route is shadowed by a `beforeFiles` rewrite. **Do not "tidy" `/demo-privacy` back onto
+`/privacy`, and do not add a page under any other `beforeFiles` source** (`/`, `/projects`,
+`/contact`, `/styles.css`, `/site-experience.js`, `/projects.js`, `/assets/*`).
+
+Related, and NOT fixed: `src/app/(website)/layout.tsx` injects `/aqua-tag.js` on **every** page in
+the route group under the *milesymedia* agency's site key and `data-property="milesymedia-website"`
+— the AquaCRM demo pages included, flag or no flag. `DemoGateForm` therefore carries
+`data-aqua-ignore` so the tag cannot read its field values into the live `form-capture` surface
+(pinned). The remaining pageview beacons still attribute AquaCRM demo traffic to the Milesymedia
+property; gating the layout's tag per brand is an open product decision.
 
 ### Two assistant conversation stores — DELIBERATE, do NOT unify (2026-08-21)
 `PortalState.assistant` (keyed `${agencyId}|${userId}`, via

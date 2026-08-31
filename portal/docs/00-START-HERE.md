@@ -2,7 +2,7 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-08-31 from **20** source documents / **28,571 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-31 from **20** source documents / **29,074 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -21,7 +21,7 @@
 - [`docs/DEVELOPMENT-HANDOFF.md`](#source-docs-development-handoff-md) — 1,552 words · `9199166a1f30`
 - [`docs/development-workspace-cleanup.md`](#source-docs-development-workspace-cleanup-md) — 793 words · `bdb46a5cecd3`
 - [`docs/development.md`](#source-docs-development-md) — 3,248 words · `dd5efef22882`
-- [`docs/development/CAMPAIGN-LEDGER.md`](#source-docs-development-campaign-ledger-md) — 7,339 words · `9a89c8c4dfdd`
+- [`docs/development/CAMPAIGN-LEDGER.md`](#source-docs-development-campaign-ledger-md) — 7,842 words · `fea7f9bed64a`
 - [`docs/development/CLOUD-RESUME.md`](#source-docs-development-cloud-resume-md) — 500 words · `03458cdf18bf`
 - [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 2,209 words · `f8dfdfa9cfad`
 - [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,622 words · `98fe02dc9d94`
@@ -2161,7 +2161,7 @@ else hangs from.*
 
 ## Source document — `docs/development/CAMPAIGN-LEDGER.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/CAMPAIGN-LEDGER.md" sha256="9a89c8c4dfdd5fb1073388ece4080f9142c147122870882e822d2a7ee7c00fa5" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/CAMPAIGN-LEDGER.md" sha256="fea7f9bed64aedb29f84300119924e580e741ba122d8f97db7f98d8ce0294c4c" -->
 # Campaign ledger — every documented to-do, verified against source
 
 *Generated 2026-08-30 from a 131-agent triage: one independent read-only investigator
@@ -2576,6 +2576,74 @@ areas will change that until the module resolution is fixed.
 boundary (align `type` across the plugin and root manifests, or route the
 shared imports through a build-condition-aware entry), then re-run both gates
 and see what was hiding behind them.
+
+---
+
+## Browser matrix, run 2 — 2026-08-31, after wave 8
+
+Re-run because wave 8's Command Centre work edits the portal pages the matrix
+walks. **It caught a real defect that no unit test could see**, and the fix is
+proven by the same measurement.
+
+| category | baseline | wave 8, before fix | wave 8, after fix |
+| --- | --- | --- | --- |
+| focus | 203 | 204 | 204 |
+| axe | 85 | 85 | 85 |
+| console | 44 | **188** | 44 |
+| network | 17 | **187** | 17 |
+| overflow | 3 | 3 | 3 |
+
+### The defect: a broken Edge bundle answering 404 for healthy routes
+
+`src/instrumentation.ts` (added wave 3, `todo:386`) statically imported
+`observabilityCapability`, which resolves the optional Sentry package using
+`node:module` and `node:path`. Next loads `instrumentation.ts` in **both** the
+Node and the Edge runtime, so those Node builtins were pulled into the Edge
+instrumentation bundle, which then failed to compile.
+
+A broken edge bundle does not announce itself. It answers **404 for routes that
+are completely healthy in source** — the matrix found `/api/portal/chrome/layout`
+plus both telephony endpoints 404ing on *every* viewport, which is what took
+console from 44 to 188 and network from 17 to 187.
+
+Nothing else caught this. `tsc` was clean, the 5,758-test canonical suite was
+clean, and `npm run build` exited 0 — the Edge failure surfaces only as a
+warning during build and as a 404 at runtime.
+
+Fixed with Next's documented pattern: the capability probe is now loaded behind
+`process.env.NEXT_RUNTIME === "nodejs"`, so it is never bundled for Edge. On
+Edge the boot breadcrumb still records, with capability reported as
+`unknown-on-edge` rather than guessed. Verified by measurement — the route went
+404 → 401 (its correct no-session answer), and the two categories returned to
+baseline exactly.
+
+**This is also the leading suspect for the Vercel failure on `cff860d`.** Not
+proven: Vercel's logs are unreachable from here, and the local build succeeds
+either way. Wave 8's deployment is the test.
+
+### One net-new focus failure, named
+
+`/login` at mobile-landscape now reports `button[Working as Owner]` with no
+visible focus indicator, where the baseline run had all 12 stops clean. It is
+the same global chrome control already failing across the app, now reaching one
+more breakpoint — not a new class of defect.
+
+### The highest-leverage accessibility fix, quantified
+
+Five global chrome controls account for the overwhelming majority of all 204
+focus failures:
+
+| control | failing stops |
+| --- | --- |
+| `button[Working as Owner]` | 130 |
+| `button[Open navigation menu]` | 69 |
+| `button[Use dark mode]` | 51 |
+| `a[Back to website]` | 40 |
+| `a[Team settings]` | 34 |
+
+These are a handful of components, not a hundred screens. Giving them visible
+focus indicators would clear most of the focus column in one pass — by far the
+best accessibility return available, and now measurable rather than guessed at.
 <!-- AQUACRM_SOURCE_END path="docs/development/CAMPAIGN-LEDGER.md" -->
 
 ---

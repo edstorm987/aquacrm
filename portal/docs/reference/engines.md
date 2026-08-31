@@ -1078,7 +1078,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** run. It lives next to the registry that uses it and stays there.
 
-**Exports (15):**
+**Exports (16):**
 
 - `{ Block, BlockA11y, BlockSeo, BlockStyles, BlockTreeJSON, BlockType, BlockVariant, Element, ElementBinding, ElementContext, ElementProductMatch, ElementStyles, ElementTreeJSON, ElementType, ElementVisibility, SplitTestGroup, SplitTestResult, SplitTestStatus } from "./block"`
 - `{ BlockComponentType, BlockDefinition, BlockRenderProps, ElementCategory, ElementComponentType, ElementDefinition, ElementPropField, ElementRenderProps, ElementSurface, PropField, PropFieldType } from "./definition"`
@@ -1087,6 +1087,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `{ assertDefinitionConsistent, buildElementSchema, elementSchema, validateElementProps } from "./schema"`
 - `{ getElementDefinition, getElementRenderer, listElementDefinitions, listElementRendererIds, listElementTypes, registerElementDefinitions, registerElementRenderers } from "./registry"`
 - `{ STYLE_FIELD_GROUPS, blockStylesToCss, overridesToCssText } from "./blockStyles"`
+- `{ PORTAL_BINDING_FIELDS, PORTAL_MEDIA_FIELDS, PORTAL_PROP_FIELDS, PORTAL_RESPONSIVE_FIELDS, PORTAL_TEXT_LIMITS, PORTAL_VISIBILITY_FIELDS, portalElementSchema, portalSideChannelSchema } from "./portalElements"`
 - `{ ElementPaletteItem } from "./palette"`
 - `{ PORTAL_CATEGORY_LABELS, WEBSITE_CATEGORY_LABELS, WEBSITE_CATEGORY_ORDER, elementLibrarySentence, elementPalette, elementPaletteGroups, elementSurfaceFor } from "./palette"`
 - `{ ensureWebsiteElements, websiteElementsReady } from "./websiteElements"`
@@ -1096,7 +1097,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `{ BLOCK_SCHEMA_VERSION, MIGRATIONS, blockVersion, loadBlockTreeMigrated, migrateTree, treeNeedsMigration } from "./blockSchemaMigrations"`
 - `{ makeId, slugify } from "./ids"`
 
-**Depends on (10):** [`src/engines/editor/elements/block.ts`](#file-src-engines-editor-elements-block-ts-b63256ef49) · [`src/engines/editor/elements/blockSchemaMigrations.ts`](#file-src-engines-editor-elements-blockschemamigrations-ts-91a298cabd) · [`src/engines/editor/elements/blockStyles.ts`](#file-src-engines-editor-elements-blockstyles-ts-1abc0f7e3b) · [`src/engines/editor/elements/blockTreeOps.ts`](#file-src-engines-editor-elements-blocktreeops-ts-0078f901a2) · [`src/engines/editor/elements/definition.ts`](#file-src-engines-editor-elements-definition-ts-c524490719) · [`src/engines/editor/elements/ids.ts`](#file-src-engines-editor-elements-ids-ts-5c6fd8e272) · [`src/engines/editor/elements/palette.ts`](#file-src-engines-editor-elements-palette-ts-0d14875357) · [`src/engines/editor/elements/registry.ts`](#file-src-engines-editor-elements-registry-ts-173971889d) · [`src/engines/editor/elements/schema.ts`](#file-src-engines-editor-elements-schema-ts-d5cded312c) · [`src/engines/editor/elements/websiteElements.ts`](#file-src-engines-editor-elements-websiteelements-ts-7948010cf8)
+**Depends on (11):** [`src/engines/editor/elements/block.ts`](#file-src-engines-editor-elements-block-ts-b63256ef49) · [`src/engines/editor/elements/blockSchemaMigrations.ts`](#file-src-engines-editor-elements-blockschemamigrations-ts-91a298cabd) · [`src/engines/editor/elements/blockStyles.ts`](#file-src-engines-editor-elements-blockstyles-ts-1abc0f7e3b) · [`src/engines/editor/elements/blockTreeOps.ts`](#file-src-engines-editor-elements-blocktreeops-ts-0078f901a2) · [`src/engines/editor/elements/definition.ts`](#file-src-engines-editor-elements-definition-ts-c524490719) · [`src/engines/editor/elements/ids.ts`](#file-src-engines-editor-elements-ids-ts-5c6fd8e272) · [`src/engines/editor/elements/palette.ts`](#file-src-engines-editor-elements-palette-ts-0d14875357) · [`src/engines/editor/elements/portalElements.ts`](#file-src-engines-editor-elements-portalelements-ts-e83c09be10) · [`src/engines/editor/elements/registry.ts`](#file-src-engines-editor-elements-registry-ts-173971889d) · [`src/engines/editor/elements/schema.ts`](#file-src-engines-editor-elements-schema-ts-d5cded312c) · [`src/engines/editor/elements/websiteElements.ts`](#file-src-engines-editor-elements-websiteelements-ts-7948010cf8)
 
 **Used by (6):** [`scripts/smoke-element-engine.test.ts`](scripts.md#file-scripts-smoke-element-engine-test-ts-aa7339e21f) · [`scripts/smoke-sop-composer.test.ts`](scripts.md#file-scripts-smoke-sop-composer-test-ts-956b7a65d3) · [`scripts/smoke-sop-interactive.test.ts`](scripts.md#file-scripts-smoke-sop-interactive-test-ts-979297a403) · [`src/app/api/portal/sops/route.ts`](app.md#file-src-app-api-portal-sops-route-ts-574efa46e5) · [`src/app/portal/agency/sop-library/_SopLibrary.tsx`](app.md#file-src-app-portal-agency-sop-library-soplibrary-tsx-40e37a72a5) · [`src/app/portal/agency/sop-library/composerBlocks.ts`](app.md#file-src-app-portal-agency-sop-library-composerblocks-ts-14314fe517)
 
@@ -1127,24 +1128,45 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** loudly instead of silently.
 
-**Exports (12):**
+**Exports (33):**
 
 - `portalElementPairing(type: ClientPortalBlockType): PortalElementPairing`
 - `portalElementDefinition(type: ClientPortalBlockType): BlockDefinition | undefined` — The shared element a portal type is a name for. `undefined` while unregistered.
+- `portalSideChannelSchema(channel: PortalSideChannel): ElementSchema` — The generated contract for one of a portal block's side channels.
+- `portalElementSchema(type: ClientPortalBlockType): ElementSchema` — The portal's machine-checkable contract for one of its types. NOT a registry entry — adding sixteen of those is exactly the second registry P3 deleted. It is a generated view: the…
 - `portalVocabularyProblems(): PortalVocabularyProblem[]` — Every way the merged vocabulary can be broken, as a list. This is the check that a single registry buys and two registries could not. Before P3, deleting the website `banner` defi…
 - `toElement(block: ClientPortalPageBlock): Block` — A stored portal block, seen as an element. Lossless: `fromElement` inverts it.
 - `fromElement(element: Block): ClientPortalPageBlock` — The inverse. Anything the element does not carry falls back to the type's defaults.
 - `createPortalBlockRecord(type: ClientPortalBlockType, id: string, makeItemId: () => string = () => "item"): ClientPortalPageBlock`
 - `PORTAL_ELEMENT_PAIRINGS = [` — Every portal type, in palette order. ORDER IS LOAD-BEARING — `CLIENT_PORTAL_BLOCK_REGISTRY` is derived from this and the portal studio renders the palette in array order. `system-…
 - `PORTAL_ELEMENT_BY_TYPE: Record<ClientPortalBlockType, PortalElementPairing>`
+- `PORTAL_WIDTHS = closedSet<ClientPortalBlockWidth>()(["full", "half"])`
+- `PORTAL_TONES = closedSet<ClientPortalBlockTone>()(["surface", "dark", "accent", "quiet"])`
+- `PORTAL_SPACINGS = closedSet<ClientPortalBlockSpacing>()(["none", "compact", "comfortable", "spacious"])`
+- `PORTAL_ALIGNMENTS = closedSet<ClientPortalBlockAlignment>()(["left", "center"])`
+- `PORTAL_DATA_SOURCES = closedSet<ClientPortalBlockDataSource>()(["portal-summary", "delivery", "billing", "results"])`
+- `PORTAL_VISIBILITY_RULES = closedSet<ClientPortalBlockVisibilityRule>()([`
+- `PORTAL_PRODUCT_MATCHES = closedSet<ClientPortalProductMatch>()(["any", "all"])`
+- `PORTAL_REQUEST_TYPES = closedSet<NonNullable<ClientPortalPageBlock["requestType"]>>()([`
+- `PORTAL_APPROVAL_TYPES = closedSet<NonNullable<ClientPortalPageBlock["approvalType"]>>()(["all", "design", "launch"])`
+- `PORTAL_UPLOAD_CATEGORIES = closedSet<NonNullable<ClientPortalPageBlock["uploadCategory"]>>()([`
+- `PORTAL_MEDIA_ASPECTS = closedSet<ClientPortalMediaAspect>()(["landscape", "square", "portrait"])`
+- `PORTAL_MEDIA_FITS = closedSet<ClientPortalMediaFit>()(["cover", "contain"])`
+- `PORTAL_TEXT_LIMITS = {` — The character caps the normaliser truncates at. ONE declaration: the `PropField`s below carry these as `maxLength`, and `normaliseBlocks` slices at the same numbers. They used to …
+- `PORTAL_PROP_FIELDS: readonly PropField[]` — The authored props of a portal block — what an operator (or an assistant) writes.
+- `PORTAL_BINDING_FIELDS: readonly PropField[]` — Which records a block reads. Stored flat; `toElement` moves these to `binding`.
+- `PORTAL_VISIBILITY_FIELDS: readonly PropField[]` — Who sees the block. `toElement` moves these to `visibility`.
+- `PORTAL_RESPONSIVE_FIELDS: readonly PropField[]` — `block.responsive`.
+- `PORTAL_MEDIA_FIELDS: readonly PropField[]` — `block.media`, on the two types that carry one.
 - `type PortalElementCategory = "content" | "live-data" | "layout"` — ─── The pairing table ────────────────────────────────────────────────────
+- `type PortalSideChannel = keyof typeof PORTAL_SIDE_CHANNEL_SCHEMAS`
 - `interface PortalElementDefaults (13 members)` — The authoring defaults for one portal type — the stored record, minus its id.
 - `interface PortalElementPairing (7 members)`
 - `interface PortalVocabularyProblem (2 members)` — ─── Integrity ────────────────────────────────────────────────────────────
 
-**Depends on (4):** [`src/engines/editor/elements/block.ts`](#file-src-engines-editor-elements-block-ts-b63256ef49) · [`src/engines/editor/elements/definition.ts`](#file-src-engines-editor-elements-definition-ts-c524490719) · [`src/engines/editor/elements/registry.ts`](#file-src-engines-editor-elements-registry-ts-173971889d) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (5):** [`src/engines/editor/elements/block.ts`](#file-src-engines-editor-elements-block-ts-b63256ef49) · [`src/engines/editor/elements/definition.ts`](#file-src-engines-editor-elements-definition-ts-c524490719) · [`src/engines/editor/elements/registry.ts`](#file-src-engines-editor-elements-registry-ts-173971889d) · [`src/engines/editor/elements/schema.ts`](#file-src-engines-editor-elements-schema-ts-d5cded312c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (4):** [`scripts/smoke-portal-elements.test.ts`](scripts.md#file-scripts-smoke-portal-elements-test-ts-04ddc94734) · [`scripts/smoke-sop-interactive.test.ts`](scripts.md#file-scripts-smoke-sop-interactive-test-ts-979297a403) · [`src/engines/editor/elements/palette.ts`](#file-src-engines-editor-elements-palette-ts-0d14875357) · [`src/lib/portal/clientPortalBuilder.ts`](lib.md#file-src-lib-portal-clientportalbuilder-ts-efd225ebe5)
+**Used by (5):** [`scripts/smoke-portal-elements.test.ts`](scripts.md#file-scripts-smoke-portal-elements-test-ts-04ddc94734) · [`scripts/smoke-sop-interactive.test.ts`](scripts.md#file-scripts-smoke-sop-interactive-test-ts-979297a403) · [`src/engines/editor/elements/index.ts`](#file-src-engines-editor-elements-index-ts-ca6dd2fe11) · [`src/engines/editor/elements/palette.ts`](#file-src-engines-editor-elements-palette-ts-0d14875357) · [`src/lib/portal/clientPortalBuilder.ts`](lib.md#file-src-lib-portal-clientportalbuilder-ts-efd225ebe5)
 
 <a id="file-src-engines-editor-elements-registry-ts-173971889d"></a>
 
@@ -1184,7 +1206,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (1):** [`src/engines/editor/elements/definition.ts`](#file-src-engines-editor-elements-definition-ts-c524490719)
 
-**Used by (6):** [`scripts/smoke-element-engine.test.ts`](scripts.md#file-scripts-smoke-element-engine-test-ts-aa7339e21f) · [`scripts/smoke-portal-elements.test.ts`](scripts.md#file-scripts-smoke-portal-elements-test-ts-04ddc94734) · [`src/engines/editor/elements/definition.ts`](#file-src-engines-editor-elements-definition-ts-c524490719) · [`src/engines/editor/elements/index.ts`](#file-src-engines-editor-elements-index-ts-ca6dd2fe11) · [`src/engines/editor/elements/registry.ts`](#file-src-engines-editor-elements-registry-ts-173971889d) · [`src/engines/sop/server/sops.ts`](#file-src-engines-sop-server-sops-ts-8c9bee0d0c)
+**Used by (7):** [`scripts/smoke-element-engine.test.ts`](scripts.md#file-scripts-smoke-element-engine-test-ts-aa7339e21f) · [`scripts/smoke-portal-elements.test.ts`](scripts.md#file-scripts-smoke-portal-elements-test-ts-04ddc94734) · [`src/engines/editor/elements/definition.ts`](#file-src-engines-editor-elements-definition-ts-c524490719) · [`src/engines/editor/elements/index.ts`](#file-src-engines-editor-elements-index-ts-ca6dd2fe11) · [`src/engines/editor/elements/portalElements.ts`](#file-src-engines-editor-elements-portalelements-ts-e83c09be10) · [`src/engines/editor/elements/registry.ts`](#file-src-engines-editor-elements-registry-ts-173971889d) · [`src/engines/sop/server/sops.ts`](#file-src-engines-sop-server-sops-ts-8c9bee0d0c)
 
 <a id="file-src-engines-editor-elements-variantresolver-ts-0072c1fc97"></a>
 

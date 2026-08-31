@@ -4381,6 +4381,38 @@ export interface ClientProjectOperation {
   completedAt?: number;
 }
 
+// ─── Public AquaCRM demo gate (website demo, Stage 1) ─────────────────────
+//
+// Somebody who asked for the public AquaCRM demo, and the consent they gave
+// when they asked. Personal data with no tenant behind it: the person is not a
+// client, not a lead in anyone's pipeline, and not a user. That is exactly why
+// it has its own collection — and why it is written in the `website-demo` data
+// realm rather than the live one (see `server/websiteDemo.ts`).
+//
+// The consent record is deliberately explicit about WHAT was consented to. The
+// demo terms are placeholder wording until Ed's solicitor supplies the real
+// text (ED-QUESTIONS Q5), so `termsArePlaceholder` is stamped on every record
+// rather than inferred later. A record that says "consented to v1" when v1 was
+// a draft would be a false claim about a lawful basis.
+export interface WebsiteDemoSignup {
+  id: string;
+  name: string;
+  /** At least one of email/phone is present; both may be. */
+  email?: string;
+  phone?: string;
+  /** Free-text "what are you hoping the demo shows you" — optional. */
+  note?: string;
+  /** Where the request came from, for honest attribution. Path only. */
+  sourcePath?: string;
+  consent: {
+    givenAt: number;
+    termsVersion: string;
+    /** True while the linked terms are draft/placeholder wording. */
+    termsArePlaceholder: boolean;
+  };
+  createdAt: number;
+}
+
 // ─── PortalState — the single typed object behind storage ─────────────────
 
 export type CustomKpiOp = "ratio" | "rate" | "sum" | "diff";
@@ -4698,6 +4730,9 @@ export interface PortalState {
   clientFormNotices: Record<string, ClientFormNotice>;
   // Data-subject requests and their statutory clocks. See SubjectRequest.
   subjectRequests: Record<string, SubjectRequest>;
+  // Public AquaCRM demo-gate signups. Lives ONLY in the `website-demo` data
+  // realm — never the live realm. See `server/websiteDemo.ts`.
+  websiteDemoSignups: Record<string, WebsiteDemoSignup>;
   // Personal-data breaches and the 72-hour clock. See BreachIncident.
   breachIncidents: Record<string, BreachIncident>;
   // Dev Editor Engine projects — repo + connections + tag + kind. See DevProject.

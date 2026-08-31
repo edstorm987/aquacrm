@@ -961,6 +961,7 @@ export const PORTAL_STATE_COVERAGE: Readonly<Record<string, CollectionClassifica
   outbox: { entity: "domainEvent", plane: "operational", note: "Transactional outbox: durable domain events, recorded atomically with their mutation, drained to the bus at-least-once (server/outbox.ts)." },
   clientRecordLedger: { entity: "auditEvent", plane: "derived", note: "Internal client history projection incl. entries a client must never see; actor lives on ActivityEntry." },
   subjectRequests: { plane: "operational", note: "GDPR subject requests driving erasure sweeps." },
+  websiteDemoSignups: { plane: "operational", note: "Public AquaCRM demo-gate signups and their consent {timestamp, terms version}. Untenanted personal data, held in the `website-demo` data realm and never the live one; erasable by contact detail via server/websiteDemo.ts." },
   breachIncidents: { plane: "operational", note: "GDPR Art. 33/34 breach register: the 72-hour clock runs from discovery, and Art. 33(5) keeps the decisions NOT to notify on the record too." },
 
   // Derived intelligence

@@ -2,7 +2,7 @@
 
 ← Back to [the reference index](00-index.md) · [the map](../WORKSPACE-FILE-TREE.md) · [development.md](../development.md)
 
-Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2539 source files; 0 per-source stubs.**
+Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2549 source files; 0 per-source stubs.**
 
 ## Engines — `src/engines/` (83)
 
@@ -90,7 +90,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/engines/sop/server/sopGuides.ts`](engines.md#file-src-engines-sop-server-sopguides-ts-2229afb22d)
 - [`src/engines/sop/server/sops.ts`](engines.md#file-src-engines-sop-server-sops-ts-8c9bee0d0c)
 
-## State layer — `src/server/` (70)
+## State layer — `src/server/` (71)
 
 - [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201)
 - [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37)
@@ -158,6 +158,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) — compile-time only.
 - [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 - [`src/server/userSchemaMigration.ts`](server.md#file-src-server-userschemamigration-ts-536750ad96) — Lead users (chapter #127) carry `agencyIds: []` (no real agency).
+- [`src/server/websiteDemo.ts`](server.md#file-src-server-websitedemo-ts-bbb8b5bc9b)
 - [`src/server/websiteFormSchemas.ts`](server.md#file-src-server-websiteformschemas-ts-e744d82d66)
 - [`src/server/websiteInjections.ts`](server.md#file-src-server-websiteinjections-ts-c64595949c)
 - [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
@@ -340,7 +341,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/server/clientForms/clientSupabaseExport.ts`](lib.md#file-src-lib-server-clientforms-clientsupabaseexport-ts-0748326949)
 - [`src/lib/server/clientForms/clientSupabaseMapping.ts`](lib.md#file-src-lib-server-clientforms-clientsupabasemapping-ts-e95dd7fa52)
 - [`src/lib/server/clients/clientAttention.ts`](lib.md#file-src-lib-server-clients-clientattention-ts-cadbc44f73)
-- [`src/lib/server/clients/clientDelightExpense.ts`](lib.md#file-src-lib-server-clients-clientdelightexpense-ts-f9a2b763b1) — live here in the Finance lane. `clientDelight.ts` itself is untouched.
+- [`src/lib/server/clients/clientDelightExpense.ts`](lib.md#file-src-lib-server-clients-clientdelightexpense-ts-f9a2b763b1) — `clientDelight.ts` itself is untouched.
 - [`src/lib/server/clients/clientLifecycle.ts`](lib.md#file-src-lib-server-clients-clientlifecycle-ts-68f3ffa5f8)
 - [`src/lib/server/clients/clientPortalProvider.ts`](lib.md#file-src-lib-server-clients-clientportalprovider-ts-9c224098b6)
 - [`src/lib/server/clients/clientProjectProvisioner.ts`](lib.md#file-src-lib-server-clients-clientprojectprovisioner-ts-e53c89eab4)
@@ -1377,14 +1378,18 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/built-ins/runtime/foundation-adapters/publicFunnelFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-publicfunnelfoundation-ts-18280e9710)
 - [`src/built-ins/runtime/foundation-adapters/publicMediaAdapter.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-publicmediaadapter-ts-4b47d9ab84)
 
-## App routes & UI — `src/app/` (641)
+## App routes & UI — `src/app/` (648)
 
 - [`src/app/(seeds)/aquaOasisDemoContent.ts`](app.md#file-src-app-seeds-aquaoasisdemocontent-ts-f2e90ac84c) — agency record (so a prod tenant flip doesn't spawn fake data).
 - [`src/app/(website)/business-os/page.tsx`](app.md#file-src-app-website-business-os-page-tsx-0cbb0528df)
 - [`src/app/(website)/client-centre/page.tsx`](app.md#file-src-app-website-client-centre-page-tsx-c1544eaf13)
+- [`src/app/(website)/demo-privacy/page.tsx`](app.md#file-src-app-website-demo-privacy-page-tsx-c32bd7fb53)
+- [`src/app/(website)/DemoGateForm.tsx`](app.md#file-src-app-website-demogateform-tsx-66cbf39f64)
+- [`src/app/(website)/for-agencies/page.tsx`](app.md#file-src-app-website-for-agencies-page-tsx-873a1afaf9)
 - [`src/app/(website)/health-check/page.tsx`](app.md#file-src-app-website-health-check-page-tsx-8deb062ed1)
 - [`src/app/(website)/LaunchGateForm.tsx`](app.md#file-src-app-website-launchgateform-tsx-01956e4ca2)
 - [`src/app/(website)/layout.tsx`](app.md#file-src-app-website-layout-tsx-6d778b318d)
+- [`src/app/(website)/LegalDraftNotice.tsx`](app.md#file-src-app-website-legaldraftnotice-tsx-b66afa0377)
 - [`src/app/(website)/milesymedia/contact/page.tsx`](app.md#file-src-app-website-milesymedia-contact-page-tsx-242a67c0b6)
 - [`src/app/(website)/milesymedia/page.tsx`](app.md#file-src-app-website-milesymedia-page-tsx-5a4829a926)
 - [`src/app/(website)/portfolio/beast-commerce/BeastCommerceDemo.tsx`](app.md#file-src-app-website-portfolio-beast-commerce-beastcommercedemo-tsx-7f725674d1)
@@ -1393,6 +1398,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/(website)/portfolio/ocean-boulevard/page.tsx`](app.md#file-src-app-website-portfolio-ocean-boulevard-page-tsx-55062bc5c3)
 - [`src/app/(website)/portfolio/page.tsx`](app.md#file-src-app-website-portfolio-page-tsx-81e4241f25)
 - [`src/app/(website)/resources/page.tsx`](app.md#file-src-app-website-resources-page-tsx-c785371abc)
+- [`src/app/(website)/terms/page.tsx`](app.md#file-src-app-website-terms-page-tsx-4d8ad3c89a)
 - [`src/app/(website)/tools/page.tsx`](app.md#file-src-app-website-tools-page-tsx-61b38f2ec9)
 - [`src/app/(website)/WebsitePageUpdating.tsx`](app.md#file-src-app-website-websitepageupdating-tsx-e2eeb4b372)
 - [`src/app/(website)/WebsiteShell.tsx`](app.md#file-src-app-website-websiteshell-tsx-68245cf6be)
@@ -1590,6 +1596,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/api/public/careers/route.ts`](app.md#file-src-app-api-public-careers-route-ts-7ea6e435d1)
 - [`src/app/api/public/client-forms/[connectionId]/route.ts`](app.md#file-src-app-api-public-client-forms-connectionid-route-ts-5021581ef1)
 - [`src/app/api/public/contact/route.ts`](app.md#file-src-app-api-public-contact-route-ts-08a246b9bd)
+- [`src/app/api/public/demo-interest/route.ts`](app.md#file-src-app-api-public-demo-interest-route-ts-b7d2df07cb)
 - [`src/app/api/public/form-capture/route.ts`](app.md#file-src-app-api-public-form-capture-route-ts-34c5b0f2ed)
 - [`src/app/api/public/health-check/complete/route.ts`](app.md#file-src-app-api-public-health-check-complete-route-ts-630525eded)
 - [`src/app/api/public/proposals/[token]/route.ts`](app.md#file-src-app-api-public-proposals-token-route-ts-552499d98b)
@@ -1686,6 +1693,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/portal/agency/_CommandCentreKpiTrajectory.tsx`](app.md#file-src-app-portal-agency-commandcentrekpitrajectory-tsx-e95a853a46)
 - [`src/app/portal/agency/_CommandDeckPopup.tsx`](app.md#file-src-app-portal-agency-commanddeckpopup-tsx-9e57b40464)
 - [`src/app/portal/agency/_CommandIntelligenceWorkspace.tsx`](app.md#file-src-app-portal-agency-commandintelligenceworkspace-tsx-0d26b4df14)
+- [`src/app/portal/agency/_CommandPanelShell.tsx`](app.md#file-src-app-portal-agency-commandpanelshell-tsx-c36babc27c)
 - [`src/app/portal/agency/_CommandStationNav.tsx`](app.md#file-src-app-portal-agency-commandstationnav-tsx-053095e614)
 - [`src/app/portal/agency/_CommercialIntelligenceWorkspace.tsx`](app.md#file-src-app-portal-agency-commercialintelligenceworkspace-tsx-3ebaf9ec01)
 - [`src/app/portal/agency/_DashboardCommandCenter.tsx`](app.md#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff)
@@ -2021,7 +2029,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/showcase/exit/route.ts`](app.md#file-src-app-showcase-exit-route-ts-2297ba275f)
 - [`src/app/showcase/route.ts`](app.md#file-src-app-showcase-route-ts-4c24dd82df)
 
-## Scripts — `scripts/` (534)
+## Scripts — `scripts/` (536)
 
 - [`scripts/attention-protection.test.ts`](scripts.md#file-scripts-attention-protection-test-ts-d64d01714c)
 - [`scripts/audit-actions.ts`](scripts.md#file-scripts-audit-actions-ts-862ea31175) — What state Actions is actually in — measured, not remembered. For every alert the checks currently …
@@ -2106,6 +2114,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-client-attention.test.ts`](scripts.md#file-scripts-smoke-client-attention-test-ts-effe886237)
 - [`scripts/smoke-client-contracts.test.ts`](scripts.md#file-scripts-smoke-client-contracts-test-ts-6040e786b4)
 - [`scripts/smoke-client-crm-journey.test.ts`](scripts.md#file-scripts-smoke-client-crm-journey-test-ts-e5576b17a1) — nav link and refused the API while the page rendered the board anyway.
+- [`scripts/smoke-client-delight-route.test.ts`](scripts.md#file-scripts-smoke-client-delight-route-test-ts-67f5d33728) — agency-finance install. Nothing here is stubbed except the request scope.
 - [`scripts/smoke-client-delivery-package.test.ts`](scripts.md#file-scripts-smoke-client-delivery-package-test-ts-4003cb0559)
 - [`scripts/smoke-client-dev-workspace.test.ts`](scripts.md#file-scripts-smoke-client-dev-workspace-test-ts-3fe4ffcd02) — does not promote the person anywhere else.
 - [`scripts/smoke-client-element-ceiling.test.ts`](scripts.md#file-scripts-smoke-client-element-ceiling-test-ts-5e1fca4444) — First, and statically — see the note in dev-console-request-scope.ts.
@@ -2546,6 +2555,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-utility-action-settling.test.ts`](scripts.md#file-scripts-smoke-utility-action-settling-test-ts-58a1503e21)
 - [`scripts/smoke-vendored-plugin-contract.test.ts`](scripts.md#file-scripts-smoke-vendored-plugin-contract-test-ts-919f5b9d2f) — happen to agree" and "they cannot disagree".
 - [`scripts/smoke-vercel-domain.test.ts`](scripts.md#file-scripts-smoke-vercel-domain-test-ts-dbeb5271ac) — npx tsx --test scripts/smoke-vercel-domain.test.ts
+- [`scripts/smoke-website-demo-gate.test.ts`](scripts.md#file-scripts-smoke-website-demo-gate-test-ts-7a0b40dcbe) — routes or pages existed.
 - [`scripts/smoke-website-editor-block-backends.test.ts`](scripts.md#file-scripts-smoke-website-editor-block-backends-test-ts-4e44741d8f) — public".
 - [`scripts/smoke-website-editor-dead-ui-calls.test.ts`](scripts.md#file-scripts-smoke-website-editor-dead-ui-calls-test-ts-03fb8e216b) — fetches stay in the components, which is why they stay listed here.
 - [`scripts/smoke-website-editor-runner.test.ts`](scripts.md#file-scripts-smoke-website-editor-runner-test-ts-b05fca9f73)
