@@ -144,7 +144,7 @@ async function buildWorld() {
       });
       return { transferId: `tr_currency_${transfers.length}`, created: Date.now() };
     },
-    verifyWebhookSignature() { return true; },
+    async verifyWebhookSignature() { return true; },
   };
   const services = buildAffiliatesContainer({
     agencyId: AGENCY_ID,

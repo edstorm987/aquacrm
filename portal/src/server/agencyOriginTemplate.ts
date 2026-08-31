@@ -80,6 +80,7 @@ export const ORIGIN_NEVER_CONTRIBUTES: Readonly<Record<string, readonly Collecti
     "peopleFeedback", "peopleProcessConfig", "peopleContracts", "peopleChannels",
     "peopleMessages", "peopleChannelReads", "peopleTrainingModules",
     "freelancerAccessConfig", "freelancerJobOverride", "staffProvisioningOperations",
+    "clientProjectOperations",
     "clientMilestones", "clientDelight", "clientRecordLedger",
     "identityResolutionReviews", "enquiryContactDetails",
     // Enquiry events belonging to a specific client's website. A notice holds
@@ -93,6 +94,14 @@ export const ORIGIN_NEVER_CONTRIBUTES: Readonly<Record<string, readonly Collecti
     // requests would start life holding a compliance record that is not
     // theirs, with statutory clocks that were never running for them.
     "subjectRequests",
+    // The breach register (GDPR Art. 33/34). Never seeded, for the same reason
+    // as the DSAR register above and one sharper: Art. 33(5) documentation is
+    // evidence that THIS controller became aware of, assessed and notified a
+    // breach. Seeding it would hand a brand-new agency somebody else's
+    // incidents — and somebody else's decision NOT to notify, with that other
+    // controller's reasoning attached to their name — plus 72-hour clocks that
+    // were never running for them.
+    "breachIncidents",
   ],
   // Credentials and tenant-bound keys. The loudest never.
   secrets: [
@@ -101,7 +110,7 @@ export const ORIGIN_NEVER_CONTRIBUTES: Readonly<Record<string, readonly Collecti
   ],
   // Live work, money and history — an origin seeds an offer, not a business.
   operations: [
-    "activity", "completedActions", "pipelines", "pipelineCards", "tasks",
+    "activity", "outbox", "completedActions", "pipelines", "pipelineCards", "tasks",
     "pluginInstalls", "pluginData", "portalConnections", "clientPortalInstances",
     "performanceExperiments", "commandCalendarEntries", "commandCalendarSources",
     "commandCalendarExternalEvents", "commandCalendarEventCreateOperations",
@@ -110,6 +119,11 @@ export const ORIGIN_NEVER_CONTRIBUTES: Readonly<Record<string, readonly Collecti
     "customKpis", "operationalAlertPreferences", "userChromeLayouts",
     "assistant", "editorAiConversations",
     "notepadFolders", "notepadNotes", "automationRuns",
+    // Real people who asked to see AquaCRM — the founder's own funnel, and
+    // named contact details. Seeding it into a new agency would hand one
+    // tenant another tenant's enquirers, which is the exact leak this
+    // classification exists to prevent. Never contributes.
+    "websiteDemoSignups",
   ],
   // The tenant's own identity and estate, which a new agency defines itself.
   tenancy: [

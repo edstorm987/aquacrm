@@ -198,7 +198,12 @@ export function PeopleHub({
       </header>
 
       <div className="mt-6 border-b border-black/10">
-        <div className="flex gap-3 overflow-x-auto sm:gap-6" role="tablist" aria-label="People view">
+        {/* issues #138 — these were tab-roled buttons with no tabpanel, no
+            roving tabindex and no arrow keys: a keyboard model promised to
+            screen readers and never wired. Same remedy the Settings rail took
+            on 2026-08-30 — a labelled group of ordinary buttons, with
+            `aria-current` naming the one you are on. */}
+        <div className="flex gap-3 overflow-x-auto sm:gap-6" role="group" aria-label="People view">
           <Tab active={view === "clients"} onClick={() => selectView("clients")} label="Clients" count={clients.length} icon={Building2} attentionPrefixHref="/portal/clients" />
           <Tab active={view === "leads"} onClick={() => selectView("leads")} label="Leads" count={leadRows.length} icon={UserSearch} attentionPrefixHref="/portal/agency/pipelines/leads" />
           <Tab active={view === "journey"} onClick={() => selectView("journey")} label="Journey" count={journeyRows.length} icon={Route} attentionPrefixHref="/portal/agency/pipelines" />
@@ -287,7 +292,7 @@ export function PeopleHub({
 
 function Tab({ active, onClick, label, count, icon: Icon, attentionPrefixHref }: { active: boolean; onClick: () => void; label: string; count: number; icon: LucideIcon; attentionPrefixHref?: string }) {
   return (
-    <button type="button" role="tab" aria-selected={active} onClick={onClick} className={`relative inline-flex min-h-11 items-center gap-2 whitespace-nowrap text-sm font-medium ${active ? "text-black" : "text-black/45 hover:text-black/70"}`}>
+    <button type="button" aria-current={active ? "true" : undefined} onClick={onClick} className={`relative inline-flex min-h-11 items-center gap-2 whitespace-nowrap text-sm font-medium ${active ? "text-black" : "text-black/45 hover:text-black/70"}`}>
       <Icon size={15} aria-hidden="true" /><span>{label} <span className="ml-1 text-xs tabular-nums text-black/35">{count}</span></span><AttentionDot prefixHref={attentionPrefixHref} />
       {active ? <span className="absolute inset-x-0 bottom-0 h-0.5 bg-black" /> : null}
     </button>

@@ -2,18 +2,29 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-08-30 from **9** source documents / **11,553 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-31 from **20** source documents / **29,495 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`AGENTS.md`](#source-agents-md) — 95 words · `63f2c50380ed`
 - [`CLAUDE.md`](#source-claude-md) — 3,545 words · `80e4ff9c47b9`
+- [`docs/data/adr/ADR-001-semantic-registry-in-code.md`](#source-docs-data-adr-adr-001-semantic-registry-in-code-md) — 217 words · `f092ef6a564d`
+- [`docs/data/adr/ADR-002-domain-modules-are-the-repository-seam.md`](#source-docs-data-adr-adr-002-domain-modules-are-the-repository-seam-md) — 218 words · `361439671762`
+- [`docs/data/adr/ADR-003-one-calculation-path-per-metric.md`](#source-docs-data-adr-adr-003-one-calculation-path-per-metric-md) — 233 words · `9143b1627c97`
+- [`docs/data/adr/ADR-004-metadata-governed-not-banned.md`](#source-docs-data-adr-adr-004-metadata-governed-not-banned-md) — 196 words · `2b11d24db9f0`
+- [`docs/data/ARCHITECTURE.md`](#source-docs-data-architecture-md) — 1,020 words · `c00c30773721`
+- [`docs/data/DATA-DICTIONARY.md`](#source-docs-data-data-dictionary-md) — 955 words · `bad31fdda0bc`
+- [`docs/data/LINEAGE.md`](#source-docs-data-lineage-md) — 666 words · `ec581e8c8312`
+- [`docs/data/MIGRATION-PLAN.md`](#source-docs-data-migration-plan-md) — 1,262 words · `f3a9c8e8b533`
+- [`docs/data/SEMANTIC-LAYER.md`](#source-docs-data-semantic-layer-md) — 775 words · `eaaf6bafb960`
+- [`docs/data/SOURCE-INVENTORY.md`](#source-docs-data-source-inventory-md) — 1,689 words · `508db7acc293`
 - [`docs/DEVELOPMENT-HANDOFF.md`](#source-docs-development-handoff-md) — 1,552 words · `9199166a1f30`
 - [`docs/development-workspace-cleanup.md`](#source-docs-development-workspace-cleanup-md) — 793 words · `bdb46a5cecd3`
 - [`docs/development.md`](#source-docs-development-md) — 3,248 words · `dd5efef22882`
+- [`docs/development/CAMPAIGN-LEDGER.md`](#source-docs-development-campaign-ledger-md) — 8,263 words · `aff8d4bf94da`
 - [`docs/development/CLOUD-RESUME.md`](#source-docs-development-cloud-resume-md) — 500 words · `03458cdf18bf`
-- [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 558 words · `27df7b0c7b2a`
-- [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 825 words · `fae37c7c58de`
+- [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 2,209 words · `f8dfdfa9cfad`
+- [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,622 words · `98fe02dc9d94`
 - [`README.md`](#source-readme-md) — 437 words · `78865db66238`
 
 ---
@@ -460,6 +471,1008 @@ checkpoint-committed that state. The current brief at the top of this file,
 source, and `docs/development/checklist.md` supersede older status prose, and
 `git status --short` supersedes all of them.
 <!-- AQUACRM_SOURCE_END path="CLAUDE.md" -->
+
+---
+
+<a id="source-docs-data-adr-adr-001-semantic-registry-in-code-md"></a>
+
+## Source document — `docs/data/adr/ADR-001-semantic-registry-in-code.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/data/adr/ADR-001-semantic-registry-in-code.md" sha256="f092ef6a564d26df854311e618626bfd2dadb8f2ae5aad085d845360972102da" -->
+# ADR-001 — The semantic layer lives in code, enforced by tests
+
+**Status:** accepted, 2026-08-30.
+
+## Context
+
+AquaCRM had selective semantics: excellent doc comments in `types.ts`, module
+headers stating boundaries (persons vs people), and prose chapters — but no
+single registry, and nothing failed when a new collection, metric or metadata
+key shipped without declared ownership, tenancy or sensitivity. Prose-only
+semantic layers rot; the repo's own history shows docs drifting from source
+("the DDL does not exist" incident, 2026-08-20).
+
+## Decision
+
+The authoritative semantic layer is three pure, client-safe TypeScript
+modules — `semanticRegistry.ts`, `metricRegistry.ts`,
+`metadataContracts.ts` — each paired with a smoke test that mechanically ties
+it to the code it describes: exact set-equality against
+`createEmptyPortalState()`, id extraction from the metric-defining source
+files, and a source-tree scan for metadata key accesses. Markdown under
+`docs/data/` is a generated-quality prose view; where they disagree, the
+registry wins.
+
+## Consequences
+
+- A new collection/metric/metadata key cannot ship unclassified — the suite
+  fails with instructions naming the one place to add it.
+- The registries never restate formulas or types (no second source of
+  truth): they add what code cannot carry (definitions, grain, tenancy,
+  sensitivity, retention, overlap links) and *point at* the authority.
+- Cost: touching those surfaces means one extra registry entry per change.
+  Accepted — that is the governance working.
+<!-- AQUACRM_SOURCE_END path="docs/data/adr/ADR-001-semantic-registry-in-code.md" -->
+
+---
+
+<a id="source-docs-data-adr-adr-002-domain-modules-are-the-repository-seam-md"></a>
+
+## Source document — `docs/data/adr/ADR-002-domain-modules-are-the-repository-seam.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/data/adr/ADR-002-domain-modules-are-the-repository-seam.md" sha256="361439671762eb20b119d1e94d18b2a0eb3807ea24e66c2f3e6548c9c39e17d3" -->
+# ADR-002 — The existing server domain modules ARE the repository seam
+
+**Status:** accepted, 2026-08-30.
+
+## Context
+
+The target architecture requires application code not to depend on storage
+layout, so collections can extract from the PortalState blob into tables
+without touching routes. One option was a new `repositories/` abstraction
+layer wrapping `getState()/mutate()`.
+
+## Decision
+
+No new layer. The existing server domain modules (`server/tenants.ts`,
+`persons.ts`, `users.ts`, `accessControl.ts`, …) are declared the repository
+seam: they are already the only sanctioned readers/writers of their
+collections ("every list/get MUST accept agencyId… there is no global list
+helper"), routes already consume their exported functions, and the storage
+backends are already abstracted beneath them. A parallel abstraction would
+duplicate 40+ modules' surfaces for zero behavioural gain — exactly the
+duplication `hazards-and-duplication.md` exists to prevent.
+
+The contract this ADR adds: **a collection may change its storage layout only
+behind its module's exported functions.** A module that still leaks raw
+PortalState shape across its boundary gets tightened when (not before) its
+slice migrates, with repository contract tests run against every supported
+backend at that point.
+
+## Consequences
+
+- Extraction phases (MIGRATION-PLAN 1–6) are module-internal changes plus
+  backfills; routes and UI stay untouched — the strangler requirement.
+- No big-bang refactor risk now; the cost moves into each slice, where the
+  parity tests already have to exist.
+<!-- AQUACRM_SOURCE_END path="docs/data/adr/ADR-002-domain-modules-are-the-repository-seam.md" -->
+
+---
+
+<a id="source-docs-data-adr-adr-003-one-calculation-path-per-metric-md"></a>
+
+## Source document — `docs/data/adr/ADR-003-one-calculation-path-per-metric.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/data/adr/ADR-003-one-calculation-path-per-metric.md" sha256="9143b1627c97a7081134d9cb312f88fbfaa6fb6ce52ef1b6f69b3744056cf813" -->
+# ADR-003 — One calculation path per metric, registry as identity, dedup by parity
+
+**Status:** accepted, 2026-08-30.
+
+## Context
+
+Nine-plus business quantities are computed in 2–4 places; two duplicates have
+genuinely different semantics (a hardcoded 5-minute SLA vs the configured
+guardrail; forms-vs-conversions numerators); `campaign-roas` collides in the
+flat descriptor id space with different rounding on each side. Deleting the
+"wrong" copies immediately would change numbers users see and break saved
+custom-KPI definitions — the destructive rewrite this project forbids.
+
+## Decision
+
+1. `metricRegistry.ts` assigns every metric one `canonicalId`
+   (`<kind>:<id>`) and names one `computedBy` authority; competing
+   calculations are linked as `same-quantity` overlaps rather than deleted.
+2. The existing collision is pinned (`KNOWN_DESCRIPTOR_ID_COLLISIONS`); any
+   NEW bare-id collision fails the suite.
+3. Golden boundary tests pin the current canonical behaviour (SLA boundary
+   inclusive, 14-day staleness inclusive, decision denominators, even-count
+   medians, >100% directional ratios, null-not-Infinity on zero spend).
+4. Dedup happens in MIGRATION-PLAN Phase 7, one quantity at a time: golden
+   parity first, then consumers move to the canonical path, then the
+   duplicate retires. `formulaText` strings must state the real calculation
+   (the `business-health` incident-blend omission is the cautionary case,
+   fixed with this ADR).
+
+## Consequences
+
+- Dashboards keep today's numbers until a recorded, tested switch — no
+  silent changes.
+- The registry cannot rot: set equality against the defining source files is
+  enforced, so "remove a competing calculation" shows up as a registry diff
+  reviewers can see.
+<!-- AQUACRM_SOURCE_END path="docs/data/adr/ADR-003-one-calculation-path-per-metric.md" -->
+
+---
+
+<a id="source-docs-data-adr-adr-004-metadata-governed-not-banned-md"></a>
+
+## Source document — `docs/data/adr/ADR-004-metadata-governed-not-banned.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/data/adr/ADR-004-metadata-governed-not-banned.md" sha256="2b11d24db9f0a69441192526aab9a6ba38df19e01abefa21fd469172cdea3973" -->
+# ADR-004 — Metadata bags are governed and shrunk by namespace, not banned
+
+**Status:** accepted, 2026-08-30.
+
+## Context
+
+`Client.metadata` and its siblings carry 123 distinct keys, including whole
+subsystems (the telemetry event stream, payment plans, portal provisioning,
+invoice facts). Banning the bag outright would force a big-bang typed-schema
+rewrite across hundreds of call sites; leaving it ungoverned keeps growing
+undefined contracts with no owner, sensitivity class or deletion behaviour.
+
+## Decision
+
+Every key is contracted in `metadataContracts.ts` (carrier, namespace, type,
+sensitivity, owner), and `smoke-metadata-contracts.test.ts` scans the source
+tree both ways: an uncatalogued key in code fails, and a catalogued key
+nothing touches fails (minus an explicit stored-data allowlist). The
+**namespace is the migration unit**: telemetry and finance extract first
+(MIGRATION-PLAN Phase 5), contact points with the people slice (Phase 2);
+`bespoke` keys survive as a small, named, typed-at-read set.
+
+Versioning: the catalogue itself is version-controlled and test-pinned;
+per-key `since`/schema-version stamps are added when a namespace's first
+migration needs them, not speculatively.
+
+## Consequences
+
+- The escape hatch closes going forward at zero migration cost today.
+- The erasure sweep gains a mechanical PII checklist
+  (`personalMetadataKeys()`), pinned so reclassification cannot silently
+  drop a key from the sweep.
+<!-- AQUACRM_SOURCE_END path="docs/data/adr/ADR-004-metadata-governed-not-banned.md" -->
+
+---
+
+<a id="source-docs-data-architecture-md"></a>
+
+## Source document — `docs/data/ARCHITECTURE.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/data/ARCHITECTURE.md" sha256="c00c30773721ed8a0eddebad6721d523094f46db15c453ad7ac34ced5cb78df3" -->
+# Data architecture — current state and target
+
+*Written 2026-08-30 against the working tree. This document describes what
+exists, then the target planes, then the seams that get from one to the other
+without a destructive rewrite. The inventory of individual stores is in
+[SOURCE-INVENTORY.md](SOURCE-INVENTORY.md); the phased path is in
+[MIGRATION-PLAN.md](MIGRATION-PLAN.md); decisions are in [adr/](adr/).*
+
+## 1. Current state (verified)
+
+- **One operational document.** ~90 typed collections in a single
+  `PortalState` JSON, cached in-process, persisted whole (file/Postgres) or
+  patch-wise (Supabase RPC `apply_app_datastore_patch`), with two sidecar rows
+  for the largest collections. Sandbox **realms** are separate rows/files —
+  a genuine data boundary selected per request from the signed session cookie.
+- **A handful of real tables** beside it: profiles, brand_enquiries,
+  consent events, the five inbox tables (schema written, unapplied live),
+  nonces, lease/claim tables, storage buckets.
+- **Tenant isolation is application-code JS filtering.** Every record carries
+  `agencyId` as a JSON field; `server/tenants.ts` enforces the
+  "every list/get takes agencyId" discipline; the access kernel
+  (`accessControl.ts`) layers capabilities, scopes and environments on top.
+  The blob adapters use the service-role key, so **no RLS protects the
+  operational plane** — RLS exists and is load-bearing only for `profiles`
+  and (partially) `brand_enquiries`.
+- **Events are in-memory fire-and-forget.** `eventBus.ts` loses events on
+  process exit and does not cross serverless instances; `automationRuns` is
+  the only durable shadow. There is no outbox, no correlation/causation ids.
+- **Derived intelligence is strong but identity-fragmented.** The radar
+  evidence vault is typed, three-tier retained, honestly absent-vs-empty, and
+  golden-tested; but metric identity was split across three schemes and at
+  least nine business quantities were computed in 2–4 places
+  (SOURCE-INVENTORY §2).
+- **123 metadata keys** hide whole subsystems inside `Client.metadata`
+  (telemetry stream, payment plans, portal provisioning, invoice facts).
+
+## 2. Target architecture
+
+### 2.1 Operational plane
+
+Postgres/Supabase remains the fast transactional source of truth. The path
+away from the single document is **collection-by-collection extraction into
+tenant-scoped rows**, in the order the risk register demands (identity and
+money before preferences), each extraction behind the same seam:
+
+- **Repository seam = the existing server domain modules.** `tenants.ts`,
+  `persons.ts`, `users.ts`, `accessControl.ts` etc. are already the only
+  places that touch their collections; application code and routes never
+  reach into `PortalState` shape directly for those domains. ADR-002 makes
+  this the formal contract: a collection may only change its storage layout
+  behind its module's exported functions, so an extraction is invisible to
+  routes. (Modules that still leak raw state shape get tightened as their
+  slice migrates.)
+- File/memory adapters stay for development and tests — the backend interface
+  in `storage.ts` already abstracts them, and extractions must keep a
+  blob-resident fallback until parity is proven (the sidecar pattern's
+  `sidecarPopulated` discipline is the house template for this).
+- Every extracted table carries `agency_id` (and `client_id` where client
+  scoped) as **real columns with RLS policies**, following the
+  `inbox_*` template: deny-by-default grants plus scoped policies, service
+  role only where a worker genuinely needs it.
+
+### 2.2 Intelligence plane
+
+Medallion-inspired, claimed only where real:
+
+- **Raw** (exists today, keep): `brand_enquiries` capture rows,
+  `inbox_webhook_events` provider payloads (lease-claimed, idempotent by
+  `event_key`, retention-pruned), `commandCalendarExternalEvents`. These are
+  immutable-in-practice and idempotent. *Telemetry ingest is the gap*: events
+  get random ids and no dedupe — MIGRATION-PLAN phase 5 gives beacons a
+  deterministic identity before any "raw layer" claim covers them.
+- **Canonical** (exists in part): persons/organisations with identity
+  resolution, facets and classification history are genuinely canonical —
+  validated, deduplicated, provenance-carrying. Enquiry→person linking and
+  client lineage stamps qualify. The semantic registry
+  (`src/lib/data/semanticRegistry.ts`) is the machine-readable authority for
+  what belongs here.
+- **Derived** (exists, now with one identity): KPI/Radar/report models are
+  rebuildable projections. The radar evidence vault is the durable substrate;
+  `metricRegistry.ts` is the one metric identity; kpiRegistry stays a
+  projection that never recomputes.
+
+We do **not** describe these as Bronze/Silver/Gold: only the evidence vault
+and the webhook/enquiry rows are durably stored, versioned and rebuildable
+today, and the honest names above say exactly which properties hold where.
+
+### 2.3 Canonical semantic layer
+
+`src/lib/data/semanticRegistry.ts` — entities, distinctions, timestamp and
+value doctrines, and the enforced classification of every PortalState
+collection. `src/lib/data/metricRegistry.ts` — one stable id and one
+semantic record per metric, with every known competing calculation linked as
+`same-quantity`. `src/lib/data/metadataContracts.ts` — the governed metadata
+catalogue. All three are pure, client-safe, and pinned by smoke tests so they
+cannot drift from the code they describe. Prose views:
+[SEMANTIC-LAYER.md](SEMANTIC-LAYER.md), [DATA-DICTIONARY.md](DATA-DICTIONARY.md).
+
+### 2.4 Security and isolation
+
+- Tenancy stays enforced server-side at the module seam today; each extracted
+  table adds database-enforced RLS (2.1). The access kernel's element
+  capabilities are the resource/field-level permission vocabulary; pay
+  redaction (`redactPeopleEmployeePay`) is the field-level template.
+- Gated permission requests: `pending|approved|denied|cancelled` on the
+  request, expiry/revocation on the grant — see SEMANTIC-LAYER §approval for
+  why that decomposition is correct rather than a missing feature.
+- Known hazards stay on the register until closed: legacy fallback widening
+  on last-grant revocation (issue #174, Ed's decision pending), unbounded
+  agency-owner baseline, freelancer not client-pinned, 403-vs-404 convention
+  (#168).
+- Audit: activity log + access-kernel audit exist; the 50k cap's silent
+  eviction is a recorded risk (MIGRATION-PLAN phase 6 adds overflow to
+  durable storage before any compliance claim).
+
+### 2.5 Events and provenance
+
+The **transactional outbox groundwork exists** (2026-08-30,
+`server/outbox.ts` + `PortalState.outbox`): events are recorded inside the
+same `mutate()` as the domain change, with stable past-tense names + a
+payload version, actor/tenant/source, correlation and causation ids, and
+`occurredAt` kept strictly apart from `recordedAt`; the in-memory bus is the
+delivery mechanism, fed emit-then-mark at-least-once, with delivered rows
+pruned (14 days / 5,000 cap) and pending rows never pruned. One call site is
+adopted (`client.created`); the rest migrate call-site-by-call-site
+(MIGRATION-PLAN Phase 3). Imports stay idempotent by provider ids
+(`event_key`, `external_message_id`, `submissionId`) and gain checksums where
+payloads lack ids. We do not claim event sourcing: state is not rebuildable
+from events and the docs must never say otherwise.
+
+## 3. What changed on 2026-08-30 (this phase)
+
+- Semantic registry + coverage enforcement (new, tested).
+- Canonical metric registry + collision pinning + golden boundary tests
+  (new, tested).
+- Metadata contracts + source-scan enforcement (new, tested).
+- `business-health` formula text corrected to the real blend.
+- This documentation suite.
+
+Everything else in §2 is target, not claim. LOOP-PROGRESS.md tracks the
+phase queue; genuinely open business definitions live in
+`../development/ED-QUESTIONS.md`.
+<!-- AQUACRM_SOURCE_END path="docs/data/ARCHITECTURE.md" -->
+
+---
+
+<a id="source-docs-data-data-dictionary-md"></a>
+
+## Source document — `docs/data/DATA-DICTIONARY.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/data/DATA-DICTIONARY.md" sha256="bad31fdda0bc37e304583ebf79d335455cfebdb6b34071cfb81b59a950bca7f0" -->
+# Data dictionary — authoritative fields of the core entities
+
+*Field-level companion to [SEMANTIC-LAYER.md](SEMANTIC-LAYER.md). Types are
+quoted from `src/server/types.ts` (the compile-time authority); this file adds
+the semantics a type cannot carry. Collections not detailed here are
+classified in `PORTAL_STATE_COVERAGE` and typed in types.ts; the 123 metadata
+keys are individually contracted in `src/lib/data/metadataContracts.ts` and
+not repeated here.*
+
+Conventions: timestamps are epoch ms UTC. `agencyId` on a record is the
+enforceable tenant boundary (JS-enforced today, column+RLS as slices
+extract). "SoT" = source of truth.
+
+## Agency (tenant) — `state.agencies`
+
+| Field | Type | Semantics |
+|---|---|---|
+| `id` | string | Stable tenant id. SoT for tenancy joins. |
+| `slug` | string | Unique, display/routing. |
+| `status` | `active\|paused\|archived` | Lifecycle; no deletion flow exists. |
+| `holdingAgencyId` + `companyId` | string? | Set **together or not at all**: marks this tenant as the portal backing one trading company; must stay two-way with `TradingCompany.portalAgencyId` or the third tier evaporates. |
+| `createdAt`/`updatedAt` | number | ingestion/bookkeeping. |
+
+## Client (workspace) — `state.clients`
+
+| Field | Type | Semantics |
+|---|---|---|
+| `id`, `agencyId` | string | id SoT; agencyId the boundary — every read path filters on it (`tenants.ts` discipline). |
+| `relationshipId` | string? | Groups several isolated workspaces of one buyer. |
+| `personId` | string? | The canonical human. Clients sharing `relationshipId` share `personId`. |
+| `companyId` | string? | Owning trading company. |
+| `stage` | `ClientStage` | Kept as a string union for agency-customised phases; the six `aqua-*` stages are the canonical progression. **Not** a delivery stage — per-product service stages live on assignments. |
+| `status` | `active\|paused\|archived` | Lifecycle distinct from stage. |
+| `metadata` | `Record<string,unknown>` | Governed escape hatch — every key contracted in `metadataContracts.ts`; new keys fail the suite. Finance/telemetry/inbox namespaces are extraction targets. |
+| `ownerEmail` | string? | PII; part of identity-resolution evidence. |
+
+## ServerUser — `state.users` (keyed by lower-cased email)
+
+| Field | Semantics |
+|---|---|
+| `agencyIds: string[]` | The real membership list (multi-agency, R025). |
+| `agencyId` | Legacy mirror of `agencyIds[0]` — kept for 56+ call sites; never write it independently. |
+| `clientId` | Required binding for `client-*`, `freelancer`, `end-customer` roles. |
+| `passwordHash` | scrypt `scrypt$N$r$p$salt$derived` — credential class; never leaves the server. |
+| `sessionRev` / `accessRev` | Revocation counters — bumping invalidates live sessions / cached access. SoT for "is this session still valid". |
+| `role` | One of the 8-value union; cross-checked against the session on every read (`resolveFreshSessionUser`). |
+
+## Person — `state.persons`
+
+| Field | Semantics |
+|---|---|
+| `emails[]` / `phones[]` | Each keeps normalised `value` + original `raw` + `label` + `isPrimary`; `PersonPhone.shared` marks switchboards that must never identify a person without a compatible name. |
+| `classification` (+ `classificationHistory[]`) | 9-valued, hand-set, append-only history `{from,to,at,by,note,sourceType,sourceId}`. |
+| `facets` | `{leadId?, contactId?, clientIds?, enquiryIds?}` — retained through reclassification, never deleted ("changing what somebody IS must never destroy what they DID"). |
+| `state` | **Derived** by `derivePersonState` — never hand-set. |
+| `organisationLinks[]` | `suggested\|confirmed\|rejected`; rejected links retained so a dismissed guess doesn't resurface. |
+
+## AccessGrant — `state.accessGrants`
+
+| Field | Semantics |
+|---|---|
+| `userId`, `scope`, `environment` | The binding: scope kinds `agency\|workspace\|client\|project` (parent ids legal only on workspace), environments `live\|sandbox` — revoke independently. |
+| `capabilities` (+ `templateId`) | Additive; templates merge only when same-agency, un-archived, and the template permits the scope kind + environment. Delegation requires the granter to hold everything granted. |
+| `allowedPaths` | Repo-relative; may only **narrow** (intersected with the project's own). |
+| `expiresAt` / `revokedAt`+`revokedBy`+`revokeReason` | Grant lifecycle; revocation bumps `accessRev` and is audited. Revoked grants retained forever. |
+| `requestId` | Provenance link to the approving request. |
+
+## Enquiry — `brand_enquiries` (Supabase, raw plane)
+
+| Column | Semantics |
+|---|---|
+| `id` uuid | SoT id. |
+| `name`,`email?`,`phone?`,`message?` | The canonical capture vocabulary (`CORE_KEYS`); client-database submissions map ONTO these with per-field provenance `configured\|detected\|absent` (`clientFormMapping.ts`), unrecognised answers kept in `additional[]`. |
+| `consent` bool | Enforced in the anon INSERT policy's WITH CHECK, not only app code. |
+| `agency_id` | The tenant column — migration written 2026-08-20, applied by hand; until applied, `metadata->>'agencyId'` is the fallback and inserts retry without the column on PGRST204. |
+| `created_at` | Ingestion time. Event time, where the source row carries one, maps to `core.submittedAt` and is deliberately kept distinct. |
+| `metadata` jsonb | Routing + provenance keys — all contracted (routing/identity/consent namespaces). |
+
+## Inbox family — `inbox_*` (Supabase; the properly-scoped template)
+
+All five tables carry a real `agency_id` column; grants deny anon and
+authenticated outright (service-role only). `inbox_messages.sent_at` =
+occurred; `created_at` = recorded; `external_message_id` dedupes provider
+redelivery (multipart ids included); `inbox_webhook_events.event_key` is the
+import idempotency key, claimed via lease RPC, pruned past retention.
+`encrypted_access_token` is AES-256-GCM via `PORTAL_VAULT_ENCRYPTION_KEY` —
+credential class, never in derived data.
+
+## ActivityEntry — `state.activity` (audit trail)
+
+`{id, ts (occurred), agencyId, clientId?, actorUserId?, actorEmail?,
+category (30-value union), action (past-tense verb, e.g. "client.created"),
+message, metadata?}` — idempotent by key (sha256 → id), secret-shaped
+metadata keys redacted before write, **hard cap 50,000 with silent
+oldest-first eviction** (recorded risk).
+
+## Radar evidence — `state.radarEvidence`
+
+Series keyed `${domain}:${familyId}`; per series: typed points (5-minute
+buckets, 14-day raw retention), hourly rollups (60d), daily (365d), rolling
+baseline (undefined under 3 points — never fabricated), `expectedDirection`,
+first/last seen. The metric registry records each KPI's `radarFamilyId` join.
+
+## Metric descriptor (derived, not stored) — `KpiDescriptor`
+
+22 fields projected verbatim from built snapshots; `series` caps at 24
+points. Identity and semantics come from `CanonicalMetricEntry`
+(`metricRegistry.ts`): `canonicalId` = `<kind>:<id>` is the stable join key;
+`computedBy` names the one calculation authority; `overlaps` link every known
+competing calculation. Bare-id collisions are pinned to exactly
+`["campaign-roas"]`.
+<!-- AQUACRM_SOURCE_END path="docs/data/DATA-DICTIONARY.md" -->
+
+---
+
+<a id="source-docs-data-lineage-md"></a>
+
+## Source document — `docs/data/LINEAGE.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/data/LINEAGE.md" sha256="ec581e8c8312e042f4195977a4739ab6e3300ff1883a2cd026373f4c4d1ab4c5" -->
+# Lineage — how a number on a screen traces back to a record
+
+*Companion to [SOURCE-INVENTORY.md](SOURCE-INVENTORY.md). Machine-readable
+joins live in `src/lib/data/metricRegistry.ts` (`computedBy`,
+`radarFamilyId`, `overlaps`) and `src/lib/data/semanticRegistry.ts`
+(provenance per entity).*
+
+## 1. The three metric identity schemes and their join
+
+| Scheme | Example | Lives in |
+|---|---|---|
+| KPI / descriptor id | `lead-conversion` | `commandIntelligenceService.ts` makeKpi / `commercialIntelligence.ts` makeFormula |
+| Radar rule family id | `lead-conversion-rate` | `radarRuleCatalog.ts` (172 families × 12 lenses) |
+| Evidence series id | `sales:lead-conversion-rate` | `radarEvidence` vault (`${domain}:${familyId}`) |
+
+The join is declared per metric as `radarFamilyId` in the canonical registry
+(previously hand-passed as makeKpi's `familyId` argument with nothing
+checking it). Evidence sampling only records checks with
+`scope==="kpi" && lens==="threshold" && numeric value` — that filter is why
+some KPIs have rich histories and others plot a single honest point.
+
+## 2. Worked traces
+
+**Radar → canonical records.** A Radar check (e.g. `sales/lead-conversion-rate`
+threshold) reads the commercial lifecycle snapshot ← built from `pipelineCards`
++ `Lead` records + `clients` (all agency-filtered PortalState collections) ←
+cards/leads created from `brand_enquiries` rows via capture + identity
+resolution (which stamps `identityResolution` — confidence, reasons,
+explanation — onto the enquiry's metadata) ← raw form POST, consent-gated at
+the RLS policy. Every hop is inspectable: the check carries `evidence[]` and
+`sourceIds`, the Radar's source-dataset inspection lists the records, and the
+review trail lives in `identityResolutionReviews`.
+
+**KPI Explorer point → storage.** Descriptor `series` ← `CommandKpi.history`
+← evidence vault points (`radarEvidence`, retained 14d/60d/365d by tier) ←
+sweep writes ← the same snapshot builders. The descriptor never recomputes
+(pinned by `smoke-kpi-registry.test.ts`).
+
+**Traffic KPI → beacon (hardened 2026-08-30).** `traffic-7d` ←
+`clientTelemetryService` ← `Client.metadata.telemetryEvents` ← Aqua Tag POST
+`/api/telemetry/collect` (rate-limited, consent-gated). Beacons carrying
+their own `occurredAt` now get a **deterministic content+time id**, so a
+replayed request records nothing twice (event, activity row, milestone sync
+all idempotent) and replays don't consume the rate limit; beacons with no
+event time keep random ids — no honest identity to dedupe on. The same work
+fixed a silent pre-existing defect: the ±1e9 numeric clamp had been
+flattening every real epoch-ms `occurredAt`, replacing event time with
+ingestion time across all telemetry. Remaining weak half (Phase 5): the
+store is still the metadata bag with a 500-event cap and no
+`connectionId` back-reference.
+
+**Inbox message → provider (the strong edge).** Inbox row ←
+`append_inbox_provider_message` RPC ← webhook event claimed by lease
+(`claim_inbox_webhook_events`, idempotent by `event_key`, retention-pruned)
+← provider POST. Duplicate delivery cannot double-write
+(`external_message_id` ownership checks include multipart ids).
+
+## 3. Provenance strength by area (honest grades)
+
+| Area | Grade | Evidence |
+|---|---|---|
+| Inbox messaging | **Strong** | provider ids as idempotency facts, lease-claimed events, atomic RPCs, race reconciliation |
+| Enquiry capture | **Good** | per-field mapping provenance (`configured\|detected\|absent`), `purposeSource` (declared/chosen/guessed), submissionId + ingestionState, identity-resolution stamps |
+| Identity resolution | **Good** | frozen resolution + reasons + confidence per review; append-only classification history on Person |
+| Access kernel | **Good** | every mutation audited with actor + ids; grants keep request back-reference |
+| Connections | **Adequate** | connection-level status/test/actor stamps — but **no record-level back-reference** from data an integration wrote to the connection that wrote it |
+| Telemetry | **Weak** | random ids, no dedupe, no batch identity |
+| Imports generally | **Absent** | no import-batch records, no content checksums anywhere in `portal/src` |
+| Audit trail | **Capped** | idempotent + redacted, but 50k hard cap evicts silently |
+
+## 4. Deliberate non-lineage (by design, keep)
+
+Client-website submissions: Aqua stores only `{clientId, table, rowId,
+timestamp}` and never copies the client's row — a data-controller boundary
+(`types.ts:4375-4392`). The `rowId` may dangle after the client deletes the
+row; surfaces must render that honestly rather than caching a copy.
+
+## 5. Secrets never enter lineage
+
+Credential-class fields (scrypt hashes, `encrypted_access_token`, external
+assistant keys, vault-encrypted secrets) are excluded from derived datasets
+and redacted from activity metadata by pattern
+(`redactActivityValue`). Any new derived model must consult the sensitivity
+class in the semantic registry / metadata contracts before copying a field.
+<!-- AQUACRM_SOURCE_END path="docs/data/LINEAGE.md" -->
+
+---
+
+<a id="source-docs-data-migration-plan-md"></a>
+
+## Source document — `docs/data/MIGRATION-PLAN.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/data/MIGRATION-PLAN.md" sha256="f3a9c8e8b53397ed189f4b82c0781ba6fc17897120cd3704b22f7b8617c8a6ee" -->
+# Migration plan — strangler, one coherent vertical slice at a time
+
+*Rules that bind every phase below: the PortalState/blob system is not
+deleted; existing APIs and UI behaviour are preserved; each phase is
+independently deployable and reversible; backfills are idempotent with
+dry-run, checkpoints, counts, reconciliation and rollback instructions;
+legacy fields are not removed until parity and rollback have been
+demonstrated; reads switch only after legacy-vs-canonical comparison. The
+house template for "two copies coexist until the new one is CONFIRMED" is the
+sidecar split's `sidecarPopulated` discipline (`storage.ts`) — every
+extraction below follows it.*
+
+## Phase 0 — semantic groundwork ✅ (2026-08-30, this branch)
+
+Semantic registry + enforced PortalState coverage; canonical metric registry
++ collision pinning + golden boundary tests; metadata contracts + source-scan
+enforcement; `business-health` formula text corrected; this doc suite.
+Reversible: pure additions + one prose string.
+
+## Phase 1 — tenancy / identity / roles (first extraction slice)
+
+**Goal:** `agencies`, `tradingCompanies`, `users`, `accessGrants`,
+`accessRoleTemplates`, `accessRequests` become tenant-scoped rows with RLS,
+behind their existing modules.
+
+1. Create tables (real columns incl. `agency_id`; users keep scrypt hashes;
+   grants/requests keyed as today) with `inbox_*`-style deny-by-default
+   grants + policies. Apply `20260820150000` (enquiry agency column) and the
+   inbox migration first — they are written, unapplied, and blocking
+   (needs Ed: `supabase db push`, see ED-QUESTIONS).
+2. Dual-presence, not dual-write: module writes go to the blob as today AND
+   enqueue an outbox record (Phase 3's mechanism, or a synchronous copy in
+   the same `mutate` while the outbox lands); a backfill job copies
+   collection → table with dry-run, per-collection checkpoints, row counts
+   and a reconciliation diff (id-set + field-hash comparison).
+3. Reads stay on the blob until the comparison report shows N days of zero
+   drift; then module reads flip behind a flag, blob copy retained.
+4. Rollback: flip the flag back; the blob never stopped being written.
+
+**Verification:** repository contract tests run the module API against
+memory + file + Postgres backends; tenant-isolation tests assert cross-agency
+reads return nothing at the SQL layer (new RLS tests), not only through the
+module; existing suites (`smoke-release-access-matrix`,
+`smoke-session-revocation`) must stay green untouched.
+
+## Phase 2 — people and organisations
+
+`persons`, `organisations`, `identityResolutionReviews` extract with the same
+mechanics. Identity-resolution and person-dedupe suites
+(`smoke-identity-resolution`, `smoke-person-identity-dedupe`) are the parity
+oracle: run against blob-backed and table-backed reads, diff by test name.
+Contact points normalise out of `Client.metadata.linkedContacts` (contact
+namespace) here — the metadata catalogue is the checklist.
+
+## Phase 3 — transactional outbox + event envelope
+
+**Groundwork SHIPPED 2026-08-30** (`server/outbox.ts`, `PortalState.outbox`,
+`smoke-outbox.test.ts`): `recordOutboxEvent` appends inside the caller's own
+`mutate()` (atomic with the domain change), `drainOutbox` hands pending rows
+to the existing bus emit-then-mark (a crash between the two redelivers rather
+than silently losing — at-least-once, consumers stay idempotent),
+`emitDurable` is the drop-in for detached emit sites, delivered rows prune
+after 14 days / 5,000-row cap with pending never pruned. Envelope carries
+name + version, actor, tenant, source, correlationId (defaults to the event
+id), causationId, and occurredAt strictly apart from recordedAt. First
+adopted call site: `tenants.createClient` → `client.created` (payload
+unchanged; pinned by source-scan). Company promotion classifies the
+collection as `leave` (events are the origin tenant's history).
+
+**Adoption COMPLETE for the foundation (2026-08-30, second pass):** every
+`emit()` under `src/server/**` now announces through the outbox —
+agency.created, client.updated/stage_changed (tenants + productWorkspaces),
+user.signed_up, action.completed, person.created/updated/classified,
+organisation.created/updated — plus the plugin lifecycle events
+(built-ins/runtime + ensureLeadsPipelineInstall). `smoke-outbox.test.ts`
+pins the manifest: plain `emit(` under `src/server` is confined to the bus
+and its drain. The drain is deliberately SYNCHRONOUS (nothing in it awaits),
+so all outbox writes settle before the domain function returns — an async
+drain left delivered-marks trailing into "a GET does not write" pins.
+Deliberately still plain: the plugin PORT adapters
+(built-ins/runtime/foundation-adapters) and module-internal emits — the one
+seam a later phase flips to make every plugin event durable at once.
+
+**Correlation scope SHIPPED (2026-08-30, third pass):** `runWithCorrelation`
+(AsyncLocalStorage) groups every event recorded inside one operation under
+one correlationId — explicit values still win, defaults return outside the
+scope — and `updateClient`'s updated/stage_changed pair now shares a
+correlation with the stage move naming the update as its cause. Both pinned
+in `smoke-outbox.test.ts`.
+
+Remaining in this phase: flip that port-adapter seam (with volume review);
+wrap the other multi-record operations (lead conversion, company promotion)
+in `runWithCorrelation` as each is touched; a cross-process claim (lease)
+when the outbox extracts to a table — the in-blob version's single-instance
+serialization is what synchrony buys.
+
+- **No event-sourcing claim**: state is not rebuildable from events; the
+  outbox supports reliability and lineage, nothing more.
+
+## Phase 4 — journey (enquiries → pipelines → conversion)
+
+Apply the enquiry agency-column migration outcome; move
+`enquiryContactDetails`, `pipelines`, `pipelineCards`. Conversion lineage
+stamps (`leadId`, `promotedFromLeadId` — crm-lineage namespace) become real
+columns. `smoke-enquiry-tenant-isolation`, `smoke-enquiry-dedupe`,
+`smoke-lead-identity-conflict` are the parity oracles.
+
+## Phase 5 — telemetry out of the metadata bag + import provenance
+
+**First half SHIPPED 2026-08-30 — deterministic beacon identity + idempotent
+ingest** (`clientTelemetryService.ts`, `smoke-telemetry-idempotency.test.ts`):
+where a beacon carries its own `occurredAt` (the Aqua Tag stamps
+`Date.now()` once per event client-side), the event id is
+`evt_<sha256(siteKey + cleaned content + RAW occurredAt)>` — a replayed
+request maps to the same id, is answered with the event already recorded,
+and consumes neither the rate limit nor a second activity row nor a
+milestone sync; a beacon with no event time keeps a random id (no honest
+identity — possibly-distinct events are never suppressed, recorded not
+hidden). The suite also surfaced and fixed a REAL pre-existing bug: epoch-ms
+timestamps went through `cleanNumber`'s ±1e9 clamp, so every genuine
+`occurredAt` was flattened and event time silently became server ingestion
+time for every beacon — `cleanTimestamp` now validates a plausible epoch
+range instead, so occurred ≠ recorded is finally true for telemetry.
+
+**Remaining in this phase:** the events still live in
+`Client.metadata.telemetryEvents` (500-event cap — an evicted event can
+re-enter if replayed much later, accepted and documented); the append-only
+table extraction with `connectionId`/site provenance follows the Phase 1
+mechanics, with golden KPI parity for a captured fixture week before the
+read switch. Finance facts (`clientPaymentPlans`, invoice keys — finance
+namespace) extract next with the same care; money before convenience.
+
+## Phase 6 — communications & audit durability
+
+Inbox is already table-backed (apply the migration live — blocked on Ed);
+this phase adds activity-log overflow to durable storage before the 50k cap
+evicts, and record-level provenance back-references (`connectionId`) on
+integration-written records.
+
+## Phase 7 — derived intelligence dedup
+
+With the registry as the map (`sameQuantityPairs()`):
+
+1. `response-sla` reads the configured guardrail (remove the hardcoded 5m).
+2. Fold the four lead-conversion implementations onto
+   `commercialLifecycle`'s; agency-marketing's 0–1 ratio adapts at its
+   render site.
+3. Share one conversion-event predicate (today triplicated verbatim).
+4. Retire the `campaign-roas` bare-id collision: namespace the commercial
+   descriptor ids (`commercial:` prefix, as evidence/custom already do),
+   with saved custom-KPI definitions migrated by backfill.
+5. Each step: golden tests first (Phase 0 shipped the boundary pins), parity
+   diff, then the switch.
+
+## Backfill template (all phases)
+
+`npx tsx scripts/backfill-<slice>.ts --dry-run` → prints per-collection
+counts, id-set diff, field-hash mismatches, writes a checkpoint file; without
+`--dry-run` it copies in id-ordered batches, resumable from the checkpoint,
+re-runnable (upsert by id — idempotent), and finishes with a reconciliation
+report. Rollback per phase = flip the read flag; blob writes never stopped.
+**Never fake data to make a comparison pass; a mismatch is a finding.**
+
+## Standing constraints
+
+- `DATABASE_URL` / applied migrations need Ed's environment (ED-QUESTIONS).
+- Sandbox realms multiply every extraction: tables carry `realm_id` (default
+  `live`) or extractions exclude realm-scoped rows until designed — decide
+  per slice, recorded in its ADR.
+- Do not build against the empty first-cut tables (`clients`,
+  `client_portals`, `client_portal_members`, `audit_events`) without a
+  decision to adopt or drop them.
+<!-- AQUACRM_SOURCE_END path="docs/data/MIGRATION-PLAN.md" -->
+
+---
+
+<a id="source-docs-data-semantic-layer-md"></a>
+
+## Source document — `docs/data/SEMANTIC-LAYER.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/data/SEMANTIC-LAYER.md" sha256="eaaf6bafb960d4731a2de64e12c54b14bff7518f9569a0d6c0bd48cc57bf5e4c" -->
+# The canonical semantic layer
+
+*The machine-readable authority is `src/lib/data/semanticRegistry.ts`,
+enforced by `scripts/smoke-semantic-registry.test.ts` (every PortalState
+collection classified, exactly; relationships resolvable; retention stated
+wherever personal data is classified). This document is the prose view — if
+it disagrees with the registry, the registry wins and this file has a bug.*
+
+## 1. Entity map
+
+Thirty entities cover the concepts the product operates on. Grouped:
+
+- **Tenancy & identity** — `tenant` (Agency), `tradingCompany`, `workspace`
+  (five senses, mostly not a persisted entity), `userAccount`, `staffMember`,
+  `role`, `permission`, `resourceEntitlement` (grant/template),
+  `approvalRequest`.
+- **CRM** — `person`, `organisation`, `prospect`, `client`, `endCustomer`,
+  `contactPoint`.
+- **Journey** — `enquiry`, `journey` (pipeline), `opportunity` (card),
+  `lifecycleStage`.
+- **Communication** — `conversation`, `communication` (message),
+  `inboxItem` (derived), `action`.
+- **Delivery** — `project`, `fulfilmentItem`, `task`.
+- **Commerce** — `product`, `financialEvent`.
+- **Platform** — `provider`, `integrationEvent`, `auditEvent`, `evidenceItem`.
+
+Each entry in the registry carries: canonical definition, id rule, tenancy
+scope + tenant fields, source of truth, plane, provenance, timestamp
+semantics, sensitivity, retention, lifecycle states/transitions, confidence
+notes, relationships.
+
+## 2. The distinctions that keep the vocabulary honest
+
+Machine-readable as `SEMANTIC_DISTINCTIONS`; the load-bearing ones:
+
+| Not the same thing | The rule |
+|---|---|
+| **Person vs client** | A Person is a human; a Client is a *workspace*. `Client.personId` names the human; one buyer relationship (`relationshipId`) may own several isolated client workspaces sharing one person. |
+| **Organisation vs workspace** | Organisation = the customer's real-world company. Workspace = Aqua-side structure. `TradingCompany` = the agency's *own* business — a third thing that never "becomes an agency". |
+| **User account vs staff member** | A login (`users.ts`, keyed by email) vs an employment record (`people.ts`). Linked via `PeopleEmployee.userId`, deliberately separate storage. The CRM `Person` is a third record again. |
+| **Role vs permission vs entitlement** | Role: which surfaces a session may enter (8-value union, ceiling only narrows). Permission: one capability string (`element.<key>.<view\|use\|manage>`, manage⇒use⇒view). Entitlement: an `AccessGrant` binding capabilities to one user + scope + environment, optionally templated, path-narrowed, expiring. |
+| **Project vs fulfilment** | Project = technical artefact (repo, preview, editor). Fulfilment = the operating model delivering a sold service (phases, briefs, deliverables). Neither implies the other. |
+| **Enquiry vs prospect** | One inbound ask (raw row) vs a pursued relationship on a journey. Many enquiries per prospect via identity resolution. |
+
+## 3. Timestamp doctrine (`TIMESTAMP_DOCTRINE`)
+
+`occurred` (event time — sent_at, issuedAt) ≠ `created` (ingestion time) ≠
+`updated` (bookkeeping) ≠ `effective` (targets, grant windows) ≠ `measured`
+(readings). A client-form row's own timestamp maps to `core.submittedAt`
+precisely because it is the client's clock, not Aqua's
+(`clientFormMapping.ts` keeps them apart by construction).
+
+## 4. Value doctrine (`VALUE_DOCTRINE`)
+
+- **missing** = null/undefined, renders "—"; a missing date must never render
+  as today (regression #169).
+- **zero** = a real measured 0, only valid when the instrument was live —
+  `CommandDemandFlow.pageviews` is `number | null` so a fake zero is
+  *unrepresentable*.
+- **false** = an explicit negative answer.
+- **unknown** = instrumented but unanswerable now — Radar `blind`, surfaced
+  as a blind spot, never a pass.
+- **not-applicable** = the dimension doesn't exist — modelled by field
+  absence (radar memory: "absent means not retained; `[]` means genuinely
+  none").
+
+## 5. Approval-request lifecycle — why five states are four-plus-two
+
+The brief asks for pending/approved/denied/expired/revoked. As built, and as
+the registry records: the **request** is
+`pending → approved | denied | cancelled`, while **expiry and revocation are
+grant lifecycle** (`expiresAt` passive, `revokedAt` audited + `accessRev`
+bump). This decomposition is deliberate — a request that was approved stays
+approved as a historical fact even after its grant expires — and both records
+are retained in all terminal states. Approval must *narrow* the request
+(capabilities and expiry), self-approval is rejected, and every transition is
+audited.
+
+## 6. Metric semantics
+
+`src/lib/data/metricRegistry.ts` gives every metric one stable
+`canonicalId` (`<kind>:<id>`), one definition, grain, dimensions, window,
+timezone, direction, freshness, confidence, owner — and names `computedBy`,
+the single authoritative calculation site, instead of restating the formula
+(restating it would recreate the second-source-of-truth problem). Known
+competing calculations are linked as `same-quantity` overlaps;
+`smoke-metric-registry.test.ts` pins the registry to the defining source
+files, pins the one existing bare-id collision, and golden-tests the boundary
+semantics of the dedup-hazard metrics. Target/baseline authority stays with
+the layered `KpiTargetsConfig` (agency → company, with effective-from
+history) — the registry does not duplicate targets.
+
+## 7. Metadata namespaces
+
+`src/lib/data/metadataContracts.ts` catalogues all 123 keys across the
+client/enquiry/activity/auth-user bags into 16 namespaces (contact,
+crm-lineage, identity, routing, journey, portal-provisioning, portal-config,
+product, finance, telemetry, inbox, consent, delivery, files, bespoke,
+system), each with owner, type and sensitivity.
+`smoke-metadata-contracts.test.ts` scans the source tree: an uncatalogued key
+fails the suite, and dead entries fail it too. A namespace is the unit a
+strangler migration moves (MIGRATION-PLAN §phases).
+<!-- AQUACRM_SOURCE_END path="docs/data/SEMANTIC-LAYER.md" -->
+
+---
+
+<a id="source-docs-data-source-inventory-md"></a>
+
+## Source document — `docs/data/SOURCE-INVENTORY.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/data/SOURCE-INVENTORY.md" sha256="508db7acc293ee42643bea95c5b8648028e74cedec6bd1c12a0564418415029b" -->
+# Source inventory — every store, its authority, and its consumers
+
+*Compiled 2026-08-30 from a full survey of the working tree (storage adapters,
+migrations, server modules) — not from memory or older docs. Where a claim
+matters it names the file. Companion documents: [ARCHITECTURE.md](ARCHITECTURE.md),
+[SEMANTIC-LAYER.md](SEMANTIC-LAYER.md), [LINEAGE.md](LINEAGE.md).*
+
+## 0. The shape of the estate
+
+There are **two unrelated databases plus a filesystem tier**, and one giant
+JSON document that dwarfs everything else:
+
+1. **Supabase project** (`dghzbsxbdatskserctgt`; migrations in
+   `../../../supabase/migrations/`, 24 files). Holds the normalised tables
+   (profiles, enquiries, consent, the five inbox tables) **and** the
+   PortalState blob in `app_datastores`.
+2. **Optional plain Postgres** (`PORTAL_BACKEND=postgres` + `DATABASE_URL`;
+   DDL in `scripts/schema.sql`). Holds the PortalState blob in `portal_kv`,
+   the lease/claim tables, and `nonces`. A *different database* from Supabase.
+3. **Local `.data/`** (gitignored) — dev state file, inbox fallback, uploads,
+   dev-team ledgers.
+
+**PortalState** (`src/server/types.ts:4490+`) is ~90 top-level collections in
+one JSON document — measured live 2026-08-29 at **3.25 MB**, of which actual
+client business data was 181 KB (5.4%). Two collections are split into
+sidecar rows on Supabase (`devTeamWorkspaceFiles` 29%, `clientPortalTemplates`
+18.5% of the document).
+
+## 1. Store-by-store inventory
+
+Authority legend: **SoT** = source of truth for its concept. Freshness:
+how current a read is. Sensitivity: PII / credential / internal / none.
+
+### 1a. The PortalState blob (operational plane, ~90 collections)
+
+| Property | Value |
+|---|---|
+| Owner | `src/server/storage.ts` (cache, hydration, debounced flush, realm map) |
+| Backends | file (`.data/portal-state.json`) · memory · Postgres `portal_kv` row `__portal_state__` · Supabase `app_datastores` row `aquacrm-portal-state` (+ `:realm:<id>` suffix per sandbox realm) |
+| Authority | **SoT for every collection listed in `PORTAL_STATE_COVERAGE`** (`src/lib/data/semanticRegistry.ts`) — tenants, clients, users, access kernel, persons/organisations, pipelines, phases, tasks, products, radar evidence, and the rest |
+| Tenancy | `agencyId` **as a JSON field only** — enforced by JS filtering (`server/tenants.ts` withTenantScope discipline), NOT by the database. The Supabase adapter uses the service-role key, so RLS on `app_datastores` is bypassed for the main data path |
+| Freshness | in-process cache, sync reads; 250 ms debounced flush; `ensureHydrated({fresh:true})` re-reads remote |
+| Sensitivity | mixed — PII (persons, clients, enquiryContactDetails), **credentials** (`users` scrypt hashes, `externalAssistantApiKeys`), commercial (finance metadata) |
+| Consumers | every server domain module; all portal routes |
+| History | `app_datastore_history` snapshots last 100 versions per key (service-role-only) |
+
+Per-collection classification (entity, plane, note) is **machine-readable and
+test-enforced** in `src/lib/data/semanticRegistry.ts` (`PORTAL_STATE_COVERAGE`,
+pinned by `scripts/smoke-semantic-registry.test.ts`).
+
+### 1b. Normalised tables (Supabase)
+
+| Table | Authority | Tenancy | Sensitivity | Consumers | Notes |
+|---|---|---|---|---|---|
+| `profiles` | SoT for Supabase-auth → app-role bridge | `agency_id` column exists but is **null for everyone today** | PII | login route, client-portal auth | the only table the app reads with the anon key — the one place RLS is load-bearing |
+| `brand_enquiries` | **SoT for raw website enquiries** | `agency_id` column — migration `20260820150000` **written but applied by hand**; fallback `metadata->>'agencyId'`; insert paths retry without the column on PGRST204 | PII + consent | website-enquiry routes, inbox, erasure | anon may INSERT only, consent-gated in the policy's WITH CHECK |
+| `website_consent_events` | SoT for consent audit | site/brand keyed | consent evidence | write-only from the app | no read path in repo |
+| `inbox_channel_connections` / `_contact_identities` / `_conversations` / `_messages` / `_webhook_events` | SoT for Master Inbox messaging | **`agency_id` real column on all five — the only properly scoped store family** | PII + **encrypted OAuth tokens** (AES-256-GCM vault) | `inboxStore.ts`, operational alerts, erasure | ⚠ tables verified **absent from the live project** 2026-08-20 — migration on disk, never applied; production `useSupabase()` path would 404 |
+| `app_datastores` / `app_datastore_history` | carrier for 1a | none | everything | storage adapter only | service-role only |
+| `brands`, `shoots`, `shoot_photos` | website content | brand keyed | none | sibling websites + client-portal | deliberately anon-readable |
+| `clients`, `client_portals`, `client_portal_members`, `audit_events` | **no portal consumer — empty** | FK-scoped | — | none | superseded first-cut model or unfinished; do not build against without deciding which |
+
+### 1c. Postgres-direct auxiliaries (`DATABASE_URL` database)
+
+| Table | Authority | Notes |
+|---|---|---|
+| `portal_kv` | blob carrier (1a) | `scripts/schema.sql`; RLS explicitly deferred ("R8") |
+| `nonces` | SoT for single-use auth tokens (magic-link, email-verify, password-reset, csrf) | **DDL lives in TypeScript** (`nonceStore.ts:89-96`, lazy CREATE TABLE); no tenant column; a Supabase-only deployment silently gets the **memory** adapter — single-use guarantees do not survive across serverless instances there |
+| `editor_ai_reply_claims`, `lead_conversion_operations`, `product_workspace_leases` | cross-process mutexes / idempotency receipts | mirrored as RPCs on the Supabase side |
+
+### 1d. Blob/object stores
+
+| Store | Authority | Tenancy | Notes |
+|---|---|---|---|
+| Supabase Storage, 8 buckets | SoT for uploads (private `aquacrm-uploads`, public `aquacrm-public`, 6 brand buckets) | **path-prefix per user** (`auth.uid()`), not per agency | private bytes proxied by the app; no signed URLs |
+| Vercel Blob | private-upload middle tier | none in store — route guards only | ~12 API routes |
+| `.data/*-uploads/`, `.data/inbox-media/<agencyId>/`, `.data/inbox-call-recordings/<agencyId>/` | dev fallback | path-embedded at best | CVs and call audio are PII |
+| Git working trees (`client-projects/`, `aqua-editor/<projectId>` worktrees) | SoT for project source | directory per client/project | outside any DB |
+
+### 1e. Derived read models (rebuildable)
+
+| Model | Built by | Persisted? | Consumers |
+|---|---|---|---|
+| Business Radar snapshot (`BusinessIssueRadar`) | `engines/data/server/radar/businessIssueRadar.ts` | cache only; **evidence** persists (below) | Command Centre, Advisor, My Radar |
+| Radar evidence vault | `radarEvidenceVault.ts` | **yes** — `radarEvidence` (raw 14d / hourly 60d / daily 365d), `radarMemory` (180 scans), `radarSyntheticProbes` | evidence descriptors, KPI histories, anomaly checks |
+| Command intelligence snapshot (20 KPIs + scoped readings) | `lib/server/commandIntelligenceService.ts` | no — rebuilt per request; history hydrated from evidence vault | Command Centre, KPI Explorer |
+| Commercial intelligence (40 formulas, stages, sources, lineage, quality) | `lib/intelligence/commercialIntelligence.ts` | no | Journey, Command, Radar |
+| KPI descriptor registry | `lib/performance/kpiRegistry.ts` (projection only — **it never recomputes**) | no | KPI Explorer, marketing pulse |
+| Client record ledger | `clientRecordLedger.ts` | yes (projection collection) | client record surfaces |
+| Master-inbox item list | inbox service assembly | no | inbox surfaces |
+
+**Canonical metric identity now lives in `src/lib/data/metricRegistry.ts`**
+(test-enforced against the two defining source files). See
+[LINEAGE.md](LINEAGE.md) for the identity-scheme joins.
+
+## 2. Duplicate and conflicting definitions (verified in source)
+
+1. **`campaign-roas` — hard id collision.** Both a command KPI and a
+   commercial formula in one flat descriptor space; the picker's `.find()`
+   resolves to the command one, `computeCustomKpi`'s Map to the commercial
+   one; the two round/clamp differently. Pinned in
+   `KNOWN_DESCRIPTOR_ID_COLLISIONS` so it cannot multiply.
+2. **Lead conversion — four implementations** (`commercialLifecycle`,
+   `commercialIntelligence`, agency-marketing reports — which returns a 0–1
+   *ratio* where the others return 0–100 — and the marketingIntelligence
+   funnel variant).
+3. **Response compliance — two SLA thresholds.** `speed-to-lead` uses the
+   *configured* guardrail; `response-sla` hardcodes 5 minutes. An agency with
+   a 30-minute SLA sees two disagreeing percentages.
+4. **Portfolio retention** computed twice (`retention` vs `portfolio-retention`).
+5. **New leads 30d** computed twice (`recent-leads` vs `new-leads-30d`).
+6. **Source coverage** computed twice (`source-attribution` vs `source-coverage`).
+7. **Website conversion** — four sites, three denominators; the conversion
+   *event predicate* is triplicated verbatim (radarTelemetry,
+   commandIntelligenceService.scopedConversion, performanceAnalytics).
+8. **Revenue gap** recomputed verbatim in three files.
+9. **Business health** — the registered formula text described only the
+   company index and omitted the 30% incident blend (**fixed 2026-08-30** in
+   `measurementFor`).
+10. **Three metric identity schemes** — KPI id (`lead-conversion`), radar
+    family id (`lead-conversion-rate`), evidence series id
+    (`sales:lead-conversion-rate`) — joined by hand via `makeKpi`'s `familyId`
+    argument. The metric registry now records the join per metric.
+
+Every same-quantity pair is machine-readable via `sameQuantityPairs()` in
+`metricRegistry.ts` and pinned by `smoke-metric-registry.test.ts`.
+
+## 3. Low-confidence sources and missing lineage
+
+- **`Client.metadata.telemetryEvents`** — the raw Aqua Tag event stream, the
+  sole source for `traffic-7d`, `forms-7d`, `website-conversion` and ROAS
+  denominators, lives in an untyped bag read via a bare cast. **Ingest is
+  now idempotent (2026-08-30)** for beacons carrying their own event time
+  (deterministic content+time ids; replays record nothing twice and skip the
+  rate limit); the remaining weakness is the store itself — the metadata
+  bag, its 500-event cap, and no connection back-reference (Phase 5's
+  second half).
+- **`activity` hard cap 50,000 with silent oldest-first eviction** — the audit
+  trail can shed history without any surface saying so.
+- **No record-level provenance**: nothing written by an integration carries a
+  back-reference to the `IntegrationConnection.id` that produced it. No
+  content checksums or import-batch records exist anywhere.
+- **`nonces` on Supabase-only deployments degrade to memory** (see 1c).
+- **`profiles.agency_id` is null for everyone** — the agency-aware RLS ratchet
+  on `brand_enquiries` therefore currently degrades to "any internal user
+  manages every agency's rows" (documented in `ownedEnquiry.ts:5-29`).
+- **Radar evidence can be 24h stale** under the daily probe cron with no
+  surface saying so (issue #170, Ed's decision — recorded, not hidden).
+- **`rls_auto_enable()`** exists in the live Supabase project and in no
+  migration — dashboard drift that will not survive a rebuild.
+
+## 4. Which source is authoritative, per business concept
+
+| Concept | Authoritative source | Everything else |
+|---|---|---|
+| Tenant / company / client / person / organisation / user / grant | PortalState collection named in `PORTAL_STATE_COVERAGE` | UI caches, derived rows |
+| Raw website enquiry | `brand_enquiries` row | `enquiryContactDetails` augments; inbox projections derive |
+| Conversation / message | `inbox_*` tables (Supabase) or `.data/inbox-messaging.json` in dev | inbox item list derives |
+| Consent | `website_consent_events` (+ consent fields on the enquiry row) | — |
+| Single-use auth tokens | `nonces` (Postgres) | — |
+| Uploaded file bytes | Supabase Storage → Vercel Blob → `.data/` (precedence) | metadata.files entries reference |
+| Metric identity & semantics | `src/lib/data/metricRegistry.ts` | descriptors carry computed values |
+| Metric **values** | the `computedBy` site named per metric | any other computation of the same number is scheduled for dedup |
+| Metric history | radar evidence vault (`radarEvidence`) | descriptor `series` caps at 24 points |
+| Semantic definitions | `src/lib/data/semanticRegistry.ts` (+ this doc suite) | scattered doc comments remain valid but non-authoritative |
+| Metadata key meaning | `src/lib/data/metadataContracts.ts` | — |
+<!-- AQUACRM_SOURCE_END path="docs/data/SOURCE-INVENTORY.md" -->
 
 ---
 
@@ -1144,6 +2157,556 @@ else hangs from.*
 
 ---
 
+<a id="source-docs-development-campaign-ledger-md"></a>
+
+## Source document — `docs/development/CAMPAIGN-LEDGER.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/development/CAMPAIGN-LEDGER.md" sha256="aff8d4bf94dad182104e674c98c3ee58407a1020c5405d9c6009840d18f821b4" -->
+# Campaign ledger — every documented to-do, verified against source
+
+*Generated 2026-08-30 from a 131-agent triage: one independent read-only investigator
+per open item across `todo.md`, `checklist.md`, the LOOP-PROGRESS queue and the named
+open issues, each required to cite file:line. **Source code was the authority; the lists
+were treated as claims.** This ledger is the deduplicated result and the campaign plan.*
+
+## Verdict counts
+
+| Verdict | Count | Meaning |
+| --- | --- | --- |
+| unblocked-code | 50 | open, implementable now — no credential, live service or product decision needed |
+| partially-done | 40 | some shipped; concrete code work remains (the residue is named per item) |
+| needs-live-env-or-browser | 13 | code half done/trivial; honest proof needs a live server or browser walk |
+| blocked-on-ed | 11 | needs Ed: a credential, an account, wording, or a decision |
+| already-done | 12 | verified complete in source — the list never absorbed it |
+| risky-needs-decision | 5 | implementable but architecturally significant; Ed should choose |
+| **total** | **131** | |
+
+## Already done — check these off
+
+The lists drifted. These are verified complete in current source:
+
+- **todo:682** — � P0: make session revocation real everywhere. resolveFreshSessionUser() centrally enforces existence/sessionRev/role/membership on every authenticated read; behavioural old-cookie matrix (scripts/smoke-session-revocation.test.ts) passes 16/16 in this triage, external-AI explo
+- **todo:860** — � Isolate the showcase fixture. GET /showcase is seed-once (ensurePublicShowcaseWorkspace, never reset) in its own data realm; only reset path targets the private owner slug behind auth; regression pins that the public route can never reset. Residue is doc drift
+- **todo:952** — Command Centre nav link → Aqua Tags. 'Aqua tags' shipped 2026-08-20 as a registered sidebar nav item to /portal/agency/fulfilment?view=tags, reachable three additional ways under Ed-approved IA v2 (Operations hub card, quick-search, Fulfilment tab strip). Tick todo.m
+- **todo:958** — � `fulfilment` / `fulfillment` three-spelling split. One Fulfilment nav entry, plugin nav re-pointed, legacy Phases item filtered, all two-L URLs redirect-stub to the canonical surface — pinned by smoke-nav-audit. Full one-spelling physical consolidation remains an optional separate
+- **todo:959** — Two contacts systems. Canonical pick made and enforced 2026-08-25 (issue #90): agency/contacts Person is canonical; leads-pipeline/contacts deliberately retained as the plugin's import rolodex. Only the checkbox at todo.md:959 and its mirror need ticki
+- **todo:961** — Dead code. adapters.ts has two real importers (appConfigAdapter.ts:10, smoke-editor-adapters.test.ts); the agency/sops redirect was repointed to /portal/agency/sop-library, is referenced by nav/proxy/walkers and pinned by smoke-audit-regress
+- **todo:969** — `.env.example` missing 3 Supabase creds. Issue #4 fixed 2026-08-27: all three Supabase vars in .env.example, closed by construction via smoke-env-example-completeness (derives required list from productionReadiness.ts); ran 5/5 in this checkout. Stale copies in todo.md:9
+- **checklist:1605** — Merge to `main` (Ed's call. PR #3 merged work/2026-08-20-parallel-session into main on 2026-08-23 (commit 8392cca, ancestor of origin/main); main has advanced multiple commits past it. Strike the stale checklist line at next grooming.
+- **loop-queue:1** — Scouting journey Stage 1. Scouting Stage 1 shipped in commit 7917318: protected Call/Email buttons, server contactability gate + atomic attempt logging, quota rings/streak on CommandCalendarEntry; 14/14 dedicated smoke tests pass now. Auto-increment delibe
+- **loop-queue:2** — Inbox premium messaging pass. Inbox premium messaging pass landed in the 2026-08-30 push (commit 7917318; CLOUD-RESUME.md:31): two-pane redesign in _UnifiedInboxWorkspace + _MasterInbox chip row; sub-12px pin correctly dropped. Adjacent 'inbox URL resync'/'wat
+
+## Implementation waves
+
+Waves are ordered by value and risk; every item inside a wave touches disjoint files so
+the work can run in parallel. The full canonical suite is the gate between waves.
+
+### Wave 1 — Money & truthfulness P0s
+
+Highest-value real bugs and false-success claims: send stamped 'sent' on failed delivery (668, leads-pipeline commercial files), unreviewable contracts acceptable + fake 'contract sent' logs (663, closeDeal/portal files), Stripe port that lies available (501, memberships foundation), dispute event double-emit (857, agency-finance), the destructive silent-failure read paths incl. the blank contact editor (600, per checklist:1485's plan — app-wide read files untouched by others this wave), client roles routed into the internal workspace against Ed's recorded decision (390, auth files), and the one-line Kanbans double-render (loop-queue:3). All file-disjoint; the leads-pipeline module smoke suite is touched only by 668 this wave.
+
+- **todo:668** (medium, commerce-payments) — � Respect commercial email delivery results  
+  Fully open and exactly as claimed: CommercialService.sendUnlocked() stamps invoice/agreement "sent"+sentAt and logs commercial.sent from any resolved adapter result without ever reading `delivered` (commercial.ts:204-237), and resumePaymentSideEffects() does not even capture the send result before s
+- **todo:663** (large, commerce-payments) — � Make Close the deal issue a reviewable, truthfully delivered contract  
+  Still fully open and accurate: closeDealForClient creates the contract directly with status:"sent" with body optional (title-only possible), the close-deal route never invokes any email delivery yet logs "contract sent + invoice issued", both close forms collect no terms/document, and the customer p
+- **todo:501** (large, commerce-payments) — � Finish the paid Memberships foundation adapter  
+  Every claim is still true in source: the runtime foundation's stripeFor() unconditionally returns a throwing NOOP stub, so isStripeAvailable() is a false positive, paid Silver/Gold seed failures are silently swallowed leaving only free Bronze, and the healthcheck reports ok:true from row counts with
+- **todo:857** (small, commerce-payments) — � Make Stripe refund/dispute event handling durably idempotent  
+  The core shipped 2026-08-26 under issue #119: refund and dispute records are durably idempotent across processes via provider-id-derived record ids (not the process-local set, which survives only as a warm-process cache), cumulative Stripe amount_refunded converges to the missing delta, activity is 
+- **todo:600** (x-large, other) — � Stop read failures becoming “none,” stale or “clear”  
+  Issue #57 is still fully open: nearly every named read path still converts a rejected read into truthful-looking empty/default data, including the destructive blank contact editor and the zero-outstanding/"Operations clear" finance path. No availability-state work has shipped since the 2026-08-26 au
+- **todo:390** (medium, auth-recovery) — � Finish role-aware account and portal recovery navigation  
+  Agency-staff Account/Permissions are fixed (#92) and the 27 Aug Phase 18 work made the ProfileMenu and /portal index role-aware for the client-portal audience, but the Account back-link and guidance still send client/freelancer roles to /portal/agency, the portal 404 remains hardcoded to "Agency das
+- **loop-queue:3** (small, journey-crm) — Journey Kanbans tab + custom boards  
+  The Journey Kanbans tab and custom boards shipped in commit 7917318: the desk component with manage-gated create/delete, the DESKS entry and render branch, the boards/cards APIs with the custom-only wall, the real drag-drop CustomBoardWorkspace for custom boards, and data-testid="pipeline-columns" p
+
+### Wave 2 — Durable delivery & concurrency
+
+Second tier of truthfulness/data-safety: honest campaign delivery (99 — takes the leads-pipeline suite after 668 lands), upload lifecycle registry + compensation + batch-cap honesty (656, upload routes + privateUploadStorage), real affiliates Stripe Connect port + capability gating (506, foundation adapters — after 501 released _crossPluginPorts), cross-instance CAS for marketing records (104), CompanyProfile 409 concurrency + review lock (770 — sole company.ts/types.ts toucher this wave), and the revisitable install-help extraction (394, customer setup/support files). Disjoint files throughout.
+
+- **todo:99** (large, marketing-campaigns) — � Make campaign delivery truthful  
+  Fully open and exactly as claimed: CampaignService.send() only enqueues outbox rows, stamps leads contacted and finalises status "sent" without ever invoking DeliveryService, no worker drains the queue, and CampaignsPage auto-enables email-sender then reports Boolean(install.enabled) as readiness. T
+- **todo:656** (large, uploads-media) — � Make all private uploads/deletes transactional and retryable  
+  Fully open, nothing shipped: all nine private-upload routes still write storage before the owning record with no compensation, the four record-delete paths still swallow provider errors and report success, staged inbox/expense/campaign objects have no record or expiry, and the product-workspace batc
+- **todo:506** (medium, commerce-payments) — � Wire Affiliate Stripe Connect or stop offering it  
+  Still open and accurate: the live foundation registration (src/built-ins/runtime/foundation-adapters/affiliatesFoundation.ts:18-25) supplies six ports but never stripeConnect, so onboarding/refresh/webhook/transfer all 422 while the customer CTA renders unconditionally and the admin transfer button 
+- **todo:104** (medium, marketing-campaigns) — � Make Marketing asset/profile persistence concurrency-safe  
+  The headline defect is fixed: Channels/Funnels assets and Customer profiles no longer replace whole arrays — they persist as independent by-id rows with tombstoned deletes and legacy-array merge, mutations serialize per agency+collection, and all three mounted editors send the updatedAt they opened 
+- **todo:770** (large, radar-command) — � Version Battle Table writes and retain completed review history  
+  Still fully open: every Battle Table station and the Company workspace PUT a whole CompanyProfile that the server merges last-write-wins with a fresh Date.now() updatedAt and no version compare, and Quarterly Review "Lock review" is reversible — any edit of a completed review silently flips it back 
+- **todo:394** (medium, auth-recovery) — � Keep customer installation help revisitable  
+  Fully open: the install scene still promises "it is in your portal under Support" (src/app/setup/_CustomerSetup.tsx:256) while SupportView (src/app/portal/customer/_CustomerPortalViews.tsx:1514-1544) offers only request/email/phone/WhatsApp and no install help exists anywhere under /portal/customer;
+
+### Wave 3 — Contract integrity & dependency safety
+
+Integrity gates: acceptance bound to immutable sent versions (672 — commercial.ts/domain.ts free after waves 1-2), graph-aware capital-plan validation (763 — company.ts free after 770), SOP delete dependants preview (757, decision-free wiring only), plan/affiliate delete inventory wiring into DELETE/confirmation (751, wiring only — policy stays with Ed), plugin-health persistence + Radar honesty (641), Sentry/observability mount + readiness honesty (386), shared voice-recorder helper with compensation (441, inbox), and email-sender vault/config unification (635 — sole pluginSecretConfig/catalog toucher this wave). Pairwise disjoint.
+
+- **todo:672** (large, commerce-payments) — � Make commercial proposals immutable once sent/accepted  
+  Fully open: acceptance is still not bound to an immutable sent version. accept() sets accepted unconditionally with no sent-state check, save() replaces line items/totals/cadence/agreement text while preserving accepted status, acceptedAt and the old Stripe Checkout id/URL, the public token is minte
+- **todo:763** (large, governance-compliance) — � Enforce Company capital/governance register invariants  
+  Issue #65 is fully open and the claim is accurate in current source: updateCompanyProfile() still pushes the nested capital plan through independent shape/range cleaners with no unique-id enforcement, no reference resolution (owner/class/approval/document), no paid-within-declared or allocation-reco
+- **todo:757** (medium, cleanup-dedup) — � Make SOP retirement dependency-safe  
+  The decision-free prerequisite shipped 2026-08-27: a dependency inventory (src/engines/sop/server/sopDependencies.ts) covers all nine SOP reference sites across seven owning types (four nested), pinned by smoke-sop-dependencies (6/6). But nothing consumes it yet: deleteSopRecord is still literally `
+- **todo:751** (medium, commerce-payments) — � Make Membership/Affiliate retirement dependency-safe  
+  The measurement prerequisite shipped 2026-08-27: dependency inventories for both modules exist and are test-proven (planDependencyInventory reporting billableSubscribers/wouldBecomeUnreachable; affiliateDependencyInventory reporting hasFinancialDependants/activeReferralCodes), but nothing consumes t
+- **todo:641** (medium, plugins-platform) — � Run and persist plugin healthchecks  
+  The "no caller" half is fixed: /api/portal/plugins/health (built 2026-08-28) runs every enabled install's healthcheck with a 5s timeout, converts throw/timeout into an unhealthy row, treats no-hook as supported:false, and is displayed via src/lib/chrome/pluginHealth.ts in DevConsolePanel — all test-
+- **todo:386** (large, other) — � Mount and prove real application observability  
+  Fully open: observability.ts and requestLog.ts still have zero production callers, @sentry/nextjs is absent from package.json and node_modules, productionReadiness marks monitoring ready from a DSN env string alone, error.tsx claims "We've logged the issue" after only console.error, and the green sm
+- **todo:441** (large, inbox-comms) — � Harden voice and call recording across browser formats and failures  
+  Open and unchanged: all four recorder sites still hardcode the WebM fallback without testing it or MP4/browser-default, every produced file is named .webm regardless of the actual recorder MIME, voice-note constructor failures are still reported as "Microphone access was not granted" while leaking t
+- **todo:635** (medium, inbox-comms) — � Build the missing Email Sender setup flow  
+  The backend half has shipped since the item was written — truthful no-send provider (#34 resolved), a real SMTP driver alongside Postmark, a complete role-gated provider/identity/test/webhook API layer with honest unconfigured/error/active readiness states, and a generic PluginSettingsPanel now moun
+
+### Wave 4 — Honest surfaces & platform wiring
+
+Remaining correctness with lower blast radius: installment invoice-id dedupe + exact remainder (677 — last leads-pipeline slot), legal-register delete guard (777 — company.ts/_CapitalOwnershipWorkspace free after 763), governance company scoping (783), PluginSettingsPanel mounting for the three read-only client-scoped modules (715), the editor dead-endpoint repointing/gating lanes A (68), Infra-probe hoist + failure isolation (383, cron/radar files), byte-range media (437 — privateUploadStorage free after 656), and provision/publish/deploy idempotency (651 — types.ts/storage.ts free after 770). Disjoint within the wave.
+
+- **todo:677** (medium, commerce-payments) — � Make Stripe installment completion exact and retryable  
+  The "cancellation failure ignored while webhook returns success" leg is fixed: the final-installment cancel_at_period_end call is now response-checked and answers 502/503 on failure with a stable idempotency key, so Stripe redelivers and retries. Still open: the stop condition counts any payment wit
+- **todo:777** (medium, governance-compliance) — � Make legal-document retirement dependency-safe  
+  Fully open and verified in source: mounted legal-register Delete removes only the register row with no dependant inventory (Finance obligations keep linkedLegalDocumentId, governance decisions keep documentId), the confirmation names only doc+file, and provider-file deletion errors are suppressed. T
+- **todo:783** (medium, governance-compliance) — � Make Governance scope truthful across every view  
+  Still open and accurate: buildGovernanceSnapshot scopes only the compliance posture and HIPAA flag by the selected company, while legal register rows, declarations, sub-processor agreement flags and erasure clients stay agency-wide, and a failed scope reload leaves the old company's snapshot labelle
+- **todo:715** (medium, plugins-platform) — � Finish or remove manifest plugin settings  
+  The item's central claims are stale: since the 2026-08-24 audit the agency Settings hub now mounts the generic PluginSettingsPanel for all four agency-scoped settings modules (Finance, HR, Marketing, Email Sender) via a cog-per-workspace ModulesPane, ecommerce mounts it client-scoped, and the 25 dea
+- **todo:68** (large, website-editor) — � Repair the website-editor API contract before calling the editor  
+  The honesty/coverage layer shipped (2026-08-28 audit): a module-aware route-table ratchet test resolves every literal editor fetch against the real route tables and pins 31 known-dead endpoints, and the Funnels creator is labelled and disabled via a featureBackends gap registry. But the contract its
+- **todo:383** (medium, radar-command) — � Make Radar scheduling match its taxonomy  
+  Open and implementable now. The daily cron/inbox loop still reruns the app-wide Infra probe inside every per-agency runRadarScheduledSweep call, an Infra failure still aborts that tenant's evidence rollup (no retry until the next day), the Evidence sweep still declares an hourly cadence while actual
+- **todo:437** (medium, uploads-media) — � Add provider-aware byte ranges to private media delivery  
+  Open and untouched: all three private-media content routes (inbox attachments, call recordings, SOP media) ignore the Range header, always answer 200 with the full object, and the local/Supabase paths (plus inbox Vercel path) fully buffer it; no 206/416/Content-Range/Accept-Ranges code exists anywhe
+- **todo:651** (large, website-editor) — � Make project provision, GitHub publish and Vercel deploy retry-safe  
+  Fully open and accurately described: provision commits a local git repo before the client record is durable (retry mints a -2 sibling via uniqueProjectPath), publish creates the GitHub repo before remote/push/save (retry collides), deploy creates the Vercel deployment before its id is recorded (retr
+
+### Wave 5 — Accessibility & PWA
+
+The a11y block shares one wave by design: modal focus-trap primitive + sweep (397), tablist/menu/listbox keyboard models (412), accessible-name bundle (417), and PWA icons/install-prompt (430). 397/412/417 overlap a few workspace files (_ActionsWorkspace, company panels) — assign one coordinating agent or sequence those three internally. checklist:1240 (Playwright browser matrix) rides along on fully new files and gives the a11y work its future automated gate. 430 touches _CustomerSetup after wave 2's 394 has landed.
+
+- **todo:397** (x-large, a11y) — � Standardise true modals on an accessible keyboard contract  
+  Fully open and has drifted worse: 57 TSX files now declare aria-modal="true" but only 3 use the existing useFocusTrap hook, leaving 54 untrapped modal files (the todo says 47), and only 6 of the untrapped files even mention Escape. The hook and a proven exemplar (ConfirmDialog: trap + deliberate ini
+- **todo:412** (large, a11y) — � Standardise tabs, menus and listboxes or remove their specialised roles  
+  One named slice of issues #138 shipped via the settings restructure: the Settings tablist (whose aria-controls pointed at nonexistent settings-pane-* ids) was replaced 2026-08-30 with an honest nav rail (aria-current buttons) plus a native grouped select, i.e. the "remove the misleading roles" remed
+- **todo:417** (medium, a11y) — � Give icon actions and published-form fields stable accessible names  
+  Two slices are shipped beyond what the todo records: the shared avatar input is named "Upload profile photo" (pinned by a test) and the Development reveal/copy-password buttons now carry per-resource aria-labels with a role="alert" error. Everything else in the bundle is still open in source: Team a
+- **todo:430** (medium, other) — � Ship a Chromium-installable customer manifest  
+  Fully open and accurately described: public/ has no 512px icon (only 32/180/192), manifest.webmanifest declares 192/180/32 with the transparent 192 reused as "maskable", the smoke test asserts only standalone/start_url/the word "maskable", and InstallStep calls prompt.prompt() without awaiting userC
+- **checklist:1240** (large, a11y) — P2  
+  The claim's diagnosis is still accurate — smoke-ux.mjs puts 375/768/1280 only in a User-Agent string and does server-HTML substring checks — but two of the bundle's three parts shipped: the script is explicitly reframed/retained as markup smoke, and the one concrete defect the manual browser pass fo
+
+### Wave 6 — Website-editor honesty & small fixes
+
+Editor/product truthfulness on disjoint files: block honesty + dead /api/contact default (77 — block files free after wave 5's 417 touched the form blocks), hydration-stable ShareButtons/Breadcrumb via ElementContext (433), war-room pulse tied to persisted CommandKpi targets + todo tick (940), radar probe-staleness surface (#170 — radarSweeps free after 383/641), clone-from-remote for the preview stack (#19, code half only), shared activity vocabulary + Updates-tab adoption (960), and the lead-archive fault-injection test (746, one test file).
+
+- **todo:77** (large, website-editor) — � Stop publishing dead interactive blocks  
+  The "label/remove until the backend exists" half of issue #29 shipped and is ratcheted: all nine dead native blocks (contact/forms/booking/newsletter/theme/blog x2/product-search/donation) are in BLOCK_BACKEND_GAPS, the palette refuses to add them, templates no longer seed them, an action-less form 
+- **todo:433** (small, website-editor) — � Remove render-time `window` from published current-page blocks  
+  Fully open: both published blocks still branch on `typeof window` during render — ShareButtonsBlock encodes an empty share target on the server when `url` is blank, and auto BreadcrumbBlock server-renders null then builds a full nav from window.location.pathname on the client, a hydration divergence
+- **todo:940** (small, radar-command) — Battle Table overhaul → live war-room  
+  The war-room reframe is SHIPPED and test-pinned: _battleWarRoom.ts implements the pure model (buildBattlefield/buildWarRoomDecisions/buildWarRoomPulse etc.), _BattleTableWorkspace.tsx makes "warroom" the default section with the three zones and the 10 planning sections demoted to drill-in stations (
+- **issue:#170** (medium, radar-command) — #170 Radar probe cron is daily so evidence can be 24h stale with no surface saying so  
+  Issue #170 is still OPEN and accurately described: vercel.json schedules /api/cron/radar-probes daily (15 6 * * *), the exact schedule is pinned by smoke-radar-sweeps, and no Radar surface states probe-evidence age — infra checks stamp themselves with the Pulse's `now` and ignore the snapshot's real
+- **issue:#19** (medium, website-editor) — #19 Dev Workspace  
+  The item's claim is accurate but understates what already shipped: issue #19's source/regression half is RESOLVED (dirty-buffer/abort/discard guards, stale-preview state machine, editor chain 154/154), and phase 17 has since landed isolated per-project worktrees plus fingerprinted dependency-install
+- **todo:960** (small, inbox-comms) — Two inbox surfaces  
+  Confirmed in source: the two surfaces are NOT redundant pages — agency/inbox is the merged Master Inbox command surface (Needs-you/Inbox/Updates, 2026-08-30 inbox merge) while agency/activity-inbox is a standalone read-only system-history log, and they deliberately cross-link with test pins. But the
+- **todo:746** (small, journey-crm) — � Make lead archival recoverable and card-safe  
+  Issue #62 shipped 2026-08-27: archive/restore/purge are three honest verbs — archive keeps the row, index and identity pointers while removing the pipeline card and remembering its column; restore re-creates the card in the column it left; purge is the old hard delete, gated behind archive-first — v
+
+### Wave 7 — Hygiene sweeps & governance build-out
+
+Cleanup/consistency kept separate from feature waves: the 403-vs-404 tenancy-first sweep (#168 — MUST land as its own isolated PR with a full suite run, per the issue; its ~30 api/tenants files touch nothing else in this wave), personInteractions rename (962), remaining read-path mutation removals (1842), single capability-policy module deriving proxy/nav/page gates (1593), tenant-scoped production readiness (1961), global-error.tsx (427 — smoke-observability free after 386), the governance KNOW build-out slices: breach register, consent/ROPA, IP register (941 — governance files free after 783), and static-export renderer parity (85 — pageTemplates free after 77).
+
+- **issue:#168** (medium, cleanup-dedup) — #168 28 routes answer 403 where the house convention is 404  
+  Still open and unchanged since it was recorded on 2026-08-27: the element gate (requireCurrentClientWorkspaceElementAccess) throws AuthError 403 on a cross-tenant/nonexistent client id (ceiling-denied → hidden → 403), and roughly 28-33 route files still call that gate BEFORE their own getClientForAg
+- **todo:962** (medium, cleanup-dedup) — The rest  
+  The bundle has substantially drifted: the "empty preview placeholders" claim is dead (both are real authenticated routes), the twin-filename hazard was resolved 2026-08-20 via Service-suffix renames (one straggler: personInteractions), and email-sender drivers are real implementations (only sendgrid
+- **checklist:1842** (medium, other) — Read paths perform hidden writes and expensive work. A TypeScript  
+  The checklist text is stale 2026-08-24 prose (28 GETs / 26 renders). Since then the inventory was rebuilt as a source-derived, declared-and-ruled guard (smoke:read-path-mutations, verified passing 16/16 today, unruled backlog pinned at zero), and the biggest writes were removed: team-channel creatio
+- **checklist:1593** (medium, governance-compliance) — P1  
+  The checklist text is stale: the concrete Team Chat break is fixed — src/proxy.ts now allowlists 14 staff API roots (not five) including /api/portal/team-chat, plus three delegated staff agency-page roots, and the team-chat route's agency-staff access therefore runs; TeamChat's response-ordering rac
+- **checklist:1961** (large, governance-compliance) — Env-only audit. Every setting that needs a redeploy to change cannot  
+  The checklist's core claim is stale: the env-only audit list DOES exist — docs/workspace/env-and-sellability.md is a full baseline inventory (17 vars with no in-app path, fix shapes, work order), and two of its five day-one env leaks are since fixed (transactional email send gate, enquiry notificati
+- **todo:427** (small, other) — � Mount the actual root-level error fallback  
+  Open and verified in source: src/app/error.tsx exists as the route-segment boundary (mislabelled "top-level"/GlobalError in its own header), but no src/app/global-error.tsx exists, so Next 16 serves its builtin fallback for root-layout/App Router failures. Writing the global-error.tsx contract file 
+- **todo:941** (x-large, governance-compliance) — Operations / System surface  
+  The Operations/KNOW surface exists and is much further along than the todo claims: a Governance workspace (commit 4943737, 2026-08-20) sits in the Operations sidebar panel with six views (Posture, Legal register, DPO/erasure, Subject requests, Sub-processors, Security), backed by the honesty-enforce
+- **todo:85** (medium, website-editor) — � Repair website export before offering it as a backup or migration  
+  Two of the three legs are fixed in committed source (main 25eae14, 2026-08-29): the export handler is now registered at /api/portal/website-editor/export and the Customise button calls it (resolving siteId via the real /sites route) instead of the absent /api/admin/export-code; contact-form blocks n
+
+### Wave 8 — Flagship feature builds
+
+Large product builds each owning a distinct area: element-engine P5 widening then P6 assistant composition (1945, engines/editor/elements), Command Centre regrouping + progressive disclosure (loop-queue:4 — Stage 0 asks Ed if the lost design doc survives, but the staged build itself is unblocked; owns _CommandIntelligenceWorkspace/_BattleTableWorkspace this wave), website demo Stage 1 behind a flag (loop-queue:6, (website) routes), and the unblocked You-Deserve-It phases (944 — sole types.ts/storage.ts extender this wave; 941 landed in wave 7). Ordered after bug waves; four x-large/large items keeps merge risk low.
+
+- **checklist:1945** (x-large, website-editor) — Engine widening + assistant proposals (P5, P6). ~5 days. After this an  
+  Genuinely open, and correctly ordered after the shipped P1-P3 foundation. The shared element registry exists and the portal palette is derived from it, but the widening is unfinished (two live block registries, three styles-to-CSS mappers, the "stage" surface has zero consumers) and no assistant com
+- **loop-queue:4** (x-large, radar-command) — Command Centre regrouping + progressive disclosure  
+  Not started: no regrouping/progressive-disclosure code exists (CommandPanelShell appears only in docs, never in src; the station nav is still the flat 4-station layout; no updates.md entry). Both judge flags check out against source — the attention-protection strings are real pinned contracts and th
+- **loop-queue:6** (medium, marketing-campaigns) — Website demo Stage 1  
+  Nothing of Website demo Stage 1 exists yet: there is no /for-agencies route, no terms/privacy page shell, no demo-gate form, and no gating flag anywhere in src. The item was scoped precisely so the build does NOT wait on Ed — Q5 says "build proceeds behind a flag" and only the gate going live needs 
+- **todo:944** (x-large, journey-crm) — "You Deserve It" upgrade  
+  The bones the item describes are real and one connective-tissue slice — gift cost → approval-gated finance expense — shipped 2026-08-19 and is pinned by a smoke test; everything else (meaningful dates, real deserve indicators, multi-supplier trips, supplier ordering, why-ledger, client-workspace pan
+
+### Wave 9 — Polish, plain-English & docs reconciliation
+
+Final polish and bookkeeping once the code waves have settled (so docs sweeps record the true final state): shared InfoTip + per-surface plain-English pass (loop-queue:5 — touches _CommandIntelligenceWorkspace/_MasterInbox after waves 6-8 finish with them), perf re-measure + docs accuracy sweep + demo-PII compliance check (loop-queue:7), plan backfill/archiving (1982), and the checklist:673 truth-up (its AI/service-principal fragment stays parked pending Ed's confirmation). lq7/1982/673 all edit checklist.md — coordinate or sequence those doc edits within the wave.
+
+- **loop-queue:5** (x-large, other) — Info icons / plain-English pass app-wide  
+  The app-wide info-icons / plain-English pass has not started as a systematic effort: no shared info-icon/tooltip component exists anywhere in portal/src (no InfoTip/InfoIcon/Explainer in portal/src/components/ui/, which holds only CollapsibleSection, ConfirmDialog, EmptyState, ErrorBoundary, Loading
+- **loop-queue:7** (large, governance-compliance) — Performance re-measure + docs accuracy sweep + data-compliance check (demo PII → governanc  
+  All three bundled concerns are still open and none is recorded as done anywhere: perf numbers newer than pre-27-Aug do not exist, no docs accuracy sweep is logged after the 2026-08-30 shipping wave, and the demo-PII-vs-erasure compliance check has never been performed — and it has real substance, si
+- **checklist:1982** (small, docs-only) — Backfill phase ticks on 14 shipped plans reading `0/N`, then archive  
+  The item's premise has largely drifted: parser fixes already shipped (Format B "Phasing" and Format C bold-phase parsing in devTeamTasks.ts) recovered several plans that falsely read 0/N (e.g. radar-upgrade now 7/7), and of the 15 top-level plans that still parse to 0/N today, only two are shipped b
+- **checklist:673** (small, governance-compliance) — Application-wide parity. Classify the remaining module catch-all, freelancer-job  
+  Five of the six clauses shipped on 2026-08-27 and verify in source today: the module catch-all is classified and enforced, freelancer-job/task/task-template client associations are classified and gated, the three competing HR/freelancer routes converged onto staff.people, and named alternative autho
+
+## Blocked ledger — needs Ed, a live environment, or a decision
+
+| Item | What it is | What it needs |
+| --- | --- | --- |
+| todo:90 | � Retire or finish the legacy Website Editor admin islands | Ed's per-surface decision: retire vs unify for the browser-local Sites registry, Sections, Popup, Customise, and Page Detail (option b measured at ~20 sync fns / 27 call sites / 3,297-line SitesPage). |
+| todo:646 | � Make Build custom portal reach a real service | Ed's backend-direction pick before any code: (a) promote the complete-but-unwired github-templates/modules/portal-export into a runtime plugin, (b) re-point the wizard at clientProjectProvisioner, or  |
+| checklist:1951 | Wizard engine. Generalise the 711-line Aqua Tag setup into steps/UI/ | Ed's call on the wizard-engine cluster: sequencing vs the other ~5-day engine projects (explicit 'do not start P6 first' warnings, overlap with stages-hold-elements), and the product/safety decision o |
+| issue:#174 | #174 revoking an identity LAST grant returns them to un-migrated legacy access so revocati | Ed's pick among the three recorded options for last-grant revocation falling back to legacy manage: (1) warning on revoke, (2) sticky persisted governed marker (identified safe default, but forecloses |
+| todo:942 | Advisor omega upgrade | Ed's Advisor 'omega' vision: the #1 missing capability, whether to keep the read-only + human-accept safety contract, and one flagship upgrade vs several. Plan doc is deliberately empty until he answe |
+| todo:953 | Meta / Instagram inbox | Ed to create the real Meta Developer app and enter App ID / App Secret / verify token via the built Connect-now surface on an HTTPS deployment, then the live OAuth + webhook walk. Code is complete and |
+| todo:968 | Aqua Tag form-capture consent | Ed's compliance decision (DPO/solicitor-class): legitimate interest for form-capture field values vs gating capture on consent. Related issue #3 inherits the same call. Implementation either way is sm |
+| todo:971 | Ed's GitHub credentials for the Dev Editor publish walk | Ed's real GitHub credentials entered via the editor Settings GitHubConnectPanel, then a browser walk of save → diff → commit → PR → merge on a throwaway branch, recorded in dev-editor-finish phase 17. |
+| checklist:1610 | Walk the onboarding chain once, on your own data: client → connection | Ed personally, in a real browser on his own data: create client → connection link → sign in → confirm code → see portal (dev code bypass 00000 available; real delivery needs a connected sender). No co |
+| checklist:1614 | Stripe live-account walkthrough: `stripe@22.5.0` is now installed; the | Ed's real Stripe keys (secret + webhook signing secret) entered via the Finance settings panel, then live Checkout + signed HTTPS webhook walk on a deployed endpoint. |
+| checklist:1620 | Meta Developer app + real HTTPS OAuth/webhook walk. No `META_*` values | Ed's Meta Developer app (App ID, App Secret, verify token) entered via the encrypted connections panel, then the live HTTPS OAuth connect + webhook verification walk. |
+| checklist:1622 | Deployment env verification. Local presence is proven for session, | Ed's Vercel account: confirm session/vault/Supabase/Resend/Stripe/OpenAI env names for Production, add CRON_SECRET, then run npm run smoke:post-deploy against the live deployment. Optional small harde |
+| checklist:1625 | Apply the pending Supabase migrations before production rollout, | Live Supabase/Postgres credentials (DATABASE_URL or linked supabase CLI) plus Ed's production-rollout go-ahead to apply the 22 pending migrations, then run the DATABASE_URL-gated cross-process test. |
+| checklist:1629 | DPO sign-off on the erasure retention schedule. | Ed to engage a DPO/solicitor to rule on the retention schedule (which categories are RETAIN, legal-hold time-box — DPO pack Q1). Follow-on code (expiry/purge for the RETAIN set) unblocks only after th |
+| checklist:1947 | Stages hold elements | Ed reserved this build for himself ('I want to personally build the client portal states'). Needs his stage/element design (the 'stunning standard') and an ordering go-ahead vs P5/P6. Mechanical plumb |
+| checklist:1984 | Re-enter the Aqua Tag routing config production lost (master site key, | Ed to re-enter unrecoverable production routing data (master tag site mapping, per-site source-to-client routing, site configs, enquiry contact details) in the deployed instance. Wrinkle to tell him:  |
+| todo:402 | � Make the Command Centre wait announce itself | Real-browser accessibility-tree/screen-reader walk of the /portal/agency loading transition (announce once, clean removal, focus continuity). Fold into the issue #137 browser matrix (built in wave 5 v |
+| todo:584 | � Finish Notepad autosave browser acceptance | Live authenticated browser walk on :3032 notepad: route change + tab exit with dirty drafts (beforeunload + keepalive), offline/refused save → Retry, reload convergence. Then tick checklist:1463 / tod |
+| todo:589 | � Finish phase-transition browser acceptance | Quiet live lane (sandbox:fork) + browser walk of a phase transition through all three mounted controls with one forced retryable incomplete, confirming saved details and convergent retry. The 2026-08- |
+| todo:624 | � Mounted-accept the settled utility actions | Mounted browser walk with forced fetch/clipboard rejection across Task Templates, Development toolkit, Search Console, and Copy Tag; requires the dev server actually serving (recorded blocker: :3032 a |
+| todo:985 | � Free a server + verify the critical flows for real | (1) Live server + browser walks: seeded connect-code journey, enquiry inbox arrival, Aqua Tags detect against Ed's real tagged domain; (2) Ed's open decision on writing one labelled test enquiry to li |
+| checklist:666 | Release browser gate. Complete the real two-user/two-project/two-environment | Live env + real browser with two concurrent authenticated users driving the full access-manager journey, stale-session replay, exact-client positive journey, and edit/AI/diff/reload/PR + preview failu |
+| checklist:1924 | Full browser authoring round trip | Live browser acceptance of the full authoring round trip (select → exact words → patch → diff/save → tests → draft branch → publish/PR/merge + failure recovery, Librarian, throttle); publish/PR/merge  |
+| checklist:1929 | Unsaved-work and project-prefill browser matrix | Headed browser on a sandbox:fork lane: type real dirty state and exercise every destructive transition, proving window.confirm fires before state destruction and cancel preserves work. Acceptance only |
+| issue:#162 | #162 in-pane repeat navigation HMR stall. | Interactive browser session against a production build (npm run build + start, no HMR) to walk repeat in-place navigation of /portal/dev-workspace routes and close the phase-18 acceptance gap. Harness |
+
+## Duplicate map
+
+The same work appears in more than one list 39 times. Canonical id first:
+
+- **todo:68** ⟵ checklist:1311 — Same website-editor dead-endpoint contract repair (Split tab gating, promote stub, PublishModal/SitesPage legacy routes, image-variations gating).
+- **todo:77** ⟵ checklist:1323 — Same dead-native-blocks / Membership-Affiliate-Donation block honesty bundle; 1323 adds the blockRegistry /api/contact default kill — fold into todo:77 scope.
+- **todo:85** ⟵ checklist:1333 — Same static-export renderer parity work (hero/cta/testimonials/product-grid, first-party template fidelity test, stale r033 pin).
+- **todo:90** ⟵ checklist:1340 — Same localStorage-backed Sites/Sections/Popup/Customise/PageDetail bundle. Verdicts conflict: 1340 says the Sites slice is unblocked (server /sites CRUD exists 
+- **todo:99** ⟵ checklist:1351 — Same campaign-send honest-delivery fix (enqueue-only send stamped as sent; readiness = Boolean(install.enabled)).
+- **todo:383** ⟵ checklist:1227 — Same radar sweep fix: hoist Infra probe out of per-agency loop, failure isolation, cadence honesty, call-count tests.
+- **todo:397** ⟵ checklist:1231 — Same modal focus-trap sweep (shared dialog primitive + migrate ~51-54 untrapped aria-modal files + sweep test).
+- **todo:412** ⟵ checklist:1245 — Same tablist/menu/listbox keyboard-model work; 1245 confirms the Settings aria-controls sub-defect dissolved in the 08-30 restructure — strike that slice from d
+- **todo:417** ⟵ checklist:1250 — Same accessible-name bundle (published form blocks, Command Intelligence ids, run-history row, icon-only buttons).
+- **todo:427** ⟵ checklist:1262 — Same missing src/app/global-error.tsx + mislabelled error.tsx header + smoke pins.
+- **todo:430** ⟵ checklist:1266 — Same PWA 512px/maskable icons + manifest + InstallStep userChoice/one-use-prompt handling; 1266 notes sharp is available for icon generation.
+- **todo:433** ⟵ checklist:1271 — Same ShareButtons/Breadcrumb hydration divergence; prefer 1271's fix path (currentUrl/currentPath on ElementContext, already plumbed to every block).
+- **todo:437** ⟵ checklist:1276 — Same Range/206/416 support for the three private-media content routes via one shared helper with provider adapters.
+- **todo:441** ⟵ checklist:1281 — Same shared recorder helper: MIME negotiation, extension-from-actual-mime, error taxonomy, compensation on the recorded-call path.
+- **todo:501** ⟵ checklist:1358 — Same memberships real StripePort over installed SDK + isStripeAvailable/seed/healthcheck honesty; 1358 details the installConfigWithSecrets wiring.
+- **todo:506** ⟵ checklist:1364 — Same affiliates StripeConnectPort adapter + capability gating of CTA/payout controls; live test-mode round trip stays an Ed acceptance gap.
+- **todo:584** ⟵ checklist:1463 — Same notepad autosave item — code shipped, only the forced-failure browser walk remains (both needs-live-env).
+- **todo:589** ⟵ checklist:1470 — Same fulfilment phase-transition item — code shipped and green, only the mounted three-control browser walk remains.
+- **todo:600** ⟵ checklist:1485 — Same issue #57 availability-state campaign; 1485 has the richer plan (checkedJsonRead sibling, destructive paths first) — use it as the spec.
+- **todo:624** ⟵ checklist:1522 — Same issue #61 forced-rejection acceptance — code done 5/5, only the mounted browser walk remains.
+- **todo:635** ⟵ checklist:1538 — Same email-sender setup-flow work: postmark catalog entry, apiKey secretVault field, vault-routed ProviderService, editable Settings, real verifyDomain.
+- **todo:641** ⟵ checklist:1545 — Same plugin-health persistence + Radar honesty work (runner/panel half already shipped in both).
+- **todo:646** ⟵ checklist:1551 — Same portal-export wizard fork; 1551 adds that a complete unwired implementation sits in github-templates/modules/portal-export. Both risky-needs-decision — led
+- **todo:651** ⟵ checklist:1557 — Same provision/publish/deploy idempotency work (durable operation record, milestone states, reuse-on-retry, fault-injected tests).
+- **todo:656** ⟵ checklist:1563 — Same upload-lifecycle registry: state records before provider calls, compensation on delete, staged-object expiry, batch-cap honesty.
+- **todo:663** ⟵ checklist:1572 — Same close-deal gate: refuse status:sent without reviewable terms, terms field in both forms, reuse canonical delivery path, acceptance gate.
+- **todo:668** ⟵ checklist:1578 — Same commercial send delivered:false truthfulness fix (delivery state on pack/payment, no sent-stamp on failure, retry surface).
+- **todo:672** ⟵ checklist:1583 — Same acceptance-version-binding work (version/hash on CommercialPack, sent-gated accept, post-acceptance edit rules, stale Checkout invalidation).
+- **todo:677** ⟵ checklist:1588 — Same installment-webhook residue: dedupe by subscription invoice ids, exact remainder allocation, persisted cancellation state, behavioural webhook test.
+- **todo:715** ⟵ checklist:1667 — Same PluginSettingsPanel mounting for affiliates/memberships/client-crm + surface-less modules + email-sender split-default.
+- **todo:751** ⟵ checklist:1737 — Same plan/affiliate delete-dependency work. Inventories shipped; wiring the preview into DELETE/confirmation is unblocked code; the refuse-vs-purge policy itsel
+- **todo:757** ⟵ checklist:1745 — Same SOP-delete work: wire the shipped inventory into a dependants read + confirmation surface (decision-free); the retirement policy stays Ed's (issue #176).
+- **todo:763** ⟵ checklist:1752 — Same graph-aware capital-plan validation (unique ids, reference resolution, arithmetic invariants, vote cap, dangling-link guard).
+- **todo:770** ⟵ checklist:1761 — Same CompanyProfile optimistic-concurrency (409 on stale updatedAt) + quarterly-review lock immutability.
+- **todo:777** ⟵ checklist:1770 — Same legal-register delete guard: dependency inventory mirroring sopDependencies, 409/refuse or archive path, honest file-deletion errors.
+- **todo:783** ⟵ checklist:1778 — Same governance company-scoping fix (recordBelongsToCompany on legal rows/declarations/sub-processors/erasure clients + stale-scope handling).
+- **todo:857** ⟵ checklist:1863 — Same last sliver of #119: emit disputed event only on creation, report deduped on redelivery, pin with a fresh-seen-set test.
+- **todo:402** ⟵ checklist:1236 — Same loading-skeleton live-region item. Code half fully shipped (PortalViewportLoading) — 1236's checkbox can be ticked; only the AT/announcement browser proof 
+- **todo:746** ⟵ checklist:1729 — Same lead archive/restore/purge work — shipped and browser-accepted per 1729; the only residue is todo:746's forced-partial-failure test in smoke-lead-archive.t
+
+
+---
+
+## Bookkeeping — what was ticked, and what was deliberately not
+
+Updated 2026-08-30 after wave 3.
+
+### Ticked in the trackers
+
+Twelve items were found by triage to be **already shipped and never struck
+through**. These are now `- [x]` in their own file, because source proves them
+done — no code was written for them in this campaign:
+
+`todo.md` 682 (central session revocation), 860 (showcase fixture seeded once,
+not reset), 952 (Aqua Tags nav entry), 958 (the fulfilment spelling split's
+user-facing half), 959 (canonical contacts pick, enforced in source), 961 (the
+`adapters.ts` "dead code" line — it is NOT dead; two real importers), 969
+(the three Supabase creds in `.env.example`).
+
+`checklist.md` 1236 (Command Centre loading status), 1605 (merge to `main` —
+PR #3 merged on 2026-08-23), 1729 (lead archive is reversible since #62).
+
+`LOOP-PROGRESS.md` queue entries 2 and 3 (Scouting Stage 1, inbox premium
+messaging) — both shipped in `7917318`; entry 4's residual double-render was
+fixed in wave 1.
+
+### NOT ticked, on purpose
+
+Every item this campaign actually wrote code for is left **unticked**, even
+where the implementation is complete and test-pinned. Almost all of them
+returned `partially-implemented` for the same two honest reasons:
+
+1. **Browser acceptance is unrun.** This container has no display, so the
+   viewport/keyboard/AT walks the items demand (and that `docs/development/tests.md`
+   records as the closing step) cannot be performed. Code-complete is not
+   browser-accepted, and this repo's own evidence labels forbid conflating them.
+2. **A policy or credential is Ed's.** `todo:751`/`757` retirement policy,
+   `todo:501`/`506` live Stripe test-mode round trips, `todo:99` durable-worker
+   vs synchronous-send product split, `todo:104` database-native version
+   constraint (needs `DATABASE_URL`), `todo:386` `@sentry/nextjs` install.
+
+Ticking those boxes would claim the closing evidence exists. It does not.
+The per-wave commit messages name exactly what shipped; this ledger names what
+each item still owes. Both are more useful than a tick.
+
+### Still open on the trackers after this campaign
+
+`todo:600` (issue #57) is a bundle of roughly fifteen families; eleven are
+closed, four are named as untouched in the wave 2 journal and the issue should
+stay open. `todo:656`'s staged-object lifecycle/expiry is unbuilt. `todo:386`
+has four named open pieces. These are progress, not completion.
+
+---
+
+## Browser-matrix baseline — 2026-08-31, first real run
+
+`npm run browser:matrix` (built in wave 5, `scripts/browser-matrix.mjs`) was run
+for the first time against a live dev server: real Chromium 141, 13 pages × 17
+viewports, **1,326 checks**. It drives actual layout, focus, axe and the console
+— unlike `smoke-ux.mjs`, whose "viewport" was a substring in a User-Agent header.
+
+**Verdict: RED. 352 failing checks.**
+
+| category | failing |
+| --- | --- |
+| focus (a stop with no visible indicator) | 203 |
+| axe (serious/critical) | 85 |
+| console errors | 44 |
+| failed network requests | 17 |
+| horizontal overflow | 3 |
+
+This is a **baseline, not a regression signal** — the gate did not exist before
+this wave, so nothing had ever measured these. The failures are overwhelmingly
+app-wide rather than anything wave 5 touched: the single most common one,
+`button[Working as Owner]` with no focus indicator, is a global chrome control
+that appears on nearly every page. Wave 5's own subject — modal focus traps —
+is **not exercised at all** by this run, which walks pages without opening
+dialogs.
+
+Real defects it surfaced that are NOT accessibility issues:
+
+- `/portal/account` answers **500 from `/api/portal/mfa/enrol`**, twice, on every
+  viewport. Multi-factor enrolment is broken.
+- `/portal/agency` logs a **React hydration mismatch** — server and client
+  markup disagree, and React says it will not patch it up.
+- Three genuine **horizontal-overflow** failures, which the house browser rule
+  forbids outright.
+- A **critical `button-name`** violation on `/` at mobile portrait: a button with
+  no accessible name, which is precisely what `todo:417` set out to eliminate.
+
+None of this is fixed here. It is measured, recorded and repeatable, which is
+the thing that did not exist before. The follow-up work is its own campaign.
+
+---
+
+## The test harness has two large holes — both pre-existing, both verified
+
+Found while gating waves 4–6, and worth more attention than anything in the
+to-do list, because they decide how much every other green result is worth.
+
+### 1. The whole website-editor smoke gate does not run
+
+`npm run smoke:website-editor` fails at import for **every one of its 25+
+suites**:
+
+```
+src/built-ins/modules/website-editor/src/lib/ids.ts:8
+export { makeId, slugify } from "@/engines/editor/elements/ids";
+SyntaxError: The requested module '@/engines/editor/elements/ids'
+             does not provide an export named 'makeId'
+```
+
+**Verified pre-existing**, not campaign-caused: reproduced in a throwaway
+worktree at HEAD (`e6307dd`) *and* at the pre-campaign base (`5f0876e`), with
+the identical error. The website editor has been shipping with its entire
+dedicated gate silently red.
+
+### 2. No built-in plugin's HTTP handlers can be tested at all
+
+Any `@/…` named import from inside a plugin directory resolves to a module
+exposing only `default`: the plugin's own `package.json` declares
+`"type": "module"` while portal's root declares none, so tsx treats portal
+`.ts` files as CJS and ESM named-export linking fails. This is the same root
+cause, and it is what the 31 baseline failures are.
+
+The consequence is not "31 tests are red". It is that **every behavioural test
+of a plugin's API layer is disabled** — a handler can be rewritten and no test
+in the repo will object. Wave 4's `todo:677` hit this directly: its webhook
+behaviour had to be moved into the service layer to be testable at all.
+
+### Why this matters more than it looks
+
+Both holes are invisible in the headline number. The canonical suite reports
+~5,600 passing, and that is true — but it is passing over a surface that
+excludes the website editor's own gate and every plugin HTTP handler. A green
+run is weaker evidence than it appears, and no amount of new tests inside those
+areas will change that until the module resolution is fixed.
+
+**Recommended next action, ahead of remaining to-do items:** fix the CJS/ESM
+boundary (align `type` across the plugin and root manifests, or route the
+shared imports through a build-condition-aware entry), then re-run both gates
+and see what was hiding behind them.
+
+---
+
+## Browser matrix, run 2 — 2026-08-31, after wave 8
+
+Re-run because wave 8's Command Centre work edits the portal pages the matrix
+walks. **It caught a real defect that no unit test could see**, and the fix is
+proven by the same measurement.
+
+| category | baseline | wave 8, before fix | wave 8, after fix |
+| --- | --- | --- | --- |
+| focus | 203 | 204 | 204 |
+| axe | 85 | 85 | 85 |
+| console | 44 | **188** | 44 |
+| network | 17 | **187** | 17 |
+| overflow | 3 | 3 | 3 |
+
+### The defect: a broken Edge bundle answering 404 for healthy routes
+
+`src/instrumentation.ts` (added wave 3, `todo:386`) statically imported
+`observabilityCapability`, which resolves the optional Sentry package using
+`node:module` and `node:path`. Next loads `instrumentation.ts` in **both** the
+Node and the Edge runtime, so those Node builtins were pulled into the Edge
+instrumentation bundle, which then failed to compile.
+
+A broken edge bundle does not announce itself. It answers **404 for routes that
+are completely healthy in source** — the matrix found `/api/portal/chrome/layout`
+plus both telephony endpoints 404ing on *every* viewport, which is what took
+console from 44 to 188 and network from 17 to 187.
+
+Nothing else caught this. `tsc` was clean, the 5,758-test canonical suite was
+clean, and `npm run build` exited 0 — the Edge failure surfaces only as a
+warning during build and as a 404 at runtime.
+
+Fixed with Next's documented pattern: the capability probe is now loaded behind
+`process.env.NEXT_RUNTIME === "nodejs"`, so it is never bundled for Edge. On
+Edge the boot breadcrumb still records, with capability reported as
+`unknown-on-edge` rather than guessed. Verified by measurement — the route went
+404 → 401 (its correct no-session answer), and the two categories returned to
+baseline exactly.
+
+**This is also the leading suspect for the Vercel failure on `cff860d`.** Not
+proven: Vercel's logs are unreachable from here, and the local build succeeds
+either way. Wave 8's deployment is the test.
+
+### One net-new focus failure, named
+
+`/login` at mobile-landscape now reports `button[Working as Owner]` with no
+visible focus indicator, where the baseline run had all 12 stops clean. It is
+the same global chrome control already failing across the app, now reaching one
+more breakpoint — not a new class of defect.
+
+### The highest-leverage accessibility fix, quantified
+
+Five global chrome controls account for the overwhelming majority of all 204
+focus failures:
+
+| control | failing stops |
+| --- | --- |
+| `button[Working as Owner]` | 130 |
+| `button[Open navigation menu]` | 69 |
+| `button[Use dark mode]` | 51 |
+| `a[Back to website]` | 40 |
+| `a[Team settings]` | 34 |
+
+These are a handful of components, not a hundred screens. Giving them visible
+focus indicators would clear most of the focus column in one pass — by far the
+best accessibility return available, and now measurable rather than guessed at.
+
+---
+
+## Vercel: two failures, cause UNDETERMINED — and a correction
+
+`c832188` (wave 9) failed to deploy. That is the second failure on this branch,
+and the two have **different shapes**:
+
+| commit | wave | outcome | time to fail |
+| --- | --- | --- | --- |
+| `cff860d` | 7 | Error | ~3 minutes |
+| `407cb5b` | 8 | **Ready** | ~4 minutes |
+| `c832188` | 9 | Error | **~46 minutes** |
+
+A 3-minute failure looks like a build error. A 46-minute one looks like a
+timeout or a hang. They are probably not the same fault, and neither is
+diagnosable from this container: Vercel's logs need auth this session does not
+have, and `npm run build` exits 0 locally on **both** failing commits.
+
+### Correction: the "2.5GB build output" figure was wrong
+
+Earlier notes in this ledger and in the session's check-ins said the build
+output had grown to ~2.5GB across 377 routes, against ~1.48GB recorded earlier
+in the project, and offered that as the leading hypothesis. **That was a
+measurement error.** `du -sh .next` includes `.next/cache`, which is the local
+build cache and is never deployed. The actual artefacts are:
+
+```
+2.5G  .next          ← includes the local build cache
+2.5G  .next/cache    ← NOT deployed
+ 58M  .next/server   ← deployed
+ 12M  .next/static   ← deployed
+```
+
+Roughly **70MB deployed**, which is healthy and nowhere near a size limit.
+Build size is not the problem, and the earlier hypothesis should be dropped
+rather than carried forward.
+
+### A hypothesis raised and then withdrawn
+
+Wave 9 added `requireCurrentAccessActor()` — which forces
+`ensureHydrated({ fresh: true })` — into `listOperationalAlerts()`, which six
+render paths call including two layouts. That looked like it might have put a
+forced backend read into every page of a 301-page prerender.
+
+**It does not.** Every portal route builds as `ƒ` (server-rendered on demand),
+not `○` (prerendered), so none of them run at build time. The hypothesis is
+withdrawn rather than left standing as a plausible-sounding non-explanation.
+
+The call was still made lazy — it now resolves only when an open action
+actually names a client — because a forced fresh backend read in a hot render
+path is worth removing on its own merits. That is a **runtime** improvement,
+**not** an evidenced deploy fix, and must not be described as one.
+
+### What would actually settle it
+
+The Vercel build log for `6hDw2Zx8e8tjcxL7pTPMhgxtp4ae`. Until someone reads
+it, the cause is unknown. Guessing further from here would just produce more
+confident-sounding wrong answers.
+<!-- AQUACRM_SOURCE_END path="docs/development/CAMPAIGN-LEDGER.md" -->
+
+---
+
 <a id="source-docs-development-cloud-resume-md"></a>
 
 ## Source document — `docs/development/CLOUD-RESUME.md`
@@ -1223,7 +2786,7 @@ request-memoization.
 
 ## Source document — `docs/development/ED-QUESTIONS.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/ED-QUESTIONS.md" sha256="27df7b0c7b2ad5cf1c1e4ee73e31f30fe143b9c6598f36437d4e692e8aaac3b6" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/ED-QUESTIONS.md" sha256="f8dfdfa9cfad61140e8ec9428b3b2b706cf33e96296825c7860467e862f7f86f" -->
 # Questions for Ed — blocked decisions, work continues around them
 
 **Started 2026-08-30.** Per your instruction: anything needing your input is
@@ -1299,6 +2862,245 @@ real numbers.
 role/agency. These need reconciling in the Supabase dashboard before cutover.
 Run `node scripts/supabase-cutover-preflight.mjs` to see the current list.
 
+## Q8 — Apply the written-but-unapplied database migrations (ACTION)
+
+Three things exist on disk but not in the live project, and the data
+architecture work (docs/data/MIGRATION-PLAN.md) is gated on them:
+
+1. `supabase/migrations/20260820150000_brand_enquiries_agency_scope.sql` —
+   the enquiry `agency_id` tenant column (until applied, tenancy rides in
+   `metadata->>'agencyId'` and the agency-aware RLS ratchet cannot bite).
+2. `supabase/migrations/20260811113000_master_inbox_messaging.sql` — the five
+   `inbox_*` tables; production's `useSupabase()` inbox path 404s without
+   them.
+3. The live project's `rls_auto_enable()` function exists in NO migration —
+   export it from the dashboard and commit it, or it dies on any rebuild.
+
+**Unblocks:** migration phases 1/4/6; honest RLS claims. You run
+`supabase db push` by hand — say when, and I'll verify with
+`supabase/rls-verify.sql` + the preflight script.
+
+## Q9 — Which response SLA is canonical?
+
+Two "response compliance" numbers exist side by side: the Radar/command KPI
+uses your **configured** guardrail (`speedToLeadTargetMinutes`), while the
+commercial formula `response-sla` **hardcodes 5 minutes**. Dedup
+(MIGRATION-PLAN phase 7) needs the business answer:
+
+- **Recommendation:** the configured guardrail is canonical everywhere;
+  5 minutes stays only as the default value of that guardrail.
+- Alternative: keep a fixed 5-minute industry benchmark as a *separate,
+  clearly-labelled* metric next to your own SLA.
+
+**Unblocks:** folding `response-sla` onto the canonical calculation.
+
+## Q10 — Which campaign ROAS is "the" ROAS?
+
+`campaign-roas` exists twice (command KPI: zero-clamped, rounded 2dp over
+built campaign rows; commercial formula: unrounded over raw records). They can
+disagree in the same explorer, and custom KPIs resolve to the opposite one
+than the picker does. **Recommendation:** the command KPI is canonical for
+dashboards; the commercial twin gets a namespaced id and a "raw/unrounded"
+label until retired. Saved custom-KPI definitions referencing it get a
+backfill.
+
+**Unblocks:** retiring the one descriptor-id collision
+(pinned in `src/lib/data/metricRegistry.ts` until then).
+
+## Q11 — First-cut Supabase tables: adopt or drop?
+
+`clients`, `client_portals`, `client_portal_members`, `audit_events` exist
+live (created by the initial security migration), are **empty**, and no
+portal code reads them. The extraction phases will create real tables for
+these concepts — reusing those names only works if we adopt and reshape them.
+**Recommendation:** drop them in a migration once phase 1 designs the real
+schemas, so nobody builds against the wrong model.
+
+**Unblocks:** clean table naming for migration phases 1–2.
+
+---
+
+# Batch 2 — raised by the 2026-08-30 to-do campaign
+
+All 131 documented to-dos were verified against source. **Sixteen** of them
+cannot be finished without you — eleven blocked outright on a decision or an
+account you own, five carrying a risk I should not take on your behalf. Three
+more questions below (Q15's purge rule, Q16, Q17) came out of the campaign's
+own implementation work rather than the triage, so nineteen items in total sit
+here.
+
+They are grouped by what you actually have to do: **decide**, **do (external
+account)**, or **sign off**. Every one has had its decision-independent half
+built already — none of these is blocking a line of code that could have been
+written without you.
+
+The other 115 to-dos needed no input from you. Where they are not finished, it
+is because the closing evidence is a browser walk this container cannot run —
+recorded honestly rather than ticked.
+
+## DECISIONS — product or policy calls
+
+### Q12 — Website editor: retire the localStorage surfaces, or wire them up?
+
+Sites, Sections, Popup, Customise and Page Detail persist **only to browser
+localStorage**. Nothing on the storefront or server reads any of it, so today
+an agency can "design" a site that cannot exist. Page Detail also has a real
+`[pageId]` / `params.id` mismatch and dead `/p/[slug]` links.
+
+Nothing else on this item can proceed until you choose, because the small fixes
+disappear entirely under the retire path.
+
+**Unblocks:** `todo:90` / issue #31, and roughly a week of editor work.
+
+### Q13 — "Build custom portal" wizard: build the backend, or remove the button?
+
+The wizard POSTs to `/api/portal/portal-export/clients/export` and GETs
+`/portal-export/presets`. **Neither endpoint exists** — no portal-export
+module exists anywhere in the repo — so the catch-all 404s and the modal
+swallows it silently. A complete but entirely unwired implementation is sitting
+in `github-templates/modules/portal-export`.
+
+Three options: adopt that template, build fresh, or remove the CTA.
+
+**Unblocks:** `todo:646`, `checklist:1551`. The honesty half (stop swallowing
+the 404, disable the CTA when the backend is absent) is implementable without
+you and is queued regardless.
+
+### Q14 — Does form capture need consent, like telemetry does?
+
+The Aqua Tag gates telemetry on consent, but the **form field-value capture**
+path posts to `/api/public/form-capture` with no consent check on either side,
+and the server hardcodes `consent:false` on capture-only inserts. That is
+either correct (a submitted form is the consent) or a live compliance gap,
+depending on a view I should not take on your behalf.
+
+**Unblocks:** `todo:968`.
+
+### Q15 — What happens when you retire something that is still referenced?
+
+Dependency inventories now exist and are test-proven for SOPs, membership plans
+and affiliates, and the deletion paths refuse rather than orphan. What is NOT
+decided is the policy behind the refusal: archive/tombstone, require
+reassignment first, or one transactional detach under a stated retention rule —
+and specifically whether a plan with **billable subscribers** may ever be
+purged, and what must be reconciled in Stripe before it is.
+
+**Unblocks:** the policy half of `todo:751`, `todo:757`, issue #176.
+
+### Q16 — If a campaign send crashes mid-blast, what should the campaign say?
+
+Campaign delivery is now truthful — it reports what the provider actually did.
+But a crash **during** a blast can strand a campaign in `sending` with some
+recipients contacted and some not. Options: resume on next run (needs
+per-recipient state, already partly there), mark it `partially-sent` and stop,
+or fail the whole campaign and require a manual re-send.
+
+I did not pick one: each is defensible and each is visible to your customers.
+
+**Unblocks:** the last open major from campaign wave 2.
+
+### Q17 — Durable job runner, or synchronous sending, permanently?
+
+Campaign send is now **synchronous** — the option the to-do sanctioned —
+because this app has no job-runner infrastructure at all. That is honest and it
+works, but it ties up a request for the length of a blast and cannot retry.
+
+A real queue/worker is a platform decision with real cost, not something to
+introduce inside a to-do item.
+
+**Unblocks:** `todo:99`'s remaining half.
+
+### Q18 — Revoking someone's last grant currently WIDENS their access
+
+Governance is recomputed from active grants, so revoking an identity's last
+non-project grant flips `governed` back to false and they fall back to legacy
+`manage` on every client element. Revocation makes them **more** powerful.
+
+This is pinned deliberately by the release access matrix rather than changed
+unilaterally, because the fix is a policy choice: fail closed (no grants = no
+access) or keep the legacy fallback for un-migrated identities.
+
+**My recommendation: fail closed.** But it can lock people out of surfaces they
+use today, so it is yours.
+
+**Unblocks:** issue #174.
+
+### Q19 — Advisor "omega" upgrade: what is the vision?
+
+The plan document is a placeholder that literally says "To fill once Ed
+answers". Source confirms the pre-omega state: exactly 8 skill recipes, a
+`gpt-5-mini` default, reactive-only behaviour. Nothing can start without the
+shape you want.
+
+**Unblocks:** `todo:942`.
+
+### Q20 — What does a client actually SEE at each product-portal stage?
+
+The four-mode enum (`onboarding|designing|developed-launch|maintenance`) types
+every stage, but the client-facing content is one static blurb per mode. The
+engineering half (stage carries an element payload) is mechanical. The half
+that needs you is the experience: what elements, welcome video and tasks each
+stage carries, and the "stunning standard" defaults replacing the eleven
+existing blurbs.
+
+**Unblocks:** `checklist:1947` (~5 days of work).
+
+### Q21 — Extract a wizard engine, or leave the setup flows hand-written?
+
+There is no wizard engine; the 711-line Aqua Tag setup is bespoke, and several
+other setup flows repeat its shape. Extracting a steps-as-data engine is real
+work that pays off only if you intend more setup flows.
+
+**Unblocks:** `checklist:1951`.
+
+## ACTIONS — external accounts only you can touch
+
+### Q22 — Affiliate payouts need their OWN Stripe webhook secret
+
+Automated affiliate payouts are currently **refused** rather than offered,
+because `transfer.paid` is the only route a payout has to `completed` and it
+arrives by webhook. With no verifiable webhook secret, an automated transfer
+would really move the affiliate's money and then strand the payout with no
+control left to finish it. Manual mark-paid carries the scope safely today.
+
+To enable it: add a Connect webhook endpoint in your Stripe dashboard and put
+its signing secret in the affiliates install config.
+
+**Unblocks:** the automated half of `todo:506`.
+
+### Q23 — The external-account queue (nothing here is code work)
+
+Each of these is code-complete and waiting on an account action:
+
+- **GitHub credentials for the editor publish walk** — promised 27 Aug, still
+  outstanding. Connect GitHub *in the editor Settings tab* (one vault — do not
+  create a second connection store), then walk save → diff → commit → PR →
+  merge on a throwaway branch before any client repository. `todo:971`.
+- **Meta/Instagram app review** — the self-serve Connect-now flow, webhook
+  verification and multi-account routing are built and test-pinned.
+  `todo:953`, `checklist:1620`.
+- **Live Stripe credentials** — vault, checkout, signed webhooks and refunds
+  all exist and are tested against test mode. `checklist:1614`.
+- **Vercel env names + `CRON_SECRET`** — the required-env definitions, startup
+  check and fail-closed cron guards exist. `checklist:1622`.
+- **Apply the 22 pending migrations** — see Q8; this is the one that unblocks
+  real RLS and the tenancy extraction. `checklist:1625`.
+- **Re-enter the unrecoverable routing values** — `parseBlob` no longer wipes
+  them, but the ones already lost cannot be recovered by code.
+  `checklist:1984`.
+
+## SIGN-OFF
+
+### Q24 — Retention schedule needs a DPO or solicitor decision
+
+The erasure sweep with disposition policy (delete/anonymise/RETAIN), a
+preview-before-enforce retention control, and a reviewer-ready DPO pack all
+exist in source. The retention **schedule** itself is a legal decision.
+Follow-on code (expiry/purge for the RETAIN set) is designed and waiting.
+
+**Unblocks:** `checklist:1629`.
+
+
 ---
 
 *Answered items: move them to the bottom with the decision and date, so this
@@ -1311,12 +3113,104 @@ file stays a live queue.*
 
 ## Source document — `docs/development/LOOP-PROGRESS.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/LOOP-PROGRESS.md" sha256="fae37c7c58deda4060a2d4a3d1031a83b609dea212e9337442d8ef24dca4066f" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/LOOP-PROGRESS.md" sha256="98fe02dc9d94a4fc3a2091ff5521f2b3b2d3c1a9d8ae0431efae9a5abc2cc971" -->
 # Production-readiness loop — live ledger
 
 **Loop:** every 20 min (cron 5ced36da), started 2026-08-30. Blocked-on-Ed items
 live in [ED-QUESTIONS.md](ED-QUESTIONS.md) and are SKIPPED, not stalled on.
 Suite baseline at loop start: **5,460 tests / 0 fail / tsc clean.**
+
+## Data-architecture workstream (started 2026-08-30, branch claude/aquacrm-data-architecture-ia0vnx)
+
+**Phase 0 SHIPPED — semantic groundwork.** Full survey of every store,
+adapter, migration, KPI path and metadata bag, then the enforceable semantic
+layer:
+
+- `src/lib/data/semanticRegistry.ts` — 30 canonical entities (definitions,
+  id rules, tenancy, source of truth, provenance, timestamps, sensitivity,
+  retention, lifecycles, relationships), the six load-bearing distinctions,
+  timestamp + value doctrines, and `PORTAL_STATE_COVERAGE` classifying every
+  PortalState collection — **exact set-equality-enforced** by
+  `smoke-semantic-registry.test.ts`, so a new collection cannot ship
+  unclassified.
+- `src/lib/data/metricRegistry.ts` — one canonical id + semantics for all 60
+  metrics (20 command + 40 commercial), `computedBy` naming the single
+  calculation authority, `radarFamilyId` joins, and every known competing
+  calculation linked as `same-quantity`. `smoke-metric-registry.test.ts`
+  pins set equality against the defining source files, pins the ONE existing
+  bare-id collision (`campaign-roas`) so a new one fails, and adds 8 golden
+  boundary tests (SLA boundary inclusive, 14-day staleness, decision
+  denominators, even-count median, >100% directional ratio, null-not-Infinity
+  ROAS). Descriptors now stamp `canonicalId` (`<kind>:<id>`).
+- `src/lib/data/metadataContracts.ts` — all 123 metadata keys catalogued
+  (carrier, namespace, owner, type, sensitivity);
+  `smoke-metadata-contracts.test.ts` scans src both ways (uncatalogued key
+  fails; dead entry fails) — the escape hatch is closed going forward.
+- Real fix: `business-health` formulaText stated only the company index and
+  omitted the 30% incident blend — corrected to the actual calculation.
+- Docs: `docs/data/{ARCHITECTURE,SOURCE-INVENTORY,SEMANTIC-LAYER,
+  DATA-DICTIONARY,MIGRATION-PLAN,LINEAGE}.md` + ADR-001…004. All describe
+  what EXISTS, with target clearly separated.
+
+**Phase 3 groundwork SHIPPED — transactional outbox** (`server/outbox.ts`,
+`PortalState.outbox` incl. parseBlob/empty + promotion disposition entry #92):
+record-inside-mutate (atomic with the domain change), emit-then-mark
+at-least-once drain into the existing bus, idempotent record by id,
+correlation/causation + occurredAt≠recordedAt envelope, 14d/5,000-cap prune
+that never touches pending. First adopted site: `tenants.createClient` →
+`client.created`, payload unchanged, pinned by source-scan.
+`smoke-outbox.test.ts` (8 tests incl. crash-window replay). Also folded the
+TRIPLICATED conversion-event predicate into `lib/shared/conversionEvent.ts`
+(radarTelemetry + commandIntelligenceService + performanceAnalytics now
+import it; restatement fails the suite) — first Phase-7 dedup that needed no
+business decision.
+
+**Phase 3 adoption COMPLETE for the foundation** (second pass, 2026-08-30):
+all 28 remaining `emit()` sites adopted — every `src/server/**` domain module
+(tenants, users, persons ×13, organisations ×3, completedActions,
+productWorkspaces) plus the plugin lifecycle (runtime ×4 +
+ensureLeadsPipelineInstall ×2). Manifest pin: plain `emit(` under src/server
+is confined to eventBus.ts + outbox.ts, restatement fails the suite. The
+drain became SYNCHRONOUS after the full suite caught an async delivered-mark
+trailing into smoke-company-portal's "a GET does not write" pin — nothing in
+the drain awaits, so async only detached writes from the caller's turn.
+Deliberately still plain: the port adapters (the one seam that later makes
+every plugin event durable at once) and module-internal emits.
+
+**Phase 3 foundation adoption COMPLETE + correlation scope** (commits
+241afa9 + this one): all 28 remaining foundation emit() sites announce
+through the outbox; manifest pin confines plain emit( under src/server to
+eventBus.ts + outbox.ts; drainOutbox made synchronous (suite-caught timing
+fix). `runWithCorrelation` ALS scope groups an operation's events under one
+correlationId; updateClient's updated/stage_changed pair shares correlation
+with causation stage←update. Port adapters stay plain deliberately (the one
+seam to flip for all plugin events). NOTE for Ed's machine: the container's
+31 "environmental" failures are a Node/tsx ESM-interop artifact (named
+imports through the CJS transform in spawned children — e.g.
+BUSINESS_TIME_ZONE exists but the child can't see it); cross-backend
+spawn-based contract tests are queued for an environment where those pass.
+
+**Phase 5 first half SHIPPED — telemetry idempotency.** Beacons carrying
+their own occurredAt get deterministic content+time ids
+(`clientTelemetryService.ts`): a replayed request records NOTHING twice
+(event, activity row, milestone sync) and doesn't consume the rate limit; a
+beacon with no event time keeps a random id — never guess-suppress. The
+suite surfaced a REAL pre-existing bug on the way: `cleanNumber`'s ±1e9
+clamp flattened every genuine epoch-ms occurredAt, so event time had
+silently been ingestion time for ALL telemetry — fixed with a
+`cleanTimestamp` epoch-range validator. `smoke-telemetry-idempotency.test.ts`
+(5 incl. rate-limit-starvation and stale-replay pins).
+
+**Phase queue (from docs/data/MIGRATION-PLAN.md):**
+1. Tenancy/identity/roles extraction (tables + RLS behind existing modules;
+   blocked on Ed for `supabase db push` + DATABASE_URL — ED-QUESTIONS Q7).
+2. People/organisations extraction (dedupe suites as parity oracle).
+3. Transactional outbox (same-mutate write; envelope with correlation/
+   causation ids; no event-sourcing claim).
+4. Journey slice. 5. Telemetry out of the metadata bag + deterministic
+   beacon ids (the double-count fix). 6. Comms/audit durability.
+7. Metric dedup via `sameQuantityPairs()` (response-sla → configured
+   guardrail first; campaign-roas collision retirement; ED-QUESTIONS Q8/Q9).
 
 ## Done this loop (newest first)
 
@@ -1400,9 +3294,17 @@ Path prefix: /private/tmp/claude-501/.../scratchpad/
 ## Queue (priority order)
 
 1. Radar agent lands → verify, full suite
-2. Scouting journey Stage 1 (outreach buttons + logging + quota ring)
-3. Inbox premium messaging pass
-4. Kanbans tab (with the testid + catch-all fixes)
+2. ✅ Scouting journey Stage 1 (outreach buttons + logging + quota ring) —
+   shipped in `7917318`; the queue entry was simply never struck through.
+   Verified against source 2026-08-30 (14/14 dedicated smoke tests).
+   Auto-increment of the quota target is deliberately still out.
+3. ✅ Inbox premium messaging pass — shipped in `7917318` (inbox merge:
+   three tabs + cog modal + two-pane messaging). Verified against source
+   2026-08-30.
+4. ✅ Kanbans tab (with the testid + catch-all fixes) — the tab and custom
+   boards shipped in `7917318`; the remaining one-line defect (the desk
+   rendered twice) was fixed and pinned in the 2026-08-30 campaign, wave 1.
+   Live browser acceptance of the tab is still outstanding.
 5. Command Centre regrouping (biggest; stage it)
 6. Info icons / plain-English pass app-wide (Ed: "information icons everywhere
    where needed") — do per-surface as each is touched, then a sweep

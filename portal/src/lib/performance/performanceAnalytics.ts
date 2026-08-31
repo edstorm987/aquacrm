@@ -1,3 +1,4 @@
+import { isConversionTelemetryEvent as isConversion } from "@/lib/shared/conversionEvent";
 import { dateInputValue } from "@/lib/shared/formatDateTime";
 
 export interface PerformanceEvent {
@@ -275,11 +276,6 @@ function groupedVariants(events: PerformanceEvent[]) {
   });
 }
 
-function isConversion(event: PerformanceEvent): boolean {
-  return event.type === "form"
-    || event.type === "conversion"
-    || (event.type === "interaction" && event.metric === "conversion");
-}
 
 function sourceName(value?: string): string {
   if (!value) return "Direct";

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-30T07:46:01.268Z",
+  "generatedAt": "2026-08-31T05:55:26.636Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -300,6 +300,86 @@
       "bytes": 35159
     },
     {
+      "path": "docs/data/adr/ADR-001-semantic-registry-in-code.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-data-adr-adr-001-semantic-registry-in-code-md",
+      "sha256": "f092ef6a564d26df854311e618626bfd2dadb8f2ae5aad085d845360972102da",
+      "words": 217,
+      "bytes": 1548
+    },
+    {
+      "path": "docs/data/adr/ADR-002-domain-modules-are-the-repository-seam.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-data-adr-adr-002-domain-modules-are-the-repository-seam-md",
+      "sha256": "361439671762eb20b119d1e94d18b2a0eb3807ea24e66c2f3e6548c9c39e17d3",
+      "words": 218,
+      "bytes": 1578
+    },
+    {
+      "path": "docs/data/adr/ADR-003-one-calculation-path-per-metric.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-data-adr-adr-003-one-calculation-path-per-metric-md",
+      "sha256": "9143b1627c97a7081134d9cb312f88fbfaa6fb6ce52ef1b6f69b3744056cf813",
+      "words": 233,
+      "bytes": 1749
+    },
+    {
+      "path": "docs/data/adr/ADR-004-metadata-governed-not-banned.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-data-adr-adr-004-metadata-governed-not-banned-md",
+      "sha256": "2b11d24db9f0a69441192526aab9a6ba38df19e01abefa21fd469172cdea3973",
+      "words": 196,
+      "bytes": 1452
+    },
+    {
+      "path": "docs/data/ARCHITECTURE.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-data-architecture-md",
+      "sha256": "c00c30773721ed8a0eddebad6721d523094f46db15c453ad7ac34ced5cb78df3",
+      "words": 1020,
+      "bytes": 7948
+    },
+    {
+      "path": "docs/data/DATA-DICTIONARY.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-data-data-dictionary-md",
+      "sha256": "bad31fdda0bc37e304583ebf79d335455cfebdb6b34071cfb81b59a950bca7f0",
+      "words": 955,
+      "bytes": 7142
+    },
+    {
+      "path": "docs/data/LINEAGE.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-data-lineage-md",
+      "sha256": "ec581e8c8312e042f4195977a4739ab6e3300ff1883a2cd026373f4c4d1ab4c5",
+      "words": 666,
+      "bytes": 5047
+    },
+    {
+      "path": "docs/data/MIGRATION-PLAN.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-data-migration-plan-md",
+      "sha256": "f3a9c8e8b53397ed189f4b82c0781ba6fc17897120cd3704b22f7b8617c8a6ee",
+      "words": 1262,
+      "bytes": 9632
+    },
+    {
+      "path": "docs/data/SEMANTIC-LAYER.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-data-semantic-layer-md",
+      "sha256": "eaaf6bafb960d4731a2de64e12c54b14bff7518f9569a0d6c0bd48cc57bf5e4c",
+      "words": 775,
+      "bytes": 6041
+    },
+    {
+      "path": "docs/data/SOURCE-INVENTORY.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-data-source-inventory-md",
+      "sha256": "508db7acc293ee42643bea95c5b8648028e74cedec6bd1c12a0564418415029b",
+      "words": 1689,
+      "bytes": 12616
+    },
+    {
       "path": "docs/DEVELOPMENT-HANDOFF.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-handoff-md",
@@ -340,11 +420,19 @@
       "bytes": 269187
     },
     {
+      "path": "docs/development/CAMPAIGN-LEDGER.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-development-campaign-ledger-md",
+      "sha256": "aff8d4bf94dad182104e674c98c3ee58407a1020c5405d9c6009840d18f821b4",
+      "words": 8263,
+      "bytes": 59091
+    },
+    {
       "path": "docs/development/checklist.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-checklist-md",
-      "sha256": "a65ea36d7b84454f92695501b2d892db67921d9c882e47c6de1d4c6293937b62",
-      "words": 20719,
+      "sha256": "a22e251386cde62a331eb32b605712d618b378aeec7de3001966d2f1dd1171f7",
+      "words": 20716,
       "bytes": 163376
     },
     {
@@ -359,9 +447,9 @@
       "path": "docs/development/ED-QUESTIONS.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-ed-questions-md",
-      "sha256": "27df7b0c7b2ad5cf1c1e4ee73e31f30fe143b9c6598f36437d4e692e8aaac3b6",
-      "words": 558,
-      "bytes": 3580
+      "sha256": "f8dfdfa9cfad61140e8ec9428b3b2b706cf33e96296825c7860467e862f7f86f",
+      "words": 2209,
+      "bytes": 14740
     },
     {
       "path": "docs/development/findings/2026-08-22-agency-staff-can-read-salaries.md",
@@ -415,9 +503,9 @@
       "path": "docs/development/LOOP-PROGRESS.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-loop-progress-md",
-      "sha256": "fae37c7c58deda4060a2d4a3d1031a83b609dea212e9337442d8ef24dca4066f",
-      "words": 825,
-      "bytes": 5917
+      "sha256": "98fe02dc9d94a4fc3a2091ff5521f2b3b2d3c1a9d8ae0431efae9a5abc2cc971",
+      "words": 1622,
+      "bytes": 12357
     },
     {
       "path": "docs/development/notes.md",
@@ -511,9 +599,9 @@
       "path": "docs/development/plans/compliance-legal.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-compliance-legal-md",
-      "sha256": "550bdb57cdf6115663331447c5ec8183cee640e83f7384ef1a8c06273e6efcda",
-      "words": 1912,
-      "bytes": 13809
+      "sha256": "6de22eae94ad46477f3274e7b1f213b29ea651d80fd51b19bf60938f933bd78a",
+      "words": 2046,
+      "bytes": 14750
     },
     {
       "path": "docs/development/plans/configurable-access-and-workspace-parity.md",
@@ -599,9 +687,9 @@
       "path": "docs/development/plans/dev-team-finish.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-dev-team-finish-md",
-      "sha256": "ceb793dfd94d2380ba46c082a34bf6a0ad9f373efdc6e418d29e604b2d0d2e5b",
-      "words": 1701,
-      "bytes": 12134
+      "sha256": "b3a25b54c0709386cb2a0654d1e076fd24add55836a52e0d62b83dcf6d20d334",
+      "words": 1967,
+      "bytes": 14215
     },
     {
       "path": "docs/development/plans/dev-team-hub.md",
@@ -623,9 +711,9 @@
       "path": "docs/development/plans/dev-team-portal.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-dev-team-portal-md",
-      "sha256": "7d8d6bd3a80461eca2c0e343dcf2d592d46bd661afb209e51e5e71599c8b4722",
-      "words": 4294,
-      "bytes": 34115
+      "sha256": "679e21c1285c0beabf3ae5d09ce77b65167feca3a1d66cb92b59aa0b1f9cad34",
+      "words": 4666,
+      "bytes": 37033
     },
     {
       "path": "docs/development/plans/dev-team-ui-polish.md",
@@ -807,9 +895,9 @@
       "path": "docs/development/plans/rls-enable.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-rls-enable-md",
-      "sha256": "b4aecbed98300e4bdddaf752d4a15fcc41a8c5f839eb70ecf9c4c97b8c9ea37b",
-      "words": 1521,
-      "bytes": 12243
+      "sha256": "b805e52e8625b9b11c716ea7566b250b877ffd9825cb52cd5dddbb5d5f8d4a54",
+      "words": 1645,
+      "bytes": 13038
     },
     {
       "path": "docs/development/plans/runtime-verification.md",
@@ -911,8 +999,8 @@
       "path": "docs/development/todo.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-todo-md",
-      "sha256": "5ba5f74fac8919c948c7e7b21400983c14d8e2c737097392fd653ef26b6f6278",
-      "words": 15824,
+      "sha256": "607b5308f72a7e1d0dd783adf83c7f90aadc06e06b2806e634d80acfb9482673",
+      "words": 15817,
       "bytes": 126717
     },
     {
@@ -999,9 +1087,9 @@
       "path": "docs/workspace/api-reference.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-api-reference-md",
-      "sha256": "b88eee0137fe53f4111ee1f1b0d01cbedeaef362ae69f25f3ead38e9a5ea6b18",
-      "words": 8236,
-      "bytes": 57695
+      "sha256": "61910fdc1f8552442a4034409c595e6b07e22c348d7eaa456f608002a4a833d1",
+      "words": 8313,
+      "bytes": 58279
     },
     {
       "path": "docs/workspace/aqua-tag.md",
@@ -1031,25 +1119,25 @@
       "path": "docs/workspace/env-and-sellability.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-env-and-sellability-md",
-      "sha256": "6541a737c2ee5049803bb94d55ef3d7ca1a876a873d746980a737e14933b7a2d",
-      "words": 3202,
-      "bytes": 25444
+      "sha256": "3dfcad335c9f15c1dfd4980be5c49e70d58facb656564653493d12d1a6354490",
+      "words": 3641,
+      "bytes": 28429
     },
     {
       "path": "docs/workspace/feature-index.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-feature-index-md",
-      "sha256": "bffbf6237ea7886388805bad24e32e7ccb8dbb7c3201f022ea591b567f4e9fa0",
-      "words": 5151,
-      "bytes": 48485
+      "sha256": "bb81323b787b43106b7afcd0ac4b3ca4efca94431e5d8c53e5dc6baad0c3a497",
+      "words": 5342,
+      "bytes": 50378
     },
     {
       "path": "docs/workspace/hazards-and-duplication.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-hazards-and-duplication-md",
-      "sha256": "5403d85950f1c4d9442c1ab321dc873b480669fb14841a3d2f7947d84fa86ca6",
-      "words": 6053,
-      "bytes": 46495
+      "sha256": "32487729482619bcd1cfbba638b0e42f78a0873b8f7c8ae092f73815981da1c7",
+      "words": 7921,
+      "bytes": 60659
     },
     {
       "path": "docs/workspace/kpi-intelligence.md",
@@ -1079,9 +1167,9 @@
       "path": "docs/workspace/radar.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-radar-md",
-      "sha256": "3ce82366eef05f6cb142833c4657adf87afa9380de13139aaac26db8c49892a0",
-      "words": 3319,
-      "bytes": 29250
+      "sha256": "094abc931f838551ba12cba295eeae59986f3a3e14570beb3da5b229b5bf637a",
+      "words": 3419,
+      "bytes": 30051
     },
     {
       "path": "docs/workspace/scripts-config-docs.md",

@@ -25,21 +25,40 @@ export function IdentityReviewWorkspace({
 }) {
   const [reviews, setReviews] = useState(initialReviews);
   const [status, setStatus] = useState<IdentityReviewStatus | "all">("pending");
+  const [loadingStatus, setLoadingStatus] = useState<IdentityReviewStatus | "all" | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Only a failed QUEUE READ may claim the queue was not read. `error` is shared
+  // with rescan and with per-row decisions, and borrowing it would tell an
+  // operator whose "Approve" failed that a queue they can see was never read.
+  const [queueUnread, setQueueUnread] = useState(false);
   const visible = useMemo(() => reviews.filter(review => status === "all" || review.status === status), [reviews, status]);
   const pendingCount = reviews.filter(review => review.status === "pending").length;
 
+  // The queue label used to move BEFORE its read. On a refused read the header
+  // then said "Parked" over the previous queue's rows — or over nothing at all,
+  // under "Nothing in this queue", which is a claim about a queue nobody read
+  // (issues #57). The label only moves once the rows behind it have arrived.
   async function load(nextStatus: IdentityReviewStatus | "all") {
-    setStatus(nextStatus);
+    setLoadingStatus(nextStatus);
     setError(null);
-    const response = await fetch(`/api/portal/identity-resolution?status=${encodeURIComponent(nextStatus)}`, { cache: "no-store" });
-    const payload = await response.json().catch(() => null) as { ok?: boolean; reviews?: IdentityResolutionReview[]; error?: string } | null;
-    if (!response.ok || !payload?.ok || !payload.reviews) {
-      setError(payload?.error || "Identity reviews could not be loaded.");
-      return;
+    try {
+      const response = await fetch(`/api/portal/identity-resolution?status=${encodeURIComponent(nextStatus)}`, { cache: "no-store" });
+      const payload = await response.json().catch(() => null) as { ok?: boolean; reviews?: IdentityResolutionReview[]; error?: string } | null;
+      if (!response.ok || !payload?.ok || !payload.reviews) {
+        setError(payload?.error || "Identity reviews could not be loaded.");
+        setQueueUnread(true);
+        return;
+      }
+      setReviews(payload.reviews);
+      setStatus(nextStatus);
+      setQueueUnread(false);
+    } catch {
+      setError("Identity reviews could not be loaded.");
+      setQueueUnread(true);
+    } finally {
+      setLoadingStatus(null);
     }
-    setReviews(payload.reviews);
   }
 
   async function rescan() {
@@ -54,6 +73,7 @@ export function IdentityReviewWorkspace({
     }
     setStatus("pending");
     setReviews(payload.reviews);
+    setQueueUnread(false);
   }
 
   async function decide(review: IdentityResolutionReview, action: "link" | "park" | "dismiss", clientId?: string) {
@@ -92,6 +112,7 @@ export function IdentityReviewWorkspace({
         <FilterButton active={status === "linked"} onClick={() => void load("linked")} label="Approved" />
         <FilterButton active={status === "dismissed"} onClick={() => void load("dismissed")} label="Dismissed" />
         <FilterButton active={status === "all"} onClick={() => void load("all")} label="History" />
+        {loadingStatus ? <span role="status" className="self-center text-xs text-black/45">Loading…</span> : null}
       </div>
 
       {error ? <div className="mt-4 flex items-center justify-between gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="Dismiss error"><X size={15} /></button></div> : null}
@@ -101,7 +122,7 @@ export function IdentityReviewWorkspace({
       </div>
       {!visible.length ? (
         <div className="grid min-h-56 place-items-center border-b border-black/10 text-center">
-          <div><SearchCheck className="mx-auto text-brand" size={28} /><p className="mt-3 text-sm font-semibold text-black/70">Nothing in this queue</p><p className="mt-1 text-sm text-black/45">Run a source scan to check new enquiries and social identities.</p></div>
+          <div><SearchCheck className="mx-auto text-brand" size={28} /><p className="mt-3 text-sm font-semibold text-black/70">{queueUnread ? "This queue was not read" : "Nothing in this queue"}</p><p className="mt-1 text-sm text-black/45">{queueUnread ? "Nothing is shown because the read failed, not because the queue is empty. Try the filter again." : "Run a source scan to check new enquiries and social identities."}</p></div>
         </div>
       ) : null}
     </section>

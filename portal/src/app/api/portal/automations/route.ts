@@ -5,6 +5,7 @@ import {
   createAutomationWorkflow,
   deleteAutomationFolder,
   deleteAutomationWorkflow,
+  dueAutomationRuns,
   duplicateAutomationWorkflow,
   listAutomationFolders,
   listAutomationRuns,
@@ -30,16 +31,33 @@ type Body = SaveAutomationWorkflowInput & {
 
 const WRITE_ROLES = ["agency-owner", "agency-manager"] as const;
 
+// NO SWEEP HERE (issue #21, 2026-08-31).
+//
+// This GET used to `await processAutomationSweep(session.agencyId)`, which
+// resumes waiting runs and EXECUTES them — so *listing* automations could send a
+// customer an email. It is the same write the Marketing render was carrying
+// (removed 2026-08-27, see `_automationWorkspaceData.ts`), and it survived here
+// because the read-path analyser only inspects GET-ONLY routes: this file also
+// exports POST, so the guard never looked at it.
+//
+// The sweep keeps its two deliberate doors — the scheduler's
+// `/api/internal/sweep`, and `POST` with `action: "sweep"` below, which is an
+// explicit human/operator request rather than a side effect of reading.
+//
+// Like the render, the read now REPORTS the backlog instead of silently
+// clearing it, so a scheduler that has stopped is visible rather than
+// compensated for by whoever happens to poll this endpoint.
 export async function GET() {
   try {
     await ensureHydrated();
     const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
-    await processAutomationSweep(session.agencyId);
     return NextResponse.json({
       ok: true,
       folders: listAutomationFolders(session.agencyId),
       workflows: listAutomationWorkflows(session.agencyId),
       runs: listAutomationRuns(session.agencyId, undefined, 150),
+      /** Waiting runs past their due time that the scheduler has not taken. */
+      dueRuns: dueAutomationRuns(session.agencyId),
     });
   } catch (error) {
     return authErrorResponse(error);

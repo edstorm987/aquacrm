@@ -49,6 +49,8 @@ interface Props {
     aquaHealthState: AquaHealthState;
     aquaHealthConfidence: number;
     outstandingByCurrency: Array<{ currency: string; cents: number }>;
+    /** The invoice read for this workspace failed — its money position is unknown. */
+    financeUnavailable?: boolean;
     portalAccessState: "not-prepared" | "missing" | "ready" | "sent";
     current: boolean;
   }>;
@@ -267,6 +269,9 @@ export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship,
     || workspace.overdueMilestones > 0
     || workspace.aquaHealthState === "risk"
     || workspace.outstandingByCurrency.length > 0
+    // An unread money position is not a ready one — "All workspaces ready"
+    // must not be said over a failed invoice read (issues #57).
+    || Boolean(workspace.financeUnavailable)
     || (workspace.portalReady && workspace.portalAccessState !== "sent"),
   ).length;
   const radarAttentionCount = radar.totals.critical + radar.totals.warning + radar.totals.watch;
@@ -407,7 +412,12 @@ export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship,
                       {workspace.outstandingByCurrency.length ? <Link href={clientWorkspaceHref(workspace.id, "finance")} title="Open contracts, invoices and payment plans" className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-1 text-red-700 hover:bg-red-100"><ReceiptText size={11} /> {formatCurrencyAmounts(workspace.outstandingByCurrency)} outstanding</Link> : null}
                       {workspace.openRequests ? <Link href={clientWorkspaceHref(workspace.id, "communications")} title="Open client requests and messages" className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-amber-800 hover:bg-amber-100"><Inbox size={11} /> {workspace.openRequests} open request{workspace.openRequests === 1 ? "" : "s"}</Link> : null}
                       {deliveryAttention ? <Link href={clientWorkspaceHref(workspace.id, "delivery")} title={`${workspace.blockedMilestones} blocked · ${workspace.overdueMilestones} overdue`} className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-1 text-red-700 hover:bg-red-100"><CircleAlert size={11} /> {deliveryAttention} delivery issue{deliveryAttention === 1 ? "" : "s"}</Link> : null}
-                      {workspace.hasServices && !workspace.openRequests && !deliveryAttention && !workspace.outstandingByCurrency.length ? <Link href={clientWorkspaceHref(workspace.id, "overview")} title="Open workspace operating picture" className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-emerald-700 hover:bg-emerald-100"><CheckCircle2 size={11} /> Operations clear</Link> : null}
+                      {workspace.financeUnavailable ? <Link href={clientWorkspaceHref(workspace.id, "finance")} title="Reload to try the invoice read again" className="inline-flex items-center gap-1 rounded-full bg-black/[0.045] px-2 py-1 text-black/55 hover:bg-black/[0.075]"><ReceiptText size={11} /> Invoices not read</Link> : null}
+                      {/* "Operations clear" is a claim about money, requests and
+                          delivery together. An invoice read that failed is not
+                          evidence of a clear position, so the badge is withheld
+                          rather than borrowed (issues #57). */}
+                      {workspace.hasServices && !workspace.financeUnavailable && !workspace.openRequests && !deliveryAttention && !workspace.outstandingByCurrency.length ? <Link href={clientWorkspaceHref(workspace.id, "overview")} title="Open workspace operating picture" className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-emerald-700 hover:bg-emerald-100"><CheckCircle2 size={11} /> Operations clear</Link> : null}
                     </div>
                   </div>
                 </div>

@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
-import { PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
+import { attachStoredPrivateUpload, PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { createLegalDocument } from "@/server/legalDocuments";
 import { ensureHydrated } from "@/server/storage";
 import type { LegalDocumentCategory, LegalDocumentStatus } from "@/server/types";
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
       const value = String(form?.get(key) ?? "");
       return value ? Date.parse(value) || undefined : undefined;
     };
-    const document = createLegalDocument({
+    const attached = await attachStoredPrivateUpload(stored, "legal-uploads", () => createLegalDocument({
       id,
       agencyId: session.agencyId,
       companyIds: companyId ? [companyId] : [],
@@ -58,7 +58,17 @@ export async function POST(request: Request) {
       storageProvider: stored.storageProvider,
       storageKey: stored.storageKey,
       createdBy: session.userId,
-    });
+    }));
+    if (!attached.ok) {
+      return NextResponse.json({
+        ok: false,
+        error: attached.message,
+        code: attached.compensated ? "upload_record_failed" : "upload_orphaned",
+        detail: attached.detail,
+        storageKey: attached.compensated ? undefined : attached.storageKey,
+      }, { status: 500 });
+    }
+    const document = attached.value;
     return NextResponse.json({ ok: true, document }, { status: 201 });
   } catch (error) {
     if (error instanceof PrivateUploadStorageError) {

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { X } from "lucide-react";
 
 import type { FinanceDepartmentOption, FinanceStaffOption } from "@/lib/server/finance/financeWorkforce";
@@ -19,6 +19,7 @@ import type {
 import { SUPPORTED_CURRENCIES } from "../lib/currencies";
 import { dateInputValue } from "../lib/safeDate";
 import { compensationPaymentDraftAmounts } from "../lib/workforceCosts";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 interface CompanyOption { id: string; name: string }
 
@@ -270,7 +271,11 @@ export function CanonicalCompensationPaymentModal({
 }
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return <div className="fixed inset-0 z-[100] grid items-end bg-black/40 sm:items-center sm:p-6"><button className="absolute inset-0" aria-label="Close dialog" onClick={onClose} /><section role="dialog" aria-modal="true" aria-label={title} className="relative mx-auto max-h-[100dvh] w-full max-w-4xl overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-lg sm:p-6"><header className="mb-5 flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wide text-black/40">Finance control</p><h2 className="mt-1 text-xl font-semibold text-black/85">{title}</h2></div><button type="button" onClick={onClose} title="Close" className="grid size-9 place-items-center rounded-md border border-black/10 text-black/50"><X size={16} /></button></header>{children}</section></div>;
+  // Modal keyboard contract: focus enters the dialog, Tab stays inside it,
+  // Escape closes it, and focus returns to the control that opened it.
+  const dialogRef = useRef<HTMLElement>(null);
+  useFocusTrap(dialogRef, true, { onEscape: onClose });
+  return <div className="fixed inset-0 z-[100] grid items-end bg-black/40 sm:items-center sm:p-6"><button className="absolute inset-0" aria-label="Close dialog" onClick={onClose} /><section ref={dialogRef} role="dialog" aria-modal="true" aria-label={title} className="relative mx-auto max-h-[100dvh] w-full max-w-4xl overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-lg sm:p-6"><header className="mb-5 flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wide text-black/40">Finance control</p><h2 className="mt-1 text-xl font-semibold text-black/85">{title}</h2></div><button type="button" onClick={onClose} title="Close" className="grid size-9 place-items-center rounded-md border border-black/10 text-black/50"><X size={16} /></button></header>{children}</section></div>;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

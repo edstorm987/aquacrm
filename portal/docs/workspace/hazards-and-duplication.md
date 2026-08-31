@@ -15,6 +15,78 @@ data**. If you read one chapter before touching the codebase, read this one.
 - **What's live:** see the [API chapter's LIVE callout](api-and-routes.md#-live-supabase-callout-dont-break-real-data). Short version: all auth, all `brand_enquiries` enquiry endpoints, `telemetry/collect`, and all Storage-bucket file uploads.
 - **Dev/demo inboxes load ZERO enquiries** (`agency/inbox/page.tsx`: `session.isDemo ? []`). The enquiry-delete button and master-tag ingestion only appear in a **real** (non-demo) inbox — don't conclude they're broken from the sandbox.
 
+### A real person's identity is a SOURCE CONSTANT — erasure cannot reach it (2026-08-31)
+
+**The audit that produced this entry.** Demo- and sample-seeded PII was checked
+against the governance erasure surface for the first time on 2026-08-31. Two
+halves, and they answer differently.
+
+**The half that is fine.** Everything the demo seed *stores* is erasable, and
+proven so: a demo tenant seeded by the real `seedDemoAgency()` appears in
+`buildGovernanceSnapshot().erasureClients` (so the Governance workspace offers
+it), and `eraseClientCompletely()` removes the client record, the client-owner
+user carrying the demo email, and the seeded activity. Nothing about a demo
+tenant is exempt from the sweep. Pinned in
+`scripts/smoke-client-erasure.test.ts` → *"data-compliance check: demo-seeded
+PII against the erasure surface"*.
+
+**The half that is not.** A real person — Ed's client Felicia of Luv & Ker —
+is **hardcoded in seven source files as a runtime default**, and erasure
+operates on *state*, not on the codebase. Erase the demo client and the next
+seed puts the same name and email straight back. Worse, one of the seven is not
+demo data at all: `src/app/api/tenants/seed/route.ts` defaults its client-owner
+to `felicia@luvandker.com` — a **real address on a real domain**, not the
+`.demo` mirror — and that route answers any authenticated caller in production.
+(It refuses with 409 once any agency exists, so it cannot re-seed a populated
+install; the real address ships in the bundle either way.)
+
+The seven files, and what each holds:
+
+| File | What it hardcodes |
+| --- | --- |
+| `src/lib/server/seeds/demoSeed.ts` | `DEMO_CLIENT_NAME`/`DEMO_CLIENT_EMAIL` (`felicia@luvandker.demo`), `"Felicia (demo)"`, `luvandker.com` |
+| `src/app/api/tenants/seed/route.ts` | **`felicia@luvandker.com` — the real address**, `"Luv & Ker"`, `"Felicia"` |
+| `src/built-ins/modules/website-editor/src/components/blockRegistry.ts` | `Felicia` as the testimonial author, team-grid member and author-bio default |
+| `src/built-ins/modules/website-editor/src/components/blocks/AuthorBioBlock.tsx` | fallback bio: *"Crafted Odo by Felicia from her Ghanaian heritage…"* — **personal, ethnic-origin prose** shipped as a `??` default |
+| `src/built-ins/modules/website-editor/src/components/pageTemplates.ts` | `Felicia` as a template testimonial author |
+| `src/app/portal/clients/[clientId]/_BuildPortalWizard.tsx` | a `luv-and-ker` portal preset |
+| `src/lib/projects/projects.ts` | the published `Luv & Ker` case study |
+
+**What this means when you edit here.** Do not describe erasure as removing a
+person's data from AquaCRM without qualifying it — for these seven files it
+removes the row and not the persona. `semanticRegistry.ts`'s `client` entity now
+says so in its `retention` line, which is the machine-readable copy of this
+entry. And **do not add an eighth**: the same test sweeps `src/**` for the
+persona tokens (skipping comments and `placeholder` text) and fails on any file
+not listed above, so a new hardcoded default has to be argued for here first.
+
+**What the sweep deliberately does NOT catch — so seven is the count of runtime
+defaults, not of every appearance.** Lines whose only hit is inside a comment, or
+on a line containing `placeholder`, are exempt: a comment is context for the next
+reader and a form placeholder is example text the user overwrites. That exemption
+is a judgement, and it hides real occurrences that are still compiled into the
+bundle and rendered on screen — at least these:
+
+| File | Placeholder-shaped occurrence |
+| --- | --- |
+| `src/built-ins/modules/fulfillment/src/components/NewClientModal.tsx` | `placeholder="felicia@luvandker.com"` and `"e.g. Luv & Ker"` — the **real address**, shown in the new-client form |
+| `src/built-ins/modules/website-editor/src/pages/SitesPage.tsx` | `"e.g. Felicia Skincare"`, `"e.g. felicia.com"`, and two Odo/`Luv & Ker` assistant-prompt placeholders |
+| `src/built-ins/modules/website-editor/src/pages/EditorPage.tsx` | `luvandker.com` as the custom-domain placeholder |
+| `src/built-ins/modules/ecommerce/index.ts` | `https://luvandker.com/checkout/...` as the Stripe URL placeholders |
+
+If a reviewer decides placeholders are not exempt, the rule is one line in the
+test (`if (/placeholder/i.test(code)) return false;`) and these files join the
+table above. Until then, do not read "seven" as "seven places the name appears".
+
+**Two decisions for Ed — not taken unilaterally.** (1) Replacing the persona
+with a synthetic one is mechanically small, but it is *his* demo branding and it
+re-pins several website-editor smoke tests, so it is his call, not a worker's.
+(2) The demo-data **retention period** is Q4 in the DPO pack and stays open;
+until it is answered, nothing may publish "we delete after X" wording. The
+`AuthorBioBlock` ethnic-origin bio and the real `felicia@luvandker.com` default
+in the seed route are the two worth deciding first — those are special-category
+prose and a live address, not just a name.
+
 ---
 
 ## 🟠 Confirmed duplication (two real implementations — pick the right one)
@@ -33,7 +105,7 @@ Editing one does **not** change the others. Confirm which surface you're on befo
 
 ### Two "who is this person" models
 - `lib/clients/clientContacts.ts` — simple contacts embedded on a client.
-- `lib/server/identityResolution.ts` + `personInteractions.ts` — the resolution graph.
+- `lib/server/identityResolution.ts` + `personInteractionsService.ts` — the resolution graph.
 
 ### Two client activity logs
 - `lib/clients/clientRelationshipRecord.ts` (client-safe) vs `lib/server/clients/clientRecordLedger.ts`. Confirm canonical before writing history entries.
@@ -223,8 +295,62 @@ declares `"type": "module"` while `portal/`'s does not, so a direct
 `await import("@/built-ins/.../blockRegistry")` crosses ESM/CJS under `tsx` and throws
 *"does not provide an export named 'getElementDefinition'"* before any test can run.
 
-### Two inbox surfaces
-- `agency/inbox/` (`_MasterInbox`) vs `agency/activity-inbox/`. Verify they're not redundant before extending either.
+### Two inbox surfaces — VERIFIED DISTINCT, do NOT merge (2026-08-30)
+`agency/inbox/` (`_MasterInbox`) is the merged **Master Inbox** command surface — Needs-you /
+Inbox / Updates over operational alerts, website enquiries, social and client conversations, plus
+the actions queue. `agency/activity-inbox/` is a **standalone read-only system-history log**
+(`listActivity`, limit 100). They do different jobs and cross-link on purpose: the Master Inbox
+header launches "Activity log" (`_MasterInbox.tsx`) and the log's header offers "Open inbox"
+(`activity-inbox/page.tsx`). Both links are pinned by `scripts/smoke-nav-audit.test.ts`, and
+Operations reachability for `/portal/agency/activity-inbox` is pinned there too. Retiring or
+rehoming the standalone log is a **separate open product decision** recorded in
+`docs/development/plans/my-tools-palette.md` (its sidebar drop was a deliberate AquaOasis
+override) — it is Ed's call, not a cleanup.
+
+**The real duplication was the wording, and the render sites are fixed.** Four surfaces render the
+same `listActivity` feed: the Activity log page, the dashboard "Today across the agency" feed
+(`agency/_AgencyActivityFeed.tsx`), the Master Inbox **Updates** tab, and the client workspace
+"recent movement" panel (`clients/[clientId]/page.tsx`). Two carried their own drifted copy of the
+internal→product rewrite and the other two rendered the raw internal message, so one event read
+"plugin installed" on one surface and "system activated" on another. The rewrite now lives once in
+**`src/lib/shared/activityVocabulary.ts`** (`activityMessage` / `activityCategory` /
+`activityAction`). Any new renderer of the activity feed must import it — never re-declare the
+regexes at a render site. `scripts/smoke-nav-audit.test.ts` pins the shared module and asserts all
+four surfaces source it.
+
+**Still open, do not read the above as "done everywhere":**
+- `src/lib/server/clients/clientRecordLedger.ts` (and the `clientRecordLedgerEvents` block in
+  `clients/[clientId]/page.tsx`) still write `entry.message` / `entry.category` verbatim into
+  **persisted** ledger rows. Routing those through the shared module changes stored data, not just
+  a render, so it was left as a separate decision.
+- Category **chip** labels come from `categoryStyle()` in `src/lib/chrome/activityCategoryStyle.ts`
+  — a second live category→label map that disagrees with `activityCategory`: `tenant` reads
+  "Business" on the dashboard chip and "client" in the Activity log / Updates tab. Two sources of
+  category wording still exist; picking one is Ed's call.
+
+### Two privacy notices — DELIBERATE, and `/privacy` is NOT the demo one (2026-08-31)
+`/privacy` is the **published AquaCRM marketing notice**, served as a static file:
+`next.config.ts` rewrites `/privacy` and `/privacy/` to `public/aquacrm-site/privacy/index.html`.
+That rewrite is in **`beforeFiles`**, which Next evaluates *ahead of the filesystem*, so a page at
+`src/app/(website)/privacy/` would never render — no 404, no flag, just silently unreachable. Its
+content is pinned by `scripts/smoke-privacy-notice-truth.test.ts` (it holds an open, deliberate
+contradiction with the Aqua Tag; read that test before editing it).
+
+The **AquaCRM demo** notice is a different document with a different subject, and lives at
+**`/demo-privacy`** (`src/app/(website)/demo-privacy/page.tsx`) behind `WEBSITE_DEMO_ENABLED`. It
+was originally built at `/privacy` and was shadowed by the rewrite above — caught in review
+2026-08-31 — which would have pointed the demo consent line at a document whose version is not the
+one stamped on the visitor's record. `scripts/smoke-website-demo-gate.test.ts` now fails if any
+demo route is shadowed by a `beforeFiles` rewrite. **Do not "tidy" `/demo-privacy` back onto
+`/privacy`, and do not add a page under any other `beforeFiles` source** (`/`, `/projects`,
+`/contact`, `/styles.css`, `/site-experience.js`, `/projects.js`, `/assets/*`).
+
+Related, and NOT fixed: `src/app/(website)/layout.tsx` injects `/aqua-tag.js` on **every** page in
+the route group under the *milesymedia* agency's site key and `data-property="milesymedia-website"`
+— the AquaCRM demo pages included, flag or no flag. `DemoGateForm` therefore carries
+`data-aqua-ignore` so the tag cannot read its field values into the live `form-capture` surface
+(pinned). The remaining pageview beacons still attribute AquaCRM demo traffic to the Milesymedia
+property; gating the layout's tag per brand is an open product decision.
 
 ### Two assistant conversation stores — DELIBERATE, do NOT unify (2026-08-21)
 `PortalState.assistant` (keyed `${agencyId}|${userId}`, via
@@ -288,6 +414,9 @@ Plus overlapping "intelligence" builders that are easy to confuse:
 - **Finance navigation — ONE source, one visible sidebar entry (was sprawling).** Finance sections are defined once in `built-ins/modules/agency-finance/src/lib/sections.ts` (`FINANCE_SECTIONS`); both the in-page tab bar (`components/FinanceNav.tsx`) and the plugin manifest `navItems` (`index.ts`) derive from it — they used to be two hand-kept lists that had drifted (Reports/Revenue, Operations/Finance operations, Overview/Finance overview). **The visible sidebar "Finance" is the single hardcoded `finance` item in `lib/chrome/sidebarLayout.ts`** — the plugin's `agency-finance.*` navItems are filtered out of the canonical agency sidebar by the AquaOasis-Web `canonicalMainIds` allow-list, so they never render there. Don't add a third registration. (The `DISCOVERED_PANEL_LABELS["agency-finance"]` label is dead — it names a panel the override discards; a foundation-owned cleanup candidate.) The founder dashboard mounts **once** at the plugin root (`""`); the old `/founder` duplicate route is gone (the `agency/[...rest]` catch-all redirects stale `/founder` links → root).
 - **Payment channel: `channels.ts` is the single source; the stored value stays `PaymentMethod`.** Canonical channels are `bank-transfer | stripe | cash | other` (`PAYMENT_CHANNELS`, `built-ins/modules/agency-finance/src/lib/channels.ts`). Records still store `PaymentMethod` (which also carries a legacy `"manual"`); `normaliseChannel()` folds `"manual"` (and anything unknown) onto `"other"` for display + the money-in-by-channel breakdown. Don't reintroduce `"manual"` as a channel or add a parallel channel enum — extend `channels.ts`. The unified "money in" view lives in `components/IncomeSheet.tsx` + `lib/moneyIn.ts` (`summariseMoneyInByChannel`); it record+surfaces only — the app never holds funds.
 - **Finance Stripe adapter mirrors ecommerce's — intentional, per-plugin.** `agency-finance/src/lib/stripe.ts` lifts the proven wrapper from `ecommerce/src/lib/stripe/server.ts` (this codebase vendors utilities per-plugin, so a shared copy isn't used) and adds refunds + an injectable client. Change one, consider the other. **The finance Stripe webhook is a `public: true` plugin route** resolving the agency from `?agencyId=` (Stripe has no session) — **note ecommerce's own `stripe/webhook` is NOT `public`, so it would not actually receive live Stripe calls**; the finance one is done right. **Keys are Ed's, in the ENCRYPTED INTEGRATIONS VAULT — corrected 2026-08-22, they are NOT on `install.config`.** That record is handed to page props and reaches the browser, so a secret on it is a secret in the client. Both plugins declare `secretVault: { provider: "stripe", field }` on the manifest field and read back through `lib/server/plugins/pluginSecretConfig.ts` `installConfigWithSecrets()`, which merges the vault's values under the manifest ids — so the pure `readStripeKeysFromInstall(config)` readers keep their shape and neither plugin learns about the vault. **Do not "simplify" that back to a direct `install.config` read.** Never hardcoded/logged; the app never holds funds. Refund/chargeback surface via finance events + activity only — a `finance:refund`/`finance:chargeback` operational alert is a follow-up in `operationalAlerts.ts` (the client-health worker's file).
+- **THIRD Stripe wrapper — `memberships`, and it lives in the RUNTIME, not the plugin.** `src/built-ins/runtime/foundation-adapters/_membershipsStripeAdapter.ts` is the concrete `StripePort` for the memberships plugin (subscriptions, pause/resume/plan-change, checkout, billing portal, prices, webhook verification). It is deliberately NOT inside `built-ins/modules/memberships/` : that package declares `StripePort` in `src/server/ports.ts` and states it must never import the Stripe SDK — the foundation supplies the client. Same shape as the other two (narrow `StripeClientLike` slice + injectable client), so **change one, consider all three**. Its keys are the **ecommerce** install's keys in the same `(agencyId, clientId)` scope, read through `installConfigWithSecrets("ecommerce", …)` — one Stripe account per client, one place to configure it. **`stripeFor()` returns `null` when there is no key** and `containerFor` then falls back to a throwing NOOP port, so `isStripeAvailable()` is the honest question to ask before a paid flow; it used to return a stub unconditionally and answer `true` for every install on earth (issues #33). Don't reinstate an unconditional stub, and don't add a fourth wrapper.
+- **FOURTH Stripe wrapper — `affiliates` CONNECT, added for todo:506. Different Stripe surface, but half of it IS a copy.** `src/built-ins/runtime/foundation-adapters/_affiliatesStripeConnectAdapter.ts` is the concrete `StripeConnectPort` for the affiliates plugin (`accounts.create` Express + `accountLinks.create` + `accounts.retrieve` + `transfers.create` + `webhooks.constructEvent`). Those calls do NOT overlap the memberships wrapper's surface (customers / subscriptions / prices / checkout / billing portal), which is why a fifth port was not folded into `StripePort`. **But `getAffiliatesStripeConnectClient` is a verbatim copy of `getMembershipsStripeClient`** — same per-secret-key `Map` cache, same `new Function("s", "return import(s)")` dynamic import, same hardcoded `apiVersion: "2024-12-18.acacia"`, and `affiliatesStripeConnectKeysFor` is a third copy of "read the ecommerce install's keys through `installConfigWithSecrets`". `ecommerce/lib/stripe/server.ts` now exports the canonical non-throwing reader `tryReadStripeKeysFromInstall`; `_membershipsStripeAdapter.readMembershipsStripeKeys` has NOT been converged onto it. **Change one, consider all four**, and if you touch the client builder, hoist it rather than adding a fifth. The status collapse is not duplicated: the adapter calls the plugin's own `snapshotToStatus`.
+- **The affiliates Connect webhook currently verifies against the WRONG signing secret — `/api/portal/affiliates/webhooks/stripe` is not `/api/portal/ecommerce/stripe/webhook`.** `makeAffiliatesStripeConnectPort` verifies `account.updated` / `transfer.paid` with `keys.webhookSecret`, i.e. the **ecommerce** install's `stripeWebhookSecret`, whose own manifest help text says it is "Created in dashboard.stripe.com/webhooks for /api/portal/ecommerce/stripe/webhook". Stripe issues a distinct `whsec_…` per registered endpoint (and Connect endpoints are a separate endpoint kind from account endpoints), so in live/test mode the affiliates endpoint's signature can never match and every delivery answers 400. Consequence: onboarding status only ever advances through the customer's manual "refresh my status" button (which polls `accounts.retrieve`, so it does work), and a payout that reaches `in_progress` via `processPayout` has **no path to `completed`** — `confirmTransferPaid` is only reachable from the webhook, and the admin card only renders its buttons for `scheduled` payouts. Fixing it needs its own affiliates-scoped Connect webhook-secret setting (manifest field + `secretVault`), not a reuse of ecommerce's. Note also that `isStripeConnectAvailable()` gates on the SECRET key alone, so an install with a secret key and no webhook secret still offers both automated controls.
 - **Money-CREATE idempotency: ONE shared mechanism — don't add a per-path scheme.** Every finance money-create dedups a double-submit through the single helper `built-ins/modules/agency-finance/src/lib/idempotency.ts` (`deriveRecordId(prefix, idempotencyKey?)`): a client-supplied one-time key derives a **deterministic record id**, so a resubmit overwrites the same slot instead of minting a duplicate (parallel-double-click-safe; a plain "seen this key?" map is NOT — it races). Used by `payments.record`, `income.create`, `plans.create`, `invoices.create`, `operations.createCompensationPayment`, and `lib/server/closeDeal.ts` (derives the contract id + passes the key to `invoices.create`). It generalises the Stripe path's stable-reference dedup (`PaymentService.findByExternalRef` on the PaymentIntent) and the delight wire's `reference: delight:<id>` — **reuse `deriveRecordId`, don't invent a parallel `processedKeys` set or a time-window guard.** **Preserve the nuance:** multiple payments per invoice are legitimate (partial payments) — dedup only ever collapses a resubmit of the *same* key; a genuine second payment carries a new key. The id is only deterministic *with* a key — no key → `makeId(prefix)`, unchanged; so dedup is opt-in from the client (the finance modals + close-deal callers mint a `crypto.randomUUID()` per intent).
 - **Finance list reads are `index ∪ row-scan` — the index is a fast path, NEVER the source of truth.** Every finance store keeps an `<area>/index` array beside its `<area>/by-id/<id>` rows, and appending to that array is a **read-modify-write**: two records created concurrently both read the same array and the second write wins, so an id is lost and its row — stored perfectly well — becomes invisible to `list()`. For money that is a payment or invoice silently **off the books** (an under-count, the mirror of a double-count — and it can *mask* one, since three duplicate writes surface as a single row). Every list now goes through the one shared helper `built-ins/modules/agency-finance/src/server/rowIndex.ts` (`listRowIds(storage, indexKey, prefix)`), which unions the index with a prefix scan of the rows: `payments` · `invoices` · `income` · `plans` · `expenses` · `budgets` · `categories` · `operations.listRows`. **Don't add a new store that lists straight off its index array, and don't "optimise" the scan away.** Scope is unaffected — plugin storage is namespaced per install (`state.pluginData[installId]`, runtime `makeStorage`), so the scan sees exactly the keyspace the index did.
 - **No write-only secondary indexes in finance — they were removed, twice.** `payments/by-invoice/`, `payments/by-client/`, `expenses/by-category/` and `expenses/by-staff/` were all maintained on every create (and every re-category/re-assign) and read by **nothing** — `listForInvoice`/`listForClient`/`listForCategory` all filter through `list()` instead. That's storage ops and extra racy read-modify-writes bought for queries that don't exist. If you need a "by X" view, add a field to the store's `Filter` type and go through `list()`; a secondary index is only worth it with a measured read problem, and then it needs the same union treatment as the primary. Stragglers left in existing stores are inert (unread keys in the plugin's own slice).
@@ -423,6 +552,19 @@ import the wrong one. The server halves are now suffixed `Service`:
 `commandIntelligenceService` · `advisorSkillsService` · `brandPortfolioService`.
 Rule going forward: a server counterpart of a client-safe module carries the
 `Service` suffix, never the bare twin name.
+
+**Straggler closed 2026-08-31:** the server half of `personInteractions` had kept
+the bare name and is now **`lib/server/personInteractionsService.ts`** (the bare
+`lib/server` filename no longer exists — do not link it). The rule is
+no longer a convention: `scripts/smoke-person-interactions.test.ts` sweeps both
+lib halves and fails on any shared filename.
+
+**Still outstanding (two pairs, chrome preference cookies):**
+`lib/server/devIconPreference.ts` ↔ `lib/chrome/devIconPreference.ts` and
+`lib/server/performanceMode.ts` ↔ `lib/chrome/performanceMode.ts`. They are
+pinned as known in that sweep's `KNOWN_UNRESOLVED` list so a NEW twin still
+fails; renaming them touches the agency/clients/dev-team layouts and was left
+out of the person-interactions change deliberately.
 
 ## Who decides the tenant on a plugin API call — SETTLED 2026-08-22
 

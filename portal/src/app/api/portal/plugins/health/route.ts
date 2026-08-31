@@ -15,85 +15,32 @@ import "server-only";
 // client-scoped module's `navItems`.
 //
 // This is the consumer. It deliberately does the smallest honest thing: run the
-// hooks that exist and return what they say. Where that gets DRAWN — Radar, the
-// Dev Console, a per-client systems tab — is a product decision, and inventing
-// a screen would have been the same mask in a new costume. The capability is no
-// longer dead, and a screen can be hung on it whenever one is wanted.
+// hooks that exist and return what they say.
 //
-// ── The rules a health surface has to follow ─────────────────────────────
+// ── Where the asking actually lives ──────────────────────────────────────
 //
-// A healthcheck is third-party-ish code doing I/O on a request path, so:
+// In `lib/server/plugins/pluginHealthRunner.ts`, not here. This route is the
+// LIVE read — "ask now, show me" — and it writes nothing, because it is a GET
+// and `smoke-read-path-mutations.test.ts` is the guard that keeps read paths
+// read-only. The same runner is driven on the radar cadence by
+// `runPluginHealthSweep`, which persists each answer onto the install record so
+// that Radar's `systems:module-health` has evidence whether or not anybody has
+// this panel open. One runner, so the answer a person sees and the answer Radar
+// counts cannot be produced by two different pieces of code.
 //
-//   • **It cannot hang the route.** Each hook races a timeout and a slow module
-//     is reported as slow, not left to stall the page.
-//   • **It cannot take the route down.** A throwing hook becomes an unhealthy
-//     row naming the module, because "the health page is broken" is the least
-//     useful possible answer to "is anything broken".
-//   • **A module with no hook is not unhealthy.** It is `supported: false` —
-//     absence of evidence, said out loud, which is the rule Radar already
-//     follows for missing evidence.
+// The rules that make a health surface honest — a bounded hook, a throwing hook
+// contained rather than fatal, no-hook reported as unsupported rather than
+// unhealthy, and a read-only storage handle — all live with the runner.
 
 import { NextResponse, type NextRequest } from "next/server";
 import { ensureHydrated } from "@/server/storage";
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { routeTenantScope } from "@/lib/server/portal/apiTenantScope";
 import { listInstalledFor } from "@/server/pluginInstalls";
-import { getPlugin } from "@/built-ins/runtime/_registry";
-import { makeCtx } from "@/built-ins/runtime/_runtime";
-import type { HealthStatus } from "@/built-ins/runtime/_types";
-import { readOnlyPluginStorage } from "@/lib/server/plugins/readOnlyPluginStorage";
+import { runInstallHealthcheck } from "@/lib/server/plugins/pluginHealthRunner";
 import type { Role } from "@/server/types";
 
-/** Long enough for a real check, short enough that a page can wait for it. */
-const HEALTHCHECK_TIMEOUT_MS = 5_000;
-
 const VIEWERS: Role[] = ["agency-owner", "agency-manager", "agency-staff"];
-
-interface PluginHealthRow {
-  pluginId: string;
-  installId: string;
-  /** False when the module ships no healthcheck at all. Not a failure. */
-  supported: boolean;
-  /** Absent when unsupported. */
-  status?: HealthStatus;
-  /** Set when the hook threw or timed out — never silently folded into `ok`. */
-  error?: string;
-  durationMs: number;
-}
-
-async function runOne(install: Parameters<typeof makeCtx>[0], actor: string): Promise<PluginHealthRow> {
-  const started = Date.now();
-  const base = { pluginId: install.pluginId, installId: install.id };
-  const plugin = getPlugin(install.pluginId);
-
-  if (!plugin?.healthcheck) {
-    return { ...base, supported: false, durationMs: 0 };
-  }
-
-  const ctx = makeCtx(install, actor);
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    const status = await Promise.race([
-      plugin.healthcheck({ ...ctx, storage: readOnlyPluginStorage(ctx.storage, `${install.pluginId} healthcheck`) }),
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error(`timed out after ${HEALTHCHECK_TIMEOUT_MS}ms`)), HEALTHCHECK_TIMEOUT_MS);
-      }),
-    ]);
-    return { ...base, supported: true, status, durationMs: Date.now() - started };
-  } catch (error) {
-    // A module that cannot answer is unhealthy, and says why. It does not take
-    // the other nine down with it.
-    return {
-      ...base,
-      supported: true,
-      status: { ok: false, message: "This module could not report its health." },
-      error: error instanceof Error ? error.message : String(error),
-      durationMs: Date.now() - started,
-    };
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
 
 /**
  * Health for every module installed in the caller's scope.
@@ -122,7 +69,7 @@ export async function GET(request: NextRequest) {
 
     // Concurrent: ten sequential checks with I/O in them is a slow page for no
     // reason, and each one is already individually bounded.
-    const health = await Promise.all(installs.map(install => runOne(install, session.userId)));
+    const health = await Promise.all(installs.map(install => runInstallHealthcheck(install, session.userId)));
 
     return NextResponse.json({
       ok: true,

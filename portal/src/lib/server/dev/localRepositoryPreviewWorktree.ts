@@ -32,7 +32,7 @@ import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { access, mkdir, readFile, realpath, rename, stat, symlink, unlink, writeFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 
 export const ISOLATED_WORKTREES_DIRECTORY = ".aqua-preview-worktrees";
 export const ISOLATED_PREVIEW_BRANCH_PREFIX = "aqua-editor/";
@@ -54,6 +54,8 @@ const DEPENDENCY_FINGERPRINT_FILES = [
 ] as const;
 
 const GIT_TIMEOUT_MS = 120_000;
+/** A first clone fetches a whole history over the network; 2 minutes is not enough. */
+const GIT_CLONE_TIMEOUT_MS = 600_000;
 const MAX_GIT_OUTPUT = 64 * 1024;
 const MAX_INSTALL_LOG_LINE = 2_000;
 
@@ -92,7 +94,7 @@ interface GitResult {
   stderr: string;
 }
 
-function runGit(args: string[], cwd: string): Promise<GitResult> {
+function runGit(args: string[], cwd: string, timeoutMs = GIT_TIMEOUT_MS): Promise<GitResult> {
   return new Promise<GitResult>((resolveRun, rejectRun) => {
     const inherited = Object.fromEntries(
       ["PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "SystemRoot", "WINDIR", "USERPROFILE"]
@@ -116,8 +118,8 @@ function runGit(args: string[], cwd: string): Promise<GitResult> {
     let stderr = "";
     const timer = setTimeout(() => {
       child.kill("SIGKILL");
-      rejectRun(new LocalRepositoryPreviewWorktreeError("git-timeout", `git ${args[0]} did not finish inside ${GIT_TIMEOUT_MS}ms.`));
-    }, GIT_TIMEOUT_MS);
+      rejectRun(new LocalRepositoryPreviewWorktreeError("git-timeout", `git ${args[0]} did not finish inside ${timeoutMs}ms.`));
+    }, timeoutMs);
     child.stdout?.on("data", chunk => { if (stdout.length < MAX_GIT_OUTPUT) stdout += String(chunk); });
     child.stderr?.on("data", chunk => { if (stderr.length < MAX_GIT_OUTPUT) stderr += String(chunk); });
     child.once("error", error => {
@@ -148,6 +150,158 @@ async function requireGit(args: string[], cwd: string, code: string, refusal: st
 function inside(root: string, target: string): boolean {
   const child = relative(root, target);
   return child === "" || (!child.startsWith(`..${sep}`) && child !== ".." && !isAbsolute(child));
+}
+
+// ─── Clone from remote ──────────────────────────────────────────────────────
+//
+// The step BEFORE the isolated worktree in the phase-17 lifecycle: a project
+// whose trusted record names a remote gets that remote cloned into its
+// containment-checked preview root the first time it is previewed, and simply
+// resumes that clone every time after.
+//
+// The trust model is unchanged from the worktree half: the URL and the
+// destination both come from the trusted record (the request supplies neither),
+// git is spawned directly with `shell:false` and a minimal environment,
+// `GIT_TERMINAL_PROMPT=0` means an unauthenticated private remote FAILS rather
+// than hanging on a prompt, and the whole step is bounded by a timeout.
+//
+// RESUME NEVER DESTROYS applies here too: an existing destination is reused
+// only when it is its own git repository tracking exactly the declared remote.
+// A hijacked directory, a nested repository, or a clone of a different remote
+// is a named refusal — never a delete and never a re-clone over the top.
+
+export interface ClonedPreviewRepository {
+  /** Physical path of the clone; the trusted worktree path for everything downstream. */
+  repositoryPath: string;
+  remoteUrl: string;
+  /** false = an existing clone (and any uncommitted work in it) was resumed. */
+  created: boolean;
+}
+
+export interface EnsureClonedRepositoryInput {
+  /** The validated trusted clone destination (absolute, inside safe roots). Need not exist yet. */
+  configuredPath: string;
+  /** The validated trusted remote URL. */
+  remoteUrl: string;
+  log?: (text: string) => void;
+}
+
+/**
+ * The URL an EXISTING destination already tracks never passed the trusted
+ * record's credential validation — it is whatever the operator configured — so
+ * any userinfo is stripped before that URL is echoed into a refusal. The
+ * refusal reaches the API snapshot through `entry.error`, which is NOT run
+ * through the supervisor's log redactor.
+ */
+function withoutUserinfo(url: string): string {
+  return url.replace(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)[^/@]*@/, "$1[REDACTED]@");
+}
+
+/** `…/x.git`, `…/x.git/` and `…/x` name the same remote; nothing else is treated as equal. */
+function sameRemote(left: string, right: string): boolean {
+  const normalise = (value: string) => value.trim().replace(/\/+$/, "").replace(/\.git$/, "");
+  return normalise(left) === normalise(right);
+}
+
+/**
+ * Clone — or resume — the project's declared remote inside its preview root.
+ *
+ * Idempotent: the first preview pays the clone, every later one resumes the
+ * same checkout with its uncommitted work intact.
+ */
+export async function ensureClonedPreviewRepository(
+  input: EnsureClonedRepositoryInput,
+): Promise<ClonedPreviewRepository> {
+  const remoteUrl = input.remoteUrl.trim();
+  if (!remoteUrl || remoteUrl.startsWith("-") || /[\s\0]/.test(remoteUrl)) {
+    throw new LocalRepositoryPreviewWorktreeError("invalid-remote", "The project's declared preview remote is not a usable URL.");
+  }
+  const destination = resolve(input.configuredPath);
+  if (!isAbsolute(destination)) {
+    throw new LocalRepositoryPreviewWorktreeError("invalid-remote", "The project's clone destination must be an absolute path.");
+  }
+
+  let exists = false;
+  try {
+    if (!(await stat(destination)).isDirectory()) {
+      throw new LocalRepositoryPreviewWorktreeError(
+        "clone-conflict",
+        "The project's clone destination exists but is not a directory. Move it aside; nothing is deleted automatically.",
+      );
+    }
+    exists = true;
+  } catch (error) {
+    if (error instanceof LocalRepositoryPreviewWorktreeError) throw error;
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+
+  if (exists) {
+    const physical = await realpath(destination);
+    const topLevel = await runGit(["rev-parse", "--show-toplevel"], physical);
+    if (topLevel.code !== 0) {
+      throw new LocalRepositoryPreviewWorktreeError(
+        "clone-conflict",
+        "The project's clone destination exists but is not a git repository. Move it aside; nothing is deleted automatically.",
+      );
+    }
+    if (await realpath(topLevel.stdout) !== physical) {
+      throw new LocalRepositoryPreviewWorktreeError(
+        "clone-conflict",
+        "The project's clone destination sits inside another git repository instead of being its own clone. Move it aside; nothing is deleted automatically.",
+      );
+    }
+    const origin = await runGit(["remote", "get-url", "origin"], physical);
+    if (origin.code !== 0 || !sameRemote(origin.stdout, remoteUrl)) {
+      throw new LocalRepositoryPreviewWorktreeError(
+        "clone-remote-mismatch",
+        `The project's clone destination already tracks ${origin.code === 0 ? `"${withoutUserinfo(origin.stdout).slice(0, 200)}"` : "no origin remote"} rather than its declared remote. Move it aside; nothing is re-cloned or deleted automatically.`,
+      );
+    }
+    input.log?.("Resumed the existing clone of the project's declared remote; uncommitted work is retained.");
+    return { repositoryPath: physical, remoteUrl, created: false };
+  }
+
+  let physicalParent: string;
+  try {
+    physicalParent = await realpath(dirname(destination));
+  } catch {
+    throw new LocalRepositoryPreviewWorktreeError(
+      "clone-destination-unavailable",
+      "The project's clone destination cannot be created because its parent directory does not exist.",
+    );
+  }
+  const target = resolve(physicalParent, basename(destination));
+  if (target === physicalParent || !inside(physicalParent, target)) {
+    throw new LocalRepositoryPreviewWorktreeError(
+      "clone-destination-unavailable",
+      "The derived clone destination escapes its own parent directory.",
+    );
+  }
+
+  input.log?.("Cloning the project's declared remote into its preview root…");
+  // `--` ends option parsing; the URL was already refused if it looked like a
+  // flag. A failed clone removes the directory git itself created, so the next
+  // start retries the clone instead of meeting a half-written refusal.
+  const clone = await runGit(["clone", "--", remoteUrl, target], physicalParent, GIT_CLONE_TIMEOUT_MS);
+  if (clone.code !== 0) {
+    const detail = (clone.stderr || clone.stdout).slice(0, 400);
+    throw new LocalRepositoryPreviewWorktreeError(
+      "clone-failed",
+      detail
+        ? `The project's declared remote could not be cloned. (${detail})`
+        : "The project's declared remote could not be cloned.",
+    );
+  }
+
+  const physical = await realpath(target);
+  if (!inside(physicalParent, physical)) {
+    throw new LocalRepositoryPreviewWorktreeError(
+      "clone-destination-unavailable",
+      "The completed clone resolves outside its configured parent directory.",
+    );
+  }
+  input.log?.("Cloned the project's declared remote into its preview root.");
+  return { repositoryPath: physical, remoteUrl, created: true };
 }
 
 /**

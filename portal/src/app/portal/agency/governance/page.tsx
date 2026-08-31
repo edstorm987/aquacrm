@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
  * Owner/manager only. The destructive DPO action (right-to-erasure) is further
  * gated to owners inside the client, and enforced owner-only at the route.
  */
-export default async function GovernancePage() {
+export default async function GovernancePage({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
   await ensureHydrated();
   let session;
   try {
@@ -26,5 +26,11 @@ export default async function GovernancePage() {
   }
   const agencyId = getActiveAgencyId(session);
   const snapshot = await buildGovernanceSnapshot({ agencyId });
-  return <GovernanceWorkspace initial={snapshot} isOwner={session.role === "agency-owner"} />;
+  // `?view=` so a posture control can link straight at the view that answers
+  // it — a control whose "go and deal with it" link lands back on the control
+  // is not a resolution path. An unknown value falls back to the posture
+  // rather than rendering nothing.
+  const query = searchParams ? await searchParams : {};
+  const requestedView = typeof query.view === "string" ? query.view : undefined;
+  return <GovernanceWorkspace initial={snapshot} isOwner={session.role === "agency-owner"} initialView={requestedView} />;
 }

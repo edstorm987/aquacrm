@@ -83,15 +83,20 @@ before(() => {
   finance = containerWithDeps({ agencyId: AGENCY_ID, storage: world.storage, tenant: world.tenant, user: world.user, activity: world.activity, events: world.events, pluginInstalls: world.pluginInstalls });
 });
 
+const TERMS = "Ten pages, four weeks, 50% on signature and 50% on launch.";
+
 test("Stripe close: one action → sent contract + issued invoice + a pay-link", async () => {
   const { deps, saved } = depsFor({ createPayLink: async () => "https://checkout.stripe.test/cs_123" });
   const result = await closeDealForClient(
-    { title: "Website build", amountCents: 250_000, currency: "gbp", channel: "stripe", dueAt: 1_700_500_000_000, contractSummary: "Full site + care" },
+    { title: "Website build", amountCents: 250_000, currency: "gbp", channel: "stripe", dueAt: 1_700_500_000_000, contractSummary: "Full site + care", contractBody: TERMS },
     deps,
   );
 
-  // Contract — created as sent, persisted.
+  // Contract — created as sent, persisted. It reaches "sent" BECAUSE the agreed
+  // terms were supplied; see the draft case below for what happens without them.
   assert.equal(result.contract.status, "sent");
+  assert.equal(result.contract.body, TERMS);
+  assert.equal(result.contract.issuedAt, 1_700_000_000_000, "an issued agreement carries the moment it went out");
   assert.equal(result.contract.title, "Website build");
   assert.equal(saved.length, 1);
   assert.equal(saved[0][0].id, result.contract.id);
@@ -107,6 +112,47 @@ test("Stripe close: one action → sent contract + issued invoice + a pay-link",
   assert.equal(result.channel, "stripe");
   assert.equal(result.payLink, "https://checkout.stripe.test/cs_123");
   assert.match(result.paymentInstruction, /pay-link/i);
+});
+
+// ─── Reviewable terms: a title is not an agreement (issues #39) ───────────────
+//
+// The close used to mint every contract directly as "sent", so a title-only
+// record landed in the customer portal with an Accept button on it. It now
+// reaches "sent" only when there is something to read.
+
+test("a close with NO terms saves the agreement as a DRAFT, not as sent", async () => {
+  const { deps, saved } = depsFor();
+  const result = await closeDealForClient(
+    { title: "Handshake deal", amountCents: 90_000, currency: "gbp", channel: "cash", dueAt: 1_700_500_000_000, contractSummary: "Agreed in the meeting" },
+    deps,
+  );
+
+  assert.equal(result.contract.status, "draft", "a title + a summary is not something a client can agree to");
+  assert.equal(result.contract.issuedAt, undefined, "nothing was issued, so no issued date is stamped");
+  assert.equal(result.contract.body, undefined);
+  assert.equal(saved.length, 1, "the agreement is still recorded — it is just honest about being a draft");
+  assert.equal(saved[0][0].status, "draft", "and it is PERSISTED as a draft");
+  assert.equal(result.invoice.status, "sent", "the close still bills: the invoice is the billing artifact");
+});
+
+test("an attached document is reviewable terms too — that close is sent", async () => {
+  const { deps } = depsFor();
+  const result = await closeDealForClient(
+    { title: "Signed PDF deal", amountCents: 30_000, currency: "gbp", channel: "cash", dueAt: 1_700_500_000_000, contractDocumentUrl: "https://files.example.com/agreement.pdf", contractDocumentName: "agreement.pdf" },
+    deps,
+  );
+  assert.equal(result.contract.status, "sent");
+  assert.equal(result.contract.documentUrl, "https://files.example.com/agreement.pdf");
+  assert.equal(result.contract.documentName, "agreement.pdf");
+});
+
+test("whitespace is not terms", async () => {
+  const { deps } = depsFor();
+  const result = await closeDealForClient(
+    { title: "Blank terms", amountCents: 10_000, currency: "gbp", channel: "cash", dueAt: 1_700_500_000_000, contractBody: "   \n  " },
+    deps,
+  );
+  assert.equal(result.contract.status, "draft", "a body of spaces cannot make an agreement sendable");
 });
 
 test("Bank-transfer close: contract + issued invoice, no pay-link, manual instruction", async () => {

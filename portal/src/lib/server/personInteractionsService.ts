@@ -4,23 +4,37 @@ import "server-only";
 // Built server-side because the enquiry rows live in Supabase and the person
 // record lives in the portal state — the card should not have to know that.
 
+import { readOrUnavailable } from "@/lib/readAvailability";
 import { getRequestWebsiteEnquiries } from "@/lib/server/websiteEnquiries";
 import { getPerson } from "@/server/persons";
 import type { PersonInteraction, InteractionField } from "@/lib/inbox/personInteractions";
 import { sortInteractions } from "@/lib/inbox/personInteractions";
 
+/**
+ * The enquiry half of this timeline lives in Supabase, so it can be refused
+ * while the hand-recorded half still reads. `enquiriesAvailable: false` means
+ * the card is looking at an INCOMPLETE story and must say so — silently
+ * dropping every enquiry produced a timeline that looked complete and was not
+ * (issues #57).
+ */
+export interface PersonInteractionsResult {
+  interactions: PersonInteraction[];
+  enquiriesAvailable: boolean;
+}
+
 export async function personInteractions(
   agencyId: string,
   personId: string,
-): Promise<PersonInteraction[]> {
+): Promise<PersonInteractionsResult> {
   const person = getPerson(agencyId, personId);
-  if (!person) return [];
+  if (!person) return { interactions: [], enquiriesAvailable: true };
 
   const knownEmails = new Set((person.emails ?? []).map(entry => entry.value));
   const knownPhones = new Set((person.phones ?? []).map(entry => entry.value));
   const knownEnquiries = new Set(person.facets.enquiryIds ?? []);
 
-  const enquiries = await getRequestWebsiteEnquiries(agencyId).catch(() => []);
+  const enquiryRead = await readOrUnavailable(() => getRequestWebsiteEnquiries(agencyId), []);
+  const enquiries = enquiryRead.data;
   const interactions: PersonInteraction[] = [];
 
   for (const enquiry of enquiries) {
@@ -123,5 +137,5 @@ export async function personInteractions(
     });
   }
 
-  return sortInteractions(interactions);
+  return { interactions: sortInteractions(interactions), enquiriesAvailable: enquiryRead.available };
 }

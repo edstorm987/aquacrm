@@ -80,13 +80,14 @@ const { POST } = require("../src/app/api/tenants/close-deal/route") as typeof im
 const { issueSession } = require("../src/lib/server/auth/auth") as typeof import("../src/lib/server/auth/auth");
 const { ensureHydrated } = require("../src/server/storage") as typeof import("../src/server/storage");
 const { createAgency, createClient, getClientForAgency } = require("../src/server/tenants") as typeof import("../src/server/tenants");
+const { listActivity } = require("../src/server/activity") as typeof import("../src/server/activity");
 const { upsertInstall, deleteInstall } = require("../src/server/pluginInstalls") as typeof import("../src/server/pluginInstalls");
 const { createUser } = require("../src/server/users") as typeof import("../src/server/users");
 const { makePluginStorage } = require("../src/lib/server/pluginStorage") as typeof import("../src/lib/server/pluginStorage");
 const { containerFor } = require("../src/built-ins/modules/agency-finance/src/server/foundationAdapter") as typeof import("../src/built-ins/modules/agency-finance/src/server/foundationAdapter");
 const { ensureAgencyFinanceFoundationRegistered } = require("../src/built-ins/runtime/foundation-adapters/agencyFinanceFoundation") as typeof import("../src/built-ins/runtime/foundation-adapters/agencyFinanceFoundation");
 
-type ClientContract = { id: string; title: string; status: string };
+type ClientContract = { id: string; title: string; status: string; body?: string; issuedAt?: number };
 
 interface World {
   agencyId: string;
@@ -100,11 +101,11 @@ let seq = 0;
 // A fresh agency + client + enabled agency-finance install, and an agency-owner
 // session cookie for it. Each world is its own tenant, so tests never share
 // contracts, invoices or plugin storage.
-async function seedWorld(options: { installFinance?: boolean; role?: string } = {}): Promise<World> {
+async function seedWorld(options: { installFinance?: boolean; role?: string; clientEmail?: string } = {}): Promise<World> {
   await ensureHydrated();
   seq += 1;
   const agency = createAgency({ name: `Close Deal Smoke ${seq}`, ownerEmail: `owner${seq}@example.com` });
-  const client = createClient(agency.id, { name: `Payer Ltd ${seq}`, stage: "live" });
+  const client = createClient(agency.id, { name: `Payer Ltd ${seq}`, stage: "live", ownerEmail: options.clientEmail });
   let installId = "";
   if (options.installFinance !== false) {
     const install = upsertInstall({
@@ -154,6 +155,9 @@ interface CloseResponse {
   ok?: boolean;
   error?: string;
   contractId?: string;
+  contractStatus?: string;
+  agreementOutcome?: string;
+  delivery?: { delivered?: boolean; via?: string; reason?: string };
   invoiceId?: string;
   invoiceNumber?: string;
   channel?: string;
@@ -182,7 +186,12 @@ async function invoicesOf(world: World) {
   return finance.invoices.list();
 }
 
-const BANK = { title: "Q4 retainer", amountCents: 240_000, currency: "gbp", channel: "bank-transfer", dueInDays: 30 };
+const TERMS = "Four sprints, monthly retainer of £2,400, thirty days' notice either side.";
+const BANK = { title: "Q4 retainer", amountCents: 240_000, currency: "gbp", channel: "bank-transfer", dueInDays: 30, contractBody: TERMS };
+
+function activityFor(world: World) {
+  return listActivity({ agencyId: world.agencyId, clientId: world.clientId, limit: 50 });
+}
 
 // ─── The happy path this route never had ─────────────────────────────────────
 
@@ -205,6 +214,74 @@ test("a bank-transfer close over HTTP creates exactly one contract and one invoi
   assert.equal(invoices.length, 1, "exactly ONE invoice");
   assert.equal(invoices[0].totalCents, 240_000, "billed once, at the deal amount");
   assert.equal(invoices[0].status, "sent", "issued, so it can be paid");
+});
+
+// ─── Reviewable terms + honest delivery (issues #39) ─────────────────────────
+//
+// This route used to mint every agreement as "sent" and log "contract sent +
+// invoice issued" while NO delivery path ran at all, so a title-only record
+// arrived in the customer portal with an Accept button under a claim that had
+// never been performed. Three things are pinned here: what a terms-less close
+// produces, what a close WITH terms reports about delivery, and that neither
+// the response nor the activity log claims a send that did not happen.
+
+test("a close with no terms produces a DRAFT agreement and says so — nothing is claimed as sent", async () => {
+  const world = await seedWorld();
+  const { status, data } = await close(world, {
+    ...BANK, contractBody: undefined, contractSummary: "Agreed on the call", idempotencyKey: "no-terms-1",
+  });
+
+  assert.equal(status, 200, "the close still succeeds — the invoice is the billing artifact");
+  assert.equal(data.contractStatus, "draft", "a title + a summary is not something a client can accept");
+  assert.equal(data.delivery, undefined, "there is nothing to deliver, so no delivery is reported");
+  assert.match(data.agreementOutcome ?? "", /draft/i, "the surface names the real state");
+  assert.doesNotMatch(data.agreementOutcome ?? "", /\bsent\b|emailed/i, "and never says it was sent");
+  assert.ok(data.invoiceNumber, "the invoice is still issued");
+
+  const contracts = contractsOf(world);
+  assert.equal(contracts[0].status, "draft", "persisted as a draft, not merely reported as one");
+  assert.equal(contracts[0].issuedAt, undefined, "no issued date for something that was never issued");
+
+  const closed = activityFor(world).find(entry => entry.action === "deal.closed");
+  assert.ok(closed, "the close is logged");
+  assert.match(closed!.message, /draft/i, "the activity log tells the same truth as the screen");
+  assert.doesNotMatch(closed!.message, /contract sent/i, "the old unconditional 'contract sent' claim is gone");
+  assert.equal(
+    activityFor(world).some(entry => entry.action === "contract.delivered"),
+    false,
+    "nothing was delivered, so nothing claims delivery",
+  );
+});
+
+test("a close WITH terms is sent, runs the real delivery path, and reports its outcome honestly", async () => {
+  // A client with an email on file, so recipient resolution succeeds and the
+  // canonical transactional-email path is genuinely entered. No provider is
+  // connected in this backend, so the honest answer is a refusal — which is
+  // exactly the outcome that must reach the screen instead of "Contract sent".
+  const world = await seedWorld({ clientEmail: "buyer@example.com" });
+  const { status, data } = await close(world, { ...BANK, idempotencyKey: "with-terms-1" });
+
+  assert.equal(status, 200);
+  assert.equal(data.contractStatus, "sent", "written terms are what make an agreement sendable");
+  assert.ok(data.delivery, "the delivery outcome is returned, not omitted");
+  assert.equal(data.delivery?.delivered, false, "no email provider is connected here");
+  assert.ok(data.delivery?.reason, "and it says WHY, rather than failing silently");
+  // The reason must be the PROVIDER's refusal, not the "no client email on file"
+  // fallback — otherwise this test would pass on a close that never reached the
+  // transactional-email path at all, and would prove nothing about delivery.
+  assert.match(data.delivery?.reason ?? "", /Resend or SMTP/i, "the send was attempted and the provider is what refused it");
+  assert.match(data.agreementOutcome ?? "", /portal/i, "it is honest about what did happen — portal publication");
+  assert.doesNotMatch(data.agreementOutcome ?? "", /emailed to/i, "and does not claim an email that was refused");
+
+  const contracts = contractsOf(world);
+  assert.equal(contracts[0].status, "sent");
+  assert.equal(contracts[0].body, TERMS, "the terms the client will review are the ones that were agreed");
+
+  const entries = activityFor(world);
+  const failed = entries.find(entry => entry.action === "contract.delivery_failed");
+  assert.ok(failed, "the failed delivery is on the record, with the same wording the canonical send uses");
+  assert.equal(failed!.metadata?.recipient, "buyer@example.com", "the client's own address was resolved, exactly as the canonical send resolves it");
+  assert.equal(entries.some(entry => entry.action === "contract.delivered"), false, "no delivered claim");
 });
 
 // ─── The double-bill this route is the last unproven hop of ──────────────────

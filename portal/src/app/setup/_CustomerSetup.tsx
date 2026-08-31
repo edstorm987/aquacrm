@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ArrowRight, Check, Download, KeyRound, LoaderCircle, PartyPopper, Share, Smartphone } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, KeyRound, LoaderCircle, PartyPopper } from "lucide-react";
+import { InstallHelp } from "@/app/portal/customer/_InstallHelp";
 
 /**
  * The welcome, the password, and getting the portal onto their phone.
@@ -13,8 +14,6 @@ import { ArrowRight, Check, Download, KeyRound, LoaderCircle, PartyPopper, Share
  */
 
 type Step = "hello" | "password" | "install";
-
-type Platform = "ios" | "android" | "desktop";
 
 export function CustomerSetup({
   firstName,
@@ -164,86 +163,19 @@ export function CustomerSetup({
 /**
  * Getting the portal onto their home screen.
  *
- * Offers the real install prompt where the browser gives us one, and falls
- * back to instructions where it does not — which is every iPhone, and iPhones
- * are most of the people who will see this.
+ * The guidance itself lives in one place — `InstallHelp` under the customer
+ * portal — because the footer below promises the same help is waiting under
+ * Support. A second copy here is how that promise quietly stops being true.
  */
 function InstallStep({ clientName, notice }: { clientName: string; notice?: string | null }) {
-  const [platform, setPlatform] = useState<Platform>("desktop");
-  const [prompt, setPrompt] = useState<{ prompt: () => void } | null>(null);
-  const [installed, setInstalled] = useState(false);
-
-  useEffect(() => {
-    const agent = navigator.userAgent;
-    setPlatform(
-      /iPhone|iPad|iPod/.test(agent) ? "ios"
-        : /Android/.test(agent) ? "android"
-          : "desktop",
-    );
-
-    const onPrompt = (event: Event) => {
-      event.preventDefault();
-      setPrompt(event as unknown as { prompt: () => void });
-    };
-    const onInstalled = () => setInstalled(true);
-    window.addEventListener("beforeinstallprompt", onPrompt);
-    window.addEventListener("appinstalled", onInstalled);
-    return () => {
-      window.removeEventListener("beforeinstallprompt", onPrompt);
-      window.removeEventListener("appinstalled", onInstalled);
-    };
-  }, []);
-
   return (
     <>
-      <Badge icon={<Smartphone size={20} aria-hidden />} />
       {notice ? (
-        <p className="mt-4 rounded-lg border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-xs leading-5 text-amber-200">
+        <p className="mb-4 rounded-lg border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-xs leading-5 text-amber-200">
           {notice}
         </p>
       ) : null}
-      <h1 className="mt-5 text-[1.4rem] font-semibold leading-tight text-white">Keep it one tap away</h1>
-      <p className="mt-2.5 text-sm leading-6 text-white/60">
-        Add {clientName} to your home screen and it opens like an app — no address to remember,
-        no signing in each time.
-      </p>
-
-      {installed ? (
-        <p className="mt-5 flex items-center gap-2 rounded-lg border border-emerald-300/25 bg-emerald-400/10 px-3 py-2.5 text-sm text-emerald-200">
-          <Check size={15} aria-hidden /> Installed. You will find it with your other apps.
-        </p>
-      ) : prompt ? (
-        <button
-          type="button"
-          onClick={() => prompt.prompt()}
-          className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg border border-white/15 bg-white/[0.08] px-4 text-sm font-semibold text-white transition hover:bg-white/[0.12]"
-        >
-          <Download size={15} aria-hidden />
-          Install the app
-        </button>
-      ) : (
-        <ol className="mt-5 grid gap-2.5 text-sm leading-6 text-white/65">
-          {(platform === "ios"
-            ? [<>Tap the <Share size={13} className="inline align-[-1px]" aria-hidden /> share button in Safari.</>,
-               <>Scroll down and choose <strong className="font-semibold text-white/85">Add to Home Screen</strong>.</>,
-               <>Tap <strong className="font-semibold text-white/85">Add</strong>, and it is on your phone.</>]
-            : platform === "android"
-              ? [<>Open the browser menu (three dots).</>,
-                 <>Choose <strong className="font-semibold text-white/85">Install app</strong> or <strong className="font-semibold text-white/85">Add to home screen</strong>.</>,
-                 <>Confirm, and it is on your phone.</>]
-              : [<>Look for the install icon at the right of the address bar.</>,
-                 <>Choose <strong className="font-semibold text-white/85">Install</strong>.</>,
-                 <>It opens in its own window from now on.</>]
-          ).map((line, index) => (
-            <li key={index} className="flex gap-3">
-              <span className="grid size-5 shrink-0 place-items-center rounded-full bg-white/10 text-[11px] font-semibold text-white/70">
-                {index + 1}
-              </span>
-              <span>{line}</span>
-            </li>
-          ))}
-        </ol>
-      )}
+      <InstallHelp appName={clientName} tone="dark" showBadge headingLevel="h1" />
 
       <a
         href="/portal/customer"

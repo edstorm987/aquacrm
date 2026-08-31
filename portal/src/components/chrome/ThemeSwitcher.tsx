@@ -3,7 +3,9 @@
 // opens a popover of theme swatches. Sets `data-mm-theme` on <html>
 // and persists the choice in localStorage so refreshes remember it.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import { useMenuKeys } from "@/lib/a11y/useMenuKeys";
 
 interface Theme {
   id: string;
@@ -56,10 +58,13 @@ export function ThemeSwitcher() {
     setOpen(false);
   };
 
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  useMenuKeys(wrapRef, { open, onOpen: () => setOpen(true), onClose: () => setOpen(false) });
+
   const current = THEMES.find((t) => t.id === active) ?? THEMES[0];
 
   return (
-    <div className="mm-theme-switcher">
+    <div ref={wrapRef} className="mm-theme-switcher">
       <button
         type="button"
         className="mm-theme-trigger"

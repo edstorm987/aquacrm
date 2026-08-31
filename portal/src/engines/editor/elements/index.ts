@@ -81,6 +81,21 @@ export {
 
 export { STYLE_FIELD_GROUPS, blockStylesToCss, overridesToCssText } from "./blockStyles";
 
+// The portal's half of the vocabulary. P5 moved the portal's VALUE vocabulary
+// here too — the closed value lists and the character caps `clientPortalBuilder`
+// normalises with — so the portal has one declaration of what a block's props
+// may be rather than a second one nothing else could read.
+export {
+  PORTAL_BINDING_FIELDS,
+  PORTAL_MEDIA_FIELDS,
+  PORTAL_PROP_FIELDS,
+  PORTAL_RESPONSIVE_FIELDS,
+  PORTAL_TEXT_LIMITS,
+  PORTAL_VISIBILITY_FIELDS,
+  portalElementSchema,
+  portalSideChannelSchema,
+} from "./portalElements";
+
 // The palette — "what can I add here", answered once, for every surface.
 // NOTE what is deliberately NOT re-exported: `./websiteVocabulary`. That module
 // exists to be the one plugin import, and putting it in this barrel would drag

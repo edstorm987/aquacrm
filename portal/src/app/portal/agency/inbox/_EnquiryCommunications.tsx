@@ -9,6 +9,7 @@ import type { CommunicationSenderIdentity, OutboundCommunicationChannel, Outboun
 import type { WebsiteEnquiry, WebsiteEnquiryCall, WebsiteEnquiryReply } from "@/lib/server/websiteEnquiries";
 import type { InboxOutboundAttachment } from "@/lib/inbox/media";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
+import { beginRecording, extensionForMime, requestMicrophoneStream, startRecorder, stopStreamTracks, uploadContentType, voiceNoteFailureMessage } from "./_voiceRecorder";
 
 type MessageChannel = Exclude<OutboundCommunicationChannel, "call">;
 type CallOutcome = NonNullable<WebsiteEnquiryCall["outcome"]>;
@@ -53,10 +54,15 @@ export function EnquiryCommunications({ item, readiness, compact = false }: { it
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const callMimeRef = useRef("");
+  // A recording survives a failed upload so "End and save call" can be retried
+  // without silently dropping the audio that was already captured.
+  const pendingRecordingRef = useRef<Blob | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const voiceRecorderRef = useRef<MediaRecorder | null>(null);
   const voiceStreamRef = useRef<MediaStream | null>(null);
   const voiceChunksRef = useRef<Blob[]>([]);
+  const voiceMimeRef = useRef("");
 
   useEffect(() => {
     if (!activeCall) return;
@@ -65,8 +71,8 @@ export function EnquiryCommunications({ item, readiness, compact = false }: { it
   }, [activeCall]);
 
   useEffect(() => () => {
-    streamRef.current?.getTracks().forEach(track => track.stop());
-    voiceStreamRef.current?.getTracks().forEach(track => track.stop());
+    stopStreamTracks(streamRef.current);
+    stopStreamTracks(voiceStreamRef.current);
   }, []);
 
   const senders = readiness.senders.filter(sender =>
@@ -123,13 +129,13 @@ export function EnquiryCommunications({ item, readiness, compact = false }: { it
     setNotice("");
     let stream: MediaStream | null = null;
     if (recordRequested) {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      } catch {
+      const microphone = await requestMicrophoneStream();
+      if (!microphone.ok) {
         setBusy(false);
-        setError("Microphone access was not granted. Start without recording or allow microphone access.");
+        setError(`${microphone.message} Start the call without recording, or fix this and try again.`);
         return;
       }
+      stream = microphone.stream;
     }
     const response = await fetch("/api/portal/website-enquiries/calls", {
       method: "POST",
@@ -138,28 +144,39 @@ export function EnquiryCommunications({ item, readiness, compact = false }: { it
     });
     const payload = await response.json().catch(() => null) as { call?: WebsiteEnquiryCall; error?: string } | null;
     if (!response.ok || !payload?.call) {
-      stream?.getTracks().forEach(track => track.stop());
+      stopStreamTracks(stream);
       setBusy(false);
       setError(payload?.error || "Call mode could not be started.");
       return;
     }
-    if (stream) startRecorder(stream);
+    // The call is already persisted server-side, so the recorder is started
+    // inside a recovery boundary: a failure here must never strand a busy UI
+    // or an active call the operator cannot see and end.
+    const recordingProblem = stream ? attachCallRecorder(stream) : "";
     setActiveCall(payload.call);
     setNow(Date.now());
     setBusy(false);
+    if (recordingProblem) setError(`${recordingProblem} The call is live and is NOT being recorded — end it below when you are finished.`);
     if (selectedSender?.provider === "device") window.open(`tel:${item.phone}`, "_blank", "noopener,noreferrer");
     else setNotice("Your answering phone is ringing. Pick up to bridge the customer from the selected business number.");
   }
 
-  function startRecorder(stream: MediaStream) {
-    streamRef.current = stream;
+  /** Returns "" when recording started, otherwise the reason it could not. */
+  function attachCallRecorder(stream: MediaStream): string {
     chunksRef.current = [];
-    const preferred = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : "audio/webm";
-    const recorder = new MediaRecorder(stream, { mimeType: preferred });
-    recorder.addEventListener("dataavailable", event => { if (event.data.size) chunksRef.current.push(event.data); });
-    recorder.start(1_000);
-    recorderRef.current = recorder;
+    const started = startRecorder({ stream, timeslice: 1_000, onData: chunk => chunksRef.current.push(chunk) });
+    if (!started.ok) {
+      // startRecorder already released the microphone.
+      streamRef.current = null;
+      recorderRef.current = null;
+      setRecordingActive(false);
+      return started.message;
+    }
+    streamRef.current = stream;
+    recorderRef.current = started.recorder;
+    callMimeRef.current = started.mimeType;
     setRecordingActive(true);
+    return "";
   }
 
   async function completeCall() {
@@ -168,9 +185,13 @@ export function EnquiryCommunications({ item, readiness, compact = false }: { it
     setError("");
     setNotice("");
     try {
-      if (recordingActive) {
-        const recording = await stopRecorder();
-        if (recording.size) await uploadRecording(activeCall.id, recording);
+      // A retry after a failed upload must send the SAME audio, so the blob is
+      // retained until the upload actually succeeds.
+      const recording = pendingRecordingRef.current ?? (recordingActive ? await stopRecorder() : null);
+      if (recording?.size) {
+        pendingRecordingRef.current = recording;
+        await uploadRecording(activeCall.id, recording);
+        pendingRecordingRef.current = null;
       }
       const response = await fetch("/api/portal/website-enquiries/calls", {
         method: "PATCH",
@@ -199,16 +220,24 @@ export function EnquiryCommunications({ item, readiness, compact = false }: { it
     }
   }
 
+  function releaseCallRecorder() {
+    stopStreamTracks(streamRef.current);
+    streamRef.current = null;
+    recorderRef.current = null;
+    setRecordingActive(false);
+  }
+
   async function stopRecorder(): Promise<Blob> {
     const recorder = recorderRef.current;
-    if (!recorder || recorder.state === "inactive") return new Blob(chunksRef.current, { type: recorder?.mimeType || "audio/webm" });
+    const type = recorder?.mimeType || callMimeRef.current || "audio/webm";
+    if (!recorder || recorder.state === "inactive") {
+      releaseCallRecorder();
+      return new Blob(chunksRef.current, { type });
+    }
     return new Promise(resolve => {
       recorder.addEventListener("stop", () => {
-        streamRef.current?.getTracks().forEach(track => track.stop());
-        streamRef.current = null;
-        recorderRef.current = null;
-        setRecordingActive(false);
-        resolve(new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" }));
+        releaseCallRecorder();
+        resolve(new Blob(chunksRef.current, { type: recorder.mimeType || type }));
       }, { once: true });
       recorder.stop();
     });
@@ -219,7 +248,8 @@ export function EnquiryCommunications({ item, readiness, compact = false }: { it
     form.set("enquiryId", item.id);
     form.set("callId", callId);
     form.set("consentConfirmed", "true");
-    form.set("file", new File([blob], `call-${callId}.webm`, { type: blob.type || "audio/webm" }));
+    const type = uploadContentType(blob.type || callMimeRef.current);
+    form.set("file", new File([blob], `call-${callId}.${extensionForMime(type)}`, { type }));
     const response = await fetch("/api/portal/website-enquiries/calls/recording", { method: "POST", body: form });
     const payload = await response.json().catch(() => null) as { error?: string } | null;
     if (!response.ok) throw new Error(payload?.error || "The call recording could not be saved.");
@@ -256,29 +286,26 @@ export function EnquiryCommunications({ item, readiness, compact = false }: { it
         recorder.addEventListener("stop", () => resolve(), { once: true });
         recorder.stop();
       });
-      voiceStreamRef.current?.getTracks().forEach(track => track.stop());
+      stopStreamTracks(voiceStreamRef.current);
       voiceStreamRef.current = null;
       voiceRecorderRef.current = null;
       setVoiceRecording(false);
-      const type = recorder.mimeType || "audio/webm";
+      const type = uploadContentType(recorder.mimeType || voiceMimeRef.current);
       const blob = new Blob(voiceChunksRef.current, { type });
-      if (blob.size) await uploadAttachment(new File([blob], `voice-note-${Date.now()}.webm`, { type }));
+      if (blob.size) await uploadAttachment(new File([blob], `voice-note-${Date.now()}.${extensionForMime(type)}`, { type }));
       return;
     }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const type = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : "audio/webm";
-      const recorder = new MediaRecorder(stream, { mimeType: type });
-      voiceChunksRef.current = [];
-      recorder.addEventListener("dataavailable", event => { if (event.data.size) voiceChunksRef.current.push(event.data); });
-      recorder.start(750);
-      voiceStreamRef.current = stream;
-      voiceRecorderRef.current = recorder;
-      setVoiceRecording(true);
-      setNotice("Recording voice note. Press stop when finished.");
-    } catch {
-      setError("Microphone access was not granted for the voice note.");
+    voiceChunksRef.current = [];
+    const started = await beginRecording({ timeslice: 750, onData: chunk => voiceChunksRef.current.push(chunk) });
+    if (!started.ok) {
+      setError(voiceNoteFailureMessage(started));
+      return;
     }
+    voiceStreamRef.current = started.stream;
+    voiceRecorderRef.current = started.recorder;
+    voiceMimeRef.current = started.mimeType;
+    setVoiceRecording(true);
+    setNotice("Recording voice note. Press stop when finished.");
   }
 
   return <div className={compact ? "" : "border-t border-black/[0.07] pt-4"}>

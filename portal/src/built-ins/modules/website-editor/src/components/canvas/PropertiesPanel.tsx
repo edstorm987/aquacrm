@@ -10,6 +10,7 @@ import { getBlockDefinition, type PropField } from "../blockRegistry";
 import { STYLE_FIELD_GROUPS } from "../blockStyles";
 import AssetPicker from "../AssetPicker";
 import { createGroup as createSplitTestGroup, listGroups as listSplitTestGroups, statusTone as splitTestStatusTone } from "../../lib/splitTests";
+import { featureBackendGap } from "../../lib/featureBackends";
 import { getActiveSiteId } from "../../lib/sites";
 
 interface PropertiesPanelProps {
@@ -92,11 +93,25 @@ function tabClass(active: boolean) {
   return `flex-1 py-1.5 text-[10px] font-semibold tracking-[0.18em] uppercase ${active ? "text-brand-orange border-b-2 border-brand-orange" : "text-brand-cream/55 hover:text-brand-cream"}`;
 }
 
+// The Split tab, and the gap behind it.
+//
+// `lib/splitTests.ts` fetches `/api/portal/website-editor/split-tests`, which
+// no module declares and no handler serves. `listGroups()` turns that 404 into
+// `[]`, so the tab rendered "Block is not in any split-test group yet." — a
+// genuine empty state's exact wording — over a feature that has no server, and
+// offered a Create button that could only ever answer "Could not create group".
+//
+// This is the same answer `NewFunnelModal` gives for funnels, from the same
+// registry: state the cause up front, and do not offer a control that cannot
+// succeed. Delete the notice with the FEATURE_BACKEND_GAPS entry the moment the
+// route lands — `smoke-editor-feature-backends.test.ts` fails if one outlives
+// the other.
 function SplitTestEditor({ block, onPatch, fields }: { block: Block; onPatch: (patch: Partial<Block>) => void; fields: PropField[] }) {
   const [groups, setGroups] = useState<SplitTestGroup[]>([]);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const splitGap = featureBackendGap("split-tests");
 
   async function refresh() {
     const id = getActiveSiteId();
@@ -147,7 +162,9 @@ function SplitTestEditor({ block, onPatch, fields }: { block: Block; onPatch: (p
     const id = getActiveSiteId();
     if (!id || !newName.trim()) return;
     const g = await createSplitTestGroup({ siteId: id, name: newName.trim(), trafficPercent: 100, stickyBy: "visitor" });
-    if (!g) { setError("Could not create group"); return; }
+    // Name the real cause when there is one, rather than "Could not create
+    // group" — which reads as something worth retrying, and is not.
+    if (!g) { setError(splitGap ? splitGap.reason : "Could not create group"); return; }
     setNewName(""); setCreating(false);
     void refresh();
     // Auto-add the current block.
@@ -159,13 +176,25 @@ function SplitTestEditor({ block, onPatch, fields }: { block: Block; onPatch: (p
 
   return (
     <div className="space-y-3">
-      <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3">
-        <p className="text-[11px] text-cyan-400/85 leading-relaxed">
-          <strong className="text-cyan-300">Split testing</strong> · Add this block to one or more groups, then define variant values that get rolled out per the group&apos;s traffic %. Visitors see a sticky variant; exposures + conversions are tracked.
-        </p>
-      </div>
+      {splitGap ? (
+        /* Said BEFORE anything else on the tab, not only after a failed
+           create. The list below is empty because the feature has no server,
+           and "exposures + conversions are tracked" would be a claim about
+           measurement that nothing performs. */
+        <div className="rounded-lg border border-amber-400/25 bg-amber-500/5 p-3">
+          <p className="text-[11px] leading-relaxed text-amber-200/90">
+            <strong className="text-amber-200">Split testing has no server yet</strong> · {splitGap.reason}
+          </p>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3">
+          <p className="text-[11px] text-cyan-400/85 leading-relaxed">
+            <strong className="text-cyan-300">Split testing</strong> · Add this block to one or more groups, then define variant values that get rolled out per the group&apos;s traffic %. Visitors see a sticky variant; exposures + conversions are tracked.
+          </p>
+        </div>
+      )}
 
-      {memberGroups.length === 0 && (
+      {memberGroups.length === 0 && !splitGap && (
         <p className="text-[11px] text-brand-cream/55 leading-relaxed">Block is not in any split-test group yet.</p>
       )}
 
@@ -238,9 +267,16 @@ function SplitTestEditor({ block, onPatch, fields }: { block: Block; onPatch: (p
         </details>
       )}
 
-      {/* Inline new group */}
+      {/* Inline new group. Offering a button that cannot succeed is the same
+          mask as the empty list — so while there is no backend it is disabled,
+          not merely destined to fail. */}
       {!creating ? (
-        <button onClick={() => setCreating(true)} className="w-full px-2 py-1.5 rounded-lg bg-cyan-500/15 text-cyan-400 text-[11px] font-semibold hover:bg-cyan-500/25">
+        <button
+          onClick={() => setCreating(true)}
+          disabled={Boolean(splitGap)}
+          title={splitGap ? splitGap.reason : undefined}
+          className="w-full px-2 py-1.5 rounded-lg bg-cyan-500/15 text-cyan-400 text-[11px] font-semibold hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-cyan-500/15"
+        >
           + Create new split-test group
         </button>
       ) : (

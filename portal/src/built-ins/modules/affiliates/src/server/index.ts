@@ -32,6 +32,9 @@ export {
   requireFoundation,
   containerFor,
   containerWithDeps,
+  isStripeConnectAvailable,
+  isStripeTransferAvailable,
+  stripeConnectFor,
   _containerFromCtx,
 } from "./foundationAdapter";
 export type { AffiliatesFoundation, ContainerForArgs } from "./foundationAdapter";

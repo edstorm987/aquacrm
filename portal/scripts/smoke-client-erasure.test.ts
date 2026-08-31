@@ -1296,3 +1296,158 @@ describe("the customer portal builds its payload field by field", () => {
     assert.match(portal, /file\.customerVisible === true/, "files must stay gated on their visibility flag");
   });
 });
+
+describe("data-compliance check: demo-seeded PII against the erasure surface", () => {
+  // ── Why this block exists ───────────────────────────────────────────────
+  //
+  // Everything above proves erasure works on a client a test just made up.
+  // Nobody had ever asked the other question: what about the PII this codebase
+  // seeds *itself* — the demo tenant Ed shows people, and the sample data the
+  // website editor ships as block defaults? That check was run for the first
+  // time on 2026-08-31 and it has two halves that answer differently.
+  //
+  //   • STATE is clean. A tenant seeded by the REAL `seedDemoAgency()` — not a
+  //     hand-built lookalike, which would only prove the fixture is erasable —
+  //     is offered by the Governance workspace's erasure list and is genuinely
+  //     swept: client record, the account carrying the demo email, activity.
+  //
+  //   • SOURCE is not. A real person (Ed's client Felicia of Luv & Ker) is
+  //     hardcoded as a runtime default in seven files. Erasure operates on
+  //     state, so it removes the row and the next seed puts the person back.
+  //     One of the seven is not demo data at all: `api/tenants/seed` defaults
+  //     its client-owner to `felicia@luvandker.com` — the REAL address.
+  //
+  // Replacing the persona is Ed's call (his demo branding, and it re-pins
+  // several website-editor tests), so this block does not change it. What it
+  // does is make the gap impossible to lose: the limit must be stated where a
+  // machine reads it (the semantic registry) and where a human reads it (the
+  // hazards register), and an EIGHTH hardcoded persona fails the sweep.
+  //
+  // This describe runs last in the file on purpose — it erases the demo tenant.
+
+  let demoSeed: typeof import("../src/lib/server/seeds/demoSeed");
+  let governance: typeof import("../src/app/portal/agency/governance/_governanceData");
+  let users: typeof import("../src/server/users");
+  let demoAgencyId: string;
+  let demoClientId: string;
+
+  before(async () => {
+    demoSeed = await import("../src/lib/server/seeds/demoSeed");
+    governance = await import("../src/app/portal/agency/governance/_governanceData");
+    users = await import("../src/server/users");
+    const seeded = await demoSeed.seedDemoAgency("compliance-audit");
+    demoAgencyId = seeded.agency.id;
+    demoClientId = seeded.client.id;
+  });
+
+  it("offers the demo tenant's client to the governance erasure surface", async () => {
+    // If demo PII were not on this list, the erasure tool could not be pointed
+    // at it at all and the "we can erase on request" claim would have a hole.
+    const snapshot = await governance.buildGovernanceSnapshot({ agencyId: demoAgencyId });
+    const row = snapshot.erasureClients.find(client => client.id === demoClientId);
+    assert.ok(
+      row,
+      "the demo-seeded client is not offered by the Governance erasure list — demo PII would be unerasable "
+      + "through the product's own surface",
+    );
+    assert.equal(row!.name, demoSeed.DEMO_CLIENT_NAME);
+  });
+
+  it("erases the demo persona out of state — record, account and activity", async () => {
+    activity.logActivity({
+      agencyId: demoAgencyId, clientId: demoClientId, category: "tenant",
+      action: "demo.audit_probe", message: "seeded activity for the compliance audit",
+    });
+    assert.ok(users.getUser(demoSeed.DEMO_CLIENT_EMAIL), "precondition: the demo client-owner account exists");
+
+    const result = await erasure.eraseClientCompletely({
+      agencyId: demoAgencyId, clientId: demoClientId, actorUserId: "compliance-audit",
+    });
+    assert.ok(result, "erasure refused the demo client");
+    assert.equal(result!.completed, true);
+
+    assert.equal(tenants.getClientForAgency(demoAgencyId, demoClientId), null, "the demo client record survived");
+    assert.equal(
+      users.getUser(demoSeed.DEMO_CLIENT_EMAIL),
+      null,
+      `the account carrying ${demoSeed.DEMO_CLIENT_EMAIL} survived the erasure — a demo tenant is not exempt`,
+    );
+    assert.equal(
+      storage.getState().activity.some(entry => entry.clientId === demoClientId),
+      false,
+      "activity stamped with the erased demo client survived",
+    );
+  });
+
+  it("cannot reach the persona compiled into source — and the semantic registry says so", () => {
+    // The erasure above committed. The person is still in the codebase, so the
+    // very next `seedDemoAgency()` restores them. That is not a bug erasure can
+    // fix — it is a limit of erasing STATE — but a limit nobody wrote down is
+    // indistinguishable from an over-claim, and `semanticRegistry.ts` was
+    // over-claiming: "clientErasure.ts sweeps the client's PII" full stop.
+    const seedSource = readFileSync("src/lib/server/seeds/demoSeed.ts", "utf8");
+    assert.match(
+      seedSource,
+      /DEMO_CLIENT_EMAIL = "felicia@luvandker\.demo"/,
+      "the demo persona is expected to STILL be a source constant after an erasure — if it is gone, this "
+      + "audit's finding has been fixed and this block plus the hazards entry should be retired together",
+    );
+
+    const registry = readFileSync("src/lib/data/semanticRegistry.ts", "utf8");
+    const client = registry.slice(registry.indexOf('id: "client",'));
+    const retention = /retention:\s*((?:"[^"]*"\s*\+?\s*)+)/.exec(client);
+    assert.ok(retention, "the client entity must still declare a retention rule");
+    assert.match(
+      retention![1],
+      /source constant|codebase|next seed|re-?seed/i,
+      "semanticRegistry's `client` retention says erasure sweeps the client's PII. That is true of state and "
+      + "NOT of the persona hardcoded in demoSeed.ts / api/tenants/seed / the website-editor block defaults, "
+      + "which a re-seed restores. The retention line must name that limit rather than imply the person is gone.",
+    );
+  });
+
+  it("declares every source file that hardcodes the real persona as a runtime default", () => {
+    // The sweep, and what it deliberately ignores: a comment mentioning the
+    // client is context for the next reader, and a form `placeholder` is
+    // example text a user overwrites. Neither is stored, seeded or rendered as
+    // somebody's data. What is left is the persona used as a real VALUE.
+    const PERSONA = /Felicia|Luv\s*&\s*Ker|luvandker|Ghanaian/;
+    const sourceFiles = execSync(
+      String.raw`find src \( -name '*.ts' -o -name '*.tsx' \) | sort`,
+      { encoding: "utf8" },
+    ).split("\n").filter(Boolean)
+      .filter(file => !/__smoke__|__tests__|\.test\./.test(file));
+
+    const offenders = sourceFiles.filter(file =>
+      readFileSync(file, "utf8").split("\n").some(raw => {
+        const trimmed = raw.trim();
+        if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) return false;
+        // Strip a trailing line comment. `\s//` cannot match inside `https://`.
+        const code = raw.replace(/(^|\s)\/\/.*$/, "$1");
+        if (/placeholder/i.test(code)) return false;
+        return PERSONA.test(code);
+      }),
+    );
+
+    const hazards = readFileSync("docs/workspace/hazards-and-duplication.md", "utf8");
+    const undeclared = offenders.filter(file => !hazards.includes(file));
+
+    assert.deepEqual(
+      undeclared,
+      [],
+      "A source file hardcodes a real person's identity (Felicia / Luv & Ker) as a runtime default and is not "
+      + "declared in docs/workspace/hazards-and-duplication.md. Client erasure sweeps STATE, so it can never "
+      + "reach this — a re-seed restores the person. Either use a synthetic persona, or add the file to the "
+      + "hazards table with what it holds and why it has to be a real person:\n  " + undeclared.join("\n  "),
+    );
+
+    // Guards the guard: a sweep that finds nothing would pass silently if the
+    // persona were renamed, and the audit would quietly stop being performed.
+    assert.ok(
+      offenders.length >= 7,
+      `the persona sweep found only ${offenders.length} files; it found 7 when this audit was run on `
+      + "2026-08-31. If the persona was genuinely replaced, retire this block and the hazards entry together "
+      + "rather than leaving a sweep that cannot fail.",
+    );
+  });
+});

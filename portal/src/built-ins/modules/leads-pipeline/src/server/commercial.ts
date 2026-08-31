@@ -1,15 +1,19 @@
+import { createHash } from "node:crypto";
+
 import { makeId } from "../lib/ids";
 import { now } from "../lib/time";
 import type { AgencyId, UserId } from "../lib/tenancy";
 import type {
+  CommercialDocumentStatus,
   CommercialPack,
   CommercialPartyKind,
   CommercialPayment,
   CommercialPaymentMethod,
+  CommercialPaymentSource,
   SaveCommercialPackInput,
 } from "../lib/domain";
 import type { PluginStorage } from "../lib/aquaPluginTypes";
-import type { ActivityLogPort, EmailEnqueuePort, EventBusPort } from "./ports";
+import type { ActivityLogPort, EmailEnqueuePort, EmailEnqueueResult, EventBusPort } from "./ports";
 
 const partyKey = (kind: CommercialPartyKind, id: string) => `commercial/party/${kind}/${id}`;
 const tokenKey = (token: string) => `commercial/token/${token}`;
@@ -48,6 +52,133 @@ export class CommercialPaymentConflictError extends Error {
   }
 }
 
+/**
+ * Acceptance was attempted against terms that are not the version on offer —
+ * a draft that was never sent, or a version superseded by an amendment.
+ */
+export class CommercialAcceptanceStateError extends Error {
+  constructor(readonly agreementStatus: CommercialDocumentStatus) {
+    super(agreementStatus === "draft"
+      ? "This proposal has not been sent for signature yet, so it cannot be accepted."
+      : "These terms are not the version that was sent for signature, so they cannot be accepted.");
+    this.name = "CommercialAcceptanceStateError";
+  }
+}
+
+/**
+ * What happened when the installment plan's stop was evaluated.
+ *
+ * `requested` is deliberately not called "cancelled": Stripe accepting the call
+ * means it was asked, and only a later `customer.subscription.*` event is
+ * allowed to stamp `subscriptionCancelConfirmedAt`.
+ */
+export type InstallmentStopOutcome =
+  | { status: "not-due" | "already-stopped" | "requested"; collected: number; promised: number }
+  | { status: "refused" | "unavailable"; collected: number; promised: number; error: string };
+
+export interface RecordCommercialPaymentInput {
+  amountCents: number;
+  method: CommercialPaymentMethod;
+  reference?: string;
+  paidAt?: number;
+  /** Provenance. Omitted means a person recorded this row by hand. */
+  source?: CommercialPaymentSource;
+  /** Required with `source: "stripe-subscription"` — the subscription that collected it. */
+  stripeSubscriptionId?: string;
+}
+
+/**
+ * How many of the promised installments Stripe has actually collected.
+ *
+ * Counts DEDUPED invoices attributable to one subscription, not "payments whose
+ * method is stripe": a row a human recorded by hand — reconciling a bank
+ * transfer, say, and picking "stripe" — is not evidence that the subscription
+ * billed, and counting it cancelled the plan early.
+ *
+ * Rows written before payments carried their provenance have no `source` at
+ * all. Their method is the only thing known about them, so they are counted
+ * rather than dropped: under-counting would let the subscription bill past the
+ * number the customer agreed to, which is the harm this stop exists to prevent.
+ */
+export function collectedSubscriptionInstallments(pack: CommercialPack, subscriptionId: string): number {
+  const invoices = new Set<string>();
+  for (const payment of pack.payments) {
+    const attributable = payment.source === "stripe-subscription"
+      ? payment.stripeSubscriptionId === subscriptionId
+      : payment.source === undefined && payment.method === "stripe";
+    if (!attributable) continue;
+    invoices.add(canonicalPaymentReference(payment.reference ?? payment.id));
+  }
+  return invoices.size;
+}
+
+/** Everything the recipient reads on the proposal page before agreeing. */
+type ReviewableTerms = Pick<CommercialPack,
+  | "lineItems" | "subtotalCents" | "taxCents" | "totalCents" | "currency" | "dueAt"
+  | "billingCadence" | "installmentCount" | "serviceLevel" | "agreementTitle"
+  | "agreementBody" | "notes">;
+
+/** The subset a payment session is priced from. */
+type PayableTerms = Pick<CommercialPack,
+  | "lineItems" | "subtotalCents" | "taxCents" | "totalCents" | "currency"
+  | "billingCadence" | "installmentCount" | "dueAt">;
+
+function digest(parts: unknown): string {
+  return createHash("sha256").update(JSON.stringify(parts)).digest("hex").slice(0, 32);
+}
+
+/**
+ * A change here means any Checkout session created earlier was priced for terms
+ * that no longer exist, so the stored session must be dropped rather than reused.
+ */
+export function commercialFinancialHash(terms: PayableTerms): string {
+  return digest([
+    terms.lineItems.map(item => [item.description, item.quantity, item.unitCents]),
+    terms.subtotalCents,
+    terms.taxCents,
+    terms.totalCents,
+    terms.currency,
+    terms.billingCadence,
+    terms.installmentCount ?? null,
+    terms.dueAt,
+  ]);
+}
+
+/** A change here means the recipient would be reading different terms. */
+export function commercialContentHash(terms: ReviewableTerms): string {
+  return digest([
+    commercialFinancialHash(terms),
+    terms.serviceLevel,
+    terms.agreementTitle,
+    terms.agreementBody,
+    terms.notes ?? "",
+  ]);
+}
+
+/**
+ * Backfill the version identity for a pack persisted before acceptance was
+ * version-bound. What is stored IS version 1, and a pack already marked
+ * sent/accepted had exactly that content delivered and agreed, so the milestone
+ * versions are 1 as well. Without this an older accepted pack would look like it
+ * had accepted nothing, and its next save would read as an amendment.
+ */
+function withVersionIdentity(pack: CommercialPack): CommercialPack {
+  if (typeof pack.version === "number" && pack.contentHash && pack.financialHash) return pack;
+  const version = pack.version ?? 1;
+  const contentHash = pack.contentHash ?? commercialContentHash(pack);
+  const accepted = pack.agreementStatus === "accepted";
+  return {
+    ...pack,
+    version,
+    contentHash,
+    financialHash: pack.financialHash ?? commercialFinancialHash(pack),
+    sentVersion: pack.sentVersion ?? (pack.agreementStatus === "draft" ? undefined : version),
+    acceptedVersion: pack.acceptedVersion ?? (accepted ? version : undefined),
+    acceptedContentHash: pack.acceptedContentHash ?? (accepted ? contentHash : undefined),
+    signedDocumentVersion: pack.signedDocumentVersion ?? (pack.signedDocumentDataUrl ? version : undefined),
+  };
+}
+
 export class CommercialService {
   constructor(
     private agencyId: AgencyId,
@@ -58,8 +189,9 @@ export class CommercialService {
   ) {}
 
   async get(kind: CommercialPartyKind, partyId: string): Promise<CommercialPack | null> {
-    const pack = await this.storage.get<CommercialPack>(partyKey(kind, partyId));
-    if (pack?.agencyId !== this.agencyId) return null;
+    const stored = await this.storage.get<CommercialPack>(partyKey(kind, partyId));
+    if (stored?.agencyId !== this.agencyId) return null;
+    const pack = withVersionIdentity(stored);
     const ledgerKeys = await this.storage.list(paymentPrefix(pack.id));
     if (!ledgerKeys.length) return pack;
     const paymentsById = new Map(pack.payments.map(payment => [payment.id, payment]));
@@ -111,6 +243,50 @@ export class CommercialService {
       const year = new Date(ts).getUTCFullYear();
       invoiceNumber = await this.allocateInvoiceNumber(input.partyKind, input.partyId, year, ts);
     }
+
+    const terms: ReviewableTerms = {
+      lineItems,
+      subtotalCents,
+      taxCents,
+      totalCents: subtotalCents + taxCents,
+      currency: input.currency ?? existing?.currency ?? "gbp",
+      dueAt: input.dueAt,
+      billingCadence: input.billingCadence,
+      installmentCount: input.billingCadence === "installments" ? Math.max(2, Math.round(input.installmentCount ?? 2)) : undefined,
+      serviceLevel: input.serviceLevel.trim() || "Custom service",
+      agreementTitle: input.agreementTitle.trim() || "Service level agreement",
+      agreementBody: input.agreementBody.trim(),
+      notes: input.notes?.trim() || undefined,
+    };
+    const contentHash = commercialContentHash(terms);
+    const financialHash = commercialFinancialHash(terms);
+    // An "issued" pack is one the recipient has already been shown. Editing its
+    // reviewable content does not rewrite what they saw: it SUPERSEDES it with a
+    // new draft version, and the superseded version keeps its own acceptance.
+    // That is the whole point — an acceptance must name terms, not a record.
+    const issued = existing ? existing.agreementStatus !== "draft" || existing.sentVersion !== undefined : false;
+    const amends = Boolean(existing) && issued && existing?.contentHash !== contentHash;
+    const version = existing ? (amends ? existing.version + 1 : existing.version) : 1;
+    const revisions = amends && existing
+      ? [...(existing.revisions ?? []), {
+        version: existing.version,
+        contentHash: existing.contentHash,
+        totalCents: existing.totalCents,
+        currency: existing.currency,
+        agreementTitle: existing.agreementTitle,
+        supersededAt: ts,
+        acceptedAt: existing.acceptedAt,
+        acceptedBy: existing.acceptedBy,
+      }]
+      : existing?.revisions;
+    // Milestones belong to the version that earned them. An amendment starts a
+    // new draft, so nothing sent/accepted-shaped may be carried onto it.
+    const carried = amends ? null : existing;
+    // A Checkout session is priced for one exact set of payable terms. Once those
+    // change the stored session no longer matches the invoice, so it is dropped
+    // instead of being left for "Pay securely" to open at the old amount.
+    const keepCheckout = Boolean(existing) && existing?.financialHash === financialHash;
+
     const pack: CommercialPack = {
       id: existing?.id ?? makeId("com"),
       agencyId: this.agencyId,
@@ -124,30 +300,52 @@ export class CommercialService {
       recipientEmail: input.recipientEmail.trim().toLowerCase(),
       publicToken: existing?.publicToken ?? `${makeId("proposal")}${makeId("").replace(/^_/, "")}`,
       invoiceNumber,
-      invoiceStatus: existing?.invoiceStatus ?? "draft",
-      agreementStatus: existing?.agreementStatus ?? "draft",
-      lineItems,
-      subtotalCents,
-      taxCents,
-      totalCents: subtotalCents + taxCents,
-      currency: input.currency ?? existing?.currency ?? "gbp",
-      dueAt: input.dueAt,
-      billingCadence: input.billingCadence,
-      installmentCount: input.billingCadence === "installments" ? Math.max(2, Math.round(input.installmentCount ?? 2)) : undefined,
-      serviceLevel: input.serviceLevel.trim() || "Custom service",
-      agreementTitle: input.agreementTitle.trim() || "Service level agreement",
-      agreementBody: input.agreementBody.trim(),
-      notes: input.notes?.trim() || undefined,
+      // A superseded invoice returns to draft unless it has actually been paid;
+      // money that changed hands is a fact the amendment cannot undo.
+      invoiceStatus: amends && existing?.invoiceStatus !== "paid" ? "draft" : existing?.invoiceStatus ?? "draft",
+      agreementStatus: amends ? "draft" : existing?.agreementStatus ?? "draft",
+      version,
+      contentHash,
+      financialHash,
+      revisions: revisions?.length ? revisions : undefined,
+      sentVersion: carried?.sentVersion,
+      ...terms,
       signedDocumentName: input.signedDocumentName ?? existing?.signedDocumentName,
       signedDocumentDataUrl: input.signedDocumentDataUrl ?? existing?.signedDocumentDataUrl,
+      // A countersigned copy signs one version. The modal re-sends the same data
+      // URL on every save, so only a genuinely NEW file re-stamps the version —
+      // otherwise an amendment would inherit a signature of the old wording.
+      signedDocumentVersion: input.signedDocumentDataUrl && input.signedDocumentDataUrl !== existing?.signedDocumentDataUrl
+        ? version
+        : existing?.signedDocumentVersion,
       payments: existing?.payments ?? [],
-      stripeCheckoutId: existing?.stripeCheckoutId,
-      stripeCheckoutUrl: existing?.stripeCheckoutUrl,
+      stripeCheckoutId: keepCheckout ? existing?.stripeCheckoutId : undefined,
+      stripeCheckoutUrl: keepCheckout ? existing?.stripeCheckoutUrl : undefined,
+      stripeCheckoutVersion: keepCheckout ? existing?.stripeCheckoutVersion : undefined,
+      stripeCheckoutFinancialHash: keepCheckout ? existing?.stripeCheckoutFinancialHash : undefined,
       stripeSubscriptionId: existing?.stripeSubscriptionId,
+      // The stop lifecycle is a fact about the live subscription, which an
+      // amendment of the wording does not cancel — dropping it here would erase
+      // a recorded cancellation failure and make the plan look untouched.
+      subscriptionCancelRequestedAt: existing?.subscriptionCancelRequestedAt,
+      subscriptionCancelAttempts: existing?.subscriptionCancelAttempts,
+      subscriptionCancelError: existing?.subscriptionCancelError,
+      subscriptionCancelConfirmedAt: existing?.subscriptionCancelConfirmedAt,
       financeInvoiceId: existing?.financeInvoiceId,
-      emailMessageId: existing?.emailMessageId,
-      sentAt: existing?.sentAt,
-      acceptedAt: existing?.acceptedAt,
+      // The delivery record is a fact about the version that was emailed. An
+      // amendment has never been emailed, so carrying "delivered" onto it would
+      // leave the agency's readiness panel reporting an email that never went
+      // out for these terms. (A failed or queued send never sets sentVersion, so
+      // it never amends — a retry keeps its error and its retry handle.)
+      emailMessageId: carried?.emailMessageId,
+      deliveryStatus: carried?.deliveryStatus,
+      deliveryError: carried?.deliveryError,
+      deliveryAttemptedAt: carried?.deliveryAttemptedAt,
+      sentAt: carried?.sentAt,
+      acceptedAt: carried?.acceptedAt,
+      acceptedBy: carried?.acceptedBy,
+      acceptedVersion: carried?.acceptedVersion,
+      acceptedContentHash: carried?.acceptedContentHash,
       createdAt: existing?.createdAt ?? ts,
       updatedAt: ts,
     };
@@ -156,23 +354,59 @@ export class CommercialService {
       agencyId: this.agencyId,
       actorUserId: actor,
       category: "leads",
-      action: existing ? "commercial.updated" : "commercial.created",
-      message: `${existing ? "Updated" : "Created"} commercial pack ${pack.invoiceNumber} for ${pack.partyKind} ${pack.partyId}.`,
-      metadata: { commercialPackId: pack.id, partyKind: pack.partyKind, partyId: pack.partyId },
+      action: amends ? "commercial.amended" : existing ? "commercial.updated" : "commercial.created",
+      message: amends
+        ? `Amended commercial pack ${pack.invoiceNumber} for ${pack.partyKind} ${pack.partyId} as version ${pack.version}. Version ${version - 1}${existing?.acceptedAt ? ", and the acceptance recorded against it," : ""} is retained; the new terms are an unsent draft and must be sent again for signature.`
+        : `${existing ? "Updated" : "Created"} commercial pack ${pack.invoiceNumber} for ${pack.partyKind} ${pack.partyId}.`,
+      metadata: {
+        commercialPackId: pack.id,
+        partyKind: pack.partyKind,
+        partyId: pack.partyId,
+        version: pack.version,
+        supersededVersion: amends ? version - 1 : undefined,
+        checkoutInvalidated: !keepCheckout && Boolean(existing?.stripeCheckoutId),
+      },
     });
     return pack;
   }
 
-  async attachStripe(kind: CommercialPartyKind, partyId: string, checkout: { id: string; url: string }): Promise<CommercialPack | null> {
+  /**
+   * Store a Checkout session against the exact terms it was priced for.
+   *
+   * `forFinancialHash` is the hash of the pack the caller built the session from.
+   * If the invoice moved on in between, that session is already stale, so it is
+   * refused rather than stored — `attached:false` — and the caller must price a
+   * new one. Storing it would recreate the very defect this binding exists to
+   * close: a payment link that charges terms nobody is looking at.
+   */
+  async attachStripe(kind: CommercialPartyKind, partyId: string, checkout: {
+    id: string;
+    url: string;
+    forVersion: number;
+    forFinancialHash: string;
+  }): Promise<{ pack: CommercialPack; attached: boolean } | null> {
     return withCommercialLock(this.agencyId, () => this.attachStripeUnlocked(kind, partyId, checkout));
   }
 
-  private async attachStripeUnlocked(kind: CommercialPartyKind, partyId: string, checkout: { id: string; url: string }): Promise<CommercialPack | null> {
+  private async attachStripeUnlocked(kind: CommercialPartyKind, partyId: string, checkout: {
+    id: string;
+    url: string;
+    forVersion: number;
+    forFinancialHash: string;
+  }): Promise<{ pack: CommercialPack; attached: boolean } | null> {
     const pack = await this.get(kind, partyId);
     if (!pack) return null;
-    const next = { ...pack, stripeCheckoutId: checkout.id, stripeCheckoutUrl: checkout.url, updatedAt: now() };
+    if (pack.financialHash !== checkout.forFinancialHash) return { pack, attached: false };
+    const next: CommercialPack = {
+      ...pack,
+      stripeCheckoutId: checkout.id,
+      stripeCheckoutUrl: checkout.url,
+      stripeCheckoutVersion: checkout.forVersion,
+      stripeCheckoutFinancialHash: checkout.forFinancialHash,
+      updatedAt: now(),
+    };
     await this.persist(next);
-    return next;
+    return { pack: next, attached: true };
   }
 
   async attachStripeSubscription(kind: CommercialPartyKind, partyId: string, subscriptionId: string): Promise<CommercialPack | null> {
@@ -183,6 +417,113 @@ export class CommercialService {
     const pack = await this.get(kind, partyId);
     if (!pack) return null;
     const next = { ...pack, stripeSubscriptionId: subscriptionId, updatedAt: now() };
+    await this.persist(next);
+    return next;
+  }
+
+  /**
+   * Stop the installment subscription once — and only once — Stripe has
+   * actually collected every promised installment.
+   *
+   * The decision, the counting rule and the durable record of what happened all
+   * live here rather than in the HTTP handler, so the caller supplies only the
+   * provider call itself (`requestStop`) and maps the outcome onto a status
+   * code. That keeps the honest part — "asked" is not "confirmed", a refusal is
+   * retained rather than acknowledged as success — testable without Stripe.
+   */
+  async completeInstallments(kind: CommercialPartyKind, partyId: string, input: {
+    subscriptionId: string;
+    requestStop: () => Promise<{ ok: boolean; error?: string }>;
+  }): Promise<InstallmentStopOutcome> {
+    const pack = await this.get(kind, partyId);
+    if (!pack || pack.billingCadence !== "installments" || !pack.installmentCount) {
+      return { status: "not-due", collected: 0, promised: 0 };
+    }
+    // A webhook for some other subscription cannot complete this plan.
+    if (pack.stripeSubscriptionId && pack.stripeSubscriptionId !== input.subscriptionId) {
+      return { status: "not-due", collected: 0, promised: pack.installmentCount };
+    }
+    const collected = collectedSubscriptionInstallments(pack, input.subscriptionId);
+    if (collected < pack.installmentCount) {
+      return { status: "not-due", collected, promised: pack.installmentCount };
+    }
+    if (pack.subscriptionCancelConfirmedAt) return { status: "already-stopped", collected, promised: pack.installmentCount };
+    const attemptedAt = now();
+    let result: { ok: boolean; error?: string };
+    try {
+      result = await input.requestStop();
+    } catch (error) {
+      // The provider never answered, so whether it stopped is unknown. Retain
+      // the attempt and let the caller ask Stripe to redeliver.
+      const failure = error instanceof Error ? error.message : String(error);
+      await this.recordSubscriptionCancellation(kind, partyId, { subscriptionId: input.subscriptionId, attemptedAt, failure });
+      return { status: "unavailable", collected, promised: pack.installmentCount, error: failure };
+    }
+    const failure = result.ok ? undefined : result.error ?? "Stripe refused the cancellation.";
+    // Persist BEFORE answering: a refusal that only lived in the HTTP status
+    // would vanish the moment Stripe stopped redelivering.
+    await this.recordSubscriptionCancellation(kind, partyId, { subscriptionId: input.subscriptionId, attemptedAt, failure });
+    return failure
+      ? { status: "refused", collected, promised: pack.installmentCount, error: failure }
+      : { status: "requested", collected, promised: pack.installmentCount };
+  }
+
+  /**
+   * Record where the installment subscription's stop has actually got to.
+   *
+   * "We asked Stripe to cancel" is not "Stripe cancelled", so the two are
+   * separate facts here. An attempt stamps the request and counts the try; a
+   * refusal retains its exact reason so a permanent failure stays visible after
+   * Stripe stops redelivering; `confirmedAt` is stamped only when Stripe itself
+   * says the subscription will not bill again, never from our own 200.
+   */
+  async recordSubscriptionCancellation(kind: CommercialPartyKind, partyId: string, outcome: {
+    subscriptionId: string;
+    attemptedAt?: number;
+    failure?: string;
+    confirmedAt?: number;
+    /** Stripe says this subscription is live again — clears the stop record. */
+    reopenedAt?: number;
+  }): Promise<CommercialPack | null> {
+    return withCommercialLock(this.agencyId, () => this.recordSubscriptionCancellationUnlocked(kind, partyId, outcome));
+  }
+
+  private async recordSubscriptionCancellationUnlocked(kind: CommercialPartyKind, partyId: string, outcome: {
+    subscriptionId: string;
+    attemptedAt?: number;
+    failure?: string;
+    confirmedAt?: number;
+    reopenedAt?: number;
+  }): Promise<CommercialPack | null> {
+    const pack = await this.get(kind, partyId);
+    if (!pack) return null;
+    // A confirmation for some other subscription says nothing about this pack's.
+    if (pack.stripeSubscriptionId && pack.stripeSubscriptionId !== outcome.subscriptionId) return pack;
+    const next: CommercialPack = { ...pack, updatedAt: now() };
+    if (outcome.attemptedAt) {
+      next.subscriptionCancelRequestedAt = pack.subscriptionCancelRequestedAt ?? outcome.attemptedAt;
+      next.subscriptionCancelAttempts = (pack.subscriptionCancelAttempts ?? 0) + 1;
+      next.subscriptionCancelError = outcome.failure;
+    } else if (outcome.failure) {
+      next.subscriptionCancelError = outcome.failure;
+    }
+    if (outcome.confirmedAt) {
+      next.subscriptionCancelConfirmedAt = pack.subscriptionCancelConfirmedAt ?? outcome.confirmedAt;
+      next.subscriptionCancelError = undefined;
+    }
+    // A stop is a claim about Stripe's state, not a one-way latch. If someone
+    // un-cancels in the dashboard, Stripe reports the subscription active and
+    // not cancelling again — and a pack still stamped `confirmedAt` would
+    // short-circuit `completeInstallments` to "already-stopped" for good, so
+    // the subscription would quietly bill past the promised count with the
+    // stored state insisting it had stopped. Clearing the whole attempt record
+    // (not just the confirmation) is what lets the stop be re-requested.
+    if (outcome.reopenedAt) {
+      next.subscriptionCancelConfirmedAt = undefined;
+      next.subscriptionCancelRequestedAt = undefined;
+      next.subscriptionCancelAttempts = undefined;
+      next.subscriptionCancelError = undefined;
+    }
     await this.persist(next);
     return next;
   }
@@ -201,29 +542,50 @@ export class CommercialService {
     const paymentLink = pack.stripeCheckoutUrl
       ? `<p><a href="${escapeHtml(pack.stripeCheckoutUrl)}">Pay securely by card</a></p>`
       : `<p>Bank transfer or cash payment can be arranged with ${escapeHtml(publicBrand)}.</p>`;
-    const result = await (this.email.send?.({
-      agencyId: this.agencyId,
-      to: pack.recipientEmail,
-      subject: `${pack.invoiceNumber} and ${pack.agreementTitle}`,
-      bodyHtml: `<h1>Your ${escapeHtml(publicBrand)} proposal</h1><p>Hello ${escapeHtml(pack.recipientName ?? "there")},</p><p>Your invoice and service agreement are ready to review.</p><p><strong>${escapeHtml(pack.serviceLevel)}</strong><br>${escapeHtml(cadence)}<br>Total ${(pack.totalCents / 100).toFixed(2)} ${pack.currency.toUpperCase()}</p><p><a href="${escapeHtml(proposalUrl)}">Review invoice and agreement</a></p>${paymentLink}<p>Please keep this email for your records.</p>`,
-      bodyText: `Your ${publicBrand} invoice and agreement are ready: ${proposalUrl}${pack.stripeCheckoutUrl ? `\nPay securely: ${pack.stripeCheckoutUrl}` : ""}`,
-      triggeredByPlugin: "leads-pipeline",
-      externalRef: `commercial:${pack.id}:${pack.updatedAt}`,
-    }) ?? this.email.enqueue({
-      agencyId: this.agencyId,
-      to: pack.recipientEmail,
-      subject: `${pack.invoiceNumber} and ${pack.agreementTitle}`,
-      bodyText: `Your Milesymedia invoice and agreement are ready: ${proposalUrl}${pack.stripeCheckoutUrl ? `\nPay securely: ${pack.stripeCheckoutUrl}` : ""}`,
-      triggeredByPlugin: "leads-pipeline",
-      externalRef: `commercial:${pack.id}:${pack.updatedAt}`,
-    }));
+    let result: EmailEnqueueResult;
+    try {
+      result = await (this.email.send?.({
+        agencyId: this.agencyId,
+        to: pack.recipientEmail,
+        subject: `${pack.invoiceNumber} and ${pack.agreementTitle}`,
+        bodyHtml: `<h1>Your ${escapeHtml(publicBrand)} proposal</h1><p>Hello ${escapeHtml(pack.recipientName ?? "there")},</p><p>Your invoice and service agreement are ready to review.</p><p><strong>${escapeHtml(pack.serviceLevel)}</strong><br>${escapeHtml(cadence)}<br>Total ${(pack.totalCents / 100).toFixed(2)} ${pack.currency.toUpperCase()}</p><p><a href="${escapeHtml(proposalUrl)}">Review invoice and agreement</a></p>${paymentLink}<p>Please keep this email for your records.</p>`,
+        bodyText: `Your ${publicBrand} invoice and agreement are ready: ${proposalUrl}${pack.stripeCheckoutUrl ? `\nPay securely: ${pack.stripeCheckoutUrl}` : ""}`,
+        triggeredByPlugin: "leads-pipeline",
+        externalRef: `commercial:${pack.id}:${pack.updatedAt}`,
+      }) ?? this.email.enqueue({
+        agencyId: this.agencyId,
+        to: pack.recipientEmail,
+        subject: `${pack.invoiceNumber} and ${pack.agreementTitle}`,
+        bodyText: `Your Milesymedia invoice and agreement are ready: ${proposalUrl}${pack.stripeCheckoutUrl ? `\nPay securely: ${pack.stripeCheckoutUrl}` : ""}`,
+        triggeredByPlugin: "leads-pipeline",
+        externalRef: `commercial:${pack.id}:${pack.updatedAt}`,
+      }));
+    } catch (error) {
+      // The provider refused before returning a result. Record the refusal on the
+      // pack so the agency can see it and retry, then let the caller see the throw.
+      await this.recordSendRefusal(pack, undefined, error instanceof Error ? error.message : String(error), actor);
+      throw error;
+    }
+    // Three-valued delivery. `delivered === false` is an explicit provider refusal
+    // and must not advance any sent milestone; `undefined` means the message was
+    // only accepted into the queue, which is not confirmation either.
+    if (result.delivered === false) {
+      return this.recordSendRefusal(pack, result.messageId, result.error, actor);
+    }
     const ts = now();
+    const delivered = result.delivered === true;
     const next: CommercialPack = {
       ...pack,
-      invoiceStatus: pack.invoiceStatus === "paid" ? "paid" : "sent",
-      agreementStatus: pack.agreementStatus === "accepted" ? "accepted" : "sent",
+      invoiceStatus: delivered && pack.invoiceStatus !== "paid" ? "sent" : pack.invoiceStatus,
+      agreementStatus: delivered && pack.agreementStatus !== "accepted" ? "sent" : pack.agreementStatus,
       emailMessageId: result.messageId,
-      sentAt: ts,
+      deliveryStatus: delivered ? "delivered" : "queued",
+      deliveryError: undefined,
+      deliveryAttemptedAt: ts,
+      sentAt: delivered ? ts : pack.sentAt,
+      // Only a confirmed delivery puts a version in front of the recipient, and
+      // only the version in front of them can be accepted.
+      sentVersion: delivered ? pack.version : pack.sentVersion,
       updatedAt: ts,
     };
     await this.persist(next);
@@ -231,9 +593,40 @@ export class CommercialService {
       agencyId: this.agencyId,
       actorUserId: actor,
       category: "leads",
-      action: "commercial.sent",
-      message: `Sent ${pack.invoiceNumber} and agreement to ${pack.partyKind} ${pack.partyId}.`,
-      metadata: { commercialPackId: pack.id, messageId: result.messageId },
+      action: delivered ? "commercial.sent" : "commercial.send.queued",
+      message: delivered
+        ? `Sent ${pack.invoiceNumber} and agreement to ${pack.partyKind} ${pack.partyId}.`
+        : `Queued ${pack.invoiceNumber} and agreement for ${pack.partyKind} ${pack.partyId}. The provider has not confirmed delivery, so neither document is marked sent.`,
+      metadata: { commercialPackId: pack.id, messageId: result.messageId, deliveryStatus: next.deliveryStatus },
+    });
+    return next;
+  }
+
+  /** Persist an explicit delivery refusal without advancing any sent milestone. */
+  private async recordSendRefusal(
+    pack: CommercialPack,
+    messageId: string | undefined,
+    error: string | undefined,
+    actor: UserId,
+  ): Promise<CommercialPack> {
+    const ts = now();
+    const reason = error?.trim() || "The email provider refused delivery.";
+    const next: CommercialPack = {
+      ...pack,
+      emailMessageId: messageId ?? pack.emailMessageId,
+      deliveryStatus: "failed",
+      deliveryError: reason,
+      deliveryAttemptedAt: ts,
+      updatedAt: ts,
+    };
+    await this.persist(next);
+    await this.activity.logActivity({
+      agencyId: this.agencyId,
+      actorUserId: actor,
+      category: "leads",
+      action: "commercial.send.failed",
+      message: `Email delivery of ${pack.invoiceNumber} to ${pack.partyKind} ${pack.partyId} failed: ${reason} The invoice and agreement stay unsent until a retry is delivered.`,
+      metadata: { commercialPackId: pack.id, messageId, error: reason },
     });
     return next;
   }
@@ -245,34 +638,46 @@ export class CommercialService {
   private async acceptUnlocked(token: string, acceptedBy: string): Promise<CommercialPack | null> {
     const pack = await this.getByToken(token);
     if (!pack) return null;
+    // Already bound to a version: never re-stamp. A second POST must not move the
+    // acceptance onto whatever the terms happen to say now.
+    if (pack.agreementStatus === "accepted") return pack;
+    // The public token exists from the first draft save, so the token alone is
+    // not permission to sign. Only the version whose delivery was confirmed is
+    // on offer.
+    if (pack.agreementStatus !== "sent" || pack.sentVersion !== pack.version) {
+      throw new CommercialAcceptanceStateError(pack.agreementStatus);
+    }
     const ts = now();
-    const next = { ...pack, agreementStatus: "accepted" as const, acceptedAt: ts, updatedAt: ts };
+    const next: CommercialPack = {
+      ...pack,
+      agreementStatus: "accepted",
+      acceptedAt: ts,
+      acceptedBy,
+      acceptedVersion: pack.version,
+      acceptedContentHash: pack.contentHash,
+      updatedAt: ts,
+    };
     await this.persist(next);
     await this.activity.logActivity({
       agencyId: this.agencyId,
       category: "leads",
       action: "commercial.agreement.accepted",
-      message: `${pack.partyKind} ${pack.partyId} accepted ${pack.agreementTitle}.`,
-      metadata: { commercialPackId: pack.id, acceptedBy },
+      message: `${pack.partyKind} ${pack.partyId} accepted version ${pack.version} of ${pack.agreementTitle}.`,
+      metadata: {
+        commercialPackId: pack.id,
+        acceptedBy,
+        acceptedVersion: pack.version,
+        acceptedContentHash: pack.contentHash,
+      },
     });
     return next;
   }
 
-  async recordPayment(kind: CommercialPartyKind, partyId: string, input: {
-    amountCents: number;
-    method: CommercialPaymentMethod;
-    reference?: string;
-    paidAt?: number;
-  }, actor: UserId): Promise<CommercialPack | null> {
+  async recordPayment(kind: CommercialPartyKind, partyId: string, input: RecordCommercialPaymentInput, actor: UserId): Promise<CommercialPack | null> {
     return withCommercialLock(this.agencyId, () => this.recordPaymentUnlocked(kind, partyId, input, actor));
   }
 
-  private async recordPaymentUnlocked(kind: CommercialPartyKind, partyId: string, input: {
-    amountCents: number;
-    method: CommercialPaymentMethod;
-    reference?: string;
-    paidAt?: number;
-  }, actor: UserId): Promise<CommercialPack | null> {
+  private async recordPaymentUnlocked(kind: CommercialPartyKind, partyId: string, input: RecordCommercialPaymentInput, actor: UserId): Promise<CommercialPack | null> {
     const pack = await this.get(kind, partyId);
     if (!pack) return null;
     const amountCents = Math.round(input.amountCents);
@@ -304,6 +709,10 @@ export class CommercialService {
       method: input.method,
       reference,
       paidAt: input.paidAt ?? now(),
+      // Default "manual": anything that did not name its own provenance was
+      // entered by a person, whatever payment method they picked.
+      source: input.source ?? "manual",
+      stripeSubscriptionId: input.source === "stripe-subscription" ? input.stripeSubscriptionId : undefined,
     };
     const ledgerKey = paymentKey(pack.id, canonicalReference);
     if (this.storage.setIfAbsent) {
@@ -334,7 +743,7 @@ export class CommercialService {
     if (this.email && !payment.receiptSentAt) {
       try {
         const send = this.email.send ?? this.email.enqueue;
-        await send.call(this.email, {
+        const result = await send.call(this.email, {
           agencyId: this.agencyId,
           to: current.recipientEmail,
           subject: `Payment receipt · ${current.invoiceNumber}`,
@@ -343,10 +752,46 @@ export class CommercialService {
           triggeredByPlugin: "leads-pipeline",
           externalRef: `commercial-payment:${current.id}:${payment.id}`,
         });
-        payment = { ...payment, receiptSentAt: now() };
+        // receiptSentAt is a delivery claim, so only confirmed delivery stamps it.
+        // A refusal or a bare queue acceptance keeps the receipt unsent and leaves
+        // this resume path free to retry it on the next recordPayment.
+        if (result?.delivered === false) {
+          payment = {
+            ...payment,
+            receiptMessageId: result.messageId ?? payment.receiptMessageId,
+            receiptDeliveryStatus: "failed",
+            receiptError: result.error?.trim() || "The email provider refused delivery.",
+          };
+        } else if (result?.delivered === true) {
+          payment = {
+            ...payment,
+            receiptMessageId: result.messageId,
+            receiptDeliveryStatus: "delivered",
+            receiptError: undefined,
+            receiptSentAt: now(),
+          };
+        } else {
+          payment = {
+            ...payment,
+            receiptMessageId: result?.messageId ?? payment.receiptMessageId,
+            receiptDeliveryStatus: "queued",
+            receiptError: undefined,
+          };
+        }
         current = await this.persistPaymentState(current, payment);
-      } catch {
-        // Payment evidence must persist even if the email provider is unavailable.
+      } catch (error) {
+        // Payment evidence must persist even if the email provider is unavailable —
+        // and the refusal itself is evidence, so it is retained rather than swallowed.
+        payment = {
+          ...payment,
+          receiptDeliveryStatus: "failed",
+          receiptError: error instanceof Error ? error.message : String(error),
+        };
+        try {
+          current = await this.persistPaymentState(current, payment);
+        } catch {
+          // Storage is unavailable too; the ledger row still holds the payment.
+        }
       }
     }
     if (!payment.activityRecordedAt) {

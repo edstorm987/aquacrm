@@ -12,10 +12,11 @@
 // inside this component. Leaving them behind would have kept the parent long
 // for no benefit and made this file lie about what it needs.
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { X } from "lucide-react";
 
 import type { AgencyProductOption, ClientConversionPackage, LeadView } from "./_leadTypes";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 export function ConvertLeadModal({
   lead,
@@ -46,6 +47,9 @@ export function ConvertLeadModal({
   );
   const [createPortal, setCreatePortal] = useState(initialProduct?.portalRequirement !== "none");
   const [validation, setValidation] = useState<string | null>(null);
+  // Modal keyboard contract: focus enters the handoff, Tab stays inside it, Escape cancels, focus returns to the lead that opened it.
+  const dialogRef = useRef<HTMLElement>(null);
+  useFocusTrap(dialogRef, true, { onEscape: onCancel });
 
   function chooseProduct(nextProductId: string) {
     const product = products.find(item => item.id === nextProductId);
@@ -74,7 +78,7 @@ export function ConvertLeadModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" role="presentation">
       <section
         role="dialog"
-        aria-modal="true"
+        ref={dialogRef} aria-modal="true"
         aria-labelledby="convert-lead-title"
         className="max-h-[calc(100vh-32px)] w-full max-w-3xl overflow-y-auto rounded-md bg-[#fbfaf8] shadow-2xl"
       >

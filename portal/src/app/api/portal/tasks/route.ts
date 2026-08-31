@@ -108,6 +108,11 @@ export async function DELETE(request: NextRequest) {
     if (session.role === "agency-staff" && (!existing || existing.createdBy !== session.userId)) {
       return NextResponse.json({ ok: false, error: "task not found" }, { status: 404 });
     }
+    // Destroying an Action is a write against the client it names — the same
+    // write PATCH already checks both sides of. Without this line the identity
+    // that may not MOVE a restricted client's Action could still delete it,
+    // which is the stronger of the two mutations.
+    await requireClientAssociation("agency-task", existing?.clientId, "use");
     return deleteAgencyTask(session.agencyId, id, session.userId) ? NextResponse.json({ ok: true }) : NextResponse.json({ ok: false, error: "task not found" }, { status: 404 });
   } catch (error) { return authErrorResponse(error); }
 }

@@ -9,7 +9,7 @@ import "server-only";
 
 import crypto from "crypto";
 import { getState, mutate } from "./storage";
-import { emit } from "./eventBus";
+import { drainOutbox, recordOutboxEvent } from "./outbox";
 import type { AgencyTaskOrigin, CompletedAction, CompletedActionOutcome } from "./types";
 
 export interface RecordCompletedActionInput {
@@ -55,8 +55,16 @@ export function recordCompletedAction(
     completedBy: input.completedBy,
     note: clean(input.note, 1000),
   };
-  mutate(state => { state.completedActions[entry.id] = entry; });
-  emit({ agencyId }, "action.completed", { sourceId: entry.sourceId, outcome: entry.outcome });
+  mutate(state => {
+    state.completedActions[entry.id] = entry;
+    recordOutboxEvent(state, {
+      name: "action.completed",
+      agencyId,
+      source: "server/completedActions",
+      payload: { sourceId: entry.sourceId, outcome: entry.outcome },
+    });
+  });
+  drainOutbox();
   return entry;
 }
 

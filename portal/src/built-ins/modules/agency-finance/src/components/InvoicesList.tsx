@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { Download, FileImage, Plus, X } from "lucide-react";
 import Link from "next/link";
 
@@ -12,6 +12,7 @@ import { SUPPORTED_CURRENCIES } from "../lib/currencies";
 import { InvoiceTemplateEditor } from "./InvoiceTemplateEditor";
 import { FinanceNav } from "./FinanceNav";
 import { addBusinessCalendarDays, dateInputValue, formatUkDate } from "../lib/safeDate";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 export interface InvoicesListProps {
   invoices: Invoice[];
@@ -40,6 +41,12 @@ export function InvoicesList({ invoices, clients, apiBase, canMutate, template, 
   const [adding, setAdding] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Modal keyboard contract: focus enters the invoice form, Tab stays inside it, Escape backs out (except mid-save), focus returns to the Create invoice button.
+  const addDialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(addDialogRef, adding, { onEscape: busy ? undefined : () => setAdding(false) });
+  // Modal keyboard contract: focus enters the template editor, Tab stays inside it, Escape backs out, focus returns to the button that opened it.
+  const templateDialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(templateDialogRef, editingTemplate, { onEscape: () => setEditingTemplate(false) });
   const [error, setError] = useState<string | null>(null);
   const clientNames = new Map(clients.map(client => [client.id, client.name]));
 
@@ -99,7 +106,7 @@ export function InvoicesList({ invoices, clients, apiBase, canMutate, template, 
       {editingTemplate ? (
         <div className="fixed inset-0 z-50 grid items-end bg-black/35 p-0 sm:items-center sm:p-6" role="presentation">
           <button type="button" aria-label="Close invoice template" className="absolute inset-0 cursor-default" onClick={() => setEditingTemplate(false)} />
-          <div role="dialog" aria-modal="true" aria-labelledby="invoice-template-heading" className="relative mx-auto w-full max-w-6xl overflow-hidden bg-white shadow-2xl sm:rounded-lg">
+          <div role="dialog" ref={templateDialogRef} aria-modal="true" aria-labelledby="invoice-template-heading" className="relative mx-auto w-full max-w-6xl overflow-hidden bg-white shadow-2xl sm:rounded-lg">
             <InvoiceTemplateEditor apiBase={apiBase} initialTemplate={template} onClose={() => setEditingTemplate(false)} />
           </div>
         </div>
@@ -108,7 +115,7 @@ export function InvoicesList({ invoices, clients, apiBase, canMutate, template, 
       {adding ? (
         <div className="fixed inset-0 z-50 grid items-end bg-black/35 p-0 sm:items-center sm:p-6" role="presentation">
           <button type="button" aria-label="Close invoice form" className="absolute inset-0 cursor-default" onClick={() => setAdding(false)} />
-          <div role="dialog" aria-modal="true" aria-labelledby="new-invoice-heading" className="relative mx-auto max-h-[100dvh] w-full max-w-4xl overflow-y-auto rounded-t-lg bg-white shadow-2xl sm:max-h-[92dvh] sm:rounded-lg">
+          <div role="dialog" ref={addDialogRef} aria-modal="true" aria-labelledby="new-invoice-heading" className="relative mx-auto max-h-[100dvh] w-full max-w-4xl overflow-y-auto rounded-t-lg bg-white shadow-2xl sm:max-h-[92dvh] sm:rounded-lg">
             <NewInvoiceForm apiBase={apiBase} clients={clients} busy={busy} defaultCurrency={defaultCurrency} defaultPaymentTermsDays={defaultPaymentTermsDays} defaultTaxRatePercent={defaultTaxRatePercent} onBusy={setBusy} onError={setError} onClose={() => setAdding(false)} />
           </div>
         </div>

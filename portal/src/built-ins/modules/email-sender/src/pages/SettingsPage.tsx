@@ -1,6 +1,16 @@
+// Setup surface for outbound email.
+//
+// This page used to be a read-only report: it printed the provider row and the
+// identity table and offered no control at all, so a fresh install could be
+// inspected but never configured. The routes it needed already existed and had
+// no caller anywhere in `src/`. The server half stays here (it reads the
+// authoritative ProviderService/IdentityService rows); the controls live in the
+// client component beside it.
+
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
-import { isoDateTimeValue } from "../lib/safeDate";
+import { redactProviderConfig } from "../server/provider";
+import SettingsClient from "./SettingsClient";
 
 export default async function SettingsPage(props: PluginPageProps) {
   const c = containerFor({
@@ -16,40 +26,23 @@ export default async function SettingsPage(props: PluginPageProps) {
   const defaultIdentity = identities.find(i => i.isDefault);
   return (
     <section className="email-sender-settings">
-      <header><h1>Settings</h1><p>Provider configuration + sender identities.</p></header>
+      <header>
+        <h1>Settings</h1>
+        <p>Provider configuration, sender identities and a test send.</p>
+      </header>
 
-      <h2>Provider</h2>
-      <dl className="email-sender-meta-grid">
-        <div><dt>Provider</dt><dd>{provider.provider}</dd></div>
-        <div><dt>Status</dt><dd>{provider.status}</dd></div>
-        <div><dt>API key</dt><dd>{provider.apiKeyMasked || "(none — set to enable real send)"}</dd></div>
-        <div><dt>Webhook secret</dt><dd>{provider.webhookSecret ? "configured" : "(none — provider events will be rejected)"}</dd></div>
-        <div><dt>Last tested</dt><dd>{provider.testedAt ? isoDateTimeValue(provider.testedAt) ?? "Date needs review" : "—"}</dd></div>
-      </dl>
+      {/* Redacted, not the raw row: a prop handed to a client component is
+          serialised into the page and reaches the browser, so the webhook
+          signing secret must not travel with it. */}
+      <SettingsClient
+        provider={redactProviderConfig(provider)}
+        identities={identities}
+        webhookUrl="/api/portal/email-sender/public/webhook/postmark?secret=…"
+      />
 
-      <h2>Sender identities</h2>
-      {identities.length === 0 ? (
-        <p className="email-sender-empty">No sender identities yet. Create one to start sending.</p>
-      ) : (
-        <table className="email-sender-table">
-          <thead>
-            <tr><th>Name</th><th>Email</th><th>Status</th><th>Default</th><th>Verified</th></tr>
-          </thead>
-          <tbody>
-            {identities.map(i => (
-              <tr key={i.id}>
-                <td>{i.name}</td>
-                <td>{i.email}</td>
-                <td>{i.status}</td>
-                <td>{i.isDefault ? "yes" : "—"}</td>
-                <td>{i.verifiedAt ? isoDateTimeValue(i.verifiedAt) ?? "Date needs review" : "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
       <p className="email-sender-meta">
-        {verifiedCount}/{identities.length} verified · default: {defaultIdentity?.email ?? "—"}
+        {verifiedCount}/{identities.length} confirmed by the provider · default:{" "}
+        {defaultIdentity?.email ?? "—"}
       </p>
 
       <h2>Install</h2>

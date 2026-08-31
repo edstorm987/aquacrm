@@ -37,6 +37,7 @@ import type { OutboundCommunicationReadiness } from "@/lib/server/email/outbound
 import type { WebsiteEnquiry } from "@/lib/server/websiteEnquiries";
 import type { InboxOutboundAttachment } from "@/lib/inbox/media";
 import { EnquiryCommunications } from "./_EnquiryCommunications";
+import { beginRecording, extensionForMime, stopStreamTracks, uploadContentType, voiceNoteFailureMessage } from "./_voiceRecorder";
 
 type ClientConversation = {
   id: string;
@@ -276,10 +277,11 @@ function SocialThread({ item, onBack }: { item: InboxConversationThread; onBack:
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const mimeRef = useRef("");
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const windowOpen = Boolean(item.responseDueAt && item.responseDueAt > Date.now());
 
-  useEffect(() => () => streamRef.current?.getTracks().forEach(track => track.stop()), []);
+  useEffect(() => () => stopStreamTracks(streamRef.current), []);
   // Instant jump, not smooth scrolling, so reduced-motion needs no handling.
   useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }); }, [item.messages.length]);
 
@@ -343,26 +345,22 @@ function SocialThread({ item, onBack }: { item: InboxConversationThread; onBack:
       const recorder = recorderRef.current;
       if (!recorder || recorder.state === "inactive") return;
       await new Promise<void>(resolve => { recorder.addEventListener("stop", () => resolve(), { once: true }); recorder.stop(); });
-      streamRef.current?.getTracks().forEach(track => track.stop());
+      stopStreamTracks(streamRef.current);
       streamRef.current = null;
       recorderRef.current = null;
       setRecording(false);
-      const type = recorder.mimeType || "audio/webm";
+      const type = uploadContentType(recorder.mimeType || mimeRef.current);
       const blob = new Blob(chunksRef.current, { type });
-      if (blob.size) await upload(new File([blob], `voice-note-${Date.now()}.webm`, { type }));
+      if (blob.size) await upload(new File([blob], `voice-note-${Date.now()}.${extensionForMime(type)}`, { type }));
       return;
     }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const type = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : "audio/webm";
-      const recorder = new MediaRecorder(stream, { mimeType: type });
-      chunksRef.current = [];
-      recorder.addEventListener("dataavailable", event => { if (event.data.size) chunksRef.current.push(event.data); });
-      recorder.start(750);
-      recorderRef.current = recorder;
-      streamRef.current = stream;
-      setRecording(true);
-    } catch { setError("Microphone access was not granted for the voice note."); }
+    chunksRef.current = [];
+    const started = await beginRecording({ timeslice: 750, onData: chunk => chunksRef.current.push(chunk) });
+    if (!started.ok) { setError(voiceNoteFailureMessage(started)); return; }
+    recorderRef.current = started.recorder;
+    streamRef.current = started.stream;
+    mimeRef.current = started.mimeType;
+    setRecording(true);
   }
 
   return <div className="flex min-h-[680px] min-w-0 flex-1 flex-col">
@@ -415,8 +413,9 @@ function ClientThread({ item, onBack }: { item: ClientConversation; onBack: () =
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const mimeRef = useRef("");
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => () => streamRef.current?.getTracks().forEach(track => track.stop()), []);
+  useEffect(() => () => stopStreamTracks(streamRef.current), []);
   // Instant jump, not smooth scrolling, so reduced-motion needs no handling.
   useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }); }, [item.replies.length]);
   async function send() {
@@ -476,26 +475,22 @@ function ClientThread({ item, onBack }: { item: ClientConversation; onBack: () =
       const recorder = recorderRef.current;
       if (!recorder || recorder.state === "inactive") return;
       await new Promise<void>(resolve => { recorder.addEventListener("stop", () => resolve(), { once: true }); recorder.stop(); });
-      streamRef.current?.getTracks().forEach(track => track.stop());
+      stopStreamTracks(streamRef.current);
       streamRef.current = null;
       recorderRef.current = null;
       setRecording(false);
-      const type = recorder.mimeType || "audio/webm";
+      const type = uploadContentType(recorder.mimeType || mimeRef.current);
       const blob = new Blob(chunksRef.current, { type });
-      if (blob.size) await upload(new File([blob], `voice-note-${Date.now()}.webm`, { type }));
+      if (blob.size) await upload(new File([blob], `voice-note-${Date.now()}.${extensionForMime(type)}`, { type }));
       return;
     }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const type = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : "audio/webm";
-      const recorder = new MediaRecorder(stream, { mimeType: type });
-      chunksRef.current = [];
-      recorder.addEventListener("dataavailable", event => { if (event.data.size) chunksRef.current.push(event.data); });
-      recorder.start(750);
-      recorderRef.current = recorder;
-      streamRef.current = stream;
-      setRecording(true);
-    } catch { setError("Microphone access was not granted for the voice note."); }
+    chunksRef.current = [];
+    const started = await beginRecording({ timeslice: 750, onData: chunk => chunksRef.current.push(chunk) });
+    if (!started.ok) { setError(voiceNoteFailureMessage(started)); return; }
+    recorderRef.current = started.recorder;
+    streamRef.current = started.stream;
+    mimeRef.current = started.mimeType;
+    setRecording(true);
   }
   // The original request joins its replies so the whole exchange reads as one
   // stream and shares the same grouping and day-divider grammar.

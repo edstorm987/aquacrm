@@ -73,8 +73,18 @@ function buildWorld() {
   const user: UserPort = { getUser: () => null };
   let actSeq = 1;
   const activity: ActivityLogPort = {
+    // Mirrors the real log (src/server/activity.ts): an idempotency key is a
+    // stable entry id, so a replay returns the original entry instead of
+    // appending a second one. The doubles must not be more forgiving than the
+    // thing they stand in for, or a cold-process redelivery looks clean here
+    // and duplicates the timeline in production.
     logActivity(input) {
-      const entry: ActivityEntry = { id: `act_${actSeq++}`, ts: Date.now(), agencyId: input.agencyId, clientId: input.clientId, actorUserId: input.actorUserId, actorEmail: input.actorEmail, category: input.category, action: input.action, message: input.message, metadata: input.metadata };
+      const stableId = input.idempotencyKey?.trim() ? `act_${input.idempotencyKey.trim()}` : undefined;
+      if (stableId) {
+        const existing = activityLog.find(entry => entry.id === stableId);
+        if (existing) return existing;
+      }
+      const entry: ActivityEntry = { id: stableId ?? `act_${actSeq++}`, ts: Date.now(), agencyId: input.agencyId, clientId: input.clientId, actorUserId: input.actorUserId, actorEmail: input.actorEmail, category: input.category, action: input.action, message: input.message, metadata: input.metadata };
       activityLog.push(entry);
       return entry;
     },
@@ -352,8 +362,9 @@ test("a transient failure is NOT cached — Stripe's retry still records the pay
 });
 
 test("a SUCCESSFUL event is cached — redelivery is waved through without re-running reconcile", async () => {
-  // The cache still earns its keep: refunds/disputes aren't durably idempotent,
-  // so without it a redelivered refund logs and emits twice.
+  // The cache is a warm-process short circuit, not the correctness boundary:
+  // refund and dispute rows are durably idempotent on their provider ids (see
+  // the fresh-`seen` cases below, which stand in for a second app instance).
   const { services: s, invoiceId: inv } = await stripeWorld();
   const seen = new Set<string>();
   const event = evt("checkout.session.completed", { id: "cs_once", payment_intent: "pi_once", amount_total: 50_000, currency: "gbp", metadata: { invoiceId: inv } }, "evt_once");
@@ -379,4 +390,43 @@ test("a redelivered refund does not log or emit twice (what the cache is really 
   const refundEvents = w.inspect.events.filter(e => e.name === "agency-finance.payment.refunded");
   assert.equal(refundLogs.length, 1, "one refund, one activity entry");
   assert.equal(refundEvents.length, 1, "one refund, one emitted event");
+});
+
+// ─── Redelivery to a COLD process: the durable rows, not the cache, hold ─────
+//
+// A fresh `seen` set is what a second app instance (or a restarted one) sees:
+// the in-process cache knows nothing, so every guard below is the durable
+// provider-derived record id doing the work. The side effects have to hold too
+// — the event bus has no idempotency of its own, so a re-emitted
+// `payment.disputed` re-runs every subscriber and automation behind it.
+
+test("a redelivered dispute on a COLD process is deduped — one row, one emit, one log", async () => {
+  const { world: w, services: s, invoiceId: inv } = await stripeWorld();
+  await reconcileStripeEventOnce(s, evt("checkout.session.completed", { id: "cs_d", payment_intent: "pi_d", amount_total: 50_000, currency: "gbp", metadata: { invoiceId: inv } }, "evt_pay_d"), { seen: new Set<string>() });
+
+  const dispute = evt("charge.dispute.created", { id: "dp_cold", payment_intent: "pi_d", amount: 50_000 }, "evt_dispute_d");
+  const first = await reconcileStripeEventOnce(s, dispute, { seen: new Set<string>() });
+  // Stripe redelivers the same dispute to an instance that has never seen it.
+  const second = await reconcileStripeEventOnce(s, dispute, { seen: new Set<string>() });
+
+  assert.equal(first.action, "chargeback");
+  assert.equal(second.action, "deduped", "the redelivery is reported honestly, not as a second chargeback");
+  assert.equal(second.invoiceId, inv, "and still names the invoice it belongs to");
+  assert.equal((await s.payments.listDisputes()).length, 1, "exactly one dispute row");
+  assert.equal(w.inspect.events.filter(e => e.name === "agency-finance.payment.disputed").length, 1, "one dispute, one emitted event — automations do not re-fire");
+  assert.equal(w.inspect.activityLog.filter(a => a.action === "payment.disputed").length, 1, "one dispute, one activity entry");
+});
+
+test("a redelivered refund on a COLD process is deduped — one row, one emit, one log", async () => {
+  const { world: w, services: s, invoiceId: inv } = await stripeWorld();
+  await reconcileStripeEventOnce(s, evt("checkout.session.completed", { id: "cs_cr", payment_intent: "pi_cr", amount_total: 50_000, currency: "gbp", metadata: { invoiceId: inv } }, "evt_pay_cr"), { seen: new Set<string>() });
+
+  const refund = evt("charge.refunded", { payment_intent: "pi_cr", amount_refunded: 20_000, refunds: { data: [{ id: "re_cold", amount: 20_000 }] } }, "evt_refund_cr");
+  assert.equal((await reconcileStripeEventOnce(s, refund, { seen: new Set<string>() })).action, "refunded");
+  assert.equal((await reconcileStripeEventOnce(s, refund, { seen: new Set<string>() })).action, "deduped", "the same provider refund id cannot bank twice");
+
+  const refunds = await s.payments.listRefunds();
+  assert.deepEqual(refunds.map(r => [r.providerId, r.amountCents]), [["re_cold", 20_000]], "one refund row, £200 refunded once");
+  assert.equal(w.inspect.events.filter(e => e.name === "agency-finance.payment.refunded").length, 1, "one refund, one emitted event");
+  assert.equal(w.inspect.activityLog.filter(a => a.action === "payment.refunded").length, 1, "one refund, one activity entry");
 });

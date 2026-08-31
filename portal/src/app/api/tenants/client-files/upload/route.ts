@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { join } from "node:path";
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
-import { PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
+import { attachStoredPrivateUpload, PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { AGENCY_ROLES, CLIENT_ROLES } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
@@ -80,6 +80,9 @@ export async function POST(req: Request) {
   } catch (error) {
     return authErrorResponse(error);
   }
+  // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
+  const client = getClientForAgency(session.agencyId, clientId);
+  if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
   try {
     await requireCurrentClientWorkspaceElementAccess(clientId, clientFileWorkspaceElementKey({
       category,
@@ -94,8 +97,6 @@ export async function POST(req: Request) {
   if (session.role === "end-customer" && !customerCategories.includes(category)) {
     return NextResponse.json({ ok: false, error: "customers cannot add this file type" }, { status: 403 });
   }
-  const client = getClientForAgency(session.agencyId, clientId);
-  if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
   if (recordEntryId) {
     const recordEntries = Array.isArray(client.metadata?.clientRecordEntries) ? client.metadata.clientRecordEntries : [];
     if (!recordEntries.some(entry => entry && typeof entry === "object" && "id" in entry && entry.id === recordEntryId)) {
@@ -143,8 +144,22 @@ export async function POST(req: Request) {
     customerVisible: session.role === "end-customer" || customerVisible || (form?.get("customerVisible") === null && category === "recording"),
   };
   files.unshift(ref);
-  const updated = updateClient(session.agencyId, clientId, { metadata: { files } });
-  if (!updated) return NextResponse.json({ ok: false, error: "file record could not be saved" }, { status: 500 });
+  // The binary is already stored; if nothing ends up referencing it, remove it
+  // again rather than leaving a billed, unreachable orphan.
+  const attached = await attachStoredPrivateUpload(stored, "client-uploads", () => {
+    const result = updateClient(session.agencyId, clientId, { metadata: { files } });
+    if (!result) throw new Error("file record could not be saved");
+    return result;
+  });
+  if (!attached.ok) {
+    return NextResponse.json({
+      ok: false,
+      error: attached.message,
+      code: attached.compensated ? "upload_record_failed" : "upload_orphaned",
+      detail: attached.detail,
+      storageKey: attached.compensated ? undefined : attached.storageKey,
+    }, { status: 500 });
+  }
   const ledgerEvent = upsertClientFileLedgerEvent(session.agencyId, clientId, ref);
 
   logActivity({

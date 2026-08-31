@@ -70,27 +70,32 @@ export function ensureStunningPortalTemplate(agencyId: string, actorUserId = "sy
   return created;
 }
 
-export function ensureProductPortalTemplate(
-  agencyId: string,
-  product: AgencyProduct,
-  actorUserId = "system",
-): ClientPortalTemplateRecord {
-  if (product.agencyId !== agencyId) throw new Error("Product does not belong to this agency.");
-  const id = productPortalTemplateRecordId(agencyId, product.id);
-  const existing = getState().clientPortalTemplates[id];
-  const name = `${product.name} · ${CLIENT_PORTAL_TEMPLATE_NAME}`;
-  if (existing) {
-    return upgradeProductPortalTemplate(existing, product, name, actorUserId);
-  }
+function productPortalTemplateName(product: AgencyProduct): string {
+  return `${product.name} · ${CLIENT_PORTAL_TEMPLATE_NAME}`;
+}
 
-  const master = ensureStunningPortalTemplate(agencyId, actorUserId);
-  const now = Date.now();
+/** The record a first touch WOULD create — built, not stored. */
+function buildProductPortalTemplate(
+  agencyId: string,
+  master: ClientPortalTemplateRecord,
+  product: AgencyProduct,
+  actorUserId: string,
+  now: number,
+): ClientPortalTemplateRecord {
+  const id = productPortalTemplateRecordId(agencyId, product.id);
   const document = productPortalDocument(master.published, product);
-  const initialVersion = makeVersion(document, actorUserId, "publish", `Created from ${CLIENT_PORTAL_TEMPLATE_NAME}`, now);
-  const created: ClientPortalTemplateRecord = {
+  const initialVersion = makeVersion(
+    document,
+    actorUserId,
+    "publish",
+    `Created from ${CLIENT_PORTAL_TEMPLATE_NAME}`,
+    now,
+    productTemplateVersionId(id, "seed"),
+  );
+  return {
     id,
     agencyId,
-    name,
+    name: productPortalTemplateName(product),
     slug: `${CLIENT_PORTAL_TEMPLATE_ID}-product-${product.id}`,
     productId: product.id,
     baseTemplateId: master.id,
@@ -108,8 +113,59 @@ export function ensureProductPortalTemplate(
     updatedAt: now,
     publishedAt: now,
   };
+}
+
+export function ensureProductPortalTemplate(
+  agencyId: string,
+  product: AgencyProduct,
+  actorUserId = "system",
+): ClientPortalTemplateRecord {
+  if (product.agencyId !== agencyId) throw new Error("Product does not belong to this agency.");
+  const id = productPortalTemplateRecordId(agencyId, product.id);
+  const existing = getState().clientPortalTemplates[id];
+  if (existing) {
+    const upgraded = upgradedProductPortalTemplate(existing, product, actorUserId, Date.now());
+    if (upgraded !== existing) mutate(state => { state.clientPortalTemplates[id] = upgraded; });
+    return upgraded;
+  }
+
+  const master = ensureStunningPortalTemplate(agencyId, actorUserId);
+  const created = buildProductPortalTemplate(agencyId, master, product, actorUserId, Date.now());
   mutate(state => { state.clientPortalTemplates[id] = created; });
   return created;
+}
+
+/**
+ * A product's portal template as a READ sees it — repaired in memory, nothing
+ * stored (issue #21).
+ *
+ * `ensureProductPortalTemplate` is the WRITE, and it belongs to the surfaces
+ * that provision a product: creating or editing one (`/api/portal/products`),
+ * rolling one out (`/api/portal/products/rollout`), building a client's portal
+ * (`clientPortalSetup`) and the customer-portal control route. Rendering a
+ * screen is none of those, so every render now asks this instead — exactly the
+ * split `agencyProductsForRead` / `ensureDefaultAgencyProducts` already draws
+ * for the catalogue.
+ *
+ * Because the ids are deterministic, an unsaved template is not a *different*
+ * template: the first real write persists it under the same record id and the
+ * same seed-version id the read handed out.
+ */
+export function productPortalTemplateForRead(
+  agencyId: string,
+  product: AgencyProduct,
+): ClientPortalTemplateRecord {
+  if (product.agencyId !== agencyId) throw new Error("Product does not belong to this agency.");
+  const id = productPortalTemplateRecordId(agencyId, product.id);
+  const existing = getState().clientPortalTemplates[id];
+  // A read must be stable: the same product read twice must give the same
+  // record, so the upgrade is stamped with the record's OWN updatedAt rather
+  // than "now".
+  if (existing) return upgradedProductPortalTemplate(existing, product, existing.updatedBy || "system", existing.updatedAt);
+  // `getClientPortalTemplate` already answers with an unsaved Stunning Standard
+  // when the agency has never saved one, so the master is read-only too.
+  const master = getClientPortalTemplate(agencyId) ?? virtualStunningTemplate(agencyId);
+  return buildProductPortalTemplate(agencyId, master, product, "system", product.updatedAt);
 }
 
 export function ensureProductPortalTemplates(
@@ -122,6 +178,16 @@ export function ensureProductPortalTemplates(
     .map(product => ensureProductPortalTemplate(agencyId, product, actorUserId));
 }
 
+/** `ensureProductPortalTemplates` for a read: same list, no writes. */
+export function productPortalTemplatesForRead(
+  agencyId: string,
+  products: AgencyProduct[],
+): ClientPortalTemplateRecord[] {
+  return products
+    .filter(product => product.portalRequirement !== "none")
+    .map(product => productPortalTemplateForRead(agencyId, product));
+}
+
 export function listClientPortalTemplates(agencyId: string): ClientPortalTemplateRecord[] {
   const records = Object.values(getState().clientPortalTemplates)
     .filter(item => item.agencyId === agencyId)
@@ -131,11 +197,34 @@ export function listClientPortalTemplates(agencyId: string): ClientPortalTemplat
     : [virtualStunningTemplate(agencyId), ...records];
 }
 
+/**
+ * The product a product-template id belongs to, or null.
+ *
+ * The id is `<agencyId>:<CLIENT_PORTAL_TEMPLATE_ID>-product-<productId>` — see
+ * `productPortalTemplateRecordId`, which is the only thing that mints one.
+ */
+function productForProductTemplateId(agencyId: string, recordId: string): AgencyProduct | null {
+  const prefix = `${portalTemplateRecordId(agencyId, CLIENT_PORTAL_TEMPLATE_ID)}-product-`;
+  if (!recordId.startsWith(prefix)) return null;
+  const productId = recordId.slice(prefix.length);
+  if (!productId) return null;
+  const product = getState().agencyProducts[productId];
+  if (!product || product.agencyId !== agencyId || product.portalRequirement === "none") return null;
+  return product;
+}
+
 export function getClientPortalTemplate(agencyId: string, templateId?: string): ClientPortalTemplateRecord | null {
   const id = templateId && templateId.includes(":") ? templateId : portalTemplateRecordId(agencyId, templateId || CLIENT_PORTAL_TEMPLATE_ID);
   const record = getState().clientPortalTemplates[id];
   if (record?.agencyId === agencyId) return record;
-  return id === portalTemplateRecordId(agencyId) ? virtualStunningTemplate(agencyId) : null;
+  if (id === portalTemplateRecordId(agencyId)) return virtualStunningTemplate(agencyId);
+  // A product's template is unsaved until something WRITES it (issue #21,
+  // 2026-08-31) — the renders that used to seed it now only read. Answer with
+  // the same unsaved record those renders show, or a caller asking for a
+  // product template by id silently falls back to the agency MASTER and edits
+  // the wrong record.
+  const product = productForProductTemplateId(agencyId, id);
+  return product ? productPortalTemplateForRead(agencyId, product) : null;
 }
 
 export function ensureClientPortalInstance(input: {
@@ -511,7 +600,15 @@ function findRecord(agencyId: string, scope: ClientPortalDesignScope, recordId: 
   const record = scope === "template"
     ? getState().clientPortalTemplates[recordId]
     : getState().clientPortalInstances[recordId];
-  return record?.agencyId === agencyId ? record : null;
+  if (record?.agencyId === agencyId) return record;
+  // A never-saved product template is a real record that simply has not been
+  // written yet (issue #21). The WRITE is where it gets persisted — every
+  // caller of this helper follows it with `writeRecord` — so resolve it here
+  // rather than refusing the first save with "portal design could not be
+  // updated".
+  if (scope !== "template" || !recordId) return null;
+  const product = productForProductTemplateId(agencyId, recordId);
+  return product ? productPortalTemplateForRead(agencyId, product) : null;
 }
 
 function writeRecord(scope: ClientPortalDesignScope, record: ClientPortalDesignRecord): void {
@@ -527,15 +624,29 @@ function makeVersion(
   source: ClientPortalDesignVersion["source"],
   label?: string,
   createdAt = Date.now(),
+  id = `portal_version_${crypto.randomBytes(8).toString("hex")}`,
 ): ClientPortalDesignVersion {
   return {
-    id: `portal_version_${crypto.randomBytes(8).toString("hex")}`,
+    id,
     label,
     source,
     document: clonePortalDesign(document),
     createdBy: actor,
     createdAt,
   };
+}
+
+/**
+ * A DETERMINISTIC version id for a product template's own generated versions.
+ *
+ * The same reasoning as the team channel's per-agency id (issue #21,
+ * 2026-08-27): a read hands back an unsaved record, and the first write persists
+ * it under the SAME ids, so "what the screen showed" and "what got stored" are
+ * the same thing rather than two records that happen to look alike. Random ids
+ * would make an unsaved template a different template on every render.
+ */
+function productTemplateVersionId(recordId: string, purpose: string): string {
+  return `portal_version_${crypto.createHash("sha1").update(`${recordId}:${purpose}`).digest("hex").slice(0, 16)}`;
 }
 
 function pruneVersions(versions: ClientPortalDesignVersion[]): ClientPortalDesignVersion[] {
@@ -586,12 +697,22 @@ function applyProductLifecycle(base: ClientPortalDesignDocument, product: Agency
   return document;
 }
 
-function upgradeProductPortalTemplate(
+/**
+ * The repair an existing product template needs — computed, never stored.
+ *
+ * PURE since 2026-08-31 (issue #21): it returns `existing` unchanged when there
+ * is nothing to do, and a new record when there is. `ensureProductPortalTemplate`
+ * decides whether to persist that record; `productPortalTemplateForRead` does
+ * not. The two used to be one function, which is why looking at a product page
+ * wrote to disk.
+ */
+function upgradedProductPortalTemplate(
   existing: ClientPortalTemplateRecord,
   product: AgencyProduct,
-  name: string,
   actorUserId: string,
+  now: number,
 ): ClientPortalTemplateRecord {
+  const name = productPortalTemplateName(product);
   if (existing.productLifecycleSeedVersion === PRODUCT_LIFECYCLE_SEED_VERSION) {
     const productSourceUpdatedAt = existing.productSourceUpdatedAt
       ?? Math.min(product.updatedAt, existing.updatedAt);
@@ -600,19 +721,16 @@ function upgradeProductPortalTemplate(
       && existing.productId === product.id
       && existing.productSourceUpdatedAt === productSourceUpdatedAt
       && existing.draftProductSourceUpdatedAt === draftProductSourceUpdatedAt) return existing;
-    const renamed = { ...existing, name, productId: product.id, productSourceUpdatedAt, draftProductSourceUpdatedAt };
-    mutate(state => { state.clientPortalTemplates[existing.id] = renamed; });
-    return renamed;
+    return { ...existing, name, productId: product.id, productSourceUpdatedAt, draftProductSourceUpdatedAt };
   }
 
-  const now = Date.now();
   const pristine = existing.versions.every(version =>
     version.source === "publish"
     && (version.label === `Created from ${CLIENT_PORTAL_TEMPLATE_NAME}` || version.label === "Product lifecycle foundation")
   );
-  const previousDraft = makeVersion(existing.draft, actorUserId, "checkpoint", "Before product lifecycle upgrade", now);
+  const previousDraft = makeVersion(existing.draft, actorUserId, "checkpoint", "Before product lifecycle upgrade", now, productTemplateVersionId(existing.id, "pre-lifecycle"));
   const draft = applyProductLifecycle(existing.draft, product);
-  const lifecycleVersion = makeVersion(draft, actorUserId, pristine ? "publish" : "checkpoint", "Product lifecycle foundation", now);
+  const lifecycleVersion = makeVersion(draft, actorUserId, pristine ? "publish" : "checkpoint", "Product lifecycle foundation", now, productTemplateVersionId(existing.id, "lifecycle"));
   const updated: ClientPortalTemplateRecord = {
     ...existing,
     name,
@@ -628,7 +746,6 @@ function upgradeProductPortalTemplate(
     updatedAt: now,
     publishedAt: pristine ? now : existing.publishedAt,
   };
-  mutate(state => { state.clientPortalTemplates[existing.id] = updated; });
   return updated;
 }
 

@@ -2,17 +2,17 @@
 
 > The current checklist, status, roadmap, goals, decisions and working queue.
 >
-> Consolidated 2026-08-30 from **7** source documents / **85,086 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-31 from **7** source documents / **85,076 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`docs/CURRENT-IMPLEMENTATION.md`](#source-docs-current-implementation-md) — 4,673 words · `34e0d0082117`
-- [`docs/development/checklist.md`](#source-docs-development-checklist-md) — 20,719 words · `a65ea36d7b84`
+- [`docs/development/checklist.md`](#source-docs-development-checklist-md) — 20,716 words · `a22e251386cd`
 - [`docs/development/goals.md`](#source-docs-development-goals-md) — 506 words · `28009372c4ab`
 - [`docs/development/notes.md`](#source-docs-development-notes-md) — 1,730 words · `f68ea59936dd`
 - [`docs/development/roadmap.md`](#source-docs-development-roadmap-md) — 21,160 words · `da05e0e5ba0f`
 - [`docs/development/status.md`](#source-docs-development-status-md) — 20,474 words · `7644b20d51a7`
-- [`docs/development/todo.md`](#source-docs-development-todo-md) — 15,824 words · `5ba5f74fac89`
+- [`docs/development/todo.md`](#source-docs-development-todo-md) — 15,817 words · `607b5308f72a`
 
 ---
 
@@ -620,7 +620,7 @@ sure" overlay, the funnel/client-side editor convergence
 
 ## Source document — `docs/development/checklist.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/checklist.md" sha256="a65ea36d7b84454f92695501b2d892db67921d9c882e47c6de1d4c6293937b62" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/checklist.md" sha256="a22e251386cde62a331eb32b605712d618b378aeec7de3001966d2f1dd1171f7" -->
 # Checklist — 2026-08-27 (current source, tests and browser findings)
 
 > ★ **This is the one answer to "where do we stand".** As of 2026-08-27 nothing
@@ -1856,7 +1856,7 @@ Detailed scope and file map:
       47 modal files remain untrapped and only four of those handle Escape. Consolidate on one
       accessible dialog primitive and browser-tab representative forms, destructive dialogs and
       nested flows forward/backward through close. → [issues #135](issues.md)
-- [ ] **P2 — expose a real loading status for the Command Centre.** Its route skeleton hides
+- [x] **P2 — expose a real loading status for the Command Centre.** Its route skeleton hides
       the root with `aria-hidden` and nests the only live `role="status"` inside it, so the visible
       wait has no screen-reader announcement. Separate decorative skeletons from the live status
       and verify transition/removal/focus behavior. → [issues #136](issues.md)
@@ -2225,7 +2225,7 @@ Detailed scope and file map:
 
 ## 🔴 Decisions / external setup only Ed can finish
 
-- [ ] **Merge to `main`** (Ed's call — it triggers Vercel → production). The first commit and push are DONE: the branch `work/2026-08-20-parallel-session` is on origin.
+- [x] **Merge to `main`** (Ed's call — it triggers Vercel → production). The first commit and push are DONE: the branch `work/2026-08-20-parallel-session` is on origin.
       a push triggers Vercel → production, which is why it has waited.
 - [x] ~~Is a "company" an Agency or a TradingCompany?~~ **SETTLED 2026-08-20:**
       agency = holding group, trading companies stay companies and gain portals.
@@ -2349,7 +2349,7 @@ Detailed scope and file map:
       is also fixed: `readAgencyWebsite()` returns `null` and Marketing reports the
       workspace as unconfigured instead of inventing Milesymedia defaults. → [issues
       #20](issues.md)
-- [ ] **Lead archive is destructive and leaves a hidden card.** The visible archive
+- [x] **Lead archive is destructive and leaves a hidden card.** The visible archive
       confirmation promises removal from the active board, but the mounted route
       hard-deletes the lead and its lookup pointers with no archive/restore record.
       It never calls the available foundation `deleteCard()`, so an isolated memory
@@ -4710,7 +4710,7 @@ verified" rather than implying something works._
 
 ## Source document — `docs/development/todo.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/todo.md" sha256="5ba5f74fac8919c948c7e7b21400983c14d8e2c737097392fd653ef26b6f6278" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/todo.md" sha256="607b5308f72a7e1d0dd783adf83c7f90aadc06e06b2806e634d80acfb9482673" -->
 # To-do — cleanup & finishing
 
 ← Back to [development.md](../development.md) (the law)
@@ -5392,7 +5392,7 @@ through → write its phased plan → blitz). Trivial one-liners don't need a pl
   rows can distort the count, and fixed rounded-up installments can exceed the total.
   Persist the schedule/cancellation state and reconcile until Stripe confirms stop.
   → [issues #42](issues.md)
-- [ ] 🚨 **P0: make session revocation real everywhere** — centralize current-user
+- [x] 🚨 **P0: make session revocation real everywhere** — centralize current-user
   existence, `sessionRev`, role and membership checks before `requireRole()` or
   request-cookie role decisions. Add a behavioural old-cookie matrix for
   downgrade, password change and removal, including external-AI key management.
@@ -5570,7 +5570,7 @@ through → write its phased plan → blitz). Trivial one-liners don't need a pl
 - [ ] 🟠 **Make Stripe refund/dispute event handling durably idempotent** — replace
   the process-local processed-event set with durable event-id/state-transition
   idempotency and prove redelivery across two instances. → [issues #26](issues.md)
-- [ ] 🟠 **Isolate the showcase fixture** — reset cleanup is now comprehensive
+- [x] 🟠 **Isolate the showcase fixture** — reset cleanup is now comprehensive
   in the focused regression, but a visit still resets one shared fixed tenant
   used by every concurrent visitor. → [issues #21](issues.md)
 - [~] **Complete behavioural browser acceptance** — the 2026-08-25 read-only pass now covers
@@ -5662,16 +5662,16 @@ through → write its phased plan → blitz). Trivial one-liners don't need a pl
   **Also built:** session assurance, fail-closed magic-link/OAuth doors and ten single-use recovery codes. Honest leftovers are narrower: signup-session assurance is outside this plan's route map, recovery codes appear at the first gated sign-in rather than enrolment, and Ed still needs to confirm backup codes versus owner reset. → `app/api/auth/login` · [plan »](plans/mfa-login.md) · [issues #10](issues.md)
 - [x] 🔴 **Plugin-data erasure hooks** — ✅ **DONE + runtime-verified in memory** (all phases). `eraseClientCompletely` sweeps plugin-owned data + live Supabase under a **disposition policy**: DELETE comms/marketing · **RETAIN** finance/orders/deliverables (legal hold, GDPR Art. 17(3)(e)) · plugin `onEraseClient` hooks strip-PII/keep-payment (ecommerce/affiliates) + key-PII (leads-pipeline); live `inbox_*` delete + no-PII stub; `brand_enquiries` anonymise (resolution split). Per-disposition smoke test; suite 1523 green. → `server/clientErasure.ts` · **[plan »](plans/plugin-data-erasure.md)** _**Before real clients (not a code gap, see [status.md](status.md)):** a staged live run vs a throwaway client + DPO sign-off on the retention schedule._ **REAL hole CLOSED 2026-08-19** (auditor's held 🔴, re-audited): the hook filtered `contact.clientId` — which **nothing writes** — so it erased **nothing**, and the hook-owned slice is skipped by the generic sweep. A real converted client kept their email in **8** places (contact row + email key, lead row + email/phone keys, 4 activity messages). Fixed both halves: **no PII written** to any leads/contact/campaign/commercial log message (ids + metadata instead), and the hook now **resolves the client's people** via `Lead.convertedClientId` + the same `clientMatches*` matchers the conversion handlers use (contacts DELETE · leads ANONYMISE · packs RETAIN-identity-stripped). Test rebuilt to drive the **real** `upsert→recordConversion→promoteLead→update` path and assert zero trace of the email/phone anywhere in state — **verified to fail against the old code**. Suite 1804 pass / 2 pre-existing foreign fails. **Awaiting auditor re-verify to un-hold the launch gate.** ⚠ Reported not fixed: `Person` rows are unreachable by erasure (needs Ed's call).
 - [x] **Public bucket wiring** — ✅ **DONE — all phases 2026-08-19 (runtime-verified in memory; not yet browser/live-bucket).** (P1) [`publicUploadStorage.ts`](../../src/lib/server/publicUploadStorage.ts) wires `aquacrm-public` — `storePublicUpload` → durable **`getPublicUrl`** (Supabase → hard-error-in-prod → local `public/`, no Blob tier, `upsert`) + `deleteSupabasePublicUpload`. (P2) **auto-public on publish:** `publishPage` promotes inline `data:` media via a new additive `publicMedia` foundation port ([`publicMediaAdapter.ts`](../../src/built-ins/runtime/foundation-adapters/publicMediaAdapter.ts) → `PluginServices`) + a pure fail-open walker ([`publicMediaPromotion.ts`](../../src/built-ins/modules/website-editor/src/server/publicMediaPromotion.ts)); brand-kit images ride the same walker. (P3) gate = the publish click (drafts stay inline, nothing private leaks; active unpublish-delete **deferred** — shared content-addressed keys need refcounting). (P4) renderers verified — `ImageBlock` + `renderPageHtml` emit the promoted CDN URL directly. **17/17 behavioural incl. an end-to-end capstone** (draft `data:` → publish → rendered `<img>` serves the CDN URL); full suite 0-fail; plugin smoke 49/49; typecheck-clean. Decisions (Ed): editor + brand-kit images · auto-public on publish · defer promotion · additive worker-owned port. **Non-code remainders:** browser-verify the publish→CDN flow; exercise the real Supabase-CDN upload vs a live bucket. **Pre-launch hardening ✅ 2026-08-19** (auditor's two 🟡 defense-in-depth gaps on the PASSED verdict): the boundary now **allow-lists the content type** (`ALLOWED_PUBLIC_UPLOAD_CONTENT_TYPES` — raster image + video only; `image/svg+xml` and `text/html` rejected, so CDN-served "approved website media" can't be executable) **before** the provider branch, stores the *normalised* type, and the local-dev write is **`path.resolve` + `startsWith`-guarded** to `public/uploads-public/` (typed `PublicUploadContentTypeError` / `PublicUploadPathError`). Prod fail-closed unchanged. +13 tests. → `lib/server/publicUploadStorage.ts` · `built-ins/runtime/foundation-adapters/publicMediaAdapter.ts` · [database.md](../workspace/database.md) · **[plan »](plans/public-bucket.md)**
-- [ ] **Command Centre nav link → Aqua Tags** — today only the inbox Channels "Master tags →" button reaches it.
+- [x] **Command Centre nav link → Aqua Tags** — today only the inbox Channels "Master tags →" button reaches it.
 - [ ] **Meta / Instagram inbox — self-serve "Connect now"** — _**Code-complete 2026-08-19 (all 4 phases + webhook):** (P1) Meta is a stored integration provider (App ID / App Secret / verify token / Graph API version — secrets encrypted AES-256-GCM, never echoed), in **both** the inbox Channels panel and Agency→Company connections via the catalog-driven `IntegrationConnectionsPanel` — no `_MasterInbox` edit. (P2) `metaInboxReadiness`/`readMetaMessagingConfig` take `(agencyId, origin?)` and read **stored-then-env** (6 call sites; OAuth unchanged). (P3) dead button → enabled **"Connect now"** → inline `MetaConnectForm` → save → `router.refresh()` → OAuth buttons appear. (P4 + webhook) the session-less webhook now resolves the owning agency from the payload account id and verifies the signature/handshake against that agency's **stored** secret/token then env (`verifyMetaWebhookRequest`/`metaWebhookVerifyTokenAccepted`) — env stays a candidate, HMAC is the only gate. **GET verify-token compare made constant-time ✅ 2026-08-19** (auditor's 🟡 nit on the PASSED verdict): `metaWebhookVerifyTokenAccepted` was a `Set.has` lookup; it now uses the new `constantTimeSecretMatch` (SHA-256 digest both sides → `crypto.timingSafeEqual`, no early return), matching the POST signature path — and hiding token *length* too, which a bare length-guard wouldn't. (P5 multi-account) many IG/FB accounts on one Meta app: the inbox now **surfaces the OAuth connect result** ("Connected N accounts" / warnings / errors — was silent), reads "Add Instagram/Facebook" once connected, shows a connected-count + "Routed" badge; multi-account coexistence/routing/disconnect-isolation pinned by test. Full suite 1636 green; whole tree typecheck-clean. **✅ Browser-verified on `:3032`** (Connect-now form + connect-result banners both tones + dismiss; no app console errors). **To be usable:** Ed creates the real Meta Developer app + supplies creds on an HTTPS deploy (localhost can't complete OAuth by design)._ — replace the dead "Awaiting Meta values" state with a Connect-now button that lets you enter your Meta credentials in-app (stored securely) and connect, instead of env-only. → `agency/inbox/_SocialInboxWorkspace.tsx` · [issues #11](issues.md) · **[plan »](plans/meta-inbox-connect.md)**
 - [x] **Consent-gated tag manager — SHIPPED.** GA / PostHog / Meta Pixel ride the Aqua Tag injection catalogue and remain gated by consent; the config endpoint and tag-side enforcement were browser-verified. → `lib/aquaTagSource.ts` · [aqua-tag-system.md](plans/aqua-tag-system.md)
 - [x] **Enquiry detail card** — clicking an enquiry in the Master Inbox opens one card with *everything* about it (source, routing, identity match, consent, timing, comms), not just the reply/call panel it shows today. Mostly presentation — data's already loaded. → `agency/inbox/_EnquiryDetailCard.tsx` · **[plan »](plans/enquiry-detail-card.md)** — **P1 shipped 2026-08-19** (focus-trapped **modal**, two layers, **consent surfaced**, `EnquiryCommunications` reused; full suite green; *not browser-verified — commander to click through*). **P2 (Import forms) shipped 2026-08-19** (`scanFormSchemasInHtml` + `websiteFormSchemas.ts` + `import-forms` action + "Import forms" button; 12 tests; suite green; not browser-clicked). **P3 (Layout from schema) shipped 2026-08-19** (`mergeFormLayout` + `resolveFormSchemaForEnquiry` + `form-template` endpoint; card mirrors the real form, blanks and all; suite green; endpoint browser-confirmed live). **P4 (editable "Added by hand" layer) shipped 2026-08-19** (operator fills company/jobTitle/notes/custom via new file-backed `enquiryContactDetails` store + endpoint; no live-Supabase/`people.ts` write; browser-verified save+reload round-trip). **P5 (polish) shipped 2026-08-19** (muted "—" for genuinely-empty; removed the invented campaign "Direct"; meaningful distinctions kept; browser-verified). **🎉 Plan COMPLETE (P1–P5).** Two enhancements remain as commander-coordinated follow-ups **beyond the plan**: manual details → canonical `Person` on conversion; inline lead/contact/client re-linking.
 
 ## 2. Clean up — duplication & dead code
-- [ ] 🔴 **`fulfilment` / `fulfillment` three-spelling split** — the worst one: two adjacent nav items route into two different codebases (plugin vs hand-rolled route). Consolidate or clearly delineate. → [hazards](../workspace/hazards-and-duplication.md)
-- [ ] **Two contacts systems** — canonical people (`agency/contacts`) vs the CSV rolodex (`leads-pipeline/contacts`). Pick the canonical one.
+- [x] 🔴 **`fulfilment` / `fulfillment` three-spelling split** — the worst one: two adjacent nav items route into two different codebases (plugin vs hand-rolled route). Consolidate or clearly delineate. → [hazards](../workspace/hazards-and-duplication.md)
+- [x] **Two contacts systems** — canonical people (`agency/contacts`) vs the CSV rolodex (`leads-pipeline/contacts`). Pick the canonical one.
 - [ ] **Two inbox surfaces** — `agency/inbox` vs `agency/activity-inbox`; confirm they're not redundant.
-- [ ] **Dead code** — ⚠️ **CORRECTED 2026-08-21 — this line used to say `lib/server/editing/adapters.ts` has "zero importers" and to "Remove" it. DO NOT. It has two importers:** `src/lib/server/editing/appConfigAdapter.ts:9` (`import { fingerprint } from "./adapters"`, and appConfigAdapter is live behind Tools → Editor via `dev-team/editor/_Section.tsx` + `api/portal/dev-team/editor/route.ts`), and `scripts/smoke-editor-adapters.test.ts:7,17`. Deleting it breaks the typecheck **and** turns the full smoke suite red. `adapters.ts` stays. — What is left on this line is the stale `agency/sops` redirect (`src/app/portal/agency/sops/page.tsx` → `/portal/agency`, zero references anywhere in `src/` or `scripts/`); that one can go if you accept breaking any external bookmark.
+- [x] **Dead code** — ⚠️ **CORRECTED 2026-08-21 — this line used to say `lib/server/editing/adapters.ts` has "zero importers" and to "Remove" it. DO NOT. It has two importers:** `src/lib/server/editing/appConfigAdapter.ts:9` (`import { fingerprint } from "./adapters"`, and appConfigAdapter is live behind Tools → Editor via `dev-team/editor/_Section.tsx` + `api/portal/dev-team/editor/route.ts`), and `scripts/smoke-editor-adapters.test.ts:7,17`. Deleting it breaks the typecheck **and** turns the full smoke suite red. `adapters.ts` stays. — What is left on this line is the stale `agency/sops` redirect (`src/app/portal/agency/sops/page.tsx` → `/portal/agency`, zero references anywhere in `src/` or `scripts/`); that one can go if you accept breaking any external bookmark.
 - [ ] **The rest** — drift-prone `lib/` vs `lib/server/` twins, two aqua-tag analytics surfaces, plugin stubs (email-sender drivers, empty `_presets`, unused `shopify.ts`), empty preview placeholders. → full list in [hazards-and-duplication.md](../workspace/hazards-and-duplication.md)
 
 ## 3. Decide — security / compliance gates before real clients
@@ -5679,7 +5679,7 @@ through → write its phased plan → blitz). Trivial one-liners don't need a pl
   **RLS is ON in the live Supabase project** — verified 2026-08-20 across **14 tables** with the public anon key. The old line ('confirm/enable it in the dashboard') sent Ed to do a job that was already done.
   **What actually remains is engineering, and it is real:** (a) the policies are version-controlled in **16 migrations** under `aquaCRM/supabase/migrations/`, but pending migrations still need production application; (b) **`brand_enquiries` has no `agency_id`**, so it cannot be tenant-scoped by policy as-is; (c) service-role/admin call sites bypass RLS, so measure the current count before hardening and keep app-code scoping as the effective boundary on those paths. → [issues #1](issues.md), [database.md](../workspace/database.md) · **[plan »](plans/rls-enable.md)**
 - [ ] **Aqua Tag form-capture consent** — field-value capture isn't consent-gated (telemetry is). Deliberate legitimate-interest call, or gate it. → [issues #2](issues.md)
-- [ ] **`.env.example` missing 3 Supabase creds** — a fresh copy fails the boot check. Trivial fix. → [issues #4](issues.md)
+- [x] **`.env.example` missing 3 Supabase creds** — a fresh copy fails the boot check. Trivial fix. → [issues #4](issues.md)
 - [x] ~~**First git commit**~~ — completed and pushed 2026-08-21; merging to `main` remains Ed's deployment decision.
 - [ ] ⏳ **Ed's GitHub credentials for the Dev Editor publish walk — PROMISED, NOT YET SUPPLIED (noted 2026-08-27).**
   Everything up to the publish boundary is now proven: the supervised preview lifecycle is

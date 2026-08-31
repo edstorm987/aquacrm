@@ -11,6 +11,7 @@ import type { RadarTelemetrySnapshot } from "@/engines/data/server/radar/radarTe
 import type { buildCompanyHealthSnapshot } from "@/engines/data/server/kpi/companyHealthSnapshot";
 import type { LegalDocument, PortalState, ServerUser, AgencyTask, Client } from "@/server/types";
 import { buildHiringCapacityAnalysis, buildHiringCapacitySignals } from "@/lib/performance/hiringCapacity";
+import { PLUGIN_HEALTH_STALE_MS } from "@/lib/server/plugins/pluginHealthRunner";
 
 const DAY = 86_400_000;
 const HOUR = 3_600_000;
@@ -341,11 +342,57 @@ export function buildRadarObservations(input: RadarObservationInputs): RadarObse
 
   const failedIntegrations = integrations.filter(connection => connection.lastTestStatus === "failed" || connection.status === "needs-attention").length;
   const moduleRecords = installs.reduce((total, install) => total + pluginRecordCount(state, install.id), 0);
-  const unhealthyInstalls = installs.filter(install => install.health?.ok === false).length;
+  // ── Module health is evidence, not a default ────────────────────────────
+  //
+  // `health` / `healthCheckedAt` have exactly one writer: the module health
+  // sweep (`runRadarModuleHealthSweep` → `runPluginHealthSweep`), which runs
+  // each enabled module's own `healthcheck` on the radar cadence. Installing a
+  // module writes neither, so an install can be in four states:
+  //
+  //   • no `healthCheckedAt`            → never asked;
+  //   • `healthCheckedAt`, no `health`  → asked; the module ships no hook;
+  //   • an answer older than the stale window → no longer current;
+  //   • a current answer                → the only one that proves anything.
+  //
+  // Before the sweep existed this signal read `health?.ok === false` over
+  // installs nothing ever wrote to, so it reported a confident, permanent zero:
+  // a check that never ran, drawn as a green tick. Zero is only evidence when
+  // every enabled module answered — but a module that IS CURRENTLY saying "no"
+  // is proven whatever the coverage, so a blind spot may never bury it.
+  //
+  // The stale rule cuts both ways, and has to. Counting an expired "no" would
+  // keep firing a connected, escalating failure off an answer the same code
+  // refuses to accept as proof of health — a reading that ages into "critical"
+  // while its own detail line says nobody has a current answer. An expired
+  // failure is not a pass either: with nothing current, the family goes blind
+  // and says the answers aged out.
+  const answered = installs.filter(install => install.healthCheckedAt !== undefined && install.health !== undefined);
+  const currentAnswers = answered.filter(install => now - (install.healthCheckedAt ?? 0) <= PLUGIN_HEALTH_STALE_MS);
+  const neverChecked = installs.filter(install => install.healthCheckedAt === undefined).length;
+  const cannotReport = installs.filter(install => install.healthCheckedAt !== undefined && install.health === undefined).length;
+  const staleAnswers = answered.length - currentAnswers.length;
+  const unhealthyInstalls = currentAnswers.filter(install => install.health?.ok === false).length;
+  const latestHealthCheckAt = newest(installs.map(install => install.healthCheckedAt));
+  const moduleHealthProven = currentAnswers.length === installs.length;
+  const moduleHealthConnected = moduleHealthProven || unhealthyInstalls > 0;
+  const moduleHealthDetail = installs.length === 0
+    ? "Modules reporting failed health. No modules are enabled, so there is nothing to fail."
+    : moduleHealthProven
+    ? `Modules reporting failed health, from a current answer for all ${installs.length} enabled module${installs.length === 1 ? "" : "s"}.`
+    : `Modules reporting failed health. Only ${currentAnswers.length} of ${installs.length} enabled module${installs.length === 1 ? "" : "s"} have a current answer`
+      + `${neverChecked ? `; ${neverChecked} never checked` : ""}`
+      + `${staleAnswers ? `; ${staleAnswers} not checked for over ${Math.round(PLUGIN_HEALTH_STALE_MS / HOUR)}h` : ""}`
+      + `${cannotReport ? `; ${cannotReport} ship no healthcheck` : ""}. The rest cannot be proved healthy.`;
   const customAIs = Object.values(state.customAIs).filter(item => item.agencyId === agencyId);
   add("systems", "installed-modules", countMetric(installs.length, null, "Enabled modules monitored by the radar.", "/portal/agency/company?view=connections", "systems:modules", true, newest(installs.map(item => item.installedAt)), "higher"));
-  add("systems", "module-data", metric(moduleRecords, null, installs.length && moduleRecords === 0 ? "watch" : "healthy", String(moduleRecords), "Enabled modules readable", "/portal/agency/company?view=connections", "systems:module-data", true, "Readable records across plugin storage.", newest(installs.map(item => item.healthCheckedAt ?? item.installedAt)) ?? now, installs.length));
-  add("systems", "module-health", zeroTargetMetric(unhealthyInstalls, "Modules reporting failed health.", "/portal/agency/company?view=connections", "systems:module-health", true, newest(installs.map(item => item.healthCheckedAt ?? item.installedAt)), 1, 3));
+  // `now` is the truthful last-seen here: the record count is measured from
+  // live state on this sweep. It used to read `healthCheckedAt ?? installedAt`,
+  // which dated a fresh count by when the module was INSTALLED — a substituted
+  // timestamp that made a months-old install look like months-old data.
+  add("systems", "module-data", metric(moduleRecords, null, installs.length && moduleRecords === 0 ? "watch" : "healthy", String(moduleRecords), "Enabled modules readable", "/portal/agency/company?view=connections", "systems:module-data", true, "Readable records across plugin storage.", now, installs.length));
+  // No `?? installedAt` fallback: an install date is not a health check date,
+  // and substituting it dated an answer that was never given.
+  add("systems", "module-health", zeroTargetMetric(unhealthyInstalls, moduleHealthDetail, "/portal/agency/company?view=connections", "systems:module-health", moduleHealthConnected, latestHealthCheckAt, 1, 3));
   add("systems", "integration-coverage", countMetric(integrations.filter(connection => connection.status === "connected").length, null, "Connected external integrations.", "/portal/agency/settings#integrations", "systems:integrations", true, newest(integrations.map(item => item.updatedAt)), "higher"));
   add("systems", "integration-failures", zeroTargetMetric(failedIntegrations, "Integrations whose latest test failed.", "/portal/agency/settings#integrations", "systems:integrations", true, newest(integrations.map(item => item.lastTestedAt ?? item.updatedAt)), 1, 3));
   add("systems", "data-freshness", metric(latestActivityAt ? now - latestActivityAt : null, null, latestActivityAt && now - latestActivityAt > 2 * DAY ? "warning" : latestActivityAt ? "healthy" : "unknown", latestActivityAt ? `${Math.round((now - latestActivityAt) / HOUR)}h ago` : "No activity", "Within 48h", "/portal/agency/settings#logs", "systems:activity", true, "Age of latest business record activity.", latestActivityAt ?? now, activity.length, undefined, "lower"));

@@ -297,15 +297,19 @@ export class PaymentService {
     providerEventId?: string;
     amountCents?: number;
     openedAt?: number;
-  } = {}): Promise<Payment | null> {
+  } = {}): Promise<{ payment: Payment; deduped: boolean } | null> {
     const payment = externalRef ? await this.findByExternalRef(externalRef) : null;
     if (!payment) return null;
     const providerId = input.providerId?.trim() || input.providerEventId?.trim() || externalRef || payment.id;
     const id = deriveRecordId("dsp", `stripe:${providerId}`);
     const transactionKey = `payment-dispute:${this.agencyId}:${payment.id}`;
-    const recordOnce = async () => {
+    // Reports whether THIS call wrote the dispute row. A redelivery of the same
+    // provider dispute — on any process, warm cache or not — answers false, and
+    // that is what keeps the emit below from firing (and re-running automations)
+    // a second time.
+    const recordOnce = async (): Promise<boolean> => {
       const existing = await this.storage.get<PaymentDispute>(disputeKey(id));
-      if (existing?.agencyId === this.agencyId) return;
+      if (existing?.agencyId === this.agencyId) return false;
       const amountCents = input.amountCents ?? payment.amountCents;
       assertSafeInteger(amountCents, "amountCents", { min: 1, max: payment.amountCents });
       assertOptionalTimestamp(input.openedAt, "openedAt");
@@ -327,9 +331,14 @@ export class PaymentService {
       await this.storage.set(disputeKey(id), dispute);
       const ids = (await this.storage.get<string[]>(DISPUTE_INDEX_KEY)) ?? [];
       if (!ids.includes(id)) await this.storage.set(DISPUTE_INDEX_KEY, [...ids, id]);
+      return true;
     };
-    if (this.storage.runExclusive) await this.storage.runExclusive(transactionKey, recordOnce);
-    else await withLocalPaymentAllocationLock(transactionKey, recordOnce);
+    const created = this.storage.runExclusive
+      ? await this.storage.runExclusive(transactionKey, recordOnce)
+      : await withLocalPaymentAllocationLock(transactionKey, recordOnce);
+    // Activity is durably deduped on its idempotency key, so replaying it is
+    // harmless and keeps the timeline whole if an earlier attempt died between
+    // the row write and the log.
     await this.activity.logActivity({
       idempotencyKey: `finance:payment-dispute:${id}`,
       agencyId: this.agencyId, clientId: payment.clientId, actorUserId: actor,
@@ -337,8 +346,12 @@ export class PaymentService {
       message: `Chargeback opened on invoice ${payment.invoiceId}.`,
       metadata: { disputeId: id, paymentId: payment.id, invoiceId: payment.invoiceId, externalRef, amountCents: input.amountCents },
     });
-    this.events.emit({ agencyId: this.agencyId, clientId: payment.clientId }, "agency-finance.payment.disputed", { disputeId: id, paymentId: payment.id, invoiceId: payment.invoiceId });
-    return payment;
+    // The bus has no idempotency of its own — every emit re-runs subscribers and
+    // automations — so a redelivered dispute must not reach it.
+    if (created) {
+      this.events.emit({ agencyId: this.agencyId, clientId: payment.clientId }, "agency-finance.payment.disputed", { disputeId: id, paymentId: payment.id, invoiceId: payment.invoiceId });
+    }
+    return { payment, deduped: !created };
   }
 
   private async recordRefundUnlocked(actor: UserId, payment: Payment, input: {

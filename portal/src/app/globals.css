@@ -3354,13 +3354,21 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
 /* Horizontal navigation must scroll as a row on narrow screens. Flex items
    otherwise shrink until their labels overlap, which is especially damaging
    in finance, inbox and experience workspaces. */
+/* The `[role="tablist"]` arm below is kept for plugin-authored markup only.
+   The app's own view-switch strips stopped claiming tab semantics on
+   2026-08-30 (issues #138 — a tab role with no tabpanel and no arrow keys is
+   a promise to a screen reader that nothing keeps), so the rule has to reach
+   them the same way the edge-fade below already does: by the scroller itself.
+   Without this arm the strips lose `flex: 0 0 auto` and their labels overlap
+   on mobile again — the exact defect this block was written to fix. */
 .mm-route-canvas [role="tablist"] > :is([role="tab"], button, a),
-.mm-route-canvas nav.overflow-x-auto > :is(button, a) {
+.mm-route-canvas nav.overflow-x-auto > :is(button, a),
+.mm-route-canvas .overflow-x-auto:not(:has(table)) > :is(button, a) {
   flex: 0 0 auto;
   scroll-snap-align: start;
 }
 
-.mm-route-canvas :is([role="tablist"], nav.overflow-x-auto) {
+.mm-route-canvas :is([role="tablist"], nav.overflow-x-auto, .overflow-x-auto:not(:has(table))) {
   overscroll-behavior-inline: contain;
   scroll-snap-type: inline proximity;
 }
@@ -7621,7 +7629,8 @@ html[data-portal-shell="command"] .mm-color-mode-toggle {
   color: #f1fdff !important;
 }
 
-.mm-omega-actions-workspace [role="tab"][aria-selected="true"] {
+.mm-omega-actions-workspace [role="tab"][aria-selected="true"],
+.mm-omega-actions-workspace [role="group"][aria-label="Filter actions by source"] > button[aria-current="true"] {
   background: #0d5260 !important;
   color: #f1fdff !important;
   box-shadow: inset 0 -2px #68f5d0;
@@ -7679,7 +7688,7 @@ html[data-portal-shell="command"] .mm-color-mode-toggle {
   box-shadow: inset 0 0 26px rgb(98 232 255 / 0.025);
 }
 
-.mm-command-calendar-workspace > div > section[aria-label="Action controls"] [role="tab"] {
+.mm-command-calendar-workspace > div > section[aria-label="Action controls"] :is([role="tab"], [role="group"][aria-label="Filter actions by source"] > button) {
   border-radius: 0.2rem;
 }
 

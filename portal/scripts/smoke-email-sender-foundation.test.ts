@@ -150,4 +150,64 @@ describe("email-sender foundation registration — runtime", () => {
       `expected foundation-pending throw to be gone, got: ${msg}`);
     assert.match(msg, /not installed for agency/i);
   });
+
+  // A campaign retry re-sends with the SAME `campaign:<id>:<leadId>` externalRef,
+  // so `EmailService.enqueue` hands back the very row the last attempt failed on
+  // and `DeliveryService.deliver` refuses it as `terminal_state`. Unless the port
+  // resets that row, "retry the unfinished recipients" can never reach anybody.
+  it("emailEnqueuePort.send re-attempts a failed recipient rather than reporting terminal_state forever", async () => {
+    const storage = await import("../src/server/storage");
+    await storage.ensureHydrated();
+    const tenants = await import("../src/server/tenants");
+    const installs = await import("../src/server/pluginInstalls");
+    const pluginStorage = await import("../src/lib/server/pluginStorage");
+    const ports = await import("../src/lib/server/leadsPipelinePorts");
+    const sender = await import("@aqua/plugin-email-sender/server");
+
+    const agency = tenants.createAgency({ name: "Retry Co", ownerEmail: "owner@retry.test" });
+    const install = installs.upsertInstall({
+      pluginId: "email-sender",
+      scope: { agencyId: agency.id },
+      enabled: true,
+      config: {},
+      features: {},
+      installedBy: "email-sender-smoke",
+    });
+    const container = sender.containerFor({
+      agencyId: agency.id as never,
+      storage: pluginStorage.makePluginStorage(install.id) as never,
+      install: install as never,
+    });
+    // `sendgrid` resolves to the StubDriver, which always refuses — a
+    // deterministic provider refusal with no network and no credentials.
+    await container.provider.update({ provider: "sendgrid", apiKey: "sg-smoke" }, "email-sender-smoke" as never);
+    const identity = await container.identities.create(
+      { name: "Retry Co", email: "hello@retry.test", isDefault: true },
+      "email-sender-smoke" as never,
+    );
+    await container.identities.verifyDomain(identity.id, "email-sender-smoke" as never);
+
+    const send = ports.emailEnqueuePort.send;
+    assert.ok(send, "the port exposes send()");
+    const input = {
+      agencyId: agency.id as never,
+      to: "person@retry.test",
+      subject: "Retry me",
+      bodyHtml: "<p>hi</p>",
+      triggeredByPlugin: "leads-pipeline",
+      externalRef: "campaign:camp_smoke:lead_smoke",
+    };
+
+    const first = await send(input);
+    assert.equal(first.delivered, false, "the stub provider refuses");
+    assert.equal(first.code, "delivery_failed");
+
+    const second = await send(input);
+    assert.equal(second.messageId, first.messageId, "the retry collapses onto the same durable outbox row");
+    assert.notEqual(second.code, "terminal_state",
+      "a retry must reset the failed row, not report the row's own state back as the delivery outcome");
+    assert.equal(second.code, "delivery_failed", "the provider was actually asked a second time");
+    const rows = await container.emails.list({});
+    assert.equal(rows.length, 1, "retrying must not fork a duplicate outbox row");
+  });
 });

@@ -46,10 +46,13 @@ import {
   type CustomerStageTask,
 } from "./_CustomerPortalActions";
 import {
+  customerBillingSummary,
   type CustomerFile,
   type CustomerPortalData,
   type CustomerPortalMode,
 } from "./_portalData";
+import { HideWhenInstalled, InstallHelp } from "./_InstallHelp";
+import { READ_UNAVAILABLE_LABEL } from "@/lib/readAvailability";
 import { loadCustomerPortalRequestContext } from "./_requestContext";
 import {
   portalHomeHeading,
@@ -711,7 +714,8 @@ function HomeView({
   const homePresentation = data.presentation.home;
   const copyTokens = portalCopyTokens(data, providerName);
   const projectLabel = portalProjectLabel(data.products);
-  const outstanding = data.invoices.filter(invoice => invoice.status === "sent" || invoice.status === "overdue");
+  const billing = customerBillingSummary(data);
+  const outstanding = billing.outstanding;
   const latestFile = data.files[0];
   const pendingApproval = data.approvals.find(approval => approval.status === "pending");
   const pendingWorkspaceDecision = data.workspaces.flatMap(workspace => workspace.decisions.map(decision => ({ workspace, decision }))).find(item => item.decision.status === "pending");
@@ -846,8 +850,12 @@ function HomeView({
           <PortalPulseItem
             icon={<MessageCircle size={17} />}
             label="Conversation"
-            value={`${data.record.messages.length} linked ${data.record.messages.length === 1 ? "message" : "messages"}`}
-            detail={latestMessage?.body || "Messages sent through the portal will stay here"}
+            value={data.available.messages
+              ? `${data.record.messages.length} linked ${data.record.messages.length === 1 ? "message" : "messages"}`
+              : READ_UNAVAILABLE_LABEL}
+            detail={data.available.messages
+              ? latestMessage?.body || "Messages sent through the portal will stay here"
+              : "Your linked messages could not be read just now. Reload to try again."}
             href={customerHref("details", previewHrefPrefix)}
           />
           <PortalPulseItem
@@ -868,7 +876,7 @@ function HomeView({
         <QuickLink
           icon={<CreditCard size={18} />}
           title="Billing"
-          body={outstanding.length ? `${outstanding.length} invoice${outstanding.length === 1 ? "" : "s"} need attention.` : "Your plan and invoices are up to date."}
+          body={billing.body}
           href={customerHref("billing", previewHrefPrefix)}
         />
       </div>
@@ -1452,8 +1460,10 @@ function BillingView({ client, data, readOnly, providerName, previewHrefPrefix }
         <Surface className="!bg-[var(--portal-hero)] p-6 text-white">
           <CreditCard size={19} className="text-[var(--portal-accent)]" aria-hidden="true" />
           <p className="mt-8 text-[10px] uppercase tracking-[0.16em] text-white/40">Outstanding</p>
-          <p className="mt-2 font-serif text-3xl">{outstanding ?? "No payment due"}</p>
-          <p className="mt-2 text-xs text-white/45">{paid ? `${paid} paid to date` : "No paid invoices recorded yet"}</p>
+          <p className="mt-2 font-serif text-3xl">{!data.available.invoices ? READ_UNAVAILABLE_LABEL : outstanding ?? "No payment due"}</p>
+          <p className="mt-2 text-xs text-white/45">{!data.available.invoices
+            ? "Your billing could not be read just now. Reload to try again."
+            : paid ? `${paid} paid to date` : "No paid invoices recorded yet"}</p>
         </Surface>
       </div>
 
@@ -1467,7 +1477,12 @@ function BillingView({ client, data, readOnly, providerName, previewHrefPrefix }
           </div>
           <ReceiptText size={19} className="text-[var(--portal-accent)]" aria-hidden="true" />
         </div>
-        {data.invoices.length === 0 ? (
+        {!data.available.invoices ? (
+          <div className="px-6 py-14 text-center">
+            <p className="font-serif text-xl">Your invoices could not be read.</p>
+            <p className="mt-2 text-sm text-black/45">This is a problem reaching billing, not a statement that you have none. Reload to try again.</p>
+          </div>
+        ) : data.invoices.length === 0 ? (
           <div className="px-6 py-14 text-center">
             <p className="font-serif text-xl">No invoices yet.</p>
             <p className="mt-2 text-sm text-black/45">When an invoice is issued, it will appear here automatically.</p>
@@ -1579,6 +1594,16 @@ function SupportView({ client, data, readOnly, providerName }: { client: Client;
           <CustomerSupportForm clientId={client.id} initialRequests={data.requests} readOnly={readOnly} providerName={providerName} />
         </div>
       </Surface>
+      {/* Setup told them "you can do this later — it is in your portal under
+          Support". This is that later. Somebody who skipped, declined or simply
+          closed the tab on the install scene never gets it offered again
+          otherwise, because setup is marked complete before that scene is even
+          reached. It hides itself for anybody already using the installed app. */}
+      <HideWhenInstalled>
+        <Surface className="mt-5 p-6 sm:p-8">
+          <InstallHelp appName={client.name} tone="light" heading="Add the portal to your home screen" hideWhenInstalled />
+        </Surface>
+      </HideWhenInstalled>
     </>
   );
 }
@@ -1822,7 +1847,9 @@ function RecordView({
           </div>
           <MessageSquareText size={19} className="text-[var(--portal-accent)]" aria-hidden="true" />
         </div>
-        {data.record.messages.length === 0 ? (
+        {!data.available.messages ? (
+          <div className="px-6 py-12 text-center sm:px-7"><p className="font-serif text-xl">Your linked messages could not be read.</p><p className="mt-2 text-sm text-black/45">This is a problem reaching the conversation record, not a statement that you have none. Reload to try again.</p></div>
+        ) : data.record.messages.length === 0 ? (
           <div className="px-6 py-12 text-center sm:px-7"><p className="font-serif text-xl">No linked messages yet.</p><p className="mt-2 text-sm text-black/45">Messages sent through Support will appear here automatically.</p></div>
         ) : (
           <ol className="divide-y divide-black/8">

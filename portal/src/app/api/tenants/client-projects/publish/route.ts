@@ -3,6 +3,11 @@ import { NextResponse } from "next/server";
 import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { publishProjectToGitHub } from "@/lib/server/integrations/githubProjectPublisher";
 import { logActivity } from "@/server/activity";
+import {
+  beginClientProjectOperation,
+  clientProjectOperationKey,
+  resumableClientProjectOperation,
+} from "@/server/clientProjectOperations";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
@@ -34,9 +39,10 @@ export async function POST(request: Request) {
     }
 
     const session = await requireRoleForClient([...AGENCY_ROLES], clientId);
-    await requireCurrentClientWorkspaceElementAccess(clientId, "client.systems", "manage");
+    // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
     const client = getClientForAgency(session.agencyId, clientId);
     if (!client) return NextResponse.json({ ok: false, error: "Client not found." }, { status: 404 });
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.systems", "manage");
     const metadata = (client.metadata ?? {}) as { properties?: StoredProperty[] };
     const current = Array.isArray(metadata.properties) ? metadata.properties : [];
     const property = current.find(item => item.id === propertyId);
@@ -45,14 +51,39 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "Provision this project locally before publishing it." }, { status: 400 });
     }
 
-    const repository = await publishProjectToGitHub({
+    // A repository this operation already created is adopted rather than
+    // re-created: the create call is the one step GitHub will not let us repeat.
+    const operationKey = clientProjectOperationKey("publish", session.agencyId, clientId, propertyId);
+    const resumable = resumableClientProjectOperation(operationKey);
+    const operation = await beginClientProjectOperation({
+      key: operationKey,
+      kind: "publish",
       agencyId: session.agencyId,
       clientId,
-      localPath: property.localPath,
-      projectSlug: property.projectSlug,
-      description: `${client.name}: ${property.label}`,
-      private: true,
+      intent: { propertyId, projectSlug: property.projectSlug, localPath: property.localPath },
     });
+
+    let repository;
+    try {
+      repository = await publishProjectToGitHub({
+        agencyId: session.agencyId,
+        clientId,
+        localPath: property.localPath,
+        projectSlug: property.projectSlug,
+        description: `${client.name}: ${property.label}`,
+        private: true,
+        adoptRepository: resumable?.repoFullName ? { fullName: resumable.repoFullName } : undefined,
+        onRepositoryCreated: created => operation.record({
+          repoOwner: created.owner,
+          repoFullName: created.fullName,
+          repoUrl: created.repoUrl,
+          cloneUrl: created.cloneUrl,
+        }).then(() => undefined),
+      });
+    } catch (error) {
+      await operation.fail(error);
+      throw error;
+    }
     const changed: StoredProperty = {
       ...property,
       repoUrl: repository.repoUrl,
@@ -61,6 +92,7 @@ export async function POST(request: Request) {
     };
     const properties = current.map(item => item.id === propertyId ? changed : item);
     if (!updateClient(session.agencyId, clientId, { metadata: { properties } })) {
+      await operation.fail(new Error("Repository record could not be saved."));
       return NextResponse.json({ ok: false, error: "Repository record could not be saved." }, { status: 500 });
     }
     logActivity({
@@ -73,6 +105,7 @@ export async function POST(request: Request) {
       message: `Published "${property.label}" to a private GitHub repository.`,
       metadata: { propertyId, repoUrl: repository.repoUrl },
     });
+    await operation.succeed();
     await flushPendingWrites();
     return NextResponse.json({ ok: true, property: changed, properties, repository });
   } catch (error) {

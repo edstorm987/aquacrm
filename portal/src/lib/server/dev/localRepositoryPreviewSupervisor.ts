@@ -14,9 +14,11 @@ import {
   type ResolvedLocalRepositoryPreviewConfig,
 } from "@/lib/server/dev/localRepositoryPreviewConfig";
 import {
+  ensureClonedPreviewRepository,
   ensureDependenciesInstalled,
   ensureIsolatedPreviewWorktree,
   LocalRepositoryPreviewWorktreeError,
+  type ClonedPreviewRepository,
   type DependencyReadinessOutcome,
   type IsolatedPreviewWorktree,
 } from "@/lib/server/dev/localRepositoryPreviewWorktree";
@@ -46,6 +48,9 @@ export interface LocalRepositoryPreviewSupervisorDeps {
     project: DevProject,
     scope: LocalRepositoryPreviewScope,
   ) => Promise<ResolvedLocalRepositoryPreviewConfig>;
+  ensureClonedRepository?: (
+    input: { configuredPath: string; remoteUrl: string; log?: (text: string) => void },
+  ) => Promise<ClonedPreviewRepository>;
   ensureIsolatedWorktree?: (
     input: { configuredPath: string; projectId: string; log?: (text: string) => void },
   ) => Promise<IsolatedPreviewWorktree>;
@@ -302,6 +307,7 @@ export class LocalRepositoryPreviewSupervisor {
   constructor(deps: LocalRepositoryPreviewSupervisorDeps = {}) {
     this.deps = {
       resolveConfig: deps.resolveConfig ?? ((project) => resolveTrustedLocalRepositoryPreview(project)),
+      ensureClonedRepository: deps.ensureClonedRepository ?? ensureClonedPreviewRepository,
       ensureIsolatedWorktree: deps.ensureIsolatedWorktree ?? ensureIsolatedPreviewWorktree,
       ensureDependencies: deps.ensureDependencies ?? ensureDependenciesInstalled,
       allocatePort: deps.allocatePort ?? allocateLoopbackPort,
@@ -440,7 +446,30 @@ export class LocalRepositoryPreviewSupervisor {
     }
     entry.config = config;
 
-    // Phase-17 lifecycle head: an isolated-worktrees record previews each
+    // Phase-17 lifecycle head, step one: a record that declares a remote gets
+    // it cloned into the validated preview root before anything else. It runs
+    // BEFORE port allocation and the spawn, so an unreachable or hijacked
+    // destination fails closed with a named reason and starts no server.
+    if (config.remoteUrl) {
+      try {
+        const cloned = await this.deps.ensureClonedRepository({
+          configuredPath: config.worktreePath,
+          remoteUrl: config.remoteUrl,
+          log: text => this.append(entry, "system", text),
+        });
+        config = { ...config, worktreePath: cloned.repositoryPath };
+        entry.config = config;
+      } catch (error) {
+        entry.state = "configuration-error";
+        entry.error = error instanceof LocalRepositoryPreviewWorktreeError
+          ? error.message
+          : "The project's declared remote could not be cloned into its preview root.";
+        this.append(entry, "system", entry.error);
+        return this.snapshot(entry);
+      }
+    }
+
+    // Step two: an isolated-worktrees record previews each
     // project inside its own draft-branch worktree (created here, resumed
     // with edits intact). Derived entirely from the trusted path — the
     // request still supplies nothing.

@@ -56,9 +56,10 @@ export async function POST(req: Request) {
       [...AGENCY_ROLES, ...CLIENT_ROLES, "end-customer"],
       clientId,
     );
-    await requireCurrentClientWorkspaceElementAccess(clientId, "client.record", "use");
+    // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
     const client = getClientForAgency(session.agencyId, clientId);
     if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.record", "use");
 
     const savedBrief: CustomerProjectBrief = {
       ...brief,

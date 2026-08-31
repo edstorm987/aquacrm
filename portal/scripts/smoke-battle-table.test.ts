@@ -7,6 +7,12 @@ import {
   createBattleNavigationState,
   reconcileBattleNavigationState,
 } from "../src/app/portal/agency/battleNavigation";
+import {
+  changedCompanyFields,
+  describeCompanyConflict,
+  rebaseCompanyProfile,
+} from "../src/app/portal/agency/companyProfileConflict";
+import { applyKpiTargetOverride } from "../src/lib/performance/kpiRegistry";
 
 const require = createRequire(import.meta.url);
 const serverOnlyPath = require.resolve("server-only");
@@ -209,6 +215,242 @@ test("Battle Table retains a complete evidence-backed quarterly strategy cycle",
   assert.equal(updated.reviews[0]?.updatedAt, 123_456);
 });
 
+// ─── Concurrency and lock integrity (issues #66) ──────────────────────────────
+// Ten Battle Table stations and the Company workspace all PUT one whole
+// CompanyProfile. Before this, the last writer won silently and any edit of a
+// completed review flipped it back to draft while overwriting its captured
+// evidence. These pin both halves.
+
+test("a company plan write that lost the race is refused with the current state, not merged over it", async () => {
+  await storage.reset();
+  const agency = tenants.createAgency({ name: "Plan Concurrency", slug: "plan-concurrency" });
+  const loaded = company.getCompanyProfile(agency.id);
+  assert.equal(loaded.revision, 0, "an unwritten plan starts at revision 0");
+
+  const first = company.updateCompanyProfile(agency.id, { ...loaded, mission: "Owner A mission" }, "owner_a", null, { expectedRevision: loaded.revision });
+  assert.equal(first.revision, 1, "each accepted write advances the revision");
+  assert.equal(first.mission, "Owner A mission");
+
+  // The second tab still holds revision 0 and PUTs the whole profile.
+  let refusal: unknown;
+  try {
+    company.updateCompanyProfile(agency.id, { ...loaded, vision: "Owner B vision" }, "owner_b", null, { expectedRevision: loaded.revision });
+  } catch (error) {
+    refusal = error;
+  }
+  assert.ok(refusal instanceof company.CompanyProfileConflictError, "a stale whole-profile write is refused");
+  assert.equal((refusal as InstanceType<typeof company.CompanyProfileConflictError>).current.mission, "Owner A mission", "the refusal carries the live plan so the caller can rebase");
+  assert.equal(company.getCompanyProfile(agency.id).mission, "Owner A mission", "the losing write did not land");
+  assert.equal(company.getCompanyProfile(agency.id).vision, "", "the losing write did not land");
+  assert.equal(company.getCompanyProfile(agency.id).revision, 1, "a refused write does not advance the revision");
+
+  // Reload, reapply, retry: the retry carries the newer revision and succeeds
+  // without discarding the first owner's mission.
+  const latest = company.getCompanyProfile(agency.id);
+  const retried = company.updateCompanyProfile(agency.id, { ...latest, vision: "Owner B vision" }, "owner_b", null, { expectedRevision: latest.revision });
+  assert.equal(retried.revision, 2);
+  assert.equal(retried.mission, "Owner A mission");
+  assert.equal(retried.vision, "Owner B vision");
+});
+
+test("the company PUT demands the revision being edited and answers a stale one with a current-state 409", () => {
+  const route = read("src/app/api/portal/company/route.ts");
+  assert.match(route, /const expectedRevision = body\.revision/);
+  assert.match(route, /status: 400/, "a versionless whole-profile PUT is rejected outright");
+  assert.match(route, /CompanyProfileConflictError[\s\S]*conflict: "stale-revision", company: error\.current[\s\S]*status: 409/);
+  assert.match(route, /CompanyReviewLockedError[\s\S]*conflict: "locked-review"[\s\S]*status: 409/);
+
+  // Both versionless callers now send the profile they loaded and handle 409.
+  for (const path of ["src/app/portal/agency/_BattleTableWorkspace.tsx", "src/app/portal/agency/company/_CompanyWorkspace.tsx"]) {
+    const source = read(path);
+    assert.match(source, /response\.status === 409 && result\?\.conflict === "stale-revision"/, `${path} recognises the conflict`);
+    assert.match(source, /rebaseCompanyProfile\(conflict\)/, `${path} offers merge-and-retry rather than silent failure`);
+    assert.match(source, /Reapply my changes/, `${path} exposes the retry as a control`);
+  }
+});
+
+test("a locked quarterly cycle cannot be edited, unlocked or dropped in place", async () => {
+  await storage.reset();
+  const agency = tenants.createAgency({ name: "Locked Cycle", slug: "locked-cycle" });
+  const seeded = company.getCompanyProfile(agency.id);
+  const locked = company.updateCompanyProfile(agency.id, { ...seeded, reviews: [completeReview()] }, "executive_test", null, { expectedRevision: seeded.revision });
+  const retained = locked.reviews[0]!;
+  assert.equal(retained.status, "complete");
+  assert.equal(retained.version, 1, "an original cycle is version 1");
+
+  // An unrelated station saving the whole profile carries the locked cycle
+  // through untouched — that must stay a normal, accepted save.
+  const carried = company.updateCompanyProfile(agency.id, { ...locked, monthlyRevenueTargetCents: 777_000 }, "executive_test", null, { expectedRevision: locked.revision });
+  assert.equal(carried.monthlyRevenueTargetCents, 777_000);
+  assert.deepEqual(carried.reviews[0], retained, "an untouched locked cycle survives a neighbouring station's save");
+
+  const attempt = (reviews: unknown, label: string) => {
+    let refusal: unknown;
+    try {
+      company.updateCompanyProfile(agency.id, { ...carried, reviews: reviews as never }, "executive_test", null, { expectedRevision: carried.revision });
+    } catch (error) {
+      refusal = error;
+    }
+    assert.ok(refusal instanceof company.CompanyReviewLockedError, label);
+  };
+
+  attempt([{ ...retained, decisions: "Rewritten after the fact." }], "an in-place edit of a locked cycle is refused");
+  attempt([{ ...retained, status: "draft", completedAt: undefined }], "silently reverting a locked cycle to draft is refused");
+  attempt([{ ...retained, evidenceSnapshot: { ...retained.evidenceSnapshot!, revenueCents: 9_999_999 } }], "overwriting the captured evidence of a locked cycle is refused");
+  attempt([], "dropping a locked cycle from the decision record is refused");
+
+  const stored = company.getCompanyProfile(agency.id);
+  assert.deepEqual(stored.reviews[0], retained, "no refused attempt changed the retained record");
+  assert.equal(stored.revision, carried.revision, "a refused review write does not advance the revision");
+});
+
+test("a locked cycle is corrected by a numbered amendment that leaves the original evidence intact", async () => {
+  await storage.reset();
+  const agency = tenants.createAgency({ name: "Cycle Amendment", slug: "cycle-amendment" });
+  const seeded = company.getCompanyProfile(agency.id);
+  const locked = company.updateCompanyProfile(agency.id, { ...seeded, reviews: [completeReview()] }, "executive_test", null, { expectedRevision: seeded.revision });
+  const original = locked.reviews[0]!;
+
+  const amendment = {
+    ...original,
+    id: "review-q3-2026-amendment",
+    amendsReviewId: original.id,
+    version: 97, // a client cannot claim a version; the server assigns lineage
+    status: "draft" as const,
+    completedAt: undefined,
+    decisions: "Corrected: the commercial block moves to Tuesday and Thursday.",
+    evidenceSnapshot: { ...original.evidenceSnapshot!, revenueCents: 250_000, capturedAt: 999_999 },
+    updatedAt: 999_999,
+  };
+  const amended = company.updateCompanyProfile(agency.id, { ...locked, reviews: [amendment, original] }, "executive_test", null, { expectedRevision: locked.revision });
+
+  const kept = amended.reviews.find(review => review.id === original.id);
+  const published = amended.reviews.find(review => review.id === "review-q3-2026-amendment");
+  assert.deepEqual(kept, original, "the amended-from cycle is retained exactly as it was locked");
+  assert.equal(kept?.evidenceSnapshot?.revenueCents, 100_000, "the original evidence is not restated from the amendment");
+  assert.equal(published?.amendsReviewId, original.id);
+  assert.equal(published?.version, 2, "lineage is server-assigned, not claimed by the client");
+  assert.equal(published?.status, "draft");
+  assert.equal(published?.decisions, "Corrected: the commercial block moves to Tuesday and Thursday.");
+
+  // Locking the amendment freezes it in turn; the original is still untouched.
+  const sealed = company.updateCompanyProfile(agency.id, {
+    ...amended,
+    reviews: amended.reviews.map(review => review.id === published!.id ? { ...review, status: "complete" as const, completedAt: 1_000_000 } : review),
+  }, "executive_test", null, { expectedRevision: amended.revision });
+  assert.equal(sealed.reviews.find(review => review.id === published!.id)?.status, "complete");
+  assert.deepEqual(sealed.reviews.find(review => review.id === original.id), original);
+
+  // Reload round-trip: both cycles survive, and the workspace opens on the
+  // newest one in the lineage rather than the superseded original.
+  const reloaded = company.getCompanyProfile(agency.id);
+  assert.equal(reloaded.reviews.length, 2);
+  const { activeReviewForPeriod } = await import("../src/app/portal/agency/_QuarterlyStrategyReview");
+  assert.equal(activeReviewForPeriod(reloaded.reviews, "Q3 2026")?.id, published!.id, "the superseded original is not what the review stage reopens");
+});
+
+test("the quarterly stage stops unlocking a completed cycle and stops restating its evidence", () => {
+  const review = read("src/app/portal/agency/_QuarterlyStrategyReview.tsx");
+  // The old change() forced status:"draft"/completedAt:undefined on every
+  // keystroke, which is exactly how a locked cycle silently reopened.
+  assert.doesNotMatch(review, /\.\.\.patch, status: "draft", completedAt: undefined/);
+  assert.match(review, /function change\([\s\S]*if \(!editable\) return;/);
+  assert.match(review, /const locked = draft\.status === "complete"/);
+  assert.match(review, /const editable = canEdit && !locked/);
+  assert.match(review, /if \(!editable \|\| \(status === "complete" && !completionReady\)\) return;/);
+  assert.match(review, /Amend this cycle/, "a locked cycle offers an explicit amendment instead of a silent reopen");
+  // A locked cycle shows the readings it was locked against, never today's.
+  assert.match(review, /locked \? draft\.evidenceSnapshot \?\? evidence : evidence/);
+});
+
+test("a conflicted plan is rebased onto the newer version instead of overwriting it", () => {
+  const base = baseProfileFixture();
+  const attempted: import("../src/server/types").CompanyProfile = { ...base, mission: "My new mission", plans: [{ id: "plan-1", title: "My plan", horizon: "now", status: "active" }] };
+  // Someone else saved a different section in the meantime.
+  const latest: import("../src/server/types").CompanyProfile = { ...base, revision: 4, vision: "Their new vision", monthlyRevenueTargetCents: 2_000_000 };
+
+  assert.deepEqual(changedCompanyFields(base, attempted), ["mission", "plans"], "only the sections this editor touched are resent");
+
+  const rebased = rebaseCompanyProfile({ base, attempted, latest });
+  assert.equal(rebased.mission, "My new mission", "my change is reapplied");
+  assert.equal(rebased.plans[0]?.title, "My plan");
+  assert.equal(rebased.vision, "Their new vision", "their change is kept, not clobbered");
+  assert.equal(rebased.monthlyRevenueTargetCents, 2_000_000);
+  assert.equal(rebased.revision, 4, "the retry compares against the newer revision");
+  assert.match(describeCompanyConflict({ base, attempted, latest }), /2 changed sections/);
+});
+
+test("the Company workspace rebases from the last server-confirmed plan, not from its own edit buffer", () => {
+  // `company` in _CompanyWorkspace IS the direction form's edit buffer — the
+  // mission/vision/values textareas setCompany() straight into it and the form
+  // then submits with a bare save(). If the conflict base were read from that
+  // same buffer, base and attempted would be one object: the diff would be
+  // empty, "Reapply my changes" would resend the winner's plan verbatim and
+  // report success, and the banner would tell the owner nothing of theirs was
+  // lost while the reload had just thrown their typing away.
+  const buffer = { ...baseProfileFixture(), mission: "Typed but never saved" };
+  assert.deepEqual(changedCompanyFields(buffer, buffer), [], "diffing the edit buffer against itself reports no change");
+  assert.match(
+    describeCompanyConflict({ base: buffer, attempted: buffer, latest: { ...buffer, revision: 3 } }),
+    /nothing of yours was lost/,
+    "which is the false reassurance a self-diff would produce",
+  );
+
+  const source = read("src/app/portal/agency/company/_CompanyWorkspace.tsx");
+  assert.match(source, /const base = baseline;/, "the conflict base is the last profile the server confirmed");
+  assert.doesNotMatch(source, /const base = company;/, "the live edit buffer is never the conflict base");
+  assert.equal((source.match(/setBaseline\(/g) ?? []).length, 2, "the baseline moves only on a server answer: the 409 reload and the accepted write");
+});
+
+function baseProfileFixture(): import("../src/server/types").CompanyProfile {
+  return company.getCompanyProfile("agency-fixture", null);
+}
+
+function completeReview() {
+  return {
+    id: "review-q3-2026",
+    period: "Q3 2026",
+    status: "complete" as const,
+    executiveSummary: "Demand exists, but conversion and delivery capacity constrain growth.",
+    wins: "Retained every active client.",
+    misses: "Revenue remained below target.",
+    lessons: "Commercial activity needs a protected weekly allocation.",
+    marketSignals: "Website enquiries remain the strongest source.",
+    customerSignals: "Retention is strong while onboarding still creates friction.",
+    financialDiagnosis: "Revenue concentration remains too high.",
+    operatingDiagnosis: "Founder capacity is the principal constraint.",
+    strategicBets: "Productise onboarding",
+    risks: "Added demand could weaken delivery quality.",
+    stopDoing: "Unscoped reactive work.",
+    decisions: "Protect two commercial blocks each week.",
+    nextPriorities: "1. Prove acquisition",
+    successMeasures: "Five qualified leads monthly.",
+    ownerCommitment: "Review the scorecard every Friday.",
+    implementationHandover: "Create objectives and weekly actions from the strategy.",
+    scorecard: { growth: 2 as const, finance: 2 as const, customer: 4 as const, operations: 3 as const, capability: 3 as const },
+    evidenceSnapshot: {
+      revenueCents: 100_000,
+      revenueTargetCents: 500_000,
+      revenueProgressPercent: 20,
+      monthlyGrowthPercent: 5,
+      activeClients: 2,
+      clientsNeedingAttention: 1,
+      openLeads: 3,
+      openTasks: 8,
+      overdueTasks: 2,
+      healthScore: 31,
+      objectiveProgressPercent: 40,
+      objectivesAtRisk: 1,
+      capacityUtilisationPercent: 88,
+      connectedSources: 22,
+      totalSources: 27,
+      capturedAt: 123_456,
+    },
+    completedAt: 123_456,
+    updatedAt: 123_456,
+  };
+}
+
 test("Battle Table retains a bounded ownership, investment, dividend and authority register", async () => {
   await storage.reset();
   const agency = tenants.createAgency({ name: "Capital Register Test", slug: "capital-register-test" });
@@ -222,7 +464,7 @@ test("Battle Table retains a bounded ownership, investment, dividend and authori
       transactions: [{ id: "capital-1", kind: "capital-contribution", title: "Founder capital", shareholderId: "holder-ed", amountCents: 10_000, currency: "gbp", shares: 100, occurredAt: 123_456, status: "completed", approvalId: "decision-1" }],
       investments: [{ id: "investment-1", name: "Growth reserve", kind: "fund", currency: "usd", costBasisCents: 50_000, currentValueCents: 56_000, incomeReceivedCents: 1_000, valuedAt: 123_456, status: "active", risk: "medium" }],
       dividends: [{ id: "dividend-1", title: "2026 distribution", period: "FY 2026", currency: "gbp", declaredCents: 25_000, paidCents: 0, status: "approved", allocations: [{ shareholderId: "holder-ed", amountCents: 25_000 }], approvalId: "decision-1" }],
-      decisions: [{ id: "decision-1", title: "Approve capital and distribution", kind: "board", status: "approved", summary: "Approved after reviewing cash and reserves.", votesForPercent: 150, votesAgainstPercent: -20, relatedRecordIds: ["capital-1", "dividend-1"] }],
+      decisions: [{ id: "decision-1", title: "Approve capital and distribution", kind: "board", status: "approved", summary: "Approved after reviewing cash and reserves.", votesForPercent: 70, votesAgainstPercent: 30, relatedRecordIds: ["capital-1", "dividend-1"] }],
     },
   }, "executive_test");
 
@@ -230,9 +472,25 @@ test("Battle Table retains a bounded ownership, investment, dividend and authori
   assert.equal(updated.capital.shareholders[0]?.shares, 100);
   assert.equal(updated.capital.investments[0]?.currency, "USD");
   assert.equal(updated.capital.dividends[0]?.allocations[0]?.amountCents, 25_000);
-  assert.equal(updated.capital.decisions[0]?.votesForPercent, 100);
-  assert.equal(updated.capital.decisions[0]?.votesAgainstPercent, 0);
+  assert.equal(updated.capital.decisions[0]?.votesForPercent, 70);
+  assert.equal(updated.capital.decisions[0]?.votesAgainstPercent, 30);
   assert.deepEqual(company.getCompanyProfile(agency.id).capital, updated.capital);
+
+  // Bounds are no longer applied by silently rewriting an impossible value:
+  // 150% for and -20% against are refused by name (issues #65), because
+  // storing them as 100% and 0% would invent the vote that was recorded.
+  // The whole graph contract lives in scripts/smoke-company-capital-invariants.test.ts.
+  let refusal: unknown;
+  try {
+    company.updateCompanyProfile(agency.id, {
+      ...updated,
+      capital: { ...updated.capital, decisions: [{ ...updated.capital.decisions[0]!, votesForPercent: 150, votesAgainstPercent: -20 }] },
+    }, "executive_test");
+  } catch (error) {
+    refusal = error;
+  }
+  assert.ok(refusal instanceof company.CompanyCapitalConflictError, "an impossible vote is refused rather than clamped");
+  assert.deepEqual(company.getCompanyProfile(agency.id).capital.decisions[0], updated.capital.decisions[0], "the refused save left the retained decision untouched");
 });
 
 test("Battle Table is the third command station and owns every executive control", () => {
@@ -576,6 +834,93 @@ test("War room pulse reads growth and capacity against their retained assumption
   assert.ok((capacity.deviationPercent ?? 0) > 0);
 });
 
+test("War room targets follow the agency KPI plan where it sets one, and fall back to the retained plan where it does not", async () => {
+  const { buildBattlefield, buildWarRoomDecisions, buildWarRoomPulse, resolveWarRoomTargets } = await warRoom();
+  const base = await seedProfile("war-room-kpi-plan", { monthlyRevenueTargetCents: 1_000_000, mission: "Trade", vision: "Grow" });
+  const profile = { ...base, projection: { ...base.projection, targetMonthlyGrowthPercent: 10 } };
+  const ecosystem = await warRoomScope({ profile, actuals: { monthRevenueCents: 600_000, monthlyRevenueGrowthPercent: 12, leadCount: 40 }, healthScore: 75 });
+  const brand = await warRoomScope({ id: "company:brand-a", companyId: "brand-a", label: "Brand Alpha", kind: "company", profile, actuals: { monthRevenueCents: 600_000, monthlyRevenueGrowthPercent: 12, leadCount: 40 }, healthScore: 75 });
+
+  // Nothing set in the KPI plan: the retained company plan is the authority.
+  const retained = buildWarRoomPulse({ scope: ecosystem, now: WAR_ROOM_NOW });
+  assert.equal(retained.find(item => item.id === "revenue")?.target, "£10,000 target");
+  assert.equal(retained.find(item => item.id === "revenue")?.targetSource, "plan");
+  assert.equal(retained.find(item => item.id === "growth")?.target, "+10% target");
+  assert.equal(retained.find(item => item.id === "growth")?.targetSource, "plan");
+  assert.equal(retained.find(item => item.id === "growth")?.state, "ahead", "12% growth clears the retained 10% assumption");
+  assert.equal(retained.find(item => item.id === "health")?.target, "70 pts baseline");
+  assert.equal(retained.find(item => item.id === "health")?.state, "on-track");
+  assert.equal(buildBattlefield({ scopes: [ecosystem], now: WAR_ROOM_NOW })[0]?.targetCents, 1_000_000);
+  assert.equal(buildBattlefield({ scopes: [ecosystem], now: WAR_ROOM_NOW })[0]?.healthState, "clear");
+  assert.equal(
+    buildWarRoomDecisions({ scopes: [ecosystem], now: WAR_ROOM_NOW }).filter(item => item.kind === "revenue-gap").length,
+    0,
+    "£6,000 banked by 15/31 August clears a £10,000 monthly plan's corridor",
+  );
+
+  // The agency KPI plan raises three targets; the same structure the KPI plan
+  // editor writes (`applyKpiTargetOverride`) is what the war room reads back.
+  let config = applyKpiTargetOverride(undefined, "revenue-target", { targetValue: 150 }, { now: 1 });
+  config = applyKpiTargetOverride(config, "revenue-growth", { targetValue: 25 }, { now: 2 });
+  config = applyKpiTargetOverride(config, "business-health", { targetValue: 90 }, { now: 3 });
+
+  const planned = buildWarRoomPulse({ scope: ecosystem, now: WAR_ROOM_NOW, kpiTargets: config });
+  const revenue = planned.find(item => item.id === "revenue")!;
+  assert.equal(revenue.target, "£15,000 target", "150% attainment applies to the retained £10,000 monthly plan");
+  assert.equal(revenue.targetSource, "kpi-plan");
+  assert.match(revenue.detail, /agency KPI plan requires 150% of the retained £10,000 plan/);
+  const growth = planned.find(item => item.id === "growth")!;
+  assert.equal(growth.target, "+25% target");
+  assert.equal(growth.targetSource, "kpi-plan");
+  assert.equal(growth.state, "behind", "12% growth against a raised 25% target is no longer ahead");
+  assert.equal(growth.deviationPercent, -13);
+  const health = planned.find(item => item.id === "health")!;
+  assert.equal(health.target, "90 pts baseline");
+  assert.equal(health.state, "behind", "75 points clears the 70-point default but not a 90-point KPI target");
+  assert.equal(health.deviationPercent, -15);
+  // Readings with no command-KPI counterpart keep the retained guardrail.
+  assert.equal(planned.find(item => item.id === "capacity")?.targetSource, "plan");
+
+  // The battlefield and the decisions queue read the same raised target, so the
+  // front door cannot show two different plans at once.
+  const [row] = buildBattlefield({ scopes: [ecosystem], now: WAR_ROOM_NOW, kpiTargets: config });
+  assert.equal(row?.targetCents, 1_500_000);
+  assert.equal(row?.healthState, "warning");
+  assert.ok(row?.evidence.some(item => /agency KPI plan requires 150%/.test(item)), "the raised target names its own authority");
+  const gap = buildWarRoomDecisions({ scopes: [ecosystem], now: WAR_ROOM_NOW, kpiTargets: config }).find(item => item.kind === "revenue-gap");
+  assert.ok(gap, "the same banked revenue is behind the raised corridor and raises a call");
+  assert.ok(gap!.evidence.some(item => /Set by the agency KPI plan: 150%/.test(item)));
+
+  // A company-level entry is more specific than the agency-wide one.
+  const layered = applyKpiTargetOverride(config, "revenue-growth", { targetValue: 40 }, { companyId: "brand-a", now: 4 });
+  assert.equal(buildWarRoomPulse({ scope: brand, now: WAR_ROOM_NOW, kpiTargets: layered }).find(item => item.id === "growth")?.target, "+40% target");
+  assert.equal(buildWarRoomPulse({ scope: ecosystem, now: WAR_ROOM_NOW, kpiTargets: layered }).find(item => item.id === "growth")?.target, "+25% target", "the company entry does not leak onto the ecosystem row");
+
+  // Cleared or unusable entries never blank a target that exists.
+  const cleared = applyKpiTargetOverride(config, "revenue-target", { targetValue: null }, { now: 5 });
+  assert.deepEqual(
+    { cents: resolveWarRoomTargets(ecosystem, cleared).revenueTargetCents, authority: resolveWarRoomTargets(ecosystem, cleared).revenueAuthority },
+    { cents: 1_000_000, authority: "plan" },
+  );
+  const zeroed = applyKpiTargetOverride(config, "revenue-target", { targetValue: 0 }, { now: 6 });
+  assert.equal(resolveWarRoomTargets(ecosystem, zeroed).revenueTargetCents, 1_000_000, "a zero attainment target is not a plan, so the retained target stands");
+
+  // A zero growth target is reachable from the shipped KPI plan editor (a typed
+  // 0, or a suggested target off flat history). Zero is the pulse's own
+  // "no-target" sentinel, so honouring it would blank the retained +10%
+  // assumption into "no target set" while still flying the KPI-plan chip.
+  const zeroGrowth = applyKpiTargetOverride(config, "revenue-growth", { targetValue: 0 }, { now: 7 });
+  const zeroGrowthPulse = buildWarRoomPulse({ scope: ecosystem, now: WAR_ROOM_NOW, kpiTargets: zeroGrowth }).find(item => item.id === "growth")!;
+  assert.equal(zeroGrowthPulse.target, "+10% target", "a zero growth target is not a plan, so the retained assumption stands");
+  assert.equal(zeroGrowthPulse.targetSource, "plan");
+  assert.notEqual(zeroGrowthPulse.state, "no-target", "a real retained growth assumption is never blanked into no-target by an unusable KPI entry");
+  // A negative growth target IS a plan — a deliberate contraction — and is read.
+  const negativeGrowth = applyKpiTargetOverride(config, "revenue-growth", { targetValue: -5 }, { now: 8 });
+  const negativePulse = buildWarRoomPulse({ scope: ecosystem, now: WAR_ROOM_NOW, kpiTargets: negativeGrowth }).find(item => item.id === "growth")!;
+  assert.equal(negativePulse.target, "-5% target");
+  assert.equal(negativePulse.targetSource, "kpi-plan");
+});
+
 test("War room capital watch matches the retained register and opens the capital section", async () => {
   const { capitalWatchCount, buildWarRoomDecisions } = await warRoom();
   const base = await seedProfile("war-room-capital", { monthlyRevenueTargetCents: 1_000_000, mission: "Trade", vision: "Grow" });
@@ -622,6 +967,10 @@ test("The war room is the Battle Table front door and the 10 planning sections a
   assert.match(table, /What needs your call right now/);
   assert.match(table, /Set-up and planning · drill in below/);
   assert.match(table, /buildBattlefield|buildWarRoomDecisions|buildWarRoomPulse/);
+  // The front door is measured against the agency's persisted KPI plan where it
+  // sets a target, not only against the retained Battle Table form.
+  assert.match(table, /fetch\("\/api\/portal\/kpi-registry\/targets"\)/);
+  assert.match(table, /buildWarRoomPulse\(\{ scope, now: warRoomNow, kpiTargets \}\)/);
 
   // Demoted, not deleted: every planning section is still reachable.
   for (const station of ["Strategic plot", "KPI intelligence", "Direction", "Projections", "Objectives", "Capacity", "Plans", "Capital & ownership", "Reviews", "Executive systems"]) {

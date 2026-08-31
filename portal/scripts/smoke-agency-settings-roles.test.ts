@@ -96,14 +96,28 @@ test("all three Settings surfaces and APIs consume the shared capability contrac
   assert.match(externalAiRoute, /canUseAgencySettingsCapability\(session\.role, "manageExternalAi"\)/);
 });
 
-test("staff account pages do not point back into owner and manager Settings", () => {
+test("account pages do not point anyone but owners and managers into Settings", () => {
   const account = readFileSync("src/app/portal/account/page.tsx", "utf8");
   const permissions = readFileSync("src/app/portal/account/permissions/page.tsx", "utf8");
 
-  assert.match(account, /isAgencyStaff \? "\/portal\/team" : "\/portal\/agency"/);
+  // The back-link is no longer a hand-written ternary that fell through to
+  // /portal/agency for everyone else (which is where client roles and
+  // freelancers were being sent). It reads the ONE post-login resolver.
+  assert.match(account, /const workspaceHref = resolvePostLoginPath\(session\)/);
+  assert.doesNotMatch(account, /: "\/portal\/agency";/,
+    "the account back-link has a hardcoded /portal/agency fall-through again");
   assert.match(account, /An owner or manager manages your email and role/);
-  assert.match(account, /isAgencyStaff[\s\S]*?Team settings/);
-  assert.match(permissions, /isAgencyStaff \? \(/);
+
+  // The Team settings link is gated on the capability, not on "not staff" —
+  // #92 fixed staff and left client/freelancer pointing at a blocked surface.
+  for (const [label, src] of [["account", account], ["permissions", permissions]] as const) {
+    assert.match(src, /canUseAgencySettingsCapability\(session\.role, "manageTeam"\)/,
+      `${label} page does not gate the Team settings link on the capability`);
+    assert.match(src, /canManageTeamSettings[\s\S]{0,600}?Team settings/,
+      `${label} page still offers Team settings outside the capability check`);
+    assert.doesNotMatch(src, /isAgencyStaff/,
+      `${label} page is back to a staff-only special case`);
+  }
   assert.match(permissions, /An owner or manager manages your workspace access/);
 });
 

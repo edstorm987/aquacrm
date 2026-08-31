@@ -2,12 +2,30 @@ import type { PluginStorage } from "../lib/aquaPluginTypes";
 
 const mutationQueues = new Map<string, Promise<void>>();
 
-export async function withMarketingRecordLock<T>(
-  agencyId: string,
-  collection: string,
-  work: () => Promise<T>,
-): Promise<T> {
-  const lockKey = `${agencyId}:${collection}`;
+/**
+ * The live runtime storage (`src/built-ins/runtime/_runtime.ts`) implements
+ * `runExclusive`, which delegates to `withPortalStateTransaction`: it reloads
+ * the durable state (`ensureHydrated({ fresh: true })`), runs the operation and
+ * flushes the write, all inside a cross-process lock (dev file lock, or a
+ * Supabase/Postgres lease). Running the read-compare-write inside it is what
+ * makes the `expectedUpdatedAt` check a real compare-and-set when two server
+ * instances serve the same agency — an in-process queue alone only orders the
+ * mutations of one process against each other.
+ *
+ * The vendored `PluginStorage` contract does not declare it, and harnesses
+ * (tests, read-only storages) may not provide it, so it is detected
+ * structurally and the in-process queue remains the fallback.
+ */
+type CrossProcessStorage = PluginStorage & {
+  runExclusive?<T>(key: string, operation: () => Promise<T>): Promise<T>;
+};
+
+export interface MarketingLockContext {
+  agencyId: string;
+  storage: PluginStorage;
+}
+
+async function withInProcessQueue<T>(lockKey: string, work: () => Promise<T>): Promise<T> {
   const previous = mutationQueues.get(lockKey) ?? Promise.resolve();
   let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
@@ -20,6 +38,21 @@ export async function withMarketingRecordLock<T>(
     release();
     if (mutationQueues.get(lockKey) === queued) mutationQueues.delete(lockKey);
   }
+}
+
+export async function withMarketingRecordLock<T>(
+  ctx: MarketingLockContext,
+  collection: string,
+  work: () => Promise<T>,
+): Promise<T> {
+  const lockKey = `marketing:${ctx.agencyId}:${collection}`;
+  const storage = ctx.storage as CrossProcessStorage;
+  const runExclusive = typeof storage.runExclusive === "function"
+    ? storage.runExclusive.bind(storage)
+    : null;
+  // In-process queue outside, durable lock inside: waiters of this process are
+  // ordered locally before one of them competes for the cross-process lease.
+  return withInProcessQueue(lockKey, () => (runExclusive ? runExclusive(lockKey, work) : work()));
 }
 
 export interface MarketingRecordStorage<T extends { id: string }> {

@@ -9,6 +9,7 @@ import { databaseStorageHealth } from "@/lib/server/databaseStorageHealth";
 import { recordRadarEvidence } from "@/engines/data/server/radar/radarEvidenceVault";
 import { recordRadarSweep } from "@/engines/data/server/radar/radarMemory";
 import { runAgencySyntheticProbes } from "@/engines/data/server/radar/radarSyntheticProbes";
+import { runPluginHealthSweep, type PluginHealthSweepResult } from "@/lib/server/plugins/pluginHealthRunner";
 
 /**
  * Radar sweep scheduler (Stage 1 of the radar upgrade).
@@ -42,8 +43,25 @@ export interface RadarSweepDefinition {
   type: RadarSweepType;
   label: string;
   cost: RadarSweepCost;
-  /** Suggested minimum gap between scheduled runs, in milliseconds. */
+  /**
+   * The INTENDED minimum gap between runs, in milliseconds — what the sweep is
+   * designed for, not a promise about the deployment. Read `scheduledCadenceMs`
+   * for what the shipped schedule actually delivers.
+   */
   cadenceMs: number;
+  /**
+   * What the DEPLOYED schedule actually delivers, in milliseconds, or `null`
+   * when the sweep has no schedule of its own (it is produced on demand).
+   *
+   * This field exists because the two used to be conflated: the Evidence rollup
+   * declared `cadenceMs: HOUR` while the only thing that ever ran it was the
+   * daily `cron/inbox` tick (and a manual scan), so the taxonomy claimed an
+   * hourly evidence trail that no schedule produced. Whether the crons in
+   * `vercel.json` move back to a sub-daily cadence is a hosting decision (Vercel
+   * Hobby is daily-only) recorded as issues #170; until it is made, this field
+   * states the daily truth rather than the hourly intent. → issues #131.
+   */
+  scheduledCadenceMs: number | null;
   /** True when the sweep persists state (writes to storage). */
   persists: boolean;
   /** True when the sweep performs external network / DB I/O (not pure in-state CPU). */
@@ -62,6 +80,11 @@ export interface RadarSweepDefinition {
  * `tier` classification to it and Stage 4 gives `infra` a real probe. The
  * `pulse` sweep never does I/O — it renders from whatever the scheduled sweeps
  * last wrote — which is why `performsIo`/`persists` are both false for it.
+ *
+ * `cadenceMs` is the intended gap; `scheduledCadenceMs` is what `vercel.json`
+ * actually delivers today (both crons are daily). Keep the second one true — a
+ * taxonomy that quietly claims a cadence nothing runs is how Radar ends up
+ * presenting day-old evidence as if it were an hour old. → issues #131, #170.
  */
 export const RADAR_SWEEP_DEFINITIONS: Record<RadarSweepType, RadarSweepDefinition> = {
   pulse: {
@@ -69,6 +92,8 @@ export const RADAR_SWEEP_DEFINITIONS: Record<RadarSweepType, RadarSweepDefinitio
     label: "Pulse",
     cost: "cheap",
     cadenceMs: 30_000,
+    // No schedule of its own: the Pulse is rendered on demand by the live UI.
+    scheduledCadenceMs: null,
     persists: false,
     performsIo: false,
     tiers: ["instant"],
@@ -79,6 +104,11 @@ export const RADAR_SWEEP_DEFINITIONS: Record<RadarSweepType, RadarSweepDefinitio
     label: "Deep / Synthetic",
     cost: "expensive",
     cadenceMs: 12 * MINUTE,
+    // cron/radar-probes, "15 6 * * *" — daily, not the intended ~12 minutes (issues #170).
+    // The same daily gap is `RADAR_PROBE_CADENCE_MS` in businessRadar.ts, which is
+    // what every freshness agreement judging probe evidence reads; the two are
+    // pinned equal by scripts/smoke-radar-sweeps.test.ts so they cannot drift.
+    scheduledCadenceMs: DAY,
     persists: true,
     performsIo: true,
     tiers: ["probe"],
@@ -89,6 +119,8 @@ export const RADAR_SWEEP_DEFINITIONS: Record<RadarSweepType, RadarSweepDefinitio
     label: "Infra",
     cost: "medium",
     cadenceMs: 5 * MINUTE,
+    // cron/radar-probes and cron/inbox each probe it once per daily tick (issues #170).
+    scheduledCadenceMs: DAY,
     persists: true,
     performsIo: true,
     tiers: ["probe"],
@@ -99,16 +131,20 @@ export const RADAR_SWEEP_DEFINITIONS: Record<RadarSweepType, RadarSweepDefinitio
     label: "Evidence rollup",
     cost: "medium",
     cadenceMs: HOUR,
+    // cron/inbox, "0 6 * * *" — one rollup a day, plus whatever manual full scans run.
+    scheduledCadenceMs: DAY,
     persists: true,
     performsIo: false,
     tiers: ["rollup"],
-    detail: "History + anomaly persistence: recordRadarSweep (memory) and recordRadarEvidence (the durable KPI time-series) from a freshly built Pulse.",
+    detail: "History + anomaly persistence: recordRadarSweep (memory) and recordRadarEvidence (the durable KPI time-series) from a freshly built Pulse. Scheduled once a day by cron/inbox — the hourly cadenceMs above is the intent, not the deployed schedule.",
   },
   compliance: {
     type: "compliance",
     label: "Compliance / slow",
     cost: "cheap",
     cadenceMs: DAY,
+    // No schedule of its own: memoised into the Pulse, so it runs when the Pulse does.
+    scheduledCadenceMs: null,
     persists: false,
     performsIo: false,
     // A slow-cadence subset of instant checks (legal/tax/insurance), produced by
@@ -167,6 +203,30 @@ export async function runRadarInfraSweep(now = Date.now()): Promise<RadarInfraHe
 }
 
 /**
+ * Module health — ask every enabled module its own `healthcheck` and PERSIST
+ * the answer onto the install record.
+ *
+ * Rides the same structure as the Infra sweep and for the same reason: the
+ * Pulse must never do this itself. Running ten third-party hooks with I/O in
+ * them on a render is exactly the cost the sweep split exists to move off the
+ * live path, so the Pulse reads what this last wrote.
+ *
+ * Without it, `systems:module-health` counted failures out of a `health` field
+ * that had no writer anywhere — a confident, permanent zero. The runner is
+ * shared with `/api/portal/plugins/health`, so the number Radar counts and the
+ * rows a person reads in the Dev Console come from one piece of code.
+ *
+ * Never throws: `runPluginHealthSweep` turns every hook failure into a recorded
+ * unhealthy answer rather than an exception.
+ */
+export async function runRadarModuleHealthSweep(
+  agencyId: string,
+  options: { force?: boolean; now?: number } = {},
+): Promise<PluginHealthSweepResult> {
+  return runPluginHealthSweep(agencyId, options);
+}
+
+/**
  * Evidence rollup — persist temporal memory + the durable evidence vault from a
  * freshly built radar. Returns the memory digest so callers can fold it back
  * into the response (as the scan route does).
@@ -194,6 +254,9 @@ export async function runRadarFullSweep(
 ): Promise<RadarFullSweepResult> {
   await runAgencySyntheticProbes(agencyId, { force: true });
   await runRadarInfraSweep(options.now);
+  // Forced: "run everything now" must re-ask the modules, not reuse an answer
+  // from inside the cadence window — otherwise the scan reports yesterday.
+  await runRadarModuleHealthSweep(agencyId, { force: true, now: options.now });
   const radar = await buildBusinessIssueRadar(agencyId, options.now);
   reconcileAgencyTasksWithRadar(agencyId, radar);
   const memory = runRadarEvidenceRollup(agencyId, radar);
@@ -213,8 +276,16 @@ export interface RadarScheduledSweepResult {
  * Scheduled sweep — the background cadence path (the `cron/inbox` loop, one call
  * per active agency). Runs the Deep sweep at its own cadence (no force),
  * rebuilds the Pulse, rolls up evidence and invalidates the cache. Failures are
- * captured per agency so one bad tenant never aborts the whole cron run —
- * matching the loop's former inline behaviour.
+ * captured per agency so one bad tenant never aborts the whole cron run.
+ *
+ * STRICTLY PER-TENANT. This used to call `runRadarInfraSweep` too, which was
+ * wrong twice over: the Infra probe is app-wide, so N agencies meant N identical
+ * database round-trips per tick; and because it sat inside this one try/catch,
+ * a single transient probe failure returned `ok: false` BEFORE the evidence
+ * rollup below — costing every tenant its daily evidence sample, with no retry
+ * until the next day. The caller (`cron/inbox`) now probes Infra once per tick
+ * in its own try/catch, exactly as `cron/radar-probes` already did, so a tenant's
+ * evidence no longer depends on a fresh app-wide Infra success. → issues #131.
  */
 export async function runRadarScheduledSweep(
   agencyId: string,
@@ -222,7 +293,9 @@ export async function runRadarScheduledSweep(
 ): Promise<RadarScheduledSweepResult> {
   try {
     await runAgencySyntheticProbes(agencyId);
-    await runRadarInfraSweep(options.now);
+    // Unforced: the runner's own cadence gate decides, so a cron tick that runs
+    // more than once a day does not re-run ten modules' I/O for nothing.
+    await runRadarModuleHealthSweep(agencyId, { now: options.now });
     const radar = await buildBusinessIssueRadar(agencyId, options.now);
     runRadarEvidenceRollup(agencyId, radar);
     invalidateBusinessIssueRadarCache(agencyId);

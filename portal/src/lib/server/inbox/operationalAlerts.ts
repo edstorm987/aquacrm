@@ -10,6 +10,8 @@ import { containerFor } from "@aqua/plugin-leads-pipeline/server";
 import type { ClientTelemetryEvent } from "@/lib/clients/clientTelemetry";
 import { clientTelemetryRiskSignals } from "@/lib/clients/clientAquaHealth";
 import { listAgencyTasks } from "@/server/tasks";
+import { requireCurrentAccessActor, type CurrentAccessActor } from "@/server/accessControl";
+import { canReadClientAssociation } from "@/lib/server/access/clientAssociationElement";
 import { ownerChatAttention } from "@/server/people";
 import { getUserById } from "@/server/users";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
@@ -125,8 +127,36 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
     }
   }
 
-  for (const task of notificationSettings.overdueTasks ? listAgencyTasks(agencyId) : []) {
-    if (task.status === "done") continue;
+  // An Action that NAMES a client is only readable by someone who may see that
+  // client — the rule `GET /portal/tasks` and `intelligence/my-radar` already
+  // apply. This feed did not, and it puts the task's TITLE in the alert
+  // ("Overdue task: <title>"), so every agency role saw the titles of every
+  // client's actions regardless of their client access. Filtering here rather
+  // than at each caller means the notifications, search, client-layout and
+  // clients-page readers all inherit it.
+  //
+  // The actor is resolved ONCE, outside the loop: `canReadClientAssociation` is
+  // pure over a resolved actor. When no actor can be resolved (a background or
+  // system caller with no session) the client-named tasks are DROPPED rather
+  // than included — an alert feed that cannot check permission must not guess
+  // in the permissive direction.
+  //
+  // Resolved LAZILY, and only when a client-named action actually exists.
+  // `requireCurrentAccessActor()` forces `ensureHydrated({ fresh: true })`, and
+  // six render paths reach this function — including two layouts — so calling
+  // it unconditionally put a forced fresh backend read into every one of the
+  // 301 pages the production build prerenders. That is a build-time cost with
+  // no runtime benefit whenever nothing needs filtering, which is the common
+  // case.
+  const openTasks = notificationSettings.overdueTasks
+    ? listAgencyTasks(agencyId).filter(task => task.status !== "done")
+    : [];
+  let taskActor: CurrentAccessActor | null = null;
+  if (openTasks.some(task => task.clientId)) {
+    taskActor = await requireCurrentAccessActor().catch(() => null);
+  }
+  for (const task of openTasks) {
+    if (task.clientId && !(taskActor && canReadClientAssociation(taskActor, "agency-task", task.clientId))) continue;
     const owner = task.assigneeUserId ? getUserById(task.assigneeUserId)?.name : undefined;
     const baseAlert = {
       id: `task:${task.id}`,

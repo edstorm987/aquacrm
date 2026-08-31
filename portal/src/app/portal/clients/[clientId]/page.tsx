@@ -18,6 +18,7 @@ import { getAgency, getClientForAgency, listClients } from "@/server/tenants";
 import { clientRelationshipId, listClientRelationshipWorkspaces } from "@/server/clientRelationships";
 import { listInstalledFor } from "@/server/pluginInstalls";
 import { listActivity } from "@/server/activity";
+import { activityAction, activityCategory, activityMessage } from "@/lib/shared/activityVocabulary";
 import { phaseLabel, listPhasesForAgency } from "@/server/phases";
 import { listPlugins } from "@/built-ins/runtime/_registry";
 import { SURFACE_ROLE_CEILING } from "@/built-ins/runtime/_pageScope";
@@ -49,6 +50,7 @@ import { assertSopsAccess, familiesForStage, SopsAccessError } from "@/lib/serve
 import { RequirePermission } from "@/lib/server/RequirePermission";
 import { OnboardingDashboardPanel, type OnboardingPhase } from "./_OnboardingDashboardPanel";
 import { customerVisibleInvoices, loadCustomerPortalData } from "@/app/portal/customer/_portalData";
+import { readOrUnavailable } from "@/lib/readAvailability";
 import { listTradingCompanies } from "@/server/tradingCompanies";
 import { resolveClientPortalProvider } from "@/lib/server/clients/clientPortalProvider";
 import { isGitHubPublishingConfiguredForAgency } from "@/lib/server/integrations/githubProjectPublisher";
@@ -426,11 +428,19 @@ export default async function ClientHome({
     const workspaceContracts = workspace.id === client.id
       ? customerPortalData.contracts
       : Array.isArray(workspaceMeta.contracts) ? workspaceMeta.contracts as ClientContract[] : [];
-    const workspaceInvoices = workspace.id === client.id
-      ? customerPortalData.invoices
+    // A sibling workspace's invoice read used to fall back to `[]`, which then
+    // read as zero outstanding and let the portfolio row claim "Operations
+    // clear". Keep the failure so the row can say it does not know (issues #57).
+    const workspaceInvoiceRead = workspace.id === client.id
+      ? { available: customerPortalData.available.invoices, data: customerPortalData.invoices }
       : relationshipFinance
-        ? await relationshipFinance.invoices.list({ clientId: workspace.id }).then(customerVisibleInvoices).catch(() => [])
-        : [];
+        ? await readOrUnavailable(
+            async () => customerVisibleInvoices(await relationshipFinance.invoices.list({ clientId: workspace.id })),
+            [],
+          )
+        : { available: true, data: [] };
+    const workspaceInvoices = workspaceInvoiceRead.data;
+    const financeUnavailable = !workspaceInvoiceRead.available;
     const health = workspace.id === client.id
       ? aquaHealth
       : calculateClientAquaHealth({
@@ -460,6 +470,7 @@ export default async function ClientHome({
       healthState: health.state,
       healthConfidence: health.confidence,
       outstandingByCurrency,
+      financeUnavailable,
       portalAccessState,
     }] as const;
   })));
@@ -632,21 +643,29 @@ export default async function ClientHome({
         occurredAt: message.occurredAt,
         href: clientWorkspaceHref(client.id, "communications"),
       })),
+    // Same `listActivity` feed the agency surfaces render, so it must speak the
+    // same product vocabulary (todo:960) — never the raw internal wording.
     ...recentActivity.map(item => ({
       id: item.id,
       kind: "activity" as const,
-      title: item.message,
-      detail: `${item.category} · ${item.action.replaceAll(".", " ")}`,
+      title: activityMessage(item.message),
+      detail: `${activityCategory(item.category)} · ${activityAction(item.action)}`,
       occurredAt: item.ts,
       href: `${clientWorkspaceHref(client.id, "notes")}#client-record`,
     })),
   ].sort((left, right) => right.occurredAt - left.occurredAt).slice(0, 8);
-  const linkedInbox = tab === "notes" && !session.isDemo
-    ? await listInboxSnapshot(session.agencyId).catch(() => ({ connections: [], conversations: [], generatedAt: Date.now() }))
-    : { connections: [], conversations: [], generatedAt: Date.now() };
-  const websiteEnquiriesRaw = tab === "notes" && !session.isDemo
-    ? await listWebsiteEnquiries(session.agencyId, 500).catch(() => [])
-    : [];
+  // Both communication reads used to collapse to an empty snapshot, and the
+  // ledger then read as "no messages" — a claim about the relationship built on
+  // a read that never happened (issues #57). The failure is carried into the
+  // coverage warnings the ledger already shows.
+  const linkedInboxRead = tab === "notes" && !session.isDemo
+    ? await readOrUnavailable(() => listInboxSnapshot(session.agencyId), { connections: [], conversations: [], generatedAt: Date.now() })
+    : { available: true, data: { connections: [], conversations: [], generatedAt: Date.now() } };
+  const linkedInbox = linkedInboxRead.data;
+  const websiteEnquiryRead = tab === "notes" && !session.isDemo
+    ? await readOrUnavailable(() => listWebsiteEnquiries(session.agencyId, 500), [])
+    : { available: true, data: [] };
+  const websiteEnquiriesRaw = websiteEnquiryRead.data;
   const websiteEnquiries = websiteEnquiriesRaw.length
     ? await synchroniseWebsiteEnquiryIdentities(session.agencyId, websiteEnquiriesRaw).catch(() => websiteEnquiriesRaw)
     : websiteEnquiriesRaw;
@@ -751,6 +770,8 @@ export default async function ClientHome({
     .slice(0, 500)
     .map(item => ({ id: item.id, message: item.message, category: item.category, occurredAt: item.ts }));
   const clientRecordCoverageWarnings = [
+    linkedInboxRead.available ? null : "Linked inbox conversations could not be read, so any social or messaging history is missing from this ledger. This is a failed read, not an empty record.",
+    websiteEnquiryRead.available ? null : "Website enquiries could not be read, so enquiry history is missing from this ledger. This is a failed read, not an empty record.",
     websiteEnquiryWindowReached ? "This refresh inspected the newest 500 website enquiries. Previously indexed matches remain retained; use global search for older enquiries not yet imported into this ledger." : null,
     recordActivityWindowReached ? "This refresh inspected the newest 500 relevant activity events. Previously indexed activity remains retained in the ledger and the full audit log remains available." : null,
   ].filter((warning): warning is string => Boolean(warning));
@@ -763,8 +784,12 @@ export default async function ClientHome({
   const outstandingPaymentPositions = paymentPosition.currencyPositions.filter(position => position.outstandingCents > 0);
   const acceptedAgreement = customerPortalData.contracts.some(contract => contract.status === "accepted")
     || Boolean(commercialPack?.signedDocumentDataUrl);
+  // "Issued invoice missing" is a statement about the finance record. When the
+  // invoice read failed, the honest gap is that nobody knows (issues #57).
   const commercialGaps = [
-    issuedInvoices.length === 0 ? "Issued invoice missing" : null,
+    !customerPortalData.available.invoices
+      ? "Invoices could not be read — the commercial record is unverified"
+      : issuedInvoices.length === 0 ? "Issued invoice missing" : null,
     !acceptedAgreement ? "Accepted agreement missing" : null,
     outstandingPaymentPositions.length > 0
       ? `Payment outstanding (${outstandingPaymentPositions.map(position => new Intl.NumberFormat("en-GB", { style: "currency", currency: position.currency.toUpperCase() }).format(position.outstandingCents / 100)).join(" · ")})`
@@ -1029,6 +1054,7 @@ export default async function ClientHome({
               aquaHealthState: workspaceSignals.healthState,
               aquaHealthConfidence: workspaceSignals.healthConfidence,
               outstandingByCurrency: workspaceSignals.outstandingByCurrency,
+              financeUnavailable: workspaceSignals.financeUnavailable,
               portalAccessState: workspaceSignals.portalAccessState,
               current: workspace.id === client.id,
             };

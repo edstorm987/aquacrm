@@ -48,18 +48,41 @@ let auditor: Auditor;
 let storage: Storage;
 let tenants: Tenants;
 let connections: Connections;
+let founderAgencyId: string;
+
+const FOUNDER_EMAIL = "founder@auditor.smoke.test";
 
 before(async () => {
   // In-memory backend — this suite must never touch the real portal state file.
   process.env.PORTAL_BACKEND = "memory";
   process.env.PORTAL_VAULT_ENCRYPTION_KEY = "auditor-smoke-vault-key-longer-than-thirty-two-characters";
   delete process.env.OPENAI_API_KEY; // the point is a vault connection, not an env key
+  // The founder gate is resolved from real state: `mayUseEnvironmentCredentials`
+  // answers false for EVERY agency while the founder account is unseeded. On an
+  // unseeded deployment an assertion that some agency is NOT the founder's is
+  // therefore vacuous — it would pass for the founder's own agency too. Seed a
+  // real founder so both sides of the gate are distinguishable here, which is
+  // what makes the "this is not the founder's agency" assertions below mean
+  // something and lets the founder's own view be proven at all.
+  process.env.FOUNDER_EMAIL = FOUNDER_EMAIL;
   auditor = await import("../src/lib/server/dev/devTeamAuditor");
   storage = await import("../src/server/storage");
   tenants = await import("../src/server/tenants");
   connections = await import("../src/lib/server/integrations/integrationConnections");
   await storage.ensureHydrated();
   await storage.reset();
+  founderAgencyId = tenants.createAgency({ name: "Operator", slug: "operator-founder" }).id;
+  storage.mutate(state => {
+    state.users[FOUNDER_EMAIL] = {
+      id: "user_founder_auditor_smoke",
+      email: FOUNDER_EMAIL,
+      agencyId: founderAgencyId,
+      role: "agency-owner",
+      name: "Auditor Smoke Founder",
+      createdAt: 0,
+      updatedAt: 0,
+    } as never;
+  });
 });
 
 // The auditor's real house style: a dated bold label, an em-dash inside it, a
@@ -260,6 +283,135 @@ describe("dev team auditor — readiness sees vault-connected providers", () => 
       blind.readiness.items.find(item => item.id === "assistant")?.status,
       "optional",
       "…which is exactly what the auditor used to do",
+    );
+  });
+
+  // env-and-sellability.md §3. The context is what carries WHOSE readiness this
+  // is, and where the email answer comes from. Before this the builder handed
+  // over four counts and the verdict was decided by `process.env`: a company
+  // that is not the operator's read "production setup is incomplete" forever,
+  // and a company that had connected SMTP was told its customer email was not
+  // connected at all — because readiness asked about `resend` and nothing else,
+  // while `sendTransactionalEmail` had supported SMTP the whole time.
+  it("judges a company on its own connections, SMTP included", async () => {
+    const agency = tenants.createAgency({ name: "Buyer SMTP", slug: "buyer-smtp" });
+    const smtp = connections.saveIntegrationConnection({
+      agencyId: agency.id,
+      provider: "smtp",
+      label: "Their mail server",
+      values: {
+        host: "smtp.buyer.example",
+        port: "587",
+        username: "hello@buyer.example",
+        password: "buyer-app-password",
+        fromEmail: "hello@buyer.example",
+        fromName: "Buyer Ltd",
+      },
+      actorUserId: "owner",
+    });
+    // Saving credential bytes never makes them live; only a deliberate
+    // activation does, and readiness must follow the SAME rule the send path
+    // does rather than counting a stored-but-inactive row.
+    connections.activateIntegrationConnection({
+      agencyId: agency.id,
+      connectionId: smtp.id,
+      actorUserId: "owner",
+      allowUntested: true,
+    });
+
+    const context = auditor.readinessContextForAgency(agency.id);
+    assert.equal(context.agencyId, agency.id);
+    assert.equal(
+      context.environmentCredentialsBelongToAgency,
+      false,
+      "the deployment's environment is the founder's, and this is not the founder's agency",
+    );
+    assert.equal(context.transactionalEmailConfigured, true, "SMTP is a sender readiness used to be blind to");
+    assert.equal(
+      context.enquiryNotificationsConfigured,
+      false,
+      "public enquiry alerts still go out through Resend, and nothing resolves a recipient",
+    );
+
+    const audit = await auditor.scanDevTeamAudit(context);
+    assert.equal(audit.readiness.audience, "company");
+    assert.equal(
+      audit.readiness.items.some(item => item.scope === "platform"),
+      false,
+      "a tenant is not shown rows about the operator's database and session secret",
+    );
+    const email = audit.readiness.items.find(item => item.id === "email");
+    assert.equal(email?.status, "needs-setup");
+    assert.match(
+      email?.summary ?? "",
+      /enquiry has no inbox/i,
+      "the remaining gap is the enquiry recipient — not the sender it already has",
+    );
+    // …and the action must name the thing that actually clears it. Public
+    // enquiry alerts leave through Resend and nothing else, so telling an
+    // SMTP-only workspace to "set a support email" would offer a remedy that
+    // leaves the required row red — the house contract is that an action states
+    // how it is dealt with.
+    assert.match(
+      email?.action ?? "",
+      /Resend/,
+      "an SMTP-only workspace must be told a Resend connection is what clears the enquiry half",
+    );
+  });
+
+  // The other side of the gate, and the one the settings page now depends on:
+  // the founder's own agency must still get the WHOLE deployment view. Without
+  // a seeded founder every agency answers "not mine", so this pairing is what
+  // proves the split is a real decision rather than a constant.
+  it("still gives the operator's own agency the whole deployment view", async () => {
+    const context = auditor.readinessContextForAgency(founderAgencyId);
+    assert.equal(
+      context.environmentCredentialsBelongToAgency,
+      true,
+      "the environment's credentials ARE the founder agency's configuration",
+    );
+
+    const audit = await auditor.scanDevTeamAudit(context);
+    assert.equal(audit.readiness.audience, "platform");
+    assert.ok(
+      audit.readiness.items.some(item => item.id === "database" && item.scope === "platform"),
+      "the operator keeps the rows only they can act on",
+    );
+    assert.ok(
+      audit.readiness.items.some(item => item.envKeys.length > 0),
+      "envKeys stay for the founder — they are the debugging aid only a redeploy can use",
+    );
+  });
+
+  it("lets a company reach ready without a redeploy", async () => {
+    const agency = tenants.createAgency({ name: "Buyer Resend", slug: "buyer-resend" });
+    const resend = connections.saveIntegrationConnection({
+      agencyId: agency.id,
+      provider: "resend",
+      label: "Their Resend",
+      values: {
+        apiKey: "re_buyer_key",
+        fromEmail: "hello@buyer.example",
+        fromName: "Buyer Ltd",
+        notifyTo: "enquiries@buyer.example",
+      },
+      actorUserId: "owner",
+    });
+    connections.activateIntegrationConnection({
+      agencyId: agency.id,
+      connectionId: resend.id,
+      actorUserId: "owner",
+      allowUntested: true,
+    });
+
+    const context = auditor.readinessContextForAgency(agency.id);
+    assert.equal(context.enquiryNotificationsConfigured, true);
+    const audit = await auditor.scanDevTeamAudit(context);
+    assert.equal(audit.readiness.items.find(item => item.id === "email")?.status, "ready");
+    assert.equal(
+      audit.readiness.ready,
+      true,
+      "the whole point of selling this: a buyer can finish setup from inside the app",
     );
   });
 

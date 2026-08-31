@@ -54,17 +54,29 @@ test("images, files and voice notes use durable inbox media", () => {
   const upload = read("src/app/api/portal/inbox/media/route.ts");
   const content = read("src/app/api/portal/inbox/media/content/route.ts");
   const token = read("src/lib/server/inbox/inboxMedia.ts");
+  const recorder = read("src/app/portal/agency/inbox/_voiceRecorder.ts");
   for (const source of [unified, enquiry]) {
-    assert.match(source, /navigator\.mediaDevices\.getUserMedia/);
+    // Microphone capture goes through the one shared recorder helper, which is
+    // also the only place allowed to ask for the stream — see issues #145.
+    assert.match(source, /beginRecording\(\{/);
+    assert.doesNotMatch(source, /navigator\.mediaDevices/);
     assert.match(source, /\/api\/portal\/inbox\/media/);
     assert.match(source, /Record voice note|voice-note-/);
     assert.match(source, /accept="image\/\*,audio\/\*,video\/\*/);
   }
+  assert.match(recorder, /navigator\.mediaDevices/);
+  assert.match(recorder, /devices\.getUserMedia\(\{ audio: true \}\)/);
   assert.match(upload, /20 \* 1024 \* 1024/);
   assert.match(upload, /storePrivateUpload/);
   assert.match(upload, /targetKind !== "website" && targetKind !== "social" && targetKind !== "client"/);
   assert.match(token, /createHmac\("sha256"/);
   assert.match(content, /verifyInboxMediaToken/);
+  // Voice notes mount as seekable audio, so the attachment route answers the
+  // shared byte-range contract and no provider buffers the whole object.
+  assert.match(content, /privateMediaResponse/);
+  assert.match(content, /request\.headers\.get\("range"\)/);
+  assert.match(token, /readLocalFileRange/);
+  assert.doesNotMatch(token, /\.blob\(\)/);
 });
 
 test("outbound providers receive real attachments", () => {

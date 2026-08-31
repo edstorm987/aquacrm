@@ -25,6 +25,7 @@ import type {
   PipelineCardKind,
   PipelineColumn,
   PipelineKind,
+  PortalState,
   Client,
   ClientStage,
 } from "./types";
@@ -83,27 +84,13 @@ function fulfilmentColumns(): PipelineColumn[] {
   ];
 }
 
-function upgradeLegacyFulfilmentPipeline(agencyId: string, pipeline: Pipeline): Pipeline {
-  const legacyIds = new Set(["discovery", "design", "onboarding", "live", "churned"]);
-  if (pipeline.columns.length !== legacyIds.size || !pipeline.columns.every(column => legacyIds.has(column.id))) {
-    return pipeline;
-  }
-  const legacyColumnMap: Record<string, string> = {
-    discovery: "aqua-epic-intro",
-    design: "aqua-brand-builder",
-    onboarding: "aqua-epic-intro",
-    live: "aqua-mastery",
-    churned: "churned",
-  };
-  mutate(state => {
-    for (const card of Object.values(state.pipelineCards)) {
-      if (card.pipelineId !== pipeline.id) continue;
-      card.columnId = legacyColumnMap[card.columnId] ?? "aqua-epic-intro";
-      card.updatedAt = Date.now();
-    }
-  });
-  return updatePipeline(agencyId, pipeline.id, { columns: fulfilmentColumns() }) ?? pipeline;
-}
+const LEGACY_FULFILMENT_COLUMN_MAP: Record<string, string> = {
+  discovery: "aqua-epic-intro",
+  design: "aqua-brand-builder",
+  onboarding: "aqua-epic-intro",
+  live: "aqua-mastery",
+  churned: "churned",
+};
 
 function leadsColumns(): PipelineColumn[] {
   return [
@@ -118,27 +105,94 @@ function leadsColumns(): PipelineColumn[] {
   ];
 }
 
-function upgradeLegacyLeadsPipeline(agencyId: string, pipeline: Pipeline): Pipeline {
-  const legacyIds = new Set(["new", "contacted", "qualified", "won", "lost"]);
-  if (pipeline.columns.length === legacyIds.size && pipeline.columns.every(column => legacyIds.has(column.id))) {
-    mutate(state => {
-      for (const card of Object.values(state.pipelineCards)) {
-        if (card.pipelineId !== pipeline.id) continue;
-        if (card.columnId === "qualified") card.columnId = "proposal";
-        card.updatedAt = Date.now();
-      }
-    });
-    return updatePipeline(agencyId, pipeline.id, { columns: leadsColumns() }) ?? pipeline;
+// ─── Legacy column migration — computed on read, PERSISTED on write ───────
+//
+// Issue #21. Opening a pipeline board used to run this migration, so a GET
+// rewrote the pipeline and every card on it. That is the same shape as the
+// product-catalogue repair (`agencyProductsForRead`) and the same fix: the
+// upgrade is a pure function, a READ applies it in memory and stores nothing,
+// and the write boundaries (`addCard`, `moveCard`, `seedDefaultPipelines`)
+// persist it because they are already writing.
+//
+// The card map is the half that makes this safe. A stored card sitting in the
+// retired `qualified` column has to be shown under `proposal`, or a read-only
+// board would render columns the cards no longer belong to and the card would
+// simply vanish — so `listCards` applies the SAME map the persisted upgrade
+// would, and the two cannot drift because there is only one of them.
+
+interface LegacyPipelineUpgrade {
+  columns: PipelineColumn[];
+  /** Where a stored card's column moves to, or null when no card moves. */
+  card: ((columnId: string) => string) | null;
+}
+
+/** The upgrade this pipeline needs, or null when it is already current. Pure. */
+function legacyPipelineUpgrade(pipeline: Pipeline): LegacyPipelineUpgrade | null {
+  if (pipeline.kind === "leads") {
+    const legacyIds = new Set(["new", "contacted", "qualified", "won", "lost"]);
+    if (pipeline.columns.length === legacyIds.size && pipeline.columns.every(column => legacyIds.has(column.id))) {
+      return { columns: leadsColumns(), card: columnId => (columnId === "qualified" ? "proposal" : columnId) };
+    }
+    if (!pipeline.columns.some(column => column.id === "scouting")) {
+      return {
+        columns: [
+          { id: "scouting", label: "Scouting", order: 0, color: "#765A2C" },
+          ...pipeline.columns.map((column, index) => ({ ...column, order: index + 1 })),
+        ],
+        card: null,
+      };
+    }
+    return null;
   }
-  if (!pipeline.columns.some(column => column.id === "scouting")) {
-    return updatePipeline(agencyId, pipeline.id, {
-      columns: [
-        { id: "scouting", label: "Scouting", order: 0, color: "#765A2C" },
-        ...pipeline.columns.map((column, index) => ({ ...column, order: index + 1 })),
-      ],
-    }) ?? pipeline;
+  if (pipeline.kind === "fulfilment") {
+    const legacyIds = new Set(["discovery", "design", "onboarding", "live", "churned"]);
+    if (pipeline.columns.length !== legacyIds.size || !pipeline.columns.every(column => legacyIds.has(column.id))) {
+      return null;
+    }
+    return {
+      columns: fulfilmentColumns(),
+      card: columnId => LEGACY_FULFILMENT_COLUMN_MAP[columnId] ?? "aqua-epic-intro",
+    };
   }
-  return pipeline;
+  return null;
+}
+
+/**
+ * The pipeline as a READ sees it — migrated in memory, nothing stored.
+ *
+ * Deliberately NOT stamped with a new `updatedAt`: an in-memory migration has
+ * not updated anything, and saying it did would make every board view look like
+ * an edit to anything that sorts or reports on that field.
+ */
+function pipelineForRead(pipeline: Pipeline): Pipeline {
+  const upgrade = legacyPipelineUpgrade(pipeline);
+  return upgrade ? { ...pipeline, columns: upgrade.columns } : pipeline;
+}
+
+/**
+ * Persist the migration. Only ever called from inside a `mutate()` that was
+ * going to write anyway, so no read pays for it.
+ */
+function persistLegacyPipelineUpgrade(state: PortalState, pipeline: Pipeline): Pipeline {
+  const upgrade = legacyPipelineUpgrade(pipeline);
+  if (!upgrade) return pipeline;
+  const now = Date.now();
+  if (upgrade.card) {
+    for (const card of Object.values(state.pipelineCards)) {
+      if (card.pipelineId !== pipeline.id) continue;
+      const columnId = upgrade.card(card.columnId);
+      if (columnId === card.columnId) continue;
+      card.columnId = columnId;
+      card.updatedAt = now;
+    }
+  }
+  const upgraded: Pipeline = {
+    ...pipeline,
+    columns: upgrade.columns.slice().sort((a, b) => a.order - b.order),
+    updatedAt: now,
+  };
+  state.pipelines[pipeline.id] = upgraded;
+  return upgraded;
 }
 
 function salesColumns(): PipelineColumn[] {
@@ -249,9 +303,9 @@ export function getPipeline(id: string): Pipeline | null {
 export function getPipelineBySlug(agencyId: string, slug: string): Pipeline | null {
   for (const p of Object.values(getState().pipelines)) {
     if (p.agencyId !== agencyId || p.slug !== slug) continue;
-    if (p.kind === "leads") return upgradeLegacyLeadsPipeline(agencyId, p);
-    if (p.kind === "fulfilment") return upgradeLegacyFulfilmentPipeline(agencyId, p);
-    return p;
+    // Read-only since 2026-08-31 (issue #21): this used to run the legacy
+    // column migration, so opening a board wrote the pipeline and every card.
+    return pipelineForRead(p);
   }
   return null;
 }
@@ -326,11 +380,13 @@ export function seedDefaultPipelines(agencyId: string): SeedDefaultPipelinesResu
   for (const spec of DEFAULT_PIPELINE_SPECS) {
     const already = listPipelines(agencyId).find(p => p.kind === spec.kind);
     if (already) {
-      existing.push(spec.kind === "fulfilment"
-        ? upgradeLegacyFulfilmentPipeline(agencyId, already)
-        : spec.kind === "leads"
-          ? upgradeLegacyLeadsPipeline(agencyId, already)
-          : already);
+      // The seed IS a write, so this is where the legacy migration is paid for.
+      let upgraded = already;
+      mutate(state => {
+        const stored = state.pipelines[already.id];
+        if (stored) upgraded = persistLegacyPipelineUpgrade(state, stored);
+      });
+      existing.push(upgraded);
       continue;
     }
     const pipeline = createPipeline({
@@ -362,8 +418,13 @@ export function addCard(
 ): PipelineCard | null {
   let saved: PipelineCard | null = null;
   mutate(state => {
-    const pipeline = state.pipelines[pipelineId];
-    if (!pipeline || pipeline.agencyId !== agencyId) return;
+    const stored = state.pipelines[pipelineId];
+    if (!stored || stored.agencyId !== agencyId) return;
+    // Already writing, so this is a write boundary: bring a legacy pipeline up
+    // to date here rather than making the board's READ do it (issue #21).
+    // Without this the caller would offer a modern column id that the stored
+    // pipeline does not have, and the add would be rejected.
+    const pipeline = persistLegacyPipelineUpgrade(state, stored);
     if (!pipeline.allowedCardKinds.includes(input.kind)) return;
 
     let columnId: string;
@@ -421,10 +482,14 @@ export function moveCard(
     leadIdSnap: string | undefined;
   } = { result: null, pipelineAgencyId: null, cardKind: null, leadIdSnap: undefined };
   mutate(state => {
-    const card = state.pipelineCards[cardId];
-    if (!card) return;
-    const pipeline = state.pipelines[card.pipelineId];
-    if (!pipeline || pipeline.agencyId !== agencyId) return;
+    const firstLook = state.pipelineCards[cardId];
+    if (!firstLook) return;
+    const stored = state.pipelines[firstLook.pipelineId];
+    if (!stored || stored.agencyId !== agencyId) return;
+    // Write boundary — see `addCard`. The migration may move THIS card, so
+    // re-read it afterwards rather than using the pre-upgrade copy.
+    const pipeline = persistLegacyPipelineUpgrade(state, stored);
+    const card = state.pipelineCards[cardId]!;
     if (!pipeline.columns.find(c => c.id === toColumnId)) return;
     ctx.pipelineAgencyId = pipeline.agencyId;
     ctx.cardKind = card.kind;
@@ -460,8 +525,19 @@ export function moveCard(
 }
 
 export function listCards(pipelineId: string): PipelineCard[] {
+  // The read half of the legacy column migration (issue #21). `getPipelineBySlug`
+  // hands back the modern columns without storing them, so the cards have to be
+  // read through the same map — otherwise a card still filed under a retired
+  // column id belongs to no column on the board and disappears from it.
+  const pipeline = getState().pipelines[pipelineId];
+  const remap = pipeline ? legacyPipelineUpgrade(pipeline)?.card ?? null : null;
   return Object.values(getState().pipelineCards)
     .filter(c => c.pipelineId === pipelineId)
+    .map(card => {
+      if (!remap) return card;
+      const columnId = remap(card.columnId);
+      return columnId === card.columnId ? card : { ...card, columnId } as PipelineCard;
+    })
     .sort((a, b) => a.order - b.order);
 }
 

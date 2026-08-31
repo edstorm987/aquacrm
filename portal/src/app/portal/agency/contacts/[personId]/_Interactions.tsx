@@ -20,14 +20,25 @@ import {
  * awaiting classification, and making you click to read it is one click too
  * many when the whole point is to see it.
  */
-export function Interactions({ interactions, personId }: { interactions: PersonInteraction[]; personId: string }) {
+export function Interactions({ interactions, personId, complete = true }: { interactions: PersonInteraction[]; personId: string; complete?: boolean }) {
+  // A refused enquiry read left this list short — and, when nothing else was
+  // hand-recorded, empty. "Nothing recorded yet" would then be a claim about
+  // the relationship built on a read that never happened (issues #57).
+  const incomplete = complete ? null : (
+    <p role="status" className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
+      Enquiries could not be read, so this timeline is incomplete. Reload before deciding what this person is.
+    </p>
+  );
+
   if (!interactions.length) {
     return (
       <section className="rounded-lg border border-black/10 bg-white p-4">
         <h2 className="text-sm font-semibold text-black/80">Interactions</h2>
-        <p className="mt-2 text-sm text-black/45">
-          Nothing recorded yet. Enquiries, replies, calls and meetings appear here as they happen.
-        </p>
+        {complete ? (
+          <p className="mt-2 text-sm text-black/45">
+            Nothing recorded yet. Enquiries, replies, calls and meetings appear here as they happen.
+          </p>
+        ) : incomplete}
         <AddRecord personId={personId} />
       </section>
     );
@@ -41,6 +52,7 @@ export function Interactions({ interactions, personId }: { interactions: PersonI
       <p className="mt-1 text-xs text-black/50">
         Everything this person has sent or been sent — read it before deciding what they are.
       </p>
+      {incomplete}
 
       <ol className="mt-3 flex flex-col gap-2">
         {interactions.map((interaction, index) => (

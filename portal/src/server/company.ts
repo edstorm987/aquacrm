@@ -1,6 +1,7 @@
 import "server-only";
 
 import { logActivity } from "./activity";
+import { getLegalDocument } from "./legalDocuments";
 import { getState, mutate } from "./storage";
 import { defaultCapacityAreas } from "@/lib/performance/hiringCapacity";
 import type { CompanyCapacityAreaId, CompanyCapacityAreaPlan, CompanyCapacityPlan, CompanyCapitalPlan, CompanyCapitalTransaction, CompanyDividendDistribution, CompanyGovernanceDecision, CompanyInvestmentHolding, CompanyObjective, CompanyPlan, CompanyProfile, CompanyProjectionPlan, CompanyQuarterlyReview, CompanyShareClass, CompanyShareholder } from "./types";
@@ -54,20 +55,74 @@ const defaults = (agencyId: string, companyId?: string | null): CompanyProfile =
   objectives: [],
   plans: [],
   reviews: [],
+  revision: 0,
   updatedAt: 0,
 });
 
-export function getCompanyProfile(agencyId: string, companyId?: string | null): CompanyProfile {
-  const key = profileKey(agencyId, companyId);
+function normaliseProfile(stored: CompanyProfile | undefined, agencyId: string, companyId?: string | null): CompanyProfile {
   const fallback = defaults(agencyId, companyId);
-  const stored = getState().companyProfiles[key];
   return {
     ...fallback,
     ...stored,
     capacity: cleanCapacity(stored?.capacity ?? fallback.capacity, fallback.capacity),
+    revision: cleanNumber(stored?.revision, 0, 0, Number.MAX_SAFE_INTEGER),
     agencyId,
     companyId: companyId || undefined,
   };
+}
+
+export function getCompanyProfile(agencyId: string, companyId?: string | null): CompanyProfile {
+  return normaliseProfile(getState().companyProfiles[profileKey(agencyId, companyId)], agencyId, companyId);
+}
+
+/**
+ * A write that lost the race. It carries the live profile so the caller can
+ * answer with the current state instead of a bare failure — the same
+ * current-state 409 shape the product workspaces use.
+ */
+export class CompanyProfileConflictError extends Error {
+  constructor(public readonly current: CompanyProfile, public readonly expectedRevision: number) {
+    super("This company plan changed in another session. The latest version has been loaded; reapply your change and save again.");
+    this.name = "CompanyProfileConflictError";
+  }
+}
+
+/**
+ * A locked quarterly cycle is decision memory: it cannot be edited in place or
+ * dropped. Correcting it means an explicit superseding amendment.
+ */
+export class CompanyReviewLockedError extends Error {
+  constructor(public readonly reviewId: string, public readonly period: string, message: string) {
+    super(message);
+    this.name = "CompanyReviewLockedError";
+  }
+}
+
+/**
+ * One named way the capital register would have been left internally impossible
+ * or pointing at a record that is not there. The whole plan is refused as a
+ * graph, so every conflict is reported together with the exact dependants —
+ * a save must never be half-applied and a delete must never strand a live link.
+ */
+export interface CompanyCapitalConflict {
+  scope: "share-class" | "shareholder" | "capital-movement" | "dividend" | "decision";
+  recordId: string;
+  record: string;
+  reason: string;
+  dependants?: string[];
+}
+
+export class CompanyCapitalConflictError extends Error {
+  constructor(public readonly conflicts: CompanyCapitalConflict[]) {
+    super(describeCapitalConflicts(conflicts));
+    this.name = "CompanyCapitalConflictError";
+  }
+}
+
+function describeCapitalConflicts(conflicts: CompanyCapitalConflict[]): string {
+  const shown = conflicts.slice(0, 5).map(conflict => conflict.reason);
+  const remainder = conflicts.length - shown.length;
+  return `The capital and ownership register was not saved: ${conflicts.length} ${conflicts.length === 1 ? "record is" : "records are"} impossible or would be left pointing at a record that is not there. ${shown.join(" ")}${remainder > 0 ? ` And ${remainder} more.` : ""}`;
 }
 
 export function updateCompanyProfile(
@@ -75,27 +130,67 @@ export function updateCompanyProfile(
   input: Partial<CompanyProfile>,
   actorUserId: string,
   companyId?: string | null,
+  options?: { expectedRevision?: number },
 ): CompanyProfile {
-  const current = getCompanyProfile(agencyId, companyId);
-  const updated: CompanyProfile = {
-    agencyId,
-    companyId: companyId || undefined,
-    mission: cleanText(input.mission ?? current.mission, 2_000),
-    vision: cleanText(input.vision ?? current.vision, 2_000),
-    values: cleanList(input.values ?? current.values, 20, 100),
-    monthlyRevenueTargetCents: cleanMoney(input.monthlyRevenueTargetCents, current.monthlyRevenueTargetCents),
-    averageDealValueCents: cleanMoney(input.averageDealValueCents, current.averageDealValueCents),
-    salesCallCloseRatePercent: cleanNumber(input.salesCallCloseRatePercent, current.salesCallCloseRatePercent, 1, 100),
-    annualRevenueTargetCents: cleanMoney(input.annualRevenueTargetCents, current.annualRevenueTargetCents),
-    capacity: cleanCapacity(input.capacity ?? current.capacity, current.capacity),
-    projection: cleanProjection(input.projection ?? current.projection, current.projection),
-    capital: cleanCapital(input.capital ?? current.capital, current.capital),
-    objectives: cleanObjectives(input.objectives ?? current.objectives),
-    plans: cleanPlans(input.plans ?? current.plans),
-    reviews: cleanReviews(input.reviews ?? current.reviews),
-    updatedAt: Date.now(),
-  };
-  mutate(state => { state.companyProfiles[profileKey(agencyId, companyId)] = updated; });
+  const expectedRevision = options?.expectedRevision;
+  let conflict: CompanyProfile | null = null;
+  let updated: CompanyProfile | null = null;
+  mutate(state => {
+    const key = profileKey(agencyId, companyId);
+    const current = normaliseProfile(state.companyProfiles[key], agencyId, companyId);
+    if (expectedRevision !== undefined && expectedRevision !== current.revision) {
+      conflict = current;
+      return;
+    }
+    // The capital plan is validated as one graph AFTER per-record sanitation and
+    // BEFORE anything is written, so a save either lands whole or is refused
+    // whole with the exact conflicts named.
+    //
+    // Only a save that actually TOUCHES the plan is judged. Every Battle Table
+    // editor (mission, objectives, capacity, plans, reviews) PUTs the whole
+    // profile, so the retained capital plan rides along on writes that have
+    // nothing to do with it — and a plan can be invalidated from outside this
+    // path (deleting a cited document from the legal register, or data written
+    // before this graph existed). Refusing those writes would lock an operator
+    // out of unrelated work over a state the store already holds and that this
+    // save did not create. Change the plan and the whole graph is enforced.
+    const capital = cleanCapital(input.capital ?? current.capital, current.capital);
+    const retained = cleanCapital(current.capital, current.capital);
+    if (JSON.stringify(capital) !== JSON.stringify(retained)) {
+      // `retained`, not the raw stored value: `normaliseProfile` does not clean
+      // `capital`, so a profile written before a collection existed would hand
+      // the delete-side diff an `undefined` array and turn a save into a 500.
+      const capitalConflicts = reconcileCapitalPlan(capital, retained, documentId => Boolean(getLegalDocument(agencyId, documentId)));
+      if (capitalConflicts.length) throw new CompanyCapitalConflictError(capitalConflicts);
+    }
+    updated = {
+      agencyId,
+      companyId: companyId || undefined,
+      mission: cleanText(input.mission ?? current.mission, 2_000),
+      vision: cleanText(input.vision ?? current.vision, 2_000),
+      values: cleanList(input.values ?? current.values, 20, 100),
+      monthlyRevenueTargetCents: cleanMoney(input.monthlyRevenueTargetCents, current.monthlyRevenueTargetCents),
+      averageDealValueCents: cleanMoney(input.averageDealValueCents, current.averageDealValueCents),
+      salesCallCloseRatePercent: cleanNumber(input.salesCallCloseRatePercent, current.salesCallCloseRatePercent, 1, 100),
+      annualRevenueTargetCents: cleanMoney(input.annualRevenueTargetCents, current.annualRevenueTargetCents),
+      capacity: cleanCapacity(input.capacity ?? current.capacity, current.capacity),
+      projection: cleanProjection(input.projection ?? current.projection, current.projection),
+      capital,
+      objectives: cleanObjectives(input.objectives ?? current.objectives),
+      plans: cleanPlans(input.plans ?? current.plans),
+      reviews: cleanReviews(input.reviews ?? current.reviews, current.reviews),
+      revision: current.revision + 1,
+      updatedAt: Date.now(),
+    };
+    state.companyProfiles[key] = updated;
+  });
+  // TypeScript does not track assignments made inside the `mutate` callback,
+  // so read both outcomes back through an explicit widening (the same shape the
+  // versioned product-workspace commit uses).
+  const losingRace = conflict as CompanyProfile | null;
+  if (losingRace) throw new CompanyProfileConflictError(losingRace, expectedRevision as number);
+  const saved = updated as CompanyProfile | null;
+  if (!saved) throw new Error("The company plan could not be saved.");
   logActivity({
     agencyId,
     actorUserId,
@@ -104,7 +199,7 @@ export function updateCompanyProfile(
     message: companyId ? "Updated trading company direction, targets, or plans." : "Updated company direction, targets, or plans.",
     metadata: companyId ? { companyId } : undefined,
   });
-  return updated;
+  return saved;
 }
 
 function cleanCapital(value: unknown, fallback: CompanyCapitalPlan): CompanyCapitalPlan {
@@ -274,13 +369,126 @@ function cleanGovernanceDecisions(value: unknown): CompanyGovernanceDecision[] {
       meetingAt: item.meetingAt ? cleanTimestamp(item.meetingAt) : undefined,
       effectiveAt: item.effectiveAt ? cleanTimestamp(item.effectiveAt) : undefined,
       approvedAt: item.approvedAt ? cleanTimestamp(item.approvedAt) : undefined,
-      votesForPercent: typeof item.votesForPercent === "number" ? cleanDecimal(item.votesForPercent, 0, 0, 100, 2) : undefined,
-      votesAgainstPercent: typeof item.votesAgainstPercent === "number" ? cleanDecimal(item.votesAgainstPercent, 0, 0, 100, 2) : undefined,
+      // Deliberately NOT clamped into 0–100 here: silently rewriting "150% for"
+      // as "100% for" would invent the vote. Sanitation keeps it a number and
+      // `reconcileCapitalPlan` refuses an impossible one by name.
+      votesForPercent: typeof item.votesForPercent === "number" ? cleanDecimal(item.votesForPercent, 0, -100_000, 100_000, 2) : undefined,
+      votesAgainstPercent: typeof item.votesAgainstPercent === "number" ? cleanDecimal(item.votesAgainstPercent, 0, -100_000, 100_000, 2) : undefined,
       documentId: cleanText(item.documentId, 120) || undefined,
       relatedRecordIds: cleanList(item.relatedRecordIds, 200, 80),
       notes: cleanText(item.notes, 4_000) || undefined,
     }];
   });
+}
+
+/**
+ * The capital register calls itself authoritative: ownership, control, approval
+ * coverage and distribution position are all calculated from the retained
+ * values. So the plan is checked as a GRAPH, not as six independent arrays.
+ *
+ * What is refused, always together and always with the exact records named:
+ *  - two records of one kind sharing an id (the second silently shadows the first);
+ *  - a reference — owner, class, approval, allocation recipient, evidence
+ *    document — that does not resolve inside this same plan or the legal register;
+ *  - a delete that would strand a live link, listing every dependant so the
+ *    owner can retire the record (`former`/`superseded`) or detach it first;
+ *  - money that cannot be true: paid beyond declared, allocations beyond the
+ *    declaration, or a paid distribution whose allocations do not add up to it;
+ *  - a vote that cannot be true: outside 0–100, or for + against beyond 100.
+ *
+ * Issued-beyond-authorised is NOT refused: the register surfaces it as a
+ * critical "Over-issued" flag, which is a supported state to be corrected in
+ * the open rather than a save the server pretends it never saw.
+ */
+function reconcileCapitalPlan(
+  next: CompanyCapitalPlan,
+  previous: CompanyCapitalPlan,
+  documentExists: (documentId: string) => boolean,
+): CompanyCapitalConflict[] {
+  const conflicts: CompanyCapitalConflict[] = [];
+  const add = (scope: CompanyCapitalConflict["scope"], recordId: string, record: string, reason: string, dependants?: string[]) =>
+    conflicts.push(dependants?.length ? { scope, recordId, record, reason, dependants } : { scope, recordId, record, reason });
+
+  const collections = [
+    { scope: "share-class" as const, noun: "Share class", records: next.shareClasses.map(item => ({ id: item.id, label: item.name })) },
+    { scope: "shareholder" as const, noun: "Shareholder", records: next.shareholders.map(item => ({ id: item.id, label: item.name })) },
+    { scope: "capital-movement" as const, noun: "Capital movement", records: next.transactions.map(item => ({ id: item.id, label: item.title })) },
+    { scope: "dividend" as const, noun: "Distribution", records: next.dividends.map(item => ({ id: item.id, label: item.title })) },
+    { scope: "decision" as const, noun: "Decision", records: next.decisions.map(item => ({ id: item.id, label: item.title })) },
+  ];
+  for (const collection of collections) {
+    const seen = new Map<string, string>();
+    for (const record of collection.records) {
+      const first = seen.get(record.id);
+      if (first === undefined) {
+        seen.set(record.id, record.label);
+        continue;
+      }
+      add(collection.scope, record.id, record.label, `${collection.noun} “${record.label}” reuses the id ${record.id}, which already belongs to “${first}”. Give it its own id — a duplicate id hides one of the two records everywhere it is counted.`);
+    }
+  }
+
+  const classById = new Map(next.shareClasses.map(item => [item.id, item]));
+  const holderById = new Map(next.shareholders.map(item => [item.id, item]));
+  const decisionById = new Map(next.decisions.map(item => [item.id, item]));
+
+  // Delete side first: a record that WAS retained and is now gone, while
+  // something still names it, is reported once with every dependant.
+  const dependantsOf = (id: string) => [
+    ...next.shareholders.filter(item => item.shareClassId === id).map(item => `shareholder “${item.name}”`),
+    ...next.transactions.filter(item => item.shareholderId === id || item.shareClassId === id || item.approvalId === id).map(item => `capital movement “${item.title}”`),
+    ...next.dividends.filter(item => item.approvalId === id || item.allocations.some(allocation => allocation.shareholderId === id)).map(item => `distribution “${item.title}”`),
+  ];
+  const retired = [
+    { scope: "share-class" as const, noun: "Share class", exit: "Move its holders to another class first", removed: previous.shareClasses.filter(item => !classById.has(item.id)).map(item => ({ id: item.id, label: item.name })) },
+    { scope: "shareholder" as const, noun: "Shareholder", exit: "Set them to “former” instead, which keeps the history attached", removed: previous.shareholders.filter(item => !holderById.has(item.id)).map(item => ({ id: item.id, label: item.name })) },
+    { scope: "decision" as const, noun: "Decision", exit: "Mark it “superseded” instead, which keeps the authority trail", removed: previous.decisions.filter(item => !decisionById.has(item.id)).map(item => ({ id: item.id, label: item.title })) },
+  ];
+  const stranded = new Set<string>();
+  for (const group of retired) {
+    for (const record of group.removed) {
+      const dependants = dependantsOf(record.id);
+      if (!dependants.length) continue;
+      stranded.add(record.id);
+      add(group.scope, record.id, record.label, `${group.noun} “${record.label}” cannot be removed while ${dependants.length} ${dependants.length === 1 ? "record" : "records"} still name it: ${dependants.join(", ")}. ${group.exit}, or detach those records first.`, dependants);
+    }
+  }
+
+  // Reference side: anything naming a record that is not in the plan at all.
+  const missing = (id: string | undefined, present: Map<string, unknown>) => Boolean(id) && !present.has(id as string) && !stranded.has(id as string);
+  for (const holder of next.shareholders) {
+    if (missing(holder.shareClassId, classById)) add("shareholder", holder.id, holder.name, `Shareholder “${holder.name}” is assigned to share class ${holder.shareClassId}, which is not in the register. Assign an existing class or add that class before saving.`);
+  }
+  for (const transaction of next.transactions) {
+    if (missing(transaction.shareholderId, holderById)) add("capital-movement", transaction.id, transaction.title, `Capital movement “${transaction.title}” names owner ${transaction.shareholderId}, who is not on the cap table. Pick a registered owner or clear the link.`);
+    if (missing(transaction.shareClassId, classById)) add("capital-movement", transaction.id, transaction.title, `Capital movement “${transaction.title}” names share class ${transaction.shareClassId}, which is not in the register. Pick an existing class or clear the link.`);
+    if (missing(transaction.approvalId, decisionById)) add("capital-movement", transaction.id, transaction.title, `Capital movement “${transaction.title}” claims approval ${transaction.approvalId}, which is not a retained decision. Record the decision that authorised it, or clear the claim rather than leaving it looking approved.`);
+  }
+  for (const dividend of next.dividends) {
+    if (missing(dividend.approvalId, decisionById)) add("dividend", dividend.id, dividend.title, `Distribution “${dividend.title}” claims approval ${dividend.approvalId}, which is not a retained decision. Record the decision that declared it, or clear the claim rather than leaving it looking approved.`);
+    const allocatedTo = new Set<string>();
+    for (const allocation of dividend.allocations) {
+      if (missing(allocation.shareholderId, holderById)) add("dividend", dividend.id, dividend.title, `Distribution “${dividend.title}” allocates to owner ${allocation.shareholderId}, who is not on the cap table. Recalculate the allocation from the current register.`);
+      else if (allocatedTo.has(allocation.shareholderId)) add("dividend", dividend.id, dividend.title, `Distribution “${dividend.title}” allocates to ${holderById.get(allocation.shareholderId)?.name ?? allocation.shareholderId} twice. Combine the two lines into one.`);
+      allocatedTo.add(allocation.shareholderId);
+    }
+    const amount = (cents: number) => `${dividend.currency} ${(cents / 100).toFixed(2)}`;
+    if (dividend.paidCents > dividend.declaredCents) add("dividend", dividend.id, dividend.title, `Distribution “${dividend.title}” records ${amount(dividend.paidCents)} paid against ${amount(dividend.declaredCents)} declared. Raise the declaration or correct the payment — a company cannot pay out more than it declared.`);
+    const allocated = dividend.allocations.reduce((sum, allocation) => sum + allocation.amountCents, 0);
+    if (allocated > dividend.declaredCents) add("dividend", dividend.id, dividend.title, `Distribution “${dividend.title}” allocates ${amount(allocated)} against ${amount(dividend.declaredCents)} declared. Recalculate the allocation so it fits inside the declaration.`);
+    else if (dividend.status === "paid" && dividend.allocations.length && allocated !== dividend.declaredCents) add("dividend", dividend.id, dividend.title, `Distribution “${dividend.title}” is marked paid but its allocations total ${amount(allocated)} against ${amount(dividend.declaredCents)} declared. A paid distribution must be fully allocated to its recipients.`);
+  }
+  for (const decision of next.decisions) {
+    const votes: Array<[number | undefined, string]> = [[decision.votesForPercent, "for"], [decision.votesAgainstPercent, "against"]];
+    for (const [value, side] of votes) {
+      if (value !== undefined && (value < 0 || value > 100)) add("decision", decision.id, decision.title, `Decision “${decision.title}” records ${value}% ${side}. A share of the vote has to sit between 0% and 100%.`);
+    }
+    const combined = (decision.votesForPercent ?? 0) + (decision.votesAgainstPercent ?? 0);
+    if (combined > 100) add("decision", decision.id, decision.title, `Decision “${decision.title}” records ${decision.votesForPercent ?? 0}% for plus ${decision.votesAgainstPercent ?? 0}% against, which is ${combined}% of the vote. Correct the split so the two together stay within 100%.`);
+    if (decision.documentId && !documentExists(decision.documentId)) add("decision", decision.id, decision.title, `Decision “${decision.title}” cites document ${decision.documentId}, which is not in the legal register. Upload the minute or resolution to the register first, or clear the field rather than showing evidence that cannot be opened.`);
+  }
+
+  return conflicts;
 }
 
 function cleanProjection(value: unknown, fallback: CompanyProjectionPlan): CompanyProjectionPlan {
@@ -416,7 +624,71 @@ function cleanPlans(value: unknown): CompanyPlan[] {
   });
 }
 
-function cleanReviews(value: unknown): CompanyQuarterlyReview[] {
+/**
+ * A quarterly cycle that has been locked is the retained record of a decision.
+ * It is frozen: the incoming array may carry it forward unchanged, but any edit
+ * or omission is refused so a later strategy change has to be published as an
+ * explicit numbered amendment instead of quietly rewriting history.
+ */
+function cleanReviews(value: unknown, stored: CompanyQuarterlyReview[] = []): CompanyQuarterlyReview[] {
+  const lockedById = new Map(stored.filter(review => review.status === "complete").map(review => [review.id, review]));
+  const candidates = cleanReviewRecords(value);
+
+  for (const candidate of candidates) {
+    const locked = lockedById.get(candidate.id);
+    if (locked && !sameReview(locked, candidate)) {
+      throw new CompanyReviewLockedError(
+        locked.id,
+        locked.period,
+        `The ${locked.period} strategy review is locked. Publish an amendment that supersedes it rather than editing the retained record.`,
+      );
+    }
+  }
+
+  const present = new Set(candidates.map(candidate => candidate.id));
+  const dropped = [...lockedById.values()].find(review => !present.has(review.id));
+  if (dropped) {
+    throw new CompanyReviewLockedError(
+      dropped.id,
+      dropped.period,
+      `The ${dropped.period} strategy review is locked and cannot be removed from the decision record.`,
+    );
+  }
+
+  // Amendment lineage is server-assigned so a client cannot claim a version.
+  const byId = new Map(candidates.map(candidate => [candidate.id, candidate]));
+  return candidates.map(candidate => {
+    const locked = lockedById.get(candidate.id);
+    if (locked) return locked;
+    const amends = candidate.amendsReviewId && candidate.amendsReviewId !== candidate.id
+      ? lockedById.get(candidate.amendsReviewId) ?? byId.get(candidate.amendsReviewId)
+      : undefined;
+    // The base's version is only trusted when it comes from the stored locked
+    // record; a version arriving on the wire is never believed, so a crafted
+    // PUT cannot mint a lineage number for a cycle that has none.
+    return amends
+      ? { ...candidate, amendsReviewId: amends.id, version: (lockedById.get(amends.id)?.version ?? 1) + 1 }
+      : { ...candidate, amendsReviewId: undefined, version: 1 };
+  });
+}
+
+/**
+ * Field-for-field equality of a carried-forward locked review. Anything that
+ * differs — including the evidence snapshot a live save would have overwritten
+ * — counts as an edit. Lineage fields are server-owned and excluded.
+ */
+function sameReview(locked: CompanyQuarterlyReview, candidate: CompanyQuarterlyReview): boolean {
+  return reviewFingerprint(locked) === reviewFingerprint(candidate);
+}
+
+function reviewFingerprint(review: CompanyQuarterlyReview): string {
+  const entries = Object.entries(review as unknown as Record<string, unknown>)
+    .filter(([key, value]) => value !== undefined && key !== "version" && key !== "amendsReviewId")
+    .sort(([a], [b]) => a.localeCompare(b));
+  return JSON.stringify(entries);
+}
+
+function cleanReviewRecords(value: unknown): CompanyQuarterlyReview[] {
   if (!Array.isArray(value)) return [];
   return value.slice(0, 40).flatMap(raw => {
     if (!raw || typeof raw !== "object") return [];
@@ -430,6 +702,8 @@ function cleanReviews(value: unknown): CompanyQuarterlyReview[] {
       id: cleanId(item.id, "review"),
       period,
       status: item.status === "complete" ? "complete" : "draft",
+      amendsReviewId: cleanText(item.amendsReviewId, 80).toLowerCase().replace(/[^a-z0-9-]/g, "-") || undefined,
+      version: typeof item.version === "number" ? cleanNumber(item.version, 1, 1, 1_000) : undefined,
       executiveSummary: cleanText(item.executiveSummary, 8_000) || undefined,
       wins: cleanText(item.wins, 8_000),
       misses: cleanText(item.misses, 8_000) || undefined,

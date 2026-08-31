@@ -2,7 +2,7 @@
 
 > Source maps, subsystem dossiers, components, routes, state and built-in module notes.
 >
-> Consolidated 2026-08-30 from **23** source documents / **54,308 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-31 from **23** source documents / **56,983 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -10,17 +10,17 @@
 - [`docs/WORKSPACE-FILE-TREE.md`](#source-docs-workspace-file-tree-md) — 1,385 words · `642c698fbd42`
 - [`docs/workspace/advisor.md`](#source-docs-workspace-advisor-md) — 1,445 words · `d5b9b4fc79dc`
 - [`docs/workspace/api-and-routes.md`](#source-docs-workspace-api-and-routes-md) — 946 words · `8bbf0d2e9c9f`
-- [`docs/workspace/api-reference.md`](#source-docs-workspace-api-reference-md) — 8,236 words · `b88eee0137fe`
+- [`docs/workspace/api-reference.md`](#source-docs-workspace-api-reference-md) — 8,313 words · `61910fdc1f85`
 - [`docs/workspace/aqua-tag.md`](#source-docs-workspace-aqua-tag-md) — 3,463 words · `d662b63850cb`
 - [`docs/workspace/components.md`](#source-docs-workspace-components-md) — 1,142 words · `5ef3bf2f75be`
 - [`docs/workspace/database.md`](#source-docs-workspace-database-md) — 2,273 words · `4ed0007a7dd9`
-- [`docs/workspace/env-and-sellability.md`](#source-docs-workspace-env-and-sellability-md) — 3,202 words · `6541a737c2ee`
-- [`docs/workspace/feature-index.md`](#source-docs-workspace-feature-index-md) — 5,151 words · `bffbf6237ea7`
-- [`docs/workspace/hazards-and-duplication.md`](#source-docs-workspace-hazards-and-duplication-md) — 6,053 words · `5403d85950f1`
+- [`docs/workspace/env-and-sellability.md`](#source-docs-workspace-env-and-sellability-md) — 3,641 words · `3dfcad335c9f`
+- [`docs/workspace/feature-index.md`](#source-docs-workspace-feature-index-md) — 5,342 words · `bb81323b787b`
+- [`docs/workspace/hazards-and-duplication.md`](#source-docs-workspace-hazards-and-duplication-md) — 7,921 words · `324877294826`
 - [`docs/workspace/kpi-intelligence.md`](#source-docs-workspace-kpi-intelligence-md) — 2,283 words · `d641f1291cbc`
 - [`docs/workspace/plugins.md`](#source-docs-workspace-plugins-md) — 2,193 words · `85bf55b735d1`
 - [`docs/workspace/portal-ui.md`](#source-docs-workspace-portal-ui-md) — 3,935 words · `422ade585983`
-- [`docs/workspace/radar.md`](#source-docs-workspace-radar-md) — 3,319 words · `3ce82366eef0`
+- [`docs/workspace/radar.md`](#source-docs-workspace-radar-md) — 3,419 words · `094abc931f83`
 - [`docs/workspace/scripts-config-docs.md`](#source-docs-workspace-scripts-config-docs-md) — 705 words · `6c64dba30a6b`
 - [`docs/workspace/shared-logic.md`](#source-docs-workspace-shared-logic-md) — 3,900 words · `971a7bc40ccd`
 - [`docs/workspace/state-layer.md`](#source-docs-workspace-state-layer-md) — 1,047 words · `b891d38adf8e`
@@ -593,7 +593,7 @@ switcher — membership-only, session ∩ live record), `showcase-mode`, `dev-mo
 
 ## Source document — `docs/workspace/api-reference.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/api-reference.md" sha256="b88eee0137fe53f4111ee1f1b0d01cbedeaef362ae69f25f3ead38e9a5ea6b18" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/api-reference.md" sha256="61910fdc1f8552442a4034409c595e6b07e22c348d7eaa456f608002a4a833d1" -->
 # Chapter — Hand-maintained API reference
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md) · [API & routes overview](api-and-routes.md)
@@ -918,7 +918,7 @@ not live.
 | `/api/tenants/product-workspaces` | GET, POST | Client product internal workspaces read/save | agency + client roles | |
 | `/api/tenants/seed` | POST | Dev-only seed (agency+owner+client+users) when store empty | dev / prod requires any session | |
 
-## `api/public/*` (6)
+## `api/public/*` (7 listed; 10 route files on disk)
 
 | Path | Methods | Purpose | Scope/auth | Live? |
 |---|---|---|---|---|
@@ -928,6 +928,7 @@ not live.
 | `/api/public/form-capture` | OPTIONS, POST | Aqua-Tag form-capture enrichment + master-tag routing → Supabase | public (CORS) | **LIVE (admin)** |
 | `/api/public/proposals/[token]` | POST | Accept a commercial proposal by public token | public (token) | |
 | `/api/public/aqua-tag-config` | GET, OPTIONS | Serve a site's enabled injections by key+host (cached, CORS) — tag-manager delivery seam | public (CORS) | |
+| `/api/public/demo-interest` | POST | AquaCRM demo gate — records name/contact + consent {timestamp, terms version} in the `website-demo` data realm, never the live one | public (same-origin, honeypot, rate-limited); **404 unless `WEBSITE_DEMO_ENABLED`** | |
 
 ## `api/v1/*` (10) — external assistant API (bearer-token)
 
@@ -1007,6 +1008,7 @@ Two Live-column edge cases (they don't match a naive `supabase/admin` grep):
 | `/api/portal/governance/erasure/preview` | POST | Non-destructive erasure blast-radius preview (owner/manager) | agency | new 2026-08-20 |
 | `/api/portal/governance/subject-access` | POST | GDPR Art. 15/20 subject access export — everything held about one person, as a JSON download (owner/manager) | agency | new 2026-08-28 |
 | `/api/portal/governance/retention` | POST | Set the retention period per category; blank clears to keep-forever. Returns a fresh preview, never sweeps (owner only) | agency | new 2026-08-28 |
+| `/api/portal/governance/breaches` | POST | GDPR Art. 33/34 breach register — `record`/`notify-authority`/`notify-subjects` (owner/manager), `assess`/`close` (owner only). The 72-hour clock runs from discovery; it records that a human notified, never notifies | agency | new 2026-08-31 |
 | `/api/portal/sop-guides` | GET/POST/PATCH/DELETE | SOP guides CRUD (ordered SOP sequences); GET all-roles, writes owner/manager | agency | new 2026-08-20 |
 <!-- AQUACRM_SOURCE_END path="docs/workspace/api-reference.md" -->
 
@@ -1741,7 +1743,7 @@ ingestion; the blob backend holds everything else described across the
 
 ## Source document — `docs/workspace/env-and-sellability.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/env-and-sellability.md" sha256="6541a737c2ee5049803bb94d55ef3d7ca1a876a873d746980a737e14933b7a2d" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/env-and-sellability.md" sha256="3dfcad335c9f15c1dfd4980be5c49e70d58facb656564653493d12d1a6354490" -->
 # Chapter — Env-only settings & the cost of selling AquaCRM
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md) · Sibling: [feature-index](feature-index.md) · [hazards-and-duplication](hazards-and-duplication.md)
@@ -1871,9 +1873,9 @@ is to union those into `configuredOrigins()` — not a new store.
 Adjacent, same route, not env but same blocker: `isTradingBrandSlug(brand)`
 gates on Ed's hardcoded trading-brand slugs.
 
-### 1.3 — Readiness tells them they are permanently unready.
+### 1.3 — Readiness tells them they are permanently unready. **(RESOLVED 2026-08-31)**
 
-Full breakdown in §3.
+Full breakdown, and what the fix actually was, in §3.
 
 ### 1.4 — Google sign-in and Google Calendar can never be connected.
 
@@ -2008,7 +2010,12 @@ that are the only ones actually called, and no caller of their own anywhere in
 
 ---
 
-## 3. The `inspectProductionReadiness()` conflict
+## 3. The `inspectProductionReadiness()` conflict **(RESOLVED 2026-08-31)**
+
+> Everything from here to "Fix shape" is the record of what was wrong, kept
+> because the row-by-row table is still the map of which setting belongs to whom.
+> What changed is at the end of the section.
+
 
 `lib/server/productionReadiness.ts`. Called from two places, both passing the
 live `process.env`:
@@ -2066,13 +2073,60 @@ Connect Resend without it and the row goes green while
 `enquiryNotifications.ts:33` falls back to the literal `edwardhallam07@gmail.com`.
 Green light, buyer's enquiries in Ed's inbox.
 
-### Fix shape
+### Fix shape — done 2026-08-31
 
-1. `managedEmailReady` → `managedProviders.has("resend") || managedProviders.has("smtp")`.
-2. Split `enquiryEmailReady` so it checks the *resolved values* (`resolveIntegrationValues(agencyId,"resend").notifyTo`), not merely that a connection exists.
-3. Take `agencyId` as an argument and mark each `ReadinessItem` with a scope — `"platform"` (operator only) or `"company"` (every agency). Render only `"company"` rows for a non-founder, and compute `ready` from the required *company* rows.
-4. `envKeys` on each item is a founder-facing debugging aid. Keep it, but do not show it to a tenant — it names variables they cannot set.
-5. Only then: `google` becomes company-scoped or platform-scoped per the §1.4 decision.
+Steps 1–4 are implemented. The record of what each one was, and what it is now:
+
+1. ✅ `managedEmailReady` accepts `smtp` as well as `resend`.
+2. ✅ Better than proposed. Rather than re-deriving the answer here, readiness now
+   *asks the send paths themselves*: `transactionalEmailReadiness(agencyId)` and
+   `resolveEnquiryNotificationRouting(agencyId)` are the authorities, passed in as
+   `transactionalEmailConfigured` / `enquiryNotificationsConfigured` on
+   `ReadinessContext`. The enquiry half is true only when a key, a **resolved
+   recipient** and a verified sender all exist — the same three values
+   `notifyBrandEnquiry` refuses to send without — so the screen and the sender
+   cannot disagree. It also inherits the activation rule for free: credential
+   bytes saved but never activated are not a connection.
+3. ✅ `ReadinessItem.scope` is `"platform" | "company"`, and `ProductionReadiness`
+   now reports its `audience`. An agency the environment does not belong to
+   (`environmentCredentialsBelongToAgency`, from `mayUseEnvironmentCredentials`)
+   sees company rows only, has every env fallback withheld from its optional rows
+   too — a green "GitHub publishing" row would have been Ed's token — and gets
+   `ready` computed from its required company rows alone.
+4. ✅ `envKeys` is emptied for a company audience. It is not merely unrendered:
+   the readiness object is serialised into the browser through `SettingsTabs`.
+5. ⏸ `google` is scoped `"platform"`, which is what it IS today — one env-only
+   OAuth web client, no per-company path anywhere in the app — so a tenant is not
+   shown a row they cannot act on. Whether it should BECOME per-company is still
+   the open §1.4 decision; the classification records today's implementation and
+   does not settle it.
+
+Both callers build the context through the ONE shared builder,
+`readinessContextForAgency` (`lib/server/dev/devTeamAuditor.ts`): Settings had a
+hand-rolled copy of it and now imports it, which is what stops the two screens
+drifting apart again.
+
+Pinned by `scripts/smoke-production-readiness.test.ts` (the scope contract, both
+email directions, and the operator keeping the full view) and
+`scripts/smoke-dev-team-auditor.test.ts` (the same contract end-to-end through
+real vault connections: an SMTP company is judged on its own sender, and a
+company reaches `ready: true` with no redeploy).
+
+Still open from §1 after this: the ungated `openai` / `github` / `meta` env
+fallbacks in §1.1's table, `brand-enquiry` origins (§1.2), and everything in
+§2.3. Readiness no longer *reports* those as the buyer's, but the code paths
+still reach past the gate.
+
+**Also still open, and narrower than step 1 above reads.** Accepting `smtp`
+fixes the *account mail* half only. Public enquiry alerts leave through Resend
+and nothing else — `notifyBrandEnquiry` calls `sendResendEmail`, and
+`resolveEnquiryNotificationRouting` resolves `resend` values exclusively — so an
+SMTP-only workspace satisfies half of a REQUIRED row and still reads
+`ready: false` forever. That is the same "permanently unready" shape §1.3
+describes, just smaller. Until `notifyBrandEnquiry` has an SMTP path the row's
+action names the only thing that actually clears it (connect Resend); the action
+must not be softened back to "set a support email", which for an SMTP-only
+workspace is a remedy that leaves the row red.
 
 Note `devTeamAuditor.ts:403` already documents exactly this class of bug
 ("two screens disagreeing about one fact") for `managedIntegrationProviders`.
@@ -2126,7 +2180,7 @@ store.
 
 ## Source document — `docs/workspace/feature-index.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/feature-index.md" sha256="bffbf6237ea7886388805bad24e32e7ccb8dbb7c3201f022ea591b567f4e9fa0" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/feature-index.md" sha256="bb81323b787b43106b7afcd0ac4b3ca4efca94431e5d8c53e5dc6baad0c3a497" -->
 # Chapter — Feature → files index (the conflict-avoider)
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
@@ -2238,6 +2292,8 @@ layers (state → logic → API → UI). Edit these; don't duplicate them.
 | Concern | Owns it |
 | --- | --- |
 | **State store / persistence** | `server/storage.ts`, `server/types.ts` (the `PortalState` shape) |
+| **Transactional outbox (durable domain events)** | `server/outbox.ts` (`recordOutboxEvent` — call INSIDE the domain `mutate()` so change + announcement are one write; `drainOutbox` — SYNCHRONOUS, emit-then-mark at-least-once into the existing bus, so all outbox writes settle before the domain function returns; `emitDurable` drop-in; 14d/5,000-cap prune, pending never pruned), `OutboxEvent` + `PortalState.outbox` (`server/types.ts`), promotion disposition `leave` (collection #92). **Adopted across the whole foundation**: every `src/server/**` emit (tenants, users, persons, organisations, completedActions, productWorkspaces) + plugin lifecycle (runtime, ensureLeadsPipelineInstall) — the manifest pin confines plain `emit(` under src/server to the bus + drain. Port adapters stay plain deliberately (the seam that later makes every plugin event durable at once). NOT event sourcing — reliability + lineage only. Tests: `scripts/smoke-outbox.test.ts`. New 2026-08-30 |
+| **Canonical semantic layer (data architecture)** | `lib/data/semanticRegistry.ts` (30 entities, distinctions, timestamp/value doctrines, `PORTAL_STATE_COVERAGE` classifying every PortalState collection — set-equality-enforced), `lib/data/metricRegistry.ts` (one canonical id + semantics per metric, `computedBy` authority, `same-quantity` overlap map, the pinned `campaign-roas` collision), `lib/data/metadataContracts.ts` (all 123 metadata keys: carrier/namespace/owner/type/sensitivity; source-scan-enforced both ways). Docs: `docs/data/{ARCHITECTURE,SOURCE-INVENTORY,SEMANTIC-LAYER,DATA-DICTIONARY,MIGRATION-PLAN,LINEAGE}.md` + `docs/data/adr/`. Tests: `scripts/smoke-semantic-registry.test.ts`, `smoke-metric-registry.test.ts` (incl. golden boundary cases), `smoke-metadata-contracts.test.ts`. **Registries describe, never recompute — `computedBy` names the one calculation site.** New 2026-08-30 |
 | **A person's own chrome — sidebar order + saved tabs (2026-08-27)** | `server/types.ts` (`UserChromeLayout` · `SavedTab` · `SavedTabSpot`, stored in `PortalState.userChromeLayouts` keyed `${agencyId}\|${userId}`), `lib/server/chrome/userChromeLayout.ts` (the store — **reads never write**, because the sidebar is assembled on every authenticated navigation), `lib/chrome/sidebarLayout.ts` (`applyPersonalChrome` · `applyOrder` · `navItemForHref` — the arrangement is a list of IDS applied to whatever the nav legitimately contains, so it can never add, resurrect or hide an item), `lib/server/chrome/personalPanels.ts` (`withPersonalChrome` — the ONE place it is applied, called by all five sidebar renderers and swept for a sixth; fails open to the default nav), `app/api/portal/chrome/layout/route.ts` (GET/PUT/DELETE, identity from the SESSION only). Client: `components/chrome/pinnedTabsStore.ts` (one module-level store with a subscriber set — **not** per hook instance), `PinnedTabs.tsx`, `SidebarReorder.tsx` (wraps the server-rendered rows and reads `data-nav-id`; never re-renders one), `SpotPicker.tsx`, `SavedSpotArrival.tsx` (MutationObserver, 15s deadline), `savedSpot.ts` (selector **and** the text, so a moved spot is found by name and a miss is explainable). A tab dropped into a panel becomes a nav row and takes the icon of the nav item its href sits under — resolved live, never stored. `npm run smoke:chrome-layout` |
 | **Env vars, per-company config & what "sellable" costs** | `lib/server/env.ts` (typed reader + allowlist + startup check), `lib/server/secrets.ts` (named accessors), `lib/server/founderAgency.ts` (**env credentials are the FOUNDER'S** — `mayUseEnvironmentCredentials()`), `lib/server/integrationConnections.ts` + `lib/integrations/catalog.ts` (the per-agency vault that replaces env, 9 providers), `server/agencySettings.ts` (per-agency preferences), `lib/server/productionReadiness.ts` (derives its verdict from env keys — breaks for a buyer). **Every env-only setting is one a buyer cannot configure without the source.** Full inventory + the readiness conflict + day-one order: [env-and-sellability.md](env-and-sellability.md) |
 | **Auth / session / MFA** | `lib/server/auth/auth.ts`, `app/api/auth/`, `lib/server/auth/mfa.ts`, `lib/supabase/`. **All four MFA phases are built:** password login challenge/verify, browser code step, assurance on the app session, enrolled-account fail-closed OAuth/magic-link handling and ten single-use recovery codes. **P0 #22 RESOLVED 2026-08-27:** `resolveFreshSessionUser()` (`lib/server/auth/auth.ts`) runs on every `getSession()`/`getSessionFromRequest()` read — existence, `sessionRev`, current role and live membership are central prerequisites, so `requireRole()` paths inherit revocation; regression `scripts/smoke-session-revocation.test.ts` (16/16). |
@@ -2264,7 +2320,7 @@ _(For which plugin owns a feature, see the [plugins chapter](plugins.md). For an
 
 ## Source document — `docs/workspace/hazards-and-duplication.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/hazards-and-duplication.md" sha256="5403d85950f1c4d9442c1ab321dc873b480669fb14841a3d2f7947d84fa86ca6" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/hazards-and-duplication.md" sha256="32487729482619bcd1cfbba638b0e42f78a0873b8f7c8ae092f73815981da1c7" -->
 # Chapter — Hazards & duplication (read before editing)
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
@@ -2281,6 +2337,78 @@ data**. If you read one chapter before touching the codebase, read this one.
 - **The env safety classifier blocks scripts that hard-delete live Supabase rows.** That's why `scripts/cleanup-junk-enquiries.mjs` exists for **Ed to run himself**, not me. Never expect me to run a live hard-delete.
 - **What's live:** see the [API chapter's LIVE callout](api-and-routes.md#-live-supabase-callout-dont-break-real-data). Short version: all auth, all `brand_enquiries` enquiry endpoints, `telemetry/collect`, and all Storage-bucket file uploads.
 - **Dev/demo inboxes load ZERO enquiries** (`agency/inbox/page.tsx`: `session.isDemo ? []`). The enquiry-delete button and master-tag ingestion only appear in a **real** (non-demo) inbox — don't conclude they're broken from the sandbox.
+
+### A real person's identity is a SOURCE CONSTANT — erasure cannot reach it (2026-08-31)
+
+**The audit that produced this entry.** Demo- and sample-seeded PII was checked
+against the governance erasure surface for the first time on 2026-08-31. Two
+halves, and they answer differently.
+
+**The half that is fine.** Everything the demo seed *stores* is erasable, and
+proven so: a demo tenant seeded by the real `seedDemoAgency()` appears in
+`buildGovernanceSnapshot().erasureClients` (so the Governance workspace offers
+it), and `eraseClientCompletely()` removes the client record, the client-owner
+user carrying the demo email, and the seeded activity. Nothing about a demo
+tenant is exempt from the sweep. Pinned in
+`scripts/smoke-client-erasure.test.ts` → *"data-compliance check: demo-seeded
+PII against the erasure surface"*.
+
+**The half that is not.** A real person — Ed's client Felicia of Luv & Ker —
+is **hardcoded in seven source files as a runtime default**, and erasure
+operates on *state*, not on the codebase. Erase the demo client and the next
+seed puts the same name and email straight back. Worse, one of the seven is not
+demo data at all: `src/app/api/tenants/seed/route.ts` defaults its client-owner
+to `felicia@luvandker.com` — a **real address on a real domain**, not the
+`.demo` mirror — and that route answers any authenticated caller in production.
+(It refuses with 409 once any agency exists, so it cannot re-seed a populated
+install; the real address ships in the bundle either way.)
+
+The seven files, and what each holds:
+
+| File | What it hardcodes |
+| --- | --- |
+| `src/lib/server/seeds/demoSeed.ts` | `DEMO_CLIENT_NAME`/`DEMO_CLIENT_EMAIL` (`felicia@luvandker.demo`), `"Felicia (demo)"`, `luvandker.com` |
+| `src/app/api/tenants/seed/route.ts` | **`felicia@luvandker.com` — the real address**, `"Luv & Ker"`, `"Felicia"` |
+| `src/built-ins/modules/website-editor/src/components/blockRegistry.ts` | `Felicia` as the testimonial author, team-grid member and author-bio default |
+| `src/built-ins/modules/website-editor/src/components/blocks/AuthorBioBlock.tsx` | fallback bio: *"Crafted Odo by Felicia from her Ghanaian heritage…"* — **personal, ethnic-origin prose** shipped as a `??` default |
+| `src/built-ins/modules/website-editor/src/components/pageTemplates.ts` | `Felicia` as a template testimonial author |
+| `src/app/portal/clients/[clientId]/_BuildPortalWizard.tsx` | a `luv-and-ker` portal preset |
+| `src/lib/projects/projects.ts` | the published `Luv & Ker` case study |
+
+**What this means when you edit here.** Do not describe erasure as removing a
+person's data from AquaCRM without qualifying it — for these seven files it
+removes the row and not the persona. `semanticRegistry.ts`'s `client` entity now
+says so in its `retention` line, which is the machine-readable copy of this
+entry. And **do not add an eighth**: the same test sweeps `src/**` for the
+persona tokens (skipping comments and `placeholder` text) and fails on any file
+not listed above, so a new hardcoded default has to be argued for here first.
+
+**What the sweep deliberately does NOT catch — so seven is the count of runtime
+defaults, not of every appearance.** Lines whose only hit is inside a comment, or
+on a line containing `placeholder`, are exempt: a comment is context for the next
+reader and a form placeholder is example text the user overwrites. That exemption
+is a judgement, and it hides real occurrences that are still compiled into the
+bundle and rendered on screen — at least these:
+
+| File | Placeholder-shaped occurrence |
+| --- | --- |
+| `src/built-ins/modules/fulfillment/src/components/NewClientModal.tsx` | `placeholder="felicia@luvandker.com"` and `"e.g. Luv & Ker"` — the **real address**, shown in the new-client form |
+| `src/built-ins/modules/website-editor/src/pages/SitesPage.tsx` | `"e.g. Felicia Skincare"`, `"e.g. felicia.com"`, and two Odo/`Luv & Ker` assistant-prompt placeholders |
+| `src/built-ins/modules/website-editor/src/pages/EditorPage.tsx` | `luvandker.com` as the custom-domain placeholder |
+| `src/built-ins/modules/ecommerce/index.ts` | `https://luvandker.com/checkout/...` as the Stripe URL placeholders |
+
+If a reviewer decides placeholders are not exempt, the rule is one line in the
+test (`if (/placeholder/i.test(code)) return false;`) and these files join the
+table above. Until then, do not read "seven" as "seven places the name appears".
+
+**Two decisions for Ed — not taken unilaterally.** (1) Replacing the persona
+with a synthetic one is mechanically small, but it is *his* demo branding and it
+re-pins several website-editor smoke tests, so it is his call, not a worker's.
+(2) The demo-data **retention period** is Q4 in the DPO pack and stays open;
+until it is answered, nothing may publish "we delete after X" wording. The
+`AuthorBioBlock` ethnic-origin bio and the real `felicia@luvandker.com` default
+in the seed route are the two worth deciding first — those are special-category
+prose and a live address, not just a name.
 
 ---
 
@@ -2300,7 +2428,7 @@ Editing one does **not** change the others. Confirm which surface you're on befo
 
 ### Two "who is this person" models
 - `lib/clients/clientContacts.ts` — simple contacts embedded on a client.
-- `lib/server/identityResolution.ts` + `personInteractions.ts` — the resolution graph.
+- `lib/server/identityResolution.ts` + `personInteractionsService.ts` — the resolution graph.
 
 ### Two client activity logs
 - `lib/clients/clientRelationshipRecord.ts` (client-safe) vs `lib/server/clients/clientRecordLedger.ts`. Confirm canonical before writing history entries.
@@ -2490,8 +2618,62 @@ declares `"type": "module"` while `portal/`'s does not, so a direct
 `await import("@/built-ins/.../blockRegistry")` crosses ESM/CJS under `tsx` and throws
 *"does not provide an export named 'getElementDefinition'"* before any test can run.
 
-### Two inbox surfaces
-- `agency/inbox/` (`_MasterInbox`) vs `agency/activity-inbox/`. Verify they're not redundant before extending either.
+### Two inbox surfaces — VERIFIED DISTINCT, do NOT merge (2026-08-30)
+`agency/inbox/` (`_MasterInbox`) is the merged **Master Inbox** command surface — Needs-you /
+Inbox / Updates over operational alerts, website enquiries, social and client conversations, plus
+the actions queue. `agency/activity-inbox/` is a **standalone read-only system-history log**
+(`listActivity`, limit 100). They do different jobs and cross-link on purpose: the Master Inbox
+header launches "Activity log" (`_MasterInbox.tsx`) and the log's header offers "Open inbox"
+(`activity-inbox/page.tsx`). Both links are pinned by `scripts/smoke-nav-audit.test.ts`, and
+Operations reachability for `/portal/agency/activity-inbox` is pinned there too. Retiring or
+rehoming the standalone log is a **separate open product decision** recorded in
+`docs/development/plans/my-tools-palette.md` (its sidebar drop was a deliberate AquaOasis
+override) — it is Ed's call, not a cleanup.
+
+**The real duplication was the wording, and the render sites are fixed.** Four surfaces render the
+same `listActivity` feed: the Activity log page, the dashboard "Today across the agency" feed
+(`agency/_AgencyActivityFeed.tsx`), the Master Inbox **Updates** tab, and the client workspace
+"recent movement" panel (`clients/[clientId]/page.tsx`). Two carried their own drifted copy of the
+internal→product rewrite and the other two rendered the raw internal message, so one event read
+"plugin installed" on one surface and "system activated" on another. The rewrite now lives once in
+**`src/lib/shared/activityVocabulary.ts`** (`activityMessage` / `activityCategory` /
+`activityAction`). Any new renderer of the activity feed must import it — never re-declare the
+regexes at a render site. `scripts/smoke-nav-audit.test.ts` pins the shared module and asserts all
+four surfaces source it.
+
+**Still open, do not read the above as "done everywhere":**
+- `src/lib/server/clients/clientRecordLedger.ts` (and the `clientRecordLedgerEvents` block in
+  `clients/[clientId]/page.tsx`) still write `entry.message` / `entry.category` verbatim into
+  **persisted** ledger rows. Routing those through the shared module changes stored data, not just
+  a render, so it was left as a separate decision.
+- Category **chip** labels come from `categoryStyle()` in `src/lib/chrome/activityCategoryStyle.ts`
+  — a second live category→label map that disagrees with `activityCategory`: `tenant` reads
+  "Business" on the dashboard chip and "client" in the Activity log / Updates tab. Two sources of
+  category wording still exist; picking one is Ed's call.
+
+### Two privacy notices — DELIBERATE, and `/privacy` is NOT the demo one (2026-08-31)
+`/privacy` is the **published AquaCRM marketing notice**, served as a static file:
+`next.config.ts` rewrites `/privacy` and `/privacy/` to `public/aquacrm-site/privacy/index.html`.
+That rewrite is in **`beforeFiles`**, which Next evaluates *ahead of the filesystem*, so a page at
+`src/app/(website)/privacy/` would never render — no 404, no flag, just silently unreachable. Its
+content is pinned by `scripts/smoke-privacy-notice-truth.test.ts` (it holds an open, deliberate
+contradiction with the Aqua Tag; read that test before editing it).
+
+The **AquaCRM demo** notice is a different document with a different subject, and lives at
+**`/demo-privacy`** (`src/app/(website)/demo-privacy/page.tsx`) behind `WEBSITE_DEMO_ENABLED`. It
+was originally built at `/privacy` and was shadowed by the rewrite above — caught in review
+2026-08-31 — which would have pointed the demo consent line at a document whose version is not the
+one stamped on the visitor's record. `scripts/smoke-website-demo-gate.test.ts` now fails if any
+demo route is shadowed by a `beforeFiles` rewrite. **Do not "tidy" `/demo-privacy` back onto
+`/privacy`, and do not add a page under any other `beforeFiles` source** (`/`, `/projects`,
+`/contact`, `/styles.css`, `/site-experience.js`, `/projects.js`, `/assets/*`).
+
+Related, and NOT fixed: `src/app/(website)/layout.tsx` injects `/aqua-tag.js` on **every** page in
+the route group under the *milesymedia* agency's site key and `data-property="milesymedia-website"`
+— the AquaCRM demo pages included, flag or no flag. `DemoGateForm` therefore carries
+`data-aqua-ignore` so the tag cannot read its field values into the live `form-capture` surface
+(pinned). The remaining pageview beacons still attribute AquaCRM demo traffic to the Milesymedia
+property; gating the layout's tag per brand is an open product decision.
 
 ### Two assistant conversation stores — DELIBERATE, do NOT unify (2026-08-21)
 `PortalState.assistant` (keyed `${agencyId}|${userId}`, via
@@ -2555,6 +2737,9 @@ Plus overlapping "intelligence" builders that are easy to confuse:
 - **Finance navigation — ONE source, one visible sidebar entry (was sprawling).** Finance sections are defined once in `built-ins/modules/agency-finance/src/lib/sections.ts` (`FINANCE_SECTIONS`); both the in-page tab bar (`components/FinanceNav.tsx`) and the plugin manifest `navItems` (`index.ts`) derive from it — they used to be two hand-kept lists that had drifted (Reports/Revenue, Operations/Finance operations, Overview/Finance overview). **The visible sidebar "Finance" is the single hardcoded `finance` item in `lib/chrome/sidebarLayout.ts`** — the plugin's `agency-finance.*` navItems are filtered out of the canonical agency sidebar by the AquaOasis-Web `canonicalMainIds` allow-list, so they never render there. Don't add a third registration. (The `DISCOVERED_PANEL_LABELS["agency-finance"]` label is dead — it names a panel the override discards; a foundation-owned cleanup candidate.) The founder dashboard mounts **once** at the plugin root (`""`); the old `/founder` duplicate route is gone (the `agency/[...rest]` catch-all redirects stale `/founder` links → root).
 - **Payment channel: `channels.ts` is the single source; the stored value stays `PaymentMethod`.** Canonical channels are `bank-transfer | stripe | cash | other` (`PAYMENT_CHANNELS`, `built-ins/modules/agency-finance/src/lib/channels.ts`). Records still store `PaymentMethod` (which also carries a legacy `"manual"`); `normaliseChannel()` folds `"manual"` (and anything unknown) onto `"other"` for display + the money-in-by-channel breakdown. Don't reintroduce `"manual"` as a channel or add a parallel channel enum — extend `channels.ts`. The unified "money in" view lives in `components/IncomeSheet.tsx` + `lib/moneyIn.ts` (`summariseMoneyInByChannel`); it record+surfaces only — the app never holds funds.
 - **Finance Stripe adapter mirrors ecommerce's — intentional, per-plugin.** `agency-finance/src/lib/stripe.ts` lifts the proven wrapper from `ecommerce/src/lib/stripe/server.ts` (this codebase vendors utilities per-plugin, so a shared copy isn't used) and adds refunds + an injectable client. Change one, consider the other. **The finance Stripe webhook is a `public: true` plugin route** resolving the agency from `?agencyId=` (Stripe has no session) — **note ecommerce's own `stripe/webhook` is NOT `public`, so it would not actually receive live Stripe calls**; the finance one is done right. **Keys are Ed's, in the ENCRYPTED INTEGRATIONS VAULT — corrected 2026-08-22, they are NOT on `install.config`.** That record is handed to page props and reaches the browser, so a secret on it is a secret in the client. Both plugins declare `secretVault: { provider: "stripe", field }` on the manifest field and read back through `lib/server/plugins/pluginSecretConfig.ts` `installConfigWithSecrets()`, which merges the vault's values under the manifest ids — so the pure `readStripeKeysFromInstall(config)` readers keep their shape and neither plugin learns about the vault. **Do not "simplify" that back to a direct `install.config` read.** Never hardcoded/logged; the app never holds funds. Refund/chargeback surface via finance events + activity only — a `finance:refund`/`finance:chargeback` operational alert is a follow-up in `operationalAlerts.ts` (the client-health worker's file).
+- **THIRD Stripe wrapper — `memberships`, and it lives in the RUNTIME, not the plugin.** `src/built-ins/runtime/foundation-adapters/_membershipsStripeAdapter.ts` is the concrete `StripePort` for the memberships plugin (subscriptions, pause/resume/plan-change, checkout, billing portal, prices, webhook verification). It is deliberately NOT inside `built-ins/modules/memberships/` : that package declares `StripePort` in `src/server/ports.ts` and states it must never import the Stripe SDK — the foundation supplies the client. Same shape as the other two (narrow `StripeClientLike` slice + injectable client), so **change one, consider all three**. Its keys are the **ecommerce** install's keys in the same `(agencyId, clientId)` scope, read through `installConfigWithSecrets("ecommerce", …)` — one Stripe account per client, one place to configure it. **`stripeFor()` returns `null` when there is no key** and `containerFor` then falls back to a throwing NOOP port, so `isStripeAvailable()` is the honest question to ask before a paid flow; it used to return a stub unconditionally and answer `true` for every install on earth (issues #33). Don't reinstate an unconditional stub, and don't add a fourth wrapper.
+- **FOURTH Stripe wrapper — `affiliates` CONNECT, added for todo:506. Different Stripe surface, but half of it IS a copy.** `src/built-ins/runtime/foundation-adapters/_affiliatesStripeConnectAdapter.ts` is the concrete `StripeConnectPort` for the affiliates plugin (`accounts.create` Express + `accountLinks.create` + `accounts.retrieve` + `transfers.create` + `webhooks.constructEvent`). Those calls do NOT overlap the memberships wrapper's surface (customers / subscriptions / prices / checkout / billing portal), which is why a fifth port was not folded into `StripePort`. **But `getAffiliatesStripeConnectClient` is a verbatim copy of `getMembershipsStripeClient`** — same per-secret-key `Map` cache, same `new Function("s", "return import(s)")` dynamic import, same hardcoded `apiVersion: "2024-12-18.acacia"`, and `affiliatesStripeConnectKeysFor` is a third copy of "read the ecommerce install's keys through `installConfigWithSecrets`". `ecommerce/lib/stripe/server.ts` now exports the canonical non-throwing reader `tryReadStripeKeysFromInstall`; `_membershipsStripeAdapter.readMembershipsStripeKeys` has NOT been converged onto it. **Change one, consider all four**, and if you touch the client builder, hoist it rather than adding a fifth. The status collapse is not duplicated: the adapter calls the plugin's own `snapshotToStatus`.
+- **The affiliates Connect webhook currently verifies against the WRONG signing secret — `/api/portal/affiliates/webhooks/stripe` is not `/api/portal/ecommerce/stripe/webhook`.** `makeAffiliatesStripeConnectPort` verifies `account.updated` / `transfer.paid` with `keys.webhookSecret`, i.e. the **ecommerce** install's `stripeWebhookSecret`, whose own manifest help text says it is "Created in dashboard.stripe.com/webhooks for /api/portal/ecommerce/stripe/webhook". Stripe issues a distinct `whsec_…` per registered endpoint (and Connect endpoints are a separate endpoint kind from account endpoints), so in live/test mode the affiliates endpoint's signature can never match and every delivery answers 400. Consequence: onboarding status only ever advances through the customer's manual "refresh my status" button (which polls `accounts.retrieve`, so it does work), and a payout that reaches `in_progress` via `processPayout` has **no path to `completed`** — `confirmTransferPaid` is only reachable from the webhook, and the admin card only renders its buttons for `scheduled` payouts. Fixing it needs its own affiliates-scoped Connect webhook-secret setting (manifest field + `secretVault`), not a reuse of ecommerce's. Note also that `isStripeConnectAvailable()` gates on the SECRET key alone, so an install with a secret key and no webhook secret still offers both automated controls.
 - **Money-CREATE idempotency: ONE shared mechanism — don't add a per-path scheme.** Every finance money-create dedups a double-submit through the single helper `built-ins/modules/agency-finance/src/lib/idempotency.ts` (`deriveRecordId(prefix, idempotencyKey?)`): a client-supplied one-time key derives a **deterministic record id**, so a resubmit overwrites the same slot instead of minting a duplicate (parallel-double-click-safe; a plain "seen this key?" map is NOT — it races). Used by `payments.record`, `income.create`, `plans.create`, `invoices.create`, `operations.createCompensationPayment`, and `lib/server/closeDeal.ts` (derives the contract id + passes the key to `invoices.create`). It generalises the Stripe path's stable-reference dedup (`PaymentService.findByExternalRef` on the PaymentIntent) and the delight wire's `reference: delight:<id>` — **reuse `deriveRecordId`, don't invent a parallel `processedKeys` set or a time-window guard.** **Preserve the nuance:** multiple payments per invoice are legitimate (partial payments) — dedup only ever collapses a resubmit of the *same* key; a genuine second payment carries a new key. The id is only deterministic *with* a key — no key → `makeId(prefix)`, unchanged; so dedup is opt-in from the client (the finance modals + close-deal callers mint a `crypto.randomUUID()` per intent).
 - **Finance list reads are `index ∪ row-scan` — the index is a fast path, NEVER the source of truth.** Every finance store keeps an `<area>/index` array beside its `<area>/by-id/<id>` rows, and appending to that array is a **read-modify-write**: two records created concurrently both read the same array and the second write wins, so an id is lost and its row — stored perfectly well — becomes invisible to `list()`. For money that is a payment or invoice silently **off the books** (an under-count, the mirror of a double-count — and it can *mask* one, since three duplicate writes surface as a single row). Every list now goes through the one shared helper `built-ins/modules/agency-finance/src/server/rowIndex.ts` (`listRowIds(storage, indexKey, prefix)`), which unions the index with a prefix scan of the rows: `payments` · `invoices` · `income` · `plans` · `expenses` · `budgets` · `categories` · `operations.listRows`. **Don't add a new store that lists straight off its index array, and don't "optimise" the scan away.** Scope is unaffected — plugin storage is namespaced per install (`state.pluginData[installId]`, runtime `makeStorage`), so the scan sees exactly the keyspace the index did.
 - **No write-only secondary indexes in finance — they were removed, twice.** `payments/by-invoice/`, `payments/by-client/`, `expenses/by-category/` and `expenses/by-staff/` were all maintained on every create (and every re-category/re-assign) and read by **nothing** — `listForInvoice`/`listForClient`/`listForCategory` all filter through `list()` instead. That's storage ops and extra racy read-modify-writes bought for queries that don't exist. If you need a "by X" view, add a field to the store's `Filter` type and go through `list()`; a secondary index is only worth it with a measured read problem, and then it needs the same union treatment as the primary. Stragglers left in existing stores are inert (unread keys in the plugin's own slice).
@@ -2690,6 +2875,19 @@ import the wrong one. The server halves are now suffixed `Service`:
 `commandIntelligenceService` · `advisorSkillsService` · `brandPortfolioService`.
 Rule going forward: a server counterpart of a client-safe module carries the
 `Service` suffix, never the bare twin name.
+
+**Straggler closed 2026-08-31:** the server half of `personInteractions` had kept
+the bare name and is now **`lib/server/personInteractionsService.ts`** (the bare
+`lib/server` filename no longer exists — do not link it). The rule is
+no longer a convention: `scripts/smoke-person-interactions.test.ts` sweeps both
+lib halves and fails on any shared filename.
+
+**Still outstanding (two pairs, chrome preference cookies):**
+`lib/server/devIconPreference.ts` ↔ `lib/chrome/devIconPreference.ts` and
+`lib/server/performanceMode.ts` ↔ `lib/chrome/performanceMode.ts`. They are
+pinned as known in that sweep's `KNOWN_UNRESOLVED` list so a NEW twin still
+fails; renaming them touches the agency/clients/dev-team layouts and was left
+out of the person-interactions change deliberately.
 
 ## Who decides the tenant on a plugin API call — SETTLED 2026-08-22
 
@@ -3473,7 +3671,7 @@ _(Full hazard list: [hazards-and-duplication.md](hazards-and-duplication.md).)_
 
 ## Source document — `docs/workspace/radar.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/radar.md" sha256="3ce82366eef05f6cb142833c4657adf87afa9380de13139aaac26db8c49892a0" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/radar.md" sha256="094abc931f838551ba12cba295eeae59986f3a3e14570beb3da5b229b5bf637a" -->
 # Chapter — Radar (omega dossier)
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
@@ -3788,12 +3986,20 @@ available in-app" (service-role limit). See §1 sweep note and the plan Part D.
   Lifted here 2026-08-21 from the radar handoffs when they were archived — it was the only
   live home this fact had, and `plans/radar-upgrade.md` still lists probe cadence as an open
   question, which reads as "the cron does not exist" to anyone working from live docs.
-- ⚠ **Current scheduler mismatch (issue #131):** Evidence declares an hourly cadence but
-  is only rolled up by manual full scan or daily `cron/inbox`. That daily route calls
-  `runRadarScheduledSweep()` per agency, and the helper reruns the app-wide Infra probe inside
-  each call; an Infra failure also prevents that tenant's evidence sample. The dedicated
-  ten-minute probe cron already models the intended shape correctly (Infra once, Deep per
-  agency), but the daily evidence path does not.
+- ✅ **Scheduler scope + cadence honesty (issue #131) — fixed 2026-08-30.** `cron/inbox` now
+  probes the app-wide Infra sweep **once per tick**, before the per-agency loop and in its own
+  `try`/`catch` (the shape `cron/radar-probes` already used), and `runRadarScheduledSweep()` is
+  strictly per-tenant: Deep probes → module health → Pulse rebuild → evidence rollup → cache
+  invalidation. N agencies no longer means N identical database round-trips, and a transient
+  Infra failure no longer returns before the evidence rollup and costs every tenant a day of
+  evidence. The taxonomy also stopped conflating intent with reality: `RadarSweepDefinition`
+  now carries **`scheduledCadenceMs`** — what `vercel.json` actually delivers — alongside the
+  intended `cadenceMs`, so the Evidence rollup states its real **daily** schedule instead of an
+  hourly one nothing runs. Pinned by `scripts/smoke-radar-sweep-isolation.test.ts` (the cron
+  handler is driven for zero/one/many tenants with the Infra probe counted, an Infra failure
+  forced, one tenant failed and an overlapping retry tick) and `scripts/smoke-radar-sweeps.test.ts`.
+  **Still Ed's call (issue #170):** whether `vercel.json` returns to a sub-daily cron schedule —
+  a Vercel plan decision, deliberately not made here.
 
 _See the [KPI dossier](kpi-intelligence.md) for the metrics that ride Radar's
 evidence vault, and the [Advisor dossier](advisor.md) for how findings become

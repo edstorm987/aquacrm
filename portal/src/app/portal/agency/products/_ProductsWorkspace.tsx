@@ -8,6 +8,7 @@ import { AGENCY_PRODUCT_CATEGORIES } from "@/lib/products/agencyProductCategorie
 import { PORTAL_PRODUCT_CATALOG, PORTAL_PHASE_LABELS } from "@/lib/portal/portalProducts";
 import { defaultProductInternalWorkspace, PRODUCT_STAGE_PORTAL_MODES, PRODUCT_WORKSPACE_MODULES } from "@/lib/products/productInternalWorkspace";
 import { PortalCustomFields } from "@/components/forms/PortalCustomFields";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 export type Draft = {
   id?: string;
@@ -276,6 +277,9 @@ export function ProductEditor({ draft, products, sops, companies, customFields =
   const [form, setForm] = useState(draft);
   const [busy, setBusy] = useState(false);
   const stageSectionRef = useRef<HTMLDivElement>(null);
+  // Modal keyboard contract: focus enters the editor, Tab stays inside it, Escape backs out (except mid-save), focus returns to the product row.
+  const dialogRef = useRef<HTMLFormElement>(null);
+  useFocusTrap(dialogRef, true, { onEscape: busy ? undefined : onClose });
 
   useEffect(() => {
     if (focusSection !== "stages") return;
@@ -446,7 +450,7 @@ export function ProductEditor({ draft, products, sops, companies, customFields =
   }
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/35 p-4" role="presentation">
-      <form onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby="product-editor-title" className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg border border-black/10 bg-white p-5 shadow-2xl">
+      <form onSubmit={submit} role="dialog" ref={dialogRef} aria-modal="true" aria-labelledby="product-editor-title" className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg border border-black/10 bg-white p-5 shadow-2xl">
         <div className="flex items-start justify-between">
           <div><p className="text-xs font-semibold uppercase text-brand">{clientContext ? `Client variation · ${clientContext.clientName}` : form.id ? "Edit product" : "New product"}</p><h2 id="product-editor-title" className="mt-1 text-xl font-semibold">{clientContext ? `Customise ${form.name} for this client.` : "Define the offer clearly."}</h2>{clientContext ? <p className="mt-1 max-w-2xl text-xs leading-5 text-black/45">Only differences from the catalogue are retained. Resetting the variation restores the official service without deleting client work.</p> : null}</div>
           <button type="button" onClick={onClose} aria-label="Close"><X size={18} /></button>

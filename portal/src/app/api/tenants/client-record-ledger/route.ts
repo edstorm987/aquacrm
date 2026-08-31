@@ -10,6 +10,7 @@ import {
 import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { ensureHydrated } from "@/server/storage";
 import { listClientRelationshipWorkspaces } from "@/server/clientRelationships";
+import { getClientForAgency } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
 import {
   clientWorkspaceElementAtLeast,
@@ -36,6 +37,10 @@ export async function GET(request: Request) {
     const clientId = url.searchParams.get("clientId")?.trim().slice(0, 120) ?? "";
     if (!clientId) return NextResponse.json({ ok: false, error: "clientId is required" }, { status: 400 });
     const session = await requireRoleForClient([...AGENCY_ROLES], clientId);
+    // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
+    if (!getClientForAgency(session.agencyId, clientId)) {
+      return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+    }
     await requireCurrentClientWorkspaceElementAccess(clientId, "client.record", "view");
     const relationshipView = url.searchParams.get("relationship") === "1";
     const relationshipClientIds = relationshipView

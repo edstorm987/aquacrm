@@ -4,6 +4,7 @@ import { listActivity } from "@/server/activity";
 import { requireRole } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES } from "@/server/types";
 import { formatUkDateTime, isoDateTimeValue } from "@/lib/shared/formatDateTime";
+import { activityAction, activityCategory, activityMessage } from "@/lib/shared/activityVocabulary";
 
 function formatTime(ts: number): string {
   return formatUkDateTime(ts);
@@ -59,36 +60,4 @@ export default async function ActivityInboxPage() {
       </section>
     </div>
   );
-}
-
-function activityMessage(message: string): string {
-  return message
-    .replace(/\bcore plugin install\(s\)/gi, "core systems")
-    .replace(/\bFulfillment plugin installed; phase defaults seeded\./gi, "Project pipeline ready; stages seeded.")
-    .replace(/\bplugin installed\b/gi, "system activated")
-    .replace(/\bplugins installed\b/gi, "systems activated")
-    .replace(/\bWill install\b/gi, "Will activate")
-    .replace(/\binstall\b/gi, "activate")
-    .replace(/\bplugin\b/gi, "system");
-}
-
-function activityCategory(category: string): string {
-  if (category === "plugin") return "systems";
-  if (category === "fulfillment") return "project work";
-  if (category === "tenant") return "client";
-  if (category === "telemetry") return "monitoring";
-  return category.replace(/-/g, " ");
-}
-
-function activityAction(action: string): string {
-  return action
-    .replace(/[._-]/g, " ")
-    .replace(/\bplugin\b/gi, "system")
-    .replace(/\bfulfillment\b/gi, "project work")
-    .replace(/\btelemetry\b/gi, "monitoring")
-    .replace(/\btenant\b/gi, "client")
-    .replace(/\binstalled\b/gi, "activated")
-    .replace(/\buninstalled\b/gi, "removed")
-    .replace(/\bdisabled\b/gi, "turned off")
-    .replace(/\benabled\b/gi, "turned on");
 }

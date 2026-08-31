@@ -121,6 +121,26 @@ export interface RadarInfraHealthSnapshot {
   external: RadarInfraDatabaseHealth[];
   storage: RadarInfraStorageHealth;
 }
+
+/**
+ * The gap the DEPLOYED probe schedule actually delivers between two runs of the
+ * Deep (synthetic canary) and Infra sweeps — `vercel.json`'s
+ * `/api/cron/radar-probes` cron, `15 6 * * *`, i.e. once a day.
+ *
+ * Every surface that judges probe-evidence freshness reads this one value, so a
+ * cadence change is a single edit rather than a hunt through hardcoded
+ * agreements. It exists because those agreements used to be hardcoded at
+ * 15m/60m while nothing ran more often than daily: every live property's canary
+ * therefore read "stale/critical" all day, which mislabels a DEPLOYMENT choice
+ * as a per-property outage — and, on the infra side, a day-old snapshot was
+ * stamped with the Pulse's `now` and read exactly like a fresh one.
+ *
+ * Whether the cron returns to a sub-daily cadence is a hosting decision (Vercel
+ * Hobby is daily-only) and remains Ed's call → issues #170. Pinned against
+ * `vercel.json` and `RADAR_SWEEP_DEFINITIONS` by scripts/smoke-radar-sweeps.test.ts,
+ * so moving the cron without moving this constant fails the suite.
+ */
+export const RADAR_PROBE_CADENCE_MS = 86_400_000;
 export type RadarRuleLens =
   | "connection"
   | "freshness"
@@ -487,6 +507,23 @@ export interface BusinessIssueRadar {
     monitoredClients?: number;
     monitoredEntities?: number;
     coverageGaps?: number;
+    /**
+     * When the OLDEST piece of PROBE evidence behind this Pulse was actually
+     * collected (the least recently refreshed synthetic canary, or the Infra
+     * snapshot), as opposed to `generatedAt`, which is only when the Pulse was
+     * assembled from it. Absent when nothing has ever been probed — never
+     * substituted with `now`, which is precisely how day-old evidence used to
+     * read as fresh (#170).
+     *
+     * The oldest rather than the newest, because the canary and Infra sweeps
+     * refresh and FAIL independently: `runRadarProbeRefresh` swallows a deep
+     * sweep failure and leaves week-old canaries in place beside an Infra
+     * snapshot taken seconds earlier in the same cron tick. Reporting the newest
+     * there would restate the fresh-timestamp-over-stale-evidence lie this field
+     * exists to end. Only the oldest makes "this Pulse's probe evidence is X
+     * old" a true sentence.
+     */
+    probeEvidenceCheckedAt?: number;
   };
   speedToLead: SpeedToLeadRadar;
   commercial: CommercialLifecycleSnapshot;

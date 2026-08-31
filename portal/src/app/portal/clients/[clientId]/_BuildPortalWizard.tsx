@@ -17,8 +17,9 @@
 // ExportRecord; we re-render the page so the CTA flips to
 // "Open custom portal".
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useTransition, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 export interface WizardPlugin {
   id: string;
@@ -54,6 +55,9 @@ export function BuildPortalWizard({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // Modal keyboard contract: focus enters the wizard, Tab stays inside it, Escape backs out (except mid-build), focus returns to the Build custom portal button.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, open, { onEscape: submitting ? undefined : () => setOpen(false) });
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<"idle" | "running" | "done">("idle");
   const [confirmedSlug, setConfirmedSlug] = useState(slug);
@@ -149,7 +153,7 @@ export function BuildPortalWizard({
       {open && (
         <div
           role="dialog"
-          aria-modal="true"
+          ref={dialogRef} aria-modal="true"
           aria-labelledby="bpw-title"
           className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-6"
           onClick={e => { if (e.target === e.currentTarget && !submitting) setOpen(false); }}

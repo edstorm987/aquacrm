@@ -104,6 +104,10 @@ export async function POST(request: Request) {
   } catch (error) {
     return authErrorResponse(error);
   }
+  // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
+  if (!getClientForAgency(session.agencyId, clientId)) {
+    return NextResponse.json({ ok: false, error: "Client not found." }, { status: 404 });
+  }
   try {
     await requireCurrentClientWorkspaceElementAccess(
       clientId,

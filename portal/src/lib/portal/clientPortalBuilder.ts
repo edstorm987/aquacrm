@@ -14,7 +14,23 @@ import type {
   ClientPortalPageBlock,
   ClientPortalSectionId,
 } from "@/server/types";
-import { PORTAL_ELEMENT_PAIRINGS, createPortalBlockRecord } from "@/engines/editor/elements/portalElements";
+import {
+  PORTAL_ALIGNMENTS,
+  PORTAL_APPROVAL_TYPES,
+  PORTAL_DATA_SOURCES,
+  PORTAL_ELEMENT_PAIRINGS,
+  PORTAL_MEDIA_ASPECTS,
+  PORTAL_MEDIA_FITS,
+  PORTAL_PRODUCT_MATCHES,
+  PORTAL_REQUEST_TYPES,
+  PORTAL_SPACINGS,
+  PORTAL_TEXT_LIMITS,
+  PORTAL_TONES,
+  PORTAL_UPLOAD_CATEGORIES,
+  PORTAL_VISIBILITY_RULES,
+  PORTAL_WIDTHS,
+  createPortalBlockRecord,
+} from "@/engines/editor/elements/portalElements";
 // Per-page SEO on a custom page (phase 9). `storedPageSeo` returns undefined
 // when nothing is filled in, so a page nobody has touched carries no `seo`
 // key and normalises to exactly the bytes it did before the field existed.
@@ -42,19 +58,36 @@ export const CLIENT_PORTAL_BLOCK_REGISTRY: Array<{
   .filter(pairing => pairing.palette)
   .map(({ type, label, description, category }) => ({ type, label, description, category }));
 
+/**
+ * What a stored portal block's values may be — DERIVED since element-engine P5.
+ *
+ * Every one of these used to be a hand-written literal here: the portal's own
+ * value vocabulary, sitting parallel to the shared `PropField` contract and
+ * unknown to it. Two things followed from that, and both are fixed by reading
+ * `portalElements` instead. It meant `validateElementProps` could say nothing
+ * about a portal block (see `portalElementSchema`), and — because nothing tied
+ * a literal to its persisted union — adding a value to, say,
+ * `ClientPortalBlockTone` compiled cleanly and was then silently coerced back
+ * to the default here. The declarations these read are closed against those
+ * unions, so that is now a compile error.
+ *
+ * Same members, same order, same coercions: this is a move, not a change, and
+ * `scripts/smoke-portal-element-parity.test.ts` holds the stored records and the
+ * live HTML byte-identical across it.
+ */
 const BLOCK_TYPES = new Set<ClientPortalBlockType>(PORTAL_ELEMENT_PAIRINGS.map(pairing => pairing.type));
-const BLOCK_WIDTHS = new Set<ClientPortalBlockWidth>(["full", "half"]);
-const BLOCK_TONES = new Set<ClientPortalBlockTone>(["surface", "dark", "accent", "quiet"]);
-const DATA_SOURCES = new Set<ClientPortalBlockDataSource>(["portal-summary", "delivery", "billing", "results"]);
-const VISIBILITY_RULES = new Set<ClientPortalBlockVisibilityRule>(["always", "with-products", "without-products", "single-product", "multiple-products", "specific-products"]);
-const PRODUCT_MATCHES = new Set<ClientPortalPageBlock["productMatch"]>(["any", "all"]);
-const BLOCK_SPACING = new Set<ClientPortalBlockSpacing>(["none", "compact", "comfortable", "spacious"]);
-const BLOCK_ALIGNMENT = new Set<ClientPortalBlockAlignment>(["left", "center"]);
-const MEDIA_ASPECTS = new Set<ClientPortalMediaAspect>(["landscape", "square", "portrait"]);
-const MEDIA_FITS = new Set<ClientPortalMediaFit>(["cover", "contain"]);
-const REQUEST_TYPES = new Set<NonNullable<ClientPortalPageBlock["requestType"]>>(["choose", "suggestion", "design-feedback", "support-ticket", "cancel", "move-provider"]);
-const APPROVAL_TYPES = new Set<NonNullable<ClientPortalPageBlock["approvalType"]>>(["all", "design", "launch"]);
-const UPLOAD_CATEGORIES = new Set<NonNullable<ClientPortalPageBlock["uploadCategory"]>>(["brief", "recording", "inspiration", "design-feedback", "misc"]);
+const BLOCK_WIDTHS = new Set<ClientPortalBlockWidth>(PORTAL_WIDTHS);
+const BLOCK_TONES = new Set<ClientPortalBlockTone>(PORTAL_TONES);
+const DATA_SOURCES = new Set<ClientPortalBlockDataSource>(PORTAL_DATA_SOURCES);
+const VISIBILITY_RULES = new Set<ClientPortalBlockVisibilityRule>(PORTAL_VISIBILITY_RULES);
+const PRODUCT_MATCHES = new Set<ClientPortalPageBlock["productMatch"]>(PORTAL_PRODUCT_MATCHES);
+const BLOCK_SPACING = new Set<ClientPortalBlockSpacing>(PORTAL_SPACINGS);
+const BLOCK_ALIGNMENT = new Set<ClientPortalBlockAlignment>(PORTAL_ALIGNMENTS);
+const MEDIA_ASPECTS = new Set<ClientPortalMediaAspect>(PORTAL_MEDIA_ASPECTS);
+const MEDIA_FITS = new Set<ClientPortalMediaFit>(PORTAL_MEDIA_FITS);
+const REQUEST_TYPES = new Set<NonNullable<ClientPortalPageBlock["requestType"]>>(PORTAL_REQUEST_TYPES);
+const APPROVAL_TYPES = new Set<NonNullable<ClientPortalPageBlock["approvalType"]>>(PORTAL_APPROVAL_TYPES);
+const UPLOAD_CATEGORIES = new Set<NonNullable<ClientPortalPageBlock["uploadCategory"]>>(PORTAL_UPLOAD_CATEGORIES);
 
 /**
  * A freshly inserted portal block.
@@ -203,11 +236,16 @@ function normaliseBlocks(value: unknown, requireSystem: boolean, pageKey: string
       responsive: normaliseResponsive(input.responsive, base.responsive),
       width: BLOCK_WIDTHS.has(input.width as ClientPortalBlockWidth) ? input.width as ClientPortalBlockWidth : base.width,
       tone: BLOCK_TONES.has(input.tone as ClientPortalBlockTone) ? input.tone as ClientPortalBlockTone : base.tone,
-      eyebrow: cleanText(input.eyebrow, base.eyebrow, 100),
-      title: cleanText(input.title, base.title, 180),
-      body: cleanOptionalText(input.body, base.body, 1_200),
-      actionLabel: cleanOptionalText(input.actionLabel, base.actionLabel, 80),
-      actionHref: cleanOptionalText(input.actionHref, base.actionHref, 500),
+      // The caps come from `PORTAL_TEXT_LIMITS` — the same numbers the prop
+      // fields carry as `maxLength`, so anything that wants to STATE the cap
+      // reads the one the store enforces. (The DevEditor inspector does not yet
+      // read it: its `Field` takes no `maxLength`, so an operator can still type
+      // past a cap and be truncated here on save. See `portalElements.ts`.)
+      eyebrow: cleanText(input.eyebrow, base.eyebrow, PORTAL_TEXT_LIMITS.eyebrow),
+      title: cleanText(input.title, base.title, PORTAL_TEXT_LIMITS.title),
+      body: cleanOptionalText(input.body, base.body, PORTAL_TEXT_LIMITS.body),
+      actionLabel: cleanOptionalText(input.actionLabel, base.actionLabel, PORTAL_TEXT_LIMITS.actionLabel),
+      actionHref: cleanOptionalText(input.actionHref, base.actionHref, PORTAL_TEXT_LIMITS.actionHref),
       dataSource,
       requestType: type === "request-form" && REQUEST_TYPES.has(input.requestType as NonNullable<ClientPortalPageBlock["requestType"]>) ? input.requestType as ClientPortalPageBlock["requestType"] : base.requestType,
       approvalType: type === "approval-panel" && APPROVAL_TYPES.has(input.approvalType as NonNullable<ClientPortalPageBlock["approvalType"]>) ? input.approvalType as ClientPortalPageBlock["approvalType"] : base.approvalType,
@@ -289,9 +327,9 @@ function normaliseBlockMedia(value: unknown, fallback: ClientPortalPageBlock["me
   const input = objectValue(value);
   const base = fallback ?? { url: "", alt: "", caption: "", aspect: "landscape", fit: "cover" };
   return {
-    url: cleanOptionalText(input.url, base.url, 1_000),
-    alt: cleanOptionalText(input.alt, base.alt, 240),
-    caption: cleanOptionalText(input.caption, base.caption, 500),
+    url: cleanOptionalText(input.url, base.url, PORTAL_TEXT_LIMITS.mediaUrl),
+    alt: cleanOptionalText(input.alt, base.alt, PORTAL_TEXT_LIMITS.mediaAlt),
+    caption: cleanOptionalText(input.caption, base.caption, PORTAL_TEXT_LIMITS.mediaCaption),
     aspect: MEDIA_ASPECTS.has(input.aspect as ClientPortalMediaAspect) ? input.aspect as ClientPortalMediaAspect : base.aspect,
     fit: MEDIA_FITS.has(input.fit as ClientPortalMediaFit) ? input.fit as ClientPortalMediaFit : base.fit,
   };

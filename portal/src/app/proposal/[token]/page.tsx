@@ -29,7 +29,18 @@ export default async function ProposalPage({ params }: { params: Promise<{ token
         <dl className="ml-auto mt-7 max-w-sm divide-y divide-black/10 text-sm"><div className="flex justify-between py-3"><dt>Subtotal</dt><dd>{money(pack.subtotalCents, pack.currency)}</dd></div><div className="flex justify-between py-3"><dt>Tax</dt><dd>{money(pack.taxCents, pack.currency)}</dd></div><div className="flex justify-between border-b-2 border-black py-3 text-lg font-semibold"><dt>Total</dt><dd>{money(pack.totalCents, pack.currency)}</dd></div></dl>
         <section className="mt-12 border-t border-black/10 pt-8"><p className="text-xs font-semibold uppercase tracking-wide text-black/40">{pack.agreementTitle}</p><div className="mt-4 whitespace-pre-wrap text-sm leading-7 text-black/70">{pack.agreementBody}</div></section>
         {pack.notes ? <section className="mt-8 border-t border-black/10 pt-5"><p className="text-xs font-semibold uppercase tracking-wide text-black/40">Notes</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-black/60">{pack.notes}</p></section> : null}
-        <ProposalActions token={token} accepted={pack.agreementStatus === "accepted"} checkoutUrl={pack.stripeCheckoutUrl} />
+        <ProposalActions
+          token={token}
+          accepted={pack.agreementStatus === "accepted"}
+          // The public token is minted at the first draft save, so reaching this
+          // page is not the same as being offered these terms. Only the version
+          // whose delivery was confirmed can be signed.
+          openForSignature={pack.agreementStatus === "sent" && pack.sentVersion === pack.version}
+          version={pack.version}
+          acceptedVersion={pack.acceptedVersion}
+          acceptedAt={pack.acceptedAt}
+          checkoutUrl={pack.stripeCheckoutUrl}
+        />
       </article>
     </main>
   );

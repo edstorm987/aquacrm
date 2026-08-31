@@ -1,5 +1,5 @@
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
-import { containerFor } from "../server/foundationAdapter";
+import { containerFor, isStripeTransferAvailable } from "../server/foundationAdapter";
 import { PayoutsList } from "../components/PayoutsList";
 
 export const API_BASE = "/api/portal/affiliates";
@@ -17,5 +17,18 @@ export default async function PayoutsPage(props: PluginPageProps) {
     c.affiliates.list(),
     c.payouts.availableBalances(),
   ]);
-  return <PayoutsList payouts={payouts} affiliates={affiliates} balances={balances} apiBase={API_BASE} canMutate />;
+  return (
+    <PayoutsList
+      payouts={payouts}
+      affiliates={affiliates}
+      balances={balances}
+      apiBase={API_BASE}
+      canMutate
+      // Money-moving gate: transfer readiness, not onboarding availability.
+      stripeConnectAvailable={isStripeTransferAvailable({
+        agencyId: props.agencyId,
+        clientId: props.clientId,
+      })}
+    />
+  );
 }

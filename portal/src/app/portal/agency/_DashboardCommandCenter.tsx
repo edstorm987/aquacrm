@@ -17,10 +17,8 @@ import {
   CalendarDays,
   Check,
   CheckCircle2,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  ChevronUp,
   Clock3,
   Compass,
   Crosshair,
@@ -70,6 +68,7 @@ import { ClientsNeedingAttention } from "./_ClientsNeedingAttention";
 import type { ClientAttentionItem } from "@/lib/server/clients/clientAttention";
 import type { RadarInspectionTab } from "./radar/RadarInspectionWorkspace";
 import { CommandStationNav, type CommandStationAttention, type CommandStationMode } from "./_CommandStationNav";
+import { CommandPanelShell, useCommandPanelDisclosure, type CommandPanelAttention } from "./_CommandPanelShell";
 import { DayCommandSensorPanel } from "./_DayCommandSensorPanel";
 import { DayBriefingPanel, type DayTaskGenerationSummary } from "./_DayBriefingPanel";
 import { DayKpiIntelligencePanel } from "./_DayKpiIntelligencePanel";
@@ -299,7 +298,12 @@ export function DashboardCommandCenter({
   const [savingDay, setSavingDay] = useState(false);
   const [savingWeek, setSavingWeek] = useState(false);
   const [dateBusy, setDateBusy] = useState(false);
-  const [weekExpanded, setWeekExpanded] = useState(false);
+  // Day Command progressive disclosure. Each panel remembers its own state; the
+  // heavy review surfaces open closed with a real summary, the day's agenda
+  // opens open. See `_CommandPanelShell` for the honesty rules.
+  const [weekExpanded, toggleWeekCommand] = useCommandPanelDisclosure("aqua-command-week-expanded");
+  const [scheduleExpanded, toggleSchedulePanel] = useCommandPanelDisclosure("aqua-command-schedule-expanded", true);
+  const [timesheetExpanded, toggleTimesheetPanel] = useCommandPanelDisclosure("aqua-command-timesheet-expanded");
   const [attentionProtection, setAttentionProtectionState] = useState(true);
   const [clockBusy, setClockBusy] = useState(false);
   const [clockOutReviewOpen, setClockOutReviewOpen] = useState(false);
@@ -489,10 +493,6 @@ export function DashboardCommandCenter({
     }
     return () => window.removeEventListener("aqua-work-session:clock-out-review", openClockOutReview);
   }, [activeSession, requestedClockOutReview]);
-
-  useEffect(() => {
-    setWeekExpanded(window.localStorage.getItem("aqua-command-week-expanded") === "true");
-  }, []);
 
   useEffect(() => {
     const sync = () => setAttentionProtectionState(attentionProtectionEnabled());
@@ -844,14 +844,6 @@ export function DashboardCommandCenter({
     void selectDay(offsetIsoDate(selectedDate, offset));
   }
 
-  function toggleWeekCommand() {
-    setWeekExpanded(current => {
-      const next = !current;
-      window.localStorage.setItem("aqua-command-week-expanded", String(next));
-      return next;
-    });
-  }
-
   async function saveWeek(reviewStatus: "draft" | "complete" = weekPlan.reviewStatus) {
     setSavingWeek(true);
     setOperationError("");
@@ -1189,6 +1181,18 @@ export function DashboardCommandCenter({
     setDashboardMode("workspace");
   }
 
+  // Folding the timesheet away must never fold the alarm away with it: a
+  // required check-in, a live clock and unconfirmed idle time all stay on the
+  // collapsed header. Silence here means there is genuinely nothing to answer,
+  // not that the panel is closed.
+  const timesheetAttention: CommandPanelAttention | null = activeSession && isToday
+    ? activeSession.needsActivityConfirmation
+      ? { label: "Check-in required", tone: "critical" }
+      : { label: `${workModeLabel(activeSession.currentMode)} · clocked in`, tone: "info" }
+    : selectedUnconfirmedHours > 0
+      ? { label: `${formatHours(selectedUnconfirmedHours)}h unconfirmed`, tone: "warning" }
+      : null;
+
   const dayAttentionItems = dayStrictList.filter(item => item.status !== "done");
   const dayAttention: CommandStationAttention = {
     count: dayAttentionItems.length,
@@ -1469,14 +1473,17 @@ export function DashboardCommandCenter({
         </div>
 
         <div className="grid gap-4">
-          <section className="mm-surface-card overflow-hidden rounded-lg border border-black/10" aria-labelledby="dashboard-calendar-heading">
-            <div className="flex items-start justify-between gap-3 border-b border-black/10 px-4 py-4 sm:px-5">
-              <div className="flex items-center gap-3">
-                <span className="mm-area-icon grid size-10 shrink-0 place-items-center rounded-md"><CalendarDays size={18} /></span>
-                <div><p className="text-xs font-semibold uppercase tracking-wide text-brand">Schedule · {shortDate(selectedDate)}</p><h3 id="dashboard-calendar-heading" className="mt-1 text-lg font-semibold text-black/85">{isToday ? "Today’s agenda" : isFuture ? "Planned schedule" : "Day timeline"}</h3></div>
-              </div>
-              <button type="button" onClick={() => selectWorkspaceMode("calendar")} disabled={serverNavigationBusy} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 bg-white px-2.5 text-xs font-semibold text-black/58 hover:bg-black/[0.03] disabled:opacity-45"><CalendarDays size={13} />Calendar</button>
-            </div>
+          <CommandPanelShell
+            panelId="dashboard-calendar-content"
+            icon={<CalendarDays size={18} />}
+            eyebrow={`Schedule · ${shortDate(selectedDate)}`}
+            title={isToday ? "Today’s agenda" : isFuture ? "Planned schedule" : "Day timeline"}
+            expanded={scheduleExpanded}
+            onToggle={toggleSchedulePanel}
+            summary={selectedDaySchedule.length ? [{ label: selectedDaySchedule.length === 1 ? "entry scheduled" : "entries scheduled", value: String(selectedDaySchedule.length) }] : []}
+            emptyLabel="Nothing scheduled for this date."
+            action={<button type="button" onClick={() => selectWorkspaceMode("calendar")} disabled={serverNavigationBusy} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 bg-white px-2.5 text-xs font-semibold text-black/58 hover:bg-black/[0.03] disabled:opacity-45"><CalendarDays size={13} />Calendar</button>}
+          >
             <div className="divide-y divide-black/[0.07]">
               {selectedDaySchedule.map(item => (
                 <Link key={item.id} href={item.href} className="mm-interactive-row group grid grid-cols-[58px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 sm:px-5">
@@ -1490,13 +1497,25 @@ export function DashboardCommandCenter({
               ))}
               {!selectedDaySchedule.length ? <div className="px-5 py-8 text-center"><CalendarDays className="mx-auto text-black/18" size={22} /><p className="mt-2 text-sm font-semibold text-black/58">Nothing scheduled for this date</p><p className="mt-1 text-xs leading-5 text-black/40">Add a dated task or plan a daily outcome.</p></div> : null}
             </div>
-          </section>
+          </CommandPanelShell>
 
-          <section className="mm-surface-card overflow-hidden rounded-lg border border-black/10" aria-labelledby="timesheet-heading">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/10 px-4 py-4 sm:px-5">
-              <div className="flex items-center gap-3"><span className="mm-area-icon grid size-10 place-items-center rounded-md"><Clock3 size={18} /></span><div><p className="text-xs font-semibold uppercase tracking-wide text-brand">Employee record · accountable time</p><h3 id="timesheet-heading" className="mt-1 text-lg font-semibold text-black/85">Timesheet · {formatHours(loggedHours)}h confirmed</h3></div></div>
-              {activeSession && isToday ? <button type="button" onClick={() => window.dispatchEvent(new Event("aqua-work-session:check-in"))} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/62 hover:bg-black/[0.03]"><Activity size={14} />Update activity</button> : null}
-            </div>
+          <CommandPanelShell
+            panelId="timesheet-content"
+            icon={<Clock3 size={18} />}
+            eyebrow="Employee record · accountable time"
+            title={`Timesheet · ${formatHours(loggedHours)}h confirmed`}
+            expanded={timesheetExpanded}
+            onToggle={toggleTimesheetPanel}
+            summary={selectedSessions.length ? [
+              { label: "confirmed", value: `${formatHours(loggedHours)}h` },
+              { label: selectedSessions.length === 1 ? "time entry" : "time entries", value: String(selectedSessions.length) },
+              { label: "unconfirmed", value: `${formatHours(selectedUnconfirmedHours)}h`, tone: selectedUnconfirmedHours ? "attention" : "neutral" },
+              { label: "evidence confidence", value: `${selectedEvidenceConfidence}%`, tone: selectedEvidenceConfidence < 70 ? "attention" : "neutral" },
+            ] : []}
+            emptyLabel="No hours logged for this day."
+            attention={timesheetAttention}
+            action={activeSession && isToday ? <button type="button" onClick={() => window.dispatchEvent(new Event("aqua-work-session:check-in"))} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/62 hover:bg-black/[0.03]"><Activity size={14} />Update activity</button> : null}
+          >
             {activeSession && isToday ? <div className={`border-b px-4 py-3 text-sm sm:px-5 ${activeSession.needsActivityConfirmation ? "border-red-200 bg-red-50 text-red-900" : activeSession.currentMode === "break" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-semibold">{workModeLabel(activeSession.currentMode)} · {formatElapsed(now - activeSession.startedAt)} clocked in</p><p className="mt-1 text-xs opacity-70">{activeSession.focus || plan.focus || "General work"}</p></div><span className="rounded-sm border border-current/15 bg-white/45 px-2 py-1 text-[10px] font-bold uppercase">{activeSession.needsActivityConfirmation ? "Check-in required" : activeSession.nextCheckInAt ? `Check-in ${formatClockTime(activeSession.nextCheckInAt)}` : "Evidence live"}</span></div></div> : null}
             <div className="grid gap-px border-b border-black/10 bg-black/10 sm:grid-cols-5">
               <AccountabilityMetric label="Aqua active" value={`${formatHours(selectedAquaHours)}h`} tone="aqua" />
@@ -1523,7 +1542,7 @@ export function DashboardCommandCenter({
               ))}
               {!selectedSessions.length ? <p className="px-5 py-8 text-center text-sm text-black/40">No hours logged for this day.</p> : null}
             </div>
-          </section>
+          </CommandPanelShell>
 
           {advisorError ? <p role="alert" className="border border-red-300/20 bg-red-400/[0.05] px-3 py-2 text-xs text-red-200">{advisorError}</p> : null}
           {isToday ? <DayBriefingPanel
@@ -1546,16 +1565,21 @@ export function DashboardCommandCenter({
 
       <ClientsNeedingAttention items={clientsNeedingAttention} radarPaused={displayedRadarIsPaused} />
 
-      <section className="mm-surface-card overflow-hidden rounded-lg border border-black/10" aria-labelledby="week-plan-heading">
-        <div className="flex flex-wrap items-center justify-between gap-3 p-4 sm:px-5">
-          <button type="button" onClick={toggleWeekCommand} aria-expanded={weekExpanded} aria-controls="week-command-content" className="flex w-full min-w-0 items-center gap-3 text-left sm:w-auto sm:flex-1">
-            <span className="mm-area-icon grid size-10 shrink-0 place-items-center rounded-md"><CalendarDays size={18} /></span>
-            <span className="min-w-0"><span className="block text-xs font-semibold uppercase tracking-wide text-brand">Week command</span><span id="week-plan-heading" className="mt-1 block truncate text-lg font-semibold text-black/85">Week of {shortDate(planningWeekStart)}</span></span>
-            <span className="ml-auto grid size-8 shrink-0 place-items-center rounded-md border border-black/10 bg-white text-black/45">{weekExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}</span>
-          </button>
-          {!weekExpanded ? <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-black/45"><span><strong className="text-black/70">{formatHours(plannedWeekHours)}h</strong> planned</span><span><strong className="text-black/70">{formatHours(loggedWeekHours)}h</strong> logged</span><span><strong className="text-black/70">{weekPace}%</strong> pace</span>{weekDirty ? <span className="font-semibold text-amber-700">Unsaved</span> : null}</div> : null}
-        </div>
-        {weekExpanded ? <div id="week-command-content" className="border-t border-black/10">
+      <CommandPanelShell
+        panelId="week-command-content"
+        icon={<CalendarDays size={18} />}
+        eyebrow="Week command"
+        title={`Week of ${shortDate(planningWeekStart)}`}
+        expanded={weekExpanded}
+        onToggle={toggleWeekCommand}
+        summary={[
+          { label: "planned", value: `${formatHours(plannedWeekHours)}h` },
+          { label: "logged", value: `${formatHours(loggedWeekHours)}h` },
+          { label: "pace", value: `${weekPace}%` },
+        ]}
+        emptyLabel="No week plan recorded yet."
+        attention={weekDirty ? { label: "Unsaved", tone: "warning" } : null}
+      >
         <div className="p-4 sm:p-5">
           <WeeklyReviewWorkspace
             draft={weekPlan}
@@ -1579,8 +1603,7 @@ export function DashboardCommandCenter({
             </button>;
           })}
         </div>
-        </div> : null}
-      </section>
+      </CommandPanelShell>
       </div>
       )}
       </div>

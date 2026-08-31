@@ -96,15 +96,59 @@ export interface CommercialLineItem {
   unitCents: number;
 }
 
+// Email delivery is three-valued, never a boolean "sent" flag: "queued" means the
+// provider accepted the message but has not confirmed delivery, "delivered" is the
+// only state that may advance a sent/receipt milestone, and "failed" retains the
+// provider's reason plus the message id so the send can be retried honestly.
+export type CommercialDeliveryStatus = "queued" | "delivered" | "failed";
+
+/**
+ * Where a payment row actually came from.
+ *
+ * `method` says how the money moved, which is NOT the same question — a human
+ * can record a `stripe` payment by hand from the Stripe dashboard. Only a row
+ * this system wrote from a verified `invoice.paid` webhook is evidence that
+ * Stripe collected an installment, so only `stripe-subscription` counts towards
+ * the installment plan's stop condition.
+ */
+export type CommercialPaymentSource = "manual" | "stripe-checkout" | "stripe-subscription";
+
 export interface CommercialPayment {
   id: string;
   amountCents: number;
   method: CommercialPaymentMethod;
   reference?: string;
   paidAt: number;
+  /** Provenance of the row. Absent on rows written before provenance was stamped. */
+  source?: CommercialPaymentSource;
+  /** The Stripe subscription that collected it — set only on `stripe-subscription` rows. */
+  stripeSubscriptionId?: string;
+  /** Stamped only on confirmed receipt delivery. */
   receiptSentAt?: number;
+  receiptDeliveryStatus?: CommercialDeliveryStatus;
+  receiptMessageId?: string;
+  receiptError?: string;
   activityRecordedAt?: number;
   eventEmittedAt?: number;
+}
+
+/**
+ * A superseded set of commercial terms.
+ *
+ * Amending an issued pack does not overwrite what the recipient saw — the prior
+ * version is pushed here, carrying its own acceptance if it had one, so "they
+ * accepted it" can never silently mean later, unseen terms.
+ */
+export interface CommercialPackRevision {
+  version: number;
+  contentHash: string;
+  totalCents: number;
+  currency: CommercialPack["currency"];
+  agreementTitle: string;
+  /** When this version stopped being the current one. */
+  supersededAt: number;
+  acceptedAt?: number;
+  acceptedBy?: string;
 }
 
 export interface CommercialPack {
@@ -122,6 +166,19 @@ export interface CommercialPack {
   invoiceNumber: string;
   invoiceStatus: CommercialDocumentStatus;
   agreementStatus: CommercialDocumentStatus;
+  /**
+   * Monotonic revision of the terms. Bumped only when the reviewable content
+   * actually changes; acceptance and delivery bind to this number.
+   */
+  version: number;
+  /** Hash of everything the recipient reads on the proposal page. */
+  contentHash: string;
+  /** Hash of the payable terms alone — a change invalidates a payment session. */
+  financialHash: string;
+  /** Superseded versions, oldest first. */
+  revisions?: CommercialPackRevision[];
+  /** The version whose delivery was confirmed. Only this version is acceptable. */
+  sentVersion?: number;
   lineItems: CommercialLineItem[];
   subtotalCents: number;
   taxCents: number;
@@ -136,16 +193,67 @@ export interface CommercialPack {
   notes?: string;
   signedDocumentName?: string;
   signedDocumentDataUrl?: string;
+  /** The version the attached countersigned copy was signed against. */
+  signedDocumentVersion?: number;
   payments: CommercialPayment[];
   stripeCheckoutId?: string;
   stripeCheckoutUrl?: string;
+  /** The exact version + financial hash the stored Checkout session was priced for. */
+  stripeCheckoutVersion?: number;
+  stripeCheckoutFinancialHash?: string;
   stripeSubscriptionId?: string;
+  /**
+   * The stop lifecycle of an installment subscription.
+   *
+   * "We asked Stripe to stop" and "Stripe stopped" are different facts and are
+   * recorded as different fields. `subscriptionCancelRequestedAt`/`Attempts`
+   * record what this system did, `subscriptionCancelError` retains the exact
+   * refusal so a permanent failure is visible after Stripe's redelivery window
+   * instead of silently expiring, and `subscriptionCancelConfirmedAt` is
+   * stamped ONLY from Stripe's own `customer.subscription.*` confirmation.
+   */
+  subscriptionCancelRequestedAt?: number;
+  subscriptionCancelAttempts?: number;
+  subscriptionCancelError?: string;
+  subscriptionCancelConfirmedAt?: number;
   financeInvoiceId?: string;
+  /** Retry handle for the last proposal email, kept for failed attempts too. */
   emailMessageId?: string;
+  deliveryStatus?: CommercialDeliveryStatus;
+  deliveryError?: string;
+  deliveryAttemptedAt?: number;
+  /** Stamped only on confirmed delivery of the proposal email. */
   sentAt?: number;
   acceptedAt?: number;
+  acceptedBy?: string;
+  /** The exact version + content hash the recipient agreed to. */
+  acceptedVersion?: number;
+  acceptedContentHash?: string;
   createdAt: number;
   updatedAt: number;
+}
+
+/**
+ * How an installment plan divides the promised total EXACTLY.
+ *
+ * A Stripe subscription bills one fixed recurring price, so a rounded-up
+ * `ceil(total / count)` collected up to `count - 1` cents MORE than the
+ * proposal said — money the customer never agreed to. The allocation is
+ * therefore the same one the client payment plans already use: every
+ * installment is the floor, and the leftover pennies are charged once.
+ *
+ * The invariant this exists to hold: `recurringCents * count + remainderCents`
+ * is exactly `totalCents`, for every total and every count.
+ */
+export function installmentAllocation(
+  pack: Pick<CommercialPack, "billingCadence" | "totalCents" | "installmentCount">,
+): { count: number; recurringCents: number; remainderCents: number } {
+  if (pack.billingCadence !== "installments") {
+    return { count: 1, recurringCents: pack.totalCents, remainderCents: 0 };
+  }
+  const count = Math.max(1, Math.round(pack.installmentCount ?? 2));
+  const recurringCents = Math.floor(pack.totalCents / count);
+  return { count, recurringCents, remainderCents: pack.totalCents - recurringCents * count };
 }
 
 export interface SaveCommercialPackInput {
@@ -671,7 +779,22 @@ export interface ContactFilter {
 
 // ─── Campaign ─────────────────────────────────────────────────────────────
 
-export type CampaignStatus = "draft" | "scheduled" | "active" | "paused" | "sending" | "sent" | "completed";
+// `sent` means every recipient was CONFIRMED delivered by the provider.
+// A blast that only reached the outbox is `queued`; one that reached some
+// people is `partially-sent`; one that reached nobody and was refused is
+// `failed`. Never collapse those into `sent` — the campaign row is the only
+// place the operator finds out whether the emails actually left the building.
+export type CampaignStatus =
+  | "draft"
+  | "scheduled"
+  | "active"
+  | "paused"
+  | "sending"
+  | "queued"
+  | "partially-sent"
+  | "failed"
+  | "sent"
+  | "completed";
 export type CampaignChannel = "email" | "newsletter" | "cold-outreach" | "dm" | "direct-mail" | "print" | "google-ads" | "meta-ads" | "linkedin-ads" | "organic" | "social" | "event" | "referral" | "charity" | "other";
 export type CampaignKind = "social-media" | "physical" | "newsletter" | "cold" | "dm" | "charity" | "paid" | "organic" | "event" | "other";
 
@@ -755,8 +878,21 @@ export interface Campaign {
   // Snapshotted at send time so the campaign row is auditable even
   // after leads change tags / get archived.
   recipients: number;
+  // Confirmed deliveries only — a provider that merely accepted the message
+  // into the outbox counts in `queuedCount`, never here.
   sentCount: number;
-  // Stamped when status flips to `"sent"`.
+  // Recipients the provider explicitly refused on the last send attempt.
+  failedCount?: number;
+  // Recipients whose message sits in the outbox with delivery unconfirmed
+  // (no provider configured, or a port that cannot confirm).
+  queuedCount?: number;
+  // Recipients still owed an email — the retry set. `failedCount + queuedCount`
+  // by construction; kept as ids so a retry re-attempts only those people.
+  pendingLeadIds?: string[];
+  // Why the last attempt did not fully land, in the operator's words.
+  lastSendError?: string;
+  // Stamped on the FIRST confirmed delivery. Absent while nothing has been
+  // delivered — a campaign that never left the outbox has no sent date.
   sentAt?: number;
   createdAt: number;
   updatedAt: number;

@@ -285,15 +285,17 @@ export default function BookingWidgetBlock({ block }: BlockRenderProps) {
             <p style={{ fontSize: 13, opacity: 0.75 }}>
               {pickedService.name} on {formatUkDate(pickedSlot.startMs, { dateStyle: "medium", timeStyle: "short" })}
             </p>
-            <input type="text" placeholder="Your name" value={details.name}
+            {/* Placeholders are hints, not names — each booking detail carries
+                its own accessible name. */}
+            <input type="text" aria-label="Your name" placeholder="Your name" value={details.name}
               onChange={e => setDetails({ ...details, name: e.target.value })} required style={inputStyle} />
-            <input type="email" placeholder="you@example.com" value={details.email}
+            <input type="email" aria-label="Your email address" placeholder="you@example.com" value={details.email}
               onChange={e => setDetails({ ...details, email: e.target.value })} required style={inputStyle} />
-            <input type="tel" placeholder="Phone (optional)" value={details.phone}
+            <input type="tel" aria-label="Phone (optional)" placeholder="Phone (optional)" value={details.phone}
               onChange={e => setDetails({ ...details, phone: e.target.value })} style={inputStyle} />
-            <textarea placeholder="Notes (optional)" rows={3} value={details.notes}
+            <textarea aria-label="Notes (optional)" placeholder="Notes (optional)" rows={3} value={details.notes}
               onChange={e => setDetails({ ...details, notes: e.target.value })} style={inputStyle} />
-            {error && <p style={{ fontSize: 12, color: "#ef4444" }}>{error}</p>}
+            {error && <p role="alert" style={{ fontSize: 12, color: "#ef4444" }}>{error}</p>}
             <div style={{ display: "flex", gap: 8 }}>
               <button type="button" onClick={() => setStep("slot")} style={btnSecondary}>← Back</button>
               <button

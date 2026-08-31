@@ -67,6 +67,49 @@ describe("editor features with no backend", () => {
     assert.match(editor, /disabled=\{busy \|\| Boolean\(funnelGap\)\}/, "Create must be disabled while there is no backend");
   });
 
+  it("the Split tab states the real cause instead of an empty list", () => {
+    // The same mask as funnels, one tab over. `listGroups()` turns the 404
+    // from the missing `/split-tests` route into `[]`, so the tab rendered
+    // "Block is not in any split-test group yet." — word for word what a
+    // genuine empty state says — under a banner claiming "exposures +
+    // conversions are tracked", which nothing performs. Create then answered
+    // "Could not create group", inviting a retry that can never work.
+    const panel = read(`${MODULE}/components/canvas/PropertiesPanel.tsx`);
+
+    assert.match(panel, /featureBackendGap\("split-tests"\)/, "the tab must consult the gap list");
+
+    // Shown BEFORE the list, not only after a failed create — so both branches
+    // of the banner are read, and each is checked for what it may claim.
+    // Strip comments first: the branch's own explanation QUOTES the claim it
+    // exists to remove, and a test that failed on its own documentation would
+    // be the mirror image of one that passed by matching it.
+    const jsx = panel.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    const banner = /\{splitGap \? \(([\s\S]*?)\) : \(([\s\S]*?)\)\}/.exec(jsx);
+    assert.ok(banner, "the banner must branch on the gap, up front");
+    const [, whenGap, whenNoGap] = banner;
+    assert.match(whenGap, /\{splitGap\.reason\}/, "the wording must come from the list, so it cannot drift");
+    // The measurement claim is only true once something measures.
+    assert.doesNotMatch(
+      whenGap, /exposures \+ conversions are tracked/,
+      "nothing tracks exposures while the split-test API does not exist",
+    );
+    assert.match(
+      whenNoGap, /exposures \+ conversions are tracked/,
+      "and the claim must survive on the branch taken once the route lands",
+    );
+    // A genuine empty state and an unbuilt feature must not read alike.
+    assert.match(
+      panel, /memberGroups\.length === 0 && !splitGap/,
+      "\"not in any group yet\" must not be shown when the feature has no server",
+    );
+    // And a control that cannot succeed must not be offered.
+    assert.match(panel, /disabled=\{Boolean\(splitGap\)\}/, "Create must be disabled while there is no backend");
+    assert.match(
+      panel, /setError\(splitGap \? splitGap\.reason : "Could not create group"\)/,
+      "and the failure message must name the real cause when one is known",
+    );
+  });
+
   it("does not duplicate the block-level list", async () => {
     // `blockBackends.ts` answers the same question for palette blocks. The two
     // are deliberately separate — a block is what a visitor touches on a

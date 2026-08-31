@@ -14,7 +14,7 @@ import "server-only";
 
 import crypto from "crypto";
 import { getState, mutate } from "./storage";
-import { emit } from "./eventBus";
+import { emitDurable } from "./outbox";
 import { listPersons, personEmailDomains } from "./persons";
 import type {
   Organisation,
@@ -172,7 +172,7 @@ export function upsertOrganisation(agencyId: string, input: UpsertOrganisationIn
       updatedAt: now,
     };
     mutate(state => { state.organisations[next.id] = next; });
-    emit({ agencyId }, "organisation.updated", { organisationId: next.id });
+    emitDurable({ name: "organisation.updated", agencyId, source: "server/organisations", payload: { organisationId: next.id } });
     return { organisation: next, created: false };
   }
 
@@ -195,7 +195,7 @@ export function upsertOrganisation(agencyId: string, input: UpsertOrganisationIn
     updatedAt: now,
   };
   mutate(state => { state.organisations[organisation.id] = organisation; });
-  emit({ agencyId }, "organisation.created", { organisationId: organisation.id });
+  emitDurable({ name: "organisation.created", agencyId, source: "server/organisations", payload: { organisationId: organisation.id } });
   return { organisation, created: true };
 }
 
@@ -229,7 +229,7 @@ export function updateOrganisation(
     updatedAt: Date.now(),
   };
   mutate(state => { state.organisations[organisationId] = next; });
-  emit({ agencyId }, "organisation.updated", { organisationId });
+  emitDurable({ name: "organisation.updated", agencyId, source: "server/organisations", payload: { organisationId } });
   return next;
 }
 

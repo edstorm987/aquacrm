@@ -64,9 +64,20 @@ expect("faq has ≥5 toggle blocks (deep search)",
   })(),
   `direct: ${faqToggles.length}`);
 
-console.log("\nbrand-contact — has contact-form + map");
+console.log("\nbrand-contact — has an honest form + map");
 const contactTree = getTemplate("brand-contact")!.build();
-expect("contact-form present", findBlock(contactTree, "contact-form") !== undefined);
+// This asserted `contact-form`, and had not been able to run since the
+// ESM/CJS import break, so nobody saw it go stale. The template deliberately
+// seeds the GENERIC `form` instead: `contact-form` posts to a `forms` module
+// that does not exist, so it could never deliver, and the palette already
+// stops anybody adding it. Pinning the old block type would push the template
+// back to a form that silently loses messages.
+const contactForm = findBlock(contactTree, "form");
+expect("form present", contactForm !== undefined);
+expect("contact-form deliberately NOT seeded",
+  findBlock(contactTree, "contact-form") === undefined);
+expect("seeded form has no invented destination",
+  (contactForm?.props as { action?: unknown } | undefined)?.action === "");
 expect("map present", findBlock(contactTree, "map") !== undefined);
 
 console.log("\nbrand-sustainability — has stats-bar + commitments toggles");

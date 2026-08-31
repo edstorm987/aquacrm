@@ -369,7 +369,7 @@ describe("dashboard command centre surface", () => {
     assert.match(dayKpi, /<polyline/);
     assert.match(dayKpi, /COMMAND_PRIMARY_KPI_STATIONS/);
     assert.match(dayKpi, /onOpen\(\[\.\.\.station\.openIds\]\)/);
-    for (const planningControl of ["View previous day", "View next day", "Choose planning date", "Today", "loadDashboardPlanning", "offsetIsoDate", "weekExpanded", "aqua-command-week-expanded", "aria-controls=\"week-command-content\""]) assert.match(workspace, new RegExp(planningControl));
+    for (const planningControl of ["View previous day", "View next day", "Choose planning date", "Today", "loadDashboardPlanning", "offsetIsoDate", "weekExpanded", "aqua-command-week-expanded", "panelId=\"week-command-content\""]) assert.match(workspace, new RegExp(planningControl));
     assert.match(workspace, /fetch\(`\/api\/portal\/dashboard-planning\?date=/);
     assert.match(workspace, /setPlanningWeekStart\(next\.weekStart\)/);
     for (const wholeDayControl of ["selectedDayTasks", "completedOnSelectedDay", "dayStrictList", "selectedDaySchedule", "taskTouchesDate", "timestampFallsOnDate", "taskMomentForDate", "Historical review · complete day record", "Future plan · complete day workspace", "Daily review", "Planning brief", "Date-scoped record", "live Radar intentionally excluded from this archive"]) {
@@ -483,5 +483,61 @@ describe("dashboard command centre surface", () => {
     assert.match(globalStyles, /html\[data-portal-shell="command"\] \.mm-private-sidebar/);
     assert.match(globalStyles, /html\[data-portal-shell="command"\] \.mm-portal-topbar/);
     assert.match(globalStyles, /html\[data-portal-shell="command"\] \.mm-private-surface/);
+  });
+
+  it("folds heavy Day Command panels behind one shared disclosure shell without folding attention away", async () => {
+    const [shell, workspace] = await Promise.all([
+      readFile(new URL("../src/app/portal/agency/_CommandPanelShell.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../src/app/portal/agency/_DashboardCommandCenter.tsx", import.meta.url), "utf8"),
+    ]);
+
+    // One shell, composed by every collapsible Day panel. A second inlined
+    // chevron header next to it is the duplication this file exists to stop.
+    assert.match(shell, /export function CommandPanelShell\(/);
+    assert.match(shell, /export function useCommandPanelDisclosure\(/);
+    assert.match(shell, /aria-expanded=\{expanded\}/);
+    assert.match(shell, /aria-controls=\{panelId\}/);
+    assert.match(workspace, /import \{ CommandPanelShell, useCommandPanelDisclosure, type CommandPanelAttention \} from "\.\/_CommandPanelShell"/);
+    assert.doesNotMatch(workspace, /aria-expanded=\{weekExpanded\}/, "Week Command must compose the shell, not keep a private copy of it");
+    assert.doesNotMatch(workspace, /aria-controls="week-command-content"/, "the disclosed region id is now the shell's responsibility");
+
+    // Three panels adopted, each with its own remembered state. The day's
+    // agenda opens expanded; the two review surfaces open collapsed.
+    for (const panelId of ["week-command-content", "dashboard-calendar-content", "timesheet-content"]) {
+      assert.match(workspace, new RegExp(`panelId="${panelId}"`), `${panelId} must render through the shared shell`);
+    }
+    assert.match(workspace, /useCommandPanelDisclosure\("aqua-command-week-expanded"\)/);
+    assert.match(workspace, /useCommandPanelDisclosure\("aqua-command-schedule-expanded", true\)/);
+    assert.match(workspace, /useCommandPanelDisclosure\("aqua-command-timesheet-expanded"\)/);
+    assert.match(shell, /window\.localStorage\.setItem\(storageKey, String\(next\)\)/);
+    // An absent/garbage stored value must leave the caller's default alone —
+    // otherwise a first-time reader gets every panel shut.
+    assert.match(shell, /if \(stored === "true" \|\| stored === "false"\) setExpanded\(stored === "true"\)/);
+
+    // A collapsed panel states what is inside. Never a blank strip, and never
+    // an invented "all clear" — an empty panel says it is empty in its own words.
+    assert.match(shell, /emptyLabel: string;/);
+    assert.match(shell, /summary\.length[\s\S]{0,400}: <span>\{emptyLabel\}<\/span>/);
+    for (const emptyLabel of ["No week plan recorded yet.", "Nothing scheduled for this date.", "No hours logged for this day."]) {
+      assert.match(workspace, new RegExp(emptyLabel.replace(/\./g, "\\.")));
+    }
+
+    // Attention is rendered whether or not the panel is open: it sits outside
+    // the `!expanded` summary branch, so collapsing can never hide the alarm.
+    assert.match(shell, /\{attention \? <span data-testid=\{`\$\{panelId\}-attention`\}/);
+    assert.match(shell, /\{!expanded \? <div data-testid=\{`\$\{panelId\}-summary`\}/);
+    assert.match(workspace, /attention=\{weekDirty \? \{ label: "Unsaved", tone: "warning" \} : null\}/);
+    assert.match(workspace, /attention=\{timesheetAttention\}/);
+    assert.match(workspace, /activeSession\.needsActivityConfirmation\s*\n?\s*\? \{ label: "Check-in required", tone: "critical" \}/);
+    assert.match(workspace, /selectedUnconfirmedHours > 0\s*\n?\s*\? \{ label: `\$\{formatHours\(selectedUnconfirmedHours\)\}h unconfirmed`, tone: "warning" \}/);
+
+    // Controls that must stay reachable without expanding keep their own slot.
+    assert.match(shell, /\{action\}/);
+    assert.match(workspace, /action=\{activeSession && isToday \? <button type="button" onClick=\{\(\) => window\.dispatchEvent\(new Event\("aqua-work-session:check-in"\)\)\}/);
+
+    // The children of a collapsed panel are not mounted, which is what keeps
+    // the dynamic drill-in (WeeklyReviewWorkspace) off a default Day load.
+    assert.match(shell, /\{expanded \? <div id=\{panelId\}/);
+    assert.match(workspace, /import\("\.\/_WeeklyReviewWorkspace"\)/);
   });
 });

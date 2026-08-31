@@ -34,6 +34,8 @@ reactShim.createContext ??= stubContext;
 if (reactShim.default) reactShim.default.createContext ??= stubContext;
 
 import { measuredCount, measuredCountLabel, UNMEASURED } from "../src/lib/performance/telemetryDisplay";
+import { allAvailable, readOrUnavailable } from "../src/lib/readAvailability";
+import { customerBillingSummary } from "../src/app/portal/customer/_portalData";
 import { taxPosition } from "../src/built-ins/modules/agency-finance/src/lib/taxPosition";
 import { formatMoney } from "../src/built-ins/modules/agency-finance/src/lib/currencies";
 import { resolveFinanceDefaultCurrency } from "../src/lib/server/finance/financeCurrency";
@@ -316,5 +318,238 @@ describe("Deposits states money as money and clients by name", () => {
     assert.equal(formatMoney(125_00, "gbp"), "£125.00");
     assert.equal(formatMoney(125_00, "usd"), "US$125.00");
     assert.notEqual(formatMoney(125_00, "gbp"), (125_00 / 100).toFixed(2));
+  });
+});
+
+// ─── 6. A read that failed is not an empty result ─────────────────────────
+//
+// Finding 2026-08-26 (issues #57), the same habit at scale: twenty-eight mounted
+// paths caught a rejected read and substituted `[]`, `null` or an empty
+// snapshot, and their consumers then printed ordinary empty copy — "No sites
+// routed", "Nothing recorded yet", "No invoices yet", "No matches",
+// "Operations clear", "Your plan and invoices are up to date". Every one of
+// those is a measurement. None of them was measured.
+//
+// Two of the paths were worse than untrue, they were destructive: a blank
+// contact editor and a default commercial pack, each of which Save would have
+// written OVER the stored record the operator was never shown.
+
+describe("a failed read is preserved, not converted into emptiness", () => {
+  it("readOrUnavailable keeps the failure while still handing back a renderable shape", async () => {
+    const ok = await readOrUnavailable(async () => [1, 2, 3], []);
+    assert.deepEqual(ok, { available: true, data: [1, 2, 3] });
+
+    const failed = await readOrUnavailable<number[]>(async () => { throw new Error("refused"); }, []);
+    assert.equal(failed.available, false, "a rejected read must not be reported as available");
+    assert.deepEqual(failed.data, [], "the fallback shape is still there to render");
+    assert.equal(typeof failed.reason, "string");
+
+    // The gate on any derived claim: one unavailable contributor poisons it.
+    assert.equal(allAvailable(ok, ok), true);
+    assert.equal(allAvailable(ok, failed), false);
+  });
+
+  it("the customer portal will not say billing is up to date over a failed invoice read", () => {
+    const settled = customerBillingSummary({ invoices: [], available: { invoices: true, messages: true } } as never);
+    assert.equal(settled.state, "settled");
+    assert.equal(settled.body, "Your plan and invoices are up to date.");
+
+    const unread = customerBillingSummary({ invoices: [], available: { invoices: false, messages: true } } as never);
+    assert.equal(unread.state, "unavailable");
+    assert.ok(
+      !/up to date/.test(unread.body),
+      "an outage is being reported to the customer as a settled account",
+    );
+    assert.match(unread.body, /could not be read/);
+    assert.deepEqual(unread.outstanding, [], "and no outstanding count is claimed either");
+
+    const owing = customerBillingSummary({
+      invoices: [{ id: "inv-1", status: "overdue" }, { id: "inv-2", status: "paid" }],
+      available: { invoices: true, messages: true },
+    } as never);
+    assert.equal(owing.state, "outstanding");
+    assert.equal(owing.body, "1 invoice needs attention.");
+  });
+
+  it("the customer aggregate records which of its reads answered", () => {
+    const source = code(read("src/app/portal/customer/_portalData.ts"));
+    assert.ok(
+      !/catch\s*\{\s*invoices = \[\];/.test(source),
+      "a refused invoice read is being converted back into an empty invoice list",
+    );
+    assert.ok(!/listInboxSnapshot\([^)]*\)\.catch/.test(source));
+    assert.ok(!/listWebsiteEnquiries\([^)]*\)\.catch/.test(source));
+    assert.match(source, /available: \{\s*invoices: invoiceRead\.available/);
+
+    // …and the surfaces that state a fact about them consult it.
+    const views = code(read("src/app/portal/customer/_CustomerPortalViews.tsx"));
+    assert.ok(
+      !/Your plan and invoices are up to date\./.test(views),
+      "the billing claim is inlined again instead of going through customerBillingSummary",
+    );
+    assert.ok(views.includes("customerBillingSummary(data)"));
+    assert.ok(views.includes("!data.available.invoices"), "the invoice list must gate its empty state on the read");
+
+    // `available.messages` is recorded for the same reason and must be consumed,
+    // not merely stored: "0 linked messages" and "No linked messages yet." are
+    // both counts of a conversation record that a failed inbox read never saw.
+    const conversationAt = views.indexOf('label="Conversation"');
+    const conversationPulse = views.slice(conversationAt, views.indexOf('label="Support"', conversationAt));
+    assert.ok(conversationPulse.includes("data.record.messages.length"), "the Conversation pulse item moved — re-point this pin");
+    assert.ok(
+      conversationPulse.includes("data.available.messages"),
+      "the linked-message count is printed without consulting data.available.messages",
+    );
+    const beforeEmptyMessages = views.slice(0, views.indexOf("No linked messages yet.")).slice(-700);
+    assert.ok(
+      beforeEmptyMessages.includes("!data.available.messages"),
+      "the conversation history still says 'No linked messages yet.' over a failed inbox read",
+    );
+
+    const composition = code(read("src/app/portal/customer/_PortalPageComposition.tsx"));
+    assert.ok(composition.includes("!data.available.invoices"), "the billing metric block prints unmeasured totals");
+  });
+
+  it("a sibling workspace whose invoices could not be read is not 'Operations clear'", () => {
+    const page = code(read("src/app/portal/clients/[clientId]/page.tsx"));
+    assert.ok(
+      !/relationshipFinance\.invoices\.list\(\{ clientId: workspace\.id \}\)\.then\(customerVisibleInvoices\)\.catch/.test(page),
+      "the sibling invoice read collapses to [] again, which reads as zero outstanding",
+    );
+    assert.ok(page.includes("financeUnavailable"));
+
+    const spine = code(read("src/app/portal/clients/[clientId]/_ClientSpineOverview.tsx"));
+    assert.match(
+      spine,
+      /workspace\.hasServices && !workspace\.financeUnavailable/,
+      "the Operations-clear badge is claimed again over an unread money position",
+    );
+    assert.ok(spine.includes("Invoices not read"), "and the row must say so rather than staying silent");
+    assert.ok(
+      spine.includes("Boolean(workspace.financeUnavailable)"),
+      '"All workspaces ready" must not be said over a failed read either',
+    );
+  });
+
+  it("the manual enquiry-contact editor refuses to save what it never read", () => {
+    // The destructive one. Save POSTs company, title, notes and every custom
+    // field, so a form left blank by a FAILED read replaces the stored record
+    // with nothing — and the operator never saw what they erased.
+    const card = code(read("src/app/portal/agency/inbox/_EnquiryDetailCard.tsx"));
+    assert.ok(
+      !/an empty form is the right starting point/.test(card),
+      "the failed contact-details read is silently swallowed again",
+    );
+    assert.ok(card.includes('setReadState("unavailable")'));
+    assert.match(card, /if \(readState !== "ready"\) \{/, "save() must refuse outright, not just dim the button");
+    assert.match(card, /disabled=\{busy \|\| locked\}/, "and the Save button must be disabled while the read is unknown");
+    assert.ok(card.includes("Retry the read"));
+  });
+
+  it("the commercial pack modal will not overwrite an unread pack with default terms", () => {
+    const modal = code(read("src/app/portal/agency/leads-pipeline/contacts/_CommercialPackModal.tsx"));
+    assert.ok(modal.includes('setPackRead("unavailable")'));
+    assert.match(modal, /if \(packRead !== "ready"\) \{/, "save() must refuse when the existing pack was never read");
+    assert.match(modal, /disabled=\{Boolean\(busy\) \|\| packRead !== "ready"\}/);
+    assert.ok(modal.includes("setCatalogueAvailable(false)"), "an unread product catalogue must not look like no products");
+  });
+
+  it("the queue label never moves ahead of the rows behind it", () => {
+    // Identity Review relabelled the queue, THEN read it — so a refused read
+    // showed the previous queue (or nothing) under the new queue's name.
+    const identity = code(read("src/app/portal/clients/_IdentityReviewWorkspace.tsx"));
+    const load = identity.slice(identity.indexOf("async function load("), identity.indexOf("async function rescan("));
+    assert.ok(!/^\s*setStatus\(nextStatus\);/m.test(load.split("setReviews(payload.reviews);")[0]),
+      "the status still switches before the read resolves");
+    assert.ok(load.indexOf("setReviews(payload.reviews);") < load.indexOf("setStatus(nextStatus);"),
+      "the label must move only after the rows arrive");
+    assert.ok(identity.includes("This queue was not read"));
+    // …and that claim must come from the READ, not from the error state shared
+    // with rescan and per-row decisions: a failed "Approve" on an empty queue
+    // would otherwise report that the queue had never been read.
+    assert.ok(
+      !/\{error \? "This queue was not read"/.test(identity),
+      "an unrelated failure is being reported as a queue that was never read",
+    );
+    assert.match(identity, /queueUnread \? "This queue was not read"/);
+    assert.ok(identity.includes("setQueueUnread(true)") && identity.includes("setQueueUnread(false)"));
+
+    // Governance had the same shape on company scope.
+    const governance = code(read("src/app/portal/agency/governance/_GovernanceWorkspace.tsx"));
+    assert.ok(
+      !/function onScopeChange\(next: string\) \{\s*setCompanyId\(next\);/.test(governance),
+      "a refused governance read labels the previous company's snapshot as the new scope again",
+    );
+    // Pinned by INTENT, not by the exact one-line form it used to have: the
+    // selector may move only inside the success branch of the resolved read.
+    // (It now also records the refused scope so the operator gets a retry —
+    // a stricter surface, which a literal regex would have called a regression.)
+    const scopeChange = governance.slice(
+      governance.indexOf("function onScopeChange(next: string)"),
+      governance.indexOf("const { posture }"),
+    );
+    assert.ok(scopeChange.length > 0, "onScopeChange has moved or been renamed; this pin no longer reads it");
+    assert.match(scopeChange, /reload\(next\)\.then\(/,
+      "the scope change no longer waits for the read before relabelling");
+    const okBranch = scopeChange.indexOf("if (ok)");
+    const moves = scopeChange.indexOf("setCompanyId(next)");
+    assert.ok(okBranch >= 0 && moves > okBranch,
+      "setCompanyId is reached without the read having succeeded, so a refused read labels the previous company's snapshot as the new scope");
+    assert.ok(governance.includes("finally {"), "and an unguarded fetch must not leave the spinner running for ever");
+  });
+
+  it("an empty list that was never read says so — sources, search, connections", () => {
+    const sources = code(read("src/app/portal/agency/inbox/_WebsiteSourcesConfig.tsx"));
+    assert.ok(
+      !/leave the empty state/.test(sources),
+      "a failed website-source read renders as 'No sites registered yet' again",
+    );
+    assert.ok(sources.includes("setUnavailable(true)"));
+    assert.ok(sources.includes("not because no site is routed"));
+
+    const search = code(read("src/components/chrome/PortalSearch.tsx"));
+    assert.ok(search.includes("setSearchUnavailable(true)"));
+    assert.match(search, /searchUnavailable \? <SearchMessage title="Records could not be searched"/,
+      "a rejected record search still reports 'No matches'");
+
+    const marketing = code(read("src/app/portal/agency/marketing/page.tsx"));
+    assert.ok(
+      !/listInboxConnections\(session\.agencyId\)\.catch\(\(\) => \[\]\)/.test(marketing),
+      "a failed Meta connection read offers Connect as though no account exists",
+    );
+    assert.ok(marketing.includes("inboxConnectionsAvailable={metaConnectionRead.available}"));
+    const channels = code(read("src/app/portal/agency/marketing/_MarketingChannelsWorkspace.tsx"));
+    assert.match(channels, /!inboxConnection && connectable && inboxConnectionsAvailable && metaConfigured/,
+      "Connect must be withheld until the connection read succeeds");
+  });
+
+  it("a contact timeline missing its enquiries says it is incomplete", async () => {
+    const { Interactions } = await import("../src/app/portal/agency/contacts/[personId]/_Interactions");
+
+    const complete = await textOf(Interactions({ interactions: [], personId: "per_1", complete: true } as never));
+    assert.match(complete, /Nothing recorded yet/);
+
+    const partial = await textOf(Interactions({ interactions: [], personId: "per_1", complete: false } as never));
+    assert.ok(
+      !/Nothing recorded yet/.test(partial),
+      "a refused enquiry read is being reported as a person who has never been in touch",
+    );
+    assert.match(partial, /Enquiries could not be read/);
+
+    // The server reader is what tells it — and it reports availability rather
+    // than silently returning a short list.
+    const reader = code(read("src/lib/server/personInteractionsService.ts"));
+    assert.ok(!/getRequestWebsiteEnquiries\(agencyId\)\.catch\(\(\) => \[\]\)/.test(reader));
+    assert.ok(reader.includes("enquiriesAvailable: enquiryRead.available"));
+  });
+
+  it("the client record ledger reports a communications read it could not make", () => {
+    const page = code(read("src/app/portal/clients/[clientId]/page.tsx"));
+    assert.ok(!/listInboxSnapshot\(session\.agencyId\)\.catch/.test(page));
+    assert.ok(!/listWebsiteEnquiries\(session\.agencyId, 500\)\.catch/.test(page));
+    assert.ok(page.includes("linkedInboxRead.available ? null :"));
+    assert.ok(page.includes("websiteEnquiryRead.available ? null :"));
+    // And the commercial gap list must not report a missing invoice it never looked for.
+    assert.ok(page.includes("Invoices could not be read — the commercial record is unverified"));
   });
 });

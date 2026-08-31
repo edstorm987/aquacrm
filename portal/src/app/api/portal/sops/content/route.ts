@@ -1,10 +1,14 @@
-import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { get } from "@vercel/blob";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
-import { readSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
+import {
+  privateMediaResponse,
+  readLocalFileRange,
+  readVercelBlobRange,
+  type ByteRange,
+} from "@/lib/server/privateMediaResponse";
+import { readSupabasePrivateUploadRange } from "@/lib/server/privateUploadStorage";
 import { getSop } from "@/engines/sop/server/sops";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES, type SopDocument } from "@/server/types";
@@ -33,30 +37,27 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ok: false, error: "stored file not found" }, { status: 404 });
     }
 
+    // Training media is accepted up to 250 MB, so a seek must move bytes, not
+    // the whole object: every provider answers through the shared contract.
+    let read: ((range: ByteRange | null) => Promise<BodyInit | null>) | null = null;
     if (sop.storageProvider === "supabase") {
-      const stored = await readSupabasePrivateUpload(sop.storageKey);
-      if (!stored) return NextResponse.json({ ok: false, error: "stored file not found" }, { status: 404 });
-      return new Response(stored, { status: 200, headers: headersFor(sop) });
+      read = range => readSupabasePrivateUploadRange(sop.storageKey!, range);
+    } else if (sop.storageProvider === "vercel-blob") {
+      read = range => readVercelBlobRange(sop.storageKey!, range);
+    } else {
+      const uploadRoot = resolve(process.cwd(), ".data", "sop-uploads");
+      const targetPath = resolve(uploadRoot, sop.storageKey);
+      if (targetPath.startsWith(`${uploadRoot}/`)) read = range => readLocalFileRange(targetPath, range);
     }
-
-    if (sop.storageProvider === "vercel-blob") {
-      const result = await get(sop.storageKey, { access: "private" });
-      if (!result || result.statusCode !== 200 || !result.stream) {
-        return NextResponse.json({ ok: false, error: "stored file not found" }, { status: 404 });
-      }
-      return new Response(result.stream, { status: 200, headers: headersFor(sop) });
-    }
-
-    const uploadRoot = resolve(process.cwd(), ".data", "sop-uploads");
-    const targetPath = resolve(uploadRoot, sop.storageKey);
-    if (!targetPath.startsWith(`${uploadRoot}/`)) {
-      return NextResponse.json({ ok: false, error: "stored file not found" }, { status: 404 });
-    }
-    try {
-      return new Response(await readFile(targetPath), { status: 200, headers: headersFor(sop) });
-    } catch {
-      return NextResponse.json({ ok: false, error: "stored file not found" }, { status: 404 });
-    }
+    const response = read
+      ? await privateMediaResponse({
+        rangeHeader: request.headers.get("range"),
+        size: typeof sop.size === "number" && Number.isInteger(sop.size) && sop.size > 0 ? sop.size : null,
+        headers: headersFor(sop),
+        read,
+      })
+      : null;
+    return response ?? NextResponse.json({ ok: false, error: "stored file not found" }, { status: 404 });
   } catch (error) {
     return authErrorResponse(error);
   }

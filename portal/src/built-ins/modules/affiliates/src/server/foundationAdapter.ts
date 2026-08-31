@@ -33,10 +33,32 @@ export interface AffiliatesFoundation {
   events: EventBusPort;
   pluginInstalls: PluginInstallStorePort;
   ecommerceOrders: EcommerceOrdersPort;
-  // R12 — optional. Foundation registers undefined when ecommerce/Stripe
-  // isn't configured for the client; the legacy `markPaid` path keeps
-  // working and `processPayout` returns a clean error.
-  stripeConnect?: StripeConnectPort;
+  // R12 — optional, and resolved PER CLIENT SCOPE. Stripe keys live on the
+  // ecommerce install of one (agencyId, clientId), so a single global port
+  // could never transfer to the right account or verify the right webhook
+  // secret. The factory returns null when that client has no configured
+  // Stripe: the legacy manual `markPaid` path keeps working, `processPayout`
+  // returns a clean error, and the mounted controls can gate themselves on
+  // `isStripeConnectAvailable()` instead of offering a button that 422s.
+  //
+  // Omitting the factory entirely (the pre-R12 state) means the same thing as
+  // a factory that always returns null: Connect is unavailable everywhere.
+  stripeConnectFor?(args: { agencyId: AgencyId; clientId: ClientId }): StripeConnectPort | null;
+  /**
+   * Whether this scope can complete a TRANSFER, not merely onboard.
+   *
+   * Availability is two-level on purpose. Onboarding and the "refresh my
+   * status" poll work with a secret key alone. Moving money does not: the only
+   * route from `in_progress` to `completed` is the `transfer.paid` webhook
+   * (payouts.ts confirmTransferPaid), and a webhook that cannot be verified is
+   * never accepted. Offering "Process via Stripe" on a scope with no verifiable
+   * webhook secret creates a REAL transfer that can never be confirmed and has
+   * no UI action left — the affiliate's money leaves and the payout is stuck.
+   *
+   * Absent (or false) means: onboarding may still be offered, automated
+   * transfer must not be. Manual mark-paid remains the supported route.
+   */
+  stripeConnectTransferReady?(args: { agencyId: AgencyId; clientId: ClientId }): boolean;
 }
 
 let registered: AffiliatesFoundation | null = null;
@@ -62,6 +84,53 @@ export function requireFoundation(): AffiliatesFoundation {
   return registered;
 }
 
+/**
+ * The Stripe Connect driver for one client scope, or null when that client has
+ * no configured Stripe.
+ *
+ * Exported so a handler or a page can ask the same question the container asks
+ * without building a container first.
+ */
+export function stripeConnectFor(args: {
+  agencyId: AgencyId;
+  clientId: ClientId;
+}): StripeConnectPort | null {
+  if (!registered?.stripeConnectFor) return null;
+  return registered.stripeConnectFor({ agencyId: args.agencyId, clientId: args.clientId }) ?? null;
+}
+
+/**
+ * Whether automated Stripe Connect payouts are actually available in this
+ * scope. Mounted surfaces gate on this so the customer is never offered a
+ * "Set up payouts via Stripe" button that can only answer 422, and an admin is
+ * never offered "Process via Stripe" for an install with no Stripe at all.
+ *
+ * False is the honest answer for an unconfigured install; manual mark-paid
+ * remains the supported route.
+ */
+export function isStripeConnectAvailable(args: {
+  agencyId: AgencyId;
+  clientId: ClientId;
+}): boolean {
+  return stripeConnectFor(args) !== null;
+}
+
+/**
+ * Whether an AUTOMATED PAYOUT can actually complete in this scope.
+ *
+ * Stricter than {@link isStripeConnectAvailable} by design — see
+ * `stripeConnectTransferReady` on the foundation. Gate money-moving controls
+ * on this; gate onboarding on the looser check.
+ */
+export function isStripeTransferAvailable(args: {
+  agencyId: AgencyId;
+  clientId: ClientId;
+}): boolean {
+  if (stripeConnectFor(args) === null) return false;
+  if (!registered?.stripeConnectTransferReady) return false;
+  return registered.stripeConnectTransferReady({ agencyId: args.agencyId, clientId: args.clientId });
+}
+
 export interface ContainerForArgs {
   agencyId: AgencyId;
   clientId: ClientId;
@@ -81,7 +150,7 @@ export function containerFor(args: ContainerForArgs): AffiliatesContainer {
     user: f.user,
     pluginInstalls: f.pluginInstalls,
     ecommerceOrders: f.ecommerceOrders,
-    stripeConnect: f.stripeConnect,
+    stripeConnect: stripeConnectFor({ agencyId: args.agencyId, clientId: args.clientId }) ?? undefined,
   });
 }
 
@@ -131,6 +200,6 @@ export function _containerFromCtx(args: {
     user: registered.user,
     pluginInstalls: registered.pluginInstalls,
     ecommerceOrders: registered.ecommerceOrders,
-    stripeConnect: registered.stripeConnect,
+    stripeConnect: stripeConnectFor({ agencyId: args.agencyId, clientId: args.clientId }) ?? undefined,
   });
 }

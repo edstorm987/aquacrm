@@ -53,12 +53,13 @@ export async function POST(request: Request) {
     if (!clientId) return NextResponse.json({ ok: false, error: "clientId is required" }, { status: 400 });
 
     const session = await requireRoleForClient([...AGENCY_ROLES], clientId);
+    // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
+    const client = getClientForAgency(session.agencyId, clientId);
+    if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
     await requireCurrentClientWorkspaceElementAccess(clientId, "client.overview", "use");
     if (session.role === "agency-staff" && !canUsePeopleStation(session.agencyId, session.userId, "actions", true)) {
       return NextResponse.json({ ok: false, error: "Actions access is required" }, { status: 403 });
     }
-    const client = getClientForAgency(session.agencyId, clientId);
-    if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
 
     const existing = cleanClientOperationsBrief(client.metadata?.clientOperations);
     if (body?.action === "complete-review") {

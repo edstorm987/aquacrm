@@ -15,7 +15,11 @@ test("the install manifest is a static public asset with the original contract",
   assert.equal(manifest.name, "Aqua — your client portal");
   assert.equal(manifest.start_url, "/portal/customer");
   assert.equal(manifest.display, "standalone");
-  assert.equal(manifest.icons?.length, 4);
+  // The set grew to six when the 512s Chromium requires for installability were
+  // added (smoke-customer-setup owns what the icons must actually be); this end
+  // only cares that the static file still carries a full icon set rather than
+  // being emptied out or replaced by a generated route.
+  assert.ok((manifest.icons?.length ?? 0) >= 4);
   assert.ok(manifest.icons?.some(icon => icon.sizes === "192x192" && icon.purpose === "maskable"));
   assert.match(read("src/app/layout.tsx"), /manifest: "\/manifest\.webmanifest"/);
 });

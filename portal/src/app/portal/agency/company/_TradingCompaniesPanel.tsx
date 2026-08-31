@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { Building2, ExternalLink, Gauge, Info, Link2, Pencil, Plus, Radio, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import type { TradingCompany } from "@/server/types";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 interface CompanySummary extends TradingCompany {
   clientCount: number;
@@ -170,6 +171,9 @@ function HealthBar({ score, name, onExplain }: { score: number; name: string; on
 }
 
 function CompanyHealthExplainer({ name, score, kind, onClose }: HealthHelpState & { onClose: () => void }) {
+  // Modal keyboard contract: focus enters the explainer, Tab stays inside it, Escape closes, focus returns to the health score that opened it.
+  const dialogRef = useRef<HTMLElement>(null);
+  useFocusTrap(dialogRef, true, { onEscape: onClose });
   const label = score >= 80 ? "Strong" : score >= 60 ? "Watch" : "Needs attention";
   const statusTone = score >= 80 ? "text-emerald-700" : score >= 60 ? "text-amber-700" : "text-red-700";
   const metrics = kind === "workspace" ? [
@@ -188,15 +192,10 @@ function CompanyHealthExplainer({ name, score, kind, onClose }: HealthHelpState 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", closeOnEscape);
     return () => {
       document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", closeOnEscape);
     };
-  }, [onClose]);
+  }, []);
 
   return (
     <div
@@ -205,7 +204,7 @@ function CompanyHealthExplainer({ name, score, kind, onClose }: HealthHelpState 
     >
       <section
         role="dialog"
-        aria-modal="true"
+        ref={dialogRef} aria-modal="true"
         aria-label="How company health works"
         className="max-h-[92dvh] w-full overflow-y-auto rounded-t-md bg-[#F8F7F3] shadow-2xl sm:max-w-2xl sm:rounded-md"
       >

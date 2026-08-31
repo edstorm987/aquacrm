@@ -14,7 +14,7 @@ import "server-only";
 
 import crypto from "crypto";
 import { getState, mutate } from "./storage";
-import { emit } from "./eventBus";
+import { drainOutbox, recordOutboxEvent } from "./outbox";
 import type { Role, ServerUser } from "./types";
 import { LEAD_AGENCY_ID } from "./types";
 
@@ -158,8 +158,15 @@ export function createUser(input: CreateUserInput): ServerUser {
   };
   mutate(state => {
     state.users[key] = user;
+    recordOutboxEvent(state, {
+      name: "user.signed_up",
+      agencyId: user.agencyId,
+      clientId: user.clientId,
+      source: "server/users",
+      payload: { userId: user.id },
+    });
   });
-  emit({ agencyId: user.agencyId, clientId: user.clientId }, "user.signed_up", { userId: user.id });
+  drainOutbox();
   return user;
 }
 

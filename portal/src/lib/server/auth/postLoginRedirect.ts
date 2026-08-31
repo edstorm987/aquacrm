@@ -9,16 +9,29 @@
 // Routing table (chapter #124 WS-A R022):
 //   agency-owner / agency-manager                     → /portal/agency
 //   agency-staff                                      → /portal/team
-//   client-owner / client-staff                       → /portal/clients/<slug>
+//   client-owner / client-staff                       → /portal/customer
 //   freelancer                                        → /portal/freelancer
 //   end-customer                                      → /portal/customer
 //   lead (not portal-scoped yet)                      → /login
+//
+// Client placement (changed 2026-08-27, same decision as
+// `src/app/portal/page.tsx`): `/portal/clients/<slug>` is the INTERNAL
+// workspace for Ed and his employees, so a `client-owner` /
+// `client-staff` signing in belongs in `/portal/customer` — their own
+// portal, whose host gate admits `CUSTOMER_PORTAL_ROLES`. Sending them
+// to the internal workspace put a client inside Ed's workspace, and
+// contradicted `/portal`'s own redirect.
 //
 // Client-scoped fallback: when the user is `client-*` but their
 // `clientId` no longer resolves (client deleted / archived), we route
 // to `/portal/agency`. The login route's defense-in-depth check refuses
 // the sign-in earlier in that case for primary auth, but magic-link
-// flows can still exercise this branch.
+// flows can still exercise this branch. The lookup is kept purely as
+// that existence check — the destination no longer needs the slug.
+//
+// This resolver is the ONE answer to "where does this role belong?".
+// `/portal/account` and the portal 404 read it too, so a back-link
+// never contradicts where sign-in would have sent the same person.
 
 import type { SessionPayload, ServerUser } from "@/server/types";
 import { getClient } from "@/server/tenants";
@@ -60,7 +73,7 @@ export function resolvePostLoginPath(
       if (!src.clientId) return "/portal/agency";
       const client = lookup(src.clientId);
       if (!client) return "/portal/agency";
-      return `/portal/clients/${client.slug}`;
+      return "/portal/customer";
     }
     case "freelancer":
       return "/portal/freelancer";

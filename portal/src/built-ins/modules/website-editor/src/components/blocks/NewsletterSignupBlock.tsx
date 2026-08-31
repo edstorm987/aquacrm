@@ -41,14 +41,16 @@ export default function NewsletterSignupBlock({ block }: BlockRenderProps) {
         <h2 style={{ fontFamily: "var(--font-playfair, Georgia, serif)", fontSize: 28, fontWeight: 700, marginBottom: 8 }}>{heading}</h2>
         {subheading && <p style={{ opacity: 0.65, fontSize: 14, marginBottom: 24 }}>{subheading}</p>}
         {done ? (
-          <p style={{ fontSize: 15, color: "var(--brand-accent, #ff6b35)" }}>✓ {successMessage}</p>
+          <p role="status" style={{ fontSize: 15, color: "var(--brand-accent, #ff6b35)" }}><span aria-hidden>✓ </span>{successMessage}</p>
         ) : (
           <form onSubmit={submit} style={{ display: "flex", gap: 8, maxWidth: 420, margin: "0 auto" }}>
+            {/* The placeholder is a hint, not a name. */}
             <input
               type="email"
               required
               value={email}
               onChange={e => setEmail(e.target.value)}
+              aria-label="Your email address"
               placeholder="you@example.com"
               style={{
                 flex: 1,
@@ -78,7 +80,7 @@ export default function NewsletterSignupBlock({ block }: BlockRenderProps) {
             </button>
           </form>
         )}
-        {error && <p style={{ fontSize: 12, color: "#ef4444", marginTop: 8 }}>{error}</p>}
+        {error && <p role="alert" style={{ fontSize: 12, color: "#ef4444", marginTop: 8 }}>{error}</p>}
       </div>
     </section>
   );

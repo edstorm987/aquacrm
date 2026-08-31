@@ -87,10 +87,22 @@ at all. Superseded first-cut model, or unfinished? Decide and record it.
 
 ## Phases
 
-1. ~~**Audit isolation per table.**~~ Done — see
+> **Ticks backfilled 2026-08-31.** Phases 1, 2 and 5 were only ever marked done
+> in the Status line and in strikethrough prose, which the board's phase parser
+> does not read — so a plan the Status line calls "mostly done" rendered `0/5`.
+> They now carry ✅ leads and it reads **3/5**. Phases 3 and 4 are deliberately
+> left unmarked: 3 is Ed's decision, and 4 landed only its *first* reduction
+> (23 → 13 service-role call sites), so it is genuinely still open. Verified
+> 2026-08-31 that phase 5's two halves exist —
+> [`supabase/rls-verify.sql`](../../../../supabase/rls-verify.sql) and
+> `portal/scripts/smoke-rls-policy-coverage.test.ts` — and that phase 4's pin,
+> `portal/scripts/smoke-service-role-usage.test.ts`, exists too. **Not
+> archivable** while 3 and 4 are open.
+
+1. ✅ **Audit isolation per table.** Done — see
    [`database.md`](../../workspace/database.md) §2 and the table in
    [`../../../../supabase/README.md`](../../../../supabase/README.md).
-2. ~~**Author RLS as in-repo SQL migrations.**~~ Already done, before this plan
+2. ✅ **Author RLS as in-repo SQL migrations.** Already done, before this plan
    was written. The work that was actually missing was making it *findable* and
    *checkable* from `portal/`, which is now done.
 3. **`brand_enquiries` decision** — add `agency_id` (backfill from
@@ -148,7 +160,7 @@ at all. Superseded first-cut model, or unfinished? Decide and record it.
    its three internal call sites are `auth.admin.*` operations that exist only
    on the service role. `src/server/clientErasure.ts` takes the admin client
    injected — counted at its injection site, the erase route above.)
-5. **Verify** — both halves now exist:
+5. ✅ **Verify** — both halves now exist:
    - live posture → `../../../../supabase/rls-verify.sql`, read-only, run it in
      the SQL editor after any `db push` or dashboard change;
    - repo posture → `scripts/smoke-rls-policy-coverage.test.ts`, in the smoke

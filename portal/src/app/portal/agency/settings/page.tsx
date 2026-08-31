@@ -11,12 +11,11 @@ import { getUserById, listUsersForAgency } from "@/server/users";
 import { listPhasesForAgency } from "@/server/phases";
 import { listInstalledFor } from "@/server/pluginInstalls";
 import { inspectProductionReadiness } from "@/lib/server/productionReadiness";
-import { listManagedIntegrationProviders } from "@/lib/server/integrations/integrationConnections";
+import { readinessContextForAgency } from "@/lib/server/dev/devTeamAuditor";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
 import { SettingsTabs } from "./SettingsTabs";
 import type { Role } from "@/server/types";
 import { listTradingCompanies } from "@/server/tradingCompanies";
-import { listExternalAssistantApiKeys } from "@/lib/server/assistants/externalAssistantKeys";
 import { Settings2 } from "lucide-react";
 import { getAgencySettingsCapabilities } from "@/lib/agencySettingsCapabilities";
 import {
@@ -70,11 +69,6 @@ export default async function AgencySettingsPage() {
       }))
     : [];
   const clients = listClients(agency.id);
-  const activeClients = clients.filter(client => client.status === "active");
-  const billingConfiguredClientCount = activeClients.filter(client => {
-    const paymentLink = client.metadata?.stripeLink;
-    return typeof paymentLink === "string" && paymentLink.trim().length > 0;
-  }).length;
 
   // Ed, 2026-08-29: *"bring it all into settings rather than taking us out of
   // settings — so I can do it all inside."* Everything below is loaded so the
@@ -148,13 +142,12 @@ export default async function AgencySettingsPage() {
       phaseCount: listPhasesForAgency(agency.id).length,
       systemCount: listInstalledFor({ agencyId: agency.id }).length,
     },
-    readiness: inspectProductionReadiness(process.env, {
-      activeClientCount: activeClients.length,
-      billingConfiguredClientCount,
-      activeExternalAssistantKeyCount: listExternalAssistantApiKeys(agency.id)
-        .filter(key => key.status === "active").length,
-      managedIntegrationProviders: listManagedIntegrationProviders(agency.id),
-    }),
+    // One builder, shared with the Dev Team auditor, so the two screens cannot
+    // disagree about one fact. It also carries WHOSE readiness this is: an
+    // agency the deployment's environment does not belong to sees its own
+    // company rows and a verdict computed from those, instead of reading
+    // "production setup is incomplete" forever off variables it cannot set.
+    readiness: inspectProductionReadiness(process.env, readinessContextForAgency(agency.id)),
     settings: getAgencyWorkspaceSettings(agency.id),
     capabilities: getAgencySettingsCapabilities(session.role),
     sandbox: session.sandbox,

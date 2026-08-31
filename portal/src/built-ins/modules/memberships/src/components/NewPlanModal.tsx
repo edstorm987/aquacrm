@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 
 import type { Currency } from "../lib/domain";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 export interface NewPlanModalProps {
   apiBase: string;
@@ -15,9 +16,12 @@ export interface NewPlanModalProps {
 export function NewPlanModal({ apiBase, defaultCurrency, onClose }: NewPlanModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Modal keyboard contract: focus enters the form, Tab stays inside it, Escape backs out (except mid-save), focus returns to the control that opened it.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, true, { onEscape: busy ? undefined : onClose });
 
   return (
-    <div role="dialog" aria-modal="true" className="memberships-modal">
+    <div role="dialog" ref={dialogRef} aria-modal="true" className="memberships-modal">
       <div className="memberships-modal-backdrop" onClick={onClose} />
       <form
         className="memberships-modal-card"

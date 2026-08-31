@@ -15,7 +15,7 @@ import type { AgencyFinanceContainer } from "@/built-ins/modules/agency-finance/
 import type { Currency, Invoice } from "@/built-ins/modules/agency-finance/src/lib/domain";
 import type { PaymentChannel } from "@/built-ins/modules/agency-finance/src/lib/channels";
 import { deriveRecordId, normaliseIdempotencyKey } from "@/built-ins/modules/agency-finance/src/lib/idempotency";
-import type { ClientContract } from "@/lib/clients/clientContracts";
+import { contractHasReviewableTerms, type ClientContract } from "@/lib/clients/clientContracts";
 
 export interface CloseDealInput {
   title: string;
@@ -24,7 +24,10 @@ export interface CloseDealInput {
   channel: PaymentChannel;            // stripe | bank-transfer | cash | other
   dueAt: number;
   contractSummary?: string;
+  /** The agreed terms. Without these (or a document) the contract stays a draft. */
   contractBody?: string;
+  contractDocumentUrl?: string;
+  contractDocumentName?: string;
   // One-time key per close intent. A double-clicked / retried close under the
   // same key reuses the first contract + invoice instead of billing twice. A
   // deliberate re-close uses a new key. See lib/idempotency.ts.
@@ -99,18 +102,29 @@ export async function closeDealForClient(input: CloseDealInput, deps: CloseDealD
     }
   }
 
-  // 1. Contract — created as "sent" (you agreed it in the meeting). Saved by id
-  // (replace-not-append) so a raced resubmit can't leave two copies.
+  // 1. Contract. It only reaches "sent" when there is something the client can
+  // actually READ — the same gate the canonical send applies
+  // (api/tenants/client-contracts, action "send"). A title and an amount are
+  // not terms: minting those as "sent" made an empty agreement acceptable in
+  // the customer portal (issues #39). With no terms the close still succeeds —
+  // the invoice is the billing artifact — but the agreement is saved as a
+  // DRAFT and says so, instead of claiming a send that never happened.
+  // Saved by id (replace-not-append) so a raced resubmit can't leave two copies.
+  const contractBody = input.contractBody?.trim() || undefined;
+  const contractDocumentUrl = input.contractDocumentUrl?.trim() || undefined;
+  const reviewable = contractHasReviewableTerms({ body: contractBody, documentUrl: contractDocumentUrl });
   const contract: ClientContract = {
     id: contractId,
     title,
     summary: input.contractSummary?.trim() || undefined,
-    body: input.contractBody?.trim() || undefined,
-    status: "sent",
+    body: contractBody,
+    documentUrl: contractDocumentUrl,
+    documentName: contractDocumentUrl ? input.contractDocumentName?.trim() || undefined : undefined,
+    status: reviewable ? "sent" : "draft",
     version: 1,
     createdAt: deps.now,
     updatedAt: deps.now,
-    issuedAt: deps.now,
+    issuedAt: reviewable ? deps.now : undefined,
   };
   deps.saveContracts([...deps.existingContracts.filter(c => c.id !== contractId), contract]);
 

@@ -113,7 +113,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on:** _No internal imports._
 
-**Used by (2):** [`scripts/smoke-access-control-ui.test.ts`](#file-scripts-smoke-access-control-ui-test-ts-b983e0a0f7) · [`scripts/smoke-portal-viewport-loading.test.ts`](#file-scripts-smoke-portal-viewport-loading-test-ts-cacaebcde8)
+**Used by (3):** [`scripts/smoke-access-control-ui.test.ts`](#file-scripts-smoke-access-control-ui-test-ts-b983e0a0f7) · [`scripts/smoke-info-tip.test.ts`](#file-scripts-smoke-info-tip-test-ts-0588407fba) · [`scripts/smoke-portal-viewport-loading.test.ts`](#file-scripts-smoke-portal-viewport-loading-test-ts-cacaebcde8)
 
 <a id="file-scripts-client-workspace-navigation-test-ts-391d5d3396"></a>
 
@@ -156,7 +156,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on:** _No internal imports._
 
-**Used by (54):** [`scripts/smoke-ai-actor-binding.test.ts`](#file-scripts-smoke-ai-actor-binding-test-ts-107703449e) · [`scripts/smoke-app-route-tenancy.test.ts`](#file-scripts-smoke-app-route-tenancy-test-ts-c2561f3f7d) · [`scripts/smoke-aqua-editor-ai-history.test.ts`](#file-scripts-smoke-aqua-editor-ai-history-test-ts-de42c06074) · [`scripts/smoke-aqua-editor-ai-reply.test.ts`](#file-scripts-smoke-aqua-editor-ai-reply-test-ts-571fd5cd5e) · [`scripts/smoke-aqua-editor-ai-token.test.ts`](#file-scripts-smoke-aqua-editor-ai-token-test-ts-38936410da) · [`scripts/smoke-chrome-layout.test.ts`](#file-scripts-smoke-chrome-layout-test-ts-80b420a476) · [`scripts/smoke-client-association-element.test.ts`](#file-scripts-smoke-client-association-element-test-ts-26cb0339d5) · [`scripts/smoke-client-dev-workspace.test.ts`](#file-scripts-smoke-client-dev-workspace-test-ts-3fe4ffcd02) · [`scripts/smoke-client-element-ceiling.test.ts`](#file-scripts-smoke-client-element-ceiling-test-ts-5e1fca4444) · [`scripts/smoke-client-fulfilment-board.test.ts`](#file-scripts-smoke-client-fulfilment-board-test-ts-a8399daa87) · [`scripts/smoke-client-portal-placement.test.ts`](#file-scripts-smoke-client-portal-placement-test-ts-1e85efb390) · [`scripts/smoke-client-project-access.test.ts`](#file-scripts-smoke-client-project-access-test-ts-bfb6eb6d30) · [`scripts/smoke-client-role-workspace-boundary.test.ts`](#file-scripts-smoke-client-role-workspace-boundary-test-ts-2484d348d2) · [`scripts/smoke-client-workspace-api-access.test.ts`](#file-scripts-smoke-client-workspace-api-access-test-ts-9fba6ff4ff) · [`scripts/smoke-client-workspace-remaining-api-access.test.ts`](#file-scripts-smoke-client-workspace-remaining-api-access-test-ts-557adf87e8) · [`scripts/smoke-close-deal-route.test.ts`](#file-scripts-smoke-close-deal-route-test-ts-5e90664cfa) · [`scripts/smoke-contract-template-convergence.test.ts`](#file-scripts-smoke-contract-template-convergence-test-ts-dfbf2963ee) · [`scripts/smoke-dev-access-session.test.ts`](#file-scripts-smoke-dev-access-session-test-ts-27bc623a29) · [`scripts/smoke-dev-console-edges.test.ts`](#file-scripts-smoke-dev-console-edges-test-ts-4d6e26c337) · [`scripts/smoke-dev-editor-aqua-tag.test.ts`](#file-scripts-smoke-dev-editor-aqua-tag-test-ts-cd0adfe158) · [`scripts/smoke-dev-mode-identity.test.ts`](#file-scripts-smoke-dev-mode-identity-test-ts-1c1ae1393b) · [`scripts/smoke-dev-path-scope-grants.test.ts`](#file-scripts-smoke-dev-path-scope-grants-test-ts-b3614f9881) · [`scripts/smoke-dev-project-access-control.test.ts`](#file-scripts-smoke-dev-project-access-control-test-ts-639fd2368d) · [`scripts/smoke-dev-project-api-access.test.ts`](#file-scripts-smoke-dev-project-api-access-test-ts-1fa057a72e) · [`scripts/smoke-dev-project-map.test.ts`](#file-scripts-smoke-dev-project-map-test-ts-0f1985407f) · [`scripts/smoke-dev-project-nesting.test.ts`](#file-scripts-smoke-dev-project-nesting-test-ts-dd3f5b2305) · [`scripts/smoke-dev-team-api-view.test.ts`](#file-scripts-smoke-dev-team-api-view-test-ts-6f500601e0) · [`scripts/smoke-dev-team-editor.test.ts`](#file-scripts-smoke-dev-team-editor-test-ts-1fb1e2d66a) · [`scripts/smoke-dev-team-gates.test.ts`](#file-scripts-smoke-dev-team-gates-test-ts-bc85af653c) · [`scripts/smoke-editor-surface-modes.test.ts`](#file-scripts-smoke-editor-surface-modes-test-ts-dbd9c60d53) · [`scripts/smoke-editor-words-publish.test.ts`](#file-scripts-smoke-editor-words-publish-test-ts-8a0e2a86d4) · [`scripts/smoke-element-insert.test.ts`](#file-scripts-smoke-element-insert-test-ts-f323eac974) · [`scripts/smoke-finance-idempotency.test.ts`](#file-scripts-smoke-finance-idempotency-test-ts-3fe907cb63) · [`scripts/smoke-finance-plan-assignment.test.ts`](#file-scripts-smoke-finance-plan-assignment-test-ts-fed2e879fc) · [`scripts/smoke-finance-runtime-validation.test.ts`](#file-scripts-smoke-finance-runtime-validation-test-ts-e9d8d503cc) · [`scripts/smoke-finance-section-gates.test.ts`](#file-scripts-smoke-finance-section-gates-test-ts-bb835c5a2c) · [`scripts/smoke-fulfilment-clients-access.test.ts`](#file-scripts-smoke-fulfilment-clients-access-test-ts-a00564a357) · [`scripts/smoke-kpi-target-convergence.test.ts`](#file-scripts-smoke-kpi-target-convergence-test-ts-7f8b914212) · [`scripts/smoke-librarian.test.ts`](#file-scripts-smoke-librarian-test-ts-83768b6b09) · [`scripts/smoke-local-repository-preview-route.test.ts`](#file-scripts-smoke-local-repository-preview-route-test-ts-1fda48c87f) · [`scripts/smoke-people-domain-validity.test.ts`](#file-scripts-smoke-people-domain-validity-test-ts-9f5d830b68) · [`scripts/smoke-plugin-api-host-gates.test.ts`](#file-scripts-smoke-plugin-api-host-gates-test-ts-a532a714e3) · [`scripts/smoke-plugin-api-tenancy.test.ts`](#file-scripts-smoke-plugin-api-tenancy-test-ts-8bbf35181d) · [`scripts/smoke-plugin-health-route.test.ts`](#file-scripts-smoke-plugin-health-route-test-ts-e71d45300f) · [`scripts/smoke-plugin-page-host-gates.test.ts`](#file-scripts-smoke-plugin-page-host-gates-test-ts-a2690cdf7e) · [`scripts/smoke-portal-update-route.test.ts`](#file-scripts-smoke-portal-update-route-test-ts-366fc43e6d) · [`scripts/smoke-product-stage-convergence.test.ts`](#file-scripts-smoke-product-stage-convergence-test-ts-addf092169) · [`scripts/smoke-release-access-matrix.test.ts`](#file-scripts-smoke-release-access-matrix-test-ts-0f37b84c3b) · [`scripts/smoke-repo-write.test.ts`](#file-scripts-smoke-repo-write-test-ts-938e040d8b) · [`scripts/smoke-sandbox-access-governance.test.ts`](#file-scripts-smoke-sandbox-access-governance-test-ts-b9a31169e4) · [`scripts/smoke-search-realm-cache.test.ts`](#file-scripts-smoke-search-realm-cache-test-ts-af64249a9e) · [`scripts/smoke-search-restricted-route.test.ts`](#file-scripts-smoke-search-restricted-route-test-ts-053831cc6b) · [`scripts/smoke-session-revocation.test.ts`](#file-scripts-smoke-session-revocation-test-ts-bb12bdf6e9) · [`scripts/smoke-work-lifecycle.test.ts`](#file-scripts-smoke-work-lifecycle-test-ts-be6965c054)
+**Used by (57):** [`scripts/smoke-ai-actor-binding.test.ts`](#file-scripts-smoke-ai-actor-binding-test-ts-107703449e) · [`scripts/smoke-app-route-tenancy.test.ts`](#file-scripts-smoke-app-route-tenancy-test-ts-c2561f3f7d) · [`scripts/smoke-aqua-editor-ai-history.test.ts`](#file-scripts-smoke-aqua-editor-ai-history-test-ts-de42c06074) · [`scripts/smoke-aqua-editor-ai-reply.test.ts`](#file-scripts-smoke-aqua-editor-ai-reply-test-ts-571fd5cd5e) · [`scripts/smoke-aqua-editor-ai-token.test.ts`](#file-scripts-smoke-aqua-editor-ai-token-test-ts-38936410da) · [`scripts/smoke-chrome-layout.test.ts`](#file-scripts-smoke-chrome-layout-test-ts-80b420a476) · [`scripts/smoke-client-association-element.test.ts`](#file-scripts-smoke-client-association-element-test-ts-26cb0339d5) · [`scripts/smoke-client-contracts.test.ts`](#file-scripts-smoke-client-contracts-test-ts-6040e786b4) · [`scripts/smoke-client-delight-route.test.ts`](#file-scripts-smoke-client-delight-route-test-ts-67f5d33728) · [`scripts/smoke-client-dev-workspace.test.ts`](#file-scripts-smoke-client-dev-workspace-test-ts-3fe4ffcd02) · [`scripts/smoke-client-element-ceiling.test.ts`](#file-scripts-smoke-client-element-ceiling-test-ts-5e1fca4444) · [`scripts/smoke-client-fulfilment-board.test.ts`](#file-scripts-smoke-client-fulfilment-board-test-ts-a8399daa87) · [`scripts/smoke-client-portal-placement.test.ts`](#file-scripts-smoke-client-portal-placement-test-ts-1e85efb390) · [`scripts/smoke-client-project-access.test.ts`](#file-scripts-smoke-client-project-access-test-ts-bfb6eb6d30) · [`scripts/smoke-client-role-workspace-boundary.test.ts`](#file-scripts-smoke-client-role-workspace-boundary-test-ts-2484d348d2) · [`scripts/smoke-client-workspace-api-access.test.ts`](#file-scripts-smoke-client-workspace-api-access-test-ts-9fba6ff4ff) · [`scripts/smoke-client-workspace-remaining-api-access.test.ts`](#file-scripts-smoke-client-workspace-remaining-api-access-test-ts-557adf87e8) · [`scripts/smoke-close-deal-route.test.ts`](#file-scripts-smoke-close-deal-route-test-ts-5e90664cfa) · [`scripts/smoke-contract-template-convergence.test.ts`](#file-scripts-smoke-contract-template-convergence-test-ts-dfbf2963ee) · [`scripts/smoke-dev-access-session.test.ts`](#file-scripts-smoke-dev-access-session-test-ts-27bc623a29) · [`scripts/smoke-dev-console-edges.test.ts`](#file-scripts-smoke-dev-console-edges-test-ts-4d6e26c337) · [`scripts/smoke-dev-editor-aqua-tag.test.ts`](#file-scripts-smoke-dev-editor-aqua-tag-test-ts-cd0adfe158) · [`scripts/smoke-dev-mode-identity.test.ts`](#file-scripts-smoke-dev-mode-identity-test-ts-1c1ae1393b) · [`scripts/smoke-dev-path-scope-grants.test.ts`](#file-scripts-smoke-dev-path-scope-grants-test-ts-b3614f9881) · [`scripts/smoke-dev-project-access-control.test.ts`](#file-scripts-smoke-dev-project-access-control-test-ts-639fd2368d) · [`scripts/smoke-dev-project-api-access.test.ts`](#file-scripts-smoke-dev-project-api-access-test-ts-1fa057a72e) · [`scripts/smoke-dev-project-map.test.ts`](#file-scripts-smoke-dev-project-map-test-ts-0f1985407f) · [`scripts/smoke-dev-project-nesting.test.ts`](#file-scripts-smoke-dev-project-nesting-test-ts-dd3f5b2305) · [`scripts/smoke-dev-team-api-view.test.ts`](#file-scripts-smoke-dev-team-api-view-test-ts-6f500601e0) · [`scripts/smoke-dev-team-editor.test.ts`](#file-scripts-smoke-dev-team-editor-test-ts-1fb1e2d66a) · [`scripts/smoke-dev-team-gates.test.ts`](#file-scripts-smoke-dev-team-gates-test-ts-bc85af653c) · [`scripts/smoke-editor-surface-modes.test.ts`](#file-scripts-smoke-editor-surface-modes-test-ts-dbd9c60d53) · [`scripts/smoke-editor-words-publish.test.ts`](#file-scripts-smoke-editor-words-publish-test-ts-8a0e2a86d4) · [`scripts/smoke-element-insert.test.ts`](#file-scripts-smoke-element-insert-test-ts-f323eac974) · [`scripts/smoke-finance-idempotency.test.ts`](#file-scripts-smoke-finance-idempotency-test-ts-3fe907cb63) · [`scripts/smoke-finance-plan-assignment.test.ts`](#file-scripts-smoke-finance-plan-assignment-test-ts-fed2e879fc) · [`scripts/smoke-finance-runtime-validation.test.ts`](#file-scripts-smoke-finance-runtime-validation-test-ts-e9d8d503cc) · [`scripts/smoke-finance-section-gates.test.ts`](#file-scripts-smoke-finance-section-gates-test-ts-bb835c5a2c) · [`scripts/smoke-fulfilment-clients-access.test.ts`](#file-scripts-smoke-fulfilment-clients-access-test-ts-a00564a357) · [`scripts/smoke-kpi-target-convergence.test.ts`](#file-scripts-smoke-kpi-target-convergence-test-ts-7f8b914212) · [`scripts/smoke-legal-document-dependencies.test.ts`](#file-scripts-smoke-legal-document-dependencies-test-ts-4acf172dc2) · [`scripts/smoke-librarian.test.ts`](#file-scripts-smoke-librarian-test-ts-83768b6b09) · [`scripts/smoke-local-repository-preview-route.test.ts`](#file-scripts-smoke-local-repository-preview-route-test-ts-1fda48c87f) · [`scripts/smoke-people-domain-validity.test.ts`](#file-scripts-smoke-people-domain-validity-test-ts-9f5d830b68) · [`scripts/smoke-plugin-api-host-gates.test.ts`](#file-scripts-smoke-plugin-api-host-gates-test-ts-a532a714e3) · [`scripts/smoke-plugin-api-tenancy.test.ts`](#file-scripts-smoke-plugin-api-tenancy-test-ts-8bbf35181d) · [`scripts/smoke-plugin-health-route.test.ts`](#file-scripts-smoke-plugin-health-route-test-ts-e71d45300f) · [`scripts/smoke-plugin-page-host-gates.test.ts`](#file-scripts-smoke-plugin-page-host-gates-test-ts-a2690cdf7e) · [`scripts/smoke-portal-update-route.test.ts`](#file-scripts-smoke-portal-update-route-test-ts-366fc43e6d) · [`scripts/smoke-product-stage-convergence.test.ts`](#file-scripts-smoke-product-stage-convergence-test-ts-addf092169) · [`scripts/smoke-release-access-matrix.test.ts`](#file-scripts-smoke-release-access-matrix-test-ts-0f37b84c3b) · [`scripts/smoke-repo-write.test.ts`](#file-scripts-smoke-repo-write-test-ts-938e040d8b) · [`scripts/smoke-sandbox-access-governance.test.ts`](#file-scripts-smoke-sandbox-access-governance-test-ts-b9a31169e4) · [`scripts/smoke-search-realm-cache.test.ts`](#file-scripts-smoke-search-realm-cache-test-ts-af64249a9e) · [`scripts/smoke-search-restricted-route.test.ts`](#file-scripts-smoke-search-restricted-route-test-ts-053831cc6b) · [`scripts/smoke-session-revocation.test.ts`](#file-scripts-smoke-session-revocation-test-ts-bb12bdf6e9) · [`scripts/smoke-work-lifecycle.test.ts`](#file-scripts-smoke-work-lifecycle-test-ts-be6965c054)
 
 <a id="file-scripts-generate-radar-rules-reference-ts-00cd698199"></a>
 
@@ -322,6 +322,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-accessible-names-test-ts-6ddca9d575"></a>
+
+### `scripts/smoke-accessible-names.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-action-sources-test-ts-a017c9356b"></a>
 
 ### `scripts/smoke-action-sources.test.ts`
@@ -414,7 +426,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on (4):** [`src/built-ins/modules/affiliates/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-affiliates-src-lib-domain-ts-a3d544dd96) · [`src/built-ins/modules/affiliates/src/server/dependencies.ts`](built-ins.md#file-src-built-ins-modules-affiliates-src-server-dependencies-ts-534e6383d3) · [`src/built-ins/modules/affiliates/src/server/index.ts`](built-ins.md#file-src-built-ins-modules-affiliates-src-server-index-ts-8d6bc6d6e0) · [`src/built-ins/modules/affiliates/src/server/ports.ts`](built-ins.md#file-src-built-ins-modules-affiliates-src-server-ports-ts-725ff423ff)
+**Depends on (7):** [`src/built-ins/modules/affiliates/src/api/handlers.ts`](built-ins.md#file-src-built-ins-modules-affiliates-src-api-handlers-ts-b2da5fb28d) · [`src/built-ins/modules/affiliates/src/lib/aquaPluginTypes.ts`](built-ins.md#file-src-built-ins-modules-affiliates-src-lib-aquaplugintypes-ts-2b0fcd59fe) · [`src/built-ins/modules/affiliates/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-affiliates-src-lib-domain-ts-a3d544dd96) · [`src/built-ins/modules/affiliates/src/server/dependencies.ts`](built-ins.md#file-src-built-ins-modules-affiliates-src-server-dependencies-ts-534e6383d3) · [`src/built-ins/modules/affiliates/src/server/foundationAdapter.ts`](built-ins.md#file-src-built-ins-modules-affiliates-src-server-foundationadapter-ts-1b0d780160) · [`src/built-ins/modules/affiliates/src/server/index.ts`](built-ins.md#file-src-built-ins-modules-affiliates-src-server-index-ts-8d6bc6d6e0) · [`src/built-ins/modules/affiliates/src/server/ports.ts`](built-ins.md#file-src-built-ins-modules-affiliates-src-server-ports-ts-725ff423ff)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -426,7 +438,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on (3):** [`src/built-ins/modules/affiliates/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-affiliates-src-lib-domain-ts-a3d544dd96) · [`src/built-ins/modules/affiliates/src/server/index.ts`](built-ins.md#file-src-built-ins-modules-affiliates-src-server-index-ts-8d6bc6d6e0) · [`src/built-ins/modules/affiliates/src/server/ports.ts`](built-ins.md#file-src-built-ins-modules-affiliates-src-server-ports-ts-725ff423ff)
+**Depends on (12):** [`src/built-ins/modules/affiliates/src/components/MyAffiliatePanel.tsx`](built-ins.md#file-src-built-ins-modules-affiliates-src-components-myaffiliatepanel-tsx-388096ea68) · [`src/built-ins/modules/affiliates/src/components/PayoutsList.tsx`](built-ins.md#file-src-built-ins-modules-affiliates-src-components-payoutslist-tsx-056435e833) · [`src/built-ins/modules/affiliates/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-affiliates-src-lib-domain-ts-a3d544dd96) · [`src/built-ins/modules/affiliates/src/server/foundationAdapter.ts`](built-ins.md#file-src-built-ins-modules-affiliates-src-server-foundationadapter-ts-1b0d780160) · [`src/built-ins/modules/affiliates/src/server/index.ts`](built-ins.md#file-src-built-ins-modules-affiliates-src-server-index-ts-8d6bc6d6e0) · [`src/built-ins/modules/affiliates/src/server/ports.ts`](built-ins.md#file-src-built-ins-modules-affiliates-src-server-ports-ts-725ff423ff) · [`src/built-ins/runtime/foundation-adapters/_affiliatesStripeConnectAdapter.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-affiliatesstripeconnectadapter-ts-b8a3703af3) · [`src/built-ins/runtime/foundation-adapters/affiliatesFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-affiliatesfoundation-ts-bab72f48dc) · [`src/lib/server/plugins/pluginSettingsSurface.ts`](lib.md#file-src-lib-server-plugins-pluginsettingssurface-ts-f5a8104127) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -858,7 +870,19 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on (2):** [`src/app/portal/agency/battleNavigation.ts`](app.md#file-src-app-portal-agency-battlenavigation-ts-482a1e0083) · [`src/app/portal/agency/commandPerformance.ts`](app.md#file-src-app-portal-agency-commandperformance-ts-4c3c4f6dfd)
+**Depends on (4):** [`src/app/portal/agency/battleNavigation.ts`](app.md#file-src-app-portal-agency-battlenavigation-ts-482a1e0083) · [`src/app/portal/agency/commandPerformance.ts`](app.md#file-src-app-portal-agency-commandperformance-ts-4c3c4f6dfd) · [`src/app/portal/agency/companyProfileConflict.ts`](app.md#file-src-app-portal-agency-companyprofileconflict-ts-0876e6ac2a) · [`src/lib/performance/kpiRegistry.ts`](lib.md#file-src-lib-performance-kpiregistry-ts-a844c71e33)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-block-current-page-hydration-test-ts-c172ea8e9a"></a>
+
+### `scripts/smoke-block-current-page-hydration.test.ts`
+
+**What it is:** in the website-editor lane (`npm run smoke:website-editor`), not here.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -867,6 +891,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 ### `scripts/smoke-bos-middleware-integration.test.ts`
 
 **What it is:** should only proxy portal routes; public Business OS paths belong elsewhere.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-browser-matrix-test-ts-f5ff7391c9"></a>
+
+### `scripts/smoke-browser-matrix.test.ts`
+
+**What it is:** without a browser binary. → issues #137
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
@@ -954,7 +990,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on (5):** [`scripts/dev-console-request-scope.ts`](#file-scripts-dev-console-request-scope-ts-77ec79ae76) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (11):** [`scripts/dev-console-request-scope.ts`](#file-scripts-dev-console-request-scope-ts-77ec79ae76) · [`src/app/api/portal/attention/plan/route.ts`](app.md#file-src-app-api-portal-attention-plan-route-ts-685bff509c) · [`src/app/api/portal/tasks/checklist/route.ts`](app.md#file-src-app-api-portal-tasks-checklist-route-ts-b59c4dc5b2) · [`src/app/api/portal/tasks/route.ts`](app.md#file-src-app-api-portal-tasks-route-ts-d9832af3c1) · [`src/app/api/portal/tasks/templates/route.ts`](app.md#file-src-app-api-portal-tasks-templates-route-ts-e4e0721b20) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tasks.ts`](server.md#file-src-server-tasks-ts-875282c006) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -978,7 +1014,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on:** _No internal imports._
+**Depends on (1):** [`scripts/dev-console-request-scope.ts`](#file-scripts-dev-console-request-scope-ts-77ec79ae76)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -991,6 +1027,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (6):** [`src/built-ins/modules/client-crm/src/api/handlers.ts`](built-ins.md#file-src-built-ins-modules-client-crm-src-api-handlers-ts-a22b64845a) · [`src/built-ins/modules/client-crm/src/lib/aquaPluginTypes.ts`](built-ins.md#file-src-built-ins-modules-client-crm-src-lib-aquaplugintypes-ts-283533f57f) · [`src/built-ins/modules/client-crm/src/lib/journey.ts`](built-ins.md#file-src-built-ins-modules-client-crm-src-lib-journey-ts-c55c24f76f) · [`src/built-ins/modules/client-crm/src/lib/time.ts`](built-ins.md#file-src-built-ins-modules-client-crm-src-lib-time-ts-0f8728d52a) · [`src/built-ins/modules/client-crm/src/server/foundationAdapter.ts`](built-ins.md#file-src-built-ins-modules-client-crm-src-server-foundationadapter-ts-661f8db302) · [`src/built-ins/modules/client-crm/src/server/ports.ts`](built-ins.md#file-src-built-ins-modules-client-crm-src-server-ports-ts-650fd8da05)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-client-delight-route-test-ts-67f5d33728"></a>
+
+### `scripts/smoke-client-delight-route.test.ts`
+
+**What it is:** agency-finance install. Nothing here is stubbed except the request scope.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`scripts/dev-console-request-scope.ts`](#file-scripts-dev-console-request-scope-ts-77ec79ae76)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1462,6 +1510,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-company-capital-invariants-test-ts-b72a03bd02"></a>
+
+### `scripts/smoke-company-capital-invariants.test.ts`
+
+**What it is:** Capital and ownership register integrity — issues #65. The register calls itself the authoritative cap table: ownership, voting control, approval coverage and the distribution pos…
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-company-connections-test-ts-14ccef4e50"></a>
 
 ### `scripts/smoke-company-connections.test.ts`
@@ -1543,6 +1603,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (1):** [`src/lib/compliance/compliancePosture.ts`](lib.md#file-src-lib-compliance-complianceposture-ts-e3798eba46)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-composite-widget-keyboard-test-ts-2613e5a284"></a>
+
+### `scripts/smoke-composite-widget-keyboard.test.ts`
+
+**What it is:** file, for good — never the third state the app was in.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/lib/a11y/useArrowNav.ts`](lib.md#file-src-lib-a11y-usearrownav-ts-ad026e3ee5)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -2770,6 +2842,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-enquiry-notification-routing-test-ts-a2f189b581"></a>
+
+### `scripts/smoke-enquiry-notification-routing.test.ts`
+
+**What it is:** second company does not silently send on the founder's key.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-enquiry-read-scoping-test-ts-0996c541ec"></a>
 
 ### `scripts/smoke-enquiry-read-scoping.test.ts`
@@ -3490,6 +3574,30 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-inbox-recorder-lifecycle-test-ts-d655c5138a"></a>
+
+### `scripts/smoke-inbox-recorder-lifecycle.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/app/portal/agency/inbox/_voiceRecorder.ts`](app.md#file-src-app-portal-agency-inbox-voicerecorder-ts-42dce7c006)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-info-tip-test-ts-0588407fba"></a>
+
+### `scripts/smoke-info-tip.test.ts`
+
+**What it is:** which `react-dom/server` refuses to load under. See the note in that file.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (2):** [`scripts/client-render-condition.ts`](#file-scripts-client-render-condition-ts-f87886323c) · [`src/components/ui/InfoTip.tsx`](components.md#file-src-components-ui-infotip-tsx-b11a0c68a6)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-inspector-exit-test-ts-73836c8da2"></a>
 
 ### `scripts/smoke-inspector-exit.test.ts`
@@ -3519,6 +3627,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 ### `scripts/smoke-journey-kanban.test.ts`
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-journey-kanbans-desk-test-ts-4a179918c5"></a>
+
+### `scripts/smoke-journey-kanbans-desk.test.ts`
+
+**What it is:** endpoint that touched either would corrupt semantics silently.
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
@@ -3682,6 +3802,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-legal-document-dependencies-test-ts-4acf172dc2"></a>
+
+### `scripts/smoke-legal-document-dependencies.test.ts`
+
+**What it is:** about a key format the runtime does not use.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (15):** [`scripts/dev-console-request-scope.ts`](#file-scripts-dev-console-request-scope-ts-77ec79ae76) · [`src/built-ins/modules/agency-finance/src/lib/tenancy.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-tenancy-ts-b0727e7982) · [`src/built-ins/modules/agency-finance/src/server/budgets.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-server-budgets-ts-68627fbd45) · [`src/built-ins/modules/agency-finance/src/server/operations.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-server-operations-ts-709a74d1a7) · [`src/built-ins/modules/agency-finance/src/server/ports.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-server-ports-ts-915a5d5a35) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/server/company.ts`](server.md#file-src-server-company-ts-c3dc827a65) · [`src/server/legalDocumentDependencies.ts`](server.md#file-src-server-legaldocumentdependencies-ts-4f7c916bfc) · [`src/server/legalDocuments.ts`](server.md#file-src-server-legaldocuments-ts-9db835baaf) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-librarian-test-ts-83768b6b09"></a>
 
 ### `scripts/smoke-librarian.test.ts`
@@ -3734,7 +3866,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ### `scripts/smoke-local-preview-worktree.test.ts`
 
-**What it is:** • contain — nothing is ever written outside the trusted preview root
+**What it is:** • closed — an unreachable remote fails before any port is allocated
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
@@ -3858,7 +3990,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on:** _No internal imports._
+**Depends on (1):** [`src/app/portal/agency/inbox/_voiceRecorder.ts`](app.md#file-src-app-portal-agency-inbox-voicerecorder-ts-42dce7c006)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3894,7 +4026,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on (3):** [`src/built-ins/modules/memberships/src/server/dependencies.ts`](built-ins.md#file-src-built-ins-modules-memberships-src-server-dependencies-ts-95d50c25a8) · [`src/built-ins/modules/memberships/src/server/index.ts`](built-ins.md#file-src-built-ins-modules-memberships-src-server-index-ts-4aa1588796) · [`src/built-ins/modules/memberships/src/server/ports.ts`](built-ins.md#file-src-built-ins-modules-memberships-src-server-ports-ts-25661d85b4)
+**Depends on (6):** [`src/built-ins/modules/memberships/src/api/handlers.ts`](built-ins.md#file-src-built-ins-modules-memberships-src-api-handlers-ts-d98278c673) · [`src/built-ins/modules/memberships/src/lib/aquaPluginTypes.ts`](built-ins.md#file-src-built-ins-modules-memberships-src-lib-aquaplugintypes-ts-0c0e63626a) · [`src/built-ins/modules/memberships/src/server/dependencies.ts`](built-ins.md#file-src-built-ins-modules-memberships-src-server-dependencies-ts-95d50c25a8) · [`src/built-ins/modules/memberships/src/server/foundationAdapter.ts`](built-ins.md#file-src-built-ins-modules-memberships-src-server-foundationadapter-ts-adbdd97bed) · [`src/built-ins/modules/memberships/src/server/index.ts`](built-ins.md#file-src-built-ins-modules-memberships-src-server-index-ts-4aa1588796) · [`src/built-ins/modules/memberships/src/server/ports.ts`](built-ins.md#file-src-built-ins-modules-memberships-src-server-ports-ts-25661d85b4)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3906,7 +4038,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on (2):** [`src/built-ins/modules/memberships/src/server/index.ts`](built-ins.md#file-src-built-ins-modules-memberships-src-server-index-ts-4aa1588796) · [`src/built-ins/modules/memberships/src/server/ports.ts`](built-ins.md#file-src-built-ins-modules-memberships-src-server-ports-ts-25661d85b4)
+**Depends on (9):** [`src/built-ins/modules/memberships/src/server/foundationAdapter.ts`](built-ins.md#file-src-built-ins-modules-memberships-src-server-foundationadapter-ts-adbdd97bed) · [`src/built-ins/modules/memberships/src/server/index.ts`](built-ins.md#file-src-built-ins-modules-memberships-src-server-index-ts-4aa1588796) · [`src/built-ins/modules/memberships/src/server/ports.ts`](built-ins.md#file-src-built-ins-modules-memberships-src-server-ports-ts-25661d85b4) · [`src/built-ins/runtime/foundation-adapters/_membershipsStripeAdapter.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-membershipsstripeadapter-ts-e751323a46) · [`src/built-ins/runtime/foundation-adapters/membershipsFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-membershipsfoundation-ts-f01e9eeeea) · [`src/lib/server/plugins/pluginSettingsSurface.ts`](lib.md#file-src-lib-server-plugins-pluginsettingssurface-ts-f5a8104127) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3970,6 +4102,30 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-metadata-contracts-test-ts-924866e984"></a>
+
+### `scripts/smoke-metadata-contracts.test.ts`
+
+**What it is:** the code instead of rotting.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/lib/data/metadataContracts.ts`](lib.md#file-src-lib-data-metadatacontracts-ts-0f567bbad3)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-metric-registry-test-ts-b9829306eb"></a>
+
+### `scripts/smoke-metric-registry.test.ts`
+
+**What it is:** calculations, no fabricated data.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (4):** [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/lib/data/metricRegistry.ts`](lib.md#file-src-lib-data-metricregistry-ts-c4bdf3678a) · [`src/lib/intelligence/commercialIntelligence.ts`](lib.md#file-src-lib-intelligence-commercialintelligence-ts-c3611e436c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-mfa-doors-test-ts-fd58cf015f"></a>
 
 ### `scripts/smoke-mfa-doors.test.ts`
@@ -4006,6 +4162,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-modal-keyboard-contract-test-ts-f3f2798bdc"></a>
+
+### `scripts/smoke-modal-keyboard-contract.test.ts`
+
+**What it is:** reader.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-multi-agency-users-test-ts-d8134be8b7"></a>
 
 ### `scripts/smoke-multi-agency-users.test.ts`
@@ -4030,6 +4198,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-my-radar-topbar-test-ts-e5a99f82ea"></a>
+
+### `scripts/smoke-my-radar-topbar.test.ts`
+
+**What it is:** a fork, a nudge that speaks only in amber.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/lib/chrome/topbarControls.ts`](lib.md#file-src-lib-chrome-topbarcontrols-ts-e7f3bc1812)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-my-radar-test-ts-ecac907a42"></a>
 
 ### `scripts/smoke-my-radar.test.ts`
@@ -4039,6 +4219,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (1):** [`src/lib/intelligence/departmentAllocation.ts`](lib.md#file-src-lib-intelligence-departmentallocation-ts-effe208c44)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-my-tools-palette-test-ts-de0b78e8dd"></a>
+
+### `scripts/smoke-my-tools-palette.test.ts`
+
+**What it is:** and again in the client store.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (2):** [`src/lib/chrome/savedToolUrl.ts`](lib.md#file-src-lib-chrome-savedtoolurl-ts-0f6f57b2b2) · [`src/lib/server/chrome/userChromeLayout.ts`](lib.md#file-src-lib-server-chrome-userchromelayout-ts-e39b7711f4)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -4130,11 +4322,11 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ### `scripts/smoke-observability.test.ts`
 
-**What it is:** observability.ts Sentry lazy-load.
+**What it is:** - Source-marker: /healthz/full route + app/error.tsx copy.
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on (1):** [`src/lib/server/requestLog.ts`](lib.md#file-src-lib-server-requestlog-ts-dcf740f7b9)
+**Depends on (4):** [`src/instrumentation.ts`](misc.md#file-src-instrumentation-ts-cc47c85c73) · [`src/lib/server/observability.ts`](lib.md#file-src-lib-server-observability-ts-30e894807d) · [`src/lib/server/observabilityCapability.ts`](lib.md#file-src-lib-server-observabilitycapability-ts-6b60d0fb67) · [`src/lib/server/requestLog.ts`](lib.md#file-src-lib-server-requestlog-ts-dcf740f7b9)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -4195,6 +4387,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (2):** [`src/server/organisations.ts`](server.md#file-src-server-organisations-ts-ba6f8d840f) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-outbox-test-ts-1e7c5ed8b3"></a>
+
+### `scripts/smoke-outbox.test.ts`
+
+**What it is:** client.created durably with the same payload the old emit carried.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (4):** [`src/server/eventBus.ts`](server.md#file-src-server-eventbus-ts-0d11c56fb0) · [`src/server/outbox.ts`](server.md#file-src-server-outbox-ts-de86d78655) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -4494,7 +4698,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on (7):** [`scripts/dev-console-request-scope.ts`](#file-scripts-dev-console-request-scope-ts-77ec79ae76) · [`src/app/api/portal/plugins/health/route.ts`](app.md#file-src-app-api-portal-plugins-health-route-ts-e01f64510d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (8):** [`scripts/dev-console-request-scope.ts`](#file-scripts-dev-console-request-scope-ts-77ec79ae76) · [`src/app/api/portal/plugins/health/route.ts`](app.md#file-src-app-api-portal-plugins-health-route-ts-e01f64510d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/plugins/pluginHealthRunner.ts`](lib.md#file-src-lib-server-plugins-pluginhealthrunner-ts-feda990895) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -4741,6 +4945,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-private-media-range-test-ts-096d78601e"></a>
+
+### `scripts/smoke-private-media-range.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-private-upload-storage-test-ts-7e4fe1d141"></a>
 
 ### `scripts/smoke-private-upload-storage.test.ts`
@@ -4857,7 +5073,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on (1):** [`src/lib/server/productionReadiness.ts`](lib.md#file-src-lib-server-productionreadiness-ts-4763c179fe)
+**Depends on (2):** [`src/lib/server/observabilityCapability.ts`](lib.md#file-src-lib-server-observabilitycapability-ts-6b60d0fb67) · [`src/lib/server/productionReadiness.ts`](lib.md#file-src-lib-server-productionreadiness-ts-4763c179fe)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -5097,7 +5313,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on (5):** [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/engines/data/radar/radarInfraChecks.ts`](engines.md#file-src-engines-data-radar-radarinfrachecks-ts-6fc9590e9c) · [`src/engines/data/server/radar/radarSweeps.ts`](engines.md#file-src-engines-data-server-radar-radarsweeps-ts-f7254dc20d) · [`src/lib/server/databaseStorageHealth.ts`](lib.md#file-src-lib-server-databasestoragehealth-ts-dd5148388d) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (9):** [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/engines/data/radar/radarInfraChecks.ts`](engines.md#file-src-engines-data-radar-radarinfrachecks-ts-6fc9590e9c) · [`src/engines/data/server/radar/businessIssueRadar.ts`](engines.md#file-src-engines-data-server-radar-businessissueradar-ts-df308875cc) · [`src/engines/data/server/radar/radarSweeps.ts`](engines.md#file-src-engines-data-server-radar-radarsweeps-ts-f7254dc20d) · [`src/lib/server/databaseStorageHealth.ts`](lib.md#file-src-lib-server-databasestoragehealth-ts-dd5148388d) · [`src/lib/server/plugins/pluginHealthRunner.ts`](lib.md#file-src-lib-server-plugins-pluginhealthrunner-ts-feda990895) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -5181,7 +5397,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on (4):** [`src/engines/data/server/radar/businessIssueRadar.ts`](engines.md#file-src-engines-data-server-radar-businessissueradar-ts-df308875cc) · [`src/engines/data/server/radar/radarSweeps.ts`](engines.md#file-src-engines-data-server-radar-radarsweeps-ts-f7254dc20d) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
+**Depends on (5):** [`src/app/api/cron/inbox/route.ts`](app.md#file-src-app-api-cron-inbox-route-ts-f4b795c54c) · [`src/engines/data/server/radar/businessIssueRadar.ts`](engines.md#file-src-engines-data-server-radar-businessissueradar-ts-df308875cc) · [`src/engines/data/server/radar/radarSweeps.ts`](engines.md#file-src-engines-data-server-radar-radarsweeps-ts-f7254dc20d) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -5206,6 +5422,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (2):** [`scripts/read-path-mutation-inventory.ts`](#file-scripts-read-path-mutation-inventory-ts-9b315ad386) · [`scripts/read-path-mutations.ts`](#file-scripts-read-path-mutations-ts-1356889e64)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-realm-runtime-cap-test-ts-1dda8dfe3e"></a>
+
+### `scripts/smoke-realm-runtime-cap.test.ts`
+
+**What it is:** tests exist for that, not for the cap.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -5437,6 +5665,30 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-scouting-outreach-test-ts-adec0bbb56"></a>
+
+### `scripts/smoke-scouting-outreach.test.ts`
+
+**What it is:** suppression could be walked around by clicking the other button.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-scouting-quota-test-ts-00977f6809"></a>
+
+### `scripts/smoke-scouting-quota.test.ts`
+
+**What it is:** already capture the work, never written back into `currentValue`.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-search-access-test-ts-7a50d2d5f3"></a>
 
 ### `scripts/smoke-search-access.test.ts`
@@ -5473,11 +5725,35 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-semantic-registry-test-ts-9231002b71"></a>
+
+### `scripts/smoke-semantic-registry.test.ts`
+
+**What it is:** classified.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (2):** [`src/lib/data/semanticRegistry.ts`](lib.md#file-src-lib-data-semanticregistry-ts-bcf874b035) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-service-role-usage-test-ts-953db26555"></a>
 
 ### `scripts/smoke-service-role-usage.test.ts`
 
 **What it is:** Service-role usage — measured, pinned, and only allowed to go DOWN knowingly. WHY THIS EXISTS RLS only gates requests made with the anon key; every `createSupabaseAdminClient()` c…
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-session-memoization-test-ts-e46933b88a"></a>
+
+### `scripts/smoke-session-memoization.test.ts`
+
+**What it is:** session onto another wherever a cache scope did exist.
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
@@ -5514,6 +5790,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 ### `scripts/smoke-settings-hub.test.ts`
 
 **What it is:** Plan: docs/development/plans/settings-consolidation.md
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (3):** [`src/built-ins/runtime/_registry.ts`](built-ins.md#file-src-built-ins-runtime-registry-ts-504f0b067d) · [`src/lib/chrome/settingsModules.ts`](lib.md#file-src-lib-chrome-settingsmodules-ts-f2347695f0) · [`src/lib/plugins/unwiredSettings.ts`](lib.md#file-src-lib-plugins-unwiredsettings-ts-2bbb67e7f7)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-settings-restructure-test-ts-0f0078a222"></a>
+
+### `scripts/smoke-settings-restructure.test.ts`
+
+**What it is:** search over a hand-authored keyword registry.
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
@@ -5637,7 +5925,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on (4):** [`src/engines/sop/server/sopDependencies.ts`](engines.md#file-src-engines-sop-server-sopdependencies-ts-7e646b45e9) · [`src/engines/sop/server/sops.ts`](engines.md#file-src-engines-sop-server-sops-ts-8c9bee0d0c) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
+**Depends on (7):** [`src/app/api/portal/sops/route.ts`](app.md#file-src-app-api-portal-sops-route-ts-574efa46e5) · [`src/engines/sop/server/sopDependencies.ts`](engines.md#file-src-engines-sop-server-sopdependencies-ts-7e646b45e9) · [`src/engines/sop/server/sops.ts`](engines.md#file-src-engines-sop-server-sops-ts-8c9bee0d0c) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -5749,6 +6037,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-suite-coverage-test-ts-94a77de259"></a>
+
+### `scripts/smoke-suite-coverage.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-tag-form-capture-test-ts-a77cd0eb6b"></a>
 
 ### `scripts/smoke-tag-form-capture.test.ts`
@@ -5782,6 +6082,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (1):** [`src/lib/tasks/taskTemplates.ts`](lib.md#file-src-lib-tasks-tasktemplates-ts-6aee71d67c)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-telemetry-idempotency-test-ts-9f19109644"></a>
+
+### `scripts/smoke-telemetry-idempotency.test.ts`
+
+**What it is:** provider retries cannot starve genuine new events.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (4):** [`src/lib/server/clients/clientTelemetryService.ts`](lib.md#file-src-lib-server-clients-clienttelemetryservice-ts-92d317a118) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -5849,7 +6161,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ### `scripts/smoke-tools-directory.test.ts`
 
-**What it is:** (Freelancers). If any of those go missing, this fails.
+**What it is:** OPERATIONS, and this file proves the move orphaned nothing.
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
@@ -5937,7 +6249,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on (7):** [`src/built-ins/modules/agency-finance/src/lib/currencies.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-currencies-ts-d92fdc906d) · [`src/built-ins/modules/agency-finance/src/lib/taxPosition.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-taxposition-ts-fd8435862b) · [`src/lib/performance/telemetryDisplay.ts`](lib.md#file-src-lib-performance-telemetrydisplay-ts-5be221a37e) · [`src/lib/server/finance/financeCurrency.ts`](lib.md#file-src-lib-server-finance-financecurrency-ts-85981f420b) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
+**Depends on (9):** [`src/app/portal/customer/_portalData.ts`](app.md#file-src-app-portal-customer-portaldata-ts-2f1995696c) · [`src/built-ins/modules/agency-finance/src/lib/currencies.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-currencies-ts-d92fdc906d) · [`src/built-ins/modules/agency-finance/src/lib/taxPosition.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-taxposition-ts-fd8435862b) · [`src/lib/performance/telemetryDisplay.ts`](lib.md#file-src-lib-performance-telemetrydisplay-ts-5be221a37e) · [`src/lib/readAvailability.ts`](lib.md#file-src-lib-readavailability-ts-35b000b352) · [`src/lib/server/finance/financeCurrency.ts`](lib.md#file-src-lib-server-finance-financecurrency-ts-85981f420b) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -6025,6 +6337,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-website-demo-gate-test-ts-7a0b40dcbe"></a>
+
+### `scripts/smoke-website-demo-gate.test.ts`
+
+**What it is:** routes or pages existed.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (3):** [`src/app/api/public/demo-interest/route.ts`](app.md#file-src-app-api-public-demo-interest-route-ts-b7d2df07cb) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/websiteDemo.ts`](server.md#file-src-server-websitedemo-ts-bbb8b5bc9b)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-website-editor-block-backends-test-ts-4e44741d8f"></a>
 
 ### `scripts/smoke-website-editor-block-backends.test.ts`
@@ -6041,7 +6365,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ### `scripts/smoke-website-editor-dead-ui-calls.test.ts`
 
-**What it is:** never built.
+**What it is:** fetches stay in the components, which is why they stay listed here.
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
@@ -6142,6 +6466,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (6):** [`src/lib/server/marketingIntelligence.ts`](lib.md#file-src-lib-server-marketingintelligence-ts-bc53756ee1) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8) · [`src/server/websiteInjections.ts`](server.md#file-src-server-websiteinjections-ts-c64595949c) · [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-website-block-hydration-probe-ts-e26cfd1fde"></a>
+
+### `scripts/website-block-hydration-probe.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (3):** [`src/built-ins/modules/website-editor/src/components/blocks/BreadcrumbBlock.tsx`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-blocks-breadcrumbblock-tsx-275cca0424) · [`src/built-ins/modules/website-editor/src/components/blocks/ShareButtonsBlock.tsx`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-blocks-sharebuttonsblock-tsx-9f9c2fbd63) · [`src/engines/editor/elements/block.ts`](engines.md#file-src-engines-editor-elements-block-ts-b63256ef49)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 

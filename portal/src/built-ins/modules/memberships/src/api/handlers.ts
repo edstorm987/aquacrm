@@ -9,6 +9,7 @@
 
 import type { PluginCtx } from "../lib/aquaPluginTypes";
 import { containerFor, isStripeAvailable } from "../server/foundationAdapter";
+import { planDependencyInventory } from "../server/dependencies";
 import type {
   CreateBenefitInput,
   CreatePlanInput,
@@ -93,12 +94,52 @@ export async function updatePlanHandler(req: Request, ctx: PluginCtx): Promise<R
   }
 }
 
+// Deleting a plan is not deleting a row.
+//
+// `SubscriptionService.list()` enumerates members by walking the surviving
+// PLANS, so a plan removed out from under its subscribers takes all three of
+// these at once: the subscription rows survive (external billing keeps
+// charging), `getBenefitsForUser` resolves through `plans.get()` and now finds
+// nothing (they stop receiving what they pay for), and no admin list can reach
+// them to notice. `planDependencyInventory` measures exactly that, and until
+// now nothing asked it before deleting.
+//
+// This route therefore refuses a destructive delete while anyone is still on
+// the plan, and names the path that does work: `PlanService.archive` — the
+// documented ordinary retirement — keeps existing subscribers paying and
+// visible while hiding the plan from new signups.
+//
+// It decides no purge policy. Whether an explicit purge should exist for a plan
+// with live subscribers, and what it must reconcile in Stripe first, is still
+// Ed's open decision (issues #177/#178). Refusing is not that decision; it is
+// the absence of one, made visible instead of silent.
 export async function deletePlanHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   const guard = methodGuard(req, "DELETE");
   if (guard) return guard;
   const id = new URL(req.url).searchParams.get("id");
   if (!id) return badRequest("id required.");
-  const ok = await buildContainer(ctx).plans.delete(id, ctx.actor);
+  const c = buildContainer(ctx);
+  const plan = await c.plans.get(id);
+  if (!plan) return notFound("plan not found");
+
+  const dependencies = await planDependencyInventory(c, ctx.storage, id);
+  if (dependencies.total > 0) {
+    const billed = dependencies.billableSubscribers > 0
+      ? `${dependencies.billableSubscribers} still being billed`
+      : "none currently billable";
+    return json({
+      ok: false,
+      error:
+        `Cannot delete "${plan.name}": ${dependencies.total} subscriber(s) are still on it `
+        + `(${billed}). Deleting it would leave their subscriptions running and unreachable from `
+        + `every admin list. Archive the plan instead (PATCH status "archived") — existing `
+        + `subscribers keep their plan and their billing, and it disappears from new signups.`,
+      reason: "plan_has_subscribers",
+      dependencies,
+    }, 422);
+  }
+
+  const ok = await c.plans.delete(id, ctx.actor);
   return ok ? json({ ok: true }) : notFound("plan not found");
 }
 

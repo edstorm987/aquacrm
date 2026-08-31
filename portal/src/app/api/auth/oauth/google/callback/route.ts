@@ -128,8 +128,10 @@ function setSessionAndRedirect(
   // Role-aware fallback (chapter #125): when state's returnUrl is the
   // generic `/portal` default, route the user via `resolvePostLoginPath`
   // so leads stay out of workspaces, agency tier lands on `/portal/agency`,
-  // client tier on `/portal/clients/<slug>`, end-customer on
-  // `/portal/customer`. Explicit non-default returnUrl overrides.
+  // and the whole client-portal audience — client tier as well as
+  // end-customer — lands on `/portal/customer` (Ed's 2026-08-27 placement;
+  // `/portal/clients/<slug>` is the INTERNAL workspace and is no longer a
+  // sign-in destination). Explicit non-default returnUrl overrides.
   const effective = returnUrl === "/portal" ? resolvePostLoginPath(null, user) : returnUrl;
   const redirectTo = new URL(effective.startsWith("/") ? effective : "/portal", req.nextUrl.origin);
   const res = NextResponse.redirect(redirectTo, 302);

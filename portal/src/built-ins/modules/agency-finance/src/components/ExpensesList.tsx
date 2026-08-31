@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowUpDown, CalendarDays, ChartPie, Download, Eye, FileUp, Paperclip, Pencil, Plus, ReceiptText, Search, Settings2, Trash2, X } from "lucide-react";
 
@@ -9,6 +9,7 @@ import type { BudgetPot, Expense, ExpenseAttachment, ExpenseCategory, ExpenseSta
 import { SUPPORTED_CURRENCIES, formatMoney } from "../lib/currencies";
 import { FinanceNav } from "./FinanceNav";
 import { dateInputValue, formatUkDate } from "../lib/safeDate";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 export interface ExpensesListProps {
   expenses: Expense[];
@@ -77,6 +78,12 @@ export function ExpensesList({ expenses, categories, clients, budgetPots, apiBas
   const [adding, setAdding] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  // Modal keyboard contract: focus enters the expense editor, Tab stays inside it, Escape backs out, focus returns to the expense row.
+  const editDialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(editDialogRef, editingExpense !== null, { onEscape: () => setEditingExpense(null) });
+  // Modal keyboard contract: focus enters the expense form, Tab stays inside it, Escape backs out, focus returns to the button that opened it.
+  const addDialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(addDialogRef, adding, { onEscape: () => setAdding(false) });
   const [postingId, setPostingId] = useState("");
   const [customFields, setCustomFields] = useState<CustomFieldDefinition[]>([]);
   const catNameById = useMemo(() => new Map(categoryRecords.map(category => [category.id, category.name])), [categoryRecords]);
@@ -299,7 +306,7 @@ export function ExpensesList({ expenses, categories, clients, budgetPots, apiBas
       {adding ? (
         <div className="fixed inset-0 z-50 grid items-end bg-black/35 p-0 sm:items-center sm:p-6" role="presentation">
           <button type="button" aria-label="Close expense form" className="absolute inset-0 cursor-default" onClick={() => setAdding(false)} />
-          <div role="dialog" aria-modal="true" aria-labelledby="new-expense-heading" className="relative mx-auto max-h-[100dvh] w-full max-w-5xl overflow-y-auto rounded-t-lg bg-white shadow-2xl sm:max-h-[92dvh] sm:rounded-lg">
+          <div role="dialog" ref={addDialogRef} aria-modal="true" aria-labelledby="new-expense-heading" className="relative mx-auto max-h-[100dvh] w-full max-w-5xl overflow-y-auto rounded-t-lg bg-white shadow-2xl sm:max-h-[92dvh] sm:rounded-lg">
             <ExpenseForm
               apiBase={apiBase}
               categories={categoryRecords.filter(category => category.status === "active")}
@@ -321,7 +328,7 @@ export function ExpensesList({ expenses, categories, clients, budgetPots, apiBas
       {editingExpense ? (
         <div className="fixed inset-0 z-[100] grid items-end bg-black/35 p-0 sm:items-center sm:p-6" role="presentation">
           <button type="button" aria-label="Close expense form" className="absolute inset-0 cursor-default" onClick={() => setEditingExpense(null)} />
-          <div role="dialog" aria-modal="true" aria-labelledby="edit-expense-heading" className="relative mx-auto max-h-[100dvh] w-full max-w-5xl overflow-y-auto rounded-t-lg bg-white shadow-2xl sm:max-h-[92dvh] sm:rounded-lg">
+          <div role="dialog" ref={editDialogRef} aria-modal="true" aria-labelledby="edit-expense-heading" className="relative mx-auto max-h-[100dvh] w-full max-w-5xl overflow-y-auto rounded-t-lg bg-white shadow-2xl sm:max-h-[92dvh] sm:rounded-lg">
             <ExpenseForm
               expense={editingExpense}
               apiBase={apiBase}
@@ -549,10 +556,13 @@ export function ExpensesList({ expenses, categories, clients, budgetPots, apiBas
 }
 
 function ExpenseDetail({ expense, category, client, budgetPot, customFields, onClose, onEdit }: { expense: Expense; category: string; client: string; budgetPot: string; customFields: CustomFieldDefinition[]; onClose: () => void; onEdit?: () => void }) {
+  // Modal keyboard contract: focus enters the detail panel, Tab stays inside it, Escape closes it, focus returns to the expense row.
+  const detailRef = useRef<HTMLElement>(null);
+  useFocusTrap(detailRef, true, { onEscape: onClose });
   const net = expense.netCents ?? expense.amountCents - (expense.taxCents ?? 0);
   return <div className="fixed inset-0 z-[90] grid items-end bg-black/35 sm:items-center sm:p-6">
     <button type="button" className="absolute inset-0" aria-label="Close expense details" onClick={onClose} />
-    <section role="dialog" aria-modal="true" aria-label="Expense details" className="relative mx-auto max-h-[100dvh] w-full max-w-2xl overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-lg sm:p-6">
+    <section role="dialog" ref={detailRef} aria-modal="true" aria-label="Expense details" className="relative mx-auto max-h-[100dvh] w-full max-w-2xl overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-lg sm:p-6">
       <header className="mb-5 flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wide text-black/40">Expense</p><h2 className="mt-1 text-xl font-semibold text-black/85">{expense.vendor || expense.description || "Expense details"}</h2></div><button type="button" aria-label="Close" onClick={onClose} className="grid size-9 place-items-center rounded-md border border-black/10"><X size={16} /></button></header>
       <dl className="divide-y divide-black/10 border-y border-black/10">
         <Detail label="Gross amount" value={money(expense.amountCents, expense.currency)} strong />

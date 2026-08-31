@@ -103,13 +103,13 @@ export function RadarPolicyPanel({ radar, onSaved, onClose }: { radar: BusinessI
       </header>
       {error ? <div role="alert" className="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 sm:px-5">{error}</div> : null}
       <div className="overflow-x-auto border-b border-black/10 px-4 sm:px-5">
-        <div className="flex min-w-max gap-5" role="tablist" aria-label="Radar policy sections">
+        <div className="flex min-w-max gap-5" role="group" aria-label="Radar policy sections">
           {([
             ["business", Settings2],
             ["domains", Layers3],
             ["metrics", Gauge],
             ["exceptions", ShieldAlert],
-          ] as const).map(([item, Icon]) => <button key={item} type="button" role="tab" aria-selected={tab === item} onClick={() => setTab(item)} className={`inline-flex min-h-12 items-center gap-2 border-b-2 text-sm font-semibold capitalize ${tab === item ? "border-black text-black" : "border-transparent text-black/45"}`}><Icon size={15} aria-hidden="true" />{item}</button>)}
+          ] as const).map(([item, Icon]) => <button key={item} type="button" aria-current={tab === item ? "true" : undefined} onClick={() => setTab(item)} className={`inline-flex min-h-12 items-center gap-2 border-b-2 text-sm font-semibold capitalize ${tab === item ? "border-black text-black" : "border-transparent text-black/45"}`}><Icon size={15} aria-hidden="true" />{item}</button>)}
         </div>
       </div>
 

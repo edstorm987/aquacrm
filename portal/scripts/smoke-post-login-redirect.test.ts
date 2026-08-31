@@ -40,14 +40,33 @@ describe("Post-login redirect resolver (R022)", () => {
     assert.match(src, /case "agency-staff":\s*return "\/portal\/team";/);
   });
 
-  it("client-* roles route to /portal/clients/<slug> with deleted-client fallback", () => {
+  it("client-* roles route to /portal/customer with deleted-client fallback", () => {
+    // Ed's 2026-08-27 placement decision: /portal/clients/<slug> is the
+    // INTERNAL workspace for agency employees, so signing in as a client must
+    // land in the client's OWN portal — the same answer /portal gives.
     const src = readFileSync(RESOLVER, "utf8");
     assert.ok(src.includes('case "client-owner"'));
     assert.ok(src.includes('case "client-staff"'));
-    assert.ok(src.includes("`/portal/clients/${client.slug}`"));
+    assert.ok(!src.includes("`/portal/clients/${client.slug}`"),
+      "sign-in is sending a client back into the internal agency-side workspace");
+    assert.match(src, /const client = lookup\(src\.clientId\);[\s\S]{0,120}return "\/portal\/customer";/,
+      "the client branch no longer resolves to /portal/customer");
     // Fallback path on missing client / clientId.
     assert.ok(src.includes('if (!src.clientId) return "/portal/agency"'));
     assert.ok(src.includes('if (!client) return "/portal/agency"'));
+  });
+
+  it("the resolver agrees with /portal's own role-aware redirect", () => {
+    // Two places answered "where does this role belong?" and disagreed for the
+    // client roles: /portal sent them to /portal/customer while sign-in sent
+    // them to /portal/clients/<slug>. Whichever door they came through decided
+    // where they ended up. Pin that they now say the same thing.
+    const resolver = readFileSync(RESOLVER, "utf8");
+    const index = readFileSync(join(ROOT, "src", "app", "portal", "page.tsx"), "utf8");
+    assert.match(index, /session\.role === "client-owner" \|\| session\.role === "client-staff"\) redirect\("\/portal\/customer"\)/);
+    assert.match(resolver, /case "client-staff": \{/);
+    assert.doesNotMatch(resolver, /return\s+[`"']\/portal\/clients\//,
+      "the resolver still returns the internal workspace; /portal does not");
   });
 
   it("freelancers route to their own workspace", () => {

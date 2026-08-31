@@ -1,12 +1,10 @@
-import { unlink } from "node:fs/promises";
-import { resolve } from "node:path";
-import { del } from "@vercel/blob";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
-import { deleteSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
-import { createInteractiveSop, createWrittenSop, deleteSopRecord, listSops, updateSop } from "@/engines/sop/server/sops";
-import { ensureHydrated, isSandboxDataRealm } from "@/server/storage";
+import { deletePrivateUpload } from "@/lib/server/privateUploadStorage";
+import { createInteractiveSop, createWrittenSop, deleteSopRecord, getSop, listSops, updateSop } from "@/engines/sop/server/sops";
+import { sopDependencyInventory } from "@/engines/sop/server/sopDependencies";
+import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 import type { BlockTreeJSON } from "@/engines/editor/elements";
 
@@ -22,6 +20,18 @@ async function agencySession(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const session = await agencySession(request);
+    // Retirement preview: `?dependencies=<id>` answers "what would still be
+    // holding this id afterwards?" from the SAME inventory the DELETE response
+    // echoes, so the confirmation UI and the server command ask the question of
+    // one implementation rather than each guessing. It decides nothing — the
+    // retirement policy itself is still an open product decision (issues #176).
+    const dependenciesFor = new URL(request.url).searchParams.get("dependencies")?.trim();
+    if (dependenciesFor) {
+      if (!getSop(session.agencyId, dependenciesFor)) {
+        return NextResponse.json({ ok: false, error: "SOP not found" }, { status: 404 });
+      }
+      return NextResponse.json({ ok: true, dependencies: sopDependencyInventory(session.agencyId, dependenciesFor) });
+    }
     return NextResponse.json({ ok: true, sops: listSops(session.agencyId) });
   } catch (error) {
     return authErrorResponse(error);
@@ -112,23 +122,32 @@ export async function DELETE(request: NextRequest) {
     const session = await agencySession(request);
     const id = new URL(request.url).searchParams.get("id")?.trim();
     if (!id) return NextResponse.json({ ok: false, error: "id required" }, { status: 400 });
-    const sop = deleteSopRecord(session.agencyId, id);
+    const sop = getSop(session.agencyId, id);
     if (!sop) return NextResponse.json({ ok: false, error: "SOP not found" }, { status: 404 });
 
-    if (!isSandboxDataRealm()) {
-      if (sop.storageProvider === "supabase" && sop.storageKey) {
-        await deleteSupabasePrivateUpload(sop.storageKey).catch(() => false);
-      }
-      if (sop.storageProvider === "vercel-blob" && sop.storageKey) {
-        await del(sop.storageKey).catch(() => undefined);
-      }
-      if (sop.storageProvider === "local" && sop.storageKey) {
-        const uploadRoot = resolve(process.cwd(), ".data", "sop-uploads");
-        const targetPath = resolve(uploadRoot, sop.storageKey);
-        if (targetPath.startsWith(`${uploadRoot}/`)) await unlink(targetPath).catch(() => undefined);
-      }
+    // Taken BEFORE anything is removed, so it describes the state the deletion
+    // actually acted on. Deletion does not detach these — no retirement policy
+    // has been decided (issues #176) — so the response says what it stranded
+    // rather than implying a reconciliation that did not happen.
+    const stranded = sopDependencyInventory(session.agencyId, id);
+
+    // Storage first: the record is the only handle on the stored object, so it
+    // must survive a provider refusal instead of being deleted regardless.
+    const removal = await deletePrivateUpload({
+      storageProvider: sop.storageProvider,
+      storageKey: sop.storageKey,
+      localDirectory: "sop-uploads",
+    });
+    if (!removal.ok) {
+      return NextResponse.json({
+        ok: false,
+        code: "storage_delete_failed",
+        error: `“${sop.title}” is still stored — the storage provider refused to remove its file, so the SOP has been kept to retry.`,
+        detail: removal.error,
+      }, { status: 502 });
     }
-    return NextResponse.json({ ok: true });
+    if (!deleteSopRecord(session.agencyId, id)) return NextResponse.json({ ok: false, error: "SOP not found" }, { status: 404 });
+    return NextResponse.json({ ok: true, stranded });
   } catch (error) {
     return authErrorResponse(error);
   }

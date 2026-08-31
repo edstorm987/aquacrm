@@ -42,12 +42,17 @@ export async function POST(req: Request) {
   let session;
   try {
     session = await requireRoleForClient([...AGENCY_ROLES], body.clientId);
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+  // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
+  const client = getClientForAgency(session.agencyId, body.clientId);
+  if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+  try {
     await requireCurrentClientWorkspaceElementAccess(body.clientId, "client.communications", "use");
   } catch (error) {
     return authErrorResponse(error);
   }
-  const client = getClientForAgency(session.agencyId, body.clientId);
-  if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
 
   // updateClient merges via shallow spread, so we can't "delete" keys —
   // empty-string is the canonical "cleared" sentinel; readers treat

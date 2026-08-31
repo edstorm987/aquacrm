@@ -17,11 +17,24 @@ import { readFileSync } from "node:fs";
 import { before, describe, it } from "node:test";
 
 const ROUTE = "src/app/api/portal/plugins/health/route.ts";
+const RUNNER = "src/lib/server/plugins/pluginHealthRunner.ts";
 const source = readFileSync(ROUTE, "utf8");
+// The asking moved out of the route on 2026-08-30, because the route was not
+// the only caller any more: the radar sweep runs the same hooks on a cadence
+// and persists what they say. The rules below did not change — they are pinned
+// where the code now lives, so one runner serves the live read and the sweep
+// and the two can never answer differently.
+const runner = readFileSync(RUNNER, "utf8");
 
 describe("the plugin health route", () => {
   it("exists and is a GET", () => {
     assert.match(source, /export async function GET\(/);
+  });
+
+  it("delegates the asking to the shared runner rather than keeping a second copy", () => {
+    assert.match(source, /runInstallHealthcheck/, "the route must drive the shared runner");
+    assert.doesNotMatch(source, /plugin\.healthcheck\(/,
+      "a second copy of the hook-running logic is how the panel and Radar start disagreeing");
   });
 
   it("is gated and tenant-scoped like every other plugin-scoped route", () => {
@@ -34,23 +47,23 @@ describe("the plugin health route", () => {
   it("treats a module with no healthcheck as unsupported, never as unhealthy", () => {
     // The distinction Radar already insists on: missing evidence is a blind
     // spot, not a pass and not a failure.
-    assert.match(source, /if \(!plugin\?\.healthcheck\)/);
-    assert.match(source, /supported: false/);
-    const unsupportedBranch = /if \(!plugin\?\.healthcheck\) \{[\s\S]{0,160}?\}/.exec(source)?.[0] ?? "";
+    assert.match(runner, /if \(!plugin\?\.healthcheck\)/);
+    assert.match(runner, /supported: false/);
+    const unsupportedBranch = /if \(!plugin\?\.healthcheck\) \{[\s\S]{0,160}?\}/.exec(runner)?.[0] ?? "";
     assert.doesNotMatch(unsupportedBranch, /ok:\s*false/,
       "a module that ships no healthcheck must not be reported as failing one");
   });
 
   it("bounds every hook, so a slow module cannot hang the request", () => {
-    assert.match(source, /HEALTHCHECK_TIMEOUT_MS/, "there must be a timeout constant");
-    assert.match(source, /Promise\.race\(\[/, "…and each hook must race it");
-    assert.match(source, /clearTimeout\(timer\)/, "…and the timer must always be cleared");
+    assert.match(runner, /HEALTHCHECK_TIMEOUT_MS/, "there must be a timeout constant");
+    assert.match(runner, /Promise\.race\(\[/, "…and each hook must race it");
+    assert.match(runner, /clearTimeout\(timer\)/, "…and the timer must always be cleared");
   });
 
   it("contains a throwing module instead of failing the whole report", () => {
-    assert.match(source, /catch \(error\) \{[\s\S]*?supported: true,[\s\S]*?ok: false/,
+    assert.match(runner, /catch \(error\) \{[\s\S]*?supported: true,[\s\S]*?ok: false/,
       "a hook that throws must become one unhealthy row");
-    assert.match(source, /error: error instanceof Error \? error\.message : String\(error\)/,
+    assert.match(runner, /error: error instanceof Error \? error\.message : String\(error\)/,
       "…naming the reason, rather than swallowing it");
   });
 
@@ -196,8 +209,8 @@ describe("a healthcheck cannot write", () => {
   // `smoke-read-path-mutations.test.ts` exists to catch. The retention engine
   // answers it the same way, keeping `findExpired` away from `mutate`.
 
-  it("the route hands the hook the read-only wrapper", () => {
-    assert.match(readFileSync(ROUTE, "utf8"), /readOnlyPluginStorage\(ctx\.storage/,
+  it("the runner hands the hook the read-only wrapper", () => {
+    assert.match(runner, /readOnlyPluginStorage\(ctx\.storage/,
       "the healthcheck must receive the wrapper, not the module's real storage");
   });
 
@@ -232,5 +245,163 @@ describe("a healthcheck cannot write", () => {
     const guarded = readOnlyPluginStorage({ get: async () => undefined, list: async () => [] } as never,
       "client-crm healthcheck");
     await assert.rejects(() => guarded.set("k", 1), /client-crm healthcheck attempted to write/);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// AND THE ANSWER OUTLIVES THE REQUEST
+// ══════════════════════════════════════════════════════════════════════════
+//
+// Everything above is the LIVE read: ask now, show now, write nothing. That was
+// the whole of plugin health until 2026-08-30, and it left the more important
+// half undone. Radar's `systems:module-health` counted failures out of
+// `PluginInstall.health` — a field with no writer anywhere in `src/` — so it
+// reported a confident permanent zero, and the only way to learn a module was
+// broken was for a human to open the Dev Console and look.
+//
+// The sweep is the writer. It runs the same hooks on the radar cadence and
+// records each answer on the install, so "no module is failing" becomes
+// something that was actually checked. Its acceptance cases are the four states
+// an install can be in — answered, answered-badly, asked-but-silent, never
+// asked — and every module used below is a REAL one, reporting what it really
+// reports in an empty workspace. Nothing here is stubbed: `ecommerce` genuinely
+// says no without Stripe keys, `website-editor` genuinely ships no hook, and a
+// mis-scoped `agency-hr` genuinely throws out of its own foundation container.
+
+import { getInstall, recordInstallHealth } from "../src/server/pluginInstalls";
+import {
+  PLUGIN_HEALTH_CADENCE_MS,
+  PLUGIN_HEALTH_STALE_MS,
+  runPluginHealthSweep,
+} from "../src/lib/server/plugins/pluginHealthRunner";
+
+describe("the sweep that persists what the modules said", () => {
+  const NOW = Date.parse("2026-08-30T09:00:00.000Z");
+  let agencyId = "";
+  let sweepClientId = "";
+  let sweepToken = "";
+  const scope = () => ({ agencyId, clientId: sweepClientId });
+
+  before(async () => {
+    await ensureHydrated();
+    const agency = createAgency({ name: "Sweep Co", slug: `sweep-${Date.now().toString(36)}` });
+    agencyId = agency.id;
+    const owner = createUser({
+      email: `sweep-${Date.now().toString(36)}@health.test`,
+      password: "health-test-2026",
+      name: "Sweep Owner",
+      role: "agency-owner",
+      agencyId: agency.id,
+    });
+    sweepToken = issueSession({ userId: owner.id, email: owner.email, role: "agency-owner", agencyId: agency.id });
+    sweepClientId = createClient(agency.id, { name: "Sweep Client" }).id;
+    for (const pluginId of ["client-crm", "ecommerce", "website-editor", "agency-hr"]) {
+      await upsertInstall({
+        pluginId,
+        scope: { agencyId: agency.id, clientId: sweepClientId },
+        enabled: true,
+        config: {},
+        features: {},
+      });
+    }
+  });
+
+  it("the live route writes nothing — health is read there, recorded only by the sweep", async () => {
+    const { status } = await call(sweepToken, `?clientId=${encodeURIComponent(sweepClientId)}`);
+    assert.equal(status, 200);
+    for (const pluginId of ["client-crm", "ecommerce", "website-editor"]) {
+      assert.equal(getInstall(scope(), pluginId)?.healthCheckedAt, undefined,
+        `${pluginId} was written by a GET — read paths must not mutate (smoke-read-path-mutations)`);
+    }
+    assert.doesNotMatch(source, /recordInstallHealth|mutate\(/,
+      "the route must not acquire a write; the sweep is the writer");
+  });
+
+  it("records each module's own verdict, unmodified, on its install", async () => {
+    const result = await runPluginHealthSweep(agencyId, { now: NOW });
+    assert.ok(result.checked >= 4, `expected every enabled install asked, got ${result.checked}`);
+
+    const crm = getInstall(scope(), "client-crm");
+    assert.equal(crm?.healthCheckedAt, NOW, "the check time is the sweep's, not the install's");
+    assert.equal(crm?.health?.ok, true);
+    assert.match(crm?.health?.message ?? "", /contacts/,
+      "the stored message must be the module's own words, not synthesised here");
+
+    // ecommerce reports ok:false in an unconfigured workspace. Before the sweep
+    // existed this failure was reachable only by opening the panel.
+    const shop = getInstall(scope(), "ecommerce");
+    assert.equal(shop?.health?.ok, false, "a module that says no must be stored as no");
+    assert.match(shop?.health?.message ?? "", /Stripe/);
+    assert.ok(result.unhealthy >= 1, "the sweep must report the failures it recorded");
+  });
+
+  it("records a module with no healthcheck as asked-but-silent, never as healthy", () => {
+    const editor = getInstall(scope(), "website-editor");
+    assert.equal(editor?.healthCheckedAt, NOW, "it WAS asked, and that is a fact worth recording");
+    assert.equal(editor?.health, undefined,
+      "no hook means no verdict — storing ok:true here would invent an answer nobody gave");
+  });
+
+  it("stores the reason when a hook throws, rather than a silent green", () => {
+    // A client-scoped agency-hr cannot resolve its own agency container, so its
+    // healthcheck throws — exactly the broken state a sweep exists to surface.
+    const hr = getInstall(scope(), "agency-hr");
+    assert.equal(hr?.health?.ok, false, "a hook that throws is unhealthy, not unknown");
+    assert.match(hr?.health?.message ?? "", /agency-hr|not installed/i,
+      "the stored message must name why, or an operator learns nothing from it");
+  });
+
+  it("honours its cadence, and a forced sweep overrides it", async () => {
+    const soon = NOW + PLUGIN_HEALTH_CADENCE_MS - 60_000;
+    const skipped = await runPluginHealthSweep(agencyId, { now: soon });
+    assert.equal(skipped.checked, 0, "a sweep inside the cadence window must not re-run ten modules' I/O");
+    assert.ok(skipped.skipped >= 4);
+    assert.equal(getInstall(scope(), "client-crm")?.healthCheckedAt, NOW, "…and must not restamp the answer");
+
+    const forced = await runPluginHealthSweep(agencyId, { now: soon, force: true });
+    assert.ok(forced.checked >= 4, "an explicit full scan must re-ask, or it reports yesterday");
+    assert.equal(getInstall(scope(), "client-crm")?.healthCheckedAt, soon);
+
+    const due = await runPluginHealthSweep(agencyId, { now: soon + PLUGIN_HEALTH_CADENCE_MS });
+    assert.ok(due.checked >= 4, "past the cadence the unforced sweep must ask again");
+  });
+
+  it("a module cannot write its own health", () => {
+    // The whole value of the field is that the HOST recorded what it saw. A
+    // module able to patch its own `health` could mark itself green while
+    // broken — the one thing this field must never be able to say.
+    const moduleFacing = readFileSync("src/built-ins/runtime/_types.ts", "utf8");
+    const patchShape = /export interface PluginInstallPatch \{[\s\S]*?\n\}/.exec(moduleFacing)?.[0] ?? "";
+    assert.ok(patchShape, "PluginInstallPatch has moved — re-point this assertion");
+    assert.doesNotMatch(patchShape, /health/,
+      "the module-facing patch shape must not expose health");
+    const store = readFileSync("src/server/pluginInstalls.ts", "utf8");
+    const patchFn = /export function patchInstall\([\s\S]*?\n\}/.exec(store)?.[0] ?? "";
+    assert.ok(patchFn, "patchInstall has moved — re-point this assertion");
+    assert.doesNotMatch(patchFn, /health/,
+      "patchInstall is reachable from module code and must not be able to write health");
+  });
+
+  it("is wired into the radar cadence, so it runs without anyone opening a panel", () => {
+    const sweeps = readFileSync("src/engines/data/server/radar/radarSweeps.ts", "utf8");
+    assert.match(sweeps, /export async function runRadarModuleHealthSweep/);
+    assert.match(sweeps, /runRadarModuleHealthSweep\(agencyId, \{ force: true, now: options\.now \}\)/,
+      "the full scan must force a re-ask");
+    assert.match(sweeps, /runRadarModuleHealthSweep\(agencyId, \{ now: options\.now \}\)/,
+      "the scheduled sweep must run it on the runner's own cadence");
+  });
+
+  it("a recorded answer is not permanent — it goes stale", () => {
+    // Recording the answer is only half the honesty. An answer from three days
+    // ago is not proof that a module is healthy now, and the constant that says
+    // so is the one Radar reads.
+    recordInstallHealth(scope(), "client-crm", { health: { ok: true, message: "fine" }, healthCheckedAt: NOW });
+    const stored = getInstall(scope(), "client-crm");
+    assert.equal(stored?.healthCheckedAt, NOW);
+    // Read from the module rather than restated as a literal: a hard-coded 48h
+    // here would keep passing if someone shortened the stale window to an hour,
+    // which is the exact failure this line claims to guard against.
+    assert.ok(PLUGIN_HEALTH_CADENCE_MS < PLUGIN_HEALTH_STALE_MS,
+      "the cadence must be shorter than the stale window, or every answer is stale on arrival");
   });
 });

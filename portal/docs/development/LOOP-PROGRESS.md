@@ -4,6 +4,98 @@
 live in [ED-QUESTIONS.md](ED-QUESTIONS.md) and are SKIPPED, not stalled on.
 Suite baseline at loop start: **5,460 tests / 0 fail / tsc clean.**
 
+## Data-architecture workstream (started 2026-08-30, branch claude/aquacrm-data-architecture-ia0vnx)
+
+**Phase 0 SHIPPED — semantic groundwork.** Full survey of every store,
+adapter, migration, KPI path and metadata bag, then the enforceable semantic
+layer:
+
+- `src/lib/data/semanticRegistry.ts` — 30 canonical entities (definitions,
+  id rules, tenancy, source of truth, provenance, timestamps, sensitivity,
+  retention, lifecycles, relationships), the six load-bearing distinctions,
+  timestamp + value doctrines, and `PORTAL_STATE_COVERAGE` classifying every
+  PortalState collection — **exact set-equality-enforced** by
+  `smoke-semantic-registry.test.ts`, so a new collection cannot ship
+  unclassified.
+- `src/lib/data/metricRegistry.ts` — one canonical id + semantics for all 60
+  metrics (20 command + 40 commercial), `computedBy` naming the single
+  calculation authority, `radarFamilyId` joins, and every known competing
+  calculation linked as `same-quantity`. `smoke-metric-registry.test.ts`
+  pins set equality against the defining source files, pins the ONE existing
+  bare-id collision (`campaign-roas`) so a new one fails, and adds 8 golden
+  boundary tests (SLA boundary inclusive, 14-day staleness, decision
+  denominators, even-count median, >100% directional ratio, null-not-Infinity
+  ROAS). Descriptors now stamp `canonicalId` (`<kind>:<id>`).
+- `src/lib/data/metadataContracts.ts` — all 123 metadata keys catalogued
+  (carrier, namespace, owner, type, sensitivity);
+  `smoke-metadata-contracts.test.ts` scans src both ways (uncatalogued key
+  fails; dead entry fails) — the escape hatch is closed going forward.
+- Real fix: `business-health` formulaText stated only the company index and
+  omitted the 30% incident blend — corrected to the actual calculation.
+- Docs: `docs/data/{ARCHITECTURE,SOURCE-INVENTORY,SEMANTIC-LAYER,
+  DATA-DICTIONARY,MIGRATION-PLAN,LINEAGE}.md` + ADR-001…004. All describe
+  what EXISTS, with target clearly separated.
+
+**Phase 3 groundwork SHIPPED — transactional outbox** (`server/outbox.ts`,
+`PortalState.outbox` incl. parseBlob/empty + promotion disposition entry #92):
+record-inside-mutate (atomic with the domain change), emit-then-mark
+at-least-once drain into the existing bus, idempotent record by id,
+correlation/causation + occurredAt≠recordedAt envelope, 14d/5,000-cap prune
+that never touches pending. First adopted site: `tenants.createClient` →
+`client.created`, payload unchanged, pinned by source-scan.
+`smoke-outbox.test.ts` (8 tests incl. crash-window replay). Also folded the
+TRIPLICATED conversion-event predicate into `lib/shared/conversionEvent.ts`
+(radarTelemetry + commandIntelligenceService + performanceAnalytics now
+import it; restatement fails the suite) — first Phase-7 dedup that needed no
+business decision.
+
+**Phase 3 adoption COMPLETE for the foundation** (second pass, 2026-08-30):
+all 28 remaining `emit()` sites adopted — every `src/server/**` domain module
+(tenants, users, persons ×13, organisations ×3, completedActions,
+productWorkspaces) plus the plugin lifecycle (runtime ×4 +
+ensureLeadsPipelineInstall ×2). Manifest pin: plain `emit(` under src/server
+is confined to eventBus.ts + outbox.ts, restatement fails the suite. The
+drain became SYNCHRONOUS after the full suite caught an async delivered-mark
+trailing into smoke-company-portal's "a GET does not write" pin — nothing in
+the drain awaits, so async only detached writes from the caller's turn.
+Deliberately still plain: the port adapters (the one seam that later makes
+every plugin event durable at once) and module-internal emits.
+
+**Phase 3 foundation adoption COMPLETE + correlation scope** (commits
+241afa9 + this one): all 28 remaining foundation emit() sites announce
+through the outbox; manifest pin confines plain emit( under src/server to
+eventBus.ts + outbox.ts; drainOutbox made synchronous (suite-caught timing
+fix). `runWithCorrelation` ALS scope groups an operation's events under one
+correlationId; updateClient's updated/stage_changed pair shares correlation
+with causation stage←update. Port adapters stay plain deliberately (the one
+seam to flip for all plugin events). NOTE for Ed's machine: the container's
+31 "environmental" failures are a Node/tsx ESM-interop artifact (named
+imports through the CJS transform in spawned children — e.g.
+BUSINESS_TIME_ZONE exists but the child can't see it); cross-backend
+spawn-based contract tests are queued for an environment where those pass.
+
+**Phase 5 first half SHIPPED — telemetry idempotency.** Beacons carrying
+their own occurredAt get deterministic content+time ids
+(`clientTelemetryService.ts`): a replayed request records NOTHING twice
+(event, activity row, milestone sync) and doesn't consume the rate limit; a
+beacon with no event time keeps a random id — never guess-suppress. The
+suite surfaced a REAL pre-existing bug on the way: `cleanNumber`'s ±1e9
+clamp flattened every genuine epoch-ms occurredAt, so event time had
+silently been ingestion time for ALL telemetry — fixed with a
+`cleanTimestamp` epoch-range validator. `smoke-telemetry-idempotency.test.ts`
+(5 incl. rate-limit-starvation and stale-replay pins).
+
+**Phase queue (from docs/data/MIGRATION-PLAN.md):**
+1. Tenancy/identity/roles extraction (tables + RLS behind existing modules;
+   blocked on Ed for `supabase db push` + DATABASE_URL — ED-QUESTIONS Q7).
+2. People/organisations extraction (dedupe suites as parity oracle).
+3. Transactional outbox (same-mutate write; envelope with correlation/
+   causation ids; no event-sourcing claim).
+4. Journey slice. 5. Telemetry out of the metadata bag + deterministic
+   beacon ids (the double-count fix). 6. Comms/audit durability.
+7. Metric dedup via `sameQuantityPairs()` (response-sla → configured
+   guardrail first; campaign-roas collision retirement; ED-QUESTIONS Q8/Q9).
+
 ## Done this loop (newest first)
 
 - **Ed's five findings, all fixed + pinned** — (1) search registry now
@@ -86,9 +178,17 @@ Path prefix: /private/tmp/claude-501/.../scratchpad/
 ## Queue (priority order)
 
 1. Radar agent lands → verify, full suite
-2. Scouting journey Stage 1 (outreach buttons + logging + quota ring)
-3. Inbox premium messaging pass
-4. Kanbans tab (with the testid + catch-all fixes)
+2. ✅ Scouting journey Stage 1 (outreach buttons + logging + quota ring) —
+   shipped in `7917318`; the queue entry was simply never struck through.
+   Verified against source 2026-08-30 (14/14 dedicated smoke tests).
+   Auto-increment of the quota target is deliberately still out.
+3. ✅ Inbox premium messaging pass — shipped in `7917318` (inbox merge:
+   three tabs + cog modal + two-pane messaging). Verified against source
+   2026-08-30.
+4. ✅ Kanbans tab (with the testid + catch-all fixes) — the tab and custom
+   boards shipped in `7917318`; the remaining one-line defect (the desk
+   rendered twice) was fixed and pinned in the 2026-08-30 campaign, wave 1.
+   Live browser acceptance of the tab is still outstanding.
 5. Command Centre regrouping (biggest; stage it)
 6. Info icons / plain-English pass app-wide (Ed: "information icons everywhere
    where needed") — do per-surface as each is touched, then a sweep

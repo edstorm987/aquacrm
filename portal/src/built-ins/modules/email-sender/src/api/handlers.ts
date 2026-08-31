@@ -2,6 +2,7 @@
 
 import type { PluginCtx } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
+import { redactProviderConfig } from "../server/provider";
 import type {
   CreateIdentityInput,
   EnqueueInput,
@@ -90,24 +91,41 @@ export async function updateIdentityHandler(req: Request, ctx: PluginCtx): Promi
   if (guard) return guard;
   const body = await safeJson<{ id: string; patch: UpdateIdentityPatch }>(req);
   if (!body?.id) return badRequest("id required.");
-  const out = await buildContainer(ctx).identities.update(body.id, body.patch ?? {}, ctx.actor);
-  return out ? json({ ok: true, identity: out }) : notFound("identity not found");
+  try {
+    const out = await buildContainer(ctx).identities.update(body.id, body.patch ?? {}, ctx.actor);
+    return out ? json({ ok: true, identity: out }) : notFound("identity not found");
+  } catch (err) {
+    // e.g. an attempt to set `status: "active"` without provider evidence.
+    return unprocessable(err instanceof Error ? err.message : String(err));
+  }
 }
 
+// Verification is the provider's answer, so this route reports the provider's
+// answer. A refusal is 422 with the reason, NOT a 200 with a cheerful `ok` —
+// the caller must not be able to read "we asked and were told no" as success.
 export async function verifyIdentityHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   const guard = methodGuard(req, "POST");
   if (guard) return guard;
   const body = await safeJson<{ id: string }>(req);
   if (!body?.id) return badRequest("id required.");
   const out = await buildContainer(ctx).identities.verifyDomain(body.id, ctx.actor);
-  return out ? json({ ok: true, identity: out }) : notFound("identity not found");
+  if (!out) return notFound("identity not found");
+  if (!out.verification.verified) {
+    return json({ ok: false, error: out.verification.reason, identity: out.identity }, 422);
+  }
+  return json({ ok: true, identity: out.identity, evidence: out.verification.evidence });
 }
 
 // ─── Provider config (admin) ─────────────────────────────────────────────
 
+// Both provider routes answer with the REDACTED row. The send token and the
+// account token were already masked on it; the webhook signing secret was not,
+// and a caller who can read that can forge delivery events. It goes out as a
+// tail like the other two, so a blank box on the form means "keep the stored
+// one" rather than "here it is again".
 export async function getProviderHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   if (req.method !== "GET") return json({ ok: false, error: "method_not_allowed" }, 405);
-  return json({ ok: true, provider: await buildContainer(ctx).provider.get() });
+  return json({ ok: true, provider: redactProviderConfig(await buildContainer(ctx).provider.get()) });
 }
 
 export async function updateProviderHandler(req: Request, ctx: PluginCtx): Promise<Response> {
@@ -117,7 +135,7 @@ export async function updateProviderHandler(req: Request, ctx: PluginCtx): Promi
   if (!body) return badRequest("body required.");
   try {
     const out = await buildContainer(ctx).provider.update(body, ctx.actor);
-    return json({ ok: true, provider: out });
+    return json({ ok: true, provider: redactProviderConfig(out) });
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
   }

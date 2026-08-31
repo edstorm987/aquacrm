@@ -37,12 +37,17 @@ export async function POST(request: Request) {
   let session;
   try {
     session = await requireRoleForClient([...AGENCY_ROLES, ...CLIENT_ROLES], clientId);
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+  // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
+  const client = getClientForAgency(session.agencyId, clientId);
+  if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+  try {
     await requireCurrentClientWorkspaceElementAccess(clientId, "client.marketing", "use");
   } catch (error) {
     return authErrorResponse(error);
   }
-  const client = getClientForAgency(session.agencyId, clientId);
-  if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
 
   const agencyEditor = isAgencyRole(session.role);
   if (!agencyEditor && action !== "review-content" && action !== "review-campaign") {

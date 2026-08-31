@@ -1,10 +1,9 @@
-import { readdir, readFile, rm } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
-import { del } from "@vercel/blob";
 import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
-import { deleteSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
+import { deletePrivateUpload } from "@/lib/server/privateUploadStorage";
 import {
   createDevelopmentResource,
   createDevelopmentWorkflow,
@@ -22,7 +21,7 @@ import {
   type DevelopmentResourceInput,
   type DevelopmentWorkflowInput,
 } from "@/server/developmentToolkit";
-import { ensureHydrated, isSandboxDataRealm } from "@/server/storage";
+import { ensureHydrated } from "@/server/storage";
 import type { DevelopmentResourceKind, Role } from "@/server/types";
 import { logActivity } from "@/server/activity";
 
@@ -119,15 +118,23 @@ export async function POST(request: Request) {
       if (!ADMINS.includes(session.role) && existing.createdBy !== session.userId) {
         return NextResponse.json({ ok: false, error: "You cannot delete this resource." }, { status: 403 });
       }
-      const deleted = deleteDevelopmentResource(session.agencyId, body.resourceId);
-      if (!isSandboxDataRealm()) {
-        if (deleted?.file?.storageProvider === "supabase") await deleteSupabasePrivateUpload(deleted.file.storageKey).catch(() => false);
-        if (deleted?.file?.storageProvider === "vercel-blob") await del(deleted.file.storageKey).catch(() => undefined);
-        if (deleted?.file?.storageProvider === "local") {
-          const root = resolve(process.cwd(), ".data", "development-uploads");
-          const path = resolve(root, deleted.file.storageKey);
-          if (path.startsWith(`${root}/`)) await rm(path, { force: true }).catch(() => undefined);
-        }
+      // Storage first: the record carries the only storage key, so a refused
+      // provider delete must leave the resource in place to retry.
+      const removal = await deletePrivateUpload({
+        storageProvider: existing.file?.storageProvider,
+        storageKey: existing.file?.storageKey,
+        localDirectory: "development-uploads",
+      });
+      if (!removal.ok) {
+        return NextResponse.json({
+          ok: false,
+          code: "storage_delete_failed",
+          error: `“${existing.title}” is still stored — the storage provider refused to remove its file, so the resource has been kept to retry.`,
+          detail: removal.error,
+        }, { status: 502 });
+      }
+      if (!deleteDevelopmentResource(session.agencyId, body.resourceId)) {
+        return NextResponse.json({ ok: false, error: "Resource not found." }, { status: 404 });
       }
       return NextResponse.json({ ok: true });
     }

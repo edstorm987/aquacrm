@@ -16,6 +16,58 @@ const MAX_EVENTS_PER_CLIENT = 500;
 const MAX_EVENTS_PER_MINUTE = 120;
 const MAX_TEXT = 2_000;
 
+/**
+ * Deterministic beacon identity — the telemetry half of "imports are
+ * idempotent by provider ids" (docs/data/MIGRATION-PLAN.md Phase 5).
+ *
+ * Until 2026-08-30 every beacon got `evt_<random>`, so an HTTP retry or a
+ * replayed request double-counted straight into traffic-7d, forms-7d,
+ * website-conversion and every ROAS denominator — with a duplicate activity
+ * row alongside. The Aqua Tag stamps `occurredAt: Date.now()` ONCE per event
+ * client-side (aquaTagSource.ts), so a replay carries the same
+ * millisecond-precision timestamp while two genuine identical events differ.
+ * That makes content+time a real identity: hash the cleaned content plus the
+ * RAW supplied occurredAt (pre-coercion, so stale replays outside the 7-day
+ * window still dedupe) under the site key.
+ *
+ * A beacon that carries NO occurredAt keeps a random id — with neither a
+ * provider id nor an event time there is no honest identity to dedupe on,
+ * and suppressing possibly-distinct events would be worse than counting a
+ * rare replay. Events evicted past the 500-event retention can re-enter if
+ * replayed later; accepted, recorded here rather than hidden.
+ */
+function deterministicTelemetryEventId(
+  siteKey: string,
+  occurredAtInput: number,
+  event: ClientTelemetryEvent,
+): string {
+  const content: Array<string | number | null | undefined> = [
+    siteKey,
+    event.type,
+    occurredAtInput,
+    event.propertyId,
+    event.url,
+    event.path,
+    event.title,
+    event.referrer,
+    event.message,
+    event.metric,
+    event.value,
+    event.sessionId,
+    event.formName,
+    event.query,
+    event.impressions,
+    event.clicks,
+    event.position,
+    event.experimentId,
+    event.variant,
+    event.conversionValueCents,
+  ].map(value => (value === undefined ? null : value));
+  // JSON keeps field boundaries unambiguous — a bare join would let
+  // ["ab", ""] and ["a", "b"] hash identically.
+  return `evt_${crypto.createHash("sha256").update(JSON.stringify(content)).digest("hex").slice(0, 24)}`;
+}
+
 function cleanText(value: unknown, limit = MAX_TEXT): string | undefined {
   if (typeof value !== "string") return undefined;
   const text = value.trim().slice(0, limit);
@@ -46,6 +98,21 @@ function cleanNumber(value: unknown): number | undefined {
 
 function cleanBoolean(value: unknown): boolean | undefined {
   return typeof value === "boolean" ? value : undefined;
+}
+
+/**
+ * Epoch-ms timestamps must NOT go through `cleanNumber` — its ±1e9 clamp
+ * flattened every real `Date.now()` (~1.79e12) to the clamp value, so the
+ * supplied event time never survived the 7-day plausibility window and
+ * `occurredAt` silently became the server's ingestion time for every beacon.
+ * Found 2026-08-30 by the idempotency suite: two distinct events one
+ * millisecond apart hashed to one identity because both "occurred" at the
+ * clamp. Timestamps are validated to a plausible epoch range instead.
+ */
+function cleanTimestamp(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  // 2001-09-09 … 2128-06-11 in epoch ms — anything outside is not a clock.
+  return value > 1_000_000_000_000 && value < 5_000_000_000_000 ? value : undefined;
 }
 
 export function newTelemetrySiteKey(): string {
@@ -128,7 +195,7 @@ export function recordClientTelemetry(
   siteKey: string,
   input: Record<string, unknown>,
   userAgent?: string,
-): { status: "recorded"; clientId: string; event: ClientTelemetryEvent } | { status: "rate-limited" } | null {
+): { status: "recorded"; clientId: string; event: ClientTelemetryEvent; deduplicated?: true } | { status: "rate-limited" } | null {
   const state = getState();
   const client = Object.values(state.clients).find(candidate =>
     candidate.metadata?.telemetrySiteKey === siteKey
@@ -137,17 +204,13 @@ export function recordClientTelemetry(
   const existingEvents = Array.isArray(client.metadata?.telemetryEvents)
     ? client.metadata.telemetryEvents as ClientTelemetryEvent[]
     : [];
-  const minuteAgo = Date.now() - 60_000;
-  if (existingEvents.filter(event => event.receivedAt >= minuteAgo).length >= MAX_EVENTS_PER_MINUTE) {
-    return { status: "rate-limited" };
-  }
 
   const requestedType = cleanText(input.type, 32) as ClientTelemetryEventType | undefined;
   const type = requestedType && TELEMETRY_EVENT_TYPES.includes(requestedType)
     ? requestedType
     : "custom";
   const now = Date.now();
-  const occurredAtInput = cleanNumber(input.occurredAt);
+  const occurredAtInput = cleanTimestamp(input.occurredAt);
   const occurredAt = occurredAtInput && Math.abs(now - occurredAtInput) < 7 * 24 * 60 * 60 * 1000
     ? occurredAtInput
     : now;
@@ -183,14 +246,40 @@ export function recordClientTelemetry(
     userAgent: cleanText(userAgent, 400),
   };
 
+  // Content+time identity where the beacon carries its own event time — see
+  // deterministicTelemetryEventId. A replayed request maps to the SAME id,
+  // is answered with the event it already recorded, and consumes neither the
+  // rate limit nor a second activity row nor a milestone sync. Ordered
+  // before the rate limit deliberately: a burst of provider retries must not
+  // starve genuine new events.
+  if (occurredAtInput !== undefined) {
+    event.id = deterministicTelemetryEventId(siteKey, occurredAtInput, event);
+    const alreadyRecorded = existingEvents.find(existing => existing.id === event.id);
+    if (alreadyRecorded) {
+      return { status: "recorded", clientId: client.id, event: alreadyRecorded, deduplicated: true };
+    }
+  }
+
+  const minuteAgo = now - 60_000;
+  if (existingEvents.filter(existing => existing.receivedAt >= minuteAgo).length >= MAX_EVENTS_PER_MINUTE) {
+    return { status: "rate-limited" };
+  }
+
   let connectedPropertyId = "";
   let connectedPropertyLabel = "";
+  let duplicateInMutate = false;
   mutate(current => {
     const stored = current.clients[client.id];
     if (!stored || stored.metadata?.telemetrySiteKey !== siteKey) return;
     const previous = Array.isArray(stored.metadata.telemetryEvents)
       ? stored.metadata.telemetryEvents as ClientTelemetryEvent[]
       : [];
+    // Re-check under the mutate: two replays racing past the snapshot read
+    // above must still converge on one stored event.
+    if (previous.some(existing => existing.id === event.id)) {
+      duplicateInMutate = true;
+      return;
+    }
     stored.metadata = {
       ...stored.metadata,
       telemetryEvents: [event, ...previous].slice(0, MAX_EVENTS_PER_CLIENT),
@@ -240,6 +329,10 @@ export function recordClientTelemetry(
     }
     stored.updatedAt = now;
   });
+
+  if (duplicateInMutate) {
+    return { status: "recorded", clientId: client.id, event, deduplicated: true };
+  }
 
   if (connectedPropertyId) {
     logActivity({

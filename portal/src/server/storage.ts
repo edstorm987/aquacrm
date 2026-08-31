@@ -90,6 +90,8 @@ const empty = (): PortalState => ({
   integrationConnections: {},
   clientFormNotices: {},
   subjectRequests: {},
+  websiteDemoSignups: {},
+  breachIncidents: {},
   devProjects: {},
   editorAiConfigs: {},
   editorAiConversations: {},
@@ -151,6 +153,8 @@ const empty = (): PortalState => ({
   peopleChannelReads: {},
   peopleTrainingModules: {},
   staffProvisioningOperations: {},
+  clientProjectOperations: {},
+  outbox: {},
 });
 
 export function createEmptyPortalState(): PortalState {
@@ -796,6 +800,8 @@ function parseBlob(raw: string): PortalState {
       integrationConnections: parsed.integrationConnections ?? {},
       clientFormNotices: parsed.clientFormNotices ?? {},
       subjectRequests: parsed.subjectRequests ?? {},
+      websiteDemoSignups: parsed.websiteDemoSignups ?? {},
+      breachIncidents: parsed.breachIncidents ?? {},
       devProjects: parsed.devProjects ?? {},
       editorAiConfigs: parsed.editorAiConfigs ?? {},
       editorAiConversations: parsed.editorAiConversations ?? {},
@@ -858,6 +864,8 @@ function parseBlob(raw: string): PortalState {
       peopleChannelReads: parsed.peopleChannelReads ?? {},
       peopleTrainingModules: parsed.peopleTrainingModules ?? {},
       staffProvisioningOperations: parsed.staffProvisioningOperations ?? {},
+      clientProjectOperations: parsed.clientProjectOperations ?? {},
+      outbox: parsed.outbox ?? {},
   };
 }
 

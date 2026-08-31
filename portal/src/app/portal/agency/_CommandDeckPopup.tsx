@@ -3,7 +3,9 @@
 import { ArrowUpRight, Database, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import type { CSSProperties, ReactNode } from "react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
+
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 export type CommandDeckPopupTone = "critical" | "warning" | "clear" | "neutral";
 
@@ -59,15 +61,10 @@ export function CommandDeckPopup({
     window.setTimeout(() => triggerRef.current?.focus(), 0);
   }
 
-  useEffect(() => {
-    if (!open) return;
-    closeRef.current?.focus();
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close();
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [open]);
+  // Modal keyboard contract: initial focus on the close button, Tab trapped
+  // inside the popup, Escape dismisses, focus returns to the trigger.
+  const dialogRef = useRef<HTMLElement>(null);
+  useFocusTrap(dialogRef, open, { onEscape: close, initialFocus: closeRef });
 
   function inspect() {
     setOpen(false);
@@ -81,7 +78,7 @@ export function CommandDeckPopup({
     {open && typeof document !== "undefined" ? createPortal(
       <div className="mm-command-detail-backdrop fixed inset-0 z-[120] flex items-end justify-center p-3 pb-20 sm:items-center sm:p-6" role="presentation">
         <button type="button" className="mm-command-detail-scrim absolute inset-0 cursor-default bg-[#01070b]/55 backdrop-blur-[2px]" aria-label="Close command detail" onClick={close} />
-        <section role="dialog" aria-modal="true" aria-labelledby={headingId} className="mm-command-detail-dialog relative max-h-[calc(100dvh-6rem)] w-full max-w-[430px] overflow-y-auto overscroll-contain rounded-lg border border-[#62e8ff]/35 bg-[#031018] text-white shadow-[0_28px_90px_rgba(0,0,0,.48),0_0_0_1px_rgba(98,232,255,.08)]">
+        <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={headingId} className="mm-command-detail-dialog relative max-h-[calc(100dvh-6rem)] w-full max-w-[430px] overflow-y-auto overscroll-contain rounded-lg border border-[#62e8ff]/35 bg-[#031018] text-white shadow-[0_28px_90px_rgba(0,0,0,.48),0_0_0_1px_rgba(98,232,255,.08)]">
           <div className="flex items-start justify-between gap-4 border-b border-[#62e8ff]/18 bg-[#020b11] px-4 py-3.5">
             <div className="min-w-0">
               <p className="text-[8px] font-semibold uppercase text-[#76dff1]/55">{eyebrow}</p>

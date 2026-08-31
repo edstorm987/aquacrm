@@ -18,6 +18,21 @@ import "server-only";
 // Vercel Analytics is opt-in client-side via `@vercel/analytics` and
 // lives outside this module — Vercel auto-injects scripts when the
 // dashboard toggle is on; nothing to do here.
+//
+// MOUNT POINT: `src/instrumentation.ts` is the single server-side caller
+// (Next's `onRequestError` covers every App Router render, route handler,
+// server action and proxy error at once — see issue #132). Individual
+// routes do not need `withApiObservability`; it stays available for the
+// handlers that want per-route labels and tenancy resolution.
+
+import { inspectObservabilityCapability } from "./observabilityCapability";
+
+export {
+  inspectObservabilityCapability,
+  isSentrySdkInstalled,
+  type ObservabilityCapability,
+  type ObservabilitySdkState,
+} from "./observabilityCapability";
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
@@ -47,10 +62,35 @@ interface SentryShape {
 let sentryPromise: Promise<SentryShape | null> | null = null;
 let initialized = false;
 
-function getDsn(): string | null {
-  const dsn = process.env.SENTRY_DSN;
-  return dsn && dsn.length > 0 ? dsn : null;
+/**
+ * The DSN this module will actually initialise Sentry with.
+ *
+ * Both `SENTRY_DSN` and `NEXT_PUBLIC_SENTRY_DSN` count — they are the two keys
+ * the launch checklist advertises (`productionReadiness.ts` → `envKeys`) and
+ * the two `observabilityCapability.ts` inspects. Reading only the first here
+ * would let the checklist report "Server errors are captured and reported to
+ * Sentry" for a `NEXT_PUBLIC_SENTRY_DSN`-only deployment while this loader
+ * bailed out and delivered nothing — exactly the false delivery claim #132
+ * exists to remove. Exported so the smoke can pin that agreement.
+ */
+export function resolveSentryDsn(env: NodeJS.ProcessEnv = process.env): string | null {
+  const dsn = env.SENTRY_DSN?.trim() || env.NEXT_PUBLIC_SENTRY_DSN?.trim();
+  return dsn ? dsn : null;
 }
+
+function getDsn(): string | null {
+  return resolveSentryDsn();
+}
+
+// The optional SDK is resolved at RUNTIME, never at build time. `@sentry/nextjs`
+// is deliberately absent from package.json; while this module had no production
+// caller a bare `import("@sentry/nextjs")` cost nothing, but `src/instrumentation.ts`
+// now pulls it into the Next server build graph, where webpack resolves a literal
+// specifier eagerly and fails the whole build with "Module not found: Can't
+// resolve '@sentry/nextjs'". Keeping the specifier in a variable behind the
+// bundler-ignore hints leaves the import native, so it simply rejects at runtime
+// when the package is missing — which is the optional-dependency contract below.
+const SENTRY_MODULE = "@sentry/nextjs";
 
 async function loadSentry(): Promise<SentryShape | null> {
   const dsn = getDsn();
@@ -58,8 +98,9 @@ async function loadSentry(): Promise<SentryShape | null> {
   if (sentryPromise) return sentryPromise;
   sentryPromise = (async () => {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const mod = (await import("@sentry/nextjs" as never)) as unknown as SentryShape;
+      const mod = (await import(
+        /* webpackIgnore: true */ /* turbopackIgnore: true */ SENTRY_MODULE
+      )) as unknown as SentryShape;
       if (!initialized) {
         initialized = true;
         mod.init?.({
@@ -183,9 +224,14 @@ export function setSessionScope(breadcrumb: ObservabilityBreadcrumb): void {
   });
 }
 
-/** Returns true when SENTRY_DSN is configured. Useful for healthchecks. */
+/**
+ * Returns true only when external error reporting can actually deliver —
+ * a DSN is configured AND `@sentry/nextjs` resolves. A DSN on its own is
+ * not evidence: the lazy import below returns `null` when the optional
+ * package is absent and every capture becomes a silent no-op.
+ */
 export function isObservabilityConfigured(): boolean {
-  return getDsn() !== null;
+  return inspectObservabilityCapability().capturing;
 }
 
 // ─── Internals ─────────────────────────────────────────────────────────

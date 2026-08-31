@@ -155,7 +155,29 @@ export interface ComplianceEvidenceInput {
   legalRecords: LegalRecordEvidence[];
   consent: ConsentEvidence;
   erasure: ErasureEvidence;
+  breaches: BreachEvidence;
   audit: { activityEntries: number; latestAt: number | null };
+}
+
+/**
+ * The breach register at a glance (GDPR Art. 33/34).
+ *
+ * These are counts off the real register in `lib/server/compliance/
+ * breachRegister.ts`, not a hand-maintained claim. `registerAvailable` exists
+ * so that a reader who cannot reach the store gets `blind` rather than the
+ * much worse "zero breaches" — an unreadable register and a clean one produce
+ * identical zeroes, and only one of them is good news.
+ */
+export interface BreachEvidence {
+  registerAvailable: boolean;
+  total: number;
+  open: number;
+  /** The Art. 33(1) risk decision has not been recorded yet. */
+  awaitingAssessment: number;
+  /** Past 72 hours from discovery with no supervisory notification recorded. */
+  overdue: number;
+  /** Notified, but after the deadline. A fact that never expires. */
+  notifiedLate: number;
 }
 
 /** A legal-register record, narrowed to the fields the posture reads. */
@@ -532,23 +554,7 @@ function buildGdprControls(input: ComplianceEvidenceInput): ComplianceControl[] 
     }));
   }
 
-  controls.push({
-    id: "gdpr.breach-register",
-    framework: "gdpr",
-    group: "Incidents",
-    title: "Breach register and the 72-hour clock",
-    requirement: "An incident can be recorded — what data, who was told, when — against the 72-hour notification deadline.",
-    conferredBy: "app",
-    status: breachRecords.length ? "partial" : "missing",
-    evidence: breachRecords.length
-      ? breachRecords.map(record => describeRecord(record, now))
-      : ["No breach register exists and no incident records are on file."],
-    gap: breachRecords.length
-      ? "Incident documents exist in the legal register, but there is no register with a 72-hour clock — nothing tells you a deadline is running."
-      : "There is no breach register. If something happened tonight there is nowhere in the app to record it and no clock counting the 72 hours.",
-    evidenceLimit: "",
-    href: "/portal/agency/company?view=legal",
-  });
+  controls.push(breachRegisterControl(input, breachRecords, now));
 
   controls.push({
     id: "gdpr.audit-trail",
@@ -703,6 +709,91 @@ function buildHipaaControls(input: ComplianceEvidenceInput): ComplianceControl[]
 }
 
 // ─── shared helpers ──────────────────────────────────────────────────────────
+
+/**
+ * GDPR Art. 33/34 — the breach register and its 72-hour clock.
+ *
+ * This control used to be permanently `missing`, because there was nothing to
+ * read: it regex-matched `/breach|incident/` over legal-document titles, which
+ * meant a policy PDF called "Incident response" was the closest thing the
+ * posture had to a register. Now it reads the real register.
+ *
+ * The ladder is deliberate and it never rests on "no news is good news":
+ *
+ *   blind   — the register could not be read. Zero incidents and an
+ *             unreadable store look identical, so they must not report
+ *             identically.
+ *   partial — a deadline has been missed, or a decision is still owed.
+ *   met     — the register exists and nothing on it is overdue or undecided,
+ *             with the evidenceLimit saying plainly that this is a statement
+ *             about the RECORDS, not about whether a breach happened.
+ */
+function breachRegisterControl(
+  input: ComplianceEvidenceInput,
+  legacyRecords: LegalRecordEvidence[],
+  now: number,
+): ComplianceControl {
+  const { breaches } = input;
+  const base = {
+    id: "gdpr.breach-register",
+    framework: "gdpr" as const,
+    group: "Incidents",
+    title: "Breach register and the 72-hour clock",
+    requirement: "An incident can be recorded — what data, who was told, when — against the 72-hour notification deadline (Art. 33), with the decision not to notify documented (Art. 33(5)).",
+    conferredBy: "app" as const,
+    href: "/portal/agency/governance?view=breaches",
+  };
+
+  if (!breaches.registerAvailable) {
+    return {
+      ...base,
+      status: "blind",
+      evidence: ["The breach register could not be read, so nothing here counts as a clean result."],
+      gap: "The register exists in code but could not be read for this agency. Until it can be, treat the incident position as unknown rather than clear.",
+      evidenceLimit: "",
+    };
+  }
+
+  const evidence: string[] = [
+    breaches.total === 0
+      ? "The breach register is in place and holds no incidents for this agency."
+      : `${breaches.total} incident${breaches.total === 1 ? "" : "s"} on the register; ${breaches.open} still open.`,
+    "Each incident carries a 72-hour deadline counted from DISCOVERY, not from the date it was typed in, so a breach logged days later is already reported as late.",
+    "An incident cannot be closed while it is assessed as notifiable and no supervisory notification has been recorded.",
+  ];
+  if (breaches.notifiedLate > 0) {
+    evidence.push(`${breaches.notifiedLate} notification${breaches.notifiedLate === 1 ? " was" : "s were"} recorded after the 72-hour deadline, with the reason for the delay on the record (Art. 33(1)).`);
+  }
+  if (legacyRecords.length) {
+    evidence.push(`${legacyRecords.length} incident-related document${legacyRecords.length === 1 ? "" : "s"} also sit in the legal register: ${legacyRecords.map(record => describeRecord(record, now)).join("; ")}`);
+  }
+
+  const failings: string[] = [];
+  if (breaches.overdue > 0) {
+    failings.push(`${breaches.overdue} incident${breaches.overdue === 1 ? " is" : "s are"} past 72 hours from discovery with no supervisory notification recorded`);
+  }
+  if (breaches.awaitingAssessment > 0) {
+    failings.push(`${breaches.awaitingAssessment} open incident${breaches.awaitingAssessment === 1 ? " has" : "s have"} no recorded Art. 33(1) risk decision, so "not notifiable" has not been decided — only left unanswered`);
+  }
+
+  if (failings.length) {
+    return {
+      ...base,
+      status: "partial",
+      evidence,
+      gap: `The register is working, but ${failings.join(", and ")}. Open the breach register and deal with them.`,
+      evidenceLimit: "",
+    };
+  }
+
+  return {
+    ...base,
+    status: "met",
+    evidence,
+    evidenceLimit: "Proves that a register with a running 72-hour clock exists and that nothing recorded on it is overdue or undecided. It does NOT prove no breach happened — nothing in this app detects one, every incident here was entered by a human, and a breach nobody noticed leaves no trace. It also does not prove a notification that was recorded was accurate or adequate.",
+    gap: "",
+  };
+}
 
 function processorAgreementControl(
   processor: SubprocessorExpectation,

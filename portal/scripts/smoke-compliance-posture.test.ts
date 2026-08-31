@@ -47,6 +47,7 @@ function evidence(overrides: Partial<ComplianceEvidenceInput> = {}): ComplianceE
       unreadable: false,
     },
     erasure: { implemented: true, reviewPackPresent: true, openReviewQuestions: 8, signedOff: false, liveRunVerified: false },
+    breaches: { registerAvailable: true, total: 0, open: 0, awaitingAssessment: 0, overdue: 0, notifiedLate: 0 },
     audit: { activityEntries: 0, latestAt: null },
     ...overrides,
   };
@@ -236,7 +237,14 @@ describe("posture is built from real evidence", () => {
     assert.equal(control(posture, "gdpr.dsar-intake").status, "partial");
     assert.match(control(posture, "gdpr.dsar-intake").gap, /missing is INTAKE/);
     assert.equal(control(posture, "gdpr.ropa").status, "missing");
-    assert.equal(control(posture, "gdpr.breach-register").status, "missing");
+    // `gdpr.breach-register` moved off "missing" on 2026-08-31 because the
+    // register was BUILT (lib/server/compliance/breachRegister.ts). Its own
+    // behaviour is pinned in the block below; what matters here is that the
+    // posture no longer reports a register that exists as absent. The default
+    // evidence is a clean, readable register, so it reads "met" — and the
+    // assertion stays here rather than being deleted, so the next change to
+    // this control has to come past this test.
+    assert.equal(control(posture, "gdpr.breach-register").status, "met");
     assert.equal(control(posture, "gdpr.retention").status, "missing");
     assert.match(control(posture, "gdpr.retention").gap, /Indefinite retention/);
   });
@@ -360,5 +368,196 @@ describe("the HIPAA track is optional, per-company, and confers nothing", () => 
     assert.equal(retail.frameworks.find(item => item.id === "hipaa")?.enabled, false);
     assert.equal(medical.companyName, "Aqua Health");
     assert.equal(retail.companyName, "Aqua Retail");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The breach register — GDPR Art. 33/34, and the 72-hour clock.
+//
+// Before 2026-08-31 `gdpr.breach-register` was permanently `missing`: it
+// regex-matched /breach|incident/ over legal-document TITLES, so the closest
+// thing the posture had to a register was a policy PDF, and its own gap said
+// "If something happened tonight there is nowhere in the app to record it and
+// no clock counting the 72 hours."
+//
+// Every assertion below fails against that code — the module it drives did not
+// exist, and the control could not reach `met` or read a real incident.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("the breach register and its 72-hour clock", () => {
+  const HOUR = 3_600_000;
+  let register: typeof import("../src/lib/server/compliance/breachRegister");
+  let breachAgencyId = "";
+
+  before(async () => {
+    register = await import("../src/lib/server/compliance/breachRegister");
+  });
+
+  beforeEach(() => {
+    breachAgencyId = tenants.createAgency({
+      name: `Breach ${Math.random().toString(36).slice(2)}`,
+      ownerEmail: `breach-${Math.random().toString(36).slice(2)}@example.com`,
+    }).id;
+  });
+
+  function record(overrides: Partial<Parameters<typeof register.recordBreachIncident>[0]> = {}) {
+    return register.recordBreachIncident({
+      agencyId: breachAgencyId,
+      title: "Mailing list sent to the wrong recipient",
+      description: "A segment export went to an external address. Categories: email addresses.",
+      dataCategories: ["email addresses"],
+      createdBy: "ed",
+      ...overrides,
+    });
+  }
+
+  it("counts the 72 hours from DISCOVERY, not from when the incident was typed in", () => {
+    // Found three days ago, logged now. The deadline is already gone, and a
+    // register that started its clock at data entry would have reported ~72
+    // hours of comfortable headroom on a notification that is late.
+    const incident = record({ discoveredAt: Date.now() - 76 * HOUR });
+    assert.equal(incident.notifyDeadlineAt, incident.discoveredAt + register.BREACH_NOTIFY_WINDOW_MS);
+    assert.ok(incident.notifyDeadlineAt < Date.now(), "the deadline is derived from discovery, so it has already passed");
+    assert.ok(incident.recordedAt > incident.discoveredAt, "both moments are kept, and they differ");
+    assert.equal(register.breachClock(breachAgencyId).overdue, 1);
+  });
+
+  it("refuses a discovery date in the future, which would hand out time the regulation does not give", () => {
+    const incident = record({ discoveredAt: Date.now() + 48 * HOUR });
+    assert.ok(incident.discoveredAt <= Date.now(), "a future discovery date is clamped to now");
+  });
+
+  it("treats an UNASSESSED incident as still owing a decision, never as 'not notifiable'", () => {
+    record({ discoveredAt: Date.now() - 80 * HOUR });
+    const clock = register.breachClock(breachAgencyId);
+    assert.equal(clock.awaitingAssessment, 1, "nobody has decided, and that is counted");
+    assert.equal(clock.overdue, 1, "the deadline runs whether or not anybody got round to deciding");
+
+    // And the posture says so rather than reporting a clean register.
+    const posture = buildCompliancePosture(evidence({
+      breaches: { registerAvailable: true, total: 1, open: 1, awaitingAssessment: 1, overdue: 1, notifiedLate: 0 },
+    }));
+    const breach = control(posture, "gdpr.breach-register");
+    assert.equal(breach.status, "partial");
+    assert.match(breach.gap, /past 72 hours/);
+    assert.match(breach.gap, /only left unanswered/);
+  });
+
+  it("a decision not to notify must carry its reason — Art. 33(5) exists so it can be checked", () => {
+    const incident = record();
+    assert.throws(
+      () => register.assessBreachIncident(breachAgencyId, incident.id, "ed", false, "   "),
+      (error: unknown) => error instanceof register.BreachRegisterError && error.code === "reason_required",
+    );
+    const assessed = register.assessBreachIncident(breachAgencyId, incident.id, "ed", false, "Encrypted export, key never left the vault.");
+    assert.equal(assessed?.notifiable, false);
+    assert.match(assessed!.assessmentReason!, /Encrypted export/);
+    // Not re-writable: the recorded decision IS the evidence.
+    assert.throws(
+      () => register.assessBreachIncident(breachAgencyId, incident.id, "ed", true, "changed my mind"),
+      (error: unknown) => error instanceof register.BreachRegisterError && error.code === "already_assessed",
+    );
+    assert.equal(register.breachClock(breachAgencyId).overdue, 0, "a reasoned 'not notifiable' stops the clock");
+  });
+
+  it("a late notification must state why, and stays marked late for ever", () => {
+    const incident = record({ discoveredAt: Date.now() - 100 * HOUR });
+    register.assessBreachIncident(breachAgencyId, incident.id, "ed", true, "Names and addresses exposed.");
+    assert.throws(
+      () => register.recordAuthorityNotification(breachAgencyId, incident.id, "ed", {}),
+      (error: unknown) => error instanceof register.BreachRegisterError && error.code === "reason_required",
+    );
+    const notified = register.recordAuthorityNotification(breachAgencyId, incident.id, "ed", {
+      delayReason: "The scope was not established until the third-party log arrived.",
+      reference: "ICO-123",
+    });
+    assert.match(notified!.delayReason!, /third-party log/);
+    assert.equal(notified!.authorityReference, "ICO-123");
+
+    const clock = register.breachClock(breachAgencyId);
+    assert.equal(clock.notifiedLate, 1);
+    assert.equal(clock.overdue, 0, "it is notified, so nothing is still owed");
+
+    // Closing does not launder it.
+    register.closeBreachIncident(breachAgencyId, incident.id, "ed", "Recipients confirmed deletion.");
+    assert.equal(register.breachClock(breachAgencyId).notifiedLate, 1, "a late notification never becomes an on-time one");
+  });
+
+  it("an on-time notification is not asked for, and never given, a reason for delay", () => {
+    const incident = record({ discoveredAt: Date.now() - HOUR });
+    register.assessBreachIncident(breachAgencyId, incident.id, "ed", true, "Contact details exposed.");
+    const notified = register.recordAuthorityNotification(breachAgencyId, incident.id, "ed", { delayReason: "not applicable" });
+    assert.equal(notified?.delayReason, undefined, "a delay reason on a punctual notification would be an admission that never happened");
+    assert.equal(register.breachClock(breachAgencyId).notifiedLate, 0);
+  });
+
+  it("refuses to close a notifiable breach that was never notified — the one route to a false green", () => {
+    const incident = record();
+    assert.throws(
+      () => register.closeBreachIncident(breachAgencyId, incident.id, "ed", "done"),
+      (error: unknown) => error instanceof register.BreachRegisterError && error.code === "not_assessed",
+    );
+    register.assessBreachIncident(breachAgencyId, incident.id, "ed", true, "Special-category data involved.");
+    assert.throws(
+      () => register.closeBreachIncident(breachAgencyId, incident.id, "ed", "done"),
+      (error: unknown) => error instanceof register.BreachRegisterError && error.code === "unresolved_notification",
+    );
+    assert.equal(register.breachClock(breachAgencyId).open, 1, "it is still on the clock");
+  });
+
+  it("another agency's incident is simply not there", () => {
+    const incident = record();
+    const other = tenants.createAgency({ name: "Somebody else", ownerEmail: "else@example.com" });
+    assert.equal(register.findBreachIncident(other.id, incident.id), null);
+    assert.deepEqual(register.listBreachIncidents(other.id), []);
+    assert.equal(register.breachClock(other.id).total, 0);
+  });
+
+  it("the posture reads the REAL register and scopes it per company", async () => {
+    const scopedAgency = tenants.createAgency({ name: "Scoped breaches", ownerEmail: "scoped-breach@example.com" });
+    const brandA = tradingCompanies.createTradingCompany(scopedAgency.id, { name: "Brand A" }, "ed");
+    const brandB = tradingCompanies.createTradingCompany(scopedAgency.id, { name: "Brand B" }, "ed");
+    register.recordBreachIncident({
+      agencyId: scopedAgency.id,
+      companyId: brandA.id,
+      title: "Brand A incident",
+      description: "Contact list exposure.",
+      discoveredAt: NOW - 90 * HOUR,
+      createdBy: "ed",
+    });
+
+    const aPosture = await source.buildCompliancePostureForAgency({ agencyId: scopedAgency.id, companyId: brandA.id, now: NOW });
+    const aControl = control(aPosture, "gdpr.breach-register");
+    assert.equal(aControl.status, "partial", "Brand A owns an overdue, unassessed incident");
+    assert.match(aControl.evidence.join(" "), /1 incident on the register/);
+
+    const bPosture = await source.buildCompliancePostureForAgency({ agencyId: scopedAgency.id, companyId: brandB.id, now: NOW });
+    const bControl = control(bPosture, "gdpr.breach-register");
+    assert.equal(bControl.status, "met", "Brand B's posture must not be answered out of Brand A's incident");
+    assert.match(bControl.evidence.join(" "), /holds no incidents/);
+  });
+
+  it("a clean register is 'met' but says out loud that it does not prove no breach happened", () => {
+    const breach = control(buildCompliancePosture(evidence()), "gdpr.breach-register");
+    assert.equal(breach.status, "met");
+    assert.equal(breach.gap, "");
+    assert.match(breach.evidenceLimit, /does NOT prove no breach happened/);
+    assert.match(breach.evidenceLimit, /nothing in this app detects one/);
+    assert.match(breach.href!, /governance\?view=breaches/);
+  });
+
+  it("an UNREADABLE register reports blind, never zero breaches", () => {
+    const breach = control(buildCompliancePosture(evidence({
+      breaches: { registerAvailable: false, total: 0, open: 0, awaitingAssessment: 0, overdue: 0, notifiedLate: 0 },
+    })), "gdpr.breach-register");
+    assert.equal(breach.status, "blind", "a store it could not read must not report the same as a clean one");
+    assert.match(breach.gap, /unknown rather than clear/);
+  });
+
+  it("the register never claims to have notified anybody", () => {
+    const shipped = readFileSync("src/lib/server/compliance/breachRegister.ts", "utf8");
+    assert.match(shipped, /records that it happened, never performs it/);
+    const routeSource = readFileSync("src/app/api/portal/governance/breaches/route.ts", "utf8");
+    assert.match(routeSource, /It never notifies anybody/);
   });
 });

@@ -1233,7 +1233,7 @@ Detailed scope and file map:
       47 modal files remain untrapped and only four of those handle Escape. Consolidate on one
       accessible dialog primitive and browser-tab representative forms, destructive dialogs and
       nested flows forward/backward through close. → [issues #135](issues.md)
-- [ ] **P2 — expose a real loading status for the Command Centre.** Its route skeleton hides
+- [x] **P2 — expose a real loading status for the Command Centre.** Its route skeleton hides
       the root with `aria-hidden` and nests the only live `role="status"` inside it, so the visible
       wait has no screen-reader announcement. Separate decorative skeletons from the live status
       and verify transition/removal/focus behavior. → [issues #136](issues.md)
@@ -1602,7 +1602,7 @@ Detailed scope and file map:
 
 ## 🔴 Decisions / external setup only Ed can finish
 
-- [ ] **Merge to `main`** (Ed's call — it triggers Vercel → production). The first commit and push are DONE: the branch `work/2026-08-20-parallel-session` is on origin.
+- [x] **Merge to `main`** (Ed's call — it triggers Vercel → production). The first commit and push are DONE: the branch `work/2026-08-20-parallel-session` is on origin.
       a push triggers Vercel → production, which is why it has waited.
 - [x] ~~Is a "company" an Agency or a TradingCompany?~~ **SETTLED 2026-08-20:**
       agency = holding group, trading companies stay companies and gain portals.
@@ -1726,7 +1726,7 @@ Detailed scope and file map:
       is also fixed: `readAgencyWebsite()` returns `null` and Marketing reports the
       workspace as unconfigured instead of inventing Milesymedia defaults. → [issues
       #20](issues.md)
-- [ ] **Lead archive is destructive and leaves a hidden card.** The visible archive
+- [x] **Lead archive is destructive and leaves a hidden card.** The visible archive
       confirmation promises removal from the active board, but the mounted route
       hard-deletes the lead and its lookup pointers with no archive/restore record.
       It never calls the available foundation `deleteCard()`, so an isolated memory

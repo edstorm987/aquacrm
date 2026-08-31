@@ -347,7 +347,12 @@ export async function buildBusinessIssueRadar(
       pluginRecordCount(state, install.id) ? "connected" : "empty",
       pluginRecordCount(state, install.id),
       `Installed module ${install.pluginId} is included in Advisor business context.`,
-      install.healthCheckedAt ?? install.installedAt,
+      // Only a real health check dates this source. It used to fall back to
+      // `installedAt`, which reported the day the module was INSTALLED as the
+      // day it was last seen alive — a substituted timestamp that made a module
+      // nobody has ever contacted look freshly confirmed. Absent until the
+      // health sweep has actually asked it.
+      install.healthCheckedAt,
     ));
   }
 
@@ -459,6 +464,28 @@ export async function buildBusinessIssueRadar(
   // upgrade Stage 4). The Pulse only reads the snapshot — the probe runs in the
   // Infra sweep — so this stays I/O-free.
   const infraChecks = buildInfraHealthChecks(state.radarInfraHealth, now);
+  // When the OLDEST piece of probe evidence behind this Pulse was collected.
+  // `generatedAt` is only when the Pulse assembled itself from whatever the
+  // scheduled sweeps last wrote, so on the daily probe cron it reads "just now"
+  // over evidence that can be a day old. Undefined when nothing has ever been
+  // probed — never `now`. → issues #170.
+  //
+  // Deliberately the oldest, not the newest. The two probe families refresh
+  // independently and fail independently: `runRadarProbeRefresh` swallows a deep
+  // sweep failure and returns `ok:false`, leaving that agency's canary records
+  // untouched, while the Infra snapshot in the very same cron tick refreshes
+  // fine. Reporting the newest would print "probe evidence 2m old" over
+  // week-old canaries in exactly the scenario this field exists to expose — the
+  // same fresh-timestamp-over-stale-evidence lie, one level up. The oldest is
+  // the only value the sentence "this Pulse's probe evidence is X old" can
+  // truthfully carry. Stale entries cannot skew it: each sweep rewrites
+  // `radarSyntheticProbes[agencyId]` from the CURRENT target list, so a retired
+  // property's probe is dropped rather than left to age.
+  const probeCheckedAtCandidates = [
+    ...Object.values(syntheticProbes).map(probe => probe.checkedAt),
+    ...(state.radarInfraHealth ? [state.radarInfraHealth.checkedAt] : []),
+  ].filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+  const probeEvidenceCheckedAt = probeCheckedAtCandidates.length ? Math.min(...probeCheckedAtCandidates) : undefined;
   const historicalChecks = evidenceLayer.checks;
   const checksBeforeWatchdog = [...catalogMatrix.checks, ...commercialChecks, ...clientChecks, ...sourceSentinels, ...propertySentinels, ...syntheticSentinels, ...infraChecks, ...historicalChecks];
   // Coverage manifest (radar upgrade Stage 6): resolve every monitorable entity
@@ -562,6 +589,7 @@ export async function buildBusinessIssueRadar(
       monitoredClients: clientRadars.length,
       monitoredEntities: coverageManifest.entries.length,
       coverageGaps: coverageManifest.gaps,
+      probeEvidenceCheckedAt,
     },
     speedToLead,
     commercial,

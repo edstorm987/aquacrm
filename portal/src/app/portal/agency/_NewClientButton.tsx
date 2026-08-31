@@ -12,6 +12,7 @@ import { UserPlus } from "lucide-react";
 import { PortalCustomFields, type PortalCustomFieldValues } from "@/components/forms/PortalCustomFields";
 import { businessCalendarDate } from "@/lib/shared/formatDateTime";
 import type { PortalFormFieldDefinition } from "@/server/types";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 interface PhasePreset {
   id?: string;
@@ -130,6 +131,10 @@ export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS, cus
   const [state, setState] = useState<FormState>(() => defaultState(defaults));
   const [presets, setPresets] = useState<PhasePreset[]>([]);
   const [busy, setBusy] = useState(false);
+  // Modal keyboard contract: focus enters the form, Tab stays inside it,
+  // Escape backs out (except mid-save), focus returns to the New client button.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, open, { onEscape: busy ? undefined : () => setOpen(false) });
   const [error, setError] = useState<string | null>(null);
   const [customFieldValues, setCustomFieldValues] = useState<PortalCustomFieldValues>({});
   const slugTouched = useRef(false);
@@ -279,7 +284,7 @@ export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS, cus
       {open && (
         <div
           role="dialog"
-          aria-modal="true"
+          ref={dialogRef} aria-modal="true"
           aria-labelledby="new-client-title"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6"
           onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}

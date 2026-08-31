@@ -3,6 +3,7 @@ import "server-only";
 import type { BusinessRadarIssue } from "@/engines/data/radar/businessRadar";
 import type { ClientTelemetryEvent } from "@/lib/clients/clientTelemetry";
 import type { AgencyWebsiteProject, AgencyWebsiteTelemetryEvent, Client, RadarSyntheticProbeResult } from "@/server/types";
+import { isConversionTelemetryEvent as isConversion } from "@/lib/shared/conversionEvent";
 import { formatUkDate, isoDateTimeValue } from "@/lib/shared/formatDateTime";
 import { clientWorkspaceDisplayName } from "@/lib/clients/clientWorkspace";
 
@@ -265,9 +266,6 @@ function eventMatchesProperty(event: TelemetryEvent, propertyId: string, propert
   return Boolean(host && [property.liveUrl, property.previewUrl].some(url => safeHost(url) === host));
 }
 
-function isConversion(event: TelemetryEvent): boolean {
-  return event.type === "conversion" || event.type === "form" || (event.type === "interaction" && event.metric === "conversion");
-}
 
 function isTrafficDrop(property: RadarTelemetryProperty): boolean {
   return property.previous7d >= 5 && property.current7d <= property.previous7d * 0.5;

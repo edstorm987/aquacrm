@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -28,6 +28,7 @@ import type {
   CommandKpiStatus,
 } from "@/lib/intelligence/commandIntelligence";
 import type { CommercialIntelligenceSnapshotWithMeasurement } from "@/lib/intelligence/commercialIntelligence";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 /**
  * The lineage honesty flags are optional on the wire, so a snapshot built
@@ -182,7 +183,10 @@ function RecordLedger({ snapshot, rows, query, sourceFilter, stageFilter, stateF
 }
 
 function FormulaInspector({ metric, currency, onClose }: { metric: CommercialFormulaMetric; currency: string; onClose: () => void }) {
-  return <div className="fixed inset-0 z-[90] bg-black/55 backdrop-blur-[2px]" role="dialog" aria-modal="true" aria-labelledby="formula-inspector-title" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><aside className="ml-auto flex h-full w-full max-w-xl flex-col border-l border-[#62e8ff]/24 bg-[#020b11] shadow-[-24px_0_60px_rgba(0,0,0,.45)]">
+  // Modal keyboard contract: focus enters the inspector, Tab stays inside, Escape closes, focus returns to the metric that opened it.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, true, { onEscape: onClose });
+  return <div className="fixed inset-0 z-[90] bg-black/55 backdrop-blur-[2px]" role="dialog" ref={dialogRef} aria-modal="true" aria-labelledby="formula-inspector-title" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><aside className="ml-auto flex h-full w-full max-w-xl flex-col border-l border-[#62e8ff]/24 bg-[#020b11] shadow-[-24px_0_60px_rgba(0,0,0,.45)]">
     <div className="flex items-start justify-between gap-3 border-b border-[#62e8ff]/16 p-4 sm:p-5"><div><p className={`text-[8px] font-semibold uppercase ${statusText(metric.status)}`}>{metric.category} · {metric.status}</p><h3 id="formula-inspector-title" className="mt-1 text-lg font-semibold text-white">{metric.label}</h3><p className="mt-1 text-[10px] leading-4 text-white/38">{metric.detail}</p></div><button onClick={onClose} title="Close formula inspector" className="grid size-9 shrink-0 place-items-center border border-[#62e8ff]/18 text-white/50 hover:text-white"><X size={15} /></button></div>
     <div className="flex-1 overflow-y-auto p-4 sm:p-5">
       <div className="grid grid-cols-2 border-l border-t border-[#62e8ff]/14"><InspectorValue label="Current result" value={metric.unit === "currency" && metric.value !== null ? moneyOrDash(metric.value, currency) : metric.display} tone={statusText(metric.status)} /><InspectorValue label="Target / guardrail" value={metric.target} tone="text-[#e5c479]" /><InspectorValue label="Numerator" value={metric.numerator === undefined ? "Direct measurement" : metric.numerator.toLocaleString()} tone="text-white/72" /><InspectorValue label="Denominator" value={metric.denominator === undefined ? "Not applicable" : metric.denominator.toLocaleString()} tone="text-white/72" /></div>

@@ -8,7 +8,9 @@
 // the editor canvas. Active variant carries a green "live" pip;
 // drafts grey.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import { useMenuKeys } from "../../lib/menuKeys";
 
 export interface VariantRow {
   role: "login" | "affiliates" | "orders" | "account";
@@ -40,6 +42,8 @@ export default function PortalVariantSwitcher({ siteId, currentPageId, onPick, o
   const [open, setOpen] = useState(false);
   const [variants, setVariants] = useState<VariantRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  useMenuKeys(wrapRef, { open, onOpen: () => setOpen(true), onClose: () => setOpen(false) });
 
   useEffect(() => {
     if (!open || variants !== null) return;
@@ -67,8 +71,10 @@ export default function PortalVariantSwitcher({ siteId, currentPageId, onPick, o
   const summary = current ? `${ROLE_LABEL[current.role]} · ${current.title}` : "Pick variant";
 
   return (
-    <div data-component="portal-variant-switcher" style={{ position: "relative" }}>
+    <div ref={wrapRef} data-component="portal-variant-switcher" style={{ position: "relative" }}>
       <button
+        aria-haspopup="menu"
+        aria-expanded={open}
         onClick={() => setOpen(o => !o)}
         className="px-2.5 py-1.5 rounded-md text-[11px] bg-white/5 hover:bg-white/10 border border-white/10 text-brand-cream"
       >

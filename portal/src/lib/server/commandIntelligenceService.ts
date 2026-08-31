@@ -8,6 +8,7 @@ import {
 import type { Campaign, Lead } from "@/built-ins/modules/leads-pipeline/src/lib/domain";
 import { containerFor as leadsContainerFor } from "@aqua/plugin-leads-pipeline/server";
 import { buildCommercialIntelligence } from "@/lib/intelligence/commercialIntelligence";
+import { isConversionTelemetryEvent as scopedConversion } from "@/lib/shared/conversionEvent";
 import type {
   AdvisorDomain,
   BusinessIssueRadar,
@@ -550,7 +551,13 @@ function kpiFormatFor(kpiId: string): CommandKpiFormat {
 
 function measurementFor(kpiId: string, format: CommandKpiFormat, sampleSize?: number): CommandKpiMeasurement {
   const exact: Record<string, CommandKpiMeasurement> = {
-    "business-health": { unit: "weighted index points", basis: "100-point Aqua health index", window: "latest Radar sweep", formula: "35% income + 25% client health + 25% pipeline sufficiency + 15% task control" },
+    // Must state the REAL calculation (radarPolicyEngine.ts:156): the company
+    // index is blended 70/30 with incident health, and incident health stands
+    // alone until the company index is measurable. The earlier text described
+    // only calculateCompanyHealth's internal weights and silently omitted the
+    // incident blend — an operator reading the formula saw a different metric
+    // than the one computed.
+    "business-health": { unit: "weighted index points", basis: "100-point Aqua health index", window: "latest Radar sweep", formula: "70% company index (35% income + 25% client health + 25% pipeline sufficiency + 15% task control) + 30% incident health; incident health alone until the company index is measurable" },
     "revenue-target": { unit: "percent of target", basis: "paid income / approved monthly revenue target", window: "current calendar month", formula: "recorded paid income divided by the selected scope's monthly target x 100" },
     mrr: { unit: "currency per month", basis: "active recurring plans", window: "current plan assignments", formula: "sum of active plan monthly value for allocated clients" },
     "revenue-gap": { unit: "currency", basis: "approved monthly revenue target", window: "current calendar month", formula: "maximum of zero and target less recorded paid income" },
@@ -580,9 +587,6 @@ function measurementFor(kpiId: string, format: CommandKpiFormat, sampleSize?: nu
   };
 }
 
-function scopedConversion(event: RadarTelemetryProperty["events"][number]): boolean {
-  return event.type === "conversion" || event.type === "form" || (event.type === "interaction" && event.metric === "conversion");
-}
 
 function sameHost(left?: string, right?: string): boolean {
   const leftHost = safeHost(left);

@@ -1,6 +1,13 @@
 // Smoke test — imports the manifest and asserts every promised piece
 // is present.
 //
+// @smoke-conditions react-server
+//
+// Read by `scripts/run-website-editor-smoke.mjs`: the manifest reaches the
+// static-export handler, which resolves the client's Supabase target through a
+// portal module guarded by `server-only`. Without the react-server resolution
+// that package throws on import and this file cannot run at all.
+//
 // Why this isn't tsc-only:
 //   - tsc catches type mismatches but won't surface a circular import or
 //     a runtime require()-fails-but-types-line-up bug.

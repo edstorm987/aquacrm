@@ -12,7 +12,7 @@ import {
 import { sendTransactionalEmail } from "@/lib/server/email/transactionalEmail";
 import { recordWebsiteEnquiryLeadContact } from "@/lib/server/websiteEnquiryLeadSync";
 import type { InboxOutboundAttachment } from "@/lib/inbox/media";
-import { inboxMediaUrl, readInboxMedia, verifyInboxMediaToken } from "@/lib/server/inbox/inboxMedia";
+import { inboxMediaUrl, readInboxMediaBytes, verifyInboxMediaToken } from "@/lib/server/inbox/inboxMedia";
 import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
 import { loadOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
 import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/brands/tradingBrands";
@@ -89,9 +89,8 @@ export async function POST(request: Request) {
     const media = await Promise.all(attachmentTokens.map(async token => {
       const payload = verifyInboxMediaToken(token);
       if (!payload || payload.agencyId !== session.agencyId || payload.targetKind !== "website" || payload.targetId !== enquiry.id) throw new Error("An attachment is invalid or has expired.");
-      const stored = await readInboxMedia(payload);
-      if (!stored) throw new Error(`Attachment ${payload.name} could not be loaded.`);
-      const content = Buffer.isBuffer(stored) ? stored : Buffer.from(await stored.arrayBuffer());
+      const content = await readInboxMediaBytes(payload);
+      if (!content) throw new Error(`Attachment ${payload.name} could not be loaded.`);
       const attachment: InboxOutboundAttachment = { id: payload.id, name: payload.name, size: payload.size, contentType: payload.contentType, kind: payload.kind, token, url: inboxMediaUrl(new URL(request.url).origin, token) };
       return { attachment, content };
     }));

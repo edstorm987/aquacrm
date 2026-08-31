@@ -1,7 +1,9 @@
 "use client";
 
 import type React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 import { AlertTriangle, Check, ClipboardCheck, Clock3, LoaderCircle, Square, Target, X } from "lucide-react";
 
 import type { DashboardClockOutReview, DashboardWorkSession } from "@/server/types";
@@ -47,13 +49,11 @@ export function ClockOutReviewDialog({
     && (!hasUnconfirmedTime || unconfirmedTimeAcknowledged)
   ), [dayScore, hasUnconfirmedTime, nextPriority, nothingOpen, openWork, outcome, unconfirmedTimeAcknowledged]);
 
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape" && !busy) onCancel();
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [busy, onCancel]);
+  // Modal keyboard contract: focus lands in the dialog, Tab stays inside it,
+  // Escape backs out (unless a submit is in flight), focus returns to the
+  // clock-out control on close.
+  const dialogRef = useRef<HTMLElement>(null);
+  useFocusTrap(dialogRef, true, { onEscape: busy ? undefined : onCancel });
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -70,7 +70,7 @@ export function ClockOutReviewDialog({
 
   return (
     <div className="fixed inset-0 z-[180] flex items-end justify-center bg-[#00070b]/80 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="presentation">
-      <section role="dialog" aria-modal="true" aria-labelledby="clock-out-review-heading" className="flex max-h-[96dvh] w-full max-w-4xl flex-col overflow-hidden border border-[#e5c479]/30 bg-[#031018] text-white shadow-[0_28px_100px_rgba(0,0,0,.7),0_0_45px_rgba(98,232,255,.08)]">
+      <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="clock-out-review-heading" className="flex max-h-[96dvh] w-full max-w-4xl flex-col overflow-hidden border border-[#e5c479]/30 bg-[#031018] text-white shadow-[0_28px_100px_rgba(0,0,0,.7),0_0_45px_rgba(98,232,255,.08)]">
         <header className="flex shrink-0 items-start justify-between gap-4 border-b border-[#62e8ff]/18 px-4 py-4 sm:px-6">
           <div className="flex min-w-0 items-start gap-3">
             <span className="grid size-10 shrink-0 place-items-center border border-[#e5c479]/30 bg-[#e5c479]/[0.08] text-[#e5c479]"><ClipboardCheck size={19} /></span>

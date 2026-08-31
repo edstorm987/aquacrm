@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import {
   AreaChart,
   ArrowUpRight,
@@ -43,6 +43,7 @@ import type {
   CommandKpiStatus,
 } from "@/lib/intelligence/commandIntelligence";
 import { dateInputValue, formatUkDate } from "@/lib/shared/formatDateTime";
+import { InfoTip } from "@/components/ui/InfoTip";
 import { describeCommandKpis, describeCommercialFormulas, describeCustomKpis, searchKpiDescriptors, suggestKpiTarget, type KpiDescriptor } from "@/lib/performance/kpiRegistry";
 import {
   KpiTargetRequestError,
@@ -54,6 +55,7 @@ import {
 import type { CustomKpiDefinition, CustomKpiOp, KpiTargetsConfig } from "@/server/types";
 import { applyIntelligenceScope } from "./commandIntelligenceScope";
 import { PortalViewportLoading } from "@/components/ui/PortalViewportLoading";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 export { applyIntelligenceScope };
 
@@ -178,11 +180,11 @@ function OverviewView({ snapshot, onInspect, onOpenView }: { snapshot: CommandIn
 
     <div className="grid border-b border-[#62e8ff]/16 xl:grid-cols-[minmax(340px,.92fr)_minmax(380px,1.08fr)]">
       <section className="min-w-0 border-b border-[#62e8ff]/16 p-4 sm:p-5 xl:border-b-0 xl:border-r" aria-labelledby="intelligence-compass-heading">
-        <SectionHeading eyebrow="NORTH STAR ARRAY · INT-20A" title="Decision compass" detail="Status-normalised command readiness across the core business systems." icon={<Crosshair size={15} />} />
+        <SectionHeading titleId="intelligence-compass-heading" eyebrow="NORTH STAR ARRAY · INT-20A" title="Decision compass" detail="Status-normalised command readiness across the core business systems." icon={<Crosshair size={15} />} />
         <BusinessCompass kpis={snapshot.kpis} />
       </section>
       <section className="min-w-0 p-4 sm:p-5" aria-labelledby="demand-flow-heading">
-        <SectionHeading eyebrow="DEMAND FLOW · INT-20B" title="Attention to retained customer" detail="Current acquisition evidence from monitored traffic through to active clients." icon={<Route size={15} />} />
+        <SectionHeading titleId="demand-flow-heading" eyebrow="DEMAND FLOW · INT-20B" title="Attention to retained customer" detail="Current acquisition evidence from monitored traffic through to active clients." icon={<Route size={15} />} />
         <DemandFlow snapshot={snapshot} />
         <div className="mt-4 grid grid-cols-2 gap-px border border-[#62e8ff]/15 bg-[#62e8ff]/15 sm:grid-cols-4">
           {snapshot.kpis.filter(kpi => ["speed-to-lead", "lead-conversion", "source-attribution", "website-conversion"].includes(kpi.id)).map(kpi => <button key={kpi.id} onClick={() => onInspect(kpi)} className="min-w-0 bg-[#020b11] px-3 py-3 text-left hover:bg-[#62e8ff]/[0.055]"><span className="block truncate text-[8px] font-semibold uppercase text-[#8ec9d5]/45">{kpi.shortLabel}</span><span className={`mt-1 block text-lg font-semibold tabular-nums ${statusText(kpi.status)}`}>{kpi.display}</span></button>)}
@@ -192,7 +194,7 @@ function OverviewView({ snapshot, onInspect, onOpenView }: { snapshot: CommandIn
 
     <section className="border-b border-[#62e8ff]/16" aria-labelledby="priority-kpis-heading">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#62e8ff]/12 px-4 py-3 sm:px-5">
-        <SectionHeading eyebrow="PRIMARY INSTRUMENTS" title="Highest-signal KPIs" detail="Open an instrument for its target, evidence, source and retained history." icon={<Target size={15} />} compact />
+        <SectionHeading titleId="priority-kpis-heading" eyebrow="PRIMARY INSTRUMENTS" title="Highest-signal KPIs" detail="Open an instrument for its target, evidence, source and retained history." icon={<Target size={15} />} compact />
         <button onClick={() => onOpenView("kpis")} className="inline-flex min-h-8 items-center gap-1.5 border border-[#62e8ff]/18 px-2.5 text-[9px] font-semibold uppercase text-[#8ef1ff] hover:bg-[#62e8ff]/[0.06]">All twenty <ArrowUpRight size={11} /></button>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5">
@@ -986,6 +988,9 @@ function DemographicBank({ demographics }: { demographics: CommandAudienceDemogr
 }
 
 function AudienceProfileInspector({ profile, onClose }: { profile: CommandAudienceProfileSummary; onClose: () => void }) {
+  // Modal keyboard contract: focus enters the inspector, Tab stays inside, Escape closes, focus returns to the row that opened it.
+  const dialogRef = useRef<HTMLElement>(null);
+  useFocusTrap(dialogRef, true, { onEscape: onClose });
   const fields: Array<{ label: string; value?: string | string[] | number }> = [
     { label: "Segment", value: profile.segment },
     { label: "Audience type", value: profile.audienceType },
@@ -1015,7 +1020,7 @@ function AudienceProfileInspector({ profile, onClose }: { profile: CommandAudien
     { label: "Buying cycle", value: profile.buyingCycle },
     { label: "Research notes", value: profile.researchNotes },
   ];
-  return <div className="fixed inset-0 z-[160] flex items-end justify-center bg-black/65 p-0 sm:items-center sm:p-5" role="presentation" onMouseDown={event => { if (event.currentTarget === event.target) onClose(); }}><section role="dialog" aria-modal="true" aria-labelledby="audience-profile-heading" className="max-h-[92dvh] w-full max-w-3xl overflow-y-auto border border-[#62e8ff]/28 bg-[#020b11] shadow-[0_24px_80px_rgba(0,0,0,.55)]"><header className="flex items-start justify-between gap-4 border-b border-[#62e8ff]/16 px-4 py-4 sm:px-5"><div><p className="text-[8px] font-semibold uppercase text-[#62e8ff]/55">AUD-04 · Recorded customer intelligence</p><h2 id="audience-profile-heading" className="mt-1 text-lg font-semibold text-white">{profile.name}</h2><p className="mt-1 text-[9px] uppercase text-white/30">{profile.status} · updated {formatAge(profile.updatedAt)}</p></div><button onClick={onClose} title="Close customer profile" className="grid size-9 shrink-0 place-items-center border border-white/10 text-white/50 hover:bg-white/[0.06] hover:text-white"><X size={15} /></button></header><div className="p-4 sm:p-5"><div className="grid gap-px border border-[#62e8ff]/14 bg-[#62e8ff]/14 md:grid-cols-2">{fields.map(field => <ProfileField key={field.label} label={field.label} value={field.value} />)}</div><Link href="/portal/agency/marketing?view=customer-profiles" className="mt-5 inline-flex min-h-10 w-full items-center justify-center gap-2 border border-[#62e8ff]/25 bg-[#62e8ff]/[0.08] px-4 text-xs font-semibold text-[#8ef1ff] hover:bg-[#62e8ff]/[0.13]">Edit customer profiles <ArrowUpRight size={13} /></Link></div></section></div>;
+  return <div className="fixed inset-0 z-[160] flex items-end justify-center bg-black/65 p-0 sm:items-center sm:p-5" role="presentation" onMouseDown={event => { if (event.currentTarget === event.target) onClose(); }}><section role="dialog" ref={dialogRef} aria-modal="true" aria-labelledby="audience-profile-heading" className="max-h-[92dvh] w-full max-w-3xl overflow-y-auto border border-[#62e8ff]/28 bg-[#020b11] shadow-[0_24px_80px_rgba(0,0,0,.55)]"><header className="flex items-start justify-between gap-4 border-b border-[#62e8ff]/16 px-4 py-4 sm:px-5"><div><p className="text-[8px] font-semibold uppercase text-[#62e8ff]/55">AUD-04 · Recorded customer intelligence</p><h2 id="audience-profile-heading" className="mt-1 text-lg font-semibold text-white">{profile.name}</h2><p className="mt-1 text-[9px] uppercase text-white/30">{profile.status} · updated {formatAge(profile.updatedAt)}</p></div><button onClick={onClose} title="Close customer profile" className="grid size-9 shrink-0 place-items-center border border-white/10 text-white/50 hover:bg-white/[0.06] hover:text-white"><X size={15} /></button></header><div className="p-4 sm:p-5"><div className="grid gap-px border border-[#62e8ff]/14 bg-[#62e8ff]/14 md:grid-cols-2">{fields.map(field => <ProfileField key={field.label} label={field.label} value={field.value} />)}</div><Link href="/portal/agency/marketing?view=customer-profiles" className="mt-5 inline-flex min-h-10 w-full items-center justify-center gap-2 border border-[#62e8ff]/25 bg-[#62e8ff]/[0.08] px-4 text-xs font-semibold text-[#8ef1ff] hover:bg-[#62e8ff]/[0.13]">Edit customer profiles <ArrowUpRight size={13} /></Link></div></section></div>;
 }
 
 function ProfileField({ label, value }: { label: string; value?: string | string[] | number }) {
@@ -1024,19 +1029,56 @@ function ProfileField({ label, value }: { label: string; value?: string | string
 }
 
 function KpiInspector({ kpi, currency, onClose }: { kpi: CommandKpi; currency: string; onClose: () => void }) {
-  return <div className="fixed inset-0 z-[160] flex items-end justify-center bg-black/65 p-0 sm:items-center sm:p-5" role="presentation" onMouseDown={event => { if (event.currentTarget === event.target) onClose(); }}><section role="dialog" aria-modal="true" aria-labelledby="kpi-inspector-heading" className="max-h-[90dvh] w-full max-w-xl overflow-y-auto border border-[#62e8ff]/28 bg-[#020b11] shadow-[0_24px_80px_rgba(0,0,0,.55)]"><header className="flex items-start justify-between gap-4 border-b border-[#62e8ff]/16 px-4 py-4 sm:px-5"><div><p className="text-[8px] font-semibold uppercase text-[#62e8ff]/55">INT-{String(kpi.rank).padStart(2, "0")} · {kpi.domain} instrument</p><h2 id="kpi-inspector-heading" className="mt-1 text-lg font-semibold text-white">{kpi.label}</h2><p className="mt-1 text-[9px] uppercase text-[#62e8ff]/48">Scope · {kpi.scope.label}</p></div><button onClick={onClose} title="Close KPI detail" className="grid size-9 shrink-0 place-items-center border border-white/10 text-white/50 hover:bg-white/[0.06] hover:text-white"><X size={15} /></button></header><div className="p-4 sm:p-5"><div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4"><div><p className={`text-3xl font-semibold tabular-nums ${statusText(kpi.status)}`}>{kpi.display}</p><p className="mt-1 text-[9px] font-semibold uppercase text-white/30">{kpi.measurement.unit} · {kpi.status} · measured {formatAge(kpi.measuredAt)}</p></div><KpiSparkline kpi={kpi} /></div><p className="mt-5 text-sm leading-6 text-white/55">{kpi.detail}</p><div className="mt-5 border border-[#62e8ff]/18 bg-[#62e8ff]/[0.035] p-4"><p className="text-[8px] font-semibold uppercase text-[#62e8ff]/60">What this number means</p><dl className="mt-2 divide-y divide-[#62e8ff]/10 text-xs"><InspectorRow label="Unit" value={kpi.measurement.unit} /><InspectorRow label="Denominator" value={kpi.measurement.basis} /><InspectorRow label="Window" value={kpi.measurement.window} /><InspectorRow label="Formula" value={kpi.measurement.formula} /></dl></div><dl className="mt-5 divide-y divide-[#62e8ff]/12 border-y border-[#62e8ff]/12 text-xs"><InspectorRow label="Scope" value={`${kpi.scope.label} · ${kpi.scope.kind}`} /><InspectorRow label="Target" value={kpi.target} /><InspectorRow label="Baseline" value={kpi.plan.baselineValue === null ? "Not connected" : formatKpiValue(kpi.plan.baselineValue, kpi.format, currency)} /><InspectorRow label="Plan target" value={kpi.plan.targetValue === null ? "Not approved" : formatKpiValue(kpi.plan.targetValue, kpi.format, currency)} /><InspectorRow label="Plan source" value={`${kpi.plan.source} · ${kpi.plan.cadence}`} /><InspectorRow label="Source" value={kpi.sourceId} /><InspectorRow label="Sample" value={kpi.sampleSize === undefined ? "Not supplied" : `${kpi.sampleSize.toLocaleString()} ${kpi.measurement.basis}`} /><InspectorRow label="History" value={kpi.history.length ? `${kpi.history.length} retained points` : "Building baseline"} /></dl><div className="mt-5"><p className="text-[8px] font-semibold uppercase text-[#62e8ff]/55">Evidence</p><ul className="mt-2 divide-y divide-white/8 border-y border-white/8">{kpi.evidence.map(item => <li key={item} className="flex gap-2 py-2 text-[11px] leading-4 text-white/45"><CheckCircle2 size={12} className="mt-0.5 shrink-0 text-[#68f5d0]/65" />{item}</li>)}</ul></div><Link href={kpi.href} className="mt-5 inline-flex min-h-10 w-full items-center justify-center gap-2 border border-[#62e8ff]/25 bg-[#62e8ff]/[0.08] px-4 text-xs font-semibold text-[#8ef1ff] hover:bg-[#62e8ff]/[0.13]">Open operating workspace <ArrowUpRight size={13} /></Link></div></section></div>;
+  // Modal keyboard contract: focus enters the inspector, Tab stays inside, Escape closes, focus returns to the KPI that opened it.
+  const dialogRef = useRef<HTMLElement>(null);
+  useFocusTrap(dialogRef, true, { onEscape: onClose });
+  return <div className="fixed inset-0 z-[160] flex items-end justify-center bg-black/65 p-0 sm:items-center sm:p-5" role="presentation" onMouseDown={event => { if (event.currentTarget === event.target) onClose(); }}><section role="dialog" ref={dialogRef} aria-modal="true" aria-labelledby="kpi-inspector-heading" className="max-h-[90dvh] w-full max-w-xl overflow-y-auto border border-[#62e8ff]/28 bg-[#020b11] shadow-[0_24px_80px_rgba(0,0,0,.55)]"><header className="flex items-start justify-between gap-4 border-b border-[#62e8ff]/16 px-4 py-4 sm:px-5"><div><p className="text-[8px] font-semibold uppercase text-[#62e8ff]/55">INT-{String(kpi.rank).padStart(2, "0")} · {kpi.domain} instrument</p><h2 id="kpi-inspector-heading" className="mt-1 text-lg font-semibold text-white">{kpi.label}</h2><p className="mt-1 text-[9px] uppercase text-[#62e8ff]/48">Scope · {kpi.scope.label}</p></div><button onClick={onClose} title="Close KPI detail" className="grid size-9 shrink-0 place-items-center border border-white/10 text-white/50 hover:bg-white/[0.06] hover:text-white"><X size={15} /></button></header><div className="p-4 sm:p-5"><div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4"><div><p className={`text-3xl font-semibold tabular-nums ${statusText(kpi.status)}`}>{kpi.display}</p><p className="mt-1 text-[9px] font-semibold uppercase text-white/30">{kpi.measurement.unit} · {kpi.status} · measured {formatAge(kpi.measuredAt)}</p></div><KpiSparkline kpi={kpi} /></div><p className="mt-5 text-sm leading-6 text-white/55">{kpi.detail}</p><div className="mt-5 border border-[#62e8ff]/18 bg-[#62e8ff]/[0.035] p-4"><p className="text-[8px] font-semibold uppercase text-[#62e8ff]/60">What this number means</p><dl className="mt-2 divide-y divide-[#62e8ff]/10 text-xs"><InspectorRow label="Unit" value={kpi.measurement.unit} /><InspectorRow label="Denominator" value={kpi.measurement.basis} /><InspectorRow label="Window" value={kpi.measurement.window} /><InspectorRow label="Formula" value={kpi.measurement.formula} /></dl></div><dl className="mt-5 divide-y divide-[#62e8ff]/12 border-y border-[#62e8ff]/12 text-xs"><InspectorRow label="Scope" value={`${kpi.scope.label} · ${kpi.scope.kind}`} /><InspectorRow label="Target" value={kpi.target} /><InspectorRow label="Baseline" value={kpi.plan.baselineValue === null ? "Not connected" : formatKpiValue(kpi.plan.baselineValue, kpi.format, currency)} /><InspectorRow label="Plan target" value={kpi.plan.targetValue === null ? "Not approved" : formatKpiValue(kpi.plan.targetValue, kpi.format, currency)} /><InspectorRow label="Plan source" value={`${kpi.plan.source} · ${kpi.plan.cadence}`} /><InspectorRow label="Source" value={kpi.sourceId} /><InspectorRow label="Sample" value={kpi.sampleSize === undefined ? "Not supplied" : `${kpi.sampleSize.toLocaleString()} ${kpi.measurement.basis}`} /><InspectorRow label="History" value={kpi.history.length ? `${kpi.history.length} retained points` : "Building baseline"} /></dl><div className="mt-5"><p className="text-[8px] font-semibold uppercase text-[#62e8ff]/55">Evidence</p><ul className="mt-2 divide-y divide-white/8 border-y border-white/8">{kpi.evidence.map(item => <li key={item} className="flex gap-2 py-2 text-[11px] leading-4 text-white/45"><CheckCircle2 size={12} className="mt-0.5 shrink-0 text-[#68f5d0]/65" />{item}</li>)}</ul></div><Link href={kpi.href} className="mt-5 inline-flex min-h-10 w-full items-center justify-center gap-2 border border-[#62e8ff]/25 bg-[#62e8ff]/[0.08] px-4 text-xs font-semibold text-[#8ef1ff] hover:bg-[#62e8ff]/[0.13]">Open operating workspace <ArrowUpRight size={13} /></Link></div></section></div>;
 }
 
 function ViewButton({ active, icon, label, detail, onClick }: { active: boolean; icon: React.ReactNode; label: string; detail: string; onClick: () => void }) {
   return <button onClick={onClick} aria-pressed={active} className={`relative flex min-h-[58px] min-w-0 items-center gap-2.5 border-b border-r border-[#62e8ff]/10 px-3 text-left ${active ? "bg-[#62e8ff]/[0.08] text-white" : "text-white/45 hover:bg-[#62e8ff]/[0.045] hover:text-white"}`}><span className={active ? "text-[#68f5d0]" : "text-[#62e8ff]/55"}>{icon}</span><span className="min-w-0"><span className="block truncate text-[11px] font-semibold">{label}</span><span className="block truncate text-[8px] text-[#8ec9d5]/38">{detail}</span></span>{active ? <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[#62e8ff] shadow-[0_0_8px_#62e8ff]" /> : null}</button>;
 }
 
-function SectionHeading({ eyebrow, title, detail, icon, compact = false }: { eyebrow: string; title: string; detail: string; icon: React.ReactNode; compact?: boolean }) {
-  return <div className="flex min-w-0 items-start gap-2.5"><span className={`grid shrink-0 place-items-center border border-[#62e8ff]/18 bg-[#62e8ff]/[0.055] text-[#62e8ff] ${compact ? "size-7" : "size-8"}`}>{icon}</span><div className="min-w-0"><p className="text-[7px] font-semibold uppercase text-[#76dff1]/50">{eyebrow}</p><h3 className={`mt-0.5 font-semibold text-white/82 ${compact ? "text-xs" : "text-sm"}`}>{title}</h3><p className="mt-0.5 text-[9px] leading-4 text-white/30">{detail}</p></div></div>;
+// `titleId` renders the id that an owning section points at with
+// `aria-labelledby` — without it the reference dangles and the section is
+// announced with no name at all.
+function SectionHeading({ eyebrow, title, detail, icon, compact = false, titleId }: { eyebrow: string; title: string; detail: string; icon: React.ReactNode; compact?: boolean; titleId?: string }) {
+  return <div className="flex min-w-0 items-start gap-2.5"><span className={`grid shrink-0 place-items-center border border-[#62e8ff]/18 bg-[#62e8ff]/[0.055] text-[#62e8ff] ${compact ? "size-7" : "size-8"}`}>{icon}</span><div className="min-w-0"><p className="text-[7px] font-semibold uppercase text-[#76dff1]/50">{eyebrow}</p><h3 id={titleId} className={`mt-0.5 font-semibold text-white/82 ${compact ? "text-xs" : "text-sm"}`}>{title}</h3><p className="mt-0.5 text-[9px] leading-4 text-white/30">{detail}</p></div></div>;
 }
 
+/**
+ * What each readout actually counts, in plain English.
+ *
+ * These labels are instrument shorthand — "Blind", "Learning", "Portfolio
+ * ROAS", "Unmapped labels" — and a statistic that reaches an operator
+ * untranslated is a statistic they cannot act on. Keyed by the label so the
+ * wording lives in one place and both the full and `compact` copies of a
+ * readout explain themselves identically. Every label used below must appear
+ * here; `smoke-info-tip.test.ts` fails if one is added without its meaning.
+ */
+const READOUT_MEANINGS: Record<string, string> = {
+  "Connected": "How many of the twenty decision KPIs currently have a live data source behind them. The rest are reading from nothing.",
+  "Critical": "KPIs that have crossed the threshold where they need a decision now, not at the next review.",
+  "Warning": "KPIs drifting towards their threshold. Nothing has broken yet, but the direction is wrong.",
+  "Learning": "KPIs that have a data source but not yet enough history to say what normal looks like, so no judgement is offered.",
+  "Blind": "KPIs with no data source at all. This is a gap in what you can see, not a clean bill of health.",
+  "Active": "Campaigns that are live, sending, or scheduled to start. A scheduled one is counted here before it has spent anything.",
+  "Active campaigns": "Campaigns that are live, sending, or scheduled to start. A scheduled one is counted here before it has spent anything.",
+  "Spend": "Money recorded against campaigns so far. Only what has actually been entered or imported.",
+  "Recorded spend": "Money recorded against campaigns so far. Only what has actually been entered or imported.",
+  "Attributed revenue": "Revenue that can be traced back to a specific campaign. Sales with no traceable source are not counted here.",
+  "Attributed return": "Revenue that can be traced back to a specific campaign. Sales with no traceable source are not counted here.",
+  "Portfolio ROAS": "Return on ad spend across every campaign: attributed revenue divided by recorded spend. 3x means three times as much traced back as was spent. It reads \"Learning\" until some spend has been recorded, because until then there is nothing to divide by.",
+  "Profiles": "Customer profiles saved in marketing — the written description of a type of buyer.",
+  "Validated": "Profiles somebody has confirmed against real evidence rather than assumption.",
+  "Mapped markets": "Locations on saved profiles that Aqua recognised and could place on the map.",
+  "Markets": "Locations on saved profiles that Aqua recognised and could place on the map.",
+  "Unmapped labels": "Locations written on profiles that Aqua could not recognise, so they are missing from the map. Usually a spelling or an informal name.",
+};
+
 function SummaryReadout({ label, value, tone, compact = false }: { label: string; value: string; tone: "cyan" | "green" | "amber" | "red" | "blue"; compact?: boolean }) {
-  return <div className={`${compact ? "min-h-[72px] p-3" : "min-h-[82px] p-3 sm:p-4"} border-b border-r border-[#62e8ff]/12 bg-[#020b11]`}><p className="text-[7px] font-semibold uppercase text-white/28">{label}</p><p className={`mt-1 truncate font-semibold tabular-nums ${compact ? "text-base" : "text-xl"} ${tone === "green" ? "text-[#68f5d0]" : tone === "amber" ? "text-amber-300" : tone === "red" ? "text-red-300" : tone === "blue" ? "text-sky-300" : "text-[#62e8ff]"}`}>{value}</p></div>;
+  const meaning = READOUT_MEANINGS[label];
+  return <div className={`${compact ? "min-h-[72px] p-3" : "min-h-[82px] p-3 sm:p-4"} border-b border-r border-[#62e8ff]/12 bg-[#020b11]`}><p className="flex items-center gap-1 text-[7px] font-semibold uppercase text-white/28">{label}{meaning ? <InfoTip label={label} tone="dark" size={11}>{meaning}</InfoTip> : null}</p><p className={`mt-1 truncate font-semibold tabular-nums ${compact ? "text-base" : "text-xl"} ${tone === "green" ? "text-[#68f5d0]" : tone === "amber" ? "text-amber-300" : tone === "red" ? "text-red-300" : tone === "blue" ? "text-sky-300" : "text-[#62e8ff]"}`}>{value}</p></div>;
 }
 
 function InspectorRow({ label, value }: { label: string; value: string }) { return <div className="grid grid-cols-[90px_minmax(0,1fr)] gap-3 py-2.5"><dt className="text-white/28">{label}</dt><dd className="break-words text-right font-medium text-white/58">{value}</dd></div>; }

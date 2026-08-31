@@ -7,7 +7,7 @@ import "server-only";
 
 import crypto from "crypto";
 import { getState, mutate } from "./storage";
-import { emit } from "./eventBus";
+import { drainOutbox, recordOutboxEvent } from "./outbox";
 import type {
   Agency, AgencyStatus, BrandKit, Client, ClientStage, EndCustomer,
 } from "./types";
@@ -100,8 +100,14 @@ export function createAgency(input: CreateAgencyInput): Agency {
       updatedAt: now,
     };
     state.agencies[id] = saved;
+    recordOutboxEvent(state, {
+      name: "agency.created",
+      agencyId: saved.id,
+      source: "server/tenants",
+      payload: { agencyId: saved.id, name: saved.name },
+    });
   });
-  emit({ agencyId: saved.id }, "agency.created", { agencyId: saved.id, name: saved.name });
+  drainOutbox();
   return saved;
 }
 
@@ -196,8 +202,18 @@ export function createClient(agencyId: string, input: CreateClientInput): Client
       updatedAt: now,
     };
     state.clients[id] = saved;
+    // Recorded INSIDE the same mutate as the client row — the state change
+    // and its announcement are one write, so a crash cannot separate them.
+    // The drain below hands it to the bus exactly as the old emit() did.
+    recordOutboxEvent(state, {
+      name: "client.created",
+      agencyId,
+      clientId: saved.id,
+      source: "server/tenants",
+      payload: { clientId: saved.id, name: saved.name },
+    });
   });
-  emit({ agencyId, clientId: saved.id }, "client.created", { clientId: saved.id, name: saved.name });
+  drainOutbox();
   return saved;
 }
 
@@ -287,18 +303,29 @@ export function updateClient(agencyId: string, clientId: string, patch: UpdateCl
       updatedAt: now,
     };
     state.clients[clientId] = saved;
-  });
-  if (saved) {
-    emit({ agencyId, clientId }, "client.updated", { clientId });
+    // One update is one OPERATION: both announcements share a correlation id,
+    // and the stage move names the update as its cause — the lineage a
+    // consumer needs to see they were the same edit, not two.
+    const updated = recordOutboxEvent(state, {
+      name: "client.updated",
+      agencyId,
+      clientId,
+      source: "server/tenants",
+      payload: { clientId },
+    });
     if (stageChanged) {
-      const after = saved as Client;
-      emit({ agencyId, clientId }, "client.stage_changed", {
+      recordOutboxEvent(state, {
+        name: "client.stage_changed",
+        agencyId,
         clientId,
-        from: oldStage,
-        to: after.stage,
+        source: "server/tenants",
+        correlationId: updated.correlationId,
+        causationId: updated.id,
+        payload: { clientId, from: oldStage, to: saved.stage },
       });
     }
-  }
+  });
+  if (saved) drainOutbox();
   return saved;
 }
 

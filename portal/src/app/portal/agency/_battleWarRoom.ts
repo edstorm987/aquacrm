@@ -15,7 +15,8 @@
 // been set the state is `no-target` — never a healthy pass.
 
 import { buildHiringCapacityAnalysis, emptyHiringCapacitySignals, type HiringCapacityAnalysis, type HiringCapacitySignals } from "@/lib/performance/hiringCapacity";
-import type { CompanyProfile } from "@/server/types";
+import { resolveKpiTarget } from "@/lib/performance/kpiRegistry";
+import type { CompanyProfile, KpiTargetsConfig } from "@/server/types";
 
 /** Where a scope (or a metric) stands against its own target. */
 export type WarRoomTargetState = "ahead" | "on-track" | "behind" | "critical" | "no-target" | "learning";
@@ -117,11 +118,97 @@ export type WarRoomPulseMetric = {
   /** Signed deviation against the metric's own target. Null when unknowable. */
   deviationPercent: number | null;
   detail: string;
+  /** Which plan set the target this reading is measured against. */
+  targetSource: WarRoomTargetAuthority;
 };
 
 const HEALTH_BASELINE = 70;
 const HEALTH_STRONG = 85;
 const HEALTH_CRITICAL = 40;
+
+// ─── Targets: the retained company plan, overridden by the agency KPI plan ────
+//
+// The Battle Table's own form carries a monthly revenue target, a target-case
+// growth assumption and a hiring guardrail. The KPI overhaul added a SECOND,
+// server-persisted place a target can be set — `KpiTargetsConfig`, layered
+// agency-wide then per company (most specific wins). Until now the war room
+// only read the first, so a target raised in the KPI plan never moved the
+// front door. These helpers make the KPI plan the more specific authority and
+// leave the retained plan as the fallback: an unset KPI target never blanks a
+// target that already exists.
+
+/** Which plan a war-room target came from. */
+export type WarRoomTargetAuthority = "plan" | "kpi-plan";
+
+/**
+ * Which command KPI may override each war-room target. Only readings measuring
+ * the *same quantity* as the KPI are mapped, so nothing is silently restated as
+ * something else:
+ *  - `revenue-target` is "recorded income as a share of the approved monthly
+ *    target", so its target is the attainment percent the month must clear; the
+ *    war room applies that percent to the retained monthly target in cents.
+ *  - `revenue-growth` is month-on-month revenue growth percent — exactly what
+ *    the pulse's growth reading measures.
+ *  - `business-health` is the 0–100 health score the battlefield already reads.
+ * Pipeline cover and capacity load have no command-KPI counterpart, so they stay
+ * on the retained plan's own guardrails rather than being mapped onto a metric
+ * that means something else.
+ */
+export const WAR_ROOM_TARGET_KPIS = {
+  revenue: "revenue-target",
+  growth: "revenue-growth",
+  health: "business-health",
+} as const;
+
+export type WarRoomResolvedTargets = {
+  /** The monthly revenue target the war room measures against, in cents. */
+  revenueTargetCents: number;
+  revenueAuthority: WarRoomTargetAuthority;
+  /** The attainment percent the KPI plan demands, when it set one. */
+  revenueAttainmentPercent: number | null;
+  growthTargetPercent: number;
+  growthAuthority: WarRoomTargetAuthority;
+  healthBaseline: number;
+  healthAuthority: WarRoomTargetAuthority;
+};
+
+/** A usable persisted target for one KPI at this scope, or null when unset. */
+function kpiTargetValue(config: KpiTargetsConfig | undefined, kpiId: string, companyId: string | null): number | null {
+  const override = resolveKpiTarget(config, kpiId, companyId ?? undefined);
+  const value = override?.targetValue;
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+/**
+ * Resolve one scope's effective targets: the agency KPI plan where it has set
+ * one for this scope (company override beating the agency-wide entry, via the
+ * KPI registry's own resolver), the retained company plan otherwise. Pure.
+ */
+export function resolveWarRoomTargets(scope: WarRoomScopeInput, kpiTargets?: KpiTargetsConfig): WarRoomResolvedTargets {
+  const planTargetCents = scope.profile.monthlyRevenueTargetCents;
+  const attainment = kpiTargetValue(kpiTargets, WAR_ROOM_TARGET_KPIS.revenue, scope.companyId);
+  // A zero or negative attainment target would erase a real revenue target and
+  // read as "no target set" — that is not a plan, so the retained one stands.
+  const usableAttainment = attainment !== null && attainment > 0 && planTargetCents > 0 ? attainment : null;
+  const growth = kpiTargetValue(kpiTargets, WAR_ROOM_TARGET_KPIS.growth, scope.companyId);
+  // A zero growth target collides with the pulse's own `no-target` sentinel
+  // (`growthTarget === 0` reads "no target set"), so accepting one would erase a
+  // real retained growth assumption AND still name the KPI plan as the
+  // authority. Zero is not a plan: the retained assumption stands. A negative
+  // target IS a plan (a deliberate contraction) and is honoured.
+  const usableGrowth = growth === 0 ? null : growth;
+  const health = kpiTargetValue(kpiTargets, WAR_ROOM_TARGET_KPIS.health, scope.companyId);
+  const usableHealth = health !== null && health > 0 ? health : null;
+  return {
+    revenueTargetCents: usableAttainment === null ? planTargetCents : Math.round(planTargetCents * usableAttainment / 100),
+    revenueAuthority: usableAttainment === null ? "plan" : "kpi-plan",
+    revenueAttainmentPercent: usableAttainment,
+    growthTargetPercent: usableGrowth === null ? scope.profile.projection.targetMonthlyGrowthPercent : usableGrowth,
+    growthAuthority: usableGrowth === null ? "plan" : "kpi-plan",
+    healthBaseline: usableHealth === null ? HEALTH_BASELINE : usableHealth,
+    healthAuthority: usableHealth === null ? "plan" : "kpi-plan",
+  };
+}
 
 /** How far through the current month `now` sits, as a 0–1 fraction. */
 export function monthPaceFraction(now: number): number {
@@ -199,11 +286,12 @@ export function scopeHiringAnalysis(scope: WarRoomScopeInput): HiringCapacityAna
  * Radar incidents are ecosystem-wide evidence, so they are attributed to the
  * aggregate row rather than split across brands they were never scoped to.
  */
-export function buildBattlefield(input: { scopes: WarRoomScopeInput[]; incidents?: WarRoomIncident[]; now: number }): WarRoomBattlefieldRow[] {
+export function buildBattlefield(input: { scopes: WarRoomScopeInput[]; incidents?: WarRoomIncident[]; now: number; kpiTargets?: KpiTargetsConfig }): WarRoomBattlefieldRow[] {
   const pace = monthPaceFraction(input.now);
   const radarCritical = (input.incidents ?? []).filter(incident => incident.severity === "critical").length;
   return input.scopes.map(scope => {
-    const targetCents = scope.profile.monthlyRevenueTargetCents;
+    const targets = resolveWarRoomTargets(scope, input.kpiTargets);
+    const targetCents = targets.revenueTargetCents;
     const revenue = revenuePosition({
       revenueCents: scope.actuals.monthRevenueCents,
       targetCents,
@@ -224,6 +312,7 @@ export function buildBattlefield(input: { scopes: WarRoomScopeInput[]; incidents
     if (revenue.state === "learning") evidence.push("Finance evidence is not connected for this scope yet.");
     else if (revenue.state === "no-target") evidence.push("No monthly revenue target has been set for this scope.");
     else evidence.push(`${revenue.progressPercent}% of the monthly target banked with ${Math.round(pace * 100)}% of the month elapsed.`);
+    if (targets.revenueAuthority === "kpi-plan") evidence.push(`The agency KPI plan requires ${targets.revenueAttainmentPercent}% of the retained monthly target.`);
     if (hiring.hireNowCount) evidence.push(`${hiring.hireNowCount} capacity area${hiring.hireNowCount === 1 ? "" : "s"} past its hiring guardrail.`);
     if (objectivesAtRisk) evidence.push(`${objectivesAtRisk} objective${objectivesAtRisk === 1 ? "" : "s"} flagged at risk.`);
     if (scopeRadarCritical) evidence.push(`${scopeRadarCritical} critical Radar incident${scopeRadarCritical === 1 ? "" : "s"} open.`);
@@ -234,7 +323,7 @@ export function buildBattlefield(input: { scopes: WarRoomScopeInput[]; incidents
       label: scope.label,
       kind: scope.kind,
       healthScore: scope.healthScore,
-      healthState: scope.healthScore < HEALTH_CRITICAL ? "critical" : scope.healthScore < HEALTH_BASELINE ? "warning" : "clear",
+      healthState: scope.healthScore < HEALTH_CRITICAL ? "critical" : scope.healthScore < targets.healthBaseline ? "warning" : "clear",
       currency: scope.actuals.currency,
       revenueCents: scope.actuals.monthRevenueCents,
       targetCents,
@@ -265,7 +354,7 @@ const KIND_RANK: Record<WarRoomDecision["kind"], number> = {
  * own evidence and the section it is settled in. Ordering is deterministic:
  * severity, then kind, then the order the scopes were supplied in.
  */
-export function buildWarRoomDecisions(input: { scopes: WarRoomScopeInput[]; incidents?: WarRoomIncident[]; now: number; limit?: number }): WarRoomDecision[] {
+export function buildWarRoomDecisions(input: { scopes: WarRoomScopeInput[]; incidents?: WarRoomIncident[]; now: number; limit?: number; kpiTargets?: KpiTargetsConfig }): WarRoomDecision[] {
   const pace = monthPaceFraction(input.now);
   const decisions: Array<WarRoomDecision & { scopeIndex: number }> = [];
 
@@ -288,9 +377,10 @@ export function buildWarRoomDecisions(input: { scopes: WarRoomScopeInput[]; inci
 
   input.scopes.forEach((scope, scopeIndex) => {
     const currency = scope.actuals.currency;
+    const targets = resolveWarRoomTargets(scope, input.kpiTargets);
     const revenue = revenuePosition({
       revenueCents: scope.actuals.monthRevenueCents,
-      targetCents: scope.profile.monthlyRevenueTargetCents,
+      targetCents: targets.revenueTargetCents,
       paceFraction: pace,
       financeConnected: scope.actuals.financeConnected,
     });
@@ -306,7 +396,10 @@ export function buildWarRoomDecisions(input: { scopes: WarRoomScopeInput[]; inci
         title: `${scope.label} is ${Math.abs(revenue.deviationPercent ?? 0)}% behind its revenue pace`,
         detail: `${money(scope.actuals.monthRevenueCents, currency)} banked against ${money(revenue.expectedCents ?? 0, currency)} expected by this point in the month.`,
         evidence: [
-          `Monthly target ${money(scope.profile.monthlyRevenueTargetCents, currency)}; ${money(revenue.gapCents, currency)} still to find.`,
+          `Monthly target ${money(targets.revenueTargetCents, currency)}; ${money(revenue.gapCents, currency)} still to find.`,
+          ...(targets.revenueAuthority === "kpi-plan"
+            ? [`Set by the agency KPI plan: ${targets.revenueAttainmentPercent}% of the retained ${money(scope.profile.monthlyRevenueTargetCents, currency)} plan.`]
+            : []),
           revenue.forecastCents === null ? "Run rate cannot be projected yet." : `At the current run rate the month lands at ${money(revenue.forecastCents, currency)}.`,
           callsNeeded ? `${dealsNeeded} deal${dealsNeeded === 1 ? "" : "s"} or about ${callsNeeded} sales call${callsNeeded === 1 ? "" : "s"} closes the gap.` : "The gap is inside one average deal.",
         ],
@@ -402,21 +495,23 @@ export function buildWarRoomDecisions(input: { scopes: WarRoomScopeInput[]; inci
  * own targets, each with the deviation that decides the tone. Anything without
  * evidence stays `learning` and anything without a target stays `no-target`.
  */
-export function buildWarRoomPulse(input: { scope: WarRoomScopeInput; now: number }): WarRoomPulseMetric[] {
+export function buildWarRoomPulse(input: { scope: WarRoomScopeInput; now: number; kpiTargets?: KpiTargetsConfig }): WarRoomPulseMetric[] {
   const scope = input.scope;
   const currency = scope.actuals.currency;
   const pace = monthPaceFraction(input.now);
+  const targets = resolveWarRoomTargets(scope, input.kpiTargets);
   const revenue = revenuePosition({
     revenueCents: scope.actuals.monthRevenueCents,
-    targetCents: scope.profile.monthlyRevenueTargetCents,
+    targetCents: targets.revenueTargetCents,
     paceFraction: pace,
     financeConnected: scope.actuals.financeConnected,
   });
 
-  const growthTarget = scope.profile.projection.targetMonthlyGrowthPercent;
+  const growthTarget = targets.growthTargetPercent;
+  const growthAuthority = targets.growthAuthority === "kpi-plan" ? "agency KPI plan target" : "target-case assumption";
   const growthActual = scope.actuals.monthlyRevenueGrowthPercent;
   const growth: WarRoomPulseMetric = growthActual === null
-    ? { id: "growth", label: "Monthly growth", value: "—", target: `${signed(growthTarget)}% target`, state: "learning", deviationPercent: null, detail: "Not enough month-on-month revenue history yet." }
+    ? { id: "growth", label: "Monthly growth", value: "—", target: `${signed(growthTarget)}% target`, state: "learning", deviationPercent: null, detail: "Not enough month-on-month revenue history yet.", targetSource: targets.growthAuthority }
     : {
       id: "growth",
       label: "Monthly growth",
@@ -428,7 +523,8 @@ export function buildWarRoomPulse(input: { scope: WarRoomScopeInput; now: number
         : growthActual >= 0 ? "behind"
         : "critical",
       deviationPercent: Math.round(growthActual - growthTarget),
-      detail: `Against a ${signed(growthTarget)}% target-case assumption.`,
+      detail: `Against a ${signed(growthTarget)}% ${growthAuthority}.`,
+      targetSource: targets.growthAuthority,
     };
 
   const gapDeals = revenue.gapCents > 0 ? Math.ceil(revenue.gapCents / Math.max(1, scope.profile.averageDealValueCents)) : 0;
@@ -446,6 +542,9 @@ export function buildWarRoomPulse(input: { scope: WarRoomScopeInput; now: number
     detail: callsNeeded
       ? `${callsNeeded} qualified conversations close the remaining gap at a ${scope.profile.salesCallCloseRatePercent}% close rate.`
       : "The monthly target is covered; pipeline is building next month.",
+    // Pipeline cover is derived from the revenue gap, so it inherits whichever
+    // plan set that target rather than claiming one of its own.
+    targetSource: targets.revenueAuthority,
   };
 
   const hiring = scopeHiringAnalysis(scope);
@@ -466,33 +565,43 @@ export function buildWarRoomPulse(input: { scope: WarRoomScopeInput; now: number
     detail: hiring.hireNowCount
       ? `${hiring.hireNowCount} area${hiring.hireNowCount === 1 ? "" : "s"} past the guardrail · ${hiring.totalGapHours}h weekly gap.`
       : `${scope.profile.capacity.weeklyAvailableHours}h available each week across the operating areas.`,
+    // No command KPI measures capacity load, so the retained hiring guardrail
+    // is the only authority there is.
+    targetSource: "plan",
   };
 
+  // "Ahead" keeps its distance above the baseline wherever the baseline is set,
+  // so a raised health target moves the whole band with it.
+  const healthStrong = targets.healthBaseline + (HEALTH_STRONG - HEALTH_BASELINE);
   const health: WarRoomPulseMetric = {
     id: "health",
     label: "Strategic health",
     value: `${scope.healthScore} pts`,
-    target: `${HEALTH_BASELINE} pts baseline`,
+    target: `${targets.healthBaseline} pts baseline`,
     state: scope.healthScore < HEALTH_CRITICAL ? "critical"
-      : scope.healthScore < HEALTH_BASELINE ? "behind"
-      : scope.healthScore >= HEALTH_STRONG ? "ahead"
+      : scope.healthScore < targets.healthBaseline ? "behind"
+      : scope.healthScore >= healthStrong ? "ahead"
       : "on-track",
-    deviationPercent: scope.healthScore - HEALTH_BASELINE,
-    detail: `Weighted from revenue pace, client attention, pipeline and delivery load.`,
+    deviationPercent: scope.healthScore - targets.healthBaseline,
+    detail: targets.healthAuthority === "kpi-plan"
+      ? `Weighted from revenue pace, client attention, pipeline and delivery load, against the agency KPI plan's ${targets.healthBaseline}-point target.`
+      : `Weighted from revenue pace, client attention, pipeline and delivery load.`,
+    targetSource: targets.healthAuthority,
   };
 
   const revenueMetric: WarRoomPulseMetric = {
     id: "revenue",
     label: "Revenue vs target",
     value: revenue.state === "learning" ? "—" : money(scope.actuals.monthRevenueCents, currency),
-    target: scope.profile.monthlyRevenueTargetCents > 0 ? `${money(scope.profile.monthlyRevenueTargetCents, currency)} target` : "no target set",
+    target: targets.revenueTargetCents > 0 ? `${money(targets.revenueTargetCents, currency)} target` : "no target set",
     state: revenue.state,
     deviationPercent: revenue.deviationPercent,
     detail: revenue.state === "learning"
       ? "Connect finance evidence to read revenue against target."
       : revenue.state === "no-target"
         ? "Set a monthly revenue target to read a position."
-        : `Pace expects ${money(revenue.expectedCents ?? 0, currency)} by now; run rate lands at ${revenue.forecastCents === null ? "—" : money(revenue.forecastCents, currency)}.`,
+        : `Pace expects ${money(revenue.expectedCents ?? 0, currency)} by now; run rate lands at ${revenue.forecastCents === null ? "—" : money(revenue.forecastCents, currency)}.${targets.revenueAuthority === "kpi-plan" ? ` The agency KPI plan requires ${targets.revenueAttainmentPercent}% of the retained ${money(scope.profile.monthlyRevenueTargetCents, currency)} plan.` : ""}`,
+    targetSource: targets.revenueAuthority,
   };
 
   return [revenueMetric, growth, pipeline, capacity, health];

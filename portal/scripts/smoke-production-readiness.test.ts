@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { inspectProductionReadiness } from "../src/lib/server/productionReadiness";
+import {
+  inspectObservabilityCapability,
+  isSentrySdkInstalled,
+} from "../src/lib/server/observabilityCapability";
 
 function productionEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return {
@@ -97,6 +101,147 @@ describe("production readiness", () => {
     assert.equal(result.ready, true);
     assert.equal(result.items.find(item => item.id === "billing")?.status, "optional");
     assert.equal(result.items.find(item => item.id === "monitoring")?.status, "optional");
+  });
+
+  // #132: a DSN string is not evidence. @sentry/nextjs is an optional
+  // dependency and every capture is a silent no-op while it is absent, so
+  // the checklist must ask for setup instead of reporting "ready".
+  it("does not call error monitoring ready from a DSN string alone", () => {
+    const env = productionEnv({ SENTRY_DSN: "https://public@o0.ingest.sentry.io/0" });
+    const result = inspectProductionReadiness(env, {
+      observabilityCapability: inspectObservabilityCapability(env, false),
+    });
+    const monitoring = result.items.find(item => item.id === "monitoring");
+    assert.equal(monitoring?.status, "needs-setup");
+    assert.ok(monitoring?.summary.includes("no error is delivered"));
+    assert.notEqual(monitoring?.action, "No action needed.");
+  });
+
+  it("reports error monitoring ready once the DSN and the SDK are both present", () => {
+    const env = productionEnv({ SENTRY_DSN: "https://public@o0.ingest.sentry.io/0" });
+    const result = inspectProductionReadiness(env, {
+      observabilityCapability: inspectObservabilityCapability(env, true),
+    });
+    assert.equal(result.items.find(item => item.id === "monitoring")?.status, "ready");
+    // Monitoring is not a required launch gate either way.
+    assert.equal(result.ready, true);
+  });
+
+  it("probes the live dependency state when no capability is supplied", () => {
+    const result = inspectProductionReadiness(
+      productionEnv({ SENTRY_DSN: "https://public@o0.ingest.sentry.io/0" }),
+    );
+    const monitoring = result.items.find(item => item.id === "monitoring");
+    assert.equal(monitoring?.status, isSentrySdkInstalled() ? "ready" : "needs-setup");
+  });
+
+  // ── Whose readiness is this? (env-and-sellability.md §3) ──────────────────
+  //
+  // Every row used to be decided by `process.env`, and the verdict with them.
+  // On a sold instance that means a screen the buyer cannot act on: rows about
+  // a database and a session secret only the operator can change, and a
+  // "customer email" row that reads off the operator's Resend key. The buyer
+  // could connect SMTP, their own everything, and still be told "production
+  // setup is incomplete" forever.
+  describe("a company that is not the operator", () => {
+    const tenant = {
+      agencyId: "buyer-agency",
+      environmentCredentialsBelongToAgency: false,
+    } as const;
+
+    it("is never judged on the operator's environment", () => {
+      // A fully configured deployment — every env var the operator's own
+      // readiness passes on — and a tenant with nothing of their own.
+      const result = inspectProductionReadiness(productionEnv(), tenant);
+
+      assert.equal(result.audience, "company");
+      assert.equal(
+        result.items.some(item => item.scope === "platform"),
+        false,
+        "platform rows name variables a tenant cannot set; showing them offers an action they cannot take",
+      );
+      assert.deepEqual(
+        result.items.filter(item => item.required).map(item => item.id),
+        ["email"],
+        "the buyer's only required row is their own customer email",
+      );
+      assert.equal(result.ready, false, "they have connected nothing, so they are not ready");
+      assert.equal(
+        result.items.find(item => item.id === "email")?.status,
+        "needs-setup",
+        "the operator's RESEND_API_KEY is not this company's mail",
+      );
+      // The optional rows must not read as connected off the operator's keys
+      // either — a green "GitHub publishing" row would be Ed's token.
+      for (const id of ["billing", "github", "vercel", "assistant", "assistant-api"] as const) {
+        assert.equal(result.items.find(item => item.id === id)?.status, "optional", id);
+      }
+    });
+
+    it("is not handed the operator's variable names to debug with", () => {
+      const result = inspectProductionReadiness(productionEnv(), tenant);
+      assert.deepEqual(
+        [...new Set(result.items.map(item => item.envKeys.length))],
+        [0],
+        "envKeys is a founder-facing aid, and this object is serialised into the browser",
+      );
+    });
+
+    // The headline break: `smtp` is a first-class catalog provider that
+    // `sendTransactionalEmail` fully supports, but readiness only asked about
+    // `resend` — so an SMTP buyer failed a REQUIRED row and the whole instance
+    // read `ready: false` permanently, with no way out from inside the app.
+    it("reads ready once its own email is connected — SMTP included", () => {
+      const result = inspectProductionReadiness(productionEnv({ RESEND_API_KEY: "" }), {
+        ...tenant,
+        managedIntegrationProviders: ["smtp"],
+        transactionalEmailConfigured: true,
+        enquiryNotificationsConfigured: true,
+      });
+      assert.equal(result.items.find(item => item.id === "email")?.status, "ready");
+      assert.equal(result.ready, true, "a sellable instance can reach ready without a redeploy");
+    });
+
+    it("counts an SMTP connection as customer email on its own", () => {
+      const result = inspectProductionReadiness({}, {
+        ...tenant,
+        managedIntegrationProviders: ["smtp"],
+        enquiryNotificationsConfigured: true,
+      });
+      assert.equal(result.items.find(item => item.id === "email")?.status, "ready");
+    });
+
+    // The other direction: `notifyTo` is OPTIONAL in the Resend catalog entry,
+    // so a bare connection used to turn the row green while a public enquiry
+    // had no inbox to land in. Missing evidence is never a healthy pass.
+    it("does not call enquiry notifications ready from a bare email connection", () => {
+      const result = inspectProductionReadiness({}, {
+        ...tenant,
+        managedIntegrationProviders: ["resend"],
+        transactionalEmailConfigured: true,
+        enquiryNotificationsConfigured: false,
+      });
+      const email = result.items.find(item => item.id === "email");
+      assert.equal(email?.status, "needs-setup");
+      assert.equal(result.ready, false);
+      // And it must say WHICH half is missing: the fix is a notification
+      // address, not another email provider.
+      assert.match(email?.summary ?? "", /enquiry has no inbox/i);
+      assert.match(email?.action ?? "", /enquiry notification email|support email/i);
+    });
+  });
+
+  it("still gives the operator's own agency the whole deployment view", () => {
+    const result = inspectProductionReadiness(productionEnv(), {
+      agencyId: "founder-agency",
+      environmentCredentialsBelongToAgency: true,
+    });
+    assert.equal(result.audience, "platform");
+    assert.ok(
+      result.items.some(item => item.id === "database" && item.scope === "platform"),
+      "the environment IS the founder's configuration, so their rows still read from it",
+    );
+    assert.equal(result.ready, true);
   });
 
   it("reports optional service connections without exposing their values", () => {

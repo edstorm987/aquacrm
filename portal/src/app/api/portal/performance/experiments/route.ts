@@ -23,6 +23,12 @@ export async function GET(req: NextRequest) {
   if (!session || !ROLES.has(session.role)) return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   try {
     const scope = routeTenantScope(session, { clientId: req.nextUrl.searchParams.get("clientId") });
+    // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
+    // `routeTenantScope` lets an id that resolves to nothing through, so POST
+    // below answers it 404; the element gate would have answered it 403.
+    if (scope.clientId && !scope.client) {
+      return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+    }
     if (scope.clientId) {
       await requireCurrentClientWorkspaceElementAccess(scope.clientId, "client.marketing", "view");
     }

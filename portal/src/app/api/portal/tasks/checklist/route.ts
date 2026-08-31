@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { requireClientAssociation } from "@/lib/server/access/clientAssociationElement";
 import {
   addTaskChecklistItem,
   listAgencyTasks,
@@ -29,6 +30,12 @@ export async function POST(request: Request) {
     // one that does not exist.
     const task = listAgencyTasks(session.agencyId).find(entry => entry.id === taskId);
     if (!task) return NextResponse.json({ ok: false, error: "Task not found." }, { status: 404 });
+
+    // Then the client. Sub-tasks are content OF the Action, and every branch
+    // below answers with the WHOLE task — title and notes included — so this
+    // route both writes and reads across the same boundary `portal/tasks`
+    // gates. An Action naming no client is agency work and passes through.
+    await requireClientAssociation("agency-task", task.clientId, "use");
 
     const action = typeof body?.action === "string" ? body.action : "add";
 

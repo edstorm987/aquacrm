@@ -29,6 +29,12 @@ import { describe, it } from "node:test";
 
 import { buildAffiliatesContainer } from "../src/built-ins/modules/affiliates/src/server/index";
 import { affiliateDependencyInventory } from "../src/built-ins/modules/affiliates/src/server/dependencies";
+import {
+  clearAffiliatesFoundation,
+  registerAffiliatesFoundation,
+} from "../src/built-ins/modules/affiliates/src/server/foundationAdapter";
+import { deleteAffiliateHandler } from "../src/built-ins/modules/affiliates/src/api/handlers";
+import type { PluginCtx } from "../src/built-ins/modules/affiliates/src/lib/aquaPluginTypes";
 import type { Affiliate, Attribution, Payout, ReferralCode } from "../src/built-ins/modules/affiliates/src/lib/domain";
 import type { ActivityLogPort, EventBusPort, StoragePort } from "../src/built-ins/modules/affiliates/src/server/ports";
 
@@ -130,6 +136,44 @@ async function seedWorld() {
   return { storage, services: buildWorld(storage) };
 }
 
+// The mounted route — `DELETE /api/portal/affiliates/affiliates?id=…` — resolves
+// its container through the registered foundation rather than the one the tests
+// build, so this registers one over the SAME storage. No Stripe Connect:
+// removing an affiliate touches it on no path.
+function mountedCtx(storage: MemoryStorage): PluginCtx {
+  clearAffiliatesFoundation();
+  registerAffiliatesFoundation({
+    tenant: { getClient() { return null; }, getClientForAgency() { return null; } },
+    user: { getUser() { return null; } },
+    activity: {
+      logActivity(input: unknown) { return { id: "act", ts: Date.now(), ...(input as object) } as never; },
+      listActivity() { return [] as never; },
+    },
+    events: { emit() {} },
+    pluginInstalls: { getInstall() { return null; } },
+    ecommerceOrders: { getOrder() { return null; } },
+  } as never);
+  return {
+    agencyId: AGENCY_ID,
+    clientId: CLIENT_ID,
+    actor: ACTOR_ID,
+    storage,
+    install: {
+      id: "inst_affiliate_deps", pluginId: "affiliates",
+      agencyId: AGENCY_ID, clientId: CLIENT_ID, enabled: true, config: {}, features: {},
+    } as never,
+    services: {} as PluginCtx["services"],
+  };
+}
+
+async function deleteViaRoute(ctx: PluginCtx, affiliateId: string) {
+  const response = await deleteAffiliateHandler(
+    new Request(`https://portal.test/api/portal/affiliates/affiliates?id=${affiliateId}`, { method: "DELETE" }),
+    ctx,
+  );
+  return { status: response.status, body: await response.json() as Record<string, unknown> };
+}
+
 describe("the inventory finds everything still attached", () => {
   it("finds the code, the attribution and the payout", async () => {
     const { services } = await seedWorld();
@@ -195,5 +239,79 @@ describe("what DELETE does today, recorded rather than asserted as correct", () 
     // …and the storage rows really are still there, pointing at nobody.
     assert.ok(storage.data.has("attributions/by-id/attr_owner"), "the attribution vanished without a policy");
     assert.ok(storage.data.has("payouts/by-id/payout_owner"), "the payout vanished without a policy");
+  });
+});
+
+// ── The mounted route now ASKS before it destroys ──────────────────────────
+//
+// The block above records what `AffiliateService.delete` does when it is
+// called: it still hard-deletes and still orphans everything, because what
+// happens to commission already earned is an undecided policy and inventing one
+// here would be the decision. What HAS changed is that the only caller — the
+// mounted `DELETE /api/portal/affiliates/affiliates` route — asks the inventory
+// first and refuses while anything is still attached, naming the "removed"
+// status as the path that works.
+//
+// Every assertion below fails against the previous handler, which passed the id
+// straight to `affiliates.delete` and answered `{ ok: true }`.
+
+describe("DELETE /affiliates refuses to orphan money", () => {
+  it("answers 422 with the inventory, and names the path that works", async () => {
+    const { storage } = await seedWorld();
+    const ctx = mountedCtx(storage);
+
+    const { status, body } = await deleteViaRoute(ctx, AFFILIATE_ID);
+
+    assert.equal(status, 422, "an affiliate with a payout attached was deleted by the mounted route");
+    assert.equal(body.ok, false);
+    assert.equal(body.reason, "affiliate_has_dependants");
+
+    const dependencies = body.dependencies as {
+      total: number; hasFinancialDependants: boolean; activeReferralCodes: number;
+    };
+    assert.equal(dependencies.total, 3);
+    assert.equal(dependencies.hasFinancialDependants, true, "the refusal did not carry the financial flag");
+    assert.equal(dependencies.activeReferralCodes, 1);
+
+    // It says no AND says how to deal with it — and names the two sharp things
+    // rather than reporting a bare count.
+    assert.match(String(body.error), /removed/i,
+      'the refusal does not name the "removed" status — an admin is told no with nowhere to go');
+    assert.match(String(body.error), /ACTIVE/,
+      "the still-live referral code is not named in the refusal");
+  });
+
+  it("changes nothing — the affiliate and all three records survive", async () => {
+    const { storage } = await seedWorld();
+    const ctx = mountedCtx(storage);
+
+    await deleteViaRoute(ctx, AFFILIATE_ID);
+
+    const retry = await deleteViaRoute(ctx, AFFILIATE_ID);
+    assert.equal(retry.status, 422, "the second attempt succeeded — the first one deleted something after all");
+    assert.equal((retry.body.dependencies as { total: number }).total, 3);
+
+    assert.ok(storage.data.has(`affiliates/by-id/${AFFILIATE_ID}`), "the affiliate row was removed by a refused delete");
+    assert.ok(storage.data.has("codes/by-id/code_owner"), "the referral code was touched by a refused delete");
+    assert.ok(storage.data.has("attributions/by-id/attr_owner"), "the attribution was touched by a refused delete");
+    assert.ok(storage.data.has("payouts/by-id/payout_owner"), "the payout was touched by a refused delete");
+  });
+
+  it("is a guard, not a ban — an affiliate with nothing attached still deletes", async () => {
+    const { storage } = await seedWorld();
+    await seedAffiliate(storage, "affiliate_clean", "Clean");
+    const ctx = mountedCtx(storage);
+
+    const { status, body } = await deleteViaRoute(ctx, "affiliate_clean");
+    assert.equal(status, 200, `an affiliate with no dependants was refused: ${JSON.stringify(body)}`);
+    assert.equal(body.ok, true);
+    assert.equal(storage.data.has("affiliates/by-id/affiliate_clean"), false, "the empty affiliate survived a 200");
+  });
+
+  it("still answers 404 for an affiliate that does not exist", async () => {
+    const { storage } = await seedWorld();
+    const ctx = mountedCtx(storage);
+    const { status } = await deleteViaRoute(ctx, "affiliate_never_existed");
+    assert.equal(status, 404, "an unknown id must stay a 404, not become a dependency refusal");
   });
 });

@@ -13,13 +13,14 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   buildExternalAssistantSetupDocument,
   buildExternalAssistantSetupPrompt,
   externalAssistantSetupFilename,
 } from "@/lib/integrations/externalAssistantSetup";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 interface ApiKeySummary {
   id: string;
@@ -91,6 +92,12 @@ export function ExternalAiConnectionPanel() {
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [revealed, setRevealed] = useState<{ token: string; key: ApiKeySummary } | null>(null);
+  // Modal keyboard contract: the one-time key stays trapped until it is dismissed, and focus returns to the key list.
+  const revealDialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(revealDialogRef, revealed !== null, { onEscape: () => setRevealed(null) });
+  // Modal keyboard contract: focus enters the key form, Tab stays inside it, Escape backs out (except mid-generate), focus returns to the button that opened it.
+  const createDialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(createDialogRef, createOpen, { onEscape: creating ? undefined : () => setCreateOpen(false) });
   const [name, setName] = useState("My AI assistant");
   const [expiresInDays, setExpiresInDays] = useState<number | null>(90);
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
@@ -391,7 +398,7 @@ export function ExternalAiConnectionPanel() {
       </div>
 
       {createOpen ? (
-        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-labelledby="create-api-key-title">
+        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-6" role="dialog" ref={createDialogRef} aria-modal="true" aria-labelledby="create-api-key-title">
           <div className="max-h-[92dvh] w-full overflow-y-auto rounded-t-xl bg-white p-5 shadow-2xl sm:max-w-2xl sm:rounded-xl sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -447,7 +454,7 @@ export function ExternalAiConnectionPanel() {
       ) : null}
 
       {revealed ? (
-        <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/65 p-0 sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-labelledby="private-key-title">
+        <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/65 p-0 sm:items-center sm:p-6" role="dialog" ref={revealDialogRef} aria-modal="true" aria-labelledby="private-key-title">
           <div className="w-full rounded-t-xl bg-white p-5 shadow-2xl sm:max-w-xl sm:rounded-xl sm:p-6">
             <div className="flex size-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-700"><KeyRound size={18} /></div>
             <h3 id="private-key-title" className="mt-4 text-lg font-semibold text-black/90">Copy this key now</h3>

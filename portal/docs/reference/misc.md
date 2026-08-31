@@ -71,6 +71,22 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ## `src/`
 
+<a id="file-src-instrumentation-ts-cc47c85c73"></a>
+
+### `src/instrumentation.ts`
+
+**What it is:** AND `@sentry/nextjs` is installed. Nothing here claims more than that.
+
+**Exports (3):**
+
+- `describeRequestError(request: { path: string; method: string }, context: { routerKind?: string; routePath?: string; routeType?: string; renderSource?: string }): ObservabilityBreadcrumb & { extra: Record<string, unknown…` — Derive the observability breadcrumb for a failed server request. Pure and exported so the contract (route, method, tenancy) is testable without a live server.
+- `async register(): Promise<void>` — Called once per server runtime start. Warms the optional Sentry loader so `init()` happens at boot rather than inside the first failing request, and makes a mis-configured monitor…
+- `async onRequestError(error, request, context)` — Every server-side error Next catches lands here. Reports through the real observability path (deployment log always; Sentry when installed and configured) with the route and tenan…
+
+**Depends on (1):** [`src/lib/server/observability.ts`](lib.md#file-src-lib-server-observability-ts-30e894807d)
+
+**Used by (1):** [`scripts/smoke-observability.test.ts`](scripts.md#file-scripts-smoke-observability-test-ts-86370e6873)
+
 <a id="file-src-proxy-ts-8e0a566449"></a>
 
 ### `src/proxy.ts`
@@ -82,7 +98,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `proxy(req: NextRequest)`
 - `config = {`
 
-**Depends on:** _No internal imports._
+**Depends on (1):** [`src/lib/staffWorkspacePolicy.ts`](lib.md#file-src-lib-staffworkspacepolicy-ts-3b2d90ae3d)
 
 **Used by (2):** [`scripts/smoke-sandbox-environment.test.ts`](scripts.md#file-scripts-smoke-sandbox-environment-test-ts-99a8655e6d) · [`scripts/smoke-showcase-mode.test.ts`](scripts.md#file-scripts-smoke-showcase-mode-test-ts-a1d2a86c7a)
 

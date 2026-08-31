@@ -19,6 +19,7 @@ import { resolveClientProductStage } from "@/lib/products/clientProductStageTrut
 import { PORTAL_PROGRAMME_LIFECYCLE, portalProductLifecycle } from "@/lib/portal/portalProductModules";
 import { cleanPortalProductWorkspaces, type PortalProductWorkspace } from "@/lib/portal/portalProductWorkspaces";
 import { cleanClientRecordEntries, type ClientRecordEntryKind } from "@/lib/clients/clientRelationshipRecord";
+import { readOk, readOrUnavailable } from "@/lib/readAvailability";
 import { listInboxSnapshot } from "@/lib/server/inbox/inboxStore";
 import { listWebsiteEnquiries } from "@/lib/server/websiteEnquiries";
 import {
@@ -145,6 +146,15 @@ export interface CustomerPortalData {
   approvals: ClientApproval[];
   invoices: CustomerInvoice[];
   paymentPlans: ClientPaymentPlan[];
+  /**
+   * Which of this aggregate's remote reads actually answered. `false` means the
+   * read failed — NOT that the customer has none. Every surface that states a
+   * fact about invoices or messages must consult this first (issues #57).
+   */
+  available: {
+    invoices: boolean;
+    messages: boolean;
+  };
   record: CustomerRecord;
   support: {
     email?: string;
@@ -164,6 +174,33 @@ export function portalMode(value: unknown): CustomerPortalMode {
   return value === "designing" || value === "developed-launch" || value === "maintenance"
     ? value
     : "onboarding";
+}
+
+/**
+ * What the portal is allowed to say about billing.
+ *
+ * Three states, not two. "Nothing outstanding" and "we could not read your
+ * invoices" render identically from `invoices.length === 0`, and the second one
+ * used to borrow the first one's copy — "Your plan and invoices are up to
+ * date." That is a settlement claim, and an outage is not evidence of
+ * settlement (issues #57).
+ */
+export function customerBillingSummary(
+  data: Pick<CustomerPortalData, "invoices" | "available">,
+): { state: "unavailable" | "outstanding" | "settled"; outstanding: CustomerInvoice[]; body: string } {
+  const outstanding = data.invoices.filter(invoice => invoice.status === "sent" || invoice.status === "overdue");
+  if (!data.available.invoices) {
+    return { state: "unavailable", outstanding: [], body: "Your billing could not be read just now. Reload to try again." };
+  }
+  if (outstanding.length) {
+    return {
+      state: "outstanding",
+      outstanding,
+      // (The inline copy this replaced read "1 invoice need attention.")
+      body: `${outstanding.length} invoice${outstanding.length === 1 ? " needs" : "s need"} attention.`,
+    };
+  }
+  return { state: "settled", outstanding, body: "Your plan and invoices are up to date." };
 }
 
 export function customerVisibleInvoices(invoices: Invoice[]): Invoice[] {
@@ -315,20 +352,22 @@ export async function loadCustomerPortalData(
     };
   };
 
-  let invoices: Invoice[] = [];
   const financeInstall = getInstall({ agencyId: client.agencyId }, "agency-finance");
-  if (financeInstall?.enabled) {
-    try {
-      invoices = await containerFor({
-        agencyId: client.agencyId,
-        storage: makePluginStorage(financeInstall.id),
-        install: financeInstall,
-      }).invoices.list({ clientId: client.id });
-      invoices = customerVisibleInvoices(invoices);
-    } catch {
-      invoices = [];
-    }
-  }
+  // A refused invoice read used to become `[]`, and the customer was then told
+  // "Your plan and invoices are up to date" — a settlement claim built on a
+  // read that never happened. Keep the failure (issues #57).
+  const invoiceRead = financeInstall?.enabled
+    ? await readOrUnavailable(
+        async () => customerVisibleInvoices(await containerFor({
+          agencyId: client.agencyId,
+          storage: makePluginStorage(financeInstall.id),
+          install: financeInstall,
+        }).invoices.list({ clientId: client.id })),
+        [] as Invoice[],
+        "Billing could not be read just now. Reload to try again.",
+      )
+    : readOk([] as Invoice[]);
+  const invoices = invoiceRead.data;
 
   const invoiceNumberById = new Map(invoices.map(invoice => [invoice.id, invoice.number]));
   const reconciledPaymentPlans = cleanClientPaymentPlans(meta.clientPaymentPlans)
@@ -437,10 +476,20 @@ export async function loadCustomerPortalData(
       status: request.status,
     })),
   ]);
-  const [inboxSnapshot, websiteEnquiries] = await Promise.all([
-    listInboxSnapshot(client.agencyId).catch(() => ({ connections: [], conversations: [], generatedAt: Date.now() })),
-    listWebsiteEnquiries(client.agencyId, 500).catch(() => []),
+  const [inboxRead, enquiryRead] = await Promise.all([
+    readOrUnavailable(
+      () => listInboxSnapshot(client.agencyId),
+      { connections: [], conversations: [], generatedAt: Date.now() } as Awaited<ReturnType<typeof listInboxSnapshot>>,
+      "Messages could not be read just now. Reload to try again.",
+    ),
+    readOrUnavailable(
+      () => listWebsiteEnquiries(client.agencyId, 500),
+      [] as Awaited<ReturnType<typeof listWebsiteEnquiries>>,
+      "Enquiries could not be read just now. Reload to try again.",
+    ),
   ]);
+  const inboxSnapshot = inboxRead.data;
+  const websiteEnquiries = enquiryRead.data;
   const socialRecordMessages: CustomerRecordMessage[] = inboxSnapshot.conversations
     .filter(conversation => conversation.identity.clientId === client.id)
     .flatMap(conversation => conversation.messages
@@ -533,6 +582,9 @@ export async function loadCustomerPortalData(
     issuedAt: contract.issuedAt,
     acceptedAt: contract.acceptedAt,
     acceptedBy: contract.acceptedBy ? "Customer" : undefined,
+    // Which wording they actually agreed to — so the portal can say "version 2
+    // accepted" rather than implying the current text was the accepted one.
+    acceptedVersion: contract.acceptedVersion,
     declinedAt: contract.declinedAt,
     declinedBy: contract.declinedBy ? "Customer" : undefined,
   }));
@@ -705,6 +757,10 @@ export async function loadCustomerPortalData(
     approvals: safeApprovals,
     invoices: safeInvoices,
     paymentPlans: safePaymentPlans,
+    available: {
+      invoices: invoiceRead.available,
+      messages: inboxRead.available && enquiryRead.available,
+    },
     record: {
       email: meta.portalLoginEmail?.trim() || meta.clientEmail?.trim() || client.ownerEmail?.trim() || undefined,
       phone: meta.phone?.trim() || meta.contactPhone?.trim() || undefined,

@@ -11,6 +11,9 @@
 //   - markPaid flips attributions to paid + bumps lifetime earnings
 //   - side-effects: activity log + event bus
 
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, test, before } from "node:test";
 import { strict as assert } from "node:assert";
 
@@ -141,7 +144,7 @@ function buildWorld() {
       stripeCalls.push({ kind: "createTransfer", payload: args });
       return { transferId: `tr_smoke_${String(stripeTransferSeq++).padStart(3, "0")}`, created: Date.now() };
     },
-    verifyWebhookSignature({ signature }) {
+    async verifyWebhookSignature({ signature }) {
       stripeCalls.push({ kind: "verifyWebhookSignature", payload: { hasSig: !!signature } });
       return signature === "sig_smoke_ok";
     },
@@ -569,5 +572,76 @@ describe("affiliates smoke", () => {
       /no Stripe Connect account|onboarding|complete/i,
       "processPayout rejected when onboardingStatus absent",
     );
+  });
+});
+
+// ── Money safety: transfer readiness is stricter than connect availability ──
+//
+// `transfer.paid` is the ONLY route a payout has from `in_progress` to
+// `completed` (payouts.ts confirmTransferPaid), and it arrives by webhook.
+// A scope with a secret key but no verifiable webhook secret can therefore
+// create a REAL Stripe transfer that can never be confirmed — the affiliate's
+// money leaves and PayoutsList offers no further action, because it only
+// renders controls for `scheduled`. So the money-moving control gates on
+// transfer readiness, never on "a Stripe key exists".
+const HERE = dirname(fileURLToPath(import.meta.url));
+
+describe("automated payouts are refused unless a transfer can actually complete", () => {
+  test("the money-moving control gates on transfer readiness and names the manual route", () => {
+    // Source pin rather than an import: PayoutsList is a client component whose
+    // module graph cannot load under this runner. The contract still has to be
+    // guarded, so assert it where it lives.
+    const src = readFileSync(
+      join(HERE, "..", "components", "PayoutsList.tsx"),
+      "utf-8",
+    );
+    assert.match(
+      src,
+      /mark this payout paid once you have sent it yourself/i,
+      "a refusal must name the supported manual route, never dead-end",
+    );
+    assert.doesNotMatch(
+      src,
+      /Stripe Connect is not configured for this client/,
+      "the refusal must not blame configuration when the real gap is settlement readiness",
+    );
+    const page = readFileSync(
+      join(HERE, "..", "pages", "PayoutsPage.tsx"),
+      "utf-8",
+    );
+    assert.match(
+      page,
+      /stripeConnectAvailable=\{isStripeTransferAvailable\(/,
+      "the payouts page must gate the transfer button on transfer readiness, not onboarding availability",
+    );
+  });
+
+  test("isStripeTransferAvailable requires a webhook secret; onboarding availability does not", async () => {
+    const adapter = await import("../server/foundationAdapter");
+    const scope = { agencyId: "agency_money", clientId: "client_money" };
+    const base = {
+      tenant: {}, user: {}, activity: {}, events: {}, pluginInstalls: {}, ecommerceOrders: {},
+      stripeConnectFor: () => ({}) as never,
+    } as never;
+
+    // Key present, webhook secret absent: onboarding yes, transfer NO.
+    adapter.registerAffiliatesFoundation({
+      ...(base as object),
+      stripeConnectTransferReady: () => false,
+    } as never);
+    assert.equal(adapter.isStripeConnectAvailable(scope), true, "onboarding stays available on a key alone");
+    assert.equal(adapter.isStripeTransferAvailable(scope), false, "settlement must not be offered without it");
+
+    // Webhook secret present: both.
+    adapter.registerAffiliatesFoundation({
+      ...(base as object),
+      stripeConnectTransferReady: () => true,
+    } as never);
+    assert.equal(adapter.isStripeTransferAvailable(scope), true);
+
+    // A foundation that never declares transfer readiness must fail closed.
+    adapter.registerAffiliatesFoundation(base);
+    assert.equal(adapter.isStripeTransferAvailable(scope), false, "absent capability means NOT ready, never assumed");
+    adapter.clearAffiliatesFoundation();
   });
 });

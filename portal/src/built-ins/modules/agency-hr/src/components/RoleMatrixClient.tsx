@@ -4,8 +4,9 @@
 // Seed roles render their permissions read-only with a "Clone" action;
 // non-seed roles render checkboxes that POST diffs back to the API.
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import type { CustomRole, PermissionKey } from "../lib/domain";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 export interface RoleMatrixClientProps {
   roles: CustomRole[];
@@ -17,6 +18,9 @@ export function RoleMatrixClient({ roles, permissions, apiBase }: RoleMatrixClie
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  // Modal keyboard contract: focus enters the form, Tab stays inside it, Escape backs out, focus returns to the New role button.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, adding, { onEscape: () => setAdding(false) });
 
   async function toggle(role: CustomRole, perm: PermissionKey, checked: boolean) {
     if (role.seed) return;
@@ -165,7 +169,7 @@ export function RoleMatrixClient({ roles, permissions, apiBase }: RoleMatrixClie
       </div>
 
       {adding && (
-        <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+        <div role="dialog" ref={dialogRef} aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <form onSubmit={addNew} className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
             <h3 className="text-lg font-semibold">New role</h3>
             <label className="mt-4 flex flex-col gap-1 text-sm">

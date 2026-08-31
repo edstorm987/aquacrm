@@ -22,10 +22,11 @@
 // department rather than blended into one reassuring average.
 
 import { useRouter } from "next/navigation";
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useRef, useState, useTransition } from "react";
 import { ChevronDown, Check, LoaderCircle } from "lucide-react";
 
 import { DEPARTMENT_PROFILES } from "@/lib/access/departmentProfiles";
+import { useMenuKeys } from "@/lib/a11y/useMenuKeys";
 
 // The cookie is written by the SERVER, not here.
 //
@@ -69,10 +70,15 @@ export function DepartmentSwitcher({ active }: { active?: string }) {
     startTransition(() => router.refresh());
   }, [router]);
 
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  // issues #138 — arrow keys, Home/End and a focus-returning Escape for the
+  // `role="menu"` below, which announced a keyboard model it did not have.
+  useMenuKeys(wrapRef, { open, onOpen: () => setOpen(true), onClose: () => setOpen(false) });
+
   const current = DEPARTMENT_PROFILES.find(profile => profile.id === active);
 
   return (
-    <div className="relative">
+    <div ref={wrapRef} className="relative">
       <button
         type="button"
         onClick={() => setOpen(value => !value)}

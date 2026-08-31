@@ -71,6 +71,9 @@ export function PortalSearch({ items, recordsEnabled = false, initiallyOpen = fa
   const [loading, setLoading] = useState(false);
   const [indexMeta, setIndexMeta] = useState<SearchIndexMeta>({ indexed: 0, categories: {} });
   const [totalMatches, setTotalMatches] = useState(0);
+  // A refused record search is not "No matches" — one says the index answered
+  // and held nothing, the other says nobody asked it (issues #57).
+  const [searchUnavailable, setSearchUnavailable] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -114,6 +117,7 @@ export function PortalSearch({ items, recordsEnabled = false, initiallyOpen = fa
     if (!recordsEnabled || !open || normalised.length < 2) {
       setRecordResults([]);
       setTotalMatches(0);
+      setSearchUnavailable(false);
       setLoading(false);
       return;
     }
@@ -126,11 +130,16 @@ export function PortalSearch({ items, recordsEnabled = false, initiallyOpen = fa
         if (response.ok) {
           setRecordResults(json?.results ?? []);
           setTotalMatches(json?.total ?? json?.results?.length ?? 0);
+          setSearchUnavailable(false);
           if (json?.indexed) setIndexMeta({ indexed: json.indexed, categories: json.categories ?? {} });
         }
-        else setRecordResults([]);
+        else { setRecordResults([]); setTotalMatches(0); setSearchUnavailable(true); }
       } catch (error) {
-        if (!(error instanceof DOMException && error.name === "AbortError")) setRecordResults([]);
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setRecordResults([]);
+          setTotalMatches(0);
+          setSearchUnavailable(true);
+        }
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
@@ -326,7 +335,8 @@ export function PortalSearch({ items, recordsEnabled = false, initiallyOpen = fa
                 </div>
               ) : null}
               {!loading && normalised.length === 1 ? <SearchMessage title="Keep typing" detail="Enter at least two characters." /> : null}
-              {!loading && normalised.length > 1 && !recordResults.length && !pageResults.length ? <SearchMessage title="No matches" detail={`Nothing found for “${query.trim()}”.`} /> : null}
+              {!loading && normalised.length > 1 && searchUnavailable ? <SearchMessage title="Records could not be searched" detail="This is a failed search, not an empty result. Try again — pages above are still listed." /> : null}
+              {!loading && !searchUnavailable && normalised.length > 1 && !recordResults.length && !pageResults.length ? <SearchMessage title="No matches" detail={`Nothing found for “${query.trim()}”.`} /> : null}
             </div>
 
             <p className="sr-only" aria-live="polite">

@@ -12,9 +12,48 @@ export interface PayoutsListProps {
   balances: PayoutBalance[];
   apiBase: string;
   canMutate: boolean;
+  /**
+   * Whether this client's install actually has a Stripe Connect driver.
+   * `canMutate` says the operator is allowed to act; this says the system can.
+   * Both have to be true before "Process via Stripe" can do anything.
+   */
+  stripeConnectAvailable: boolean;
 }
 
-export function PayoutsList({ payouts, affiliates, balances, apiBase, canMutate }: PayoutsListProps) {
+/**
+ * Why "Process via Stripe" cannot run, or null when it can.
+ *
+ * The install-level capability is checked FIRST and separately from the
+ * affiliate's onboarding state: an install with no Stripe keys has no Connect
+ * driver at all, so the affiliate's own status is beside the point and saying
+ * "Stripe onboarding is pending" would blame the wrong party. Manual mark-paid
+ * stays available in every one of these cases — it is the honest route, not a
+ * fallback.
+ */
+export function processViaStripeBlockReason(args: {
+  stripeConnectAvailable: boolean;
+  affiliate: Affiliate | undefined;
+}): string | null {
+  // This gate is TRANSFER readiness, not merely "a Stripe key exists".
+  // `transfer.paid` is the only route a payout has to `completed`, and it
+  // arrives by webhook — so without a verifiable webhook secret an automated
+  // transfer really moves the affiliate's money and then strands the payout in
+  // `in_progress`, where this list offers no further action. Refusing up front
+  // is the honest answer; manual mark-paid still settles it.
+  if (!args.stripeConnectAvailable) {
+    return "Automated Stripe payouts are not ready for this client — mark this payout paid once you have sent it yourself.";
+  }
+  if (!args.affiliate) return "affiliate not found";
+  if (!args.affiliate.stripeAccountId) return "affiliate hasn't started Stripe Connect onboarding";
+  if (args.affiliate.stripeOnboardingStatus !== "complete") {
+    return `Stripe onboarding is ${args.affiliate.stripeOnboardingStatus ?? "pending"}`;
+  }
+  return null;
+}
+
+export function PayoutsList({
+  payouts, affiliates, balances, apiBase, canMutate, stripeConnectAvailable,
+}: PayoutsListProps) {
   const [filter, setFilter] = useState<PayoutStatus | "all">("scheduled");
   const activeAffiliates = affiliates.filter(affiliate => affiliate.status === "active");
   const firstBalance = balances.find(balance => balance.grossApprovedCents > 0);
@@ -122,7 +161,12 @@ export function PayoutsList({ payouts, affiliates, balances, apiBase, canMutate 
                 {p.externalRef && <p className="affiliates-meta">Ref: {p.externalRef}</p>}
                 {canMutate && p.status === "scheduled" && (
                   <div className="affiliates-payout-actions">
-                    <ProcessViaStripeButton apiBase={apiBase} payoutId={p.id} affiliate={aff} />
+                    <ProcessViaStripeButton
+                      apiBase={apiBase}
+                      payoutId={p.id}
+                      affiliate={aff}
+                      stripeConnectAvailable={stripeConnectAvailable}
+                    />
                     <MarkPaidButton apiBase={apiBase} payoutId={p.id} />
                   </div>
                 )}
@@ -153,21 +197,17 @@ function ProcessViaStripeButton({
   apiBase,
   payoutId,
   affiliate,
+  stripeConnectAvailable,
 }: {
   apiBase: string;
   payoutId: string;
   affiliate: Affiliate | undefined;
+  stripeConnectAvailable: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const ready = affiliate?.stripeOnboardingStatus === "complete";
-  const reason = !affiliate
-    ? "affiliate not found"
-    : !affiliate.stripeAccountId
-      ? "affiliate hasn't started Stripe Connect onboarding"
-      : affiliate.stripeOnboardingStatus !== "complete"
-        ? `Stripe onboarding is ${affiliate.stripeOnboardingStatus ?? "pending"}`
-        : null;
+  const reason = processViaStripeBlockReason({ stripeConnectAvailable, affiliate });
+  const ready = reason === null;
   return (
     <span className="affiliates-stripe-button">
       <button

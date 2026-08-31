@@ -61,7 +61,16 @@ test("a BLOCKED phase can never read as done, whatever else the paragraph says",
 test("the three real plans that rendered as finished are not finished", async () => {
   // Each of these was struck through and greyed in the Tasks view, and each
   // counted towards its plan's progress bar and the roadmap percentage.
-  for (const id of ["dev-mode-demo-profiles#1", "dev-team-hub#3", "dev-team-finish#1"]) {
+  //
+  // `dev-team-finish#1` used to be third on this list and has been REMOVED, for
+  // the same reason marketing-workspace-overhaul#6 was removed below: the phase
+  // then genuinely shipped. Its icons are in `dev-team/layout.tsx` (every nav
+  // item sets its own `icon:`), the phase now LEADS with `✅ SHIPPED`, and that
+  // is the legitimate marker path — not the "a word in the 400-char blob said
+  // DONE" bug this test exists for, which the synthetic case above still pins.
+  // Keeping it here would have made the suite depend on that plan never being
+  // ticked, which is the failure mode this file already learned once.
+  for (const id of ["dev-mode-demo-profiles#1", "dev-team-hub#3"]) {
     const task = await taskById(id);
     assert.ok(task, `${id} should still exist`);
     assert.notEqual(task.state, "done", `${id} is not done — a word in its body said so`);
@@ -136,6 +145,75 @@ test("the flagship plans that vanished are back, with the right progress", async
   const portal = byName.get("dev-team-portal");
   assert.ok(portal, "the ⭐⭐ plan for this very workspace never appeared in the Tasks view");
   assert.equal(portal.total, 5);
+});
+
+// ---- ticks a plan wrote in prose, not in its phases -------------------------
+//
+// Parsing a plan's phases is only half the promise. Three plans whose OWN
+// status lines said the work was shipped still rendered `0/N`, because the
+// ticks lived somewhere the parser does not read: a "What shipped" section
+// underneath the phases (dev-team-finish), a "Build progress" log
+// (dev-team-portal), or `~~strikethrough~~` on the phase text itself
+// (rls-enable). The board therefore reported three mostly-finished plans as
+// completely untouched — the same drift the parser fixes above were about,
+// arriving through the authored side instead of the code side.
+//
+// Each tick backfilled below was re-checked against current source first, so
+// these are assertions about work that exists, not about words in a file.
+test("phases ticked in prose are ticked where the board reads them", async () => {
+  const { scanTasks } = await import("../src/lib/server/dev/devTeamTasks");
+  const byName = new Map((await scanTasks()).map(p => [p.planName, p]));
+
+  // Phase ids proven against source on 2026-08-31. `done` is a floor, not an
+  // equality: finishing more of a plan must never fail this test.
+  const backfilled: { plan: string; total: number; done: number; shipped: string[] }[] = [
+    // Spine · section islands · Librarian · verify+polish. Phase 3 stays OPEN:
+    // `addDevTeamUpdateAlerts` and the ship→release promotion are absent from
+    // `src/`, so the Updates island never reaches the Master Inbox.
+    { plan: "dev-team-portal", total: 5, done: 4, shipped: ["0", "1", "2", "4"] },
+    // Icons · accuracy · Command Centre wiring — all three in the code.
+    { plan: "dev-team-finish", total: 3, done: 3, shipped: ["1", "2", "3"] },
+    // Audit · in-repo migrations · verify. Phase 3 is Ed's decision and phase 4
+    // landed only its first reduction, so both stay unticked.
+    { plan: "rls-enable", total: 5, done: 3, shipped: ["1", "2", "5"] },
+  ];
+
+  for (const { plan, total, done, shipped } of backfilled) {
+    const parsed = byName.get(plan);
+    assert.ok(parsed, `${plan} produced no tasks at all`);
+    assert.equal(parsed.total, total, `${plan} should parse ${total} phases`);
+    assert.ok(
+      parsed.done >= done,
+      `${plan} reads ${parsed.done}/${parsed.total} — a plan whose own status line calls this work shipped is back to reporting it as untouched`,
+    );
+    for (const number of shipped) {
+      const task = parsed.tasks.find(t => t.number === number);
+      assert.ok(task, `${plan} phase ${number} disappeared`);
+      assert.equal(
+        task.state,
+        "done",
+        `${plan} phase ${number} is shipped in source but the board does not say so`,
+      );
+    }
+  }
+});
+
+test("a plan with an open phase is parked on the board, never archived", async () => {
+  // `plans/archive/README.md`: archive only what shipped AND was verified, and
+  // never anything with an open phase — "parked work that is still on the board
+  // is honest, an archive that quietly hides unfinished work is not". Backfilling
+  // ticks is the moment that rule is easiest to break, so it is pinned here.
+  const { PROJECT_ROOT } = await import("../src/lib/server/dev/devDocs");
+  const top = new Set(await readdir(join(PROJECT_ROOT, "docs/development/plans")));
+  const archived = new Set(await readdir(join(PROJECT_ROOT, "docs/development/plans/archive")));
+
+  // dev-team-portal has an open phase 3; rls-enable has open phases 3 and 4.
+  // dev-team-finish is 3/3 in code but its own status says NOT browser-verified,
+  // which is the second half of the archive bar.
+  for (const name of ["dev-team-portal.md", "rls-enable.md", "dev-team-finish.md"]) {
+    assert.ok(top.has(name), `${name} left the board`);
+    assert.ok(!archived.has(name), `${name} was archived while its work is not both shipped and verified`);
+  }
 });
 
 test("only the plans that genuinely have no phases yield none", async () => {

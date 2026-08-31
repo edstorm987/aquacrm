@@ -166,7 +166,7 @@ export async function createMarketingAssetHandler(req: Request, ctx: PluginCtx):
   if (!body) return badRequest("marketing item required.");
   const input = cleanMarketingAssetInput(body);
   if (!input) return badRequest("name and a valid marketing area are required.");
-  return withMarketingRecordLock(ctx.agencyId, "assets", async () => {
+  return withMarketingRecordLock(ctx, "assets", async () => {
     const now = Date.now();
     const row: MarketingAsset = {
       ...input,
@@ -185,7 +185,7 @@ export async function updateMarketingAssetHandler(req: Request, ctx: PluginCtx):
   if (guard) return guard;
   const body = await safeJson<{ id: string; patch: UpdateMarketingAssetPatch; expectedUpdatedAt?: number }>(req);
   if (!body?.id || !body.patch) return badRequest("id and patch required.");
-  return withMarketingRecordLock(ctx.agencyId, "assets", async () => {
+  return withMarketingRecordLock(ctx, "assets", async () => {
     const existing = await getMarketingRecord<MarketingAsset>(marketingAssetStorage(ctx), body.id);
     if (!existing || existing.agencyId !== ctx.agencyId) return notFound("marketing item not found");
     if (body.expectedUpdatedAt !== undefined && body.expectedUpdatedAt !== existing.updatedAt) {
@@ -206,7 +206,7 @@ export async function deleteMarketingAssetHandler(req: Request, ctx: PluginCtx):
   if (!id) return badRequest("id required.");
   const expectedUpdatedAtRaw = new URL(req.url).searchParams.get("updatedAt");
   const expectedUpdatedAt = expectedUpdatedAtRaw ? Number(expectedUpdatedAtRaw) : undefined;
-  return withMarketingRecordLock(ctx.agencyId, "assets", async () => {
+  return withMarketingRecordLock(ctx, "assets", async () => {
     const existing = await getMarketingRecord<MarketingAsset>(marketingAssetStorage(ctx), id);
     if (!existing || existing.agencyId !== ctx.agencyId) return notFound("marketing item not found");
     if (expectedUpdatedAt !== undefined && expectedUpdatedAt !== existing.updatedAt) {

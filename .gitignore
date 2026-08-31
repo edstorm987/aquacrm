@@ -66,3 +66,7 @@ public/_milesy/
 
 # local-only private deployment/docs handoff
 Dev Team/
+
+# Browser-matrix run output: screenshots, accessibility trees and records.json
+# written by `npm run browser:matrix`. Evidence for one run, not source.
+portal/.artefacts/

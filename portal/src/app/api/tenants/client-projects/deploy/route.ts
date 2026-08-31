@@ -3,6 +3,11 @@ import { NextResponse } from "next/server";
 import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { deployProjectPreviewToVercel } from "@/lib/server/integrations/vercelProjectDeployer";
 import { logActivity } from "@/server/activity";
+import {
+  beginClientProjectOperation,
+  clientProjectOperationKey,
+  resumableClientProjectOperation,
+} from "@/server/clientProjectOperations";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
@@ -38,9 +43,10 @@ export async function POST(request: Request) {
     }
 
     const session = await requireRoleForClient([...AGENCY_ROLES], clientId);
-    await requireCurrentClientWorkspaceElementAccess(clientId, "client.systems", "manage");
+    // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
     const client = getClientForAgency(session.agencyId, clientId);
     if (!client) return NextResponse.json({ ok: false, error: "Client not found." }, { status: 404 });
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.systems", "manage");
     const metadata = (client.metadata ?? {}) as { properties?: StoredProperty[] };
     const current = Array.isArray(metadata.properties) ? metadata.properties : [];
     const property = current.find(item => item.id === propertyId);
@@ -49,12 +55,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "Provision this project locally before deploying it." }, { status: 400 });
     }
 
-    const deployment = await deployProjectPreviewToVercel({
+    // A deployment this operation already created is read back rather than
+    // stacked: an unrecorded preview is otherwise invisible to Aqua forever.
+    const operationKey = clientProjectOperationKey("deploy", session.agencyId, clientId, propertyId);
+    const resumable = resumableClientProjectOperation(operationKey);
+    const operation = await beginClientProjectOperation({
+      key: operationKey,
+      kind: "deploy",
       agencyId: session.agencyId,
       clientId,
-      localPath: property.localPath,
-      projectSlug: property.projectSlug,
+      intent: { propertyId, projectSlug: property.projectSlug, localPath: property.localPath },
     });
+
+    let deployment;
+    try {
+      deployment = await deployProjectPreviewToVercel({
+        agencyId: session.agencyId,
+        clientId,
+        localPath: property.localPath,
+        projectSlug: property.projectSlug,
+        adoptDeploymentId: resumable?.deploymentId,
+        onDeploymentCreated: created => operation.record({
+          deploymentId: created.deploymentId,
+          previewUrl: created.previewUrl,
+        }).then(() => undefined),
+      });
+    } catch (error) {
+      await operation.fail(error);
+      throw error;
+    }
     const changed: StoredProperty = {
       ...property,
       previewUrl: deployment.previewUrl,
@@ -67,6 +96,7 @@ export async function POST(request: Request) {
     };
     const properties = current.map(item => item.id === propertyId ? changed : item);
     if (!updateClient(session.agencyId, clientId, { metadata: { properties } })) {
+      await operation.fail(new Error("Deployment record could not be saved."));
       return NextResponse.json({ ok: false, error: "Deployment record could not be saved." }, { status: 500 });
     }
     logActivity({
@@ -79,6 +109,7 @@ export async function POST(request: Request) {
       message: `Created a Vercel review deployment for "${property.label}".`,
       metadata: { propertyId, previewUrl: deployment.previewUrl, deploymentId: deployment.deploymentId },
     });
+    await operation.succeed();
     await flushPendingWrites();
     return NextResponse.json({ ok: true, property: changed, properties, deployment });
   } catch (error) {

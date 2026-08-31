@@ -114,13 +114,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "unsupported action" }, { status: 400 });
   }
   const agencyId = session.activeAgencyId ?? session.agencyId;
+  // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
+  const client = getClientForAgency(agencyId, clientId);
+  if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
   try {
     await requireCurrentClientWorkspaceElementAccess(clientId, "client.portal", "manage");
   } catch (error) {
     return authErrorResponse(error);
   }
-  const client = getClientForAgency(agencyId, clientId);
-  if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
   if (action !== "build-portal" && typeof client.metadata?.portalBuiltAt !== "number") {
     return NextResponse.json(
       { ok: false, error: "Create the client portal before saving it or sending access." },

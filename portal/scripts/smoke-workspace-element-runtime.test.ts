@@ -224,7 +224,15 @@ describe("canonical workspace element runtime", () => {
     assert.match(peopleCommand, /allowedTabs\.includes\(metric\.tab\)/);
     assert.match(peopleCommand, /allowedTabs\.includes\("candidates"\) \? <button/);
     assert.match(proxy, /"\/portal\/agency\/fulfilment"/);
-    assert.match(proxy, /"\/api\/portal\/pipelines\/move-client"/);
+    // The employee-workspace enumeration moved out of `src/proxy.ts` into
+    // `src/lib/staffWorkspacePolicy.ts` so the shell, the proxy and the tests
+    // read ONE list. The contract this line has always pinned is unchanged —
+    // a delegated staff account must reach the pipeline move — so it is now
+    // asserted against the policy the proxy consults, and against the proxy
+    // actually consulting it rather than keeping a second copy.
+    const { isStaffWorkspaceApiPath } = await import("../src/lib/staffWorkspacePolicy");
+    assert.equal(isStaffWorkspaceApiPath("/api/portal/pipelines/move-client"), true);
+    assert.match(proxy, /isStaffWorkspaceApiPath\(path\)/);
     assert.match(agencyLayout, /const delegatedStaff = session\.role === "agency-staff"/);
   });
 

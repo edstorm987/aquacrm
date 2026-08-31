@@ -209,6 +209,207 @@ test("no page template points a form at a route that does not exist", () => {
   );
 });
 
+// ── The plugin-contributed blocks ────────────────────────────────────────
+//
+// The derivation above deliberately stops at RENDERER_REGISTRATIONS, because
+// a plugin block is only offered when its plugin is installed. That gating
+// says nothing about what the block PRINTS when its backend answers badly,
+// and every one of the membership/affiliate renderers used to print the same
+// thing for "there is nothing" and for "we could not ask": an empty list
+// behind a silent catch. Those are the contracts below.
+
+/** Every `.ts`/`.tsx` source under `dir`, concatenated. */
+function readAllSources(dir: string): string {
+  if (!existsSync(dir)) return "";
+  let out = "";
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) out += readAllSources(full);
+    else if (/\.tsx?$/.test(entry.name)) out += readFileSync(full, "utf8");
+  }
+  return out;
+}
+
+/** Source with comments removed, so a test cannot pass on prose. */
+function codeOf(file: string): string {
+  return readFileSync(file, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+}
+
+test("classifyBlockFetch separates an empty result from an unreachable backend", async () => {
+  const { classifyBlockFetch } = await import(
+    "../src/built-ins/modules/website-editor/src/lib/blockBackends.ts"
+  );
+
+  // The distinction the blocks render. A 404 is not an empty catalogue.
+  assert.equal(classifyBlockFetch({ ok: true, status: 200 }), "ok");
+  assert.equal(classifyBlockFetch({ ok: false, status: 404 }), "unavailable");
+  assert.equal(classifyBlockFetch({ ok: false, status: 410 }), "unavailable");
+  assert.equal(classifyBlockFetch({ ok: false, status: 401 }), "unauthorized");
+  assert.equal(classifyBlockFetch({ ok: false, status: 403 }), "unauthorized");
+  assert.equal(classifyBlockFetch({ ok: false, status: 500 }), "failed");
+  assert.equal(classifyBlockFetch({ ok: false, status: 502 }), "failed");
+  // A request that threw has no response at all — the caller passes nothing.
+  assert.equal(classifyBlockFetch(null), "failed");
+  assert.equal(classifyBlockFetch(), "failed");
+});
+
+test("a data-fetching plugin block never reports a failure as an empty result", () => {
+  // These four all fetch their own data and all render an "empty" sentence.
+  // Each must decide WHICH empty it is looking at, and must not swallow the
+  // failure on the way — `catch(() => {})` is exactly how "No tiers available
+  // right now." ended up in front of visitors of a site whose plans a visitor
+  // is not allowed to read.
+  const blocks = [
+    "MembershipTierGridBlock",
+    "MembershipSignupBlock",
+    "MembershipPaywallBlock",
+    "AffiliateLeaderboardBlock",
+  ];
+  for (const name of blocks) {
+    const code = codeOf(path.join(BLOCKS_DIR, `${name}.tsx`));
+    assert.match(
+      code, /classifyBlockFetch\(/,
+      `${name} must classify its fetch instead of folding every failure into an empty result`,
+    );
+    assert.doesNotMatch(
+      code, /\.catch\(\s*\(\s*\)\s*=>\s*\{\s*\}\s*\)/,
+      `${name} has a silent catch — a failed fetch must reach the render, not vanish`,
+    );
+    assert.match(
+      code, /\bunavailable\b/,
+      `${name} must say something different when the backend is not installed`,
+    );
+  }
+});
+
+test("the affiliate signup block only promises an email something actually sends", () => {
+  // Two-sided on purpose. Today `meEnrollHandler` writes one pending row and
+  // sends nothing, so the block may not say an email is coming. The day the
+  // affiliates module gains a sender, this stops objecting to the promise.
+  const code = codeOf(path.join(BLOCKS_DIR, "AffiliateSignupBlock.tsx"));
+  const affiliates = readAllSources(path.join(MODULES, "affiliates/src"));
+
+  const sends = /sendEmail|sendMail|enqueueEmail|mailer|emailOutbox|notifyByEmail/.test(affiliates);
+  const promises = /we['’]ll\s+(e-?mail|send)/i.test(code) || /email you/i.test(code);
+
+  assert.ok(
+    !promises || sends,
+    "AffiliateSignupBlock tells the applicant an email is coming, but nothing in src/built-ins/modules/affiliates/src sends one",
+  );
+  // And the success state has to say what DID happen.
+  assert.match(
+    code, /enrolledStatus/,
+    "the success state must report the enrolment status the server returned, not an assumed outcome",
+  );
+
+  // `enroll()` returns the EXISTING affiliate when a user re-submits matching
+  // details, so the 201 body can carry any member of `AffiliateStatus` — not
+  // just the `pending` a first-time applicant gets. Collapsing all of them
+  // into "waiting for the site owner to approve it" tells a suspended or
+  // removed affiliate they are in a queue that does not exist, which is the
+  // same fabrication as the email nothing sent. Derived from the module's own
+  // union so a NEW status cannot ship without its own sentence.
+  const domain = readFileSync(path.join(MODULES, "affiliates/src/lib/domain.ts"), "utf8");
+  const union = /export type AffiliateStatus\s*=\s*([^;]+);/.exec(domain);
+  assert.ok(union, "could not read AffiliateStatus from src/built-ins/modules/affiliates/src/lib/domain.ts");
+  const statuses = [...union[1].matchAll(/"([^"]+)"/g)].map(m => m[1]);
+  assert.ok(statuses.length >= 2, `expected several affiliate statuses, parsed ${JSON.stringify(statuses)}`);
+
+  const table = /ENROLLED_COPY[^=]*=\s*\{[\s\S]*?\n\};/.exec(code);
+  assert.ok(table, "AffiliateSignupBlock must map each enrolment status to its own success copy");
+  for (const status of statuses) {
+    assert.match(
+      table[0], new RegExp(`\\b${status}\\s*:`),
+      `the affiliate signup success state has no wording for the "${status}" enrolment status`,
+    );
+  }
+
+  // The approval sentence belongs to exactly one status.
+  const approvalClaims = [...code.matchAll(/waiting for the site owner to approve/g)];
+  assert.equal(
+    approvalClaims.length, 1,
+    "only the pending status may describe the enrolment as waiting for approval",
+  );
+  const pendingEntry = table[0].split(/\bpending\s*:/)[1]?.split(/\n {2}\},/)[0] ?? "";
+  assert.match(
+    pendingEntry, /waiting for the site owner to approve/,
+    "the approval sentence must sit on the pending status, not on every non-active one",
+  );
+});
+
+test("the donation block offers no monthly option while checkout ignores it", () => {
+  // `stripeCheckoutHandler` creates a one-off Session; the word `recurring`
+  // does not occur anywhere in the ecommerce module. A visitor-facing monthly
+  // toggle would therefore promise a repeating charge that never repeats.
+  const code = codeOf(path.join(BLOCKS_DIR, "DonationButtonBlock.tsx"));
+  const ecommerce = readAllSources(path.join(MODULES, "ecommerce/src"));
+  const checkoutSupportsRecurring = /recurring|mode:\s*["']subscription["']/i.test(ecommerce);
+
+  const body = code.split("JSON.stringify(")[1]?.split("});")[0] ?? "";
+  assert.ok(body.length > 20, "could not find the donation checkout request body");
+
+  if (!checkoutSupportsRecurring) {
+    assert.doesNotMatch(
+      body, /recurring|monthly/i,
+      "the donation checkout body carries a monthly instruction the handler ignores",
+    );
+    assert.doesNotMatch(
+      code, /type="checkbox"/,
+      "a monthly donation checkbox must not be offered while checkout can only charge once",
+    );
+  }
+
+  // A donation that did not start must SAY it did not start.
+  //
+  // `stripeCheckoutHandler` → `parseCheckoutRequest` takes a strict field
+  // allowlist that does not contain a single key this block sends, so today
+  // every click 4xxs. The block used to read `if (url) window.location.href = url`
+  // and nothing else: no redirect, no message, the button just reset. A donor
+  // cannot tell that from a mis-click, and may well believe they have given.
+  // The rule holds whatever the handler does — a checkout response that
+  // carries no redirect is never a completed donation.
+  assert.match(
+    code, /role="alert"/,
+    "the donation block must show the visitor when checkout did not start, not silently reset the button",
+  );
+  assert.doesNotMatch(
+    code, /if\s*\(\s*url\s*\)\s*window\.location\.href\s*=\s*url;?\s*\n?\s*\}\s*finally/,
+    "the donation block swallows a failed checkout: the only branch on the response is the redirect",
+  );
+});
+
+test("the donation block's recorded backend gap names the contract mismatch, not just the session", () => {
+  // The gap entry used to read "its checkout requires a signed-in customer",
+  // which says the block would work once a session existed. It would not:
+  // `parseCheckoutRequest` rejects `lineItems` as an unknown field and requires
+  // `version`, `operationId` and product-shaped `items`. A gap label that
+  // understates the gap gets the wrong fix built. Derived from the handler's
+  // own allowlist so this stops objecting the day the contract accepts the
+  // block's request.
+  const checkout = readFileSync(path.join(MODULES, "ecommerce/src/server/checkout.ts"), "utf8");
+  const block = codeOf(path.join(BLOCKS_DIR, "DonationButtonBlock.tsx"));
+  const sentKeys = [...(block.split("JSON.stringify(")[1]?.split("});")[0] ?? "").matchAll(/^\s*([A-Za-z][A-Za-z0-9_]*)\s*:/gm)].map(m => m[1]);
+  assert.ok(sentKeys.length > 0, "could not read the donation checkout request body");
+
+  const allowlist = /const allowed = new Set\(\[([\s\S]*?)\]\);/.exec(checkout);
+  assert.ok(allowlist, "could not read parseCheckoutRequest's field allowlist");
+  const accepted = new Set([...allowlist[1].matchAll(/"([^"]+)"/g)].map(m => m[1]));
+  const rejected = sentKeys.filter(k => !accepted.has(k));
+
+  const gaps = readFileSync(path.join(WEBSITE_EDITOR, "lib/blockBackends.ts"), "utf8");
+  const entry = /"donation-button":\s*\{[\s\S]*?\n  \},/.exec(gaps);
+  assert.ok(entry, "donation-button must stay listed in BLOCK_BACKEND_GAPS while its checkout call cannot succeed");
+  const reason = /reason:\s*"([^"]+)"/.exec(entry[0]);
+  assert.ok(reason, "the donation-button gap must carry a reason");
+
+  if (rejected.length > 0) {
+    assert.match(
+      reason[1], /reject|cannot complete|contract/i,
+      `the donation block sends ${JSON.stringify(rejected)}, which parseCheckoutRequest rejects outright — the recorded gap must say the request itself is refused, not only that a session is missing`,
+    );
+  }
+});
+
 test("a form with no destination refuses to submit", () => {
   // Blanking the template action alone would have moved the bug rather than
   // fixed it: an empty `action` posts to the CURRENT URL. The block has to

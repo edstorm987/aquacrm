@@ -1,6 +1,7 @@
 // Server-side barrel — services + container builder + foundation adapter.
 
-export { PlanService } from "./plans";
+export { PlanService, SEED_REPORT_KEY } from "./plans";
+export type { SeedDefaultsFailure, SeedDefaultsResult, SeedReport } from "./plans";
 export { BenefitService } from "./benefits";
 export { SubscriptionService } from "./subscriptions";
 export { WebhookService } from "./webhook";
@@ -36,6 +37,7 @@ export {
   isFoundationRegistered,
   isStripeAvailable,
   requireFoundation,
+  STRIPE_NOT_CONFIGURED_MESSAGE,
   containerFor,
   containerWithDeps,
   _containerFromCtx,

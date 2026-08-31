@@ -2,7 +2,8 @@
 // the other Aqua plugins.
 
 import type { PluginCtx } from "../lib/aquaPluginTypes";
-import { containerFor } from "../server/foundationAdapter";
+import { containerFor, isStripeConnectAvailable } from "../server/foundationAdapter";
+import { affiliateDependencyInventory } from "../server/dependencies";
 import type {
   AffiliateFilter,
   AttributionFilter,
@@ -81,12 +82,58 @@ export async function updateAffiliateHandler(req: Request, ctx: PluginCtx): Prom
   }
 }
 
+// Deleting an affiliate detaches money.
+//
+// `AffiliateService.delete` drops the row, the by-user lookup, the enrollment
+// claim and the index entry — and nothing else. Attributions and payouts are
+// records of commission earned and money owed or sent; orphaning them does not
+// break a screen loudly, it hides the money quietly, because every surface that
+// would show it filters on an affiliate that no longer resolves. A referral code
+// is sharper still: it stays ACTIVE, so a live link keeps pointing at nobody.
+//
+// `affiliateDependencyInventory` counts exactly those, and until now nothing
+// asked it before deleting. This route refuses while anything is still
+// attached and names the working path: status "removed" keeps every record with
+// its owner, and `AttributionService.recordOrder` requires an ACTIVE affiliate,
+// so a removed one stops attracting new attributions.
+//
+// It decides no purge or retention policy — what happens to commission already
+// earned is still Ed's open decision (issues #177/#178).
 export async function deleteAffiliateHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   const guard = methodGuard(req, "DELETE");
   if (guard) return guard;
   const id = new URL(req.url).searchParams.get("id");
   if (!id) return badRequest("id required.");
-  const ok = await buildContainer(ctx).affiliates.delete(id, ctx.actor);
+  const c = buildContainer(ctx);
+  const affiliate = await c.affiliates.get(id);
+  if (!affiliate) return notFound("affiliate not found");
+
+  const dependencies = await affiliateDependencyInventory(c, id);
+  if (dependencies.total > 0) {
+    const parts = [
+      `${dependencies.byKind["referral-code"]} referral code(s)`,
+      `${dependencies.byKind.attribution} attribution(s)`,
+      `${dependencies.byKind.payout} payout(s)`,
+    ].join(", ");
+    const sharp = [
+      dependencies.hasFinancialDependants ? "commission and payout records would be detached from their owner" : null,
+      dependencies.activeReferralCodes > 0
+        ? `${dependencies.activeReferralCodes} referral code(s) would stay ACTIVE with no affiliate behind them`
+        : null,
+    ].filter(Boolean).join("; ");
+    return json({
+      ok: false,
+      error:
+        `Cannot delete ${affiliate.displayName}: ${dependencies.total} record(s) still point at this `
+        + `affiliate (${parts})${sharp ? ` — ${sharp}` : ""}. Set the affiliate's status to "removed" `
+        + `instead (PATCH status "removed") — every record keeps its owner, and a removed affiliate `
+        + `earns no new attributions.`,
+      reason: "affiliate_has_dependants",
+      dependencies,
+    }, 422);
+  }
+
+  const ok = await c.affiliates.delete(id, ctx.actor);
   return ok ? json({ ok: true }) : notFound("affiliate not found");
 }
 
@@ -241,12 +288,19 @@ export async function processPayoutHandler(req: Request, ctx: PluginCtx): Promis
 export async function stripeWebhookHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   const guard = methodGuard(req, "POST");
   if (guard) return guard;
-  const f = (await import("../server/foundationAdapter")).requireFoundation();
-  if (!f.stripeConnect) return unprocessable("Stripe Connect not configured for this install.");
+  if (!ctx.clientId) return badRequest("clientId scope missing");
+  // The signing secret is the CLIENT's, so the driver has to be resolved in
+  // this exact scope — a platform-wide port would verify one client's webhook
+  // against another client's secret.
+  const stripeConnect = (await import("../server/foundationAdapter")).stripeConnectFor({
+    agencyId: ctx.agencyId,
+    clientId: ctx.clientId,
+  });
+  if (!stripeConnect) return unprocessable("Stripe Connect not configured for this install.");
 
   const rawBody = await req.text();
   const signature = req.headers.get("stripe-signature");
-  if (!f.stripeConnect.verifyWebhookSignature({ rawBody, signature })) {
+  if (!(await stripeConnect.verifyWebhookSignature({ rawBody, signature }))) {
     return json({ ok: false, error: "invalid_signature" }, 400);
   }
   let event: { type?: string; data?: { object?: Record<string, unknown> } };
@@ -255,7 +309,6 @@ export async function stripeWebhookHandler(req: Request, ctx: PluginCtx): Promis
   } catch {
     return badRequest("invalid_json");
   }
-  if (!ctx.clientId) return badRequest("clientId scope missing");
   const c = buildContainer(ctx);
 
   if (event.type === "account.updated") {
@@ -313,14 +366,21 @@ export async function meEnrollHandler(req: Request, ctx: PluginCtx): Promise<Res
 export async function meHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   if (req.method !== "GET") return json({ ok: false, error: "method_not_allowed" }, 405);
   const c = buildContainer(ctx);
+  // Same question the mounted panel gates its "Set up payouts via Stripe" CTA
+  // on. Sent with every read so an API consumer sees the capability rather
+  // than discovering it from a 422 after the affiliate has clicked.
+  const stripeConnectAvailable = !!ctx.clientId && isStripeConnectAvailable({
+    agencyId: ctx.agencyId,
+    clientId: ctx.clientId,
+  });
   const affiliate = await c.affiliates.getByUser(ctx.actor);
-  if (!affiliate) return json({ ok: true, affiliate: null });
+  if (!affiliate) return json({ ok: true, affiliate: null, stripeConnectAvailable });
   const [codes, attributions, payouts] = await Promise.all([
     c.codes.list({ affiliateId: affiliate.id }),
     c.attributions.listForAffiliate(affiliate.id),
     c.payouts.listForAffiliate(affiliate.id),
   ]);
-  return json({ ok: true, affiliate, codes, attributions, payouts });
+  return json({ ok: true, affiliate, codes, attributions, payouts, stripeConnectAvailable });
 }
 
 // R12 — customer surface: "Set up payouts via Stripe" button posts

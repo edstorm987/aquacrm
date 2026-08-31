@@ -41,6 +41,7 @@ import {
   UserRound,
   UserRoundCheck,
   UsersRound,
+  X,
 } from "lucide-react";
 
 import type {
@@ -480,15 +481,18 @@ function OnboardingTemplateEditor({ steps, busy, action }: { steps: PeopleProces
     <details className="rounded-lg border border-black/10 bg-white">
       <summary className="flex cursor-pointer list-none items-center gap-2 p-4"><Settings2 className="text-emerald-800" size={16} /><span className="font-semibold">Configure the onboarding template</span><span className="text-xs text-black/40">— new hires start from these steps</span></summary>
       <div className="space-y-2 border-t border-black/10 p-4">
-        {draft.map((step, index) => (
+        {draft.map((step, index) => {
+          const stepName = step.label.trim() || `step ${index + 1}`;
+          return (
           <div key={step.id} className="flex items-center gap-2">
-            <input value={step.label} onChange={event => update(index, { label: event.target.value })} placeholder="Onboarding step" className="min-h-9 min-w-0 flex-1 rounded-md border border-black/15 px-2 text-sm" />
-            <select value={step.owner} onChange={event => update(index, { owner: event.target.value as "company" | "employee" })} className="min-h-9 rounded-md border border-black/15 bg-white px-2 text-xs font-semibold"><option value="company">Company</option><option value="employee">Employee</option></select>
-            <button onClick={() => move(index, -1)} disabled={index === 0} className="inline-flex size-8 items-center justify-center rounded-md border border-black/10 disabled:opacity-25"><ArrowUp size={13} /></button>
-            <button onClick={() => move(index, 1)} disabled={index === draft.length - 1} className="inline-flex size-8 items-center justify-center rounded-md border border-black/10 disabled:opacity-25"><ArrowDown size={13} /></button>
-            <button onClick={() => remove(index)} className="inline-flex size-8 items-center justify-center rounded-md border border-red-200 text-red-600">×</button>
+            <input value={step.label} onChange={event => update(index, { label: event.target.value })} aria-label={`Onboarding step ${index + 1} label`} placeholder="Onboarding step" className="min-h-9 min-w-0 flex-1 rounded-md border border-black/15 px-2 text-sm" />
+            <select value={step.owner} onChange={event => update(index, { owner: event.target.value as "company" | "employee" })} aria-label={`Who owns ${stepName}`} className="min-h-9 rounded-md border border-black/15 bg-white px-2 text-xs font-semibold"><option value="company">Company</option><option value="employee">Employee</option></select>
+            <button type="button" onClick={() => move(index, -1)} disabled={index === 0} aria-label={`Move ${stepName} earlier`} className="inline-flex size-8 items-center justify-center rounded-md border border-black/10 disabled:opacity-25"><ArrowUp size={13} aria-hidden /></button>
+            <button type="button" onClick={() => move(index, 1)} disabled={index === draft.length - 1} aria-label={`Move ${stepName} later`} className="inline-flex size-8 items-center justify-center rounded-md border border-black/10 disabled:opacity-25"><ArrowDown size={13} aria-hidden /></button>
+            <button type="button" onClick={() => remove(index)} aria-label={`Remove ${stepName}`} className="inline-flex size-8 items-center justify-center rounded-md border border-red-200 text-red-600"><X size={13} aria-hidden /></button>
           </div>
-        ))}
+          );
+        })}
         <div className="flex justify-between pt-2"><button onClick={add} className="inline-flex min-h-9 items-center gap-1 rounded-md border border-black/10 px-3 text-sm font-semibold"><Plus size={14} /> Add step</button><button onClick={() => action("save-onboarding-template", { steps: draft })} disabled={busy === "save-onboarding-template"} className="min-h-9 rounded-md bg-black px-4 text-sm font-semibold text-white">Save template</button></div>
         <p className="text-xs text-black/40">Existing employees keep their current checklist — this shapes new hires.</p>
       </div>
@@ -1157,7 +1161,7 @@ function ModuleEditor({ module, busy, action }: { module: PeopleTrainingModule; 
                   {block.type === "video" || block.type === "resource" ? <input value={block.url ?? ""} onChange={event => updateBlock(block.id, { url: event.target.value })} placeholder={block.type === "video" ? "Video URL" : "Resource URL"} className="min-h-9 w-full rounded border border-black/15 px-2 text-sm" /> : null}
                   {block.type === "resource" ? <input value={block.label ?? ""} onChange={event => updateBlock(block.id, { label: event.target.value })} placeholder="Link label" className="min-h-9 w-full rounded border border-black/15 px-2 text-sm" /> : null}
                 </div>
-                <button onClick={() => removeBlock(block.id)} className="mt-1 inline-flex size-7 items-center justify-center rounded-md border border-red-200 text-red-600">×</button>
+                <button type="button" onClick={() => removeBlock(block.id)} aria-label={`Remove this ${block.type} block`} className="mt-1 inline-flex size-7 items-center justify-center rounded-md border border-red-200 text-red-600"><X size={13} aria-hidden /></button>
               </div>
             ))}
           </div>
@@ -1168,7 +1172,7 @@ function ModuleEditor({ module, busy, action }: { module: PeopleTrainingModule; 
           <div className="mt-2 space-y-2">
             {draft.quiz.map(question => (
               <div key={question.id} className="rounded-md border border-black/10 bg-white p-2">
-                <div className="flex items-start gap-2"><input value={question.prompt} onChange={event => updateQuestion(question.id, { prompt: event.target.value })} placeholder="Question" className="min-h-9 min-w-0 flex-1 rounded border border-black/15 px-2 text-sm font-medium" /><button onClick={() => removeQuestion(question.id)} className="inline-flex size-7 items-center justify-center rounded-md border border-red-200 text-red-600">×</button></div>
+                <div className="flex items-start gap-2"><input value={question.prompt} onChange={event => updateQuestion(question.id, { prompt: event.target.value })} placeholder="Question" className="min-h-9 min-w-0 flex-1 rounded border border-black/15 px-2 text-sm font-medium" /><button type="button" onClick={() => removeQuestion(question.id)} aria-label={`Remove question "${question.prompt.trim() || "untitled"}"`} className="inline-flex size-7 items-center justify-center rounded-md border border-red-200 text-red-600"><X size={13} aria-hidden /></button></div>
                 <div className="mt-2 space-y-1 pl-1">
                   {question.options.map(option => (
                     <label key={option.id} className="flex items-center gap-2">

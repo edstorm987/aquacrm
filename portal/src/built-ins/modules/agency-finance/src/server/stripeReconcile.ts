@@ -175,15 +175,20 @@ export async function reconcileStripeEvent(
 
     case "charge.dispute.created": {
       const dispute = event.data.object as { id?: string; payment_intent?: string; amount?: number; created?: number };
-      const payment = await container.payments.markDisputed(dispute.payment_intent, actor, {
+      const disputed = await container.payments.markDisputed(dispute.payment_intent, actor, {
         providerId: dispute.id ?? event.id,
         providerEventId: event.id,
         amountCents: dispute.amount,
         openedAt: Number.isSafeInteger(dispute.created) ? dispute.created! * 1_000 : undefined,
       });
-      return payment
-        ? { handled: true, type: event.type, action: "chargeback", invoiceId: payment.invoiceId }
-        : { handled: false, type: event.type, action: "ignored", message: "no matching Stripe payment" };
+      if (!disputed) {
+        return { handled: false, type: event.type, action: "ignored", message: "no matching Stripe payment" };
+      }
+      // A redelivery — same provider dispute id, any process, warm cache or not —
+      // is reported as deduped rather than as a second chargeback.
+      return disputed.deduped
+        ? { handled: true, type: event.type, action: "deduped", invoiceId: disputed.payment.invoiceId, message: "dispute already recorded" }
+        : { handled: true, type: event.type, action: "chargeback", invoiceId: disputed.payment.invoiceId };
     }
 
     default:

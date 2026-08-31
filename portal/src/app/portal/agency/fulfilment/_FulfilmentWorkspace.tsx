@@ -44,6 +44,7 @@ import {
 import { PipelineBoard } from "../pipelines/[slug]/_PipelineBoard";
 import { PortalsWorkspace, type PortalTemplateProductRecord, type PortalWorkspaceRecord } from "../portals/_PortalsWorkspace";
 import { AttentionDot } from "@/components/chrome/NotificationAttentionProvider";
+import { InfoTip } from "@/components/ui/InfoTip";
 import { ProductsWorkspace } from "../products/_ProductsWorkspace";
 import type { AgencyProduct, PortalFormFieldDefinition, SopDocument, TradingCompany } from "@/server/types";
 import { clientWorkspaceDisplayName, clientWorkspaceHref } from "@/lib/clients/clientWorkspace";
@@ -318,11 +319,11 @@ function Overview({
   return (
     <div className="space-y-7 pt-6">
       <section aria-label="Fulfilment summary" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <Metric label="Active clients" value={clients.length} detail="Delivery relationships" icon={<UsersRound size={17} />} tone="blue" />
-        <Metric label="Service tracks" value={metrics.activeServices} detail="Products being delivered" icon={<PackageCheck size={17} />} tone="violet" />
-        <Metric label="Average progress" value={`${metrics.averageProgress}%`} detail="Across product workspaces" icon={<Gauge size={17} />} tone="emerald" />
-        <Metric label="Portals ready" value={`${metrics.portalReady}/${clients.length}`} detail="Shared client workspaces" icon={<PanelsTopLeft size={17} />} tone="blue" />
-        <Metric label="Blocked" value={metrics.blocked} detail="Milestones needing action" icon={<CircleAlert size={17} />} tone={metrics.blocked ? "amber" : "emerald"} />
+        <Metric label="Active clients" value={clients.length} detail="Delivery relationships" hint="Every client record still marked active and not churned. It counts the relationship, not the work — a client with nothing assigned yet is still counted here." icon={<UsersRound size={17} />} tone="blue" />
+        <Metric label="Service tracks" value={metrics.activeServices} detail="Products being delivered" hint="Individual products or services being delivered. One client buying three services counts as three, because each moves through its own stages." icon={<PackageCheck size={17} />} tone="violet" />
+        <Metric label="Average progress" value={`${metrics.averageProgress}%`} detail="Across product workspaces" hint="The average of how far each service track has moved through its own stages. It is an average across different products, so it shows direction rather than a deadline." icon={<Gauge size={17} />} tone="emerald" />
+        <Metric label="Portals ready" value={`${metrics.portalReady}/${clients.length}`} detail="Shared client workspaces" hint="How many of these clients have had their portal built. Built is not handed over — sending the access details is a separate step, and the inbox raises a signal when a portal has been sitting ready with nothing sent." icon={<PanelsTopLeft size={17} />} tone="blue" />
+        <Metric label="Blocked" value={metrics.blocked} detail="Milestones needing action" hint="Open milestones somebody has marked as blocked. They stay counted here until whatever is holding them up is cleared and the milestone is moved on." icon={<CircleAlert size={17} />} tone={metrics.blocked ? "amber" : "emerald"} />
       </section>
 
       <div className={canViewClients ? "grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(330px,.65fr)]" : "min-w-0"}>
@@ -603,8 +604,15 @@ function LinkedBuyerCount({ count }: { count: number }) {
   return <span title={`${count} isolated project workspaces belong to this buyer relationship`} className="shrink-0 rounded-full bg-sky-50 px-1.5 py-0.5 text-[9px] font-semibold text-sky-700 ring-1 ring-inset ring-sky-200">{count} linked</span>;
 }
 
-function Metric({ label, value, detail, icon, tone }: { label: string; value: string | number; detail: string; icon: ReactNode; tone: "blue" | "violet" | "emerald" | "amber" }) {
-  return <div className="mm-kpi-card mm-surface-card mm-hover-lift flex min-h-28 items-start gap-3 rounded-md p-4" data-kpi-tone={tone}><span className="mm-kpi-icon grid size-8 shrink-0 place-items-center rounded-md">{icon}</span><div className="min-w-0"><p className="text-xs font-medium text-black/45">{label}</p><p className="mt-1 text-2xl font-semibold text-black/85">{value}</p><p className="mt-1 text-xs text-black/40">{detail}</p></div></div>;
+/**
+ * `hint` is deliberately REQUIRED. "Portals ready 3/7" and "Blocked 2" are
+ * counts whose rule lives in server code the operator never sees, and the
+ * three-word `detail` under them is a caption, not an explanation. Making the
+ * plain-English reading part of the type means a new metric cannot be added
+ * without saying what it counts.
+ */
+function Metric({ label, value, detail, hint, icon, tone }: { label: string; value: string | number; detail: string; hint: string; icon: ReactNode; tone: "blue" | "violet" | "emerald" | "amber" }) {
+  return <div className="mm-kpi-card mm-surface-card mm-hover-lift flex min-h-28 items-start gap-3 rounded-md p-4" data-kpi-tone={tone}><span className="mm-kpi-icon grid size-8 shrink-0 place-items-center rounded-md">{icon}</span><div className="min-w-0"><p className="flex items-center gap-1 text-xs font-medium text-black/45">{label}<InfoTip label={label}>{hint}</InfoTip></p><p className="mt-1 text-2xl font-semibold text-black/85">{value}</p><p className="mt-1 text-xs text-black/40">{detail}</p></div></div>;
 }
 
 function SectionHeading({ eyebrow, title, detail, action }: { eyebrow: string; title: string; detail: string; action?: { label: string; href: string } }) {

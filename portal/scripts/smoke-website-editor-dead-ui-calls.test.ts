@@ -2,7 +2,8 @@
 //
 // ── What this is, and what it is NOT ─────────────────────────────────────
 //
-// It is a RATCHET, not a clean bill of health. Thirty-one distinct endpoints
+// It is a RATCHET, not a clean bill of health. Twenty-nine distinct endpoints
+// (thirty-one when this was written; two were repointed on 2026-08-30)
 // are fetched by website-editor pages and blocks and resolve to nothing: no
 // `src/app` route, and no path declared by any module's `routes.ts`. They are
 // listed below by name. The test fails if a NEW one appears, and it fails if a
@@ -27,12 +28,15 @@
 //     because the fetch is still in the component.
 //   * **The Sites admin island** (`/api/portal/content/*`, `domains`, `config`,
 //     `embeds`, `promote`, `schema`, `discoveries`, `chatbot`, `heartbeats`,
-//     `embed-theme`) — issue #31. Fourteen of the thirty-one. These are the
-//     legacy top-level paths the issue describes, and unifying them is a
-//     data-model merge, not a rename.
-//   * **AI Builder and promote** — issue #28. The modals stay visible after the
-//     status probe proves AI Builder is absent, then call routes that were
-//     never built.
+//     `embed-theme`) — issue #31. Thirteen of them. These are the legacy
+//     top-level paths the issue describes, and unifying them is a data-model
+//     merge, not a rename: the Sites page stores an override as
+//     `{value,type,updatedAt}` where the registered handlers store a scalar.
+//   * **AI Builder** — issue #28. The image modals call routes that only exist
+//     when the AI Builder plugin is installed. As of 2026-08-30 the controls
+//     that open them are gated on the same status probe that already hid the
+//     top bar's ✨ Generate, so an absent plugin no longer offers them; the
+//     fetches stay in the components, which is why they stay listed here.
 
 import { readdirSync, readFileSync, existsSync } from "node:fs";
 import path from "node:path";
@@ -58,7 +62,12 @@ const KNOWN_DEAD = [
   "/api/portal/content/*",
   "/api/portal/content/*/*",
   "/api/portal/content/*/preview-token",
-  "/api/portal/content/*/publish",
+  // `/api/portal/content/*/publish` LEFT this list on 2026-08-30. It was the
+  // editor's publish modal (`EditorPage.tsx`), which now goes through
+  // `lib/content.ts` at the registered `/content/publish`. The four remaining
+  // `content` entries are the Sites admin island, whose overrides use a
+  // different persisted shape (`{value,type,updatedAt}` vs a scalar) — that
+  // one is a data-model merge, not a rename, and stays issue #31's.
   "/api/portal/content/*/revert",
   "/api/portal/discoveries",
   "/api/portal/domains",
@@ -77,7 +86,11 @@ const KNOWN_DEAD = [
   "/api/portal/reservations/staff",
   "/api/portal/schema/*",
   "/api/portal/themes/*",
-  "/api/portal/website-editor/promote/*",
+  // `/api/portal/website-editor/promote/*` LEFT this list on 2026-08-30.
+  // `lib/promote.ts` invented a `/promote/<siteId>` path; the module declares
+  // `/promote` and `handlePromote` reads siteId from the body. The siteId now
+  // travels in the body. `/api/portal/promote/*` — the Sites page's own,
+  // separate legacy call — is still above and still dead.
 ].sort();
 
 function declaredRoutes(): Map<string, string[]> {
@@ -151,6 +164,124 @@ test("a dead call that now works must be removed from the known list", () => {
     fixed, [],
     `these now resolve — delete them from KNOWN_DEAD so the ratchet keeps tightening:\n  ${fixed.join("\n  ")}`,
   );
+});
+
+test("promote posts siteId in the body, at the path the module declares", () => {
+  // `lib/promote.ts` POSTed to `/api/portal/website-editor/promote/<siteId>`.
+  // The module declares `/promote` (no path segment), and `handlePromote`
+  // reads `siteId` from the JSON body and 400s without it. So the publish
+  // modal's third step 404'd on a path that has never existed, and reported it
+  // to the operator as a promote failure rather than a missing route.
+  const promote = readFileSync(path.join(WEBSITE_EDITOR, "lib/promote.ts"), "utf8");
+  const code = promote.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
+  assert.doesNotMatch(
+    code, /promote\/\$\{/,
+    "promote must not put siteId in the path — the module declares no /promote/:siteId",
+  );
+  assert.match(code, /fetch\("\/api\/portal\/website-editor\/promote"/, "it must call the declared path");
+  assert.match(code, /JSON\.stringify\(\{\s*\n?\s*siteId,/, "and send siteId in the body, where the handler reads it");
+
+  const routes = readFileSync(path.join(WEBSITE_EDITOR, "api/routes.ts"), "utf8");
+  assert.match(routes, /path:\s*["'`]\/promote["'`]/, "the promote route must still be declared at /promote");
+  const handler = readFileSync(path.join(WEBSITE_EDITOR, "api/handlers/promote.ts"), "utf8");
+  assert.match(handler, /body\?\.siteId/, "and the handler must still take siteId from the body");
+});
+
+test("the publish modal publishes through the registered content handlers", () => {
+  // Step 1 of the publish chain POSTed `/api/portal/content/<siteId>/publish`
+  // and the diff preload GET `/api/portal/content/<siteId>?admin=1` — legacy
+  // top-level paths from the pre-plugin app. Neither is declared by any module
+  // and neither exists under `src/app`, so publishing 404'd on its first step
+  // and the preload's `catch` turned the 404 into "No unpublished changes",
+  // which is exactly what a clean tree looks like.
+  const src = readFileSync(path.join(WEBSITE_EDITOR, "pages/EditorPage.tsx"), "utf8");
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
+  assert.doesNotMatch(
+    code, /\/api\/portal\/content\//,
+    "the editor must not call the legacy top-level content paths",
+  );
+  assert.match(
+    code, /from "\.\.\/lib\/content"/,
+    "it must go through lib/content.ts, the module's client for the registered /content handlers",
+  );
+
+  // The mask that made the dead call survivable: a failed read rendered as an
+  // empty diff. A read that could not be made must be SAID.
+  assert.match(code, /unreadable/, "an unreadable half of the diff must be tracked");
+  assert.match(
+    code, /Could not read \{preview\.unreadable/,
+    "and named to the operator, rather than shown as nothing to publish",
+  );
+
+  // Naming the blind spot is only half of it. A failed read leaves
+  // `changedContentKeys` empty, so the empty-diff branch is the one that
+  // renders — and if it still prints "No unpublished changes" the operator has
+  // been told the tree is clean by the very code path that could not look.
+  // The clean-tree line must be reachable ONLY from a diff that was read.
+  const emptyBranch =
+    /changedContentKeys\.length === 0 && preview\.changedPages\.length === 0 \?([\s\S]*?)\n\s*\) : \(/.exec(code);
+  assert.ok(emptyBranch, "the idle screen must still branch on an empty diff");
+  assert.match(
+    emptyBranch[1], /preview\.unreadable\.length > 0 \? null :/,
+    "\"No unpublished changes\" must be suppressed when a half of the diff could not be read",
+  );
+
+  // And the empty-diff line must not promise a commit either: promote is still
+  // the stub, so "re-shipping refreshes the committed snapshot files" would be
+  // the same delivery claim the success screen was fixed for.
+  assert.doesNotMatch(
+    emptyBranch[1], /committed|commit|repository/i,
+    "the empty-diff line must not claim anything reaches the repository",
+  );
+});
+
+test("a publish that raised no pull request does not say it did", () => {
+  // `api/handlers/promote.ts` is still the Round-1 stub: it answers
+  // `{ ok: true, pending: true }` and opens nothing. The modal keyed its
+  // success screen on `out.ok` and headed it "Pull request opened" — a claim of
+  // delivery that did not happen, sending the operator to look for a PR that
+  // does not exist. The content and page publishes DID happen, so the honest
+  // answer separates the two.
+  const handler = readFileSync(path.join(WEBSITE_EDITOR, "api/handlers/promote.ts"), "utf8");
+  assert.match(handler, /pending:\s*true/, "the stub still answers pending — this test's premise");
+
+  const src = readFileSync(path.join(WEBSITE_EDITOR, "pages/EditorPage.tsx"), "utf8");
+  const jsx = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
+  assert.match(
+    jsx, /result\.prUrl \? "Pull request opened" : "Published here — no pull request raised"/,
+    "the success heading must depend on a PR URL actually coming back",
+  );
+  assert.match(jsx, /nothing has reached your repository/, "and say plainly that the repository was not touched");
+  assert.doesNotMatch(jsx, /Ship \{site\.name\} to GitHub/, "the modal must not promise a ship it cannot perform");
+});
+
+test("the image AI controls are gated on the same probe as the top bar", () => {
+  // `EditorPropertiesSidebar` showed "Generate variations" and "Edit with mask"
+  // for every image, and those modals POST to `/api/portal/ai-builder/image/*`
+  // — routes that exist only when the AI Builder plugin is installed. The
+  // editor already probes `/api/portal/ai-builder/status` and hides the top
+  // bar's ✨ Generate on the answer; the sidebar ignored it, so with the plugin
+  // absent the operator got a modal that spun and then failed.
+  const sidebar = readFileSync(path.join(WEBSITE_EDITOR, "components/editor/EditorPropertiesSidebar.tsx"), "utf8");
+  const code = sidebar.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
+  assert.match(code, /aiAvailable = false/, "the prop must default to false — unknown is not available");
+  assert.match(
+    code, /selected\.type === "image-src" && draft && aiAvailable/,
+    "the AI tools row must be gated on the probe",
+  );
+  for (const mode of ["variations", "inpaint"]) {
+    assert.match(
+      code, new RegExp(`aiMode === "${mode}"[^\\n]*&& aiAvailable`),
+      `the ${mode} modal must not open without the probe`,
+    );
+  }
+
+  const editor = readFileSync(path.join(WEBSITE_EDITOR, "pages/EditorPage.tsx"), "utf8");
+  assert.match(editor, /aiAvailable=\{aiAvailable\}/, "and the page must pass the probe's answer down");
 });
 
 test("the site export is reachable — it was the button that proved this class real", () => {

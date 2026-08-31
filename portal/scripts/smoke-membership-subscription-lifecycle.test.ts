@@ -3,7 +3,23 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 
+process.env.PORTAL_BACKEND ??= "memory";
+
 import { buildMembershipsContainer } from "../src/built-ins/modules/memberships/src/server/index";
+import { isStripeAvailable } from "../src/built-ins/modules/memberships/src/server/foundationAdapter";
+import {
+  membershipsStripeFor,
+  membershipsStripeKeysFor,
+} from "../src/built-ins/runtime/foundation-adapters/membershipsFoundation";
+import {
+  makeMembershipsStripePort,
+  readMembershipsStripeKeys,
+  type StripeClientLike,
+} from "../src/built-ins/runtime/foundation-adapters/_membershipsStripeAdapter";
+import { ensureHydrated } from "../src/server/storage";
+import { createAgency, createClient } from "../src/server/tenants";
+import { getInstall, upsertInstall } from "../src/server/pluginInstalls";
+import { writePluginSettings } from "../src/lib/server/plugins/pluginSettingsSurface";
 import type {
   ActivityLogPort,
   EventBusPort,
@@ -423,4 +439,245 @@ test("mounted membership controls carry command identity and retryable failures"
   assert.match(adminPanel, /membership-admin-cancel-/);
   assert.match(service, /runExclusive/);
   assert.match(service, /idempotencyKey: this\.providerKey/);
+});
+
+// ─── The real Stripe adapter, and honest availability ─────────────────────
+//
+// issues #33 / todo:501. `membershipsFoundation.stripeFor()` used to return a
+// throwing NOOP stub UNCONDITIONALLY, so `isStripeAvailable()` was true for
+// every install on earth — a false positive that let the paid-plan guard pass
+// and then failed inside `createPrice`. There was no SDK-backed adapter at all.
+//
+// Two contracts below. First: availability is derived from whether the
+// ecommerce install in this exact scope actually carries a Stripe secret key.
+// Second: the adapter maps the twelve `StripePort` methods onto the SDK
+// correctly, proven against an INJECTED fake client — no keys, no network.
+
+test("stripe availability is false until the ecommerce install really has a key", async () => {
+  await ensureHydrated();
+  const agency = createAgency({ name: "Memberships Stripe Co", slug: `mem-stripe-${Date.now()}` });
+  const client = createClient(agency.id, { name: "Paying Client", slug: `paying-${Date.now()}` });
+  const scope = { agencyId: agency.id, clientId: client.id };
+
+  // Nothing installed at all.
+  assert.equal(membershipsStripeKeysFor(scope), null);
+  assert.equal(membershipsStripeFor(scope), null);
+  assert.equal(
+    isStripeAvailable(scope),
+    false,
+    "no ecommerce install means no Stripe — this must not read as available",
+  );
+
+  // ecommerce installed but never configured. This is the case the NOOP stub
+  // used to answer `true` for.
+  upsertInstall({
+    pluginId: "ecommerce",
+    scope,
+    enabled: true,
+    config: {},
+    features: {},
+  });
+  assert.equal(
+    isStripeAvailable(scope),
+    false,
+    "an ecommerce install with no secret key is not a configured Stripe",
+  );
+
+  // Keys saved through the real settings write path (they land in the
+  // encrypted vault, never on the browser-visible install.config).
+  writePluginSettings({
+    pluginId: "ecommerce",
+    scope,
+    values: {
+      stripeSecretKey: "sk_test_memberships_0001",
+      stripeWebhookSecret: "whsec_memberships_0002",
+    },
+    actorUserId: "user_mem_stripe_test",
+  });
+
+  const keys = membershipsStripeKeysFor(scope);
+  assert.equal(keys?.secretKey, "sk_test_memberships_0001");
+  assert.equal(keys?.webhookSecret, "whsec_memberships_0002");
+  assert.equal(
+    getInstall(scope, "ecommerce")?.config.stripeSecretKey,
+    undefined,
+    "the secret came from the vault, not from install.config",
+  );
+  assert.equal(isStripeAvailable(scope), true, "a configured install reports available");
+  assert.ok(membershipsStripeFor(scope), "and yields a real StripePort");
+
+  // Scope is exact: another client of the same agency is still unconfigured.
+  const other = createClient(agency.id, { name: "Other Client", slug: `other-${Date.now()}` });
+  assert.equal(
+    isStripeAvailable({ agencyId: agency.id, clientId: other.id }),
+    false,
+    "one client's Stripe keys must not make another client's memberships look billable",
+  );
+});
+
+test("the Stripe adapter maps every StripePort method onto the SDK", async () => {
+  const calls: { method: string; args: unknown[] }[] = [];
+  const record = (method: string, ...args: unknown[]) => { calls.push({ method, args }); };
+  const lastCall = (method: string) => [...calls].reverse().find(c => c.method === method);
+
+  // A subscription WITHOUT a top-level `current_period_end` — recent Stripe API
+  // versions carry it on the item, and the adapter must read either.
+  const rawSub = (over: Record<string, unknown> = {}) => ({
+    id: "sub_1",
+    customer: "cus_1",
+    status: "active",
+    cancel_at_period_end: false,
+    trial_end: null,
+    items: { data: [{ id: "si_1", price: { id: "price_month" }, current_period_end: 1_750_000_000 }] },
+    ...over,
+  });
+
+  const fake: StripeClientLike = {
+    customers: {
+      async create(params, options) {
+        record("customers.create", params, options);
+        return { id: "cus_1", email: String((params as { email?: string }).email ?? "") };
+      },
+      async retrieve(id) { record("customers.retrieve", id); return { id, email: "member@example.test" }; },
+    },
+    subscriptions: {
+      async create(params, options) { record("subscriptions.create", params, options); return rawSub(); },
+      async retrieve(id) { record("subscriptions.retrieve", id); return rawSub({ id }); },
+      async update(id, params, options) {
+        record("subscriptions.update", id, params, options);
+        return rawSub({ id, cancel_at_period_end: (params as { cancel_at_period_end?: boolean }).cancel_at_period_end === true });
+      },
+      async cancel(id, params, options) {
+        record("subscriptions.cancel", id, params, options);
+        return rawSub({ id, status: "canceled" });
+      },
+    },
+    checkout: {
+      sessions: {
+        async create(params, options) {
+          record("checkout.sessions.create", params, options);
+          return { id: "cs_1", url: "https://stripe.test/c/cs_1" };
+        },
+      },
+    },
+    billingPortal: {
+      sessions: {
+        async create(params) {
+          record("billingPortal.sessions.create", params);
+          return { id: "bps_1", url: "https://stripe.test/portal" };
+        },
+      },
+    },
+    prices: {
+      async create(params, options) {
+        record("prices.create", params, options);
+        return { id: "price_new", product: "prod_1" };
+      },
+    },
+    webhooks: {
+      constructEvent(rawBody, signature, secret) {
+        record("webhooks.constructEvent", rawBody, signature, secret);
+        if (signature !== "t=1,v1=good" || secret !== "whsec_test") throw new Error("No signatures found matching the expected signature");
+        return { id: "evt_1", type: "customer.subscription.created", data: { object: JSON.parse(rawBody) }, created: 1_750_000_001 };
+      },
+    },
+  };
+
+  const port = makeMembershipsStripePort({ secretKey: "sk_test_x", webhookSecret: "whsec_test" }, fake);
+
+  // Prices — the call `PlanService.create` makes for every paid plan.
+  const price = await port.createPrice({
+    product: { name: "Gold", description: "Top tier" },
+    unitAmount: 2499,
+    currency: "usd",
+    recurring: { interval: "month" },
+    metadata: { planId: "plan_gold" },
+  });
+  assert.deepEqual(price, { id: "price_new", productId: "prod_1" });
+  const priceParams = lastCall("prices.create")!.args[0] as Record<string, unknown>;
+  assert.deepEqual(priceParams.product_data, { name: "Gold", description: "Top tier" });
+  assert.equal(priceParams.unit_amount, 2499);
+  assert.deepEqual(priceParams.recurring, { interval: "month" });
+
+  // Checkout — memberships always bills recurring, never one-shot.
+  const session = await port.createCheckoutSession({
+    customerId: "cus_1",
+    customerEmail: "member@example.test",
+    priceId: "price_month",
+    successUrl: "https://example.test/ok",
+    cancelUrl: "https://example.test/no",
+    trialDays: 7,
+    idempotencyKey: "sub-once",
+  });
+  assert.deepEqual(session, { id: "cs_1", url: "https://stripe.test/c/cs_1" });
+  const checkout = lastCall("checkout.sessions.create")!;
+  const checkoutParams = checkout.args[0] as Record<string, unknown>;
+  assert.equal(checkoutParams.mode, "subscription");
+  assert.deepEqual(checkoutParams.line_items, [{ price: "price_month", quantity: 1 }]);
+  assert.equal(checkoutParams.customer, "cus_1");
+  assert.equal(
+    checkoutParams.customer_email,
+    undefined,
+    "Stripe rejects customer + customer_email together",
+  );
+  assert.deepEqual(checkout.args[1], { idempotencyKey: "sub-once" });
+
+  // Period end read off the ITEM when the subscription itself lacks it.
+  const retrieved = await port.retrieveSubscription("sub_1");
+  assert.equal(retrieved?.currentPeriodEnd, 1_750_000_000);
+  assert.deepEqual(retrieved?.items, [{ priceId: "price_month" }]);
+  assert.equal(retrieved?.customerId, "cus_1");
+
+  // Cancel at period end updates; cancel now really cancels.
+  const later = await port.cancelSubscription("sub_1", true, "cancel-once");
+  assert.equal(later.cancelAtPeriodEnd, true);
+  assert.deepEqual(lastCall("subscriptions.update")!.args[1], { cancel_at_period_end: true });
+  assert.deepEqual(lastCall("subscriptions.update")!.args[2], { idempotencyKey: "cancel-once" });
+  const now = await port.cancelSubscription("sub_1", false);
+  assert.equal(now.status, "canceled");
+  assert.ok(lastCall("subscriptions.cancel"), "immediate cancel goes through subscriptions.cancel");
+
+  // Pause / resume — the self-service controls the plugin already exposes.
+  await port.pauseSubscription("sub_1");
+  assert.deepEqual(lastCall("subscriptions.update")!.args[1], { pause_collection: { behavior: "void" } });
+  await port.resumeSubscription("sub_1");
+  assert.deepEqual(lastCall("subscriptions.update")!.args[1], { pause_collection: null });
+
+  // Plan change re-prices the EXISTING item — a bare `items: [{price}]` would
+  // add a second line instead of switching tier.
+  await port.changeSubscriptionPlan({ id: "sub_1", newPriceId: "price_gold", idempotencyKey: "change-once" });
+  const change = lastCall("subscriptions.update")!.args[1] as Record<string, unknown>;
+  assert.deepEqual(change.items, [{ id: "si_1", price: "price_gold" }]);
+  assert.equal(change.proration_behavior, "create_prorations");
+
+  // Billing portal.
+  const portal = await port.createBillingPortalSession({ customerId: "cus_1", returnUrl: "https://example.test/back" });
+  assert.equal(portal.url, "https://stripe.test/portal");
+
+  // Webhook verification is the only gate that a payload is really Stripe's.
+  const body = JSON.stringify({ id: "sub_1" });
+  const verified = await port.verifyWebhookSignature({ rawBody: body, signatureHeader: "t=1,v1=good" });
+  assert.equal(verified?.id, "evt_1");
+  assert.equal(verified?.type, "customer.subscription.created");
+  assert.deepEqual(verified?.data.object, { id: "sub_1" });
+  assert.equal(
+    await port.verifyWebhookSignature({ rawBody: body, signatureHeader: "t=1,v1=forged" }),
+    null,
+    "a bad signature does not verify — it must never fall through as accepted",
+  );
+
+  // No webhook secret configured → nothing can be verified, and we do not even
+  // ask the SDK. Never "trust it anyway".
+  const before = calls.filter(c => c.method === "webhooks.constructEvent").length;
+  const unsecured = makeMembershipsStripePort({ secretKey: "sk_test_x" }, fake);
+  assert.equal(await unsecured.verifyWebhookSignature({ rawBody: body, signatureHeader: "t=1,v1=good" }), null);
+  assert.equal(calls.filter(c => c.method === "webhooks.constructEvent").length, before);
+
+  // Keys reader: blank / missing is null, which is what makes availability honest.
+  assert.equal(readMembershipsStripeKeys({}), null);
+  assert.equal(readMembershipsStripeKeys({ stripeSecretKey: "   " }), null);
+  assert.deepEqual(readMembershipsStripeKeys({ stripeSecretKey: "sk_live_1" }), {
+    secretKey: "sk_live_1",
+    webhookSecret: undefined,
+  });
 });

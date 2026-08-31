@@ -11,6 +11,10 @@ import { formatPrice, type CatalogProduct } from "../useProducts";
 export default function ProductSearchBlock({ block, editorMode }: BlockRenderProps) {
   const placeholder = (block.props.placeholder as string | undefined) ?? "Search products…";
   const showPlaceholder = block.props.showPlaceholder !== false;
+  // The Placeholder field is free text a site owner can clear to "", and the
+  // hint can be switched off entirely — either way the input must still have a
+  // name, so fall back rather than emit an empty `aria-label`.
+  const searchName = placeholder.trim() || "Search products";
 
   const [q, setQ] = useState("");
   const [results, setResults] = useState<CatalogProduct[]>([]);
@@ -38,12 +42,15 @@ export default function ProductSearchBlock({ block, editorMode }: BlockRenderPro
 
   return (
     <div data-block-type="product-search" style={style}>
+      {/* The placeholder is a hint and can be switched off entirely, so the
+          accessible name is carried separately and always present. */}
       <input
         type="text"
         value={q}
         onChange={e => setQ(e.target.value)}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
+        aria-label={searchName}
         placeholder={showPlaceholder ? placeholder : ""}
         disabled={editorMode}
         style={{ width: "100%", padding: "12px 16px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)", color: "inherit", fontSize: 14, fontFamily: "inherit" }}
@@ -68,7 +75,7 @@ export default function ProductSearchBlock({ block, editorMode }: BlockRenderPro
         </div>
       )}
       {open && q.trim() && results.length === 0 && (
-        <p style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: 6, padding: 12, fontSize: 12, opacity: 0.6, background: "rgba(15,15,15,0.98)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, zIndex: 50 }}>
+        <p role="status" style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: 6, padding: 12, fontSize: 12, opacity: 0.6, background: "rgba(15,15,15,0.98)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, zIndex: 50 }}>
           No products match &ldquo;{q}&rdquo;
         </p>
       )}

@@ -161,8 +161,14 @@ describe("client workspace API element enforcement", () => {
     const storedSibling = tenants.getClientForAgency(home.agency.id, home.clientB.id);
     assert.equal((storedSibling?.metadata?.properties as unknown[] | undefined)?.length ?? 0, 0);
 
+    // 404, not 403, and the difference is the point (issues #168): a SIBLING in
+    // my own agency is a real client I am refused (403), while another tenant's
+    // client is answered exactly as one that does not exist — the house
+    // convention at src/server/phaseApplier.ts:51, now applied by the routes in
+    // the order commented at api/tenants/close-deal/route.ts. Either way the
+    // write below must not have happened.
     const otherTenant = await withSession(home.token, () => propertiesRoute.POST(propertyRequest(home.otherClient.id, "Other tenant")));
-    assert.equal(otherTenant.status, 403);
+    assert.equal(otherTenant.status, 404);
     const storedOther = tenants.getClientForAgency(home.otherClient.agencyId, home.otherClient.id);
     assert.equal((storedOther?.metadata?.properties as unknown[] | undefined)?.length ?? 0, 0);
   });

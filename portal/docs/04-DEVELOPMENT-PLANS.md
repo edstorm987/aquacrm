@@ -2,7 +2,7 @@
 
 > Every active, completed and archived phased implementation plan and handoff.
 >
-> Consolidated 2026-08-30 from **57** source documents / **115,417 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-31 from **57** source documents / **116,313 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -16,7 +16,7 @@
 - [`docs/development/plans/battle-table-overhaul.md`](#source-docs-development-plans-battle-table-overhaul-md) — 1,281 words · `6f88568cdd07`
 - [`docs/development/plans/client-health.md`](#source-docs-development-plans-client-health-md) — 1,471 words · `340b63d1ac0d`
 - [`docs/development/plans/client-owned-form-data.md`](#source-docs-development-plans-client-owned-form-data-md) — 4,950 words · `fb884cee1005`
-- [`docs/development/plans/compliance-legal.md`](#source-docs-development-plans-compliance-legal-md) — 1,912 words · `550bdb57cdf6`
+- [`docs/development/plans/compliance-legal.md`](#source-docs-development-plans-compliance-legal-md) — 2,046 words · `6de22eae94ad`
 - [`docs/development/plans/configurable-access-and-workspace-parity.md`](#source-docs-development-plans-configurable-access-and-workspace-parity-md) — 2,675 words · `b1bb328b9156`
 - [`docs/development/plans/connect-flow-real-codes.md`](#source-docs-development-plans-connect-flow-real-codes-md) — 889 words · `6ca3989c9692`
 - [`docs/development/plans/database-separation.md`](#source-docs-development-plans-database-separation-md) — 2,312 words · `dacec6a22461`
@@ -27,10 +27,10 @@
 - [`docs/development/plans/dev-editor-finish.md`](#source-docs-development-plans-dev-editor-finish-md) — 9,420 words · `56732b69c9ba`
 - [`docs/development/plans/dev-editor-inspector.md`](#source-docs-development-plans-dev-editor-inspector-md) — 547 words · `fc679ad8d5c2`
 - [`docs/development/plans/dev-mode-demo-profiles.md`](#source-docs-development-plans-dev-mode-demo-profiles-md) — 1,435 words · `0f260daa17df`
-- [`docs/development/plans/dev-team-finish.md`](#source-docs-development-plans-dev-team-finish-md) — 1,701 words · `ceb793dfd94d`
+- [`docs/development/plans/dev-team-finish.md`](#source-docs-development-plans-dev-team-finish-md) — 1,967 words · `b3a25b54c070`
 - [`docs/development/plans/dev-team-hub.md`](#source-docs-development-plans-dev-team-hub-md) — 1,358 words · `65a2ed401444`
 - [`docs/development/plans/dev-team-librarian-and-assistants.md`](#source-docs-development-plans-dev-team-librarian-and-assistants-md) — 1,104 words · `153ec94b50d7`
-- [`docs/development/plans/dev-team-portal.md`](#source-docs-development-plans-dev-team-portal-md) — 4,294 words · `7d8d6bd3a804`
+- [`docs/development/plans/dev-team-portal.md`](#source-docs-development-plans-dev-team-portal-md) — 4,666 words · `679e21c1285c`
 - [`docs/development/plans/dev-team-ui-polish.md`](#source-docs-development-plans-dev-team-ui-polish-md) — 712 words · `1b6fbba4578b`
 - [`docs/development/plans/enquiry-detail-card-handoff.md`](#source-docs-development-plans-enquiry-detail-card-handoff-md) — 1,100 words · `2588dbdb72f2`
 - [`docs/development/plans/enquiry-detail-card.md`](#source-docs-development-plans-enquiry-detail-card-md) — 898 words · `e4a7c738f477`
@@ -53,7 +53,7 @@
 - [`docs/development/plans/public-bucket-HANDOFF.md`](#source-docs-development-plans-public-bucket-handoff-md) — 1,244 words · `2b7dca7e3698`
 - [`docs/development/plans/public-bucket.md`](#source-docs-development-plans-public-bucket-md) — 764 words · `3f33cbe50480`
 - [`docs/development/plans/radar-upgrade.md`](#source-docs-development-plans-radar-upgrade-md) — 2,802 words · `76e0c777345b`
-- [`docs/development/plans/rls-enable.md`](#source-docs-development-plans-rls-enable-md) — 1,521 words · `b4aecbed9830`
+- [`docs/development/plans/rls-enable.md`](#source-docs-development-plans-rls-enable-md) — 1,645 words · `b805e52e8625`
 - [`docs/development/plans/runtime-verification.md`](#source-docs-development-plans-runtime-verification-md) — 1,390 words · `f5df534faefb`
 - [`docs/development/plans/security-hardening.md`](#source-docs-development-plans-security-hardening-md) — 1,001 words · `473530125c79`
 - [`docs/development/plans/settings-consolidation.md`](#source-docs-development-plans-settings-consolidation-md) — 561 words · `eb976f93f4af`
@@ -1694,7 +1694,7 @@ demonstrated. Delete it whenever.
 
 ## Source document — `docs/development/plans/compliance-legal.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/compliance-legal.md" sha256="550bdb57cdf6115663331447c5ec8183cee640e83f7384ef1a8c06273e6efcda" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/compliance-legal.md" sha256="6de22eae94ad46477f3274e7b1f213b29ea651d80fd51b19bf60938f933bd78a" -->
 # Plan — Compliance & Legal (GDPR, HIPAA track, evidence, breach defence)
 
 ← [todo.md](../todo.md) · [operations-command-surface.md](operations-command-surface.md) · [development.md](../../development.md)
@@ -1776,7 +1776,7 @@ minimum-necessary, and every BAA/DPA.
 - **Consent ledger** — surface the consent the tag already captures (per person/site) as auditable records; lawful-basis tracking.
 - **DSAR handling** — subject access / erasure / portability requests: a workflow to receive, fulfil (export a person's data), and **log the fulfilment as evidence**. Reuse `clientErasure` + a data-export.
 - **Retention** — per-data-type retention policies + auto-expiry (enquiries, telemetry, messages, recordings).
-- **Breach register** — record an incident, what data, who was notified, when (the 72-hour clock), with evidence.
+- **Breach register** — ✅ **SHIPPED 2026-08-31.** `lib/server/compliance/breachRegister.ts` + `POST /api/portal/governance/breaches` + the Governance **Breaches** view. Art. 33/34: the 72 hours run from **discovery**, not from data entry, so a breach found on Friday and logged on Monday reports as already late; an **unassessed** incident counts as still owing a decision and stays on the clock (silence is never read as "not notifiable"); a decision not to notify and a late notification must each carry their reason (Art. 33(5), Art. 33(1)); a notifiable breach cannot be closed with no notification recorded, and a late notification stays late after closure. `gdpr.breach-register` now reads the real register instead of regex-matching `/breach|incident/` over legal-document titles, and reports **blind** — never "no breaches" — when the register cannot be read. Pinned by `smoke-compliance-posture` + `smoke-governance-workspace`. **The app notifies nobody**: the ICO is told on the ICO's service and the register records that a human did it.
 - **Privacy policy / terms / cookie policy** — managed documents, versioned, with the consent version they map to.
 
 ## The document & evidence vault (verify, not assume)
@@ -4278,7 +4278,7 @@ persona-fencing + return-to-real.
 
 ## Source document — `docs/development/plans/dev-team-finish.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/dev-team-finish.md" sha256="ceb793dfd94d2380ba46c082a34bf6a0ad9f373efdc6e418d29e604b2d0d2e5b" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/dev-team-finish.md" sha256="b3a25b54c0709386cb2a0654d1e076fd24add55836a52e0d62b83dcf6d20d334" -->
 # Plan — Dev Team: finish it (icons · accuracy · Command Centre wiring)
 
 ← [todo.md](../todo.md) · [development.md](../../development.md) · builds on [dev-team-portal.md](dev-team-portal.md)
@@ -4296,6 +4296,15 @@ live worker panel) and it is wired into the Command Centre as a 4th station. Wha
 Centre station is only half-wired (its badge is hardcoded to zero). Ed's words: *"needs the
 icons and stuff and just actually be accurate work and have it wired in command centre."*
 
+> **Phase ticks backfilled 2026-08-31.** All three phases were re-checked against
+> current source and are now marked ✅ inline, so the board reads **3/3** instead
+> of the `0/5`-style zero it showed while the ticks lived only in the "What
+> shipped" prose. It **stays on the board and is NOT archived**: the runtime walk
+> above has still not happened, and [`plans/archive/README.md`](archive/README.md)
+> archives only work that is shipped **AND verified**. The residue is a browser
+> pass (sidebar icons · station badge · `?station=devteam` across a refresh),
+> which is an acceptance step, not more code.
+
 > **Current correction, 2026-08-23:** this is a shipped plan and its phase narrative
 > records the 2026-08-19 checkpoint. The later MFA work is now complete: login gate,
 > code step, session assurance and recovery codes are all built. References below to
@@ -4307,6 +4316,12 @@ app** (icons, not bare text), and the Command Centre station behaves like a firs
 (real attention badge, deep-linkable). No new sections — finish what exists.
 
 ## Phase 1 — Icons (visual completeness)
+✅ **SHIPPED 2026-08-19.** Re-verified in source 2026-08-31: every nav item in
+`src/app/portal/dev-team/layout.tsx` sets its own `icon:` (Home `Hammer` · Roadmap `Route` ·
+Findings `ScanEye` · Library `Library` · Tools `Wrench` · Editor `SquarePen` · Notes
+`NotebookPen` · My profile `UserRound`), so nothing falls through to the generic dot. The
+brief below is the original problem statement.
+
 The Dev Team sidebar renders **bare text** while every other portal has icons, because the nav
 items never set one.
 - `NavItem.icon?: ReactNode` — `src/built-ins/runtime/_types.ts:358`. The Sidebar renders
@@ -4321,6 +4336,14 @@ items never set one.
   (they use the shared kit `src/app/portal/dev-team/_ui.tsx` — `PageHeader` takes an `icon`).
 
 ## Phase 2 — Accuracy (the important half)
+✅ **SHIPPED 2026-08-19.** Re-verified in source 2026-08-31: the badge is computed, not typed
+(`devTeamBlockedCount` / `devTeamLaunchBlockerCount` off `composeLanes(scanDevTeamBoard())` in
+`src/app/portal/agency/page.tsx:173-180`); `classifyWorker` carries an `isParked` signal
+(`src/lib/server/dev/devTeamBoard.ts:174,238`) so parked can no longer read as shipped; and
+findings carry `supersededBy` (`src/lib/server/dev/devTeamAuditor.ts:75,364,372`) so the
+Auditor splits open from historically-closed instead of over-reporting. The brief below is the
+original problem statement.
+
 Right now some of what the portal reports is **stale or misleading**. Fix the truth, not the
 labels.
 1. **Command Centre badge is a lie.** `devTeamAttention` is hardcoded
@@ -4346,6 +4369,13 @@ labels.
    disagrees between two screens is worse than no number.
 
 ## Phase 3 — Command Centre wiring (make it a first-class station)
+✅ **SHIPPED 2026-08-19.** Re-verified in source 2026-08-31: `"devteam"` is a member of
+`CommandStationMode` (`src/app/portal/agency/_CommandStationNav.tsx:5`), the station button
+renders behind `showDevTeam`, the `?station=devteam` deep link is accepted only when the
+station is visible (`_DashboardCommandCenter.tsx:279,567,1155`), and the station carries a real
+`stationAttention.devteam` entry rather than a hardcoded zero. The brief below is the original
+problem statement.
+
 - **Deep-link**: `"devteam"` was deliberately left out of the `?station=` allow-list in
   `commandStationMode()` (`_DashboardCommandCenter.tsx`, ~:2330) so a hand-typed URL couldn't
   land a non-founder on an empty panel. Now that visibility is computed server-side, add it
@@ -4730,12 +4760,21 @@ The Dev Team shell lane now delivers together, all in dev-team/layout.tsx + the 
 
 ## Source document — `docs/development/plans/dev-team-portal.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/dev-team-portal.md" sha256="7d8d6bd3a80461eca2c0e343dcf2d592d46bd661afb209e51e5e71599c8b4722" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/dev-team-portal.md" sha256="679e21c1285c0beabf3ae5d09ce77b65167feca3a1d66cb92b59aa0b1f9cad34" -->
 # Plan — Dev Team portal (our own internal workspace) ⭐⭐
 
 ← [todo.md](../todo.md) · [development.md](../../development.md) · supersedes/absorbs [dev-team-hub.md](dev-team-hub.md) + [dev-mode-demo-profiles.md](dev-mode-demo-profiles.md) + the built dev-docs work
 
 **Status: ✅ BUILT — core shipped + browser-verified (2026-08-19), then RESHAPED to six sections (2026-08-20). Finishing work tracked in [dev-team-finish.md](dev-team-finish.md); the topbar entry point in [dev-console-topbar.md](archive/dev-console-topbar.md).**
+
+> **Phase ticks backfilled 2026-08-31.** The phases below carried no status
+> markers, so the board read this plan `0/5` — a ⭐⭐ plan that is mostly shipped
+> looked untouched. Each phase was re-checked against current source before it
+> was ticked; the citations are inline. The plan is now **4/5** and **stays on
+> the board**: Phase 3's Master-Inbox derivation and ship→release promotion are
+> genuinely absent from `src/`, and
+> [`plans/archive/README.md`](archive/README.md) forbids archiving anything with
+> an open phase. Park it, don't hide it.
 
 > **Production correction, 2026-08-26:** Dev Team is no longer coupled to the
 > local demo-persona switch. The current `devTeamAccessible()` predicate keeps
@@ -4846,9 +4885,10 @@ No git-worktree isolation (uncommitted tree). So: **disjoint files run parallel;
 **Everything else is a clean island** — each section lives in its own `app/portal/dev-team/<section>/` dir → **one agent per section, zero collision.**
 
 ## Phases
-**Phase 0 — Spine (I own, serial):** new `dev-team/` scope + `layout.tsx` (copy `team/`, swap gate + inline panels) + `founderDevOnly()` helper + the sidebar entry line + all new `types.ts`/`storage.ts` slots + the dev-mode entry redirect + fix the latent `dev-mode/route.ts:165` "finds an owner" exit bug (restore the exact enterer — same fix pattern the freelancer route just passed audit with). Stub `page.tsx` per section so routes resolve.
+**Phase 0 — Spine (I own, serial):** ✅ SHIPPED — new `dev-team/` scope + `layout.tsx` (copy `team/`, swap gate + inline panels) + `founderDevOnly()` helper + the sidebar entry line + all new `types.ts`/`storage.ts` slots + the dev-mode entry redirect + fix the latent `dev-mode/route.ts:165` "finds an owner" exit bug (restore the exact enterer — same fix pattern the freelancer route just passed audit with). Stub `page.tsx` per section so routes resolve.
+_Verified in source 2026-08-31: `src/app/portal/dev-team/layout.tsx` + `page.tsx`; the gate helper landed as `devTeamAccessible()` (`src/lib/server/dev/devTeamAccess.ts:44`), not `founderDevOnly()`; `api/auth/dev-mode/route.ts` lands `enter` on `/portal/dev-team` and `exit` now restores `devReturnUserId` — the exact enterer — falling back to "an owner" only for tokens minted before that field existed._
 
-**Phase 1 — Section islands (parallel agents, one per section):**
+**Phase 1 — Section islands (parallel agents, one per section):** ✅ SHIPPED (2026-08-19, browser-verified)
 - **Library** — thin wrapper rendering the dev-docs browser in the hub.
 - **Notes** — thin wrapper mounting `NotepadWorkspace`.
 - **Home/Status** — `BlockerStrip` + recently-edited feed.
@@ -4856,11 +4896,16 @@ No git-worktree isolation (uncommitted tree). So: **disjoint files run parallel;
 - **Profiles** — the POV click-list (reuse the mint), always-present Exit + "← Dev Team".
 - **Auditor** — Radar reskin + dev lenses *(uses recon B's map)*.
 
-**Phase 2 — Librarian (me or a dedicated agent):** reuse the LLM+store+drawer; build the curated-corpus context builder + grep-over-reference tool + gated route + key resolution. Queryable in-app AND exposed so I can query it too.
+_All six islands shipped and were browser-verified on 2026-08-19 (see Build progress below). Two later moved rather than regressed: the **2026-08-20 reshape to six sections** folded Auditor into `dev-team/findings` (`auditor/` still exists behind it), and **Profiles** left the `dev-team/` scope entirely when the way in/out became the topbar's Dev-Mode control. Neither is unfinished phase-1 work._
 
-**Phase 3 — Updates→Inbox→Changelog (I own — shared files):** `devUpdates` store + UI island + the `addDevTeamUpdateAlerts` derivation + ship→release promotion.
+**Phase 2 — Librarian (me or a dedicated agent):** ✅ SHIPPED — reuse the LLM+store+drawer; build the curated-corpus context builder + grep-over-reference tool + gated route + key resolution. Queryable in-app AND exposed so I can query it too.
+_Verified in source 2026-08-31: the gated route is `src/app/api/portal/dev/librarian/route.ts` (POST-only, read-only, tenant-first access kernel) over the file-finding skill `src/lib/server/dev/fileFinding.ts`; the surfaces are `components/editing/LibrarianPanel.tsx` + `librarianClient.ts` and the `components/chrome/LibrarianDrawerControl.tsx` drawer. The key worry is closed too — the Advisor's existing OpenAI backend is reused, so no new key was needed._
 
-**Phase 4 — Verify + polish:** parallel adversarial verifier per section (the pattern that just caught the erasure hole) + a founder browser-walk of the whole portal + docs (portal-ui chapter, regenerate symbol reference, api-reference).
+**Phase 3 — Updates→Inbox→Changelog (I own — shared files):** 🚧 HALF SHIPPED — `devUpdates` store + UI island + the `addDevTeamUpdateAlerts` derivation + ship→release promotion.
+_Verified in source 2026-08-31. **Done:** the store and the UI island — `src/lib/server/dev/devTeamUpdates.ts` (parse/append over `docs/development/updates.md`, locked + optimistic-replace), `api/portal/dev-team/updates/route.ts`, and the island now rendered as a Library view (`dev-team/updates/page.tsx` redirects to `library?view=updates`). **Not done:** `addDevTeamUpdateAlerts` does not exist anywhere in `src/`, so an update authored here never reaches the Master Inbox, and there is no ship→release promotion (`src/lib/releases.ts` does not exist). This is the phase that keeps the plan on the board — do not archive it until the Inbox derivation lands or is deliberately dropped._
+
+**Phase 4 — Verify + polish:** ✅ SHIPPED — parallel adversarial verifier per section (the pattern that just caught the erasure hole) + a founder browser-walk of the whole portal + docs (portal-ui chapter, regenerate symbol reference, api-reference).
+_Verified 2026-08-31: the polish pass is recorded below as complete and browser-verified with all five sections screenshotted on `:3032`, and the doc deliverables exist — `docs/workspace/portal-ui.md` and `docs/workspace/api-reference.md` both carry the dev-team surfaces._
 
 ## Done when (runtime-verified)
 Owner flips **Dev Mode** → cinematic → lands in the **Dev Team portal** with its own sidebar →
@@ -10700,7 +10745,7 @@ plan in flight._
 
 ## Source document — `docs/development/plans/rls-enable.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/rls-enable.md" sha256="b4aecbed98300e4bdddaf752d4a15fcc41a8c5f839eb70ecf9c4c97b8c9ea37b" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/rls-enable.md" sha256="b805e52e8625b9b11c716ea7566b250b877ffd9825cb52cd5dddbb5d5f8d4a54" -->
 # Plan — Database Row-Level Security  🟠 mostly done, three real gaps left
 
 ← [todo.md](../todo.md) · [development.md](../../development.md)
@@ -10790,10 +10835,22 @@ at all. Superseded first-cut model, or unfinished? Decide and record it.
 
 ## Phases
 
-1. ~~**Audit isolation per table.**~~ Done — see
+> **Ticks backfilled 2026-08-31.** Phases 1, 2 and 5 were only ever marked done
+> in the Status line and in strikethrough prose, which the board's phase parser
+> does not read — so a plan the Status line calls "mostly done" rendered `0/5`.
+> They now carry ✅ leads and it reads **3/5**. Phases 3 and 4 are deliberately
+> left unmarked: 3 is Ed's decision, and 4 landed only its *first* reduction
+> (23 → 13 service-role call sites), so it is genuinely still open. Verified
+> 2026-08-31 that phase 5's two halves exist —
+> [`supabase/rls-verify.sql`](../../../../supabase/rls-verify.sql) and
+> `portal/scripts/smoke-rls-policy-coverage.test.ts` — and that phase 4's pin,
+> `portal/scripts/smoke-service-role-usage.test.ts`, exists too. **Not
+> archivable** while 3 and 4 are open.
+
+1. ✅ **Audit isolation per table.** Done — see
    [`database.md`](../../workspace/database.md) §2 and the table in
    [`../../../../supabase/README.md`](../../../../supabase/README.md).
-2. ~~**Author RLS as in-repo SQL migrations.**~~ Already done, before this plan
+2. ✅ **Author RLS as in-repo SQL migrations.** Already done, before this plan
    was written. The work that was actually missing was making it *findable* and
    *checkable* from `portal/`, which is now done.
 3. **`brand_enquiries` decision** — add `agency_id` (backfill from
@@ -10851,7 +10908,7 @@ at all. Superseded first-cut model, or unfinished? Decide and record it.
    its three internal call sites are `auth.admin.*` operations that exist only
    on the service role. `src/server/clientErasure.ts` takes the admin client
    injected — counted at its injection site, the erase route above.)
-5. **Verify** — both halves now exist:
+5. ✅ **Verify** — both halves now exist:
    - live posture → `../../../../supabase/rls-verify.sql`, read-only, run it in
      the SQL editor after any `db push` or dashboard change;
    - repo posture → `scripts/smoke-rls-policy-coverage.test.ts`, in the smoke

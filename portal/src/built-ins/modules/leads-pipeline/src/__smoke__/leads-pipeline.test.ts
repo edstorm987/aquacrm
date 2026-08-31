@@ -47,8 +47,8 @@ import {
 } from "../server/subscribers";
 import { parseCsv, parseXlsxToDelimitedText } from "../server/csv";
 import { LeadIdentityConflictError, LeadService } from "../server/leads";
-import { CommercialPaymentConflictError } from "../server/commercial";
-import { CSV_COLUMN_VARIANTS, projectLeadCard } from "../lib/domain";
+import { CommercialAcceptanceStateError, CommercialPaymentConflictError } from "../server/commercial";
+import { CSV_COLUMN_VARIANTS, installmentAllocation, projectLeadCard } from "../lib/domain";
 
 const AGENCY_ID: AgencyId = "agency_leads_smoke";
 const ACTOR = "user_leads_smoke";
@@ -131,11 +131,46 @@ function buildWorld(opts: { withEmail?: boolean; withPipeline?: boolean } = {}) 
     },
   };
 
+  // Delivery outcome the stub provider reports back from `send()`. Tests flip this
+  // to simulate an explicit provider refusal ("failed") or a provider that only
+  // accepts the message into its queue without confirming delivery ("queued").
+  const emailDelivery: {
+    mode: "delivered" | "queued" | "failed";
+    error?: string;
+    code?: string;
+    // Addresses that always come back refused, whatever the global mode —
+    // lets one blast contain both a delivery and a failure.
+    failRecipients: Set<string>;
+  } = { mode: "delivered", failRecipients: new Set() };
   const emailEnqueue: EmailEnqueuePort | undefined = opts.withEmail
     ? {
         enqueue(input) {
           enqueued.push(input);
           return { messageId: `msg_${enqueued.length}` };
+        },
+        send(input) {
+          enqueued.push(input);
+          const messageId = `msg_${enqueued.length}`;
+          const recipients = Array.isArray(input.to) ? input.to : [input.to];
+          if (recipients.some(address => emailDelivery.failRecipients.has(address))) {
+            return { messageId, delivered: false, error: "Mailbox rejected the recipient." };
+          }
+          // The email-sender adapter returns no verdict at all when it could
+          // only enqueue — that is "queued", never a delivery.
+          if (emailDelivery.mode === "queued") {
+            return emailDelivery.code
+              ? { messageId, delivered: false, error: emailDelivery.error, code: emailDelivery.code }
+              : { messageId };
+          }
+          if (emailDelivery.mode === "failed") {
+            return {
+              messageId,
+              delivered: false,
+              error: emailDelivery.error ?? "Mailbox rejected the recipient.",
+              code: emailDelivery.code,
+            };
+          }
+          return { messageId, delivered: true };
         },
       }
     : undefined;
@@ -169,7 +204,7 @@ function buildWorld(opts: { withEmail?: boolean; withPipeline?: boolean } = {}) 
   return {
     storage, tenant, activity, eventBus, pluginInstalls,
     emailEnqueue, pipeline, pipelineColumn,
-    activityLog, events, enqueued,
+    activityLog, events, enqueued, emailDelivery,
   };
 }
 
@@ -787,6 +822,9 @@ describe("leads-pipeline / commercial packs", () => {
     const sent = await c.commercial.send("lead", lead.lead.id, "https://milesymedia.test", ACTOR);
     assert.equal(sent.invoiceStatus, "sent");
     assert.equal(sent.agreementStatus, "sent");
+    assert.equal(sent.deliveryStatus, "delivered");
+    assert.ok((sent.sentAt ?? 0) > 0);
+    assert.equal(sent.deliveryError, undefined);
     assert.equal(w.enqueued.length, 1);
     assert.match(w.enqueued[0]?.bodyText ?? "", /proposal\//);
 
@@ -815,8 +853,308 @@ describe("leads-pipeline / commercial packs", () => {
     }, ACTOR);
     assert.equal(paid?.invoiceStatus, "paid");
     assert.equal(paid?.payments.length, 2);
+    assert.ok(paid?.payments.every(payment =>
+      payment.receiptDeliveryStatus === "delivered" && (payment.receiptSentAt ?? 0) > 0));
     assert.ok(w.activityLog.some(entry => entry.action === "commercial.payment.recorded"));
     assert.ok(w.events.some(event => event.name === "commercial.payment.recorded"));
+  });
+
+  // ── Acceptance is bound to an immutable sent version (issues #41) ──
+  //
+  // The public token is minted at the FIRST draft save, so holding the link has
+  // never been the same as being offered the terms. These three tests pin the
+  // three halves of that: a draft cannot be signed, an acceptance names the exact
+  // version it covers and never migrates onto later wording, and a payment
+  // session cannot outlive the amounts it was priced for.
+  const versionedTerms = (partyId: string, overrides: Partial<Parameters<
+    ReturnType<typeof buildLeadsPipelineContainer>["commercial"]["save"]>[0]> = {}) => ({
+    partyKind: "lead" as const,
+    partyId,
+    recipientName: "Buyer",
+    recipientEmail: `${partyId}@example.test`,
+    lineItems: [{ description: "Retainer", quantity: 1, unitCents: 100_000 }],
+    taxCents: 0,
+    currency: "gbp" as const,
+    dueAt: Date.UTC(2026, 8, 30),
+    billingCadence: "one-off" as const,
+    serviceLevel: "Retainer",
+    agreementTitle: "Service level agreement",
+    agreementBody: "Milesymedia will provide the retainer described above.",
+    ...overrides,
+  });
+
+  test("a draft proposal cannot be accepted from its public link, and acceptance names the sent version", async () => {
+    const w = buildWorld({ withEmail: true });
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+      emailEnqueue: w.emailEnqueue,
+    });
+    const draft = await c.commercial.save(versionedTerms("lead_version_gate"), ACTOR);
+    assert.equal(draft.version, 1);
+    assert.equal(draft.agreementStatus, "draft");
+    assert.equal(draft.sentVersion, undefined);
+    assert.ok(draft.publicToken);
+
+    await assert.rejects(
+      c.commercial.accept(draft.publicToken, "Buyer"),
+      (error: unknown) => error instanceof CommercialAcceptanceStateError,
+    );
+    const stillDraft = await c.commercial.get("lead", "lead_version_gate");
+    assert.equal(stillDraft?.agreementStatus, "draft");
+    assert.equal(stillDraft?.acceptedAt, undefined);
+    assert.equal(w.activityLog.some(entry => entry.action === "commercial.agreement.accepted"), false);
+
+    const sent = await c.commercial.send("lead", "lead_version_gate", "https://milesymedia.test", ACTOR);
+    assert.equal(sent.sentVersion, 1);
+
+    const accepted = await c.commercial.accept(sent.publicToken, "Buyer Name");
+    assert.equal(accepted?.agreementStatus, "accepted");
+    assert.equal(accepted?.acceptedVersion, 1);
+    assert.equal(accepted?.acceptedContentHash, sent.contentHash);
+    assert.equal(accepted?.acceptedBy, "Buyer Name");
+    assert.ok(w.activityLog.some(entry =>
+      entry.action === "commercial.agreement.accepted" && /version 1/.test(entry.message)));
+
+    // A repeat POST must not move the acceptance onto a later moment or name.
+    const again = await c.commercial.accept(sent.publicToken, "Someone Else");
+    assert.equal(again?.acceptedBy, "Buyer Name");
+    assert.equal(again?.acceptedAt, accepted?.acceptedAt);
+    assert.equal(again?.acceptedVersion, 1);
+    assert.equal(w.activityLog.filter(entry => entry.action === "commercial.agreement.accepted").length, 1);
+  });
+
+  test("editing accepted terms supersedes them as an unsent draft and keeps the old acceptance whole", async () => {
+    const w = buildWorld({ withEmail: true });
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+      emailEnqueue: w.emailEnqueue,
+    });
+    await c.commercial.save(versionedTerms("lead_amend_after_accept"), ACTOR);
+    const sent = await c.commercial.send("lead", "lead_amend_after_accept", "https://milesymedia.test", ACTOR);
+    const accepted = await c.commercial.accept(sent.publicToken, "Buyer Name");
+    assert.equal(accepted?.acceptedVersion, 1);
+
+    // Re-saving the SAME terms is not an amendment: nothing the client read moved.
+    const resaved = await c.commercial.save(versionedTerms("lead_amend_after_accept"), ACTOR);
+    assert.equal(resaved.version, 1);
+    assert.equal(resaved.agreementStatus, "accepted");
+    assert.equal(resaved.acceptedVersion, 1);
+    assert.equal(resaved.acceptedAt, accepted?.acceptedAt);
+    assert.equal(resaved.revisions, undefined);
+
+    const amended = await c.commercial.save(versionedTerms("lead_amend_after_accept", {
+      agreementBody: "Milesymedia will provide the retainer and a materially wider scope.",
+      lineItems: [{ description: "Retainer", quantity: 1, unitCents: 250_000 }],
+    }), ACTOR);
+    assert.equal(amended.version, 2);
+    assert.equal(amended.totalCents, 250_000);
+    assert.equal(amended.agreementStatus, "draft");
+    assert.equal(amended.invoiceStatus, "draft");
+    assert.equal(amended.acceptedAt, undefined);
+    assert.equal(amended.acceptedBy, undefined);
+    assert.equal(amended.acceptedVersion, undefined);
+    assert.equal(amended.acceptedContentHash, undefined);
+    assert.equal(amended.sentAt, undefined);
+    assert.equal(amended.sentVersion, undefined);
+    // The delivery record belongs to the version that was emailed. Version 2 has
+    // never been emailed, so nothing may still say it was — the agency readiness
+    // panel reads deliveryStatus for its "Invoice emailed" gap.
+    assert.equal(amended.deliveryStatus, undefined);
+    assert.equal(amended.deliveryAttemptedAt, undefined);
+    assert.equal(amended.emailMessageId, undefined);
+    assert.equal(amended.deliveryError, undefined);
+
+    // The acceptance of version 1 is a fact about version 1 and survives intact.
+    const superseded = amended.revisions?.at(-1);
+    assert.equal(amended.revisions?.length, 1);
+    assert.equal(superseded?.version, 1);
+    assert.equal(superseded?.contentHash, accepted?.contentHash);
+    assert.equal(superseded?.acceptedBy, "Buyer Name");
+    assert.equal(superseded?.acceptedAt, accepted?.acceptedAt);
+    assert.equal(superseded?.totalCents, 100_000);
+    assert.ok(w.activityLog.some(entry =>
+      entry.action === "commercial.amended" && /version 2/.test(entry.message)));
+
+    // The new wording is not on offer until it is sent, so it cannot be accepted.
+    await assert.rejects(
+      c.commercial.accept(amended.publicToken, "Buyer Name"),
+      (error: unknown) => error instanceof CommercialAcceptanceStateError,
+    );
+    assert.equal((await c.commercial.get("lead", "lead_amend_after_accept"))?.agreementStatus, "draft");
+
+    // Sent again, version 2 can be accepted on its own terms.
+    const resent = await c.commercial.send("lead", "lead_amend_after_accept", "https://milesymedia.test", ACTOR);
+    assert.equal(resent.sentVersion, 2);
+    const acceptedTwo = await c.commercial.accept(resent.publicToken, "Buyer Name");
+    assert.equal(acceptedTwo?.acceptedVersion, 2);
+    assert.equal(acceptedTwo?.acceptedContentHash, amended.contentHash);
+    assert.notEqual(acceptedTwo?.acceptedContentHash, accepted?.acceptedContentHash);
+  });
+
+  test("changing what is payable detaches the Stripe session priced for the old terms", async () => {
+    const w = buildWorld({ withEmail: true });
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+      emailEnqueue: w.emailEnqueue,
+    });
+    const draft = await c.commercial.save(versionedTerms("lead_stale_checkout"), ACTOR);
+    const attached = await c.commercial.attachStripe("lead", "lead_stale_checkout", {
+      id: "cs_old",
+      url: "https://checkout.test/cs_old",
+      forVersion: draft.version,
+      forFinancialHash: draft.financialHash,
+    });
+    assert.equal(attached?.attached, true);
+    assert.equal(attached?.pack.stripeCheckoutUrl, "https://checkout.test/cs_old");
+    assert.equal(attached?.pack.stripeCheckoutFinancialHash, draft.financialHash);
+
+    // Rewording costs nothing, so the session still matches the money.
+    const reworded = await c.commercial.save(versionedTerms("lead_stale_checkout", {
+      agreementBody: "Milesymedia will provide the retainer described above, in clearer words.",
+    }), ACTOR);
+    assert.equal(reworded.stripeCheckoutUrl, "https://checkout.test/cs_old");
+
+    const repriced = await c.commercial.save(versionedTerms("lead_stale_checkout", {
+      agreementBody: "Milesymedia will provide the retainer described above, in clearer words.",
+      lineItems: [{ description: "Retainer", quantity: 1, unitCents: 250_000 }],
+    }), ACTOR);
+    assert.equal(repriced.totalCents, 250_000);
+    assert.equal(repriced.stripeCheckoutId, undefined);
+    assert.equal(repriced.stripeCheckoutUrl, undefined);
+    assert.equal(repriced.stripeCheckoutFinancialHash, undefined);
+
+    // A session priced for the superseded amount is refused, not stored.
+    const stale = await c.commercial.attachStripe("lead", "lead_stale_checkout", {
+      id: "cs_stale",
+      url: "https://checkout.test/cs_stale",
+      forVersion: draft.version,
+      forFinancialHash: draft.financialHash,
+    });
+    assert.equal(stale?.attached, false);
+    assert.equal(stale?.pack.stripeCheckoutUrl, undefined);
+    assert.equal((await c.commercial.get("lead", "lead_stale_checkout"))?.stripeCheckoutId, undefined);
+
+    // And the proposal email cannot advertise a payment link for the old amount.
+    await c.commercial.send("lead", "lead_stale_checkout", "https://milesymedia.test", ACTOR);
+    assert.equal(w.enqueued.length, 1);
+    assert.equal(/cs_old/.test(w.enqueued[0]?.bodyText ?? ""), false);
+    assert.equal(/cs_old/.test(w.enqueued[0]?.bodyHtml ?? ""), false);
+  });
+
+  test("a refused proposal email leaves the pack unsent, retains the error, and a retry sends it", async () => {
+    const w = buildWorld({ withEmail: true });
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+      emailEnqueue: w.emailEnqueue,
+    });
+    await c.commercial.save({
+      partyKind: "lead",
+      partyId: "lead_send_refused",
+      recipientEmail: "refused@example.test",
+      lineItems: [{ description: "Service", quantity: 1, unitCents: 50_000 }],
+      taxCents: 0,
+      currency: "gbp",
+      dueAt: Date.now() + 86_400_000,
+      billingCadence: "one-off",
+      serviceLevel: "Service",
+      agreementTitle: "Agreement",
+      agreementBody: "Terms",
+    }, ACTOR);
+
+    w.emailDelivery.mode = "failed";
+    w.emailDelivery.error = "Mailbox unavailable (550).";
+    const refused = await c.commercial.send("lead", "lead_send_refused", "https://milesymedia.test", ACTOR);
+    assert.equal(refused.deliveryStatus, "failed");
+    assert.equal(refused.deliveryError, "Mailbox unavailable (550).");
+    assert.equal(refused.invoiceStatus, "draft");
+    assert.equal(refused.agreementStatus, "draft");
+    assert.equal(refused.sentAt, undefined);
+    assert.ok(refused.emailMessageId, "the provider message id is retained as the retry handle");
+    assert.ok(refused.deliveryAttemptedAt);
+    assert.equal(w.activityLog.some(entry => entry.action === "commercial.sent"), false);
+    const failure = w.activityLog.find(entry => entry.action === "commercial.send.failed");
+    assert.ok(failure, "the refusal is logged as a failure, not a send");
+    assert.match(failure?.message ?? "", /stay unsent/i);
+    // The refusal survives a reload — it is persisted, not only returned.
+    const reloaded = await c.commercial.get("lead", "lead_send_refused");
+    assert.equal(reloaded?.deliveryStatus, "failed");
+    assert.equal(reloaded?.invoiceStatus, "draft");
+
+    // Queue-only acceptance is not confirmation either.
+    w.emailDelivery.mode = "queued";
+    const queued = await c.commercial.send("lead", "lead_send_refused", "https://milesymedia.test", ACTOR);
+    assert.equal(queued.deliveryStatus, "queued");
+    assert.equal(queued.invoiceStatus, "draft");
+    assert.equal(queued.sentAt, undefined);
+    assert.equal(queued.deliveryError, undefined);
+    assert.ok(w.activityLog.some(entry => entry.action === "commercial.send.queued"));
+
+    // Retry: the same action is the retry path and confirmed delivery advances it.
+    w.emailDelivery.mode = "delivered";
+    const delivered = await c.commercial.send("lead", "lead_send_refused", "https://milesymedia.test", ACTOR);
+    assert.equal(delivered.deliveryStatus, "delivered");
+    assert.equal(delivered.deliveryError, undefined);
+    assert.equal(delivered.invoiceStatus, "sent");
+    assert.equal(delivered.agreementStatus, "sent");
+    assert.ok((delivered.sentAt ?? 0) > 0);
+    assert.ok(w.activityLog.some(entry => entry.action === "commercial.sent"));
+  });
+
+  test("a refused payment receipt is retained unsent and the same reference retries it", async () => {
+    const w = buildWorld({ withEmail: true });
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+      emailEnqueue: w.emailEnqueue,
+    });
+    await c.commercial.save({
+      partyKind: "contact",
+      partyId: "contact_receipt_refused",
+      recipientEmail: "receipt-refused@example.test",
+      lineItems: [{ description: "Service", quantity: 1, unitCents: 20_000 }],
+      taxCents: 0,
+      currency: "gbp",
+      dueAt: Date.now() + 86_400_000,
+      billingCadence: "one-off",
+      serviceLevel: "Service",
+      agreementTitle: "Agreement",
+      agreementBody: "Terms",
+    }, ACTOR);
+
+    w.emailDelivery.mode = "failed";
+    w.emailDelivery.error = "Receipt mailbox full.";
+    const recorded = await c.commercial.recordPayment("contact", "contact_receipt_refused", {
+      amountCents: 20_000,
+      method: "bank-transfer",
+      reference: "BANK-RECEIPT-1",
+    }, ACTOR);
+    const failedReceipt = recorded?.payments[0];
+    assert.equal(recorded?.invoiceStatus, "paid", "the money is still recorded");
+    assert.equal(failedReceipt?.receiptSentAt, undefined, "a refused receipt is never stamped sent");
+    assert.equal(failedReceipt?.receiptDeliveryStatus, "failed");
+    assert.equal(failedReceipt?.receiptError, "Receipt mailbox full.");
+    assert.ok(failedReceipt?.receiptMessageId, "the receipt message id is retained for retry");
+    // The activity and event side effects still completed despite the refusal.
+    assert.ok(w.activityLog.some(entry => entry.action === "commercial.payment.recorded"));
+    assert.ok(w.events.some(event => event.name === "commercial.payment.recorded"));
+
+    // Re-recording the same reference resumes the outstanding receipt rather than
+    // duplicating the payment; a confirmed delivery is what finally stamps it.
+    w.emailDelivery.mode = "delivered";
+    const retried = await c.commercial.recordPayment("contact", "contact_receipt_refused", {
+      amountCents: 20_000,
+      method: "bank-transfer",
+      reference: "bank-receipt-1",
+    }, ACTOR);
+    assert.equal(retried?.payments.length, 1);
+    assert.equal(retried?.payments[0]?.receiptDeliveryStatus, "delivered");
+    assert.ok((retried?.payments[0]?.receiptSentAt ?? 0) > 0);
+    assert.equal(retried?.payments[0]?.receiptError, undefined);
+    assert.equal(w.activityLog.filter(entry => entry.action === "commercial.payment.recorded").length, 1);
   });
 
   test("signed agreement uploads are constrained to safe document formats", async () => {
@@ -950,6 +1288,261 @@ describe("leads-pipeline / commercial packs", () => {
       reference: "till-001",
     }, ACTOR), CommercialPaymentConflictError);
     assert.equal((await c.commercial.get("contact", "contact_payment_conflict"))?.payments.length, 1);
+  });
+
+  // ─── Installment plans stop exactly, and only when Stripe confirms ─────
+  //
+  // Three separate defects lived here: a hand-recorded "stripe" row counted
+  // towards the promised installments and cancelled the plan early; the
+  // rounded-up recurring price collected more than the proposal total; and a
+  // refused cancellation left no trace once Stripe stopped redelivering.
+
+  const installmentPack = async (partyId: string, opts: { totalCents: number; installmentCount: number }) => {
+    const w = buildWorld();
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+    });
+    await c.commercial.save({
+      partyKind: "lead",
+      partyId,
+      recipientEmail: `${partyId}@example.test`,
+      lineItems: [{ description: "Retainer", quantity: 1, unitCents: opts.totalCents }],
+      taxCents: 0,
+      currency: "gbp",
+      dueAt: Date.now() + 86_400_000,
+      billingCadence: "installments",
+      installmentCount: opts.installmentCount,
+      serviceLevel: "Retainer",
+      agreementTitle: "Agreement",
+      agreementBody: "Terms",
+    }, ACTOR);
+    const subscriptionId = `sub_${partyId}`;
+    await c.commercial.attachStripeSubscription("lead", partyId, subscriptionId);
+    const collectInvoice = (invoiceId: string, amountCents: number) =>
+      c.commercial.recordPayment("lead", partyId, {
+        amountCents,
+        method: "stripe",
+        reference: invoiceId,
+        source: "stripe-subscription",
+        stripeSubscriptionId: subscriptionId,
+      }, ACTOR);
+    return { w, c, partyId, subscriptionId, collectInvoice, pack: () => c.commercial.get("lead", partyId) };
+  };
+
+  test("an installment plan divides the promised total exactly, never a rounded-up multiple", () => {
+    // The defect: ceil(10000 / 3) = 3334 billed three times collects 10002.
+    const three = installmentAllocation({ billingCadence: "installments", totalCents: 10_000, installmentCount: 3 });
+    assert.equal(three.recurringCents, 3_333);
+    assert.equal(three.remainderCents, 1);
+    assert.equal(three.recurringCents * three.count + three.remainderCents, 10_000);
+
+    for (const totalCents of [1, 99, 100, 4_999, 10_000, 123_457]) {
+      for (let count = 2; count <= 12; count += 1) {
+        const split = installmentAllocation({ billingCadence: "installments", totalCents, installmentCount: count });
+        assert.equal(split.count, count);
+        assert.equal(
+          split.recurringCents * count + split.remainderCents,
+          totalCents,
+          `${count} installments of ${totalCents} collects the wrong total`,
+        );
+        assert.ok(split.remainderCents >= 0 && split.remainderCents < count,
+          "the remainder must be a one-off leftover, never another installment");
+      }
+    }
+    // A non-installment pack is charged once, in full.
+    assert.deepEqual(
+      installmentAllocation({ billingCadence: "one-off", totalCents: 10_000 }),
+      { count: 1, recurringCents: 10_000, remainderCents: 0 },
+    );
+  });
+
+  test("a hand-recorded Stripe row never completes the installment plan", async () => {
+    const world = await installmentPack("lead_installments_manual", { totalCents: 30_000, installmentCount: 3 });
+    const stopCalls: string[] = [];
+    const requestStop = async () => { stopCalls.push(world.subscriptionId); return { ok: true }; };
+
+    // Someone reconciling a Stripe dashboard payment by hand picks method
+    // "stripe". That says how the money moved, not that the subscription billed.
+    await world.c.commercial.recordPayment("lead", world.partyId, {
+      amountCents: 10_000,
+      method: "stripe",
+      reference: "MANUAL-BANK-1",
+    }, ACTOR);
+    await world.collectInvoice("in_1", 10_000);
+    await world.collectInvoice("in_2", 10_000);
+
+    // Manual row + two invoices used to be three "stripe" payments, so the plan
+    // was cancelled while an installment was still owed.
+    const early = await world.c.commercial.completeInstallments("lead", world.partyId, {
+      subscriptionId: world.subscriptionId, requestStop,
+    });
+    assert.equal(early.status, "not-due");
+    assert.equal(early.collected, 2);
+    assert.deepEqual(stopCalls, []);
+    assert.equal((await world.pack())?.subscriptionCancelRequestedAt, undefined);
+
+    await world.collectInvoice("in_3", 10_000);
+    const due = await world.c.commercial.completeInstallments("lead", world.partyId, {
+      subscriptionId: world.subscriptionId, requestStop,
+    });
+    assert.equal(due.status, "requested");
+    assert.equal(due.collected, 3);
+    assert.equal(stopCalls.length, 1);
+
+    const packed = await world.pack();
+    assert.equal(packed?.payments.length, 4);
+    assert.equal(packed?.payments.filter(payment => payment.source === "stripe-subscription").length, 3);
+    assert.equal(packed?.payments.find(payment => payment.reference === "MANUAL-BANK-1")?.source, "manual");
+    // Asked is not confirmed.
+    assert.ok(packed?.subscriptionCancelRequestedAt);
+    assert.equal(packed?.subscriptionCancelAttempts, 1);
+    assert.equal(packed?.subscriptionCancelConfirmedAt, undefined);
+  });
+
+  test("a redelivered invoice cannot count twice towards the promised installments", async () => {
+    const world = await installmentPack("lead_installments_redeliver", { totalCents: 20_000, installmentCount: 2 });
+    await world.collectInvoice("in_1", 10_000);
+    await world.collectInvoice("in_1", 10_000);
+    const stopCalls: string[] = [];
+    const outcome = await world.c.commercial.completeInstallments("lead", world.partyId, {
+      subscriptionId: world.subscriptionId,
+      requestStop: async () => { stopCalls.push("stop"); return { ok: true }; },
+    });
+    assert.equal(outcome.status, "not-due");
+    assert.equal(outcome.collected, 1, "the redelivery was counted as a second installment");
+    assert.deepEqual(stopCalls, []);
+    assert.equal((await world.pack())?.payments.length, 1);
+  });
+
+  test("a refused cancellation is retained and retried, and only Stripe confirms the stop", async () => {
+    const world = await installmentPack("lead_installments_refused", { totalCents: 20_000, installmentCount: 2 });
+    await world.collectInvoice("in_1", 10_000);
+    await world.collectInvoice("in_2", 10_000);
+
+    const refused = await world.c.commercial.completeInstallments("lead", world.partyId, {
+      subscriptionId: world.subscriptionId,
+      requestStop: async () => ({ ok: false, error: "Subscription is in an invalid state." }),
+    });
+    assert.equal(refused.status, "refused");
+    assert.equal(refused.status === "refused" && refused.error, "Subscription is in an invalid state.");
+    // The refusal outlives the response, so a permanent failure is still visible
+    // after Stripe's redelivery window closes.
+    const afterRefusal = await world.pack();
+    assert.equal(afterRefusal?.subscriptionCancelError, "Subscription is in an invalid state.");
+    assert.equal(afterRefusal?.subscriptionCancelAttempts, 1);
+    assert.ok(afterRefusal?.subscriptionCancelRequestedAt);
+    assert.equal(afterRefusal?.subscriptionCancelConfirmedAt, undefined);
+
+    // A transport failure is a separate answer: the outcome is unknown, not refused.
+    const unavailable = await world.c.commercial.completeInstallments("lead", world.partyId, {
+      subscriptionId: world.subscriptionId,
+      requestStop: async () => { throw new Error("Stripe did not answer in time."); },
+    });
+    assert.equal(unavailable.status, "unavailable");
+    assert.equal((await world.pack())?.subscriptionCancelAttempts, 2);
+
+    const accepted = await world.c.commercial.completeInstallments("lead", world.partyId, {
+      subscriptionId: world.subscriptionId,
+      requestStop: async () => ({ ok: true }),
+    });
+    assert.equal(accepted.status, "requested");
+    const afterRetry = await world.pack();
+    assert.equal(afterRetry?.subscriptionCancelAttempts, 3);
+    assert.equal(afterRetry?.subscriptionCancelError, undefined);
+    // Stripe accepting the request is still not Stripe confirming the stop.
+    assert.equal(afterRetry?.subscriptionCancelConfirmedAt, undefined);
+
+    // Only the provider's own customer.subscription.* event stamps that.
+    await world.c.commercial.recordSubscriptionCancellation("lead", world.partyId, {
+      subscriptionId: world.subscriptionId,
+      confirmedAt: Date.now(),
+    });
+    const confirmed = await world.pack();
+    assert.ok(confirmed?.subscriptionCancelConfirmedAt);
+    assert.equal(confirmed?.subscriptionCancelError, undefined);
+
+    // Once confirmed the plan is not asked to stop again.
+    let asked = false;
+    const again = await world.c.commercial.completeInstallments("lead", world.partyId, {
+      subscriptionId: world.subscriptionId,
+      requestStop: async () => { asked = true; return { ok: true }; },
+    });
+    assert.equal(again.status, "already-stopped");
+    assert.equal(asked, false);
+
+    // ...but a stop is a claim about Stripe's state, not a one-way latch. If
+    // someone un-cancels in the dashboard, Stripe reports the subscription
+    // active and no longer cancelling. Leaving `confirmedAt` stamped would
+    // answer "already-stopped" for the life of the pack while the reactivated
+    // subscription billed past the promised count.
+    await world.c.commercial.recordSubscriptionCancellation("lead", world.partyId, {
+      subscriptionId: world.subscriptionId,
+      reopenedAt: Date.now(),
+    });
+    const reopened = await world.pack();
+    assert.equal(reopened?.subscriptionCancelConfirmedAt, undefined,
+      "an un-cancelled subscription is still recorded as stopped");
+    assert.equal(reopened?.subscriptionCancelRequestedAt, undefined,
+      "the stale request record survives, so the retry history now describes a stop that was undone");
+    assert.equal(reopened?.subscriptionCancelAttempts, undefined);
+
+    let reAsked = false;
+    const afterReopen = await world.c.commercial.completeInstallments("lead", world.partyId, {
+      subscriptionId: world.subscriptionId,
+      requestStop: async () => { reAsked = true; return { ok: true }; },
+    });
+    assert.equal(afterReopen.status, "requested",
+      "the plan will never ask Stripe to stop again, so it bills past the promised count");
+    assert.equal(reAsked, true);
+
+    // A reopen for a DIFFERENT subscription must not clear this pack's stop.
+    await world.c.commercial.recordSubscriptionCancellation("lead", world.partyId, {
+      subscriptionId: world.subscriptionId,
+      confirmedAt: Date.now(),
+    });
+    await world.c.commercial.recordSubscriptionCancellation("lead", world.partyId, {
+      subscriptionId: "sub_someone_elses",
+      reopenedAt: Date.now(),
+    });
+    assert.ok((await world.pack())?.subscriptionCancelConfirmedAt,
+      "another subscription's reactivation cleared this pack's confirmed stop");
+
+    // An amendment of the wording must not erase the recorded stop.
+    await world.c.commercial.save({
+      partyKind: "lead",
+      partyId: world.partyId,
+      recipientEmail: `${world.partyId}@example.test`,
+      lineItems: [{ description: "Retainer", quantity: 1, unitCents: 20_000 }],
+      taxCents: 0,
+      currency: "gbp",
+      dueAt: Date.now() + 86_400_000,
+      billingCadence: "installments",
+      installmentCount: 2,
+      serviceLevel: "Retainer",
+      agreementTitle: "Agreement",
+      agreementBody: "Revised terms",
+    }, ACTOR);
+    assert.ok((await world.pack())?.subscriptionCancelConfirmedAt);
+    assert.ok((await world.pack())?.subscriptionCancelRequestedAt);
+  });
+
+  test("another subscription's webhook cannot complete this plan", async () => {
+    const world = await installmentPack("lead_installments_foreign", { totalCents: 20_000, installmentCount: 2 });
+    await world.collectInvoice("in_1", 10_000);
+    await world.collectInvoice("in_2", 10_000);
+    let asked = false;
+    const outcome = await world.c.commercial.completeInstallments("lead", world.partyId, {
+      subscriptionId: "sub_someone_else",
+      requestStop: async () => { asked = true; return { ok: true }; },
+    });
+    assert.equal(outcome.status, "not-due");
+    assert.equal(asked, false);
+    await world.c.commercial.recordSubscriptionCancellation("lead", world.partyId, {
+      subscriptionId: "sub_someone_else",
+      confirmedAt: Date.now(),
+    });
+    assert.equal((await world.pack())?.subscriptionCancelConfirmedAt, undefined);
   });
 
   test("a simultaneous invoice edit cannot replace an acknowledged payment", async () => {
@@ -1150,7 +1743,7 @@ describe("leads-pipeline / CampaignService", () => {
     assert.equal(unfunded?.budgetPotId, undefined, "a campaign can be deliberately removed from a budget pot");
   });
 
-  test("happy path enqueues one email per audience lead", async () => {
+  test("happy path delivers one email per audience lead", async () => {
     const w = buildWorld({ withEmail: true });
     const c = buildLeadsPipelineContainer({
       agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
@@ -1168,12 +1761,190 @@ describe("leads-pipeline / CampaignService", () => {
     assert.equal(sent.status, "sent");
     assert.equal(sent.recipients, 2);
     assert.equal(sent.sentCount, 2);
+    assert.equal(sent.failedCount, 0);
+    assert.equal(sent.queuedCount, 0);
+    assert.deepEqual(sent.pendingLeadIds, []);
+    assert.ok((sent.sentAt ?? 0) > 0, "a confirmed delivery earns a sent date");
     assert.equal(w.enqueued.length, 2);
     assert.equal(w.enqueued[0]?.triggeredByPlugin, "leads-pipeline");
     // sentCount stamped on Lead
     const aLead = await c.leads.getByEmail("a@x.com");
     assert.equal(aLead?.sentCount, 1);
     assert.ok((aLead?.lastContactedAt ?? 0) > 0);
+  });
+
+  test("an unconfigured provider leaves the campaign queued, never sent", async () => {
+    const w = buildWorld({ withEmail: true });
+    // email-sender's honest answer when no provider is configured: the row
+    // stays durably queued, and nothing was delivered.
+    w.emailDelivery.mode = "queued";
+    w.emailDelivery.code = "provider_unconfigured";
+    w.emailDelivery.error = "Email delivery is disabled — no provider configured.";
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+      emailEnqueue: w.emailEnqueue,
+    });
+    await c.leads.upsert({ email: "a@x.com", source: "manual", tags: ["vip"] }, ACTOR);
+    await c.leads.upsert({ email: "b@x.com", source: "manual", tags: ["vip"] }, ACTOR);
+    const camp = await c.campaigns.create({
+      name: "Unconfigured blast", subject: "Hi", bodyHtml: "<p>Hey</p>",
+      audienceFilter: { tags: ["vip"] },
+    }, ACTOR);
+
+    const result = await c.campaigns.send(camp.id, ACTOR);
+
+    assert.equal(result.status, "queued", "nothing was delivered, so the campaign is not sent");
+    assert.equal(result.sentCount, 0);
+    assert.equal(result.queuedCount, 2);
+    assert.equal(result.failedCount, 0);
+    assert.equal(result.pendingLeadIds?.length, 2);
+    assert.equal(result.sentAt, undefined, "a campaign that delivered nothing has no sent date");
+    assert.ok(result.lastSendError, "the campaign says why nobody has it yet");
+    // The leads were NOT contacted — stamping them would erase the fact that
+    // they are still owed this email.
+    for (const email of ["a@x.com", "b@x.com"]) {
+      const lead = await c.leads.getByEmail(email);
+      assert.equal(lead?.sentCount, 0, `${email} must not be counted as emailed`);
+      assert.equal(lead?.lastContactedAt, undefined, `${email} must not be stamped as contacted`);
+    }
+    assert.equal(
+      w.events.some(event => event.name === "leads.campaign.sent"),
+      false,
+      "no delivery means no leads.campaign.sent",
+    );
+    assert.equal(w.events.filter(event => event.name === "leads.campaign.send_failed").length, 1);
+    // The stored row agrees with the returned one.
+    const reread = await c.campaigns.get(camp.id);
+    assert.equal(reread?.status, "queued");
+    assert.equal(reread?.sentCount, 0);
+  });
+
+  test("a partial failure is reported, and a retry re-attempts only the unfinished recipients", async () => {
+    const w = buildWorld({ withEmail: true });
+    w.emailDelivery.failRecipients.add("b@x.com");
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+      emailEnqueue: w.emailEnqueue,
+    });
+    await c.leads.upsert({ email: "a@x.com", source: "manual", tags: ["vip"] }, ACTOR);
+    await c.leads.upsert({ email: "b@x.com", source: "manual", tags: ["vip"] }, ACTOR);
+    const camp = await c.campaigns.create({
+      name: "Half blast", subject: "Hi", bodyHtml: "<p>Hey</p>",
+      audienceFilter: { tags: ["vip"] },
+    }, ACTOR);
+
+    const first = await c.campaigns.send(camp.id, ACTOR);
+
+    assert.equal(first.status, "partially-sent");
+    assert.equal(first.recipients, 2);
+    assert.equal(first.sentCount, 1);
+    assert.equal(first.failedCount, 1);
+    const bLead = await c.leads.getByEmail("b@x.com");
+    assert.equal(bLead?.sentCount, 0, "the refused recipient is not counted as emailed");
+    assert.deepEqual(first.pendingLeadIds, [bLead?.id]);
+
+    // Fix the mailbox and re-send: only b@x.com is attempted again.
+    w.emailDelivery.failRecipients.delete("b@x.com");
+    const attemptsBefore = w.enqueued.length;
+    const second = await c.campaigns.send(camp.id, ACTOR);
+
+    assert.equal(w.enqueued.length - attemptsBefore, 1, "the retry emails only the unfinished recipient");
+    assert.equal(w.enqueued.at(-1)?.to, "b@x.com");
+    assert.equal(second.status, "sent");
+    assert.equal(second.sentCount, 2, "confirmed deliveries accumulate across attempts");
+    assert.equal(second.recipients, 2, "the audience snapshot is not re-counted");
+    assert.equal(second.failedCount, 0);
+    assert.deepEqual(second.pendingLeadIds, []);
+    assert.equal(second.lastSendError, undefined);
+    const aLead = await c.leads.getByEmail("a@x.com");
+    assert.equal(aLead?.sentCount, 1, "the already-delivered recipient is not emailed twice");
+    assert.equal((await c.leads.getByEmail("b@x.com"))?.sentCount, 1);
+  });
+
+  test("a lead with no email address keeps the campaign unfinished", async () => {
+    const w = buildWorld({ withEmail: true });
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+      emailEnqueue: w.emailEnqueue,
+    });
+    await c.leads.upsert({ email: "a@x.com", source: "manual", tags: ["vip"] }, ACTOR);
+    // Phone-only lead. `email: ""` rather than omitted because LeadService
+    // .upsert dereferences `input.email` unconditionally.
+    const { lead: noEmail } = await c.leads.upsert({ email: "", phone: "+447700900000", source: "manual", tags: ["vip"] }, ACTOR);
+    const camp = await c.campaigns.create({
+      name: "Missing address", subject: "Hi", bodyHtml: "<p>Hey</p>",
+      audienceFilter: { tags: ["vip"] },
+    }, ACTOR);
+
+    const result = await c.campaigns.send(camp.id, ACTOR);
+
+    assert.equal(result.status, "partially-sent");
+    assert.equal(result.sentCount, 1);
+    assert.equal(result.failedCount, 1);
+    assert.deepEqual(result.pendingLeadIds, [noEmail.id]);
+  });
+
+  test("an adapter that can only enqueue reports queued, not sent", async () => {
+    const w = buildWorld({ withEmail: true });
+    const full = w.emailEnqueue;
+    assert.ok(full, "the email world was requested");
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+      // Only `enqueue` — the shape the foundation shipped before delivery was
+      // wired. It can accept a message but can never confirm one.
+      emailEnqueue: { enqueue: full.enqueue.bind(full) },
+    });
+    await c.leads.upsert({ email: "a@x.com", source: "manual", tags: ["vip"] }, ACTOR);
+    const camp = await c.campaigns.create({
+      name: "Enqueue only", subject: "Hi", bodyHtml: "<p>Hey</p>",
+      audienceFilter: { tags: ["vip"] },
+    }, ACTOR);
+
+    const result = await c.campaigns.send(camp.id, ACTOR);
+
+    assert.equal(result.status, "queued");
+    assert.equal(result.sentCount, 0);
+    assert.equal(result.queuedCount, 1);
+    assert.equal((await c.leads.getByEmail("a@x.com"))?.sentCount, 0);
+  });
+
+  test("a campaign whose audience resolves to nobody is never stamped sent", async () => {
+    const w = buildWorld({ withEmail: true });
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+      emailEnqueue: w.emailEnqueue,
+    });
+    await c.leads.upsert({ email: "a@x.com", source: "manual", tags: ["other"] }, ACTOR);
+    const camp = await c.campaigns.create({
+      name: "Nobody blast", subject: "Hi", bodyHtml: "<p>Hey</p>",
+      audienceFilter: { tags: ["vip"] },
+    }, ACTOR);
+
+    const result = await c.campaigns.send(camp.id, ACTOR);
+
+    assert.equal(w.enqueued.length, 0, "there was nobody to email");
+    assert.notEqual(result.status, "sent", "zero confirmed deliveries is not a send");
+    assert.equal(result.sentCount, 0);
+    assert.equal(result.sentAt, undefined, "nothing was delivered, so there is no sent date");
+    assert.ok(result.lastSendError, "the campaign says why nobody got it");
+    assert.equal(
+      w.events.some(event => event.name === "leads.campaign.sent"),
+      false,
+      "no delivery means no leads.campaign.sent",
+    );
+    // Still editable and still re-sendable once the audience has people in it.
+    const retagged = await c.campaigns.update(camp.id, { name: "Nobody blast v2" }, ACTOR);
+    assert.equal(retagged?.name, "Nobody blast v2");
+    await c.leads.upsert({ email: "b@x.com", source: "manual", tags: ["vip"] }, ACTOR);
+    const second = await c.campaigns.send(camp.id, ACTOR);
+    assert.equal(second.status, "sent");
+    assert.equal(second.sentCount, 1);
+    assert.equal(second.recipients, 1);
   });
 
   test("newsletter campaigns enqueue through the email sender", async () => {

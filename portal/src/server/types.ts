@@ -2690,6 +2690,14 @@ export interface CompanyQuarterlyReview {
   id: string;
   period: string;
   status?: "draft" | "complete";
+  /**
+   * Lineage of a locked cycle. A completed review is immutable; correcting it
+   * means publishing an explicit superseding record that names the review it
+   * amends, so the original evidence and reasoning stay inspectable.
+   */
+  amendsReviewId?: string;
+  /** 1 for an original cycle, incremented per amendment. Server-assigned. */
+  version?: number;
   executiveSummary?: string;
   wins: string;
   misses?: string;
@@ -2897,6 +2905,12 @@ export interface CompanyProfile {
   objectives: CompanyObjective[];
   plans: CompanyPlan[];
   reviews: CompanyQuarterlyReview[];
+  /**
+   * Monotonic write counter used for optimistic concurrency. A writer sends the
+   * revision it loaded; a mismatch is refused with the current profile rather
+   * than silently overwriting another session's work.
+   */
+  revision: number;
   updatedAt: number;
 }
 
@@ -4331,6 +4345,74 @@ export interface StaffProvisioningOperation {
   completedAt?: number;
 }
 
+export type ClientProjectOperationKind = "provision" | "publish" | "deploy";
+export type ClientProjectOperationStatus = "pending" | "external-created" | "succeeded" | "failed";
+
+/**
+ * Durable checkpoint for one client-website operation that creates something
+ * OUTSIDE AquaCRM — a local git repository, a GitHub repository, a Vercel
+ * deployment — before the client record naming it is durable.
+ *
+ * The intent is written before the external call and the milestone the moment
+ * the external system answers, so a retry after a lost save adopts what already
+ * exists instead of minting a duplicate (a `-2` sibling folder, a second
+ * repository, an untracked preview deployment).
+ */
+export interface ClientProjectOperation {
+  id: string;
+  agencyId: string;
+  clientId: string;
+  kind: ClientProjectOperationKind;
+  status: ClientProjectOperationStatus;
+  propertyId?: string;
+  projectSlug?: string;
+  localPath?: string;
+  initialCommit?: string;
+  repoOwner?: string;
+  repoFullName?: string;
+  repoUrl?: string;
+  cloneUrl?: string;
+  deploymentId?: string;
+  previewUrl?: string;
+  attempts: number;
+  lastError?: string;
+  createdAt: number;
+  updatedAt: number;
+  completedAt?: number;
+}
+
+// ─── Public AquaCRM demo gate (website demo, Stage 1) ─────────────────────
+//
+// Somebody who asked for the public AquaCRM demo, and the consent they gave
+// when they asked. Personal data with no tenant behind it: the person is not a
+// client, not a lead in anyone's pipeline, and not a user. That is exactly why
+// it has its own collection — and why it is written in the `website-demo` data
+// realm rather than the live one (see `server/websiteDemo.ts`).
+//
+// The consent record is deliberately explicit about WHAT was consented to. The
+// demo terms are placeholder wording until Ed's solicitor supplies the real
+// text (ED-QUESTIONS Q5), so `termsArePlaceholder` is stamped on every record
+// rather than inferred later. A record that says "consented to v1" when v1 was
+// a draft would be a false claim about a lawful basis.
+export interface WebsiteDemoSignup {
+  id: string;
+  name: string;
+  /** At least one of email/phone is present; both may be. */
+  email?: string;
+  phone?: string;
+  /** Free-text "what are you hoping the demo shows you" — optional. */
+  note?: string;
+  /** Where the request came from, for honest attribution. Path only. */
+  sourcePath?: string;
+  consent: {
+    givenAt: number;
+    termsVersion: string;
+    /** True while the linked terms are draft/placeholder wording. */
+    termsArePlaceholder: boolean;
+  };
+  createdAt: number;
+}
+
 // ─── PortalState — the single typed object behind storage ─────────────────
 
 export type CustomKpiOp = "ratio" | "rate" | "sum" | "diff";
@@ -4440,6 +4522,91 @@ export interface SubjectRequest {
   createdBy: string;
 }
 
+/**
+ * A personal-data breach, and the 72-hour clock it runs against.
+ *
+ * GDPR Art. 33(1): "in the case of a personal data breach, the controller
+ * shall without undue delay and, where feasible, not later than 72 hours after
+ * having become aware of it, notify the supervisory authority… unless the
+ * breach is unlikely to result in a risk to the rights and freedoms of natural
+ * persons." Art. 33(5) requires the controller to DOCUMENT every breach —
+ * including the ones it decided not to notify — so the authority can verify
+ * that decision. Art. 34 adds the separate duty to tell the individuals when
+ * the risk to them is high.
+ *
+ * `compliancePosture` recorded `gdpr.breach-register` as missing, with the
+ * sharpest gap in the whole posture: *"There is no breach register. If
+ * something happened tonight there is nowhere in the app to record it and no
+ * clock counting the 72 hours."* This record is that register.
+ *
+ * ── Why the clock hangs off `discoveredAt` and not `recordedAt` ────────────
+ *
+ * The statute counts from "having become aware", not from when somebody got
+ * round to opening the app. A breach found on Friday and logged on Monday has
+ * already burned its 72 hours, and a register that started the clock at data
+ * entry would report a comfortable deadline for a notification that is
+ * already late. Both timestamps are therefore kept, and the deadline is
+ * derived from discovery alone.
+ */
+export interface BreachIncident {
+  id: string;
+  agencyId: string;
+  /** Which trading company's data was involved, when it is one company's. */
+  companyId?: string | null;
+  /** A short internal name for the incident. Never a person's name. */
+  title: string;
+  /**
+   * What happened, in the recorder's words. Art. 33(5) wants the facts, the
+   * effects and the remedial action — this is where they go. It is a
+   * compliance record, so it must describe categories of people and data, not
+   * identify individuals.
+   */
+  description: string;
+  /** When the agency BECAME AWARE. The 72 hours run from here. */
+  discoveredAt: number;
+  /** When this row was created, which can be much later than discovery. */
+  recordedAt: number;
+  /** discoveredAt + 72h. Stored rather than computed so a later change to the
+   * rule cannot silently move a deadline that has already passed. */
+  notifyDeadlineAt: number;
+  /** Categories of personal data involved, as named by the recorder. */
+  dataCategories: string[];
+  /** How many people are believed affected, when that is known at all. An
+   * absent estimate is a real state — Art. 33(1) does not allow waiting for
+   * the number before notifying. */
+  affectedEstimate?: number;
+  /**
+   * The Art. 33(1) risk assessment. Undecided until somebody decides: an
+   * unassessed breach is NOT "not notifiable", and the register must never
+   * treat silence as the safe answer.
+   */
+  notifiable?: boolean;
+  assessedAt?: number;
+  assessedBy?: string;
+  /** Why it is or is not notifiable. Required — Art. 33(5) exists so the
+   * decision not to notify can be checked, and a bare "no" cannot be. */
+  assessmentReason?: string;
+  /** Art. 33 — when the supervisory authority was actually told. */
+  authorityNotifiedAt?: number;
+  authorityNotifiedBy?: string;
+  /** The authority's own case reference, when they gave one. */
+  authorityReference?: string;
+  /**
+   * Art. 33(1) again: a notification later than 72 hours must be accompanied
+   * by the reasons for the delay. Recorded when the notification lands late.
+   */
+  delayReason?: string;
+  /** Art. 34 — when the affected individuals were told, if they were. */
+  subjectsNotifiedAt?: number;
+  subjectsNotifiedBy?: string;
+  /** Closed when the response is finished. Closing never clears the clock
+   * history — a late notification stays late on the record. */
+  closedAt?: number;
+  closedBy?: string;
+  outcome?: string;
+  createdBy: string;
+}
+
 export interface ClientFormNotice {
   id: string;
   agencyId: string;
@@ -4487,6 +4654,48 @@ export interface ClientFormNotice {
   confirmationReason?: "no-email" | "not-configured" | "unavailable" | "send-failed";
 }
 
+// ─── Transactional outbox (data-architecture Phase 3 groundwork) ──────────
+//
+// The in-memory event bus is fire-and-forget: an event emitted just before a
+// serverless instance dies is simply gone, and nothing records what was
+// announced to whom. An OutboxEvent is the durable half — recorded INSIDE the
+// same `mutate()` as the domain change it announces, so the state change and
+// its event are one write, then drained to the bus at-least-once.
+//
+// This is reliability and lineage, NOT event sourcing: state is not
+// rebuildable from these records and nothing may claim it is
+// (docs/data/ARCHITECTURE.md §2.5).
+
+export type OutboxEventStatus = "pending" | "delivered";
+
+export interface OutboxEvent {
+  /** Idempotency key AND record id — recording the same id twice is a no-op. */
+  id: string;
+  /** Stable past-tense event name, e.g. "client.created". */
+  name: string;
+  /** Payload schema version for this name. Bump on breaking payload change. */
+  version: number;
+  agencyId: string;
+  clientId?: string;
+  /** Who caused it — absent for system-initiated events. */
+  actorUserId?: string;
+  /** The module that recorded it, e.g. "server/tenants". */
+  source: string;
+  /** Groups every event of one logical operation. Defaults to the event id. */
+  correlationId: string;
+  /** The event that directly caused this one, where there is one. */
+  causationId?: string;
+  /** When the business fact happened (event time). */
+  occurredAt: number;
+  /** When Aqua recorded it (ingestion time). Never conflate with occurredAt. */
+  recordedAt: number;
+  payload: Record<string, unknown>;
+  status: OutboxEventStatus;
+  deliveredAt?: number;
+  /** Delivery attempts so far (at-least-once — consumers must be idempotent). */
+  attempts: number;
+}
+
 export interface PortalState {
   agencies: Record<string, Agency>;
   tradingCompanies: Record<string, TradingCompany>;
@@ -4521,6 +4730,11 @@ export interface PortalState {
   clientFormNotices: Record<string, ClientFormNotice>;
   // Data-subject requests and their statutory clocks. See SubjectRequest.
   subjectRequests: Record<string, SubjectRequest>;
+  // Public AquaCRM demo-gate signups. Lives ONLY in the `website-demo` data
+  // realm — never the live realm. See `server/websiteDemo.ts`.
+  websiteDemoSignups: Record<string, WebsiteDemoSignup>;
+  // Personal-data breaches and the 72-hour clock. See BreachIncident.
+  breachIncidents: Record<string, BreachIncident>;
   // Dev Editor Engine projects — repo + connections + tag + kind. See DevProject.
   devProjects: Record<string, DevProject>;
   // `${agencyId}|${projectId}` → Aqua Editor AI's own per-project config: its
@@ -4618,4 +4832,10 @@ export interface PortalState {
   peopleChannelReads: Record<string, PeopleChannelRead>;
   peopleTrainingModules: Record<string, PeopleTrainingModule>;
   staffProvisioningOperations: Record<string, StaffProvisioningOperation>;
+  // Durable checkpoints for client-website provision/publish/deploy, so a retry
+  // after a lost save adopts the external thing that already exists.
+  clientProjectOperations: Record<string, ClientProjectOperation>;
+  // Durable domain events, recorded atomically with their domain mutation and
+  // drained to the in-memory bus. See `server/outbox.ts`.
+  outbox: Record<string, OutboxEvent>;
 }

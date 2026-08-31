@@ -7,6 +7,7 @@
 import { useEffect, useState } from "react";
 import { describeActivityChip } from "@/lib/chrome/activityCategoryStyle";
 import { formatUkDate, timestampFromValue } from "@/lib/shared/formatDateTime";
+import { activityMessage } from "@/lib/shared/activityVocabulary";
 
 interface InboxEntry {
   id: string;
@@ -127,13 +128,4 @@ export function AgencyActivityFeed() {
       </div>
     </section>
   );
-}
-
-function activityMessage(message: string): string {
-  return message
-    .replace(/\bcore plugin install\(s\)/gi, "core systems")
-    .replace(/\bFulfillment plugin installed; phase defaults seeded\./gi, "Project pipeline ready; stages seeded.")
-    .replace(/\bplugin installed\b/gi, "system activated")
-    .replace(/\bplugins installed\b/gi, "systems activated")
-    .replace(/\bplugin\b/gi, "system");
 }

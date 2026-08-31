@@ -16,7 +16,7 @@ import {
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 
-import { personInteractions } from "@/lib/server/personInteractions";
+import { personInteractions } from "@/lib/server/personInteractionsService";
 
 import { ContactCard } from "./_ContactCard";
 
@@ -64,11 +64,15 @@ export default async function ContactCardPage({
 
   // Read before deciding: the card cannot ask for a classification while
   // hiding the message it is asking about.
-  const interactions = await personInteractions(session.agencyId, person.id).catch(() => []);
+  // …and it must not present a partial story as the whole one: a refused
+  // enquiry read is reported, never rendered as "nothing recorded" (issues #57).
+  const interactionsRead = await personInteractions(session.agencyId, person.id)
+    .catch(() => ({ interactions: [], enquiriesAvailable: false }));
 
   return (
     <ContactCard
-      interactions={interactions}
+      interactions={interactionsRead.interactions}
+      interactionsComplete={interactionsRead.enquiriesAvailable}
       person={person}
       state={state}
       displayName={personDisplayName(person)}

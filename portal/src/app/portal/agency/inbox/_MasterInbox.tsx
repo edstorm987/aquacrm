@@ -4,13 +4,14 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { WebsiteSourcesConfig } from "./_WebsiteSourcesConfig";
 import { IntegrationConnectionsPanel } from "@/app/portal/agency/settings/IntegrationConnectionsPanel";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { AlertTriangle, ArrowRight, Bell, Bot, Building2, Check, ChevronDown, CircleCheck, Clock3, ExternalLink, FileText, Inbox, LifeBuoy, ListChecks, Mail, MessageCircle, Phone, Radio, RotateCcw, Search, Send, Settings, Trash2, UserPlus, Users, X, type LucideIcon } from "lucide-react";
 
 import type { OperationalAlertView } from "@/lib/intelligence/operationalAttention";
 import type { WebsiteEnquiry } from "@/lib/server/websiteEnquiries";
 import { formatElapsed, LEAD_WAIT_THRESHOLDS } from "@/lib/enquiries/leadTiming";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
+import { activityAction, activityCategory, activityMessage } from "@/lib/shared/activityVocabulary";
 import type { InboxSnapshot, MetaInboxReadiness } from "@/lib/inbox/types";
 import type { OutboundCommunicationReadiness } from "@/lib/server/email/outboundCommunications";
 import { SocialInboxWorkspace } from "./_SocialInboxWorkspace";
@@ -25,6 +26,8 @@ import {
   WEBSITE_ENQUIRY_CLASSIFICATION_LABELS,
   type WebsiteEnquiryClassification,
 } from "@/lib/enquiries/enquiryClassification";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
+import { InfoTip } from "@/components/ui/InfoTip";
 
 type Conversation = {
   id: string;
@@ -171,7 +174,9 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
   const websiteSupport = visibleWebsiteForms.filter(item => item.channel === "support");
   const clientSupport = visibleConversations.filter(item => ["support-ticket", "cancel", "move-provider"].includes(item.type));
   const clientMessages = visibleConversations.filter(item => !["support-ticket", "cancel", "move-provider"].includes(item.type));
-  const visibleUpdates = useMemo(() => filterRows(updates, query, item => `${item.message} ${item.category} ${item.action} ${item.actorEmail ?? ""}`), [updates, query]);
+  // Searched over the SAME product wording the rows render (todo:960) — a
+  // search for "system activated" must find the row that reads that way.
+  const visibleUpdates = useMemo(() => filterRows(updates, query, item => `${activityMessage(item.message)} ${activityCategory(item.category)} ${activityAction(item.action)} ${item.actorEmail ?? ""}`), [updates, query]);
   const attentionThreadCandidates = useMemo<AttentionThreadCandidate[]>(() => [
     ...websiteForms.map(item => ({ key: `website:${item.id}`, formId: item.id, name: item.name, email: item.email })),
     ...socialInbox.conversations.map(item => ({ key: `social:${item.id}`, name: item.identity.displayName })),
@@ -415,7 +420,7 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
     {tab === "needs-you" ? actionsSlot ?? null : null}
 
     {tab === "needs-you" ? <section>
-      <SectionHeader title="What needs you now" detail="Every signal has an exact resolution path. Fix it now, remind yourself later, or dismiss it until the evidence changes." />
+      <SectionHeader title="What needs you now" detail="Every signal has an exact resolution path. Fix it now, remind yourself later, or dismiss it until the evidence changes." hint="These are not messages — they are signals Aqua worked out from your own records, so nothing here was typed by a person. Resolve takes you to where the work is: to the matching conversation if one was found, and otherwise it opens the record and clears the signal on the way. Remind me later hides it for the interval you choose. Dismiss hides it until the evidence behind it changes, at which point it comes back. Nothing here is deleted by any of the three." />
       <div className="mt-3 grid gap-2">
         {visibleAlerts.map(alert => {
           const resolution = resolveAttentionAction(alert);
@@ -530,7 +535,7 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
     /> : null}
 
     {view === "updates" ? <section className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_340px]">
-      <div><SectionHeader title="Business updates" detail="The latest changes across clients, billing, projects, support, and systems." /><div className="mt-3 grid gap-2">{visibleUpdates.map(item => <div key={item.id} className="mm-surface-card mm-interactive-row rounded-md p-3"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm font-medium text-black/75">{item.message}</p><p className="mt-1 text-xs text-black/40">{item.category.replaceAll("-", " ")} · {item.actorEmail ?? "System"}</p></div><time className="text-xs text-black/35">{formatDate(item.ts)}</time></div>{item.clientId ? <Link href={`/portal/clients/${item.clientId}`} className="mt-2 inline-flex min-h-6 items-center gap-1.5 text-xs font-medium text-brand">Open client <ExternalLink size={12} /></Link> : null}</div>)}</div></div>
+      <div><SectionHeader title="Business updates" detail="The latest changes across clients, billing, projects, support, and systems." /><div className="mt-3 grid gap-2">{visibleUpdates.map(item => <div key={item.id} className="mm-surface-card mm-interactive-row rounded-md p-3"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm font-medium text-black/75">{activityMessage(item.message)}</p><p className="mt-1 text-xs text-black/40">{activityCategory(item.category)} · {activityAction(item.action)} · {item.actorEmail ?? "System"}</p></div><time className="text-xs text-black/35">{formatDate(item.ts)}</time></div>{item.clientId ? <Link href={`/portal/clients/${item.clientId}`} className="mt-2 inline-flex min-h-6 items-center gap-1.5 text-xs font-medium text-brand">Open client <ExternalLink size={12} /></Link> : null}</div>)}</div></div>
       <form onSubmit={sendTeamNote} className="mm-surface-card h-fit rounded-md p-4"><div className="flex items-center gap-2"><Users size={17} className="text-black/40" /><h2 className="text-sm font-semibold text-black/75">Team notes</h2></div><p className="mt-1 text-xs leading-5 text-black/45">Leave a shared internal update for everyone working in AquaOasis-Web.</p><textarea value={teamNote} onChange={event => setTeamNote(event.target.value)} rows={5} className="mt-3 w-full rounded-md border border-black/15 px-3 py-2 text-sm" placeholder="What should the team know?" />{teamNoteError ? <p role="alert" className="mt-2 text-xs text-red-700">{teamNoteError}</p> : null}<button disabled={busy || !teamNote.trim()} className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white disabled:opacity-40"><Send size={14} />{busy ? "Posting..." : "Post note"}</button></form>
     </section> : null}
 
@@ -819,18 +824,11 @@ function SourceChip({ active, onClick, label, count, icon: Icon, attentionHref }
  * so a keyboard user is not left behind on the cog.
  */
 function ConnectionsModal({ onClose, children }: { onClose: () => void; children: ReactNode }) {
+  // Modal keyboard contract: focus enters the panel, Tab stays inside it,
+  // Escape closes it, and focus goes back to the cog, not to the top of the
+  // document.
   const panelRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    function onKey(event: KeyboardEvent) { if (event.key === "Escape") onClose(); }
-    document.addEventListener("keydown", onKey);
-    const previous = document.activeElement as HTMLElement | null;
-    panelRef.current?.focus();
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      // Back to the cog, not to the top of the document.
-      previous?.focus?.();
-    };
-  }, [onClose]);
+  useFocusTrap(panelRef, true, { onEscape: onClose, initialFocus: panelRef });
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:p-8">
@@ -919,7 +917,11 @@ function Channel({ icon, name, detail, connected = false }: { icon: React.ReactN
   return <div className="mm-surface-card mm-hover-lift grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 rounded-md p-4"><span className={`grid size-9 place-items-center rounded-md ${connected ? "bg-emerald-50 text-emerald-700" : "bg-black/[0.04] text-black/45"}`}>{icon}</span><span><strong className="text-sm text-black/75">{name}</strong><span className="mt-1 block text-xs leading-5 text-black/45">{detail}</span></span><Pill tone={connected ? "green" : "neutral"}>{connected ? "Connected" : "Not connected"}</Pill></div>;
 }
 
-function SectionHeader({ title, detail }: { title: string; detail: string }) { return <div className="border-b border-black/10 pb-3"><h2 className="text-lg font-semibold text-black/82">{title}</h2><p className="mt-1 text-sm text-black/45">{detail}</p></div>; }
+// The icon sits BESIDE the heading, not inside it. A button nested in an `<h2>`
+// becomes part of that heading's accessible name, so a screen reader's heading
+// list would read "What needs you now What What needs you now means" — the
+// explanation swallowing the landmark it is meant to explain.
+function SectionHeader({ title, detail, hint }: { title: string; detail: string; hint?: string }) { return <div className="border-b border-black/10 pb-3"><div className="flex items-center gap-1.5"><h2 className="text-lg font-semibold text-black/82">{title}</h2>{hint ? <InfoTip label={title} size={15}>{hint}</InfoTip> : null}</div><p className="mt-1 text-sm text-black/45">{detail}</p></div>; }
 function Pill({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "amber" | "green" | "red" | "blue" | "brand" }) { const style = tone === "amber" ? "bg-amber-50 text-amber-700" : tone === "green" ? "bg-emerald-50 text-emerald-700" : tone === "red" ? "bg-red-50 text-red-700" : tone === "blue" ? "bg-blue-50 text-blue-700" : tone === "brand" ? "bg-brand/10 text-brand" : "bg-black/[0.05] text-black/50"; return <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${style}`}>{children}</span>; }
 function Empty({ icon, title, detail }: { icon: React.ReactNode; title: string; detail: string }) { return <div className="py-16 text-center text-black/30">{<span className="inline-grid">{icon}</span>}<h3 className="mt-3 text-sm font-semibold text-black/70">{title}</h3><p className="mx-auto mt-1 max-w-lg text-xs leading-5 text-black/45">{detail}</p></div>; }
 function requestLabel(type: string) { return ({ "support-ticket": "Support", "design-feedback": "Design feedback", suggestion: "Suggestion", cancel: "Cancellation", "move-provider": "Handover" } as Record<string, string>)[type] ?? "Message"; }

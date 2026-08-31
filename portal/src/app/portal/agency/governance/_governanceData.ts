@@ -8,7 +8,7 @@ import {
 import { buildCompliancePostureForAgency } from "@/lib/server/compliancePostureSource";
 import { isHipaaTrackEnabled, listComplianceDeclarations, listLegalDocuments } from "@/server/legalDocuments";
 import { listClients } from "@/server/tenants";
-import { listTradingCompanies } from "@/server/tradingCompanies";
+import { listTradingCompanies, recordBelongsToCompany } from "@/server/tradingCompanies";
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
 
 /**
@@ -25,6 +25,7 @@ import { getSupabasePublicConfig } from "@/lib/supabase/config";
 
 import { listSubjectRequests, subjectRequestClock, type SubjectRequestClock } from "@/lib/server/compliance/subjectRequests";
 import { previewRetentionSweep, retentionPolicy, RETENTION_CATEGORIES } from "@/lib/server/compliance/retention";
+import { listBreachIncidents, summariseBreachClock, type BreachClock } from "@/lib/server/compliance/breachRegister";
 
 export type SecurityStatus = "in-code" | "configured" | "partial" | "not-verified" | "blind";
 
@@ -81,6 +82,40 @@ export interface ErasureClientRow {
   status: string;
 }
 
+/**
+ * A section of this workspace that is genuinely group-wide and therefore does
+ * NOT narrow when a company is selected.
+ *
+ * Issue #68's prescription, followed literally: where a register has no company
+ * dimension, say so on the section rather than pretending the scope selector
+ * filtered it. A silently unscoped panel under a company label is the same lie
+ * as a false green.
+ */
+export interface AgencyWideSection {
+  id: "security" | "requests" | "retention";
+  label: string;
+  /** Why this section cannot narrow — a fact about where the data is keyed. */
+  reason: string;
+}
+
+export const AGENCY_WIDE_SECTIONS: readonly AgencyWideSection[] = [
+  {
+    id: "security",
+    label: "Security",
+    reason: "These controls are facts about the shipped code and the hosting platform. Neither has a per-company dimension, so the same rows are true for every trading company.",
+  },
+  {
+    id: "requests",
+    label: "Subject requests",
+    reason: "The subject-request register and its statutory clock are keyed to the agency, not to a company, so every open and overdue request is counted here whichever scope is selected.",
+  },
+  {
+    id: "retention",
+    label: "Retention",
+    reason: "Retention periods are stored once per agency and the sweep counts across the whole agency, so these numbers do not narrow to one company.",
+  },
+] as const;
+
 export interface GovernanceSnapshot {
   generatedAt: number;
   companyId: string | null;
@@ -96,6 +131,12 @@ export interface GovernanceSnapshot {
   security: SecurityControl[];
   erasureClients: ErasureClientRow[];
   /**
+   * The sections below that the selected scope does NOT filter, and why. Always
+   * present so the page labels them rather than implying a narrowing that the
+   * underlying registers cannot do.
+   */
+  agencyWideSections: AgencyWideSection[];
+  /**
    * The DSAR register and its statutory clock.
    *
    * `compliancePosture` named the gap as "no screen surfaces the clock, so an
@@ -110,6 +151,42 @@ export interface GovernanceSnapshot {
    */
   retentionPreview: { total: number; removed: Record<string, number>; unset: string[] };
   retentionCategories: Array<{ id: string; label: string; describes: string; days?: number }>;
+  /**
+   * The breach register and its 72-hour clock (GDPR Art. 33/34).
+   *
+   * `compliancePosture` named this gap in the plainest terms it uses anywhere:
+   * "If something happened tonight there is nowhere in the app to record it and
+   * no clock counting the 72 hours." This is where somebody records it.
+   */
+  breaches: BreachRow[];
+  breachClock: BreachClock;
+}
+
+export interface BreachRow {
+  id: string;
+  title: string;
+  description: string;
+  companyIds?: string[];
+  discoveredAt: number;
+  recordedAt: number;
+  notifyDeadlineAt: number;
+  dataCategories: string[];
+  affectedEstimate?: number;
+  /** `undefined` means the Art. 33(1) decision has NOT been made. It is not a
+   * "no" — the UI must show it as an open question. */
+  notifiable?: boolean;
+  assessmentReason?: string;
+  authorityNotifiedAt?: number;
+  authorityReference?: string;
+  delayReason?: string;
+  subjectsNotifiedAt?: number;
+  closed: boolean;
+  outcome?: string;
+  /** Past the deadline with nothing notified — computed against the server's
+   * own `now`, the same moment the rest of this snapshot was built against. */
+  overdue: boolean;
+  /** Notified, but after the deadline. Kept visible after closure. */
+  notifiedLate: boolean;
 }
 
 export interface SubjectRequestRow {
@@ -141,37 +218,61 @@ export async function buildGovernanceSnapshot(options: BuildGovernanceOptions): 
   const posture = await buildCompliancePostureForAgency({ agencyId, companyId, now });
   const honestyViolations = assertPostureHonesty(posture);
 
-  const legalDocuments: LegalRegisterRow[] = listLegalDocuments(agencyId).map(document => ({
-    id: document.id,
-    title: document.title,
-    category: document.category,
-    status: document.status,
-    counterparty: document.counterparty,
-    reference: document.reference,
-    effectiveAt: document.effectiveAt,
-    expiresAt: document.expiresAt,
-    reminderAt: document.reminderAt,
-    companyIds: document.companyIds,
-  }));
+  // Scoping, on the SAME primitive the posture builder and the company legal
+  // route already use (`recordBelongsToCompany`): a record with no companyIds
+  // is a shared/parent record and stays visible under every scope, while a
+  // record naming another company is not this company's paperwork. Before this,
+  // only the posture and the HIPAA flag narrowed — the register, declarations,
+  // sub-processor evidence and erasure targets stayed agency-wide under a
+  // company label, so one brand's DPA appeared to cover another's (issues #68).
+  const legalDocuments: LegalRegisterRow[] = listLegalDocuments(agencyId)
+    .filter(document => recordBelongsToCompany(document.companyIds, companyId))
+    .map(document => ({
+      id: document.id,
+      title: document.title,
+      category: document.category,
+      status: document.status,
+      counterparty: document.counterparty,
+      reference: document.reference,
+      effectiveAt: document.effectiveAt,
+      expiresAt: document.expiresAt,
+      reminderAt: document.reminderAt,
+      companyIds: document.companyIds,
+    }));
 
-  const declarations: DeclarationRow[] = listComplianceDeclarations(agencyId).map(document => ({
-    id: document.id,
-    reference: document.reference,
-    status: document.status,
-    effectiveAt: document.effectiveAt,
-    updatedAt: document.updatedAt,
-    companyIds: document.companyIds,
-  }));
+  const declarations: DeclarationRow[] = listComplianceDeclarations(agencyId)
+    .filter(document => recordBelongsToCompany(document.companyIds, companyId))
+    .map(document => ({
+      id: document.id,
+      reference: document.reference,
+      status: document.status,
+      effectiveAt: document.effectiveAt,
+      updatedAt: document.updatedAt,
+      companyIds: document.companyIds,
+    }));
 
+  // Built from the SCOPED register, so "Record on file" can never be answered
+  // out of another brand's paperwork.
   const subprocessors = buildSubprocessorRegister(legalDocuments);
   const security = buildSecurityPosture();
 
-  const erasureClients: ErasureClientRow[] = listClients(agencyId, { includeArchived: true }).map(client => ({
-    id: client.id,
-    name: client.name,
-    stage: client.stage,
-    status: client.status,
-  }));
+  // Scoped on the same primitive as the register: an incident naming no
+  // company is an agency-level one and stays visible under every scope, while
+  // one naming another brand is not this company's incident (issues #68).
+  const scopedBreaches = listBreachIncidents(agencyId)
+    .filter(incident => recordBelongsToCompany(incident.companyId ? [incident.companyId] : [], companyId));
+
+  // Erasure is irreversible, so the list you can pick from must not offer
+  // another company's client. A client with no `companyId` belongs to no brand
+  // and stays offered under every scope, matching the register's convention.
+  const erasureClients: ErasureClientRow[] = listClients(agencyId, { includeArchived: true })
+    .filter(client => recordBelongsToCompany(client.companyId ? [client.companyId] : [], companyId))
+    .map(client => ({
+      id: client.id,
+      name: client.name,
+      stage: client.stage,
+      status: client.status,
+    }));
 
   return {
     generatedAt: now,
@@ -186,6 +287,7 @@ export async function buildGovernanceSnapshot(options: BuildGovernanceOptions): 
     subprocessors,
     security,
     erasureClients,
+    agencyWideSections: [...AGENCY_WIDE_SECTIONS],
     subjectRequests: listSubjectRequests(agencyId).map(request => ({
       id: request.id,
       kind: request.kind,
@@ -209,6 +311,34 @@ export async function buildGovernanceSnapshot(options: BuildGovernanceOptions): 
       describes: category.describes,
       days: retentionPolicy(agencyId)[category.id],
     })),
+    breaches: scopedBreaches.map(incident => ({
+      id: incident.id,
+      title: incident.title,
+      description: incident.description,
+      companyIds: incident.companyId ? [incident.companyId] : undefined,
+      discoveredAt: incident.discoveredAt,
+      recordedAt: incident.recordedAt,
+      notifyDeadlineAt: incident.notifyDeadlineAt,
+      dataCategories: incident.dataCategories,
+      affectedEstimate: incident.affectedEstimate,
+      notifiable: incident.notifiable,
+      assessmentReason: incident.assessmentReason,
+      authorityNotifiedAt: incident.authorityNotifiedAt,
+      authorityReference: incident.authorityReference,
+      delayReason: incident.delayReason,
+      subjectsNotifiedAt: incident.subjectsNotifiedAt,
+      closed: Boolean(incident.closedAt),
+      outcome: incident.outcome,
+      // An UNASSESSED incident is overdue too. Waiting to decide does not stop
+      // the 72 hours, and a register that only flagged the ones somebody had
+      // already admitted were notifiable would reward not deciding.
+      overdue: !incident.closedAt
+        && !incident.authorityNotifiedAt
+        && incident.notifiable !== false
+        && incident.notifyDeadlineAt < now,
+      notifiedLate: typeof incident.authorityNotifiedAt === "number" && incident.authorityNotifiedAt > incident.notifyDeadlineAt,
+    })),
+    breachClock: summariseBreachClock(scopedBreaches, now),
   };
 }
 

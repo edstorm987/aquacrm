@@ -28,7 +28,7 @@
 //     the ceiling has to argue with this test first.
 
 // First, and statically — see the note in dev-console-request-scope.ts.
-import { isNextNotFound, isNextRedirect, withSession } from "./dev-console-request-scope";
+import { isNextNotFound, isNextRedirect, withRequestScope, withSession } from "./dev-console-request-scope";
 
 import assert from "node:assert/strict";
 import { before, describe, it } from "node:test";
@@ -311,5 +311,148 @@ describe("the plugin ceiling was NOT widened, and must not be", () => {
       }
     }
     assert.ok(customerPages > 0, "no customer plugin pages resolved — this test proved nothing");
+  });
+});
+
+// ── The way OUT (todo #390) ────────────────────────────────────────────────
+//
+// The way IN was fixed on 2026-08-27; the exits were not. `/portal/account`
+// computed its back-link with a hand-written ternary whose fall-through was
+// `/portal/agency`, and the portal 404 hardcoded an "Agency dashboard" button.
+// A `client-owner` who opened their profile, or mistyped a portal URL, was
+// handed a door into Ed's workspace that their host gate then refuses — the
+// same placement mistake as the redirect, one screen later.
+//
+// These render the real pages per role and read the links that actually ship,
+// rather than pinning the ternary that used to produce them.
+
+/** Every `href` in a rendered element tree, in document order. */
+function collectHrefs(node: unknown, out: string[] = []): string[] {
+  if (Array.isArray(node)) {
+    for (const child of node) collectHrefs(child, out);
+    return out;
+  }
+  if (!node || typeof node !== "object") return out;
+  const props = (node as { props?: Record<string, unknown> }).props;
+  if (!props) return out;
+  if (typeof props.href === "string") out.push(props.href);
+  collectHrefs(props.children, out);
+  return out;
+}
+
+/** Where each role's workspace is — the one answer `/portal` already gives. */
+const WORKSPACE_FOR: Record<string, string> = {
+  "agency-owner": "/portal/agency",
+  "agency-manager": "/portal/agency",
+  "agency-staff": "/portal/team",
+  "client-owner": "/portal/customer",
+  "client-staff": "/portal/customer",
+  freelancer: "/portal/freelancer",
+  "end-customer": "/portal/customer",
+};
+
+const EXIT_ROLES = Object.keys(WORKSPACE_FOR) as Role[];
+
+describe("the way OUT lands in the same place the way in does", () => {
+  async function hrefsOf(mod: string, role: Role): Promise<string[]> {
+    const { default: Page } = await import(mod) as { default: () => Promise<unknown> };
+    return withSession(tokens.get(role)!, async () => collectHrefs(await Page()));
+  }
+
+  for (const role of EXIT_ROLES) {
+    it(`/portal/account sends ${role} back to ${WORKSPACE_FOR[role]}`, async () => {
+      const hrefs = await hrefsOf("../src/app/portal/account/page", role);
+      assert.equal(hrefs[0], WORKSPACE_FOR[role],
+        `the account back-link for ${role} is ${hrefs[0]}`);
+    });
+
+    it(`the portal 404 offers ${role} a door they can open`, async () => {
+      const hrefs = await hrefsOf("../src/app/portal/not-found", role);
+      assert.equal(hrefs[0], WORKSPACE_FOR[role],
+        `the 404's primary button for ${role} is ${hrefs[0]}`);
+      // …and the profile button follows the AUDIENCE, exactly as ProfileMenu does.
+      const expectedProfile = (CUSTOMER_PORTAL_ROLES as readonly string[]).includes(role)
+        ? "/portal/customer/account"
+        : "/portal/account";
+      assert.ok(hrefs.includes(expectedProfile),
+        `the 404 profile link for ${role} is ${hrefs.join(", ")}`);
+    });
+  }
+
+  it("neither exit points a non-manager at Team settings", async () => {
+    // #92 stopped sending agency-staff to a Settings page that refuses them and
+    // left client roles and freelancers pointing straight at it.
+    for (const role of EXIT_ROLES) {
+      const blocked = role !== "agency-owner" && role !== "agency-manager";
+      if (!blocked) continue;
+      for (const mod of ["../src/app/portal/account/page", "../src/app/portal/account/permissions/page"]) {
+        const hrefs = await hrefsOf(mod, role);
+        assert.ok(!hrefs.some(href => href.startsWith("/portal/agency/settings")),
+          `${mod} still sends ${role} into Team settings (${hrefs.join(", ")})`);
+      }
+    }
+  });
+
+  it("an owner still keeps the Team settings link that is theirs to use", async () => {
+    const hrefs = await hrefsOf("../src/app/portal/account/page", "agency-owner");
+    assert.ok(hrefs.includes("/portal/agency/settings#access"),
+      "the owner's Team settings guidance was removed along with the broken ones");
+  });
+
+  it("a signed-out 404 offers sign-in instead of guessing a workspace", async () => {
+    const { default: PortalNotFound } = await import("../src/app/portal/not-found") as
+      { default: () => Promise<unknown> };
+    const hrefs = await withRequestScope({}, async () => collectHrefs(await PortalNotFound()));
+    assert.equal(hrefs[0], "/login?next=/portal", `signed-out 404 leads to ${hrefs[0]}`);
+    assert.ok(!hrefs.includes("/portal/agency"),
+      "the signed-out 404 still offers the agency dashboard");
+    assert.ok(!hrefs.includes("/portal/account"),
+      "the signed-out 404 still offers a profile page there is no session for");
+  });
+
+  // A `lead` is the one role with a real session and NO portal workspace, and it
+  // is the role these two surfaces get wrong most easily. The resolver answers
+  // "/login" for them — and `/login` redirects an existing session straight back
+  // through that same resolver (`src/app/login/page.tsx`), which answers
+  // "/login" again. So a "/login" href offered to a SIGNED-IN lead is not a
+  // door, it is a redirect loop. Neither exit may hand them one.
+  describe("a signed-in lead is never handed the /login loop", () => {
+    let leadToken = "";
+
+    before(async () => {
+      const lead = createUser({
+        email: `lead-${Date.now()}@placement.test`,
+        name: "lead",
+        role: "lead",
+        password: "placement-smoke-pass-phrase",
+      });
+      leadToken = await issueSession({
+        userId: lead.id, email: lead.email, role: "lead",
+        agencyId: lead.agencyId, agencyIds: [], activeAgencyId: lead.agencyId,
+        sessionRev: lead.sessionRev ?? 0,
+      });
+    });
+
+    it("the account back-link does not point a lead at /login", async () => {
+      const { default: Page } = await import("../src/app/portal/account/page") as
+        { default: () => Promise<unknown> };
+      // hrefs[0] is the back-link; `/login/forgot` further down is the password
+      // reset, a real door, so only the back-link is in question here.
+      const hrefs = await withSession(leadToken, async () => collectHrefs(await Page()));
+      assert.equal(hrefs[0], "/", `the account back-link sends a signed-in lead to ${hrefs[0]}`);
+      assert.ok(!hrefs.includes("/portal/agency"),
+        "the account page is back to offering a lead the agency workspace");
+    });
+
+    it("the 404 does not point a lead at /login", async () => {
+      const { default: PortalNotFound } = await import("../src/app/portal/not-found") as
+        { default: () => Promise<unknown> };
+      const hrefs = await withSession(leadToken, async () => collectHrefs(await PortalNotFound()));
+      assert.ok(!hrefs.some(href => href.startsWith("/login")),
+        `the 404 sends a signed-in lead to ${hrefs.join(", ")}`);
+      assert.ok(!hrefs.some(href => href.startsWith("/portal/")),
+        `the 404 offers a lead a portal workspace they do not have (${hrefs.join(", ")})`);
+      assert.ok(hrefs.includes("/"), "the lead is left with no door at all");
+    });
   });
 });

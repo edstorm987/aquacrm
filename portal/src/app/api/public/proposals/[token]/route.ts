@@ -43,6 +43,23 @@ export async function POST(req: Request, context: { params: Promise<{ token: str
   if (!acceptedBy || !body?.confirmed) {
     return NextResponse.json({ ok: false, error: "Enter your name and confirm the agreement." }, { status: 400 });
   }
-  const pack = await proposal.accept(acceptedBy);
-  return NextResponse.json({ ok: true, status: pack?.agreementStatus, acceptedAt: pack?.acceptedAt });
+  // Acceptance is bound to the version whose delivery was confirmed. The public
+  // token exists from the first draft save, so possessing the link is not consent
+  // to sign whatever the terms currently say — a draft, or a version superseded
+  // by an amendment, is refused here rather than silently recorded as agreed.
+  let pack;
+  try {
+    pack = await proposal.accept(acceptedBy);
+  } catch (error) {
+    if (error instanceof Error && error.name === "CommercialAcceptanceStateError") {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 409 });
+    }
+    throw error;
+  }
+  return NextResponse.json({
+    ok: true,
+    status: pack?.agreementStatus,
+    acceptedAt: pack?.acceptedAt,
+    acceptedVersion: pack?.acceptedVersion,
+  });
 }

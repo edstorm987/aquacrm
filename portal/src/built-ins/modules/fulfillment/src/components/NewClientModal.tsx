@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 import type { ClientStage } from "../lib/tenancy";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 export interface NewClientModalProps {
   open: boolean;
@@ -35,6 +36,9 @@ export function NewClientModal(props: NewClientModalProps) {
   const [state, setState] = useState<FormState>(DEFAULT_STATE);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Modal keyboard contract: focus enters the form, Tab stays inside it, Escape backs out (except mid-save), focus returns to the control that opened it.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, open, { onEscape: busy ? undefined : onClose });
 
   useEffect(() => {
     if (open) {
@@ -88,7 +92,7 @@ export function NewClientModal(props: NewClientModalProps) {
   }
 
   return (
-    <div className="fulfillment-modal" role="dialog" aria-modal="true" aria-labelledby="new-client-title">
+    <div className="fulfillment-modal" role="dialog" ref={dialogRef} aria-modal="true" aria-labelledby="new-client-title">
       <form className="fulfillment-modal-card" onSubmit={submit}>
         <h3 id="new-client-title">New client</h3>
 

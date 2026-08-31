@@ -10,7 +10,7 @@
 // See docs/workspace/hazards-and-duplication.md.
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import {
   Activity,
   CalendarDays,
@@ -30,6 +30,7 @@ import type { PublicIntegrationConnection } from "@/lib/integrations/types";
 import type { MonthlyPerformanceReport } from "@/lib/performance/performanceReports";
 import { GrowthPerformance, type PerformanceClient } from "./_PerformanceWorkspace";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 type Period = 7 | 28 | 90;
 
@@ -182,6 +183,9 @@ function SearchConsolePanel({ client }: { client: PerformanceClient }) {
 
 function SearchConsoleModal({ client, onClose, onSaved }: { client: PerformanceClient; onClose: () => void; onSaved: (connections: PublicIntegrationConnection[]) => void }) {
   const [busy, setBusy] = useState(false);
+  // Modal keyboard contract: focus enters the dialog, Tab stays inside it, Escape backs out (except mid-save), focus returns to the control that opened it.
+  const dialogRef = useRef<HTMLFormElement>(null);
+  useFocusTrap(dialogRef, true, { onEscape: busy ? undefined : onClose });
   const [error, setError] = useState<string>();
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -220,7 +224,7 @@ function SearchConsoleModal({ client, onClose, onSaved }: { client: PerformanceC
     }
   }
 
-  return <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4" role="presentation"><form onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby="search-console-title" className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-lg border border-black/10 bg-white p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase text-brand">Organic search</p><h2 id="search-console-title" className="mt-1 text-xl font-semibold">Connect Search Console</h2><p className="mt-2 text-sm leading-6 text-black/50">Create a Google service account, add its email as a user on the Search Console property, then paste the downloaded JSON key below.</p></div><button type="button" onClick={onClose} aria-label="Close" className="grid size-9 shrink-0 place-items-center rounded-md hover:bg-black/[0.04]"><X size={17} /></button></div><div className="mt-5 grid gap-4"><Field label="Connection name"><input name="label" required defaultValue={`${client.name} Search Console`} className="min-h-11 rounded-md border border-black/15 px-3 text-sm" /></Field><Field label="Exact Search Console property" help="For a domain property use sc-domain:example.com"><input name="siteUrl" required className="min-h-11 rounded-md border border-black/15 px-3 text-sm" placeholder="sc-domain:example.com" /></Field><Field label="Matching Aqua property"><select name="propertyId" required className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm"><option value="">Choose property</option>{client.properties.map(property => <option key={property.id} value={property.id}>{property.label} · {property.id}</option>)}</select></Field><Field label="Service account JSON" help="Stored encrypted in the integration vault and never returned to the browser."><textarea name="serviceAccountJson" required rows={7} spellCheck={false} className="rounded-md border border-black/15 px-3 py-2 font-mono text-xs" placeholder={'{"type":"service_account", ...}'} /></Field>{error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}</div><div className="mt-6 flex justify-end gap-2"><button type="button" onClick={onClose} className="min-h-10 px-3 text-sm font-medium">Cancel</button><button disabled={busy} className="min-h-10 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving..." : "Save connection"}</button></div></form></div>;
+  return <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4" role="presentation"><form onSubmit={submit} role="dialog" ref={dialogRef} aria-modal="true" aria-labelledby="search-console-title" className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-lg border border-black/10 bg-white p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase text-brand">Organic search</p><h2 id="search-console-title" className="mt-1 text-xl font-semibold">Connect Search Console</h2><p className="mt-2 text-sm leading-6 text-black/50">Create a Google service account, add its email as a user on the Search Console property, then paste the downloaded JSON key below.</p></div><button type="button" onClick={onClose} aria-label="Close" className="grid size-9 shrink-0 place-items-center rounded-md hover:bg-black/[0.04]"><X size={17} /></button></div><div className="mt-5 grid gap-4"><Field label="Connection name"><input name="label" required defaultValue={`${client.name} Search Console`} className="min-h-11 rounded-md border border-black/15 px-3 text-sm" /></Field><Field label="Exact Search Console property" help="For a domain property use sc-domain:example.com"><input name="siteUrl" required className="min-h-11 rounded-md border border-black/15 px-3 text-sm" placeholder="sc-domain:example.com" /></Field><Field label="Matching Aqua property"><select name="propertyId" required className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm"><option value="">Choose property</option>{client.properties.map(property => <option key={property.id} value={property.id}>{property.label} · {property.id}</option>)}</select></Field><Field label="Service account JSON" help="Stored encrypted in the integration vault and never returned to the browser."><textarea name="serviceAccountJson" required rows={7} spellCheck={false} className="rounded-md border border-black/15 px-3 py-2 font-mono text-xs" placeholder={'{"type":"service_account", ...}'} /></Field>{error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}</div><div className="mt-6 flex justify-end gap-2"><button type="button" onClick={onClose} className="min-h-10 px-3 text-sm font-medium">Cancel</button><button disabled={busy} className="min-h-10 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving..." : "Save connection"}</button></div></form></div>;
 }
 
 function MonthlyReportsPanel({ client, selectedPropertyId, onReportsChange }: { client: PerformanceClient; selectedPropertyId?: string; onReportsChange: (reports: MonthlyPerformanceReport[]) => void }) {

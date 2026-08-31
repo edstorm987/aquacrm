@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Activity,
@@ -33,6 +33,7 @@ import {
 import type { ClientRecordEntry, ClientRecordEntryKind, ClientRecordVisibility } from "@/lib/clients/clientRelationshipRecord";
 import { formatUkDateTime } from "@/lib/shared/formatDateTime";
 import type { ClientRecordLedgerEvent, ClientRecordLedgerPage } from "@/server/types";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 export interface ClientRecordMessage {
   id: string;
@@ -170,6 +171,12 @@ export function ClientRecordWorkspace({
   const dataReviewCount = page.summary.dateReview;
   const attentionCount = page.summary.attention;
   const selectedItem = selectedId ? timeline.find(item => item.id === selectedId) : undefined;
+  // Modal keyboard contract: focus enters the panel, Tab stays inside it,
+  // Escape backs out, and focus returns to the control that opened it.
+  const captureRef = useRef<HTMLFormElement>(null);
+  useFocusTrap(captureRef, canManage && captureOpen, { onEscape: () => setCaptureOpen(false) });
+  const inspectorRef = useRef<HTMLElement>(null);
+  useFocusTrap(inspectorRef, selectedItem !== undefined, { onEscape: () => setSelectedId(null) });
   const hasRelationship = relatedWorkspaces.length > 1;
   const workspaceById = new Map(relatedWorkspaces.map(workspace => [workspace.id, workspace]));
 
@@ -481,7 +488,7 @@ export function ClientRecordWorkspace({
       {canManage && captureOpen ? (
         <div className="fixed inset-0 z-[120]" data-testid="client-record-capture">
           <button type="button" aria-label="Close record capture" onClick={() => setCaptureOpen(false)} className="absolute inset-0 bg-black/45 backdrop-blur-[1px]" />
-          <form role="dialog" aria-modal="true" aria-labelledby="client-record-capture-title" onSubmit={event => { event.preventDefault(); void addEntry(); }} className="absolute inset-y-0 right-0 grid w-full max-w-2xl grid-rows-[auto_1fr_auto] overflow-hidden bg-white shadow-2xl">
+          <form role="dialog" ref={captureRef} aria-modal="true" aria-labelledby="client-record-capture-title" onSubmit={event => { event.preventDefault(); void addEntry(); }} className="absolute inset-y-0 right-0 grid w-full max-w-2xl grid-rows-[auto_1fr_auto] overflow-hidden bg-white shadow-2xl">
             <header className="flex items-start justify-between gap-4 border-b border-black/10 px-5 py-5 sm:px-7">
               <div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-black/42">Capture context</p><h3 id="client-record-capture-title" className="mt-1 text-xl font-semibold text-black/82">Add something worth retaining</h3><p className="mt-1 text-sm text-black/48">Save the decision, interaction and evidence without losing your place.</p></div>
               <button type="button" aria-label="Close" onClick={() => setCaptureOpen(false)} className="grid size-10 shrink-0 place-items-center rounded-md border border-black/10 text-black/55"><X size={17} /></button>
@@ -510,7 +517,7 @@ export function ClientRecordWorkspace({
       {selectedItem ? (
         <div className="fixed inset-0 z-[120]" data-testid="client-record-inspector">
           <button type="button" aria-label="Close record inspector" onClick={() => setSelectedId(null)} className="absolute inset-0 bg-black/40 backdrop-blur-[1px]" />
-          <aside role="dialog" aria-modal="true" aria-labelledby="client-record-inspector-title" className="absolute inset-y-0 right-0 grid w-full max-w-xl grid-rows-[auto_1fr_auto] overflow-hidden bg-white shadow-2xl">
+          <aside role="dialog" ref={inspectorRef} aria-modal="true" aria-labelledby="client-record-inspector-title" className="absolute inset-y-0 right-0 grid w-full max-w-xl grid-rows-[auto_1fr_auto] overflow-hidden bg-white shadow-2xl">
             <header className="flex items-start justify-between gap-4 border-b border-black/10 px-5 py-5 sm:px-7">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2"><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-black/38">{selectedItem.eyebrow}</p>{recordMode === "relationship" ? <WorkspaceBadge label={workspaceName(selectedItem.clientId)} /> : null}<VisibilityBadge visibility={selectedItem.visibility} />{selectedItem.attention ? <AttentionBadge attention={selectedItem.attention} /> : null}</div>

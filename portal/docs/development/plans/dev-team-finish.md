@@ -15,6 +15,15 @@ live worker panel) and it is wired into the Command Centre as a 4th station. Wha
 Centre station is only half-wired (its badge is hardcoded to zero). Ed's words: *"needs the
 icons and stuff and just actually be accurate work and have it wired in command centre."*
 
+> **Phase ticks backfilled 2026-08-31.** All three phases were re-checked against
+> current source and are now marked ✅ inline, so the board reads **3/3** instead
+> of the `0/5`-style zero it showed while the ticks lived only in the "What
+> shipped" prose. It **stays on the board and is NOT archived**: the runtime walk
+> above has still not happened, and [`plans/archive/README.md`](archive/README.md)
+> archives only work that is shipped **AND verified**. The residue is a browser
+> pass (sidebar icons · station badge · `?station=devteam` across a refresh),
+> which is an acceptance step, not more code.
+
 > **Current correction, 2026-08-23:** this is a shipped plan and its phase narrative
 > records the 2026-08-19 checkpoint. The later MFA work is now complete: login gate,
 > code step, session assurance and recovery codes are all built. References below to
@@ -26,6 +35,12 @@ app** (icons, not bare text), and the Command Centre station behaves like a firs
 (real attention badge, deep-linkable). No new sections — finish what exists.
 
 ## Phase 1 — Icons (visual completeness)
+✅ **SHIPPED 2026-08-19.** Re-verified in source 2026-08-31: every nav item in
+`src/app/portal/dev-team/layout.tsx` sets its own `icon:` (Home `Hammer` · Roadmap `Route` ·
+Findings `ScanEye` · Library `Library` · Tools `Wrench` · Editor `SquarePen` · Notes
+`NotebookPen` · My profile `UserRound`), so nothing falls through to the generic dot. The
+brief below is the original problem statement.
+
 The Dev Team sidebar renders **bare text** while every other portal has icons, because the nav
 items never set one.
 - `NavItem.icon?: ReactNode` — `src/built-ins/runtime/_types.ts:358`. The Sidebar renders
@@ -40,6 +55,14 @@ items never set one.
   (they use the shared kit `src/app/portal/dev-team/_ui.tsx` — `PageHeader` takes an `icon`).
 
 ## Phase 2 — Accuracy (the important half)
+✅ **SHIPPED 2026-08-19.** Re-verified in source 2026-08-31: the badge is computed, not typed
+(`devTeamBlockedCount` / `devTeamLaunchBlockerCount` off `composeLanes(scanDevTeamBoard())` in
+`src/app/portal/agency/page.tsx:173-180`); `classifyWorker` carries an `isParked` signal
+(`src/lib/server/dev/devTeamBoard.ts:174,238`) so parked can no longer read as shipped; and
+findings carry `supersededBy` (`src/lib/server/dev/devTeamAuditor.ts:75,364,372`) so the
+Auditor splits open from historically-closed instead of over-reporting. The brief below is the
+original problem statement.
+
 Right now some of what the portal reports is **stale or misleading**. Fix the truth, not the
 labels.
 1. **Command Centre badge is a lie.** `devTeamAttention` is hardcoded
@@ -65,6 +88,13 @@ labels.
    disagrees between two screens is worse than no number.
 
 ## Phase 3 — Command Centre wiring (make it a first-class station)
+✅ **SHIPPED 2026-08-19.** Re-verified in source 2026-08-31: `"devteam"` is a member of
+`CommandStationMode` (`src/app/portal/agency/_CommandStationNav.tsx:5`), the station button
+renders behind `showDevTeam`, the `?station=devteam` deep link is accepted only when the
+station is visible (`_DashboardCommandCenter.tsx:279,567,1155`), and the station carries a real
+`stationAttention.devteam` entry rather than a hardcoded zero. The brief below is the original
+problem statement.
+
 - **Deep-link**: `"devteam"` was deliberately left out of the `?station=` allow-list in
   `commandStationMode()` (`_DashboardCommandCenter.tsx`, ~:2330) so a hand-typed URL couldn't
   land a non-founder on an empty panel. Now that visibility is computed server-side, add it

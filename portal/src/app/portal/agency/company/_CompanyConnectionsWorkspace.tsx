@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { ArrowUpRight, Check, Globe2, Pencil, PlugZap, Save, X } from "lucide-react";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent, type ReactNode, useRef } from "react";
 import type { TradingCompany } from "@/server/types";
 import { IntegrationConnectionsPanel } from "../settings/IntegrationConnectionsPanel";
 import type { IntegrationProvider } from "@/lib/integrations/catalog";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 interface WebsiteConnection {
   id: string;
@@ -38,6 +39,9 @@ export function CompanyConnectionsWorkspace({
   ]);
   const [editing, setEditing] = useState<WebsiteConnection | null>(null);
   const [notice, setNotice] = useState("");
+  // Modal keyboard contract: focus enters the website form, Tab stays inside it, Escape backs out, focus returns to the row that opened it.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, editing !== null, { onEscape: () => setEditing(null) });
 
   async function saveWebsite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -130,7 +134,7 @@ export function CompanyConnectionsWorkspace({
       </section>
 
       {editing ? (
-        <div className="fixed inset-0 z-[100] grid place-items-center bg-black/45 p-4" role="dialog" aria-modal="true" aria-labelledby="website-connection-title">
+        <div className="fixed inset-0 z-[100] grid place-items-center bg-black/45 p-4" role="dialog" ref={dialogRef} aria-modal="true" aria-labelledby="website-connection-title">
           <form onSubmit={saveWebsite} className="w-full max-w-lg rounded-md bg-[#f8f7f4] shadow-2xl">
             <header className="flex items-start justify-between gap-4 border-b border-black/10 bg-white px-5 py-4">
               <div><p className="text-xs font-semibold uppercase text-brand">Company website</p><h2 id="website-connection-title" className="mt-1 text-xl font-semibold text-black/90">{editing.name}</h2></div>
