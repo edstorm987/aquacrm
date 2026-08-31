@@ -760,10 +760,12 @@ Evidence label: **local-browser** against a `next dev` lane, not deployed-live.
 
 ---
 
-## The Vercel failures: ROOT-CAUSED, fixed, and proven
+## The Vercel failures: a real cause found and fixed — but NOT the whole story
 
-Five of eight deployments failed across two pull requests. The cause was found
-on 2026-08-31 and it was never in the application code.
+Five of eight deployments failed across two pull requests. On 2026-08-31 a
+genuine, reproducible defect was found that produces exactly the observed
+failure, and it is fixed. It is **not proven** to be the cause of all five, and
+the section headed "What this does NOT claim" at the end says why.
 
 **`portal/package-lock.json` was generated on a Mac.** `lightningcss` and
 `@tailwindcss/oxide` ship their native binaries as per-platform *optional*
@@ -829,10 +831,38 @@ the exact-version requirement (a caret range would let npm pair 1.32.0 with a
 Verified two-sided against the **real** pre-fix lockfile, not a synthetic one:
 it names `lightningcss` and `@tailwindcss/oxide` and nothing else.
 
-### What this does NOT claim
+### What this does NOT claim — and the evidence that forces the caveat
 
-A green deployment has not yet been observed. The build is proven in an isolated
-`portal/` checkout on Linux x64 with the same install command, which is the
-closest reproduction available from here — Vercel's logs need an authentication
-this session lacks and outbound HTTPS to `*.vercel.app` is proxy-blocked. If a
-deployment still fails after this, the cause is a second, separate one.
+**Vercel's outcome is not a function of the tree.** Within twenty minutes, two
+consecutive commits on this branch behaved differently:
+
+| commit | contents | Vercel |
+| --- | --- | --- |
+| `9f0ecc4d` | five markdown/JSON doc files | **Ready** |
+| `3bcef67d` | two markdown files | **Error** |
+
+`git diff 9f0ecc4d 3bcef67d -- package.json package-lock.json` is **empty**.
+Neither commit touched a line of source. One deployed, one did not.
+
+So something on Vercel's side varies between builds of functionally identical
+trees. The most plausible candidate is its `node_modules` build cache — a
+restored cache carrying the Linux binary would pass, a cold install would fail —
+but that is an inference, not a measurement: Vercel's logs need an
+authentication this session lacks and outbound HTTPS to `*.vercel.app` is
+proxy-blocked, so the cache state is not observable from here.
+
+What IS established, and stands on its own:
+
+1. The lockfile has **never** recorded the Linux binary. Checked across all eight
+   commits that touched it, back to 2026-08-11: `lightningcss-linux-x64-gnu`
+   appears only inside `lightningcss`'s own list of platform variants, never as
+   an installed entry.
+2. An isolated `portal/`-only checkout on Linux x64 **deterministically fails**
+   before the fix, with exactly the error above, and **deterministically passes**
+   after — same machine, same command, same Node.
+
+So the fix removes a real defect that produces this exact failure and makes the
+build independent of whatever Vercel's cache happens to hold. It does not follow
+that it explains all five past failures, and **a green deployment now would be
+weak evidence either way** — `9f0ecc4d` was already green without it. Treat a
+further failure as a second, separate cause rather than as this one returning.
