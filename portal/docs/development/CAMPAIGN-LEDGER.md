@@ -611,3 +611,58 @@ leaving the bug. Anyone picking this up should start from that
   `CLAUDE.md`'s continuation item 6 already lists as open residue. React does
   not name the component, so it needs its own hunt.
 - One 404 resource request on that page, uninvestigated.
+
+### FIXED — the read path rewrote the database on every agency page load
+
+Ed's instinct, investigated and confirmed. `upsertPerson()` is called by
+`listOperationalAlerts()` while building the attention feed, and that feed is
+built by BOTH the agency layout and the agency page — so it ran on **every
+agency render**. Its `existing` branch then wrote unconditionally:
+
+- `updatedAt: now` with no check that anything had changed;
+- `mutate(...)`, which dirties and re-persists the whole PortalState blob;
+- `emitDurable({ name: "person.updated" })` — a durable outbox row.
+
+So on any tenant with website enquiries, every page load re-stamped every
+matching Person, rewrote the state blob, and appended **one phantom
+`person.updated` event per enquiry per render** — an outbox announcing changes
+that had not happened, and an `updatedAt` recording when somebody last *looked
+at a page* rather than when the person last changed.
+
+`upsertPerson` now compares the computed record against the existing one on
+everything except `updatedAt` itself and returns early when they match. The
+phone-sharing sweep is a real state change, so its presence still forces the
+write through. Pinned two ways — an identical re-upsert must move neither
+`updatedAt` nor the outbox, and a genuine edit must still write (a no-op guard
+that swallows real edits would be worse than the unconditional write).
+
+Not caught by an empty test tenant: the gate lane's state file was byte-identical
+across a page load, because there were no enquiries for the write path to act on.
+It is visible in the source, and in the comment `operationalAlerts.ts` already
+carried about "idempotent read-path side effects (person upserts)".
+
+### MFA: the count got worse while the behaviour got better
+
+Worth stating plainly. The browser matrix's network column went 17 → 123,
+and 34 of those are `503 /api/portal/mfa/enrol` — the honest refusal that
+replaced the 500. The matrix counts any status ≥ 400 as a failed request, so
+a truthful 503 scores exactly like the misleading 500 did.
+
+The remaining defect is one level up: `/portal/account` still *requests*
+two-factor enrolment on a deployment that has no Supabase auth. The honest
+surface would not offer it at all. That is a UI change, not a route change,
+and is not done.
+
+### Browser matrix, run 3 — after the module-boundary and MFA work
+
+| category | baseline | run 2 | run 3 |
+| --- | --- | --- | --- |
+| focus | 203 | 204 | 204 |
+| axe | 85 | 85 | 85 |
+| console | 44 | 44 | **31** |
+| network | 17 | 17 | 123 (34 × the MFA 503, see above) |
+| overflow | 3 | 3 | 3 |
+
+The `/portal/agency` 404 recorded in run 2 no longer reproduces. The
+render-time side-effect warning did not reproduce either — it is timing
+dependent, so it needs a different approach than a browser walk.

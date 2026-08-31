@@ -153,3 +153,63 @@ describe("a shared phone number does not merge different people", () => {
     assert.equal(store.listPersons(AGENCY).length, 1);
   });
 });
+
+describe("a re-upsert that changes nothing does not write", () => {
+  // `upsertPerson` is a READ-PATH function: `listOperationalAlerts` calls it
+  // while building the attention feed, and that feed is built by the agency
+  // LAYOUT and the agency PAGE — so it ran on every agency render. Writing
+  // unconditionally meant every page load re-persisted the whole PortalState
+  // blob and emitted a durable `person.updated` PER ENQUIRY PER RENDER:
+  // an outbox full of announcements that nothing had happened, and an
+  // `updatedAt` recording when the page was last looked at.
+  it("leaves updatedAt and the outbox alone when the input is identical", async () => {
+    const { upsertPerson } = await import("../src/server/persons");
+    const { listOutboxEvents } = await import("../src/server/outbox");
+    const { createAgency } = await import("../src/server/tenants");
+    const { ensureHydrated } = await import("../src/server/storage");
+    await ensureHydrated();
+
+    const agency = createAgency({ name: "Idempotent Co", slug: `idem-${Date.now()}` });
+    const input = {
+      emails: ["repeat@example.test"],
+      phones: [],
+      name: "Repeat Caller",
+      source: "website:test",
+      facets: { enquiryIds: ["enq_1"] },
+    } as Parameters<typeof upsertPerson>[1];
+
+    const first = upsertPerson(agency.id, input);
+    assert.equal(first.created, true, "the first upsert did not create the person");
+    const stampedAt = first.person.updatedAt;
+    const eventsAfterCreate = listOutboxEvents(agency.id).length;
+
+    await new Promise(resolve => setTimeout(resolve, 5));
+
+    const second = upsertPerson(agency.id, input);
+    assert.equal(second.created, false);
+    assert.equal(second.person.id, first.person.id, "an identical upsert forked a second person");
+    assert.equal(second.person.updatedAt, stampedAt,
+      "an identical re-upsert re-stamped updatedAt, so the field records when the page was rendered rather than when the person changed");
+    assert.equal(listOutboxEvents(agency.id).length, eventsAfterCreate,
+      "an identical re-upsert emitted person.updated — the outbox now announces changes that did not happen");
+  });
+
+  it("still writes when something genuinely changed", async () => {
+    // The negative half: a no-op guard that swallows real edits is worse than
+    // the unconditional write it replaced.
+    const { upsertPerson } = await import("../src/server/persons");
+    const { createAgency } = await import("../src/server/tenants");
+    const { ensureHydrated } = await import("../src/server/storage");
+    await ensureHydrated();
+
+    const agency = createAgency({ name: "Changes Co", slug: `chg-${Date.now()}` });
+    const base = { emails: ["grow@example.test"], phones: [], name: "Grower", facets: {} } as Parameters<typeof upsertPerson>[1];
+    const created = upsertPerson(agency.id, base);
+    await new Promise(resolve => setTimeout(resolve, 5));
+
+    const changed = upsertPerson(agency.id, { ...base, jobTitle: "Head of Somewhere" });
+    assert.equal(changed.person.jobTitle, "Head of Somewhere", "a real edit was dropped by the no-op guard");
+    assert.ok(changed.person.updatedAt > created.person.updatedAt,
+      "a real edit did not move updatedAt");
+  });
+});
