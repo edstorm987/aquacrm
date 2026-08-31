@@ -2,7 +2,7 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-08-31 from **20** source documents / **30,532 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-31 from **20** source documents / **31,389 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -21,7 +21,7 @@
 - [`docs/DEVELOPMENT-HANDOFF.md`](#source-docs-development-handoff-md) — 1,552 words · `9199166a1f30`
 - [`docs/development-workspace-cleanup.md`](#source-docs-development-workspace-cleanup-md) — 793 words · `bdb46a5cecd3`
 - [`docs/development.md`](#source-docs-development-md) — 3,248 words · `dd5efef22882`
-- [`docs/development/CAMPAIGN-LEDGER.md`](#source-docs-development-campaign-ledger-md) — 9,300 words · `4b0f451a63ff`
+- [`docs/development/CAMPAIGN-LEDGER.md`](#source-docs-development-campaign-ledger-md) — 10,157 words · `0adf2a8123c0`
 - [`docs/development/CLOUD-RESUME.md`](#source-docs-development-cloud-resume-md) — 500 words · `03458cdf18bf`
 - [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 2,209 words · `f8dfdfa9cfad`
 - [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,622 words · `98fe02dc9d94`
@@ -2161,7 +2161,7 @@ else hangs from.*
 
 ## Source document — `docs/development/CAMPAIGN-LEDGER.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/CAMPAIGN-LEDGER.md" sha256="4b0f451a63ff5186d31d49746022c4245d46be1f9b0e33752fc819963939a4b5" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/CAMPAIGN-LEDGER.md" sha256="0adf2a8123c06b147da4bebe88d9c7a1a06690b7e375983a1d7cdc5c7c900769" -->
 # Campaign ledger — every documented to-do, verified against source
 
 *Generated 2026-08-30 from a 131-agent triage: one independent read-only investigator
@@ -2830,6 +2830,97 @@ and is not done.
 The `/portal/agency` 404 recorded in run 2 no longer reproduces. The
 render-time side-effect warning did not reproduce either — it is timing
 dependent, so it needs a different approach than a browser walk.
+
+---
+
+## Browser matrix GREEN — and a correction to three entries above
+
+`1,308 passed · 0 failed · 18 observations.` The gate that opened at **352
+failing checks** is now clean, and the observations are all named dev-server
+recompilation rather than anything unexplained.
+
+**Every focus figure recorded above is wrong, and the recommendation built on
+it was wrong.** This corrects, rather than deletes, these entries:
+
+- *"Verdict: RED. 352 failing checks"* — 208 of the 352 were the gate measuring
+  wrong, not the app being wrong. The real count was **144**.
+- *"focus | 203 | 204 | 204"* in all three matrix comparison tables — the real
+  number was **0**, at every one of those runs. The rings were there.
+- *"The highest-leverage accessibility fix, quantified"* — the five chrome
+  controls named there, with 130/69/51/40/34 failing stops between them, have
+  **working focus indicators**. That table measured a sampling bug. Acting on
+  it, as it recommended, would have meant editing correct CSS until a broken
+  measurement went quiet. (An earlier wave did attempt exactly that, could not
+  make it work, and reverted the speculative CSS rather than ship a no-op —
+  that judgement is now vindicated for a reason nobody had yet found.)
+
+### What the gate was actually measuring
+
+The chrome controls declare `transition-property: all` at `0.14s`. Reading
+computed style in the same task as the Tab press samples the START of the
+transition. The same element, measured live:
+
+```
+IMMEDIATE   : outline solid 0px
+transition-property: all | duration: 0.14s
+AFTER 600ms : outline solid 2px
+```
+
+Three further gate defects surfaced while confirming it:
+
+1. **4 "keyboard traps"** on `/portal/account/preferences`. A trap is the same
+   NODE focused repeatedly; the detector compared signature strings built from
+   tag + id + textContent, all three empty for a bare `<input>`. Nine
+   consecutive unlabelled checkboxes read as one element focused nine times.
+2. **The baseline shadow was written into a `data-` attribute** on React-owned
+   nodes, producing a hydration-mismatch diff on the next dev recompile that
+   the console verdict then scored as an application defect. The gate was
+   manufacturing the failure it reported.
+3. **`devServer` was proven too late.** It is derived from the target's own HMR
+   socket — correct — but the listener was attached inside the per-page loop, so
+   the FIRST page of every run was judged before any socket existed and its
+   cancelled Turbopack chunks scored as real failures. It showed as `/` failing
+   on exactly one viewport of seventeen, which is the signature of an artefact.
+
+All four are fixed, and each is pinned by a test proven two-sided. The focus
+walk now polls within a budget derived from the element's own declared
+transition and stops the moment the ring appears, so the common case costs
+nothing. The budget has a **250ms floor**: `duration + 40ms` still reported the
+topbar's "Working as" button ringless at 1920×1080, because a CSS duration says
+how long an animation runs, not when the browser gets round to starting it.
+
+### The 144 real failures, all fixed
+
+| category | at baseline | now | what it was |
+| --- | --- | --- | --- |
+| MFA console + network | 34 | 0 | `/portal/account` probing an endpoint whose 503 is permanent on this deployment |
+| axe critical `button-name` | 6 | 0 | the site's chat launcher hides its own label below 680px, leaving an `aria-hidden` "A" |
+| axe serious `color-contrast` | 51 | 0 | 4.06:1, 3.99:1, and 2.47:1 — the last a hardcoded light-mode teal on a dark surface |
+| axe serious `definition-list`/`dlitem` | 51 | 0 | `dl > div > div > dt`, and dt/dd with no `<dl>` ancestor at all |
+| axe serious `scrollable-region-focusable` | 6 | 0 | the pipeline board scrolls, and with no leads contains nothing focusable |
+| horizontal overflow @ 200% zoom | 3 | 0 | four flex/grid items sized by their min-content width, plus a canvas bleeding into a shell that isn't there |
+| favicon 404 | 1 | 0 | no `icons` in root metadata, and the static pages under `public/` inherit none |
+
+The overflow row is WCAG 1.4.10 (Reflow), not cosmetic: at 200% zoom on a 375px
+phone the CSS viewport is 187px, and the site header was pushing the Menu
+button — the only navigation at that width — off the screen entirely.
+
+### Verification
+
+Canonical suite **5,812 tests / 5,809 pass / 1 fail / 2 skip**. The single
+failure is `smoke-public-contact.test.ts`, which reads
+`/home/user/aquaoasis-web/website/components/ChatBot.tsx` — a sibling repository
+not checked out in this container. It is the same single failure as the
+pre-change baseline, so this work introduced **zero** new failures; the failure
+list was diffed by name, not by count. Module suites 252/252, website-editor
+49/49 files, `npm run typecheck` clean.
+
+`npm run build`: success, 301 static pages, **56M `.next/server` + 12M
+`.next/static`**. One warning, expected and deliberate: `observabilityCapability.ts`
+resolves the optional Sentry package through a dynamic require, which webpack
+reports as "Critical dependency: the request of a dependency is an expression".
+
+Evidence label: **local-browser** against a `next dev` lane, not deployed-live.
 <!-- AQUACRM_SOURCE_END path="docs/development/CAMPAIGN-LEDGER.md" -->
 
 ---

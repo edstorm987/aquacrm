@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-31T12:01:29.756Z",
+  "generatedAt": "2026-08-31T16:08:04.456Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -423,9 +423,9 @@
       "path": "docs/development/CAMPAIGN-LEDGER.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-campaign-ledger-md",
-      "sha256": "4b0f451a63ff5186d31d49746022c4245d46be1f9b0e33752fc819963939a4b5",
-      "words": 9300,
-      "bytes": 65573
+      "sha256": "0adf2a8123c06b147da4bebe88d9c7a1a06690b7e375983a1d7cdc5c7c900769",
+      "words": 10157,
+      "bytes": 70800
     },
     {
       "path": "docs/development/checklist.md",
