@@ -48,6 +48,7 @@ import type {
   RadarSourceDatasetInspection,
   RadarSourceDatasetSummary,
 } from "@/engines/data/radar/businessRadar";
+import { RADAR_PROBE_CADENCE_MS } from "@/engines/data/radar/businessRadar";
 import { formatUkDate, isoDateTimeValue } from "@/lib/shared/formatDateTime";
 
 export type RadarInspectionTab = "kpis" | "checks" | "evidence" | "records" | "sources" | "incidents" | "raw";
@@ -323,7 +324,30 @@ export function RadarInspectionWorkspace({
         <SummaryMetric label="Learning" value={radar.summary.learningChecks} icon={<History size={15} />} />
         <SummaryMetric label="Sources" value={`${radar.summary.connectedSources}/${radar.summary.totalSources}`} icon={<Database size={15} />} />
         <SummaryMetric label="Evidence" value={evidence.totalSamples} icon={<Activity size={15} />} />
-        <SummaryMetric label="Generated" value={formatShortDate(radar.generatedAt)} icon={<Gauge size={15} />} compact />
+        {/*
+          Two different times, and conflating them was issue #170: "Generated" is
+          only when the Pulse assembled itself in-state, which is always seconds
+          ago; the probe evidence underneath it is refreshed by a cron that runs
+          once a day, so a day-old canary/Infra reading used to be presented with
+          a fresh timestamp and nothing said otherwise. The evidence age leads;
+          the Pulse build time sits under it. Never probed says so — it does not
+          fall back to the build time.
+        */}
+        <SummaryMetric
+          label="Evidence checked"
+          value={<>
+            <span className="block">{radar.summary.probeEvidenceCheckedAt ? formatShortDate(radar.summary.probeEvidenceCheckedAt) : "Never probed"}</span>
+            <span className="mt-0.5 block text-[10px] font-medium text-black/45">
+              {radar.summary.probeEvidenceCheckedAt
+                ? `Oldest probe evidence ${formatDuration(Math.max(0, radar.generatedAt - radar.summary.probeEvidenceCheckedAt))} old · cadence ${formatDuration(RADAR_PROBE_CADENCE_MS)}`
+                : `No probe has run · cadence ${formatDuration(RADAR_PROBE_CADENCE_MS)}`}
+            </span>
+            <span className="block text-[10px] font-medium text-black/45">Pulse generated {formatShortDate(radar.generatedAt)}</span>
+          </>}
+          icon={<Gauge size={15} />}
+          tone={radar.summary.probeEvidenceCheckedAt && radar.generatedAt - radar.summary.probeEvidenceCheckedAt > RADAR_PROBE_CADENCE_MS ? "warn" : "neutral"}
+          compact
+        />
       </section>
 
       <nav className="overflow-x-auto border-b border-black/10" aria-label="Radar inspection views">

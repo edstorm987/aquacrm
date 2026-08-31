@@ -362,3 +362,53 @@ Real defects it surfaced that are NOT accessibility issues:
 
 None of this is fixed here. It is measured, recorded and repeatable, which is
 the thing that did not exist before. The follow-up work is its own campaign.
+
+---
+
+## The test harness has two large holes — both pre-existing, both verified
+
+Found while gating waves 4–6, and worth more attention than anything in the
+to-do list, because they decide how much every other green result is worth.
+
+### 1. The whole website-editor smoke gate does not run
+
+`npm run smoke:website-editor` fails at import for **every one of its 25+
+suites**:
+
+```
+src/built-ins/modules/website-editor/src/lib/ids.ts:8
+export { makeId, slugify } from "@/engines/editor/elements/ids";
+SyntaxError: The requested module '@/engines/editor/elements/ids'
+             does not provide an export named 'makeId'
+```
+
+**Verified pre-existing**, not campaign-caused: reproduced in a throwaway
+worktree at HEAD (`e6307dd`) *and* at the pre-campaign base (`5f0876e`), with
+the identical error. The website editor has been shipping with its entire
+dedicated gate silently red.
+
+### 2. No built-in plugin's HTTP handlers can be tested at all
+
+Any `@/…` named import from inside a plugin directory resolves to a module
+exposing only `default`: the plugin's own `package.json` declares
+`"type": "module"` while portal's root declares none, so tsx treats portal
+`.ts` files as CJS and ESM named-export linking fails. This is the same root
+cause, and it is what the 31 baseline failures are.
+
+The consequence is not "31 tests are red". It is that **every behavioural test
+of a plugin's API layer is disabled** — a handler can be rewritten and no test
+in the repo will object. Wave 4's `todo:677` hit this directly: its webhook
+behaviour had to be moved into the service layer to be testable at all.
+
+### Why this matters more than it looks
+
+Both holes are invisible in the headline number. The canonical suite reports
+~5,600 passing, and that is true — but it is passing over a surface that
+excludes the website editor's own gate and every plugin HTTP handler. A green
+run is weaker evidence than it appears, and no amount of new tests inside those
+areas will change that until the module resolution is fixed.
+
+**Recommended next action, ahead of remaining to-do items:** fix the CJS/ESM
+boundary (align `type` across the plugin and root manifests, or route the
+shared imports through a build-condition-aware entry), then re-run both gates
+and see what was hiding behind them.

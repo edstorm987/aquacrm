@@ -10,6 +10,7 @@
 import { useEffect, useState } from "react";
 import type { BlockRenderProps } from "../blockRegistry";
 import { blockStylesToCss } from "../blockStyles";
+import { classifyBlockFetch, type BlockFetchOutcome } from "../../lib/blockBackends";
 
 interface LeaderboardRow {
   rank: number;
@@ -23,29 +24,30 @@ export default function AffiliateLeaderboardBlock({ block, editorMode }: BlockRe
   const limit = (block.props.limit as number | undefined) ?? 10;
   const [rows, setRows] = useState<LeaderboardRow[]>([]);
   const [loading, setLoading] = useState(!editorMode);
-  const [error, setError] = useState<string | null>(null);
+  const [outcome, setOutcome] = useState<BlockFetchOutcome>("ok");
   const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
     if (editorMode) return;
     let cancelled = false;
     setLoading(true);
-    setError(null);
-    // Q-ASSUMED (R5): T2's @aqua/plugin-affiliates doesn't yet expose
-    // a /leaderboard endpoint. The block degrades gracefully when 404
-    // — empty state with a placeholder. T2 R10 follow-up: add
-    // /leaderboard returning top-N by lifetimeEarnings.
+    // @aqua/plugin-affiliates still declares no `/leaderboard` route
+    // (`src/built-ins/modules/affiliates/src/api/routes.ts`), so this 404s
+    // today. It used to fold that 404 into an empty row set, which rendered
+    // as "No data yet — be the first!" — a missing backend dressed up as a
+    // fact about the client's affiliates. A 404 now says so in its own words.
     void fetch(`/api/portal/affiliates/leaderboard?limit=${encodeURIComponent(limit)}`, {
       cache: "no-store",
       credentials: "include",
     })
       .then(async r => {
-        if (r.status === 404) return { rows: [] as LeaderboardRow[] };
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const result = classifyBlockFetch(r);
+        if (!cancelled) setOutcome(result);
+        if (result !== "ok") return { rows: [] as LeaderboardRow[] };
         return r.json() as Promise<{ rows?: LeaderboardRow[] }>;
       })
       .then(data => { if (!cancelled) setRows(data.rows ?? []); })
-      .catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : "Network error"); })
+      .catch(() => { if (!cancelled) { setOutcome("failed"); setRows([]); } })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [editorMode, limit, retryNonce]);
@@ -70,7 +72,7 @@ export default function AffiliateLeaderboardBlock({ block, editorMode }: BlockRe
             <div key={i} style={{ height: 24, background: "rgba(255,255,255,0.05)", borderRadius: 6, animation: "aqua-pulse 1.6s ease-in-out infinite" }} aria-hidden />
           ))}
         </div>
-      ) : error ? (
+      ) : outcome === "failed" ? (
         <div role="alert" style={{ padding: "16px 0", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 8 }}>
           <p style={{ fontSize: 13, color: "#fca5a5", margin: 0 }}>Couldn&apos;t load the leaderboard.</p>
           <button
@@ -81,6 +83,14 @@ export default function AffiliateLeaderboardBlock({ block, editorMode }: BlockRe
             Retry
           </button>
         </div>
+      ) : outcome !== "ok" ? (
+        // "No data yet — be the first!" would be a claim about this client's
+        // affiliates. There is no leaderboard endpoint to make it from.
+        <p style={{ fontSize: 13, opacity: 0.6, margin: 0, padding: "16px 0" }}>
+          {outcome === "unavailable"
+            ? "The affiliate leaderboard isn't available on this site yet."
+            : "The affiliate leaderboard isn't published to visitors on this site yet."}
+        </p>
       ) : rows.length === 0 ? (
         <p style={{ fontSize: 13, opacity: 0.6, margin: 0, padding: "16px 0" }}>
           {editorMode ? "Leaderboard rows render here when published" : "No data yet — be the first!"}

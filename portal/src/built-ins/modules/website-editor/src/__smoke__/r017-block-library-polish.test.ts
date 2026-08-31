@@ -11,7 +11,7 @@ import React from "react";
 import { getBlockDefinition } from "../components/blockRegistry";
 import FeatureComparisonBlock from "../components/blocks/FeatureComparisonBlock";
 import TeamGridBlock from "../components/blocks/TeamGridBlock";
-import BreadcrumbBlock from "../components/blocks/BreadcrumbBlock";
+import BreadcrumbBlock, { breadcrumbItemsFromPath } from "../components/blocks/BreadcrumbBlock";
 import ProcessStepsBlock from "../components/blocks/ProcessStepsBlock";
 import ShareButtonsBlock from "../components/blocks/ShareButtonsBlock";
 import type { Block } from "../types/block";
@@ -25,6 +25,23 @@ function expect(label: string, cond: boolean, detail?: string): void {
 
 function makeBlock(type: string, props: Record<string, unknown>): Block {
   return { id: `${type}_smoke`, type: type as Block["type"], props };
+}
+
+// issues #143 — a block's FIRST client render is what React hydration compares
+// against the server HTML. This runs a render with a browser-shaped `window`
+// present so that first client render can be captured in a DOM-less harness.
+function withWindow<T>(href: string, pathname: string, fn: () => T): T {
+  const scope = globalThis as Record<string, unknown>;
+  const had = "window" in scope;
+  const previous = scope.window;
+  scope.window = {
+    location: { href, pathname },
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  };
+  try { return fn(); } finally {
+    if (had) scope.window = previous; else delete scope.window;
+  }
 }
 
 (async () => {
@@ -127,6 +144,61 @@ function makeBlock(type: string, props: Record<string, unknown>): Block {
     !sbSubset.includes("linkedin.com") &&
     !sbSubset.includes("facebook.com") &&
     sbSubset.includes('aria-label="Copy page link"'));
+
+  // ─── H: issues #143 — the DOCUMENTED default modes are hydration-stable ─
+  // Both blocks advertise a "current page" default. Neither may derive it
+  // during render: the server tree and the first client tree must be byte
+  // identical, or React 19 leaves the divergence unpatched.
+
+  const shareDefault = makeBlock("share-buttons", { ...sbDef.defaultProps });   // no `url` → current page
+  const shareServer = renderToStaticMarkup(React.createElement(ShareButtonsBlock, { block: shareDefault } as never));
+  const shareFirstClient = withWindow("https://aqua.example/blog/hello", "/blog/hello", () =>
+    renderToStaticMarkup(React.createElement(ShareButtonsBlock, { block: shareDefault } as never)));
+  expect("share-buttons blank url: server and first client render are identical",
+    shareServer === shareFirstClient,
+    `server ${shareServer.length}b vs client ${shareFirstClient.length}b`);
+  expect("share-buttons blank url emits no empty share target",
+    !shareServer.includes("?url=") && !shareServer.includes("?u=") &&
+    !shareServer.includes("twitter.com") && !shareServer.includes("linkedin.com") && !shareServer.includes("facebook.com"));
+  expect("share-buttons blank url renders href-less, aria-disabled share affordances",
+    !/<a [^>]*href=/.test(shareServer) && (shareServer.match(/aria-disabled="true"/g) ?? []).length === 3);
+  expect("share-buttons blank url declares its pending target",
+    shareServer.includes('data-share-target="pending"'));
+  expect("share-buttons blank url disables Copy until the URL is known",
+    shareServer.includes('aria-label="Copy page link"') && shareServer.includes('disabled=""'));
+  expect("share-buttons blank url does not LOOK live while it is inert",
+    !shareServer.includes("cursor:pointer") &&
+    (shareServer.match(/cursor:default/g) ?? []).length === 4 &&
+    (shareServer.match(/opacity:0\.5/g) ?? []).length === 4);
+  expect("share-buttons explicit url is resolved and window-independent",
+    sb.includes('data-share-target="resolved"') && !sb.includes('disabled=""') &&
+    !sb.includes("opacity:0.5") && (sb.match(/cursor:pointer/g) ?? []).length === 4 &&
+    sb === withWindow("https://aqua.example/other", "/other", () =>
+      renderToStaticMarkup(React.createElement(ShareButtonsBlock, {
+        block: makeBlock("share-buttons", { ...sbDef.defaultProps, url: "https://example.com/post", text: "Check this out" }),
+      } as never))));
+
+  const bcAuto = makeBlock("breadcrumb", { separator: "›", homeLabel: "Home" });  // no items → auto mode
+  const bcAutoServer = renderToStaticMarkup(React.createElement(BreadcrumbBlock, { block: bcAuto } as never));
+  const bcAutoFirstClient = withWindow("https://aqua.example/blog/my-post", "/blog/my-post", () =>
+    renderToStaticMarkup(React.createElement(BreadcrumbBlock, { block: bcAuto } as never)));
+  expect("auto breadcrumb: server and first client render are identical",
+    bcAutoServer === "" && bcAutoFirstClient === "",
+    `server ${JSON.stringify(bcAutoServer.slice(0, 60))} vs client ${JSON.stringify(bcAutoFirstClient.slice(0, 60))}`);
+  expect("explicit breadcrumb items are window-independent",
+    bc === withWindow("https://aqua.example/elsewhere", "/elsewhere", () =>
+      renderToStaticMarkup(React.createElement(BreadcrumbBlock, {
+        block: makeBlock("breadcrumb", {
+          items: [{ label: "Home", href: "/" }, { label: "Blog", href: "/blog" }, { label: "My post" }],
+        }),
+      } as never))));
+  // The post-effect derivation itself is unchanged and still documented.
+  expect("auto breadcrumb derivation links every segment but the last",
+    JSON.stringify(breadcrumbItemsFromPath("/blog/my-post", "Home")) === JSON.stringify([
+      { label: "Home", href: "/" }, { label: "blog", href: "/blog" }, { label: "my post" },
+    ]));
+  expect("auto breadcrumb derivation at the root is the home label alone",
+    JSON.stringify(breadcrumbItemsFromPath("/", "Start")) === JSON.stringify([{ label: "Start" }]));
 
   // ─── G: every block emits brand-kit CSS vars ───────────────────────────
   for (const html of [fc, tg, bc, ps, sb]) {

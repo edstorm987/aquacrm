@@ -9188,7 +9188,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default AffiliateLeaderboardBlock({ block, editorMode }: BlockRenderProps)`
 
-**Depends on (2):** [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913) · [`src/built-ins/modules/website-editor/src/components/blockStyles.ts`](#file-src-built-ins-modules-website-editor-src-components-blockstyles-ts-4baaa846b8)
+**Depends on (3):** [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913) · [`src/built-ins/modules/website-editor/src/components/blockStyles.ts`](#file-src-built-ins-modules-website-editor-src-components-blockstyles-ts-4baaa846b8) · [`src/built-ins/modules/website-editor/src/lib/blockBackends.ts`](#file-src-built-ins-modules-website-editor-src-lib-blockbackends-ts-0dc6384826)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -9324,13 +9324,14 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (1):**
+**Exports (2):**
 
+- `breadcrumbItemsFromPath(path: string, homeLabel: string): Item[]` — Documented auto-mode derivation: segment the path, link all but the last.
 - `default BreadcrumbBlock({ block }: BlockRenderProps)`
 
 **Depends on (1):** [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913)
 
-**Used by (1):** [`src/built-ins/modules/website-editor/src/__smoke__/r017-block-library-polish.test.ts`](#file-src-built-ins-modules-website-editor-src-smoke-r017-block-library-polish-test-ts-54082a0881)
+**Used by (2):** [`scripts/website-block-hydration-probe.ts`](scripts.md#file-scripts-website-block-hydration-probe-ts-e26cfd1fde) · [`src/built-ins/modules/website-editor/src/__smoke__/r017-block-library-polish.test.ts`](#file-src-built-ins-modules-website-editor-src-smoke-r017-block-library-polish-test-ts-54082a0881)
 
 <a id="file-src-built-ins-modules-website-editor-src-components-blocks-buttonblock-tsx-921ee9243f"></a>
 
@@ -9524,7 +9525,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `default DonationButtonBlock({ block }: BlockRenderProps)`
+- `default DonationButtonBlock({ block, editorMode }: BlockRenderProps)`
 
 **Depends on (2):** [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913) · [`src/built-ins/modules/website-editor/src/components/blockStyles.ts`](#file-src-built-ins-modules-website-editor-src-components-blockstyles-ts-4baaa846b8)
 
@@ -9820,7 +9821,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default MembershipPaywallBlock({ block, editorMode, renderChildren }: BlockRenderProps)`
 
-**Depends on (2):** [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913) · [`src/built-ins/modules/website-editor/src/components/blockStyles.ts`](#file-src-built-ins-modules-website-editor-src-components-blockstyles-ts-4baaa846b8)
+**Depends on (3):** [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913) · [`src/built-ins/modules/website-editor/src/components/blockStyles.ts`](#file-src-built-ins-modules-website-editor-src-components-blockstyles-ts-4baaa846b8) · [`src/built-ins/modules/website-editor/src/lib/blockBackends.ts`](#file-src-built-ins-modules-website-editor-src-lib-blockbackends-ts-0dc6384826)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -9834,7 +9835,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default MembershipSignupBlock({ block, editorMode }: BlockRenderProps)`
 
-**Depends on (2):** [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913) · [`src/built-ins/modules/website-editor/src/components/blockStyles.ts`](#file-src-built-ins-modules-website-editor-src-components-blockstyles-ts-4baaa846b8)
+**Depends on (3):** [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913) · [`src/built-ins/modules/website-editor/src/components/blockStyles.ts`](#file-src-built-ins-modules-website-editor-src-components-blockstyles-ts-4baaa846b8) · [`src/built-ins/modules/website-editor/src/lib/blockBackends.ts`](#file-src-built-ins-modules-website-editor-src-lib-blockbackends-ts-0dc6384826)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -9848,7 +9849,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default MembershipTierGridBlock({ block, editorMode }: BlockRenderProps)`
 
-**Depends on (2):** [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913) · [`src/built-ins/modules/website-editor/src/components/blockStyles.ts`](#file-src-built-ins-modules-website-editor-src-components-blockstyles-ts-4baaa846b8)
+**Depends on (3):** [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913) · [`src/built-ins/modules/website-editor/src/components/blockStyles.ts`](#file-src-built-ins-modules-website-editor-src-components-blockstyles-ts-4baaa846b8) · [`src/built-ins/modules/website-editor/src/lib/blockBackends.ts`](#file-src-built-ins-modules-website-editor-src-lib-blockbackends-ts-0dc6384826)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -10040,13 +10041,14 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (1):**
+**Exports (2):**
 
+- `shareUrlFor(id: Network["id"], targetUrl: string, text: string): string | null`
 - `default ShareButtonsBlock({ block }: BlockRenderProps)`
 
 **Depends on (1):** [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913)
 
-**Used by (1):** [`src/built-ins/modules/website-editor/src/__smoke__/r017-block-library-polish.test.ts`](#file-src-built-ins-modules-website-editor-src-smoke-r017-block-library-polish-test-ts-54082a0881)
+**Used by (2):** [`scripts/website-block-hydration-probe.ts`](scripts.md#file-scripts-website-block-hydration-probe-ts-e26cfd1fde) · [`src/built-ins/modules/website-editor/src/__smoke__/r017-block-library-polish.test.ts`](#file-src-built-ins-modules-website-editor-src-smoke-r017-block-library-polish-test-ts-54082a0881)
 
 <a id="file-src-built-ins-modules-website-editor-src-components-blocks-signupformblock-tsx-3bd868b748"></a>
 
@@ -11176,16 +11178,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** entry rather than leaving a stale warning in front of clients forever.
 
-**Exports (4):**
+**Exports (6):**
 
 - `blockBackendGap(type: string): BlockBackendGap | undefined` — The gap for `type`, or `undefined` when the block is fine.
+- `classifyBlockFetch(res?: { ok?: boolean; status?: number } | null): BlockFetchOutcome` — Classify a storefront block's fetch. Pass the `Response`; pass `null` (or nothing) when the request threw before there was one.
 - `blocksWithoutVisitorBackend(): string[]` — Every block type that cannot serve a visitor today.
 - `BLOCK_BACKEND_GAPS: Readonly<Record<string, BlockBackendGap>>`
+- `type BlockFetchOutcome = "ok" | "unavailable" | "unauthorized" | "failed"` — failed — anything else, including a network error or bad JSON.
 - `interface BlockBackendGap (3 members)` — entry rather than leaving a stale warning in front of clients forever.
 
 **Depends on:** _No internal imports._
 
-**Used by (1):** [`src/built-ins/modules/website-editor/src/components/canvas/Sidebar.tsx`](#file-src-built-ins-modules-website-editor-src-components-canvas-sidebar-tsx-7a55e330bc)
+**Used by (5):** [`src/built-ins/modules/website-editor/src/components/blocks/AffiliateLeaderboardBlock.tsx`](#file-src-built-ins-modules-website-editor-src-components-blocks-affiliateleaderboardblock-tsx-7704cb92a9) · [`src/built-ins/modules/website-editor/src/components/blocks/MembershipPaywallBlock.tsx`](#file-src-built-ins-modules-website-editor-src-components-blocks-membershippaywallblock-tsx-bffac0f6d8) · [`src/built-ins/modules/website-editor/src/components/blocks/MembershipSignupBlock.tsx`](#file-src-built-ins-modules-website-editor-src-components-blocks-membershipsignupblock-tsx-40e2d5d398) · [`src/built-ins/modules/website-editor/src/components/blocks/MembershipTierGridBlock.tsx`](#file-src-built-ins-modules-website-editor-src-components-blocks-membershiptiergridblock-tsx-a9da86dd24) · [`src/built-ins/modules/website-editor/src/components/canvas/Sidebar.tsx`](#file-src-built-ins-modules-website-editor-src-components-canvas-sidebar-tsx-7a55e330bc)
 
 <a id="file-src-built-ins-modules-website-editor-src-lib-blockschemamigrations-ts-aabee24552"></a>
 

@@ -2,7 +2,7 @@ import "server-only";
 
 import { access, readFile, realpath } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
-import { basename, delimiter, isAbsolute, relative, resolve, sep } from "node:path";
+import { basename, delimiter, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 
 import type { DevProject } from "@/server/types";
 
@@ -13,7 +13,15 @@ export const LOCAL_PREVIEW_SAFE_ROOTS_ENV = "AQUA_DEV_PREVIEW_SAFE_ROOTS";
 const MAX_ARGS = 96;
 const MAX_ARG_LENGTH = 2_000;
 const MAX_ENV_VALUE = 8_000;
+const MAX_REMOTE_URL = 2_000;
 const ALLOWED_NAMED_COMMANDS = new Set(["node", "npm", "npm.cmd", "pnpm", "yarn", "bun", "deno"]);
+/**
+ * Clone transports a trusted record may name. `http:` is excluded (a plaintext
+ * transport for source that becomes the preview), and so is every git helper
+ * scheme (`ext::`, `git+…`) that can hand git an arbitrary command to run.
+ * `file:` is a genuine local-mirror transport and is what the tests exercise.
+ */
+const ALLOWED_REMOTE_PROTOCOLS = new Set(["https:", "ssh:", "file:"]);
 
 export interface TrustedLocalRepositoryPreviewRecord {
   /** Optional exact selectors. At least one selector must match. */
@@ -22,6 +30,15 @@ export interface TrustedLocalRepositoryPreviewRecord {
   allowBlankRepository?: boolean;
   /** Absolute in server registry records; implicit process.cwd() in a manifest. */
   worktreePath: string;
+  /**
+   * Declared git remote to clone into `worktreePath` when that directory does
+   * not exist yet. Trusted-record only — the request never supplies a URL — and
+   * limited to https/ssh/file with no embedded credentials. With it declared,
+   * `worktreePath` is a CLONE DESTINATION: it may be missing (its parent must
+   * exist inside the safe roots), and an existing clone is resumed, never
+   * re-cloned over.
+   */
+  remoteUrl?: string;
   command: string;
   args: string[];
   /**
@@ -48,6 +65,8 @@ export interface TrustedLocalRepositoryPreviewRecord {
 
 export interface ResolvedLocalRepositoryPreviewConfig {
   worktreePath: string;
+  /** See TrustedLocalRepositoryPreviewRecord.remoteUrl; absent means "no clone step". */
+  remoteUrl?: string;
   command: string;
   args: string[];
   /** Resolved dependency-install command; absent means "no install step". */
@@ -69,6 +88,7 @@ interface ManifestShape {
   repositories?: unknown;
   allowBlankRepository?: unknown;
   isolatedWorktrees?: unknown;
+  remoteUrl?: unknown;
   command?: unknown;
   args?: unknown;
   installCommand?: unknown;
@@ -114,6 +134,7 @@ function parseRecord(value: unknown, source: string, implicitWorktree?: string):
     allowBlankRepository: item.allowBlankRepository === true,
     isolatedWorktrees: item.isolatedWorktrees === true,
     worktreePath,
+    remoteUrl: typeof item.remoteUrl === "string" && item.remoteUrl.trim() ? item.remoteUrl.trim() : undefined,
     command: item.command.trim(),
     args: item.args as string[],
     installCommand: typeof item.installCommand === "string" && item.installCommand.trim()
@@ -192,6 +213,15 @@ async function currentWorktreeManifest(): Promise<TrustedLocalRepositoryPreviewR
       `${LOCAL_PREVIEW_MANIFEST} must declare a command and argument list.`,
     );
   }
+  if (record.remoteUrl) {
+    // A manifest is read FROM the checkout it describes, so its destination is
+    // always that same directory: cloning into it is either a no-op or a
+    // destructive overwrite. Clone-from-remote is a server-registry lane only.
+    throw new LocalRepositoryPreviewConfigError(
+      "invalid-manifest",
+      `${LOCAL_PREVIEW_MANIFEST} may not declare remoteUrl; configure a clone through ${LOCAL_PREVIEW_REGISTRY_ENV}.`,
+    );
+  }
   return record;
 }
 
@@ -242,6 +272,101 @@ async function validatedWorktree(worktreePath: string, safeRoots?: readonly stri
     );
   }
   return worktree;
+}
+
+/**
+ * A clone destination is validated like a worktree EXCEPT that it is allowed
+ * not to exist yet — that is the whole point of a clone. Containment is then
+ * decided on the physical parent directory, so a missing leaf can never be used
+ * to place a checkout outside the configured safe roots.
+ */
+async function validatedCloneDestination(worktreePath: string, safeRoots?: readonly string[]): Promise<string> {
+  if (!isAbsolute(worktreePath)) {
+    throw new LocalRepositoryPreviewConfigError("invalid-worktree", "The trusted preview worktree must be an absolute path.");
+  }
+  const roots = await canonicalSafeRoots(safeRoots);
+  let destination: string;
+  try {
+    destination = await realpath(worktreePath);
+    await access(destination, fsConstants.R_OK | fsConstants.X_OK);
+  } catch {
+    const requested = resolve(worktreePath);
+    const leaf = basename(requested);
+    if (!leaf || leaf === "." || leaf === "..") {
+      throw new LocalRepositoryPreviewConfigError("invalid-worktree", "The trusted clone destination does not name a directory.");
+    }
+    let parent: string;
+    try {
+      parent = await realpath(dirname(requested));
+      await access(parent, fsConstants.R_OK | fsConstants.W_OK | fsConstants.X_OK);
+    } catch {
+      throw new LocalRepositoryPreviewConfigError(
+        "invalid-worktree",
+        "The trusted clone destination's parent directory does not exist or is not writable.",
+      );
+    }
+    destination = resolve(parent, leaf);
+  }
+  if (!roots.some(root => pathInside(root, destination))) {
+    throw new LocalRepositoryPreviewConfigError(
+      "unsafe-worktree",
+      "The project's local worktree is outside the configured preview safe roots.",
+    );
+  }
+  return destination;
+}
+
+/**
+ * Only a trusted record may name a remote, and only a plain credential-free
+ * URL on an allowed transport. Anything option-shaped, credential-bearing or
+ * helper-scheme'd is refused rather than handed to `git clone`.
+ */
+function validatedRemoteUrl(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  const remoteUrl = value.trim();
+  if (!remoteUrl) return undefined;
+  if (remoteUrl.length > MAX_REMOTE_URL || remoteUrl.includes("\0") || /[\s]/.test(remoteUrl)) {
+    throw new LocalRepositoryPreviewConfigError("invalid-remote", "The trusted preview remote URL is invalid.");
+  }
+  // `git clone -- <url>` already separates arguments, but a leading dash is
+  // never a legitimate remote and is refused before it reaches git at all.
+  if (remoteUrl.startsWith("-")) {
+    throw new LocalRepositoryPreviewConfigError("invalid-remote", "The trusted preview remote URL may not begin with a dash.");
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(remoteUrl);
+  } catch {
+    throw new LocalRepositoryPreviewConfigError(
+      "invalid-remote",
+      "The trusted preview remote must be a full URL (https://, ssh:// or file://); scp-style host:path is not accepted.",
+    );
+  }
+  if (!ALLOWED_REMOTE_PROTOCOLS.has(parsed.protocol)) {
+    throw new LocalRepositoryPreviewConfigError(
+      "invalid-remote",
+      `The trusted preview remote transport "${parsed.protocol.replace(":", "")}" is not allowed; use https, ssh or file.`,
+    );
+  }
+  if (parsed.password) {
+    // A credential in a record is a credential in every log line that echoes
+    // the remote. Git's own helpers/askpass are the place for it.
+    throw new LocalRepositoryPreviewConfigError(
+      "invalid-remote",
+      "The trusted preview remote URL must not embed credentials; configure a git credential helper instead.",
+    );
+  }
+  if (parsed.username && parsed.protocol !== "ssh:") {
+    // On https/file a bare userinfo name IS the secret (`https://<token>@host/…`).
+    // On ssh it is the login account — `ssh://git@github.com/owner/repo.git` is
+    // the canonical form and the only one that authenticates, so it is allowed
+    // (the password half above is still refused on every transport).
+    throw new LocalRepositoryPreviewConfigError(
+      "invalid-remote",
+      "The trusted preview remote URL must not embed credentials; configure a git credential helper instead.",
+    );
+  }
+  return remoteUrl;
 }
 
 function validatedCommand(command: string): string {
@@ -336,8 +461,15 @@ export async function resolveTrustedLocalRepositoryPreview(
       "A preview record may declare an install command only alongside isolatedWorktrees; installing into the shared checkout is refused.",
     );
   }
+  const remoteUrl = validatedRemoteUrl(record.remoteUrl);
   return {
-    worktreePath: await validatedWorktree(record.worktreePath, options.safeRoots),
+    // A declared remote makes the trusted path a clone destination, so a
+    // missing directory is expected rather than a refusal. Without one the
+    // path must already exist, exactly as before.
+    worktreePath: remoteUrl
+      ? await validatedCloneDestination(record.worktreePath, options.safeRoots)
+      : await validatedWorktree(record.worktreePath, options.safeRoots),
+    remoteUrl,
     command: validatedCommand(record.command),
     args: validatedArgs(record.args),
     // The install command passes through the SAME allowlist as the launch

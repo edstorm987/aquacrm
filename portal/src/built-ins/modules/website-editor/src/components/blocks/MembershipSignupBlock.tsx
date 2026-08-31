@@ -14,6 +14,16 @@
 import { useEffect, useState } from "react";
 import type { BlockRenderProps } from "../blockRegistry";
 import { blockStylesToCss } from "../blockStyles";
+import { classifyBlockFetch, type BlockFetchOutcome } from "../../lib/blockBackends";
+
+// Only "ok" may claim the plan list is empty — the other three say what
+// actually stopped the plans loading. See `classifyBlockFetch`.
+const EMPTY_NOTICE: Record<BlockFetchOutcome, string> = {
+  ok: "No plans available right now.",
+  unavailable: "Memberships are not enabled on this site.",
+  unauthorized: "Membership plans aren't published to visitors on this site yet.",
+  failed: "Couldn't load membership plans.",
+};
 
 interface MembershipPlan {
   id: string;
@@ -31,7 +41,8 @@ export default function MembershipSignupBlock({ block, editorMode }: BlockRender
 
   const [plans, setPlans] = useState<MembershipPlan[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [pluginMissing, setPluginMissing] = useState(false);
+  const [outcome, setOutcome] = useState<BlockFetchOutcome>("ok");
+  const [retryNonce, setRetryNonce] = useState(0);
   const [billingPeriod, setBillingPeriod] = useState<"monthly" | "annual">("monthly");
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -39,17 +50,19 @@ export default function MembershipSignupBlock({ block, editorMode }: BlockRender
   useEffect(() => {
     if (editorMode) { setLoading(false); return; }
     let cancelled = false;
+    setLoading(true);
     void fetch("/api/portal/memberships/plans", { cache: "no-store", credentials: "include" })
       .then(async r => {
-        if (r.status === 404) { setPluginMissing(true); return { plans: [] as MembershipPlan[] }; }
-        if (!r.ok) return { plans: [] as MembershipPlan[] };
+        const result = classifyBlockFetch(r);
+        if (!cancelled) setOutcome(result);
+        if (result !== "ok") return { plans: [] as MembershipPlan[] };
         return r.json() as Promise<{ plans?: MembershipPlan[] }>;
       })
       .then(data => { if (!cancelled) setPlans(data.plans ?? []); })
-      .catch(() => { /* silent */ })
+      .catch(() => { if (!cancelled) { setOutcome("failed"); setPlans([]); } })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [editorMode]);
+  }, [editorMode, retryNonce]);
 
   async function subscribe(planId: string) {
     if (editorMode) return;
@@ -154,6 +167,7 @@ export default function MembershipSignupBlock({ block, editorMode }: BlockRender
         </div>
       ) : plans.length === 0 ? (
         <div
+          role={!editorMode && outcome === "failed" ? "alert" : undefined}
           style={{
             gridColumn: "1 / -1",
             padding: 24,
@@ -164,11 +178,20 @@ export default function MembershipSignupBlock({ block, editorMode }: BlockRender
             borderRadius: 12,
           }}
         >
-          {editorMode
-            ? "Membership signup — plans render here when published"
-            : pluginMissing
-              ? "Memberships are not enabled on this site."
-              : "No plans available right now."}
+          <p style={{ margin: 0 }}>
+            {editorMode
+              ? "Membership signup — plans render here when published"
+              : EMPTY_NOTICE[outcome]}
+          </p>
+          {!editorMode && outcome === "failed" && (
+            <button
+              type="button"
+              onClick={() => setRetryNonce(n => n + 1)}
+              style={{ marginTop: 12, minHeight: 36, padding: "8px 16px", fontSize: 13, fontWeight: 500, borderRadius: 8, border: "1px solid rgba(255,255,255,0.18)", background: "transparent", color: "inherit", cursor: "pointer" }}
+            >
+              Retry
+            </button>
+          )}
         </div>
       ) : plans.map(plan => {
         const price = billingPeriod === "annual" ? plan.priceAnnual : plan.priceMonthly;

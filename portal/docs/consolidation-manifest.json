@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-31T00:11:26.805Z",
+  "generatedAt": "2026-08-31T01:23:03.478Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -423,9 +423,9 @@
       "path": "docs/development/CAMPAIGN-LEDGER.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-campaign-ledger-md",
-      "sha256": "ffec97f1230c756334d5cd2bf2169470a3189d1259cbde7129cacdd11fb3e3dc",
-      "words": 6981,
-      "bytes": 51325
+      "sha256": "9a89c8c4dfdd5fb1073388ece4080f9142c147122870882e822d2a7ee7c00fa5",
+      "words": 7339,
+      "bytes": 53611
     },
     {
       "path": "docs/development/checklist.md",
@@ -1135,9 +1135,9 @@
       "path": "docs/workspace/hazards-and-duplication.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-hazards-and-duplication-md",
-      "sha256": "b895587bcfe5f8617cdf1eed1db12e973c1e10f592815e3235b032ce55241dfd",
-      "words": 6545,
-      "bytes": 50458
+      "sha256": "1cac9563fe95cbd412e155f6480d692bd5294e9ca1da5cf6292a3e73e225b684",
+      "words": 6864,
+      "bytes": 52909
     },
     {
       "path": "docs/workspace/kpi-intelligence.md",

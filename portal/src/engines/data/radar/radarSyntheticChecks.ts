@@ -7,10 +7,26 @@ import type {
 } from "@/engines/data/radar/businessRadar";
 import type { RadarTelemetryProperty, RadarTelemetrySnapshot } from "@/engines/data/server/radar/radarTelemetry";
 import type { RadarSyntheticProbeResult } from "@/server/types";
+import { RADAR_PROBE_CADENCE_MS } from "@/engines/data/radar/businessRadar";
 import { isoDateTimeValue } from "@/lib/shared/formatDateTime";
 
 const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
 const DAY = 86_400_000;
+
+/**
+ * The canary freshness agreement, derived from the cadence the deployment
+ * actually runs the Deep sweep at (issues #170).
+ *
+ * These thresholds were hardcoded at 15m/60m while nothing ran the probes more
+ * often than once a day, so every live property sat at warning/critical for
+ * ~23 of every 24 hours: a hosting decision rendered as a per-property outage,
+ * which is the fastest way to teach someone to ignore the board. Same shape the
+ * source sentinels already use — a miss at one cadence, an escalation at three
+ * — so a cadence change moves both honestly in one edit.
+ */
+const FRESHNESS_AGREEMENT_MS = RADAR_PROBE_CADENCE_MS;
+const FRESHNESS_CRITICAL_MS = 3 * RADAR_PROBE_CADENCE_MS;
 
 export function buildSyntheticCanaryChecks(
   telemetry: RadarTelemetrySnapshot,
@@ -48,7 +64,7 @@ function canaryChecks(property: RadarTelemetryProperty, probe: RadarSyntheticPro
 
   return [
     canary(common, "connection", !property.publicUrl ? "blind" : !probe ? "blind" : probe.dnsAddresses.length && reachable ? "pass" : "critical", probe?.dnsAddresses.length && reachable ? `${property.label} resolves publicly and answered an independent request.` : `${property.label} has no independently proven public route.`, [property.publicUrl || "Public URL missing", probe?.dnsAddresses.join(", ") || "No public DNS evidence"]),
-    canary(common, "freshness", !probe ? "blind" : age! > 60 * MINUTE ? "critical" : age! > 15 * MINUTE ? "warning" : "pass", !probe ? `${property.label} has never completed a synthetic probe.` : age! > 15 * MINUTE ? `${property.label} active verification is stale.` : `${property.label} was independently checked recently.`, [age === null ? "No probe timestamp" : `Probe age ${duration(age)}`, "Freshness agreement 15m"]),
+    canary(common, "freshness", !probe ? "blind" : age! > FRESHNESS_CRITICAL_MS ? "critical" : age! > FRESHNESS_AGREEMENT_MS ? "warning" : "pass", !probe ? `${property.label} has never completed a synthetic probe.` : age! > FRESHNESS_AGREEMENT_MS ? `${property.label} active verification is stale — last independently checked ${duration(age!)} ago, outside its ${duration(FRESHNESS_AGREEMENT_MS)} agreement.` : `${property.label} was last independently checked ${duration(age!)} ago, inside its ${duration(FRESHNESS_AGREEMENT_MS)} agreement.`, [age === null ? "No probe timestamp" : `Probe age ${duration(age)}`, `Freshness agreement ${duration(FRESHNESS_AGREEMENT_MS)}`]),
     canary(common, "threshold", !probe ? "blind" : !reachable || (statusCode ?? 599) >= 500 ? "critical" : (statusCode ?? 499) >= 400 ? "warning" : "pass", reachable ? `${property.label} returned HTTP ${statusCode}.` : `${property.label} did not return an HTTP response.`, [`HTTP ${statusCode ?? "unavailable"}`, probe?.error || "Request completed"]),
     canary(common, "trend", !probe ? "blind" : probe.durationMs > 8_000 ? "critical" : probe.durationMs > 3_000 ? "warning" : probe.durationMs > 1_500 ? "watch" : "pass", !probe ? `${property.label} latency has no active sample.` : `${property.label} answered the canary in ${probe.durationMs}ms.`, [probe ? `End-to-end ${probe.durationMs}ms` : "No latency sample", "Warning 3000ms"]),
     canary(common, "anomaly", !probe ? "blind" : probe.failureKind === "redirect" || probe.redirectCount > 5 ? "critical" : probe.redirectCount > 2 ? "warning" : "pass", !probe ? `${property.label} redirect behaviour has not been inspected.` : `${property.label} completed with ${probe.redirectCount} redirect${probe.redirectCount === 1 ? "" : "s"}.`, [`Redirects ${probe?.redirectCount ?? "unknown"}`, probe?.finalUrl || "Final URL unknown"]),
@@ -73,7 +89,7 @@ function canaryIssues(property: RadarTelemetryProperty, probe: RadarSyntheticPro
   } else if (probe.statusCode >= 400) {
     issues.push(issue(property, "warning", "development", `${property.label} returned HTTP ${probe.statusCode}`, "The site answered, but the monitored entry point is returning an error response.", [probe.finalUrl || probe.url, `HTTP ${probe.statusCode}`], probe.checkedAt));
   }
-  if (age > 15 * MINUTE) issues.push(issue(property, age > 60 * MINUTE ? "critical" : "warning", "systems", `${property.label} canary is stale`, "Independent verification is outside its freshness agreement.", [`Last checked ${duration(age)} ago`, "Freshness agreement 15m"], probe.checkedAt));
+  if (age > FRESHNESS_AGREEMENT_MS) issues.push(issue(property, age > FRESHNESS_CRITICAL_MS ? "critical" : "warning", "systems", `${property.label} canary is stale`, "Independent verification is outside its freshness agreement — the scheduled probe sweep has not run on time.", [`Last checked ${duration(age)} ago`, `Freshness agreement ${duration(FRESHNESS_AGREEMENT_MS)}`], probe.checkedAt));
   if (probe.durationMs > 3_000) issues.push(issue(property, probe.durationMs > 8_000 ? "critical" : "warning", "development", `${property.label} is slow from the canary`, "End-to-end response time crossed the active monitoring guardrail.", [`Response ${probe.durationMs}ms`, "Warning 3000ms"], probe.checkedAt));
   if (safeProtocol(probe.finalUrl || property.publicUrl) !== "https:") issues.push(issue(property, "critical", "development", `${property.label} is not protected by HTTPS`, "The final public destination is using unencrypted HTTP.", [probe.finalUrl || property.publicUrl, `Redirects ${probe.redirectCount}`], probe.checkedAt));
   if (probe.tlsValid === false) issues.push(issue(property, "critical", "development", `${property.label} TLS validation failed`, "The certificate chain, hostname, or validity window could not be trusted by the independent canary.", [probe.finalUrl || probe.url, "TLS valid no"], probe.checkedAt));
@@ -154,10 +170,17 @@ function safeProtocol(value?: string): string | undefined {
   try { return new URL(value).protocol; } catch { return undefined; }
 }
 
+// The missing hours band mattered little while the agreement was 15 minutes and
+// every age it ever printed was small. On the daily cadence it prints the age of
+// every live canary, and "Probe age 1200m" is not a readable way to say 20 hours
+// — nor "1d" a readable way to say 25. → issues #170.
 function duration(milliseconds: number): string {
   if (milliseconds < MINUTE) return `${Math.max(1, Math.round(milliseconds / 1_000))}s`;
-  if (milliseconds < DAY) return `${Math.round(milliseconds / MINUTE)}m`;
-  return `${Math.round(milliseconds / DAY)}d`;
+  if (milliseconds < HOUR) return `${Math.round(milliseconds / MINUTE)}m`;
+  if (milliseconds < DAY) return `${Math.round(milliseconds / HOUR)}h`;
+  const days = Math.floor(milliseconds / DAY);
+  const hours = Math.round((milliseconds % DAY) / HOUR);
+  return hours ? `${days}d ${hours}h` : `${days}d`;
 }
 
 function readable(value: string): string {

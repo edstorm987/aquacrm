@@ -870,7 +870,19 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on (3):** [`src/app/portal/agency/battleNavigation.ts`](app.md#file-src-app-portal-agency-battlenavigation-ts-482a1e0083) · [`src/app/portal/agency/commandPerformance.ts`](app.md#file-src-app-portal-agency-commandperformance-ts-4c3c4f6dfd) · [`src/app/portal/agency/companyProfileConflict.ts`](app.md#file-src-app-portal-agency-companyprofileconflict-ts-0876e6ac2a)
+**Depends on (4):** [`src/app/portal/agency/battleNavigation.ts`](app.md#file-src-app-portal-agency-battlenavigation-ts-482a1e0083) · [`src/app/portal/agency/commandPerformance.ts`](app.md#file-src-app-portal-agency-commandperformance-ts-4c3c4f6dfd) · [`src/app/portal/agency/companyProfileConflict.ts`](app.md#file-src-app-portal-agency-companyprofileconflict-ts-0876e6ac2a) · [`src/lib/performance/kpiRegistry.ts`](lib.md#file-src-lib-performance-kpiregistry-ts-a844c71e33)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-block-current-page-hydration-test-ts-c172ea8e9a"></a>
+
+### `scripts/smoke-block-current-page-hydration.test.ts`
+
+**What it is:** in the website-editor lane (`npm run smoke:website-editor`), not here.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3830,7 +3842,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ### `scripts/smoke-local-preview-worktree.test.ts`
 
-**What it is:** • contain — nothing is ever written outside the trusted preview root
+**What it is:** • closed — an unreachable remote fails before any port is allocated
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
@@ -6418,6 +6430,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (6):** [`src/lib/server/marketingIntelligence.ts`](lib.md#file-src-lib-server-marketingintelligence-ts-bc53756ee1) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/tradingCompanies.ts`](server.md#file-src-server-tradingcompanies-ts-79465899a8) · [`src/server/websiteInjections.ts`](server.md#file-src-server-websiteinjections-ts-c64595949c) · [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-website-block-hydration-probe-ts-e26cfd1fde"></a>
+
+### `scripts/website-block-hydration-probe.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (3):** [`src/built-ins/modules/website-editor/src/components/blocks/BreadcrumbBlock.tsx`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-blocks-breadcrumbblock-tsx-275cca0424) · [`src/built-ins/modules/website-editor/src/components/blocks/ShareButtonsBlock.tsx`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-blocks-sharebuttonsblock-tsx-9f9c2fbd63) · [`src/engines/editor/elements/block.ts`](engines.md#file-src-engines-editor-elements-block-ts-b63256ef49)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 

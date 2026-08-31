@@ -81,6 +81,7 @@ import {
 } from "@/lib/intelligence/attentionProtection";
 import { buildBusinessRecommendedActions } from "@/lib/intelligence/businessRecommendedActions";
 import type { AdvisorCoverageSource, AdvisorDomain, BusinessIssueRadar, BusinessRadarCheck, BusinessRadarIssue, RadarCheckScope, RadarCheckStatus, RadarEvidenceInspectionIndex, RadarRuleLens } from "@/engines/data/radar/businessRadar";
+import { RADAR_PROBE_CADENCE_MS } from "@/engines/data/radar/businessRadar";
 import type { CommandIntelligenceSnapshot } from "@/lib/intelligence/commandIntelligence";
 import { formatUkDate, isoDateTimeValue, timestampFromValue } from "@/lib/shared/formatDateTime";
 import type { AgencyTask, AgencyTaskOrigin, AgencyTaskPriority, CommandCalendarEntry, CommandCalendarExternalEvent, CommandCalendarSource, CompanyProfile, DashboardDayPlan, DashboardWeekPlan, DashboardWeeklyEvidenceSnapshot, DashboardWorkSession } from "@/server/types";
@@ -273,7 +274,7 @@ export function BusinessRadarDashboard({
                 </div>
                 <p className="mt-1 text-sm font-semibold uppercase text-[#7dd3c4]">Executive bridge radar</p>
                 <h2 id="executive-radar-heading" className="mt-1 text-xl font-semibold text-white sm:text-2xl">{attentionCount ? `${attentionCount} contacts on the command plot` : "All sectors report clear"}</h2>
-                <p className="mt-1 text-xs leading-5 text-white/50">Last sweep {formatRadarAge(radar.generatedAt)} · {radar.summary.critical} hostile · {radar.summary.warning} caution · next sweep in under one minute</p>
+                <p className="mt-1 text-xs leading-5 text-white/50">Pulse rebuilt {formatRadarAge(radar.generatedAt)} · {probeEvidenceLabel(radar)} · {radar.summary.critical} hostile · {radar.summary.warning} caution · next Pulse rebuild in under one minute</p>
               </div>
             </div>
             <div className="grid w-full grid-cols-2 gap-2 sm:w-auto lg:grid-cols-[142px_repeat(4,auto)]">
@@ -412,7 +413,7 @@ export function BusinessRadarDashboard({
                 <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2 py-0.5 text-[10px] font-semibold capitalize text-emerald-200">{radar.adaptive.operatingStage}</span>
               </div>
               <h2 id="business-radar-heading" className="mt-1 text-xl font-semibold text-white sm:text-2xl">Radar operations workspace</h2>
-              <p className="mt-1 text-xs text-white/50">{attentionCount} command incidents · {radar.summary.applicableChecks.toLocaleString()} applicable checks · {radar.adaptive.learningChecks.toLocaleString()} learning · {radar.adaptive.inactiveChecks.toLocaleString()} inactive · {radar.adaptive.alwaysOnChecks.toLocaleString()} protected · {radar.summary.correlatedRisks} compound risks · last sweep {formatRadarAge(radar.generatedAt)} · automatic rescan every minute</p>
+              <p className="mt-1 text-xs text-white/50">{attentionCount} command incidents · {radar.summary.applicableChecks.toLocaleString()} applicable checks · {radar.adaptive.learningChecks.toLocaleString()} learning · {radar.adaptive.inactiveChecks.toLocaleString()} inactive · {radar.adaptive.alwaysOnChecks.toLocaleString()} protected · {radar.summary.correlatedRisks} compound risks · Pulse rebuilt {formatRadarAge(radar.generatedAt)} · {probeEvidenceLabel(radar)} · automatic Pulse rebuild every minute</p>
             </div>
           </div>
           <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
@@ -617,6 +618,26 @@ export function BusinessRadarDashboard({
       </section>
     </div>
   );
+}
+
+/**
+ * How old the PROBE evidence under this Pulse is (issues #170).
+ *
+ * "Last sweep just now" is true of the Pulse and misleading about everything it
+ * renders: the canaries and the Infra snapshot are refreshed by a cron that runs
+ * once a day, so the deck used to present day-old evidence with a fresh
+ * timestamp and no way to tell. Never probed says exactly that rather than
+ * borrowing the Pulse's own time.
+ *
+ * `probeEvidenceCheckedAt` is the OLDEST probe behind the Pulse, so the sentence
+ * says "oldest" — a headline that quoted the freshest canary while another sweep
+ * had silently stopped would be the same lie in a smaller font.
+ */
+function probeEvidenceLabel(radar: BusinessIssueRadar): string {
+  const cadence = formatRadarDuration(RADAR_PROBE_CADENCE_MS);
+  const checkedAt = radar.summary.probeEvidenceCheckedAt;
+  if (!checkedAt) return `probe evidence never collected (cadence ${cadence})`;
+  return `oldest probe evidence ${formatRadarDuration(Math.max(0, radar.generatedAt - checkedAt))} old (cadence ${cadence})`;
 }
 
 function RadarMetric({ icon, label, value, tone, detail, onClick, onExplain }: { icon: React.ReactNode; label: string; value: string | number; tone: "critical" | "warning" | "watch" | "healthy"; detail: string; onClick: () => void; onExplain: (help: RadarMetricHelp) => void }) {

@@ -223,8 +223,38 @@ declares `"type": "module"` while `portal/`'s does not, so a direct
 `await import("@/built-ins/.../blockRegistry")` crosses ESM/CJS under `tsx` and throws
 *"does not provide an export named 'getElementDefinition'"* before any test can run.
 
-### Two inbox surfaces
-- `agency/inbox/` (`_MasterInbox`) vs `agency/activity-inbox/`. Verify they're not redundant before extending either.
+### Two inbox surfaces — VERIFIED DISTINCT, do NOT merge (2026-08-30)
+`agency/inbox/` (`_MasterInbox`) is the merged **Master Inbox** command surface — Needs-you /
+Inbox / Updates over operational alerts, website enquiries, social and client conversations, plus
+the actions queue. `agency/activity-inbox/` is a **standalone read-only system-history log**
+(`listActivity`, limit 100). They do different jobs and cross-link on purpose: the Master Inbox
+header launches "Activity log" (`_MasterInbox.tsx`) and the log's header offers "Open inbox"
+(`activity-inbox/page.tsx`). Both links are pinned by `scripts/smoke-nav-audit.test.ts`, and
+Operations reachability for `/portal/agency/activity-inbox` is pinned there too. Retiring or
+rehoming the standalone log is a **separate open product decision** recorded in
+`docs/development/plans/my-tools-palette.md` (its sidebar drop was a deliberate AquaOasis
+override) — it is Ed's call, not a cleanup.
+
+**The real duplication was the wording, and the render sites are fixed.** Four surfaces render the
+same `listActivity` feed: the Activity log page, the dashboard "Today across the agency" feed
+(`agency/_AgencyActivityFeed.tsx`), the Master Inbox **Updates** tab, and the client workspace
+"recent movement" panel (`clients/[clientId]/page.tsx`). Two carried their own drifted copy of the
+internal→product rewrite and the other two rendered the raw internal message, so one event read
+"plugin installed" on one surface and "system activated" on another. The rewrite now lives once in
+**`src/lib/shared/activityVocabulary.ts`** (`activityMessage` / `activityCategory` /
+`activityAction`). Any new renderer of the activity feed must import it — never re-declare the
+regexes at a render site. `scripts/smoke-nav-audit.test.ts` pins the shared module and asserts all
+four surfaces source it.
+
+**Still open, do not read the above as "done everywhere":**
+- `src/lib/server/clients/clientRecordLedger.ts` (and the `clientRecordLedgerEvents` block in
+  `clients/[clientId]/page.tsx`) still write `entry.message` / `entry.category` verbatim into
+  **persisted** ledger rows. Routing those through the shared module changes stored data, not just
+  a render, so it was left as a separate decision.
+- Category **chip** labels come from `categoryStyle()` in `src/lib/chrome/activityCategoryStyle.ts`
+  — a second live category→label map that disagrees with `activityCategory`: `tenant` reads
+  "Business" on the dashboard chip and "client" in the Activity log / Updates tab. Two sources of
+  category wording still exist; picking one is Ed's call.
 
 ### Two assistant conversation stores — DELIBERATE, do NOT unify (2026-08-21)
 `PortalState.assistant` (keyed `${agencyId}|${userId}`, via

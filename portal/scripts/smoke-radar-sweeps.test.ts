@@ -133,3 +133,49 @@ test("a dedicated probe cron gives the Deep + Infra sweeps a real fast cadence",
   assert.equal(probes!.schedule, "15 6 * * *",
     "the probe cadence changed — decide and record whether Radar is claiming fresh or daily evidence (issues #170)");
 });
+
+// ══════════════════════════════════════════════════════════════════════════
+// ONE CADENCE, STATED ONCE — issues #170 (the staleness half)
+// ══════════════════════════════════════════════════════════════════════════
+//
+// The cron above is the only thing that refreshes probe evidence, and three
+// separate places used to have an opinion about how fresh that evidence is: the
+// sweep taxonomy (daily), the synthetic canaries (hardcoded 15m/60m) and the
+// infra checks (no opinion at all — they stamped the snapshot with the Pulse's
+// `now`). That is how a deployment decision came out as a per-property outage on
+// one surface and as invisible on another. There is now one constant, and this
+// test is what stops the cron and the constant drifting apart again.
+
+test("the probe cadence is declared once and matches the cron that delivers it", async () => {
+  const { RADAR_PROBE_CADENCE_MS } = await import("../src/engines/data/radar/businessRadar");
+  const { RADAR_SWEEP_DEFINITIONS } = await import("../src/engines/data/server/radar/radarSweeps");
+  const config = JSON.parse(read("vercel.json")) as { crons?: Array<{ path: string; schedule: string }> };
+  const schedule = config.crons?.find(entry => entry.path === "/api/cron/radar-probes")?.schedule ?? "";
+
+  // A 5-field cron with concrete minute + hour and wildcards elsewhere fires
+  // once a day. If the schedule stops being daily, the constant must move with
+  // it — the freshness agreements on every canary and infra check read it.
+  const [minute, hour, dayOfMonth, month, dayOfWeek] = schedule.split(" ");
+  const daily = ![minute, hour].some(field => field?.includes("*")) && [dayOfMonth, month, dayOfWeek].every(field => field === "*");
+  assert.ok(daily, `the probe cron is no longer a plain daily schedule (${schedule}) — restate RADAR_PROBE_CADENCE_MS for it (issues #170)`);
+  assert.equal(RADAR_PROBE_CADENCE_MS, 86_400_000,
+    "RADAR_PROBE_CADENCE_MS no longer states the daily gap the probe cron actually delivers (issues #170)");
+  assert.equal(RADAR_SWEEP_DEFINITIONS.deep.scheduledCadenceMs, RADAR_PROBE_CADENCE_MS,
+    "the Deep sweep's declared schedule and the cadence the freshness agreements judge by have drifted apart");
+  assert.equal(RADAR_SWEEP_DEFINITIONS.infra.scheduledCadenceMs, RADAR_PROBE_CADENCE_MS,
+    "the Infra sweep's declared schedule and the cadence the freshness agreements judge by have drifted apart");
+});
+
+test("no probe-freshness surface hardcodes an agreement the schedule cannot keep", () => {
+  const synthetic = read("src/engines/data/radar/radarSyntheticChecks.ts");
+  const infra = read("src/engines/data/radar/radarInfraChecks.ts");
+  // The canaries used to promise "Freshness agreement 15m" while nothing ran
+  // more often than once a day, so every live property read stale/critical for
+  // ~23 hours out of 24 — a hosting decision drawn as an outage per property.
+  assert.doesNotMatch(synthetic, /Freshness agreement 15m/,
+    "the canary freshness agreement is hardcoded at 15m again while the probe cron runs daily (issues #170)");
+  assert.match(synthetic, /RADAR_PROBE_CADENCE_MS/,
+    "the canary freshness agreement must be derived from the deployed probe cadence");
+  assert.match(infra, /RADAR_PROBE_CADENCE_MS/,
+    "the infra checks must judge snapshot age against the deployed probe cadence");
+});

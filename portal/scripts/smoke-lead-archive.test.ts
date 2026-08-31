@@ -61,6 +61,23 @@ before(async () => {
 
 const ACTOR = "usr_archive_smoke";
 
+/**
+ * One-shot fault injection, so a half-completed archive is something this test
+ * can CAUSE rather than describe. Archive touches two stores that can fail
+ * independently — the foundation pipeline (the card) and plugin storage (the
+ * lead row) — and the acceptance clause for #62 asks that a forced partial
+ * failure converges on a retry instead of stranding the lead between states.
+ *
+ * Each slot holds the message the NEXT matching call throws with, and disarms
+ * itself as it throws, so the retry runs against a healthy world.
+ */
+interface ArchiveFaults {
+  /** The next `removeLeadCards` throws — the card half fails first. */
+  removeLeadCards: string | null;
+  /** The next write to a `lead:` row throws — the card is already gone. */
+  leadWrite: string | null;
+}
+
 /** A fresh agency with the default pipelines seeded, and a leads container on it. */
 async function world() {
   await storageMod.ensureHydrated();
@@ -68,11 +85,26 @@ async function world() {
   const agency = tenants.createAgency({ name: "Archive Co", slug: "archive-co" });
   pipelines.seedDefaultPipelines(agency.id);
 
+  const faults: ArchiveFaults = { removeLeadCards: null, leadWrite: null };
+  const trip = (slot: keyof ArchiveFaults) => {
+    const message = faults[slot];
+    if (!message) return;
+    faults[slot] = null;
+    throw new Error(message);
+  };
+
   const data: Record<string, unknown> = {};
   const events: string[] = [];
+  // The activity log is the other place an archive can CLAIM to have happened.
+  // The event bus alone does not cover it, and "Archived lead X." written for an
+  // archive that threw is exactly the dishonest-success this codebase forbids.
+  const activityActions: string[] = [];
   const pluginStorage = {
     async get<T>(key: string) { return data[key] as T | undefined; },
-    async set<T>(key: string, value: T) { data[key] = value; },
+    async set<T>(key: string, value: T) {
+      if (key.startsWith("lead:")) trip("leadWrite");
+      data[key] = value;
+    },
     async setIfAbsent<T>(key: string, value: T) {
       if (Object.prototype.hasOwnProperty.call(data, key)) return false;
       data[key] = value; return true;
@@ -84,15 +116,24 @@ async function world() {
     },
   };
 
+  // The REAL adapter, so an orphaned card is a thing this test can observe —
+  // wrapped only so the card half can be made to fail on demand.
+  const pipeline = {
+    ...ports.pipelinePort,
+    removeLeadCards(args: Parameters<NonNullable<typeof ports.pipelinePort.removeLeadCards>>[0]) {
+      trip("removeLeadCards");
+      return ports.pipelinePort.removeLeadCards?.(args) ?? 0;
+    },
+  };
+
   const container = plugin.buildLeadsPipelineContainer({
     agencyId: agency.id as never,
     storage: pluginStorage as never,
-    activity: { logActivity() { /* not under test here */ } } as never,
+    activity: { logActivity(input: { action: string }) { activityActions.push(input.action); } } as never,
     events: { emit(_scope: unknown, name: string) { events.push(name); } } as never,
     tenant: { getAgency: () => null } as never,
     pluginInstalls: { get: () => null, list: () => [] } as never,
-    // The REAL adapter, so an orphaned card is a thing this test can observe.
-    pipeline: ports.pipelinePort as never,
+    pipeline: pipeline as never,
   });
 
   const leadsPipeline = pipelines.getPipelineBySlug(agency.id, "leads")!;
@@ -101,7 +142,7 @@ async function world() {
       .filter(card => card.kind === "lead")
       .filter(card => (card.lead as unknown as { leadId?: string }).leadId === leadId);
 
-  return { agencyId: agency.id, container, events, leadsPipeline, cardsFor };
+  return { agencyId: agency.id, container, events, activityActions, faults, leadsPipeline, cardsFor };
 }
 
 describe("archiving a lead keeps the lead", () => {
@@ -220,6 +261,112 @@ describe("restoring", () => {
     assert.ok(w.events.includes("leads.lead.restored"));
     assert.ok(w.events.includes("leads.lead.purged"),
       "a permanent deletion emitted the same event as a reversible archive");
+  });
+});
+
+describe("when half of the archive fails", () => {
+  // The acceptance clause #62 was raised with asks for a FORCED partial failure,
+  // not a description of one. Archive spans two stores that fail independently —
+  // the foundation pipeline holding the card, and plugin storage holding the row —
+  // so each half is broken here in turn and the retry is required to converge.
+
+  it("a failed card removal leaves the lead unarchived, and the retry converges", async () => {
+    const w = await world();
+    const { lead } = await w.container.leads.upsert({ email: "faulty@example.com", source: "manual" }, ACTOR);
+    const card = w.cardsFor(lead.id)[0]!;
+    const proposal = w.leadsPipeline.columns.find(column => column.id !== card.columnId)!;
+    pipelines.moveCard(w.agencyId, card.id, proposal.id, 0);
+
+    w.faults.removeLeadCards = "pipeline unavailable";
+    await assert.rejects(() => w.container.leads.archive(lead.id, ACTOR), /pipeline unavailable/);
+
+    // Nothing half-done: the card is removed BEFORE the row is written, so a
+    // failure here has touched nothing at all.
+    const after = await w.container.leads.get(lead.id);
+    assert.equal(after?.archivedAt, undefined,
+      "the lead was marked archived even though its card could not be removed");
+    assert.deepEqual((await w.container.leads.list()).map(l => l.id), [lead.id],
+      "the lead fell off the active board without being archived");
+    assert.equal(w.cardsFor(lead.id).length, 1, "the card went missing on a failed archive");
+    assert.equal((after?.journeyEvents ?? []).filter(event => event.type === "archived").length, 0,
+      "the journey records an archive that never happened");
+    assert.equal(w.events.filter(name => name === "leads.lead.archived").length, 0,
+      "subscribers were told the lead was archived before the archive succeeded");
+    assert.equal(w.activityActions.filter(action => action === "leads.lead.archived").length, 0,
+      "the activity log claims an archive that failed");
+
+    // Retry against a healthy pipeline. The identity lock releases on a throw,
+    // so this does not deadlock, and the whole archive lands exactly once.
+    const archived = await w.container.leads.archive(lead.id, ACTOR);
+    assert.ok(archived?.archivedAt, "the retry did not archive the lead");
+    assert.equal(w.cardsFor(lead.id).length, 0, "the retry left the card on the board");
+    assert.equal((archived?.journeyEvents ?? []).filter(event => event.type === "archived").length, 1,
+      "the failed attempt and the retry each wrote an 'archived' event");
+    assert.equal(w.events.filter(name => name === "leads.lead.archived").length, 1,
+      "the archived event was emitted more than once across the failure and the retry");
+    assert.equal(w.activityActions.filter(action => action === "leads.lead.archived").length, 1,
+      "the activity log records the archive a different number of times than it happened");
+    assert.equal(archived?.archivedFromColumnId, proposal.id,
+      "the retry forgot which column the card was in");
+
+    const restored = await w.container.leads.restore(lead.id, ACTOR);
+    assert.equal(restored?.archivedAt, undefined);
+    assert.equal(w.cardsFor(lead.id)[0]?.columnId, proposal.id,
+      "a lead archived on the second attempt did not come back to the column it left");
+  });
+
+  it("a failed row write after the card is gone still converges, at the cost of the remembered column", async () => {
+    const w = await world();
+    // A freshly captured lead shows where the board puts a card by default —
+    // asserted below rather than assumed from a column label.
+    const { lead: benchmark } = await w.container.leads.upsert({ email: "fresh@example.com", source: "manual" }, ACTOR);
+    const defaultColumnId = w.cardsFor(benchmark.id)[0]!.columnId;
+
+    const { lead } = await w.container.leads.upsert({ email: "torn@example.com", source: "manual" }, ACTOR);
+    const card = w.cardsFor(lead.id)[0]!;
+    const proposal = w.leadsPipeline.columns.find(column => column.id !== card.columnId)!;
+    pipelines.moveCard(w.agencyId, card.id, proposal.id, 0);
+
+    w.faults.leadWrite = "storage write failed";
+    await assert.rejects(() => w.container.leads.archive(lead.id, ACTOR), /storage write failed/);
+
+    // THIS half really is torn, and deliberately in this direction: the card
+    // goes first, so a failed write leaves an active lead with no card — which
+    // a retry fixes — rather than an orphan card holding a name, email and
+    // phone for a lead nobody can see, which is the defect #62 was raised for.
+    const after = await w.container.leads.get(lead.id);
+    assert.equal(after?.archivedAt, undefined, "the lead was marked archived by a write that failed");
+    assert.equal((after?.journeyEvents ?? []).filter(event => event.type === "archived").length, 0);
+    assert.equal(w.cardsFor(lead.id).length, 0);
+    assert.equal(w.events.filter(name => name === "leads.lead.archived").length, 0);
+    assert.equal(w.activityActions.filter(action => action === "leads.lead.archived").length, 0,
+      "the activity log claims an archive that failed");
+
+    const archived = await w.container.leads.archive(lead.id, ACTOR);
+    assert.ok(archived?.archivedAt, "the retry did not archive the lead");
+    assert.equal(w.cardsFor(lead.id).length, 0);
+    assert.equal((archived?.journeyEvents ?? []).filter(event => event.type === "archived").length, 1);
+    assert.equal(w.events.filter(name => name === "leads.lead.archived").length, 1);
+    assert.equal(w.activityActions.filter(action => action === "leads.lead.archived").length, 1,
+      "the activity log records the archive a different number of times than it happened");
+
+    // The one thing this path genuinely loses, recorded rather than hidden: the
+    // column is read FROM the card, and the card went with the first attempt,
+    // so the retry has nothing left to remember.
+    assert.equal(archived?.archivedFromColumnId, undefined,
+      "the retry claimed to remember a column it could no longer read");
+
+    // What must NOT be lost is the lead itself. Restore still puts it back on
+    // the board — in the default column rather than the one it left.
+    const restored = await w.container.leads.restore(lead.id, ACTOR);
+    assert.equal(restored?.archivedAt, undefined);
+    const cards = w.cardsFor(lead.id);
+    assert.equal(cards.length, 1, "a lead archived through a torn write could not be restored to the board");
+    assert.equal(cards[0]!.columnId, defaultColumnId);
+    assert.notEqual(defaultColumnId, proposal.id, "this test proves nothing if the default IS the moved-to column");
+    assert.deepEqual(
+      (await w.container.leads.list()).map(l => l.id).sort(), [benchmark.id, lead.id].sort(),
+      "the restored lead is not back on the active board");
   });
 });
 

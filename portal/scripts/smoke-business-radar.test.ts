@@ -100,7 +100,16 @@ test("the main dashboard exposes an active, actionable radar mode", () => {
   assert.match(page, /getCachedBusinessIssueRadar/);
   assert.match(page, /businessRadar=\{businessRadar\}/);
   assert.match(dashboard, /Active business radar/);
-  assert.match(dashboard, /automatic rescan every minute/);
+  // The minute cadence is the PULSE rebuild — the in-state read — and saying
+  // "rescan" invited the reading that everything under it was a minute old. The
+  // probes behind it run once a day (vercel.json `15 6 * * *`), so the deck must
+  // name the two separately and state how old the probe evidence actually is.
+  // → issues #170.
+  assert.match(dashboard, /automatic Pulse rebuild every minute/);
+  assert.match(dashboard, /probeEvidenceLabel\(radar\)/,
+    "the deck must state the probe-evidence age beside the Pulse rebuild time (issues #170)");
+  assert.doesNotMatch(dashboard, /automatic rescan every minute/,
+    "'rescan every minute' presents day-old probe evidence as minute-fresh (issues #170)");
   assert.match(dashboard, /\/api\/portal\/advisor\/radar/);
   assert.match(dashboard, /Check coverage by business area/);
   assert.match(dashboard, /addRadarTask/);

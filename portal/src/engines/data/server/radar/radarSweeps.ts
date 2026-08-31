@@ -105,6 +105,9 @@ export const RADAR_SWEEP_DEFINITIONS: Record<RadarSweepType, RadarSweepDefinitio
     cost: "expensive",
     cadenceMs: 12 * MINUTE,
     // cron/radar-probes, "15 6 * * *" — daily, not the intended ~12 minutes (issues #170).
+    // The same daily gap is `RADAR_PROBE_CADENCE_MS` in businessRadar.ts, which is
+    // what every freshness agreement judging probe evidence reads; the two are
+    // pinned equal by scripts/smoke-radar-sweeps.test.ts so they cannot drift.
     scheduledCadenceMs: DAY,
     persists: true,
     performsIo: true,

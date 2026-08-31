@@ -1919,7 +1919,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (3):** [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/lib/intelligence/commandIntelligence.ts`](#file-src-lib-intelligence-commandintelligence-ts-365dc38397) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (6):** [`scripts/smoke-kpi-registry.test.ts`](scripts.md#file-scripts-smoke-kpi-registry-test-ts-e8b006e09a) · [`scripts/smoke-kpi-targets.test.ts`](scripts.md#file-scripts-smoke-kpi-targets-test-ts-c03b9b31d4) · [`src/app/portal/agency/_CommandIntelligenceWorkspace.tsx`](app.md#file-src-app-portal-agency-commandintelligenceworkspace-tsx-0d26b4df14) · [`src/engines/data/server/kpi/kpiRegistryService.ts`](engines.md#file-src-engines-data-server-kpi-kpiregistryservice-ts-715b322b4b) · [`src/engines/data/server/kpi/kpiTargets.ts`](engines.md#file-src-engines-data-server-kpi-kpitargets-ts-05e8c86b01) · [`src/lib/server/marketingIntelligence.ts`](#file-src-lib-server-marketingintelligence-ts-bc53756ee1)
+**Used by (8):** [`scripts/smoke-battle-table.test.ts`](scripts.md#file-scripts-smoke-battle-table-test-ts-c74a9e6a9b) · [`scripts/smoke-kpi-registry.test.ts`](scripts.md#file-scripts-smoke-kpi-registry-test-ts-e8b006e09a) · [`scripts/smoke-kpi-targets.test.ts`](scripts.md#file-scripts-smoke-kpi-targets-test-ts-c03b9b31d4) · [`src/app/portal/agency/_CommandIntelligenceWorkspace.tsx`](app.md#file-src-app-portal-agency-commandintelligenceworkspace-tsx-0d26b4df14) · [`src/app/portal/agency/_battleWarRoom.ts`](app.md#file-src-app-portal-agency-battlewarroom-ts-31aacabefb) · [`src/engines/data/server/kpi/kpiRegistryService.ts`](engines.md#file-src-engines-data-server-kpi-kpiregistryservice-ts-715b322b4b) · [`src/engines/data/server/kpi/kpiTargets.ts`](engines.md#file-src-engines-data-server-kpi-kpitargets-ts-05e8c86b01) · [`src/lib/server/marketingIntelligence.ts`](#file-src-lib-server-marketingintelligence-ts-bc53756ee1)
 
 <a id="file-src-lib-performance-kpitargetclient-ts-8133355a3e"></a>
 
@@ -4398,8 +4398,8 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `LOCAL_PREVIEW_MANIFEST = "aqua-preview.config.json"`
 - `LOCAL_PREVIEW_REGISTRY_ENV = "AQUA_DEV_PREVIEW_PROJECTS_JSON"`
 - `LOCAL_PREVIEW_SAFE_ROOTS_ENV = "AQUA_DEV_PREVIEW_SAFE_ROOTS"`
-- `interface TrustedLocalRepositoryPreviewRecord (15 members)`
-- `interface ResolvedLocalRepositoryPreviewConfig (12 members)`
+- `interface TrustedLocalRepositoryPreviewRecord (16 members)`
+- `interface ResolvedLocalRepositoryPreviewConfig (13 members)`
 
 **Depends on (1):** [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
@@ -4427,7 +4427,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
     - `shutdownAllSync(): void`
     - `async dispose(): Promise<void>`
 - `interface LocalRepositoryPreviewScope (3 members)`
-- `interface LocalRepositoryPreviewSupervisorDeps (8 members)`
+- `interface LocalRepositoryPreviewSupervisorDeps (9 members)`
 
 **Depends on (4):** [`src/lib/server/dev/localRepositoryPreviewConfig.ts`](#file-src-lib-server-dev-localrepositorypreviewconfig-ts-624ef7e558) · [`src/lib/server/dev/localRepositoryPreviewWorktree.ts`](#file-src-lib-server-dev-localrepositorypreviewworktree-ts-9f8323b681) · [`src/lib/shared/localRepositoryPreview.ts`](#file-src-lib-shared-localrepositorypreview-ts-36d3f935c9) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
@@ -4439,8 +4439,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (9):**
+**Exports (12):**
 
+- `async ensureClonedPreviewRepository(input: EnsureClonedRepositoryInput): Promise<ClonedPreviewRepository>` — Clone — or resume — the project's declared remote inside its preview root. Idempotent: the first preview pays the clone, every later one resumes the same checkout with its uncommi…
 - `async ensureIsolatedPreviewWorktree(input: EnsureIsolatedWorktreeInput): Promise<IsolatedPreviewWorktree>` — Create — or resume — the project's isolated preview worktree. Idempotent and retention-preserving: a second call for the same project returns the same directory with any uncommitt…
 - `async ensureDependenciesInstalled(input: DependencyReadinessInput): Promise<DependencyReadinessOutcome>` — Bring the isolated worktree's dependencies up to date, if the trusted record declares how. Returns `ran: false` when the recorded fingerprint already matches — the common resume p…
 - `class LocalRepositoryPreviewWorktreeError`
@@ -4450,6 +4451,8 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type DependencyReadinessOutcome = | { ok: true; ran: boolean; fingerprint: string } | { ok: false; reason: string }`
 - `interface IsolatedPreviewWorktree (4 members)`
 - `interface EnsureIsolatedWorktreeInput (3 members)`
+- `interface ClonedPreviewRepository (3 members)` — is a named refusal — never a delete and never a re-clone over the top.
+- `interface EnsureClonedRepositoryInput (3 members)`
 - `interface DependencyReadinessInput (5 members)` — start, while a changed lockfile must never be silently ignored.
 
 **Depends on:** _No internal imports._
@@ -6113,6 +6116,22 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 
 ## `src/lib/shared/`
+
+<a id="file-src-lib-shared-activityvocabulary-ts-f582984449"></a>
+
+### `src/lib/shared/activityVocabulary.ts`
+
+**What it is:** use it.
+
+**Exports (3):**
+
+- `activityMessage(message: string): string` — use it.
+- `activityCategory(category: string): string`
+- `activityAction(action: string): string`
+
+**Depends on:** _No internal imports._
+
+**Used by (4):** [`src/app/portal/agency/_AgencyActivityFeed.tsx`](app.md#file-src-app-portal-agency-agencyactivityfeed-tsx-897f8a76ec) · [`src/app/portal/agency/activity-inbox/page.tsx`](app.md#file-src-app-portal-agency-activity-inbox-page-tsx-f8aa4fe9c6) · [`src/app/portal/agency/inbox/_MasterInbox.tsx`](app.md#file-src-app-portal-agency-inbox-masterinbox-tsx-2323adcb4b) · [`src/app/portal/clients/[clientId]/page.tsx`](app.md#file-src-app-portal-clients-clientid-page-tsx-f2587fcff8)
 
 <a id="file-src-lib-shared-avatardataurl-ts-d7090d9647"></a>
 

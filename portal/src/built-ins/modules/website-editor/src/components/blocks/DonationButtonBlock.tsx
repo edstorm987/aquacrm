@@ -1,13 +1,53 @@
 "use client";
 
 // Donation button — pre-set amounts + custom amount input.
-// Routes through Stripe checkout via /api/donations/checkout.
+// Routes through ecommerce's Stripe checkout at
+// `/api/portal/ecommerce/stripe/checkout`.
+//
+// ── Why there is no "Make this monthly" checkbox ─────────────────────────
+//
+// There was one, and ticking it changed nothing that could bill anybody
+// monthly. It set a `recurring: true` flag in the checkout body, and the word
+// "recurring" appears NOWHERE in the ecommerce module. The only other trace was
+// cosmetic: the line item read "Donation (monthly)" and the button read
+// "Donate monthly now". So a donor who ticked it was told they had set up a
+// monthly gift and would never be charged again — a promise of a durable
+// result that never happened.
+//
+// Monthly giving needs a Stripe Price object plus subscription mode in the
+// checkout handler. Until that exists the control is not offered to visitors.
+// `props.allowRecurring` is kept: it still governs the row, which now carries
+// an editor-only note so the person building the page learns why their toggle
+// shows nothing rather than assuming the block is broken.
+//
+// ── The request below does not match the handler it is sent to ───────────
+//
+// Corrected 2026-08-31 after actually reading `stripeCheckoutHandler`. An
+// earlier note here said it "reads `lineItems` and creates a one-off Checkout
+// Session". It does not. It calls `parseCheckoutRequest`
+// (`src/built-ins/modules/ecommerce/src/server/checkout.ts`), which enforces a
+// STRICT allowlist — version, operationId, items, giftCardPurchase,
+// discountCode, customerEmail, endCustomerUserId, referralCodeId,
+// shippingCountry, successPath, cancelPath — and throws
+// `Unknown checkout field: lineItems.` on the first key it does not know.
+// Every field this block sends is unknown to it, and all three it requires
+// (`version: 1`, an 8-120 character `operationId`, and `items` of
+// `{ productId, variantId?, quantity }`) are absent. The call therefore cannot
+// succeed for anybody, signed in or not.
+//
+// Closing that is backend work, not a copy fix: a donation has no `productId`,
+// so it needs either a donation line-item shape in the checkout contract or a
+// per-client donation product. It is recorded against `donation-button` in
+// `blockBackends.ts`. What IS fixed here is the part that misled on its own
+// terms — the failure used to be swallowed (`if (url) …` and nothing else), so
+// a donor pressed "Donate now", watched the button flick back to its resting
+// label, and was given no reason to think the donation had not happened.
 
 import { useState } from "react";
 import type { BlockRenderProps } from "../blockRegistry";
 import { blockStylesToCss } from "../blockStyles";
 
-export default function DonationButtonBlock({ block }: BlockRenderProps) {
+export default function DonationButtonBlock({ block, editorMode }: BlockRenderProps) {
   const heading = (block.props.heading as string | undefined) ?? "Support our work";
   const subheading = (block.props.subheading as string | undefined) ?? "Every donation goes directly to the cause.";
   const currency = (block.props.currency as string | undefined) ?? "GBP";
@@ -18,38 +58,54 @@ export default function DonationButtonBlock({ block }: BlockRenderProps) {
 
   const [picked, setPicked] = useState<number | "custom">(amounts[1] ?? amounts[0] ?? 10);
   const [custom, setCustom] = useState<string>("");
-  const [recurring, setRecurring] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const symbol = currency === "GBP" ? "£" : currency === "USD" ? "$" : currency === "EUR" ? "€" : "";
 
   async function donate() {
     setBusy(true);
+    setError(null);
     try {
       const amount = picked === "custom" ? Number(custom) : picked;
-      if (!Number.isFinite(amount) || amount <= 0) { setBusy(false); return; }
-      // Route through ecommerce's Stripe checkout with a single
-      // line-item priced in cents. recurring=true is a Round-6 follow-up
-      // (needs a Stripe Price object + Subscription mode); for R5 we
-      // submit one-off charges in either case and tag the description.
+      if (!Number.isFinite(amount) || amount <= 0) {
+        setError("Enter an amount greater than zero.");
+        return;
+      }
+      // Route through ecommerce's Stripe checkout with a single line-item
+      // priced in cents. One-off only — the handler has no subscription mode,
+      // so nothing here may describe the charge as repeating.
       const amountCents = Math.round(amount * 100);
       const res = await fetch("/api/portal/ecommerce/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          lineItems: [{ name: recurring ? "Donation (monthly)" : "Donation", quantity: 1, priceCents: amountCents }],
+          lineItems: [{ name: "Donation", quantity: 1, priceCents: amountCents }],
           successUrl: `${window.location.origin}/order-confirmed?session_id={CHECKOUT_SESSION_ID}`,
           cancelUrl: window.location.href,
           amountCents,
-          description: recurring ? "Recurring donation" : "Donation",
+          description: "Donation",
           mode: "donation",
-          recurring,
         }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
       const url = (data?.url ?? data?.redirectUrl) as string | undefined;
-      if (url) window.location.href = url;
+      if (res.ok && url) {
+        window.location.href = url;
+        return;
+      }
+      // No redirect means no donation was started. Saying nothing leaves the
+      // donor looking at a button that reset itself, which is indistinguishable
+      // from a click that missed — and they may well believe they have given.
+      const reason = typeof data?.error === "string" ? data.error : null;
+      setError(
+        reason
+          ? `Couldn't start the donation: ${reason}`
+          : "Couldn't start the donation — nothing has been charged. Please try again or contact the site owner.",
+      );
+    } catch {
+      setError("Couldn't reach the payment service — nothing has been charged.");
     } finally { setBusy(false); }
   }
 
@@ -122,11 +178,11 @@ export default function DonationButtonBlock({ block }: BlockRenderProps) {
           </div>
         )}
 
-        {allowRecurring && (
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 16, fontSize: 13 }}>
-            <input type="checkbox" checked={recurring} onChange={e => setRecurring(e.target.checked)} />
-            Make this monthly
-          </label>
+        {allowRecurring && editorMode && (
+          <p style={{ margin: "0 auto 16px", maxWidth: 360, fontSize: 12, opacity: 0.6 }}>
+            Monthly giving isn&apos;t connected yet, so the monthly option is not
+            shown to visitors — this block takes one-off donations.
+          </p>
         )}
 
         <button
@@ -146,8 +202,14 @@ export default function DonationButtonBlock({ block }: BlockRenderProps) {
             opacity: busy ? 0.6 : 1,
           }}
         >
-          {busy ? "Redirecting…" : `Donate ${recurring ? "monthly " : ""}now`}
+          {busy ? "Redirecting…" : "Donate now"}
         </button>
+
+        {error && (
+          <p role="alert" style={{ margin: "12px 0 0", fontSize: 13, color: "#fca5a5" }}>
+            {error}
+          </p>
+        )}
       </div>
     </section>
   );

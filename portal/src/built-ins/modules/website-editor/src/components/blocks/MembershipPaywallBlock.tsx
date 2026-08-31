@@ -15,6 +15,7 @@
 import { useEffect, useState } from "react";
 import type { BlockRenderProps } from "../blockRegistry";
 import { blockStylesToCss } from "../blockStyles";
+import { classifyBlockFetch, type BlockFetchOutcome } from "../../lib/blockBackends";
 
 interface MeSubscription {
   status: "trialing" | "active" | "past_due" | "canceled" | "paused" | "incomplete";
@@ -30,34 +31,49 @@ const ACTIVE_STATES = new Set(["trialing", "active"]);
 
 export default function MembershipPaywallBlock({ block, editorMode, renderChildren }: BlockRenderProps) {
   const requirePlanIds = (block.props.requirePlanIds as string[] | undefined) ?? [];
+  // `requirePlanIds` is a fresh array on every render, so depending on it
+  // directly re-runs the effect each time — harmless while the effect only
+  // set state it was already at, but not once the effect flips `loading`
+  // back to true. Depend on the CONTENT instead.
+  const requirePlanKey = requirePlanIds.join("|");
   const lockMessage = (block.props.lockMessage as string | undefined) ?? "Members only — upgrade to access this content.";
   const ctaLabel = (block.props.ctaLabel as string | undefined) ?? "See plans";
   const upgradeUrl = (block.props.upgradeUrl as string | undefined) ?? "/membership";
 
   const [loading, setLoading] = useState(true);
   const [hasAccess, setHasAccess] = useState(false);
+  // A membership check that never completed is not the same as a visitor
+  // without a membership. Both stay locked — failing closed is the whole
+  // point of a paywall — but only one of them may be told to go and buy
+  // something they may already own.
+  const [outcome, setOutcome] = useState<BlockFetchOutcome>("ok");
+  const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
     if (editorMode) { setLoading(false); return; }
     let cancelled = false;
+    setLoading(true);
     void fetch("/api/portal/memberships/me", { cache: "no-store", credentials: "include" })
       .then(async r => {
-        if (!r.ok) return null;
+        const result = classifyBlockFetch(r);
+        if (!cancelled) setOutcome(result);
+        if (result !== "ok") return null;
         return r.json() as Promise<MeResponse>;
       })
       .then(data => {
         if (cancelled) return;
         const sub = data?.subscription;
+        const required = requirePlanKey ? requirePlanKey.split("|") : [];
         if (sub && ACTIVE_STATES.has(sub.status)) {
-          if (requirePlanIds.length === 0 || requirePlanIds.includes(sub.planId)) {
+          if (required.length === 0 || required.includes(sub.planId)) {
             setHasAccess(true);
           }
         }
       })
-      .catch(() => { /* silent — treat as locked */ })
+      .catch(() => { if (!cancelled) { setOutcome("failed"); setHasAccess(false); } })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [editorMode, requirePlanIds]);
+  }, [editorMode, requirePlanKey, retryNonce]);
 
   if (editorMode) {
     return (
@@ -83,6 +99,43 @@ export default function MembershipPaywallBlock({ block, editorMode, renderChildr
 
   if (loading) return null;
   if (hasAccess) return <>{renderChildren?.(block.children)}</>;
+
+  // Locked either way, but say WHY. Telling somebody to buy a plan when the
+  // check itself fell over — or when no plan exists to buy — is the "claim a
+  // success/failure that did not happen" trap.
+  if (outcome === "failed" || outcome === "unavailable") {
+    return (
+      <section
+        data-block-type="membership-paywall"
+        role="alert"
+        style={{
+          padding: "48px 24px",
+          textAlign: "center",
+          background: "rgba(255,255,255,0.02)",
+          border: "1px dashed rgba(255,255,255,0.15)",
+          borderRadius: 16,
+          ...blockStylesToCss(block.styles),
+        }}
+      >
+        <div style={{ maxWidth: 480, margin: "0 auto" }}>
+          <p style={{ fontSize: 15, opacity: 0.85, marginBottom: 16 }}>
+            {outcome === "unavailable"
+              ? "This content is for members, but memberships aren't enabled on this site yet."
+              : "We couldn't check your membership just now, so this content stays hidden."}
+          </p>
+          {outcome === "failed" && (
+            <button
+              type="button"
+              onClick={() => setRetryNonce(n => n + 1)}
+              style={{ minHeight: 44, padding: "10px 18px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.18)", background: "transparent", color: "inherit", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
+            >
+              Try again
+            </button>
+          )}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section

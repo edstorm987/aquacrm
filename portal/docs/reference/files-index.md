@@ -2,7 +2,7 @@
 
 ← Back to [the reference index](00-index.md) · [the map](../WORKSPACE-FILE-TREE.md) · [development.md](../development.md)
 
-Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2530 source files; 0 per-source stubs.**
+Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2533 source files; 0 per-source stubs.**
 
 ## Engines — `src/engines/` (83)
 
@@ -163,7 +163,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
 - [`src/server/zimanteTradingCompanies.ts`](server.md#file-src-server-zimantetradingcompanies-ts-ef9a41c5a6)
 
-## Shared logic — `src/lib/` (322)
+## Shared logic — `src/lib/` (323)
 
 - [`src/lib/a11y/contrastValidator.ts`](lib.md#file-src-lib-a11y-contrastvalidator-ts-7c6889cfca) — components. We default to 4.5 for the strictest check.
 - [`src/lib/a11y/isEmbedded.ts`](lib.md#file-src-lib-a11y-isembedded-ts-e91cac9938)
@@ -466,6 +466,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/server/tradingCompanyContext.ts`](lib.md#file-src-lib-server-tradingcompanycontext-ts-734b37da15)
 - [`src/lib/server/websiteEnquiries.ts`](lib.md#file-src-lib-server-websiteenquiries-ts-e00ecfd23b)
 - [`src/lib/server/websiteEnquiryLeadSync.ts`](lib.md#file-src-lib-server-websiteenquiryleadsync-ts-90c226107f)
+- [`src/lib/shared/activityVocabulary.ts`](lib.md#file-src-lib-shared-activityvocabulary-ts-f582984449) — use it.
 - [`src/lib/shared/avatarDataUrl.ts`](lib.md#file-src-lib-shared-avatardataurl-ts-d7090d9647) — renders a static circular avatar — animation here is noise.
 - [`src/lib/shared/conversionEvent.ts`](lib.md#file-src-lib-shared-conversionevent-ts-7dd8f12b3c) — Does a telemetry event count as a conversion?
 - [`src/lib/shared/devProjectGrouping.ts`](lib.md#file-src-lib-shared-devprojectgrouping-ts-070f12451f) — through the projects GET and the grouping happens where it renders.
@@ -2014,7 +2015,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/showcase/exit/route.ts`](app.md#file-src-app-showcase-exit-route-ts-2297ba275f)
 - [`src/app/showcase/route.ts`](app.md#file-src-app-showcase-route-ts-4c24dd82df)
 
-## Scripts — `scripts/` (532)
+## Scripts — `scripts/` (534)
 
 - [`scripts/attention-protection.test.ts`](scripts.md#file-scripts-attention-protection-test-ts-d64d01714c)
 - [`scripts/audit-actions.ts`](scripts.md#file-scripts-audit-actions-ts-862ea31175) — What state Actions is actually in — measured, not remembered. For every alert the checks currently …
@@ -2086,6 +2087,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-authored-doc-consolidation.test.ts`](scripts.md#file-scripts-smoke-authored-doc-consolidation-test-ts-69cce63644)
 - [`scripts/smoke-automation-control.test.ts`](scripts.md#file-scripts-smoke-automation-control-test-ts-d05fde5612)
 - [`scripts/smoke-battle-table.test.ts`](scripts.md#file-scripts-smoke-battle-table-test-ts-c74a9e6a9b)
+- [`scripts/smoke-block-current-page-hydration.test.ts`](scripts.md#file-scripts-smoke-block-current-page-hydration-test-ts-c172ea8e9a) — in the website-editor lane (`npm run smoke:website-editor`), not here.
 - [`scripts/smoke-bos-middleware-integration.test.ts`](scripts.md#file-scripts-smoke-bos-middleware-integration-test-ts-80126501cc) — should only proxy portal routes; public Business OS paths belong elsewhere.
 - [`scripts/smoke-browser-matrix.test.ts`](scripts.md#file-scripts-smoke-browser-matrix-test-ts-f5ff7391c9) — without a browser binary. → issues #137
 - [`scripts/smoke-business-calendar-date.test.ts`](scripts.md#file-scripts-smoke-business-calendar-date-test-ts-4b471185e4)
@@ -2332,7 +2334,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-local-inbox-persistence.test.ts`](scripts.md#file-scripts-smoke-local-inbox-persistence-test-ts-bf04c3878f)
 - [`scripts/smoke-local-preview-csp.test.ts`](scripts.md#file-scripts-smoke-local-preview-csp-test-ts-e13c975f4e)
 - [`scripts/smoke-local-preview-tsconfig-isolation.test.ts`](scripts.md#file-scripts-smoke-local-preview-tsconfig-isolation-test-ts-77bad1e909)
-- [`scripts/smoke-local-preview-worktree.test.ts`](scripts.md#file-scripts-smoke-local-preview-worktree-test-ts-5819d47ac7) — • contain — nothing is ever written outside the trusted preview root
+- [`scripts/smoke-local-preview-worktree.test.ts`](scripts.md#file-scripts-smoke-local-preview-worktree-test-ts-5819d47ac7) — • closed — an unreachable remote fails before any port is allocated
 - [`scripts/smoke-local-repository-preview-route.test.ts`](scripts.md#file-scripts-smoke-local-repository-preview-route-test-ts-1fda48c87f)
 - [`scripts/smoke-local-repository-preview-ui.test.ts`](scripts.md#file-scripts-smoke-local-repository-preview-ui-test-ts-959efc4c5f)
 - [`scripts/smoke-local-repository-preview.test.ts`](scripts.md#file-scripts-smoke-local-repository-preview-test-ts-d0e3b0997a)
@@ -2548,6 +2550,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-worker-tooling.test.ts`](scripts.md#file-scripts-smoke-worker-tooling-test-ts-3bb6171a45) — root, so nothing here can reach the repo's own `.data/`.
 - [`scripts/smoke-workspace-element-runtime.test.ts`](scripts.md#file-scripts-smoke-workspace-element-runtime-test-ts-c11673a601)
 - [`scripts/verify-marketing-runtime.ts`](scripts.md#file-scripts-verify-marketing-runtime-ts-f47d70f174) — Runtime verification harness — the marketing data spine, actually run. The smoke suite proves the *…
+- [`scripts/website-block-hydration-probe.ts`](scripts.md#file-scripts-website-block-hydration-probe-ts-e26cfd1fde)
 
 ## Other `src/` (6)
 

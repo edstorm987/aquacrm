@@ -2,7 +2,7 @@
 
 > Source maps, subsystem dossiers, components, routes, state and built-in module notes.
 >
-> Consolidated 2026-08-31 from **23** source documents / **55,091 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-31 from **23** source documents / **55,410 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -16,7 +16,7 @@
 - [`docs/workspace/database.md`](#source-docs-workspace-database-md) — 2,273 words · `4ed0007a7dd9`
 - [`docs/workspace/env-and-sellability.md`](#source-docs-workspace-env-and-sellability-md) — 3,202 words · `6541a737c2ee`
 - [`docs/workspace/feature-index.md`](#source-docs-workspace-feature-index-md) — 5,342 words · `bb81323b787b`
-- [`docs/workspace/hazards-and-duplication.md`](#source-docs-workspace-hazards-and-duplication-md) — 6,545 words · `b895587bcfe5`
+- [`docs/workspace/hazards-and-duplication.md`](#source-docs-workspace-hazards-and-duplication-md) — 6,864 words · `1cac9563fe95`
 - [`docs/workspace/kpi-intelligence.md`](#source-docs-workspace-kpi-intelligence-md) — 2,283 words · `d641f1291cbc`
 - [`docs/workspace/plugins.md`](#source-docs-workspace-plugins-md) — 2,193 words · `85bf55b735d1`
 - [`docs/workspace/portal-ui.md`](#source-docs-workspace-portal-ui-md) — 3,935 words · `422ade585983`
@@ -2266,7 +2266,7 @@ _(For which plugin owns a feature, see the [plugins chapter](plugins.md). For an
 
 ## Source document — `docs/workspace/hazards-and-duplication.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/hazards-and-duplication.md" sha256="b895587bcfe5f8617cdf1eed1db12e973c1e10f592815e3235b032ce55241dfd" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/hazards-and-duplication.md" sha256="1cac9563fe95cbd412e155f6480d692bd5294e9ca1da5cf6292a3e73e225b684" -->
 # Chapter — Hazards & duplication (read before editing)
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
@@ -2492,8 +2492,38 @@ declares `"type": "module"` while `portal/`'s does not, so a direct
 `await import("@/built-ins/.../blockRegistry")` crosses ESM/CJS under `tsx` and throws
 *"does not provide an export named 'getElementDefinition'"* before any test can run.
 
-### Two inbox surfaces
-- `agency/inbox/` (`_MasterInbox`) vs `agency/activity-inbox/`. Verify they're not redundant before extending either.
+### Two inbox surfaces — VERIFIED DISTINCT, do NOT merge (2026-08-30)
+`agency/inbox/` (`_MasterInbox`) is the merged **Master Inbox** command surface — Needs-you /
+Inbox / Updates over operational alerts, website enquiries, social and client conversations, plus
+the actions queue. `agency/activity-inbox/` is a **standalone read-only system-history log**
+(`listActivity`, limit 100). They do different jobs and cross-link on purpose: the Master Inbox
+header launches "Activity log" (`_MasterInbox.tsx`) and the log's header offers "Open inbox"
+(`activity-inbox/page.tsx`). Both links are pinned by `scripts/smoke-nav-audit.test.ts`, and
+Operations reachability for `/portal/agency/activity-inbox` is pinned there too. Retiring or
+rehoming the standalone log is a **separate open product decision** recorded in
+`docs/development/plans/my-tools-palette.md` (its sidebar drop was a deliberate AquaOasis
+override) — it is Ed's call, not a cleanup.
+
+**The real duplication was the wording, and the render sites are fixed.** Four surfaces render the
+same `listActivity` feed: the Activity log page, the dashboard "Today across the agency" feed
+(`agency/_AgencyActivityFeed.tsx`), the Master Inbox **Updates** tab, and the client workspace
+"recent movement" panel (`clients/[clientId]/page.tsx`). Two carried their own drifted copy of the
+internal→product rewrite and the other two rendered the raw internal message, so one event read
+"plugin installed" on one surface and "system activated" on another. The rewrite now lives once in
+**`src/lib/shared/activityVocabulary.ts`** (`activityMessage` / `activityCategory` /
+`activityAction`). Any new renderer of the activity feed must import it — never re-declare the
+regexes at a render site. `scripts/smoke-nav-audit.test.ts` pins the shared module and asserts all
+four surfaces source it.
+
+**Still open, do not read the above as "done everywhere":**
+- `src/lib/server/clients/clientRecordLedger.ts` (and the `clientRecordLedgerEvents` block in
+  `clients/[clientId]/page.tsx`) still write `entry.message` / `entry.category` verbatim into
+  **persisted** ledger rows. Routing those through the shared module changes stored data, not just
+  a render, so it was left as a separate decision.
+- Category **chip** labels come from `categoryStyle()` in `src/lib/chrome/activityCategoryStyle.ts`
+  — a second live category→label map that disagrees with `activityCategory`: `tenant` reads
+  "Business" on the dashboard chip and "client" in the Activity log / Updates tab. Two sources of
+  category wording still exist; picking one is Ed's call.
 
 ### Two assistant conversation stores — DELIBERATE, do NOT unify (2026-08-21)
 `PortalState.assistant` (keyed `${agencyId}|${userId}`, via

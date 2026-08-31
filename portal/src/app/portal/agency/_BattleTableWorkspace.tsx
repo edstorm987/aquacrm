@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowUpRight,
   BarChart3,
@@ -37,7 +37,7 @@ import {
 
 import { COMMAND_PRIMARY_KPI_STATIONS, type CommandIntelligenceScope, type CommandIntelligenceSnapshot, type CommandKpi } from "@/lib/intelligence/commandIntelligence";
 import { buildHiringCapacityAnalysis, emptyHiringCapacitySignals, HIRING_CAPACITY_AREA_META, type HiringCapacityAreaAnalysis, type HiringCapacitySignals } from "@/lib/performance/hiringCapacity";
-import type { CompanyCapacityAreaId, CompanyCapacityAreaPlan, CompanyObjective, CompanyPlan, CompanyProfile, CompanyQuarterlyEvidenceSnapshot } from "@/server/types";
+import type { CompanyCapacityAreaId, CompanyCapacityAreaPlan, CompanyObjective, CompanyPlan, CompanyProfile, CompanyQuarterlyEvidenceSnapshot, KpiTargetsConfig } from "@/server/types";
 import { applyIntelligenceScope } from "./commandIntelligenceScope";
 import { createBattleNavigationState, reconcileBattleNavigationState } from "./battleNavigation";
 import { describeCompanyConflict, rebaseCompanyProfile, type CompanyProfileConflict } from "./companyProfileConflict";
@@ -173,13 +173,31 @@ export function BattleTableWorkspace({ payload, intelligence, onOpenIntelligence
     legalCount: scope.legalCount,
     capacitySignals: scope.capacitySignals,
   })), [scopes, profiles]);
+  // The KPI overhaul persists targets server-side (agency-wide, optionally per
+  // company). The war room is measured against those where they are set and
+  // against the retained company plan everywhere else — so a target raised in
+  // the KPI plan moves the front door too. Until the read lands (or if it
+  // fails) the retained plan stands on its own; nothing is blanked or invented.
+  const [kpiTargets, setKpiTargets] = useState<KpiTargetsConfig | undefined>(undefined);
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/portal/kpi-registry/targets")
+      .then(async response => {
+        const data = await response.json() as { ok?: boolean; config?: KpiTargetsConfig };
+        if (cancelled || !response.ok || data.ok !== true || !data.config || !Number.isFinite(data.config.updatedAt)) return;
+        setKpiTargets(data.config);
+      })
+      .catch(() => { /* the retained company plan stays the authority */ });
+    return () => { cancelled = true; };
+  }, []);
+
   const warRoomNow = intelligence.generatedAt;
-  const battlefield = useMemo(() => buildBattlefield({ scopes: warRoomScopes, incidents: radarIncidents, now: warRoomNow }), [warRoomScopes, radarIncidents, warRoomNow]);
-  const decisions = useMemo(() => buildWarRoomDecisions({ scopes: warRoomScopes, incidents: radarIncidents, now: warRoomNow }), [warRoomScopes, radarIncidents, warRoomNow]);
+  const battlefield = useMemo(() => buildBattlefield({ scopes: warRoomScopes, incidents: radarIncidents, now: warRoomNow, kpiTargets }), [warRoomScopes, radarIncidents, warRoomNow, kpiTargets]);
+  const decisions = useMemo(() => buildWarRoomDecisions({ scopes: warRoomScopes, incidents: radarIncidents, now: warRoomNow, kpiTargets }), [warRoomScopes, radarIncidents, warRoomNow, kpiTargets]);
   const pulse = useMemo(() => {
     const scope = warRoomScopes.find(item => item.id === selectedScope.id) ?? warRoomScopes[0]!;
-    return buildWarRoomPulse({ scope, now: warRoomNow });
-  }, [warRoomScopes, selectedScope.id, warRoomNow]);
+    return buildWarRoomPulse({ scope, now: warRoomNow, kpiTargets });
+  }, [warRoomScopes, selectedScope.id, warRoomNow, kpiTargets]);
 
   // Every station funnels through this one write, so this is where the plot
   // either advances or honestly reports that somebody else moved it first. The
@@ -386,7 +404,7 @@ function WarRoom({ rows, decisions, pulse, selectedScopeId, scopeLabel, radarCri
         <div className="border-b border-[#d7b56d]/16 p-5">
           <p className="text-[9px] font-semibold uppercase text-[#e4c783]/60">Zone 3 · Live pulse · {scopeLabel}</p>
           <h2 className="mt-1 text-lg font-semibold">Metrics against target</h2>
-          <p className="mt-2 text-[10px] leading-4 text-white/35">Deviation is measured against each metric&rsquo;s own target. Missing evidence stays &ldquo;Learning&rdquo; rather than reading as a pass.</p>
+          <p className="mt-2 text-[10px] leading-4 text-white/35">Deviation is measured against each metric&rsquo;s own target — the agency KPI plan where it sets one for this scope, the retained company plan otherwise. Missing evidence stays &ldquo;Learning&rdquo; rather than reading as a pass.</p>
         </div>
         <div className="divide-y divide-white/8">
           {pulse.map(metric => <PulseRow key={metric.id} metric={metric} />)}
@@ -434,6 +452,7 @@ function PulseRow({ metric }: { metric: WarRoomPulseMetric }) {
       <strong className="text-lg tabular-nums">{metric.value}</strong>
       <span className="text-[9px] uppercase text-white/28">{metric.target}</span>
     </div>
+    {metric.targetSource === "kpi-plan" ? <span className="mt-1 inline-flex items-center gap-1 border border-[#62e8ff]/22 bg-[#62e8ff]/[0.05] px-1.5 py-0.5 text-[8px] font-semibold uppercase text-[#8ef1ff]"><BarChart3 size={9} /> Agency KPI plan target</span> : null}
     <p className="mt-1 text-[10px] leading-4 text-white/32">{metric.detail}</p>
   </div>;
 }

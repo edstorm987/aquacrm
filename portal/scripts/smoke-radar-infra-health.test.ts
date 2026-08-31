@@ -245,3 +245,139 @@ test("a module's coverage row is dated by a real check, never by its install dat
   await runPluginHealthSweep(agencyId, { now: NOW });
   assert.equal(row(await buildBusinessIssueRadar(agencyId, NOW))?.lastActivityAt, NOW);
 });
+
+// ══════════════════════════════════════════════════════════════════════════
+// HOW OLD IS THIS? — issues #170
+// ══════════════════════════════════════════════════════════════════════════
+//
+// The Infra sweep runs on `cron/radar-probes`, which is scheduled `15 6 * * *`
+// — once a day. Every check above was stamped `measuredAt: now` from the Pulse
+// that READ the snapshot, and no surface carried `snapshot.checkedAt` at all, so
+// a reading taken 23 hours ago rendered byte-identically to one taken a second
+// ago. That is the house's own "missing evidence is never a healthy pass" rule
+// failing in its quieter form: expired evidence presented as a current pass.
+//
+// Each case below fails against the old builder: it had no `lastSeenAt`, no age
+// evidence, no freshness check, and no staleness rule.
+
+const PROBE_CADENCE_MS = 86_400_000; // vercel.json `15 6 * * *` → daily.
+
+test("an infra check is dated by the probe that produced it, not by the page load", () => {
+  // Pulse read six hours after the sweep ran — inside the daily cadence.
+  const checks = buildInfraHealthChecks(snapshot(), NOW + 6 * 3_600_000);
+  const reach = checks.find(c => c.id === "infra:database:primary:reachability");
+  assert.equal(reach?.lastSeenAt, NOW, "the check must carry the snapshot's own checkedAt");
+  assert.notEqual(reach?.lastSeenAt, reach?.measuredAt, "the probe time and the Pulse read time are two different facts");
+  assert.ok(reach?.evidence.some(line => /Evidence checked 6h ago/.test(line)),
+    `the age of the evidence must be readable on the check itself: ${reach?.evidence.join(" | ")}`);
+  assert.ok(reach?.evidence.some(line => /Probe cadence 1d/.test(line)),
+    "…beside the cadence it is being judged against");
+  // Still inside the agreement, so it is still a real pass.
+  assert.equal(reach?.status, "pass");
+});
+
+test("the snapshot's own age is a check, so 'how old is this?' is answerable on Radar", () => {
+  const fresh = buildInfraHealthChecks(snapshot(), NOW + 3_600_000).find(c => c.id === "infra:probe:freshness");
+  assert.ok(fresh, "the infra family must expose a probe-freshness check");
+  assert.equal(fresh?.status, "pass");
+  assert.equal(fresh?.scope, "infra");
+  assert.match(fresh?.detail ?? "", /1h ago/, "the freshness check must state the actual age");
+
+  const late = buildInfraHealthChecks(snapshot(), NOW + PROBE_CADENCE_MS + 3_600_000).find(c => c.id === "infra:probe:freshness");
+  assert.equal(late?.status, "warning", "a sweep that missed its daily schedule is a warning, not silence");
+  const abandoned = buildInfraHealthChecks(snapshot(), NOW + 4 * PROBE_CADENCE_MS).find(c => c.id === "infra:probe:freshness");
+  assert.equal(abandoned?.status, "critical", "four days without a probe escalates");
+});
+
+test("evidence older than the probe cadence stops being proof — both ways", () => {
+  const stale = buildInfraHealthChecks(snapshot(), NOW + 2 * PROBE_CADENCE_MS);
+  const reach = stale.find(c => c.id === "infra:database:primary:reachability");
+  assert.equal(reach?.status, "blind",
+    "a two-day-old 'connected' is not evidence that the database is reachable now");
+  assert.match(reach?.detail ?? "", /outside the 1d probe cadence/,
+    "…and the reading must say the answer aged out rather than going quiet");
+  assert.equal(stale.find(c => c.id === "infra:database:primary:latency")?.status, "blind");
+
+  // The mirror case: an expired failure is not a current failure either.
+  const staleDown = buildInfraHealthChecks(
+    snapshot({ primary: db({ status: "down", latencyMs: 5000, error: "connection refused" }) }),
+    NOW + 2 * PROBE_CADENCE_MS,
+  );
+  assert.equal(staleDown.find(c => c.id === "infra:database:primary:reachability")?.status, "blind",
+    "a two-day-old 'down' is no more current than a two-day-old 'connected'");
+
+  // …but "there is nothing to probe on this backend" does not become a blind
+  // spot by ageing. Inactive is a statement about applicability, not evidence.
+  const staleUntested = buildInfraHealthChecks(
+    snapshot({ primary: db({ backend: "file", status: "untested", latencyMs: null }) }),
+    NOW + 2 * PROBE_CADENCE_MS,
+  );
+  assert.equal(staleUntested.find(c => c.id === "infra:database:primary:reachability")?.status, "inactive");
+});
+
+test("the Pulse states when its probe evidence was actually collected", async () => {
+  await storage.ensureHydrated({ fresh: true });
+  // `radarInfraHealth` is app-wide and survives a fresh hydrate once a sweep in
+  // an earlier test has written it, so clear it explicitly — this case is about
+  // an estate that has never been probed at all.
+  storage.mutate(state => { state.radarInfraHealth = undefined; });
+  const agency = createAgency({ name: "Probe Age Co", ownerEmail: "owner@example.com" });
+
+  // Nothing probed yet: the honest answer is "never", NOT the Pulse's own clock.
+  const unprobed = await buildBusinessIssueRadar(agency.id, NOW);
+  assert.equal(unprobed.summary.probeEvidenceCheckedAt, undefined,
+    "with no probe evidence at all, the Pulse must not substitute its own build time");
+
+  await runRadarInfraSweep(NOW);
+  const later = NOW + 20 * 3_600_000;
+  const radar = await buildBusinessIssueRadar(agency.id, later);
+  assert.equal(radar.generatedAt, later);
+  assert.equal(radar.summary.probeEvidenceCheckedAt, NOW,
+    "the Pulse must report the age of the evidence it rendered, not the moment it rendered it");
+  assert.notEqual(radar.summary.probeEvidenceCheckedAt, radar.generatedAt);
+});
+
+test("the Pulse reports its OLDEST probe evidence, not whichever sweep ran most recently", async () => {
+  await storage.ensureHydrated({ fresh: true });
+  storage.mutate(state => { state.radarInfraHealth = undefined; });
+  const agency = createAgency({ name: "Split Cadence Co", ownerEmail: "owner@example.com" });
+
+  // The scenario the daily cron actually produces: `runRadarProbeRefresh`
+  // SWALLOWS a deep-sweep failure (it returns `ok:false` and leaves the previous
+  // canary records untouched), while the Infra snapshot in the very same tick
+  // refreshes fine. So a week-old canary sits beside a seconds-old DB reading.
+  const staleCanaryAt = NOW - 7 * 86_400_000;
+  storage.mutate(state => {
+    state.radarSyntheticProbes[agency.id] = {
+      "property-a": {
+        id: "probe-a", agencyId: agency.id, propertyId: "property-a", label: "Property A",
+        url: "https://example.test/", checkedAt: staleCanaryAt, durationMs: 120, ok: true,
+        statusCode: 200, redirectCount: 0, dnsAddresses: ["203.0.113.10"],
+        securityHeaders: { strictTransportSecurity: true, contentSecurityPolicy: true, frameProtection: true, contentTypeOptions: true, referrerPolicy: true, permissionsPolicy: true },
+      },
+    };
+  });
+  await runRadarInfraSweep(NOW);
+
+  const radar = await buildBusinessIssueRadar(agency.id, NOW);
+  assert.equal(radar.summary.probeEvidenceCheckedAt, staleCanaryAt,
+    "reporting the newest probe would print 'evidence seconds old' over a week-old canary — the same fresh-timestamp-over-stale-evidence lie #170 exists to end");
+  assert.notEqual(radar.summary.probeEvidenceCheckedAt, NOW,
+    "the fresh Infra snapshot must not speak for the canaries that did not refresh");
+});
+
+test("both radar surfaces state the probe-evidence age beside the Pulse build time", () => {
+  const read = (path: string) => readFileSync(path, "utf8");
+  const dashboard = read("src/app/portal/agency/_BusinessRadarDashboard.tsx");
+  const inspector = read("src/app/portal/agency/radar/RadarInspectionWorkspace.tsx");
+  // The Pulse deck: "Last sweep just now" was true of the Pulse and false about
+  // everything under it, with nothing on the surface to tell the two apart.
+  assert.match(dashboard, /probeEvidenceCheckedAt/);
+  assert.match(dashboard, /probe evidence never collected/,
+    "an un-probed deck must say so rather than borrow the Pulse's timestamp");
+  assert.doesNotMatch(dashboard, /Last sweep \{formatRadarAge\(radar\.generatedAt\)\}/,
+    "the deck calls the Pulse rebuild a 'sweep' again, which is what hid the probe cadence (issues #170)");
+  // The inspection workspace: "Generated" alone was the Pulse's build time.
+  assert.match(inspector, /Evidence checked/);
+  assert.match(inspector, /probeEvidenceCheckedAt \? formatShortDate\(radar\.summary\.probeEvidenceCheckedAt\) : "Never probed"/);
+});

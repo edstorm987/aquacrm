@@ -123,7 +123,16 @@ export const BLOCK_BACKEND_GAPS: Readonly<Record<string, BlockBackendGap>> = {
     needs: "ecommerce",
   },
   "donation-button": {
-    reason: "Checkout needs the Ecommerce plugin, and its checkout requires a signed-in customer.",
+    // Two gaps, not one. The session gap is the one this list was built for.
+    // The second was found on 2026-08-31 by reading the handler instead of
+    // trusting an earlier comment that claimed it "reads lineItems": it calls
+    // `parseCheckoutRequest`, which enforces a strict field allowlist and
+    // rejects the block's body outright on `lineItems`, while requiring
+    // `version`, `operationId` and product-shaped `items` that a donation does
+    // not have. So this block cannot complete a donation for ANY caller, and
+    // making it work needs a donation shape in the checkout contract — not a
+    // public route.
+    reason: "Donations cannot complete: checkout needs the Ecommerce plugin and a signed-in customer, and it rejects this block's request because its checkout contract only accepts product line items.",
     endpoints: ["/api/portal/ecommerce/stripe/checkout"],
     needs: "ecommerce",
   },
@@ -132,6 +141,45 @@ export const BLOCK_BACKEND_GAPS: Readonly<Record<string, BlockBackendGap>> = {
 /** The gap for `type`, or `undefined` when the block is fine. */
 export function blockBackendGap(type: string): BlockBackendGap | undefined {
   return BLOCK_BACKEND_GAPS[type];
+}
+
+// ── Telling "nothing there" apart from "we could not ask" ────────────────
+//
+// The blocks contributed by the memberships and affiliates plugins fetch
+// their own data, and every one of them used to funnel a failure into the
+// SAME branch as a genuinely empty result: a 404, a 401, a 500 and a dropped
+// connection all ended as `plans = []` behind a silent `catch`, which the
+// page then rendered as "No tiers available right now." or, worse, "No data
+// yet — be the first!".
+//
+// That is the same defect as a missing date rendering as today: a blind spot
+// presented as a fact. A visitor cannot tell that the site owner has plans
+// they simply cannot be shown, and neither can the site owner previewing it.
+//
+// The four outcomes below are what a block can honestly distinguish from a
+// single fetch, and they need different words on the page:
+//
+//   ok            — the backend answered; an empty list really is empty.
+//   unavailable   — the module is not installed here (404 from the
+//                   dispatcher's route resolver).
+//   unauthorized  — the route exists but refuses an anonymous visitor
+//                   (401/403). This is the block-backend gap of `#29`
+//                   showing up at runtime, not an empty catalogue.
+//   failed        — anything else, including a network error or bad JSON.
+export type BlockFetchOutcome = "ok" | "unavailable" | "unauthorized" | "failed";
+
+/**
+ * Classify a storefront block's fetch. Pass the `Response`; pass `null`
+ * (or nothing) when the request threw before there was one.
+ */
+export function classifyBlockFetch(
+  res?: { ok?: boolean; status?: number } | null,
+): BlockFetchOutcome {
+  if (!res) return "failed";
+  if (res.ok) return "ok";
+  if (res.status === 404 || res.status === 410) return "unavailable";
+  if (res.status === 401 || res.status === 403) return "unauthorized";
+  return "failed";
 }
 
 /** Every block type that cannot serve a visitor today. */

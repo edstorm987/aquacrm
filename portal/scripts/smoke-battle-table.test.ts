@@ -12,6 +12,7 @@ import {
   describeCompanyConflict,
   rebaseCompanyProfile,
 } from "../src/app/portal/agency/companyProfileConflict";
+import { applyKpiTargetOverride } from "../src/lib/performance/kpiRegistry";
 
 const require = createRequire(import.meta.url);
 const serverOnlyPath = require.resolve("server-only");
@@ -833,6 +834,93 @@ test("War room pulse reads growth and capacity against their retained assumption
   assert.ok((capacity.deviationPercent ?? 0) > 0);
 });
 
+test("War room targets follow the agency KPI plan where it sets one, and fall back to the retained plan where it does not", async () => {
+  const { buildBattlefield, buildWarRoomDecisions, buildWarRoomPulse, resolveWarRoomTargets } = await warRoom();
+  const base = await seedProfile("war-room-kpi-plan", { monthlyRevenueTargetCents: 1_000_000, mission: "Trade", vision: "Grow" });
+  const profile = { ...base, projection: { ...base.projection, targetMonthlyGrowthPercent: 10 } };
+  const ecosystem = await warRoomScope({ profile, actuals: { monthRevenueCents: 600_000, monthlyRevenueGrowthPercent: 12, leadCount: 40 }, healthScore: 75 });
+  const brand = await warRoomScope({ id: "company:brand-a", companyId: "brand-a", label: "Brand Alpha", kind: "company", profile, actuals: { monthRevenueCents: 600_000, monthlyRevenueGrowthPercent: 12, leadCount: 40 }, healthScore: 75 });
+
+  // Nothing set in the KPI plan: the retained company plan is the authority.
+  const retained = buildWarRoomPulse({ scope: ecosystem, now: WAR_ROOM_NOW });
+  assert.equal(retained.find(item => item.id === "revenue")?.target, "£10,000 target");
+  assert.equal(retained.find(item => item.id === "revenue")?.targetSource, "plan");
+  assert.equal(retained.find(item => item.id === "growth")?.target, "+10% target");
+  assert.equal(retained.find(item => item.id === "growth")?.targetSource, "plan");
+  assert.equal(retained.find(item => item.id === "growth")?.state, "ahead", "12% growth clears the retained 10% assumption");
+  assert.equal(retained.find(item => item.id === "health")?.target, "70 pts baseline");
+  assert.equal(retained.find(item => item.id === "health")?.state, "on-track");
+  assert.equal(buildBattlefield({ scopes: [ecosystem], now: WAR_ROOM_NOW })[0]?.targetCents, 1_000_000);
+  assert.equal(buildBattlefield({ scopes: [ecosystem], now: WAR_ROOM_NOW })[0]?.healthState, "clear");
+  assert.equal(
+    buildWarRoomDecisions({ scopes: [ecosystem], now: WAR_ROOM_NOW }).filter(item => item.kind === "revenue-gap").length,
+    0,
+    "£6,000 banked by 15/31 August clears a £10,000 monthly plan's corridor",
+  );
+
+  // The agency KPI plan raises three targets; the same structure the KPI plan
+  // editor writes (`applyKpiTargetOverride`) is what the war room reads back.
+  let config = applyKpiTargetOverride(undefined, "revenue-target", { targetValue: 150 }, { now: 1 });
+  config = applyKpiTargetOverride(config, "revenue-growth", { targetValue: 25 }, { now: 2 });
+  config = applyKpiTargetOverride(config, "business-health", { targetValue: 90 }, { now: 3 });
+
+  const planned = buildWarRoomPulse({ scope: ecosystem, now: WAR_ROOM_NOW, kpiTargets: config });
+  const revenue = planned.find(item => item.id === "revenue")!;
+  assert.equal(revenue.target, "£15,000 target", "150% attainment applies to the retained £10,000 monthly plan");
+  assert.equal(revenue.targetSource, "kpi-plan");
+  assert.match(revenue.detail, /agency KPI plan requires 150% of the retained £10,000 plan/);
+  const growth = planned.find(item => item.id === "growth")!;
+  assert.equal(growth.target, "+25% target");
+  assert.equal(growth.targetSource, "kpi-plan");
+  assert.equal(growth.state, "behind", "12% growth against a raised 25% target is no longer ahead");
+  assert.equal(growth.deviationPercent, -13);
+  const health = planned.find(item => item.id === "health")!;
+  assert.equal(health.target, "90 pts baseline");
+  assert.equal(health.state, "behind", "75 points clears the 70-point default but not a 90-point KPI target");
+  assert.equal(health.deviationPercent, -15);
+  // Readings with no command-KPI counterpart keep the retained guardrail.
+  assert.equal(planned.find(item => item.id === "capacity")?.targetSource, "plan");
+
+  // The battlefield and the decisions queue read the same raised target, so the
+  // front door cannot show two different plans at once.
+  const [row] = buildBattlefield({ scopes: [ecosystem], now: WAR_ROOM_NOW, kpiTargets: config });
+  assert.equal(row?.targetCents, 1_500_000);
+  assert.equal(row?.healthState, "warning");
+  assert.ok(row?.evidence.some(item => /agency KPI plan requires 150%/.test(item)), "the raised target names its own authority");
+  const gap = buildWarRoomDecisions({ scopes: [ecosystem], now: WAR_ROOM_NOW, kpiTargets: config }).find(item => item.kind === "revenue-gap");
+  assert.ok(gap, "the same banked revenue is behind the raised corridor and raises a call");
+  assert.ok(gap!.evidence.some(item => /Set by the agency KPI plan: 150%/.test(item)));
+
+  // A company-level entry is more specific than the agency-wide one.
+  const layered = applyKpiTargetOverride(config, "revenue-growth", { targetValue: 40 }, { companyId: "brand-a", now: 4 });
+  assert.equal(buildWarRoomPulse({ scope: brand, now: WAR_ROOM_NOW, kpiTargets: layered }).find(item => item.id === "growth")?.target, "+40% target");
+  assert.equal(buildWarRoomPulse({ scope: ecosystem, now: WAR_ROOM_NOW, kpiTargets: layered }).find(item => item.id === "growth")?.target, "+25% target", "the company entry does not leak onto the ecosystem row");
+
+  // Cleared or unusable entries never blank a target that exists.
+  const cleared = applyKpiTargetOverride(config, "revenue-target", { targetValue: null }, { now: 5 });
+  assert.deepEqual(
+    { cents: resolveWarRoomTargets(ecosystem, cleared).revenueTargetCents, authority: resolveWarRoomTargets(ecosystem, cleared).revenueAuthority },
+    { cents: 1_000_000, authority: "plan" },
+  );
+  const zeroed = applyKpiTargetOverride(config, "revenue-target", { targetValue: 0 }, { now: 6 });
+  assert.equal(resolveWarRoomTargets(ecosystem, zeroed).revenueTargetCents, 1_000_000, "a zero attainment target is not a plan, so the retained target stands");
+
+  // A zero growth target is reachable from the shipped KPI plan editor (a typed
+  // 0, or a suggested target off flat history). Zero is the pulse's own
+  // "no-target" sentinel, so honouring it would blank the retained +10%
+  // assumption into "no target set" while still flying the KPI-plan chip.
+  const zeroGrowth = applyKpiTargetOverride(config, "revenue-growth", { targetValue: 0 }, { now: 7 });
+  const zeroGrowthPulse = buildWarRoomPulse({ scope: ecosystem, now: WAR_ROOM_NOW, kpiTargets: zeroGrowth }).find(item => item.id === "growth")!;
+  assert.equal(zeroGrowthPulse.target, "+10% target", "a zero growth target is not a plan, so the retained assumption stands");
+  assert.equal(zeroGrowthPulse.targetSource, "plan");
+  assert.notEqual(zeroGrowthPulse.state, "no-target", "a real retained growth assumption is never blanked into no-target by an unusable KPI entry");
+  // A negative growth target IS a plan — a deliberate contraction — and is read.
+  const negativeGrowth = applyKpiTargetOverride(config, "revenue-growth", { targetValue: -5 }, { now: 8 });
+  const negativePulse = buildWarRoomPulse({ scope: ecosystem, now: WAR_ROOM_NOW, kpiTargets: negativeGrowth }).find(item => item.id === "growth")!;
+  assert.equal(negativePulse.target, "-5% target");
+  assert.equal(negativePulse.targetSource, "kpi-plan");
+});
+
 test("War room capital watch matches the retained register and opens the capital section", async () => {
   const { capitalWatchCount, buildWarRoomDecisions } = await warRoom();
   const base = await seedProfile("war-room-capital", { monthlyRevenueTargetCents: 1_000_000, mission: "Trade", vision: "Grow" });
@@ -879,6 +967,10 @@ test("The war room is the Battle Table front door and the 10 planning sections a
   assert.match(table, /What needs your call right now/);
   assert.match(table, /Set-up and planning · drill in below/);
   assert.match(table, /buildBattlefield|buildWarRoomDecisions|buildWarRoomPulse/);
+  // The front door is measured against the agency's persisted KPI plan where it
+  // sets a target, not only against the retained Battle Table form.
+  assert.match(table, /fetch\("\/api\/portal\/kpi-registry\/targets"\)/);
+  assert.match(table, /buildWarRoomPulse\(\{ scope, now: warRoomNow, kpiTargets \}\)/);
 
   // Demoted, not deleted: every planning section is still reachable.
   for (const station of ["Strategic plot", "KPI intelligence", "Direction", "Projections", "Objectives", "Capacity", "Plans", "Capital & ownership", "Reviews", "Executive systems"]) {

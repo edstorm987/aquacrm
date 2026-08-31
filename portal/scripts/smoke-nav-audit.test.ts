@@ -97,6 +97,7 @@ const LEADS_WORKSPACE = join(ROOT, "src", "app", "portal", "agency", "pipelines"
 const LEADS_HANDLERS = join(ROOT, "src", "built-ins", "modules", "leads-pipeline", "src", "api", "handlers.ts");
 const ACTIVITY_INBOX_PAGE = join(ROOT, "src", "app", "portal", "agency", "activity-inbox", "page.tsx");
 const AGENCY_ACTIVITY_FEED = join(ROOT, "src", "app", "portal", "agency", "_AgencyActivityFeed.tsx");
+const ACTIVITY_VOCABULARY = join(ROOT, "src", "lib", "shared", "activityVocabulary.ts");
 const AGENCY_SETTINGS_PAGE = join(ROOT, "src", "app", "portal", "agency", "settings", "page.tsx");
 const AGENCY_SETTINGS_TABS = join(ROOT, "src", "app", "portal", "agency", "settings", "SettingsTabs.tsx");
 const DEVELOPMENT_NAV = join(ROOT, "src", "app", "portal", "agency", "development", "_DevelopmentNav.tsx");
@@ -558,19 +559,67 @@ describe("standalone portal nav audit", () => {
     assert.ok(!tabs.includes("recommended tools"), "phase help copy should not say recommended tools");
   });
 
+  // todo:960 — deliberate contract move (2026-08-30). These assertions used to
+  // demand the rewrite regexes live literally inside the activity-inbox page
+  // and the dashboard feed, which is exactly what let the wording triplicate:
+  // two copies that drifted apart plus a Master Inbox Updates tab that rendered
+  // the raw internal message. The requirement is unchanged — internal wording
+  // must never reach an operator — but it is now pinned to the one shared
+  // module, and every renderer of the `listActivity` feed must source it there.
   it("sanitises historical activity actions into product language", () => {
-    const src = read(ACTIVITY_INBOX_PAGE);
-    const feed = read(AGENCY_ACTIVITY_FEED);
-    assert.ok(src.includes('.replace(/\\binstalled\\b/gi, "activated")'), "installed action copy should render as activated");
-    assert.ok(src.includes('.replace(/\\bdisabled\\b/gi, "turned off")'), "disabled action copy should render as turned off");
-    assert.ok(src.includes('.replace(/\\benabled\\b/gi, "turned on")'), "enabled action copy should render as turned on");
-    assert.ok(src.includes('.replace(/[._-]/g, " ")'), "dotted internal activity actions should render as readable words");
-    assert.ok(src.includes('.replace(/\\bWill install\\b/gi, "Will activate")'), "future install wording should render as activation wording");
-    assert.ok(src.includes('"systems activated"'), "activity inbox should use systems language");
-    assert.ok(src.includes('if (category === "plugin") return "systems"'), "plugin activity category should render as systems");
-    assert.ok(feed.includes('"systems activated"'), "dashboard activity feed should use systems language");
-    assert.ok(!src.includes('"tools activated"'), "activity inbox should not use tools language");
-    assert.ok(!feed.includes('"tools activated"'), "dashboard activity feed should not use tools language");
+    const vocab = read(ACTIVITY_VOCABULARY);
+    assert.ok(vocab.includes('.replace(/\\binstalled\\b/gi, "activated")'), "installed action copy should render as activated");
+    assert.ok(vocab.includes('.replace(/\\bdisabled\\b/gi, "turned off")'), "disabled action copy should render as turned off");
+    assert.ok(vocab.includes('.replace(/\\benabled\\b/gi, "turned on")'), "enabled action copy should render as turned on");
+    assert.ok(vocab.includes('.replace(/[._-]/g, " ")'), "dotted internal activity actions should render as readable words");
+    assert.ok(vocab.includes('.replace(/\\bWill install\\b/gi, "Will activate")'), "future install wording should render as activation wording");
+    assert.ok(vocab.includes('"systems activated"'), "shared activity vocabulary should use systems language");
+    assert.ok(vocab.includes('if (category === "plugin") return "systems"'), "plugin activity category should render as systems");
+    assert.ok(!vocab.includes('"tools activated"'), "shared activity vocabulary should not use tools language");
+  });
+
+  it("renders one activity vocabulary across every surface that shows the feed", async () => {
+    const vocabulary = await import("../src/lib/shared/activityVocabulary");
+
+    // Behavioural contract: an internal event reads the same wherever it lands.
+    assert.equal(vocabulary.activityMessage("Fulfillment plugin installed; phase defaults seeded."), "Project pipeline ready; stages seeded.");
+    assert.equal(vocabulary.activityMessage("Analytics plugin installed"), "Analytics system activated");
+    assert.equal(vocabulary.activityCategory("plugin"), "systems");
+    assert.equal(vocabulary.activityCategory("tenant"), "client");
+    assert.equal(vocabulary.activityAction("plugin.installed"), "system activated");
+    assert.equal(vocabulary.activityAction("fulfillment.phase.enabled"), "project work phase turned on");
+
+    // Every renderer of `listActivity` sources that one module, and none keeps
+    // a private copy of the rewrite. Known remaining raw surface, deliberately
+    // NOT pinned here because it writes persisted ledger rows rather than
+    // rendering: `src/lib/server/clients/clientRecordLedger.ts` (and the
+    // matching `clientRecordLedgerEvents` block in the client workspace page)
+    // still store `entry.message` / `entry.category` verbatim — tracked in
+    // docs/workspace/hazards-and-duplication.md.
+    const surfaces: Array<[string, string]> = [
+      ["activity log page", ACTIVITY_INBOX_PAGE],
+      ["dashboard activity feed", AGENCY_ACTIVITY_FEED],
+      ["master inbox updates tab", MASTER_INBOX],
+      ["client workspace recent movement", CLIENT_HOME],
+    ];
+    for (const [label, path] of surfaces) {
+      const src = read(path);
+      assert.ok(
+        src.includes('from "@/lib/shared/activityVocabulary"'),
+        `${label} should import the shared activity vocabulary`,
+      );
+      assert.ok(
+        !/function activityMessage\b/.test(src),
+        `${label} should not re-declare the activity vocabulary rewrite`,
+      );
+    }
+
+    // The Updates tab renders the rewritten message, not the raw internal one —
+    // this is the divergence todo:960 found.
+    const inboxSrc = read(MASTER_INBOX);
+    assert.ok(inboxSrc.includes("{activityMessage(item.message)}"), "master inbox updates should render the product wording");
+    assert.ok(inboxSrc.includes("{activityCategory(item.category)}"), "master inbox updates should render the product category");
+    assert.ok(!inboxSrc.includes('item.category.replaceAll("-", " ")'), "master inbox updates should not hand-roll category wording");
   });
 
   it("keeps customer portal fallback copy account-ready, not internal", () => {

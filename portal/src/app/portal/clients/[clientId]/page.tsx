@@ -18,6 +18,7 @@ import { getAgency, getClientForAgency, listClients } from "@/server/tenants";
 import { clientRelationshipId, listClientRelationshipWorkspaces } from "@/server/clientRelationships";
 import { listInstalledFor } from "@/server/pluginInstalls";
 import { listActivity } from "@/server/activity";
+import { activityAction, activityCategory, activityMessage } from "@/lib/shared/activityVocabulary";
 import { phaseLabel, listPhasesForAgency } from "@/server/phases";
 import { listPlugins } from "@/built-ins/runtime/_registry";
 import { SURFACE_ROLE_CEILING } from "@/built-ins/runtime/_pageScope";
@@ -642,11 +643,13 @@ export default async function ClientHome({
         occurredAt: message.occurredAt,
         href: clientWorkspaceHref(client.id, "communications"),
       })),
+    // Same `listActivity` feed the agency surfaces render, so it must speak the
+    // same product vocabulary (todo:960) — never the raw internal wording.
     ...recentActivity.map(item => ({
       id: item.id,
       kind: "activity" as const,
-      title: item.message,
-      detail: `${item.category} · ${item.action.replaceAll(".", " ")}`,
+      title: activityMessage(item.message),
+      detail: `${activityCategory(item.category)} · ${activityAction(item.action)}`,
       occurredAt: item.ts,
       href: `${clientWorkspaceHref(client.id, "notes")}#client-record`,
     })),
