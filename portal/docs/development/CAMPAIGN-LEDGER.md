@@ -480,3 +480,62 @@ focus failures:
 These are a handful of components, not a hundred screens. Giving them visible
 focus indicators would clear most of the focus column in one pass — by far the
 best accessibility return available, and now measurable rather than guessed at.
+
+---
+
+## Vercel: two failures, cause UNDETERMINED — and a correction
+
+`c832188` (wave 9) failed to deploy. That is the second failure on this branch,
+and the two have **different shapes**:
+
+| commit | wave | outcome | time to fail |
+| --- | --- | --- | --- |
+| `cff860d` | 7 | Error | ~3 minutes |
+| `407cb5b` | 8 | **Ready** | ~4 minutes |
+| `c832188` | 9 | Error | **~46 minutes** |
+
+A 3-minute failure looks like a build error. A 46-minute one looks like a
+timeout or a hang. They are probably not the same fault, and neither is
+diagnosable from this container: Vercel's logs need auth this session does not
+have, and `npm run build` exits 0 locally on **both** failing commits.
+
+### Correction: the "2.5GB build output" figure was wrong
+
+Earlier notes in this ledger and in the session's check-ins said the build
+output had grown to ~2.5GB across 377 routes, against ~1.48GB recorded earlier
+in the project, and offered that as the leading hypothesis. **That was a
+measurement error.** `du -sh .next` includes `.next/cache`, which is the local
+build cache and is never deployed. The actual artefacts are:
+
+```
+2.5G  .next          ← includes the local build cache
+2.5G  .next/cache    ← NOT deployed
+ 58M  .next/server   ← deployed
+ 12M  .next/static   ← deployed
+```
+
+Roughly **70MB deployed**, which is healthy and nowhere near a size limit.
+Build size is not the problem, and the earlier hypothesis should be dropped
+rather than carried forward.
+
+### A hypothesis raised and then withdrawn
+
+Wave 9 added `requireCurrentAccessActor()` — which forces
+`ensureHydrated({ fresh: true })` — into `listOperationalAlerts()`, which six
+render paths call including two layouts. That looked like it might have put a
+forced backend read into every page of a 301-page prerender.
+
+**It does not.** Every portal route builds as `ƒ` (server-rendered on demand),
+not `○` (prerendered), so none of them run at build time. The hypothesis is
+withdrawn rather than left standing as a plausible-sounding non-explanation.
+
+The call was still made lazy — it now resolves only when an open action
+actually names a client — because a forced fresh backend read in a hot render
+path is worth removing on its own merits. That is a **runtime** improvement,
+**not** an evidenced deploy fix, and must not be described as one.
+
+### What would actually settle it
+
+The Vercel build log for `6hDw2Zx8e8tjcxL7pTPMhgxtp4ae`. Until someone reads
+it, the cause is unknown. Guessing further from here would just produce more
+confident-sounding wrong answers.

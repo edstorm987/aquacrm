@@ -10,7 +10,7 @@ import { containerFor } from "@aqua/plugin-leads-pipeline/server";
 import type { ClientTelemetryEvent } from "@/lib/clients/clientTelemetry";
 import { clientTelemetryRiskSignals } from "@/lib/clients/clientAquaHealth";
 import { listAgencyTasks } from "@/server/tasks";
-import { requireCurrentAccessActor } from "@/server/accessControl";
+import { requireCurrentAccessActor, type CurrentAccessActor } from "@/server/accessControl";
 import { canReadClientAssociation } from "@/lib/server/access/clientAssociationElement";
 import { ownerChatAttention } from "@/server/people";
 import { getUserById } from "@/server/users";
@@ -140,11 +140,22 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
   // system caller with no session) the client-named tasks are DROPPED rather
   // than included — an alert feed that cannot check permission must not guess
   // in the permissive direction.
-  const taskActor = notificationSettings.overdueTasks
-    ? await requireCurrentAccessActor().catch(() => null)
-    : null;
-  for (const task of notificationSettings.overdueTasks ? listAgencyTasks(agencyId) : []) {
-    if (task.status === "done") continue;
+  //
+  // Resolved LAZILY, and only when a client-named action actually exists.
+  // `requireCurrentAccessActor()` forces `ensureHydrated({ fresh: true })`, and
+  // six render paths reach this function — including two layouts — so calling
+  // it unconditionally put a forced fresh backend read into every one of the
+  // 301 pages the production build prerenders. That is a build-time cost with
+  // no runtime benefit whenever nothing needs filtering, which is the common
+  // case.
+  const openTasks = notificationSettings.overdueTasks
+    ? listAgencyTasks(agencyId).filter(task => task.status !== "done")
+    : [];
+  let taskActor: CurrentAccessActor | null = null;
+  if (openTasks.some(task => task.clientId)) {
+    taskActor = await requireCurrentAccessActor().catch(() => null);
+  }
+  for (const task of openTasks) {
     if (task.clientId && !(taskActor && canReadClientAssociation(taskActor, "agency-task", task.clientId))) continue;
     const owner = task.assigneeUserId ? getUserById(task.assigneeUserId)?.name : undefined;
     const baseAlert = {

@@ -2,7 +2,7 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-08-31 from **20** source documents / **29,074 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-31 from **20** source documents / **29,495 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -21,7 +21,7 @@
 - [`docs/DEVELOPMENT-HANDOFF.md`](#source-docs-development-handoff-md) — 1,552 words · `9199166a1f30`
 - [`docs/development-workspace-cleanup.md`](#source-docs-development-workspace-cleanup-md) — 793 words · `bdb46a5cecd3`
 - [`docs/development.md`](#source-docs-development-md) — 3,248 words · `dd5efef22882`
-- [`docs/development/CAMPAIGN-LEDGER.md`](#source-docs-development-campaign-ledger-md) — 7,842 words · `fea7f9bed64a`
+- [`docs/development/CAMPAIGN-LEDGER.md`](#source-docs-development-campaign-ledger-md) — 8,263 words · `aff8d4bf94da`
 - [`docs/development/CLOUD-RESUME.md`](#source-docs-development-cloud-resume-md) — 500 words · `03458cdf18bf`
 - [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 2,209 words · `f8dfdfa9cfad`
 - [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,622 words · `98fe02dc9d94`
@@ -2161,7 +2161,7 @@ else hangs from.*
 
 ## Source document — `docs/development/CAMPAIGN-LEDGER.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/CAMPAIGN-LEDGER.md" sha256="fea7f9bed64aedb29f84300119924e580e741ba122d8f97db7f98d8ce0294c4c" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/CAMPAIGN-LEDGER.md" sha256="aff8d4bf94dad182104e674c98c3ee58407a1020c5405d9c6009840d18f821b4" -->
 # Campaign ledger — every documented to-do, verified against source
 
 *Generated 2026-08-30 from a 131-agent triage: one independent read-only investigator
@@ -2644,6 +2644,65 @@ focus failures:
 These are a handful of components, not a hundred screens. Giving them visible
 focus indicators would clear most of the focus column in one pass — by far the
 best accessibility return available, and now measurable rather than guessed at.
+
+---
+
+## Vercel: two failures, cause UNDETERMINED — and a correction
+
+`c832188` (wave 9) failed to deploy. That is the second failure on this branch,
+and the two have **different shapes**:
+
+| commit | wave | outcome | time to fail |
+| --- | --- | --- | --- |
+| `cff860d` | 7 | Error | ~3 minutes |
+| `407cb5b` | 8 | **Ready** | ~4 minutes |
+| `c832188` | 9 | Error | **~46 minutes** |
+
+A 3-minute failure looks like a build error. A 46-minute one looks like a
+timeout or a hang. They are probably not the same fault, and neither is
+diagnosable from this container: Vercel's logs need auth this session does not
+have, and `npm run build` exits 0 locally on **both** failing commits.
+
+### Correction: the "2.5GB build output" figure was wrong
+
+Earlier notes in this ledger and in the session's check-ins said the build
+output had grown to ~2.5GB across 377 routes, against ~1.48GB recorded earlier
+in the project, and offered that as the leading hypothesis. **That was a
+measurement error.** `du -sh .next` includes `.next/cache`, which is the local
+build cache and is never deployed. The actual artefacts are:
+
+```
+2.5G  .next          ← includes the local build cache
+2.5G  .next/cache    ← NOT deployed
+ 58M  .next/server   ← deployed
+ 12M  .next/static   ← deployed
+```
+
+Roughly **70MB deployed**, which is healthy and nowhere near a size limit.
+Build size is not the problem, and the earlier hypothesis should be dropped
+rather than carried forward.
+
+### A hypothesis raised and then withdrawn
+
+Wave 9 added `requireCurrentAccessActor()` — which forces
+`ensureHydrated({ fresh: true })` — into `listOperationalAlerts()`, which six
+render paths call including two layouts. That looked like it might have put a
+forced backend read into every page of a 301-page prerender.
+
+**It does not.** Every portal route builds as `ƒ` (server-rendered on demand),
+not `○` (prerendered), so none of them run at build time. The hypothesis is
+withdrawn rather than left standing as a plausible-sounding non-explanation.
+
+The call was still made lazy — it now resolves only when an open action
+actually names a client — because a forced fresh backend read in a hot render
+path is worth removing on its own merits. That is a **runtime** improvement,
+**not** an evidenced deploy fix, and must not be described as one.
+
+### What would actually settle it
+
+The Vercel build log for `6hDw2Zx8e8tjcxL7pTPMhgxtp4ae`. Until someone reads
+it, the cause is unknown. Guessing further from here would just produce more
+confident-sounding wrong answers.
 <!-- AQUACRM_SOURCE_END path="docs/development/CAMPAIGN-LEDGER.md" -->
 
 ---
