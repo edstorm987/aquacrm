@@ -2,17 +2,17 @@
 
 > The current checklist, status, roadmap, goals, decisions and working queue.
 >
-> Consolidated 2026-08-31 from **7** source documents / **85,289 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-31 from **7** source documents / **85,495 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`docs/CURRENT-IMPLEMENTATION.md`](#source-docs-current-implementation-md) — 4,673 words · `34e0d0082117`
-- [`docs/development/checklist.md`](#source-docs-development-checklist-md) — 20,929 words · `e6cf5a48c8b9`
+- [`docs/development/checklist.md`](#source-docs-development-checklist-md) — 21,032 words · `8bb0518e3ee0`
 - [`docs/development/goals.md`](#source-docs-development-goals-md) — 506 words · `28009372c4ab`
 - [`docs/development/notes.md`](#source-docs-development-notes-md) — 1,730 words · `f68ea59936dd`
 - [`docs/development/roadmap.md`](#source-docs-development-roadmap-md) — 21,160 words · `da05e0e5ba0f`
 - [`docs/development/status.md`](#source-docs-development-status-md) — 20,474 words · `7644b20d51a7`
-- [`docs/development/todo.md`](#source-docs-development-todo-md) — 15,817 words · `607b5308f72a`
+- [`docs/development/todo.md`](#source-docs-development-todo-md) — 15,920 words · `0041865bc30d`
 
 ---
 
@@ -620,7 +620,18 @@ sure" overlay, the funnel/client-side editor convergence
 
 ## Source document — `docs/development/checklist.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/checklist.md" sha256="e6cf5a48c8b95045fe654abc7ea6281244f5ba61f9fd3c33943398ec7d761db0" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/checklist.md" sha256="8bb0518e3ee08df2e852a136ab724e122faf3d8eab8f436152c03ac0e50dab96" -->
+> # ⛔ RETIRED — do not add to this file
+> 
+> **The one task list is [`TODO.md`](TODO.md).** This file and its counterpart held
+> the same work in two different wordings: 130 of ~145 issue ids appeared in both, and
+> 7 issues were marked done in one while still open in the other, so neither could be
+> trusted. Every open row was merged into `TODO.md` on 2026-08-31 and the merge was
+> checked for drops.
+> 
+> Kept for its history and its written reasoning, which `TODO.md` deliberately does not
+> duplicate. Detail for every `#N` lives in [`issues.md`](issues.md).
+
 # Checklist — 2026-08-27 (current source, tests and browser findings)
 
 > ★ **This is the one answer to "where do we stand".** As of 2026-08-27 nothing
@@ -4727,7 +4738,18 @@ verified" rather than implying something works._
 
 ## Source document — `docs/development/todo.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/todo.md" sha256="607b5308f72a7e1d0dd783adf83c7f90aadc06e06b2806e634d80acfb9482673" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/todo.md" sha256="0041865bc30d79ff574524e4072d2484821a37934c5360adf9056a778aea14d5" -->
+> # ⛔ RETIRED — do not add to this file
+> 
+> **The one task list is [`TODO.md`](TODO.md).** This file and its counterpart held
+> the same work in two different wordings: 130 of ~145 issue ids appeared in both, and
+> 7 issues were marked done in one while still open in the other, so neither could be
+> trusted. Every open row was merged into `TODO.md` on 2026-08-31 and the merge was
+> checked for drops.
+> 
+> Kept for its history and its written reasoning, which `TODO.md` deliberately does not
+> duplicate. Detail for every `#N` lives in [`issues.md`](issues.md).
+
 # To-do — cleanup & finishing
 
 ← Back to [development.md](../development.md) (the law)

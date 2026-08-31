@@ -7,8 +7,8 @@
 **Read this section before dispatching a worker or editing anything.** It is the
 current operational handoff and supersedes the stale status sentences at the
 bottom of this file. It does not supersede source code or
-`docs/development/checklist.md`: source is the final authority and the checklist
-is the one current status document.
+`docs/development/TODO.md`: source is the final authority and **`TODO.md` is the one
+current task list** (`checklist.md` and `todo.md` were retired into it on 2026-08-31).
 
 ### First five minutes: preserve the working state
 
@@ -36,7 +36,7 @@ is the one current status document.
   `docs/context/commander-handoff.md`, or anything in `docs/context/archive/`.
   Those records are history and contain stale persistence, Showcase, erasure,
   and implementation claims. Start from `docs/development.md`, then
-  `docs/development/checklist.md`, and verify every claim in current source.
+  `docs/development/TODO.md`, and verify every claim in current source.
 
 ### Finished work — do not reopen or rebuild it
 
@@ -88,7 +88,7 @@ and 6 have not started. Verify in source before acting on any line here.*
    loopback → an uncommitted edit **retained across Restart** onto a new port →
    `/aqua-tag.js` 200 → Stop, with the edit still on disk. **Remaining:**
    the authoring walk (edit → save → diff → commit → PR) needs **Ed's GitHub
-   credentials — promised, not yet supplied** (see todo.md); plus
+   credentials — promised, not yet supplied** (see TODO.md); plus
    clone-from-remote and the dirty-transition browser matrix (issues #19).
 3. ✅ **Phase 18 client embedding — DONE 2026-08-27, browser-accepted.**
    `/portal` now sends `client-owner`/`client-staff` to **`/portal/customer`**, and all
@@ -266,7 +266,7 @@ template work, the 27 August suites named in the continuation order are current.
   → merge against a real repository cannot be walked without them. When they
   arrive: connect GitHub *in the editor* (one vault, do not fork a second
   connection store) and walk it on a throwaway branch before any client
-  repository. **Never enter a real key yourself.** → `docs/development/todo.md`.
+  repository. **Never enter a real key yourself.** → `docs/development/TODO.md`.
 - Ed must approve merge to main, real onboarding-code walkthrough, live
   Stripe/Meta credentials, deployment environment, and DPO/solicitor decisions.
 - **Resolved 27 August, do not re-ask:** the client-portal placement (the existing
@@ -414,5 +414,5 @@ Current operational snapshot: 27 August 2026 on **`main` at `2f3995b`**, with th
 day's session work (~82 files) intentionally uncommitted on top. The earlier
 snapshot naming `work/2026-08-20-parallel-session` at `1d46479` is history — Ed
 checkpoint-committed that state. The current brief at the top of this file,
-source, and `docs/development/checklist.md` supersede older status prose, and
+source, and `docs/development/TODO.md` supersede older status prose, and
 `git status --short` supersedes all of them.

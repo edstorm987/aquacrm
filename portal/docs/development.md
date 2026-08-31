@@ -2,7 +2,7 @@
 
 **This is the master catalogue and build map for AquaCRM. Use it to find the
 owning document, and update that document after every change.** The current
-answer to “where do we stand?” is [development/checklist.md](development/checklist.md);
+answer to “where do we stand?” is [development/TODO.md](development/TODO.md);
 source remains authoritative when prose and implementation disagree.
 Whether you're an AI or a human, on day one or day one thousand: start here and
 you have the whole project. Nothing is lost because everything is written down
@@ -49,8 +49,9 @@ development.md  ← the catalogue (you are here) — the law, tying it all toget
 ├── BOOKS (the top-level docs)
 │   ├── goals.md ......... why we're building this and what "done" is
 │   ├── roadmap.md ....... the roadmap — what's next, in order
-│   ├── checklist.md ..... ★ THE ANSWER to "where do we stand" — the only one
-│   ├── todo.md .......... the working cleanup/finishing checklist
+│   ├── TODO.md ......... ★ THE ONE TASK LIST — "where do we stand", the only one
+│   ├── checklist.md ..... RETIRED 2026-08-31 → merged into TODO.md (kept for history)
+│   ├── todo.md .......... RETIRED 2026-08-31 → merged into TODO.md (kept for history)
 │   ├── issues.md ........ known issues, verified findings, risks
 │   ├── status.md ........ does it actually WORK / can it be USED (≠ "is it coded")
 │   ├── notes.md ......... decisions & context (the "why")
@@ -87,8 +88,8 @@ you find a second file answering one of them, it is stale and belongs on the
 | Question | The one file | Not anywhere else |
 |---|---|---|
 | **What changed, and when?** | **[updates.md](development/updates.md)** | It is the log. Append a dated entry after every meaningful change; **never edit an existing entry** — that is the point of a changelog, and the file says so in its own banner. It is also parsed by the Dev Console, so a second log would be invisible as well as redundant. |
-| **Where do we stand?** | **[checklist.md](development/checklist.md)** | Three files used to answer this. Two are now archived. |
-| **What systems exist?** | **[CURRENT-IMPLEMENTATION.md](CURRENT-IMPLEMENTATION.md)** | An inventory, not a status report. Status lives in checklist.md. |
+| **Where do we stand?** | **[TODO.md](development/TODO.md)** | Five files have answered this over time. `TODO.md` is the only one now — `checklist.md` and `todo.md` were merged into it on 2026-08-31 after they drifted into disagreeing about which issues were done. `scripts/smoke-one-task-list.test.ts` fails if a second list appears. |
+| **What systems exist?** | **[CURRENT-IMPLEMENTATION.md](CURRENT-IMPLEMENTATION.md)** | An inventory, not a status report. Status lives in TODO.md. |
 | **How do I run it locally?** | **[DEVELOPMENT-HANDOFF.md](DEVELOPMENT-HANDOFF.md)** | Despite the name it is the environment runbook, **not** a session handoff. Session handoffs are dated and archived. |
 
 Everything dated — old summaries, session records, worker debriefs — lives on the
@@ -102,14 +103,14 @@ Everything dated — old summaries, session records, worker debriefs — lives o
 |---|---|
 | **[goals.md](development/goals.md)** | Why AquaCRM exists, who Ed is, the operating model, current strategic goals, and the principles that shape how we build. Read first to understand *what* we're doing. |
 | **[roadmap.md](development/roadmap.md)** | **The roadmap — the outer view.** Every outcome that is coming, its horizon (Now / Next / Later / Someday / Shipped), its target date, and the plans that deliver it. Progress is COMPUTED from those plans' phases, never typed. Written and edited from the Dev Console (`/portal/dev-team/roadmap`); this supersedes phases.md. |
-| **[checklist.md](development/checklist.md)** | **The single most reliable "where do we stand" summary** — what's yours (Ed's) vs mine, in order, generated at the end of a session. If you read one thing before working, read this. |
+| **[TODO.md](development/TODO.md)** | **The one task list.** Blocked-on-Ed first, then P0/P1/P2, each row pointing at its `issues.md` entry for the detail. If you read one thing before working, read this. |
 | **[architecture-noobie.md](architecture-noobie.md)** | The whole system explained in **plain English**, no jargon. Start here if you're new (human or agent) and the catalogue below is too dense. |
 | **[development/plans/fulfilment-template-system.md](development/plans/fulfilment-template-system.md)** | **The template system** — portal/product templates edited once and seeded into every client instance, owned by Fulfilment (Ed's direction, 2026-08-27). Most of the spine already exists; the new idea is a cross-tenant *origin* template. |
 | **[development/plans/dev-editor-finish.md](development/plans/dev-editor-finish.md)** | **Current Dev Editor plan.** The 22 Aug session handoff is preserved on the [history shelf](context/archive/dev-editor-handoff-2026-08-22.md), but it is no longer a current brief. |
 | **[context/archive/](context/archive/README.md)** | 🗄 **The history shelf.** Dated records — superseded summaries, session handoffs, worker debriefs — kept because they are the only place some facts survive, and **never current**. `phases.md` (the old roadmap) lives here now. Nothing on this shelf should brief a worker. |
 | **[plans/](development/plans/)** | One **phased plan per substantial item** (e.g. [radar-upgrade.md](development/plans/radar-upgrade.md), [mfa-login.md](development/plans/mfa-login.md)). Each plan's own `**Status:**` line is the authority on that item. Shipped plans may be moved to [plans/archive/](development/plans/archive/). |
 | **[audits.md](development/audits.md)** | The **independent auditor's verdicts** — the record of what has been *verified*, not just claimed. A 🔴 finding gets a loud banner at the top of that file. Read before trusting a "complete" claim. |
-| **[todo.md](development/todo.md)** | The working **checklist** of cleanup & finishing work — Finish / Clean up / Decide / Prove, with launch-blockers flagged. Tick items off as they land. |
+| ~~checklist.md~~ · ~~todo.md~~ | **Retired 2026-08-31** into `TODO.md`. Kept for their written reasoning, which `TODO.md` deliberately does not duplicate. Do not add to them. |
 | **[issues.md](development/issues.md)** | Known issues, **verified security/compliance findings** (DB RLS not in repo, Aqua Tag consent, …), duplication, and the live-data hazard. Check before assuming you found a new bug. |
 | **[status.md](development/status.md)** | The honest **"does it actually work / can it be used?"** register — kept separate from "is it coded" and "do tests pass". **A passing test ≠ working ≠ usable.** Read before trusting a green suite. |
 | **[notes.md](development/notes.md)** | Durable decisions and non-obvious context — the "why", so nothing is re-litigated or re-tripped-over. |
@@ -176,7 +177,7 @@ reach for them when working on that system:
 > useful; a false open item is not.
 
 **Before you build anything:**
-1. Read [checklist.md](development/checklist.md) (where we actually stand), then [goals.md](development/goals.md) (if you don't know the direction) and [roadmap.md](development/roadmap.md) (what's actually next). **Nothing in [context/archive/](context/archive/README.md)** — that shelf is history.
+1. Read [TODO.md](development/TODO.md) (where we actually stand), then [goals.md](development/goals.md) (if you don't know the direction) and [roadmap.md](development/roadmap.md) (what's actually next). **Nothing in [context/archive/](context/archive/README.md)** — that shelf is history.
 2. Find the concern in the [file map](WORKSPACE-FILE-TREE.md) / [feature index](workspace/feature-index.md), and search the [symbol reference](reference/00-index.md) for what already exists. **Reuse → repurpose → simplify before adding new.**
 3. Check [issues.md](development/issues.md) and [hazards-and-duplication.md](workspace/hazards-and-duplication.md) so you edit the canonical copy and don't trip a known risk.
 
@@ -211,7 +212,7 @@ documentation, because updating the docs *is* part of finishing the work.
   (`smoke-session-revocation`, 16/16). ⚠ The same day's whole-suite reruns show
   **the full suite is NOT currently green** (~74 pre-existing failures on the
   current tree) — see the truth note at the top of
-  [checklist.md](development/checklist.md).
+  [TODO.md](development/TODO.md).
 - **P1:** showcase GET/OAuth mutations bypass the read-only proxy assumption;
   erasure can report live failures as success, strand retry and retain the client
   name in its audit; Editor AI's database coordination remains incomplete;
@@ -219,13 +220,13 @@ documentation, because updating the docs *is* part of finishing the work.
 - **Other reliability queue:** file persistence/corrupt-state recovery, invalid
   client references, truthful website empty states, read-path performance and
   critical browser journeys. The exact order is
-  [checklist.md](development/checklist.md).
+  [TODO.md](development/TODO.md).
 - **The three former 🔴 launch blockers are all FIXED** (source-verified 2026-08-20): freelancer preview escalation (`api/auth/preview-as-freelancer/route.ts:49,101` stashes/restores `previewReturnUserId`), finance create-surface idempotency (`agency-finance/src/lib/idempotency.ts`, wired into invoices · plans · operations · expenses · payments · income), and erasure email-in-log (`leads-pipeline/src/server/contacts.ts:168,227,252,279` log an **id**, never an address).
 - **RLS is ON in live Supabase** (verified across 14 tables with the public anon key, 2026-08-20). What remains is **engineering, not an Ed decision**: the RLS policies ARE version-controlled — 14 migrations in `aquaCRM/supabase/migrations/`, 13 of them predating 2026-08-20. An earlier note here said there were none; that was wrong, written by looking inside `portal/` only, `brand_enquiries` has no `agency_id`, ~37 service-role refs bypass it — see [rls-enable](development/plans/rls-enable.md).
 - **MFA on login is BUILT — all four phases** (verified 2026-08-21). The server gate is `api/auth/login/route.ts:320` (`loginMfaStep`), session assurance is `raisedToSecondFactor` at `:399`, and RECOVERY CODES are built too: `consumeRecoveryCode` (`lib/server/auth/mfa.ts:500`) called from the `check-recovery` branch (`login/route.ts:338,353,358`), with the login form's code step at `app/login/LoginForm.tsx:253-272`. Native form posts carry the code through (`login/route.ts:151`). See [mfa-login](development/plans/mfa-login.md) for what genuinely remains.
 - **Real emailed connect codes are SHIPPED** (`lib/server/connectionConfirmation.ts` — 6-digit, HMAC-hashed, 15-min TTL, single-use; `00000` is dev-mode-gated only). A Resend sender is configured and `inspectProductionReadiness()` reports email READY. Only the code-step **browser walk** is unwalked.
 - **Standard portal = one Website product**; Aqua Tags setup steps **1, 2, 3 and 6 are done**, step 4 (link the repo) is next, step 5 (seed into the editor) is planned — `agency/fulfilment/_AquaTagsWorkspace.tsx:85-90`.
-- **Open decisions** (genuinely Ed's): **Aqua Tag form-capture consent**, and **when to merge `work/2026-08-20-parallel-session` to `main`** (the merge is what deploys production). The first commit is DONE, and Agency-vs-TradingCompany was SETTLED — the three-tier model is stated in code at `src/app/api/portal/agency/companies/[companyId]/portal/route.ts:24-29`. See [checklist.md](development/checklist.md) and [issues.md](development/issues.md).
+- **Open decisions** (genuinely Ed's): **Aqua Tag form-capture consent**, and **when to merge `work/2026-08-20-parallel-session` to `main`** (the merge is what deploys production). The first commit is DONE, and Agency-vs-TradingCompany was SETTLED — the three-tier model is stated in code at `src/app/api/portal/agency/companies/[companyId]/portal/route.ts:24-29`. See [TODO.md](development/TODO.md) and [issues.md](development/issues.md).
 - **The DEV EDITOR is the one editor** (2026-08-21). There is no separate portal
   editor, website editor or code editor any more: one surface that adapts to
   what it is pointed at. `/portal/dev-team/editor` is the PROJECTS workspace
@@ -262,7 +263,7 @@ documentation, because updating the docs *is* part of finishing the work.
   in, imports rewritten, suite-guarded — see [STRUCTURE](development/STRUCTURE.md).
 - **IA v2**: Operations and Tools are single flat sidebar rows onto hub pages;
   pinned pages (topbar or sidebar) ship as chrome.
-- Full current-state detail: **[checklist.md](development/checklist.md)** — it is now the *only* live "where we stand" doc. The two that used to compete with it are on the [history shelf](context/archive/README.md).
+- Full current-state detail: **[TODO.md](development/TODO.md)** — the *only* live task list. `checklist.md` and `todo.md` were merged into it on 2026-08-31; older competitors are on the [history shelf](context/archive/README.md).
 
 ---
 

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-31T16:49:21.609Z",
+  "generatedAt": "2026-08-31T20:15:04.567Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -79,9 +79,9 @@
       "path": "CLAUDE.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-claude-md",
-      "sha256": "80e4ff9c47b98744bf3ae4ecdf585cd0702ab35614d1fdea0af5905518afb2e0",
-      "words": 3545,
-      "bytes": 26073
+      "sha256": "c51633c3fefa642eb9ff8a51fe4a37120ed3bc3ca7396250f179c5b9600e207b",
+      "words": 3553,
+      "bytes": 26118
     },
     {
       "path": "docs/architecture-noobie.md",
@@ -399,9 +399,9 @@
       "path": "docs/development.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-md",
-      "sha256": "dd5efef22882db7c16a70d93acac0188750edfd77cbc8104187bf8b6eb1d2244",
-      "words": 3248,
-      "bytes": 24685
+      "sha256": "72103f4efcae121a710c65356bdf6078b4e47b2ae98a5c96a89fbc1f5aebf3a5",
+      "words": 3285,
+      "bytes": 24935
     },
     {
       "path": "docs/development/AUDIT-2026-08-30.md",
@@ -431,9 +431,9 @@
       "path": "docs/development/checklist.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-checklist-md",
-      "sha256": "e6cf5a48c8b95045fe654abc7ea6281244f5ba61f9fd3c33943398ec7d761db0",
-      "words": 20929,
-      "bytes": 164845
+      "sha256": "8bb0518e3ee08df2e852a136ab724e122faf3d8eab8f436152c03ac0e50dab96",
+      "words": 21032,
+      "bytes": 165416
     },
     {
       "path": "docs/development/CLOUD-RESUME.md",
@@ -999,9 +999,17 @@
       "path": "docs/development/todo.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-todo-md",
-      "sha256": "607b5308f72a7e1d0dd783adf83c7f90aadc06e06b2806e634d80acfb9482673",
-      "words": 15817,
-      "bytes": 126717
+      "sha256": "0041865bc30d79ff574524e4072d2484821a37934c5360adf9056a778aea14d5",
+      "words": 15920,
+      "bytes": 127288
+    },
+    {
+      "path": "docs/development/TODO.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-development-todo-md",
+      "sha256": "79e5f988c98256eda4d9bb0f9c9e2480c5a062eef42437ed55f69bc9c4be2ae6",
+      "words": 1971,
+      "bytes": 13749
     },
     {
       "path": "docs/development/ultra-review-2026-08-24.md",
