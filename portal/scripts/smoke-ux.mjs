@@ -12,8 +12,11 @@
 //      utilities reach the page).
 //
 // This is "smoke" not "test" — it asserts the foundation is plumbed,
-// not pixel-correctness. Real visual regression lands with Playwright
-// in a future round.
+// not pixel-correctness. It deliberately stays in the HTTP/SSR layer: the
+// `viewport=` it sends is a User-Agent string, so nothing here can see a
+// layout. The real browser gate is `scripts/browser-matrix.mjs`
+// (`npm run browser:matrix`), which imports `PAGES` from this file so the two
+// layers can never drift onto different route lists.
 //
 // Usage:
 //   node scripts/smoke-ux.mjs                        # default base http://localhost:3030
@@ -26,6 +29,7 @@ import { loadEnvFile } from "node:process";
 import { dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const BASE = process.env.AQUA_BASE || "http://localhost:3030";
 const JAR = join(tmpdir(), `aqua-ux-smoke-${process.pid}.json`);
@@ -104,7 +108,7 @@ async function get(path, viewport, jar, allowRedirect = true) {
   return request("GET", path, viewport, jar, { allowRedirect });
 }
 
-const PAGES = [
+export const PAGES = [
   { path: "/", label: "Landing", needsAuth: false },
   { path: "/login", label: "Login", needsAuth: false },
   { path: "/portal/agency", label: "Agency home", needsAuth: true },
@@ -178,7 +182,16 @@ async function main() {
   console.log("✓ all green\n");
 }
 
-main().catch(err => {
-  console.error("smoke crashed:", err);
-  process.exit(2);
-});
+// Only run when executed directly. `browser-matrix.mjs` imports PAGES from
+// here so the browser gate and the SSR smoke walk the same routes; importing
+// this file must not fire a login and thirty-nine HTTP requests as a side
+// effect of that.
+const invokedDirectly = process.argv[1]
+  && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (invokedDirectly) {
+  main().catch(err => {
+    console.error("smoke crashed:", err);
+    process.exit(2);
+  });
+}

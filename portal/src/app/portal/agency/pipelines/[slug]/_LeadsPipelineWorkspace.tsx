@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -34,6 +34,7 @@ import type {
   LeadView, MeetingAttempt, MeetingMode, MeetingStatus,
   SalesPresentation,
 } from "./_leadTypes";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 // Re-exported so the server component and page keep importing these from here.
 export type {
   AgencyProductOption, AttemptChannel, AttemptOutcome, ClientConversionPackage,
@@ -154,6 +155,9 @@ const CLOSE_LEAD_CHANNELS: Array<{ value: string; label: string }> = [
 // Reuses the existing convert flow; adds nothing to leads-pipeline's server.
 function CloseLeadDealModal({ target, onClose, onClosed }: { target: { clientId: string; clientName: string; suggestedAmount: string }; onClose: () => void; onClosed: () => void }) {
   const [busy, setBusy] = useState(false);
+  // Modal keyboard contract: focus enters the dialog, Tab stays inside it, Escape backs out (except mid-save), focus returns to the lead.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, true, { onEscape: busy ? undefined : onClose });
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ invoiceNumber?: string; payLink?: string; paymentInstruction?: string; agreementOutcome?: string; contractStatus?: string } | null>(null);
   const [form, setForm] = useState({ title: "", amount: target.suggestedAmount || "", channel: "stripe", contractSummary: "", contractBody: "" });
@@ -188,7 +192,7 @@ function CloseLeadDealModal({ target, onClose, onClosed }: { target: { clientId:
   const inputClass = "min-h-10 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black";
   return (
     <div className="fixed inset-0 z-[95] grid place-items-center bg-black/40 p-4">
-      <div role="dialog" aria-modal="true" aria-label="Close the deal" className="w-full max-w-lg rounded-lg bg-white p-5 shadow-2xl">
+      <div role="dialog" ref={dialogRef} aria-modal="true" aria-label="Close the deal" className="w-full max-w-lg rounded-lg bg-white p-5 shadow-2xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-black/90">Close the deal — {target.clientName}</h2>
           <button type="button" onClick={onClose} aria-label="Close" className="grid size-8 place-items-center rounded-md border border-black/10 text-black/50">✕</button>
@@ -250,6 +254,12 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
   const [conversionLead, setConversionLead] = useState<LeadView | null>(null);
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [showProspectForm, setShowProspectForm] = useState(false);
+  // Modal keyboard contract: focus enters the lead form, Tab stays inside it, Escape backs out, focus returns to the button that opened it.
+  const leadFormRef = useRef<HTMLFormElement>(null);
+  useFocusTrap(leadFormRef, showLeadForm, { onEscape: () => setShowLeadForm(false) });
+  // Modal keyboard contract: focus enters the prospect form, Tab stays inside it, Escape backs out, focus returns to the button that opened it.
+  const prospectFormRef = useRef<HTMLFormElement>(null);
+  useFocusTrap(prospectFormRef, showProspectForm, { onEscape: () => setShowProspectForm(false) });
   const [prospectForm, setProspectForm] = useState(EMPTY_PROSPECT);
   const [editingProspect, setEditingProspect] = useState<ProspectView | null>(null);
   const [columnOverrides, setColumnOverrides] = useState<Record<string, string>>({});
@@ -924,11 +934,10 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
           filters only appear in board mode. The #scouting hash and every
           existing deep link keep working: the hash effect below sets the same
           state this tab sets. */}
-      <div className="flex gap-6 border-b border-black/10" role="tablist" aria-label="Pipeline mode">
+      <div className="flex gap-6 border-b border-black/10" role="group" aria-label="Pipeline mode">
         <button
           type="button"
-          role="tab"
-          aria-selected={workFilter !== "scouting"}
+          aria-current={workFilter !== "scouting" ? "true" : undefined}
           onClick={() => setWorkFilter("all")}
           className={`relative min-h-11 py-3 text-sm font-medium ${workFilter !== "scouting" ? "text-black" : "text-black/45 hover:text-black/70"}`}
         >
@@ -937,8 +946,7 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
         </button>
         <button
           type="button"
-          role="tab"
-          aria-selected={workFilter === "scouting"}
+          aria-current={workFilter === "scouting" ? "true" : undefined}
           onClick={() => setWorkFilter("scouting")}
           className={`relative min-h-11 py-3 text-sm font-medium ${workFilter === "scouting" ? "text-black" : "text-black/45 hover:text-black/70"}`}
         >
@@ -1301,7 +1309,7 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
           <form
             onSubmit={saveProspect}
             role="dialog"
-            aria-modal="true"
+            ref={prospectFormRef} aria-modal="true"
             aria-labelledby="scout-prospect-title"
             className="max-h-[calc(100vh-32px)] w-full max-w-3xl overflow-y-auto rounded-md bg-[#fbfaf8] shadow-2xl"
           >
@@ -1409,7 +1417,7 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
             id="new-lead"
             onSubmit={addLead}
             role="dialog"
-            aria-modal="true"
+            ref={leadFormRef} aria-modal="true"
             aria-labelledby="new-lead-title"
             className="max-h-[calc(100vh-32px)] w-full max-w-2xl overflow-y-auto rounded-md bg-[#fbfaf8] shadow-2xl"
           >

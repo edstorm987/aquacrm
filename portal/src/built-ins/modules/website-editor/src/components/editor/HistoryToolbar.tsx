@@ -6,7 +6,8 @@
 // with the same shape), renders Undo / Redo buttons + a "History"
 // dropdown that lists the last 20 snapshots with click-to-jump.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useMenuKeys } from "../../lib/menuKeys";
 import type { HistoryState, Snapshot } from "../../lib/editorHistory";
 import { formatUkDate } from "../../lib/safeDate";
 
@@ -33,11 +34,13 @@ function fmtTime(ts: number): string {
 
 export default function HistoryToolbar({ history, renderThumb }: Props) {
   const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  useMenuKeys(wrapRef, { open, onOpen: () => setOpen(true), onClose: () => setOpen(false) });
   const recent = history.state.entries.slice(-20).reverse();
   const baseIndex = history.state.entries.length - recent.length;
 
   return (
-    <div data-component="history-toolbar" style={{ display: "inline-flex", gap: 4, alignItems: "center", position: "relative" }}>
+    <div ref={wrapRef} data-component="history-toolbar" style={{ display: "inline-flex", gap: 4, alignItems: "center", position: "relative" }}>
       <button
         onClick={history.undo}
         disabled={!history.canUndo}

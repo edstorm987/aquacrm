@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 import type { PhaseDefinition, PhaseChecklistItem, ClientStage } from "../lib/tenancy";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 export interface PhasesSettingsListProps {
   phases: PhaseDefinition[];
@@ -112,6 +113,9 @@ function PhaseEditorModal({ phase, apiBase, onClose }: PhaseEditorModalProps) {
   const [draft, setDraft] = useState<PhaseDefinition>(phase);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Modal keyboard contract: focus enters the phase editor, Tab stays inside it, Escape backs out (except mid-save), focus returns to the phase row.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, true, { onEscape: busy ? undefined : onClose });
 
   function update<K extends keyof PhaseDefinition>(key: K, value: PhaseDefinition[K]): void {
     setDraft(d => ({ ...d, [key]: value }));
@@ -182,7 +186,7 @@ function PhaseEditorModal({ phase, apiBase, onClose }: PhaseEditorModalProps) {
   }
 
   return (
-    <div className="fulfillment-modal" role="dialog" aria-modal="true" aria-labelledby="phase-editor-title">
+    <div className="fulfillment-modal" role="dialog" ref={dialogRef} aria-modal="true" aria-labelledby="phase-editor-title">
       <div className="fulfillment-modal-card fulfillment-modal-wide">
         <h3 id="phase-editor-title">{draft.id ? "Edit phase" : "New phase"}</h3>
 

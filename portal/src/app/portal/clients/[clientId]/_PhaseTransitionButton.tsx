@@ -17,6 +17,8 @@ import {
   phaseTransitionFailureMessage,
   type PhaseTransitionApiResult,
 } from "@/built-ins/modules/fulfillment/src/lib/transitionFeedback";
+import { useMenuKeys } from "@/lib/a11y/useMenuKeys";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 interface Phase {
   id: string;        // PhaseDefinition.id (per-agency)
@@ -66,6 +68,8 @@ export function PhaseTransitionButton({
   const [reason, setReason] = useState("");
   const [, startTransition] = useTransition();
   const operationIdRef = useRef<string | null>(null);
+  const menuWrapRef = useRef<HTMLDivElement | null>(null);
+  useMenuKeys(menuWrapRef, { open: menuOpen, onOpen: () => setMenuOpen(true), onClose: () => setMenuOpen(false) });
 
   useEffect(() => {
     operationIdRef.current = null;
@@ -89,6 +93,20 @@ export function PhaseTransitionButton({
       .catch(() => { /* fulfillment not available — degrade silently */ });
     return () => { cancelled = true; };
   }, [isFounder]);
+
+  // Modal keyboard contract: focus enters the confirmation, Tab stays inside it,
+  // Escape backs out, focus returns to the phase menu. Declared here with the
+  // other hooks — `phases` arrives from a fetch, so the early returns below run
+  // on the first render and not on later ones; a hook after them would change
+  // the hook count between renders and crash the component.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const confirmOpen = Boolean(target && phases?.some(phase => phase.stage === currentStage));
+  // Escape backs out on exactly the terms the backdrop click already used:
+  // refused while the advance POST is in flight, and it clears the typed reason
+  // so a reopened dialog does not carry the abandoned one.
+  useFocusTrap(dialogRef, confirmOpen, {
+    onEscape: busy ? undefined : () => { setTarget(null); setReason(""); },
+  });
 
   if (!isFounder) return null;
 
@@ -151,7 +169,7 @@ export function PhaseTransitionButton({
   const skippedCount = Math.max(0, jumpDistance - 1);
 
   return (
-    <div data-testid="phase-transition-button" className="relative inline-flex items-center gap-1">
+    <div ref={menuWrapRef} data-testid="phase-transition-button" className="relative inline-flex items-center gap-1">
       {next && (
         <button
           type="button"
@@ -207,7 +225,7 @@ export function PhaseTransitionButton({
       {target && delta && (
         <div
           role="dialog"
-          aria-modal="true"
+          ref={dialogRef} aria-modal="true"
           aria-labelledby="phase-transition-title"
           className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-6"
           onClick={e => {

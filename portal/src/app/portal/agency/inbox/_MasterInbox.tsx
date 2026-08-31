@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { WebsiteSourcesConfig } from "./_WebsiteSourcesConfig";
 import { IntegrationConnectionsPanel } from "@/app/portal/agency/settings/IntegrationConnectionsPanel";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { AlertTriangle, ArrowRight, Bell, Bot, Building2, Check, ChevronDown, CircleCheck, Clock3, ExternalLink, FileText, Inbox, LifeBuoy, ListChecks, Mail, MessageCircle, Phone, Radio, RotateCcw, Search, Send, Settings, Trash2, UserPlus, Users, X, type LucideIcon } from "lucide-react";
 
 import type { OperationalAlertView } from "@/lib/intelligence/operationalAttention";
@@ -25,6 +25,7 @@ import {
   WEBSITE_ENQUIRY_CLASSIFICATION_LABELS,
   type WebsiteEnquiryClassification,
 } from "@/lib/enquiries/enquiryClassification";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 type Conversation = {
   id: string;
@@ -819,18 +820,11 @@ function SourceChip({ active, onClick, label, count, icon: Icon, attentionHref }
  * so a keyboard user is not left behind on the cog.
  */
 function ConnectionsModal({ onClose, children }: { onClose: () => void; children: ReactNode }) {
+  // Modal keyboard contract: focus enters the panel, Tab stays inside it,
+  // Escape closes it, and focus goes back to the cog, not to the top of the
+  // document.
   const panelRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    function onKey(event: KeyboardEvent) { if (event.key === "Escape") onClose(); }
-    document.addEventListener("keydown", onKey);
-    const previous = document.activeElement as HTMLElement | null;
-    panelRef.current?.focus();
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      // Back to the cog, not to the top of the document.
-      previous?.focus?.();
-    };
-  }, [onClose]);
+  useFocusTrap(panelRef, true, { onEscape: onClose, initialFocus: panelRef });
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:p-8">

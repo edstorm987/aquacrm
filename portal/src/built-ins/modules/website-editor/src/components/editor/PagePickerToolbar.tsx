@@ -9,8 +9,9 @@
 // URL via router.replace and reloads editor state. Save state guarding
 // (confirm-dialog on unsaved changes) is the parent's responsibility.
 
-import { useEffect, useRef, useState, type ReactElement } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactElement } from "react";
 import { ChevronDown, Copy, Plus, Settings, Trash2 } from "lucide-react";
+import { useMenuKeys } from "../../lib/menuKeys";
 import type { PageLike } from "../../lib/editorDeepLink";
 import { DEFAULT_VARIANT, shouldShowVariantSwitcher } from "../../lib/editorDeepLink";
 
@@ -47,6 +48,25 @@ export function PagePickerToolbar(props: PagePickerToolbarProps): ReactElement {
   const current = pages.find(p => p.id === currentPageId) ?? null;
   const showVariants = shouldShowVariantSwitcher(variants);
 
+  // issues #138 — the list below is a `role="listbox"` of `role="option"`s,
+  // which tells a screen reader "arrow through me". Until now the options were
+  // click-only `<li>`s: not focusable, no arrow keys, no way in from the
+  // keyboard at all. The shared model gives ArrowUp/Down, Home/End and an
+  // Escape that hands focus back to the trigger; `tabIndex={-1}` plus the
+  // Enter/Space handler below make each option reachable and activatable.
+  useMenuKeys(ref, {
+    open,
+    onOpen: () => setOpen(true),
+    onClose: () => setOpen(false),
+    itemSelector: '[role="option"]',
+  });
+
+  function activateOnKey(event: ReactKeyboardEvent<HTMLLIElement>, activate: () => void) {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    activate();
+  }
+
   useEffect(() => {
     function handler(e: MouseEvent) {
       if (!ref.current?.contains(e.target as Node)) setOpen(false);
@@ -75,7 +95,7 @@ export function PagePickerToolbar(props: PagePickerToolbarProps): ReactElement {
           <ChevronDown size={13} aria-hidden="true" />
         </button>
         {open && (
-          <ul role="listbox" className="absolute left-0 top-full z-30 mt-1 w-72 overflow-hidden rounded border border-white/10 bg-[#111] shadow-xl">
+          <ul role="listbox" aria-label="Pages" className="absolute left-0 top-full z-30 mt-1 w-72 overflow-hidden rounded border border-white/10 bg-[#111] shadow-xl">
             {pages.map(p => {
               const active = p.id === currentPageId;
               return (
@@ -83,8 +103,10 @@ export function PagePickerToolbar(props: PagePickerToolbarProps): ReactElement {
                   key={p.id}
                   role="option"
                   aria-selected={active}
-                  className={`flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-[12px] hover:bg-white/5 ${active ? "bg-white/10 text-brand-cream" : ""}`}
+                  tabIndex={-1}
+                  className={`flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-[12px] outline-none hover:bg-white/5 focus-visible:bg-white/10 focus-visible:ring-1 focus-visible:ring-brand-cyan ${active ? "bg-white/10 text-brand-cream" : ""}`}
                   onClick={() => { setOpen(false); onSelectPage(p.id); }}
+                  onKeyDown={event => activateOnKey(event, () => { setOpen(false); onSelectPage(p.id); })}
                 >
                   <span className="truncate">
                     <span className="font-medium">{p.title || p.slug}</span>
@@ -97,8 +119,11 @@ export function PagePickerToolbar(props: PagePickerToolbarProps): ReactElement {
             <li
               key="__new"
               role="option"
-              className="flex cursor-pointer items-center gap-2 border-t border-white/5 px-3 py-2 text-[12px] text-brand-cyan hover:bg-white/5"
+              aria-selected={false}
+              tabIndex={-1}
+              className="flex cursor-pointer items-center gap-2 border-t border-white/5 px-3 py-2 text-[12px] text-brand-cyan outline-none hover:bg-white/5 focus-visible:bg-white/10 focus-visible:ring-1 focus-visible:ring-brand-cyan"
               onClick={handleNewPage}
+              onKeyDown={event => activateOnKey(event, handleNewPage)}
             >
               <Plus size={14} aria-hidden="true" />
               <span>New page</span>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { Banknote, CreditCard, Download, Eye, Landmark, Plus, Search, Wallet, X, type LucideIcon } from "lucide-react";
 
 import type { Currency, IncomeEntry, Invoice, Payment, PaymentMethod, Refund } from "../lib/domain";
@@ -11,6 +11,7 @@ import { summariseMoneyInByChannel } from "../lib/moneyIn";
 import { FinanceNav } from "./FinanceNav";
 import { businessCalendarDate, dateInputValue, formatUkDate } from "../lib/safeDate";
 import { invoiceOutstandingCents, isCollectibleInvoiceStatus } from "../lib/paymentAllocation";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 const CHANNEL_ICONS: Record<PaymentChannel, LucideIcon> = {
   stripe: CreditCard,
@@ -263,7 +264,13 @@ function IncomeDetail({ row, onClose }: { row: IncomeRow; onClose: () => void })
   return <Modal title="Income details" onClose={onClose}><dl className="grid gap-0 divide-y divide-black/10 border-y border-black/10">{row.title ? <Detail label="Income" value={row.title} strong /> : null}<Detail label="Amount" value={money(row.amountCents, row.currency)} strong /><Detail label="Received" value={date(row.paidAt)} /><Detail label="Client" value={row.clientName} /><Detail label="Invoice" value={row.invoiceId ? row.invoiceNumber : "Not invoice-linked"} />{row.category ? <Detail label="Category" value={row.category} /> : null}<Detail label="Channel" value={channelMeta(normaliseChannel(row.method)).label} /><Detail label="Reference" value={row.externalRef || "Not recorded"} />{row.description ? <Detail label="Description" value={row.description} /> : null}<Detail label="Notes" value={row.notes || "No notes"} /><Detail label={row.paymentId ? "Payment ID" : "Record ID"} value={row.paymentId || row.id} /></dl>{row.invoiceId ? <a href={`/portal/agency/agency-finance/invoices/${row.invoiceId}`} className="mt-5 inline-flex min-h-10 items-center rounded-md bg-black px-4 text-sm font-semibold text-white">Inspect invoice</a> : null}</Modal>;
 }
 
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) { return <div className="fixed inset-0 z-[90] grid items-end bg-black/35 sm:items-center sm:p-6"><button className="absolute inset-0" aria-label="Close" onClick={onClose} /><section role="dialog" aria-modal="true" aria-label={title} className="relative mx-auto max-h-[100dvh] w-full max-w-xl overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-lg sm:p-6"><header className="mb-5 flex items-center justify-between"><h2 className="text-xl font-semibold">{title}</h2><button type="button" onClick={onClose} aria-label="Close" className="grid size-9 place-items-center rounded-md border border-black/10"><X size={16} /></button></header>{children}</section></div>; }
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  // Modal keyboard contract: focus enters the dialog, Tab stays inside it,
+  // Escape closes it, and focus returns to the control that opened it.
+  const dialogRef = useRef<HTMLElement>(null);
+  useFocusTrap(dialogRef, true, { onEscape: onClose });
+  return <div className="fixed inset-0 z-[90] grid items-end bg-black/35 sm:items-center sm:p-6"><button className="absolute inset-0" aria-label="Close" onClick={onClose} /><section ref={dialogRef} role="dialog" aria-modal="true" aria-label={title} className="relative mx-auto max-h-[100dvh] w-full max-w-xl overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-lg sm:p-6"><header className="mb-5 flex items-center justify-between"><h2 className="text-xl font-semibold">{title}</h2><button type="button" onClick={onClose} aria-label="Close" className="grid size-9 place-items-center rounded-md border border-black/10"><X size={16} /></button></header>{children}</section></div>;
+}
 function Summary({ label: text, value }: { label: string; value: string }) { return <div className="px-3 py-4 first:pl-0"><dt className="text-xs text-black/45">{text}</dt><dd className="mt-1 text-xl font-semibold text-black/85">{value}</dd></div>; }
 function Detail({ label: text, value, strong }: { label: string; value: string; strong?: boolean }) { return <div className="grid grid-cols-[130px_minmax(0,1fr)] gap-3 py-3 text-sm"><dt className="text-black/45">{text}</dt><dd className={`${strong ? "font-semibold" : ""} break-words text-black/80`}>{value}</dd></div>; }
 function Empty({ text }: { text: string }) { return <div className="grid min-h-44 place-items-center border-y border-black/10 text-center text-sm text-black/45">{text}</div>; }

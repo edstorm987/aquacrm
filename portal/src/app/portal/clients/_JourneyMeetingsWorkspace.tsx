@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   BellRing,
@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 
 import { formatUkDateTime, localDateTimeInputValue, timestampFromValue } from "@/lib/shared/formatDateTime";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 export type JourneyMeetingKind = "lead" | "contact";
 export type JourneyMeetingMode = "google-meet" | "phone" | "in-person" | "other";
@@ -324,9 +325,12 @@ function MeetingDetail({ person, referenceNow, busy, onEdit, onOutcome }: { pers
 }
 
 function MeetingEditor({ draft, people, busy, onChange, onClose, onSave }: { draft: MeetingDraft; people: JourneyMeetingPerson[]; busy: boolean; onChange: (draft: MeetingDraft) => void; onClose: () => void; onSave: () => void }) {
+  // Modal keyboard contract: focus enters the editor, Tab stays inside it, Escape backs out (except mid-save), focus returns to the meeting row.
+  const dialogRef = useRef<HTMLElement>(null);
+  useFocusTrap(dialogRef, true, { onEscape: busy ? undefined : onClose });
   const person = people.find(row => meetingKey(row) === draft.personKey);
   return <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 p-3 sm:p-6" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <section role="dialog" aria-modal="true" aria-labelledby="journey-meeting-editor-title" className="flex max-h-[94dvh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-black/12 bg-[#f8f8f5] shadow-[0_32px_100px_rgba(0,0,0,0.3)]">
+    <section role="dialog" ref={dialogRef} aria-modal="true" aria-labelledby="journey-meeting-editor-title" className="flex max-h-[94dvh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-black/12 bg-[#f8f8f5] shadow-[0_32px_100px_rgba(0,0,0,0.3)]">
       <header className="flex items-start justify-between gap-4 border-b border-black/10 bg-white px-5 py-4 sm:px-7"><div><p className="text-[10px] font-semibold uppercase tracking-wide text-brand">Journey meeting record</p><h2 id="journey-meeting-editor-title" className="mt-1 text-xl font-semibold text-black/84">{draft.isNew ? "Book a meeting" : "Manage meeting"}</h2><p className="mt-1 text-xs text-black/44">Schedule, preparation, attendance and evidence in one record.</p></div><button type="button" onClick={onClose} aria-label="Close meeting editor" className="grid size-9 place-items-center rounded-md border border-black/10 bg-white text-black/55"><X size={16} /></button></header>
       <div className="overflow-y-auto px-5 py-5 sm:px-7">
         <div className="grid gap-5 lg:grid-cols-2">

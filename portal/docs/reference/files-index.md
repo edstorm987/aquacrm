@@ -2,7 +2,7 @@
 
 ← Back to [the reference index](00-index.md) · [the map](../WORKSPACE-FILE-TREE.md) · [development.md](../development.md)
 
-Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2524 source files; 0 per-source stubs.**
+Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2530 source files; 0 per-source stubs.**
 
 ## Engines — `src/engines/` (83)
 
@@ -163,12 +163,13 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
 - [`src/server/zimanteTradingCompanies.ts`](server.md#file-src-server-zimantetradingcompanies-ts-ef9a41c5a6)
 
-## Shared logic — `src/lib/` (321)
+## Shared logic — `src/lib/` (322)
 
 - [`src/lib/a11y/contrastValidator.ts`](lib.md#file-src-lib-a11y-contrastvalidator-ts-7c6889cfca) — components. We default to 4.5 for the strictest check.
 - [`src/lib/a11y/isEmbedded.ts`](lib.md#file-src-lib-a11y-isembedded-ts-e91cac9938)
 - [`src/lib/a11y/useArrowNav.ts`](lib.md#file-src-lib-a11y-usearrownav-ts-ad026e3ee5)
 - [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1)
+- [`src/lib/a11y/useMenuKeys.ts`](lib.md#file-src-lib-a11y-usemenukeys-ts-403e5f37d6)
 - [`src/lib/a11y/useViewport.ts`](lib.md#file-src-lib-a11y-useviewport-ts-2d7456f7d0)
 - [`src/lib/access/departmentProfiles.ts`](lib.md#file-src-lib-access-departmentprofiles-ts-343cc6ceea) — a macro dashboard averages five departments into one reassuring number.
 - [`src/lib/access/navElementKeys.ts`](lib.md#file-src-lib-access-navelementkeys-ts-bebe1ec3e3) — placed yet is not sales. Taking the hat off shows everything again.
@@ -616,7 +617,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/components/workspaces/PluginSettingsPanel.tsx`](components.md#file-src-components-workspaces-pluginsettingspanel-tsx-1ae842fede)
 - [`src/components/workspaces/PluginWorkspaceNav.tsx`](components.md#file-src-components-workspaces-pluginworkspacenav-tsx-34bb1220e7)
 
-## Plugins — `src/built-ins/` (751)
+## Plugins — `src/built-ins/` (752)
 
 - [`src/built-ins/modules/affiliates/index.ts`](built-ins.md#file-src-built-ins-modules-affiliates-index-ts-68c0702721) — `requires: ["ecommerce"]`, opt-in.
 - [`src/built-ins/modules/affiliates/src/__smoke__/affiliates.test.ts`](built-ins.md#file-src-built-ins-modules-affiliates-src-smoke-affiliates-test-ts-e464cf139b) — - side-effects: activity log + event bus
@@ -1254,6 +1255,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/built-ins/modules/website-editor/src/lib/jsonLdInjection.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-jsonldinjection-ts-95350382d2) — out of scope.
 - [`src/built-ins/modules/website-editor/src/lib/loginCustomisation.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-logincustomisation-ts-71bfe34bb8)
 - [`src/built-ins/modules/website-editor/src/lib/media.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-media-ts-840d461484)
+- [`src/built-ins/modules/website-editor/src/lib/menuKeys.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-menukeys-ts-f3cec7c938) — elsewhere. There is still exactly one implementation, in `src/lib/a11y`.
 - [`src/built-ins/modules/website-editor/src/lib/notify.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-notify-ts-cfa647cde7)
 - [`src/built-ins/modules/website-editor/src/lib/pagePrivacy.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-pageprivacy-ts-bb8d459b2c) — where the threat model is casual lookup, not credential theft).
 - [`src/built-ins/modules/website-editor/src/lib/pageTemplates.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-pagetemplates-ts-4875349173) — vars layering on top.
@@ -2012,7 +2014,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/showcase/exit/route.ts`](app.md#file-src-app-showcase-exit-route-ts-2297ba275f)
 - [`src/app/showcase/route.ts`](app.md#file-src-app-showcase-route-ts-4c24dd82df)
 
-## Scripts — `scripts/` (528)
+## Scripts — `scripts/` (532)
 
 - [`scripts/attention-protection.test.ts`](scripts.md#file-scripts-attention-protection-test-ts-d64d01714c)
 - [`scripts/audit-actions.ts`](scripts.md#file-scripts-audit-actions-ts-862ea31175) — What state Actions is actually in — measured, not remembered. For every alert the checks currently …
@@ -2038,6 +2040,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/seed-dev-tenant.ts`](scripts.md#file-scripts-seed-dev-tenant-ts-3659e4cee4) — PORTAL_BACKEND=file npx tsx scripts/seed-dev-tenant.ts
 - [`scripts/smoke-access-control-kernel.test.ts`](scripts.md#file-scripts-smoke-access-control-kernel-test-ts-600ebf4ed8)
 - [`scripts/smoke-access-control-ui.test.ts`](scripts.md#file-scripts-smoke-access-control-ui-test-ts-b983e0a0f7) — which `react-dom/server` refuses to load under. See the note in that file.
+- [`scripts/smoke-accessible-names.test.ts`](scripts.md#file-scripts-smoke-accessible-names-test-ts-6ddca9d575)
 - [`scripts/smoke-action-sources.test.ts`](scripts.md#file-scripts-smoke-action-sources-test-ts-a017c9356b)
 - [`scripts/smoke-actions-task-validity.test.ts`](scripts.md#file-scripts-smoke-actions-task-validity-test-ts-5f47547c36)
 - [`scripts/smoke-activity-category-batch.test.ts`](scripts.md#file-scripts-smoke-activity-category-batch-test-ts-dd932ee742) — Plus source-marker on the enum + activity feed wire-up.
@@ -2084,6 +2087,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-automation-control.test.ts`](scripts.md#file-scripts-smoke-automation-control-test-ts-d05fde5612)
 - [`scripts/smoke-battle-table.test.ts`](scripts.md#file-scripts-smoke-battle-table-test-ts-c74a9e6a9b)
 - [`scripts/smoke-bos-middleware-integration.test.ts`](scripts.md#file-scripts-smoke-bos-middleware-integration-test-ts-80126501cc) — should only proxy portal routes; public Business OS paths belong elsewhere.
+- [`scripts/smoke-browser-matrix.test.ts`](scripts.md#file-scripts-smoke-browser-matrix-test-ts-f5ff7391c9) — without a browser binary. → issues #137
 - [`scripts/smoke-business-calendar-date.test.ts`](scripts.md#file-scripts-smoke-business-calendar-date-test-ts-4b471185e4)
 - [`scripts/smoke-business-os-destinations.test.ts`](scripts.md#file-scripts-smoke-business-os-destinations-test-ts-65fccf4171)
 - [`scripts/smoke-business-radar.test.ts`](scripts.md#file-scripts-smoke-business-radar-test-ts-8b02fea97b)
@@ -2141,6 +2145,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-company-switcher.test.ts`](scripts.md#file-scripts-smoke-company-switcher-test-ts-3eb9ba8fe9) — than against source text.
 - [`scripts/smoke-completed-register.test.ts`](scripts.md#file-scripts-smoke-completed-register-test-ts-6cc747f4c3)
 - [`scripts/smoke-compliance-posture.test.ts`](scripts.md#file-scripts-smoke-compliance-posture-test-ts-6140397d76)
+- [`scripts/smoke-composite-widget-keyboard.test.ts`](scripts.md#file-scripts-smoke-composite-widget-keyboard-test-ts-2613e5a284) — file, for good — never the third state the app was in.
 - [`scripts/smoke-consent-capture.test.ts`](scripts.md#file-scripts-smoke-consent-capture-test-ts-fdf2cfa14c)
 - [`scripts/smoke-contact-identity-ownership.test.ts`](scripts.md#file-scripts-smoke-contact-identity-ownership-test-ts-631d3d7028)
 - [`scripts/smoke-contract-template-convergence.test.ts`](scripts.md#file-scripts-smoke-contract-template-convergence-test-ts-dfbf2963ee)
@@ -2352,6 +2357,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-mfa-doors.test.ts`](scripts.md#file-scripts-smoke-mfa-doors-test-ts-fd58cf015f) — shape in a source file — it is that no cookie comes back.
 - [`scripts/smoke-mfa.test.ts`](scripts.md#file-scripts-smoke-mfa-test-ts-246b24e7ad)
 - [`scripts/smoke-mobile-scroll-affordance.test.ts`](scripts.md#file-scripts-smoke-mobile-scroll-affordance-test-ts-fca0591b80) — looks right in review.
+- [`scripts/smoke-modal-keyboard-contract.test.ts`](scripts.md#file-scripts-smoke-modal-keyboard-contract-test-ts-f3f2798bdc) — reader.
 - [`scripts/smoke-multi-agency-users.test.ts`](scripts.md#file-scripts-smoke-multi-agency-users-test-ts-d8134be8b7) — agencyIds + activeAgencyId, auth.ts exports the new helpers.
 - [`scripts/smoke-my-radar-panel.test.ts`](scripts.md#file-scripts-smoke-my-radar-panel-test-ts-0a455882ef) — system, not a shape, and this follows that.
 - [`scripts/smoke-my-radar-topbar.test.ts`](scripts.md#file-scripts-smoke-my-radar-topbar-test-ts-e5a99f82ea) — a fork, a nudge that speaks only in amber.

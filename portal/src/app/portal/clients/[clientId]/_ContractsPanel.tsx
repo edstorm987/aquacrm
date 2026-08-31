@@ -16,9 +16,10 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { contractHasReviewableTerms, type ClientContract, type ClientContractTemplate } from "@/lib/clients/clientContracts";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 const CONTROL = "min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm outline-none focus:border-black/35 focus:ring-2 focus:ring-black/5";
 
@@ -74,19 +75,21 @@ function contractOperationId(): string {
 }
 
 function EditorModal({ children, title, onClose }: { children: React.ReactNode; title: string; onClose: () => void }) {
+  // Modal keyboard contract: focus enters the editor, Tab stays inside it,
+  // Escape closes it, and focus returns to the control that opened it.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, true, { onEscape: onClose });
+
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
-    document.addEventListener("keydown", onKey);
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
-      document.removeEventListener("keydown", onKey);
       document.body.style.overflow = previous;
     };
-  }, [onClose]);
+  }, []);
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/45 p-0 backdrop-blur-[2px] sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-label={title}>
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/45 p-0 backdrop-blur-[2px] sm:items-center sm:p-5" ref={dialogRef} role="dialog" aria-modal="true" aria-label={title}>
       <div className="flex max-h-[96dvh] w-full max-w-4xl flex-col overflow-hidden rounded-t-lg bg-[#f7f7f5] shadow-2xl sm:max-h-[92dvh] sm:rounded-lg">
         <header className="flex shrink-0 items-center justify-between border-b border-black/10 bg-white px-4 py-3 sm:px-6">
           <h2 className="text-sm font-semibold text-black/85">{title}</h2>

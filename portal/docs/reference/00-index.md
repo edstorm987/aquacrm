@@ -6,7 +6,7 @@ The **consolidated source map**: every source file, exported symbol, internal de
 
 **Generated** by `scripts/generate-symbol-reference.mjs` (parses the code with the TypeScript compiler — complete and re-runnable; regenerate after code changes). Covers `src/` + `scripts/`.
 
-- **2524** files · **8681** exported symbols.
+- **2530** files · **8688** exported symbols.
 
 - **8** large source-reference volumes · **1** master file index · **0** per-source Markdown stubs.
 
@@ -14,11 +14,11 @@ The **consolidated source map**: every source file, exported symbol, internal de
 
 - [Engines — `src/engines/`](engines.md) — 83 files, 670 symbols
 - [State layer — `src/server/`](server.md) — 70 files, 1099 symbols
-- [Shared logic — `src/lib/`](lib.md) — 321 files, 2052 symbols
+- [Shared logic — `src/lib/`](lib.md) — 322 files, 2058 symbols
 - [Shared components — `src/components/`](components.md) — 126 files, 306 symbols
-- [Plugins — `src/built-ins/`](built-ins.md) — 751 files, 3304 symbols
+- [Plugins — `src/built-ins/`](built-ins.md) — 752 files, 3305 symbols
 - [App routes & UI — `src/app/`](app.md) — 639 files, 1213 symbols
-- [Scripts — `scripts/`](scripts.md) — 528 files, 26 symbols
+- [Scripts — `scripts/`](scripts.md) — 532 files, 26 symbols
 - [Other `src/`](misc.md) — 6 files, 11 symbols
 
 - [Master source-file index](files-index.md) — every path linked directly to its anchored entry in the correct volume.

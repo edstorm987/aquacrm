@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Building2, Check, ChevronDown, ExternalLink, Eye, Layers3, Link2, PanelsTopLeft, Plus, Unlink, X } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 export interface RelatedClientWorkspaceOption {
   id: string;
@@ -126,6 +127,11 @@ export function ClientWorkspaceSwitcher({
     setPendingDetachId("");
   }
 
+  // Modal keyboard contract: focus enters the switcher, Tab stays inside it,
+  // Escape backs out (unless a detach is in flight), focus returns to the trigger.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, open, { onEscape: close });
+
   if (!canManage && workspaces.length < 2) return null;
 
   return (
@@ -134,7 +140,7 @@ export function ClientWorkspaceSwitcher({
         <Layers3 size={12} /> {workspaces.length} workspace{workspaces.length === 1 ? "" : "s"} <ChevronDown size={12} />
       </button>
       {open ? (
-        <div className="fixed inset-0 z-[100] grid place-items-center p-4 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="client-workspaces-title">
+        <div className="fixed inset-0 z-[100] grid place-items-center p-4 sm:p-6" role="dialog" ref={dialogRef} aria-modal="true" aria-labelledby="client-workspaces-title">
           <button type="button" aria-label="Close client workspaces" className="absolute inset-0 bg-black/45 backdrop-blur-sm" onClick={close} />
           <section className="relative z-10 flex max-h-[min(760px,92dvh)] w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-black/10 bg-white text-black shadow-2xl">
             <header className="flex items-start justify-between gap-4 border-b border-black/10 px-5 py-4 sm:px-6">

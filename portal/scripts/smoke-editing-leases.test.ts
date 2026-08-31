@@ -188,6 +188,21 @@ describe("the blocked client is given somewhere to put the request", () => {
   });
 
   it("only appears for a blocked viewer", () => {
-    assert.match(read(), /status\.access !== "blocked"\) return null/);
+    const source = read();
+    // Pinned by INTENT rather than by the exact inline condition it used to
+    // have. The overlay now names that condition (`blocking`) because the focus
+    // trap is a hook and must run before any early return — React would break
+    // if the `return null` came first. What must stay true is that nothing
+    // renders unless the viewer is BOTH held and blocked.
+    assert.match(source, /const blocking = status\.state === "held" && status\.access === "blocked"/,
+      "the blocked-viewer condition changed shape; this pin can no longer read it");
+    assert.match(source, /if \(!blocking\) return null/,
+      "the overlay renders for a viewer who is not blocked");
+    // And the hook must still precede the early return, or the fix that put it
+    // there has been undone.
+    assert.ok(
+      source.indexOf("useFocusTrap(dialogRef, blocking") < source.indexOf("if (!blocking) return null"),
+      "the focus trap sits after the early return again, so it never installs for the viewer it is meant to trap",
+    );
   });
 });

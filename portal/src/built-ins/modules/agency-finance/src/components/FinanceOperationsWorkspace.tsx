@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, BadgePoundSterling, BriefcaseBusiness, Building2, CalendarClock, Check, CircleDollarSign, FileCheck2, Landmark, Pencil, Plus, ReceiptPoundSterling, ShieldCheck, Users, X } from "lucide-react";
 
@@ -24,6 +24,7 @@ import { dateInputValue, formatUkDate } from "../lib/safeDate";
 import { compensationCostProjection, compensationPaymentDraftAmounts, compensationPaymentTotal } from "../lib/workforceCosts";
 import { CanonicalCompensationPaymentModal, CanonicalCompensationProfileModal } from "./CanonicalCompensationModals";
 import { FinanceNav } from "./FinanceNav";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 type View = "overview" | "compliance" | "people" | "payments";
 interface CompanyOption { id: string; name: string }
@@ -217,7 +218,13 @@ function ObligationModal({ item, apiBase, defaultCurrency, companies, legalDocum
 
 
 
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) { return <div className="fixed inset-0 z-[100] grid items-end bg-black/40 sm:items-center sm:p-6"><button className="absolute inset-0" aria-label="Close dialog" onClick={onClose} /><section role="dialog" aria-modal="true" aria-label={title} className="relative mx-auto max-h-[100dvh] w-full max-w-4xl overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-lg sm:p-6"><header className="mb-5 flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wide text-black/40">Finance control</p><h2 className="mt-1 text-xl font-semibold text-black/85">{title}</h2></div><button onClick={onClose} title="Close" className="grid size-9 place-items-center rounded-md border border-black/10 text-black/50"><X size={16} /></button></header>{children}</section></div>; }
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  // Modal keyboard contract: focus enters the dialog, Tab stays inside it,
+  // Escape closes it, and focus returns to the control that opened it.
+  const dialogRef = useRef<HTMLElement>(null);
+  useFocusTrap(dialogRef, true, { onEscape: onClose });
+  return <div className="fixed inset-0 z-[100] grid items-end bg-black/40 sm:items-center sm:p-6"><button className="absolute inset-0" aria-label="Close dialog" onClick={onClose} /><section ref={dialogRef} role="dialog" aria-modal="true" aria-label={title} className="relative mx-auto max-h-[100dvh] w-full max-w-4xl overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-lg sm:p-6"><header className="mb-5 flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wide text-black/40">Finance control</p><h2 className="mt-1 text-xl font-semibold text-black/85">{title}</h2></div><button onClick={onClose} title="Close" className="grid size-9 place-items-center rounded-md border border-black/10 text-black/50"><X size={16} /></button></header>{children}</section></div>;
+}
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className={labelClass}>{label}{children}</label>; }
 function Select({ label, name, value, options }: { label: string; name: string; value: string; options: Array<readonly [string, string]> }) { return <label className={labelClass}>{label}<select name={name} defaultValue={value} className={inputClass}>{options.map(([option, text]) => <option key={option} value={option}>{text}</option>)}</select></label>; }
 function CompanyChecks({ companies, selected }: { companies: CompanyOption[]; selected?: string[] }) { return companies.length ? <fieldset className="mt-4"><legend className="text-xs font-medium text-black/58">Brand scope</legend><div className="mt-2 grid gap-1 rounded-md border border-black/10 p-2 sm:grid-cols-2 lg:grid-cols-3">{companies.map(company => <label key={company.id} className="flex min-h-9 items-center gap-2 rounded px-2 text-sm text-black/65 hover:bg-black/[0.025]"><input type="checkbox" name="companyIds" value={company.id} defaultChecked={selected?.includes(company.id)} className="size-4 accent-black" />{company.name}</label>)}</div><p className="mt-1 text-[11px] text-black/40">Leave clear for a shared group-wide record.</p></fieldset> : null; }

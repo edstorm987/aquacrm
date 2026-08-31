@@ -528,9 +528,9 @@ export function BusinessRadarDashboard({
                 <span className="text-[11px] font-semibold uppercase tracking-wide text-white/40">Scanner ledger</span>
                 <span className="mt-1 flex items-center gap-2 text-base font-semibold text-white">{activeDomain === "all" ? "Whole business" : domainLabel(activeDomain)} <ArrowUpRight size={13} className="text-white/25 transition group-hover:text-emerald-200" /></span>
               </button>
-              <div className="inline-flex rounded-md border border-white/15 bg-white/[0.04] p-1" role="tablist" aria-label="Radar feed">
-                <button type="button" role="tab" aria-selected={feedMode === "signals"} onClick={() => setFeedMode("signals")} className={`min-h-8 rounded px-2.5 text-[11px] font-semibold ${feedMode === "signals" ? "bg-white text-[#111513]" : "text-white/55 hover:text-white"}`}>Incidents {visibleIssues.length}</button>
-                <button type="button" role="tab" aria-selected={feedMode === "checks"} onClick={() => setFeedMode("checks")} className={`min-h-8 rounded px-2.5 text-[11px] font-semibold ${feedMode === "checks" ? "bg-white text-[#111513]" : "text-white/55 hover:text-white"}`}>Checks {activeDomain === "all" ? radar.summary.totalChecks : radar.domains.find(item => item.domain === activeDomain)?.totalChecks ?? 0}</button>
+              <div className="inline-flex rounded-md border border-white/15 bg-white/[0.04] p-1" role="group" aria-label="Radar feed">
+                <button type="button" aria-current={feedMode === "signals" ? "true" : undefined} onClick={() => setFeedMode("signals")} className={`min-h-8 rounded px-2.5 text-[11px] font-semibold ${feedMode === "signals" ? "bg-white text-[#111513]" : "text-white/55 hover:text-white"}`}>Incidents {visibleIssues.length}</button>
+                <button type="button" aria-current={feedMode === "checks" ? "true" : undefined} onClick={() => setFeedMode("checks")} className={`min-h-8 rounded px-2.5 text-[11px] font-semibold ${feedMode === "checks" ? "bg-white text-[#111513]" : "text-white/55 hover:text-white"}`}>Checks {activeDomain === "all" ? radar.summary.totalChecks : radar.domains.find(item => item.domain === activeDomain)?.totalChecks ?? 0}</button>
               </div>
             </div>
             {feedMode === "checks" ? (

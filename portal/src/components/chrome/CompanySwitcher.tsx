@@ -26,6 +26,7 @@
 // workspace, or a borrowed/demo session), so it is safe to mount everywhere.
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useMenuKeys } from "@/lib/a11y/useMenuKeys";
 
 interface CompanyOption {
   id: string;
@@ -61,6 +62,7 @@ export function CompanySwitcher() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  useMenuKeys(wrapRef, { open, onOpen: () => setOpen(true), onClose: () => setOpen(false) });
 
   useEffect(() => {
     if (!open) return;

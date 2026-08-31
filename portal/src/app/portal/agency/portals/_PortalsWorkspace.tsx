@@ -140,7 +140,7 @@ export function PortalsWorkspace({
             See every client portal, preview demo templates, check access, and open the right editor from one place.
           </p>
         </div>
-        <div className="inline-flex w-full overflow-x-auto rounded-md border border-black/10 bg-white p-1 sm:w-auto" role="tablist" aria-label="Portal workspace views">
+        <div className="inline-flex w-full overflow-x-auto rounded-md border border-black/10 bg-white p-1 sm:w-auto" role="group" aria-label="Portal workspace views">
           <ViewButton active={view === "library"} onClick={() => chooseView("library")} icon={<LayoutPanelTop size={16} />} label="All portals" />
           <ViewButton active={view === "templates"} onClick={() => chooseView("templates")} icon={<Eye size={16} />} label="Demo templates" />
           {canManage ? <ViewButton active={false} onClick={openEditor} icon={<MonitorCog size={16} />} label="Dev Editor Engine" /> : null}
@@ -287,7 +287,7 @@ function CanonicalPortalTemplatePreview({
 
 function ViewButton({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: ReactNode; label: string }) {
   return (
-    <button type="button" role="tab" aria-selected={active} onClick={onClick} className={`inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded px-4 text-sm font-semibold transition sm:flex-none ${active ? "bg-black text-white" : "text-black/55 hover:bg-black/[0.04] hover:text-black/80"}`}>
+    <button type="button" aria-current={active ? "true" : undefined} onClick={onClick} className={`inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded px-4 text-sm font-semibold transition sm:flex-none ${active ? "bg-black text-white" : "text-black/55 hover:bg-black/[0.04] hover:text-black/80"}`}>
       {icon}{label}
     </button>
   );

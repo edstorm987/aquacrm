@@ -322,6 +322,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-accessible-names-test-ts-6ddca9d575"></a>
+
+### `scripts/smoke-accessible-names.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-action-sources-test-ts-a017c9356b"></a>
 
 ### `scripts/smoke-action-sources.test.ts`
@@ -867,6 +879,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 ### `scripts/smoke-bos-middleware-integration.test.ts`
 
 **What it is:** should only proxy portal routes; public Business OS paths belong elsewhere.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-browser-matrix-test-ts-f5ff7391c9"></a>
+
+### `scripts/smoke-browser-matrix.test.ts`
+
+**What it is:** without a browser binary. → issues #137
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
@@ -1555,6 +1579,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (1):** [`src/lib/compliance/compliancePosture.ts`](lib.md#file-src-lib-compliance-complianceposture-ts-e3798eba46)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-composite-widget-keyboard-test-ts-2613e5a284"></a>
+
+### `scripts/smoke-composite-widget-keyboard.test.ts`
+
+**What it is:** file, for good — never the third state the app was in.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/lib/a11y/useArrowNav.ts`](lib.md#file-src-lib-a11y-usearrownav-ts-ad026e3ee5)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -4087,6 +4123,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-modal-keyboard-contract-test-ts-f3f2798bdc"></a>
+
+### `scripts/smoke-modal-keyboard-contract.test.ts`
+
+**What it is:** reader.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 

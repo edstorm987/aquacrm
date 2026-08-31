@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 import { businessCalendarDate } from "@/lib/shared/formatDateTime";
 import type { Department } from "../lib/domain";
 import type { Role } from "../lib/tenancy";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 export interface NewStaffModalProps {
   apiBase: string;
@@ -22,9 +23,12 @@ const ROLE_OPTIONS: Role[] = [
 export function NewStaffModal({ apiBase, departments, onClose }: NewStaffModalProps) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Modal keyboard contract: focus enters the form, Tab stays inside it, Escape backs out (except mid-save), focus returns to the control that opened it.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, true, { onEscape: submitting ? undefined : onClose });
 
   return (
-    <div role="dialog" aria-modal="true" className="hr-modal">
+    <div role="dialog" ref={dialogRef} aria-modal="true" className="hr-modal">
       <div className="hr-modal-backdrop" onClick={onClose} />
       <form
         className="hr-modal-card"

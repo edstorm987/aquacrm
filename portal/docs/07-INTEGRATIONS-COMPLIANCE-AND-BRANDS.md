@@ -2,7 +2,7 @@
 
 > External APIs, inbox and portal concepts, compliance packs and brand records.
 >
-> Consolidated 2026-08-30 from **6** source documents / **7,067 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-31 from **6** source documents / **7,067 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 

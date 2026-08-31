@@ -99,12 +99,15 @@ export default function DonationButtonBlock({ block }: BlockRenderProps) {
 
         {allowCustom && picked === "custom" && (
           <div style={{ display: "flex", gap: 8, alignItems: "center", maxWidth: 200, margin: "0 auto 16px" }}>
-            <span style={{ fontSize: 16 }}>{symbol}</span>
+            <span aria-hidden style={{ fontSize: 16 }}>{symbol}</span>
+            {/* The placeholder is a hint — the currency lives in the name so a
+                screen reader hears which unit it is typing. */}
             <input
               type="number"
               min={1}
               value={custom}
               onChange={e => setCustom(e.target.value)}
+              aria-label={`Custom donation amount in ${currency}`}
               placeholder="Amount"
               style={{
                 flex: 1,

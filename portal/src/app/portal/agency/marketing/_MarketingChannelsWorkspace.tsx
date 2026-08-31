@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { ExternalLink, MessageSquareText, Pencil, PlugZap, Plus, Trash2, X } from "lucide-react";
 import type { InboxChannelConnection } from "@/lib/inbox/types";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 export type MarketingAssetKind = "social" | "website" | "funnel" | "google-ads" | "reputation";
 type MarketingAssetStatus = "draft" | "active" | "paused" | "complete" | "archived";
@@ -122,6 +123,9 @@ export function MarketingChannelsWorkspace({ kind, assets, companies = [], defau
   const config = CONFIG[kind];
   const [draft, setDraft] = useState<AssetDraft | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // Modal keyboard contract: focus enters the item form, Tab stays inside it, Escape backs out (except mid-save), focus returns to the control that opened it.
+  const dialogRef = useRef<HTMLFormElement>(null);
+  useFocusTrap(dialogRef, draft !== null, { onEscape: busy ? undefined : () => setDraft(null) });
   const [error, setError] = useState<string | null>(null);
   const active = assets.filter(asset => asset.status === "active").length;
   const spend = assets.reduce((sum, asset) => sum + asset.spendCents, 0);
@@ -302,7 +306,7 @@ export function MarketingChannelsWorkspace({ kind, assets, companies = [], defau
 
       {draft ? (
         <div className="fixed inset-0 z-[90] grid place-items-center bg-black/45 p-4">
-          <form onSubmit={save} role="dialog" aria-modal="true" aria-labelledby="marketing-item-title" className="max-h-[100dvh] w-full max-w-2xl overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-lg">
+          <form onSubmit={save} role="dialog" ref={dialogRef} aria-modal="true" aria-labelledby="marketing-item-title" className="max-h-[100dvh] w-full max-w-2xl overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-lg">
             <div className="flex items-start justify-between gap-4">
               <div><p className="text-xs font-semibold uppercase text-brand">{config.title}</p><h2 id="marketing-item-title" className="mt-1 text-xl font-semibold">{draft.id ? "Edit item" : config.addLabel}</h2></div>
               <button type="button" onClick={() => setDraft(null)} aria-label="Close"><X size={18} /></button>

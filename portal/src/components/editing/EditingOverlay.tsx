@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Check, Lock, LoaderCircle, Send } from "lucide-react";
 
 import { leaseNotice, type LeaseStatus } from "@/engines/editor/editing/leases";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 /**
  * What a client sees while Aqua is working on their portal.
@@ -32,8 +33,14 @@ export function EditingOverlay({
 }) {
   const [message, setMessage] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const blocking = status.state === "held" && status.access === "blocked";
+  // Modal keyboard contract: focus enters the overlay and Tab stays inside it,
+  // because the page behind it is genuinely blocked. Escape only dismisses when
+  // a way out is actually offered.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, blocking, { onEscape: onDismiss });
 
-  if (status.state !== "held" || status.access !== "blocked") return null;
+  if (!blocking) return null;
 
   async function send() {
     setState("sending");
@@ -52,6 +59,7 @@ export function EditingOverlay({
 
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-labelledby="editing-overlay-title"

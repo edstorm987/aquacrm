@@ -5,7 +5,7 @@
 // plugins. Pair with `useConfirm()` for an imperative API that mirrors
 // the native one but renders our UI.
 
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 export interface ConfirmDialogProps {
@@ -34,18 +34,10 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
 
   const dialogRef = useRef<HTMLDivElement>(null);
   const confirmBtnRef = useRef<HTMLButtonElement>(null);
-  useFocusTrap(dialogRef, open);
-
-  useEffect(() => {
-    if (!open) return;
-    // Focus the confirm button by default so an Enter press confirms.
-    confirmBtnRef.current?.focus();
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onCancel();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onCancel]);
+  // Focus the confirm button by default so an Enter press confirms; Escape
+  // cancels; focus returns to the trigger on close. All four halves of the
+  // modal keyboard contract come from the one shared hook.
+  useFocusTrap(dialogRef, open, { onEscape: onCancel, initialFocus: confirmBtnRef });
 
   if (!open) return null;
 

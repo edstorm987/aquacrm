@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FilePlus2, FolderPlus, Plus, Search, Upload, X } from "lucide-react";
+import { useMenuKeys } from "@/lib/a11y/useMenuKeys";
 
 // ─── DEV EDITOR — the universal "+" ──────────────────────────────────────────
 //
@@ -50,6 +51,8 @@ export function AddMenu({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  // issues #138 — the `role="menu"` below promises arrow keys; this keeps it.
+  useMenuKeys(wrapRef, { open, onOpen: () => setOpen(true), onClose: () => setOpen(false) });
 
   useEffect(() => {
     if (!open) return;

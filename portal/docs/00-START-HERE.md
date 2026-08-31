@@ -2,7 +2,7 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-08-30 from **20** source documents / **27,913 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-31 from **20** source documents / **28,213 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -21,7 +21,7 @@
 - [`docs/DEVELOPMENT-HANDOFF.md`](#source-docs-development-handoff-md) — 1,552 words · `9199166a1f30`
 - [`docs/development-workspace-cleanup.md`](#source-docs-development-workspace-cleanup-md) — 793 words · `bdb46a5cecd3`
 - [`docs/development.md`](#source-docs-development-md) — 3,248 words · `dd5efef22882`
-- [`docs/development/CAMPAIGN-LEDGER.md`](#source-docs-development-campaign-ledger-md) — 6,681 words · `930c22d8918d`
+- [`docs/development/CAMPAIGN-LEDGER.md`](#source-docs-development-campaign-ledger-md) — 6,981 words · `ffec97f1230c`
 - [`docs/development/CLOUD-RESUME.md`](#source-docs-development-cloud-resume-md) — 500 words · `03458cdf18bf`
 - [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 2,209 words · `f8dfdfa9cfad`
 - [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,622 words · `98fe02dc9d94`
@@ -2161,7 +2161,7 @@ else hangs from.*
 
 ## Source document — `docs/development/CAMPAIGN-LEDGER.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/CAMPAIGN-LEDGER.md" sha256="930c22d8918dcca5b0545074c9cd2821cd9a9c2fd2e05259a919797d987d829c" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/CAMPAIGN-LEDGER.md" sha256="ffec97f1230c756334d5cd2bf2169470a3189d1259cbde7129cacdd11fb3e3dc" -->
 # Campaign ledger — every documented to-do, verified against source
 
 *Generated 2026-08-30 from a 131-agent triage: one independent read-only investigator
@@ -2485,6 +2485,47 @@ each item still owes. Both are more useful than a tick.
 closed, four are named as untouched in the wave 2 journal and the issue should
 stay open. `todo:656`'s staged-object lifecycle/expiry is unbuilt. `todo:386`
 has four named open pieces. These are progress, not completion.
+
+---
+
+## Browser-matrix baseline — 2026-08-31, first real run
+
+`npm run browser:matrix` (built in wave 5, `scripts/browser-matrix.mjs`) was run
+for the first time against a live dev server: real Chromium 141, 13 pages × 17
+viewports, **1,326 checks**. It drives actual layout, focus, axe and the console
+— unlike `smoke-ux.mjs`, whose "viewport" was a substring in a User-Agent header.
+
+**Verdict: RED. 352 failing checks.**
+
+| category | failing |
+| --- | --- |
+| focus (a stop with no visible indicator) | 203 |
+| axe (serious/critical) | 85 |
+| console errors | 44 |
+| failed network requests | 17 |
+| horizontal overflow | 3 |
+
+This is a **baseline, not a regression signal** — the gate did not exist before
+this wave, so nothing had ever measured these. The failures are overwhelmingly
+app-wide rather than anything wave 5 touched: the single most common one,
+`button[Working as Owner]` with no focus indicator, is a global chrome control
+that appears on nearly every page. Wave 5's own subject — modal focus traps —
+is **not exercised at all** by this run, which walks pages without opening
+dialogs.
+
+Real defects it surfaced that are NOT accessibility issues:
+
+- `/portal/account` answers **500 from `/api/portal/mfa/enrol`**, twice, on every
+  viewport. Multi-factor enrolment is broken.
+- `/portal/agency` logs a **React hydration mismatch** — server and client
+  markup disagree, and React says it will not patch it up.
+- Three genuine **horizontal-overflow** failures, which the house browser rule
+  forbids outright.
+- A **critical `button-name`** violation on `/` at mobile portrait: a button with
+  no accessible name, which is precisely what `todo:417` set out to eliminate.
+
+None of this is fixed here. It is measured, recorded and repeatable, which is
+the thing that did not exist before. The follow-up work is its own campaign.
 <!-- AQUACRM_SOURCE_END path="docs/development/CAMPAIGN-LEDGER.md" -->
 
 ---

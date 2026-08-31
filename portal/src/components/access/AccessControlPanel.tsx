@@ -196,12 +196,12 @@ export function AccessControlPanel({
           {visibleViews.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
         </select>
       </label>
-      <nav aria-label="Access control sections" role="tablist" className="hidden gap-1 overflow-x-auto border-b border-black/10 sm:flex">
+      <nav aria-label="Access control sections" className="hidden gap-1 overflow-x-auto border-b border-black/10 sm:flex">
         {visibleViews.map(item => {
           const Icon = item.icon;
           const selected = view === item.id;
           return (
-            <button key={item.id} type="button" role="tab" aria-selected={selected} onClick={() => setView(item.id)} className={`inline-flex min-h-11 shrink-0 items-center gap-2 border-b-2 px-3 text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-inset ${selected ? "border-emerald-800 text-emerald-900" : "border-transparent text-black/48 hover:text-black/75"}`}>
+            <button key={item.id} type="button" aria-current={selected ? "true" : undefined} onClick={() => setView(item.id)} className={`inline-flex min-h-11 shrink-0 items-center gap-2 border-b-2 px-3 text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-inset ${selected ? "border-emerald-800 text-emerald-900" : "border-transparent text-black/48 hover:text-black/75"}`}>
               <Icon size={15} /> {item.label}
               {item.id === "requests" && queueRequests.some(request => request.status === "pending") ? <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-900">{queueRequests.filter(request => request.status === "pending").length}</span> : null}
             </button>

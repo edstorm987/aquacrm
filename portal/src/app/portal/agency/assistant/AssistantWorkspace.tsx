@@ -32,6 +32,7 @@ import type { AdvisorRadarDigest, BusinessRadarIssue } from "@/engines/data/rada
 import { formatElapsed } from "@/lib/enquiries/leadTiming";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
 import type { AdvisorSkill, AdvisorSkillRecipe, AdvisorSkillSafety } from "@/lib/advisor/advisorSkills";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 interface Coverage {
   clients: number;
@@ -865,11 +866,14 @@ function Drawer({
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  // Modal keyboard contract: focus enters the drawer, Tab stays inside it, Escape closes, focus returns to the control that opened it.
+  const drawerRef = useRef<HTMLElement>(null);
+  useFocusTrap(drawerRef, true, { onEscape: onClose });
   return (
     <div className="fixed inset-0 z-50 bg-black/35" role="presentation" onMouseDown={onClose}>
       <section
         role="dialog"
-        aria-modal="true"
+        ref={drawerRef} aria-modal="true"
         aria-label={title}
         onMouseDown={event => event.stopPropagation()}
         className={`mm-assistant-panel-drawer absolute inset-y-0 ${side === "left" ? "left-0" : "right-0"} flex w-[min(90vw,360px)] flex-col bg-[#fbfaf8] shadow-2xl`}

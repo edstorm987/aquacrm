@@ -3,6 +3,7 @@
 import { Check, CreditCard, ExternalLink, FilePenLine, Landmark, Mail, Plus, ReceiptText, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { addBusinessCalendarDays, dateInputValue, formatUkDate } from "@/lib/shared/formatDateTime";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 type Party = {
   kind: "lead" | "contact";
@@ -108,6 +109,9 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
   const [paymentMethod, setPaymentMethod] = useState("bank-transfer");
   const [paymentReference, setPaymentReference] = useState("");
   const [busy, setBusy] = useState("");
+  // Modal keyboard contract: focus enters the pack, Tab stays inside it, Escape backs out (except mid-save), focus returns to the contact row.
+  const dialogRef = useRef<HTMLElement>(null);
+  useFocusTrap(dialogRef, true, { onEscape: busy ? undefined : onClose });
   const [notice, setNotice] = useState<string | null>(null);
   // A notice about an unconfirmed or refused delivery must not wear the success
   // banner's colour, so every notice carries the tone of the outcome it reports.
@@ -360,7 +364,7 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
   return (
     <div className="fixed inset-0 z-[80] grid items-end bg-black/40 sm:items-center sm:p-6">
       <button type="button" aria-label="Close commercial pack" className="absolute inset-0" onClick={onClose} />
-      <section role="dialog" aria-modal="true" aria-labelledby="commercial-heading" className="relative mx-auto max-h-[94vh] w-full max-w-6xl overflow-y-auto bg-white shadow-2xl sm:rounded-lg">
+      <section role="dialog" ref={dialogRef} aria-modal="true" aria-labelledby="commercial-heading" className="relative mx-auto max-h-[94vh] w-full max-w-6xl overflow-y-auto bg-white shadow-2xl sm:rounded-lg">
         <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-black/10 bg-white px-5 py-4 sm:px-6">
           <div><p className="text-xs font-semibold uppercase tracking-wide text-black/40">Meeting action</p><h2 id="commercial-heading" className="mt-1 text-xl font-semibold">Invoice & agreement</h2><p className="mt-1 text-sm text-black/50">{party.name || party.company || party.email}</p></div>
           <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-md border border-black/10" aria-label="Close"><X size={17} /></button>

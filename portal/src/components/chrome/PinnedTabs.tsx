@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { useMenuKeys } from "@/lib/a11y/useMenuKeys";
 import { ChevronDown, Crosshair, MapPin, PanelLeft, PanelTop, Pencil, Pin, Star, Trash2, X } from "lucide-react";
 
 import { findTab, tabsAt, useChromeLayout, type SavedTab, type SavedTabPlacement } from "./pinnedTabsStore";
@@ -65,6 +66,7 @@ export function PinCurrentControl({ label }: { label: string }) {
   const [renaming, setRenaming] = useState(false);
   const [draftName, setDraftName] = useState("");
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  useMenuKeys(wrapRef, { open, onOpen: () => setOpen(true), onClose: () => setOpen(false) });
 
   useEffect(() => {
     if (!open) return;

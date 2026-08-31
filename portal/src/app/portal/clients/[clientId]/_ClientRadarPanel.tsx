@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import type { BusinessRadarCheck, ClientRadarSnapshot, RadarCheckStatus } from "@/engines/data/radar/businessRadar";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 type Filter = "attention" | "all" | "blind" | "learning";
 
@@ -25,6 +26,9 @@ export function ClientRadarPanel({ initialRadar }: { initialRadar: ClientRadarSn
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<Filter>("attention");
   const [packId, setPackId] = useState("all");
+  // Modal keyboard contract: focus enters the drawer, Tab stays inside it, Escape closes it, focus returns to the control that opened it.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, open, { onEscape: () => setOpen(false) });
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState("");
   const tone = radar.healthState === "risk" ? "risk" : radar.healthState === "strong" ? "strong" : radar.healthState === "learning" ? "learning" : "watch";
@@ -100,7 +104,7 @@ export function ClientRadarPanel({ initialRadar }: { initialRadar: ClientRadarSn
       </section>
 
       {open ? (
-        <div className="fixed inset-0 z-[110] bg-black/35 backdrop-blur-[1px]" role="dialog" aria-modal="true" aria-labelledby="client-radar-drawer-heading" onMouseDown={event => { if (event.target === event.currentTarget) setOpen(false); }}>
+        <div className="fixed inset-0 z-[110] bg-black/35 backdrop-blur-[1px]" role="dialog" ref={dialogRef} aria-modal="true" aria-labelledby="client-radar-drawer-heading" onMouseDown={event => { if (event.target === event.currentTarget) setOpen(false); }}>
           <aside className="ml-auto flex h-full w-full max-w-3xl flex-col bg-[#f7f9fb] shadow-2xl">
             <header className="border-b border-black/10 bg-[#0e2946] px-5 py-4 text-white">
               <div className="flex items-start justify-between gap-4">

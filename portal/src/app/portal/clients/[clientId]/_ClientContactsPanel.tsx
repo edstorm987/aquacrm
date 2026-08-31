@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import type { ReactNode } from "react";
 import { Building2, Mail, Pencil, Phone, Plus, Star, Trash2, UserRound } from "lucide-react";
 import type { ClientContact, ClientEntityType } from "@/lib/clients/clientContacts";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 const EMPTY = { id: "", name: "", email: "", phone: "", role: "", notes: "", primary: false };
 
@@ -22,6 +23,9 @@ export function ClientContactsPanel({
   const [contacts, setContacts] = useState(initialContacts);
   const [draft, setDraft] = useState<typeof EMPTY | null>(null);
   const [busy, setBusy] = useState(false);
+  // Modal keyboard contract: focus enters the contact editor, Tab stays inside it, Escape backs out (except mid-save), focus returns to the contact row.
+  const dialogRef = useRef<HTMLFormElement>(null);
+  useFocusTrap(dialogRef, draft !== null, { onEscape: busy ? undefined : () => setDraft(null) });
   const [error, setError] = useState("");
 
   async function request(payload: Record<string, unknown>) {
@@ -127,7 +131,7 @@ export function ClientContactsPanel({
               void request({ action: "save", contact: draft });
             }}
             role="dialog"
-            aria-modal="true"
+            ref={dialogRef} aria-modal="true"
             aria-labelledby="contact-editor-title"
             className="max-h-[calc(100vh-32px)] w-full max-w-lg overflow-y-auto rounded-md bg-white p-6 shadow-2xl"
           >

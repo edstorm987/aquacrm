@@ -13,7 +13,7 @@
 // What did NOT come: `LeadTimingTrace` and `splitTags`, which the workspace also
 // uses. Those live in `_leadShared` so neither file imports the other.
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { ExternalLink, Plus, Presentation, Trash2, X } from "lucide-react";
 
 import { PortalCustomFields } from "@/components/forms/PortalCustomFields";
@@ -27,6 +27,7 @@ import type {
   LeadMeetingDraft, LeadSaveResult, LeadView,
   MeetingAttempt, MeetingMode, MeetingStatus, SalesPresentation,
 } from "./_leadTypes";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 export function DetailsEditor({
   buttonLabel = "Open lead",
@@ -147,6 +148,9 @@ export function DetailsEditor({
   });
   const [open, setOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // Modal keyboard contract: focus enters the record editor, Tab stays inside it, Escape backs out (except mid-save), focus returns to the button that opened it.
+  const dialogRef = useRef<HTMLElement>(null);
+  useFocusTrap(dialogRef, open, { onEscape: busy ? undefined : () => { setSaveError(null); setOpen(false); } });
 
   return (
     <>
@@ -161,7 +165,7 @@ export function DetailsEditor({
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 p-4 sm:p-8">
           <section
             role="dialog"
-            aria-modal="true"
+            ref={dialogRef} aria-modal="true"
             aria-labelledby="sales-record-title"
             className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-md border border-black/10 bg-[#f7f6f2] shadow-[0_30px_90px_rgba(0,0,0,0.25)]"
           >

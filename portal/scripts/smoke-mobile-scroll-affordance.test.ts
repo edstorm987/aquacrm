@@ -27,12 +27,19 @@ import { test } from "node:test";
 const CSS = readFileSync("src/app/globals.css", "utf8");
 const STRIP_RULE = ".mm-route-canvas :is([role=\"tablist\"], nav.overflow-x-auto, .overflow-x-auto:not(:has(table)))";
 
-function ruleBlock(selector: string): string {
-  const index = CSS.indexOf(selector);
+// Since 2026-08-30 (issues #138) the same selector list carries TWO rules —
+// the unguarded scroll-containment one and the guarded fade — because the
+// strips stopped being addressable by `role="tablist"`. `from` is how a test
+// says which of the two it means; without it `indexOf` silently answers the
+// first, and every assertion below would be read against the wrong block.
+function ruleBlock(selector: string, from = 0): string {
+  const index = CSS.indexOf(selector, from);
   assert.notEqual(index, -1, `expected ${selector} in globals.css`);
   const open = CSS.indexOf("{", index);
   return CSS.slice(open + 1, CSS.indexOf("}", open));
 }
+
+const SUPPORTS_AT = CSS.indexOf("@supports (animation-timeline: scroll(self inline))");
 
 test("the UNANIMATED values are the no-fade ones", () => {
   // The load-bearing assertion. A strip whose content fits has no scrollable
@@ -41,7 +48,7 @@ test("the UNANIMATED values are the no-fade ones", () => {
   // base and every short strip in the app wears a permanent, meaningless fade
   // on its right edge. Verified both ways in Chromium at 390px: Master Inbox
   // (overflows 860px) fades; Settings (overflows 0) has no mask at all.
-  const block = ruleBlock(STRIP_RULE);
+  const block = ruleBlock(STRIP_RULE, SUPPORTS_AT);
   assert.match(block, /--mm-strip-fade-start:\s*0px/, "the resting start fade must be zero");
   assert.match(block, /--mm-strip-fade-end:\s*0px/, "the resting end fade must be zero");
   assert.match(block, /animation-timeline:\s*scroll\(self inline\)/, "the fade must follow this strip's own scroll");
@@ -76,9 +83,12 @@ test("both edges stay faded while there is content either way", () => {
 });
 
 test("it is a progressive enhancement, never a hard dependency", () => {
-  const at = CSS.indexOf("@supports (animation-timeline: scroll(self inline))");
-  assert.notEqual(at, -1, "the whole mechanism must sit behind an @supports guard");
-  assert.ok(at < CSS.indexOf(STRIP_RULE), "the guard must come before the rule it protects");
+  assert.notEqual(SUPPORTS_AT, -1, "the whole mechanism must sit behind an @supports guard");
+  // The first place the fade is ASSIGNED (as opposed to registered by
+  // @property) must be inside the guard — anything earlier would mask strips in
+  // browsers that cannot animate the value, i.e. a permanent fade for them.
+  assert.ok(SUPPORTS_AT < CSS.indexOf("--mm-strip-fade-start: 0px"),
+    "the guard must come before the rule it protects");
 });
 
 test("data tables keep their edges", () => {
@@ -92,12 +102,26 @@ test("data tables keep their edges", () => {
   assert.match(CSS, /\.mm-route-canvas pre \{\s*overflow-x: auto;/, "code blocks must keep scrolling via the property, not the class");
 });
 
+test("a strip keeps its row after it stops claiming tab semantics", () => {
+  // issues #138, 2026-08-30. Every view-switch strip in the app used to be a
+  // `role="tablist"` with no tabpanel and no arrow keys, and it was dropped for
+  // a labelled group of ordinary buttons. The row-holding rule was reached
+  // through that role — `[role="tablist"] > :is([role="tab"], button, a)` — so
+  // removing it silently un-set `flex: 0 0 auto` on four scrolling strips and
+  // let their labels shrink into each other on mobile again. The rule now
+  // reaches the scroller itself, exactly as the fade below already does.
+  const block = ruleBlock(".mm-route-canvas .overflow-x-auto:not(:has(table)) > :is(button, a)");
+  assert.match(block, /flex:\s*0 0 auto/, "a strip's buttons must not shrink — that is the overlap defect");
+  assert.match(block, /scroll-snap-align:\s*start/, "…and each must be a snap point, or the strip drifts between labels");
+  assert.match(CSS, /\.mm-route-canvas :is\(\[role="tablist"\], nav\.overflow-x-auto, \.overflow-x-auto:not\(:has\(table\)\)\) \{\s*\n\s*overscroll-behavior-inline: contain/,
+    "the scroll-containment rule must reach the same strips the fade does");
+});
+
 test("the fade is scoped to phone and tablet widths", () => {
   // Desktop keeps the plain row: it has a real scrollbar, a wheel and a
   // trackpad, and this change was asked for as a mobile fix. (Those strips do
   // still overflow at 1440px — 82px on the Inbox, 278px on Settings — which is
   // recorded as an observation, not fixed here.)
-  const at = CSS.indexOf("@supports (animation-timeline: scroll(self inline))");
-  const guarded = CSS.slice(at, CSS.indexOf("@keyframes mm-strip-edge-fade", at));
+  const guarded = CSS.slice(SUPPORTS_AT, CSS.indexOf("@keyframes mm-strip-edge-fade", SUPPORTS_AT));
   assert.match(guarded, /@media \(max-width: 1023px\)/, "the fade must be bounded to phone and tablet widths");
 });

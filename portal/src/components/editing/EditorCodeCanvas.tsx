@@ -454,7 +454,7 @@ export function EditorCodeCanvas({
             typed in the last one. A dot marks unsaved changes, because a tab
             you cannot see is exactly where unsaved work gets forgotten. */}
         {openPaths.length ? (
-          <div role="tablist" aria-label="Open files" className="flex shrink-0 overflow-x-auto border-b border-white/8 bg-[#12150f]/60 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div role="group" aria-label="Open files" className="flex shrink-0 overflow-x-auto border-b border-white/8 bg-[#12150f]/60 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {openPaths.map(path => {
               const active = path === open;
               const name = path.split("/").pop() ?? path;
@@ -467,8 +467,7 @@ export function EditorCodeCanvas({
                 >
                   <button
                     type="button"
-                    role="tab"
-                    aria-selected={active}
+                    aria-current={active ? "true" : undefined}
                     onClick={() => setOpen(path)}
                     title={path}
                     className="flex max-w-[13rem] items-center gap-1.5 py-1.5 text-[11px] font-medium"

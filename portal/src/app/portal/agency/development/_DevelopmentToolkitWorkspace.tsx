@@ -5,13 +5,14 @@ import {
   FolderGit2, KeyRound, Link2, LockKeyhole, PackageOpen, Pencil, Plus,
   Search, Sparkles, Trash2, Upload, Wrench, X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 import type {
   DevelopmentResourceKind,
   DevelopmentWorkflow,
   Role,
 } from "@/server/types";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 type PublicResource = {
   id: string;
@@ -560,7 +561,13 @@ function WorkflowDialog({ workflow, busy, onClose, onSave }: { workflow: Develop
 }
 
 function Header({ eyebrow, title, detail, actions }: { eyebrow: string; title: string; detail: string; actions: React.ReactNode }) { return <header className="flex flex-wrap items-end justify-between gap-5"><div className="max-w-3xl"><p className="text-xs font-semibold uppercase tracking-wide text-brand">{eyebrow}</p><h1 className="mt-1 text-3xl font-semibold text-black/90">{title}</h1><p className="mt-2 text-sm leading-6 text-black/55">{detail}</p></div><div className="flex flex-wrap gap-2">{actions}</div></header>; }
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) { return <div className="fixed inset-0 z-[100] grid items-end bg-black/45 sm:items-center sm:p-5"><button className="absolute inset-0" aria-label="Close" onClick={onClose} /><section role="dialog" aria-modal="true" aria-label={title} className="relative mx-auto max-h-[94vh] w-full max-w-2xl overflow-y-auto bg-[#F8F7F3] p-5 shadow-2xl sm:rounded-md sm:p-6"><header className="mb-5 flex items-start justify-between"><div><p className="text-xs font-semibold uppercase text-brand">Development</p><h2 className="mt-1 text-xl font-semibold">{title}</h2></div><button onClick={onClose} className="grid size-9 place-items-center rounded-md border border-black/10 bg-white"><X size={16} /></button></header>{children}</section></div>; }
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  // Modal keyboard contract: focus enters the dialog, Tab stays inside it,
+  // Escape closes it, and focus returns to the control that opened it.
+  const dialogRef = useRef<HTMLElement>(null);
+  useFocusTrap(dialogRef, true, { onEscape: onClose });
+  return <div className="fixed inset-0 z-[100] grid items-end bg-black/45 sm:items-center sm:p-5"><button className="absolute inset-0" aria-label="Close" onClick={onClose} /><section ref={dialogRef} role="dialog" aria-modal="true" aria-label={title} className="relative mx-auto max-h-[94vh] w-full max-w-2xl overflow-y-auto bg-[#F8F7F3] p-5 shadow-2xl sm:rounded-md sm:p-6"><header className="mb-5 flex items-start justify-between"><div><p className="text-xs font-semibold uppercase text-brand">Development</p><h2 className="mt-1 text-xl font-semibold">{title}</h2></div><button onClick={onClose} className="grid size-9 place-items-center rounded-md border border-black/10 bg-white"><X size={16} /></button></header>{children}</section></div>;
+}
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="grid gap-1 text-xs font-medium text-black/60">{label}{children}</label>; }
 function Empty({ title, detail }: { title: string; detail: string }) { return <div className="col-span-full grid min-h-52 place-items-center border-y border-dashed border-black/15 px-5 text-center"><div><PackageOpen size={27} className="mx-auto text-black/20" /><p className="mt-3 font-semibold text-black/65">{title}</p><p className="mt-1 max-w-md text-sm text-black/40">{detail}</p></div></div>; }
 function Status({ text }: { text: string }) { return <p role="status" className="text-xs font-medium text-black/50">{text}</p>; }

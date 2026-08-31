@@ -22,7 +22,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent, useRef } from "react";
 
 import {
   INTEGRATION_CATALOG,
@@ -33,6 +33,7 @@ import {
 } from "@/lib/integrations/catalog";
 import type { PublicIntegrationConnection } from "@/lib/integrations/types";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 interface Props {
   clients: Array<{ id: string; name: string }>;
@@ -323,6 +324,9 @@ function ConnectionModal({ state, clients, onClose, onSaved }: {
   const [clientId, setClientId] = useState(clientScopeSupported ? existing?.clientId ?? "" : "");
   const [values, setValues] = useState<Record<string, string>>(existing?.config ?? {});
   const [saving, setSaving] = useState(false);
+  // Modal keyboard contract: focus enters the connection form, Tab stays inside it, Escape backs out (except mid-save), focus returns to the integration row.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, true, { onEscape: saving ? undefined : onClose });
   const [error, setError] = useState("");
 
   async function submit(event: FormEvent) {
@@ -353,7 +357,7 @@ function ConnectionModal({ state, clients, onClose, onSaved }: {
   }
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="integration-modal-title">
+    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-5" role="dialog" ref={dialogRef} aria-modal="true" aria-labelledby="integration-modal-title">
       <div className="max-h-[92dvh] w-full overflow-y-auto bg-[#f8f7f4] shadow-2xl sm:max-w-2xl sm:rounded-lg">
         <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-black/10 bg-[#f8f7f4] px-5 py-4">
           <div>

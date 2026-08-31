@@ -10,6 +10,7 @@ import {
   phaseTransitionFailureMessage,
   type PhaseTransitionApiResult,
 } from "../lib/transitionFeedback";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 export interface PhaseBoardProps {
   client: Client;
@@ -26,6 +27,9 @@ export function PhaseBoard(props: PhaseBoardProps) {
   const [advancing, setAdvancing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmAdvance, setConfirmAdvance] = useState(false);
+  // Modal keyboard contract: focus enters the confirmation, Tab stays inside it, Escape backs out (except mid-advance), focus returns to the advance button.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, confirmAdvance && nextPhase !== null, { onEscape: advancing ? undefined : () => setConfirmAdvance(false) });
   const [progressVersion, setProgressVersion] = useState(0);
   const operationIdRef = useRef<string | null>(null);
 
@@ -129,7 +133,7 @@ export function PhaseBoard(props: PhaseBoardProps) {
       </div>
 
       {confirmAdvance && nextPhase && (
-        <div className="fulfillment-modal" role="dialog" aria-modal="true" aria-labelledby="advance-title">
+        <div className="fulfillment-modal" role="dialog" ref={dialogRef} aria-modal="true" aria-labelledby="advance-title">
           <div className="fulfillment-modal-card">
             <h3 id="advance-title">Advance to {nextPhase.label}?</h3>
             <p>

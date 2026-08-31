@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { Activity, AlertTriangle, BarChart3, Check, ChevronRight, CircleGauge, Code2, ExternalLink, FileCheck2, FolderOpen, Gauge, Globe2, HeartPulse, Image, MousePointerClick, Plus, Search, Server, Target, Trash2, UsersRound, X } from "lucide-react";
 import type { ClientMilestone, ClientMilestoneStatus, PerformanceExperiment } from "@/server/types";
 import type { PerformanceAnalytics } from "@/lib/performance/performanceAnalytics";
@@ -10,6 +10,7 @@ import { ExperimentsPanel } from "./_ExperimentsPanel";
 import { AquaTagDashboard } from "./_AquaTagDashboard";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
 import { measuredCountLabel } from "@/lib/performance/telemetryDisplay";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 export interface PerformanceProduct {
   id: string;
@@ -505,6 +506,9 @@ function MilestoneRow({ clientId, item, onUpdate, onDelete }: { clientId: string
 
 function NewMilestone({ clientId, onClose, onCreated }: { clientId: string; onClose: () => void; onCreated: (item: ClientMilestone) => void }) {
   const [busy, setBusy] = useState(false);
+  // Modal keyboard contract: focus enters the dialog, Tab stays inside it, Escape backs out (except mid-save), focus returns to the control that opened it.
+  const dialogRef = useRef<HTMLFormElement>(null);
+  useFocusTrap(dialogRef, true, { onEscape: busy ? undefined : onClose });
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -517,7 +521,7 @@ function NewMilestone({ clientId, onClose, onCreated }: { clientId: string; onCl
     if (response.ok && json?.milestone) onCreated(json.milestone);
     setBusy(false);
   }
-  return <div className="fixed inset-0 z-50 grid place-items-center bg-black/35 p-4" role="presentation"><form onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby="new-milestone-title" className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-lg border border-black/10 bg-white p-5 shadow-2xl"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase text-brand">Custom milestone</p><h2 id="new-milestone-title" className="mt-1 text-xl font-semibold">What does success look like?</h2></div><button type="button" onClick={onClose} aria-label="Close"><X size={18} /></button></div><div className="mt-5 grid gap-4"><label className="grid gap-1 text-xs font-medium">Title<input name="title" required autoFocus className="min-h-11 rounded-md border border-black/15 px-3 text-sm" placeholder="Reach 50 website enquiries" /></label><label className="grid gap-1 text-xs font-medium">What counts as complete?<textarea name="description" rows={3} className="rounded-md border border-black/15 px-3 py-2 text-sm" /></label><div className="grid gap-4 sm:grid-cols-2"><label className="grid gap-1 text-xs font-medium">Track automatically<select name="metric" className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm"><option value="">No · update manually</option><option value="pageviews">Website views</option><option value="visitors">Visitors</option><option value="conversions">Conversions</option><option value="search-clicks">Search clicks</option></select></label><label className="grid gap-1 text-xs font-medium">Target number<input name="targetValue" type="number" min="1" className="min-h-11 rounded-md border border-black/15 px-3 text-sm" placeholder="50" /></label></div><label className="grid gap-1 text-xs font-medium">Target date<input name="targetAt" type="date" className="min-h-11 rounded-md border border-black/15 px-3 text-sm" /></label></div><div className="mt-5 flex justify-end gap-2"><button type="button" onClick={onClose} className="min-h-10 px-3 text-sm">Cancel</button><button disabled={busy} className="min-h-10 rounded-md bg-black px-4 text-sm font-semibold text-white">{busy ? "Adding..." : "Add milestone"}</button></div></form></div>;
+  return <div className="fixed inset-0 z-50 grid place-items-center bg-black/35 p-4" role="presentation"><form onSubmit={submit} role="dialog" ref={dialogRef} aria-modal="true" aria-labelledby="new-milestone-title" className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-lg border border-black/10 bg-white p-5 shadow-2xl"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase text-brand">Custom milestone</p><h2 id="new-milestone-title" className="mt-1 text-xl font-semibold">What does success look like?</h2></div><button type="button" onClick={onClose} aria-label="Close"><X size={18} /></button></div><div className="mt-5 grid gap-4"><label className="grid gap-1 text-xs font-medium">Title<input name="title" required autoFocus className="min-h-11 rounded-md border border-black/15 px-3 text-sm" placeholder="Reach 50 website enquiries" /></label><label className="grid gap-1 text-xs font-medium">What counts as complete?<textarea name="description" rows={3} className="rounded-md border border-black/15 px-3 py-2 text-sm" /></label><div className="grid gap-4 sm:grid-cols-2"><label className="grid gap-1 text-xs font-medium">Track automatically<select name="metric" className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm"><option value="">No · update manually</option><option value="pageviews">Website views</option><option value="visitors">Visitors</option><option value="conversions">Conversions</option><option value="search-clicks">Search clicks</option></select></label><label className="grid gap-1 text-xs font-medium">Target number<input name="targetValue" type="number" min="1" className="min-h-11 rounded-md border border-black/15 px-3 text-sm" placeholder="50" /></label></div><label className="grid gap-1 text-xs font-medium">Target date<input name="targetAt" type="date" className="min-h-11 rounded-md border border-black/15 px-3 text-sm" /></label></div><div className="mt-5 flex justify-end gap-2"><button type="button" onClick={onClose} className="min-h-10 px-3 text-sm">Cancel</button><button disabled={busy} className="min-h-10 rounded-md bg-black px-4 text-sm font-semibold text-white">{busy ? "Adding..." : "Add milestone"}</button></div></form></div>;
 }
 
 function score(client: PerformanceClient): number {

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import {
   Archive,
   ArrowUpRight,
@@ -41,6 +41,7 @@ import type {
   ExperiencePackageAudience,
 } from "@/server/types";
 import { dateInputValue, formatUkDate } from "@/lib/shared/formatDateTime";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 type ClientOption = { id: string; name: string; companyId?: string; stageLabel: string; source: string; health: "healthy" | "attention"; healthNotes: string[] };
 type StaffOption = { id: string; name: string; email: string; companyIds: string[] };
@@ -239,7 +240,7 @@ export function YouDeserveItWorkspace({
         </div>
       </section>
 
-      <div className="flex gap-1 overflow-x-auto border-b border-black/10" role="tablist" aria-label="Experience workspace">
+      <div className="flex gap-1 overflow-x-auto border-b border-black/10" role="group" aria-label="Experience workspace">
         <Tab active={view === "catalogue"} onClick={() => setView("catalogue")} label="Catalogue" icon={ShoppingBag} />
         <Tab active={view === "live"} onClick={() => setView("live")} label="Live plans" count={activePlans.length} icon={PackageCheck} />
         <Tab active={view === "staff"} onClick={() => setView("staff")} label="Staff rewards" count={staffRewards} icon={Users} />
@@ -679,12 +680,15 @@ function ClientHealthOverview({ clients }: { clients: ClientOption[] }) {
 }
 
 function Modal({ title, eyebrow, onClose, size, children }: { title: string; eyebrow: string; onClose: () => void; size: "large"; children: React.ReactNode }) {
-  return <div className="fixed inset-0 z-[90] grid items-end bg-black/45 sm:items-center sm:p-5"><button type="button" aria-label="Close dialog" className="absolute inset-0" onClick={onClose} /><div role="dialog" aria-modal="true" aria-label={title} className={`relative mx-auto max-h-[100dvh] w-full overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[94dvh] sm:rounded-lg sm:p-6 ${size === "large" ? "max-w-4xl" : "max-w-2xl"}`}><div className="mb-5 flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wide text-brand">{eyebrow}</p><h2 className="mt-1 text-xl font-semibold text-black/88">{title}</h2></div><button type="button" onClick={onClose} aria-label="Close" className="grid size-9 place-items-center rounded-md border border-black/10 text-black/50"><X size={16} /></button></div>{children}</div></div>;
+  // Modal keyboard contract: focus enters the dialog, Tab stays inside it, Escape closes it, and focus returns to the control that opened it.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, true, { onEscape: onClose });
+  return <div className="fixed inset-0 z-[90] grid items-end bg-black/45 sm:items-center sm:p-5"><button type="button" aria-label="Close dialog" className="absolute inset-0" onClick={onClose} /><div role="dialog" ref={dialogRef} aria-modal="true" aria-label={title} className={`relative mx-auto max-h-[100dvh] w-full overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[94dvh] sm:rounded-lg sm:p-6 ${size === "large" ? "max-w-4xl" : "max-w-2xl"}`}><div className="mb-5 flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wide text-brand">{eyebrow}</p><h2 className="mt-1 text-xl font-semibold text-black/88">{title}</h2></div><button type="button" onClick={onClose} aria-label="Close" className="grid size-9 place-items-center rounded-md border border-black/10 text-black/50"><X size={16} /></button></div>{children}</div></div>;
 }
 
 function CommandAction({ icon, label, detail, active, onClick }: { icon: React.ReactNode; label: string; detail: string; active: boolean; onClick: () => void }) { return <button type="button" onClick={onClick} className={`flex min-h-24 items-start gap-3 bg-white p-4 text-left transition ${active ? "shadow-[inset_0_-2px_0_#111]" : "hover:bg-black/[0.015]"}`}><span className={`grid size-9 shrink-0 place-items-center rounded-md ${active ? "bg-black text-white" : "bg-black/[0.045] text-brand"}`}>{icon}</span><span><span className="block text-sm font-semibold text-black/78">{label}</span><span className="mt-1 block text-xs leading-5 text-black/42">{detail}</span></span></button>; }
 function Metric({ label, value, icon, tone }: { label: string; value: string; icon: React.ReactNode; tone: "blue" | "emerald" | "violet" | "amber" }) { return <div className="mm-kpi-card mm-surface-card min-h-24 rounded-lg border border-black/10 p-4" data-kpi-tone={tone}><div className="flex items-start justify-between gap-3"><dt className="text-[10px] font-semibold uppercase text-black/40">{label}</dt><span className="mm-kpi-icon grid size-8 shrink-0 place-items-center rounded-md">{icon}</span></div><dd className="mt-1 text-2xl font-semibold text-black/85">{value}</dd></div>; }
-function Tab({ active, onClick, label, count, icon: Icon }: { active: boolean; onClick: () => void; label: string; count?: number; icon: LucideIcon }) { return <button type="button" role="tab" aria-selected={active} onClick={onClick} className={`relative inline-flex min-h-11 items-center gap-2 whitespace-nowrap px-3 text-sm font-medium ${active ? "text-black" : "text-black/45 hover:text-black/70"}`}><Icon size={15} aria-hidden="true" /><span>{label}{count != null ? <span className="ml-1 text-xs tabular-nums text-black/35">{count}</span> : null}</span>{active ? <span className="absolute inset-x-2 bottom-0 h-0.5 bg-black" /> : null}</button>; }
+function Tab({ active, onClick, label, count, icon: Icon }: { active: boolean; onClick: () => void; label: string; count?: number; icon: LucideIcon }) { return <button type="button" aria-current={active ? "true" : undefined} onClick={onClick} className={`relative inline-flex min-h-11 items-center gap-2 whitespace-nowrap px-3 text-sm font-medium ${active ? "text-black" : "text-black/45 hover:text-black/70"}`}><Icon size={15} aria-hidden="true" /><span>{label}{count != null ? <span className="ml-1 text-xs tabular-nums text-black/35">{count}</span> : null}</span>{active ? <span className="absolute inset-x-2 bottom-0 h-0.5 bg-black" /> : null}</button>; }
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="grid content-start gap-1 text-xs font-medium text-black/60">{label}{children}</label>; }
 function Badge({ children }: { children: React.ReactNode }) { return <span className="rounded-full bg-black/[0.05] px-2 py-0.5 text-[10px] font-medium text-black/52">{children}</span>; }
 function MiniStat({ label, value }: { label: string; value: string }) { return <div className="rounded-md border border-black/10 bg-white px-2 py-3 text-center"><dt className="text-[10px] font-semibold uppercase text-black/35">{label}</dt><dd className="mt-1 text-lg font-semibold tabular-nums text-black/80">{value}</dd></div>; }

@@ -4,9 +4,10 @@
 // row expands to surface NDA / payroll / per-client assignments. The
 // add-employee modal POSTs to /staff with `agencyEmployee:true` injected.
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { businessCalendarDate } from "@/lib/shared/formatDateTime";
 import type { CustomRole, Staff } from "../lib/domain";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 export interface EmployeeListClientProps {
   employees: Staff[];
@@ -17,6 +18,9 @@ export interface EmployeeListClientProps {
 export function EmployeeListClient({ employees, roles, apiBase }: EmployeeListClientProps) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Modal keyboard contract: focus enters the form, Tab stays inside it, Escape backs out (except mid-save), focus returns to the Add button.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, open, { onEscape: busy ? undefined : () => setOpen(false) });
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -126,7 +130,7 @@ export function EmployeeListClient({ employees, roles, apiBase }: EmployeeListCl
       {open && (
         <div
           role="dialog"
-          aria-modal="true"
+          ref={dialogRef} aria-modal="true"
           aria-labelledby="add-emp-title"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6"
           onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}

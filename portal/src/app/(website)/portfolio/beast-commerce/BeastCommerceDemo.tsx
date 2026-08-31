@@ -91,7 +91,7 @@ export function BeastCommerceDemo() {
           </p>
         </div>
 
-        <div className="mt-10 grid grid-cols-2 gap-2 lg:grid-cols-4" role="tablist" aria-label="Beast commerce system surfaces">
+        <div className="mt-10 grid grid-cols-2 gap-2 lg:grid-cols-4" role="group" aria-label="Beast commerce system surfaces">
           {modes.map((item) => {
             const Icon = item.icon;
             const selected = mode === item.id;
@@ -99,8 +99,7 @@ export function BeastCommerceDemo() {
               <button
                 key={item.id}
                 type="button"
-                role="tab"
-                aria-selected={selected}
+                aria-current={selected ? "true" : undefined}
                 onClick={() => setMode(item.id)}
                 className={`flex min-h-14 items-center justify-center gap-2 rounded-md border px-3 text-sm font-semibold transition ${
                   selected

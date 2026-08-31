@@ -1,10 +1,11 @@
 "use client";
 
 import { Archive, Download, Eye, FileUp, Pencil, Plus, ShieldCheck, Trash2, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import type { LegalDocumentDependant, LegalDocumentDependencyInventory } from "@/server/legalDocumentDependencies";
 import type { LegalDocument, LegalDocumentCategory, LegalDocumentStatus } from "@/server/types";
 import { dateInputValue, formatUkDate } from "@/lib/shared/formatDateTime";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 const categories: Array<{ id: LegalDocumentCategory; label: string }> = [
   { id: "contract", label: "Contracts" },
@@ -191,7 +192,13 @@ function DocumentDialog({ document, canEdit, onClose, onUpdated, onDelete }: { d
   </>}</Modal>;
 }
 
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) { return <div className="fixed inset-0 z-[95] grid items-end bg-black/40 sm:items-center sm:p-6"><button className="absolute inset-0" aria-label="Close dialog" onClick={onClose} /><section role="dialog" aria-modal="true" aria-label={title} className="relative mx-auto max-h-[100dvh] w-full max-w-2xl overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-lg sm:p-6"><header className="mb-5 flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wide text-black/40">Legal register</p><h2 className="mt-1 text-xl font-semibold text-black/85">{title}</h2></div><button onClick={onClose} className="grid size-9 place-items-center rounded-md border border-black/10"><X size={16} /></button></header>{children}</section></div>; }
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  // Modal keyboard contract: focus enters the dialog, Tab stays inside it,
+  // Escape closes it, and focus returns to the control that opened it.
+  const dialogRef = useRef<HTMLElement>(null);
+  useFocusTrap(dialogRef, true, { onEscape: onClose });
+  return <div className="fixed inset-0 z-[95] grid items-end bg-black/40 sm:items-center sm:p-6"><button className="absolute inset-0" aria-label="Close dialog" onClick={onClose} /><section ref={dialogRef} role="dialog" aria-modal="true" aria-label={title} className="relative mx-auto max-h-[100dvh] w-full max-w-2xl overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-lg sm:p-6"><header className="mb-5 flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wide text-black/40">Legal register</p><h2 className="mt-1 text-xl font-semibold text-black/85">{title}</h2></div><button type="button" onClick={onClose} aria-label={`Close ${title}`} className="grid size-9 place-items-center rounded-md border border-black/10"><X size={16} aria-hidden /></button></header>{children}</section></div>;
+}
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="grid gap-1 text-xs font-medium text-black/55">{label}{children}</label>; }
 function Row({ label, value }: { label: string; value: string }) { return <div className="grid grid-cols-[140px_1fr] gap-3 py-3 text-sm"><dt className="text-black/45">{label}</dt><dd className="capitalize text-black/75">{value}</dd></div>; }
 function Metric({ label, value, tone }: { label: string; value: number; tone?: "bad" | "warn" }) { return <div className="py-4"><dt className="text-xs font-medium text-black/45">{label}</dt><dd className={`mt-1 text-2xl font-semibold ${tone === "bad" ? "text-red-700" : tone === "warn" ? "text-amber-700" : "text-black/85"}`}>{value}</dd></div>; }

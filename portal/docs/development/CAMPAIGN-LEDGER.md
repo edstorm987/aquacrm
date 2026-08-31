@@ -321,3 +321,44 @@ each item still owes. Both are more useful than a tick.
 closed, four are named as untouched in the wave 2 journal and the issue should
 stay open. `todo:656`'s staged-object lifecycle/expiry is unbuilt. `todo:386`
 has four named open pieces. These are progress, not completion.
+
+---
+
+## Browser-matrix baseline — 2026-08-31, first real run
+
+`npm run browser:matrix` (built in wave 5, `scripts/browser-matrix.mjs`) was run
+for the first time against a live dev server: real Chromium 141, 13 pages × 17
+viewports, **1,326 checks**. It drives actual layout, focus, axe and the console
+— unlike `smoke-ux.mjs`, whose "viewport" was a substring in a User-Agent header.
+
+**Verdict: RED. 352 failing checks.**
+
+| category | failing |
+| --- | --- |
+| focus (a stop with no visible indicator) | 203 |
+| axe (serious/critical) | 85 |
+| console errors | 44 |
+| failed network requests | 17 |
+| horizontal overflow | 3 |
+
+This is a **baseline, not a regression signal** — the gate did not exist before
+this wave, so nothing had ever measured these. The failures are overwhelmingly
+app-wide rather than anything wave 5 touched: the single most common one,
+`button[Working as Owner]` with no focus indicator, is a global chrome control
+that appears on nearly every page. Wave 5's own subject — modal focus traps —
+is **not exercised at all** by this run, which walks pages without opening
+dialogs.
+
+Real defects it surfaced that are NOT accessibility issues:
+
+- `/portal/account` answers **500 from `/api/portal/mfa/enrol`**, twice, on every
+  viewport. Multi-factor enrolment is broken.
+- `/portal/agency` logs a **React hydration mismatch** — server and client
+  markup disagree, and React says it will not patch it up.
+- Three genuine **horizontal-overflow** failures, which the house browser rule
+  forbids outright.
+- A **critical `button-name`** violation on `/` at mobile portrait: a button with
+  no accessible name, which is precisely what `todo:417` set out to eliminate.
+
+None of this is fixed here. It is measured, recorded and repeatable, which is
+the thing that did not exist before. The follow-up work is its own campaign.

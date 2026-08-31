@@ -5338,7 +5338,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `ClockOutReviewDialog({ session, initialOutcome, initialOpenWork, initialNextPriority, completedTaskCount, busy, error, onCancel, onConfirm, }: { session: DashboardWorkSession; initialOutcome: string; initialOpenWork: st…`
 - `type ClockOutReviewDraft = Omit<DashboardClockOutReview, "submittedAt">`
 
-**Depends on (1):** [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (2):** [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (2):** [`src/app/portal/agency/_BusinessRadarDashboard.tsx`](#file-src-app-portal-agency-businessradardashboard-tsx-798d90e2ac) · [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff)
 
@@ -5369,7 +5369,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type CommandDeckPopupRow = { label: string; value: string; tone?: CommandDeckPopupTone; }`
 - `type CommandDeckInspectorTarget = { tab?: "records" | "sources" | "kpis" | "checks" | "incidents" | "evidence"; query?: string; domain?: string; status?: string; scope?: string; lens?: string; }`
 
-**Depends on:** _No internal imports._
+**Depends on (1):** [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1)
 
 **Used by (2):** [`src/app/portal/agency/_DynamicRadarConsole.tsx`](#file-src-app-portal-agency-dynamicradarconsole-tsx-b6d1c7a05a) · [`src/app/portal/agency/_ExecutiveCommandWorkspace.tsx`](#file-src-app-portal-agency-executivecommandworkspace-tsx-bac840fa46)
 
@@ -5387,7 +5387,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type ComparisonRange = "24h" | "7d" | "30d" | "90d" | "quarter" | "ytd" | "12m" | "all" | "custom"`
 - `{ applyIntelligenceScope }`
 
-**Depends on (7):** [`src/app/portal/agency/commandIntelligenceScope.ts`](#file-src-app-portal-agency-commandintelligencescope-ts-d8108408df) · [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d) · [`src/lib/intelligence/commandIntelligence.ts`](lib.md#file-src-lib-intelligence-commandintelligence-ts-365dc38397) · [`src/lib/performance/kpiRegistry.ts`](lib.md#file-src-lib-performance-kpiregistry-ts-a844c71e33) · [`src/lib/performance/kpiTargetClient.ts`](lib.md#file-src-lib-performance-kpitargetclient-ts-8133355a3e) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (8):** [`src/app/portal/agency/commandIntelligenceScope.ts`](#file-src-app-portal-agency-commandintelligencescope-ts-d8108408df) · [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/intelligence/commandIntelligence.ts`](lib.md#file-src-lib-intelligence-commandintelligence-ts-365dc38397) · [`src/lib/performance/kpiRegistry.ts`](lib.md#file-src-lib-performance-kpiregistry-ts-a844c71e33) · [`src/lib/performance/kpiTargetClient.ts`](lib.md#file-src-lib-performance-kpitargetclient-ts-8133355a3e) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (2):** [`src/app/portal/agency/_BusinessRadarDashboard.tsx`](#file-src-app-portal-agency-businessradardashboard-tsx-798d90e2ac) · [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff)
 
@@ -5417,7 +5417,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `CommercialIntelligenceWorkspace({ snapshot, currency, initialMetricId = "", initialRecordId = "", initialSourceId = "", initialStageId = "" }: { snapshot: CommercialIntelligenceSnapshot; currency: string; initialMetricI…`
 
-**Depends on (2):** [`src/lib/intelligence/commandIntelligence.ts`](lib.md#file-src-lib-intelligence-commandintelligence-ts-365dc38397) · [`src/lib/intelligence/commercialIntelligence.ts`](lib.md#file-src-lib-intelligence-commercialintelligence-ts-c3611e436c)
+**Depends on (3):** [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/intelligence/commandIntelligence.ts`](lib.md#file-src-lib-intelligence-commandintelligence-ts-365dc38397) · [`src/lib/intelligence/commercialIntelligence.ts`](lib.md#file-src-lib-intelligence-commercialintelligence-ts-c3611e436c)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -5579,7 +5579,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface NewClientProductOption (28 members)`
 - `interface NewClientBrandOption (3 members)`
 
-**Depends on (3):** [`src/components/forms/PortalCustomFields.tsx`](components.md#file-src-components-forms-portalcustomfields-tsx-c3122bba6b) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (4):** [`src/components/forms/PortalCustomFields.tsx`](components.md#file-src-components-forms-portalcustomfields-tsx-c3122bba6b) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (2):** [`src/app/portal/agency/_ExecutiveCommandWorkspace.tsx`](#file-src-app-portal-agency-executivecommandworkspace-tsx-bac840fa46) · [`src/app/portal/clients/_PeopleHub.tsx`](#file-src-app-portal-clients-peoplehub-tsx-62c6426811)
 
@@ -5733,7 +5733,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type ActionClient = { id: string; name: string; status: string; stage: string }`
 - `type ActionsView = "list" | "calendar"`
 
-**Depends on (15):** [`src/app/portal/agency/actions/_TodayView.tsx`](#file-src-app-portal-agency-actions-todayview-tsx-05fe111052) · [`src/components/attention/AttentionControls.tsx`](components.md#file-src-components-attention-attentioncontrols-tsx-afcc81a4ad) · [`src/components/attention/CompletedRegister.tsx`](components.md#file-src-components-attention-completedregister-tsx-a8e3ab99f5) · [`src/components/attention/DeferralNote.tsx`](components.md#file-src-components-attention-deferralnote-tsx-93889a91b0) · [`src/components/attention/EvidenceCard.tsx`](components.md#file-src-components-attention-evidencecard-tsx-11cd2b3c7b) · [`src/components/attention/TaskChecklist.tsx`](components.md#file-src-components-attention-taskchecklist-tsx-5a580cd7c4) · [`src/components/attention/TaskTemplates.tsx`](components.md#file-src-components-attention-tasktemplates-tsx-de2f75c5e4) · [`src/components/chrome/NotificationAttentionProvider.tsx`](components.md#file-src-components-chrome-notificationattentionprovider-tsx-51754b1c61) · [`src/components/forms/PortalCustomFields.tsx`](components.md#file-src-components-forms-portalcustomfields-tsx-c3122bba6b) · [`src/lib/advisor/advisorActions.ts`](lib.md#file-src-lib-advisor-advisoractions-ts-5bfe1090c9) · [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1) · [`src/lib/inbox/resolutionExplain.ts`](lib.md#file-src-lib-inbox-resolutionexplain-ts-66c88b777a) · [`src/lib/intelligence/attentionProtection.ts`](lib.md#file-src-lib-intelligence-attentionprotection-ts-ee09220b9a) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (16):** [`src/app/portal/agency/actions/_TodayView.tsx`](#file-src-app-portal-agency-actions-todayview-tsx-05fe111052) · [`src/components/attention/AttentionControls.tsx`](components.md#file-src-components-attention-attentioncontrols-tsx-afcc81a4ad) · [`src/components/attention/CompletedRegister.tsx`](components.md#file-src-components-attention-completedregister-tsx-a8e3ab99f5) · [`src/components/attention/DeferralNote.tsx`](components.md#file-src-components-attention-deferralnote-tsx-93889a91b0) · [`src/components/attention/EvidenceCard.tsx`](components.md#file-src-components-attention-evidencecard-tsx-11cd2b3c7b) · [`src/components/attention/TaskChecklist.tsx`](components.md#file-src-components-attention-taskchecklist-tsx-5a580cd7c4) · [`src/components/attention/TaskTemplates.tsx`](components.md#file-src-components-attention-tasktemplates-tsx-de2f75c5e4) · [`src/components/chrome/NotificationAttentionProvider.tsx`](components.md#file-src-components-chrome-notificationattentionprovider-tsx-51754b1c61) · [`src/components/forms/PortalCustomFields.tsx`](components.md#file-src-components-forms-portalcustomfields-tsx-c3122bba6b) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/advisor/advisorActions.ts`](lib.md#file-src-lib-advisor-advisoractions-ts-5bfe1090c9) · [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1) · [`src/lib/inbox/resolutionExplain.ts`](lib.md#file-src-lib-inbox-resolutionexplain-ts-66c88b777a) · [`src/lib/intelligence/attentionProtection.ts`](lib.md#file-src-lib-intelligence-attentionprotection-ts-ee09220b9a) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (3):** [`src/app/portal/agency/actions/_ActionsPage.tsx`](#file-src-app-portal-agency-actions-actionspage-tsx-66b9e510e2) · [`src/app/portal/agency/actions/_LazyActionsWorkspace.tsx`](#file-src-app-portal-agency-actions-lazyactionsworkspace-tsx-01a7a18ff2) · [`src/app/portal/agency/actions/_TodayView.tsx`](#file-src-app-portal-agency-actions-todayview-tsx-05fe111052)
 
@@ -5809,7 +5809,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `AssistantWorkspace({ initialWorkspace, configured, model, userName, coverage, variant = "page", onClose, onAssistantDone, prefill, }: Props)`
 
-**Depends on (5):** [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/lib/advisor/advisorSkills.ts`](lib.md#file-src-lib-advisor-advisorskills-ts-7aa68b16ab) · [`src/lib/enquiries/leadTiming.ts`](lib.md#file-src-lib-enquiries-leadtiming-ts-82b306bf2c) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (6):** [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/advisor/advisorSkills.ts`](lib.md#file-src-lib-advisor-advisorskills-ts-7aa68b16ab) · [`src/lib/enquiries/leadTiming.ts`](lib.md#file-src-lib-enquiries-leadtiming-ts-82b306bf2c) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (2):** [`src/app/portal/agency/assistant/_LazyAssistantWorkspace.tsx`](#file-src-app-portal-agency-assistant-lazyassistantworkspace-tsx-e9b2f2bd21) · [`src/app/portal/agency/assistant/page.tsx`](#file-src-app-portal-agency-assistant-page-tsx-91c7145a6d)
 
@@ -5872,7 +5872,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type BuilderNodeData = AutomationNodeConfig & { kind: AutomationNodeKind; [key: string]: unknown }`
 - `type BuilderNode = Node<BuilderNodeData, "automation">`
 
-**Depends on (4):** [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d) · [`src/lib/automationRunFeedback.ts`](lib.md#file-src-lib-automationrunfeedback-ts-4f042a0671) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (5):** [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/automationRunFeedback.ts`](lib.md#file-src-lib-automationrunfeedback-ts-4f042a0671) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (2):** [`src/app/portal/agency/automations/_AutomationsCanvas.tsx`](#file-src-app-portal-agency-automations-automationscanvas-tsx-292ceb32de) · [`src/app/portal/agency/marketing/page.tsx`](#file-src-app-portal-agency-marketing-page-tsx-e2b361f4ba)
 
@@ -6051,7 +6051,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `CompanyConnectionsWorkspace({ workspaceWebsite, tradingCompanies, clients, canManage, initialIntegration, }: { workspaceWebsite?: string; tradingCompanies: TradingCompany[]; clients: Array<{ id: string; name: string }>;…`
 
-**Depends on (3):** [`src/app/portal/agency/settings/IntegrationConnectionsPanel.tsx`](#file-src-app-portal-agency-settings-integrationconnectionspanel-tsx-867350879d) · [`src/lib/integrations/catalog.ts`](lib.md#file-src-lib-integrations-catalog-ts-1b19d0b1c0) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (4):** [`src/app/portal/agency/settings/IntegrationConnectionsPanel.tsx`](#file-src-app-portal-agency-settings-integrationconnectionspanel-tsx-867350879d) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/integrations/catalog.ts`](lib.md#file-src-lib-integrations-catalog-ts-1b19d0b1c0) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (1):** [`src/app/portal/agency/company/_CompanyWorkspace.tsx`](#file-src-app-portal-agency-company-companyworkspace-tsx-73c889999d)
 
@@ -6065,7 +6065,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `CompanyWorkspace({ initial, companyName, actuals, staffCount, canEdit, legalDocuments, initialProducts, sops, tradingCompanies, serviceBrands, productDefaults, productCustomFields, clients, workspaceWebsite, initialView…`
 
-**Depends on (10):** [`src/app/portal/agency/company/_CompanyConnectionsWorkspace.tsx`](#file-src-app-portal-agency-company-companyconnectionsworkspace-tsx-aa1ccd99d5) · [`src/app/portal/agency/company/_CompliancePosturePanel.tsx`](#file-src-app-portal-agency-company-complianceposturepanel-tsx-3e0bb0ab2b) · [`src/app/portal/agency/company/_LegalCompliancePanel.tsx`](#file-src-app-portal-agency-company-legalcompliancepanel-tsx-9dd3421443) · [`src/app/portal/agency/companyProfileConflict.ts`](#file-src-app-portal-agency-companyprofileconflict-ts-0876e6ac2a) · [`src/app/portal/agency/products/_ProductsWorkspace.tsx`](#file-src-app-portal-agency-products-productsworkspace-tsx-e5310b5705) · [`src/components/chrome/NotificationAttentionProvider.tsx`](components.md#file-src-components-chrome-notificationattentionprovider-tsx-51754b1c61) · [`src/lib/integrations/catalog.ts`](lib.md#file-src-lib-integrations-catalog-ts-1b19d0b1c0) · [`src/lib/performance/companyHealth.ts`](lib.md#file-src-lib-performance-companyhealth-ts-c24e507af4) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (11):** [`src/app/portal/agency/company/_CompanyConnectionsWorkspace.tsx`](#file-src-app-portal-agency-company-companyconnectionsworkspace-tsx-aa1ccd99d5) · [`src/app/portal/agency/company/_CompliancePosturePanel.tsx`](#file-src-app-portal-agency-company-complianceposturepanel-tsx-3e0bb0ab2b) · [`src/app/portal/agency/company/_LegalCompliancePanel.tsx`](#file-src-app-portal-agency-company-legalcompliancepanel-tsx-9dd3421443) · [`src/app/portal/agency/companyProfileConflict.ts`](#file-src-app-portal-agency-companyprofileconflict-ts-0876e6ac2a) · [`src/app/portal/agency/products/_ProductsWorkspace.tsx`](#file-src-app-portal-agency-products-productsworkspace-tsx-e5310b5705) · [`src/components/chrome/NotificationAttentionProvider.tsx`](components.md#file-src-components-chrome-notificationattentionprovider-tsx-51754b1c61) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/integrations/catalog.ts`](lib.md#file-src-lib-integrations-catalog-ts-1b19d0b1c0) · [`src/lib/performance/companyHealth.ts`](lib.md#file-src-lib-performance-companyhealth-ts-c24e507af4) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (1):** [`src/app/portal/agency/company/page.tsx`](#file-src-app-portal-agency-company-page-tsx-e384439fe9)
 
@@ -6094,7 +6094,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `LegalCompliancePanel({ initialDocuments, canEdit }: { initialDocuments: LegalDocument[]; canEdit: boolean })`
 
-**Depends on (3):** [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/legalDocumentDependencies.ts`](server.md#file-src-server-legaldocumentdependencies-ts-4f7c916bfc) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (4):** [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/legalDocumentDependencies.ts`](server.md#file-src-server-legaldocumentdependencies-ts-4f7c916bfc) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (2):** [`src/app/portal/agency/company/_CompanyWorkspace.tsx`](#file-src-app-portal-agency-company-companyworkspace-tsx-73c889999d) · [`src/built-ins/modules/agency-finance/src/components/FinanceOperationsWorkspace.tsx`](built-ins.md#file-src-built-ins-modules-agency-finance-src-components-financeoperationsworkspace-tsx-db6cb6c109)
 
@@ -6108,7 +6108,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `TradingCompaniesPanel({ companies, canEdit, workspace, }: { companies: CompanySummary[]; canEdit: boolean; workspace: WorkspaceSummary; })`
 
-**Depends on (1):** [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (2):** [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (2):** [`src/app/portal/agency/company/page.tsx`](#file-src-app-portal-agency-company-page-tsx-e384439fe9) · [`src/app/portal/agency/settings/SettingsTabs.tsx`](#file-src-app-portal-agency-settings-settingstabs-tsx-e999a7955b)
 
@@ -6413,7 +6413,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `DevelopmentToolkitWorkspace({ mode, initialResources, initialTotal, initialCategories, initialWorkflows, sops, role, }: { mode: Mode; initialResources: PublicResource[]; initialTotal: number; initialCategories: string[]…`
 
-**Depends on (2):** [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (3):** [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (3):** [`src/app/portal/agency/development/toolkit/page.tsx`](#file-src-app-portal-agency-development-toolkit-page-tsx-3f9f2b4bdf) · [`src/app/portal/agency/development/vault/page.tsx`](#file-src-app-portal-agency-development-vault-page-tsx-9d76127a4e) · [`src/app/portal/agency/development/workflow/page.tsx`](#file-src-app-portal-agency-development-workflow-page-tsx-d39a89eefc)
 
@@ -6926,7 +6926,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsError, conversations, socialInbox, socialInboxError, metaReadiness, currentUserId, communicationReadiness, clientProfiles, updates, canErase, canManageChanne…`
 
-**Depends on (16):** [`src/app/portal/agency/inbox/_EnquiryDetailCard.tsx`](#file-src-app-portal-agency-inbox-enquirydetailcard-tsx-6ce7e827ce) · [`src/app/portal/agency/inbox/_SocialInboxWorkspace.tsx`](#file-src-app-portal-agency-inbox-socialinboxworkspace-tsx-ba4b4cc3ca) · [`src/app/portal/agency/inbox/_UnifiedInboxWorkspace.tsx`](#file-src-app-portal-agency-inbox-unifiedinboxworkspace-tsx-be62e3704a) · [`src/app/portal/agency/inbox/_WebsiteSourcesConfig.tsx`](#file-src-app-portal-agency-inbox-websitesourcesconfig-tsx-fc3e6c27b0) · [`src/app/portal/agency/settings/IntegrationConnectionsPanel.tsx`](#file-src-app-portal-agency-settings-integrationconnectionspanel-tsx-867350879d) · [`src/components/chrome/NotificationAttentionProvider.tsx`](components.md#file-src-components-chrome-notificationattentionprovider-tsx-51754b1c61) · [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1) · [`src/lib/enquiries/enquiryClassification.ts`](lib.md#file-src-lib-enquiries-enquiryclassification-ts-e9934c6609) · [`src/lib/enquiries/leadTiming.ts`](lib.md#file-src-lib-enquiries-leadtiming-ts-82b306bf2c) · [`src/lib/inbox/attentionResolution.ts`](lib.md#file-src-lib-inbox-attentionresolution-ts-5cbcc4a1a1) · [`src/lib/inbox/attentionThread.ts`](lib.md#file-src-lib-inbox-attentionthread-ts-c288a9944d) · [`src/lib/inbox/types.ts`](lib.md#file-src-lib-inbox-types-ts-6a30cf2d14) · [`src/lib/intelligence/operationalAttention.ts`](lib.md#file-src-lib-intelligence-operationalattention-ts-0aaf482906) · [`src/lib/server/email/outboundCommunications.ts`](lib.md#file-src-lib-server-email-outboundcommunications-ts-2c4deea1df) · [`src/lib/server/websiteEnquiries.ts`](lib.md#file-src-lib-server-websiteenquiries-ts-e00ecfd23b) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
+**Depends on (17):** [`src/app/portal/agency/inbox/_EnquiryDetailCard.tsx`](#file-src-app-portal-agency-inbox-enquirydetailcard-tsx-6ce7e827ce) · [`src/app/portal/agency/inbox/_SocialInboxWorkspace.tsx`](#file-src-app-portal-agency-inbox-socialinboxworkspace-tsx-ba4b4cc3ca) · [`src/app/portal/agency/inbox/_UnifiedInboxWorkspace.tsx`](#file-src-app-portal-agency-inbox-unifiedinboxworkspace-tsx-be62e3704a) · [`src/app/portal/agency/inbox/_WebsiteSourcesConfig.tsx`](#file-src-app-portal-agency-inbox-websitesourcesconfig-tsx-fc3e6c27b0) · [`src/app/portal/agency/settings/IntegrationConnectionsPanel.tsx`](#file-src-app-portal-agency-settings-integrationconnectionspanel-tsx-867350879d) · [`src/components/chrome/NotificationAttentionProvider.tsx`](components.md#file-src-components-chrome-notificationattentionprovider-tsx-51754b1c61) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1) · [`src/lib/enquiries/enquiryClassification.ts`](lib.md#file-src-lib-enquiries-enquiryclassification-ts-e9934c6609) · [`src/lib/enquiries/leadTiming.ts`](lib.md#file-src-lib-enquiries-leadtiming-ts-82b306bf2c) · [`src/lib/inbox/attentionResolution.ts`](lib.md#file-src-lib-inbox-attentionresolution-ts-5cbcc4a1a1) · [`src/lib/inbox/attentionThread.ts`](lib.md#file-src-lib-inbox-attentionthread-ts-c288a9944d) · [`src/lib/inbox/types.ts`](lib.md#file-src-lib-inbox-types-ts-6a30cf2d14) · [`src/lib/intelligence/operationalAttention.ts`](lib.md#file-src-lib-intelligence-operationalattention-ts-0aaf482906) · [`src/lib/server/email/outboundCommunications.ts`](lib.md#file-src-lib-server-email-outboundcommunications-ts-2c4deea1df) · [`src/lib/server/websiteEnquiries.ts`](lib.md#file-src-lib-server-websiteenquiries-ts-e00ecfd23b) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 
 **Used by (1):** [`src/app/portal/agency/inbox/page.tsx`](#file-src-app-portal-agency-inbox-page-tsx-4d64a629ec)
 
@@ -7116,7 +7116,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `CommercialPackModal({ party, onClose }: { party: Party; onClose: () => void })`
 
-**Depends on (1):** [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
+**Depends on (2):** [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 
 **Used by (1):** [`src/app/portal/agency/leads-pipeline/contacts/_ContactsWorkspace.tsx`](#file-src-app-portal-agency-leads-pipeline-contacts-contactsworkspace-tsx-9e6c6879f9)
 
@@ -7164,7 +7164,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `CustomerProfilesWorkspace({ profiles, companies, defaultCompanyIds = [], }: { profiles: MarketingCustomerProfile[]; companies: CompanyOption[]; defaultCompanyIds?: string[]; })`
 
-**Depends on (2):** [`src/built-ins/modules/agency-marketing/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-agency-marketing-src-lib-domain-ts-4e2d2548b6) · [`src/lib/people/customerProfileScope.ts`](lib.md#file-src-lib-people-customerprofilescope-ts-01ec624e4a)
+**Depends on (3):** [`src/built-ins/modules/agency-marketing/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-agency-marketing-src-lib-domain-ts-4e2d2548b6) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/people/customerProfileScope.ts`](lib.md#file-src-lib-people-customerprofilescope-ts-01ec624e4a)
 
 **Used by (1):** [`src/app/portal/agency/marketing/page.tsx`](#file-src-app-portal-agency-marketing-page-tsx-e2b361f4ba)
 
@@ -7197,7 +7197,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface MarketingAsset (18 members)`
 - `interface MarketingCompanyOption (4 members)`
 
-**Depends on (1):** [`src/lib/inbox/types.ts`](lib.md#file-src-lib-inbox-types-ts-6a30cf2d14)
+**Depends on (2):** [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/inbox/types.ts`](lib.md#file-src-lib-inbox-types-ts-6a30cf2d14)
 
 **Used by (1):** [`src/app/portal/agency/marketing/page.tsx`](#file-src-app-portal-agency-marketing-page-tsx-e2b361f4ba)
 
@@ -7393,7 +7393,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `AquaTagDashboard({ client, period, onReportsChange, }: { client: PerformanceClient; period: Period; onReportsChange: (reports: MonthlyPerformanceReport[]) => void; })`
 
-**Depends on (5):** [`src/app/portal/agency/performance/_PerformanceWorkspace.tsx`](#file-src-app-portal-agency-performance-performanceworkspace-tsx-e8cc3b6ef7) · [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1) · [`src/lib/integrations/types.ts`](lib.md#file-src-lib-integrations-types-ts-8e85331e71) · [`src/lib/performance/performanceReports.ts`](lib.md#file-src-lib-performance-performancereports-ts-dc7feb76be) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
+**Depends on (6):** [`src/app/portal/agency/performance/_PerformanceWorkspace.tsx`](#file-src-app-portal-agency-performance-performanceworkspace-tsx-e8cc3b6ef7) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1) · [`src/lib/integrations/types.ts`](lib.md#file-src-lib-integrations-types-ts-8e85331e71) · [`src/lib/performance/performanceReports.ts`](lib.md#file-src-lib-performance-performancereports-ts-dc7feb76be) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 
 **Used by (1):** [`src/app/portal/agency/performance/_PerformanceWorkspace.tsx`](#file-src-app-portal-agency-performance-performanceworkspace-tsx-e8cc3b6ef7)
 
@@ -7407,7 +7407,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `ExperimentsPanel({ initialExperiments, clientId, liveVariants, }: { initialExperiments: PerformanceExperiment[]; clientId?: string; liveVariants: LiveVariant[]; })`
 
-**Depends on (1):** [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (2):** [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (1):** [`src/app/portal/agency/performance/_PerformanceWorkspace.tsx`](#file-src-app-portal-agency-performance-performanceworkspace-tsx-e8cc3b6ef7)
 
@@ -7425,7 +7425,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface PerformanceProperty (18 members)`
 - `interface PerformanceClient (23 members)`
 
-**Depends on (7):** [`src/app/portal/agency/performance/_AquaTagDashboard.tsx`](#file-src-app-portal-agency-performance-aquatagdashboard-tsx-51c7d2417c) · [`src/app/portal/agency/performance/_ExperimentsPanel.tsx`](#file-src-app-portal-agency-performance-experimentspanel-tsx-29c1dca671) · [`src/lib/performance/performanceAnalytics.ts`](lib.md#file-src-lib-performance-performanceanalytics-ts-27d7ba0bbe) · [`src/lib/performance/performanceReports.ts`](lib.md#file-src-lib-performance-performancereports-ts-dc7feb76be) · [`src/lib/performance/telemetryDisplay.ts`](lib.md#file-src-lib-performance-telemetrydisplay-ts-5be221a37e) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (8):** [`src/app/portal/agency/performance/_AquaTagDashboard.tsx`](#file-src-app-portal-agency-performance-aquatagdashboard-tsx-51c7d2417c) · [`src/app/portal/agency/performance/_ExperimentsPanel.tsx`](#file-src-app-portal-agency-performance-experimentspanel-tsx-29c1dca671) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/performance/performanceAnalytics.ts`](lib.md#file-src-lib-performance-performanceanalytics-ts-27d7ba0bbe) · [`src/lib/performance/performanceReports.ts`](lib.md#file-src-lib-performance-performancereports-ts-dc7feb76be) · [`src/lib/performance/telemetryDisplay.ts`](lib.md#file-src-lib-performance-telemetrydisplay-ts-5be221a37e) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (2):** [`src/app/portal/agency/performance/_AquaTagDashboard.tsx`](#file-src-app-portal-agency-performance-aquatagdashboard-tsx-51c7d2417c) · [`src/app/portal/agency/performance/page.tsx`](#file-src-app-portal-agency-performance-page-tsx-092bf8160f)
 
@@ -7548,7 +7548,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `ConvertLeadModal({ lead, busy, updating, products, onCancel, onSubmit, }: { lead: LeadView; busy: boolean; updating: boolean; products: AgencyProductOption[]; onCancel: () => void; onSubmit: (conversion: ClientConversio…`
 
-**Depends on (1):** [`src/app/portal/agency/pipelines/[slug]/_leadTypes.ts`](#file-src-app-portal-agency-pipelines-slug-leadtypes-ts-27bc220ff8)
+**Depends on (2):** [`src/app/portal/agency/pipelines/[slug]/_leadTypes.ts`](#file-src-app-portal-agency-pipelines-slug-leadtypes-ts-27bc220ff8) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1)
 
 **Used by (1):** [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.tsx`](#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspace-tsx-f2c8061bae)
 
@@ -7576,7 +7576,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `DetailsEditor({ buttonLabel = "Open lead", email, name, phone, company, tags, notes, callRecordingUrl, sessionNotes, inspirationLinks, potentialProblems, potentialSolutions, pricePoints, budgetRange, designFeedback, sup…`
 
-**Depends on (5):** [`src/app/portal/agency/pipelines/[slug]/_leadShared.tsx`](#file-src-app-portal-agency-pipelines-slug-leadshared-tsx-52b2a7ffbe) · [`src/app/portal/agency/pipelines/[slug]/_leadTypes.ts`](#file-src-app-portal-agency-pipelines-slug-leadtypes-ts-27bc220ff8) · [`src/components/forms/PortalCustomFields.tsx`](components.md#file-src-components-forms-portalcustomfields-tsx-c3122bba6b) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (6):** [`src/app/portal/agency/pipelines/[slug]/_leadShared.tsx`](#file-src-app-portal-agency-pipelines-slug-leadshared-tsx-52b2a7ffbe) · [`src/app/portal/agency/pipelines/[slug]/_leadTypes.ts`](#file-src-app-portal-agency-pipelines-slug-leadtypes-ts-27bc220ff8) · [`src/components/forms/PortalCustomFields.tsx`](components.md#file-src-components-forms-portalcustomfields-tsx-c3122bba6b) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (1):** [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.tsx`](#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspace-tsx-f2c8061bae)
 
@@ -7607,7 +7607,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `{ AgencyProductOption, AttemptChannel, AttemptOutcome, ClientConversionPackage, LeadDetailsPatch, LeadJourneyEventView, LeadMeetingDraft, LeadSaveResult, LeadView, MeetingAttempt, MeetingMode, MeetingStatus, SalesPresentation }`
 - `{ ArchivedLeadView }`
 
-**Depends on (15):** [`src/app/portal/agency/leads-pipeline/_UpcomingMeetings.tsx`](#file-src-app-portal-agency-leads-pipeline-upcomingmeetings-tsx-18fcadc035) · [`src/app/portal/agency/leads-pipeline/_WorkflowSteps.tsx`](#file-src-app-portal-agency-leads-pipeline-workflowsteps-tsx-9b27f1ecac) · [`src/app/portal/agency/pipelines/[slug]/_ArchivedLeads.tsx`](#file-src-app-portal-agency-pipelines-slug-archivedleads-tsx-7a442a8106) · [`src/app/portal/agency/pipelines/[slug]/_ConvertLeadModal.tsx`](#file-src-app-portal-agency-pipelines-slug-convertleadmodal-tsx-7f91a659e2) · [`src/app/portal/agency/pipelines/[slug]/_DetailsEditor.tsx`](#file-src-app-portal-agency-pipelines-slug-detailseditor-tsx-3ebc0eecb9) · [`src/app/portal/agency/pipelines/[slug]/_PipelineBoard.tsx`](#file-src-app-portal-agency-pipelines-slug-pipelineboard-tsx-a12d247779) · [`src/app/portal/agency/pipelines/[slug]/_ScoutingCommand.tsx`](#file-src-app-portal-agency-pipelines-slug-scoutingcommand-tsx-15bc8216b1) · [`src/app/portal/agency/pipelines/[slug]/_leadShared.tsx`](#file-src-app-portal-agency-pipelines-slug-leadshared-tsx-52b2a7ffbe) · [`src/app/portal/agency/pipelines/[slug]/_leadTypes.ts`](#file-src-app-portal-agency-pipelines-slug-leadtypes-ts-27bc220ff8) · [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/components/forms/PortalCustomFields.tsx`](components.md#file-src-components-forms-portalcustomfields-tsx-c3122bba6b) · [`src/lib/enquiries/enquiryClassification.ts`](lib.md#file-src-lib-enquiries-enquiryclassification-ts-e9934c6609) · [`src/lib/enquiries/leadTiming.ts`](lib.md#file-src-lib-enquiries-leadtiming-ts-82b306bf2c) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (16):** [`src/app/portal/agency/leads-pipeline/_UpcomingMeetings.tsx`](#file-src-app-portal-agency-leads-pipeline-upcomingmeetings-tsx-18fcadc035) · [`src/app/portal/agency/leads-pipeline/_WorkflowSteps.tsx`](#file-src-app-portal-agency-leads-pipeline-workflowsteps-tsx-9b27f1ecac) · [`src/app/portal/agency/pipelines/[slug]/_ArchivedLeads.tsx`](#file-src-app-portal-agency-pipelines-slug-archivedleads-tsx-7a442a8106) · [`src/app/portal/agency/pipelines/[slug]/_ConvertLeadModal.tsx`](#file-src-app-portal-agency-pipelines-slug-convertleadmodal-tsx-7f91a659e2) · [`src/app/portal/agency/pipelines/[slug]/_DetailsEditor.tsx`](#file-src-app-portal-agency-pipelines-slug-detailseditor-tsx-3ebc0eecb9) · [`src/app/portal/agency/pipelines/[slug]/_PipelineBoard.tsx`](#file-src-app-portal-agency-pipelines-slug-pipelineboard-tsx-a12d247779) · [`src/app/portal/agency/pipelines/[slug]/_ScoutingCommand.tsx`](#file-src-app-portal-agency-pipelines-slug-scoutingcommand-tsx-15bc8216b1) · [`src/app/portal/agency/pipelines/[slug]/_leadShared.tsx`](#file-src-app-portal-agency-pipelines-slug-leadshared-tsx-52b2a7ffbe) · [`src/app/portal/agency/pipelines/[slug]/_leadTypes.ts`](#file-src-app-portal-agency-pipelines-slug-leadtypes-ts-27bc220ff8) · [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/components/forms/PortalCustomFields.tsx`](components.md#file-src-components-forms-portalcustomfields-tsx-c3122bba6b) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/enquiries/enquiryClassification.ts`](lib.md#file-src-lib-enquiries-enquiryclassification-ts-e9934c6609) · [`src/lib/enquiries/leadTiming.ts`](lib.md#file-src-lib-enquiries-leadtiming-ts-82b306bf2c) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (2):** [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspaceServer.tsx`](#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspaceserver-tsx-90294b0e08) · [`src/app/portal/agency/pipelines/[slug]/page.tsx`](#file-src-app-portal-agency-pipelines-slug-page-tsx-6d47eb0c95)
 
@@ -7901,7 +7901,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `EMPTY_PRODUCT_DRAFT: Draft`
 - `type Draft = { id?: string; kind: AgencyProductKind; name: string; category: string; description: string; buyerHeadline: string; coverImageUrl: string; accentColor: string; portalRequirement: AgencyProductPortalRequirem…`
 
-**Depends on (5):** [`src/components/forms/PortalCustomFields.tsx`](components.md#file-src-components-forms-portalcustomfields-tsx-c3122bba6b) · [`src/lib/portal/portalProducts.ts`](lib.md#file-src-lib-portal-portalproducts-ts-7c7e423e18) · [`src/lib/products/agencyProductCategories.ts`](lib.md#file-src-lib-products-agencyproductcategories-ts-c70d863119) · [`src/lib/products/productInternalWorkspace.ts`](lib.md#file-src-lib-products-productinternalworkspace-ts-1544d53955) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (6):** [`src/components/forms/PortalCustomFields.tsx`](components.md#file-src-components-forms-portalcustomfields-tsx-c3122bba6b) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/portal/portalProducts.ts`](lib.md#file-src-lib-portal-portalproducts-ts-7c7e423e18) · [`src/lib/products/agencyProductCategories.ts`](lib.md#file-src-lib-products-agencyproductcategories-ts-c70d863119) · [`src/lib/products/productInternalWorkspace.ts`](lib.md#file-src-lib-products-productinternalworkspace-ts-1544d53955) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (4):** [`src/app/portal/agency/company/_CompanyWorkspace.tsx`](#file-src-app-portal-agency-company-companyworkspace-tsx-73c889999d) · [`src/app/portal/agency/fulfilment/_FulfilmentWorkspace.tsx`](#file-src-app-portal-agency-fulfilment-fulfilmentworkspace-tsx-efb66537d4) · [`src/app/portal/agency/products/[productId]/_ProductDetailWorkspace.tsx`](#file-src-app-portal-agency-products-productid-productdetailworkspace-tsx-bff050249b) · [`src/app/portal/clients/[clientId]/_ClientServiceAssignment.tsx`](#file-src-app-portal-clients-clientid-clientserviceassignment-tsx-498175575d)
 
@@ -8042,7 +8042,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `ExternalAiConnectionPanel()`
 
-**Depends on (2):** [`src/lib/integrations/externalAssistantSetup.ts`](lib.md#file-src-lib-integrations-externalassistantsetup-ts-8214492440) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
+**Depends on (3):** [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/integrations/externalAssistantSetup.ts`](lib.md#file-src-lib-integrations-externalassistantsetup-ts-8214492440) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 
 **Used by (2):** [`src/app/portal/agency/settings/SettingsTabs.tsx`](#file-src-app-portal-agency-settings-settingstabs-tsx-e999a7955b) · [`src/app/portal/dev-team/api/_Section.tsx`](#file-src-app-portal-dev-team-api-section-tsx-f79e16bc18)
 
@@ -8056,7 +8056,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `IntegrationConnectionsPanel({ clients, canManage, initialProvider }: Props)`
 
-**Depends on (3):** [`src/lib/integrations/catalog.ts`](lib.md#file-src-lib-integrations-catalog-ts-1b19d0b1c0) · [`src/lib/integrations/types.ts`](lib.md#file-src-lib-integrations-types-ts-8e85331e71) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
+**Depends on (4):** [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/integrations/catalog.ts`](lib.md#file-src-lib-integrations-catalog-ts-1b19d0b1c0) · [`src/lib/integrations/types.ts`](lib.md#file-src-lib-integrations-types-ts-8e85331e71) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 
 **Used by (4):** [`src/app/portal/agency/company/_CompanyConnectionsWorkspace.tsx`](#file-src-app-portal-agency-company-companyconnectionsworkspace-tsx-aa1ccd99d5) · [`src/app/portal/agency/inbox/_MasterInbox.tsx`](#file-src-app-portal-agency-inbox-masterinbox-tsx-2323adcb4b) · [`src/app/portal/agency/settings/SettingsTabs.tsx`](#file-src-app-portal-agency-settings-settingstabs-tsx-e999a7955b) · [`src/app/portal/dev-team/api/_Section.tsx`](#file-src-app-portal-dev-team-api-section-tsx-f79e16bc18)
 
@@ -8185,7 +8185,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `SopLibrary({ initialSops, initialCategories, initialGuides = [], canManageGuides = false }: { initialSops: SopDocument[]; initialCategories: string[]; initialGuides?: SopGuide[]; canManageGuides?: boolean; })`
 
-**Depends on (7):** [`src/app/portal/agency/sop-library/composerBlocks.ts`](#file-src-app-portal-agency-sop-library-composerblocks-ts-14314fe517) · [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913) · [`src/engines/editor/elements/BlockRenderer.tsx`](engines.md#file-src-engines-editor-elements-blockrenderer-tsx-ecea13e2c9) · [`src/engines/editor/elements/index.ts`](engines.md#file-src-engines-editor-elements-index-ts-ca6dd2fe11) · [`src/engines/sop/server/sopDependencies.ts`](engines.md#file-src-engines-sop-server-sopdependencies-ts-7e646b45e9) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (8):** [`src/app/portal/agency/sop-library/composerBlocks.ts`](#file-src-app-portal-agency-sop-library-composerblocks-ts-14314fe517) · [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913) · [`src/engines/editor/elements/BlockRenderer.tsx`](engines.md#file-src-engines-editor-elements-blockrenderer-tsx-ecea13e2c9) · [`src/engines/editor/elements/index.ts`](engines.md#file-src-engines-editor-elements-index-ts-ca6dd2fe11) · [`src/engines/sop/server/sopDependencies.ts`](engines.md#file-src-engines-sop-server-sopdependencies-ts-7e646b45e9) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (1):** [`src/app/portal/agency/sop-library/page.tsx`](#file-src-app-portal-agency-sop-library-page-tsx-833c751ecc)
 
@@ -8302,7 +8302,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `YouDeserveItWorkspace({ initialRecords, initialPackages, clients, staff, companies, reputationProfiles, currency, }: { initialRecords: ClientDelightRecord[]; initialPackages: ExperiencePackage[]; clients: ClientOption[]…`
 
-**Depends on (2):** [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (3):** [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (1):** [`src/app/portal/agency/you-deserve-it/page.tsx`](#file-src-app-portal-agency-you-deserve-it-page-tsx-81f9d4bc22)
 
@@ -8351,7 +8351,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `BuildPortalWizard({ clientId, clientName, slug, plugins, }: { clientId: string; clientName: string; slug: string; plugins: WizardPlugin[]; })`
 - `interface WizardPlugin (5 members)`
 
-**Depends on:** _No internal imports._
+**Depends on (1):** [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1)
 
 **Used by (1):** [`src/app/portal/clients/[clientId]/page.tsx`](#file-src-app-portal-clients-clientid-page-tsx-f2587fcff8)
 
@@ -8379,7 +8379,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `ClientContactsPanel({ clientId, initialEntityType, initialContacts, canEdit, }: { clientId: string; initialEntityType: ClientEntityType; initialContacts: ClientContact[]; canEdit: boolean; })`
 
-**Depends on (1):** [`src/lib/clients/clientContacts.ts`](lib.md#file-src-lib-clients-clientcontacts-ts-b78a3dff30)
+**Depends on (2):** [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/clients/clientContacts.ts`](lib.md#file-src-lib-clients-clientcontacts-ts-b78a3dff30)
 
 **Used by (1):** [`src/app/portal/clients/[clientId]/page.tsx`](#file-src-app-portal-clients-clientid-page-tsx-f2587fcff8)
 
@@ -8512,7 +8512,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `ClientRadarPanel({ initialRadar }: { initialRadar: ClientRadarSnapshot })`
 
-**Depends on (1):** [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95)
+**Depends on (2):** [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1)
 
 **Used by (1):** [`src/app/portal/clients/[clientId]/_ClientSpineOverview.tsx`](#file-src-app-portal-clients-clientid-clientspineoverview-tsx-335864e1ea)
 
@@ -8528,7 +8528,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface ClientRecordMessage (8 members)`
 - `interface ClientRecordSystemEvent (8 members)`
 
-**Depends on (3):** [`src/lib/clients/clientRelationshipRecord.ts`](lib.md#file-src-lib-clients-clientrelationshiprecord-ts-4cd971820b) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (4):** [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/clients/clientRelationshipRecord.ts`](lib.md#file-src-lib-clients-clientrelationshiprecord-ts-4cd971820b) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (1):** [`src/app/portal/clients/[clientId]/page.tsx`](#file-src-app-portal-clients-clientid-page-tsx-f2587fcff8)
 
@@ -8660,7 +8660,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface WorkspaceCompanyOption (3 members)`
 - `interface WorkspaceProductOption (4 members)`
 
-**Depends on:** _No internal imports._
+**Depends on (1):** [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1)
 
 **Used by (1):** [`src/app/portal/clients/[clientId]/page.tsx`](#file-src-app-portal-clients-clientid-page-tsx-f2587fcff8)
 
@@ -8688,7 +8688,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `ContractsPanel({ clientId, initialContracts, initialTemplates, clientName, recipientEmail, canManage = true, canConfigure = canManage, }: { clientId: string; initialContracts: ClientContract[]; initialTemplates: ClientC…`
 
-**Depends on (2):** [`src/lib/clients/clientContracts.ts`](lib.md#file-src-lib-clients-clientcontracts-ts-e0bc41d74d) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
+**Depends on (3):** [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/clients/clientContracts.ts`](lib.md#file-src-lib-clients-clientcontracts-ts-e0bc41d74d) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 
 **Used by (2):** [`src/app/portal/clients/[clientId]/_FinanceTabClient.tsx`](#file-src-app-portal-clients-clientid-financetabclient-tsx-26301bc26b) · [`src/app/portal/clients/_JourneyCommercialWorkspace.tsx`](#file-src-app-portal-clients-journeycommercialworkspace-tsx-77a037be14)
 
@@ -8807,7 +8807,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `PhaseTransitionButton({ clientId, currentStage, isFounder, }: { clientId: string; currentStage: string; isFounder: boolean; })`
 
-**Depends on (1):** [`src/built-ins/modules/fulfillment/src/lib/transitionFeedback.ts`](built-ins.md#file-src-built-ins-modules-fulfillment-src-lib-transitionfeedback-ts-7f3f61e2bd)
+**Depends on (3):** [`src/built-ins/modules/fulfillment/src/lib/transitionFeedback.ts`](built-ins.md#file-src-built-ins-modules-fulfillment-src-lib-transitionfeedback-ts-7f3f61e2bd) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/a11y/useMenuKeys.ts`](lib.md#file-src-lib-a11y-usemenukeys-ts-403e5f37d6)
 
 **Used by (1):** [`src/app/portal/clients/[clientId]/page.tsx`](#file-src-app-portal-clients-clientid-page-tsx-f2587fcff8)
 
@@ -9070,7 +9070,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface JourneyMeetingAttempt (5 members)`
 - `interface JourneyMeetingPerson (21 members)`
 
-**Depends on (1):** [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
+**Depends on (2):** [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 
 **Used by (2):** [`src/app/portal/clients/_JourneyCommercialWorkspace.tsx`](#file-src-app-portal-clients-journeycommercialworkspace-tsx-77a037be14) · [`src/app/portal/clients/page.tsx`](#file-src-app-portal-clients-page-tsx-bffc1e671f)
 

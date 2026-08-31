@@ -814,7 +814,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `CanonicalCompensationProfileModal({ profile, apiBase, defaultCurrency, companies, staff, departments, budgetPots, onClose, onSaved, }: { profile?: CompensationProfile; apiBase: string; defaultCurrency: Currency; compani…`
 - `CanonicalCompensationPaymentModal({ payment, draft, apiBase, profiles, budgetPots, onClose, onSaved, }: { payment?: CompensationPayment; draft?: CompensationPayment; apiBase: string; profiles: CompensationProfile[]; bud…`
 
-**Depends on (5):** [`src/built-ins/modules/agency-finance/src/lib/currencies.ts`](#file-src-built-ins-modules-agency-finance-src-lib-currencies-ts-d92fdc906d) · [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/lib/safeDate.ts`](#file-src-built-ins-modules-agency-finance-src-lib-safedate-ts-2d7a7e52d3) · [`src/built-ins/modules/agency-finance/src/lib/workforceCosts.ts`](#file-src-built-ins-modules-agency-finance-src-lib-workforcecosts-ts-273a15e8cc) · [`src/lib/server/finance/financeWorkforce.ts`](lib.md#file-src-lib-server-finance-financeworkforce-ts-76d7a4e049)
+**Depends on (6):** [`src/built-ins/modules/agency-finance/src/lib/currencies.ts`](#file-src-built-ins-modules-agency-finance-src-lib-currencies-ts-d92fdc906d) · [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/lib/safeDate.ts`](#file-src-built-ins-modules-agency-finance-src-lib-safedate-ts-2d7a7e52d3) · [`src/built-ins/modules/agency-finance/src/lib/workforceCosts.ts`](#file-src-built-ins-modules-agency-finance-src-lib-workforcecosts-ts-273a15e8cc) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/server/finance/financeWorkforce.ts`](lib.md#file-src-lib-server-finance-financeworkforce-ts-76d7a4e049)
 
 **Used by (1):** [`src/built-ins/modules/agency-finance/src/components/FinanceOperationsWorkspace.tsx`](#file-src-built-ins-modules-agency-finance-src-components-financeoperationsworkspace-tsx-db6cb6c109)
 
@@ -843,7 +843,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `ExpensesList({ expenses, categories, clients, budgetPots, apiBase, canMutate, defaultCurrency }: ExpensesListProps)`
 - `interface ExpensesListProps (7 members)`
 
-**Depends on (5):** [`src/built-ins/modules/agency-finance/src/components/FinanceNav.tsx`](#file-src-built-ins-modules-agency-finance-src-components-financenav-tsx-c960f4ab54) · [`src/built-ins/modules/agency-finance/src/lib/currencies.ts`](#file-src-built-ins-modules-agency-finance-src-lib-currencies-ts-d92fdc906d) · [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/lib/safeDate.ts`](#file-src-built-ins-modules-agency-finance-src-lib-safedate-ts-2d7a7e52d3) · [`src/built-ins/modules/agency-finance/src/lib/tenancy.ts`](#file-src-built-ins-modules-agency-finance-src-lib-tenancy-ts-b0727e7982)
+**Depends on (6):** [`src/built-ins/modules/agency-finance/src/components/FinanceNav.tsx`](#file-src-built-ins-modules-agency-finance-src-components-financenav-tsx-c960f4ab54) · [`src/built-ins/modules/agency-finance/src/lib/currencies.ts`](#file-src-built-ins-modules-agency-finance-src-lib-currencies-ts-d92fdc906d) · [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/lib/safeDate.ts`](#file-src-built-ins-modules-agency-finance-src-lib-safedate-ts-2d7a7e52d3) · [`src/built-ins/modules/agency-finance/src/lib/tenancy.ts`](#file-src-built-ins-modules-agency-finance-src-lib-tenancy-ts-b0727e7982) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1)
 
 **Used by (1):** [`src/built-ins/modules/agency-finance/src/pages/ExpensesPage.tsx`](#file-src-built-ins-modules-agency-finance-src-pages-expensespage-tsx-8a49449325)
 
@@ -885,7 +885,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `FinanceOperationsWorkspace({ apiBase, defaultCurrency, initialObligations, initialProfiles, initialPayments, legalDocuments, budgetPots, companies, staff, departments, hrEnabled, }: { apiBase: string; defaultCurrency: C…`
 
-**Depends on (9):** [`src/app/portal/agency/company/_LegalCompliancePanel.tsx`](app.md#file-src-app-portal-agency-company-legalcompliancepanel-tsx-9dd3421443) · [`src/built-ins/modules/agency-finance/src/components/CanonicalCompensationModals.tsx`](#file-src-built-ins-modules-agency-finance-src-components-canonicalcompensationmodals-tsx-888844d5f9) · [`src/built-ins/modules/agency-finance/src/components/FinanceNav.tsx`](#file-src-built-ins-modules-agency-finance-src-components-financenav-tsx-c960f4ab54) · [`src/built-ins/modules/agency-finance/src/lib/currencies.ts`](#file-src-built-ins-modules-agency-finance-src-lib-currencies-ts-d92fdc906d) · [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/lib/safeDate.ts`](#file-src-built-ins-modules-agency-finance-src-lib-safedate-ts-2d7a7e52d3) · [`src/built-ins/modules/agency-finance/src/lib/workforceCosts.ts`](#file-src-built-ins-modules-agency-finance-src-lib-workforcecosts-ts-273a15e8cc) · [`src/lib/server/finance/financeWorkforce.ts`](lib.md#file-src-lib-server-finance-financeworkforce-ts-76d7a4e049) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (10):** [`src/app/portal/agency/company/_LegalCompliancePanel.tsx`](app.md#file-src-app-portal-agency-company-legalcompliancepanel-tsx-9dd3421443) · [`src/built-ins/modules/agency-finance/src/components/CanonicalCompensationModals.tsx`](#file-src-built-ins-modules-agency-finance-src-components-canonicalcompensationmodals-tsx-888844d5f9) · [`src/built-ins/modules/agency-finance/src/components/FinanceNav.tsx`](#file-src-built-ins-modules-agency-finance-src-components-financenav-tsx-c960f4ab54) · [`src/built-ins/modules/agency-finance/src/lib/currencies.ts`](#file-src-built-ins-modules-agency-finance-src-lib-currencies-ts-d92fdc906d) · [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/lib/safeDate.ts`](#file-src-built-ins-modules-agency-finance-src-lib-safedate-ts-2d7a7e52d3) · [`src/built-ins/modules/agency-finance/src/lib/workforceCosts.ts`](#file-src-built-ins-modules-agency-finance-src-lib-workforcecosts-ts-273a15e8cc) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/server/finance/financeWorkforce.ts`](lib.md#file-src-lib-server-finance-financeworkforce-ts-76d7a4e049) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (1):** [`src/built-ins/modules/agency-finance/src/pages/OperationsPage.tsx`](#file-src-built-ins-modules-agency-finance-src-pages-operationspage-tsx-f7cf58a0ae)
 
@@ -899,7 +899,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `IncomeSheet({ payments, refunds, otherIncome, invoices, clients, apiBase }: { payments: Payment[]; refunds: Refund[]; otherIncome: IncomeEntry[]; invoices: Invoice[]; clients: Client[]; apiBase: string })`
 
-**Depends on (8):** [`src/built-ins/modules/agency-finance/src/components/FinanceNav.tsx`](#file-src-built-ins-modules-agency-finance-src-components-financenav-tsx-c960f4ab54) · [`src/built-ins/modules/agency-finance/src/lib/channels.ts`](#file-src-built-ins-modules-agency-finance-src-lib-channels-ts-c136216113) · [`src/built-ins/modules/agency-finance/src/lib/currencies.ts`](#file-src-built-ins-modules-agency-finance-src-lib-currencies-ts-d92fdc906d) · [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/lib/moneyIn.ts`](#file-src-built-ins-modules-agency-finance-src-lib-moneyin-ts-0162771de3) · [`src/built-ins/modules/agency-finance/src/lib/paymentAllocation.ts`](#file-src-built-ins-modules-agency-finance-src-lib-paymentallocation-ts-48a646bd87) · [`src/built-ins/modules/agency-finance/src/lib/safeDate.ts`](#file-src-built-ins-modules-agency-finance-src-lib-safedate-ts-2d7a7e52d3) · [`src/built-ins/modules/agency-finance/src/lib/tenancy.ts`](#file-src-built-ins-modules-agency-finance-src-lib-tenancy-ts-b0727e7982)
+**Depends on (9):** [`src/built-ins/modules/agency-finance/src/components/FinanceNav.tsx`](#file-src-built-ins-modules-agency-finance-src-components-financenav-tsx-c960f4ab54) · [`src/built-ins/modules/agency-finance/src/lib/channels.ts`](#file-src-built-ins-modules-agency-finance-src-lib-channels-ts-c136216113) · [`src/built-ins/modules/agency-finance/src/lib/currencies.ts`](#file-src-built-ins-modules-agency-finance-src-lib-currencies-ts-d92fdc906d) · [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/lib/moneyIn.ts`](#file-src-built-ins-modules-agency-finance-src-lib-moneyin-ts-0162771de3) · [`src/built-ins/modules/agency-finance/src/lib/paymentAllocation.ts`](#file-src-built-ins-modules-agency-finance-src-lib-paymentallocation-ts-48a646bd87) · [`src/built-ins/modules/agency-finance/src/lib/safeDate.ts`](#file-src-built-ins-modules-agency-finance-src-lib-safedate-ts-2d7a7e52d3) · [`src/built-ins/modules/agency-finance/src/lib/tenancy.ts`](#file-src-built-ins-modules-agency-finance-src-lib-tenancy-ts-b0727e7982) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1)
 
 **Used by (1):** [`src/built-ins/modules/agency-finance/src/pages/PaymentsPage.tsx`](#file-src-built-ins-modules-agency-finance-src-pages-paymentspage-tsx-046f7f9143)
 
@@ -942,7 +942,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `InvoicesList({ invoices, clients, apiBase, canMutate, template, defaultCurrency, defaultPaymentTermsDays, defaultTaxRatePercent }: InvoicesListProps)`
 - `interface InvoicesListProps (8 members)`
 
-**Depends on (7):** [`src/built-ins/modules/agency-finance/src/components/FinanceNav.tsx`](#file-src-built-ins-modules-agency-finance-src-components-financenav-tsx-c960f4ab54) · [`src/built-ins/modules/agency-finance/src/components/InvoiceTemplateEditor.tsx`](#file-src-built-ins-modules-agency-finance-src-components-invoicetemplateeditor-tsx-5a0db1eb04) · [`src/built-ins/modules/agency-finance/src/lib/currencies.ts`](#file-src-built-ins-modules-agency-finance-src-lib-currencies-ts-d92fdc906d) · [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/lib/safeDate.ts`](#file-src-built-ins-modules-agency-finance-src-lib-safedate-ts-2d7a7e52d3) · [`src/built-ins/modules/agency-finance/src/lib/tenancy.ts`](#file-src-built-ins-modules-agency-finance-src-lib-tenancy-ts-b0727e7982) · [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1)
+**Depends on (8):** [`src/built-ins/modules/agency-finance/src/components/FinanceNav.tsx`](#file-src-built-ins-modules-agency-finance-src-components-financenav-tsx-c960f4ab54) · [`src/built-ins/modules/agency-finance/src/components/InvoiceTemplateEditor.tsx`](#file-src-built-ins-modules-agency-finance-src-components-invoicetemplateeditor-tsx-5a0db1eb04) · [`src/built-ins/modules/agency-finance/src/lib/currencies.ts`](#file-src-built-ins-modules-agency-finance-src-lib-currencies-ts-d92fdc906d) · [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](#file-src-built-ins-modules-agency-finance-src-lib-domain-ts-9096681be9) · [`src/built-ins/modules/agency-finance/src/lib/safeDate.ts`](#file-src-built-ins-modules-agency-finance-src-lib-safedate-ts-2d7a7e52d3) · [`src/built-ins/modules/agency-finance/src/lib/tenancy.ts`](#file-src-built-ins-modules-agency-finance-src-lib-tenancy-ts-b0727e7982) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1)
 
 **Used by (1):** [`src/built-ins/modules/agency-finance/src/pages/InvoicesPage.tsx`](#file-src-built-ins-modules-agency-finance-src-pages-invoicespage-tsx-913f562fa0)
 
@@ -2016,7 +2016,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `EmployeeListClient({ employees, roles, apiBase }: EmployeeListClientProps)`
 - `interface EmployeeListClientProps (3 members)`
 
-**Depends on (2):** [`src/built-ins/modules/agency-hr/src/lib/domain.ts`](#file-src-built-ins-modules-agency-hr-src-lib-domain-ts-2325a49c56) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
+**Depends on (3):** [`src/built-ins/modules/agency-hr/src/lib/domain.ts`](#file-src-built-ins-modules-agency-hr-src-lib-domain-ts-2325a49c56) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 
 **Used by (1):** [`src/built-ins/modules/agency-hr/src/pages/EmployeesPage.tsx`](#file-src-built-ins-modules-agency-hr-src-pages-employeespage-tsx-565b8886cb)
 
@@ -2046,7 +2046,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `NewStaffModal({ apiBase, departments, onClose }: NewStaffModalProps)`
 - `interface NewStaffModalProps (3 members)`
 
-**Depends on (3):** [`src/built-ins/modules/agency-hr/src/lib/domain.ts`](#file-src-built-ins-modules-agency-hr-src-lib-domain-ts-2325a49c56) · [`src/built-ins/modules/agency-hr/src/lib/tenancy.ts`](#file-src-built-ins-modules-agency-hr-src-lib-tenancy-ts-4bf4103529) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
+**Depends on (4):** [`src/built-ins/modules/agency-hr/src/lib/domain.ts`](#file-src-built-ins-modules-agency-hr-src-lib-domain-ts-2325a49c56) · [`src/built-ins/modules/agency-hr/src/lib/tenancy.ts`](#file-src-built-ins-modules-agency-hr-src-lib-tenancy-ts-4bf4103529) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 
 **Used by (1):** [`src/built-ins/modules/agency-hr/src/components/StaffList.tsx`](#file-src-built-ins-modules-agency-hr-src-components-stafflist-tsx-58e96b3bcc)
 
@@ -2061,7 +2061,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `RoleMatrixClient({ roles, permissions, apiBase }: RoleMatrixClientProps)`
 - `interface RoleMatrixClientProps (3 members)`
 
-**Depends on (1):** [`src/built-ins/modules/agency-hr/src/lib/domain.ts`](#file-src-built-ins-modules-agency-hr-src-lib-domain-ts-2325a49c56)
+**Depends on (2):** [`src/built-ins/modules/agency-hr/src/lib/domain.ts`](#file-src-built-ins-modules-agency-hr-src-lib-domain-ts-2325a49c56) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1)
 
 **Used by (1):** [`src/built-ins/modules/agency-hr/src/pages/RolesPage.tsx`](#file-src-built-ins-modules-agency-hr-src-pages-rolespage-tsx-5b17bbbec5)
 
@@ -6030,7 +6030,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `NewClientModal(props: NewClientModalProps)`
 - `interface NewClientModalProps (5 members)`
 
-**Depends on (1):** [`src/built-ins/modules/fulfillment/src/lib/tenancy.ts`](#file-src-built-ins-modules-fulfillment-src-lib-tenancy-ts-000f2aa59a)
+**Depends on (2):** [`src/built-ins/modules/fulfillment/src/lib/tenancy.ts`](#file-src-built-ins-modules-fulfillment-src-lib-tenancy-ts-000f2aa59a) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -6045,7 +6045,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `PhaseBoard(props: PhaseBoardProps)`
 - `interface PhaseBoardProps (5 members)`
 
-**Depends on (4):** [`src/built-ins/modules/fulfillment/src/components/ChecklistColumn.tsx`](#file-src-built-ins-modules-fulfillment-src-components-checklistcolumn-tsx-126b8f08ad) · [`src/built-ins/modules/fulfillment/src/lib/tenancy.ts`](#file-src-built-ins-modules-fulfillment-src-lib-tenancy-ts-000f2aa59a) · [`src/built-ins/modules/fulfillment/src/lib/transitionFeedback.ts`](#file-src-built-ins-modules-fulfillment-src-lib-transitionfeedback-ts-7f3f61e2bd) · [`src/built-ins/modules/fulfillment/src/server/index.ts`](#file-src-built-ins-modules-fulfillment-src-server-index-ts-c8d0f1cf24)
+**Depends on (5):** [`src/built-ins/modules/fulfillment/src/components/ChecklistColumn.tsx`](#file-src-built-ins-modules-fulfillment-src-components-checklistcolumn-tsx-126b8f08ad) · [`src/built-ins/modules/fulfillment/src/lib/tenancy.ts`](#file-src-built-ins-modules-fulfillment-src-lib-tenancy-ts-000f2aa59a) · [`src/built-ins/modules/fulfillment/src/lib/transitionFeedback.ts`](#file-src-built-ins-modules-fulfillment-src-lib-transitionfeedback-ts-7f3f61e2bd) · [`src/built-ins/modules/fulfillment/src/server/index.ts`](#file-src-built-ins-modules-fulfillment-src-server-index-ts-c8d0f1cf24) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1)
 
 **Used by (1):** [`src/built-ins/modules/fulfillment/src/pages/PhaseBoardPage.tsx`](#file-src-built-ins-modules-fulfillment-src-pages-phaseboardpage-tsx-db5f1d321a)
 
@@ -6060,7 +6060,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `PhasesSettingsList(props: PhasesSettingsListProps)`
 - `interface PhasesSettingsListProps (2 members)`
 
-**Depends on (1):** [`src/built-ins/modules/fulfillment/src/lib/tenancy.ts`](#file-src-built-ins-modules-fulfillment-src-lib-tenancy-ts-000f2aa59a)
+**Depends on (2):** [`src/built-ins/modules/fulfillment/src/lib/tenancy.ts`](#file-src-built-ins-modules-fulfillment-src-lib-tenancy-ts-000f2aa59a) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1)
 
 **Used by (1):** [`src/built-ins/modules/fulfillment/src/pages/PhasesPage.tsx`](#file-src-built-ins-modules-fulfillment-src-pages-phasespage-tsx-9239fb8e59)
 
@@ -7221,7 +7221,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `NewPlanModal({ apiBase, defaultCurrency, onClose }: NewPlanModalProps)`
 - `interface NewPlanModalProps (3 members)`
 
-**Depends on (2):** [`src/built-ins/modules/memberships/src/lib/domain.ts`](#file-src-built-ins-modules-memberships-src-lib-domain-ts-1e3d826e85) · [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1)
+**Depends on (3):** [`src/built-ins/modules/memberships/src/lib/domain.ts`](#file-src-built-ins-modules-memberships-src-lib-domain-ts-1e3d826e85) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1)
 
 **Used by (1):** [`src/built-ins/modules/memberships/src/components/PlansList.tsx`](#file-src-built-ins-modules-memberships-src-components-planslist-tsx-bc9f2be7e0)
 
@@ -10610,7 +10610,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default HistoryToolbar({ history, renderThumb }: Props)`
 
-**Depends on (2):** [`src/built-ins/modules/website-editor/src/lib/editorHistory.ts`](#file-src-built-ins-modules-website-editor-src-lib-editorhistory-ts-d4153d4180) · [`src/built-ins/modules/website-editor/src/lib/safeDate.ts`](#file-src-built-ins-modules-website-editor-src-lib-safedate-ts-956dc2bfa5)
+**Depends on (3):** [`src/built-ins/modules/website-editor/src/lib/editorHistory.ts`](#file-src-built-ins-modules-website-editor-src-lib-editorhistory-ts-d4153d4180) · [`src/built-ins/modules/website-editor/src/lib/menuKeys.ts`](#file-src-built-ins-modules-website-editor-src-lib-menukeys-ts-f3cec7c938) · [`src/built-ins/modules/website-editor/src/lib/safeDate.ts`](#file-src-built-ins-modules-website-editor-src-lib-safedate-ts-956dc2bfa5)
 
 **Used by (1):** [`src/built-ins/modules/website-editor/src/__smoke__/r021-undo-redo.test.ts`](#file-src-built-ins-modules-website-editor-src-smoke-r021-undo-redo-test-ts-d5435befdb)
 
@@ -10670,7 +10670,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `PagePickerToolbar(props: PagePickerToolbarProps): ReactElement`
 - `interface PagePickerToolbarProps (10 members)`
 
-**Depends on (1):** [`src/built-ins/modules/website-editor/src/lib/editorDeepLink.ts`](#file-src-built-ins-modules-website-editor-src-lib-editordeeplink-ts-70a964fc9b)
+**Depends on (2):** [`src/built-ins/modules/website-editor/src/lib/editorDeepLink.ts`](#file-src-built-ins-modules-website-editor-src-lib-editordeeplink-ts-70a964fc9b) · [`src/built-ins/modules/website-editor/src/lib/menuKeys.ts`](#file-src-built-ins-modules-website-editor-src-lib-menukeys-ts-f3cec7c938)
 
 **Used by (1):** [`src/built-ins/modules/website-editor/src/pages/EditorPage.tsx`](#file-src-built-ins-modules-website-editor-src-pages-editorpage-tsx-147aac838c)
 
@@ -10713,7 +10713,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `default PortalVariantSwitcher({ siteId, currentPageId, onPick, onNewVariant, fetchImpl }: Props)`
 - `interface VariantRow (8 members)`
 
-**Depends on:** _No internal imports._
+**Depends on (1):** [`src/built-ins/modules/website-editor/src/lib/menuKeys.ts`](#file-src-built-ins-modules-website-editor-src-lib-menukeys-ts-f3cec7c938)
 
 **Used by (1):** [`src/built-ins/modules/website-editor/src/components/editor/PortalVariantGallery.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-portalvariantgallery-tsx-69ba8d4bab)
 
@@ -10816,7 +10816,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `default VersionsDropdown({ pageId, onPreview, onRestore, onSaveNamed, onDiff, fetchImpl }: Props)`
 - `interface VersionRow (5 members)`
 
-**Depends on:** _No internal imports._
+**Depends on (1):** [`src/built-ins/modules/website-editor/src/lib/menuKeys.ts`](#file-src-built-ins-modules-website-editor-src-lib-menukeys-ts-f3cec7c938)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -11857,6 +11857,20 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Depends on (1):** [`src/built-ins/modules/website-editor/src/lib/tenancy.ts`](#file-src-built-ins-modules-website-editor-src-lib-tenancy-ts-9b7092e47a)
 
 **Used by (2):** [`src/built-ins/modules/website-editor/src/components/AssetPicker.tsx`](#file-src-built-ins-modules-website-editor-src-components-assetpicker-tsx-f07f6664e0) · [`src/built-ins/modules/website-editor/src/pages/AssetsPage.tsx`](#file-src-built-ins-modules-website-editor-src-pages-assetspage-tsx-bd1be6317e)
+
+<a id="file-src-built-ins-modules-website-editor-src-lib-menukeys-ts-f3cec7c938"></a>
+
+### `src/built-ins/modules/website-editor/src/lib/menuKeys.ts`
+
+**What it is:** elsewhere. There is still exactly one implementation, in `src/lib/a11y`.
+
+**Exports (1):**
+
+- `useMenuKeys = shared.useMenuKeys ?? shared.default!.useMenuKeys`
+
+**Depends on (1):** [`src/lib/a11y/useMenuKeys.ts`](lib.md#file-src-lib-a11y-usemenukeys-ts-403e5f37d6)
+
+**Used by (4):** [`src/built-ins/modules/website-editor/src/components/editor/HistoryToolbar.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-historytoolbar-tsx-5846d73d43) · [`src/built-ins/modules/website-editor/src/components/editor/PagePickerToolbar.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-pagepickertoolbar-tsx-10e3a921af) · [`src/built-ins/modules/website-editor/src/components/editor/PortalVariantSwitcher.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-portalvariantswitcher-tsx-4c1ad99d64) · [`src/built-ins/modules/website-editor/src/components/editor/VersionsDropdown.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-versionsdropdown-tsx-c05dc931d3)
 
 <a id="file-src-built-ins-modules-website-editor-src-lib-notify-ts-cfa647cde7"></a>
 

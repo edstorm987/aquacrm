@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { scopeProfiles, summariseProfileDimension, type ProfileDimension } from "@/lib/people/customerProfileScope";
 import { useRouter } from "next/navigation";
 import { BadgeCheck, BriefcaseBusiness, Building2, Pencil, Plus, Search, Trash2, UserRoundSearch, X } from "lucide-react";
@@ -12,6 +12,7 @@ import type {
   MarketingCustomerProfileStatus,
   MarketingEvidenceConfidence,
 } from "@/built-ins/modules/agency-marketing/src/lib/domain";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 interface CompanyOption {
   id: string;
@@ -348,9 +349,12 @@ function ProfileDialog({
   onClose: () => void;
 }) {
   const patch = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft(current => current ? { ...current, [key]: value } : current);
+  // Modal keyboard contract: focus enters the profile dialog, Tab stays inside it, Escape backs out (except mid-save), focus returns to the profile row.
+  const dialogRef = useRef<HTMLElement>(null);
+  useFocusTrap(dialogRef, true, { onEscape: busy ? undefined : onClose });
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-5" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-      <section role="dialog" aria-modal="true" aria-labelledby="customer-profile-dialog-title" className="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-t-md bg-white shadow-2xl sm:rounded-md">
+      <section role="dialog" ref={dialogRef} aria-modal="true" aria-labelledby="customer-profile-dialog-title" className="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-t-md bg-white shadow-2xl sm:rounded-md">
         <div className="flex items-start justify-between gap-4 border-b border-black/10 px-5 py-4">
           <div><p className="text-xs font-semibold uppercase tracking-wide text-brand">Audience intelligence</p><h2 id="customer-profile-dialog-title" className="mt-1 text-lg font-semibold text-black/85">{draft.id ? "Edit customer profile" : "Add customer profile"}</h2></div>
           <button type="button" onClick={onClose} aria-label="Close" className="grid size-9 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/[0.03]"><X size={17} /></button>

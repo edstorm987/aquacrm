@@ -11,6 +11,7 @@ import { devIconCookieEnabled, setDevIconCookie } from "@/lib/chrome/devIconPref
 import { useNotificationAttention } from "./NotificationAttentionProvider";
 import { ColorModeToggle } from "./ColorModeToggle";
 import { QuickNoteWindow } from "./QuickNoteWindow";
+import { useMenuKeys } from "@/lib/a11y/useMenuKeys";
 
 const ROLE_LABEL: Record<Role, string> = {
   "agency-owner": "Agency owner",
@@ -104,6 +105,10 @@ export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "Aqua
     }
   }
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  // issues #138 — `role="menu"` told screen readers to use the arrow keys; now
+  // they work, Home/End reach the ends, and Escape hands focus back to the
+  // trigger instead of dropping it at the top of the document.
+  useMenuKeys(wrapRef, { open, onOpen: () => setOpen(true), onClose: () => setOpen(false) });
   const attentionLevel = attention?.attentionWindow.level;
   const showFocusProtection = role.startsWith("agency-") && (attentionLevel === "elevated" || attentionLevel === "overload");
   // Which ACCOUNT these two links belong to is a question about the audience,

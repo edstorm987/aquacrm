@@ -11,7 +11,9 @@
 // renders the list and routes operator actions; the host wires
 // the actual fetch + restore.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import { useMenuKeys } from "../../lib/menuKeys";
 
 export interface VersionRow {
   id: string;
@@ -51,6 +53,8 @@ export default function VersionsDropdown({ pageId, onPreview, onRestore, onSaveN
   const [error, setError] = useState<string | null>(null);
   const [namedLabel, setNamedLabel] = useState("");
   const [saving, setSaving] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  useMenuKeys(wrapRef, { open, onOpen: () => setOpen(true), onClose: () => setOpen(false) });
 
   useEffect(() => {
     if (!open) return;
@@ -91,7 +95,7 @@ export default function VersionsDropdown({ pageId, onPreview, onRestore, onSaveN
   }
 
   return (
-    <div data-component="versions-dropdown" style={{ position: "relative", display: "inline-block" }}>
+    <div ref={wrapRef} data-component="versions-dropdown" style={{ position: "relative", display: "inline-block" }}>
       <button
         onClick={() => setOpen(o => !o)}
         aria-expanded={open}

@@ -49,8 +49,8 @@ export default function ContactFormBlock({ block }: BlockRenderProps) {
   if (sent) {
     return (
       <section data-block-type="contact-form" style={{ padding: "64px 24px", textAlign: "center", ...blockStylesToCss(block.styles) }}>
-        <div style={{ maxWidth: 480, margin: "0 auto" }}>
-          <p style={{ fontSize: 36 }}>✓</p>
+        <div role="status" style={{ maxWidth: 480, margin: "0 auto" }}>
+          <p aria-hidden style={{ fontSize: 36 }}>✓</p>
           <h2 style={{ fontFamily: "var(--font-playfair, Georgia, serif)", fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Thanks!</h2>
           <p style={{ opacity: 0.7 }}>We&apos;ve got your message — we&apos;ll get back to you shortly.</p>
         </div>
@@ -74,14 +74,16 @@ export default function ContactFormBlock({ block }: BlockRenderProps) {
         <h2 style={{ fontFamily: "var(--font-playfair, Georgia, serif)", fontSize: 32, fontWeight: 700, marginBottom: 6, textAlign: "center" }}>{heading}</h2>
         {subheading && <p style={{ opacity: 0.65, fontSize: 14, textAlign: "center", marginBottom: 24 }}>{subheading}</p>}
         <form onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <input type="text" name="name" placeholder="Your name" required style={inputStyle} />
-          <input type="email" name="email" placeholder="you@example.com" required style={inputStyle} />
-          {showPhone && <input type="tel" name="phone" placeholder="Phone (optional)" style={inputStyle} />}
-          <textarea name="message" rows={5} placeholder="Your message" required style={inputStyle} />
+          {/* Placeholders are hints, not names — every field carries its own
+              accessible name so a screen reader announces it once focused. */}
+          <input type="text" name="name" aria-label="Your name" placeholder="Your name" required style={inputStyle} />
+          <input type="email" name="email" aria-label="Your email address" placeholder="you@example.com" required style={inputStyle} />
+          {showPhone && <input type="tel" name="phone" aria-label="Phone (optional)" placeholder="Phone (optional)" style={inputStyle} />}
+          <textarea name="message" rows={5} aria-label="Your message" placeholder="Your message" required style={inputStyle} />
           {/* Honeypot */}
           <input type="text" name="website" tabIndex={-1} autoComplete="off"
             style={{ position: "absolute", left: -9999, opacity: 0, height: 0, width: 0 }} />
-          {error && <p style={{ fontSize: 12, color: "#ef4444" }}>{error}</p>}
+          {error && <p role="alert" style={{ fontSize: 12, color: "#ef4444" }}>{error}</p>}
           <button
             type="submit"
             disabled={busy}

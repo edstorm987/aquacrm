@@ -1,8 +1,9 @@
 "use client";
 
 import { FlaskConical, Pencil, Plus, Trash2, X } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import type { PerformanceExperiment, PerformanceExperimentStatus } from "@/server/types";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 interface LiveVariant {
   experimentId: string;
@@ -135,6 +136,9 @@ function ExperimentDialog({
   onSaved: (experiment: PerformanceExperiment) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  // Modal keyboard contract: focus enters the dialog, Tab stays inside it, Escape backs out (except mid-save), focus returns to the control that opened it.
+  const dialogRef = useRef<HTMLFormElement>(null);
+  useFocusTrap(dialogRef, true, { onEscape: busy ? undefined : onClose });
   const [error, setError] = useState("");
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -178,7 +182,7 @@ function ExperimentDialog({
 
   return (
     <div className="fixed inset-0 z-[90] grid place-items-center bg-black/45 p-4">
-      <form onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby="experiment-title" className="max-h-[100dvh] w-full max-w-xl overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-lg">
+      <form onSubmit={submit} role="dialog" ref={dialogRef} aria-modal="true" aria-labelledby="experiment-title" className="max-h-[100dvh] w-full max-w-xl overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-lg">
         <div className="flex items-start justify-between gap-4">
           <div><p className="text-xs font-semibold uppercase text-brand">Split test</p><h2 id="experiment-title" className="mt-1 text-xl font-semibold">{experiment ? "Edit test" : "Create a test"}</h2></div>
           <button type="button" onClick={onClose} aria-label="Close"><X size={18} /></button>

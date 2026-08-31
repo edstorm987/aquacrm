@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { BookOpen, ChevronRight, LoaderCircle, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 
 import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 import { CLAIMABLE_FAMILIES, fillTemplateTitle } from "@/lib/tasks/taskTemplates";
 import type { AgencyTask, AgencyTaskPriority, AgencyTaskTemplateStep, SopDocument } from "@/server/types";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 /**
  * Picking a saved sequence instead of retyping it.
@@ -56,6 +57,9 @@ export function TaskTemplateModal({
   const [error, setError] = useState<string | null>(null);
   const [loadingTemplates, setLoadingTemplates] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Modal keyboard contract: focus enters the template picker, Tab stays inside it, Escape backs out (except mid-save), focus returns to the button that opened it.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, true, { onEscape: busy ? undefined : onClose });
 
   async function load(signal?: AbortSignal) {
     setLoadingTemplates(true);
@@ -143,7 +147,7 @@ export function TaskTemplateModal({
       <button className="absolute inset-0" aria-label="Close templates" onClick={onClose} />
       <div
         role="dialog"
-        aria-modal="true"
+        ref={dialogRef} aria-modal="true"
         aria-labelledby="task-templates-title"
         className="relative mx-auto grid max-h-[100dvh] w-full max-w-3xl gap-4 overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-lg"
       >

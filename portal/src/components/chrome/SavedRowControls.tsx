@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useMenuKeys } from "@/lib/a11y/useMenuKeys";
 import { useRouter } from "next/navigation";
 import { MoreHorizontal, PenLine, Shapes, Undo2, X } from "lucide-react";
 
@@ -35,6 +36,7 @@ export function SavedRowControls({ tabId, label }: { tabId: string; label: strin
   const iconRef = useRef<HTMLButtonElement | null>(null);
   const [draft, setDraft] = useState(label);
   const boxRef = useRef<HTMLDivElement | null>(null);
+  useMenuKeys(boxRef, { open, onOpen: () => setOpen(true), onClose: () => { setOpen(false); setRenaming(false); } });
 
   const tab = savedTabs.find(candidate => candidate.id === tabId);
 

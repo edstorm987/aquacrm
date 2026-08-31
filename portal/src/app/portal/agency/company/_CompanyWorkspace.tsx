@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Building2, ChartPie, Check, ChevronRight, CircleAlert, Compass, Flag, Gauge, HeartPulse, Package, Pencil, PlugZap, Plus, Save, ShieldCheck, Sparkles, Trash2, TrendingUp, UsersRound, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import type { AgencyProduct, CompanyObjective, CompanyPlan, CompanyProfile, CompanyQuarterlyReview, LegalDocument, PortalFormFieldDefinition, SopDocument, TradingCompany } from "@/server/types";
 import { calculateCompanyHealth } from "@/lib/performance/companyHealth";
 import { LegalCompliancePanel } from "./_LegalCompliancePanel";
@@ -13,6 +13,7 @@ import type { IntegrationProvider } from "@/lib/integrations/catalog";
 import { AttentionDot } from "@/components/chrome/NotificationAttentionProvider";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
 import { describeCompanyConflict, rebaseCompanyProfile, type CompanyProfileConflict } from "../companyProfileConflict";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 interface Actuals {
   monthRevenueCents: number;
@@ -737,7 +738,13 @@ function ReviewDialog({ onClose, onAdd }: { onClose: () => void; onAdd: (item: C
   return <Modal title="Quarterly review" onClose={onClose}><form className="grid gap-4" onSubmit={event => { event.preventDefault(); const data = new FormData(event.currentTarget); onAdd({ id: `review-${Date.now()}`, period: String(data.get("period")), wins: String(data.get("wins")), lessons: String(data.get("lessons")), decisions: String(data.get("decisions")), nextPriorities: String(data.get("nextPriorities")), updatedAt: Date.now() }); }}><Field label="Period"><input name="period" required defaultValue={quarter} className={control} /></Field><Field label="Wins"><textarea name="wins" className={textarea} /></Field><Field label="Lessons"><textarea name="lessons" className={textarea} /></Field><Field label="Decisions"><textarea name="decisions" className={textarea} /></Field><Field label="Next priorities"><textarea name="nextPriorities" className={textarea} /></Field><Submit label="Save review" /></form></Modal>;
 }
 
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) { return <div className="fixed inset-0 z-[90] grid items-end bg-black/40 sm:items-center sm:p-6"><button className="absolute inset-0" aria-label="Close dialog" onClick={onClose} /><section role="dialog" aria-modal="true" aria-label={title} className="relative mx-auto max-h-[100dvh] w-full max-w-xl overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-lg sm:p-6"><header className="mb-5 flex items-center justify-between"><h2 className="text-xl font-semibold text-black/85">{title}</h2><button onClick={onClose} className="grid size-9 place-items-center rounded-md border border-black/10"><X size={16} /></button></header>{children}</section></div>; }
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  // Modal keyboard contract: focus enters the dialog, Tab stays inside it,
+  // Escape closes it, and focus returns to the control that opened it.
+  const dialogRef = useRef<HTMLElement>(null);
+  useFocusTrap(dialogRef, true, { onEscape: onClose });
+  return <div className="fixed inset-0 z-[90] grid items-end bg-black/40 sm:items-center sm:p-6"><button className="absolute inset-0" aria-label="Close dialog" onClick={onClose} /><section ref={dialogRef} role="dialog" aria-modal="true" aria-label={title} className="relative mx-auto max-h-[100dvh] w-full max-w-xl overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-lg sm:p-6"><header className="mb-5 flex items-center justify-between"><h2 className="text-xl font-semibold text-black/85">{title}</h2><button type="button" onClick={onClose} aria-label={`Close ${title}`} className="grid size-9 place-items-center rounded-md border border-black/10"><X size={16} aria-hidden /></button></header>{children}</section></div>;
+}
 function Submit({ label }: { label: string }) { return <div className="flex justify-end"><button className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white"><Check size={15} />{label}</button></div>; }
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) { return <label className="grid gap-1 text-xs font-medium text-black/55">{label}{hint ? <span className="font-normal text-black/40">{hint}</span> : null}{children}</label>; }
 function MoneyInput({ label, value, setValue }: { label: string; value: string; setValue: (value: string) => void }) { return <label className="grid gap-1 text-xs font-medium text-black/55">{label}<div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-black/40">£</span><input type="number" min="0" value={value} onChange={event => setValue(event.target.value)} className={`${control} pl-7`} /></div></label>; }

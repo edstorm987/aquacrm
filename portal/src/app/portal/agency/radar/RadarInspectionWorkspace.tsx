@@ -327,7 +327,7 @@ export function RadarInspectionWorkspace({
       </section>
 
       <nav className="overflow-x-auto border-b border-black/10" aria-label="Radar inspection views">
-        <div className="flex min-w-max gap-6" role="tablist">
+        <div className="flex min-w-max gap-6">
           {([
             ["kpis", "KPI scorecard", allKpis.length],
             ["checks", "Checks", radar.checks.length],
@@ -337,7 +337,7 @@ export function RadarInspectionWorkspace({
             ["incidents", "Incidents", radar.incidents.length],
             ["raw", "Raw data", null],
           ] as const).map(([id, label, count]) => (
-            <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => void selectInspectionTab(id)} className={`min-h-12 border-b-2 text-sm font-semibold ${tab === id ? "border-black text-black" : "border-transparent text-black/45 hover:text-black/70"}`}>{label}{count !== null ? <span className="ml-2 text-xs tabular-nums text-black/35">{count}</span> : null}</button>
+            <button key={id} type="button" aria-current={tab === id ? "true" : undefined} onClick={() => void selectInspectionTab(id)} className={`min-h-12 border-b-2 text-sm font-semibold ${tab === id ? "border-black text-black" : "border-transparent text-black/45 hover:text-black/70"}`}>{label}{count !== null ? <span className="ml-2 text-xs tabular-nums text-black/35">{count}</span> : null}</button>
           ))}
         </div>
       </nav>
