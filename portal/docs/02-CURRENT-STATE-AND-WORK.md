@@ -2,12 +2,12 @@
 
 > The current checklist, status, roadmap, goals, decisions and working queue.
 >
-> Consolidated 2026-08-31 from **7** source documents / **85,076 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-31 from **7** source documents / **85,289 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`docs/CURRENT-IMPLEMENTATION.md`](#source-docs-current-implementation-md) — 4,673 words · `34e0d0082117`
-- [`docs/development/checklist.md`](#source-docs-development-checklist-md) — 20,716 words · `a22e251386cd`
+- [`docs/development/checklist.md`](#source-docs-development-checklist-md) — 20,929 words · `e6cf5a48c8b9`
 - [`docs/development/goals.md`](#source-docs-development-goals-md) — 506 words · `28009372c4ab`
 - [`docs/development/notes.md`](#source-docs-development-notes-md) — 1,730 words · `f68ea59936dd`
 - [`docs/development/roadmap.md`](#source-docs-development-roadmap-md) — 21,160 words · `da05e0e5ba0f`
@@ -620,7 +620,7 @@ sure" overlay, the funnel/client-side editor convergence
 
 ## Source document — `docs/development/checklist.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/checklist.md" sha256="a22e251386cde62a331eb32b605712d618b378aeec7de3001966d2f1dd1171f7" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/checklist.md" sha256="e6cf5a48c8b95045fe654abc7ea6281244f5ba61f9fd3c33943398ec7d761db0" -->
 # Checklist — 2026-08-27 (current source, tests and browser findings)
 
 > ★ **This is the one answer to "where do we stand".** As of 2026-08-27 nothing
@@ -1860,11 +1860,28 @@ Detailed scope and file map:
       the root with `aria-hidden` and nests the only live `role="status"` inside it, so the visible
       wait has no screen-reader announcement. Separate decorative skeletons from the live status
       and verify transition/removal/focus behavior. → [issues #136](issues.md)
-- [ ] **P2 — replace labelled HTTP “viewports” with real responsive acceptance.** The UX smoke
-      sends 375/768/1280 only as User-Agent text and repeats server-HTML substring checks; it does
-      not render CSS, execute client interactions, inspect overflow/focus/accessibility or capture
-      browser console failures. Retain it as markup smoke and add the actual browser matrix.
-      → [issues #137](issues.md)
+- [x] **P2 — replace labelled HTTP “viewports” with real responsive acceptance. DONE 2026-08-31,
+      and the gate is GREEN.** `npm run browser:matrix` drives real Chromium over 13 pages × 17
+      viewports — the six required primaries plus 320×568, 200% zoom on desktop and mobile, and
+      both sides of every Tailwind breakpoint — and renders actual CSS: layout overflow, a keyboard
+      Tab walk with focus-indicator checks, axe (wcag2a/aa + wcag21a/aa + best-practice), the
+      console and the network log. `smoke-ux.mjs` is retained as markup smoke; it is no longer
+      mistaken for responsive acceptance.
+      **`1,308 passed · 0 failed · 18 observations`**, from an opening 352 failures. The
+      observations are all named dev-server recompilation, downgraded only when the target proves
+      itself a dev server through its own HMR socket — against a production target every one of
+      them fails.
+      **208 of the original 352 were the gate measuring wrong** (a 0.14s CSS transition sampled in
+      the same task as the Tab press; a trap detector comparing description strings instead of node
+      identity; an instrumentation attribute written into React-owned DOM; and a dev-server flag
+      proven one page too late). All four are fixed and pinned two-sided. Full account in
+      `CAMPAIGN-LEDGER.md`, including a correction to three earlier entries that reported those
+      false failures as app defects.
+      **Scope this does NOT cover, deliberately:** the walk visits pages without opening dialogs or
+      menus, so modal containment and composite-widget keyboard models are untouched by it — that
+      is #138, still open. Keyboard ACTIVATION is also not provable this way (a synthetic Enter on
+      a plain `<button>` records zero activations). Evidence label: **local-browser**, not
+      deployed-live. → [issues #137](issues.md)
 - [ ] **P2 — make composite-widget roles truthful and keyboard-complete.** All 12 declared
       tablists and nine production menus omit their arrow/roving navigation, Settings references
       absent tabpanels, and one editor listbox has no item-navigation model. Use shared accessible

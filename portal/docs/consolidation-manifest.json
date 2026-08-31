@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-31T16:08:04.456Z",
+  "generatedAt": "2026-08-31T16:35:55.248Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -423,17 +423,17 @@
       "path": "docs/development/CAMPAIGN-LEDGER.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-campaign-ledger-md",
-      "sha256": "0adf2a8123c06b147da4bebe88d9c7a1a06690b7e375983a1d7cdc5c7c900769",
-      "words": 10157,
-      "bytes": 70800
+      "sha256": "e432fb527dc528abef9473fbbba672e059ea6d7cded669cc2588e88fd1137061",
+      "words": 10726,
+      "bytes": 74600
     },
     {
       "path": "docs/development/checklist.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-checklist-md",
-      "sha256": "a22e251386cde62a331eb32b605712d618b378aeec7de3001966d2f1dd1171f7",
-      "words": 20716,
-      "bytes": 163376
+      "sha256": "e6cf5a48c8b95045fe654abc7ea6281244f5ba61f9fd3c33943398ec7d761db0",
+      "words": 20929,
+      "bytes": 164845
     },
     {
       "path": "docs/development/CLOUD-RESUME.md",
@@ -495,9 +495,9 @@
       "path": "docs/development/issues.md",
       "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
       "anchor": "source-docs-development-issues-md",
-      "sha256": "0d5217e31bb86463fcd3f8ccef3bdfd852041f0dcc8e58074f99b11633508879",
-      "words": 36809,
-      "bytes": 282321
+      "sha256": "53000cbcfbdacc9ef903fa608318f5b0ce6b2b4e7f127abfedd8cd33ef991527",
+      "words": 37097,
+      "bytes": 284292
     },
     {
       "path": "docs/development/LOOP-PROGRESS.md",

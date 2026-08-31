@@ -757,3 +757,82 @@ resolves the optional Sentry package through a dynamic require, which webpack
 reports as "Critical dependency: the request of a dependency is an expression".
 
 Evidence label: **local-browser** against a `next dev` lane, not deployed-live.
+
+---
+
+## The Vercel failures: ROOT-CAUSED, fixed, and proven
+
+Five of eight deployments failed across two pull requests. The cause was found
+on 2026-08-31 and it was never in the application code.
+
+**`portal/package-lock.json` was generated on a Mac.** `lightningcss` and
+`@tailwindcss/oxide` ship their native binaries as per-platform *optional*
+dependencies, so the lockfile recorded `lightningcss-darwin-arm64` and
+`@tailwindcss/oxide-darwin-arm64` — and **no Linux build at all**. `npm install`
+installs what the lockfile records, so on Linux both packages arrive with no
+binding and the first CSS module kills the build:
+
+```
+Error: Cannot find module '../lightningcss.linux-x64-gnu.node'
+  node_modules/lightningcss/node/index.js
+  ← @tailwindcss/node ← @tailwindcss/postcss ← next's CSS config
+```
+
+`@tailwindcss/oxide` names the npm bug behind it in its own error text
+(npm/cli#4828).
+
+### Why every local build passed, including the "cacheless" one
+
+A Linux binary was sitting in **`/home/user/aquacrm/node_modules/`** — the
+repository ROOT, one directory above `portal/`. Node's resolver walks up parent
+directories, found it there, and satisfied every local build with a file no
+deployment would ever have. **Vercel's Root Directory is `portal`**, so there is
+no parent to walk up to.
+
+This is why the three earlier investigations cleared the wrong suspects and were
+right to: the build genuinely does pass here, `rm -rf .next` genuinely does not
+change it, the plugin packages genuinely are not npm workspaces, and PR #6's
+`f9c4318` genuinely did fail with no `package.json` change. Every one of those
+findings stands. They were all measuring a machine that had the binary.
+
+**The lesson to keep: `rm -rf .next && npm run build` is not a clean build.** It
+reuses `node_modules`, and — where the deploy target has a Root Directory —
+everything above it. Only checking out that directory alone reproduces the
+deploy.
+
+### Reproduced, then fixed, then re-proved
+
+Checked out `portal/` on its own and ran Vercel's exact commands,
+`npm install --legacy-peer-deps && npm run build`:
+
+| | before | after |
+| --- | --- | --- |
+| `require("lightningcss")` | throws | resolves |
+| `require("@tailwindcss/oxide")` | throws | resolves |
+| `npm run build` | **fails** at the first CSS module | **exit 0**, 301 pages |
+
+The fix is two lines in `package.json`: `lightningcss-linux-x64-gnu@1.32.0` and
+`@tailwindcss/oxide-linux-x64-gnu@4.2.4` as `optionalDependencies`, pinned to
+their parents' exact versions. Both are `os: ["linux"]`, and the darwin entries
+are untouched, so a Mac checkout installs exactly what it did before.
+
+### Pinned so it cannot come back quietly
+
+`scripts/smoke-deploy-lockfile.test.ts` asserts the RULE, not the two names: any
+dependency declaring per-platform native binaries must have its Linux x64 build
+recorded in the lockfile. It reads the lockfile rather than `node_modules`, so a
+local machine that happens to have the binary cannot mask it, and it also pins
+the exact-version requirement (a caret range would let npm pair 1.32.0 with a
+1.33 binary — the same failure, again only on the deploy machine) and refuses
+`--no-optional` in `vercel.json`, which would defeat the whole file.
+
+Verified two-sided against the **real** pre-fix lockfile, not a synthetic one:
+it names `lightningcss` and `@tailwindcss/oxide` and nothing else.
+
+### What this does NOT claim
+
+A green deployment has not yet been observed. The build is proven in an isolated
+`portal/` checkout on Linux x64 with the same install command, which is the
+closest reproduction available from here — Vercel's logs need an authentication
+this session lacks and outbound HTTPS to `*.vercel.app` is proxy-blocked. If a
+deployment still fails after this, the cause is a second, separate one.
