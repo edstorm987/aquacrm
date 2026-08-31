@@ -286,6 +286,24 @@ export function upsertPerson(agencyId: string, input: UpsertPersonInput): Upsert
       facets: mergeFacets(existing.facets, input.facets),
       updatedAt: now,
     };
+    // A re-upsert that changes NOTHING must not write.
+    //
+    // This is a read-path function: `listOperationalAlerts` calls it while
+    // building the attention feed, and that feed is built by the agency layout
+    // AND the agency page — so it runs on every agency render. Writing
+    // unconditionally meant every page load re-persisted the whole PortalState
+    // blob with a fresh `updatedAt`, and emitted a durable `person.updated`
+    // event PER ENQUIRY PER RENDER: an outbox full of announcements that
+    // nothing had actually happened, plus a `updatedAt` that recorded when the
+    // page was last looked at rather than when the person last changed.
+    //
+    // Compared on everything except `updatedAt` itself, which is the field the
+    // write would set. The phone-sharing sweep is a real state change of its
+    // own, so its presence forces the write through.
+    const settled = identitySettlement.sharedPhoneValues.size > 0;
+    const substantive = JSON.stringify({ ...next, updatedAt: 0 }) !== JSON.stringify({ ...existing, updatedAt: 0 });
+    if (!settled && !substantive) return { person: existing, created: false };
+
     mutate(state => {
       markOtherPhoneOwnersShared(
         state.persons,

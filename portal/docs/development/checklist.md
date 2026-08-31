@@ -1,3 +1,14 @@
+> # ⛔ RETIRED — do not add to this file
+> 
+> **The one task list is [`TODO.md`](TODO.md).** This file and its counterpart held
+> the same work in two different wordings: 130 of ~145 issue ids appeared in both, and
+> 7 issues were marked done in one while still open in the other, so neither could be
+> trusted. Every open row was merged into `TODO.md` on 2026-08-31 and the merge was
+> checked for drops.
+> 
+> Kept for its history and its written reasoning, which `TODO.md` deliberately does not
+> duplicate. Detail for every `#N` lives in [`issues.md`](issues.md).
+
 # Checklist — 2026-08-27 (current source, tests and browser findings)
 
 > ★ **This is the one answer to "where do we stand".** As of 2026-08-27 nothing
@@ -1237,11 +1248,28 @@ Detailed scope and file map:
       the root with `aria-hidden` and nests the only live `role="status"` inside it, so the visible
       wait has no screen-reader announcement. Separate decorative skeletons from the live status
       and verify transition/removal/focus behavior. → [issues #136](issues.md)
-- [ ] **P2 — replace labelled HTTP “viewports” with real responsive acceptance.** The UX smoke
-      sends 375/768/1280 only as User-Agent text and repeats server-HTML substring checks; it does
-      not render CSS, execute client interactions, inspect overflow/focus/accessibility or capture
-      browser console failures. Retain it as markup smoke and add the actual browser matrix.
-      → [issues #137](issues.md)
+- [x] **P2 — replace labelled HTTP “viewports” with real responsive acceptance. DONE 2026-08-31,
+      and the gate is GREEN.** `npm run browser:matrix` drives real Chromium over 13 pages × 17
+      viewports — the six required primaries plus 320×568, 200% zoom on desktop and mobile, and
+      both sides of every Tailwind breakpoint — and renders actual CSS: layout overflow, a keyboard
+      Tab walk with focus-indicator checks, axe (wcag2a/aa + wcag21a/aa + best-practice), the
+      console and the network log. `smoke-ux.mjs` is retained as markup smoke; it is no longer
+      mistaken for responsive acceptance.
+      **`1,308 passed · 0 failed · 18 observations`**, from an opening 352 failures. The
+      observations are all named dev-server recompilation, downgraded only when the target proves
+      itself a dev server through its own HMR socket — against a production target every one of
+      them fails.
+      **208 of the original 352 were the gate measuring wrong** (a 0.14s CSS transition sampled in
+      the same task as the Tab press; a trap detector comparing description strings instead of node
+      identity; an instrumentation attribute written into React-owned DOM; and a dev-server flag
+      proven one page too late). All four are fixed and pinned two-sided. Full account in
+      `CAMPAIGN-LEDGER.md`, including a correction to three earlier entries that reported those
+      false failures as app defects.
+      **Scope this does NOT cover, deliberately:** the walk visits pages without opening dialogs or
+      menus, so modal containment and composite-widget keyboard models are untouched by it — that
+      is #138, still open. Keyboard ACTIVATION is also not provable this way (a synthetic Enter on
+      a plain `<button>` records zero activations). Evidence label: **local-browser**, not
+      deployed-live. → [issues #137](issues.md)
 - [ ] **P2 — make composite-widget roles truthful and keyboard-complete.** All 12 declared
       tablists and nine production menus omit their arrow/roving navigation, Settings references
       absent tabpanels, and one editor listbox has no item-navigation model. Use shared accessible

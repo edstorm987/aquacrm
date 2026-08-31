@@ -3083,7 +3083,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** Two-factor authentication, via Supabase. Aqua does not implement 2FA — Supabase Auth already has it, and a hand-rolled TOTP implementation is a liability with no upside. What live…
 
-**Exports (31):**
+**Exports (32):**
 
 - `requireTwoFactor(state: AssuranceState): MfaRequirement` — Whether a session may perform an action that requires two factors. Connecting a client's software to their account is exactly such an action: it binds a piece of external software…
 - `readAssurance(value: unknown): AssuranceState` — Reads the assurance state from whatever Supabase returned. Tolerant of the shape rather than assuming it, and — critically — failing closed. An unreadable response yields no assur…
@@ -3102,13 +3102,14 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `recoveryCodeMatches(code: unknown, hashes: string[]): number` — Which stored hash (if any) a submitted code matches. Every hash is checked even after a match is found, so the work done does not say where — or whether — the match happened.
 - `async issueRecoveryCodesIfMissing(userId: string): Promise<string[] | undefined>` — Generate and store this user's recovery codes if they have none left to lose — no existing set, or a set that is fully spent. Returns the plaintext codes ONLY when a fresh set was…
 - `async consumeRecoveryCode(userId: string, rawCode: unknown): Promise<{ ok: true; remaining: number } | { ok: false }>` — Spend one recovery code. The re-check happens inside the mutation, so two requests racing on the same code cannot both be told yes — `mutate` is synchronous and the second one fin…
+- `mfaUnavailableResponse(): Response | null` — The honest answer when two-factor cannot run at all. Every MFA route builds its client with `createRouteSupabaseClient`, which calls `requireSupabasePublicConfig()` and THROWS whe…
 - `MFA_LOGIN_CHALLENGE_MESSAGE = "Enter the six-digit code from your authenticator app to finish signing in."` — The message shown when a code is needed. It is only ever reached *after* a correct password, so it cannot be used to discover whether an account exists — but it also says nothing …
 - `MFA_LOGIN_REJECTED_MESSAGE = "That code was not right. Try the current one."` — Same wording whether the code was wrong, expired or already used.
 - `MFA_LOGIN_UNAVAILABLE_MESSAGE = "Two-factor authentication is switched on for this account but could not be checked here. "` — A factor exists but Aqua has no way to challenge it — refuse, never skip.
 - `MFA_SIDE_DOOR_ENROLLED_ERROR = "mfa_required"` — Query-string error code: enrolled — use password + authenticator instead.
 - `MFA_SIDE_DOOR_UNCHECKED_ERROR = "mfa_unavailable"` — Query-string error code: enrolment could not be checked — refused.
 - `RECOVERY_CODE_COUNT = 10` — the enrolment screen itself demands.
-- `type AssuranceLevel = "aal1" | "aal2"` — Two-factor authentication, via Supabase. Aqua does not implement 2FA — Supabase Auth already has it, and a hand-rolled TOTP implementation is a liability with no upside. What live…
+- `type AssuranceLevel = "aal1" | "aal2"`
 - `type MfaRequirement = | { status: "satisfied" } /** Has a factor, has not been challenged on this session. */ | { status: "challenge-required"; message: string } /** No factor at all — must enrol before this action is p…`
 - `type LoginMfaStep = | { status: "not-required" } /** A factor exists and no code came with the request. Withhold the session. */ | { status: "code-required"; message: string } /** A code came with the request — check it…`
 - `type SideDoorLookup = | { outcome: "found"; factors: Array<{ status?: unknown }> | null | undefined } /** No Supabase account for this email at all (most end-customers). */ | { outcome: "absent" } /** The lookup failed …` — What the enrolment lookup found out, expressed without a Supabase type.
@@ -3117,7 +3118,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface SignedInUser (1 members)` — The shape of the user Supabase hands back from a password sign-in.
 - `interface ChallengeableFactor (2 members)` — A factor the login gate is able to challenge.
 
-**Depends on:** _No internal imports._
+**Depends on (1):** [`src/lib/supabase/config.ts`](#file-src-lib-supabase-config-ts-bce56de604)
 
 **Used by (7):** [`scripts/smoke-mfa-doors.test.ts`](scripts.md#file-scripts-smoke-mfa-doors-test-ts-fd58cf015f) · [`scripts/smoke-mfa.test.ts`](scripts.md#file-scripts-smoke-mfa-test-ts-246b24e7ad) · [`src/app/api/auth/login/route.ts`](app.md#file-src-app-api-auth-login-route-ts-ee4ec679af) · [`src/app/api/auth/magic/verify/route.ts`](app.md#file-src-app-api-auth-magic-verify-route-ts-7db07be0c8) · [`src/app/api/auth/oauth/google/callback/route.ts`](app.md#file-src-app-api-auth-oauth-google-callback-route-ts-9b9be0b68e) · [`src/app/api/portal/mfa/enrol/route.ts`](app.md#file-src-app-api-portal-mfa-enrol-route-ts-e7165421c2) · [`src/app/api/portal/mfa/verify/route.ts`](app.md#file-src-app-api-portal-mfa-verify-route-ts-95a35f6ae9)
 
@@ -6409,7 +6410,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on:** _No internal imports._
 
-**Used by (4):** [`src/app/portal/agency/governance/_governanceData.ts`](app.md#file-src-app-portal-agency-governance-governancedata-ts-ecdaa49f02) · [`src/lib/server/auth/auth.ts`](#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/supabase/route.ts`](#file-src-lib-supabase-route-ts-62d79257db) · [`src/lib/supabase/server.ts`](#file-src-lib-supabase-server-ts-54d622904e)
+**Used by (6):** [`src/app/portal/account/page.tsx`](app.md#file-src-app-portal-account-page-tsx-3688a56638) · [`src/app/portal/agency/governance/_governanceData.ts`](app.md#file-src-app-portal-agency-governance-governancedata-ts-ecdaa49f02) · [`src/lib/server/auth/auth.ts`](#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/mfa.ts`](#file-src-lib-server-auth-mfa-ts-2eef53bfa4) · [`src/lib/supabase/route.ts`](#file-src-lib-supabase-route-ts-62d79257db) · [`src/lib/supabase/server.ts`](#file-src-lib-supabase-server-ts-54d622904e)
 
 <a id="file-src-lib-supabase-enquiryagencycolumn-ts-988b0a5281"></a>
 

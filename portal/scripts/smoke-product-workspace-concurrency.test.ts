@@ -6,11 +6,15 @@ import { access, mkdir, rm, writeFile } from "node:fs/promises";
 import { mkdtempSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { after, before, describe, test } from "node:test";
 
 const require_ = createRequire(import.meta.url);
-const ROOT = resolve(import.meta.dirname, "..");
+// `import.meta.dirname` is undefined when this file is loaded through tsx's
+// CJS transform, which threw before a single assertion ran. `import.meta.url`
+// is populated in both loaders.
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const TSX_LOADER = require_.resolve("tsx");
 const SANDBOX = mkdtempSync(join(tmpdir(), "aqua-product-workspace-race-"));
 

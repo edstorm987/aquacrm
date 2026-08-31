@@ -117,15 +117,22 @@ expect("card-grid still has cards[] default for back-compat",
 expect("icon default still glyph mode (back-compat)",
   typeof BLOCK_REGISTRY.icon?.defaultProps?.glyph === "string");
 
-console.log("\nstarter loader — aqua-incubator round-trip");
-const { loadStarterTree, listStarterIds } = await import("../server/starterLoader");
-const incubatorStarter = await loadStarterTree("aqua-incubator");
-expect("loadStarterTree('aqua-incubator') resolves", incubatorStarter !== null);
-expect("starter role is account (Q-ASSUMED v1)", incubatorStarter?.role === "account");
-expect("starter blocks[] non-empty",
-  Array.isArray(incubatorStarter?.blocks) && (incubatorStarter?.blocks.length ?? 0) > 0);
-expect("listStarterIds includes aqua-incubator + 4 sub-pages",
-  AQUA_INCUBATOR_TEMPLATE_IDS.every(id => listStarterIds().includes(id)));
+// Wrapped in an async IIFE rather than left as top-level await: this package
+// no longer declares `"type": "module"` (that declaration was what made every
+// `@/…` named import from inside a plugin fail to link under tsx), and CJS
+// output cannot carry a top-level await. Same order, same assertions, same
+// exit code — only the awaits now have a function to live in.
+void (async () => {
+  console.log("\nstarter loader — aqua-incubator round-trip");
+  const { loadStarterTree, listStarterIds } = await import("../server/starterLoader");
+  const incubatorStarter = await loadStarterTree("aqua-incubator");
+  expect("loadStarterTree('aqua-incubator') resolves", incubatorStarter !== null);
+  expect("starter role is account (Q-ASSUMED v1)", incubatorStarter?.role === "account");
+  expect("starter blocks[] non-empty",
+    Array.isArray(incubatorStarter?.blocks) && (incubatorStarter?.blocks.length ?? 0) > 0);
+  expect("listStarterIds includes aqua-incubator + 4 sub-pages",
+    AQUA_INCUBATOR_TEMPLATE_IDS.every(id => listStarterIds().includes(id)));
 
-console.log(`\n${passes} passed · ${failures} failed`);
-if (failures > 0) process.exit(1);
+  console.log(`\n${passes} passed · ${failures} failed`);
+  if (failures > 0) process.exit(1);
+})();

@@ -2,8 +2,7 @@
   "name": "@aqua/plugin-memberships",
   "version": "0.1.0",
   "private": true,
-  "description": "Aqua portal memberships plugin — recurring subscription tiers, benefits, per-end-customer subscription state. Billed via injected StripePort (foundation reads per-install Stripe keys from the ecommerce plugin install). scopePolicy: 'client', requires: ['ecommerce'], opt-in.",
-  "type": "module",
+  "description": "Aqua portal memberships plugin \u2014 recurring subscription tiers, benefits, per-end-customer subscription state. Billed via injected StripePort (foundation reads per-install Stripe keys from the ecommerce plugin install). scopePolicy: 'client', requires: ['ecommerce'], opt-in.",
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",

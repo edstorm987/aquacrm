@@ -1097,7 +1097,19 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
           />
         </div>
       ) : (
-        <div className="w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain">
+        // A horizontally scrollable region needs either focusable content or a
+        // tab stop of its own — otherwise a keyboard user can see that the
+        // board scrolls and has no way to scroll it. With no leads the columns
+        // hold nothing focusable at all, which is exactly when axe reported
+        // `scrollable-region-focusable`. The stop is unconditional rather than
+        // data-dependent: whether the board is reachable must not depend on
+        // whether it happens to have cards in it today.
+        <div
+          role="region"
+          aria-label="Pipeline board, scrolls horizontally"
+          tabIndex={0}
+          className="w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain"
+        >
           <div className="grid grid-cols-1 gap-3 pb-2 lg:w-max lg:grid-flow-col lg:auto-cols-[280px]">
           {columns.map(col => {
           const cards = grouped.get(col.id) ?? [];
@@ -1823,13 +1835,13 @@ function JourneyOverviewDashboard({
 
   return (
     <section className="space-y-5" aria-labelledby="journey-overview-heading">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <JourneyMetric label="Total journey" value={String(total)} detail={`${prospects} scouting · ${leads} qualified`} />
         <JourneyMetric label="Awaiting first reply" value={String(awaitingResponse)} detail={oldestWaitingMs ? `Oldest has waited ${formatElapsed(oldestWaitingMs)}` : "Every enquiry has a response"} tone={awaitingResponse ? "warning" : "complete"} />
         <JourneyMetric label="Average first reply" value={averageFirstResponseMs === undefined ? "—" : formatElapsed(averageFirstResponseMs)} detail={`${contacted} contacted · measured from capture`} />
         <JourneyMetric label="Follow-up due" value={String(followUpDue)} detail={`${stalled} in the same stage for 7d+`} tone={followUpDue || stalled ? "warning" : "complete"} />
         <JourneyMetric label="Oldest active stage" value={oldestStageMs ? formatElapsed(oldestStageMs) : "—"} detail={`${upcomingMeetings}/${meetings} meetings dated · ${won} won · ${winRate}% win rate`} />
-      </div>
+      </dl>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
         <div className="rounded-lg border border-black/10 bg-white">
@@ -1894,7 +1906,12 @@ function JourneyOverviewDashboard({
 
 function JourneyMetric({ label, value, detail, tone = "neutral" }: { label: string; value: string; detail: string; tone?: "neutral" | "warning" | "complete" }) {
   const valueStyle = tone === "warning" ? "text-amber-800" : tone === "complete" ? "text-emerald-700" : "text-black/85";
-  return <div className="rounded-lg border border-black/10 bg-white p-4"><dt className="text-xs font-medium text-black/45">{label}</dt><dd className={`mt-2 text-2xl font-semibold ${valueStyle}`}>{value}</dd><p className="mt-1 text-xs text-black/42">{detail}</p></div>;
+  // Both the number and the sentence under it DESCRIBE the label, so both are
+  // <dd>. The detail was a <p>, which is not permitted inside a <dl>'s group
+  // wrapper — and the wrapper itself was a plain grid <div>, so these dt/dd had
+  // no <dl> ancestor at all. axe reported `dlitem` on all ten nodes across
+  // every viewport. The grid is now the <dl> (see JourneyOverview).
+  return <div className="rounded-lg border border-black/10 bg-white p-4"><dt className="text-xs font-medium text-black/45">{label}</dt><dd className={`mt-2 text-2xl font-semibold ${valueStyle}`}>{value}</dd><dd className="mt-1 text-xs text-black/42">{detail}</dd></div>;
 }
 
 

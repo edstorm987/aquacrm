@@ -1,6 +1,7 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
+import { readFileSync } from "node:fs";
 import { NextRequest } from "next/server";
 
 import {
@@ -1097,7 +1098,32 @@ describe("what the account page shows", () => {
 
   it("is reachable from the account page at all", () => {
     // The endpoints existed for two months with nowhere to reach them from.
-    assert.match(read("src", "app", "portal", "account", "page.tsx"), /<TwoFactorPanel \/>/);
+    assert.match(read("src", "app", "portal", "account", "page.tsx"), /<TwoFactorPanel available=\{/);
+  });
+
+  it("does not ask a question the deployment has already answered", () => {
+    // Two-factor here is Supabase TOTP. On a deployment with no Supabase auth
+    // the route answers an honest 503 — but the panel used to fire the request
+    // anyway, on every load, producing a console error and a failed request
+    // that can never resolve. The browser matrix reported it on all seventeen
+    // viewports: 34 of its 352 failures were this one component asking a
+    // question whose answer is fixed at deploy time.
+    //
+    // The capability is decided on the SERVER, where the environment actually
+    // is, and passed in. A client-side probe would reintroduce the request.
+    const page = read("src", "app", "portal", "account", "page.tsx");
+    assert.match(page, /getSupabasePublicConfig\(\) !== null/, "the server decides, from the real environment");
+    assert.match(panel(), /if \(available\) void refresh\(\)/, "no request when it cannot succeed");
+    assert.match(panel(), /if \(!available\) \{/, "and a stated reason in place of the control");
+    assert.match(panel(), /Unavailable/, "…labelled Unavailable, never as merely Off");
+  });
+
+  it("still says Off — not Unavailable — when the deployment CAN do it", () => {
+    // The failure this pins is the mirror image: a panel that reports
+    // "Unavailable" on a working deployment would talk a user out of turning
+    // on two-factor they are perfectly able to turn on. `available` defaults
+    // to true, and the unavailable branch is reached only by an explicit false.
+    assert.match(panel(), /\{ available = true \}/, "available defaults to true");
   });
 
   it("reuses the existing setup component rather than a second one", () => {
@@ -1198,4 +1224,48 @@ describe("the screen that satisfies the gate", () => {
       assert.match(form, /mfaRequired/, "enrolment is live but the login form cannot answer it");
     }
 });
+});
+
+describe("an unconfigured deployment says two-factor is unavailable, not broken", () => {
+  // Every MFA route builds its client with `createRouteSupabaseClient`, which
+  // calls `requireSupabasePublicConfig()` and THROWS when Supabase is absent.
+  // An uncaught throw in a route handler is a 500, so a deployment that simply
+  // has no Supabase credentials reported "two-factor is broken". The browser
+  // matrix caught `POST /api/portal/mfa/enrol` answering 500 on EVERY viewport.
+  // A missing configuration is not a server fault.
+  it("mfaUnavailableResponse answers 503 with a reason when Supabase is absent", async () => {
+    const mod = await import("../src/lib/server/auth/mfa");
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    try {
+      delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+      delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      const response = mod.mfaUnavailableResponse();
+      assert.ok(response, "an unconfigured deployment was waved through to a throw");
+      assert.equal(response.status, 503, "a missing configuration is not a 500 server fault");
+      const body = await response.json() as { ok: boolean; code: string; error: string };
+      assert.equal(body.ok, false);
+      assert.equal(body.code, "mfa_unavailable");
+      assert.match(body.error, /not configured|not available/i,
+        "the refusal must say WHY, not just fail");
+    } finally {
+      if (url === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+      else process.env.NEXT_PUBLIC_SUPABASE_URL = url;
+      if (key === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      else process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = key;
+    }
+  });
+
+  it("every MFA handler consults it before touching Supabase", () => {
+    // The guard is worthless if a handler forgets it, so this is a sweep, not
+    // a spot-check: any exported handler in the MFA routes must call it.
+    for (const file of ["src/app/api/portal/mfa/enrol/route.ts", "src/app/api/portal/mfa/verify/route.ts"]) {
+      const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
+      const handlers = (source.match(/export async function (GET|POST|DELETE|PATCH|PUT)\(/g) ?? []).length;
+      const guards = (source.match(/mfaUnavailableResponse\(\)/g) ?? []).length;
+      assert.ok(handlers > 0, `${file}: no handlers found — this sweep has gone blind`);
+      assert.equal(guards, handlers,
+        `${file}: ${handlers} handler(s) but ${guards} guard(s) — one can still 500 on an unconfigured deployment`);
+    }
+  });
 });

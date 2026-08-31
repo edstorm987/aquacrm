@@ -109,7 +109,13 @@ export function MyRadarPanel({ allocation, wellbeing, daysWorked, personLabel, h
       {baselinesHref && nothingPlanned ? (
         <p className="mt-3 rounded-md border border-black/10 bg-black/[0.02] px-3 py-2 text-[11px] leading-4 text-black/55">
           Nothing is planned yet, so nothing can be starved.{" "}
-          <a href={baselinesHref} className="font-semibold text-[#0b6f6d] underline underline-offset-2">
+          {/* Inherits the paragraph's colour rather than hardcoding the brand
+              teal. `#0b6f6d` reads 5.98:1 on white but only 2.47:1 on the dark
+              workspace surface this panel also renders on, and an arbitrary
+              Tailwind value has no theme override to correct it. Weight plus
+              underline is the affordance; the colour follows whatever the
+              surrounding text already proved legible. */}
+          <a href={baselinesHref} className="font-semibold text-current underline underline-offset-2">
             Set a weekly baseline per department
           </a>{" "}
           and this starts answering which area is short.

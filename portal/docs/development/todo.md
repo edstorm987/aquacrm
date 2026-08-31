@@ -1,3 +1,14 @@
+> # ⛔ RETIRED — do not add to this file
+> 
+> **The one task list is [`TODO.md`](TODO.md).** This file and its counterpart held
+> the same work in two different wordings: 130 of ~145 issue ids appeared in both, and
+> 7 issues were marked done in one while still open in the other, so neither could be
+> trusted. Every open row was merged into `TODO.md` on 2026-08-31 and the merge was
+> checked for drops.
+> 
+> Kept for its history and its written reasoning, which `TODO.md` deliberately does not
+> duplicate. Detail for every `#N` lives in [`issues.md`](issues.md).
+
 # To-do — cleanup & finishing
 
 ← Back to [development.md](../development.md) (the law)

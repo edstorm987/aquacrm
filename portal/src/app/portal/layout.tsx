@@ -24,6 +24,37 @@ import { getUserById } from "@/server/users";
 import { AGENCY_ROLES } from "@/server/types";
 import { dashboardPlanningSnapshot } from "@/server/dashboardPlanning";
 
+/**
+ * Every route under `/portal` is behind a session, and every one of them
+ * already renders dynamically — the build output marks the whole subtree `ƒ`.
+ * Saying so explicitly is not a behaviour change; it stops Next ATTEMPTING to
+ * prerender them, which is a different thing entirely.
+ *
+ * ── Why that matters ─────────────────────────────────────────────────────
+ *
+ * Next discovers that a route is dynamic by RUNNING it and watching for the
+ * first cookie/header read. 43 page and layout files under `/portal` call
+ * `ensureHydrated()` before they touch the session, so that store access
+ * happened during the build. `pickBackend()` promotes to Postgres the moment
+ * `DATABASE_URL` is set — production and nowhere else — so the build depended
+ * on a live database it had no business needing, and a database that was
+ * briefly unreachable did not slow the deploy, it ended it:
+ *
+ *     Generating static pages (225/301)
+ *     Error occurred prerendering page "/portal/account"
+ *     Error: Connection terminated due to connection timeout
+ *     Export encountered an error on /portal/account/page, exiting the build.
+ *
+ * Reproduced by pointing `DATABASE_URL` at a non-routable address (RFC 5737
+ * TEST-NET-2) and running the real build. It never reproduces locally, because
+ * with no `DATABASE_URL` the file backend answers instantly.
+ *
+ * Declared here rather than in 43 files: a layout's route-segment config
+ * applies to its whole subtree, and the property being asserted is about the
+ * subtree, not about any one page.
+ */
+export const dynamic = "force-dynamic";
+
 export default function PortalLayout({ children }: { children: ReactNode }) {
   return (
     <PortalLoadingCoordinator scope="workspace">

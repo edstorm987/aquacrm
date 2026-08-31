@@ -2,8 +2,7 @@
   "name": "@aqua/plugin-agency-hr",
   "version": "0.1.0",
   "private": true,
-  "description": "Aqua portal agency-HR plugin — staff directory, departments, leave management. Agency-scoped (scopePolicy: 'agency'), opt-in (core: false). v1 covers staff CRUD + department tree + leave requests; payroll / timesheets / performance reviews are out of scope.",
-  "type": "module",
+  "description": "Aqua portal agency-HR plugin \u2014 staff directory, departments, leave management. Agency-scoped (scopePolicy: 'agency'), opt-in (core: false). v1 covers staff CRUD + department tree + leave requests; payroll / timesheets / performance reviews are out of scope.",
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",

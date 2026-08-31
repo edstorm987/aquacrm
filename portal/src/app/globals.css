@@ -3285,6 +3285,19 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
   background: color-mix(in srgb, var(--area-accent) 3.5%, var(--brand-bg, #fafafa));
 }
 
+/* The bleed above assumes a padded shell to bleed INTO. Two pages —
+   /portal/account and /portal/account/permissions — put the canvas class on
+   the page's own <main>, whose parent is a `display: contents` wrapper with no
+   padding at all. There the -1rem inline margin has nothing to cancel: the
+   whole page shifts 16px left, leaving a 16px dead strip down the right edge
+   and reporting horizontal overflow. Unnoticeable at 1280px; at 200% zoom on a
+   phone (a 187px CSS viewport) it is 8.5% of the screen, and the browser
+   matrix measured it. A canvas that IS the <main> has no shell, so no bleed. */
+main#main-content.mm-route-canvas {
+  margin: 0;
+  min-height: 100%;
+}
+
 /* Responsive workspace foundation. Flex and grid descendants default to
    min-width:auto, which lets dense controls silently push past a tablet or
    phone viewport. Keep content shrinkable and give intentional scrollers the
@@ -7369,7 +7382,11 @@ html[data-portal-shell="command"] .mm-color-mode-toggle {
 }
 
 .mm-command-center-workspace .mm-command-station-detail {
-  color: rgb(142 201 213 / 0.58) !important;
+  /* 0.74 not 0.58. At 0.58 this 11px station subtitle ("Clock in, plan today
+     and record progress") computed 3.99:1 against the #151e20 station nav —
+     just under the 4.5:1 AA minimum, on every viewport. 0.74 computes 5.66:1
+     and keeps it visibly secondary to the label above it. */
+  color: rgb(142 201 213 / 0.74) !important;
 }
 
 .mm-command-station-button[data-tone="aqua"] { --command-station-accent: #68f5d0; }

@@ -2,8 +2,7 @@
   "name": "@aqua/plugin-agency-finance",
   "version": "0.1.0",
   "private": true,
-  "description": "Aqua portal agency-finance plugin — invoices, expenses, revenue dashboard. Agency-internal companion to agency-HR. scopePolicy: 'agency', core: false. Manual invoice tracking + expense approvals; Stripe Invoice sync and PDF export deferred to a future round.",
-  "type": "module",
+  "description": "Aqua portal agency-finance plugin \u2014 invoices, expenses, revenue dashboard. Agency-internal companion to agency-HR. scopePolicy: 'agency', core: false. Manual invoice tracking + expense approvals; Stripe Invoice sync and PDF export deferred to a future round.",
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",

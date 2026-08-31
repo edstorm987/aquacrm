@@ -2,8 +2,7 @@
   "name": "@aqua/plugin-fulfillment",
   "version": "0.1.0",
   "private": true,
-  "description": "Aqua portal fulfillment plugin — phase lifecycle, collaborative checklist, client CRUD, plugin marketplace UI. Auto-installed for every agency.",
-  "type": "module",
+  "description": "Aqua portal fulfillment plugin \u2014 phase lifecycle, collaborative checklist, client CRUD, plugin marketplace UI. Auto-installed for every agency.",
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",

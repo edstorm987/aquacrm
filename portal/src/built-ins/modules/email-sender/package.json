@@ -2,8 +2,7 @@
   "name": "@aqua/plugin-email-sender",
   "version": "0.1.0",
   "private": true,
-  "description": "Aqua portal email-sender plugin — cross-cutting email delivery engine. Provides EmailQueuePort to other plugins (agency-marketing templates, forms notifications, memberships welcome/invoice, affiliates payout-paid). Postmark + SMTP delivery; provider none keeps messages queued; SendGrid/Resend remain stubs.",
-  "type": "module",
+  "description": "Aqua portal email-sender plugin \u2014 cross-cutting email delivery engine. Provides EmailQueuePort to other plugins (agency-marketing templates, forms notifications, memberships welcome/invoice, affiliates payout-paid). Postmark + SMTP delivery; provider none keeps messages queued; SendGrid/Resend remain stubs.",
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",

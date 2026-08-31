@@ -2,7 +2,7 @@
 
 > Verified findings, independent reviews, browser audits and the testing record.
 >
-> Consolidated 2026-08-31 from **11** source documents / **110,874 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-31 from **11** source documents / **111,162 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -13,7 +13,7 @@
 - [`docs/development/findings/2026-08-22-app-audit-salvage.md`](#source-docs-development-findings-2026-08-22-app-audit-salvage-md) — 1,294 words · `16f6f10e5bc4`
 - [`docs/development/findings/2026-08-22-stripe-can-never-be-configured.md`](#source-docs-development-findings-2026-08-22-stripe-can-never-be-configured-md) — 466 words · `e91f13c8620f`
 - [`docs/development/findings/2026-08-22-surfaces-that-state-a-falsehood.md`](#source-docs-development-findings-2026-08-22-surfaces-that-state-a-falsehood-md) — 892 words · `dfeb4a6302c1`
-- [`docs/development/issues.md`](#source-docs-development-issues-md) — 36,809 words · `0d5217e31bb8`
+- [`docs/development/issues.md`](#source-docs-development-issues-md) — 37,097 words · `53000cbcfbda`
 - [`docs/development/tests.md`](#source-docs-development-tests-md) — 12,972 words · `b99af1dace66`
 - [`docs/development/ultra-review-2026-08-24.md`](#source-docs-development-ultra-review-2026-08-24-md) — 15,503 words · `15cc2bde09ad`
 - [`docs/development/visual-browser-audit-2026-08-23.md`](#source-docs-development-visual-browser-audit-2026-08-23-md) — 3,582 words · `3ee9b61d74e3`
@@ -2001,7 +2001,7 @@ _Captured from the Dev Team portal. Findings are the input side: review them, tu
 
 ## Source document — `docs/development/issues.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/issues.md" sha256="0d5217e31bb86463fcd3f8ccef3bdfd852041f0dcc8e58074f99b11633508879" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/issues.md" sha256="53000cbcfbdacc9ef903fa608318f5b0ce6b2b4e7f127abfedd8cd33ef991527" -->
 # Issues & risks
 
 ← Back to [development.md](../development.md) (the law)
@@ -5151,8 +5151,31 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     acceptance gate. The 2026-08-25 real-browser continuation supplies broad 375/768/1280
     render evidence and found an eight-pixel Freelancer desktop overflow. **✅ Concrete overflow
     resolved 2026-08-25:** the global canvas rule no longer overrides the shell's intentional
-    width constraint, and the body overflow regression is browser-verified. The larger requirement
-    for a repeatable automated responsive/accessibility browser gate remains open.
+    width constraint, and the body overflow regression is browser-verified.
+
+    **✅ RESOLVED 2026-08-31 — the gate exists, is repeatable, and is green.**
+    `npm run browser:matrix` (`scripts/browser-matrix.mjs`) launches real Chromium over 13 pages ×
+    17 viewports: the six required primaries, 320×568, 200% zoom on desktop and mobile, and both
+    sides of every Tailwind breakpoint. Per page it measures document and `#main-content` overflow,
+    walks the keyboard with focus-indicator checks, runs axe across wcag2a/aa + wcag21a/aa +
+    best-practice, and reads the console and network logs. `smoke-ux.mjs` stays as markup smoke and
+    its labels are no longer treated as responsive evidence.
+    **`1,308 passed · 0 failed · 18 observations`**, from an opening 352 failures. Every
+    observation is named dev-server recompilation and is downgraded only when the target proves
+    itself a dev server through its own HMR socket — against a production target each one fails.
+    Three structural safeguards make a green run mean something: a MISSING required check fails the
+    run rather than being absent from it, `axeVerdict(null)` fails ("did not look" is not "found
+    nothing"), and a page that never navigated fails its console and network checks rather than
+    scoring an empty log as clean.
+    **208 of the original 352 failures were the gate itself measuring wrong** — a 0.14s CSS
+    transition sampled in the same task as the Tab press, a trap detector comparing description
+    strings rather than node identity, an instrumentation attribute written into React-owned DOM,
+    and the dev-server flag proven one page too late. All four fixed, each pinned by a test proven
+    two-sided. See `CAMPAIGN-LEDGER.md`, which also corrects three earlier entries that reported
+    those false failures as app defects.
+    **Still out of scope, deliberately:** the walk visits pages without opening dialogs or menus,
+    so modal containment and composite-widget keyboard models are untouched — that is #138. Keyboard
+    ACTIVATION is not provable this way either. Evidence label: **local-browser**, not deployed-live.
 
 138. **P2 — declared tabs, menus and one editor listbox do not implement the keyboard
     model their ARIA roles announce.** All 12 TSX files containing `role="tablist"` leave every

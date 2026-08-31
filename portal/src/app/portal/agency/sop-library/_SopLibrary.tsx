@@ -373,11 +373,15 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
         ) : null}
       </header>
 
-      <nav className="mt-4 inline-flex rounded-lg border border-black/10 bg-black/[0.025] p-1 text-sm font-semibold">
-        <button type="button" onClick={() => setView("library")} aria-pressed={view === "library"} className={`inline-flex min-h-9 items-center gap-2 rounded-md px-3 ${view === "library" ? "bg-white text-black/85 shadow-sm" : "text-black/50 hover:text-black/75"}`}>
+      {/* `inline-flex` sizes to its content and never shrinks, so at 200% zoom
+          on a phone (a 187px CSS viewport — WCAG 1.4.10 Reflow) this two-tab
+          switcher measured 259px and pushed 72px of the page off the right
+          edge. `flex` + `max-w-full` + wrapping lets it reflow instead. */}
+      <nav className="mt-4 flex max-w-full flex-wrap rounded-lg border border-black/10 bg-black/[0.025] p-1 text-sm font-semibold sm:inline-flex sm:flex-nowrap">
+        <button type="button" onClick={() => setView("library")} aria-pressed={view === "library"} className={`inline-flex min-h-9 min-w-0 items-center gap-2 rounded-md px-3 ${view === "library" ? "bg-white text-black/85 shadow-sm" : "text-black/50 hover:text-black/75"}`}>
           <BookOpen size={15} /> Library
         </button>
-        <button type="button" onClick={() => setView("guides")} aria-pressed={view === "guides"} className={`inline-flex min-h-9 items-center gap-2 rounded-md px-3 ${view === "guides" ? "bg-white text-black/85 shadow-sm" : "text-black/50 hover:text-black/75"}`}>
+        <button type="button" onClick={() => setView("guides")} aria-pressed={view === "guides"} className={`inline-flex min-h-9 min-w-0 items-center gap-2 rounded-md px-3 ${view === "guides" ? "bg-white text-black/85 shadow-sm" : "text-black/50 hover:text-black/75"}`}>
           <GraduationCap size={15} /> Guides<span className="rounded-full bg-black/[0.06] px-1.5 py-0.5 text-[10px] text-black/45">{guides.length}</span>
         </button>
       </nav>
@@ -427,7 +431,10 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
             <span className="mm-area-icon mx-auto grid size-12 place-items-center rounded-lg"><BookOpen size={21} /></span>
             <h2 className="mt-4 text-lg font-semibold text-black/80">No SOPs yet</h2>
             <p className="mt-1 text-sm leading-6 text-black/45">Write your first procedure or upload an existing document when you are ready.</p>
-            {canManageGuides ? <div className="mt-5 flex justify-center gap-2">
+            {/* `flex-wrap`: side by side these two buttons have a 196px
+                min-content width, which does not fit a 187px CSS viewport
+                (200% zoom on a phone — WCAG 1.4.10 Reflow). */}
+            {canManageGuides ? <div className="mt-5 flex flex-wrap justify-center gap-2">
               <button type="button" onClick={() => setUploadOpen(true)} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/12 px-3 text-sm font-medium"><FileUp size={15} /> Upload file</button>
               <button type="button" onClick={() => openWriter()} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white"><PenLine size={15} /> Write SOP</button>
             </div> : <p className="mt-4 text-xs font-semibold text-sky-700">Read-only showcase</p>}
@@ -1061,7 +1068,14 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 function LibraryMetric({ label, value, icon, tone }: { label: string; value: string; icon: React.ReactNode; tone: "blue" | "emerald" | "violet" }) {
-  return <div className="mm-kpi-card mm-surface-card min-w-0 rounded-lg border border-black/10 px-3 py-3 sm:px-4" data-kpi-tone={tone}><div className="flex items-start justify-between gap-2"><dt className="truncate text-[9px] font-semibold uppercase text-black/40 sm:text-[10px]">{label}</dt><span className="mm-kpi-icon hidden size-7 shrink-0 place-items-center rounded-md sm:grid">{icon}</span></div><dd className="mt-1 text-xl font-semibold text-black/85 sm:text-2xl">{value}</dd></div>;
+  // The icon lives INSIDE the <dt>, and the card <div> is the direct child of
+  // the <dl>. It used to be `dl > div > div > dt`, which puts the term two
+  // levels below the list: axe reported `definition-list` on the <dl> and
+  // `dlitem` on all three terms, on every viewport. A `<dl>` may contain a
+  // single `<div>` wrapper per group, but that wrapper must hold the dt/dd
+  // itself — the flex row was a third level. Layout is unchanged: the row is
+  // now the <dt> rather than a div around it.
+  return <div className="mm-kpi-card mm-surface-card min-w-0 rounded-lg border border-black/10 px-3 py-3 sm:px-4" data-kpi-tone={tone}><dt className="flex items-start justify-between gap-2"><span className="truncate text-[9px] font-semibold uppercase text-black/40 sm:text-[10px]">{label}</span><span aria-hidden="true" className="mm-kpi-icon hidden size-7 shrink-0 place-items-center rounded-md sm:grid">{icon}</span></dt><dd className="mt-1 text-xl font-semibold text-black/85 sm:text-2xl">{value}</dd></div>;
 }
 
 function CategoryAssignmentFields({ primary, assigned, categories, onChange, primaryName, categoriesName }: {

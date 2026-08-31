@@ -2,12 +2,12 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-08-31 from **20** source documents / **29,495 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-08-31 from **21** source documents / **34,594 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`AGENTS.md`](#source-agents-md) — 95 words · `63f2c50380ed`
-- [`CLAUDE.md`](#source-claude-md) — 3,545 words · `80e4ff9c47b9`
+- [`CLAUDE.md`](#source-claude-md) — 3,553 words · `c51633c3fefa`
 - [`docs/data/adr/ADR-001-semantic-registry-in-code.md`](#source-docs-data-adr-adr-001-semantic-registry-in-code-md) — 217 words · `f092ef6a564d`
 - [`docs/data/adr/ADR-002-domain-modules-are-the-repository-seam.md`](#source-docs-data-adr-adr-002-domain-modules-are-the-repository-seam-md) — 218 words · `361439671762`
 - [`docs/data/adr/ADR-003-one-calculation-path-per-metric.md`](#source-docs-data-adr-adr-003-one-calculation-path-per-metric-md) — 233 words · `9143b1627c97`
@@ -20,11 +20,12 @@
 - [`docs/data/SOURCE-INVENTORY.md`](#source-docs-data-source-inventory-md) — 1,689 words · `508db7acc293`
 - [`docs/DEVELOPMENT-HANDOFF.md`](#source-docs-development-handoff-md) — 1,552 words · `9199166a1f30`
 - [`docs/development-workspace-cleanup.md`](#source-docs-development-workspace-cleanup-md) — 793 words · `bdb46a5cecd3`
-- [`docs/development.md`](#source-docs-development-md) — 3,248 words · `dd5efef22882`
-- [`docs/development/CAMPAIGN-LEDGER.md`](#source-docs-development-campaign-ledger-md) — 8,263 words · `aff8d4bf94da`
+- [`docs/development.md`](#source-docs-development-md) — 3,285 words · `72103f4efcae`
+- [`docs/development/CAMPAIGN-LEDGER.md`](#source-docs-development-campaign-ledger-md) — 11,346 words · `8906eb267d7b`
 - [`docs/development/CLOUD-RESUME.md`](#source-docs-development-cloud-resume-md) — 500 words · `03458cdf18bf`
 - [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 2,209 words · `f8dfdfa9cfad`
 - [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,622 words · `98fe02dc9d94`
+- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 1,971 words · `79e5f988c982`
 - [`README.md`](#source-readme-md) — 437 words · `78865db66238`
 
 ---
@@ -51,7 +52,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## Source document — `CLAUDE.md`
 
-<!-- AQUACRM_SOURCE_START path="CLAUDE.md" sha256="80e4ff9c47b98744bf3ae4ecdf585cd0702ab35614d1fdea0af5905518afb2e0" -->
+<!-- AQUACRM_SOURCE_START path="CLAUDE.md" sha256="c51633c3fefa642eb9ff8a51fe4a37120ed3bc3ca7396250f179c5b9600e207b" -->
 @AGENTS.md
 
 # AquaCRM Claude Handoff
@@ -61,8 +62,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 **Read this section before dispatching a worker or editing anything.** It is the
 current operational handoff and supersedes the stale status sentences at the
 bottom of this file. It does not supersede source code or
-`docs/development/checklist.md`: source is the final authority and the checklist
-is the one current status document.
+`docs/development/TODO.md`: source is the final authority and **`TODO.md` is the one
+current task list** (`checklist.md` and `todo.md` were retired into it on 2026-08-31).
 
 ### First five minutes: preserve the working state
 
@@ -90,7 +91,7 @@ is the one current status document.
   `docs/context/commander-handoff.md`, or anything in `docs/context/archive/`.
   Those records are history and contain stale persistence, Showcase, erasure,
   and implementation claims. Start from `docs/development.md`, then
-  `docs/development/checklist.md`, and verify every claim in current source.
+  `docs/development/TODO.md`, and verify every claim in current source.
 
 ### Finished work — do not reopen or rebuild it
 
@@ -142,7 +143,7 @@ and 6 have not started. Verify in source before acting on any line here.*
    loopback → an uncommitted edit **retained across Restart** onto a new port →
    `/aqua-tag.js` 200 → Stop, with the edit still on disk. **Remaining:**
    the authoring walk (edit → save → diff → commit → PR) needs **Ed's GitHub
-   credentials — promised, not yet supplied** (see todo.md); plus
+   credentials — promised, not yet supplied** (see TODO.md); plus
    clone-from-remote and the dirty-transition browser matrix (issues #19).
 3. ✅ **Phase 18 client embedding — DONE 2026-08-27, browser-accepted.**
    `/portal` now sends `client-owner`/`client-staff` to **`/portal/customer`**, and all
@@ -320,7 +321,7 @@ template work, the 27 August suites named in the continuation order are current.
   → merge against a real repository cannot be walked without them. When they
   arrive: connect GitHub *in the editor* (one vault, do not fork a second
   connection store) and walk it on a throwaway branch before any client
-  repository. **Never enter a real key yourself.** → `docs/development/todo.md`.
+  repository. **Never enter a real key yourself.** → `docs/development/TODO.md`.
 - Ed must approve merge to main, real onboarding-code walkthrough, live
   Stripe/Meta credentials, deployment environment, and DPO/solicitor decisions.
 - **Resolved 27 August, do not re-ask:** the client-portal placement (the existing
@@ -468,7 +469,7 @@ Current operational snapshot: 27 August 2026 on **`main` at `2f3995b`**, with th
 day's session work (~82 files) intentionally uncommitted on top. The earlier
 snapshot naming `work/2026-08-20-parallel-session` at `1d46479` is history — Ed
 checkpoint-committed that state. The current brief at the top of this file,
-source, and `docs/development/checklist.md` supersede older status prose, and
+source, and `docs/development/TODO.md` supersede older status prose, and
 `git status --short` supersedes all of them.
 <!-- AQUACRM_SOURCE_END path="CLAUDE.md" -->
 
@@ -1881,12 +1882,12 @@ Before deleting a source folder:
 
 ## Source document — `docs/development.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development.md" sha256="dd5efef22882db7c16a70d93acac0188750edfd77cbc8104187bf8b6eb1d2244" -->
+<!-- AQUACRM_SOURCE_START path="docs/development.md" sha256="72103f4efcae121a710c65356bdf6078b4e47b2ae98a5c96a89fbc1f5aebf3a5" -->
 # development.md — the law
 
 **This is the master catalogue and build map for AquaCRM. Use it to find the
 owning document, and update that document after every change.** The current
-answer to “where do we stand?” is [development/checklist.md](development/checklist.md);
+answer to “where do we stand?” is [development/TODO.md](development/TODO.md);
 source remains authoritative when prose and implementation disagree.
 Whether you're an AI or a human, on day one or day one thousand: start here and
 you have the whole project. Nothing is lost because everything is written down
@@ -1933,8 +1934,9 @@ development.md  ← the catalogue (you are here) — the law, tying it all toget
 ├── BOOKS (the top-level docs)
 │   ├── goals.md ......... why we're building this and what "done" is
 │   ├── roadmap.md ....... the roadmap — what's next, in order
-│   ├── checklist.md ..... ★ THE ANSWER to "where do we stand" — the only one
-│   ├── todo.md .......... the working cleanup/finishing checklist
+│   ├── TODO.md ......... ★ THE ONE TASK LIST — "where do we stand", the only one
+│   ├── checklist.md ..... RETIRED 2026-08-31 → merged into TODO.md (kept for history)
+│   ├── todo.md .......... RETIRED 2026-08-31 → merged into TODO.md (kept for history)
 │   ├── issues.md ........ known issues, verified findings, risks
 │   ├── status.md ........ does it actually WORK / can it be USED (≠ "is it coded")
 │   ├── notes.md ......... decisions & context (the "why")
@@ -1971,8 +1973,8 @@ you find a second file answering one of them, it is stale and belongs on the
 | Question | The one file | Not anywhere else |
 |---|---|---|
 | **What changed, and when?** | **[updates.md](development/updates.md)** | It is the log. Append a dated entry after every meaningful change; **never edit an existing entry** — that is the point of a changelog, and the file says so in its own banner. It is also parsed by the Dev Console, so a second log would be invisible as well as redundant. |
-| **Where do we stand?** | **[checklist.md](development/checklist.md)** | Three files used to answer this. Two are now archived. |
-| **What systems exist?** | **[CURRENT-IMPLEMENTATION.md](CURRENT-IMPLEMENTATION.md)** | An inventory, not a status report. Status lives in checklist.md. |
+| **Where do we stand?** | **[TODO.md](development/TODO.md)** | Five files have answered this over time. `TODO.md` is the only one now — `checklist.md` and `todo.md` were merged into it on 2026-08-31 after they drifted into disagreeing about which issues were done. `scripts/smoke-one-task-list.test.ts` fails if a second list appears. |
+| **What systems exist?** | **[CURRENT-IMPLEMENTATION.md](CURRENT-IMPLEMENTATION.md)** | An inventory, not a status report. Status lives in TODO.md. |
 | **How do I run it locally?** | **[DEVELOPMENT-HANDOFF.md](DEVELOPMENT-HANDOFF.md)** | Despite the name it is the environment runbook, **not** a session handoff. Session handoffs are dated and archived. |
 
 Everything dated — old summaries, session records, worker debriefs — lives on the
@@ -1986,14 +1988,14 @@ Everything dated — old summaries, session records, worker debriefs — lives o
 |---|---|
 | **[goals.md](development/goals.md)** | Why AquaCRM exists, who Ed is, the operating model, current strategic goals, and the principles that shape how we build. Read first to understand *what* we're doing. |
 | **[roadmap.md](development/roadmap.md)** | **The roadmap — the outer view.** Every outcome that is coming, its horizon (Now / Next / Later / Someday / Shipped), its target date, and the plans that deliver it. Progress is COMPUTED from those plans' phases, never typed. Written and edited from the Dev Console (`/portal/dev-team/roadmap`); this supersedes phases.md. |
-| **[checklist.md](development/checklist.md)** | **The single most reliable "where do we stand" summary** — what's yours (Ed's) vs mine, in order, generated at the end of a session. If you read one thing before working, read this. |
+| **[TODO.md](development/TODO.md)** | **The one task list.** Blocked-on-Ed first, then P0/P1/P2, each row pointing at its `issues.md` entry for the detail. If you read one thing before working, read this. |
 | **[architecture-noobie.md](architecture-noobie.md)** | The whole system explained in **plain English**, no jargon. Start here if you're new (human or agent) and the catalogue below is too dense. |
 | **[development/plans/fulfilment-template-system.md](development/plans/fulfilment-template-system.md)** | **The template system** — portal/product templates edited once and seeded into every client instance, owned by Fulfilment (Ed's direction, 2026-08-27). Most of the spine already exists; the new idea is a cross-tenant *origin* template. |
 | **[development/plans/dev-editor-finish.md](development/plans/dev-editor-finish.md)** | **Current Dev Editor plan.** The 22 Aug session handoff is preserved on the [history shelf](context/archive/dev-editor-handoff-2026-08-22.md), but it is no longer a current brief. |
 | **[context/archive/](context/archive/README.md)** | 🗄 **The history shelf.** Dated records — superseded summaries, session handoffs, worker debriefs — kept because they are the only place some facts survive, and **never current**. `phases.md` (the old roadmap) lives here now. Nothing on this shelf should brief a worker. |
 | **[plans/](development/plans/)** | One **phased plan per substantial item** (e.g. [radar-upgrade.md](development/plans/radar-upgrade.md), [mfa-login.md](development/plans/mfa-login.md)). Each plan's own `**Status:**` line is the authority on that item. Shipped plans may be moved to [plans/archive/](development/plans/archive/). |
 | **[audits.md](development/audits.md)** | The **independent auditor's verdicts** — the record of what has been *verified*, not just claimed. A 🔴 finding gets a loud banner at the top of that file. Read before trusting a "complete" claim. |
-| **[todo.md](development/todo.md)** | The working **checklist** of cleanup & finishing work — Finish / Clean up / Decide / Prove, with launch-blockers flagged. Tick items off as they land. |
+| ~~checklist.md~~ · ~~todo.md~~ | **Retired 2026-08-31** into `TODO.md`. Kept for their written reasoning, which `TODO.md` deliberately does not duplicate. Do not add to them. |
 | **[issues.md](development/issues.md)** | Known issues, **verified security/compliance findings** (DB RLS not in repo, Aqua Tag consent, …), duplication, and the live-data hazard. Check before assuming you found a new bug. |
 | **[status.md](development/status.md)** | The honest **"does it actually work / can it be used?"** register — kept separate from "is it coded" and "do tests pass". **A passing test ≠ working ≠ usable.** Read before trusting a green suite. |
 | **[notes.md](development/notes.md)** | Durable decisions and non-obvious context — the "why", so nothing is re-litigated or re-tripped-over. |
@@ -2060,7 +2062,7 @@ reach for them when working on that system:
 > useful; a false open item is not.
 
 **Before you build anything:**
-1. Read [checklist.md](development/checklist.md) (where we actually stand), then [goals.md](development/goals.md) (if you don't know the direction) and [roadmap.md](development/roadmap.md) (what's actually next). **Nothing in [context/archive/](context/archive/README.md)** — that shelf is history.
+1. Read [TODO.md](development/TODO.md) (where we actually stand), then [goals.md](development/goals.md) (if you don't know the direction) and [roadmap.md](development/roadmap.md) (what's actually next). **Nothing in [context/archive/](context/archive/README.md)** — that shelf is history.
 2. Find the concern in the [file map](WORKSPACE-FILE-TREE.md) / [feature index](workspace/feature-index.md), and search the [symbol reference](reference/00-index.md) for what already exists. **Reuse → repurpose → simplify before adding new.**
 3. Check [issues.md](development/issues.md) and [hazards-and-duplication.md](workspace/hazards-and-duplication.md) so you edit the canonical copy and don't trip a known risk.
 
@@ -2095,7 +2097,7 @@ documentation, because updating the docs *is* part of finishing the work.
   (`smoke-session-revocation`, 16/16). ⚠ The same day's whole-suite reruns show
   **the full suite is NOT currently green** (~74 pre-existing failures on the
   current tree) — see the truth note at the top of
-  [checklist.md](development/checklist.md).
+  [TODO.md](development/TODO.md).
 - **P1:** showcase GET/OAuth mutations bypass the read-only proxy assumption;
   erasure can report live failures as success, strand retry and retain the client
   name in its audit; Editor AI's database coordination remains incomplete;
@@ -2103,13 +2105,13 @@ documentation, because updating the docs *is* part of finishing the work.
 - **Other reliability queue:** file persistence/corrupt-state recovery, invalid
   client references, truthful website empty states, read-path performance and
   critical browser journeys. The exact order is
-  [checklist.md](development/checklist.md).
+  [TODO.md](development/TODO.md).
 - **The three former 🔴 launch blockers are all FIXED** (source-verified 2026-08-20): freelancer preview escalation (`api/auth/preview-as-freelancer/route.ts:49,101` stashes/restores `previewReturnUserId`), finance create-surface idempotency (`agency-finance/src/lib/idempotency.ts`, wired into invoices · plans · operations · expenses · payments · income), and erasure email-in-log (`leads-pipeline/src/server/contacts.ts:168,227,252,279` log an **id**, never an address).
 - **RLS is ON in live Supabase** (verified across 14 tables with the public anon key, 2026-08-20). What remains is **engineering, not an Ed decision**: the RLS policies ARE version-controlled — 14 migrations in `aquaCRM/supabase/migrations/`, 13 of them predating 2026-08-20. An earlier note here said there were none; that was wrong, written by looking inside `portal/` only, `brand_enquiries` has no `agency_id`, ~37 service-role refs bypass it — see [rls-enable](development/plans/rls-enable.md).
 - **MFA on login is BUILT — all four phases** (verified 2026-08-21). The server gate is `api/auth/login/route.ts:320` (`loginMfaStep`), session assurance is `raisedToSecondFactor` at `:399`, and RECOVERY CODES are built too: `consumeRecoveryCode` (`lib/server/auth/mfa.ts:500`) called from the `check-recovery` branch (`login/route.ts:338,353,358`), with the login form's code step at `app/login/LoginForm.tsx:253-272`. Native form posts carry the code through (`login/route.ts:151`). See [mfa-login](development/plans/mfa-login.md) for what genuinely remains.
 - **Real emailed connect codes are SHIPPED** (`lib/server/connectionConfirmation.ts` — 6-digit, HMAC-hashed, 15-min TTL, single-use; `00000` is dev-mode-gated only). A Resend sender is configured and `inspectProductionReadiness()` reports email READY. Only the code-step **browser walk** is unwalked.
 - **Standard portal = one Website product**; Aqua Tags setup steps **1, 2, 3 and 6 are done**, step 4 (link the repo) is next, step 5 (seed into the editor) is planned — `agency/fulfilment/_AquaTagsWorkspace.tsx:85-90`.
-- **Open decisions** (genuinely Ed's): **Aqua Tag form-capture consent**, and **when to merge `work/2026-08-20-parallel-session` to `main`** (the merge is what deploys production). The first commit is DONE, and Agency-vs-TradingCompany was SETTLED — the three-tier model is stated in code at `src/app/api/portal/agency/companies/[companyId]/portal/route.ts:24-29`. See [checklist.md](development/checklist.md) and [issues.md](development/issues.md).
+- **Open decisions** (genuinely Ed's): **Aqua Tag form-capture consent**, and **when to merge `work/2026-08-20-parallel-session` to `main`** (the merge is what deploys production). The first commit is DONE, and Agency-vs-TradingCompany was SETTLED — the three-tier model is stated in code at `src/app/api/portal/agency/companies/[companyId]/portal/route.ts:24-29`. See [TODO.md](development/TODO.md) and [issues.md](development/issues.md).
 - **The DEV EDITOR is the one editor** (2026-08-21). There is no separate portal
   editor, website editor or code editor any more: one surface that adapts to
   what it is pointed at. `/portal/dev-team/editor` is the PROJECTS workspace
@@ -2146,7 +2148,7 @@ documentation, because updating the docs *is* part of finishing the work.
   in, imports rewritten, suite-guarded — see [STRUCTURE](development/STRUCTURE.md).
 - **IA v2**: Operations and Tools are single flat sidebar rows onto hub pages;
   pinned pages (topbar or sidebar) ship as chrome.
-- Full current-state detail: **[checklist.md](development/checklist.md)** — it is now the *only* live "where we stand" doc. The two that used to compete with it are on the [history shelf](context/archive/README.md).
+- Full current-state detail: **[TODO.md](development/TODO.md)** — the *only* live task list. `checklist.md` and `todo.md` were merged into it on 2026-08-31; older competitors are on the [history shelf](context/archive/README.md).
 
 ---
 
@@ -2161,7 +2163,7 @@ else hangs from.*
 
 ## Source document — `docs/development/CAMPAIGN-LEDGER.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/CAMPAIGN-LEDGER.md" sha256="aff8d4bf94dad182104e674c98c3ee58407a1020c5405d9c6009840d18f821b4" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/CAMPAIGN-LEDGER.md" sha256="8906eb267d7bbcff98cf1bcc583fd49a53cc3c4935fc2e9122732abf20116044" -->
 # Campaign ledger — every documented to-do, verified against source
 
 *Generated 2026-08-30 from a 131-agent triage: one independent read-only investigator
@@ -2703,6 +2705,377 @@ path is worth removing on its own merits. That is a **runtime** improvement,
 The Vercel build log for `6hDw2Zx8e8tjcxL7pTPMhgxtp4ae`. Until someone reads
 it, the cause is unknown. Guessing further from here would just produce more
 confident-sounding wrong answers.
+
+---
+
+## Post-merge follow-up — 2026-08-31
+
+### FIXED — the module boundary (the campaign's own top recommendation)
+
+Root `package.json` had no `type`; all twelve plugin packages declared
+`"type": "module"`. Removing those twelve declarations aligned them with the
+root and ended the CJS/ESM split.
+
+| | before | after |
+| --- | --- | --- |
+| website-editor gate | **0 / 49 files** | **49 / 49** |
+| canonical suite | 5,772 tests · 24 fail · 12 cancelled | 5,799 tests · **1 fail** · 0 cancelled |
+| module suites | 229 / 230 | **252 / 252** |
+
+The test count RISES because suites that used to die at import now run. Two
+consequences of uniform CJS were fixed rather than worked around: one
+top-level await wrapped in an async IIFE, and `import.meta.dirname` (undefined
+under the CJS transform) replaced with `dirname(fileURLToPath(import.meta.url))`
+in six suites — the pattern `smoke-next-route-contracts.test.ts` had already
+documented after hitting this alone.
+
+The one remaining failure, `smoke-public-contact.test.ts`, reads
+`/home/user/aquaoasis-web/website/components/ChatBot.tsx` — a sibling
+repository not present in this container. Environmental, not a defect.
+
+### FIXED — MFA enrolment answered 500 on every viewport
+
+`createRouteSupabaseClient` calls `requireSupabasePublicConfig()`, which
+THROWS when Supabase is absent; an uncaught throw in a route handler is a 500.
+So a deployment with no Supabase credentials reported "two-factor is broken"
+rather than "two-factor is not set up here". All three MFA handlers now
+consult `mfaUnavailableResponse()` and answer **503 with the reason**. Pinned
+by a sweep that counts guards against handlers, so a new MFA handler cannot
+silently omit it.
+
+### NOT FIXED — the focus-ring investigation failed, and this is what was ruled out
+
+The five-control focus fix did **not** land. Three hypotheses were tested
+against the real browser and all three are **disproven**:
+
+1. *Specificity* — the global rule uses `:where(...)` (zero specificity). Not
+   the cause: adding an `:is(...)` copy changed nothing.
+2. *Tailwind preflight* — it sets `border: 0 solid` on `*`, **not** `outline`.
+3. *Cascade layers* — the rule sits in `@layer components`, which loses to
+   `@layer utilities`. An UNLAYERED copy was served (verified present in
+   `document.styleSheets`) and the elements still computed `outline-width: 0`.
+
+The decisive and still-unexplained observation: on the six failing controls,
+`:focus-visible` **matches**, CDP reports the global outline rule as the only
+matching outline rule, and yet an inline `outline: 3px solid red !important`
+on a connected element **still computes to `0px`**. That is not a cascade
+problem. Something structural prevents outline rendering on these specific
+elements and it was not identified.
+
+The speculative CSS was reverted rather than shipped — it demonstrably did
+nothing, and leaving it with a confident comment would have been worse than
+leaving the bug. Anyone picking this up should start from that
+`!important`-is-ignored fact, not from the cascade.
+
+### Two findings recorded on `/portal/agency`
+
+- The React **hydration mismatch is gone** — resolved by the plugin-registry
+  graph split in PR #6, not by anything aimed at it.
+- A genuine **render-time side effect** remains: *"Can't perform a React state
+  update on a component that hasn't mounted yet… you have a side-effect in your
+  render function."* This matches the "hidden render-time mutation" that
+  `CLAUDE.md`'s continuation item 6 already lists as open residue. React does
+  not name the component, so it needs its own hunt.
+- One 404 resource request on that page, uninvestigated.
+
+### FIXED — the read path rewrote the database on every agency page load
+
+Ed's instinct, investigated and confirmed. `upsertPerson()` is called by
+`listOperationalAlerts()` while building the attention feed, and that feed is
+built by BOTH the agency layout and the agency page — so it ran on **every
+agency render**. Its `existing` branch then wrote unconditionally:
+
+- `updatedAt: now` with no check that anything had changed;
+- `mutate(...)`, which dirties and re-persists the whole PortalState blob;
+- `emitDurable({ name: "person.updated" })` — a durable outbox row.
+
+So on any tenant with website enquiries, every page load re-stamped every
+matching Person, rewrote the state blob, and appended **one phantom
+`person.updated` event per enquiry per render** — an outbox announcing changes
+that had not happened, and an `updatedAt` recording when somebody last *looked
+at a page* rather than when the person last changed.
+
+`upsertPerson` now compares the computed record against the existing one on
+everything except `updatedAt` itself and returns early when they match. The
+phone-sharing sweep is a real state change, so its presence still forces the
+write through. Pinned two ways — an identical re-upsert must move neither
+`updatedAt` nor the outbox, and a genuine edit must still write (a no-op guard
+that swallows real edits would be worse than the unconditional write).
+
+Not caught by an empty test tenant: the gate lane's state file was byte-identical
+across a page load, because there were no enquiries for the write path to act on.
+It is visible in the source, and in the comment `operationalAlerts.ts` already
+carried about "idempotent read-path side effects (person upserts)".
+
+### MFA: the count got worse while the behaviour got better
+
+Worth stating plainly. The browser matrix's network column went 17 → 123,
+and 34 of those are `503 /api/portal/mfa/enrol` — the honest refusal that
+replaced the 500. The matrix counts any status ≥ 400 as a failed request, so
+a truthful 503 scores exactly like the misleading 500 did.
+
+The remaining defect is one level up: `/portal/account` still *requests*
+two-factor enrolment on a deployment that has no Supabase auth. The honest
+surface would not offer it at all. That is a UI change, not a route change,
+and is not done.
+
+### Browser matrix, run 3 — after the module-boundary and MFA work
+
+| category | baseline | run 2 | run 3 |
+| --- | --- | --- | --- |
+| focus | 203 | 204 | 204 |
+| axe | 85 | 85 | 85 |
+| console | 44 | 44 | **31** |
+| network | 17 | 17 | 123 (34 × the MFA 503, see above) |
+| overflow | 3 | 3 | 3 |
+
+The `/portal/agency` 404 recorded in run 2 no longer reproduces. The
+render-time side-effect warning did not reproduce either — it is timing
+dependent, so it needs a different approach than a browser walk.
+
+---
+
+## Browser matrix GREEN — and a correction to three entries above
+
+`1,308 passed · 0 failed · 18 observations.` The gate that opened at **352
+failing checks** is now clean, and the observations are all named dev-server
+recompilation rather than anything unexplained.
+
+**Every focus figure recorded above is wrong, and the recommendation built on
+it was wrong.** This corrects, rather than deletes, these entries:
+
+- *"Verdict: RED. 352 failing checks"* — 208 of the 352 were the gate measuring
+  wrong, not the app being wrong. The real count was **144**.
+- *"focus | 203 | 204 | 204"* in all three matrix comparison tables — the real
+  number was **0**, at every one of those runs. The rings were there.
+- *"The highest-leverage accessibility fix, quantified"* — the five chrome
+  controls named there, with 130/69/51/40/34 failing stops between them, have
+  **working focus indicators**. That table measured a sampling bug. Acting on
+  it, as it recommended, would have meant editing correct CSS until a broken
+  measurement went quiet. (An earlier wave did attempt exactly that, could not
+  make it work, and reverted the speculative CSS rather than ship a no-op —
+  that judgement is now vindicated for a reason nobody had yet found.)
+
+### What the gate was actually measuring
+
+The chrome controls declare `transition-property: all` at `0.14s`. Reading
+computed style in the same task as the Tab press samples the START of the
+transition. The same element, measured live:
+
+```
+IMMEDIATE   : outline solid 0px
+transition-property: all | duration: 0.14s
+AFTER 600ms : outline solid 2px
+```
+
+Three further gate defects surfaced while confirming it:
+
+1. **4 "keyboard traps"** on `/portal/account/preferences`. A trap is the same
+   NODE focused repeatedly; the detector compared signature strings built from
+   tag + id + textContent, all three empty for a bare `<input>`. Nine
+   consecutive unlabelled checkboxes read as one element focused nine times.
+2. **The baseline shadow was written into a `data-` attribute** on React-owned
+   nodes, producing a hydration-mismatch diff on the next dev recompile that
+   the console verdict then scored as an application defect. The gate was
+   manufacturing the failure it reported.
+3. **`devServer` was proven too late.** It is derived from the target's own HMR
+   socket — correct — but the listener was attached inside the per-page loop, so
+   the FIRST page of every run was judged before any socket existed and its
+   cancelled Turbopack chunks scored as real failures. It showed as `/` failing
+   on exactly one viewport of seventeen, which is the signature of an artefact.
+
+All four are fixed, and each is pinned by a test proven two-sided. The focus
+walk now polls within a budget derived from the element's own declared
+transition and stops the moment the ring appears, so the common case costs
+nothing. The budget has a **250ms floor**: `duration + 40ms` still reported the
+topbar's "Working as" button ringless at 1920×1080, because a CSS duration says
+how long an animation runs, not when the browser gets round to starting it.
+
+### The 144 real failures, all fixed
+
+| category | at baseline | now | what it was |
+| --- | --- | --- | --- |
+| MFA console + network | 34 | 0 | `/portal/account` probing an endpoint whose 503 is permanent on this deployment |
+| axe critical `button-name` | 6 | 0 | the site's chat launcher hides its own label below 680px, leaving an `aria-hidden` "A" |
+| axe serious `color-contrast` | 51 | 0 | 4.06:1, 3.99:1, and 2.47:1 — the last a hardcoded light-mode teal on a dark surface |
+| axe serious `definition-list`/`dlitem` | 51 | 0 | `dl > div > div > dt`, and dt/dd with no `<dl>` ancestor at all |
+| axe serious `scrollable-region-focusable` | 6 | 0 | the pipeline board scrolls, and with no leads contains nothing focusable |
+| horizontal overflow @ 200% zoom | 3 | 0 | four flex/grid items sized by their min-content width, plus a canvas bleeding into a shell that isn't there |
+| favicon 404 | 1 | 0 | no `icons` in root metadata, and the static pages under `public/` inherit none |
+
+The overflow row is WCAG 1.4.10 (Reflow), not cosmetic: at 200% zoom on a 375px
+phone the CSS viewport is 187px, and the site header was pushing the Menu
+button — the only navigation at that width — off the screen entirely.
+
+### Verification
+
+Canonical suite **5,812 tests / 5,809 pass / 1 fail / 2 skip**. The single
+failure is `smoke-public-contact.test.ts`, which reads
+`/home/user/aquaoasis-web/website/components/ChatBot.tsx` — a sibling repository
+not checked out in this container. It is the same single failure as the
+pre-change baseline, so this work introduced **zero** new failures; the failure
+list was diffed by name, not by count. Module suites 252/252, website-editor
+49/49 files, `npm run typecheck` clean.
+
+`npm run build`: success, 301 static pages, **56M `.next/server` + 12M
+`.next/static`**. One warning, expected and deliberate: `observabilityCapability.ts`
+resolves the optional Sentry package through a dynamic require, which webpack
+reports as "Critical dependency: the request of a dependency is an expression".
+
+Evidence label: **local-browser** against a `next dev` lane, not deployed-live.
+
+---
+
+## The Vercel failures: a real cause found and fixed — but NOT the whole story
+
+Five of eight deployments failed across two pull requests. On 2026-08-31 a
+genuine, reproducible defect was found that produces exactly the observed
+failure, and it is fixed. It is **not proven** to be the cause of all five, and
+the section headed "What this does NOT claim" at the end says why.
+
+**`portal/package-lock.json` was generated on a Mac.** `lightningcss` and
+`@tailwindcss/oxide` ship their native binaries as per-platform *optional*
+dependencies, so the lockfile recorded `lightningcss-darwin-arm64` and
+`@tailwindcss/oxide-darwin-arm64` — and **no Linux build at all**. `npm install`
+installs what the lockfile records, so on Linux both packages arrive with no
+binding and the first CSS module kills the build:
+
+```
+Error: Cannot find module '../lightningcss.linux-x64-gnu.node'
+  node_modules/lightningcss/node/index.js
+  ← @tailwindcss/node ← @tailwindcss/postcss ← next's CSS config
+```
+
+`@tailwindcss/oxide` names the npm bug behind it in its own error text
+(npm/cli#4828).
+
+### Why every local build passed, including the "cacheless" one
+
+A Linux binary was sitting in **`/home/user/aquacrm/node_modules/`** — the
+repository ROOT, one directory above `portal/`. Node's resolver walks up parent
+directories, found it there, and satisfied every local build with a file no
+deployment would ever have. **Vercel's Root Directory is `portal`**, so there is
+no parent to walk up to.
+
+This is why the three earlier investigations cleared the wrong suspects and were
+right to: the build genuinely does pass here, `rm -rf .next` genuinely does not
+change it, the plugin packages genuinely are not npm workspaces, and PR #6's
+`f9c4318` genuinely did fail with no `package.json` change. Every one of those
+findings stands. They were all measuring a machine that had the binary.
+
+**The lesson to keep: `rm -rf .next && npm run build` is not a clean build.** It
+reuses `node_modules`, and — where the deploy target has a Root Directory —
+everything above it. Only checking out that directory alone reproduces the
+deploy.
+
+### Reproduced, then fixed, then re-proved
+
+Checked out `portal/` on its own and ran Vercel's exact commands,
+`npm install --legacy-peer-deps && npm run build`:
+
+| | before | after |
+| --- | --- | --- |
+| `require("lightningcss")` | throws | resolves |
+| `require("@tailwindcss/oxide")` | throws | resolves |
+| `npm run build` | **fails** at the first CSS module | **exit 0**, 301 pages |
+
+The fix is two lines in `package.json`: `lightningcss-linux-x64-gnu@1.32.0` and
+`@tailwindcss/oxide-linux-x64-gnu@4.2.4` as `optionalDependencies`, pinned to
+their parents' exact versions. Both are `os: ["linux"]`, and the darwin entries
+are untouched, so a Mac checkout installs exactly what it did before.
+
+### Pinned so it cannot come back quietly
+
+`scripts/smoke-deploy-lockfile.test.ts` asserts the RULE, not the two names: any
+dependency declaring per-platform native binaries must have its Linux x64 build
+recorded in the lockfile. It reads the lockfile rather than `node_modules`, so a
+local machine that happens to have the binary cannot mask it, and it also pins
+the exact-version requirement (a caret range would let npm pair 1.32.0 with a
+1.33 binary — the same failure, again only on the deploy machine) and refuses
+`--no-optional` in `vercel.json`, which would defeat the whole file.
+
+Verified two-sided against the **real** pre-fix lockfile, not a synthetic one:
+it names `lightningcss` and `@tailwindcss/oxide` and nothing else.
+
+### What this does NOT claim — and the evidence that forces the caveat
+
+**Vercel's outcome is not a function of the tree.** Within twenty minutes, two
+consecutive commits on this branch behaved differently:
+
+| commit | contents | Vercel |
+| --- | --- | --- |
+| `9f0ecc4d` | five markdown/JSON doc files | **Ready** |
+| `3bcef67d` | two markdown files | **Error** |
+
+`git diff 9f0ecc4d 3bcef67d -- package.json package-lock.json` is **empty**.
+Neither commit touched a line of source. One deployed, one did not.
+
+So something on Vercel's side varies between builds of functionally identical
+trees. The most plausible candidate is its `node_modules` build cache — a
+restored cache carrying the Linux binary would pass, a cold install would fail —
+but that is an inference, not a measurement: Vercel's logs need an
+authentication this session lacks and outbound HTTPS to `*.vercel.app` is
+proxy-blocked, so the cache state is not observable from here.
+
+What IS established, and stands on its own:
+
+1. The lockfile has **never** recorded the Linux binary. Checked across all eight
+   commits that touched it, back to 2026-08-11: `lightningcss-linux-x64-gnu`
+   appears only inside `lightningcss`'s own list of platform variants, never as
+   an installed entry.
+2. An isolated `portal/`-only checkout on Linux x64 **deterministically fails**
+   before the fix, with exactly the error above, and **deterministically passes**
+   after — same machine, same command, same Node.
+
+So the fix removes a real defect that produces this exact failure and makes the
+build independent of whatever Vercel's cache happens to hold. It does not follow
+that it explains all five past failures, and **a green deployment now would be
+weak evidence either way** — `9f0ecc4d` was already green without it. Treat a
+further failure as a second, separate cause rather than as this one returning.
+
+---
+
+## The `/portal/agency` render-time side effect: narrowed, and the class closed
+
+`CLAUDE.md` item 6 lists a "hidden render-time mutation" as open residue, seen as
+
+    Can't perform a React state update on a component that hasn't mounted yet.
+
+It is timing dependent — it did not reproduce across **51 loads** of that page in
+three consecutive browser-matrix runs — so a browser walk is the wrong
+instrument. React's warning names a STRUCTURAL mistake, and structure can be read
+from source whether or not the timing lines up on the day you look.
+
+**Result: across 750 client components, zero cross-component render-phase
+updates.** No prop callback, `dispatch`, `emit` or `notify` is called from a
+render body anywhere in the app.
+
+The only render-phase state updates that exist are three of React's documented
+"adjusting state when props change" — a component calling its OWN setter behind
+a guard, which React re-renders immediately and never warns about:
+
+| component | why |
+| --- | --- |
+| `BattleTableWorkspace` | reconciles navigation against the scopes it was given |
+| `AppConfigEditor` | re-syncs when the server hands it a newer revision |
+| `EmailButton` | kills a draft when the recipient changes underneath it |
+
+Each already carried a comment explaining itself. All three are correct.
+
+**So the warning is not a synchronous cross-component update in application
+code.** What remains: an async callback — a promise, timer or observer —
+resolving before its target mounts, or something inside a dependency. That is a
+real narrowing, not a resolution, and the item stays open with the search space
+cut down.
+
+`scripts/smoke-render-phase-state.test.ts` keeps the negative result true. It
+fails if any component updates another during render, and separately if one of
+the three adjustments loses its guard (unguarded, they re-render forever). It
+also asserts the three are still present, so a refactor cannot produce a clean
+sheet for the wrong reason, and asserts the scan reached 500+ files, so a broken
+collector cannot report "none found" from having looked at nothing. Verified
+two-sided: a prop callback added to a render body fails it; removing
+`BattleTableWorkspace`'s guard fails it. 3.3s, four assertions.
 <!-- AQUACRM_SOURCE_END path="docs/development/CAMPAIGN-LEDGER.md" -->
 
 ---
@@ -3320,6 +3693,186 @@ Path prefix: /private/tmp/claude-501/.../scratchpad/
   conditions) — never sweep those files in.
 - Blocked on Ed → ED-QUESTIONS.md, move on.
 <!-- AQUACRM_SOURCE_END path="docs/development/LOOP-PROGRESS.md" -->
+
+---
+
+<a id="source-docs-development-todo-md"></a>
+
+## Source document — `docs/development/TODO.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="79e5f988c98256eda4d9bb0f9c9e2480c5a062eef42437ed55f69bc9c4be2ae6" -->
+# TODO — the one list
+
+**This is the only task list.** `checklist.md` and `todo.md` are retired; they held the
+same work in two wordings, **130 of ~145 issue ids appeared in both**, and **7 issues were
+marked done in one file while still open in the other** — so neither could be trusted on
+its own. Nothing was dropped: every open row from both files is here, and a script
+checked that afterwards.
+
+Detail, evidence and reproduction for every `#N` stays in [`issues.md`](issues.md), which
+remains the backing store. This file is the index over it.
+
+| | meaning |
+| --- | --- |
+| `[ ]` | not started |
+| `[~]` | part done, remainder named in `issues.md` |
+| `⚠ disputed` | the retired files disagreed; the **less complete** status was taken. Verify against source before trusting it. |
+
+---
+
+## 🔒 Blocked on you — 8
+
+Nothing here moves without an account, a credential or a decision from you. Taken from
+the retired files' own Ed-only sections, minus one they had mis-filed (`#1`, RLS, whose
+own note reads *"NOT Ed's task"* — it is engineering, and sits below). The questions
+behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
+
+- [ ] Walk the onboarding chain  <sub>from checklist.md, no issue number</sub>
+- [ ] Stripe live-account walkthrough  <sub>from checklist.md, no issue number</sub>
+- [ ] Meta Developer app  <sub>from checklist.md, no issue number</sub>
+- [ ] Deployment env verification  <sub>from checklist.md, no issue number</sub>
+- [ ] Apply the pending Supabase migrations before production rollout  <sub>from checklist.md, no issue number</sub>
+- [ ] DPO sign-off  <sub>from checklist.md, no issue number</sub>
+- [ ] Aqua Tag form-capture consent → [#2](issues.md)
+- [ ] Mounted browser acceptance of the isolated preview lifecycle (2026-08-27, isolated `sandbox:fork` lane on port 3047; port 3032 untouched throughout) → [#161](issues.md) `⚠ disputed`
+
+## P0 — before any production use — 1
+
+- [~] Ecommerce Checkout is server-authoritative; finish public-route and live acceptance → [#69](issues.md)
+
+## P1 — before broader launch — 60
+
+- [~] Editor AI database coordination is implemented; live DB proof remains → [#18](issues.md)
+- [ ] Complete Editor dirty-state browser acceptance → [#19](issues.md) `⚠ disputed`
+- [ ] Public showcase capability boundary and shared fixture are repaired → [#21](issues.md) `⚠ disputed`
+- [~] Keep the repaired production build as a release gate → [#27](issues.md) `⚠ disputed`
+- [ ] Repair the website-editor API contract before calling the editor complete → [#28](issues.md)
+- [ ] Website Editor commerce contracts are unified; finish public-route and browser acceptance → [#29](issues.md) `⚠ disputed`
+- [ ] Repair website export before offering it as a backup or migration path → [#30](issues.md)
+- [ ] Remove or integrate the browser-local Website Editor stations → [#31](issues.md)
+- [ ] Stop reporting queued campaign mail as sent → [#32](issues.md)
+- [ ] Finish the paid Memberships foundation adapter → [#33](issues.md)
+- [ ] Make plugin health a real monitored lifecycle → [#35](issues.md)
+- [ ] Make Build custom portal reach a real service → [#36](issues.md)
+- [ ] Make project provision, GitHub publish and Vercel deploy retry-safe → [#37](issues.md)
+- [ ] Make all private uploads/deletes transactional and retryable → [#38](issues.md)
+- [ ] Make Close the deal issue a reviewable, truthfully delivered contract → [#39](issues.md)
+- [ ] Make commercial proposal/receipt delivery truthful → [#40](issues.md)
+- [ ] Bind proposal acceptance and payment to an immutable sent version → [#41](issues.md)
+- [ ] Make installment subscriptions stop exactly and verifiably → [#42](issues.md)
+- [ ] Make Email Sender production setup reachable and real → [#43](issues.md)
+- [ ] Wire Affiliate Stripe Connect or stop offering it → [#45](issues.md)
+- [~] Code/behaviour resolved — browser-accept the canonical client lifecycle → [#46](issues.md)
+- [ ] Finish live visual acceptance for convergent client phase transitions → [#55](issues.md)
+- [ ] Preserve unavailable read state instead of manufacturing emptiness → [#57](issues.md)
+- [ ] Lead archive is destructive and leaves a hidden card → [#62](issues.md) `⚠ disputed`
+- [ ] Membership/Affiliate deletion strands active dependants → [#63](issues.md)
+- [ ] SOP deletion silently removes live operating instructions → [#64](issues.md)
+- [ ] The authoritative Company capital/governance register accepts contradictory records → [#65](issues.md)
+- [ ] Battle Table saves can erase another executive change, and “locked” reviews are mutable → [#66](issues.md)
+- [ ] Legal-document deletion strands compliance and governance evidence → [#67](issues.md)
+- [~] Code/behaviour resolved — complete mounted/live-provider acceptance for transactional gift-card and custom-code value → [#70](issues.md)
+- [~] Code/behaviour resolved — browser-accept versioned Product/Variants authoring → [#71](issues.md)
+- [~] Code/behaviour resolved — browser-accept the Ecommerce inventory ledger → [#73](issues.md)
+- [~] Code/behaviour resolved — live-accept Ecommerce shipping/tax quotes → [#74](issues.md)
+- [~] Code/behaviour resolved — live-accept the Ecommerce provider ledger → [#75](issues.md)
+- [~] Public Funnel capture visibility and ordinary retry are repaired; exact cross-process side-effect delivery remains → [#79](issues.md)
+- [~] Canonical lead identity is conflict-safe inside one application process; database-native uniqueness remains → [#80](issues.md)
+- [~] Opportunity money is safe under same-process races; distributed provider delivery remains → [#81](issues.md)
+- [ ] Mounted Marketing records are isolated and stale-safe in one process; distributed compare-and-set remains → [#82](issues.md) `⚠ disputed`
+- [~] Agency Marketing lead identity is canonical and race-safe in one process; distributed uniqueness remains → [#83](issues.md)
+- [~] Aqua Tags stop-routing is non-destructive; mounted click acceptance remains → [#85](issues.md)
+- [~] Make Aqua Tag form ingestion durable and order-independent → [#87](issues.md)
+- [~] Finish crash-coherent Dev Team truth writes → [#88](issues.md)
+- [~] Client schedules and Finance Plans are converged; mounted browser acceptance remains → [#121](issues.md)
+- [~] Membership changes now share one durable provider-backed command; mounted/live acceptance remains → [#122](issues.md)
+- [~] Membership webhooks now use a retryable scoped inbox; live-provider acceptance remains → [#123](issues.md)
+- [~] Affiliate commissions now have one recoverable payout owner; mounted/live-provider acceptance remains → [#124](issues.md)
+- [~] Affiliate currency/refund accounting is code- and behaviour-complete; mounted/live acceptance remains → [#125](issues.md)
+- [~] Membership/Affiliate runtime validation is code- and behaviour-complete; mounted acceptance remains → [#126](issues.md)
+- [~] Performance report history is code- and behaviour-repaired; mounted acceptance remains → [#128](issues.md)
+- [~] Performance experiment integrity is code- and behaviour-repaired; mounted acceptance remains → [#129](issues.md)
+- [~] Aqua Advisor turns are code/domain-behaviour durable; mounted provider acceptance remains → [#130](issues.md)
+- [ ] Mount and prove real application observability → [#132](issues.md)
+- [ ] Make every true modal keyboard-contained and restore focus → [#135](issues.md)
+- [ ] Name every important action and published-form field for assistive technology → [#139](issues.md)
+- [~] Make date-only business values local-calendar safe → [#140](issues.md)
+- [ ] Harden voice and call recording across browser formats and failures → [#145](issues.md)
+- [~] Relative countdown deadline code/service behaviour is repaired; mounted acceptance remains → [#146](issues.md)
+- [~] Team Chat and notification response-order code is repaired; mounted acceptance remains → [#147](issues.md)
+- [~] Named core storage/provider waits are bounded; finish mounted/live acceptance → [#148](issues.md)
+- [ ] Free a server + verify the critical flows for real  <sub>from todo.md, no issue number</sub>
+
+## P2 — quality and correctness — 19
+
+- [~] File-backend persistence is truthful and atomic → [#16](issues.md) `⚠ disputed`
+- [~] Reference validation remains a broad open class; the audited client-route slice is fixed → [#20](issues.md)
+- [~] Reconcile staff capability policy → [#25](issues.md)
+- [ ] Make Stripe refund/dispute event handling durably idempotent → [#26](issues.md)
+- [ ] Most plugin settings schemas are not user-operable → [#44](issues.md)
+- [~] Stop mutation controls swallowing non-success responses → [#47](issues.md)
+- [ ] Finish Notepad autosave browser acceptance → [#54](issues.md)
+- [ ] Mounted acceptance remains for settled utility controls → [#61](issues.md)
+- [~] Agency Marketing campaign writes and reports are truthful in one process; distributed mutation safety remains → [#84](issues.md)
+- [~] Finance settings now control new invoices/documents; browser acceptance remains → [#120](issues.md)
+- [ ] Make Radar scheduling match its taxonomy → [#131](issues.md)
+- [ ] Expose a real loading status for the Command Centre → [#136](issues.md) `⚠ disputed`
+- [ ] Standardise tabs, menus and listboxes or remove their specialised roles → [#138](issues.md)
+- [ ] Provide and prove the real global error fallback → [#141](issues.md)
+- [ ] Make the customer portal genuinely installable in Chromium → [#142](issues.md)
+- [ ] Remove render-time `window` from published current-page blocks → [#143](issues.md)
+- [ ] Stream private audio/video with a real byte-range contract → [#144](issues.md)
+- [~] Finish production-durable Dev Team authoring and live signals  <sub>from checklist.md, no issue number</sub>
+- [~] Finish production-durable Dev Team authoring/signals  <sub>from todo.md, no issue number</sub>
+
+## Unprioritised — 36
+
+- [~] DB Row-Level Security — ⚠ NOT Ed's task, and no longer a 🔴 decision. CORRECTED 2026-08-23 → [#1](issues.md)
+- [ ] Meta / Instagram inbox — self-serve "Connect now" → [#11](issues.md)
+- [ ] Governance's company selector mixes other brands into scoped evidence and erasure → [#68](issues.md)
+- [ ] Finish role-aware account and portal recovery navigation → [#133](issues.md)
+- [ ] Keep customer installation help revisitable → [#134](issues.md)
+- [~] Customer Bookings code/behaviour is capability-driven; mounted proof remains → [#149](issues.md)
+- [~] Social Inbox's inert More control is removed; mounted confirmation remains → [#150](issues.md)
+- [~] The bounded Dev Team/Agency speed implementation, production benchmark and representative browser acceptance are complete → [#151](issues.md) `⚠ disputed`
+- [~] Client-workspace 404 bootstrap code is repaired; browser console recheck remains → [#152](issues.md)
+- [~] Staff, Fulfilment and broad exact-client runtime adoption  <sub>from checklist.md, no issue number</sub>
+- [~] Combined verification is settling  <sub>from checklist.md, no issue number</sub>
+- [ ] Release browser gate  <sub>from checklist.md, no issue number</sub>
+- [ ] Application-wide parity  <sub>from checklist.md, no issue number</sub>
+- [~] Aqua Editor AI distributed replay code is complete; deployment proof is open  <sub>from checklist.md, no issue number</sub>
+- [~] Editor unsaved-work source bypasses are closed  <sub>from checklist.md, no issue number</sub>
+- [ ] Stripe refund/dispute event deduplication is process-local  <sub>from checklist.md, no issue number</sub>
+- [~] Aqua Editor AI multi-instance claim  <sub>from checklist.md, no issue number</sub>
+- [~] Aqua Editor AI reply replay guard  <sub>from checklist.md, no issue number</sub>
+- [ ] Full browser authoring round trip  <sub>from checklist.md, no issue number</sub>
+- [ ] Unsaved-work and project-prefill browser matrix  <sub>from checklist.md, no issue number</sub>
+- [~] Reusable Dev Workspace is mounted; client-facing completion remains  <sub>from checklist.md, no issue number</sub>
+- [ ] Engine widening + assistant proposals  <sub>from checklist.md, no issue number</sub>
+- [ ] Stages hold elements  <sub>from checklist.md, no issue number</sub>
+- [ ] Wizard engine  <sub>from checklist.md, no issue number</sub>
+- [~] Aqua Tag backbone remainders  <sub>from checklist.md, no issue number</sub>
+- [ ] Env-only audit  <sub>from checklist.md, no issue number</sub>
+- [ ] Backfill phase ticks  <sub>from checklist.md, no issue number</sub>
+- [ ] Re-enter the Aqua Tag routing config  <sub>from checklist.md, no issue number</sub>
+- [~] Complete behavioural browser acceptance  <sub>from todo.md, no issue number</sub>
+- [ ] Battle Table overhaul → live war-room  <sub>from todo.md, no issue number</sub>
+- [ ] Operations / System surface — the KNOW side (governance)  <sub>from todo.md, no issue number</sub>
+- [ ] Advisor omega upgrade  <sub>from todo.md, no issue number</sub>
+- [~] Marketing workspace overhaul  <sub>from todo.md, no issue number</sub>
+- [ ] "You Deserve It" upgrade  <sub>from todo.md, no issue number</sub>
+- [ ] Two inbox surfaces  <sub>from todo.md, no issue number</sub>
+- [ ] The rest  <sub>from todo.md, no issue number</sub>
+
+---
+
+## Done — 57 issue ids
+
+Ids only. The account of each is in `issues.md`; the running narrative is in
+`updates.md` and `CAMPAIGN-LEDGER.md`.
+
+#4 #5 #8 #10 #17 #22 #23 #24 #34 #48 #49 #50 #51 #52 #53 #56 #58 #59 #60 #76 #78 #86 #89 #90 #91 #92 #93 #94 #95 #96 #97 #98 #99 #100 #101 #102 #103 #104 #105 #106 #107 #108 #109 #110 #111 #112 #113 #114 #115 #116 #117 #118 #119 #127 #137 #153 #154
+<!-- AQUACRM_SOURCE_END path="docs/development/TODO.md" -->
 
 ---
 

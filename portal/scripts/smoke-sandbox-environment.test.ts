@@ -1,13 +1,17 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { NextRequest } from "next/server";
 
 import { proxy } from "../src/proxy";
 
-const ROOT = join(import.meta.dirname, "..");
+// `import.meta.dirname` is undefined when this file is loaded through tsx's
+// CJS transform, which threw before a single assertion ran. `import.meta.url`
+// is populated in both loaders.
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
 
 function runInFreshMemoryProcess(code: string): string {

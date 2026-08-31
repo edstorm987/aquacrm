@@ -5283,7 +5283,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `TwoFactorPanel()` — Switching two-factor authentication on, from the account page. Enrolment and verification themselves already exist — `TwoFactorSetup` owns the QR code, the setup key and the six-d…
+- `TwoFactorPanel({ available = true }: { available?: boolean })` — Switching two-factor authentication on, from the account page. Enrolment and verification themselves already exist — `TwoFactorSetup` owns the QR code, the setup key and the six-d…
 
 **Depends on (1):** [`src/components/auth/TwoFactorSetup.tsx`](components.md#file-src-components-auth-twofactorsetup-tsx-7204b88a64)
 
@@ -5300,7 +5300,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `default async AccountPage()`
 - `metadata = { title: "Edit profile · AquaCRM" }`
 
-**Depends on (9):** [`src/app/portal/account/AvatarUploader.tsx`](#file-src-app-portal-account-avataruploader-tsx-1e235e5a66) · [`src/app/portal/account/TwoFactorPanel.tsx`](#file-src-app-portal-account-twofactorpanel-tsx-bc7e00f93a) · [`src/components/chrome/ColorModeToggle.tsx`](components.md#file-src-components-chrome-colormodetoggle-tsx-f23ad79317) · [`src/lib/agencySettingsCapabilities.ts`](lib.md#file-src-lib-agencysettingscapabilities-ts-7bbdc779dd) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/postLoginRedirect.ts`](lib.md#file-src-lib-server-auth-postloginredirect-ts-17fc4de17b) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (10):** [`src/app/portal/account/AvatarUploader.tsx`](#file-src-app-portal-account-avataruploader-tsx-1e235e5a66) · [`src/app/portal/account/TwoFactorPanel.tsx`](#file-src-app-portal-account-twofactorpanel-tsx-bc7e00f93a) · [`src/components/chrome/ColorModeToggle.tsx`](components.md#file-src-components-chrome-colormodetoggle-tsx-f23ad79317) · [`src/lib/agencySettingsCapabilities.ts`](lib.md#file-src-lib-agencysettingscapabilities-ts-7bbdc779dd) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/postLoginRedirect.ts`](lib.md#file-src-lib-server-auth-postloginredirect-ts-17fc4de17b) · [`src/lib/supabase/config.ts`](lib.md#file-src-lib-supabase-config-ts-bce56de604) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 

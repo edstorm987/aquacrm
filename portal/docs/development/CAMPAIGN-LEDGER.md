@@ -539,3 +539,374 @@ path is worth removing on its own merits. That is a **runtime** improvement,
 The Vercel build log for `6hDw2Zx8e8tjcxL7pTPMhgxtp4ae`. Until someone reads
 it, the cause is unknown. Guessing further from here would just produce more
 confident-sounding wrong answers.
+
+---
+
+## Post-merge follow-up — 2026-08-31
+
+### FIXED — the module boundary (the campaign's own top recommendation)
+
+Root `package.json` had no `type`; all twelve plugin packages declared
+`"type": "module"`. Removing those twelve declarations aligned them with the
+root and ended the CJS/ESM split.
+
+| | before | after |
+| --- | --- | --- |
+| website-editor gate | **0 / 49 files** | **49 / 49** |
+| canonical suite | 5,772 tests · 24 fail · 12 cancelled | 5,799 tests · **1 fail** · 0 cancelled |
+| module suites | 229 / 230 | **252 / 252** |
+
+The test count RISES because suites that used to die at import now run. Two
+consequences of uniform CJS were fixed rather than worked around: one
+top-level await wrapped in an async IIFE, and `import.meta.dirname` (undefined
+under the CJS transform) replaced with `dirname(fileURLToPath(import.meta.url))`
+in six suites — the pattern `smoke-next-route-contracts.test.ts` had already
+documented after hitting this alone.
+
+The one remaining failure, `smoke-public-contact.test.ts`, reads
+`/home/user/aquaoasis-web/website/components/ChatBot.tsx` — a sibling
+repository not present in this container. Environmental, not a defect.
+
+### FIXED — MFA enrolment answered 500 on every viewport
+
+`createRouteSupabaseClient` calls `requireSupabasePublicConfig()`, which
+THROWS when Supabase is absent; an uncaught throw in a route handler is a 500.
+So a deployment with no Supabase credentials reported "two-factor is broken"
+rather than "two-factor is not set up here". All three MFA handlers now
+consult `mfaUnavailableResponse()` and answer **503 with the reason**. Pinned
+by a sweep that counts guards against handlers, so a new MFA handler cannot
+silently omit it.
+
+### NOT FIXED — the focus-ring investigation failed, and this is what was ruled out
+
+The five-control focus fix did **not** land. Three hypotheses were tested
+against the real browser and all three are **disproven**:
+
+1. *Specificity* — the global rule uses `:where(...)` (zero specificity). Not
+   the cause: adding an `:is(...)` copy changed nothing.
+2. *Tailwind preflight* — it sets `border: 0 solid` on `*`, **not** `outline`.
+3. *Cascade layers* — the rule sits in `@layer components`, which loses to
+   `@layer utilities`. An UNLAYERED copy was served (verified present in
+   `document.styleSheets`) and the elements still computed `outline-width: 0`.
+
+The decisive and still-unexplained observation: on the six failing controls,
+`:focus-visible` **matches**, CDP reports the global outline rule as the only
+matching outline rule, and yet an inline `outline: 3px solid red !important`
+on a connected element **still computes to `0px`**. That is not a cascade
+problem. Something structural prevents outline rendering on these specific
+elements and it was not identified.
+
+The speculative CSS was reverted rather than shipped — it demonstrably did
+nothing, and leaving it with a confident comment would have been worse than
+leaving the bug. Anyone picking this up should start from that
+`!important`-is-ignored fact, not from the cascade.
+
+### Two findings recorded on `/portal/agency`
+
+- The React **hydration mismatch is gone** — resolved by the plugin-registry
+  graph split in PR #6, not by anything aimed at it.
+- A genuine **render-time side effect** remains: *"Can't perform a React state
+  update on a component that hasn't mounted yet… you have a side-effect in your
+  render function."* This matches the "hidden render-time mutation" that
+  `CLAUDE.md`'s continuation item 6 already lists as open residue. React does
+  not name the component, so it needs its own hunt.
+- One 404 resource request on that page, uninvestigated.
+
+### FIXED — the read path rewrote the database on every agency page load
+
+Ed's instinct, investigated and confirmed. `upsertPerson()` is called by
+`listOperationalAlerts()` while building the attention feed, and that feed is
+built by BOTH the agency layout and the agency page — so it ran on **every
+agency render**. Its `existing` branch then wrote unconditionally:
+
+- `updatedAt: now` with no check that anything had changed;
+- `mutate(...)`, which dirties and re-persists the whole PortalState blob;
+- `emitDurable({ name: "person.updated" })` — a durable outbox row.
+
+So on any tenant with website enquiries, every page load re-stamped every
+matching Person, rewrote the state blob, and appended **one phantom
+`person.updated` event per enquiry per render** — an outbox announcing changes
+that had not happened, and an `updatedAt` recording when somebody last *looked
+at a page* rather than when the person last changed.
+
+`upsertPerson` now compares the computed record against the existing one on
+everything except `updatedAt` itself and returns early when they match. The
+phone-sharing sweep is a real state change, so its presence still forces the
+write through. Pinned two ways — an identical re-upsert must move neither
+`updatedAt` nor the outbox, and a genuine edit must still write (a no-op guard
+that swallows real edits would be worse than the unconditional write).
+
+Not caught by an empty test tenant: the gate lane's state file was byte-identical
+across a page load, because there were no enquiries for the write path to act on.
+It is visible in the source, and in the comment `operationalAlerts.ts` already
+carried about "idempotent read-path side effects (person upserts)".
+
+### MFA: the count got worse while the behaviour got better
+
+Worth stating plainly. The browser matrix's network column went 17 → 123,
+and 34 of those are `503 /api/portal/mfa/enrol` — the honest refusal that
+replaced the 500. The matrix counts any status ≥ 400 as a failed request, so
+a truthful 503 scores exactly like the misleading 500 did.
+
+The remaining defect is one level up: `/portal/account` still *requests*
+two-factor enrolment on a deployment that has no Supabase auth. The honest
+surface would not offer it at all. That is a UI change, not a route change,
+and is not done.
+
+### Browser matrix, run 3 — after the module-boundary and MFA work
+
+| category | baseline | run 2 | run 3 |
+| --- | --- | --- | --- |
+| focus | 203 | 204 | 204 |
+| axe | 85 | 85 | 85 |
+| console | 44 | 44 | **31** |
+| network | 17 | 17 | 123 (34 × the MFA 503, see above) |
+| overflow | 3 | 3 | 3 |
+
+The `/portal/agency` 404 recorded in run 2 no longer reproduces. The
+render-time side-effect warning did not reproduce either — it is timing
+dependent, so it needs a different approach than a browser walk.
+
+---
+
+## Browser matrix GREEN — and a correction to three entries above
+
+`1,308 passed · 0 failed · 18 observations.` The gate that opened at **352
+failing checks** is now clean, and the observations are all named dev-server
+recompilation rather than anything unexplained.
+
+**Every focus figure recorded above is wrong, and the recommendation built on
+it was wrong.** This corrects, rather than deletes, these entries:
+
+- *"Verdict: RED. 352 failing checks"* — 208 of the 352 were the gate measuring
+  wrong, not the app being wrong. The real count was **144**.
+- *"focus | 203 | 204 | 204"* in all three matrix comparison tables — the real
+  number was **0**, at every one of those runs. The rings were there.
+- *"The highest-leverage accessibility fix, quantified"* — the five chrome
+  controls named there, with 130/69/51/40/34 failing stops between them, have
+  **working focus indicators**. That table measured a sampling bug. Acting on
+  it, as it recommended, would have meant editing correct CSS until a broken
+  measurement went quiet. (An earlier wave did attempt exactly that, could not
+  make it work, and reverted the speculative CSS rather than ship a no-op —
+  that judgement is now vindicated for a reason nobody had yet found.)
+
+### What the gate was actually measuring
+
+The chrome controls declare `transition-property: all` at `0.14s`. Reading
+computed style in the same task as the Tab press samples the START of the
+transition. The same element, measured live:
+
+```
+IMMEDIATE   : outline solid 0px
+transition-property: all | duration: 0.14s
+AFTER 600ms : outline solid 2px
+```
+
+Three further gate defects surfaced while confirming it:
+
+1. **4 "keyboard traps"** on `/portal/account/preferences`. A trap is the same
+   NODE focused repeatedly; the detector compared signature strings built from
+   tag + id + textContent, all three empty for a bare `<input>`. Nine
+   consecutive unlabelled checkboxes read as one element focused nine times.
+2. **The baseline shadow was written into a `data-` attribute** on React-owned
+   nodes, producing a hydration-mismatch diff on the next dev recompile that
+   the console verdict then scored as an application defect. The gate was
+   manufacturing the failure it reported.
+3. **`devServer` was proven too late.** It is derived from the target's own HMR
+   socket — correct — but the listener was attached inside the per-page loop, so
+   the FIRST page of every run was judged before any socket existed and its
+   cancelled Turbopack chunks scored as real failures. It showed as `/` failing
+   on exactly one viewport of seventeen, which is the signature of an artefact.
+
+All four are fixed, and each is pinned by a test proven two-sided. The focus
+walk now polls within a budget derived from the element's own declared
+transition and stops the moment the ring appears, so the common case costs
+nothing. The budget has a **250ms floor**: `duration + 40ms` still reported the
+topbar's "Working as" button ringless at 1920×1080, because a CSS duration says
+how long an animation runs, not when the browser gets round to starting it.
+
+### The 144 real failures, all fixed
+
+| category | at baseline | now | what it was |
+| --- | --- | --- | --- |
+| MFA console + network | 34 | 0 | `/portal/account` probing an endpoint whose 503 is permanent on this deployment |
+| axe critical `button-name` | 6 | 0 | the site's chat launcher hides its own label below 680px, leaving an `aria-hidden` "A" |
+| axe serious `color-contrast` | 51 | 0 | 4.06:1, 3.99:1, and 2.47:1 — the last a hardcoded light-mode teal on a dark surface |
+| axe serious `definition-list`/`dlitem` | 51 | 0 | `dl > div > div > dt`, and dt/dd with no `<dl>` ancestor at all |
+| axe serious `scrollable-region-focusable` | 6 | 0 | the pipeline board scrolls, and with no leads contains nothing focusable |
+| horizontal overflow @ 200% zoom | 3 | 0 | four flex/grid items sized by their min-content width, plus a canvas bleeding into a shell that isn't there |
+| favicon 404 | 1 | 0 | no `icons` in root metadata, and the static pages under `public/` inherit none |
+
+The overflow row is WCAG 1.4.10 (Reflow), not cosmetic: at 200% zoom on a 375px
+phone the CSS viewport is 187px, and the site header was pushing the Menu
+button — the only navigation at that width — off the screen entirely.
+
+### Verification
+
+Canonical suite **5,812 tests / 5,809 pass / 1 fail / 2 skip**. The single
+failure is `smoke-public-contact.test.ts`, which reads
+`/home/user/aquaoasis-web/website/components/ChatBot.tsx` — a sibling repository
+not checked out in this container. It is the same single failure as the
+pre-change baseline, so this work introduced **zero** new failures; the failure
+list was diffed by name, not by count. Module suites 252/252, website-editor
+49/49 files, `npm run typecheck` clean.
+
+`npm run build`: success, 301 static pages, **56M `.next/server` + 12M
+`.next/static`**. One warning, expected and deliberate: `observabilityCapability.ts`
+resolves the optional Sentry package through a dynamic require, which webpack
+reports as "Critical dependency: the request of a dependency is an expression".
+
+Evidence label: **local-browser** against a `next dev` lane, not deployed-live.
+
+---
+
+## The Vercel failures: a real cause found and fixed — but NOT the whole story
+
+Five of eight deployments failed across two pull requests. On 2026-08-31 a
+genuine, reproducible defect was found that produces exactly the observed
+failure, and it is fixed. It is **not proven** to be the cause of all five, and
+the section headed "What this does NOT claim" at the end says why.
+
+**`portal/package-lock.json` was generated on a Mac.** `lightningcss` and
+`@tailwindcss/oxide` ship their native binaries as per-platform *optional*
+dependencies, so the lockfile recorded `lightningcss-darwin-arm64` and
+`@tailwindcss/oxide-darwin-arm64` — and **no Linux build at all**. `npm install`
+installs what the lockfile records, so on Linux both packages arrive with no
+binding and the first CSS module kills the build:
+
+```
+Error: Cannot find module '../lightningcss.linux-x64-gnu.node'
+  node_modules/lightningcss/node/index.js
+  ← @tailwindcss/node ← @tailwindcss/postcss ← next's CSS config
+```
+
+`@tailwindcss/oxide` names the npm bug behind it in its own error text
+(npm/cli#4828).
+
+### Why every local build passed, including the "cacheless" one
+
+A Linux binary was sitting in **`/home/user/aquacrm/node_modules/`** — the
+repository ROOT, one directory above `portal/`. Node's resolver walks up parent
+directories, found it there, and satisfied every local build with a file no
+deployment would ever have. **Vercel's Root Directory is `portal`**, so there is
+no parent to walk up to.
+
+This is why the three earlier investigations cleared the wrong suspects and were
+right to: the build genuinely does pass here, `rm -rf .next` genuinely does not
+change it, the plugin packages genuinely are not npm workspaces, and PR #6's
+`f9c4318` genuinely did fail with no `package.json` change. Every one of those
+findings stands. They were all measuring a machine that had the binary.
+
+**The lesson to keep: `rm -rf .next && npm run build` is not a clean build.** It
+reuses `node_modules`, and — where the deploy target has a Root Directory —
+everything above it. Only checking out that directory alone reproduces the
+deploy.
+
+### Reproduced, then fixed, then re-proved
+
+Checked out `portal/` on its own and ran Vercel's exact commands,
+`npm install --legacy-peer-deps && npm run build`:
+
+| | before | after |
+| --- | --- | --- |
+| `require("lightningcss")` | throws | resolves |
+| `require("@tailwindcss/oxide")` | throws | resolves |
+| `npm run build` | **fails** at the first CSS module | **exit 0**, 301 pages |
+
+The fix is two lines in `package.json`: `lightningcss-linux-x64-gnu@1.32.0` and
+`@tailwindcss/oxide-linux-x64-gnu@4.2.4` as `optionalDependencies`, pinned to
+their parents' exact versions. Both are `os: ["linux"]`, and the darwin entries
+are untouched, so a Mac checkout installs exactly what it did before.
+
+### Pinned so it cannot come back quietly
+
+`scripts/smoke-deploy-lockfile.test.ts` asserts the RULE, not the two names: any
+dependency declaring per-platform native binaries must have its Linux x64 build
+recorded in the lockfile. It reads the lockfile rather than `node_modules`, so a
+local machine that happens to have the binary cannot mask it, and it also pins
+the exact-version requirement (a caret range would let npm pair 1.32.0 with a
+1.33 binary — the same failure, again only on the deploy machine) and refuses
+`--no-optional` in `vercel.json`, which would defeat the whole file.
+
+Verified two-sided against the **real** pre-fix lockfile, not a synthetic one:
+it names `lightningcss` and `@tailwindcss/oxide` and nothing else.
+
+### What this does NOT claim — and the evidence that forces the caveat
+
+**Vercel's outcome is not a function of the tree.** Within twenty minutes, two
+consecutive commits on this branch behaved differently:
+
+| commit | contents | Vercel |
+| --- | --- | --- |
+| `9f0ecc4d` | five markdown/JSON doc files | **Ready** |
+| `3bcef67d` | two markdown files | **Error** |
+
+`git diff 9f0ecc4d 3bcef67d -- package.json package-lock.json` is **empty**.
+Neither commit touched a line of source. One deployed, one did not.
+
+So something on Vercel's side varies between builds of functionally identical
+trees. The most plausible candidate is its `node_modules` build cache — a
+restored cache carrying the Linux binary would pass, a cold install would fail —
+but that is an inference, not a measurement: Vercel's logs need an
+authentication this session lacks and outbound HTTPS to `*.vercel.app` is
+proxy-blocked, so the cache state is not observable from here.
+
+What IS established, and stands on its own:
+
+1. The lockfile has **never** recorded the Linux binary. Checked across all eight
+   commits that touched it, back to 2026-08-11: `lightningcss-linux-x64-gnu`
+   appears only inside `lightningcss`'s own list of platform variants, never as
+   an installed entry.
+2. An isolated `portal/`-only checkout on Linux x64 **deterministically fails**
+   before the fix, with exactly the error above, and **deterministically passes**
+   after — same machine, same command, same Node.
+
+So the fix removes a real defect that produces this exact failure and makes the
+build independent of whatever Vercel's cache happens to hold. It does not follow
+that it explains all five past failures, and **a green deployment now would be
+weak evidence either way** — `9f0ecc4d` was already green without it. Treat a
+further failure as a second, separate cause rather than as this one returning.
+
+---
+
+## The `/portal/agency` render-time side effect: narrowed, and the class closed
+
+`CLAUDE.md` item 6 lists a "hidden render-time mutation" as open residue, seen as
+
+    Can't perform a React state update on a component that hasn't mounted yet.
+
+It is timing dependent — it did not reproduce across **51 loads** of that page in
+three consecutive browser-matrix runs — so a browser walk is the wrong
+instrument. React's warning names a STRUCTURAL mistake, and structure can be read
+from source whether or not the timing lines up on the day you look.
+
+**Result: across 750 client components, zero cross-component render-phase
+updates.** No prop callback, `dispatch`, `emit` or `notify` is called from a
+render body anywhere in the app.
+
+The only render-phase state updates that exist are three of React's documented
+"adjusting state when props change" — a component calling its OWN setter behind
+a guard, which React re-renders immediately and never warns about:
+
+| component | why |
+| --- | --- |
+| `BattleTableWorkspace` | reconciles navigation against the scopes it was given |
+| `AppConfigEditor` | re-syncs when the server hands it a newer revision |
+| `EmailButton` | kills a draft when the recipient changes underneath it |
+
+Each already carried a comment explaining itself. All three are correct.
+
+**So the warning is not a synchronous cross-component update in application
+code.** What remains: an async callback — a promise, timer or observer —
+resolving before its target mounts, or something inside a dependency. That is a
+real narrowing, not a resolution, and the item stays open with the search space
+cut down.
+
+`scripts/smoke-render-phase-state.test.ts` keeps the negative result true. It
+fails if any component updates another during render, and separately if one of
+the three adjustments loses its guard (unguarded, they re-render forever). It
+also asserts the three are still present, so a refactor cannot produce a clean
+sheet for the wrong reason, and asserts the scan reached 500+ files, so a broken
+collector cannot report "none found" from having looked at nothing. Verified
+two-sided: a prop callback added to a render body fails it; removing
+`BattleTableWorkspace`'s guard fails it. 3.3s, four assertions.

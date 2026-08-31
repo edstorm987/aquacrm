@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/server/auth/auth";
 import { resolvePostLoginPath } from "@/lib/server/auth/postLoginRedirect";
 import { canUseAgencySettingsCapability } from "@/lib/agencySettingsCapabilities";
 import { CUSTOMER_PORTAL_ROLES } from "@/server/types";
+import { getSupabasePublicConfig } from "@/lib/supabase/config";
 import { getUserById } from "@/server/users";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -137,7 +138,9 @@ export default async function AccountPage() {
           </div>
         </form>
 
-        <TwoFactorPanel />
+        {/* Decided on the server: the panel must not ask a question whose answer
+            is fixed by deployment configuration. See TwoFactorPanel. */}
+        <TwoFactorPanel available={getSupabasePublicConfig() !== null} />
 
         <details className="mm-surface-card group mt-5 rounded-lg border p-4 text-sm sm:p-5">
           <summary className="flex cursor-pointer list-none items-center gap-3 text-black/75">

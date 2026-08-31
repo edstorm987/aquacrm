@@ -18,6 +18,8 @@
  * check it appears to have.
  */
 
+import { getSupabasePublicConfig } from "@/lib/supabase/config";
+
 export type AssuranceLevel = "aal1" | "aal2";
 
 export interface AssuranceState {
@@ -525,4 +527,26 @@ export async function consumeRecoveryCode(
     outcome = { ok: true, remaining: recovery.codeHashes.length };
   });
   return outcome;
+}
+
+/**
+ * The honest answer when two-factor cannot run at all.
+ *
+ * Every MFA route builds its client with `createRouteSupabaseClient`, which
+ * calls `requireSupabasePublicConfig()` and THROWS when Supabase is not
+ * configured. An uncaught throw in a route handler is a 500, so a deployment
+ * that simply has no Supabase credentials reported "two-factor is broken"
+ * rather than "two-factor is not set up here" — the browser matrix found
+ * `POST /api/portal/mfa/enrol` answering 500 on every single viewport.
+ *
+ * A missing configuration is not a server fault. Returning `null` here means
+ * "carry on"; returning a response means the caller must answer with it.
+ */
+export function mfaUnavailableResponse(): Response | null {
+  if (getSupabasePublicConfig()) return null;
+  return Response.json({
+    ok: false,
+    code: "mfa_unavailable",
+    error: "Two-factor sign-in is not available on this deployment — it needs Supabase auth, which is not configured here.",
+  }, { status: 503 });
 }

@@ -2,8 +2,7 @@
   "name": "@aqua/plugin-client-crm",
   "version": "0.1.0",
   "private": true,
-  "description": "Aqua portal client-CRM plugin — contacts, segments, activity timeline, custom attributes. Per-client install (scopePolicy: 'client'); soft-integrates with memberships + ecommerce + affiliates via injected ports (return-null-when-absent). Pairs with end-customer flow: signups auto-appear as Contacts.",
-  "type": "module",
+  "description": "Aqua portal client-CRM plugin \u2014 contacts, segments, activity timeline, custom attributes. Per-client install (scopePolicy: 'client'); soft-integrates with memberships + ecommerce + affiliates via injected ports (return-null-when-absent). Pairs with end-customer flow: signups auto-appear as Contacts.",
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",

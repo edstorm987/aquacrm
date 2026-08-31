@@ -260,6 +260,40 @@ describe("a customer's first minutes", () => {
     }
   });
 
+  it("declares an icon the document can actually fetch", () => {
+    // ── A 404 on every first navigation ──────────────────────────────────
+    //
+    // The manifest's icons only apply to an installed PWA. A plain page with no
+    // <link rel="icon"> makes the browser request `/favicon.ico` by default —
+    // and there is no such file here; the assets are `favicon-default*`. So
+    // every cold navigation logged a 404 for the app's own icon, which the
+    // browser matrix caught on the marketing home page.
+    //
+    // Declared in the ROOT layout, so every route inherits it, and pointing at
+    // the files that already exist rather than adding a second copy under a
+    // second name.
+    const layout = read("src", "app", "layout.tsx");
+    assert.match(layout, /icons: \{/, "the root metadata declares no icon at all");
+    assert.match(layout, /url: "\/favicon-default\.ico"/, "the .ico is what a bare favicon request wants");
+    assert.match(layout, /apple: \{ url: "\/favicon-default-180\.png"/, "iOS home-screen icon");
+
+    // Every declared file must exist, or this trades a 404 for a different 404.
+    for (const name of ["favicon-default.ico", "favicon-default-32.png", "favicon-default-192.png", "favicon-default-180.png"]) {
+      assert.ok(existsSync(join(__dirname, "..", "public", name)), `metadata names ${name}, which is not in public/`);
+    }
+
+    // The static pages under `public/` are served straight off disk, outside
+    // Next entirely — including the marketing home page that the browser matrix
+    // visits as `/`. They inherit no metadata, so the root layout does not
+    // reach them and each must say it itself. This was the actual source of the
+    // observed 404: fixing only the layout left `/` exactly as it was.
+    for (const site of ["aquacrm-site", "health-check"]) {
+      const html = read("public", site, "index.html");
+      assert.match(html, /<link rel="icon" href="\/favicon-default\.ico"/, `${site} requests /favicon.ico by default`);
+      assert.match(html, /rel="apple-touch-icon"/, `${site} has no iOS icon`);
+    }
+  });
+
   it("leaves the video out rather than showing it broken", () => {
     assert.match(screens(), /videoUrl \?/);
   });

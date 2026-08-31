@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { createRouteSupabaseClient } from "@/lib/supabase/route";
-import { hasVerifiedFactor } from "@/lib/server/auth/mfa";
+import { hasVerifiedFactor, mfaUnavailableResponse } from "@/lib/server/auth/mfa";
 
 /**
  * Whether this account already has an authenticator.
@@ -14,6 +14,12 @@ import { hasVerifiedFactor } from "@/lib/server/auth/mfa";
  * parameter naming whose account to look at and none to tamper with.
  */
 export async function GET(request: NextRequest) {
+  // A deployment with no Supabase auth cannot do two-factor at all. Say so
+  // with a 503 instead of letting requireSupabasePublicConfig() throw into
+  // an unhandled 500, which reads as "this is broken" rather than "not set up".
+  const unavailable = mfaUnavailableResponse();
+  if (unavailable) return unavailable;
+
   const { client, applyCookies } = createRouteSupabaseClient(request);
 
   const { data: user } = await client.auth.getUser();
@@ -39,6 +45,12 @@ export async function GET(request: NextRequest) {
  * in Aqua's database would be a second place to steal it from, for no benefit.
  */
 export async function POST(request: NextRequest) {
+  // A deployment with no Supabase auth cannot do two-factor at all. Say so
+  // with a 503 instead of letting requireSupabasePublicConfig() throw into
+  // an unhandled 500, which reads as "this is broken" rather than "not set up".
+  const unavailable = mfaUnavailableResponse();
+  if (unavailable) return unavailable;
+
   const { client, applyCookies } = createRouteSupabaseClient(request);
 
   const { data: user } = await client.auth.getUser();

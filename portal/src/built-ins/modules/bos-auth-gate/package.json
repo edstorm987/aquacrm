@@ -2,8 +2,7 @@
   "name": "@aqua/plugin-bos-auth-gate",
   "version": "0.1.0",
   "private": true,
-  "description": "Aqua portal BOS auth gate — gates `/business-os/*` on a real session and reads lead user state (HC slot, captures) from public-funnel for personalisation.",
-  "type": "module",
+  "description": "Aqua portal BOS auth gate \u2014 gates `/business-os/*` on a real session and reads lead user state (HC slot, captures) from public-funnel for personalisation.",
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",
@@ -16,10 +15,17 @@
     "smoke": "tsx --test src/__smoke__/gate.test.ts",
     "test": "tsx --test src/__smoke__/gate.test.ts"
   },
-  "peerDependencies": { "next": "^16.0.0", "react": "^19.0.0" },
-  "devDependencies": {
-    "@types/node": "^22.0.0", "@types/react": "^19.0.0",
-    "tsx": "^4.21.0", "typescript": "^5.6.0"
+  "peerDependencies": {
+    "next": "^16.0.0",
+    "react": "^19.0.0"
   },
-  "engines": { "node": ">=20.0.0" }
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
 }
