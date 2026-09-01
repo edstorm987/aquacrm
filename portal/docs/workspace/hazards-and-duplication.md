@@ -31,16 +31,16 @@ tenant is exempt from the sweep. Pinned in
 PII against the erasure surface"*.
 
 **The half that is not.** A real person — Ed's client Felicia of Luv & Ker —
-is **hardcoded in seven source files as a runtime default**, and erasure
+is **hardcoded in six source files as a runtime default**, and erasure
 operates on *state*, not on the codebase. Erase the demo client and the next
-seed puts the same name and email straight back. Worse, one of the seven is not
+seed puts the same name and email straight back. Worse, one of the six is not
 demo data at all: `src/app/api/tenants/seed/route.ts` defaults its client-owner
 to `felicia@luvandker.com` — a **real address on a real domain**, not the
 `.demo` mirror — and that route answers any authenticated caller in production.
 (It refuses with 409 once any agency exists, so it cannot re-seed a populated
 install; the real address ships in the bundle either way.)
 
-The seven files, and what each holds:
+The six files, and what each holds:
 
 | File | What it hardcodes |
 | --- | --- |
@@ -49,18 +49,22 @@ The seven files, and what each holds:
 | `src/built-ins/modules/website-editor/src/components/blockRegistry.ts` | `Felicia` as the testimonial author, team-grid member and author-bio default |
 | `src/built-ins/modules/website-editor/src/components/blocks/AuthorBioBlock.tsx` | fallback bio: *"Crafted Odo by Felicia from her Ghanaian heritage…"* — **personal, ethnic-origin prose** shipped as a `??` default |
 | `src/built-ins/modules/website-editor/src/components/pageTemplates.ts` | `Felicia` as a template testimonial author |
-| `src/app/portal/clients/[clientId]/_BuildPortalWizard.tsx` | a `luv-and-ker` portal preset |
 | `src/lib/projects/projects.ts` | the published `Luv & Ker` case study |
 
+The count fell from seven to six on 2026-09-01 when the obsolete
+`_BuildPortalWizard.tsx` runtime was removed; its preset can no longer restore
+the persona. The retired website-editor `SitesPage.tsx` placeholder entry was
+removed from the non-runtime list for the same reason.
+
 **What this means when you edit here.** Do not describe erasure as removing a
-person's data from AquaCRM without qualifying it — for these seven files it
+person's data from AquaCRM without qualifying it — for these six files it
 removes the row and not the persona. `semanticRegistry.ts`'s `client` entity now
 says so in its `retention` line, which is the machine-readable copy of this
-entry. And **do not add an eighth**: the same test sweeps `src/**` for the
+entry. And **do not add a seventh**: the same test sweeps `src/**` for the
 persona tokens (skipping comments and `placeholder` text) and fails on any file
 not listed above, so a new hardcoded default has to be argued for here first.
 
-**What the sweep deliberately does NOT catch — so seven is the count of runtime
+**What the sweep deliberately does NOT catch — so six is the count of runtime
 defaults, not of every appearance.** Lines whose only hit is inside a comment, or
 on a line containing `placeholder`, are exempt: a comment is context for the next
 reader and a form placeholder is example text the user overwrites. That exemption
@@ -70,7 +74,6 @@ bundle and rendered on screen — at least these:
 | File | Placeholder-shaped occurrence |
 | --- | --- |
 | `src/built-ins/modules/fulfillment/src/components/NewClientModal.tsx` | `placeholder="felicia@luvandker.com"` and `"e.g. Luv & Ker"` — the **real address**, shown in the new-client form |
-| `src/built-ins/modules/website-editor/src/pages/SitesPage.tsx` | `"e.g. Felicia Skincare"`, `"e.g. felicia.com"`, and two Odo/`Luv & Ker` assistant-prompt placeholders |
 | `src/built-ins/modules/website-editor/src/pages/EditorPage.tsx` | `luvandker.com` as the custom-domain placeholder |
 | `src/built-ins/modules/ecommerce/index.ts` | `https://luvandker.com/checkout/...` as the Stripe URL placeholders |
 

@@ -3634,6 +3634,12 @@ main#main-content.mm-route-canvas {
   animation: aqua-viewport-loading-reveal 180ms ease-out 110ms both;
 }
 
+.aqua-viewport-loading[data-loading-state="error"] {
+  cursor: default;
+  opacity: 1;
+  animation: none;
+}
+
 /* The root /portal boundary is used while the destination workspace shell
    itself is changing. There is no persistent destination chrome to preserve,
    so the same component becomes the full-device underlay for the cinematic. */

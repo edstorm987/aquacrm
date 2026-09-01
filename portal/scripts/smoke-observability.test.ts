@@ -27,7 +27,10 @@ import {
   inspectObservabilityCapability,
   isSentrySdkInstalled,
 } from "../src/lib/server/observabilityCapability";
-import { resolveSentryDsn } from "../src/lib/server/observability";
+import {
+  isExpectedFrameworkControlFlow,
+  resolveSentryDsn,
+} from "../src/lib/server/observability";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
@@ -346,6 +349,32 @@ describe("Observability — src/instrumentation.ts is the mounted server boundar
     const captured = errors.find(args => args[0] === "[observability]");
     assert.ok(captured, "onRequestError must route the error into observability.captureError");
     assert.equal((captured?.[1] as Error).message, "boom from a route handler");
+  });
+
+  it("does not report Next's successful dynamic-render control flow as an app failure", async () => {
+    const errors: unknown[][] = [];
+    const originalError = console.error;
+    console.error = (...args: unknown[]) => { errors.push(args); };
+    const controlFlow = Object.assign(new Error("Dynamic server usage"), {
+      digest: "DYNAMIC_SERVER_USAGE",
+    });
+    try {
+      assert.equal(isExpectedFrameworkControlFlow(controlFlow), true);
+      assert.equal(isExpectedFrameworkControlFlow(new Error("real failure")), false);
+      await onRequestError(
+        controlFlow,
+        { path: "/milesymedia/contact", method: "GET", headers: {} },
+        {
+          routerKind: "App Router",
+          routePath: "/milesymedia/contact",
+          routeType: "render",
+          revalidateReason: undefined,
+        },
+      );
+    } finally {
+      console.error = originalError;
+    }
+    assert.equal(errors.some(args => args[0] === "[observability]"), false);
   });
 
   it("register() warns at boot when a DSN is set but nothing can deliver", async () => {

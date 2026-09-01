@@ -8,7 +8,7 @@ it disagrees with the registry, the registry wins and this file has a bug.*
 
 ## 1. Entity map
 
-Thirty entities cover the concepts the product operates on. Grouped:
+Thirty-three entities cover the concepts the product operates on. Grouped:
 
 - **Tenancy & identity** — `tenant` (Agency), `tradingCompany`, `workspace`
   (five senses, mostly not a persisted entity), `userAccount`, `staffMember`,
@@ -85,14 +85,15 @@ the single authoritative calculation site, instead of restating the formula
 (restating it would recreate the second-source-of-truth problem). Known
 competing calculations are linked as `same-quantity` overlaps;
 `smoke-metric-registry.test.ts` pins the registry to the defining source
-files, pins the one existing bare-id collision, and golden-tests the boundary
-semantics of the dedup-hazard metrics. Target/baseline authority stays with
+files, pins the one existing bare-id collision, enforces canonical durable
+references (including deterministic legacy migration), and golden-tests the
+boundary semantics of the dedup-hazard metrics. Target/baseline authority stays with
 the layered `KpiTargetsConfig` (agency → company, with effective-from
 history) — the registry does not duplicate targets.
 
 ## 7. Metadata namespaces
 
-`src/lib/data/metadataContracts.ts` catalogues all 123 keys across the
+`src/lib/data/metadataContracts.ts` catalogues all 124 keys across the
 client/enquiry/activity/auth-user bags into 16 namespaces (contact,
 crm-lineage, identity, routing, journey, portal-provisioning, portal-config,
 product, finance, telemetry, inbox, consent, delivery, files, bespoke,

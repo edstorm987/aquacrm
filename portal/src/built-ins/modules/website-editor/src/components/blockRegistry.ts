@@ -1023,6 +1023,29 @@ export function listBlockDefinitions(): BlockDefinition[] {
   return listElementDefinitions("website");
 }
 
+/**
+ * Whether a definition may be offered for the tenant currently mounted in the
+ * editor. Rendering an existing page remains lossless when a plugin is later
+ * disabled; this selector gates creation surfaces only.
+ */
+export function blockDefinitionIsAvailable(
+  definition: Pick<BlockDefinition, "requiresPlugin">,
+  enabledPluginIds: readonly string[],
+): boolean {
+  return !definition.requiresPlugin || enabledPluginIds.includes(definition.requiresPlugin);
+}
+
+/**
+ * The website palette filtered by real, server-resolved tenant install state.
+ * An empty list is deliberately restrictive: callers that have not resolved
+ * install state must not expose plugin-backed blocks by accident.
+ */
+export function listAvailableBlockDefinitions(enabledPluginIds: readonly string[]): BlockDefinition[] {
+  return listBlockDefinitions().filter(definition =>
+    blockDefinitionIsAvailable(definition, enabledPluginIds),
+  );
+}
+
 export function listBlocksByCategory(category: BlockCategory): BlockDefinition[] {
   return listElementDefinitions("website").filter(d => d.category === category);
 }

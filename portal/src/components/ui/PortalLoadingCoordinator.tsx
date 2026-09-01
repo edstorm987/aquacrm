@@ -25,6 +25,7 @@ export function PortalLoadingCoordinator({
 }: PortalLoadingCoordinatorProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const loaderStartedAtRef = useRef<number | null>(null);
+  const loaderWatchTimerRef = useRef<number | null>(null);
   const curtainTimerRef = useRef<number | null>(null);
   const unveilingRef = useRef(false);
   const [unveiling, setUnveiling] = useState(false);
@@ -41,6 +42,11 @@ export function PortalLoadingCoordinator({
       setUnveiling(false);
     };
 
+    const cancelLoaderWatch = () => {
+      if (loaderWatchTimerRef.current !== null) window.clearTimeout(loaderWatchTimerRef.current);
+      loaderWatchTimerRef.current = null;
+    };
+
     const ownLoader = () => Array.from(root.querySelectorAll<HTMLElement>("[data-aqua-viewport-loader]"))
       .find(loader => loader.closest<HTMLElement>("[data-aqua-loading-coordinator]") === root) ?? null;
 
@@ -53,8 +59,20 @@ export function PortalLoadingCoordinator({
           loaderStartedAtRef.current = performance.now() - (alreadyVisible ? LOADER_REVEAL_DELAY_MS : 0);
         }
         if (curtainTimerRef.current !== null || unveilingRef.current) cancelCurtain();
+        // A warm client boot can replace its fallback in the same React commit
+        // that hydrates this coordinator. MutationObserver normally catches
+        // that removal, but a short, bounded watch while a loader exists makes
+        // the handoff deterministic even across that hydration race.
+        if (loaderWatchTimerRef.current === null) {
+          loaderWatchTimerRef.current = window.setTimeout(() => {
+            loaderWatchTimerRef.current = null;
+            inspect();
+          }, 40);
+        }
         return;
       }
+
+      cancelLoaderWatch();
 
       const startedAt = loaderStartedAtRef.current;
       if (startedAt === null) return;
@@ -82,6 +100,7 @@ export function PortalLoadingCoordinator({
     observer.observe(root, { childList: true, subtree: true });
     return () => {
       observer.disconnect();
+      cancelLoaderWatch();
       if (curtainTimerRef.current !== null) window.clearTimeout(curtainTimerRef.current);
     };
   }, []);

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { KpiReferenceError } from "@/lib/data/metricRegistry";
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import {
   applyKpiTargetCommand,
@@ -78,6 +79,9 @@ function publicConfig(config: KpiTargetsConfig): KpiTargetsConfig {
 }
 
 function knownErrorResponse(error: unknown): Response {
+  if (error instanceof KpiReferenceError) {
+    return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
+  }
   if (error instanceof KpiTargetVersionConflictError) {
     return NextResponse.json({ ok: false, error: error.message, config: publicConfig(error.config) }, { status: 409 });
   }

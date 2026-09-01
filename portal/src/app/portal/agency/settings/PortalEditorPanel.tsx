@@ -1,30 +1,19 @@
 "use client";
 
 import { Archive, Check, ChevronRight, ListPlus, Pencil, Plus, RotateCcw, Trash2, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   PortalFormEditorState,
   PortalFormEntity,
   PortalFormFieldDefinition,
   PortalFormFieldType,
 } from "@/server/types";
-
-type ContactField = {
-  id: string;
-  label: string;
-  type: "text" | "number" | "date" | "url" | "select" | "multi-select" | "checkbox";
-  options: string[];
-  formName: string;
-  required?: boolean;
-};
-
-type ExpenseCategory = {
-  id: string;
-  name: string;
-  description?: string;
-  isDefault: boolean;
-  status: "active" | "archived";
-};
+import {
+  loadPortalEditorReads,
+  type ContactField,
+  type ExpenseCategory,
+  type PortalEditorReads,
+} from "./portalEditorReads";
 
 const ENTITIES: Array<{ id: PortalFormEntity; label: string; detail: string }> = [
   { id: "contacts", label: "Contacts", detail: "People, suppliers, staff and client contacts" },
@@ -66,22 +55,42 @@ export function PortalEditorPanel({ canManage }: { canManage: boolean }) {
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [draft, setDraft] = useState(emptyDraft);
   const [editing, setEditing] = useState(false);
-  const [status, setStatus] = useState("Loading form settings...");
+  const [status, setStatus] = useState("");
+  const [reads, setReads] = useState<PortalEditorReads | null>(null);
+  const [loading, setLoading] = useState(true);
+  const readGeneration = useRef(0);
+
+  const loadSettings = useCallback(async () => {
+    const generation = ++readGeneration.current;
+    setLoading(true);
+    const next = await loadPortalEditorReads();
+    if (generation !== readGeneration.current) return;
+
+    // A retry that fails must not replace a previously confirmed snapshot
+    // with fallback emptiness. Availability changes; confirmed data does not.
+    if (next.editor.available && next.editor.data) setEditor(next.editor.data);
+    if (next.contacts.available) setContactFields(next.contacts.data);
+    if (next.categories.available) setCategories(next.categories.data);
+    setReads(next);
+    setLoading(false);
+
+    const unavailableCount = [next.editor, next.contacts, next.categories]
+      .filter(read => !read.available).length;
+    setStatus(unavailableCount
+      ? `${unavailableCount} configuration ${unavailableCount === 1 ? "source was" : "sources were"} not read. Available settings were kept; unavailable sections are locked.`
+      : "");
+  }, []);
 
   useEffect(() => {
     const requestedForm = window.location.hash.split("/")[1] as PortalFormEntity | undefined;
     if (requestedForm && ENTITIES.some(item => item.id === requestedForm)) setEntity(requestedForm);
-    void Promise.all([
-      fetch("/api/portal/settings/portal-editor").then(response => response.json()),
-      fetch("/api/portal/leads-pipeline/contact-configuration").then(response => response.json()),
-      fetch("/api/portal/agency-finance/categories").then(response => response.json()),
-    ]).then(([editorResult, contactResult, categoryResult]) => {
-      if (editorResult?.ok) setEditor(editorResult.editor);
-      if (contactResult?.ok) setContactFields(contactResult.customFields ?? []);
-      if (categoryResult?.ok) setCategories(categoryResult.categories ?? []);
-      setStatus("");
-    }).catch(() => setStatus("Some form settings could not be loaded."));
-  }, []);
+    void loadSettings();
+    return () => { readGeneration.current += 1; };
+  }, [loadSettings]);
+
+  const fieldsRead = entity === "contacts" ? reads?.contacts : reads?.editor;
+  const fieldsAvailable = fieldsRead?.available === true;
+  const fieldsUnavailable = fieldsRead?.available === false;
 
   const fields = useMemo<PortalFormFieldDefinition[]>(() => {
     if (entity === "contacts") {
@@ -121,6 +130,10 @@ export function PortalEditorPanel({ canManage }: { canManage: boolean }) {
 
   async function saveField(event: React.FormEvent) {
     event.preventDefault();
+    if (!fieldsAvailable || loading) {
+      setStatus("These fields were not read. Retry before saving changes.");
+      return;
+    }
     setStatus("Saving field...");
     const options = draft.options.split(",").map(value => value.trim()).filter(Boolean);
     if (entity === "contacts") {
@@ -169,6 +182,10 @@ export function PortalEditorPanel({ canManage }: { canManage: boolean }) {
   }
 
   async function deleteField(field: PortalFormFieldDefinition) {
+    if (!fieldsAvailable || loading) {
+      setStatus("These fields were not read. Retry before removing anything.");
+      return;
+    }
     if (!window.confirm(`Delete "${field.label}"? Existing values will remain stored, but the field will no longer appear on forms.`)) return;
     setStatus("Removing field...");
     const response = entity === "contacts"
@@ -221,7 +238,7 @@ export function PortalEditorPanel({ canManage }: { canManage: boolean }) {
                 : "Add the information Milesymedia needs to capture. Group fields into clear sections so the working screen stays simple."}
             </p>
           </div>
-          {canManage && !editing ? (
+          {canManage && !editing && fieldsAvailable && !loading ? (
             <button type="button" onClick={() => setEditing(true)} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85">
               <Plus size={16} /> Add field
             </button>
@@ -275,9 +292,25 @@ export function PortalEditorPanel({ canManage }: { canManage: boolean }) {
         <section>
           <div className="mb-3 flex items-center justify-between gap-3">
             <h4 className="text-sm font-semibold text-black/75">Your fields</h4>
-            <span className="text-xs text-black/40">{fields.length} custom {fields.length === 1 ? "field" : "fields"}</span>
+            <span className="text-xs text-black/40">
+              {fieldsAvailable
+                ? `${fields.length} custom ${fields.length === 1 ? "field" : "fields"}`
+                : loading && !reads
+                  ? "Loading…"
+                  : "Not read"}
+            </span>
           </div>
-          {fields.length ? (
+          {fieldsUnavailable ? (
+            <UnavailableReadPanel
+              message={fieldsRead?.reason ?? "These custom fields could not be read."}
+              loading={loading}
+              onRetry={() => void loadSettings()}
+            />
+          ) : !fieldsAvailable ? (
+            <div aria-busy="true" className="border-y border-black/10 py-8 text-center">
+              <p className="text-sm font-medium text-black/60">Reading custom fields…</p>
+            </div>
+          ) : fields.length ? (
             <div className="divide-y divide-black/10 border-y border-black/10">
               {fields.map(field => (
                 <div key={field.id} className="flex min-h-16 items-center gap-3 py-3">
@@ -303,17 +336,52 @@ export function PortalEditorPanel({ canManage }: { canManage: boolean }) {
           )}
         </section>
 
-        {entity === "expenses" ? <ExpenseCategoryEditor categories={categories} setCategories={setCategories} canManage={canManage} /> : null}
+        {entity === "expenses" ? (
+          <ExpenseCategoryEditor
+            categories={categories}
+            setCategories={setCategories}
+            canManage={canManage}
+            available={reads?.categories.available}
+            reason={reads?.categories.reason}
+            loading={loading}
+            onRetry={() => void loadSettings()}
+          />
+        ) : null}
         {status ? <p role="status" className="mt-4 text-xs font-medium text-black/50">{status}</p> : null}
       </div>
     </div>
   );
 }
 
-function ExpenseCategoryEditor({ categories, setCategories, canManage }: {
+function UnavailableReadPanel({ message, loading, onRetry }: {
+  message: string;
+  loading: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <div role="status" className="border-y border-amber-200 bg-amber-50 px-4 py-5 text-amber-950">
+      <p className="text-sm font-semibold">Configuration unavailable</p>
+      <p className="mt-1 text-xs leading-5">{message}</p>
+      <button
+        type="button"
+        onClick={onRetry}
+        disabled={loading}
+        className="mt-3 inline-flex min-h-9 items-center rounded-md border border-amber-700/30 bg-white px-3 text-xs font-semibold disabled:opacity-60"
+      >
+        {loading ? "Retrying…" : "Retry read"}
+      </button>
+    </div>
+  );
+}
+
+function ExpenseCategoryEditor({ categories, setCategories, canManage, available, reason, loading, onRetry }: {
   categories: ExpenseCategory[];
   setCategories: React.Dispatch<React.SetStateAction<ExpenseCategory[]>>;
   canManage: boolean;
+  available: boolean | undefined;
+  reason?: string;
+  loading: boolean;
+  onRetry: () => void;
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -321,6 +389,10 @@ function ExpenseCategoryEditor({ categories, setCategories, canManage }: {
 
   async function createCategory(event: React.FormEvent) {
     event.preventDefault();
+    if (!available || loading) {
+      setStatus("Expense categories were not read. Retry before adding one.");
+      return;
+    }
     setStatus("Adding category...");
     const response = await fetch("/api/portal/agency-finance/categories", {
       method: "POST",
@@ -336,6 +408,10 @@ function ExpenseCategoryEditor({ categories, setCategories, canManage }: {
   }
 
   async function setCategoryStatus(category: ExpenseCategory, next: ExpenseCategory["status"]) {
+    if (!available || loading) {
+      setStatus("Expense categories were not read. Retry before changing them.");
+      return;
+    }
     setStatus(next === "archived" ? "Archiving category..." : "Restoring category...");
     const response = await fetch("/api/portal/agency-finance/categories", {
       method: "PATCH",
@@ -354,33 +430,45 @@ function ExpenseCategoryEditor({ categories, setCategories, canManage }: {
         <h4 className="text-sm font-semibold text-black/75">Expense categories</h4>
         <p className="mt-1 text-xs leading-5 text-black/45">Create your own categories. Archive old ones without removing their historic expense records.</p>
       </div>
-      {canManage ? (
+      {available === false ? (
+        <UnavailableReadPanel
+          message={reason ?? "Expense categories could not be read."}
+          loading={loading}
+          onRetry={onRetry}
+        />
+      ) : available === undefined ? (
+        <div aria-busy="true" className="border-y border-black/10 py-8 text-center">
+          <p className="text-sm font-medium text-black/60">Reading expense categories…</p>
+        </div>
+      ) : canManage ? (
         <form onSubmit={createCategory} className="grid gap-3 rounded-md border border-black/10 bg-black/[0.018] p-3 sm:grid-cols-[1fr_1.5fr_auto]">
           <input required value={name} onChange={event => setName(event.target.value)} className={inputClass} placeholder="Category name" aria-label="Category name" />
           <input value={description} onChange={event => setDescription(event.target.value)} className={inputClass} placeholder="What belongs here? (optional)" aria-label="Category description" />
           <button type="submit" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white"><Plus size={15} /> Add</button>
         </form>
       ) : null}
-      <div className="mt-3 divide-y divide-black/10 border-y border-black/10">
-        {categories.map(category => (
-          <div key={category.id} className="flex min-h-14 items-center gap-3 py-2.5">
-            <div className="min-w-0 flex-1">
-              <p className={`text-sm font-medium ${category.status === "archived" ? "text-black/35 line-through" : "text-black/70"}`}>{category.name}</p>
-              <p className="truncate text-xs text-black/40">{category.description || (category.isDefault ? "Milesymedia default category" : "Custom category")}</p>
+      {available ? (
+        <div className="mt-3 divide-y divide-black/10 border-y border-black/10">
+          {categories.map(category => (
+            <div key={category.id} className="flex min-h-14 items-center gap-3 py-2.5">
+              <div className="min-w-0 flex-1">
+                <p className={`text-sm font-medium ${category.status === "archived" ? "text-black/35 line-through" : "text-black/70"}`}>{category.name}</p>
+                <p className="truncate text-xs text-black/40">{category.description || (category.isDefault ? "Milesymedia default category" : "Custom category")}</p>
+              </div>
+              {canManage ? (
+                <button
+                  type="button"
+                  onClick={() => void setCategoryStatus(category, category.status === "active" ? "archived" : "active")}
+                  className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 px-2.5 text-xs font-medium text-black/55 hover:bg-black/[0.03]"
+                >
+                  {category.status === "active" ? <Archive size={14} /> : <RotateCcw size={14} />}
+                  {category.status === "active" ? "Archive" : "Restore"}
+                </button>
+              ) : null}
             </div>
-            {canManage ? (
-              <button
-                type="button"
-                onClick={() => void setCategoryStatus(category, category.status === "active" ? "archived" : "active")}
-                className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 px-2.5 text-xs font-medium text-black/55 hover:bg-black/[0.03]"
-              >
-                {category.status === "active" ? <Archive size={14} /> : <RotateCcw size={14} />}
-                {category.status === "active" ? "Archive" : "Restore"}
-              </button>
-            ) : null}
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : null}
       {status ? <p role="status" className="mt-3 text-xs font-medium text-black/50">{status}</p> : null}
     </section>
   );

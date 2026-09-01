@@ -1,5 +1,6 @@
 import type { RadarEvidenceSeriesSummary } from "@/engines/data/radar/businessRadar";
 import type { CustomKpiDefinition, CustomKpiOp, KpiTargetOverride, KpiTargetsConfig } from "@/server/types";
+import { tryCanonicalKpiReference } from "@/lib/data/metricRegistry";
 import type {
   CommandIntelligenceSnapshot,
   CommandKpi,
@@ -209,8 +210,11 @@ export function describeCommercialFormulas(snapshot: CommandIntelligenceSnapshot
  */
 export function resolveKpiTarget(config: KpiTargetsConfig | undefined, kpiId: string, companyId?: string): KpiTargetOverride | undefined {
   if (!config) return undefined;
-  const agencyLevel = config.byKpi?.[kpiId];
-  const companyLevel = companyId ? config.byCompany?.[companyId]?.[kpiId] : undefined;
+  const canonicalId = tryCanonicalKpiReference(kpiId, { mode: "legacy" });
+  const agencyLevel = (canonicalId ? config.byKpi?.[canonicalId] : undefined) ?? config.byKpi?.[kpiId];
+  const companyLevel = companyId
+    ? (canonicalId ? config.byCompany?.[companyId]?.[canonicalId] : undefined) ?? config.byCompany?.[companyId]?.[kpiId]
+    : undefined;
   if (!agencyLevel && !companyLevel) return undefined;
   return { ...agencyLevel, ...companyLevel };
 }
@@ -331,10 +335,18 @@ function formatCustomValue(value: number, format: CommandKpiFormat): string {
  * operand is missing, and `ratio`/`rate` emit no point on a zero denominator
  * (never a fabricated number).
  */
+function descriptorForReference(byId: Map<string, KpiDescriptor>, reference: string): KpiDescriptor | undefined {
+  const canonicalId = tryCanonicalKpiReference(reference, { mode: "legacy" });
+  if (!canonicalId) return byId.get(reference);
+  return byId.get(canonicalId)
+    ?? [...byId.values()].find(descriptor => descriptor.canonicalId === canonicalId)
+    ?? byId.get(reference);
+}
+
 export function computeCustomKpi(definition: CustomKpiDefinition, byId: Map<string, KpiDescriptor>): KpiDescriptor | null {
-  const numerator = byId.get(definition.numeratorId);
+  const numerator = descriptorForReference(byId, definition.numeratorId);
   if (!numerator) return null;
-  const denominator = definition.denominatorId ? byId.get(definition.denominatorId) : undefined;
+  const denominator = definition.denominatorId ? descriptorForReference(byId, definition.denominatorId) : undefined;
   if (definition.denominatorId && !denominator) return null;
 
   const denByAt = new Map((denominator?.series ?? []).map(point => [point.at, point.value] as const));
@@ -384,7 +396,7 @@ export function computeCustomKpi(definition: CustomKpiDefinition, byId: Map<stri
 
 /** Compute every custom KPI definition against a base descriptor set (dropping any whose operands are missing). */
 export function describeCustomKpis(definitions: CustomKpiDefinition[], base: KpiDescriptor[]): KpiDescriptor[] {
-  const byId = new Map(base.map(descriptor => [descriptor.id, descriptor]));
+  const byId = new Map(base.map(descriptor => [descriptor.canonicalId, descriptor]));
   return definitions.map(definition => computeCustomKpi(definition, byId)).filter((descriptor): descriptor is KpiDescriptor => descriptor !== null);
 }
 

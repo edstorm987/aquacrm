@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { KpiReferenceError } from "@/lib/data/metricRegistry";
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { createCustomKpi, deleteCustomKpi, listCustomKpis } from "@/engines/data/server/kpi/customKpis";
 import { ensureHydrated } from "@/server/storage";
@@ -44,6 +45,7 @@ export async function POST(request: Request): Promise<Response> {
     }, { actorUserId: session.userId });
     return NextResponse.json({ ok: true, definition, definitions: listCustomKpis(session.agencyId) });
   } catch (error) {
+    if (error instanceof KpiReferenceError) return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
     return authErrorResponse(error);
   }
 }

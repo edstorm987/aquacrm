@@ -34,6 +34,7 @@ interface Props {
   siteId: string;
   pageId: string;
   device: DeviceState;
+  enabledPluginIds: readonly string[];
   // Surface save state up to the super-editor's topbar.
   onSavingChange?: (saving: boolean) => void;
   // History controls — wired to the topbar's undo/redo buttons via refs.
@@ -42,7 +43,7 @@ interface Props {
   onHistoryChange?: (canUndo: boolean, canRedo: boolean) => void;
 }
 
-export default function EditorBlockStage({ siteId, pageId, device, onSavingChange, registerHistory, onHistoryChange }: Props) {
+export default function EditorBlockStage({ siteId, pageId, device, enabledPluginIds, onSavingChange, registerHistory, onHistoryChange }: Props) {
   const [page, setPage] = useState<EditorPage | null>(null);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -311,6 +312,7 @@ export default function EditorBlockStage({ siteId, pageId, device, onSavingChang
         <Sidebar
           blocks={blocks}
           selectedId={selectedId}
+          enabledPluginIds={enabledPluginIds}
           onSelect={setSelectedId}
           onAddTopLevel={handleDropOnCanvas}
         />

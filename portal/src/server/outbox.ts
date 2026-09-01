@@ -17,12 +17,14 @@ import "server-only";
 // one write, so the change and its event cannot part company. Then
 // `drainOutbox()` hands pending events to the existing bus (which stays the
 // delivery mechanism — subscribers, automations and plugin fan-out are
-// untouched) and marks them delivered.
+// untouched) and marks them handed to that bus.
 //
-// Delivery is AT-LEAST-ONCE: a crash after the mutate but before the drain
-// leaves a pending row that the next drain (every `emitDurable` call drains
-// opportunistically) redelivers. Consumers must stay idempotent — they
-// already must be, because provider webhooks redeliver too.
+// The durable guarantee currently stops at BUS DISPATCH. A crash after the
+// mutate but before `emit()` leaves a pending row for a later drain. The bus
+// itself is fire-and-forget, however: handler promises are not acknowledged,
+// so a handler failure or a crash after `emit()` cannot put the row back into
+// pending. Consumer-level at-least-once delivery needs durable per-consumer
+// acknowledgement/retry/dead-letter state (MIGRATION-PLAN Phase 3).
 //
 // This is reliability + lineage, NOT event sourcing. State cannot be rebuilt
 // from these records and nothing may claim otherwise.
@@ -32,8 +34,7 @@ import "server-only";
 // The outbox lives inside the portal document, so it must not become the new
 // activity-log-sized tenant of the blob: delivered events are pruned after
 // `DELIVERED_RETENTION_MS`, and a hard cap evicts the oldest DELIVERED rows
-// first. Pending rows are never pruned — losing an undelivered event is the
-// one thing an outbox exists to prevent.
+// first. Pending rows are never pruned before they reach the bus.
 
 import { AsyncLocalStorage } from "async_hooks";
 import { randomUUID } from "crypto";
@@ -152,8 +153,10 @@ function pruneOutbox(state: PortalState, now: number): void {
 }
 
 /**
- * Deliver every pending outbox event to the bus (oldest first), then prune.
- * Returns how many events were delivered.
+ * Dispatch every pending outbox event to the bus (oldest first), then prune.
+ * Returns how many events were handed to the bus. The persisted legacy status
+ * is named `delivered`, but it does not mean every async consumer acknowledged
+ * success; see the module contract above.
  *
  * SYNCHRONOUS on purpose. Nothing in the loop awaits (emit schedules its
  * handlers in their own microtasks; mutate is sync), so making this async
@@ -162,19 +165,17 @@ function pruneOutbox(state: PortalState, now: number): void {
  * mutation the "a GET does not write" pins exist to catch. Synchronous also
  * means overlapping drains are impossible in one instance, so no queue is
  * needed. Across instances the blob's last-write-wins still allows a rare
- * double-delivery — the at-least-once contract; a real cross-process claim
- * arrives with the table extraction (MIGRATION-PLAN Phase 3).
+ * double-dispatch. Cross-process claims and acknowledged consumer delivery
+ * arrive with the table extraction (MIGRATION-PLAN Phase 3).
  */
 export function drainOutbox(now = Date.now()): number {
   const pending = Object.values(getState().outbox ?? {})
     .filter(row => row.status === "pending")
     .sort((left, right) => left.recordedAt - right.recordedAt);
-  // Emit BEFORE marking. The bus is fire-and-forget with no ack, so the only
-  // ordering question is which failure mode a crash between the two calls
-  // buys: emit-then-mark redelivers the row on the next drain (a duplicate a
-  // consumer must tolerate anyway — provider webhooks redeliver too), while
-  // mark-then-emit would record "delivered" for an event no handler ever saw
-  // — the silent loss an outbox exists to prevent.
+  // Emit BEFORE marking. This closes the pre-dispatch crash window: a crash
+  // before emit leaves pending, while mark-before-emit could silently skip the
+  // bus entirely. It does NOT acknowledge the fire-and-forget handlers; once
+  // emit returns, a later handler failure cannot make this row retry.
   for (const row of pending) {
     emit({ agencyId: row.agencyId, clientId: row.clientId }, row.name, row.payload);
     mutate(state => {

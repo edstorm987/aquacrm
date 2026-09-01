@@ -10,7 +10,7 @@
 // "Catalog" sidebar tab — host page mounts.
 
 import { useMemo, useState } from "react";
-import { listBlockDefinitions, type BlockDefinition } from "../blockRegistry";
+import { listAvailableBlockDefinitions, type BlockDefinition } from "../blockRegistry";
 import type { BlockCategory } from "../../lib/aquaPluginTypes";
 
 interface Props {
@@ -19,9 +19,12 @@ interface Props {
   // Optional override — when host is rendering inside a host-shell
   // it can hide the closed-by-default fence with a custom prop.
   defaultExpanded?: BlockCategory;
+  // Server-resolved enabled installs for the tenant mounting the editor.
+  enabledPluginIds?: readonly string[];
 }
 
 const CATEGORY_ORDER: BlockCategory[] = ["layout", "content", "media", "commerce", "auth", "advanced"];
+const NO_ENABLED_PLUGINS: readonly string[] = [];
 const CATEGORY_LABEL: Record<BlockCategory, string> = {
   layout: "Layout",
   content: "Content",
@@ -56,8 +59,11 @@ function blockJsonSnippet(def: BlockDefinition): string {
   }, null, 2);
 }
 
-export default function BlockCatalog({ onInsert, defaultExpanded }: Props) {
-  const all = useMemo(() => listBlockDefinitions(), []);
+export default function BlockCatalog({ onInsert, defaultExpanded, enabledPluginIds = NO_ENABLED_PLUGINS }: Props) {
+  const all = useMemo(
+    () => listAvailableBlockDefinitions(enabledPluginIds),
+    [enabledPluginIds],
+  );
   const [query, setQuery] = useState("");
   const [openSource, setOpenSource] = useState<Set<string>>(() => new Set());
 

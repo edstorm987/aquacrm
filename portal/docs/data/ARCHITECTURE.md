@@ -23,15 +23,21 @@ without a destructive rewrite. The inventory of individual stores is in
   The blob adapters use the service-role key, so **no RLS protects the
   operational plane** — RLS exists and is load-bearing only for `profiles`
   and (partially) `brand_enquiries`.
-- **Events are in-memory fire-and-forget.** `eventBus.ts` loses events on
-  process exit and does not cross serverless instances; `automationRuns` is
-  the only durable shadow. There is no outbox, no correlation/causation ids.
+- **Outbox groundwork exists, but transactionality is mixed.**
+  `PortalState.outbox` persists versioned envelopes with correlation and
+  causation ids, and the foundation server emit sites have been adopted.
+  `recordOutboxEvent()` is atomic when a domain records it inside the domain's
+  own `mutate()`; `emitDurable()` currently opens a second mutation, so those
+  call sites can still commit state without its event. The drain records only
+  that an event was handed to the fire-and-forget in-memory bus; consumer
+  promises are not acknowledged or retried, and there is no cross-instance
+  table lease.
 - **Derived intelligence is strong but identity-fragmented.** The radar
   evidence vault is typed, three-tier retained, honestly absent-vs-empty, and
   golden-tested; but metric identity was split across three schemes and at
   least nine business quantities were computed in 2–4 places
   (SOURCE-INVENTORY §2).
-- **123 metadata keys** hide whole subsystems inside `Client.metadata`
+- **124 metadata keys** hide whole subsystems inside `Client.metadata`
   (telemetry stream, payment plans, portal provisioning, invoice facts).
 
 ## 2. Target architecture
@@ -67,9 +73,11 @@ Medallion-inspired, claimed only where real:
 - **Raw** (exists today, keep): `brand_enquiries` capture rows,
   `inbox_webhook_events` provider payloads (lease-claimed, idempotent by
   `event_key`, retention-pruned), `commandCalendarExternalEvents`. These are
-  immutable-in-practice and idempotent. *Telemetry ingest is the gap*: events
-  get random ids and no dedupe — MIGRATION-PLAN phase 5 gives beacons a
-  deterministic identity before any "raw layer" claim covers them.
+  immutable-in-practice and idempotent. Telemetry beacons that carry their own
+  `occurredAt` now receive deterministic content+time ids and replay
+  idempotently; beacons without an event time deliberately keep random ids
+  because they have no honest identity to collapse. The stream still lives in
+  a capped metadata bag and has no batch/connection lineage.
 - **Canonical** (exists in part): persons/organisations with identity
   resolution, facets and classification history are genuinely canonical —
   validated, deduplicated, provenance-carrying. Enquiry→person linking and
@@ -115,15 +123,21 @@ cannot drift from the code they describe. Prose views:
 
 ### 2.5 Events and provenance
 
-The **transactional outbox groundwork exists** (2026-08-30,
-`server/outbox.ts` + `PortalState.outbox`): events are recorded inside the
-same `mutate()` as the domain change, with stable past-tense names + a
+The **outbox groundwork exists** (2026-08-30, `server/outbox.ts` +
+`PortalState.outbox`): `recordOutboxEvent()` can be called inside the same
+`mutate()` as the domain change, with stable past-tense names + a
 payload version, actor/tenant/source, correlation and causation ids, and
 `occurredAt` kept strictly apart from `recordedAt`; the in-memory bus is the
-delivery mechanism, fed emit-then-mark at-least-once, with delivered rows
-pruned (14 days / 5,000 cap) and pending rows never pruned. One call site is
-adopted (`client.created`); the rest migrate call-site-by-call-site
-(MIGRATION-PLAN Phase 3). Imports stay idempotent by provider ids
+dispatch mechanism. Emit-then-mark recovers the pre-dispatch crash window,
+but handler promises are fire-and-forget: `delivered` currently means handed
+to the bus, not acknowledged by consumers. Handed-off rows are pruned (14
+days / 5,000 cap) and pending rows are never pruned. Foundation server
+emit sites persist through the outbox, but several use `emitDurable()` after
+their domain mutation; those are durable emissions, not yet a transactional
+domain+event commit. Plugin port adapters also remain plain. Phase 3 therefore
+continues call-site-by-call-site until every required event records inside the
+owning transaction and a table-backed cross-process claim plus per-consumer
+acknowledgement, retry/backoff and dead-letter state exists. Imports stay idempotent by provider ids
 (`event_key`, `external_message_id`, `submissionId`) and gain checksums where
 payloads lack ids. We do not claim event sourcing: state is not rebuildable
 from events and the docs must never say otherwise.

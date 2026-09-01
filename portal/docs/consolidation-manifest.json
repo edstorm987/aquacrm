@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-01T06:27:05.055Z",
+  "generatedAt": "2026-09-01T09:07:17.807Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -327,7 +327,7 @@
       "path": "docs/data/adr/ADR-004-metadata-governed-not-banned.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-data-adr-adr-004-metadata-governed-not-banned-md",
-      "sha256": "2b11d24db9f0a69441192526aab9a6ba38df19e01abefa21fd469172cdea3973",
+      "sha256": "5f24a446b529c0903b723525498c0545c37f73638cdd08ad20eb3b0064bc40b1",
       "words": 196,
       "bytes": 1452
     },
@@ -335,49 +335,49 @@
       "path": "docs/data/ARCHITECTURE.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-data-architecture-md",
-      "sha256": "c00c30773721ed8a0eddebad6721d523094f46db15c453ad7ac34ced5cb78df3",
-      "words": 1020,
-      "bytes": 7948
+      "sha256": "b670851546a2a7c80258e34bafc8cd94211cb91da291d715c62626cf7457a5f7",
+      "words": 1158,
+      "bytes": 8974
     },
     {
       "path": "docs/data/DATA-DICTIONARY.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-data-data-dictionary-md",
-      "sha256": "bad31fdda0bc37e304583ebf79d335455cfebdb6b34071cfb81b59a950bca7f0",
-      "words": 955,
-      "bytes": 7142
+      "sha256": "23b25d96792aeb13d3040cdb2d6711686edf858297cb123060d98379c7805ad7",
+      "words": 978,
+      "bytes": 7308
     },
     {
       "path": "docs/data/LINEAGE.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-data-lineage-md",
-      "sha256": "ec581e8c8312e042f4195977a4739ab6e3300ff1883a2cd026373f4c4d1ab4c5",
-      "words": 666,
-      "bytes": 5047
+      "sha256": "427fd35d964ae09c0c3b07f7bb87417cec131fa723f1eb02202357cab9ed7fc1",
+      "words": 681,
+      "bytes": 5177
     },
     {
       "path": "docs/data/MIGRATION-PLAN.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-data-migration-plan-md",
-      "sha256": "f3a9c8e8b53397ed189f4b82c0781ba6fc17897120cd3704b22f7b8617c8a6ee",
-      "words": 1262,
-      "bytes": 9632
+      "sha256": "7a0f37fd6f75438ebab7a64aea49f260969e41e6f399e95d432349b0e9d6e8b9",
+      "words": 1353,
+      "bytes": 10277
     },
     {
       "path": "docs/data/SEMANTIC-LAYER.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-data-semantic-layer-md",
-      "sha256": "eaaf6bafb960d4731a2de64e12c54b14bff7518f9569a0d6c0bd48cc57bf5e4c",
-      "words": 775,
-      "bytes": 6041
+      "sha256": "cea3578c4a186a6919731501eb9f907f8b3d2b723620ac01d3c24e35db309bc1",
+      "words": 783,
+      "bytes": 6129
     },
     {
       "path": "docs/data/SOURCE-INVENTORY.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-data-source-inventory-md",
-      "sha256": "508db7acc293ee42643bea95c5b8648028e74cedec6bd1c12a0564418415029b",
-      "words": 1689,
-      "bytes": 12616
+      "sha256": "11b027a56a18a1e79975f1a5201c41955405468d8d8b04974c7fb0f0a0c7c268",
+      "words": 1724,
+      "bytes": 12924
     },
     {
       "path": "docs/DEVELOPMENT-HANDOFF.md",
@@ -495,17 +495,17 @@
       "path": "docs/development/issues.md",
       "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
       "anchor": "source-docs-development-issues-md",
-      "sha256": "53000cbcfbdacc9ef903fa608318f5b0ce6b2b4e7f127abfedd8cd33ef991527",
-      "words": 37097,
-      "bytes": 284292
+      "sha256": "3a41e7ef4996765fa61803e04c5c863e6eee4bcbc8a37771a20955dae07b4166",
+      "words": 38666,
+      "bytes": 297822
     },
     {
       "path": "docs/development/LOOP-PROGRESS.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-loop-progress-md",
-      "sha256": "98fe02dc9d94a4fc3a2091ff5521f2b3b2d3c1a9d8ae0431efae9a5abc2cc971",
-      "words": 1622,
-      "bytes": 12357
+      "sha256": "38954d1ad66e70e83fd0ffc9a9dde3aa8367aabe96449ebd2932eb40e859c216",
+      "words": 1643,
+      "bytes": 12566
     },
     {
       "path": "docs/development/notes.md",
@@ -1007,9 +1007,9 @@
       "path": "docs/development/TODO.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-todo-md",
-      "sha256": "3c8551b5586791af44777645bed7291e9fa5e9cb9668d8566b3667b28d6e002e",
-      "words": 1971,
-      "bytes": 13837
+      "sha256": "0de0bfd94c110a1dfed49cce06972f5e22bf3ea2157322e9ab472f63c496e754",
+      "words": 1893,
+      "bytes": 13974
     },
     {
       "path": "docs/development/ultra-review-2026-08-24.md",
@@ -1127,25 +1127,25 @@
       "path": "docs/workspace/env-and-sellability.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-env-and-sellability-md",
-      "sha256": "3dfcad335c9f15c1dfd4980be5c49e70d58facb656564653493d12d1a6354490",
-      "words": 3641,
-      "bytes": 28429
+      "sha256": "7079bb1c857082fd6b167d57028cc0f57b5bced95e1573206561b5b99e3e0553",
+      "words": 3655,
+      "bytes": 28518
     },
     {
       "path": "docs/workspace/feature-index.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-feature-index-md",
-      "sha256": "bb81323b787b43106b7afcd0ac4b3ca4efca94431e5d8c53e5dc6baad0c3a497",
-      "words": 5342,
-      "bytes": 50378
+      "sha256": "3091196d10e6ad4d8cf883077e5c2096f05c42f8365b2a6baae9b14540d4d506",
+      "words": 5346,
+      "bytes": 50495
     },
     {
       "path": "docs/workspace/hazards-and-duplication.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-hazards-and-duplication-md",
-      "sha256": "32487729482619bcd1cfbba638b0e42f78a0873b8f7c8ae092f73815981da1c7",
-      "words": 7921,
-      "bytes": 60659
+      "sha256": "16f6a1abda8766e039a3ab45c3eaa3ee06e35b1acce2da86c08825a5c4098ad3",
+      "words": 7937,
+      "bytes": 60660
     },
     {
       "path": "docs/workspace/kpi-intelligence.md",
@@ -1191,9 +1191,9 @@
       "path": "docs/workspace/shared-logic.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-shared-logic-md",
-      "sha256": "971a7bc40ccd5e30ed2d5f80d762d658b30e2db33a158df82464a0073b2a08ed",
-      "words": 3900,
-      "bytes": 33085
+      "sha256": "34a172e29b5eed43be80b9dd4f2ada4e5fe9c7aa9c3cb6dd09d12fe5c9bf8fc3",
+      "words": 3911,
+      "bytes": 33206
     },
     {
       "path": "docs/workspace/state-layer.md",

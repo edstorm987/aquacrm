@@ -8,7 +8,7 @@
     "dev:sandbox": "node scripts/dev-preflight.mjs && NEXT_DIST_DIR=.next-dev-turbo-3032 PORTAL_ALLOW_SHARED_STATE=1 PORTAL_BACKEND=file PORTAL_DEV_MODE=true next dev --turbopack -p 3032",
     "dev:webpack": "node scripts/dev-preflight.mjs && NEXT_DIST_DIR=.next-dev-3032 next dev --webpack -p 3032",
     "dev:sandbox:webpack": "node scripts/dev-preflight.mjs && NEXT_DIST_DIR=.next-dev-3032 PORTAL_ALLOW_SHARED_STATE=1 PORTAL_BACKEND=file PORTAL_DEV_MODE=true next dev --webpack -p 3032",
-    "dev:verify": "node scripts/dev-preflight.mjs && NEXT_DIST_DIR=.next-dev-verify PORTAL_BACKEND=file PORTAL_DEV_MODE=true next dev --webpack",
+    "dev:verify": "node scripts/dev-preflight.mjs && NEXT_DIST_DIR=.next-dev-verify PORTAL_BACKEND=file PORTAL_DATA_FILE=.data/portal-state.verify.json PORTAL_DEV_MODE=true next dev --webpack",
     "dev:all": "npm run dev",
     "build": "next build --webpack && node scripts/prepare-vercel-root-manifest.mjs",
     "start": "next start -p 3032",

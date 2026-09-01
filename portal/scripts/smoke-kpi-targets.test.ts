@@ -13,8 +13,8 @@ test("setKpiTarget persists to agencySettings; a config override changes the res
 
   setKpiTarget(agencyId, "revenue-target", { baselineValue: 0, targetValue: 100 }, { actorUserId: "tester", now: 1_000 });
   const config = getKpiTargetsConfig(agencyId);
-  assert.equal(config.byKpi["revenue-target"]!.targetValue, 100);
-  assert.equal(config.byKpi["revenue-target"]!.effectiveFrom, 1_000);
+  assert.equal(config.byKpi["command:revenue-target"]!.targetValue, 100);
+  assert.equal(config.byKpi["command:revenue-target"]!.effectiveFrom, 1_000);
   assert.equal(resolveKpiTarget(config, "revenue-target")?.targetValue, 100);   // the plan's core P4 contract
 
   // raise the target → the prior value is versioned into history
@@ -22,8 +22,8 @@ test("setKpiTarget persists to agencySettings; a config override changes the res
   const raised = getKpiTargetsConfig(agencyId);
   assert.equal(resolveKpiTarget(raised, "revenue-target")?.targetValue, 120);
   assert.equal(resolveKpiTarget(raised, "revenue-target")?.baselineValue, 0);    // baseline preserved
-  assert.equal(raised.byKpi["revenue-target"]!.history?.length, 1);
-  assert.equal(raised.byKpi["revenue-target"]!.history![0]!.targetValue, 100);
+  assert.equal(raised.byKpi["command:revenue-target"]!.history?.length, 1);
+  assert.equal(raised.byKpi["command:revenue-target"]!.history![0]!.targetValue, 100);
 
   // a company override wins over the agency level for that company only
   setKpiTarget(agencyId, "revenue-target", { targetValue: 200 }, { actorUserId: "tester", companyId: "co-9", now: 3_000 });
@@ -40,10 +40,29 @@ test("createCustomKpi persists a definition and deleteCustomKpi removes it", asy
   const agencyId = "custom-kpi-roundtrip-agency";
   const created = createCustomKpi(agencyId, { label: "Lead rate", numeratorId: "recent-leads", denominatorId: "traffic-7d", op: "rate" }, { actorUserId: "tester", now: 1 });
   assert.equal(created.op, "rate");
+  assert.equal(created.numeratorId, "command:recent-leads");
+  assert.equal(created.denominatorId, "command:traffic-7d");
   assert.match(created.id, /^ck_/);
   assert.equal(listCustomKpis(agencyId).length, 1);
   deleteCustomKpi(agencyId, created.id, { actorUserId: "tester" });
   assert.equal(listCustomKpis(agencyId).length, 0);
+});
+
+test("server writes refuse ambiguous bare KPI ids but accept either explicit campaign-roas identity", async () => {
+  await ensureHydrated();
+  const agencyId = "canonical-kpi-write-validation";
+  assert.throws(
+    () => createCustomKpi(agencyId, { label: "Ambiguous", numeratorId: "campaign-roas", op: "sum" }, { actorUserId: "tester" }),
+    /use "command:campaign-roas" or "commercial:campaign-roas"/,
+  );
+  assert.throws(
+    () => setKpiTarget(agencyId, "campaign-roas", { targetValue: 3 }, { actorUserId: "tester" }),
+    /use "command:campaign-roas" or "commercial:campaign-roas"/,
+  );
+  const command = createCustomKpi(agencyId, { label: "Command ROAS", numeratorId: "command:campaign-roas", op: "sum" }, { actorUserId: "tester" });
+  const commercial = createCustomKpi(agencyId, { label: "Commercial ROAS", numeratorId: "commercial:campaign-roas", op: "sum" }, { actorUserId: "tester" });
+  assert.equal(command.numeratorId, "command:campaign-roas");
+  assert.equal(commercial.numeratorId, "commercial:campaign-roas");
 });
 
 test("the KPI targets route reads and writes the config store", () => {

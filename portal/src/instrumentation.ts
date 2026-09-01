@@ -23,6 +23,7 @@ import type { Instrumentation } from "next/types";
 import {
   captureError,
   flushObservability,
+  isExpectedFrameworkControlFlow,
   recordBreadcrumb,
   type ObservabilityBreadcrumb,
 } from "@/lib/server/observability";
@@ -69,6 +70,11 @@ export function describeRequestError(
 }
 
 /**
+ * Next uses this error as control flow while deciding that a route must be
+ * rendered dynamically. The request is not failing, and reporting it would
+ * turn every successful production build into a page of false alerts.
+ */
+/**
  * Called once per server runtime start. Warms the optional Sentry loader so
  * `init()` happens at boot rather than inside the first failing request, and
  * makes a mis-configured monitoring setup (DSN set, SDK absent) visible in
@@ -110,6 +116,7 @@ export async function register(): Promise<void> {
  * configured) with the route and tenant context attached.
  */
 export const onRequestError: Instrumentation.onRequestError = async (error, request, context) => {
+  if (isExpectedFrameworkControlFlow(error)) return;
   captureError(error, describeRequestError(request, context));
   // `captureError` hands the event to Sentry on a later microtask and returns
   // immediately. On a serverless runtime the function can be frozen the moment

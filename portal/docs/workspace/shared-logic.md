@@ -474,11 +474,13 @@ The copies this exists to delete are listed in
 `privateUploadStorage.ts`. Seeds: `demoSeed.ts`, `founderSeed.ts`,
 `aquaOasisSeed.ts`, `showcaseMode.ts`, `devMode.ts`.
 
-**Current observability caveat (2026-08-25):** the first two names are helper
-libraries, not an active cross-cutting layer. Repository-wide search finds no
-production caller of either wrapper/capture function; the Sentry dependency is
-absent, yet readiness treats a DSN string as ready and the client fallback says
-an issue was logged. Tracked as [issue #132](../development/issues.md).
+**Current observability state (updated 2026-09-01):** `src/instrumentation.ts`
+mounts Next's request-error hook and calls `captureError`; readiness checks the
+actual DSN-plus-SDK capability, and the browser boundaries make only truthful
+logging claims. The optional Sentry dependency is still absent, so the current
+verified capability is deployment logs rather than client delivery. Installing
+the chosen sink and proving a real production fault reaches it remain in
+[issue #132](../development/issues.md).
 
 ## ⚠ Duplication & look-alike flags (check before adding)
 1. **Editing bridge — NOT dead, corrected 2026-08-21.** This flag used to read "`lib/server/editing/adapters.ts` has no app importers (only `scripts/smoke-editor-adapters.test.ts`) … Deletion candidate." Both halves were wrong: (a) `lib/server/editing/appConfigAdapter.ts:9` does `import { fingerprint } from "./adapters"`, and appConfigAdapter is mounted by `dev-team/editor/{_Section,_AppConfigEditor}.tsx` and `api/portal/dev-team/editor/route.ts`, so the file is reachable from a live screen; (b) `scripts/smoke-editor-adapters.test.ts:7,17` imports it, so deleting it turns the suite red. **Do not delete.** What IS still true: the *portal/website* editor rides `src/engines/editor/editing/*` + `src/engines/editor/server/*`, and there is no `lib/server/siteEditor/`. Also true: `engines/editor/editing/{leases,modes}.ts` ARE used by `components/editing/*` — don't sweep the folder.

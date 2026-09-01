@@ -2,8 +2,9 @@
 //
 // ── What this is, and what it is NOT ─────────────────────────────────────
 //
-// It is a RATCHET, not a clean bill of health. Twenty-nine distinct endpoints
-// (thirty-one when this was written; two were repointed on 2026-08-30)
+// It is a RATCHET, not a clean bill of health. Sixteen distinct endpoints
+// (thirty-one when this was written; two were repointed on 2026-08-30 and the
+// thirteen-call browser-local Sites island was retired on 2026-09-01)
 // are fetched by website-editor pages and blocks and resolve to nothing: no
 // `src/app` route, and no path declared by any module's `routes.ts`. They are
 // listed below by name. The test fails if a NEW one appears, and it fails if a
@@ -26,12 +27,6 @@
 //   * **Blocks with no backend** — already handled: the palette refuses to add
 //     them and `lib/blockBackends.ts` explains why. They appear here too
 //     because the fetch is still in the component.
-//   * **The Sites admin island** (`/api/portal/content/*`, `domains`, `config`,
-//     `embeds`, `promote`, `schema`, `discoveries`, `chatbot`, `heartbeats`,
-//     `embed-theme`) — issue #31. Thirteen of them. These are the legacy
-//     top-level paths the issue describes, and unifying them is a data-model
-//     merge, not a rename: the Sites page stores an override as
-//     `{value,type,updatedAt}` where the registered handlers store a scalar.
 //   * **AI Builder** — issue #28. The image modals call routes that only exist
 //     when the AI Builder plugin is installed. As of 2026-08-30 the controls
 //     that open them are gated on the same status probe that already hid the
@@ -57,34 +52,15 @@ const KNOWN_DEAD = [
   "/api/portal/ai-builder/image/inpaint",
   "/api/portal/ai-builder/image/variations",
   "/api/portal/ai-builder/status",
-  "/api/portal/chatbot/*",
-  "/api/portal/config/*",
-  "/api/portal/content/*",
-  "/api/portal/content/*/*",
-  "/api/portal/content/*/preview-token",
-  // `/api/portal/content/*/publish` LEFT this list on 2026-08-30. It was the
-  // editor's publish modal (`EditorPage.tsx`), which now goes through
-  // `lib/content.ts` at the registered `/content/publish`. The four remaining
-  // `content` entries are the Sites admin island, whose overrides use a
-  // different persisted shape (`{value,type,updatedAt}` vs a scalar) — that
-  // one is a data-model merge, not a rename, and stays issue #31's.
-  "/api/portal/content/*/revert",
-  "/api/portal/discoveries",
-  "/api/portal/domains",
   "/api/portal/ecommerce/products/*/variants",
-  "/api/portal/embed-theme/*",
-  "/api/portal/embeds/*",
   "/api/portal/forms/public/form/*",
   "/api/portal/forms/public/submit/*",
   "/api/portal/forms/submit",
-  "/api/portal/heartbeats",
   "/api/portal/newsletter/subscribe",
-  "/api/portal/promote/*",
   "/api/portal/reservations",
   "/api/portal/reservations/resources",
   "/api/portal/reservations/services",
   "/api/portal/reservations/staff",
-  "/api/portal/schema/*",
   "/api/portal/themes/*",
   // `/api/portal/website-editor/promote/*` LEFT this list on 2026-08-30.
   // `lib/promote.ts` invented a `/promote/<siteId>` path; the module declares
@@ -298,58 +274,4 @@ test("the site export is reachable — it was the button that proved this class 
   const code = page.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
   assert.doesNotMatch(code, /\/api\/admin\/export-code/, "the Export button must not call the route that never existed");
   assert.match(code, /\/api\/portal\/website-editor\/export/, "the Export button must call the mounted handler");
-});
-
-test("the Sites screen admits its registry is browser-local", () => {
-  // Issue #31. `lib/sitesAdmin.ts` persists to `localStorage` under
-  // `lk_sites_v1`, and nothing else in the repository reads that key — the
-  // server routes hostnames from `websiteSources`. A domain added on this
-  // screen therefore does nothing, and disappears on another machine.
-  //
-  // The unification is a real piece of work (a sync→async conversion across
-  // ~20 functions and 27 call sites). What is NOT acceptable in the meantime is
-  // the screen implying otherwise, which it did: its own tooltip said visitors
-  // "are routed to the correct site by hostname automatically".
-  //
-  // This pins the honesty, not the architecture. When the registry moves to the
-  // `/sites` API, delete the notice and this test together.
-  const src = readFileSync(path.join(WEBSITE_EDITOR, "pages/SitesPage.tsx"), "utf8");
-  const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-  const jsx = code.replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, "");
-
-  assert.match(jsx, /Saved in this browser only/, "the Sites screen must say its registry is browser-local");
-  assert.match(jsx, /not route\s*\{?"?\s*live traffic|will not route/, "it must say adding a domain does not route live traffic");
-  assert.doesNotMatch(
-    jsx, /routed to the correct site by hostname automatically/,
-    "the tooltip must not claim hostname routing works from this registry",
-  );
-});
-
-test("nothing outside the client store reads the local site registry", () => {
-  // The claim the notice rests on. If somebody wires `lk_sites_v1` into a
-  // server path later, this fails and the notice needs rewriting rather than
-  // quietly becoming wrong.
-  const hits: string[] = [];
-  (function walk(dir: string) {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const p = path.join(dir, entry.name);
-      if (entry.isDirectory()) { if (!/node_modules|\.next/.test(p)) walk(p); }
-      else if (/\.tsx?$/.test(entry.name)) {
-        // Strip comments first. The Sites page NAMES this key in the comment
-        // explaining the notice, and the first version of this test duly
-        // flagged that comment as a second reader — a test failing on its own
-        // documentation, which is the mirror image of a test that passes by
-        // matching it.
-        const code = readFileSync(p, "utf8")
-          .replace(/\/\*[\s\S]*?\*\//g, "")
-          .replace(/^\s*\/\/.*$/gm, "");
-        if (code.includes("lk_sites_v1")) hits.push(path.relative(ROOT, p));
-      }
-    }
-  })(path.join(ROOT, "src"));
-
-  assert.deepEqual(
-    hits, ["src/built-ins/modules/website-editor/src/lib/sitesAdmin.ts"],
-    `lk_sites_v1 is read somewhere new — the "browser only" notice may no longer be true: ${hits.join(", ")}`,
-  );
 });

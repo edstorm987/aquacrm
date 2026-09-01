@@ -278,6 +278,8 @@ describe("removal #2 — a page render cannot run automations", () => {
     assert.ok(helper, "the public render helper is gone — re-point this assertion at whatever replaced it");
     assert.doesNotMatch(helper[0], /\bmutate\s*\(|ensurePrimaryAgencyWebsite\s*\(/,
       "the public render helper writes");
+    assert.match(helper[0], /isExpectedFrameworkControlFlow\(error\).*throw error/s,
+      "Next dynamic-render control flow is being swallowed as a storage outage");
     assert.match(helper[0], /captureError\(/,
       "a swallowed store failure must still be reported, or an outage goes silent");
   });

@@ -20,6 +20,7 @@ function expect(label: string, cond: boolean, detail?: string): void {
 
   const html = renderToStaticMarkup(React.createElement(BlockCatalog, {
     onInsert: () => undefined,
+    enabledPluginIds: ["ecommerce"],
   } as never));
 
   expect("emits data-component='block-catalog'",

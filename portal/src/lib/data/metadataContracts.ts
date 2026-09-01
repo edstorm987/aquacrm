@@ -7,7 +7,7 @@
 // `metadata` jsonb and the Supabase auth user's metadata are all typed
 // `Record<string, unknown>`. That was the right call for schema stability —
 // "anything that doesn't need a typed field of its own goes here" — but by
-// 2026-08-30 the bags carry **123 distinct keys**, several of which are whole
+// 2026-09-01 the bags carry **124 distinct keys**, several of which are whole
 // subsystems (payment plans, telemetry event logs, portal provisioning state,
 // invoice fields). An uncatalogued key has no owner, no type, no sensitivity
 // class and no deletion behaviour, which is exactly what a data-erasure or
@@ -90,7 +90,7 @@ const plain = (
 /**
  * Every metadata key the source tree reads or writes, catalogued.
  *
- * Sourced from a whole-tree scan on 2026-08-30 (123 keys) and classified by
+ * Sourced from a whole-tree scan, re-counted 2026-09-01 (124 keys), and classified by
  * owning concern. The smoke test keeps this list honest in BOTH directions:
  * an uncatalogued key used in source fails, and a catalogued key that no
  * source touches any more is reported so the entry can be retired.

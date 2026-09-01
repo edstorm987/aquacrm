@@ -10,7 +10,7 @@ Suite baseline at loop start: **5,460 tests / 0 fail / tsc clean.**
 adapter, migration, KPI path and metadata bag, then the enforceable semantic
 layer:
 
-- `src/lib/data/semanticRegistry.ts` — 30 canonical entities (definitions,
+- `src/lib/data/semanticRegistry.ts` — 33 canonical entities (definitions,
   id rules, tenancy, source of truth, provenance, timestamps, sensitivity,
   retention, lifecycles, relationships), the six load-bearing distinctions,
   timestamp + value doctrines, and `PORTAL_STATE_COVERAGE` classifying every
@@ -26,7 +26,7 @@ layer:
   boundary tests (SLA boundary inclusive, 14-day staleness, decision
   denominators, even-count median, >100% directional ratio, null-not-Infinity
   ROAS). Descriptors now stamp `canonicalId` (`<kind>:<id>`).
-- `src/lib/data/metadataContracts.ts` — all 123 metadata keys catalogued
+- `src/lib/data/metadataContracts.ts` — all 124 metadata keys catalogued
   (carrier, namespace, owner, type, sensitivity);
   `smoke-metadata-contracts.test.ts` scans src both ways (uncatalogued key
   fails; dead entry fails) — the escape hatch is closed going forward.
@@ -39,11 +39,14 @@ layer:
 **Phase 3 groundwork SHIPPED — transactional outbox** (`server/outbox.ts`,
 `PortalState.outbox` incl. parseBlob/empty + promotion disposition entry #92):
 record-inside-mutate (atomic with the domain change), emit-then-mark
-at-least-once drain into the existing bus, idempotent record by id,
+handoff into the existing bus, idempotent record by id,
 correlation/causation + occurredAt≠recordedAt envelope, 14d/5,000-cap prune
 that never touches pending. First adopted site: `tenants.createClient` →
 `client.created`, payload unchanged, pinned by source-scan.
-`smoke-outbox.test.ts` (8 tests incl. crash-window replay). Also folded the
+`smoke-outbox.test.ts` (pre-dispatch crash-window replay included). The bus is
+fire-and-forget: `delivered` means dispatched, not consumer-acknowledged, so
+durable consumer ids, acknowledgement, retry/backoff and dead-lettering remain
+in Phase 3. Also folded the
 TRIPLICATED conversion-event predicate into `lib/shared/conversionEvent.ts`
 (radarTelemetry + commandIntelligenceService + performanceAnalytics now
 import it; restatement fails the suite) — first Phase-7 dedup that needed no
@@ -89,8 +92,8 @@ silently been ingestion time for ALL telemetry — fixed with a
 1. Tenancy/identity/roles extraction (tables + RLS behind existing modules;
    blocked on Ed for `supabase db push` + DATABASE_URL — ED-QUESTIONS Q7).
 2. People/organisations extraction (dedupe suites as parity oracle).
-3. Transactional outbox (same-mutate write; envelope with correlation/
-   causation ids; no event-sourcing claim).
+3. Transactional outbox (finish same-mutate adoption; table claim + durable
+   consumer acknowledgement/retry/dead-letter; no event-sourcing claim).
 4. Journey slice. 5. Telemetry out of the metadata bag + deterministic
    beacon ids (the double-count fix). 6. Comms/audit durability.
 7. Metric dedup via `sameQuantityPairs()` (response-sla → configured

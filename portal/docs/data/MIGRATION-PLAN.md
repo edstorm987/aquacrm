@@ -57,9 +57,8 @@ namespace) here — the metadata catalogue is the checklist.
 **Groundwork SHIPPED 2026-08-30** (`server/outbox.ts`, `PortalState.outbox`,
 `smoke-outbox.test.ts`): `recordOutboxEvent` appends inside the caller's own
 `mutate()` (atomic with the domain change), `drainOutbox` hands pending rows
-to the existing bus emit-then-mark (a crash between the two redelivers rather
-than silently losing — at-least-once, consumers stay idempotent),
-`emitDurable` is the drop-in for detached emit sites, delivered rows prune
+to the existing bus emit-then-mark (a crash before bus dispatch leaves the row
+pending), `emitDurable` is the drop-in for detached emit sites, handed-off rows prune
 after 14 days / 5,000-row cap with pending never pruned. Envelope carries
 name + version, actor, tenant, source, correlationId (defaults to the event
 id), causationId, and occurredAt strictly apart from recordedAt. First
@@ -67,16 +66,20 @@ adopted call site: `tenants.createClient` → `client.created` (payload
 unchanged; pinned by source-scan). Company promotion classifies the
 collection as `leave` (events are the origin tenant's history).
 
-**Adoption COMPLETE for the foundation (2026-08-30, second pass):** every
-`emit()` under `src/server/**` now announces through the outbox —
+**Foundation emission adoption is complete, transaction adoption is not
+(corrected 2026-09-01):** every `emit()` under `src/server/**` now announces
+through the outbox —
 agency.created, client.updated/stage_changed (tenants + productWorkspaces),
 user.signed_up, action.completed, person.created/updated/classified,
 organisation.created/updated — plus the plugin lifecycle events
 (built-ins/runtime + ensureLeadsPipelineInstall). `smoke-outbox.test.ts`
 pins the manifest: plain `emit(` under `src/server` is confined to the bus
 and its drain. The drain is deliberately SYNCHRONOUS (nothing in it awaits),
-so all outbox writes settle before the domain function returns — an async
-drain left delivered-marks trailing into "a GET does not write" pins.
+so an outbox write that already exists can be emitted and marked before return.
+This does **not** make `emitDurable()` atomic with a domain change: it opens its
+own `mutate()` after that change. Each correctness-critical call site must move
+`recordOutboxEvent()` into the owning mutation; failure-injection proof must show
+there is no commit point between state and event.
 Deliberately still plain: the plugin PORT adapters
 (built-ins/runtime/foundation-adapters) and module-internal emits — the one
 seam a later phase flips to make every plugin event durable at once.
@@ -88,11 +91,15 @@ scope — and `updateClient`'s updated/stage_changed pair now shares a
 correlation with the stage move naming the update as its cause. Both pinned
 in `smoke-outbox.test.ts`.
 
-Remaining in this phase: flip that port-adapter seam (with volume review);
-wrap the other multi-record operations (lead conversion, company promotion)
-in `runWithCorrelation` as each is touched; a cross-process claim (lease)
-when the outbox extracts to a table — the in-blob version's single-instance
-serialization is what synchrony buys.
+Remaining in this phase: make foundation domain+event writes genuinely atomic;
+flip that port-adapter seam (with volume review); wrap the other multi-record
+operations (lead conversion, company promotion) in `runWithCorrelation` as each
+is touched; add a cross-process claim (lease) when the outbox extracts to a
+table; and add stable consumer identities with durable acknowledgement,
+retry/backoff, poison-event dead-lettering and replay tooling. Until then,
+`delivered` is only a legacy label for in-process bus dispatch: a rejected
+handler promise or crash after `emit()` is not retried. The in-blob version's
+single-instance serialization is all synchrony currently buys.
 
 - **No event-sourcing claim**: state is not rebuildable from events; the
   outbox supports reliability and lineage, nothing more.
@@ -146,9 +153,10 @@ With the registry as the map (`sameQuantityPairs()`):
    `commercialLifecycle`'s; agency-marketing's 0–1 ratio adapts at its
    render site.
 3. Share one conversion-event predicate (today triplicated verbatim).
-4. Retire the `campaign-roas` bare-id collision: namespace the commercial
-   descriptor ids (`commercial:` prefix, as evidence/custom already do),
-   with saved custom-KPI definitions migrated by backfill.
+4. ✅ Durable-reference half shipped 2026-09-01: targets, shared views, custom
+   operands and planning state use canonical ids; ambiguous new bare writes are
+   rejected and legacy rows migrate deterministically command-first. The two
+   calculations and their legacy presentation `id` still remain to be folded.
 5. Each step: golden tests first (Phase 0 shipped the boundary pins), parity
    diff, then the switch.
 

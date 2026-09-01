@@ -1,6 +1,7 @@
 import "server-only";
 
 import crypto from "node:crypto";
+import { canonicalKpiReference, tryCanonicalKpiReference } from "@/lib/data/metricRegistry";
 import { applyKpiTargetOverride, clearKpiTargetOverride } from "@/lib/performance/kpiRegistry";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
 import { getState, mutate } from "@/server/storage";
@@ -22,7 +23,28 @@ const ACTIVITY_HARD_CAP = 50_000;
 
 /** The agency's persisted KPI targets config (empty if none set). */
 export function getKpiTargetsConfig(agencyId: string): KpiTargetsConfig {
-  return getState().agencySettings[agencyId]?.kpiTargets ?? EMPTY;
+  return migrateLegacyKpiTargetsConfig(getState().agencySettings[agencyId]?.kpiTargets ?? EMPTY);
+}
+
+function migrateOverrideMap<T>(values: Record<string, T> | undefined): Record<string, T> {
+  const migrated: Record<string, T> = {};
+  const entries = Object.entries(values ?? {}).sort(([left], [right]) => Number(left.includes(":")) - Number(right.includes(":")));
+  for (const [reference, value] of entries) {
+    const canonicalId = tryCanonicalKpiReference(reference, { mode: "legacy" });
+    if (canonicalId) migrated[canonicalId] = value;
+  }
+  return migrated;
+}
+
+/** Pure deterministic migration used on reads and written through on the next mutation. */
+export function migrateLegacyKpiTargetsConfig(config: KpiTargetsConfig): KpiTargetsConfig {
+  return {
+    ...config,
+    byKpi: migrateOverrideMap(config.byKpi),
+    byCompany: config.byCompany
+      ? Object.fromEntries(Object.entries(config.byCompany).map(([companyId, values]) => [companyId, migrateOverrideMap(values)]))
+      : undefined,
+  };
 }
 
 function persist(
@@ -63,11 +85,12 @@ export function setKpiTarget(
   opts: { companyId?: string; actorUserId: string; now?: number },
 ): KpiTargetsConfig {
   const now = opts.now ?? Date.now();
-  const nextConfig = applyKpiTargetOverride(getKpiTargetsConfig(agencyId), kpiId, patch, { companyId: opts.companyId, actorUserId: opts.actorUserId, now });
+  const canonicalId = canonicalKpiReference(kpiId);
+  const nextConfig = applyKpiTargetOverride(getKpiTargetsConfig(agencyId), canonicalId, patch, { companyId: opts.companyId, actorUserId: opts.actorUserId, now });
   persist(agencyId, nextConfig, {
     actorUserId: opts.actorUserId,
     action: "kpi.target_set",
-    message: `Set KPI target for ${kpiId}${opts.companyId ? ` (company ${opts.companyId})` : ""}.`,
+    message: `Set KPI target for ${canonicalId}${opts.companyId ? ` (company ${opts.companyId})` : ""}.`,
     now,
   });
   return nextConfig;
@@ -80,11 +103,12 @@ export function clearKpiTarget(
   opts: { companyId?: string; actorUserId: string; now?: number },
 ): KpiTargetsConfig {
   const now = opts.now ?? Date.now();
-  const nextConfig = clearKpiTargetOverride(getKpiTargetsConfig(agencyId), kpiId, { companyId: opts.companyId, now });
+  const canonicalId = canonicalKpiReference(kpiId);
+  const nextConfig = clearKpiTargetOverride(getKpiTargetsConfig(agencyId), canonicalId, { companyId: opts.companyId, now });
   persist(agencyId, nextConfig, {
     actorUserId: opts.actorUserId,
     action: "kpi.target_cleared",
-    message: `Cleared KPI target for ${kpiId}${opts.companyId ? ` (company ${opts.companyId})` : ""}.`,
+    message: `Cleared KPI target for ${canonicalId}${opts.companyId ? ` (company ${opts.companyId})` : ""}.`,
     now,
   });
   return nextConfig;
@@ -156,6 +180,7 @@ export function applyKpiTargetCommand(
   command: KpiTargetCommand,
   opts: { actorUserId: string; now?: number },
 ): { config: KpiTargetsConfig; replayed: boolean } {
+  const canonicalId = canonicalKpiReference(command.kpiId);
   const current = getKpiTargetsConfig(agencyId);
   const fingerprint = commandFingerprint(command);
   const receipt = current.operations?.[command.operationId];
@@ -167,17 +192,17 @@ export function applyKpiTargetCommand(
 
   const now = Math.max(opts.now ?? Date.now(), current.updatedAt + 1);
   const changed = command.action === "clear"
-    ? clearKpiTargetOverride(current, command.kpiId, { companyId: command.companyId, now })
-    : applyKpiTargetOverride(current, command.kpiId, {
+    ? clearKpiTargetOverride(current, canonicalId, { companyId: command.companyId, now })
+    : applyKpiTargetOverride(current, canonicalId, {
         baselineValue: command.baselineValue,
         targetValue: command.targetValue,
       }, { companyId: command.companyId, actorUserId: opts.actorUserId, now });
-  const nextConfig = withOperationReceipt(changed, command, fingerprint, now);
+  const nextConfig = withOperationReceipt(changed, { ...command, kpiId: canonicalId }, fingerprint, now);
   const scope = command.companyId ? ` (company ${command.companyId})` : "";
   persist(agencyId, nextConfig, {
     actorUserId: opts.actorUserId,
     action: command.action === "clear" ? "kpi.target_cleared" : "kpi.target_set",
-    message: `${command.action === "clear" ? "Cleared" : "Set"} KPI target for ${command.kpiId}${scope}.`,
+    message: `${command.action === "clear" ? "Cleared" : "Set"} KPI target for ${canonicalId}${scope}.`,
     operationId: command.operationId,
     now,
   });

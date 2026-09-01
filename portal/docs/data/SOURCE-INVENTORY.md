@@ -11,7 +11,7 @@ There are **two unrelated databases plus a filesystem tier**, and one giant
 JSON document that dwarfs everything else:
 
 1. **Supabase project** (`dghzbsxbdatskserctgt`; migrations in
-   `../../../supabase/migrations/`, 24 files). Holds the normalised tables
+   `../../../supabase/migrations/`, 22 SQL files as counted 2026-09-01). Holds the normalised tables
    (profiles, enquiries, consent, the five inbox tables) **and** the
    PortalState blob in `app_datastores`.
 2. **Optional plain Postgres** (`PORTAL_BACKEND=postgres` + `DATABASE_URL`;
@@ -95,11 +95,14 @@ pinned by `scripts/smoke-semantic-registry.test.ts`).
 
 ## 2. Duplicate and conflicting definitions (verified in source)
 
-1. **`campaign-roas` — hard id collision.** Both a command KPI and a
-   commercial formula in one flat descriptor space; the picker's `.find()`
-   resolves to the command one, `computeCustomKpi`'s Map to the commercial
-   one; the two round/clamp differently. Pinned in
-   `KNOWN_DESCRIPTOR_ID_COLLISIONS` so it cannot multiply.
+1. **`campaign-roas` — presentation-id collision, durable-reference safety
+   repaired 2026-09-01.** A command KPI and commercial formula retain the same
+   legacy `id`, and the two still round/clamp differently. Durable targets,
+   custom operands and saved views now key on `canonicalId`; new ambiguous bare
+   writes are rejected with both explicit choices, and stored legacy data maps
+   deterministically to `command:campaign-roas` (the old picker's behaviour).
+   `KNOWN_DESCRIPTOR_ID_COLLISIONS` still pins the legacy presentation collision
+   so it cannot multiply while calculation dedup remains open.
 2. **Lead conversion — four implementations** (`commercialLifecycle`,
    `commercialIntelligence`, agency-marketing reports — which returns a 0–1
    *ratio* where the others return 0–100 — and the marketingIntelligence

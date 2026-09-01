@@ -71,6 +71,17 @@ describe("the webpack fallbacks stay", () => {
     assert.match(pkg.scripts["dev:verify"], /next dev --webpack/);
   });
 
+  it("gives dev:verify its own persistent state file", () => {
+    // Next compiles route groups into separate module graphs. A memory backend
+    // created by `/dev` is therefore not the same instance read by the first
+    // protected page: the route logs a successful sign-in, then the page sees
+    // no user and bounces straight back to login. The named file both shares
+    // that local identity across route bundles and keeps verification away
+    // from Ed's shared `.data/portal-state.json` workspace.
+    assert.match(pkg.scripts["dev:verify"], /PORTAL_DATA_FILE=\.data\/portal-state\.verify\.json/);
+    assert.doesNotMatch(pkg.scripts["dev:verify"], /PORTAL_ALLOW_SHARED_STATE=1/);
+  });
+
   it("leaves the named sandbox fallbacks alone", () => {
     // Pinned by smoke-sandbox-protection for its own reasons; asserted here so
     // a future sweep of this file does not "tidy" them.

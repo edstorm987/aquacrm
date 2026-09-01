@@ -14,9 +14,6 @@
 // is itself driven from plain Node scripts (`scripts/launch-audit.ts`) and
 // from smoke tests that run without the `react-server` condition.
 
-import { createRequire } from "node:module";
-import { join } from "node:path";
-
 /** Whether the optional `@sentry/nextjs` package can actually be resolved. */
 export type ObservabilitySdkState = "installed" | "missing";
 
@@ -50,16 +47,22 @@ export function isSentrySdkInstalled(): boolean {
   // package requires a redeploy, so the answer cannot change under a live
   // process.
   if (sdkResolution !== null) return sdkResolution;
-  const candidates: string[] = [];
-  try {
-    candidates.push(import.meta.url);
-  } catch {
-    /* no ESM meta in this compilation target — fall through to cwd */
+  // `instrumentation.ts` is compiled for both Node and Edge. Static
+  // `node:module` / `node:path` imports here are therefore discovered by the
+  // Edge/browser webpack graph even though this function only runs on Node,
+  // producing an UnhandledSchemeError before the app can render. Node exposes
+  // the same resolver without a static import via `process.getBuiltinModule`.
+  // It is absent outside Node, where the conservative answer is "missing".
+  const moduleApi = process.getBuiltinModule?.("module");
+  if (!moduleApi) {
+    sdkResolution = false;
+    return false;
   }
-  candidates.push(join(process.cwd(), "package.json"));
+
+  const candidates = [import.meta.url, `${process.cwd()}/package.json`];
   for (const from of candidates) {
     try {
-      createRequire(from).resolve(SENTRY_PACKAGE);
+      moduleApi.createRequire(from).resolve(SENTRY_PACKAGE);
       sdkResolution = true;
       return true;
     } catch {

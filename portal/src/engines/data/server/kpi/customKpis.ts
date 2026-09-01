@@ -2,6 +2,7 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 
+import { canonicalKpiReference, tryCanonicalKpiReference } from "@/lib/data/metricRegistry";
 import { logActivity } from "@/server/activity";
 import { getState, mutate } from "@/server/storage";
 import type { CustomKpiDefinition, CustomKpiOp } from "@/server/types";
@@ -16,7 +17,19 @@ import type { CustomKpiDefinition, CustomKpiOp } from "@/server/types";
 const CUSTOM_OPS: CustomKpiOp[] = ["ratio", "rate", "sum", "diff"];
 
 export function listCustomKpis(agencyId: string): CustomKpiDefinition[] {
-  return getState().customKpis?.[agencyId] ?? [];
+  return migrateLegacyCustomKpiDefinitions(getState().customKpis?.[agencyId] ?? []);
+}
+
+/** Pure, deterministic read migration for definitions written before canonical KPI ids. */
+export function migrateLegacyCustomKpiDefinitions(definitions: readonly CustomKpiDefinition[]): CustomKpiDefinition[] {
+  return definitions.flatMap(definition => {
+    const numeratorId = tryCanonicalKpiReference(definition.numeratorId, { mode: "legacy", allowDynamicKinds: ["evidence"] });
+    const denominatorId = definition.denominatorId
+      ? tryCanonicalKpiReference(definition.denominatorId, { mode: "legacy", allowDynamicKinds: ["evidence"] })
+      : undefined;
+    if (!numeratorId || (definition.denominatorId && !denominatorId)) return [];
+    return [{ ...definition, numeratorId, denominatorId }];
+  });
 }
 
 export interface CreateCustomKpiInput {
@@ -34,11 +47,15 @@ export function createCustomKpi(agencyId: string, input: CreateCustomKpiInput, o
   if (!label) throw new Error("custom KPI label is required");
   if (!input.numeratorId) throw new Error("custom KPI numerator is required");
   if (!CUSTOM_OPS.includes(input.op)) throw new Error("unknown custom KPI op");
+  const numeratorId = canonicalKpiReference(input.numeratorId, { allowDynamicKinds: ["evidence"] });
+  const denominatorId = input.denominatorId?.trim()
+    ? canonicalKpiReference(input.denominatorId, { allowDynamicKinds: ["evidence"] })
+    : undefined;
   const definition: CustomKpiDefinition = {
     id: `ck_${randomUUID()}`,
     label,
-    numeratorId: input.numeratorId,
-    denominatorId: input.denominatorId || undefined,
+    numeratorId,
+    denominatorId,
     op: input.op,
     category: input.category?.trim().slice(0, 40) || undefined,
     direction: input.direction,
@@ -47,7 +64,7 @@ export function createCustomKpi(agencyId: string, input: CreateCustomKpiInput, o
   };
   mutate(state => {
     if (!state.customKpis) state.customKpis = {};
-    state.customKpis[agencyId] = [...(state.customKpis[agencyId] ?? []), definition];
+    state.customKpis[agencyId] = [...migrateLegacyCustomKpiDefinitions(state.customKpis[agencyId] ?? []), definition];
   });
   logActivity({ agencyId, actorUserId: opts.actorUserId, category: "settings", action: "kpi.custom_created", message: `Created custom KPI "${definition.label}".` });
   return definition;
@@ -57,7 +74,7 @@ export function createCustomKpi(agencyId: string, input: CreateCustomKpiInput, o
 export function deleteCustomKpi(agencyId: string, id: string, opts: { actorUserId: string }): CustomKpiDefinition[] {
   mutate(state => {
     if (!state.customKpis) state.customKpis = {};
-    state.customKpis[agencyId] = (state.customKpis[agencyId] ?? []).filter(item => item.id !== id);
+    state.customKpis[agencyId] = migrateLegacyCustomKpiDefinitions(state.customKpis[agencyId] ?? []).filter(item => item.id !== id);
   });
   logActivity({ agencyId, actorUserId: opts.actorUserId, category: "settings", action: "kpi.custom_deleted", message: `Deleted custom KPI ${id}.` });
   return listCustomKpis(agencyId);

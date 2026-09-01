@@ -86,7 +86,7 @@ test("edit, reset, suggestion, replay and two-session conflict converge on one a
   assert.equal(edited.status, 200);
   const editedPayload = await edited.json() as { replayed: boolean; config: { updatedAt: number; byKpi: Record<string, { baselineValue?: number; targetValue?: number; history?: unknown[] }>; operations?: unknown } };
   assert.equal(editedPayload.replayed, false);
-  assert.equal(editedPayload.config.byKpi["revenue-target"]?.targetValue, 100);
+  assert.equal(editedPayload.config.byKpi["command:revenue-target"]?.targetValue, 100);
   assert.equal(editedPayload.config.operations, undefined, "the internal replay ledger is not sent to browsers");
 
   const replay = await post(secondToken, editBody);
@@ -94,7 +94,7 @@ test("edit, reset, suggestion, replay and two-session conflict converge on one a
   const replayPayload = await replay.json() as typeof editedPayload;
   assert.equal(replayPayload.replayed, true);
   assert.equal(replayPayload.config.updatedAt, editedPayload.config.updatedAt);
-  assert.equal(replayPayload.config.byKpi["revenue-target"]?.history?.length ?? 0, 0, "a lost-response retry must not add target history");
+  assert.equal(replayPayload.config.byKpi["command:revenue-target"]?.history?.length ?? 0, 0, "a lost-response retry must not add target history");
 
   const reusedWithDifferentTerms = await post(firstToken, { ...editBody, targetValue: 999 });
   assert.equal(reusedWithDifferentTerms.status, 409);
@@ -107,7 +107,7 @@ test("edit, reset, suggestion, replay and two-session conflict converge on one a
   });
   assert.equal(reset.status, 200);
   const resetPayload = await reset.json() as { config: { updatedAt: number; byKpi: Record<string, unknown> } };
-  assert.equal(resetPayload.config.byKpi["revenue-target"], undefined);
+  assert.equal(resetPayload.config.byKpi["command:revenue-target"], undefined);
 
   // Accepted history suggestion: it is the same authoritative set command as
   // a manual edit, with its own retained operation identity.
@@ -121,7 +121,7 @@ test("edit, reset, suggestion, replay and two-session conflict converge on one a
   });
   assert.equal(suggestion.status, 200);
   const suggestionPayload = await suggestion.json() as { config: { updatedAt: number; byKpi: Record<string, { targetValue?: number }> } };
-  assert.equal(suggestionPayload.config.byKpi["lead-conversion"]?.targetValue, 22);
+  assert.equal(suggestionPayload.config.byKpi["command:lead-conversion"]?.targetValue, 22);
 
   const staleSecondSession = await post(secondToken, {
     operationId: "kpi-second-session-0001",
@@ -133,7 +133,7 @@ test("edit, reset, suggestion, replay and two-session conflict converge on one a
   });
   assert.equal(staleSecondSession.status, 409);
   const conflictPayload = await staleSecondSession.json() as { config: { updatedAt: number; byKpi: Record<string, { targetValue?: number }> } };
-  assert.equal(conflictPayload.config.byKpi["lead-conversion"]?.targetValue, 22, "the stale browser receives the newer agency truth");
+  assert.equal(conflictPayload.config.byKpi["command:lead-conversion"]?.targetValue, 22, "the stale browser receives the newer agency truth");
 
   const retriedSecondSession = await post(secondToken, {
     operationId: "kpi-second-session-0001",
@@ -145,16 +145,16 @@ test("edit, reset, suggestion, replay and two-session conflict converge on one a
   });
   assert.equal(retriedSecondSession.status, 200);
   const finalPayload = await retriedSecondSession.json() as { config: { updatedAt: number; byKpi: Record<string, { targetValue?: number }> } };
-  assert.equal(finalPayload.config.byKpi.mrr?.targetValue, 1_500);
+  assert.equal(finalPayload.config.byKpi["command:mrr"]?.targetValue, 1_500);
 
   await storage.ensureHydrated({ fresh: true });
   for (const token of [firstToken, secondToken]) {
     const response = await get(token);
     const payload = await response.json() as typeof finalPayload;
     assert.equal(payload.config.updatedAt, finalPayload.config.updatedAt);
-    assert.equal(payload.config.byKpi["lead-conversion"]?.targetValue, 22);
-    assert.equal(payload.config.byKpi.mrr?.targetValue, 1_500);
-    assert.equal(payload.config.byKpi["revenue-target"], undefined);
+    assert.equal(payload.config.byKpi["command:lead-conversion"]?.targetValue, 22);
+    assert.equal(payload.config.byKpi["command:mrr"]?.targetValue, 1_500);
+    assert.equal(payload.config.byKpi["command:revenue-target"], undefined);
   }
 
   const actions = storage.getState().activity.filter(entry => entry.action === "kpi.target_set" || entry.action === "kpi.target_cleared");

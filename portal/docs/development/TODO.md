@@ -17,7 +17,7 @@ remains the backing store. This file is the index over it.
 
 ---
 
-## 🔒 Blocked on you — 8
+## 🔒 Blocked on you — 9
 
 Nothing here moves without an account, a credential or a decision from you. Taken from
 the retired files' own Ed-only sections, minus one they had mis-filed (`#1`, RLS, whose
@@ -31,43 +31,42 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [ ] Apply the pending Supabase migrations before production rollout  <sub>from checklist.md, no issue number</sub>
 - [ ] DPO sign-off  <sub>from checklist.md, no issue number</sub>
 - [ ] Aqua Tag form-capture consent → [#2](issues.md)
-- [ ] Mounted browser acceptance of the isolated preview lifecycle (2026-08-27, isolated `sandbox:fork` lane on port 3047; port 3032 untouched throughout) → [#161](issues.md) `⚠ disputed`
+- [ ] Choose the permanent last-grant revocation policy → [#174](issues.md)
+- [ ] Decide whether client identities get indistinguishable sibling-project 404s → [#163](issues.md)
 
 ## P0 — before any production use — 1
 
 - [~] Ecommerce Checkout is server-authoritative; finish public-route and live acceptance → [#69](issues.md)
 
-## P1 — before broader launch — 60
+## P1 — before broader launch — 62
 
 - [~] Editor AI database coordination is implemented; live DB proof remains → [#18](issues.md)
-- [ ] Complete Editor dirty-state browser acceptance → [#19](issues.md) `⚠ disputed`
-- [ ] Public showcase capability boundary and shared fixture are repaired → [#21](issues.md) `⚠ disputed`
-- [~] Keep the repaired production build as a release gate → [#27](issues.md) `⚠ disputed`
-- [ ] Repair the website-editor API contract before calling the editor complete → [#28](issues.md)
-- [ ] Website Editor commerce contracts are unified; finish public-route and browser acceptance → [#29](issues.md) `⚠ disputed`
-- [ ] Repair website export before offering it as a backup or migration path → [#30](issues.md)
-- [ ] Remove or integrate the browser-local Website Editor stations → [#31](issues.md)
-- [ ] Stop reporting queued campaign mail as sent → [#32](issues.md)
-- [ ] Finish the paid Memberships foundation adapter → [#33](issues.md)
-- [ ] Make plugin health a real monitored lifecycle → [#35](issues.md)
-- [ ] Make Build custom portal reach a real service → [#36](issues.md)
-- [ ] Make project provision, GitHub publish and Vercel deploy retry-safe → [#37](issues.md)
-- [ ] Make all private uploads/deletes transactional and retryable → [#38](issues.md)
-- [ ] Make Close the deal issue a reviewable, truthfully delivered contract → [#39](issues.md)
-- [ ] Make commercial proposal/receipt delivery truthful → [#40](issues.md)
-- [ ] Bind proposal acceptance and payment to an immutable sent version → [#41](issues.md)
-- [ ] Make installment subscriptions stop exactly and verifiably → [#42](issues.md)
-- [ ] Make Email Sender production setup reachable and real → [#43](issues.md)
-- [ ] Wire Affiliate Stripe Connect or stop offering it → [#45](issues.md)
+- [~] Complete Editor dirty-state browser acceptance → [#19](issues.md) `⚠ disputed`
+- [~] Public showcase capability boundary and shared fixture are repaired → [#21](issues.md) `⚠ disputed`
+- [~] Continue repairing the Website Editor API contract; the legacy Sites dead-call island is retired → [#28](issues.md)
+- [~] Website Editor commerce contracts are unified; finish public-route and browser acceptance → [#29](issues.md) `⚠ disputed`
+- [~] Repair website export before offering it as a backup or migration path → [#30](issues.md)
+- [~] The browser-local Sites station is retired; integrate or remove the remaining local Editor islands → [#31](issues.md)
+- [~] Stop reporting queued campaign mail as sent → [#32](issues.md)
+- [~] Finish the paid Memberships foundation adapter → [#33](issues.md)
+- [~] Make plugin health a real monitored lifecycle → [#35](issues.md)
+- [~] Build custom portal now reaches the canonical provisioner; mounted provision/reload acceptance remains → [#36](issues.md)
+- [~] Make project provision, GitHub publish and Vercel deploy retry-safe → [#37](issues.md)
+- [~] Make all private uploads/deletes transactional and retryable → [#38](issues.md)
+- [~] Make Close the deal issue a reviewable, truthfully delivered contract → [#39](issues.md)
+- [~] Make commercial proposal/receipt delivery truthful → [#40](issues.md)
+- [~] Bind proposal acceptance and payment to an immutable sent version → [#41](issues.md)
+- [~] Make installment subscriptions stop exactly and verifiably → [#42](issues.md)
+- [~] Make Email Sender production setup reachable and real → [#43](issues.md)
+- [~] Wire Affiliate Stripe Connect or stop offering it → [#45](issues.md)
 - [~] Code/behaviour resolved — browser-accept the canonical client lifecycle → [#46](issues.md)
-- [ ] Finish live visual acceptance for convergent client phase transitions → [#55](issues.md)
-- [ ] Preserve unavailable read state instead of manufacturing emptiness → [#57](issues.md)
-- [ ] Lead archive is destructive and leaves a hidden card → [#62](issues.md) `⚠ disputed`
-- [ ] Membership/Affiliate deletion strands active dependants → [#63](issues.md)
-- [ ] SOP deletion silently removes live operating instructions → [#64](issues.md)
-- [ ] The authoritative Company capital/governance register accepts contradictory records → [#65](issues.md)
-- [ ] Battle Table saves can erase another executive change, and “locked” reviews are mutable → [#66](issues.md)
-- [ ] Legal-document deletion strands compliance and governance evidence → [#67](issues.md)
+- [~] Finish live visual acceptance for convergent client phase transitions → [#55](issues.md)
+- [~] Portal Editor preserves unavailable configuration reads; repair the remaining empty-fallback families and browser-accept retry/snapshot behaviour → [#57](issues.md)
+- [~] Membership/Affiliate dependency inventories exist; choose and enforce safe deletion policy → [#63](issues.md)
+- [~] SOP dependency inventory exists; choose and enforce safe deletion policy → [#64](issues.md)
+- [~] Company capital/governance invariants are guarded; finish mounted acceptance → [#65](issues.md)
+- [~] Battle Table revisions/locks are guarded; finish mounted acceptance → [#66](issues.md)
+- [~] Legal dependency preview/refusal exists; finish mounted/provider acceptance → [#67](issues.md)
 - [~] Code/behaviour resolved — complete mounted/live-provider acceptance for transactional gift-card and custom-code value → [#70](issues.md)
 - [~] Code/behaviour resolved — browser-accept versioned Product/Variants authoring → [#71](issues.md)
 - [~] Code/behaviour resolved — browser-accept the Ecommerce inventory ledger → [#73](issues.md)
@@ -76,7 +75,7 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Public Funnel capture visibility and ordinary retry are repaired; exact cross-process side-effect delivery remains → [#79](issues.md)
 - [~] Canonical lead identity is conflict-safe inside one application process; database-native uniqueness remains → [#80](issues.md)
 - [~] Opportunity money is safe under same-process races; distributed provider delivery remains → [#81](issues.md)
-- [ ] Mounted Marketing records are isolated and stale-safe in one process; distributed compare-and-set remains → [#82](issues.md) `⚠ disputed`
+- [~] Mounted Marketing records are isolated and stale-safe in one process; distributed compare-and-set remains → [#82](issues.md) `⚠ disputed`
 - [~] Agency Marketing lead identity is canonical and race-safe in one process; distributed uniqueness remains → [#83](issues.md)
 - [~] Aqua Tags stop-routing is non-destructive; mounted click acceptance remains → [#85](issues.md)
 - [~] Make Aqua Tag form ingestion durable and order-independent → [#87](issues.md)
@@ -90,82 +89,71 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Performance report history is code- and behaviour-repaired; mounted acceptance remains → [#128](issues.md)
 - [~] Performance experiment integrity is code- and behaviour-repaired; mounted acceptance remains → [#129](issues.md)
 - [~] Aqua Advisor turns are code/domain-behaviour durable; mounted provider acceptance remains → [#130](issues.md)
-- [ ] Mount and prove real application observability → [#132](issues.md)
-- [ ] Make every true modal keyboard-contained and restore focus → [#135](issues.md)
-- [ ] Name every important action and published-form field for assistive technology → [#139](issues.md)
+- [~] Server error capture/readiness is mounted and the repaired cross-runtime graph is browser-clean and production-build green (244/244); install and live-prove the production client sink → [#132](issues.md)
+- [~] Every declared modal uses the shared focus/restore contract; mounted representative keyboard acceptance remains → [#135](issues.md)
+- [~] Named internal actions and published fields are guarded; mounted accessibility-tree acceptance remains → [#139](issues.md)
 - [~] Make date-only business values local-calendar safe → [#140](issues.md)
-- [ ] Harden voice and call recording across browser formats and failures → [#145](issues.md)
+- [~] Voice/call recorder negotiation and failure cleanup are repaired; mounted cross-browser acceptance remains → [#145](issues.md)
 - [~] Relative countdown deadline code/service behaviour is repaired; mounted acceptance remains → [#146](issues.md)
 - [~] Team Chat and notification response-order code is repaired; mounted acceptance remains → [#147](issues.md)
 - [~] Named core storage/provider waits are bounded; finish mounted/live acceptance → [#148](issues.md)
-- [ ] Free a server + verify the critical flows for real  <sub>from todo-retired.md, no issue number</sub>
+- [~] Execute relational extraction, backfill, RLS and atomic-outbox phases; semantic Phase 0 and durable KPI identities are shipped, while outbox consumer acknowledgement/retry/dead-letter remains open → [data migration plan](../data/MIGRATION-PLAN.md)
+- [~] Editor `requiresPlugin` gating is code/behaviour-complete and an enabled tenant palette is browser-proven; compare disabled state and disable/reload preservation → [#183](issues.md)
+- [~] Build missing visitor backends, starting with consent-aware tenant contact capture → [#184](issues.md)
+- [ ] Classify and expose visitor-safe public module operations one route at a time → [#185](issues.md)
+- [~] Isolated server/browser lane is restored; finish the remaining critical-flow acceptance  <sub>from todo-retired.md, no issue number</sub>
 
-## P2 — quality and correctness — 19
+## P2 — quality and correctness — 16
 
-- [~] File-backend persistence is truthful and atomic → [#16](issues.md) `⚠ disputed`
 - [~] Reference validation remains a broad open class; the audited client-route slice is fixed → [#20](issues.md)
 - [~] Reconcile staff capability policy → [#25](issues.md)
-- [ ] Make Stripe refund/dispute event handling durably idempotent → [#26](issues.md)
-- [ ] Most plugin settings schemas are not user-operable → [#44](issues.md)
+- [~] Most plugin settings schemas are not user-operable → [#44](issues.md)
 - [~] Stop mutation controls swallowing non-success responses → [#47](issues.md)
-- [ ] Finish Notepad autosave browser acceptance → [#54](issues.md)
-- [ ] Mounted acceptance remains for settled utility controls → [#61](issues.md)
+- [~] Finish Notepad autosave browser acceptance → [#54](issues.md)
+- [~] Mounted acceptance remains for settled utility controls → [#61](issues.md)
 - [~] Agency Marketing campaign writes and reports are truthful in one process; distributed mutation safety remains → [#84](issues.md)
 - [~] Finance settings now control new invoices/documents; browser acceptance remains → [#120](issues.md)
-- [ ] Make Radar scheduling match its taxonomy → [#131](issues.md)
-- [ ] Expose a real loading status for the Command Centre → [#136](issues.md) `⚠ disputed`
-- [ ] Standardise tabs, menus and listboxes or remove their specialised roles → [#138](issues.md)
-- [ ] Provide and prove the real global error fallback → [#141](issues.md)
-- [ ] Make the customer portal genuinely installable in Chromium → [#142](issues.md)
-- [ ] Remove render-time `window` from published current-page blocks → [#143](issues.md)
-- [ ] Stream private audio/video with a real byte-range contract → [#144](issues.md)
-- [~] Finish production-durable Dev Team authoring and live signals  <sub>from checklist.md, no issue number</sub>
-- [~] Finish production-durable Dev Team authoring/signals  <sub>from todo-retired.md, no issue number</sub>
+- [~] The route loader and Visual Builder boot expose one real live status, and the visual handoff is browser-proven; screen-reader announcement/removal/focus acceptance remains → [#136](issues.md)
+- [~] Tabs, menus and listboxes now use honest roles and shared keyboard models; mounted representative acceptance remains → [#138](issues.md)
+- [~] The real self-contained global error fallback is shipped; production root-fault/recovery acceptance remains → [#141](issues.md)
+- [~] Chromium-required 192/512 and maskable PWA assets are shipped; eligible/dismissed/installed browser acceptance remains → [#142](issues.md)
+- [~] Published current-page blocks are hydration-stable in default and explicit modes; mounted navigation acceptance remains → [#143](issues.md)
+- [~] Private media has one tested 200/206/416 provider-aware byte-range contract; mounted playback/seek acceptance remains → [#144](issues.md)
+- [~] Finish production-durable Dev Team authoring and live signals  <sub>consolidated from the retired lists; no issue number</sub>
+- [ ] Replace Radar's replayable `scan=1` navigation with a bounded result handle → [#186](issues.md)
 
-## Unprioritised — 36
+## Unprioritised — 24
 
 - [~] DB Row-Level Security — ⚠ NOT Ed's task, and no longer a 🔴 decision. CORRECTED 2026-08-23 → [#1](issues.md)
-- [ ] Meta / Instagram inbox — self-serve "Connect now" → [#11](issues.md)
-- [ ] Governance's company selector mixes other brands into scoped evidence and erasure → [#68](issues.md)
-- [ ] Finish role-aware account and portal recovery navigation → [#133](issues.md)
-- [ ] Keep customer installation help revisitable → [#134](issues.md)
+- [~] Meta / Instagram inbox — self-serve "Connect now" → [#11](issues.md)
+- [~] Governance company scoping is isolated in code; finish mounted acceptance → [#68](issues.md)
+- [~] Role-aware account and portal recovery navigation is implemented; finish mounted acceptance → [#133](issues.md)
+- [~] Customer install help is revisitable from Support; mounted install/revisit acceptance remains → [#134](issues.md)
 - [~] Customer Bookings code/behaviour is capability-driven; mounted proof remains → [#149](issues.md)
 - [~] Social Inbox's inert More control is removed; mounted confirmation remains → [#150](issues.md)
-- [~] The bounded Dev Team/Agency speed implementation, production benchmark and representative browser acceptance are complete → [#151](issues.md) `⚠ disputed`
 - [~] Client-workspace 404 bootstrap code is repaired; browser console recheck remains → [#152](issues.md)
 - [~] Staff, Fulfilment and broad exact-client runtime adoption  <sub>from checklist.md, no issue number</sub>
-- [~] Combined verification is settling  <sub>from checklist.md, no issue number</sub>
-- [ ] Release browser gate  <sub>from checklist.md, no issue number</sub>
-- [ ] Application-wide parity  <sub>from checklist.md, no issue number</sub>
-- [~] Aqua Editor AI distributed replay code is complete; deployment proof is open  <sub>from checklist.md, no issue number</sub>
-- [~] Editor unsaved-work source bypasses are closed  <sub>from checklist.md, no issue number</sub>
-- [ ] Stripe refund/dispute event deduplication is process-local  <sub>from checklist.md, no issue number</sub>
-- [~] Aqua Editor AI multi-instance claim  <sub>from checklist.md, no issue number</sub>
-- [~] Aqua Editor AI reply replay guard  <sub>from checklist.md, no issue number</sub>
-- [ ] Full browser authoring round trip  <sub>from checklist.md, no issue number</sub>
-- [ ] Unsaved-work and project-prefill browser matrix  <sub>from checklist.md, no issue number</sub>
+- [~] One consolidated release/browser/parity gate remains across the critical journeys  <sub>consolidated from the retired lists; no issue number</sub>
+- [~] Full browser authoring round trip  <sub>from checklist.md, no issue number</sub>
+- [~] Unsaved-work and project-prefill browser matrix  <sub>from checklist.md, no issue number</sub>
 - [~] Reusable Dev Workspace is mounted; client-facing completion remains  <sub>from checklist.md, no issue number</sub>
-- [ ] Engine widening + assistant proposals  <sub>from checklist.md, no issue number</sub>
+- [~] Engine widening + assistant proposals  <sub>from checklist.md, no issue number</sub>
 - [ ] Stages hold elements  <sub>from checklist.md, no issue number</sub>
 - [ ] Wizard engine  <sub>from checklist.md, no issue number</sub>
 - [~] Aqua Tag backbone remainders  <sub>from checklist.md, no issue number</sub>
-- [ ] Env-only audit  <sub>from checklist.md, no issue number</sub>
-- [ ] Backfill phase ticks  <sub>from checklist.md, no issue number</sub>
+- [~] Env-only audit  <sub>from checklist.md, no issue number</sub>
+- [~] Backfill phase ticks  <sub>from checklist.md, no issue number</sub>
 - [ ] Re-enter the Aqua Tag routing config  <sub>from checklist.md, no issue number</sub>
-- [~] Complete behavioural browser acceptance  <sub>from todo-retired.md, no issue number</sub>
-- [ ] Battle Table overhaul → live war-room  <sub>from todo-retired.md, no issue number</sub>
-- [ ] Operations / System surface — the KNOW side (governance)  <sub>from todo-retired.md, no issue number</sub>
+- [~] Operations / System surface — the KNOW side (governance)  <sub>from todo-retired.md, no issue number</sub>
 - [ ] Advisor omega upgrade  <sub>from todo-retired.md, no issue number</sub>
 - [~] Marketing workspace overhaul  <sub>from todo-retired.md, no issue number</sub>
-- [ ] "You Deserve It" upgrade  <sub>from todo-retired.md, no issue number</sub>
-- [ ] Two inbox surfaces  <sub>from todo-retired.md, no issue number</sub>
-- [ ] The rest  <sub>from todo-retired.md, no issue number</sub>
+- [~] "You Deserve It" upgrade  <sub>from todo-retired.md, no issue number</sub>
 
 ---
 
-## Done — 57 issue ids
+## Done — 64 issue ids
 
 Ids only. The account of each is in `issues.md`; the running narrative is in
 `updates.md` and `CAMPAIGN-LEDGER.md`.
 
-#4 #5 #8 #10 #17 #22 #23 #24 #34 #48 #49 #50 #51 #52 #53 #56 #58 #59 #60 #76 #78 #86 #89 #90 #91 #92 #93 #94 #95 #96 #97 #98 #99 #100 #101 #102 #103 #104 #105 #106 #107 #108 #109 #110 #111 #112 #113 #114 #115 #116 #117 #118 #119 #127 #137 #153 #154
+#4 #5 #8 #10 #16 #17 #22 #23 #24 #26 #27 #34 #48 #49 #50 #51 #52 #53 #56 #58 #59 #60 #62 #76 #78 #86 #89 #90 #91 #92 #93 #94 #95 #96 #97 #98 #99 #100 #101 #102 #103 #104 #105 #106 #107 #108 #109 #110 #111 #112 #113 #114 #115 #116 #117 #118 #119 #127 #131 #137 #151 #153 #154 #161

@@ -7,7 +7,7 @@
 import { useState } from "react";
 import { Search } from "lucide-react";
 import type { Block } from "../../types/block";
-import { listBlockDefinitions, type BlockDefinition } from "../blockRegistry";
+import { listAvailableBlockDefinitions, type BlockDefinition } from "../blockRegistry";
 import { blockBackendGap } from "../../lib/blockBackends";
 
 const CATEGORIES: Array<{ id: BlockDefinition["category"]; label: string }> = [
@@ -21,11 +21,12 @@ const CATEGORIES: Array<{ id: BlockDefinition["category"]; label: string }> = [
 interface SidebarProps {
   blocks: Block[];
   selectedId: string | null;
+  enabledPluginIds: readonly string[];
   onSelect: (id: string) => void;
   onAddTopLevel: (type: BlockDefinition["type"]) => void;
 }
 
-export default function Sidebar({ blocks, selectedId, onSelect, onAddTopLevel }: SidebarProps) {
+export default function Sidebar({ blocks, selectedId, enabledPluginIds, onSelect, onAddTopLevel }: SidebarProps) {
   const [tab, setTab] = useState<"library" | "layers">("library");
   // Collapsed-on-mobile state — admin can expand via the floating button.
   const [open, setOpen] = useState(false);
@@ -59,7 +60,7 @@ export default function Sidebar({ blocks, selectedId, onSelect, onAddTopLevel }:
       </div>
       <div className="flex-1 overflow-y-auto">
         {tab === "library"
-          ? <BlockLibrary onAdd={t => { onAddTopLevel(t); setOpen(false); }} />
+          ? <BlockLibrary enabledPluginIds={enabledPluginIds} onAdd={t => { onAddTopLevel(t); setOpen(false); }} />
           : <LayersTree blocks={blocks} selectedId={selectedId} onSelect={id => { onSelect(id); setOpen(false); }} />
         }
       </div>
@@ -68,8 +69,8 @@ export default function Sidebar({ blocks, selectedId, onSelect, onAddTopLevel }:
   );
 }
 
-function BlockLibrary({ onAdd }: { onAdd: (type: BlockDefinition["type"]) => void }) {
-  const all = listBlockDefinitions();
+function BlockLibrary({ enabledPluginIds, onAdd }: { enabledPluginIds: readonly string[]; onAdd: (type: BlockDefinition["type"]) => void }) {
+  const all = listAvailableBlockDefinitions(enabledPluginIds);
   const [query, setQuery] = useState("");
   const normalized = query.trim().toLowerCase();
   const visible = normalized

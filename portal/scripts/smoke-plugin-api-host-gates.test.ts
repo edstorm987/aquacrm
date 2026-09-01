@@ -707,9 +707,9 @@ describe("the client record workspace — a real session for every role", () => 
 
   it("the sibling routes under the same folder are gated too", async () => {
     // `settings` was already agency-only; `[...rest]` is the plugin host and
-    // is capped by `pageAllowsRoleAt`. Both asserted here so a future sibling
-    // added beside them has a pattern to match — and so a regression in either
-    // shows up next to the one this fixed.
+    // is capped by `pageAllowsRoleAt`. `sites` is an explicit legacy redirect
+    // inside the same already-gated client layout. All three are asserted so a
+    // future sibling has to explain which boundary protects it.
     for (const role of ALL_ROLES) {
       const outcome = await driveClientRoute("settings", role);
       const shouldReach = AGENCY_ROLES.includes(role);
@@ -722,13 +722,17 @@ describe("the client record workspace — a real session for every role", () => 
       fs.readFile(new URL("../src/app/portal/clients/[clientId]/[...rest]/page.tsx", import.meta.url), "utf8"));
     assert.match(restSource, /pageAllowsRoleAt\(plugin, page, "client", session\.role\)/,
       "the plugin host stopped calling the shared page gate");
+    const sitesSource = await import("node:fs/promises").then(fs =>
+      fs.readFile(new URL("../src/app/portal/clients/[clientId]/sites/page.tsx", import.meta.url), "utf8"));
+    assert.match(sitesSource, /redirect\(`\/portal\/clients\/\$\{encodeURIComponent\(clientId\)\}\/edit-website`\)/,
+      "the legacy Sites route stopped redirecting safely into the canonical editor");
 
     // Nothing else lives under this folder. If a route is added, it has to
     // answer this question too — this list failing is the reminder.
     const { readdir } = await import("node:fs/promises");
     const entries = await readdir(new URL("../src/app/portal/clients/[clientId]/", import.meta.url), { withFileTypes: true });
     const routeDirs = entries.filter(e => e.isDirectory()).map(e => e.name).sort();
-    assert.deepEqual(routeDirs, ["[...rest]", "settings"],
+    assert.deepEqual(routeDirs, ["[...rest]", "settings", "sites"],
       "a new route folder appeared under /portal/clients/[clientId]/ — gate it and add it here");
   });
 });

@@ -93,7 +93,10 @@ describe("Agency Settings control or honestly describe their outcomes", () => {
     const invoices = new InvoiceService(agency.id, pluginStorage, tenant, activity, events);
     const invoice = await invoices.create({
       clientId: client.id,
-      dueAt: Date.parse("2026-09-01T00:00:00Z"),
+      // This test exercises document identity, not a historical due date. Keep
+      // the fixture valid whenever the suite runs instead of expiring it on
+      // the calendar and making an unrelated invoice invariant fail.
+      dueAt: Date.now() + 7 * 86_400_000,
       lineItems: [{ description: "Truth review", quantity: 1, unitCents: 12_000 }],
     }, "owner");
     const html = await invoices.renderInvoiceHtml(invoice.id);

@@ -77,11 +77,17 @@ interface PageEntry {
 // editor pulls sites/pages from session-scoped endpoints, so we don't
 // need to thread the clientId through manually here. PluginRequired is
 // a pass-through (foundation handles plugin gating upstream).
-export default function VisualEditorPage() {
-  return <PluginRequired plugin="website"><VisualEditorPageInner /></PluginRequired>;
+interface VisualEditorPageProps {
+  enabledPluginIds?: readonly string[];
 }
 
-function VisualEditorPageInner() {
+const NO_ENABLED_PLUGINS: readonly string[] = [];
+
+export default function VisualEditorPage({ enabledPluginIds = NO_ENABLED_PLUGINS }: VisualEditorPageProps) {
+  return <PluginRequired plugin="website"><VisualEditorPageInner enabledPluginIds={enabledPluginIds} /></PluginRequired>;
+}
+
+function VisualEditorPageInner({ enabledPluginIds }: { enabledPluginIds: readonly string[] }) {
   // Honour ?page=<id> on first mount so listing pages can deep-link
   // into the editor with a specific page selected. Consumed once and
   // then ignored — switching sites later falls back to the first page.
@@ -467,18 +473,28 @@ function VisualEditorPageInner() {
 
   if (booting || bootError) {
     return (
-      <main className="fixed inset-0 z-[80] grid place-items-center bg-[#0a0a0a] px-6">
-        <div className="max-w-md text-center">
-          <LayoutTemplate className="mx-auto mb-4 text-cyan-300/75" size={30} aria-hidden="true" />
+      <main
+        className="aqua-viewport-loading"
+        data-aqua-viewport-loader={booting ? "" : undefined}
+        data-loading-scope="route"
+        data-loading-state={bootError ? "error" : "loading"}
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        <div className="aqua-viewport-loading__content max-w-md">
           {bootError ? (
             <>
+              <LayoutTemplate className="mb-1 text-red-200/85" size={30} aria-hidden="true" />
               <h1 className="text-sm font-semibold text-white">The visual builder could not start</h1>
               <p role="alert" className="mt-2 text-[12px] leading-5 text-red-300">{bootError}</p>
             </>
           ) : (
             <>
+              <span className="aqua-viewport-loading__spinner" aria-hidden="true" />
+              <span className="aqua-viewport-loading__brand">Client workspace</span>
               <h1 className="text-sm font-semibold text-white">Preparing the visual builder</h1>
-              <p className="mt-2 text-[12px] text-brand-cream/45">Loading your website, pages, and design tools...</p>
+              <p className="aqua-viewport-loading__label">Loading your website, pages, and design tools...</p>
             </>
           )}
         </div>
@@ -594,6 +610,7 @@ function VisualEditorPageInner() {
             siteId={site.id}
             pageId={currentPage.id}
             device={deviceState}
+            enabledPluginIds={enabledPluginIds}
             onSavingChange={s => setUnsaved(s ? 1 : 0)}
             registerHistory={api => { historyApiRef.current = api; }}
             onHistoryChange={(canUndo, canRedo) => setHistory(prev =>

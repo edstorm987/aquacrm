@@ -64,7 +64,7 @@ store is still the metadata bag with a 500-event cap and no
 | Identity resolution | **Good** | frozen resolution + reasons + confidence per review; append-only classification history on Person |
 | Access kernel | **Good** | every mutation audited with actor + ids; grants keep request back-reference |
 | Connections | **Adequate** | connection-level status/test/actor stamps — but **no record-level back-reference** from data an integration wrote to the connection that wrote it |
-| Telemetry | **Weak** | random ids, no dedupe, no batch identity |
+| Telemetry | **Mixed** | deterministic content+time ids and replay dedupe when `occurredAt` is supplied; honest random fallback without event time; no batch identity or connection back-reference |
 | Imports generally | **Absent** | no import-batch records, no content checksums anywhere in `portal/src` |
 | Audit trail | **Capped** | idempotent + redacted, but 50k hard cap evicts silently |
 

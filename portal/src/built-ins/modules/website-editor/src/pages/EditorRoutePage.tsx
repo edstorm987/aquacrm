@@ -4,7 +4,16 @@
 
 import type { PluginPageProps } from "@/built-ins/runtime/_types";
 import VisualEditorPage from "./EditorPage";
+import { resolveEnabledPluginIds } from "../server/pluginAvailability";
 
-export default function EditorRoutePage(_props: PluginPageProps) {
-  return <VisualEditorPage />;
+export default async function EditorRoutePage(props: PluginPageProps) {
+  const enabledPluginIds = await resolveEnabledPluginIds(
+    props.services.pluginInstalls,
+    {
+      agencyId: props.agencyId,
+      ...(props.clientId !== undefined ? { clientId: props.clientId } : {}),
+    },
+  );
+
+  return <VisualEditorPage enabledPluginIds={enabledPluginIds} />;
 }

@@ -22,8 +22,11 @@ import { buildCommercialIntelligence } from "../src/lib/intelligence/commercialI
 import {
   CANONICAL_METRICS,
   KNOWN_DESCRIPTOR_ID_COLLISIONS,
+  KpiReferenceError,
+  canonicalKpiReference,
   canonicalMetric,
   canonicalMetricForDescriptor,
+  migrateLegacyKpiReferenceIds,
   sameQuantityPairs,
 } from "../src/lib/data/metricRegistry";
 import type { Client, Pipeline, PipelineCard } from "../src/server/types";
@@ -112,6 +115,25 @@ test("descriptor resolution is deterministic for the pinned collision", () => {
   assert.equal(canonicalMetricForDescriptor("campaign-roas", "commercial")?.canonicalId, "commercial:campaign-roas");
   assert.equal(canonicalMetricForDescriptor("lead-to-client")?.canonicalId, "commercial:lead-to-client");
   assert.equal(canonicalMetricForDescriptor("no-such-metric"), undefined);
+});
+
+test("durable KPI references reject ambiguous new writes and migrate legacy ids deterministically", () => {
+  assert.equal(canonicalKpiReference("lead-conversion"), "command:lead-conversion", "unambiguous legacy ids remain compatible");
+  assert.equal(canonicalKpiReference("commercial:campaign-roas"), "commercial:campaign-roas");
+  assert.throws(
+    () => canonicalKpiReference("campaign-roas"),
+    (error: unknown) => error instanceof KpiReferenceError && error.code === "ambiguous"
+      && error.message.includes("command:campaign-roas") && error.message.includes("commercial:campaign-roas"),
+  );
+  assert.deepEqual(
+    migrateLegacyKpiReferenceIds(["campaign-roas", "lead-conversion", "campaign-roas", "commercial:campaign-roas"]),
+    ["command:campaign-roas", "command:lead-conversion", "commercial:campaign-roas"],
+    "legacy backfill is command-first for the historical collision, stable-order and idempotent",
+  );
+  assert.deepEqual(
+    migrateLegacyKpiReferenceIds(migrateLegacyKpiReferenceIds(["campaign-roas", "lead-conversion"])),
+    ["command:campaign-roas", "command:lead-conversion"],
+  );
 });
 
 // ── Golden boundary cases for dedup-hazard metrics ─────────────────────────

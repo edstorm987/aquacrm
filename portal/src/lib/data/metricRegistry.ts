@@ -6,9 +6,9 @@
 // Surveyed 2026-08-30: metric identity, formula text and computation live in
 // three unlinked places (`commandIntelligenceService.ts` makeKpi args, its
 // `measurementFor()` lookup, and the upstream builders), the flat descriptor
-// id space already collides (`campaign-roas` is BOTH a command KPI and a
-// commercial formula — `computeCustomKpi`'s Map resolves it last-write-wins
-// while the picker's `.find()` resolves it first-match), and at least nine
+// legacy presentation id space already collides (`campaign-roas` is BOTH a
+// command KPI and a commercial formula). Durable references now use canonical
+// ids and reject ambiguous new bare writes; at least nine
 // business quantities are computed in two to four places, two with genuinely
 // different semantics (the response SLA threshold, the conversion
 // denominator). Three parallel identity schemes exist: KPI id
@@ -204,7 +204,7 @@ export const CANONICAL_METRICS: readonly CanonicalMetricEntry[] = [
   command("campaign-roas", "Portfolio campaign ROAS", "Attributed campaign revenue divided by recorded campaign spend, over rows built by buildCampaignRows (zero-clamped, rounded 2dp).", {
     radarFamilyId: "campaign-roas", window: "retained campaign records",
     computedBy: `${CI} buildCampaignRows + portfolio roll-up`,
-    overlaps: [{ canonicalId: "commercial:campaign-roas", relation: "same-quantity", note: "BARE-ID COLLISION (pinned in KNOWN_DESCRIPTOR_ID_COLLISIONS): the commercial twin computes unrounded over raw campaign records; picker .find() resolves to this one, computeCustomKpi's Map to the commercial one. Dedup phase renames or folds." }],
+    overlaps: [{ canonicalId: "commercial:campaign-roas", relation: "same-quantity", note: "LEGACY PRESENTATION-ID COLLISION (pinned in KNOWN_DESCRIPTOR_ID_COLLISIONS): the commercial twin computes unrounded over raw campaign records. Durable references are canonical and ambiguity-safe; the dedup phase still folds the calculations." }],
   }),
   command("traffic-7d", "Website traffic (7d)", "Count of Aqua Tag pageview events across selected monitored properties in the rolling 7 days.", {
     radarFamilyId: "traffic-7d", window: "rolling 7 days",
@@ -297,6 +297,91 @@ export const CANONICAL_METRICS: readonly CanonicalMetricEntry[] = [
 const BY_CANONICAL_ID: ReadonlyMap<string, CanonicalMetricEntry> = new Map(
   CANONICAL_METRICS.map(entry => [entry.canonicalId, entry]),
 );
+
+export type DynamicKpiKind = "evidence" | "custom";
+export type KpiReferenceMode = "strict" | "legacy";
+
+/** A user-facing validation error for a KPI reference that cannot be resolved safely. */
+export class KpiReferenceError extends Error {
+  constructor(
+    public readonly code: "missing" | "unknown" | "ambiguous",
+    public readonly reference: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = "KpiReferenceError";
+  }
+}
+
+function isDynamicKpiReference(reference: string, allowed: readonly DynamicKpiKind[]): boolean {
+  const separator = reference.indexOf(":");
+  if (separator <= 0 || separator === reference.length - 1 || reference.length > 140) return false;
+  const kind = reference.slice(0, separator) as DynamicKpiKind;
+  const id = reference.slice(separator + 1);
+  return allowed.includes(kind) && !/\s/.test(id);
+}
+
+/**
+ * Resolve any persisted KPI reference to its globally unique identity.
+ *
+ * New writes use `strict`: a legacy bare id remains compatible only when it is
+ * unambiguous. Migration code uses `legacy`, which maps the one historical
+ * collision to the command descriptor because that is how the old picker
+ * resolved `.find()`; this makes backfill deterministic without making new
+ * ambiguous writes legal.
+ */
+export function canonicalKpiReference(
+  value: string,
+  options: { mode?: KpiReferenceMode; allowDynamicKinds?: readonly DynamicKpiKind[] } = {},
+): string {
+  const reference = value.trim();
+  if (!reference) throw new KpiReferenceError("missing", reference, "KPI id is required.");
+  if (BY_CANONICAL_ID.has(reference)) return reference;
+
+  const dynamicKinds = options.allowDynamicKinds ?? ["evidence", "custom"];
+  if (isDynamicKpiReference(reference, dynamicKinds)) return reference;
+  if (reference.includes(":")) {
+    throw new KpiReferenceError("unknown", reference, `Unknown KPI id "${reference}".`);
+  }
+
+  const command = BY_CANONICAL_ID.get(`command:${reference}`);
+  const commercial = BY_CANONICAL_ID.get(`commercial:${reference}`);
+  if (command && commercial) {
+    if (options.mode === "legacy") return command.canonicalId;
+    throw new KpiReferenceError(
+      "ambiguous",
+      reference,
+      `KPI id "${reference}" is ambiguous; use "${command.canonicalId}" or "${commercial.canonicalId}".`,
+    );
+  }
+  const resolved = command ?? commercial;
+  if (resolved) return resolved.canonicalId;
+  throw new KpiReferenceError("unknown", reference, `Unknown KPI id "${reference}".`);
+}
+
+/** Non-throwing resolver for migration/read paths. */
+export function tryCanonicalKpiReference(
+  value: string,
+  options: { mode?: KpiReferenceMode; allowDynamicKinds?: readonly DynamicKpiKind[] } = {},
+): string | undefined {
+  try {
+    return canonicalKpiReference(value, options);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Deterministically migrate, validate, de-duplicate and retain order. */
+export function migrateLegacyKpiReferenceIds(
+  values: readonly string[],
+  options: { allowDynamicKinds?: readonly DynamicKpiKind[] } = {},
+): string[] {
+  const migrated = values
+    .filter((value): value is string => typeof value === "string")
+    .map(value => tryCanonicalKpiReference(value, { ...options, mode: "legacy" }))
+    .filter((value): value is string => Boolean(value));
+  return [...new Set(migrated)];
+}
 
 /** Look up by globally unique canonical id (`command:mrr`). */
 export function canonicalMetric(canonicalId: string): CanonicalMetricEntry | undefined {

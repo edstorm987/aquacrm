@@ -7,7 +7,10 @@ import {
   type ClientTelemetrySummary,
 } from "@/lib/clients/clientTelemetry";
 import { logActivity } from "@/server/activity";
-import { captureError } from "@/lib/server/observability";
+import {
+  captureError,
+  isExpectedFrameworkControlFlow,
+} from "@/lib/server/observability";
 import { ensureHydrated, getState, mutate } from "@/server/storage";
 import type {
   AgencyWebsitePage,
@@ -141,15 +144,20 @@ export function ensureAgencyWebsite(agencyId: string): AgencyWebsiteProject {
  * record rather than to fail. A marketing page missing its telemetry tag beats
  * a marketing page that does not exist.
  *
- * The failure is never swallowed: it goes through `captureError`, which always
- * writes the trace to the deployment log and additionally reports to Sentry
- * when that is configured. This degrades the page, not the signal.
+ * A real storage failure is never swallowed: it goes through `captureError`,
+ * which always writes the trace to the deployment log and additionally reports
+ * to Sentry when that is configured. Next's own render-control exceptions are
+ * rethrown before that fallback. This degrades the page, not the signal.
  */
 export async function readPrimaryAgencyWebsiteForPublicRender(): Promise<AgencyWebsiteProject | null> {
   try {
     await ensureHydrated();
     return readPrimaryAgencyWebsite();
   } catch (error) {
+    // This is Next selecting dynamic rendering, not a storage failure. Let the
+    // framework handle it instead of freezing a static fallback and reporting
+    // a false production incident.
+    if (isExpectedFrameworkControlFlow(error)) throw error;
     captureError(error, {
       extra: {
         surface: "public-website",

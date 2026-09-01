@@ -1312,9 +1312,9 @@ describe("data-compliance check: demo-seeded PII against the erasure surface", (
   //     swept: client record, the account carrying the demo email, activity.
   //
   //   • SOURCE is not. A real person (Ed's client Felicia of Luv & Ker) is
-  //     hardcoded as a runtime default in seven files. Erasure operates on
+  //     hardcoded as a runtime default in six files. Erasure operates on
   //     state, so it removes the row and the next seed puts the person back.
-  //     One of the seven is not demo data at all: `api/tenants/seed` defaults
+  //     One of the six is not demo data at all: `api/tenants/seed` defaults
   //     its client-owner to `felicia@luvandker.com` — the REAL address.
   //
   // Replacing the persona is Ed's call (his demo branding, and it re-pins
@@ -1444,9 +1444,9 @@ describe("data-compliance check: demo-seeded PII against the erasure surface", (
     // Guards the guard: a sweep that finds nothing would pass silently if the
     // persona were renamed, and the audit would quietly stop being performed.
     assert.ok(
-      offenders.length >= 7,
-      `the persona sweep found only ${offenders.length} files; it found 7 when this audit was run on `
-      + "2026-08-31. If the persona was genuinely replaced, retire this block and the hazards entry together "
+      offenders.length >= 6,
+      `the persona sweep found only ${offenders.length} files; it found 6 after the obsolete portal wizard was retired on `
+      + "2026-09-01. If the persona was genuinely replaced further, retire this block and the hazards entry together "
       + "rather than leaving a sweep that cannot fail.",
     );
   });

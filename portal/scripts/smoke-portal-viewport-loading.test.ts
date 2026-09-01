@@ -91,6 +91,8 @@ test("the loader and exit curtain fill the route viewport beneath full-device ci
   assert.match(coordinator, /useLayoutEffect\(\(\) =>/);
   assert.match(coordinator, /const mutationContainsLoader = \(node: Node\)/);
   assert.match(coordinator, /records\.some\(record =>[\s\S]*?addedNodes[\s\S]*?removedNodes[\s\S]*?some\(mutationContainsLoader\)/);
+  assert.match(coordinator, /loaderWatchTimerRef/);
+  assert.match(coordinator, /window\.setTimeout\(\(\) => \{[\s\S]*?inspect\(\);[\s\S]*?\}, 40\)/);
   assert.match(coordinator, /loader\.closest<HTMLElement>\("\[data-aqua-loading-coordinator\]"\) === root/);
   assert.match(coordinator, /performance\.now\(\) - startedAt < LOADER_REVEAL_DELAY_MS/);
   assert.match(coordinator, /setHandoverComplete\(true\)/);
@@ -109,6 +111,20 @@ test("normal, Command, Dev Team, and client workspaces change only the loader pa
   assert.match(styles, /\.mm-client-workspace-shell :is\(\.aqua-viewport-loading, \.aqua-loading-curtain\),[\s\S]*?\.mm-customer-portal :is\(\.aqua-viewport-loading, \.aqua-loading-curtain\),[\s\S]*?\[data-portal-loading-theme="client"\] :is\(\.aqua-viewport-loading, \.aqua-loading-curtain\)\s*\{[\s\S]*?--aqua-loading-accent:\s*#78d7ee;/);
   assert.match(styles, /\.aqua-viewport-loading__label\s*\{[\s\S]*?color:\s*rgb\(255 255 255 \/ 0\.9\);/);
   assert.equal((styles.match(/\.aqua-viewport-loading__content\s*\{/g) ?? []).length, 1, "themes forked the loader markup");
+});
+
+test("the visual builder boot joins the client-themed loader and curtain handover", async () => {
+  const editor = await read("../src/built-ins/modules/website-editor/src/pages/EditorPage.tsx");
+
+  assert.match(editor, /className="aqua-viewport-loading"/);
+  assert.match(editor, /data-aqua-viewport-loader=\{booting \? "" : undefined\}/);
+  assert.match(editor, /data-loading-scope="route"/);
+  assert.match(editor, /role="status"/);
+  assert.match(editor, /aria-live="polite"/);
+  assert.match(editor, /aria-atomic="true"/);
+  assert.match(editor, /aqua-viewport-loading__spinner/);
+  assert.match(editor, /aqua-viewport-loading__brand">Client workspace/);
+  assert.doesNotMatch(editor, /fixed inset-0 z-\[80\] grid place-items-center bg-\[#0a0a0a\]/);
 });
 
 test("the loader avoids flashes and respects reduced motion", async () => {

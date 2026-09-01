@@ -2,6 +2,7 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 
+import { canonicalKpiReference, migrateLegacyKpiReferenceIds } from "@/lib/data/metricRegistry";
 import { logActivity } from "@/server/activity";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
 import { getState, mutate } from "@/server/storage";
@@ -35,7 +36,10 @@ export interface SaveSharedKpiViewInput {
 
 /** The agency's shared saved KPI views, newest last (save order). */
 export function listSharedKpiViews(agencyId: string): SharedKpiComparisonView[] {
-  return getState().agencySettings[agencyId]?.kpiSavedViews ?? [];
+  return (getState().agencySettings[agencyId]?.kpiSavedViews ?? []).map(view => ({
+    ...view,
+    kpiIds: migrateLegacyKpiReferenceIds(view.kpiIds),
+  }));
 }
 
 function persist(agencyId: string, views: SharedKpiComparisonView[]): void {
@@ -55,7 +59,10 @@ function persist(agencyId: string, views: SharedKpiComparisonView[]): void {
 export function saveSharedKpiView(agencyId: string, input: SaveSharedKpiViewInput, opts: { actorUserId: string; now?: number }): SharedKpiComparisonView {
   const name = input.name.trim().slice(0, 80);
   if (!name) throw new Error("a shared view needs a name");
-  const kpiIds = [...new Set(input.kpiIds.filter(id => typeof id === "string" && id.trim().length > 0).map(id => id.trim().slice(0, 140)))].slice(0, MAX_KPIS_PER_VIEW);
+  const kpiIds = [...new Set(input.kpiIds
+    .filter((id): id is string => typeof id === "string" && id.trim().length > 0)
+    .map(id => canonicalKpiReference(id.trim().slice(0, 140))))]
+    .slice(0, MAX_KPIS_PER_VIEW);
   if (!kpiIds.length) throw new Error("a shared view needs at least one KPI");
   const view: SharedKpiComparisonView = {
     id: `kv_${randomUUID()}`,

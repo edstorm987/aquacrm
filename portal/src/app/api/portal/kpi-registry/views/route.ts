@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { KpiReferenceError } from "@/lib/data/metricRegistry";
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { deleteSharedKpiView, listSharedKpiViews, saveSharedKpiView } from "@/engines/data/server/kpi/kpiSavedViews";
 import { ensureHydrated } from "@/server/storage";
@@ -40,6 +41,7 @@ export async function POST(request: Request): Promise<Response> {
     }, { actorUserId: session.userId });
     return NextResponse.json({ ok: true, view, views: listSharedKpiViews(session.agencyId) });
   } catch (error) {
+    if (error instanceof KpiReferenceError) return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
     return authErrorResponse(error);
   }
 }

@@ -2,7 +2,7 @@
 
 > Verified findings, independent reviews, browser audits and the testing record.
 >
-> Consolidated 2026-09-01 from **11** source documents / **111,162 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-01 from **11** source documents / **112,731 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -13,7 +13,7 @@
 - [`docs/development/findings/2026-08-22-app-audit-salvage.md`](#source-docs-development-findings-2026-08-22-app-audit-salvage-md) — 1,294 words · `16f6f10e5bc4`
 - [`docs/development/findings/2026-08-22-stripe-can-never-be-configured.md`](#source-docs-development-findings-2026-08-22-stripe-can-never-be-configured-md) — 466 words · `e91f13c8620f`
 - [`docs/development/findings/2026-08-22-surfaces-that-state-a-falsehood.md`](#source-docs-development-findings-2026-08-22-surfaces-that-state-a-falsehood-md) — 892 words · `dfeb4a6302c1`
-- [`docs/development/issues.md`](#source-docs-development-issues-md) — 37,097 words · `53000cbcfbda`
+- [`docs/development/issues.md`](#source-docs-development-issues-md) — 38,666 words · `3a41e7ef4996`
 - [`docs/development/tests.md`](#source-docs-development-tests-md) — 12,972 words · `b99af1dace66`
 - [`docs/development/ultra-review-2026-08-24.md`](#source-docs-development-ultra-review-2026-08-24-md) — 15,503 words · `6725e738af21`
 - [`docs/development/visual-browser-audit-2026-08-23.md`](#source-docs-development-visual-browser-audit-2026-08-23-md) — 3,582 words · `3ee9b61d74e3`
@@ -2001,7 +2001,7 @@ _Captured from the Dev Team portal. Findings are the input side: review them, tu
 
 ## Source document — `docs/development/issues.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/issues.md" sha256="53000cbcfbdacc9ef903fa608318f5b0ce6b2b4e7f127abfedd8cd33ef991527" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/issues.md" sha256="3a41e7ef4996765fa61803e04c5c863e6eee4bcbc8a37771a20955dae07b4166" -->
 # Issues & risks
 
 ← Back to [development.md](../development.md) (the law)
@@ -3211,13 +3211,14 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     Remaining work is to derive every proxy/navigation/page/API gate from one
     capability policy rather than relying on independently maintained allowlists.
 
-26. **Stripe refund and dispute webhook deduplication is not durable.** Payment
-    creation is durably idempotent on the PaymentIntent, including concurrent
-    redelivery. `charge.refunded` and `charge.dispute.created` instead depend on the
-    module-level `processedEventIds` set in `stripeReconcile.ts`. A new process,
-    restart or another production instance has a different set, so the same Stripe
-    event can repeat activity records and emitted events. Persist processed event ids
-    or make those state transitions and their side effects durably idempotent.
+26. **✅ RESOLVED 2026-09-01 — Stripe refund and dispute webhook effects are durably
+    idempotent across processes.** The module-level `processedEventIds` set is only a
+    warm-process shortcut. Refund rows use provider refund/event identities, dispute
+    rows use the provider dispute identity, and their deterministic storage writes own
+    the cross-process correctness boundary. The focused ledger suite starts independent
+    file-backed processes, races the same refund and dispute deliveries, reloads fresh
+    state and proves one row plus exactly one emitted side effect for each event family.
+    `scripts/smoke-finance-refund-ledger.test.ts` passes **4/4** on current `main`.
 
 27. **✅ RESOLVED 2026-08-25 — the Next.js route contract and production build
     pass.** The Dev Projects handler now requires `NextRequest`; direct test callers
@@ -3226,8 +3227,17 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     type checking and **268/268** static-generation entries. A checked-in CI gate is
     still a process improvement, not a current source build failure.
 
-28. **P1 — the website-editor surfaces advertise operations whose API routes do
-    not exist at the paths they call.** `EditorPage` mounts a visible Funnels
+28. **P1 PARTLY RESOLVED 2026-09-01 — the thirteen-call legacy Sites island is
+    retired; sixteen known dead visitor/editor calls remain guarded by a ratchet.**
+    `/portal/clients/[clientId]/sites` now redirects to the canonical Editor, its manifest
+    entry and Git-status breadcrumb are gone, and the 1,500-line browser-local screen plus
+    `lk_sites_v1` store were deleted. Git status now scopes itself from the real route client
+    id. The route/navigation/dead-call regressions pass in the focused **78/78** set. The
+    remaining Funnels, split-test, visitor-backend and optional AI routes below are still real
+    work; the ratchet explicitly prevents calling their known absence a clean bill of health.
+
+    _Original finding, retained for context:_ The website-editor surfaces advertised operations whose API routes did
+    not exist at the paths they called. `EditorPage` mounts a visible Funnels
     section and `NewFunnelModal`, but `lib/funnels.ts` calls
     `/api/portal/website-editor/funnels`; the plugin registers no funnel routes, so
     create can only return “Failed to create funnel.” The selected-block **Split**
@@ -3317,8 +3327,15 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     blocks visibly), and compare a representative published page with its exported
     HTML before calling export usable.
 
-31. **P1 — several Website Editor admin stations are disconnected browser-local
-    islands.** The main Sites station is one of them: `SitesPage` imports
+31. **P1 PARTLY RESOLVED 2026-09-01 — the main browser-local Sites station is
+    retired; the remaining local Sections, Popup, Customise and Page Detail islands
+    still need integration or removal.** Old Sites bookmarks redirect to the canonical
+    `/edit-website` workspace, the plugin no longer registers or links the station, Git status
+    derives the real route client id, and both `SitesPage.tsx` and `sitesAdmin.ts` are deleted.
+    No `lk_sites_v1` authority remains. Focused navigation/route proof passes **78/78**.
+
+    _Original finding, retained for context:_ Several Website Editor admin stations were disconnected browser-local
+    islands. The main Sites station was one of them: `SitesPage` imported
     `lib/sitesAdmin.ts`, whose create/update/delete, live/draft, domain, primary-site,
     branding and custom-code operations write only browser-global
     `localStorage["lk_sites_v1"]`. Server host routing and rendering use the separate
@@ -3407,8 +3424,15 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     until every enabled install has a recent result. Test one failing, one throwing,
     one stale and one never-checked install end to end.
 
-36. **P1 — the client “Build custom portal” workflow targets an absent
-    `portal-export` module.** On a manageable client with an assigned product and no
+36. **P1 CODE/PATH RESOLVED 2026-09-01; mounted provision/reload acceptance remains.**
+    The client header no longer mounts the unregistered `portal-export` wizard. “Build custom
+    portal” now lands on the canonical Systems → Properties and deployments workspace, whose
+    provision action is backed by `/api/tenants/client-projects/provision`; the unused wizard and
+    its dead preset/export calls were removed. The navigation and route-truth regressions pass in
+    the focused **57/57** set. Still browser-prove provision → durable property → reload and the
+    subsequent publish/deploy journey with configured providers.
+
+    _Original finding, retained for context:_ On a manageable client with an assigned product and no
     materialised portal folder, the overview mounts `BuildPortalWizard` as the main
     portal action. Opening it requests `/api/portal/portal-export/presets`; the 404
     is deliberately swallowed and three static templates remain, so the missing
@@ -3832,15 +3856,27 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     the nested suite. The focused lifecycle/navigation set passes **43/43** and the
     wider client-creation gate passes **75/75**.
 
-57. **P1 — mounted read failures are repeatedly converted into truthful-looking
-    empty data.** At least twenty-eight current product paths catch a rejected read and
-    substitute `[]` or an empty inbox snapshot: agency and per-client website-source
+57. **P1 PARTLY RESOLVED 2026-09-01 — Portal Editor configuration now preserves
+    unavailable reads, while the other empty-fallback families remain open.** Its form
+    editor, contact-field and expense-category sources now run as independent checked
+    reads, so one rejection, HTTP error or malformed payload cannot erase sources that
+    answered. The panel distinguishes loading, confirmed empty and `Not read`, exposes
+    retry, keeps previously confirmed snapshots when a retry fails, and withholds the
+    corresponding add/edit/delete or category add/archive/restore mutations until that
+    source succeeds. Focused rejected-read and UI-contract proof passes **4/4**. Still
+    required: mounted browser rejection/retry proof for this slice, then equivalent
+    first-class availability, retry and mutation locking for the consequential families
+    below.
+
+    _Original finding, retained to identify the remaining scope:_ The original audit found
+    at least twenty-eight product paths that caught a rejected read and
+    substituted `[]` or an empty inbox snapshot: agency and per-client website-source
     panels, customer-portal inbox and website enquiries, direct customer Finance
     invoices, the client-record inbox and enquiries, sibling-workspace Finance
     invoices, contact interactions, Marketing's Meta connections, and KPI
     Intelligence's custom definitions and shared comparison views. The wider shell
-    adds completed-action history, alert evidence, Portal Editor configuration,
-    Finance expense custom fields, the commercial-pack/product-catalogue load and
+    adds completed-action history, alert evidence, Portal Editor configuration (repaired
+    for the slice above), Finance expense custom fields, the commercial-pack/product-catalogue load and
     manual enquiry contact details.
     Their consumers
     then render ordinary empty copy such as “No sites routed,” “Nothing recorded
@@ -4026,8 +4062,14 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     auditable detach under a defined historical-retention policy. Prove guide/task/
     product/client/training behavior, reload and forced partial failure.
 
-65. **P1 — the “authoritative” Company capital and governance register persists
-    internally impossible and dangling records.** `updateCompanyProfile()` sends the
+65. **P1 CODE/BEHAVIOUR RESOLVED 2026-09-01; mounted acceptance remains.** The
+    capital plan is validated as one graph: identity/reference, allocation, paid-value and
+    vote invariants refuse the whole write with actionable conflicts, and hard deletes that
+    strand ledger links are blocked. The current capital/Battle/legal/governance/role focused
+    gate passes **103/103**. Browser-prove representative create/edit/refusal/reload flows.
+
+    _Original finding, retained for context:_ The “authoritative” Company capital and governance register persisted
+    internally impossible and dangling records. `updateCompanyProfile()` sends the
     complete nested capital plan through independent array cleaners. Those cleaners
     sanitize shapes and ranges but do not enforce unique record ids, resolve owners or
     share classes, resolve approval decisions/documents, reconcile allocations with a
@@ -4048,8 +4090,14 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     prove create/edit/delete, reload and every dependent summary through the mounted
     API and browser.
 
-66. **P1 — Battle Table's whole-profile last-write-wins contract can erase executive
-    work, and its “locked” quarterly history is not retained.** All ten planning
+66. **P1 CODE/BEHAVIOUR RESOLVED 2026-09-01; mounted two-tab acceptance remains.**
+    Writes require a revision and stale saves return the current state with 409. Locked reviews
+    are immutable; numbered amendments retain the original evidence. Conflict rebase uses the
+    last server-confirmed plan. The combined focused gate passes **103/103**. Browser-prove two
+    tabs, lock, amendment, history and reload.
+
+    _Original finding, retained for context:_ Battle Table's whole-profile last-write-wins contract could erase executive
+    work, and its “locked” quarterly history was not retained. All ten planning
     stations receive one `CompanyProfile` snapshot and PUT that complete object to the
     same endpoint. The service stamps a new `updatedAt`, but neither the route nor
     `updateCompanyProfile()` compares the client version, exposes an ETag, merges a
@@ -4067,8 +4115,14 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     snapshots with explicit amendments/superseding versions; and browser-prove two-tab
     edits, out-of-order responses, lock, amendment, history and reload.
 
-67. **P1 — permanent legal-document deletion breaks retained obligations and
-    governance evidence without a dependency decision.** Legal & Compliance describes
+67. **P1 CODE/BEHAVIOUR RESOLVED 2026-09-01; mounted/provider acceptance remains.**
+    One dependency inventory powers preview and deletion. Cited documents refuse permanent
+    removal with 409; archive preserves references; explicit detach clears all citations and
+    the row transactionally; provider deletion failure restores the row. The combined focused
+    gate passes **103/103**. Browser- and provider-prove the full refusal/archive/detach path.
+
+    _Original finding, retained for context:_ Permanent legal-document deletion broke retained obligations and
+    governance evidence without a dependency decision. Legal & Compliance describes
     itself as a controlled register and exposes an `archived` status, but the mounted
     record dialog still offers permanent Delete. Its confirmation mentions only the
     document and stored file. The route calls `deleteLegalDocument()` first, which
@@ -4087,8 +4141,14 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     and browser-prove Finance, governance, search/posture/alerts, reload and every
     partial-failure boundary.
 
-68. **P1 — Governance's selected-company label does not scope its legal evidence,
-    vendor agreement flags or erasure targets.** The workspace places one Scope
+68. **P1 CODE/BEHAVIOUR RESOLVED 2026-09-01; mounted switching acceptance remains.**
+    Legal evidence, declarations, vendor agreement evidence, breach rows and erasure targets
+    now share the selected-company scope; deliberately group-wide sections label that fact.
+    Cross-company isolation and destructive-target coverage pass in the combined **103/103**
+    focused gate. Browser-prove agency/Alpha/Beta switching, failure/retry and reload.
+
+    _Original finding, retained for context:_ Governance's selected-company label did not scope its legal evidence,
+    vendor agreement flags or erasure targets. The workspace places one Scope
     selector in its page header and reloads a snapshot carrying the selected
     `companyId`/name. `buildGovernanceSnapshot()` passes that id to the compliance-
     posture builder and HIPAA lookup, but maps every agency legal document and every
@@ -5060,8 +5120,15 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     quantify the provider's unknown-outcome retry/cost behavior when no answer reached local
     persistence.
 
-131. **P2 — Radar's scheduler does not enforce its declared evidence cadence or app-wide
-    infrastructure scope.** The taxonomy declares Evidence rollup hourly and Infra app-wide,
+131. **✅ RESOLVED 2026-09-01 — Radar scheduling now matches its typed taxonomy and
+    isolates app-wide probes from tenant sweeps.** Infra runs once per tick, Evidence has
+    the declared schedule, one probe failure cannot suppress healthy tenant evidence, and
+    overlapping/retried sweeps keep their idempotent boundary. Current focused proof covers
+    zero/one/many agencies, call counts, declared-versus-delivered cadence, Infra failure,
+    partial tenant failure and overlap; the Radar scheduler suite passes **8/8**, with the
+    wider current data-contract run also green.
+
+    _Original finding, retained for context:_ The taxonomy declared Evidence rollup hourly and Infra app-wide,
     and the ten-minute probe cron correctly runs Infra once before its per-agency loop. Evidence
     is actually invoked only by a manual full scan or the daily 06:00 `cron/inbox` path. That
     daily path calls `runRadarScheduledSweep()` for every active agency, while the helper itself
@@ -5076,8 +5143,25 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     failure, retry and overlap; require at most one Infra probe per tick and the intended evidence
     sample per healthy tenant.
 
-132. **P1 — Error monitoring and request logging are described as active but are not
-    mounted in production code.** `observability.ts` says `withApiObservability` records
+132. **P1 CODE PARTLY RESOLVED 2026-09-01 — server error capture is mounted,
+    readiness is capability-based and the cross-runtime probe no longer breaks the Next
+    compile graph; a production client sink and live delivery proof remain.**
+    `src/instrumentation.ts` now receives Next's request-error hook, derives request/tenant
+    context and reports through `captureError()`. The capability probe refuses to report
+    ready when a DSN exists without an installed SDK. Its SDK resolution no longer statically
+    imports `node:module` or `node:path` into the instrumentation graph: it uses Node's guarded
+    `process.getBuiltinModule()` resolver, while `observability.ts` no longer statically
+    imports/re-exports that capability module. Both error boundaries also describe
+    browser-only failures honestly. Focused observability/readiness proof passes **50/50**.
+    A clean isolated webpack server now compiles `/dev`, Contacts, Settings and the client
+    Editor without the former `UnhandledSchemeError`; the mounted pages have no browser
+    warning/error log. The production webpack build also compiles, type-checks and generates
+    **244/244** pages without the former scheme error or false `DYNAMIC_SERVER_USAGE` incident
+    capture. Still required: installation and configuration of the chosen client capture sink,
+    then a real production browser and API fault proving request/tenant context, delivery and
+    flush/recovery.
+
+    _Original finding, retained for context:_ `observability.ts` said `withApiObservability` records
     every API route and exposes `captureError()`, while `requestLog.ts` supplies the parallel
     request wrapper. Repository-wide caller searches found zero production callers of either
     wrapper or capture/log function outside their own definitions. `@sentry/nextjs` is also
@@ -5092,8 +5176,14 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     browser render error plus API exception reaches the configured sink with request/tenant
     context and flush behavior.
 
-133. **PARTIALLY REPAIRED 2026-08-25 — shared account and portal escape navigation is not
-    yet role-complete.** Issue #92 corrected the agency-staff Account destination to `/portal/team`
+133. **CODE/BEHAVIOUR RESOLVED 2026-09-01; mounted all-role acceptance remains.**
+    Account and the portal 404 now share the canonical role destination, including client,
+    freelancer, lead and signed-out handling. Every role is rendered by the focused placement
+    coverage, which passes within the combined **103/103** gate. Browser-prove profile/back,
+    permissions guidance and a bad deep link for each role without a middleware bounce.
+
+    _Original finding, retained for context:_ Shared account and portal escape navigation was not
+    yet role-complete. Issue #92 corrected the agency-staff Account destination to `/portal/team`
     and removed owner/manager Settings links from both Account and Permissions; an isolated
     production browser proved those exact surfaces. Client owner/staff and freelancer routing
     still need one canonical role/client-aware destination, and the portal-wide 404 still offers
@@ -5101,8 +5191,14 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     and 404 (including client id/slug where required), then browser-prove profile → back,
     permissions guidance and a bad deep link for every role without a middleware bounce.
 
-134. **P2 — Customer setup permanently loses the install step while promising a Support
-    fallback that does not exist.** The install scene says “You can do this later — it is in
+134. **P2 CODE/BEHAVIOUR RESOLVED 2026-09-01; mounted install/revisit acceptance remains.**
+    Support now exposes the same shared install guidance used by setup, so dismissing or leaving
+    onboarding no longer removes the promised route back. One source owns iOS/manual and browser-
+    prompt instructions, and the prompt lifecycle does not leave a spent install button active.
+    The customer-setup suite passes **18/18**, including Support revisit and single-source guards.
+    Still browser-prove iOS manual guidance, eligible accept/decline, close/reopen and installed mode.
+
+    _Original finding, retained for context:_ The install scene said “You can do this later — it is in
     your portal under Support.” Repository-wide search found its Add-to-Home-Screen/install
     prompt and instructions only in `_CustomerSetup.tsx`; `SupportView` contains request,
     email, phone and WhatsApp contact options but no install help. The password POST marks
@@ -5114,8 +5210,15 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     Browser-prove iOS manual instructions, Android/desktop prompt accept/decline, close/reopen
     after password save and later revisit from the promised portal destination.
 
-135. **P1 — almost every declared modal dialog lets keyboard focus escape into the page
-    behind it.** The current source contains 64 `aria-modal="true"` declarations across 50
+135. **P1 CODE/BEHAVIOUR RESOLVED 2026-09-01; representative mounted keyboard acceptance
+    remains.** Every current TSX file that declares `aria-modal="true"` now uses the shared
+    `useFocusTrap()` contract. The hook owns forward/backward wrapping, outside-focus recovery,
+    deliberate initial focus, stacked-dialog precedence, optional Escape and return focus.
+    Repository inventory prevents a new modal from bypassing it. The focused modal contract
+    passes **18/18** (within the combined 29/29 accessibility run). Still browser-walk representative
+    nested, destructive and form dialogs before closing mounted acceptance.
+
+    _Original finding, retained for context:_ The source contained 64 `aria-modal="true"` declarations across 50
     TSX files, but only three of those files use the existing `useFocusTrap()` hook. Forty-seven
     modal files have no focus containment or focus restoration; only four of those handle
     Escape, and `autoFocus` in 14 files moves focus initially without keeping it inside or
@@ -5129,8 +5232,17 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     interaction. Add a component-level keyboard contract plus a browser sweep that tabs forward/
     backward through representative nested, destructive and form dialogs.
 
-136. **P2 — the Command Centre loading announcement is hidden from assistive technology.**
-    The only route-level portal loading boundary, `src/app/portal/agency/loading.tsx`, places
+136. **P2 CODE/BEHAVIOUR RESOLVED 2026-09-01; mounted assistive-technology acceptance
+    remains.** The shared viewport loader exposes exactly one root `role="status"` with polite,
+    atomic live copy; only decorative spinner/brand geometry is hidden. Agency and major route
+    boundaries use the shared component; Visual Builder boot implements the same status, themed
+    palette and curtain contract. Workspace/route scope, cinematic layering and reduced motion
+    stay separate. The focused loader suite passes **7/7**. A mounted Editor boot showed the
+    dark-blue loader beneath persistent client chrome, then the two-half curtain handoff without
+    the hydration race or browser warnings/errors. Still verify actual screen-reader
+    announcement/removal and focus continuity.
+
+    _Original finding, retained for context:_ The old route-level portal loading boundary, `src/app/portal/agency/loading.tsx`, placed
     `aria-hidden` on its root and then nests its sole `role="status" aria-live="polite"`
     “Loading Command Centre…” message inside that hidden subtree. The visual skeleton appears,
     but a screen reader receives no progress status during the same potentially long route
@@ -5177,8 +5289,14 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     so modal containment and composite-widget keyboard models are untouched — that is #138. Keyboard
     ACTIVATION is not provable this way either. Evidence label: **local-browser**, not deployed-live.
 
-138. **P2 — declared tabs, menus and one editor listbox do not implement the keyboard
-    model their ARIA roles announce.** All 12 TSX files containing `role="tablist"` leave every
+138. **P2 CODE/BEHAVIOUR RESOLVED 2026-09-01; representative mounted keyboard acceptance
+    remains.** Specialised roles now either implement the promised shared keyboard model or were
+    replaced with honest native navigation carrying `aria-current`. Every current tab, menu and
+    listbox role is inventory-guarded; arrow/Home/End, Escape/return-focus and reachable options
+    are covered by the shared contracts. The composite-widget suite passes **23/23**. Still
+    browser-walk Settings, People, file tabs, Profile/Company menus and the page picker.
+
+    _Original finding, retained for context:_ All 12 TSX files containing `role="tablist"` left every
     tab in the ordinary Tab order, provide no tab-specific arrow/Home/End handling and render no
     associated `tabpanel`; Settings additionally points `aria-controls` at `settings-pane-*` ids
     that do not exist. Nine non-archived `role="menu"` components likewise have no arrow-key,
@@ -5192,8 +5310,15 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     activation, Escape/return-focus and real controlled panel relationships. Component-test each
     primitive and browser-walk Settings, People, file tabs, Profile/Company menus and page picker.
 
-139. **P1 — important internal actions and published-form controls have no programmatic
-    accessible name.** A conservative AST pass returned 23 icon/toggle-only button candidates;
+139. **P1 CODE/BEHAVIOUR RESOLVED 2026-09-01; mounted accessibility-tree acceptance
+    remains.** The named internal action, modal-close, Automation-row, Command-region and
+    published-form families now expose stable contextual names; placeholders are not accepted as
+    labels, decorative icons stay hidden, and published status/error changes are announced. The
+    inventory guard proves the owned workspaces contain no unnamed icon-only action and passes
+    **11/11**. Still inspect the mounted accessibility tree on representative Team, Development,
+    Automation, modal and published-form journeys.
+
+    _Original finding, retained for context:_ A conservative AST pass returned 23 icon/toggle-only button candidates;
     after excluding an intentionally hidden control and manually checking context, at least 13
     visible mounted actions are definitely unnamed. They include Team add-task, task-completion
     and add-note buttons; People onboarding move-up/down; Development reveal/copy-password;
@@ -5230,20 +5355,33 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     TypeScript passes. Browser-save each representative form around a controlled boundary and
     reload/export it before calling the mounted acceptance complete.
 
-141. **P2 — the custom error screen is not the application's true top-level fallback.**
-    `src/app/error.tsx` calls itself the top-level boundary, but the project has no
+141. **P2 CODE/BEHAVIOUR RESOLVED 2026-09-01; production root-fault acceptance remains.**
+    `src/app/global-error.tsx` now owns the required self-contained `html`/`body`, carries the
+    digest, offers retry plus a hard document escape, and does not depend on a possibly failed
+    layout/style/provider. The segment boundary no longer claims to be global, and both surfaces
+    make only truthful reporting claims. The current observability suite proves the convention and
+    recovery wiring. Still fault both a child segment and root-layout initialization in a
+    production browser, then verify fallback selection, capture and successful recovery.
+
+    _Original finding, retained for context:_ `src/app/error.tsx` called itself the top-level boundary, but the project had no
     `src/app/global-error.tsx`. The installed Next 16.3 loader explicitly chooses its built-in
     global-error module when that convention file is absent, so a root-layout/App Router failure
     bypasses Aqua's branded Try again/homepage screen and any future capture added only there.
-    This is distinct from #132's currently unmounted monitoring: even after a sink is installed,
+    This was distinct from #132's then-unmounted monitoring: even after a sink is installed,
     root failures remain outside the claimed boundary unless the real global fallback participates.
     Add a valid client `global-error.tsx` that owns its required `html`/`body`, reports through the
     same proven capture path and offers safe reload/back recovery; keep route-segment recovery
     appropriately scoped. Fault both a child segment and root-layout initialization in a production
     browser build and verify the correct fallback, one captured event and a successful recovery.
 
-142. **P2 — the promised Chromium install prompt cannot fire with the shipped web-app
-    manifest.** Customer setup listens for `beforeinstallprompt` and shows its real “Install the
+142. **P2 CODE/ASSET RESOLVED 2026-09-01; mounted PWA lifecycle acceptance remains.**
+    The manifest now serves genuine 192×192 and 512×512 `any` plus safe-zone-tested maskable PNGs,
+    and the setup prompt tracks one-use, dismissed and already-installed states without leaving a
+    spent action enabled. The customer-setup suite passes **18/18**, including dimensions, opaque
+    maskable background and safe-zone checks. Still validate the served manifest and eligible,
+    dismissed, accepted, installed and ineligible flows in Chromium under installable conditions.
+
+    _Original finding, retained for context:_ Customer setup listened for `beforeinstallprompt` and showed its real “Install the
     app” button only after receiving that event. The live manifest on port 3032 declares 192,
     180 and 32 pixel icons; the repository has no 512 pixel icon, and the referenced 192 asset is
     genuinely 192×192. [Current Chromium install criteria](https://web.dev/articles/install-criteria)
@@ -5255,8 +5393,15 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     the one-use prompt/result, and browser-prove eligible, dismissed, accepted, already-installed
     and ineligible states. Issue #134 still separately tracks making that help revisitable.
 
-143. **P2 — two default published blocks derive their first render from `window`, creating
-    hydration divergence and broken share links.** Share Buttons documents a blank URL as
+143. **P2 CODE/SSR-BEHAVIOUR RESOLVED 2026-09-01; mounted navigation acceptance remains.**
+    Share Buttons and automatic Breadcrumb no longer branch on `window` during render. Their server
+    and first client trees are byte-identical; pending share targets are visibly/semantically inert,
+    explicit targets remain window-independent, and post-hydration path derivation is isolated.
+    The focused block-library suite passes **50/50**, including both documented default modes.
+    Still browser-prove post-hydration current-path/social/copy behavior across navigation with zero
+    recoverable hydration warnings.
+
+    _Original finding, retained for context:_ Share Buttons documented a blank URL as
     “current page,” but its server render encodes an empty target into Twitter, LinkedIn and
     Facebook links; the first browser render uses `window.location.href`. A real static render
     of the default block produced `twitter...?url=`, `linkedin...?url=` and `facebook...?u=`.
@@ -5271,8 +5416,15 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     default and explicit modes, zero recoverable hydration errors and working social/copy/current-
     path behavior after navigation.
 
-144. **P2 — private audio/video delivery ignores byte-range requests, so mounted players cannot
-    seek or preload metadata efficiently.** The call-recording and inbox attachment views mount
+144. **P2 CODE/PROVIDER-BEHAVIOUR RESOLVED 2026-09-01; mounted playback acceptance remains.**
+    One `privateMediaResponse()` contract now validates single byte ranges and emits exact
+    `200`/`206`/`416`, `Accept-Ranges`, `Content-Range` and `Content-Length` behavior. Local reads
+    open only the requested file window; Supabase forwards a range; Vercel passes through a proven
+    partial stream or slices an ignored-range stream without buffering the whole object. All private
+    media routes use it. The focused provider/range suite passes **8/8**. Still browser-prove metadata
+    load, immediate playback and seeking for inbox, call and large SOP media.
+
+    _Original finding, retained for context:_ The call-recording and inbox attachment views mounted
     `<audio controls preload="metadata">`, while uploads accept 100 MB call recordings and 20 MB
     inbox media. Their content routes never read `Range`, never return `206 Partial Content`, and
     never emit `Accept-Ranges` or `Content-Range`; `readInboxMedia()` additionally converts the
@@ -5286,8 +5438,15 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     Supabase and Vercel adapters, then browser-prove metadata load, immediate playback and seeking
     for inbox voice notes, call recordings and large SOP media without downloading the whole file.
 
-145. **P1 — voice/call recording hard-codes WebM and can strand an active call, busy UI and
-    microphone stream when that format is unavailable.** `_EnquiryCommunications` and both
+145. **P1 CODE/BEHAVIOUR RESOLVED 2026-09-01; mounted cross-browser acceptance remains.**
+    A shared recorder lifecycle negotiates Opus WebM, plain WebM, MP4 and browser-default in order;
+    derives the upload type/extension from the actual recorder; distinguishes capability,
+    permission, device, constructor and start failures; and always releases acquired tracks when
+    start cannot complete. Website voice notes, both Unified Inbox composers and recorded calls use
+    the same contract. The focused lifecycle suite passes **10/10**. Still browser-test real WebM,
+    MP4/default and unsupported environments plus call compensation through upload/navigation faults.
+
+    _Original finding, retained for context:_ `_EnquiryCommunications` and both
     Unified Inbox composers test only `audio/webm;codecs=opus`; when false they still force
     `audio/webm` instead of testing it, trying MP4 or allowing the browser to select a format.
     The [MediaRecorder constructor contract](https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder/MediaRecorder)
@@ -5390,7 +5549,7 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     **741.0/29.0ms** fresh-process first/repeat-max, both 200 and inside payload/time budgets.
     Browser evidence has settled Library/Logs at 1280px and Logs at 390px without overflow.
     Deployed geo/CDN/provider latency remains an operational measurement, not an unresolved
-    live-file indexing defect. The separate `scan=1` replay tradeoff is tracked as #162.
+    live-file indexing defect. The separate `scan=1` replay tradeoff is tracked as #186.
 
 152. **Code/behaviour resolved 2026-08-26; mounted console acceptance remains.** The old clean-
     browser evidence remains the reproduction: a nonexistent client Website Editor deep link
@@ -5478,7 +5637,7 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     titles/counts/findings/blockers; access revocation changes the Search key immediately. Every
     new module-global data cache must preserve this realm/access rule.
 
-162. **Open P2 performance tradeoff — completed Radar station navigation can replay a scan.**
+186. **Open P2 performance tradeoff — completed Radar station navigation can replay a scan.**
     Keeping `scan=1` on completed-result links preserves the current snapshot across RSC station
     navigation, but it can also request another full scan. Replace the replayable boolean with a
     short-lived server-issued result/snapshot handle (or equivalent non-replay contract), then
@@ -5492,27 +5651,34 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
 
 ## 🔴 Website editor — dead visitor surfaces (2026-08-27)
 
-**#183 — `requiresPlugin` is declared on twelve blocks and enforced NOWHERE.**
+**#183 — CODE/BEHAVIOUR RESOLVED 2026-09-01; mounted tenant/browser acceptance
+remains.** The editor route now resolves enabled plugin IDs from
+`services.pluginInstalls.listInstalledFor()` for the exact agency/client scope,
+filters disabled records, deduplicates and sorts the serialisable IDs, then threads
+them into both creation surfaces. `Sidebar` and `BlockCatalog` share the same
+`listAvailableBlockDefinitions()` gate, whose empty/default state is deliberately
+restrictive. Existing saved blocks are not filtered from page rendering, so disabling
+a plugin hides new palette offerings without deleting existing content. Focused proof
+passes **4/4**: three selector/render assertions cover hidden and enabled Ecommerce
+blocks across both palettes, and one store assertion pins enabled-only exact-scope
+resolution. The seeded Ecommerce-enabled tenant is also mounted in a real client
+editor: the Commerce palette renders and the browser log remains clean.
 
-`BlockDefinition.requiresPlugin` exists in
-`src/engines/editor/elements/definition.ts:125`, twelve ecommerce blocks set it,
-and a grep for it outside the registry and its type returns the type declaration
-and a payload projection — nothing that gates anything. `listBlockDefinitions()`
-hands the palette everything and the palette filters only on the search box, so
-a block declaring `requiresPlugin: "ecommerce"` is offered whether or not
-Ecommerce is installed.
+Still required: mount the Ecommerce-disabled comparison scope and browser-prove the
+palette difference, then disable Ecommerce and prove an existing
+saved block still renders and survives reload. A failed install-state provider read
+must also be accepted as a closed/unavailable editor state rather than exposing
+plugin-backed blocks.
 
-That is how `product-search` reached this audit: it declares its requirement
-correctly and is offered anyway, and its endpoint wants a session a visitor does
-not have. It is now listed in `BLOCK_BACKEND_GAPS` alongside the blocks with no
-backend at all, which is honest but treats the symptom.
-
-**The real fix needs install state in the palette**, which is not plumbed
-through today — `Sidebar` receives `blocks`, `selectedId`, `onSelect` and
-`onAddTopLevel` and knows nothing about the tenant. Doing it properly means
-resolving installs where the editor mounts and threading availability down, and
-that is a change worth doing deliberately rather than at the end of a launch
-day. Recorded rather than bodged.
+_Original finding, retained for context:_ `BlockDefinition.requiresPlugin` exists in
+`src/engines/editor/elements/definition.ts:125`, and twelve Ecommerce blocks set it.
+Before this repair `listBlockDefinitions()` handed the palette everything and the
+palette filtered only on the search box, so a block declaring
+`requiresPlugin: "ecommerce"` was offered whether or not Ecommerce was installed.
+That is how `product-search` reached this audit: its declaration was correct, but its
+creation surface ignored it while its endpoint required a session the visitor did not
+have. `BLOCK_BACKEND_GAPS` treated that symptom; the tenant install gate now fixes the
+palette contract itself.
 
 **#184 — `/api/portal/forms/*`, `/reservations/*`, `/newsletter/*` and
 `/themes/*` have no module behind them.**

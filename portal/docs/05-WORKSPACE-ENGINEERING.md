@@ -2,7 +2,7 @@
 
 > Source maps, subsystem dossiers, components, routes, state and built-in module notes.
 >
-> Consolidated 2026-09-01 from **23** source documents / **57,026 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-01 from **23** source documents / **57,071 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -14,15 +14,15 @@
 - [`docs/workspace/aqua-tag.md`](#source-docs-workspace-aqua-tag-md) — 3,463 words · `d662b63850cb`
 - [`docs/workspace/components.md`](#source-docs-workspace-components-md) — 1,142 words · `5ef3bf2f75be`
 - [`docs/workspace/database.md`](#source-docs-workspace-database-md) — 2,273 words · `4ed0007a7dd9`
-- [`docs/workspace/env-and-sellability.md`](#source-docs-workspace-env-and-sellability-md) — 3,641 words · `3dfcad335c9f`
-- [`docs/workspace/feature-index.md`](#source-docs-workspace-feature-index-md) — 5,342 words · `bb81323b787b`
-- [`docs/workspace/hazards-and-duplication.md`](#source-docs-workspace-hazards-and-duplication-md) — 7,921 words · `324877294826`
+- [`docs/workspace/env-and-sellability.md`](#source-docs-workspace-env-and-sellability-md) — 3,655 words · `7079bb1c8570`
+- [`docs/workspace/feature-index.md`](#source-docs-workspace-feature-index-md) — 5,346 words · `3091196d10e6`
+- [`docs/workspace/hazards-and-duplication.md`](#source-docs-workspace-hazards-and-duplication-md) — 7,937 words · `16f6a1abda87`
 - [`docs/workspace/kpi-intelligence.md`](#source-docs-workspace-kpi-intelligence-md) — 2,283 words · `d641f1291cbc`
 - [`docs/workspace/plugins.md`](#source-docs-workspace-plugins-md) — 2,193 words · `85bf55b735d1`
 - [`docs/workspace/portal-ui.md`](#source-docs-workspace-portal-ui-md) — 3,935 words · `422ade585983`
 - [`docs/workspace/radar.md`](#source-docs-workspace-radar-md) — 3,419 words · `094abc931f83`
 - [`docs/workspace/scripts-config-docs.md`](#source-docs-workspace-scripts-config-docs-md) — 705 words · `6c64dba30a6b`
-- [`docs/workspace/shared-logic.md`](#source-docs-workspace-shared-logic-md) — 3,900 words · `971a7bc40ccd`
+- [`docs/workspace/shared-logic.md`](#source-docs-workspace-shared-logic-md) — 3,911 words · `34a172e29b5e`
 - [`docs/workspace/state-layer.md`](#source-docs-workspace-state-layer-md) — 1,047 words · `b891d38adf8e`
 - [`src/archive/multi-agency/README.md`](#source-src-archive-multi-agency-readme-md) — 43 words · `8655235589a0`
 - [`src/built-ins/modules/ecommerce/README.md`](#source-src-built-ins-modules-ecommerce-readme-md) — 1,118 words · `7725ceb40027`
@@ -1747,7 +1747,7 @@ ingestion; the blob backend holds everything else described across the
 
 ## Source document — `docs/workspace/env-and-sellability.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/env-and-sellability.md" sha256="3dfcad335c9f15c1dfd4980be5c49e70d58facb656564653493d12d1a6354490" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/env-and-sellability.md" sha256="7079bb1c857082fd6b167d57028cc0f57b5bced95e1573206561b5b99e3e0553" -->
 # Chapter — Env-only settings & the cost of selling AquaCRM
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md) · Sibling: [feature-index](feature-index.md) · [hazards-and-duplication](hazards-and-duplication.md)
@@ -1953,7 +1953,7 @@ them to a tenant (§3).
 | `NEXT_PUBLIC_PORTAL_BASE_URL`, `NEXT_PUBLIC_PORTAL_SECURITY`, `PORTAL_PUBLIC_ORIGIN` | `proxy.ts`, `secrets.ts`, `portalConnections.ts`, `metaMessaging.ts`, provision route | One origin per deployment. Correct. |
 | `FOUNDER_EMAIL`, `FOUNDER_PASSWORD`, `FOUNDER_AGENCY_NAME` | `founderSeed.ts`, `founderAgency.ts`, `devTeamAccess.ts`, `secrets.ts`, `api/auth/login` | Who owns the instance. Correct — `FOUNDER_EMAIL` is also the exact live identity allowed into the production Dev Team control plane; role alone is insufficient. |
 | `CRON_SECRET` | `api/cron/inbox`, `api/cron/radar-probes` | Vercel Cron. Correct. |
-| `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_TRACES_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_DSN` | `observability.ts` | Operator-owned configuration is the correct tier, but the integration is not operational: the package is absent, no production caller mounts capture/request logging, and readiness trusts the DSN string alone. See [issue #132](../development/issues.md). |
+| `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_TRACES_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_DSN` | `instrumentation.ts`, `observability.ts` | Operator-owned configuration is the correct tier. Next's request-error hook is mounted and readiness now checks both a DSN and an installed SDK; without the optional SDK the honest capability is deployment logs only. Installing the chosen sink and proving live delivery remain in [issue #132](../development/issues.md). |
 | `PORTAL_HANDOFF_SECRET`, `SESSION_SECRET` | `portalHandoff.ts` | Correct. **Neither is on `ENV_ALLOWLIST`** — see §5. |
 | `AQUA_EMBED_SIGNING_SECRET`, `AQUA_EMBED_API_TOKEN` | `aquaEmbedToken.ts` | Correct. |
 | `PORTAL_PREVIEW_SECRET` | `built-ins/modules/website-editor/.../content.ts` | Correct, but defaults to the literal `"round-1-default-secret"` with no production guard. |
@@ -2184,7 +2184,7 @@ store.
 
 ## Source document — `docs/workspace/feature-index.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/feature-index.md" sha256="bb81323b787b43106b7afcd0ac4b3ca4efca94431e5d8c53e5dc6baad0c3a497" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/feature-index.md" sha256="3091196d10e6ad4d8cf883077e5c2096f05c42f8365b2a6baae9b14540d4d506" -->
 # Chapter — Feature → files index (the conflict-avoider)
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
@@ -2296,8 +2296,8 @@ layers (state → logic → API → UI). Edit these; don't duplicate them.
 | Concern | Owns it |
 | --- | --- |
 | **State store / persistence** | `server/storage.ts`, `server/types.ts` (the `PortalState` shape) |
-| **Transactional outbox (durable domain events)** | `server/outbox.ts` (`recordOutboxEvent` — call INSIDE the domain `mutate()` so change + announcement are one write; `drainOutbox` — SYNCHRONOUS, emit-then-mark at-least-once into the existing bus, so all outbox writes settle before the domain function returns; `emitDurable` drop-in; 14d/5,000-cap prune, pending never pruned), `OutboxEvent` + `PortalState.outbox` (`server/types.ts`), promotion disposition `leave` (collection #92). **Adopted across the whole foundation**: every `src/server/**` emit (tenants, users, persons, organisations, completedActions, productWorkspaces) + plugin lifecycle (runtime, ensureLeadsPipelineInstall) — the manifest pin confines plain `emit(` under src/server to the bus + drain. Port adapters stay plain deliberately (the seam that later makes every plugin event durable at once). NOT event sourcing — reliability + lineage only. Tests: `scripts/smoke-outbox.test.ts`. New 2026-08-30 |
-| **Canonical semantic layer (data architecture)** | `lib/data/semanticRegistry.ts` (30 entities, distinctions, timestamp/value doctrines, `PORTAL_STATE_COVERAGE` classifying every PortalState collection — set-equality-enforced), `lib/data/metricRegistry.ts` (one canonical id + semantics per metric, `computedBy` authority, `same-quantity` overlap map, the pinned `campaign-roas` collision), `lib/data/metadataContracts.ts` (all 123 metadata keys: carrier/namespace/owner/type/sensitivity; source-scan-enforced both ways). Docs: `docs/data/{ARCHITECTURE,SOURCE-INVENTORY,SEMANTIC-LAYER,DATA-DICTIONARY,MIGRATION-PLAN,LINEAGE}.md` + `docs/data/adr/`. Tests: `scripts/smoke-semantic-registry.test.ts`, `smoke-metric-registry.test.ts` (incl. golden boundary cases), `smoke-metadata-contracts.test.ts`. **Registries describe, never recompute — `computedBy` names the one calculation site.** New 2026-08-30 |
+| **Transactional outbox (durable domain-event facts)** | `server/outbox.ts` (`recordOutboxEvent` — call INSIDE the domain `mutate()` so change + announcement are one write; `drainOutbox` — synchronous emit-then-mark handoff to the existing bus; `emitDurable` drop-in; 14d/5,000-cap prune, pending never pruned), `OutboxEvent` + `PortalState.outbox` (`server/types.ts`), promotion disposition `leave` (collection #92). **Adopted across the whole foundation**: every `src/server/**` emit (tenants, users, persons, organisations, completedActions, productWorkspaces) + plugin lifecycle (runtime, ensureLeadsPipelineInstall) — the manifest pin confines plain `emit(` under src/server to the bus + drain. Atomicity remains call-site dependent and the fire-and-forget bus does not acknowledge consumers: `delivered` means dispatched, not consumer-level at-least-once. Port adapters, table claims, acknowledgements, retry/backoff and dead-lettering remain Phase 3. NOT event sourcing. Tests: `scripts/smoke-outbox.test.ts`. New 2026-08-30; contract corrected 2026-09-01 |
+| **Canonical semantic layer (data architecture)** | `lib/data/semanticRegistry.ts` (33 entities, distinctions, timestamp/value doctrines, `PORTAL_STATE_COVERAGE` classifying every PortalState collection — set-equality-enforced), `lib/data/metricRegistry.ts` (one canonical id + semantics per metric, `computedBy` authority, `same-quantity` overlap map, the pinned `campaign-roas` collision), `lib/data/metadataContracts.ts` (all 124 metadata keys: carrier/namespace/owner/type/sensitivity; source-scan-enforced both ways). Docs: `docs/data/{ARCHITECTURE,SOURCE-INVENTORY,SEMANTIC-LAYER,DATA-DICTIONARY,MIGRATION-PLAN,LINEAGE}.md` + `docs/data/adr/`. Tests: `scripts/smoke-semantic-registry.test.ts`, `smoke-metric-registry.test.ts` (incl. golden boundary cases), `smoke-metadata-contracts.test.ts`. **Registries describe, never recompute — `computedBy` names the one calculation site.** New 2026-08-30; counts refreshed 2026-09-01 |
 | **A person's own chrome — sidebar order + saved tabs (2026-08-27)** | `server/types.ts` (`UserChromeLayout` · `SavedTab` · `SavedTabSpot`, stored in `PortalState.userChromeLayouts` keyed `${agencyId}\|${userId}`), `lib/server/chrome/userChromeLayout.ts` (the store — **reads never write**, because the sidebar is assembled on every authenticated navigation), `lib/chrome/sidebarLayout.ts` (`applyPersonalChrome` · `applyOrder` · `navItemForHref` — the arrangement is a list of IDS applied to whatever the nav legitimately contains, so it can never add, resurrect or hide an item), `lib/server/chrome/personalPanels.ts` (`withPersonalChrome` — the ONE place it is applied, called by all five sidebar renderers and swept for a sixth; fails open to the default nav), `app/api/portal/chrome/layout/route.ts` (GET/PUT/DELETE, identity from the SESSION only). Client: `components/chrome/pinnedTabsStore.ts` (one module-level store with a subscriber set — **not** per hook instance), `PinnedTabs.tsx`, `SidebarReorder.tsx` (wraps the server-rendered rows and reads `data-nav-id`; never re-renders one), `SpotPicker.tsx`, `SavedSpotArrival.tsx` (MutationObserver, 15s deadline), `savedSpot.ts` (selector **and** the text, so a moved spot is found by name and a miss is explainable). A tab dropped into a panel becomes a nav row and takes the icon of the nav item its href sits under — resolved live, never stored. `npm run smoke:chrome-layout` |
 | **Env vars, per-company config & what "sellable" costs** | `lib/server/env.ts` (typed reader + allowlist + startup check), `lib/server/secrets.ts` (named accessors), `lib/server/founderAgency.ts` (**env credentials are the FOUNDER'S** — `mayUseEnvironmentCredentials()`), `lib/server/integrationConnections.ts` + `lib/integrations/catalog.ts` (the per-agency vault that replaces env, 9 providers), `server/agencySettings.ts` (per-agency preferences), `lib/server/productionReadiness.ts` (derives its verdict from env keys — breaks for a buyer). **Every env-only setting is one a buyer cannot configure without the source.** Full inventory + the readiness conflict + day-one order: [env-and-sellability.md](env-and-sellability.md) |
 | **Auth / session / MFA** | `lib/server/auth/auth.ts`, `app/api/auth/`, `lib/server/auth/mfa.ts`, `lib/supabase/`. **All four MFA phases are built:** password login challenge/verify, browser code step, assurance on the app session, enrolled-account fail-closed OAuth/magic-link handling and ten single-use recovery codes. **P0 #22 RESOLVED 2026-08-27:** `resolveFreshSessionUser()` (`lib/server/auth/auth.ts`) runs on every `getSession()`/`getSessionFromRequest()` read — existence, `sessionRev`, current role and live membership are central prerequisites, so `requireRole()` paths inherit revocation; regression `scripts/smoke-session-revocation.test.ts` (16/16). |
@@ -2324,7 +2324,7 @@ _(For which plugin owns a feature, see the [plugins chapter](plugins.md). For an
 
 ## Source document — `docs/workspace/hazards-and-duplication.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/hazards-and-duplication.md" sha256="32487729482619bcd1cfbba638b0e42f78a0873b8f7c8ae092f73815981da1c7" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/hazards-and-duplication.md" sha256="16f6a1abda8766e039a3ab45c3eaa3ee06e35b1acce2da86c08825a5c4098ad3" -->
 # Chapter — Hazards & duplication (read before editing)
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
@@ -2358,16 +2358,16 @@ tenant is exempt from the sweep. Pinned in
 PII against the erasure surface"*.
 
 **The half that is not.** A real person — Ed's client Felicia of Luv & Ker —
-is **hardcoded in seven source files as a runtime default**, and erasure
+is **hardcoded in six source files as a runtime default**, and erasure
 operates on *state*, not on the codebase. Erase the demo client and the next
-seed puts the same name and email straight back. Worse, one of the seven is not
+seed puts the same name and email straight back. Worse, one of the six is not
 demo data at all: `src/app/api/tenants/seed/route.ts` defaults its client-owner
 to `felicia@luvandker.com` — a **real address on a real domain**, not the
 `.demo` mirror — and that route answers any authenticated caller in production.
 (It refuses with 409 once any agency exists, so it cannot re-seed a populated
 install; the real address ships in the bundle either way.)
 
-The seven files, and what each holds:
+The six files, and what each holds:
 
 | File | What it hardcodes |
 | --- | --- |
@@ -2376,18 +2376,22 @@ The seven files, and what each holds:
 | `src/built-ins/modules/website-editor/src/components/blockRegistry.ts` | `Felicia` as the testimonial author, team-grid member and author-bio default |
 | `src/built-ins/modules/website-editor/src/components/blocks/AuthorBioBlock.tsx` | fallback bio: *"Crafted Odo by Felicia from her Ghanaian heritage…"* — **personal, ethnic-origin prose** shipped as a `??` default |
 | `src/built-ins/modules/website-editor/src/components/pageTemplates.ts` | `Felicia` as a template testimonial author |
-| `src/app/portal/clients/[clientId]/_BuildPortalWizard.tsx` | a `luv-and-ker` portal preset |
 | `src/lib/projects/projects.ts` | the published `Luv & Ker` case study |
 
+The count fell from seven to six on 2026-09-01 when the obsolete
+`_BuildPortalWizard.tsx` runtime was removed; its preset can no longer restore
+the persona. The retired website-editor `SitesPage.tsx` placeholder entry was
+removed from the non-runtime list for the same reason.
+
 **What this means when you edit here.** Do not describe erasure as removing a
-person's data from AquaCRM without qualifying it — for these seven files it
+person's data from AquaCRM without qualifying it — for these six files it
 removes the row and not the persona. `semanticRegistry.ts`'s `client` entity now
 says so in its `retention` line, which is the machine-readable copy of this
-entry. And **do not add an eighth**: the same test sweeps `src/**` for the
+entry. And **do not add a seventh**: the same test sweeps `src/**` for the
 persona tokens (skipping comments and `placeholder` text) and fails on any file
 not listed above, so a new hardcoded default has to be argued for here first.
 
-**What the sweep deliberately does NOT catch — so seven is the count of runtime
+**What the sweep deliberately does NOT catch — so six is the count of runtime
 defaults, not of every appearance.** Lines whose only hit is inside a comment, or
 on a line containing `placeholder`, are exempt: a comment is context for the next
 reader and a form placeholder is example text the user overwrites. That exemption
@@ -2397,7 +2401,6 @@ bundle and rendered on screen — at least these:
 | File | Placeholder-shaped occurrence |
 | --- | --- |
 | `src/built-ins/modules/fulfillment/src/components/NewClientModal.tsx` | `placeholder="felicia@luvandker.com"` and `"e.g. Luv & Ker"` — the **real address**, shown in the new-client form |
-| `src/built-ins/modules/website-editor/src/pages/SitesPage.tsx` | `"e.g. Felicia Skincare"`, `"e.g. felicia.com"`, and two Odo/`Luv & Ker` assistant-prompt placeholders |
 | `src/built-ins/modules/website-editor/src/pages/EditorPage.tsx` | `luvandker.com` as the custom-domain placeholder |
 | `src/built-ins/modules/ecommerce/index.ts` | `https://luvandker.com/checkout/...` as the Stripe URL placeholders |
 
@@ -4103,7 +4106,7 @@ archived — do not re-create them.
 
 ## Source document — `docs/workspace/shared-logic.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/shared-logic.md" sha256="971a7bc40ccd5e30ed2d5f80d762d658b30e2db33a158df82464a0073b2a08ed" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/shared-logic.md" sha256="34a172e29b5eed43be80b9dd4f2ada4e5fe9c7aa9c3cb6dd09d12fe5c9bf8fc3" -->
 # Chapter — Shared logic (`src/lib/` & `src/lib/server/`)
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
@@ -4580,11 +4583,13 @@ The copies this exists to delete are listed in
 `privateUploadStorage.ts`. Seeds: `demoSeed.ts`, `founderSeed.ts`,
 `aquaOasisSeed.ts`, `showcaseMode.ts`, `devMode.ts`.
 
-**Current observability caveat (2026-08-25):** the first two names are helper
-libraries, not an active cross-cutting layer. Repository-wide search finds no
-production caller of either wrapper/capture function; the Sentry dependency is
-absent, yet readiness treats a DSN string as ready and the client fallback says
-an issue was logged. Tracked as [issue #132](../development/issues.md).
+**Current observability state (updated 2026-09-01):** `src/instrumentation.ts`
+mounts Next's request-error hook and calls `captureError`; readiness checks the
+actual DSN-plus-SDK capability, and the browser boundaries make only truthful
+logging claims. The optional Sentry dependency is still absent, so the current
+verified capability is deployment logs rather than client delivery. Installing
+the chosen sink and proving a real production fault reaches it remain in
+[issue #132](../development/issues.md).
 
 ## ⚠ Duplication & look-alike flags (check before adding)
 1. **Editing bridge — NOT dead, corrected 2026-08-21.** This flag used to read "`lib/server/editing/adapters.ts` has no app importers (only `scripts/smoke-editor-adapters.test.ts`) … Deletion candidate." Both halves were wrong: (a) `lib/server/editing/appConfigAdapter.ts:9` does `import { fingerprint } from "./adapters"`, and appConfigAdapter is mounted by `dev-team/editor/{_Section,_AppConfigEditor}.tsx` and `api/portal/dev-team/editor/route.ts`, so the file is reachable from a live screen; (b) `scripts/smoke-editor-adapters.test.ts:7,17` imports it, so deleting it turns the suite red. **Do not delete.** What IS still true: the *portal/website* editor rides `src/engines/editor/editing/*` + `src/engines/editor/server/*`, and there is no `lib/server/siteEditor/`. Also true: `engines/editor/editing/{leases,modes}.ts` ARE used by `components/editing/*` — don't sweep the folder.

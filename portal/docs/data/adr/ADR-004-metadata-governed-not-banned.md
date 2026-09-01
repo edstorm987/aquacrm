@@ -4,7 +4,7 @@
 
 ## Context
 
-`Client.metadata` and its siblings carry 123 distinct keys, including whole
+`Client.metadata` and its siblings carry 124 distinct keys, including whole
 subsystems (the telemetry event stream, payment plans, portal provisioning,
 invoice facts). Banning the bag outright would force a big-bang typed-schema
 rewrite across hundreds of call sites; leaving it ungoverned keeps growing

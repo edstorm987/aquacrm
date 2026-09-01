@@ -20,12 +20,9 @@ import { listInstalledFor } from "@/server/pluginInstalls";
 import { listActivity } from "@/server/activity";
 import { activityAction, activityCategory, activityMessage } from "@/lib/shared/activityVocabulary";
 import { phaseLabel, listPhasesForAgency } from "@/server/phases";
-import { listPlugins } from "@/built-ins/runtime/_registry";
 import { SURFACE_ROLE_CEILING } from "@/built-ins/runtime/_pageScope";
 import type { TabId } from "./_tabs";
 import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
-import { toolCopy } from "./toolCopy";
-import { BuildPortalWizard, type WizardPlugin } from "./_BuildPortalWizard";
 import { ClientSopsTab } from "./_ClientSopsTab";
 import { KanbanTabClient } from "./_KanbanTabClient";
 import { CommsRow } from "./_CommsRow";
@@ -134,20 +131,6 @@ function accountStatusLabel(status: string): string {
   return status.replaceAll("-", " ");
 }
 
-// System set the operator typically pulls into a Live-stage custom
-// portal (chapter 19b §5a). Surfaced as a one-click "Recommended for
-// Live" action on the Systems tab and as the default-checked system set
-// in the Build-custom-portal wizard.
-const LIVE_RECOMMENDED_PLUGINS: readonly string[] = [
-  "website-editor",
-  "client-crm",
-  "forms",
-  "ecommerce",
-  "memberships",
-  "affiliates",
-  "agency-marketing",
-];
-
 // Repo root → `04-the-final-portal/clients/<slug>/` lives two levels
 // above `portal/`. We resolve from `process.cwd()` (= the portal app
 // root in dev + Vercel build) and walk up.
@@ -234,7 +217,6 @@ export default async function ClientHome({
   const deliveryAdvanced = rawDeliveryMode === "advanced";
 
   const installs = listInstalledFor({ agencyId: client.agencyId, clientId: client.id });
-  const installedIds = new Set(installs.map(i => i.pluginId));
   const recentActivity = listActivity({ agencyId: client.agencyId, clientId: client.id, limit: 8 });
   const canAccessActions = canManageClient
     && (session.role !== "agency-staff" || canUsePeopleStation(session.agencyId, session.userId, "actions", false));
@@ -400,7 +382,6 @@ export default async function ClientHome({
     : [];
 
   const portalMaterialized = customPortalExists(client.slug);
-  const liveRecommended = LIVE_RECOMMENDED_PLUGINS;
   const now = Date.now();
   const clientRadar = tab === "overview"
     ? await buildClientRadar(session.agencyId, client.id, { now })
@@ -954,21 +935,12 @@ export default async function ClientHome({
               Open live experience ↗
             </a>
           ) : (
-            <BuildPortalWizard
-              clientId={client.id}
-              clientName={client.name}
-              slug={client.slug}
-              plugins={listPlugins().map<WizardPlugin>(plugin => {
-                const copy = toolCopy({ id: plugin.id, name: plugin.name ?? plugin.id, description: plugin.description });
-                return {
-                  id: plugin.id,
-                  name: copy.name,
-                  description: copy.description,
-                  installed: installedIds.has(plugin.id),
-                  recommended: liveRecommended.includes(plugin.id),
-                };
-              })}
-            />
+            <Link
+              href={clientWorkspaceHref(client.id, "systems", { systemView: "properties" })}
+              className="mm-client-context-button"
+            >
+              Build custom portal
+            </Link>
           )
         ) : undefined}
       /> : <ClientLensHeader

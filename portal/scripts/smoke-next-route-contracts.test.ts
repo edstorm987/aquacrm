@@ -30,7 +30,7 @@ describe("Next route contracts", () => {
   it("declares every direct Website Editor client page at the safe boundary", () => {
     const manifest = read("src/built-ins/modules/website-editor/index.ts");
     const clientPages = [
-      "PagesPage", "PageDetailPage", "PortalsPage", "CustomisePage", "SitesPage",
+      "PagesPage", "PageDetailPage", "PortalsPage", "CustomisePage",
       "ThemesPage", "ThemeDetailPage", "SectionsPage", "AssetsPage", "PopupsPage", "GitStatusPage",
     ];
     for (const page of clientPages) {

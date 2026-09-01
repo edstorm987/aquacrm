@@ -71,12 +71,6 @@ const websiteEditorPlugin: AquaPlugin = {
       component: () => import("./src/pages/CustomisePage"),
     },
     {
-      path: "/portal/clients/[clientId]/sites",
-      title: "Sites",
-      clientComponent: true,
-      component: () => import("./src/pages/SitesPage"),
-    },
-    {
       path: "/portal/clients/[clientId]/themes",
       title: "Themes",
       clientComponent: true,

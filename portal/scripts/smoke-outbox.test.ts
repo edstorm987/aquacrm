@@ -1,13 +1,13 @@
-// Transactional outbox — atomicity, idempotency, at-least-once replay, prune.
+// Transactional outbox — atomic recording, idempotency, pre-dispatch replay, prune.
 //
 // Run with PORTAL_BACKEND=memory (the canonical suite's backend). These pin
 // the contracts docs/data/MIGRATION-PLAN.md Phase 3 depends on:
 //   • recording rides the SAME mutate() as the domain change;
 //   • recording the same id twice is a no-op (import retries are safe);
-//   • drain delivers to real eventBus subscribers exactly once per drain and
-//     never redelivers a delivered row;
+//   • drain dispatches to real eventBus subscribers once and never redispatches
+//     a row already marked as handed to the bus;
 //   • a row recorded but not drained (crash before drain) is delivered by a
-//     LATER drain — at-least-once, the whole point;
+//     LATER drain — recovery of the pre-dispatch crash window;
 //   • occurredAt and recordedAt stay distinct; correlation defaults to the id;
 //   • pruning removes only aged DELIVERED rows, never pending ones;
 //   • the adopted call site (tenants.createClient) records + delivers
@@ -77,7 +77,7 @@ test("recording the same id twice is a no-op — retried operations record once"
   assert.deepEqual(rows[0]!.payload, { attempt: 1 }, "the first record wins; the retry changed nothing");
 });
 
-test("drain delivers to a real bus subscriber once, marks delivered, and never redelivers", async () => {
+test("drain dispatches to a real bus subscriber once, marks the handoff, and never redispatches", async () => {
   const received: AquaEvent[] = [];
   on("outbox.test_event", event => { received.push(event); });
 
@@ -102,7 +102,7 @@ test("drain delivers to a real bus subscriber once, marks delivered, and never r
   assert.equal(received.length, 1);
 });
 
-test("a row recorded but never drained is delivered by a later drain — at-least-once across the crash window", async () => {
+test("a row recorded but never drained is dispatched by a later drain — the pre-dispatch crash window recovers", async () => {
   const received: string[] = [];
   on("outbox.crashed_event", event => { received.push((event.payload as { marker: string }).marker); });
 

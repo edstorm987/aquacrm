@@ -4660,12 +4660,15 @@ export interface ClientFormNotice {
 // serverless instance dies is simply gone, and nothing records what was
 // announced to whom. An OutboxEvent is the durable half — recorded INSIDE the
 // same `mutate()` as the domain change it announces, so the state change and
-// its event are one write, then drained to the bus at-least-once.
+// its event are one write, then drained to the in-process bus. The current bus
+// is fire-and-forget, so `delivered` means dispatched to the bus, not
+// acknowledged by every consumer.
 //
 // This is reliability and lineage, NOT event sourcing: state is not
 // rebuildable from these records and nothing may claim it is
 // (docs/data/ARCHITECTURE.md §2.5).
 
+/** `delivered` is the persisted legacy name for "dispatched to the bus". */
 export type OutboxEventStatus = "pending" | "delivered";
 
 export interface OutboxEvent {
@@ -4692,7 +4695,7 @@ export interface OutboxEvent {
   payload: Record<string, unknown>;
   status: OutboxEventStatus;
   deliveredAt?: number;
-  /** Delivery attempts so far (at-least-once — consumers must be idempotent). */
+  /** Attempts to hand this event to the in-process bus. */
   attempts: number;
 }
 

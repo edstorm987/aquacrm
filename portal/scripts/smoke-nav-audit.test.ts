@@ -91,7 +91,6 @@ const LEGACY_APPLY_INCUBATOR_ROUTE = join(ROOT, "src", "app", "api", "tenants", 
 const CLIENT_STATUS_ROUTE = join(ROOT, "src", "app", "api", "tenants", "client-status", "route.ts");
 const CLIENT_SETTINGS_PAGE = join(ROOT, "src", "app", "portal", "clients", "[clientId]", "settings", "page.tsx");
 const CLIENT_SETTINGS_ACTIONS = join(ROOT, "src", "app", "portal", "clients", "[clientId]", "settings", "_ClientStatusActions.tsx");
-const BUILD_PORTAL_WIZARD = join(ROOT, "src", "app", "portal", "clients", "[clientId]", "_BuildPortalWizard.tsx");
 const CONTACTS_WORKSPACE = join(ROOT, "src", "app", "portal", "agency", "leads-pipeline", "contacts", "_ContactsWorkspace.tsx");
 const LEADS_WORKSPACE = join(ROOT, "src", "app", "portal", "agency", "pipelines", "[slug]", "_LeadsPipelineWorkspace.tsx");
 const LEADS_HANDLERS = join(ROOT, "src", "built-ins", "modules", "leads-pipeline", "src", "api", "handlers.ts");
@@ -478,12 +477,14 @@ describe("standalone portal nav audit", () => {
     assert.ok(tenants.includes('c.status !== "archived"'), "archived clients should be hidden by default");
   });
 
-  it("keeps the build-portal wizard in operator-friendly language", () => {
-    const src = read(BUILD_PORTAL_WIZARD);
-    assert.ok(src.includes("Creates a separate client portal workspace"), "wizard should explain the outcome plainly");
-    assert.ok(src.includes("This becomes the client&apos;s separate production workspace."), "wizard should avoid local path jargon");
-    assert.ok(!src.includes("Materialises <span"), "wizard should not expose materialise wording in visible copy");
-    assert.ok(!src.includes("04-the-final-portal/clients/{confirmedSlug}/</span>"), "wizard should not expose repo paths in visible copy");
+  it("routes the build-portal action to the working provisioning surface", () => {
+    const src = read(CLIENT_HOME);
+    assert.ok(
+      src.includes('clientWorkspaceHref(client.id, "systems", { systemView: "properties" })'),
+      "Build custom portal should land on Properties and deployments, where provisioning is registered",
+    );
+    assert.ok(!src.includes("<BuildPortalWizard"), "the client header must not mount the retired 404ing portal-export wizard");
+    assert.ok(!src.includes("/api/portal/portal-export/clients/export"), "no visible client action should post to the unregistered portal-export module");
   });
 
   it("keeps account menu targets backed by real pages", () => {

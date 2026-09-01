@@ -14,7 +14,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { getActiveSiteId } from "../lib/sites";
+import { useParams } from "next/navigation";
 import {
   fetchClientStatus,
   stageFiles,
@@ -24,7 +24,6 @@ import {
   openPullRequest,
   type ClientStatus,
 } from "../lib/gitOps";
-import { listSites } from "../lib/sitesAdmin";
 import { confirm } from "../lib/confirm";
 import { prompt } from "../lib/prompt";
 import { notify } from "../lib/notify";
@@ -41,7 +40,8 @@ export default function GitStatusPage(_props: unknown) {
 }
 
 function GitStatusPageInner() {
-  const [clientId, setClientId] = useState<string>("");
+  const params = useParams<{ clientId: string }>();
+  const clientId = typeof params?.clientId === "string" ? params.clientId : "";
   const [status, setStatus] = useState<ClientStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -54,14 +54,8 @@ function GitStatusPageInner() {
   }, []);
 
   useEffect(() => {
-    // Default the Client picker to the active site's clientId. The
-    // sites lib already maintains an active-cursor; if no site is
-    // selected, fall back to the first available one.
-    const sites = listSites();
-    const initial = getActiveSiteId() || sites[0]?.id || "";
-    setClientId(initial);
-    void refresh(initial);
-  }, [refresh]);
+    void refresh(clientId);
+  }, [clientId, refresh]);
 
   async function doStage(files: string[]) {
     if (!clientId || files.length === 0) return;
@@ -139,7 +133,6 @@ function GitStatusPageInner() {
     } finally { setBusy(null); }
   }
 
-  const sites = listSites();
   const portUnavailable = status && !status.available;
 
   return (
@@ -148,7 +141,7 @@ function GitStatusPageInner() {
         ariaLabel="Growth"
         tabs={[
           { label: "Portals", href: "../portals" },
-          { label: "Sites", href: "../sites" },
+          { label: "Editor", href: "../edit-website" },
           { label: "Git status", href: "../git-status" },
         ]}
       />
@@ -161,16 +154,6 @@ function GitStatusPageInner() {
             Pending file changes in <code>clients/&lt;slug&gt;/</code> per Live client. Stage → Commit → Push → Open PR.
           </p>
         </div>
-        <select
-          value={clientId}
-          onChange={e => { setClientId(e.target.value); void refresh(e.target.value); }}
-          className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-brand-cream"
-        >
-          {sites.length === 0 && <option value="">No clients</option>}
-          {sites.map(s => (
-            <option key={s.id} value={s.id}>{s.name}</option>
-          ))}
-        </select>
       </div>
 
       {loading && <p className="text-brand-cream/45 text-sm">Loading…</p>}

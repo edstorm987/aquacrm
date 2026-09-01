@@ -3,7 +3,7 @@
 *Field-level companion to [SEMANTIC-LAYER.md](SEMANTIC-LAYER.md). Types are
 quoted from `src/server/types.ts` (the compile-time authority); this file adds
 the semantics a type cannot carry. Collections not detailed here are
-classified in `PORTAL_STATE_COVERAGE` and typed in types.ts; the 123 metadata
+classified in `PORTAL_STATE_COVERAGE` and typed in types.ts; the 124 metadata
 keys are individually contracted in `src/lib/data/metadataContracts.ts` and
 not repeated here.*
 
@@ -108,4 +108,6 @@ points. Identity and semantics come from `CanonicalMetricEntry`
 (`metricRegistry.ts`): `canonicalId` = `<kind>:<id>` is the stable join key;
 `computedBy` names the one calculation authority; `overlaps` link every known
 competing calculation. Bare-id collisions are pinned to exactly
-`["campaign-roas"]`.
+`["campaign-roas"]`. Durable KPI references never depend on that bare id:
+strict writes use `canonicalId`, reject the ambiguous spelling and lazily
+migrate historical rows command-first.

@@ -25,15 +25,6 @@ import "server-only";
 // routes do not need `withApiObservability`; it stays available for the
 // handlers that want per-route labels and tenancy resolution.
 
-import { inspectObservabilityCapability } from "./observabilityCapability";
-
-export {
-  inspectObservabilityCapability,
-  isSentrySdkInstalled,
-  type ObservabilityCapability,
-  type ObservabilitySdkState,
-} from "./observabilityCapability";
-
 // ─── Types ─────────────────────────────────────────────────────────────
 
 export interface ObservabilityBreadcrumb {
@@ -133,6 +124,13 @@ async function loadSentry(): Promise<SentryShape | null> {
  * synchronously; the Sentry call is best-effort and runs on the next
  * microtask. Safe to invoke before Sentry is loaded.
  */
+export function isExpectedFrameworkControlFlow(error: unknown): boolean {
+  return typeof error === "object"
+    && error !== null
+    && "digest" in error
+    && (error as { digest?: unknown }).digest === "DYNAMIC_SERVER_USAGE";
+}
+
 export function captureError(err: unknown, breadcrumb?: ObservabilityBreadcrumb): void {
   // Always console.error so dev + Vercel Function logs see the trace
   // even when Sentry isn't configured. Sentry capture is additive.
@@ -222,16 +220,6 @@ export function setSessionScope(breadcrumb: ObservabilityBreadcrumb): void {
     if (breadcrumb.clientId) s.setTag?.("clientId", breadcrumb.clientId);
     if (breadcrumb.pluginId) s.setTag?.("pluginId", breadcrumb.pluginId);
   });
-}
-
-/**
- * Returns true only when external error reporting can actually deliver —
- * a DSN is configured AND `@sentry/nextjs` resolves. A DSN on its own is
- * not evidence: the lazy import below returns `null` when the optional
- * package is absent and every capture becomes a silent no-op.
- */
-export function isObservabilityConfigured(): boolean {
-  return inspectObservabilityCapability().capturing;
 }
 
 // ─── Internals ─────────────────────────────────────────────────────────

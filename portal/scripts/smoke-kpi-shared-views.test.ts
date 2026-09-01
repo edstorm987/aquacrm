@@ -4,7 +4,7 @@ import { test } from "node:test";
 
 import { deleteSharedKpiView, listSharedKpiViews, saveSharedKpiView } from "../src/engines/data/server/kpi/kpiSavedViews";
 import { getAgencyWorkspaceSettings, updateAgencyWorkspaceSettings } from "../src/server/agencySettings";
-import { ensureHydrated } from "../src/server/storage";
+import { ensureHydrated, mutate } from "../src/server/storage";
 
 // ── Shared saved KPI views (the shared half of "private AND shared") ─────────
 // The private half lives in the browser's localStorage and never reaches the
@@ -18,7 +18,7 @@ test("saveSharedKpiView persists agency-scoped and lists back in save order", as
 
   const first = saveSharedKpiView(agencyId, { name: "Growth watch", kpiIds: ["business-health", "revenue-target"], mode: "plan", range: "quarter" }, { actorUserId: "tester", now: 1_000 });
   assert.equal(first.name, "Growth watch");
-  assert.deepEqual(first.kpiIds, ["business-health", "revenue-target"]);
+  assert.deepEqual(first.kpiIds, ["command:business-health", "command:revenue-target"]);
   assert.equal(first.mode, "plan");
   assert.equal(first.range, "quarter");
   assert.equal(first.createdAt, 1_000);
@@ -41,7 +41,7 @@ test("a same-named save replaces the shared view, matching the browser half's se
   const listed = listSharedKpiViews(agencyId);
   assert.equal(listed.length, 1, "case-insensitive same name replaces, never duplicates");
   assert.equal(listed[0]!.name, "WEEKLY BOARD");
-  assert.deepEqual(listed[0]!.kpiIds, ["mrr", "revenue-gap"]);
+  assert.deepEqual(listed[0]!.kpiIds, ["command:mrr", "command:revenue-gap"]);
   assert.equal(listed[0]!.range, "90d");
 });
 
@@ -61,11 +61,43 @@ test("validation: a nameless or KPI-less view is refused; junk mode/range/dates 
   assert.throws(() => saveSharedKpiView(agencyId, { name: "   ", kpiIds: ["mrr"] }, { actorUserId: "tester" }));
   assert.throws(() => saveSharedKpiView(agencyId, { name: "No KPIs", kpiIds: ["  ", ""] }, { actorUserId: "tester" }));
   const coerced = saveSharedKpiView(agencyId, { name: "Odd", kpiIds: ["mrr", "mrr"], mode: "nonsense", range: "eternity", start: "yesterday", end: "2026-08-20" }, { actorUserId: "tester" });
-  assert.deepEqual(coerced.kpiIds, ["mrr"], "duplicate ids collapse");
+  assert.deepEqual(coerced.kpiIds, ["command:mrr"], "duplicate ids collapse and an unambiguous legacy id is canonicalised");
   assert.equal(coerced.mode, "plan");
   assert.equal(coerced.range, "30d");
   assert.equal(coerced.start, undefined, "a non yyyy-mm-dd date is dropped");
   assert.equal(coerced.end, "2026-08-20");
+});
+
+test("shared views reject ambiguous bare ids and lazily backfill historical ids deterministically", async () => {
+  await ensureHydrated();
+  const agencyId = "shared-kpi-views-canonical-migration";
+  assert.throws(
+    () => saveSharedKpiView(agencyId, { name: "Ambiguous", kpiIds: ["campaign-roas"] }, { actorUserId: "tester" }),
+    /use "command:campaign-roas" or "commercial:campaign-roas"/,
+  );
+
+  const fallback = getAgencyWorkspaceSettings(agencyId);
+  mutate(state => {
+    state.agencySettings[agencyId] = {
+      ...(state.agencySettings[agencyId] ?? fallback),
+      kpiSavedViews: [{
+        id: "legacy-view",
+        name: "Legacy ROAS",
+        kpiIds: ["campaign-roas", "lead-conversion"],
+        mode: "plan",
+        range: "30d",
+        createdAt: 1,
+      }],
+    };
+  });
+
+  assert.deepEqual(listSharedKpiViews(agencyId)[0]!.kpiIds, ["command:campaign-roas", "command:lead-conversion"]);
+  saveSharedKpiView(agencyId, { name: "Second", kpiIds: ["commercial:campaign-roas"] }, { actorUserId: "tester" });
+  assert.deepEqual(
+    getAgencyWorkspaceSettings(agencyId).kpiSavedViews?.[0]?.kpiIds,
+    ["command:campaign-roas", "command:lead-conversion"],
+    "the next write persists the deterministic read migration for existing rows",
+  );
 });
 
 test("shared views live in agencySettings and survive an unrelated settings update", async () => {

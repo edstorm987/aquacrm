@@ -12,6 +12,7 @@ import {
   describeCommandKpis,
   describeCommercialFormula,
   describeCommercialFormulas,
+  describeCustomKpis,
   describeEvidenceSeries,
   computeCustomKpi,
   groupKpiDescriptorsByCategory,
@@ -286,6 +287,20 @@ test("computeCustomKpi combines base metrics via the op, honest on zero/missing 
   assert.equal(computeCustomKpi({ id: "z", label: "z", numeratorId: "leads", denominatorId: "zero", op: "ratio", createdAt: 0 }, withZero)?.value, null);   // no fabricated number
 
   assert.equal(computeCustomKpi({ id: "m", label: "m", numeratorId: "nope", op: "sum", createdAt: 0 }, byId), null);   // missing operand
+});
+
+test("custom KPI operands distinguish both campaign-roas descriptors without last-write-wins", () => {
+  const command = describeCommandKpi(makeKpi({ id: "campaign-roas", label: "Command ROAS", shortLabel: "ROAS", value: 2, history: [{ at: 1, value: 2 }] }));
+  const commercial = describeCommercialFormula(makeFormula({ id: "campaign-roas", label: "Commercial ROAS", value: 5, display: "5x" }), 1);
+  const custom = describeCustomKpis([
+    { id: "command-roas", label: "Command ROAS", numeratorId: "command:campaign-roas", op: "sum", createdAt: 0 },
+    { id: "commercial-roas", label: "Commercial ROAS", numeratorId: "commercial:campaign-roas", op: "sum", createdAt: 0 },
+    { id: "legacy-roas", label: "Legacy ROAS", numeratorId: "campaign-roas", op: "sum", createdAt: 0 },
+  ], [command, commercial]);
+
+  assert.deepEqual(custom.map(descriptor => descriptor.value), [2, 5, 2]);
+  assert.match(custom[0]!.formulaText, /ROAS/i);
+  assert.equal(custom[1]!.canonicalId, "custom:commercial-roas");
 });
 
 test("the KPI explorer is registry-backed and offers line, area and bar chart types", () => {

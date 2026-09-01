@@ -1,5 +1,6 @@
 import { describe, it, before, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
 
 let storage: typeof import("../src/server/storage");
 let tenants: typeof import("../src/server/tenants");
@@ -169,6 +170,22 @@ describe("the agency routing panel is company-aware", () => {
     // id can never be confused (and choosing one clears the other).
     assert.match(src, /company:\$\{/);
     assert.match(src, /client:\$\{/);
+  });
+
+  it("opens the registered Dev Editor workspace rather than the legacy local Sites surface", () => {
+    assert.match(src, /\/portal\/clients\/\$\{encodeURIComponent\(source\.destinationClientId\)\}\/edit-website/);
+    assert.doesNotMatch(src, /destinationClientId\}\/sites/);
+
+    const manifest = readFileSync("src/built-ins/modules/website-editor/index.ts", "utf8");
+    const gitStatus = readFileSync("src/built-ins/modules/website-editor/src/pages/GitStatusPage.tsx", "utf8");
+    const retiredRoute = readFileSync("src/app/portal/clients/[clientId]/sites/page.tsx", "utf8");
+    assert.doesNotMatch(manifest, /path:\s*["']\/portal\/clients\/\[clientId\]\/sites["']/);
+    assert.doesNotMatch(gitStatus, /href:\s*["']\.\.\/sites["']/);
+    assert.match(gitStatus, /useParams<\{ clientId: string \}>\(\)/);
+    assert.doesNotMatch(gitStatus, /sitesAdmin|listSites\(/);
+    assert.match(retiredRoute, /redirect\(`\/portal\/clients\/\$\{encodeURIComponent\(clientId\)\}\/edit-website`\)/);
+    assert.equal(existsSync("src/built-ins/modules/website-editor/src/pages/SitesPage.tsx"), false);
+    assert.equal(existsSync("src/built-ins/modules/website-editor/src/lib/sitesAdmin.ts"), false);
   });
 });
 
