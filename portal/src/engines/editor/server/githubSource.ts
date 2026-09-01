@@ -1,6 +1,6 @@
 import "server-only";
 
-import { describeFile, isHiddenPath } from "./fileTree";
+import { MAX_IMAGE_PREVIEW_BYTES, describeFile, imageContentType, isHiddenPath } from "./fileTree";
 import { hashFile } from "./codeAdapter";
 
 /**
@@ -199,8 +199,12 @@ export async function listBranchPullRequests(source: GitHubRepoSource, branch: s
 export interface RepoFile {
   path: string;
   editable: boolean;
+  readable?: boolean;
+  kind?: "text" | "image" | "binary";
   reason?: string;
   contents?: string;
+  /** A bounded data URL for a picture that can be shown but not edited. */
+  dataUrl?: string;
   fingerprint?: string;
   size?: number;
 }
@@ -217,7 +221,44 @@ export async function readRepoFile(source: GitHubRepoSource, path: string): Prom
     source, `/repos/${source.repository}/contents/${encodeURI(path)}?ref=${encodeURIComponent(source.ref)}`);
 
   const described = describeFile(path, file.size);
-  if (!described.editable) return { path, editable: false, reason: described.reason, size: file.size };
+  if (described.kind === "image") {
+    const encoded = file.encoding === "base64" && typeof file.content === "string"
+      ? file.content.replace(/\s/g, "")
+      : "";
+    const estimatedBytes = encoded ? Math.floor((encoded.length * 3) / 4) : 0;
+    const size = file.size ?? estimatedBytes;
+    if (described.readable && encoded && size <= MAX_IMAGE_PREVIEW_BYTES) {
+      return {
+        path,
+        editable: false,
+        readable: true,
+        kind: "image",
+        reason: described.reason,
+        size,
+        dataUrl: `data:${imageContentType(path)};base64,${encoded}`,
+      };
+    }
+    return {
+      path,
+      editable: false,
+      readable: false,
+      kind: "image",
+      reason: described.readable
+        ? "GitHub did not return this image in a form the editor can preview."
+        : described.reason,
+      size,
+    };
+  }
+  if (!described.editable) {
+    return {
+      path,
+      editable: false,
+      readable: described.readable,
+      kind: described.kind,
+      reason: described.reason,
+      size: file.size,
+    };
+  }
 
   if (file.encoding !== "base64" || typeof file.content !== "string") {
     return { path, editable: false, reason: "GitHub returned this file in a form the editor cannot read." };
@@ -227,6 +268,8 @@ export async function readRepoFile(source: GitHubRepoSource, path: string): Prom
   return {
     path,
     editable: true,
+    readable: true,
+    kind: "text",
     contents,
     // The same hash the engine checks a save against, so what the editor holds
     // and what a save is judged on cannot drift apart.

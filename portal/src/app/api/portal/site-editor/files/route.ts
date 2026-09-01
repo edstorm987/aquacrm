@@ -7,7 +7,7 @@ import {
   requireDevProjectAccess,
   requireWholeWorkingTreeFounderAccess,
 } from "@/lib/server/dev/devProjectAccess";
-import { MAX_EDITABLE_BYTES, MAX_READ_BYTES, buildFileTree, describeFile, isHiddenPath } from "@/engines/editor/server/fileTree";
+import { MAX_EDITABLE_BYTES, MAX_READ_BYTES, buildFileTree, describeFile, imageContentType, isHiddenPath } from "@/engines/editor/server/fileTree";
 import { hashFile } from "@/engines/editor/server/codeAdapter";
 import { readWorkspaceFiles } from "@/engines/editor/server/workspaceFiles";
 import { DevPathScopeError, assertPathInScope, devPathScope, isUnrestricted, scopeAllowsListing, type DevPathScope } from "@/lib/server/dev/devPathScope";
@@ -313,12 +313,21 @@ export async function GET(request: NextRequest) {
 
     // An image is shown, not read as characters.
     if (described.kind === "image") {
+      if (!described.readable) {
+        return NextResponse.json({
+          ok: true,
+          path: requested,
+          editable: false,
+          readable: false,
+          kind: "image",
+          reason: described.reason,
+          size: info.size,
+        });
+      }
       const bytes = await readFile(target);
-      const extension = requested.split(".").pop()?.toLowerCase() ?? "png";
-      const mime = extension === "svg" ? "image/svg+xml" : `image/${extension === "jpg" ? "jpeg" : extension}`;
       return NextResponse.json({
         ok: true, path: requested, editable: false, readable: true, kind: "image",
-        dataUrl: `data:${mime};base64,${bytes.toString("base64")}`,
+        dataUrl: `data:${imageContentType(requested)};base64,${bytes.toString("base64")}`,
         size: info.size,
       });
     }

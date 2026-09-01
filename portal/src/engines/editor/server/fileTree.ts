@@ -88,6 +88,24 @@ const TEXT_BY_NAME = /^(dockerfile|makefile|procfile|license|licence|readme|chan
 /** Shown as an image rather than as characters. */
 export const IMAGE = /\.(png|jpe?g|gif|webp|avif|ico|bmp)$/i;
 
+/** Keep data-URL previews bounded and aligned with GitHub's inline-content limit. */
+export const MAX_IMAGE_PREVIEW_BYTES = 1024 * 1_024;
+
+export function imageContentType(path: string): string {
+  const extension = path.split(".").pop()?.toLowerCase() ?? "";
+  const types: Record<string, string> = {
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    gif: "image/gif",
+    webp: "image/webp",
+    avif: "image/avif",
+    ico: "image/x-icon",
+    bmp: "image/bmp",
+  };
+  return types[extension] ?? "application/octet-stream";
+}
+
 /** Beyond this a browser editor stops being usable rather than merely slow. */
 export const MAX_EDITABLE_BYTES = 512 * 1_024;
 
@@ -130,6 +148,17 @@ export function describeFile(path: string, size?: number): TreeFile {
   const name = path.split("/").pop() ?? path;
 
   if (IMAGE.test(path)) {
+    if (size !== undefined && size > MAX_IMAGE_PREVIEW_BYTES) {
+      return {
+        path,
+        name,
+        size,
+        kind: "image",
+        readable: false,
+        editable: false,
+        reason: `${Math.round(size / 1024)} KB — too large to preview here.`,
+      };
+    }
     return { path, name, size, kind: "image", readable: true, editable: false, reason: "Images open as a preview." };
   }
   if (!isTextPath(path)) {

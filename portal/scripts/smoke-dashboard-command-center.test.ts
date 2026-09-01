@@ -483,6 +483,9 @@ describe("dashboard command centre surface", () => {
     assert.match(globalStyles, /html\[data-portal-shell="command"\] \.mm-private-sidebar/);
     assert.match(globalStyles, /html\[data-portal-shell="command"\] \.mm-portal-topbar/);
     assert.match(globalStyles, /html\[data-portal-shell="command"\] \.mm-private-surface/);
+    assert.match(globalStyles, /html\[data-portal-shell="command"\] \.mm-portal-topbar \.mm-dev-console-popover \{[^}]*background: #07171d !important/);
+    assert.match(globalStyles, /\.mm-dev-console-popover \[class\*="text-black"\]/);
+    assert.match(globalStyles, /html\[data-color-mode="light"\]\[data-portal-shell="command"\] \.mm-portal-topbar \.mm-dev-console-popover \{[^}]*background: #fbfdfc !important/);
   });
 
   it("folds heavy Day Command panels behind one shared disclosure shell without folding attention away", async () => {

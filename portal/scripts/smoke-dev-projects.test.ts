@@ -57,6 +57,38 @@ describe("dev projects — the engine's project binding", () => {
     assert.equal(project.repository, "edstorm987/aquacrm");
   });
 
+  it("refuses malformed repositories instead of silently retargeting them", () => {
+    for (const repository of [
+      "no-slash",
+      "owner/",
+      "/name",
+      "a b/c",
+      "owner/name/extra",
+      "owner/..",
+      "owner/.",
+      "owner//name",
+    ]) {
+      assert.throws(
+        () => devProjects.saveDevProject({
+          agencyId: AGENCY,
+          name: "Invalid repository",
+          repository,
+          actorUserId: ACTOR,
+        }),
+        /dev_project_repository_invalid/,
+        `"${repository}" must not be accepted or truncated`,
+      );
+    }
+
+    const enterprise = devProjects.saveDevProject({
+      agencyId: AGENCY,
+      name: "Enterprise namespace",
+      repository: "mona_fabrikam/internal-tools",
+      actorUserId: ACTOR,
+    });
+    assert.equal(enterprise.repository, "mona_fabrikam/internal-tools");
+  });
+
   it("keeps a blank repository blank (reads the local working tree)", () => {
     const project = devProjects.saveDevProject({ agencyId: AGENCY, name: "Local", repository: "", actorUserId: ACTOR });
     assert.equal(project.repository, "");

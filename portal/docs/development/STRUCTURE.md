@@ -40,9 +40,13 @@ Roadmap" artifact. Ed's call 2026-08-20: end the naming sprawl.
 
 ## The five Surfaces (IA v2 target)
 
-Owner/staff parity is the intended taxonomy, not current verified behaviour. The
-proxy presently redirects all staff `/portal/agency*` pages and permits only five
-API roots, which conflicts with some leaf routes that admit staff (issues #25).
+Owner/staff parity remains intentionally scoped rather than route-for-route. The
+staff portal now groups only the stations admitted by canonical element access
+into Command, Inbox & Actions, Operations and Tools; it does not link staff into
+agency routes or invent an Executive surface. The proxy still redirects staff
+`/portal/agency*` pages and permits only five API roots, which conflicts with
+some leaf routes that admit staff (issue #25).
+
 | Surface | Is | State |
 |---|---|---|
 | Command Centre | now / your day (staff: employee portal) | exists |
@@ -54,7 +58,7 @@ API roots, which conflicts with some leaf routes that admit staff (issues #25).
 ## What's left
 - **The `src/engines/` move**: DONE ✓ — editor + sop + data all physically in `src/engines/`, imports rewritten, tsc + full suite green, adversarial-verified. "Plugin" already retired → "module".
 - **Finish the engines** (Ed's "very least"): editor acceptance+reliability+client mount+tiers · SOP training-merge+views+assignment · Data fold-in performance/intelligence + evolving baselines. ← now the active track.
-- **The surfaces**: Executive (extract-and-add, CC unchanged) — NEXT · Operations container (Governance in; lane exists) · staff-portal mirror.
+- **The surfaces**: Executive (extract-and-add, CC unchanged) — NEXT · Operations container (Governance in; lane exists) · staff portal regroup DONE (canonical role/element gates preserved; full shared-hub parity is not claimed).
 - **Launch-critical external/acceptance work:** merge/deploy decision · deployment
   environment verification · pending migrations · one real onboarding walk ·
   live Stripe/Meta/DPO steps. The first commit and push are already complete.

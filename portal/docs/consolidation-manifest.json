@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-01T06:09:15.867Z",
+  "generatedAt": "2026-09-01T06:27:05.055Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -983,9 +983,9 @@
       "path": "docs/development/STRUCTURE.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-development-structure-md",
-      "sha256": "52f8d6f96fdd0a6ac40311404d9db7d24e257df942e39aa357b7b68d2be1317e",
-      "words": 883,
-      "bytes": 6919
+      "sha256": "0d6eb54e217ca5b865d0f72979affcad52dd71909db0f1ef351952e3b16c1d1b",
+      "words": 926,
+      "bytes": 7207
     },
     {
       "path": "docs/development/tests.md",

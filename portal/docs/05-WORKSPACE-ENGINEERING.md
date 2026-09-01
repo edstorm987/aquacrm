@@ -2,11 +2,11 @@
 
 > Source maps, subsystem dossiers, components, routes, state and built-in module notes.
 >
-> Consolidated 2026-09-01 from **23** source documents / **56,983 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-01 from **23** source documents / **57,026 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
-- [`docs/development/STRUCTURE.md`](#source-docs-development-structure-md) — 883 words · `52f8d6f96fdd`
+- [`docs/development/STRUCTURE.md`](#source-docs-development-structure-md) — 926 words · `0d6eb54e217c`
 - [`docs/WORKSPACE-FILE-TREE.md`](#source-docs-workspace-file-tree-md) — 1,385 words · `642c698fbd42`
 - [`docs/workspace/advisor.md`](#source-docs-workspace-advisor-md) — 1,445 words · `d5b9b4fc79dc`
 - [`docs/workspace/api-and-routes.md`](#source-docs-workspace-api-and-routes-md) — 946 words · `8bbf0d2e9c9f`
@@ -36,7 +36,7 @@
 
 ## Source document — `docs/development/STRUCTURE.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/STRUCTURE.md" sha256="52f8d6f96fdd0a6ac40311404d9db7d24e257df942e39aa357b7b68d2be1317e" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/STRUCTURE.md" sha256="0d6eb54e217ca5b865d0f72979affcad52dd71909db0f1ef351952e3b16c1d1b" -->
 # AquaCRM — Structure (the agreed taxonomy) + Roadmap
 
 The source of truth for the folder taxonomy and architecture vocabulary. For the
@@ -79,9 +79,13 @@ Roadmap" artifact. Ed's call 2026-08-20: end the naming sprawl.
 
 ## The five Surfaces (IA v2 target)
 
-Owner/staff parity is the intended taxonomy, not current verified behaviour. The
-proxy presently redirects all staff `/portal/agency*` pages and permits only five
-API roots, which conflicts with some leaf routes that admit staff (issues #25).
+Owner/staff parity remains intentionally scoped rather than route-for-route. The
+staff portal now groups only the stations admitted by canonical element access
+into Command, Inbox & Actions, Operations and Tools; it does not link staff into
+agency routes or invent an Executive surface. The proxy still redirects staff
+`/portal/agency*` pages and permits only five API roots, which conflicts with
+some leaf routes that admit staff (issue #25).
+
 | Surface | Is | State |
 |---|---|---|
 | Command Centre | now / your day (staff: employee portal) | exists |
@@ -93,7 +97,7 @@ API roots, which conflicts with some leaf routes that admit staff (issues #25).
 ## What's left
 - **The `src/engines/` move**: DONE ✓ — editor + sop + data all physically in `src/engines/`, imports rewritten, tsc + full suite green, adversarial-verified. "Plugin" already retired → "module".
 - **Finish the engines** (Ed's "very least"): editor acceptance+reliability+client mount+tiers · SOP training-merge+views+assignment · Data fold-in performance/intelligence + evolving baselines. ← now the active track.
-- **The surfaces**: Executive (extract-and-add, CC unchanged) — NEXT · Operations container (Governance in; lane exists) · staff-portal mirror.
+- **The surfaces**: Executive (extract-and-add, CC unchanged) — NEXT · Operations container (Governance in; lane exists) · staff portal regroup DONE (canonical role/element gates preserved; full shared-hub parity is not claimed).
 - **Launch-critical external/acceptance work:** merge/deploy decision · deployment
   environment verification · pending migrations · one real onboarding walk ·
   live Stripe/Meta/DPO steps. The first commit and push are already complete.

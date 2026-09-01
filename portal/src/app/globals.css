@@ -8822,3 +8822,63 @@ html[data-color-mode="dark"] .mm-drawer-panel-left[data-sidebar-variant="client"
 @media (prefers-reduced-motion: reduce) {
   .aq-orb, .aq-scene { animation: none; }
 }
+
+/* Keep the Dev Console inside the command-shell visual language. The popover
+   root carries Tailwind's `bg-white`, so these final, scoped overrides must
+   outrank the global color-mode utility remaps in both command variants. */
+html[data-portal-shell="command"] .mm-portal-topbar .mm-dev-console-popover {
+  border-color: rgb(98 232 255 / 0.25) !important;
+  background: #07171d !important;
+  color: #eefcff !important;
+}
+
+html[data-portal-shell="command"] .mm-portal-topbar .mm-dev-console-popover [class*="text-black"] {
+  color: rgb(225 246 250 / 0.72) !important;
+}
+
+html[data-portal-shell="command"] .mm-portal-topbar .mm-dev-console-popover :is([class*="border-black"], [class*="divide-black"]) {
+  border-color: rgb(98 232 255 / 0.13) !important;
+}
+
+html[data-portal-shell="command"] .mm-portal-topbar .mm-dev-console-popover [class*="bg-white"] {
+  background-color: #0a2028 !important;
+}
+
+html[data-portal-shell="command"] .mm-portal-topbar .mm-dev-console-popover :is([class*="bg-black/"], [class*="bg-[#e6f1f0]"]) {
+  background-color: #081c22 !important;
+}
+
+html[data-portal-shell="command"] .mm-portal-topbar .mm-dev-console-popover ::placeholder {
+  color: rgb(225 246 250 / 0.35) !important;
+}
+
+html[data-portal-shell="command"] .mm-portal-topbar .mm-dev-console-popover :is(a, button):hover {
+  color: #fff !important;
+}
+
+html[data-color-mode="light"][data-portal-shell="command"] .mm-portal-topbar .mm-dev-console-popover {
+  border-color: rgb(24 102 113 / 0.22) !important;
+  background: #fbfdfc !important;
+  color: #102a31 !important;
+  box-shadow: 0 22px 64px rgb(24 63 70 / 0.16);
+}
+
+html[data-color-mode="light"][data-portal-shell="command"] .mm-portal-topbar .mm-dev-console-popover [class*="text-black"] {
+  color: rgb(16 42 49 / 0.75) !important;
+}
+
+html[data-color-mode="light"][data-portal-shell="command"] .mm-portal-topbar .mm-dev-console-popover [class*="bg-white"] {
+  background-color: #fbfdfc !important;
+}
+
+html[data-color-mode="light"][data-portal-shell="command"] .mm-portal-topbar .mm-dev-console-popover :is([class*="bg-black/"], [class*="bg-[#e6f1f0]"]) {
+  background-color: #eef6f5 !important;
+}
+
+html[data-color-mode="light"][data-portal-shell="command"] .mm-portal-topbar .mm-dev-console-popover :is([class*="border-black"], [class*="divide-black"]) {
+  border-color: rgb(24 102 113 / 0.14) !important;
+}
+
+html[data-color-mode="light"][data-portal-shell="command"] .mm-portal-topbar .mm-dev-console-popover ::placeholder {
+  color: rgb(16 42 49 / 0.4) !important;
+}

@@ -20,6 +20,7 @@ import {
 } from "@/lib/server/access/workspaceElementAccess";
 import { requireCurrentAccessActor } from "@/server/accessControl";
 import { withPersonalChrome } from "@/lib/server/chrome/personalPanels";
+import { buildStaffNavigationPanels } from "./staffNavigation";
 
 export default async function TeamLayout({ children }: { children: ReactNode }) {
   await ensureHydrated();
@@ -35,22 +36,20 @@ export default async function TeamLayout({ children }: { children: ReactNode }) 
   const staffAccess = resolveActorWorkspaceElementAccess(actor, "staff");
   const user = getUserById(session.userId);
   const employee = getPeopleEmployeeByUserId(session.agencyId, session.userId);
-  const stationMap = new Map(PEOPLE_STATIONS.map(station => [station.id, station]));
   const access = staffStationAccessEntries(actor, staffAccess);
+  const staffPanels: NavPanel[] = buildStaffNavigationPanels(PEOPLE_STATIONS, access).map(panel => ({
+    ...panel,
+    // NavPanel's historical union lists foundation panel ids, while Sidebar
+    // intentionally supports discovered ids. Staff-specific ids keep personal
+    // ordering and saved rows isolated from the agency workspace's panels.
+    id: panel.id as NavPanel["id"],
+  }));
   const devProjects = await listGrantedDevWorkspaceProjects({
     userId: session.userId,
     agencyId: session.agencyId,
     environment: session.sandbox ? "sandbox" : "live",
   });
-  const panels: NavPanel[] = [{
-    id: "main",
-    label: "",
-    order: 0,
-    items: access.flatMap(item => {
-      const station = stationMap.get(item.stationId);
-      return station ? [{ id: station.id, label: station.label, href: station.href, panelId: "main" as const, order: item.order, badge: item.mode === "view" ? "View" : undefined }] : [];
-    }),
-  }, ...(devProjects.length ? [{
+  const panels: NavPanel[] = [...staffPanels, ...(devProjects.length ? [{
     id: "tools",
     label: "Development",
     order: 70,

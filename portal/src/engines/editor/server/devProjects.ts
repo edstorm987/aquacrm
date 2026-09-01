@@ -12,7 +12,13 @@ import type {
   DevProjectTagMap,
   DevProjectTagState,
 } from "@/server/types";
-import { getIntegrationConnection, resolveIntegrationConnectionValues } from "@/lib/server/integrations/integrationConnections";
+import {
+  getIntegrationConnection,
+  resolveIntegrationConnectionValues,
+  resolveIntegrationValues,
+  resolveScopedIntegrationConnectionValues,
+} from "@/lib/server/integrations/integrationConnections";
+import type { VercelDeploymentConfig } from "@/lib/server/integrations/vercelProjectDeployer";
 import { devPathScope } from "@/lib/server/dev/devPathScope";
 
 // Re-exported so callers that already import from here keep one import, while
@@ -41,11 +47,23 @@ function clean(value: string | undefined, max: number): string {
 
 /** "owner/repository" or blank (blank = read the local working tree). */
 export function normalizeRepository(value: string | undefined): string {
-  const repository = clean(value, 200).replace(/^https?:\/\/github\.com\//i, "").replace(/\.git$/i, "").replace(/^\/+|\/+$/g, "");
+  const raw = (value ?? "").trim();
+  if (!raw || raw.length > 200) return "";
+  const repository = raw
+    .replace(/^https?:\/\/github\.com\//i, "")
+    .replace(/^\/+|\/+$/g, "")
+    .replace(/\.git$/i, "");
   if (!repository) return "";
-  // Keep only owner/name — a deeper path is not a repository.
-  const parts = repository.split("/").filter(Boolean);
-  return parts.length >= 2 ? `${parts[0]}/${parts[1]}` : "";
+  // Validate the complete address rather than silently truncating a deeper
+  // path. In particular, `owner/..` must never URL-normalise into a different
+  // GitHub API endpoint than the project record claims to target. Underscores
+  // remain valid for Enterprise Managed User namespaces.
+  const parts = repository.split("/");
+  if (parts.length !== 2) return "";
+  const [owner, name] = parts;
+  const validOwner = /^[A-Za-z0-9_][A-Za-z0-9_-]*$/.test(owner);
+  const validName = /^[A-Za-z0-9_.-]+$/.test(name) && name !== "." && name !== "..";
+  return validOwner && validName ? `${owner}/${name}` : "";
 }
 
 /**
@@ -144,6 +162,11 @@ export function saveDevProject(input: SaveDevProjectInput): DevProject {
   const name = clean(input.name, 120);
   if (!name) throw new Error("Project name required.");
 
+  const repository = normalizeRepository(input.repository);
+  if ((input.repository ?? "").trim() && !repository) {
+    throw new Error("dev_project_repository_invalid");
+  }
+
   const kind: DevProjectKind = input.kind && VALID_KINDS.has(input.kind) ? input.kind : "software";
   const now = input.now ?? Date.now();
   const existing = input.id ? getDevProject(input.agencyId, input.id) : null;
@@ -163,7 +186,7 @@ export function saveDevProject(input: SaveDevProjectInput): DevProject {
     name,
     description: clean(input.description, 400) || undefined,
     kind,
-    repository: normalizeRepository(input.repository),
+    repository,
     ref: clean(input.ref, 120) || "main",
     githubConnectionId,
     vercelConnectionId,
@@ -307,6 +330,58 @@ export function devProjectGitHubToken(agencyId: string, project: DevProject): st
   } catch {
     return null;
   }
+}
+
+export type DevProjectVercelConfig = VercelDeploymentConfig;
+
+export interface ResolveDevProjectVercelConfigOptions {
+  /**
+   * True only for an owner-baseline/server caller. Delegated project access may
+   * use the project's explicit binding, but must never inherit a wider client,
+   * workspace or deployment-environment credential.
+   */
+  allowSharedCredentials?: boolean;
+}
+
+/**
+ * Credentials for deploying this exact project through the canonical Vercel
+ * deployer. The explicit project binding wins. An owner-baseline caller may
+ * then opt into the current client -> workspace -> founder-environment ladder.
+ *
+ * Tenant, provider and client scope are all re-checked at resolution time. A
+ * project record only stores an id, and a revoked, foreign, wrong-provider or
+ * wrong-client id must never become a credential read.
+ */
+export function resolveDevProjectVercelConfig(
+  agencyId: string,
+  project: DevProject,
+  options: ResolveDevProjectVercelConfigOptions = {},
+): DevProjectVercelConfig | null {
+  if (project.agencyId !== agencyId) return null;
+
+  let values: Record<string, string> = {};
+  if (project.vercelConnectionId) {
+    const connection = getIntegrationConnection(agencyId, project.vercelConnectionId);
+    if (
+      connection?.provider === "vercel"
+      && (!connection.clientId || connection.clientId === project.clientId)
+    ) {
+      values = resolveScopedIntegrationConnectionValues(
+        agencyId,
+        project.vercelConnectionId,
+        project.clientId,
+      );
+    }
+  }
+
+  if (!values.token && options.allowSharedCredentials) {
+    values = resolveIntegrationValues(agencyId, "vercel", { clientId: project.clientId });
+  }
+
+  const token = values.token?.trim();
+  if (!token) return null;
+  const teamId = values.teamId?.trim();
+  return { token, ...(teamId ? { teamId } : {}) };
 }
 
 /**

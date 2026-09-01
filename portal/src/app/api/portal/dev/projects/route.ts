@@ -481,6 +481,8 @@ export async function POST(request: Request) {
       const code = error instanceof Error ? error.message : "";
       const message = code === "integration_not_found"
         ? "That saved connection could not be found."
+        : code === "dev_project_repository_invalid"
+          ? "Use a GitHub repository in owner/name format, or leave it blank for the local working tree."
         : code.startsWith("connection_provider_mismatch:")
           ? `That connection is not a ${code.split(":")[1]} connection.`
           : code === "project_not_found"
