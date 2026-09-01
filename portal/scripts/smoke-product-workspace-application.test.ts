@@ -259,12 +259,126 @@ describe("collection upload batch accounting", () => {
     assert.match(notice, /1 already uploaded was skipped\./);
   });
 
+  it("does not spend the 30-file retry allowance on files that already converged", async () => {
+    const selection = Array.from({ length: 31 }, (_, index) => candidate(`shot-${index}.jpg`));
+    const completedKeys = new Set(selection.slice(0, 20).map(file => batch.workspaceUploadFileKey(file)));
+    const retry = transport();
+    const outcome = await batch.runWorkspaceUploadBatch(selection, { revision: 20 }, retry.runner, { alreadyCompleted: completedKeys });
+
+    assert.equal(outcome.skipped, 20);
+    assert.equal(outcome.attempted, 11);
+    assert.equal(outcome.declined, 0, "all 11 outstanding files fit even though the original selection had 31 entries");
+    assert.equal(outcome.completed.length, 11);
+    assert.deepEqual(retry.uploaded, selection.slice(20).map(file => file.name));
+  });
+
+  it("rebuilds completed keys from durable attachment truth after a reload", () => {
+    const records = [
+      { id: "attached-explicit", name: "a.jpg", collectionId: "gallery", uploadKey: "a:1:1", workspaceAttachmentState: "attached" as const },
+      { id: "attached-legacy", name: "b.jpg", collectionId: "gallery", uploadKey: "b:1:1" },
+      { id: "pending", name: "c.jpg", collectionId: "gallery", uploadKey: "c:1:1", workspaceAttachmentState: "pending" as const },
+      { id: "other", name: "d.jpg", collectionId: "other", uploadKey: "d:1:1", workspaceAttachmentState: "attached" as const },
+    ];
+    const completed = batch.workspaceUploadCompletedKeys(records, "gallery", new Set(["attached-legacy"]));
+    assert.deepEqual([...completed].sort(), ["a:1:1", "b:1:1"]);
+  });
+
+  it("does not treat a removed collection asset as completed after reload", async () => {
+    const removed = {
+      id: "removed-file",
+      name: "removed.jpg",
+      collectionId: "gallery",
+      uploadKey: "removed.jpg:1:1",
+      workspaceAttachmentState: "pending" as const,
+    };
+    const completed = batch.workspaceUploadCompletedKeys([removed], "gallery", new Set());
+    assert.deepEqual([...completed], [], "a pending file must be eligible for collection re-attachment");
+
+    const workspaceRoute = await readFile(new URL("../src/app/api/tenants/product-workspaces/route.ts", import.meta.url), "utf8");
+    const removeStart = workspaceRoute.indexOf('} else if (action === "remove-asset")');
+    const responseStart = workspaceRoute.indexOf('} else if (action === "asset-response")', removeStart);
+    const removeBranch = workspaceRoute.slice(removeStart, responseStart);
+    assert.match(removeBranch, /attachmentState: "pending"/, "removing an asset must invalidate its durable completion marker");
+  });
+
+  it("replays only the same durable file in the same workspace scope", () => {
+    const record = {
+      id: "file-1",
+      name: "proof.jpg",
+      size: 42,
+      contentType: "image/jpeg",
+      contentSha256: "a".repeat(64),
+      productId: "product",
+      workspacePageId: "page",
+      collectionId: "gallery",
+      uploadKey: "proof.jpg:42:1",
+      workspaceAttachmentState: "pending" as const,
+    };
+    const replay = batch.resolveWorkspaceUploadReplay([record], {
+      name: record.name,
+      size: record.size,
+      contentType: record.contentType,
+      contentSha256: record.contentSha256,
+      productId: record.productId,
+      workspacePageId: record.workspacePageId,
+      collectionId: record.collectionId,
+      uploadKey: record.uploadKey,
+    });
+    assert.equal(replay.status, "replay");
+    assert.equal(replay.status === "replay" ? replay.file.id : "", record.id);
+
+    const otherCollection = batch.resolveWorkspaceUploadReplay([record], {
+      name: record.name,
+      size: record.size,
+      contentType: record.contentType,
+      contentSha256: record.contentSha256,
+      productId: record.productId,
+      workspacePageId: record.workspacePageId,
+      collectionId: "another-gallery",
+      uploadKey: record.uploadKey,
+    });
+    assert.equal(otherCollection.status, "new");
+
+    const collision = batch.resolveWorkspaceUploadReplay([record], {
+      name: "different.jpg",
+      size: record.size,
+      contentType: record.contentType,
+      contentSha256: record.contentSha256,
+      productId: record.productId,
+      workspacePageId: record.workspacePageId,
+      collectionId: record.collectionId,
+      uploadKey: record.uploadKey,
+    });
+    assert.equal(collision.status, "conflict");
+
+    const sameMetadataDifferentBytes = batch.resolveWorkspaceUploadReplay([record], {
+      name: record.name,
+      size: record.size,
+      contentType: record.contentType,
+      contentSha256: "b".repeat(64),
+      productId: record.productId,
+      workspacePageId: record.workspacePageId,
+      collectionId: record.collectionId,
+      uploadKey: record.uploadKey,
+    });
+    assert.equal(sameMetadataDifferentBytes.status, "conflict", "browser metadata alone must never replay a different binary");
+  });
+
   it("mounts the batch runner and the cap on the customer surface", async () => {
     const application = await readFile(new URL("../src/app/portal/customer/_ProductWorkspaceApplication.tsx", import.meta.url), "utf8");
+    const uploadRoute = await readFile(new URL("../src/app/api/tenants/client-files/upload/route.ts", import.meta.url), "utf8");
+    const workspaceRoute = await readFile(new URL("../src/app/api/tenants/product-workspaces/route.ts", import.meta.url), "utf8");
     assert.match(application, /runWorkspaceUploadBatch/);
     assert.match(application, /workspaceUploadBatchNotice/);
+    assert.match(application, /workspaceUploadCompletedKeys/);
+    assert.match(application, /form\.set\("uploadKey", workspaceUploadFileKey\(file\)\)/);
     assert.match(application, /WORKSPACE_UPLOAD_BATCH_LIMIT\} files per upload/);
     assert.match(application, /onFileCommitted/);
+    assert.match(uploadRoute, /resolveWorkspaceUploadReplay/);
+    assert.match(uploadRoute, /crypto\.createHash\("sha256"\)/);
+    assert.match(uploadRoute, /contentSha256/);
+    assert.match(uploadRoute, /workspaceAttachmentState: collectionId \? "pending"/);
+    assert.match(workspaceRoute, /attachmentState: "attached"/);
     assert.doesNotMatch(application, /\.slice\(0, 30\)/, "the cap must be declared by the batch runner, not hidden in the loop");
     assert.doesNotMatch(application, /selectedFiles\.length\} \$\{selectedFiles\.length === 1/, "the notice must not report the selected count as the added count");
   });

@@ -14,12 +14,20 @@ export interface PortalPageRendererProps {
   page: EditorPage;
   theme?: ThemeRecord | null;
   preview?: boolean;
+  agencyId?: string;
+  clientId?: string;
 }
 
-export function PortalPageRenderer({ page, theme, preview }: PortalPageRendererProps) {
+export function PortalPageRenderer({ page, theme, preview, agencyId, clientId }: PortalPageRendererProps) {
   const blocks = preview && page.draftBlocks ? page.draftBlocks : page.blocks;
   return (
-    <div data-portal-page={page.id} data-portal-role={page.portalRole ?? "page"}>
+    <div
+      data-portal-page={page.id}
+      data-portal-role={page.portalRole ?? "page"}
+      data-aqua-storefront={agencyId && clientId ? "" : undefined}
+      data-aqua-agency-id={agencyId}
+      data-aqua-client-id={clientId}
+    >
       <EditorThemeInjector theme={theme ?? null} customCSS={page.customCSS} />
       <BlockTreeRenderer blocks={blocks} />
     </div>

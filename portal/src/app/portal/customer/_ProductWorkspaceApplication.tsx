@@ -37,6 +37,8 @@ import {
   runWorkspaceUploadBatch,
   WORKSPACE_UPLOAD_BATCH_LIMIT,
   workspaceUploadBatchNotice,
+  workspaceUploadCompletedKeys,
+  workspaceUploadFileKey,
 } from "@/lib/portal/productWorkspaceUploadBatch";
 import type { CustomerFile } from "./_portalData";
 
@@ -106,9 +108,19 @@ export function ProductWorkspaceApplication({
   const [selectionLimit, setSelectionLimit] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  // Per-collection record of the files that already uploaded AND attached in
-  // this session, so retrying a part-failed batch does not upload them twice.
-  const uploadedKeys = useRef<Record<string, Set<string>>>({});
+  // Rebuilt from durable file + collection records on mount, then advanced
+  // after every converged file. A reload during a part-failed batch therefore
+  // resumes instead of forgetting which binaries and assets already landed.
+  const uploadedKeys = useRef<Record<string, Set<string>>>(Object.fromEntries(
+    initialWorkspace.collections.map(collection => [
+      collection.id,
+      workspaceUploadCompletedKeys(
+        initialFiles,
+        collection.id,
+        new Set(collection.assets.map(asset => asset.fileId)),
+      ),
+    ]),
+  ));
   const readOnly = role === "preview";
   const management = role === "agency";
   const pageState = workspace.pages[page.id];
@@ -176,6 +188,7 @@ export function ProductWorkspaceApplication({
           form.set("workspacePageId", page.id);
           form.set("collectionId", collection.id);
           form.set("customerVisible", collection.status !== "draft" && collection.status !== "archived" ? "true" : "false");
+          form.set("uploadKey", workspaceUploadFileKey(file));
           form.set("file", file);
           const upload = await fetch("/api/tenants/client-files/upload", { method: "POST", body: form });
           const uploaded = await upload.json() as { ok: boolean; error?: string; file?: CustomerFile };
@@ -213,7 +226,10 @@ export function ProductWorkspaceApplication({
         // cannot discard the ones that already landed.
         onFileCommitted: (uploaded, current, key) => {
           completedKeys.add(key);
-          setFiles(previous => [uploaded, ...previous]);
+          setFiles(previous => [
+            { ...uploaded, workspaceAttachmentState: "attached" },
+            ...previous.filter(file => file.id !== uploaded.id),
+          ]);
           setWorkspace(current);
         },
       },

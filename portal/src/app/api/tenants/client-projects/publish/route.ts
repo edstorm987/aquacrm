@@ -5,9 +5,12 @@ import { publishProjectToGitHub } from "@/lib/server/integrations/githubProjectP
 import { logActivity } from "@/server/activity";
 import {
   beginClientProjectOperation,
+  ClientProjectOperationConflictError,
   clientProjectOperationKey,
+  clientProjectRequestHash,
   resumableClientProjectOperation,
 } from "@/server/clientProjectOperations";
+import { ProductWorkspaceBusyError, withClientProjectTransaction } from "@/server/productWorkspaceCoordinator";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
@@ -40,76 +43,102 @@ export async function POST(request: Request) {
 
     const session = await requireRoleForClient([...AGENCY_ROLES], clientId);
     // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
-    const client = getClientForAgency(session.agencyId, clientId);
-    if (!client) return NextResponse.json({ ok: false, error: "Client not found." }, { status: 404 });
+    const scopedClient = getClientForAgency(session.agencyId, clientId);
+    if (!scopedClient) return NextResponse.json({ ok: false, error: "Client not found." }, { status: 404 });
     await requireCurrentClientWorkspaceElementAccess(clientId, "client.systems", "manage");
-    const metadata = (client.metadata ?? {}) as { properties?: StoredProperty[] };
-    const current = Array.isArray(metadata.properties) ? metadata.properties : [];
-    const property = current.find(item => item.id === propertyId);
-    if (!property) return NextResponse.json({ ok: false, error: "Project not found." }, { status: 404 });
-    if (!property.localPath || !property.projectSlug) {
-      return NextResponse.json({ ok: false, error: "Provision this project locally before publishing it." }, { status: 400 });
-    }
+    return await withClientProjectTransaction({ agencyId: session.agencyId, clientId }, async () => {
+      const client = getClientForAgency(session.agencyId, clientId);
+      if (!client) return NextResponse.json({ ok: false, error: "Client not found." }, { status: 404 });
+      const metadata = (client.metadata ?? {}) as { properties?: StoredProperty[] };
+      const current = Array.isArray(metadata.properties) ? metadata.properties : [];
+      const property = current.find(item => item.id === propertyId);
+      if (!property) return NextResponse.json({ ok: false, error: "Project not found." }, { status: 404 });
+      if (!property.localPath || !property.projectSlug) {
+        return NextResponse.json({ ok: false, error: "Provision this project locally before publishing it." }, { status: 400 });
+      }
 
-    // A repository this operation already created is adopted rather than
-    // re-created: the create call is the one step GitHub will not let us repeat.
-    const operationKey = clientProjectOperationKey("publish", session.agencyId, clientId, propertyId);
-    const resumable = resumableClientProjectOperation(operationKey);
-    const operation = await beginClientProjectOperation({
-      key: operationKey,
-      kind: "publish",
-      agencyId: session.agencyId,
-      clientId,
-      intent: { propertyId, projectSlug: property.projectSlug, localPath: property.localPath },
-    });
-
-    let repository;
-    try {
-      repository = await publishProjectToGitHub({
+      const requestHash = clientProjectRequestHash({
+        kind: "publish",
         agencyId: session.agencyId,
         clientId,
-        localPath: property.localPath,
-        projectSlug: property.projectSlug,
-        description: `${client.name}: ${property.label}`,
-        private: true,
-        adoptRepository: resumable?.repoFullName ? { fullName: resumable.repoFullName } : undefined,
-        onRepositoryCreated: created => operation.record({
-          repoOwner: created.owner,
-          repoFullName: created.fullName,
-          repoUrl: created.repoUrl,
-          cloneUrl: created.cloneUrl,
-        }).then(() => undefined),
+        request: { propertyId, projectSlug: property.projectSlug, localPath: property.localPath },
       });
-    } catch (error) {
-      await operation.fail(error);
-      throw error;
-    }
-    const changed: StoredProperty = {
-      ...property,
-      repoUrl: repository.repoUrl,
-      repositoryStatus: "connected",
-      updatedAt: Date.now(),
-    };
-    const properties = current.map(item => item.id === propertyId ? changed : item);
-    if (!updateClient(session.agencyId, clientId, { metadata: { properties } })) {
-      await operation.fail(new Error("Repository record could not be saved."));
-      return NextResponse.json({ ok: false, error: "Repository record could not be saved." }, { status: 500 });
-    }
-    logActivity({
-      agencyId: session.agencyId,
-      clientId,
-      actorUserId: session.userId,
-      actorEmail: session.email,
-      category: "tenant",
-      action: "client.project_published",
-      message: `Published "${property.label}" to a private GitHub repository.`,
-      metadata: { propertyId, repoUrl: repository.repoUrl },
+      // A repository this operation already created is adopted rather than
+      // re-created: the create call is the one step GitHub will not let us repeat.
+      const operationKey = clientProjectOperationKey("publish", session.agencyId, clientId, propertyId);
+      const resumable = resumableClientProjectOperation(operationKey);
+      const operation = await beginClientProjectOperation({
+        key: operationKey,
+        kind: "publish",
+        agencyId: session.agencyId,
+        clientId,
+        requestHash,
+        intent: { propertyId, projectSlug: property.projectSlug, localPath: property.localPath },
+      });
+
+      let repository;
+      try {
+        repository = await publishProjectToGitHub({
+          agencyId: session.agencyId,
+          clientId,
+          localPath: property.localPath,
+          projectSlug: property.projectSlug,
+          description: `${client.name}: ${property.label}`,
+          private: true,
+          adoptRepository: resumable?.repoFullName ? { fullName: resumable.repoFullName } : undefined,
+          recoveryToken: operation.operation.recoveryToken,
+          onRepositoryCreated: created => operation.record({
+            repoOwner: created.owner,
+            repoFullName: created.fullName,
+            repoUrl: created.repoUrl,
+            cloneUrl: created.cloneUrl,
+          }).then(() => undefined),
+        });
+      } catch (error) {
+        await operation.fail(error);
+        throw error;
+      }
+      // The provider call may be slow. Read the property array again under the
+      // client-project lock, then replace only this id.
+      await ensureHydrated({ fresh: true });
+      const freshClient = getClientForAgency(session.agencyId, clientId);
+      const freshMetadata = (freshClient?.metadata ?? {}) as { properties?: StoredProperty[] };
+      const freshProperties = Array.isArray(freshMetadata.properties) ? freshMetadata.properties : [];
+      const freshProperty = freshProperties.find(item => item.id === propertyId);
+      if (!freshClient || !freshProperty) {
+        await operation.fail(new Error("Repository record could not be saved."));
+        return NextResponse.json({ ok: false, error: "Repository record could not be saved." }, { status: 500 });
+      }
+      const changed: StoredProperty = {
+        ...freshProperty,
+        repoUrl: repository.repoUrl,
+        repositoryStatus: "connected",
+        updatedAt: Date.now(),
+      };
+      const properties = freshProperties.map(item => item.id === propertyId ? changed : item);
+      if (!updateClient(session.agencyId, clientId, { metadata: { properties } })) {
+        await operation.fail(new Error("Repository record could not be saved."));
+        return NextResponse.json({ ok: false, error: "Repository record could not be saved." }, { status: 500 });
+      }
+      logActivity({
+        agencyId: session.agencyId,
+        clientId,
+        actorUserId: session.userId,
+        actorEmail: session.email,
+        category: "tenant",
+        action: "client.project_published",
+        message: `Published "${property.label}" to a private GitHub repository.`,
+        metadata: { propertyId, repoUrl: repository.repoUrl },
+      });
+      await operation.succeed();
+      await flushPendingWrites();
+      return NextResponse.json({ ok: true, property: changed, properties, repository });
     });
-    await operation.succeed();
-    await flushPendingWrites();
-    return NextResponse.json({ ok: true, property: changed, properties, repository });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Repository publishing failed.";
+    if (error instanceof ClientProjectOperationConflictError || error instanceof ProductWorkspaceBusyError) {
+      return NextResponse.json({ ok: false, error: message }, { status: 409 });
+    }
     if (!(error instanceof Error) || error.name !== "AuthError") {
       return NextResponse.json({ ok: false, error: message }, { status: 400 });
     }

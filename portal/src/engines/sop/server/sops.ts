@@ -214,6 +214,23 @@ export function createFileSop(input: Omit<SopDocument, "createdAt" | "updatedAt"
   return sop;
 }
 
+/** Roll back only the SOP/audit created by a failed upload transaction. */
+export function rollbackFileSopUpload(agencyId: string, id: string): boolean {
+  let removed = false;
+  mutate(state => {
+    const sop = state.sops[id];
+    if (!sop || sop.agencyId !== agencyId) return;
+    delete state.sops[id];
+    state.activity = state.activity.filter(entry => !(
+      entry.agencyId === agencyId
+      && entry.action === "sop.uploaded"
+      && entry.metadata?.sopId === id
+    ));
+    removed = true;
+  });
+  return removed;
+}
+
 export function updateSop(agencyId: string, id: string, patch: { title?: string; content?: string; blocks?: BlockTreeJSON; category?: string; categories?: string[]; tags?: string[] }, actorUserId: string): SopDocument | null {
   const existing = getSop(agencyId, id);
   if (!existing) return null;

@@ -10,18 +10,13 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { UserPlus } from "lucide-react";
 import { PortalCustomFields, type PortalCustomFieldValues } from "@/components/forms/PortalCustomFields";
+import {
+  readFulfillmentPhasePresets,
+  type FulfillmentPhasePreset as PhasePreset,
+} from "@/lib/clients/fulfillmentPhaseRead";
 import { businessCalendarDate } from "@/lib/shared/formatDateTime";
 import type { PortalFormFieldDefinition } from "@/server/types";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
-
-interface PhasePreset {
-  id?: string;
-  stage: string;
-  label: string;
-  description?: string;
-  pluginPreset: readonly string[];
-  portalVariantId?: string;
-}
 
 interface FormState {
   entityType: "company" | "person";
@@ -130,6 +125,8 @@ export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS, cus
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<FormState>(() => defaultState(defaults));
   const [presets, setPresets] = useState<PhasePreset[]>([]);
+  const [presetReadState, setPresetReadState] = useState<"loading" | "ready" | "error">("loading");
+  const [presetReloadToken, setPresetReloadToken] = useState(0);
   const [busy, setBusy] = useState(false);
   // Modal keyboard contract: focus enters the form, Tab stays inside it,
   // Escape backs out (except mid-save), focus returns to the New client button.
@@ -143,31 +140,35 @@ export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS, cus
   useEffect(() => {
     if (!open) return;
     setState(defaultState(defaults));
-    setPresets([]);
     setError(null);
     setCustomFieldValues({});
     slugTouched.current = false;
     operationId.current = freshOperationId();
-    fetch("/api/portal/fulfillment/presets")
-      .then(async r => {
-        const data = await r.json().catch(() => null) as { presets?: PhasePreset[]; error?: string } | null;
-        if (!r.ok) throw new Error(data?.error ?? "Could not load lifecycle phases.");
-        return data;
-      })
-      .then(data => {
-        if (!data || !Array.isArray(data.presets) || data.presets.length === 0) {
-          throw new Error("No lifecycle phases are available. Add one in Fulfilment settings first.");
-        }
-        setPresets(data.presets);
-        setState(current => ({
-          ...current,
-          stage: data.presets!.some(preset => preset.stage === current.stage)
-            ? current.stage
-            : data.presets![0]!.stage,
-        }));
-      })
-      .catch(err => setError(err instanceof Error ? err.message : String(err)));
   }, [open, defaults]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setPresetReadState("loading");
+    void readFulfillmentPhasePresets().then(read => {
+      if (cancelled) return;
+      if (!read.available) {
+        // Keep the last confirmed catalogue in view, but never allow a client
+        // to be created from it until a retry proves it is current.
+        setPresetReadState("error");
+        return;
+      }
+      setPresets(read.data);
+      setPresetReadState("ready");
+      setState(current => ({
+        ...current,
+        stage: read.data.some(preset => preset.stage === current.stage)
+          ? current.stage
+          : read.data[0]?.stage ?? "",
+      }));
+    });
+    return () => { cancelled = true; };
+  }, [open, presetReloadToken]);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     operationId.current = freshOperationId();
@@ -183,6 +184,10 @@ export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS, cus
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (presetReadState !== "ready") {
+      setError("Retry the lifecycle catalogue before creating this client.");
+      return;
+    }
     const display = composedDisplayName(state);
     if (!display) {
       setError(state.entityType === "company" ? "Business name is required." : "Person name is required.");
@@ -275,7 +280,7 @@ export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS, cus
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => { setPresetReadState("loading"); setOpen(true); }}
         className={className ?? "inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white shadow hover:opacity-90"}
       >
         {commandDeck ? <><span className="grid size-8 shrink-0 place-items-center border border-[#68f5d0]/30 bg-[#68f5d0]/[0.07] text-[#68f5d0]"><UserPlus size={15} /></span><span><span className="block text-[8px] font-semibold uppercase text-[#68f5d0]/60">Order 04 · Commission</span><span className="mt-1 block text-sm font-semibold">New client</span></span></> : <><span aria-hidden="true">＋</span>New client</>}
@@ -297,6 +302,14 @@ export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS, cus
             <p className="mt-1 text-xs text-black/60">
               Start with the essentials. You can finish their portal, branding, billing, and workflow setup from the client record.
             </p>
+            {presetReadState !== "ready" || presets.length === 0 ? <div role={presetReadState === "error" ? "alert" : "status"} className={`mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-xs ${presetReadState === "error" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-black/10 bg-black/[0.02] text-black/55"}`}>
+              <span>{presetReadState === "loading"
+                ? presets.length ? "Refreshing starting phases. The last confirmed catalogue remains visible but client creation is locked." : "Loading starting phases…"
+                : presetReadState === "error"
+                  ? presets.length ? "Starting phases are unavailable. The last confirmed catalogue remains visible but may be stale." : "Starting phases could not be read. No empty catalogue has been assumed."
+                  : "No lifecycle phases are configured. Add one in Fulfilment settings before creating a client."}</span>
+              {presetReadState !== "loading" ? <button type="button" onClick={() => setPresetReloadToken(value => value + 1)} className="rounded-md border border-current/20 bg-white px-2.5 py-1 font-semibold hover:bg-black/[0.03]">Retry phases</button> : null}
+            </div> : null}
 
             <div className="mt-4 grid gap-3 text-sm">
               <div className="inline-flex w-fit rounded-md border border-black/10 bg-black/[0.025] p-0.5" aria-label="Client type">
@@ -426,8 +439,8 @@ export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS, cus
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="flex flex-col gap-1">
                       <span className="text-xs font-medium text-black/70">Starting stage</span>
-                      <select value={state.stage} onChange={(e) => update("stage", e.target.value)} disabled={busy || presets.length === 0} className="rounded-md border border-black/15 px-3 py-2">
-                        {presets.length === 0 ? <option value="">Loading phases…</option> : null}
+                      <select value={state.stage} onChange={(e) => update("stage", e.target.value)} disabled={busy || presetReadState !== "ready" || presets.length === 0} className="rounded-md border border-black/15 px-3 py-2">
+                        {presets.length === 0 ? <option value="">{presetReadState === "loading" ? "Loading phases…" : "No phases configured"}</option> : null}
                         {presets.map(p => <option key={p.stage} value={p.stage}>{p.label}</option>)}
                       </select>
                       {selectedPreset ? (
@@ -480,7 +493,7 @@ export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS, cus
                 className="rounded-md px-3 py-2 text-sm text-black/70 hover:bg-black/5">
                 Cancel
               </button>
-              <button type="submit" disabled={busy || presets.length === 0}
+              <button type="submit" disabled={busy || presetReadState !== "ready" || presets.length === 0}
                 className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white shadow hover:opacity-90 disabled:opacity-60">
                 {busy ? "Creating…" : "Create client"}
               </button>

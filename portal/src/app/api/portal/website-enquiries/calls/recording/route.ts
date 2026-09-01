@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
-import { PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
+import { attachStoredPrivateUpload, PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
 import { loadOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
 import { logActivity } from "@/server/activity";
@@ -61,10 +61,22 @@ export async function POST(request: Request) {
       storageProvider: stored.storageProvider,
       storageKey: stored.storageKey,
     };
-    const { error: updateError } = await supabase.from("brand_enquiries").update({
-      metadata: { ...metadata, inboxCalls: calls.map(item => item.id === callId ? { ...item, recording } : item) },
-    }).eq("id", enquiryId);
-    if (updateError) throw new Error(`Could not attach call recording: ${updateError.message}`);
+    const attached = await attachStoredPrivateUpload(stored, "inbox-call-recordings", async () => {
+      const { error: updateError } = await supabase.from("brand_enquiries").update({
+        metadata: { ...metadata, inboxCalls: calls.map(item => item.id === callId ? { ...item, recording } : item) },
+      }).eq("id", enquiryId);
+      if (updateError) throw new Error(`Could not attach call recording: ${updateError.message}`);
+      return recording;
+    });
+    if (!attached.ok) {
+      return NextResponse.json({
+        ok: false,
+        error: attached.message,
+        code: attached.compensated ? "upload_record_failed" : "upload_orphaned",
+        detail: attached.detail,
+        storageKey: attached.compensated ? undefined : attached.storageKey,
+      }, { status: 500 });
+    }
     logActivity({
       agencyId: session.agencyId,
       actorUserId: session.userId,
@@ -74,7 +86,7 @@ export async function POST(request: Request) {
       message: `Saved a consent-confirmed call recording for ${String(data.name)}.`,
       metadata: { enquiryId, callId, size: file.size, storageProvider: stored.storageProvider },
     });
-    return NextResponse.json({ ok: true, recording: { ...recording, storageProvider: undefined, storageKey: undefined } }, { status: 201 });
+    return NextResponse.json({ ok: true, recording: { ...attached.value, storageProvider: undefined, storageKey: undefined } }, { status: 201 });
   } catch (error) {
     if (error instanceof PrivateUploadStorageError) return NextResponse.json({ ok: false, error: error.message, code: error.code }, { status: 503 });
     try { return authErrorResponse(error); } catch {

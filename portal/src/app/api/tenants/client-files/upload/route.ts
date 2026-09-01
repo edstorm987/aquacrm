@@ -10,6 +10,13 @@ import { logActivity } from "@/server/activity";
 import type { ClientFileRef, FileCategory } from "../route";
 import { upsertClientFileLedgerEvent } from "@/lib/server/clients/clientRecordLedger";
 import { clientFileWorkspaceElementKey, requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
+import { resolveWorkspaceUploadReplay } from "@/lib/portal/productWorkspaceUploadBatch";
+import {
+  reconcileClientFileUpload,
+  rollbackClientFileUpload,
+  type ClientFileUploadDecision,
+} from "@/lib/clients/clientFileUploadTransaction";
+import { withClientMetadataLedgerTransaction } from "@/server/productWorkspaceCoordinator";
 
 export const runtime = "nodejs";
 
@@ -53,6 +60,17 @@ function makeId(): string {
   return `f_${crypto.randomBytes(8).toString("hex")}`;
 }
 
+async function sha256(file: File): Promise<string> {
+  const hash = crypto.createHash("sha256");
+  const reader = file.stream().getReader();
+  while (true) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    hash.update(chunk.value);
+  }
+  return hash.digest("hex");
+}
+
 export async function POST(req: Request) {
   await ensureHydrated();
   const form = await req.formData().catch(() => null);
@@ -61,6 +79,13 @@ export async function POST(req: Request) {
   const productId = typeof form?.get("productId") === "string" ? String(form.get("productId")).trim().slice(0, 120) : "";
   const workspacePageId = typeof form?.get("workspacePageId") === "string" ? String(form.get("workspacePageId")).trim().slice(0, 120) : "";
   const collectionId = typeof form?.get("collectionId") === "string" ? String(form.get("collectionId")).trim().slice(0, 120) : "";
+  const suppliedUploadKey = typeof form?.get("uploadKey") === "string"
+    ? String(form.get("uploadKey")).replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 240)
+    : "";
+  // Idempotency is deliberately restricted to the mounted workspace flow,
+  // where all three scope identifiers are present. Generic file-room uploads
+  // remain independent even when a caller happens to repeat a file name.
+  const uploadKey = productId && workspacePageId && collectionId ? suppliedUploadKey : "";
   const recordEntryId = typeof form?.get("recordEntryId") === "string" ? String(form.get("recordEntryId")).trim().slice(0, 160) : "";
   const customerVisible = form?.get("customerVisible") === "true";
   const file = form?.get("file");
@@ -104,6 +129,34 @@ export async function POST(req: Request) {
     }
   }
 
+  const meta = (client.metadata ?? {}) as { files?: ClientFileRef[] };
+  const files = Array.isArray(meta.files) ? [...meta.files] : [];
+  // The browser's name/size/mtime key is only a lookup hint. Bind an actual
+  // replay to the bytes observed by this server so a same-metadata file cannot
+  // be substituted accidentally or maliciously.
+  const contentSha256 = uploadKey ? await sha256(file) : undefined;
+  const replayInput = {
+    name: file.name.trim().slice(0, 180),
+    size: file.size,
+    contentType: file.type,
+    contentSha256,
+    productId: productId || undefined,
+    workspacePageId: workspacePageId || undefined,
+    collectionId: collectionId || undefined,
+    uploadKey: uploadKey || undefined,
+  };
+  const replay = resolveWorkspaceUploadReplay(files, replayInput);
+  if (replay.status === "conflict") {
+    return NextResponse.json({
+      ok: false,
+      code: "upload_key_conflict",
+      error: "This retry key already belongs to a different file. Choose the files again to start a new upload.",
+    }, { status: 409 });
+  }
+  if (replay.status === "replay") {
+    return NextResponse.json({ ok: true, file: replay.file, files, replayed: true });
+  }
+
   const id = makeId();
   const filename = safeName(file.name);
   const pathname = `clients/${session.agencyId}/${clientId}/${id}-${filename}`;
@@ -124,8 +177,6 @@ export async function POST(req: Request) {
     throw error;
   }
 
-  const meta = (client.metadata ?? {}) as { files?: ClientFileRef[] };
-  const files = Array.isArray(meta.files) ? [...meta.files] : [];
   const ref: ClientFileRef = {
     id,
     name: file.name.trim().slice(0, 180),
@@ -135,23 +186,82 @@ export async function POST(req: Request) {
     uploadedAt: Date.now(),
     size: file.size,
     contentType: file.type,
+    contentSha256,
     storageProvider: stored.storageProvider,
     storageKey: stored.storageKey,
     productId: productId || undefined,
     workspacePageId: workspacePageId || undefined,
     collectionId: collectionId || undefined,
+    uploadKey: uploadKey || undefined,
+    workspaceAttachmentState: collectionId ? "pending" : undefined,
     recordEntryId: recordEntryId || undefined,
     customerVisible: session.role === "end-customer" || customerVisible || (form?.get("customerVisible") === null && category === "recording"),
   };
-  files.unshift(ref);
-  // The binary is already stored; if nothing ends up referencing it, remove it
-  // again rather than leaving a billed, unreachable orphan.
-  const attached = await attachStoredPrivateUpload(stored, "client-uploads", () => {
-    const result = updateClient(session.agencyId, clientId, { metadata: { files } });
-    if (!result) throw new Error("file record could not be saved");
-    return result;
-  });
+  type LosingDecision = Extract<ClientFileUploadDecision<ClientFileRef>, { status: "replay" | "conflict" }>;
+  const losingDecision: { current: LosingDecision | null } = { current: null };
+  // Correctness lives AFTER provider I/O, inside a fresh per-client lock. The
+  // request-start replay check above only avoids an unnecessary upload; it may
+  // be stale by the time `storePrivateUpload` returns.
+  const attached = await attachStoredPrivateUpload(
+    stored,
+    "client-uploads",
+    () => withClientMetadataLedgerTransaction({
+      agencyId: session.agencyId,
+      clientId,
+      ledger: "files",
+    }, () => {
+      const latestClient = getClientForAgency(session.agencyId, clientId);
+      if (!latestClient) throw new Error("client could not be reloaded after binary storage");
+      const latestFiles = Array.isArray(latestClient.metadata?.files)
+        ? [...latestClient.metadata.files] as ClientFileRef[]
+        : [];
+      const decision = reconcileClientFileUpload(latestFiles, ref, replayInput);
+      if (decision.status !== "attach") {
+        losingDecision.current = decision;
+        // The helper compensates ONLY this request's uniquely-keyed binary.
+        // The winning durable row and its object are never passed to delete.
+        throw new Error(`workspace_upload_${decision.status}`);
+      }
+      const result = updateClient(session.agencyId, clientId, { metadata: { files: decision.files } });
+      if (!result) throw new Error("file record could not be saved");
+      return { client: result, files: decision.files };
+    }),
+    {
+      // A losing replay/conflict never inserted this id. A failed winner is
+      // rolled back in ANOTHER fresh lock by subtracting only its immutable id;
+      // no stale request-start array is ever restored.
+      rollbackOwner: async () => {
+        if (losingDecision.current) return;
+        await withClientMetadataLedgerTransaction({
+          agencyId: session.agencyId,
+          clientId,
+          ledger: "files",
+        }, () => {
+          const latestClient = getClientForAgency(session.agencyId, clientId);
+          if (!latestClient) throw new Error("file record could not be reloaded for rollback");
+          const latestFiles = Array.isArray(latestClient.metadata?.files)
+            ? [...latestClient.metadata.files] as ClientFileRef[]
+            : [];
+          const rolledBack = rollbackClientFileUpload(latestFiles, ref.id);
+          if (!updateClient(session.agencyId, clientId, { metadata: { files: rolledBack } })) {
+            throw new Error("file record rollback failed");
+          }
+        });
+      },
+    },
+  );
   if (!attached.ok) {
+    const lost = losingDecision.current;
+    if (lost && attached.compensated) {
+      if (lost.status === "replay") {
+        return NextResponse.json({ ok: true, file: lost.file, files: lost.files, replayed: true });
+      }
+      return NextResponse.json({
+        ok: false,
+        code: "upload_key_conflict",
+        error: "This retry key already belongs to a different file. Choose the files again to start a new upload.",
+      }, { status: 409 });
+    }
     return NextResponse.json({
       ok: false,
       error: attached.message,
@@ -160,6 +270,7 @@ export async function POST(req: Request) {
       storageKey: attached.compensated ? undefined : attached.storageKey,
     }, { status: 500 });
   }
+  const committedFiles = attached.value.files;
   const ledgerEvent = upsertClientFileLedgerEvent(session.agencyId, clientId, ref);
 
   logActivity({
@@ -175,5 +286,5 @@ export async function POST(req: Request) {
 
   await flushPendingWrites();
 
-  return NextResponse.json({ ok: true, file: ref, ledgerEvent, files });
+  return NextResponse.json({ ok: true, file: ref, ledgerEvent, files: committedFiles });
 }

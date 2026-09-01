@@ -9,6 +9,11 @@ import { cleanClientPaymentPlans } from "@/lib/clients/clientPaymentPlans";
 import { cleanClientRecordEntries } from "@/lib/clients/clientRelationshipRecord";
 import { removeClientRecordLedgerEvent, upsertClientFileLedgerEvent } from "@/lib/server/clients/clientRecordLedger";
 import { clientFileWorkspaceElementKey, requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
+import {
+  beginClientFileDeletion,
+  failClientFileDeletion,
+  finishClientFileDeletion,
+} from "@/lib/clients/clientFileDeletion";
 
 export const runtime = "nodejs";
 
@@ -24,11 +29,17 @@ export interface ClientFileRef {
   uploadedAt: number;
   size?: number;
   contentType?: string;
+  /** SHA-256 calculated by the server before storage; binds retry to bytes. */
+  contentSha256?: string;
   storageProvider?: "supabase" | "vercel-blob" | "local";
   storageKey?: string;
   productId?: string;
   workspacePageId?: string;
   collectionId?: string;
+  /** Stable, collection-scoped retry identity for mounted batch uploads. */
+  uploadKey?: string;
+  /** A workspace upload is complete only after its collection asset converges. */
+  workspaceAttachmentState?: "pending" | "attached";
   recordEntryId?: string;
   customerVisible?: boolean;
   /**
@@ -37,8 +48,9 @@ export interface ClientFileRef {
    * can be retried, rather than vanishing from the portal while the object
    * lives on in storage.
    */
-  deleteState?: "delete-failed";
+  deleteState?: "deleting" | "delete-failed";
   deleteError?: string;
+  deleteStartedAt?: number;
   deleteFailedAt?: number;
 }
 
@@ -179,26 +191,70 @@ export async function POST(req: Request) {
 
   if (body.action === "delete") {
     if (!body.fileId) return NextResponse.json({ ok: false, error: "fileId required" }, { status: 400 });
-    const target = files.find(file => file.id === body.fileId);
+    // A file can appear after the request's first snapshot. Authorise the exact
+    // current descriptor before acting on it; otherwise a just-added commercial
+    // or fulfilment file could bypass its narrower element gate.
+    const accessClient = getClientForAgency(session.agencyId, body.clientId);
+    const accessFiles = Array.isArray(accessClient?.metadata?.files)
+      ? accessClient.metadata.files as ClientFileRef[]
+      : [];
+    const accessTarget = accessFiles.find(file => file.id === body.fileId);
+    if (!accessTarget) return NextResponse.json({ ok: false, error: "file not found" }, { status: 404 });
+    try {
+      await requireCurrentClientWorkspaceElementAccess(
+        body.clientId,
+        clientFileWorkspaceElementKey(accessTarget),
+        "use",
+      );
+    } catch (error) {
+      return authErrorResponse(error);
+    }
+    // The element-access check above awaited policy resolution. Re-read now so
+    // an upload or file update that landed during that wait is never replaced
+    // by the older `files` snapshot captured at the start of the request.
+    const currentClient = getClientForAgency(session.agencyId, body.clientId);
+    if (!currentClient) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+    const currentFiles = Array.isArray(currentClient.metadata?.files)
+      ? [...currentClient.metadata.files] as ClientFileRef[]
+      : [];
+    const target = currentFiles.find(file => file.id === body.fileId);
     if (session.role === "end-customer" && target?.uploadedBy !== session.email) {
       return NextResponse.json({ ok: false, error: "customers can only remove their own files" }, { status: 403 });
     }
-    const before = files.length;
-    const next = files.filter(f => f.id !== body.fileId);
-    if (next.length === before) return NextResponse.json({ ok: false, error: "file not found" }, { status: 404 });
-    // Remove the binary FIRST and only drop the record when that converged.
-    // A swallowed provider error used to answer "removed" while the object was
-    // still stored and its only reference had just been deleted.
+    if (!target) return NextResponse.json({ ok: false, error: "file not found" }, { status: 404 });
+    // Persist intent BEFORE touching storage. If that write is refused the
+    // binary remains intact; if the request dies after the provider delete, a
+    // reload still exposes a `deleting` record whose retry can converge rather
+    // than an ordinary-looking link to a vanished object.
+    const deleting = beginClientFileDeletion(currentFiles, body.fileId);
+    const marked = updateClient(session.agencyId, body.clientId, { metadata: { files: deleting } });
+    if (!marked) return NextResponse.json({ ok: false, error: "file deletion could not be started" }, { status: 500 });
+    await flushPendingWrites();
+
     const removal = await deletePrivateUpload({
       storageProvider: target?.storageProvider,
       storageKey: target?.storageKey,
       localDirectory: "client-uploads",
     });
     if (!removal.ok) {
-      const retained = files.map(file => file.id === body.fileId
-        ? { ...file, deleteState: "delete-failed" as const, deleteError: removal.error, deleteFailedAt: Date.now() }
-        : file);
-      updateClient(session.agencyId, body.clientId, { metadata: { files: retained } });
+      // Provider I/O yielded to every other request. Merge the failure marker
+      // into the latest collection instead of restoring the pre-provider array
+      // and erasing a concurrent upload, visibility change or collection edit.
+      const latestClient = getClientForAgency(session.agencyId, body.clientId);
+      if (!latestClient) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+      const latestFiles = Array.isArray(latestClient.metadata?.files)
+        ? [...latestClient.metadata.files] as ClientFileRef[]
+        : [];
+      const retained = failClientFileDeletion(latestFiles, body.fileId, removal.error);
+      if (!updateClient(session.agencyId, body.clientId, { metadata: { files: retained } })) {
+        return NextResponse.json({
+          ok: false,
+          code: "storage_delete_failed",
+          error: "The stored file could not be removed and its retry state could not be saved.",
+          detail: removal.error,
+          storageKey: target.storageKey,
+        }, { status: 500 });
+      }
       logActivity({
         agencyId: session.agencyId,
         clientId: client.id,
@@ -218,6 +274,16 @@ export async function POST(req: Request) {
         files: retained,
       }, { status: 502 });
     }
+    // Only now remove the owning record. The response is not successful until
+    // this mutation and its ledger/activity companions are durably flushed.
+    const latestClient = getClientForAgency(session.agencyId, body.clientId);
+    if (!latestClient) {
+      return NextResponse.json({ ok: false, error: "The binary was removed, but the client record could not be reloaded for cleanup." }, { status: 500 });
+    }
+    const latestFiles = Array.isArray(latestClient.metadata?.files)
+      ? [...latestClient.metadata.files] as ClientFileRef[]
+      : [];
+    const next = finishClientFileDeletion(latestFiles, body.fileId);
     const updated = updateClient(session.agencyId, body.clientId, { metadata: { files: next } });
     if (!updated) return NextResponse.json({ ok: false, error: "update failed" }, { status: 500 });
     removeClientRecordLedgerEvent(session.agencyId, body.clientId, "file", body.fileId);

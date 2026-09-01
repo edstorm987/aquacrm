@@ -257,9 +257,9 @@ export const CAUSE_RULINGS: Record<string, CauseRuling> = {
     category: "sweep-on-read", verdict: "open",
     note: "Now reaches `listExternalAssistantActionProposals` → `releaseExpiredParks`, which returns parked assistant proposals to pending at their due time. Guarded by `if (!expired.length) return`, so it writes only when something has actually expired — a bounded lazy expiry, unlike the team-channel creation this chain used to hit (fixed 2026-08-27). Whether a park should release when nobody is looking is a product question, so it is left rather than moved unilaterally.",
   },
-  resolutionExplainFor: {
+  resolutionEvidenceFor: {
     category: "sweep-on-read", verdict: "open",
-    note: "`/api/portal/attention/plan` reaches `listOperationalAlerts`, so an EXPLAIN endpoint can release expired proposal parks. Same root as that cause.",
+    note: "`/api/portal/attention/plan` reaches `listOperationalAlertsForResolution` through the generic evidence builder, so reading the records behind an alert can release expired proposal parks. Same root as that cause.",
   },
   getCachedBusinessIssueRadar: {
     category: "sweep-on-read", verdict: "open",
@@ -303,7 +303,7 @@ export const DECLARED_READ_ROUTES: DeclaredEntry[] = [
   { path: "/api/cron/inbox", cause: "processInboxWebhookQueue" },
   { path: "/api/cron/radar-probes", cause: "runRadarInfraSweep" },
   { path: "/api/internal/sweep", cause: "processAutomationSweep" },
-  { path: "/api/portal/attention/plan", cause: "resolutionExplainFor" },
+  { path: "/api/portal/attention/plan", cause: "resolutionEvidenceFor" },
   { path: "/api/portal/calendar/google/callback", cause: "connectGoogleCalendarAccount" },
   // Opening an enquiry marks it seen. A GET that writes, deliberately: the
   // alternative is a second round trip whose only job is to say "yes, I really

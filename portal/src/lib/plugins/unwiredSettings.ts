@@ -84,6 +84,14 @@
 // reported unwired") used to be anchored on this field, i.e. on the comment. It
 // is now anchored on `affiliates/defaultPayoutMethod`, which is read by real
 // code in `affiliates/src/api/handlers.ts` when a payout is created.
+//
+// ─── 2026-09-01: Marketing becomes a complete settings family ──────────
+//
+// Agency Marketing now retains only `defaultCurrency`, whose saved value is
+// consumed when a campaign omits an explicit currency. Its former
+// `defaultLeadAssignee` and `autoSendOnTemplate` declarations were removed:
+// neither lead creation nor template delivery read them. The registered
+// manifests now declare 47 fields; 20 are consumed and 27 remain named below.
 
 export interface UnwiredSetting {
   pluginId: string;
@@ -106,8 +114,6 @@ export const UNWIRED_SETTINGS: readonly UnwiredSetting[] = [
   { pluginId: "agency-hr", fieldId: "leaveAutoRestoreDays" },
   { pluginId: "agency-hr", fieldId: "defaultPtoDaysPerYear" },
   { pluginId: "agency-hr", fieldId: "canStaffEdit" },
-  { pluginId: "agency-marketing", fieldId: "defaultLeadAssignee" },
-  { pluginId: "agency-marketing", fieldId: "autoSendOnTemplate" },
   { pluginId: "client-crm", fieldId: "autoCreateOnSignup" },
   { pluginId: "client-crm", fieldId: "customAttributeSchema" },
   { pluginId: "ecommerce", fieldId: "stripePublishableKey" },

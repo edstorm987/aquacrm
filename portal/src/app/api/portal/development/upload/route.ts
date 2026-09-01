@@ -4,8 +4,8 @@ import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { attachStoredPrivateUpload, PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
-import { createDevelopmentResource, publicDevelopmentResource } from "@/server/developmentToolkit";
-import { ensureHydrated } from "@/server/storage";
+import { createDevelopmentResource, publicDevelopmentResource, rollbackDevelopmentResourceUpload } from "@/server/developmentToolkit";
+import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import type { DevelopmentResourceKind } from "@/server/types";
 
 export const runtime = "nodejs";
@@ -42,16 +42,24 @@ export async function POST(request: Request) {
     const kind = String(form?.get("kind") ?? "inspiration-pack") as DevelopmentResourceKind;
     const tags = String(form?.get("tags") ?? "").split(",").map(value => value.trim()).filter(Boolean);
     const workflowStageIds = String(form?.get("workflowStageIds") ?? "").split(",").map(value => value.trim()).filter(Boolean);
-    const attached = await attachStoredPrivateUpload(stored, "development-uploads", () => createDevelopmentResource(session.agencyId, {
-      kind,
-      title: String(form?.get("title") ?? "").trim() || file.name.replace(/\.[^.]+$/, ""),
-      description: String(form?.get("description") ?? ""),
-      category: String(form?.get("category") ?? ""),
-      tags,
-      workflowStageIds,
-      visibility: form?.get("visibility") === "private" ? "private" : "team",
-      file: { fileName: file.name, contentType: file.type, size: file.size, storageProvider: stored.storageProvider, storageKey: stored.storageKey },
-    }, session.userId));
+    const attached = await attachStoredPrivateUpload(
+      stored,
+      "development-uploads",
+      () => createDevelopmentResource(session.agencyId, {
+        kind,
+        title: String(form?.get("title") ?? "").trim() || file.name.replace(/\.[^.]+$/, ""),
+        description: String(form?.get("description") ?? ""),
+        category: String(form?.get("category") ?? ""),
+        tags,
+        workflowStageIds,
+        visibility: form?.get("visibility") === "private" ? "private" : "team",
+        file: { fileName: file.name, contentType: file.type, size: file.size, storageProvider: stored.storageProvider, storageKey: stored.storageKey },
+      }, session.userId),
+      {
+        persist: flushPendingWrites,
+        rollbackOwner: () => { rollbackDevelopmentResourceUpload(session.agencyId, stored.storageKey); },
+      },
+    );
     if (!attached.ok) {
       return NextResponse.json({
         ok: false,

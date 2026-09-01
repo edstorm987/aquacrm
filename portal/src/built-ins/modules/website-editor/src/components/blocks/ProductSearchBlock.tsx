@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { BlockRenderProps } from "../blockRegistry";
 import { blockStylesToCss } from "../blockStyles";
 import { formatPrice, type CatalogProduct } from "../useProducts";
+import { ecommerceApiUrl } from "../storefrontCommerceScope";
 
 // Live storefront search. Calls /api/portal/products?q=… on each keystroke
 // (debounced 200ms) and renders an autocomplete dropdown of matches.
@@ -26,7 +27,7 @@ export default function ProductSearchBlock({ block, editorMode }: BlockRenderPro
     if (!q.trim()) { setResults([]); return; }
     timer.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/portal/ecommerce/products?q=${encodeURIComponent(q)}&limit=12`, {
+        const res = await fetch(ecommerceApiUrl(`/api/portal/ecommerce/products?q=${encodeURIComponent(q)}&limit=12`), {
           cache: "no-store",
           credentials: "include",
         });

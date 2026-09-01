@@ -127,6 +127,24 @@ export function createDevelopmentResource(
   return resource;
 }
 
+/** Remove the owner row/audit when its uploaded binary could not be committed. */
+export function rollbackDevelopmentResourceUpload(agencyId: string, storageKey: string): boolean {
+  let removedId: string | undefined;
+  mutate(state => {
+    const resource = Object.values(state.developmentResources).find(item =>
+      item.agencyId === agencyId && item.file?.storageKey === storageKey);
+    if (!resource) return;
+    removedId = resource.id;
+    delete state.developmentResources[resource.id];
+    state.activity = state.activity.filter(entry => !(
+      entry.agencyId === agencyId
+      && entry.action === "development.resource_created"
+      && entry.metadata?.resourceId === resource.id
+    ));
+  });
+  return Boolean(removedId);
+}
+
 export function updateDevelopmentResource(
   agencyId: string,
   resourceId: string,

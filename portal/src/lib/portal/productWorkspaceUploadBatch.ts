@@ -23,7 +23,83 @@ export interface WorkspaceUploadCandidate {
  * duplicating the files that already converged.
  */
 export function workspaceUploadFileKey(file: WorkspaceUploadCandidate): string {
-  return `${file.name}:${file.size}:${file.lastModified ?? 0}`;
+  return `${file.name.trim().slice(0, 180)}:${file.size}:${file.lastModified ?? 0}`;
+}
+
+export interface WorkspaceUploadRecord {
+  id: string;
+  name: string;
+  size?: number;
+  contentType?: string;
+  /** Server-computed digest; browser metadata alone is never replay proof. */
+  contentSha256?: string;
+  productId?: string;
+  workspacePageId?: string;
+  collectionId?: string;
+  uploadKey?: string;
+  workspaceAttachmentState?: "pending" | "attached";
+}
+
+export interface WorkspaceUploadReplayCandidate {
+  name: string;
+  size: number;
+  contentType: string;
+  contentSha256?: string;
+  productId?: string;
+  workspacePageId?: string;
+  collectionId?: string;
+  uploadKey?: string;
+}
+
+export type WorkspaceUploadReplay<TRecord extends WorkspaceUploadRecord> =
+  | { status: "new" }
+  | { status: "replay"; file: TRecord }
+  | { status: "conflict"; file: TRecord };
+
+/**
+ * Resolve a retried upload against durable client-file records. The key is
+ * scoped to the exact workspace collection, and the visible file identity is
+ * rechecked so a forged/colliding key cannot silently substitute a different
+ * binary.
+ */
+export function resolveWorkspaceUploadReplay<TRecord extends WorkspaceUploadRecord>(
+  files: readonly TRecord[],
+  candidate: WorkspaceUploadReplayCandidate,
+): WorkspaceUploadReplay<TRecord> {
+  const uploadKey = candidate.uploadKey?.trim();
+  if (!uploadKey) return { status: "new" };
+  const sameScope = files.find(file =>
+    file.uploadKey === uploadKey
+    && (file.productId ?? "") === (candidate.productId ?? "")
+    && (file.workspacePageId ?? "") === (candidate.workspacePageId ?? "")
+    && (file.collectionId ?? "") === (candidate.collectionId ?? ""));
+  if (!sameScope) return { status: "new" };
+  if (
+    sameScope.name !== candidate.name
+    || sameScope.size !== candidate.size
+    || (sameScope.contentType ?? "") !== candidate.contentType
+    || !candidate.contentSha256
+    || !sameScope.contentSha256
+    || sameScope.contentSha256 !== candidate.contentSha256
+  ) return { status: "conflict", file: sameScope };
+  return { status: "replay", file: sameScope };
+}
+
+/**
+ * Rebuild retry progress after a reload. New records carry an explicit
+ * attachment state; legacy rows are accepted only when the workspace itself
+ * contains their file id, which is the durable proof that both halves landed.
+ */
+export function workspaceUploadCompletedKeys(
+  files: readonly WorkspaceUploadRecord[],
+  collectionId: string,
+  attachedFileIds: ReadonlySet<string>,
+): Set<string> {
+  return new Set(files.flatMap(file => {
+    if (!file.uploadKey || file.collectionId !== collectionId) return [];
+    const attached = file.workspaceAttachmentState === "attached" || attachedFileIds.has(file.id);
+    return attached ? [file.uploadKey] : [];
+  }));
 }
 
 export interface WorkspaceUploadBatchTransport<TFile, TWorkspace> {
@@ -63,13 +139,18 @@ export async function runWorkspaceUploadBatch<TFile, TWorkspace>(
   options: { limit?: number; alreadyCompleted?: ReadonlySet<string> } = {},
 ): Promise<WorkspaceUploadBatchOutcome<TFile, TWorkspace>> {
   const limit = options.limit ?? WORKSPACE_UPLOAD_BATCH_LIMIT;
-  const alreadyCompleted = options.alreadyCompleted ?? new Set<string>();
-  const accepted = selection.slice(0, limit);
+  const alreadyCompleted = new Set(options.alreadyCompleted ?? []);
+  // A completed file does not consume a slot on a retry. This matters after a
+  // reload: 20 files may already have converged, and the next submission must
+  // still be able to process 30 outstanding files rather than only the first
+  // ten that happen to follow them in the original selection.
+  const outstanding = selection.filter(file => !alreadyCompleted.has(workspaceUploadFileKey(file)));
+  const accepted = outstanding.slice(0, limit);
   const outcome: WorkspaceUploadBatchOutcome<TFile, TWorkspace> = {
     limit,
     selected: selection.length,
-    declined: Math.max(0, selection.length - accepted.length),
-    skipped: 0,
+    declined: Math.max(0, outstanding.length - accepted.length),
+    skipped: selection.length - outstanding.length,
     attempted: 0,
     completed: [],
     workspace,
@@ -86,6 +167,7 @@ export async function runWorkspaceUploadBatch<TFile, TWorkspace>(
       const uploaded = await transport.upload(file);
       outcome.workspace = await transport.attach(uploaded, outcome.workspace);
       outcome.completed.unshift(uploaded);
+      alreadyCompleted.add(key);
       transport.onFileCommitted?.(uploaded, outcome.workspace, key);
     } catch (error) {
       outcome.failedFile = file.name;

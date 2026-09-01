@@ -547,9 +547,20 @@ describe("plugin API routes — surface invariants no manifest can break", () =>
     // the note above requires: **zero open routes**, unchanged. Counts
     // verified by enumeration, not by adding 17 to the old number:
     // total 333, undeclared 136, public 7.
-    assert.equal(total, 333, `the registry now ships ${total} API routes, not 333 — re-run the enumeration`);
-    assert.equal(undeclared, 136, `${undeclared} routes declare no roles, not 136 — re-run the enumeration`);
-    assert.equal(publicRoutes, 7, `${publicRoutes} routes are public, not 7`);
+    //
+    // 2026-09-01: 333 → 338. Five routes form ecommerce's explicit public
+    // storefront facade: published product list/detail, server quote, checkout,
+    // and opaque-session order lookup. Each is `public: true`; the separate
+    // public-checkout contract proves an anonymous caller must still name one
+    // exact enabled agency/client install and cannot reach the operator routes.
+    // The already-counted Stripe webhook also became explicitly public because
+    // Stripe has no Aqua session. Thus undeclared rises by only the five new
+    // routes (136 → 141), while public rises by six (7 → 13).
+    // The ceiling loop below was re-run and still reports zero open non-public
+    // routes; enumeration gives total 338, undeclared 141, public 13.
+    assert.equal(total, 338, `the registry now ships ${total} API routes, not 338 — re-run the enumeration`);
+    assert.equal(undeclared, 141, `${undeclared} routes declare no roles, not 141 — re-run the enumeration`);
+    assert.equal(publicRoutes, 13, `${publicRoutes} routes are public, not 13`);
 
     // …and none of them is open. This is the whole point: the count can stay
     // wherever it lands for ever, because the fallback is the ceiling and not
@@ -727,12 +738,29 @@ describe("the client record workspace — a real session for every role", () => 
     assert.match(sitesSource, /redirect\(`\/portal\/clients\/\$\{encodeURIComponent\(clientId\)\}\/edit-website`\)/,
       "the legacy Sites route stopped redirecting safely into the canonical editor");
 
+    // Retired browser-local Website Editor routes are redirects only. They
+    // inherit the client layout proven above, retain the exact client id and
+    // land inside the canonical tenant-scoped editor rather than mounting a
+    // second ungoverned data model.
+    const retiredRedirects = [
+      ["pages/[pageId]/page.tsx", /redirect\(`\/portal\/clients\/\$\{encodeURIComponent\(clientId\)\}\/pages`\)/],
+      ["popups/page.tsx", /redirect\(`\/portal\/clients\/\$\{encodeURIComponent\(clientId\)\}\/editor`\)/],
+      ["sections/page.tsx", /redirect\(`\/portal\/clients\/\$\{encodeURIComponent\(clientId\)\}\/editor`\)/],
+    ] as const;
+    for (const [file, expectedRedirect] of retiredRedirects) {
+      const source = await import("node:fs/promises").then(fs =>
+        fs.readFile(new URL(`../src/app/portal/clients/[clientId]/${file}`, import.meta.url), "utf8"));
+      assert.match(source, expectedRedirect, `${file} stopped redirecting within the same gated client workspace`);
+      assert.doesNotMatch(source, /localStorage|sessionStorage|window\./,
+        `${file} revived browser-local workspace state instead of remaining a redirect`);
+    }
+
     // Nothing else lives under this folder. If a route is added, it has to
     // answer this question too — this list failing is the reminder.
     const { readdir } = await import("node:fs/promises");
     const entries = await readdir(new URL("../src/app/portal/clients/[clientId]/", import.meta.url), { withFileTypes: true });
     const routeDirs = entries.filter(e => e.isDirectory()).map(e => e.name).sort();
-    assert.deepEqual(routeDirs, ["[...rest]", "settings", "sites"],
+    assert.deepEqual(routeDirs, ["[...rest]", "pages", "popups", "sections", "settings", "sites"],
       "a new route folder appeared under /portal/clients/[clientId]/ — gate it and add it here");
   });
 });

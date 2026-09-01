@@ -114,6 +114,10 @@ const manifest: AquaPlugin = {
 
   api: ROUTES,
 
+  // Keep this schema to values the runtime actually consumes. The former
+  // `defaultLeadAssignee` and `autoSendOnTemplate` controls only persisted a
+  // value; neither lead creation nor template delivery read them. Removing
+  // those declarations is more truthful than offering a successful no-op.
   settings: {
     groups: [
       {
@@ -130,26 +134,6 @@ const manifest: AquaPlugin = {
               { value: "gbp", label: "GBP" },
               { value: "eur", label: "EUR" },
             ],
-          },
-          {
-            id: "defaultLeadAssignee",
-            label: "Default lead assignee (agency-HR Staff id)",
-            type: "text",
-            placeholder: "stf_…",
-            helpText: "When a new lead lands without an explicit assignee, route it here.",
-          },
-        ],
-      },
-      {
-        id: "automation",
-        label: "Automation",
-        fields: [
-          {
-            id: "autoSendOnTemplate",
-            label: "Send template via integrated provider",
-            type: "boolean",
-            default: false,
-            helpText: "Future round — value stored, no provider wired in v1.",
           },
         ],
       },

@@ -260,12 +260,16 @@ _Queued — starts when a slot frees._
 
 Unverified: dark mode, Inspector, the finance UIs (pay-by-card, close-the-deal, AR/AP aging), the connect-flow code step, the enquiry card on real data, the KPI custom builder, and the deliberate dirty-state Editor transition matrix recorded in issue #19. Logs is no longer in this list: it settled at 1280px and 390×844 without overflow during the speed phase. Paused-inner-Day is also closed: mounted Day retained paused/not-scanned/unknown truth with no false-clear labels, and Battle settled after navigation. Page SEO/Element Insert response ordering and mode/surface/lifecycle/hide/split/refresh source guards are now regression-covered, and the live editor renders; the remaining matrix must intentionally dirty and discard each state without saving. The current production build is green. Browser isolation is available through `npm run sandbox:fork`, which gives each verifier its own state file, build dir and port.
 
-### Measure deployed performance and replace scan-query replay
+### Measure deployed geography and provider performance
 **Id:** deployed-performance-and-scan-result-token · **Status:** planned · **Size:** S · **Added:** 2026-08-27 · **Source:** speed-acceptance
 **Files:** scripts/benchmark-production.mjs, src/app/portal/agency/_CommandCentreClient.tsx, src/app/portal/agency/page.tsx, src/lib/server/radar/businessIssueRadar.ts
-**Why:** The local production benchmark is green, but it deliberately excludes deployment geography, CDN/edge behavior and real-provider latency. Completed-scan station navigation also carries scan=1, preserving the result but allowing another full scan on navigation.
+**Why:** The local production benchmark is green, but it deliberately excludes deployment geography, CDN/edge behavior and real-provider latency.
 
-Run the same route/payload budgets from representative deployed regions, separate edge/origin/provider clocks and retain the local benchmark as the control. Replace the replayable query flag with a short-lived server-issued scan-result handle or equivalent safe snapshot token; prove Day→Battle→Library/Logs-style navigation preserves one completed result without rerunning, while paused/no-result stays unknown and a completed real zero remains zero.
+The scan-result half is resolved under #186: a protected POST issues one short-lived,
+revision- and element-access-bound shared result handle; Day→Battle reuses it without
+rerunning, and missing/unavailable state fails closed to paused. Run the remaining
+route/payload budgets from representative deployed regions, separate edge/origin/
+provider clocks and retain the local benchmark as the control.
 
 ### Repair the website-editor route contract
 **Id:** repair-website-editor-route-contract · **Status:** building · **Size:** M · **Added:** 2026-08-24 · **Source:** ultra-review

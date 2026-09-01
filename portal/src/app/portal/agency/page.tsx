@@ -15,7 +15,7 @@ import { Suspense } from "react";
 import type { ReactNode } from "react";
 import { ensureHydrated } from "@/server/storage";
 import { requireRole } from "@/lib/server/auth/auth";
-import { AGENCY_ROLES } from "@/server/types";
+import { AGENCY_ROLES, type ServerUser } from "@/server/types";
 import { getAgency, listClients } from "@/server/tenants";
 import { listPipelines, pipelineCardCounts, seedDefaultPipelines } from "@/server/pipelines";
 import { getUser } from "@/server/users";
@@ -29,10 +29,11 @@ import { DashboardCommandCenter, type DashboardSignal } from "./_DashboardComman
 import { inspectRadarEvidence } from "@/engines/data/server/radar/radarEvidenceVault";
 import type { OperationalAlert } from "@/lib/server/inbox/operationalAlerts";
 import { performanceModePreference } from "@/lib/server/performanceMode";
-import { shouldRunHeavyPanels, normalizeScanFlag, buildPausedBusinessRadar, buildPausedIntelligenceSnapshot } from "./commandPerformance";
+import { commandScanLoadPlan, buildPausedBusinessRadar, buildPausedIntelligenceSnapshot } from "./commandPerformance";
 import { buildBusinessRecommendedActions } from "@/lib/intelligence/businessRecommendedActions";
 import type { BusinessIssueRadar } from "@/engines/data/radar/businessRadar";
 import type { BrandPortfolioSnapshot } from "@/lib/brands/brandPortfolio";
+import type { CommandIntelligenceSnapshot } from "@/lib/intelligence/commandIntelligence";
 import { listCommandCalendarEntries } from "@/server/commandCalendar";
 import { getCommandCalendarIntegrationSnapshot } from "@/lib/server/integrations/googleCalendar";
 import { listClientsNeedingAttention } from "@/lib/server/clients/clientAttention";
@@ -44,6 +45,12 @@ import { currentAssistantBusinessContext } from "@/lib/server/assistants/assista
 import { MyRadarPanel } from "@/components/intelligence/MyRadarPanel";
 import { readMyRadar } from "@/lib/server/intelligence/myRadar";
 import { allocationHeadline } from "@/lib/intelligence/departmentAllocation";
+import {
+  commandScanPrincipalForSession,
+  normalizeCommandScanResultHandle,
+  readCommandScanResultOutcome,
+} from "@/lib/server/commandScanResults";
+import { requireCommandScanReadAccess } from "@/lib/server/commandScanAccess";
 
 // Fallback for the requested secondary station. The server imports and builds
 // only the workspace named by `?station=`; Suspense then lets the surrounding
@@ -69,14 +76,53 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
   const canManageWorkspace = !session.publicShowcase
     && (session.role === "agency-owner" || session.role === "agency-manager");
   const workspaceName = session.publicShowcase ? agency.name : INTERNAL_WORKSPACE_NAME;
-  // One automatic build at launch OR on a button: under Performance mode the
-  // two heaviest panels (radar + KPI intelligence) are paused and served on
-  // demand via a one-shot `?scan=1` render ("Run scan"). With Performance mode
-  // OFF, `runHeavyPanels` is always true and the full-data semantics below are
-  // preserved.
-  const scanRequested = normalizeScanFlag(resolvedSearchParams?.scan);
-  const runHeavyPanels = shouldRunHeavyPanels(lightweightMode, scanRequested);
-  const scanPaused = !runHeavyPanels;
+  // GET renders may reuse a completed result but can never execute a scan.
+  // The expensive graph is triggered only by the authenticated POST route.
+  const canReuseScanResult = !session.publicShowcase;
+  const rawScanResultHandle = resolvedSearchParams?.scanResult;
+  const scanResultWasRequested = Array.isArray(rawScanResultHandle)
+    ? rawScanResultHandle.some(value => value.trim().length > 0)
+    : Boolean(rawScanResultHandle?.trim());
+  const requestedScanResultHandle = normalizeCommandScanResultHandle(resolvedSearchParams?.scanResult);
+  let scanAuthorityUser: ServerUser | null = null;
+  let scanResultAccessDenied = false;
+  if (canReuseScanResult && requestedScanResultHandle) {
+    try {
+      // A handle is continuation state, not an authority token. Resolve the
+      // current access kernel before reading any snapshot bytes.
+      scanAuthorityUser = (await requireCommandScanReadAccess()).user;
+    } catch (error) {
+      const status = error && typeof error === "object" && "status" in error
+        ? Number((error as { status?: unknown }).status)
+        : 0;
+      if (status !== 403) throw error;
+      scanResultAccessDenied = true;
+    }
+  }
+  const scanPrincipal = scanAuthorityUser
+    ? commandScanPrincipalForSession(session, agency.id, scanAuthorityUser)
+    : null;
+  // A result handle is continuation state, never permission to rerun. Any
+  // invalid, expired, cross-realm, or revision-mismatched result produces the
+  // honest paused view even when Performance mode is disabled.
+  const scanResultRead = canReuseScanResult && requestedScanResultHandle && scanPrincipal
+    ? await readCommandScanResultOutcome({
+        handle: requestedScanResultHandle,
+        principal: scanPrincipal,
+      })
+    : null;
+  const preservedScanResult = scanResultRead?.status === "found"
+    ? scanResultRead.result
+    : null;
+  const scanResultUnavailable = scanResultRead?.status === "unavailable";
+  const requestedScanResultMissing = canReuseScanResult
+    && scanResultWasRequested
+    && !preservedScanResult;
+  const { runHeavyPanels, scanPaused } = commandScanLoadPlan(
+    lightweightMode,
+    Boolean(preservedScanResult),
+    requestedScanResultMissing,
+  );
   const clients = listClients(agency.id);
   const tasks = listAgencyTasks(agency.id);
   if (!session.publicShowcase) agencyProductsForRead(agency.id);
@@ -96,7 +142,14 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
   let operationalAlerts: OperationalAlert[];
   let brandPortfolio: BrandPortfolioSnapshot | null;
   let clientsNeedingAttention: Awaited<ReturnType<typeof listClientsNeedingAttention>>;
-  if (runHeavyPanels) {
+  if (preservedScanResult) {
+    [operationalAlerts, brandPortfolio, clientsNeedingAttention] = await Promise.all([
+      Promise.resolve<OperationalAlert[]>([]),
+      brandPortfolioPromise,
+      listClientsNeedingAttention(agency.id, recommendationTime),
+    ]);
+    businessRadar = preservedScanResult.radar;
+  } else if (runHeavyPanels) {
     const radarPromise = import("@/engines/data/server/radar/businessIssueRadar")
       .then(({ getCachedBusinessIssueRadar }) => getCachedBusinessIssueRadar(agency.id));
     const operationalAlertsPromise = lightweightMode
@@ -121,16 +174,25 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
     businessRadar = buildPausedBusinessRadar(workspaceSettings.advisor.radarPolicy, recommendationTime);
   }
   const radarEvidence = inspectRadarEvidence(agency.id);
-  const intelligenceSnapshot = runHeavyPanels
-    ? await import("@/lib/server/commandIntelligenceService")
-        .then(({ buildCommandIntelligenceSnapshot }) => buildCommandIntelligenceSnapshot({
-          agencyId: agency.id,
-          radar: businessRadar,
-          evidence: radarEvidence,
-          now: recommendationTime,
-          brandPortfolio: brandPortfolio!,
-        }))
-    : buildPausedIntelligenceSnapshot(workspaceSettings.defaultCurrency, recommendationTime);
+  let intelligenceSnapshot: CommandIntelligenceSnapshot;
+  if (preservedScanResult) {
+    intelligenceSnapshot = preservedScanResult.intelligence;
+  } else if (runHeavyPanels) {
+    intelligenceSnapshot = await import("@/lib/server/commandIntelligenceService")
+      .then(({ buildCommandIntelligenceSnapshot }) => buildCommandIntelligenceSnapshot({
+        agencyId: agency.id,
+        radar: businessRadar,
+        evidence: radarEvidence,
+        now: recommendationTime,
+        brandPortfolio: brandPortfolio!,
+      }));
+  } else {
+    intelligenceSnapshot = buildPausedIntelligenceSnapshot(
+      workspaceSettings.defaultCurrency,
+      recommendationTime,
+    );
+  }
+  const activeScanResultHandle = preservedScanResult?.handle ?? null;
   const calendarIntegration = getCommandCalendarIntegrationSnapshot(agency.id, session.userId);
 
   // Idempotent — guarantees a fresh agency lands on default pipelines
@@ -310,6 +372,9 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
       <DashboardCommandCenter
         canManage={canManageWorkspace}
         scanPaused={scanPaused}
+        scanResultHandle={activeScanResultHandle}
+        scanResultUnavailable={scanResultUnavailable}
+        scanResultAccessDenied={scanResultAccessDenied}
         planning={dashboardPlanningSnapshot(agency.id, session.userId)}
         tasks={tasks}
         calendarEntries={listCommandCalendarEntries(agency.id, session.userId)}

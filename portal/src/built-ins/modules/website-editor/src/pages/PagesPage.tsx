@@ -4,13 +4,9 @@
 // in Round 3 from the Round-1 placeholder shell to consume the
 // plugin's `lib/editorPages.ts` listing.
 //
-// Round-4 follow-up: 02's `admin/pages/page.tsx` is the catalogue for a
-// separate `customPages.ts` localStorage block system distinct from
-// EditorPage. That backend isn't in the plugin yet (likely becomes its
-// own page-builder plugin). When it does, this page can grow tabs to
-// flip between EditorPages and CustomPages, or split into two
-// surfaces. For now: EditorPage list only, which matches the plugin's
-// actual content model.
+// The earlier `customPages.ts` browser-only screen was retired: it did not
+// publish into this tenant-scoped model or a storefront route. This page lists
+// only EditorPages, which are the plugin's actual shared content authority.
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";

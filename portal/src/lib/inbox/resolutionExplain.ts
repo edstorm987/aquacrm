@@ -62,6 +62,10 @@ export interface ResolutionExplain {
  * check, not of the individual record that tripped it.
  */
 const CLEARS_WHEN: Array<[string, { clearsWhen: string; kind: ResolutionKind }]> = [
+  ["source-unavailable:website-enquiries", {
+    clearsWhen: "The website-enquiry source completes a successful read again.",
+    kind: "off-system",
+  }],
   ["enquiry-classification:", {
     clearsWhen: "This person is classified as something other than unclassified.",
     kind: "in-app",

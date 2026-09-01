@@ -2,7 +2,7 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-09-01 from **21** source documents / **34,847 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-01 from **21** source documents / **34,838 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -25,7 +25,7 @@
 - [`docs/development/CLOUD-RESUME.md`](#source-docs-development-cloud-resume-md) — 500 words · `03458cdf18bf`
 - [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 2,209 words · `f8dfdfa9cfad`
 - [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,643 words · `38954d1ad66e`
-- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 1,893 words · `0de0bfd94c11`
+- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 1,884 words · `92bd16646ff9`
 - [`README.md`](#source-readme-md) — 437 words · `78865db66238`
 
 ---
@@ -3731,7 +3731,7 @@ Path prefix: /private/tmp/claude-501/.../scratchpad/
 
 ## Source document — `docs/development/TODO.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="0de0bfd94c110a1dfed49cce06972f5e22bf3ea2157322e9ab472f63c496e754" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="92bd16646ff9c18525aea8158cb9a3e31bbf7f37cd548c50faca9959d454b70b" -->
 # TODO — the one list
 
 **This is the only task list.** `checklist.md` and `todo-retired.md` are retired; they held the
@@ -3770,32 +3770,27 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 
 ## P0 — before any production use — 1
 
-- [~] Ecommerce Checkout is server-authoritative; finish public-route and live acceptance → [#69](issues.md)
+- [~] Ecommerce public authority, allowlisted product/receipt DTOs and local end-to-end are verified; finish custom-domain + live Stripe/provider acceptance → [#69](issues.md)
 
-## P1 — before broader launch — 62
+## P1 — before broader launch — 57
 
 - [~] Editor AI database coordination is implemented; live DB proof remains → [#18](issues.md)
 - [~] Complete Editor dirty-state browser acceptance → [#19](issues.md) `⚠ disputed`
 - [~] Public showcase capability boundary and shared fixture are repaired → [#21](issues.md) `⚠ disputed`
-- [~] Continue repairing the Website Editor API contract; the legacy Sites dead-call island is retired → [#28](issues.md)
-- [~] Website Editor commerce contracts are unified; finish public-route and browser acceptance → [#29](issues.md) `⚠ disputed`
-- [~] Repair website export before offering it as a backup or migration path → [#30](issues.md)
-- [~] The browser-local Sites station is retired; integrate or remove the remaining local Editor islands → [#31](issues.md)
-- [~] Stop reporting queued campaign mail as sent → [#32](issues.md)
-- [~] Finish the paid Memberships foundation adapter → [#33](issues.md)
-- [~] Make plugin health a real monitored lifecycle → [#35](issues.md)
+- [~] Continue repairing Website Editor API contracts; exact-scope AI gating is fixed and the dead-call ratchet is 14 → [#28](issues.md)
+- [~] Website Editor now has a narrow anonymous Ecommerce facade and Product Search is publishable; finish the remaining visitor backends and browser acceptance → [#29](issues.md) `⚠ disputed`
+- [~] Paid Memberships foundation is real; finish live Stripe lifecycle acceptance → [#33](issues.md)
 - [~] Build custom portal now reaches the canonical provisioner; mounted provision/reload acceptance remains → [#36](issues.md)
-- [~] Make project provision, GitHub publish and Vercel deploy retry-safe → [#37](issues.md)
-- [~] Make all private uploads/deletes transactional and retryable → [#38](issues.md)
-- [~] Make Close the deal issue a reviewable, truthfully delivered contract → [#39](issues.md)
-- [~] Make commercial proposal/receipt delivery truthful → [#40](issues.md)
-- [~] Bind proposal acceptance and payment to an immutable sent version → [#41](issues.md)
-- [~] Make installment subscriptions stop exactly and verifiably → [#42](issues.md)
-- [~] Make Email Sender production setup reachable and real → [#43](issues.md)
-- [~] Wire Affiliate Stripe Connect or stop offering it → [#45](issues.md)
+- [~] Private-upload attach, post-storage replay/concurrency, rollback, anonymous failure redaction and client-file delete recovery are repaired; finish staged abandonment and legal/SOP/development delete finalisation → [#38](issues.md)
+- [~] Close the deal is reviewable and truthful; finish mounted agency/customer acceptance → [#39](issues.md)
+- [~] Proposal/receipt delivery is truthful; finish live-provider refusal/retry acceptance → [#40](issues.md)
+- [~] Proposal acceptance is version-bound; finish mounted public acceptance → [#41](issues.md)
+- [~] Installments stop exactly in code; finish live Stripe refusal/retry acceptance → [#42](issues.md)
+- [~] Email Sender setup and SMTP delivery are real; finish live-provider browser acceptance → [#43](issues.md)
+- [~] Affiliate Stripe Connect is wired and gated; finish live Stripe payout acceptance → [#45](issues.md)
 - [~] Code/behaviour resolved — browser-accept the canonical client lifecycle → [#46](issues.md)
 - [~] Finish live visual acceptance for convergent client phase transitions → [#55](issues.md)
-- [~] Portal Editor preserves unavailable configuration reads; repair the remaining empty-fallback families and browser-accept retry/snapshot behaviour → [#57](issues.md)
+- [~] Portal Editor, attention, expense-field, KPI, completed-history and phase-catalogue reads are truthful; finish the remaining communications/Finance/search/governance fallbacks and mounted fault acceptance → [#57](issues.md)
 - [~] Membership/Affiliate dependency inventories exist; choose and enforce safe deletion policy → [#63](issues.md)
 - [~] SOP dependency inventory exists; choose and enforce safe deletion policy → [#64](issues.md)
 - [~] Company capital/governance invariants are guarded; finish mounted acceptance → [#65](issues.md)
@@ -3837,11 +3832,11 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [ ] Classify and expose visitor-safe public module operations one route at a time → [#185](issues.md)
 - [~] Isolated server/browser lane is restored; finish the remaining critical-flow acceptance  <sub>from todo-retired.md, no issue number</sub>
 
-## P2 — quality and correctness — 16
+## P2 — quality and correctness — 15
 
 - [~] Reference validation remains a broad open class; the audited client-route slice is fixed → [#20](issues.md)
 - [~] Reconcile staff capability policy → [#25](issues.md)
-- [~] Most plugin settings schemas are not user-operable → [#44](issues.md)
+- [~] Shared plugin settings is operable across eight families and Marketing is truthful; wire/remove the remaining 27 unconsumed fields → [#44](issues.md)
 - [~] Stop mutation controls swallowing non-success responses → [#47](issues.md)
 - [~] Finish Notepad autosave browser acceptance → [#54](issues.md)
 - [~] Mounted acceptance remains for settled utility controls → [#61](issues.md)
@@ -3854,7 +3849,6 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Published current-page blocks are hydration-stable in default and explicit modes; mounted navigation acceptance remains → [#143](issues.md)
 - [~] Private media has one tested 200/206/416 provider-aware byte-range contract; mounted playback/seek acceptance remains → [#144](issues.md)
 - [~] Finish production-durable Dev Team authoring and live signals  <sub>consolidated from the retired lists; no issue number</sub>
-- [ ] Replace Radar's replayable `scan=1` navigation with a bounded result handle → [#186](issues.md)
 
 ## Unprioritised — 24
 
@@ -3885,12 +3879,12 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 
 ---
 
-## Done — 64 issue ids
+## Done — 70 issue ids
 
 Ids only. The account of each is in `issues.md`; the running narrative is in
 `updates.md` and `CAMPAIGN-LEDGER.md`.
 
-#4 #5 #8 #10 #16 #17 #22 #23 #24 #26 #27 #34 #48 #49 #50 #51 #52 #53 #56 #58 #59 #60 #62 #76 #78 #86 #89 #90 #91 #92 #93 #94 #95 #96 #97 #98 #99 #100 #101 #102 #103 #104 #105 #106 #107 #108 #109 #110 #111 #112 #113 #114 #115 #116 #117 #118 #119 #127 #131 #137 #151 #153 #154 #161
+#4 #5 #8 #10 #16 #17 #22 #23 #24 #26 #27 #30 #31 #32 #34 #35 #37 #48 #49 #50 #51 #52 #53 #56 #58 #59 #60 #62 #76 #78 #86 #89 #90 #91 #92 #93 #94 #95 #96 #97 #98 #99 #100 #101 #102 #103 #104 #105 #106 #107 #108 #109 #110 #111 #112 #113 #114 #115 #116 #117 #118 #119 #127 #131 #137 #151 #153 #154 #161 #186
 <!-- AQUACRM_SOURCE_END path="docs/development/TODO.md" -->
 
 ---

@@ -473,7 +473,7 @@ describe("reads never see the other tenant", () => {
 // ─── ARM 4: the public routes the peek exists for ─────────────────────────
 
 describe("public routes — the reason the peek exists — still work", () => {
-  it("the shipped public routes are exactly the seven, and each names its own module", () => {
+  it("the shipped public routes are exactly the thirteen, and each names its own module", () => {
     const publics = listPlugins()
       .filter(plugin => !plugin.id.startsWith("zz-"))
       .flatMap(plugin => plugin.api.filter(route => route.public === true).map(r => `${plugin.id}/${r.path}`))
@@ -481,6 +481,12 @@ describe("public routes — the reason the peek exists — still work", () => {
     assert.deepEqual(publics, [
       "affiliates/webhooks/stripe",
       "agency-finance/stripe/webhook",
+      "ecommerce/storefront/checkout/quote",
+      "ecommerce/storefront/orders/by-session",
+      "ecommerce/storefront/products",
+      "ecommerce/storefront/products/get",
+      "ecommerce/storefront/stripe/checkout",
+      "ecommerce/stripe/webhook",
       "email-sender/public/webhook/postmark",
       "leads-pipeline/commercial/stripe-webhook",
       "memberships/stripe/webhook",
@@ -490,17 +496,19 @@ describe("public routes — the reason the peek exists — still work", () => {
   });
 
   it("an anonymous caller reaches every one of them, naming the tenant in the URL", async () => {
-    // This IS the webhook: no cookie, no session, the tenant supplied by the
-    // URL. Reaching the handler is the claim — what a handler then does with a
-    // test body (400 invalid_body, 400 bad signature) is the handler's business.
+    // These are provider callbacks plus the explicit Ecommerce storefront
+    // facade: no cookie, no session, and the exact enabled install supplied by
+    // the URL. Reaching the handler is the claim — what a handler then does
+    // with a test body/query is the handler's business.
     const blocked: string[] = [];
     for (const plugin of listPlugins()) {
       const clientScoped = (plugin.scopePolicy ?? "either") === "client";
       for (const route of plugin.api) {
         if (route.public !== true) continue;
         const rest = route.path.split("/").filter(Boolean);
+        const method = route.methods[0] ?? "POST";
         const reply = await call({
-          plugin: plugin.id, rest, method: "POST",
+          plugin: plugin.id, rest, method,
           // A client-scoped plugin has no agency-scoped install, so its public
           // routes need BOTH ids to resolve — see the test below.
           query: clientScoped ? { agencyId: agencyB, clientId: clientB } : { agencyId: agencyB },

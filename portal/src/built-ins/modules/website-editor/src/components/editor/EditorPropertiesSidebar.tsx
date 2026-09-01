@@ -35,7 +35,7 @@ interface Props {
   onSave: (key: string) => void;
   onRevert: (key: string) => void;
   /**
-   * Whether the @aqua/plugin-ai-builder API answered its status probe. The
+   * Whether @aqua/plugin-ai-builder is enabled for this exact tenant. The
    * "Generate variations" / "Edit with mask" buttons open modals that POST to
    * `/api/portal/ai-builder/image/{variations,inpaint}` — routes that only
    * exist when that plugin is installed and reachable by this role. They used

@@ -12,6 +12,7 @@
 // from this hook; the ecommerce plugin owns the data.
 
 import { useEffect, useState } from "react";
+import { ecommerceApiUrl, ecommerceStorefrontScope } from "./storefrontCommerceScope";
 
 export interface CatalogProduct {
   slug: string;
@@ -26,9 +27,6 @@ export interface CatalogProduct {
   rating?: number;
   reviewCount?: number;
   currency?: string;
-  hidden?: boolean;
-  archived?: boolean;
-  stockSku?: string;
   available?: number;
   digital?: boolean;
   options?: Array<{
@@ -61,7 +59,9 @@ const CATALOG_URL = "/api/portal/ecommerce/products";
 
 function browserStoreKey(): string {
   if (typeof window === "undefined") return "server:v1";
-  const clientId = window.location.pathname.match(/\/portal\/clients\/([^/]+)/)?.[1] ?? "published";
+  const clientId = ecommerceStorefrontScope()?.clientId
+    ?? window.location.pathname.match(/\/portal\/clients\/([^/]+)/)?.[1]
+    ?? "published";
   return `${window.location.origin}:${clientId}:v1`;
 }
 
@@ -70,7 +70,7 @@ export async function fetchCatalog(storeKey = browserStoreKey()): Promise<Catalo
   if (stored) return stored;
   const pending = inflight.get(storeKey);
   if (pending) return pending;
-  const request = fetch(CATALOG_URL, { cache: "no-store", credentials: "include" })
+  const request = fetch(ecommerceApiUrl(CATALOG_URL), { cache: "no-store", credentials: "include" })
     .then(r => r.json() as Promise<CatalogResponse>)
     .then(data => {
       const products = data.products ?? data.items ?? [];

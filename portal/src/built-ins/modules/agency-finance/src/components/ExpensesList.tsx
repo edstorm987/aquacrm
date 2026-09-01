@@ -10,6 +10,11 @@ import { SUPPORTED_CURRENCIES, formatMoney } from "../lib/currencies";
 import { FinanceNav } from "./FinanceNav";
 import { dateInputValue, formatUkDate } from "../lib/safeDate";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
+import type { ReadResult } from "@/lib/readAvailability";
+import {
+  readExpenseCustomFields,
+  type ExpenseCustomFieldDefinition,
+} from "./expenseCustomFieldRead";
 
 export interface ExpensesListProps {
   expenses: Expense[];
@@ -19,16 +24,6 @@ export interface ExpensesListProps {
   apiBase: string;
   canMutate: boolean;
   defaultCurrency: string;
-}
-
-interface CustomFieldDefinition {
-  id: string;
-  label: string;
-  type: "text" | "textarea" | "number" | "date" | "url" | "email" | "select" | "multi-select" | "checkbox";
-  options: string[];
-  section: string;
-  required: boolean;
-  active: boolean;
 }
 
 const STATUS_LABEL: Record<ExpenseStatus, string> = {
@@ -85,7 +80,9 @@ export function ExpensesList({ expenses, categories, clients, budgetPots, apiBas
   const addDialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(addDialogRef, adding, { onEscape: () => setAdding(false) });
   const [postingId, setPostingId] = useState("");
-  const [customFields, setCustomFields] = useState<CustomFieldDefinition[]>([]);
+  const [customFields, setCustomFields] = useState<ExpenseCustomFieldDefinition[]>([]);
+  const [customFieldRead, setCustomFieldRead] = useState<ReadResult<ExpenseCustomFieldDefinition[]> | null>(null);
+  const [customFieldRetry, setCustomFieldRetry] = useState(0);
   const catNameById = useMemo(() => new Map(categoryRecords.map(category => [category.id, category.name])), [categoryRecords]);
   const clientNameById = useMemo(() => new Map(clients.map(client => [client.id, client.name])), [clients]);
   const budgetNameById = useMemo(() => new Map(budgetPots.map(pot => [pot.id, pot.name])), [budgetPots]);
@@ -118,13 +115,18 @@ export function ExpensesList({ expenses, categories, clients, budgetPots, apiBas
   }, []);
 
   useEffect(() => {
-    void fetch("/api/portal/settings/portal-editor")
-      .then(response => response.json())
-      .then(result => {
-        if (result?.ok) setCustomFields((result.editor?.forms?.expenses ?? []).filter((field: CustomFieldDefinition) => field.active !== false));
-      })
-      .catch(() => undefined);
-  }, []);
+    let cancelled = false;
+    void readExpenseCustomFields().then(next => {
+      if (cancelled) return;
+      // Preserve the last confirmed schema when a retry fails. Availability
+      // changes; a rejected read is not a new empty form definition.
+      if (next.available) setCustomFields(next.data);
+      setCustomFieldRead(next);
+    });
+    return () => { cancelled = true; };
+  }, [customFieldRetry]);
+
+  const customFieldsAvailable = customFieldRead?.available === true;
 
   const { filtered, chartExpenses } = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -283,17 +285,30 @@ export function ExpensesList({ expenses, categories, clients, budgetPots, apiBas
           <a href="/portal/agency/portals/forms#forms/expenses" className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium hover:bg-black/[0.03] sm:flex-none">
             <Settings2 size={16} aria-hidden /> Edit form
           </a>
-          <button type="button" onClick={downloadCsv} className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium hover:bg-black/[0.03] sm:flex-none">
+          <button type="button" disabled={!customFieldsAvailable} onClick={downloadCsv} title={!customFieldsAvailable ? "Expense form fields must be read before export." : undefined} className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium hover:bg-black/[0.03] disabled:cursor-not-allowed disabled:opacity-45 sm:flex-none">
             <Download size={16} aria-hidden /> Export CSV
           </button>
           {canMutate ? (
-            <button type="button" onClick={() => setAdding(value => !value)} className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85 sm:flex-none">
+            <button type="button" disabled={!customFieldsAvailable} onClick={() => setAdding(value => !value)} className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-45 sm:flex-none">
               {adding ? <X size={16} aria-hidden /> : <Plus size={16} aria-hidden />}
-              {adding ? "Close" : "Add expense"}
+              {adding ? "Close" : customFieldRead ? "Add expense" : "Reading form…"}
             </button>
           ) : null}
         </div>
       </header>
+
+      {customFieldRead?.available === false ? (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border-l-2 border-amber-600 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <p>
+            {customFields.length
+              ? "Expense form fields were not refreshed. The last confirmed fields remain visible, but Add, Edit and Export are locked until the retry succeeds."
+              : customFieldRead.reason}
+          </p>
+          <button type="button" onClick={() => setCustomFieldRetry(value => value + 1)} className="shrink-0 font-semibold underline underline-offset-2">
+            Retry form fields
+          </button>
+        </div>
+      ) : null}
 
       <dl className="grid grid-cols-2 border-y border-black/10 [&>*:last-child]:col-span-2 sm:grid-cols-5 sm:[&>*:last-child]:col-span-1">
         <Summary label="Paid costs" value={money(totalPaid)} />
@@ -355,8 +370,9 @@ export function ExpensesList({ expenses, categories, clients, budgetPots, apiBas
         client={selectedExpense.clientId ? clientNameById.get(selectedExpense.clientId) ?? "Unknown client" : "Business overhead"}
         budgetPot={selectedExpense.budgetPotId ? budgetNameById.get(selectedExpense.budgetPotId) ?? "Unknown budget pot" : "Not allocated"}
         customFields={customFields}
+        customFieldsAvailable={customFieldsAvailable}
         onClose={() => setSelectedExpense(null)}
-        onEdit={canMutate ? () => {
+        onEdit={canMutate && customFieldsAvailable ? () => {
           setEditingExpense(selectedExpense);
           setSelectedExpense(null);
         } : undefined}
@@ -555,7 +571,7 @@ export function ExpensesList({ expenses, categories, clients, budgetPots, apiBas
   );
 }
 
-function ExpenseDetail({ expense, category, client, budgetPot, customFields, onClose, onEdit }: { expense: Expense; category: string; client: string; budgetPot: string; customFields: CustomFieldDefinition[]; onClose: () => void; onEdit?: () => void }) {
+function ExpenseDetail({ expense, category, client, budgetPot, customFields, customFieldsAvailable, onClose, onEdit }: { expense: Expense; category: string; client: string; budgetPot: string; customFields: ExpenseCustomFieldDefinition[]; customFieldsAvailable: boolean; onClose: () => void; onEdit?: () => void }) {
   // Modal keyboard contract: focus enters the detail panel, Tab stays inside it, Escape closes it, focus returns to the expense row.
   const detailRef = useRef<HTMLElement>(null);
   useFocusTrap(detailRef, true, { onEscape: onClose });
@@ -581,6 +597,7 @@ function ExpenseDetail({ expense, category, client, budgetPot, customFields, onC
         <Detail label="Business use" value={`${expense.businessUsePercent ?? 100}%`} />
         <Detail label="Tax recoverable" value={expense.taxDeductible === false ? "No" : "Yes"} />
         <Detail label="Recharge to client" value={expense.billableToClient ? "Yes" : "No"} />
+        {!customFieldsAvailable ? <Detail label="Extra details" value={customFields.length ? "Last confirmed field definitions shown; refresh is required" : "Not read — retry from the Expenses sheet"} /> : null}
         {customFields.map(field => <Detail key={field.id} label={field.label} value={formatCustomValue(expense.customFields?.[field.id]) || "Not recorded"} />)}
         <Detail label="Recurrence" value={expense.recurrence ? `${expense.recurrence}${expense.nextDueAt ? ` · next ${formatUkDate(expense.nextDueAt, { dateStyle: "medium" })}` : ""}` : "One-off"} />
         <Detail label="Expense ID" value={expense.id} />
@@ -728,7 +745,7 @@ function ExpenseForm({ expense, apiBase, categories, clients, budgetPots, custom
   categories: ExpenseCategory[];
   clients: Client[];
   budgetPots: BudgetPot[];
-  customFields: CustomFieldDefinition[];
+  customFields: ExpenseCustomFieldDefinition[];
   defaultCurrency: string;
   onClose: () => void;
   onCategoryCreated: (category: ExpenseCategory) => void;
@@ -971,7 +988,7 @@ function ExpenseForm({ expense, apiBase, categories, clients, budgetPots, custom
   );
 }
 
-function CustomFieldInput({ field, value }: { field: CustomFieldDefinition; value?: string | string[] | boolean }) {
+function CustomFieldInput({ field, value }: { field: ExpenseCustomFieldDefinition; value?: string | string[] | boolean }) {
   const name = `custom:${field.id}`;
   if (field.type === "checkbox") {
     return <label className="inline-flex min-h-10 items-center gap-2 self-end text-sm text-black/65"><input type="checkbox" name={name} required={field.required} defaultChecked={value === true} className="size-4 accent-black" />{field.label}</label>;

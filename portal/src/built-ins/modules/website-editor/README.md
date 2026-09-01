@@ -11,8 +11,8 @@ Aqua portal. Owned by Terminal 3 of the Round-1 mesh.
 | `category` | `content` |
 | `core` | (no — every client gets it auto-installed by foundation) |
 | `requires` | none |
-| `navItems` | 8 (Editor / Pages / Portals / Customise / Themes / Assets / Sections / Popups) |
-| `pages` | 11 admin routes (full list in `01 development/context/prior research/04-plugin-website-editor.md`) |
+| `navItems` | 7 (Editor / Pages / Portals / Editor settings / Themes / Assets / Git status) |
+| `pages` | 9 canonical admin routes; retired local-only bookmarks redirect to these surfaces |
 | `api` | ~30 handlers under `/api/portal/website-editor/*` |
 | `storefront.blocks` | 70 blocks across 6 categories |
 | `features` | 8 toggles (simpleEditor, advancedEditor, codeView, templates, versionHistory, customCSS, headInjection, customDomain) |

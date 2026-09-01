@@ -8,6 +8,7 @@ import "server-only";
 // and a day's work leaves a trace.
 
 import crypto from "crypto";
+import { completedActionDeleteOperationId } from "@/lib/inbox/completedActionRead";
 import { getState, mutate } from "./storage";
 import { drainOutbox, recordOutboxEvent } from "./outbox";
 import type { AgencyTaskOrigin, CompletedAction, CompletedActionOutcome } from "./types";
@@ -93,4 +94,38 @@ export function deleteCompletedAction(agencyId: string, id: string): boolean {
   if (!entry || entry.agencyId !== agencyId) return false;
   mutate(state => { delete state.completedActions[id]; });
   return true;
+}
+
+export class CompletedActionDeleteOperationError extends Error {
+  constructor(message = "That completed-action delete operation does not match this register row.") {
+    super(message);
+    this.name = "CompletedActionDeleteOperationError";
+  }
+}
+
+/**
+ * Delete one register row with replay semantics.
+ *
+ * Absence is success only when the caller presents the deterministic operation
+ * identity for this exact row. That lets a retry after a lost success converge
+ * on the current register without turning an arbitrary malformed request into a
+ * successful delete.
+ */
+export function deleteCompletedActionForOperation(
+  agencyId: string,
+  id: string,
+  operationId: string,
+): { operationId: string; replayed: boolean; completed: CompletedAction[] } {
+  const cleanId = id.trim();
+  const cleanOperationId = operationId.trim();
+  if (!cleanId || cleanOperationId !== completedActionDeleteOperationId(cleanId)) {
+    throw new CompletedActionDeleteOperationError();
+  }
+
+  const removed = deleteCompletedAction(agencyId, cleanId);
+  return {
+    operationId: cleanOperationId,
+    replayed: !removed,
+    completed: listCompletedActions(agencyId),
+  };
 }

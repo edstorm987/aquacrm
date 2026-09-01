@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-01T09:07:17.807Z",
+  "generatedAt": "2026-09-01T19:49:46.095Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -495,9 +495,9 @@
       "path": "docs/development/issues.md",
       "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
       "anchor": "source-docs-development-issues-md",
-      "sha256": "3a41e7ef4996765fa61803e04c5c863e6eee4bcbc8a37771a20955dae07b4166",
-      "words": 38666,
-      "bytes": 297822
+      "sha256": "e40c85c9251747c71f64eaa9eaab0ce84f7c975b89f59863426f0f43f768c60e",
+      "words": 39251,
+      "bytes": 302685
     },
     {
       "path": "docs/development/LOOP-PROGRESS.md",
@@ -967,17 +967,17 @@
       "path": "docs/development/roadmap.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-roadmap-md",
-      "sha256": "62a81eec41f23a32e6914194d5a3d7f6d5928c74bc7e7d985803497ed3a2f99b",
-      "words": 21160,
-      "bytes": 217851
+      "sha256": "de9dbcb19413f51881f5af8fe87377fce29a1190811cca421c91dbbc611eca8b",
+      "words": 21139,
+      "bytes": 217667
     },
     {
       "path": "docs/development/status.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-status-md",
-      "sha256": "7644b20d51a799990f4d75dc3523fd9abea33b306b826280f708ef36c4361f21",
-      "words": 20474,
-      "bytes": 159381
+      "sha256": "8c7e6ee539786141d3e8df05b7c2d814b84a21ab9589b92454057ee5c7c79570",
+      "words": 20457,
+      "bytes": 159296
     },
     {
       "path": "docs/development/STRUCTURE.md",
@@ -1007,9 +1007,9 @@
       "path": "docs/development/TODO.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-todo-md",
-      "sha256": "0de0bfd94c110a1dfed49cce06972f5e22bf3ea2157322e9ab472f63c496e754",
-      "words": 1893,
-      "bytes": 13974
+      "sha256": "92bd16646ff9c18525aea8158cb9a3e31bbf7f37cd548c50faca9959d454b70b",
+      "words": 1884,
+      "bytes": 14038
     },
     {
       "path": "docs/development/ultra-review-2026-08-24.md",
@@ -1023,9 +1023,9 @@
       "path": "docs/development/updates.md",
       "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
       "anchor": "source-docs-development-updates-md",
-      "sha256": "747aaf4bf07f1346feb15d1ec81033220cf69ca35c10c0bcac48933ebe510755",
-      "words": 99127,
-      "bytes": 740824
+      "sha256": "464d5c39bdbbff2807ffaad418f0a38796e3b6b557d18f4fb35a9ed66076fbee",
+      "words": 99467,
+      "bytes": 743542
     },
     {
       "path": "docs/development/visual-browser-audit-2026-08-23.md",
@@ -1255,9 +1255,9 @@
       "path": "src/built-ins/modules/website-editor/README.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-src-built-ins-modules-website-editor-readme-md",
-      "sha256": "173e28950af41e88df93f3381e59507a05c230fa834b2c5027f2063fad35f281",
-      "words": 514,
-      "bytes": 4300
+      "sha256": "8ba4ff6dfe4e545d4f532b9a3d6fe503b5c87f59e4d007e66ed99c52f38b9855",
+      "words": 516,
+      "bytes": 4282
     },
     {
       "path": "src/built-ins/runtime/milesymedia/README.md",

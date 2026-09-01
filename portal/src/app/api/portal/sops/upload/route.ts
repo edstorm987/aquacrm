@@ -4,8 +4,8 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
 import { attachStoredPrivateUpload, PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
-import { createFileSop } from "@/engines/sop/server/sops";
-import { ensureHydrated } from "@/server/storage";
+import { createFileSop, rollbackFileSopUpload } from "@/engines/sop/server/sops";
+import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 import type { SopDocument } from "@/server/types";
 
@@ -118,21 +118,29 @@ export async function POST(request: NextRequest) {
       .filter((value): value is string => typeof value === "string")
       .map(value => value.trim())
       .filter(Boolean) ?? [];
-    const attached = await attachStoredPrivateUpload(stored, "sop-uploads", () => createFileSop({
-      id,
-      agencyId: session.agencyId,
-      title,
-      category,
-      categories,
-      tags,
-      resourceType,
-      fileName: file.name.trim().slice(0, 180),
-      contentType: file.type,
-      size: file.size,
-      storageProvider: stored.storageProvider,
-      storageKey: stored.storageKey,
-      createdBy: session.userId,
-    }));
+    const attached = await attachStoredPrivateUpload(
+      stored,
+      "sop-uploads",
+      () => createFileSop({
+        id,
+        agencyId: session.agencyId,
+        title,
+        category,
+        categories,
+        tags,
+        resourceType,
+        fileName: file.name.trim().slice(0, 180),
+        contentType: file.type,
+        size: file.size,
+        storageProvider: stored.storageProvider,
+        storageKey: stored.storageKey,
+        createdBy: session.userId,
+      }),
+      {
+        persist: flushPendingWrites,
+        rollbackOwner: () => { rollbackFileSopUpload(session.agencyId, id); },
+      },
+    );
     if (!attached.ok) {
       return NextResponse.json({
         ok: false,

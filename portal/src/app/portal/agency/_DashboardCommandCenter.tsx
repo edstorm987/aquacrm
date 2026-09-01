@@ -206,6 +206,9 @@ export function DashboardCommandCenter({
   devTeamAttentionLoaded = false,
   battleTablePayload,
   scanPaused = false,
+  scanResultHandle = null,
+  scanResultUnavailable = false,
+  scanResultAccessDenied = false,
   canManage = true,
 }: {
   planning: DashboardPlanningPayload;
@@ -240,27 +243,18 @@ export function DashboardCommandCenter({
   /** Performance mode has paused the radar + KPI intelligence builds; the page
    *  passed lightweight placeholders and this surfaces the "Run scan" control. */
   scanPaused?: boolean;
+  /** Short-lived server result identity. Station navigation reuses this exact
+   *  payload instead of replaying the expensive one-shot scan command. */
+  scanResultHandle?: string | null;
+  /** The optional shared result provider failed; GET stayed safely paused. */
+  scanResultUnavailable?: boolean;
+  /** The current access kernel withheld Workspace overview from this actor. */
+  scanResultAccessDenied?: boolean;
   canManage?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  // "Run scan" navigates to a one-shot `?scan=1` render that forces the full
-  // build. Once that heavy render has loaded, strip `scan` from the URL so a
-  // later refresh returns to the fast paused view rather than rebuilding again.
-  const runScanHref = (() => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("scan", "1");
-    const query = params.toString();
-    return query ? `${pathname}?${query}` : pathname;
-  })();
-  useEffect(() => {
-    if (searchParams.get("scan") !== "1") return;
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete("scan");
-    const query = params.toString();
-    window.history.replaceState(null, "", query ? `${pathname}?${query}` : pathname);
-  }, [pathname, searchParams]);
   const isDayCommandRoute = pathname === "/portal/agency/command-center";
   const requestedStationValue = searchParams.get("station");
   const requestedClockOutReview = searchParams.get("review") === "clock-out";
@@ -324,30 +318,36 @@ export function DashboardCommandCenter({
   const [manualNotes, setManualNotes] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const [operationError, setOperationError] = useState("");
+  const [scanRequestBusy, setScanRequestBusy] = useState(false);
+  const [scanError, setScanError] = useState("");
   const [now, setNow] = useState(Date.now());
   const [activeStation, setActiveStation] = useState<CommandSurfaceMode>(initialStation);
   const [intelligenceEntry, setIntelligenceEntry] = useState<{ view: IntelligenceView; kpiIds: string[]; scopeId: string; commercialFocus: { metricId?: string; recordId?: string; sourceId?: string; stageId?: string }; version: number }>({ view: requestedIntelligenceView, kpiIds: requestedKpiIds, scopeId: requestedScopeId, commercialFocus: commercialFocus(searchParams), version: 0 });
   const [dashboardMode, setDashboardMode] = useState<CommandWorkspaceMode>(requestedServerStation === "calendar" || requestedServerStation === "actions" || requestedServerStation === "advisor" ? requestedServerStation : initialStation === "day" ? "day" : initialStation === "battle" ? "battle" : initialStation === "intelligence" ? "intelligence" : pathname.startsWith("/portal/agency/radar") ? "inspector" : initialStation === "radar" ? "workspace" : "radar");
   const [serverStationTransitionPending, startServerStationTransition] = useTransition();
+  const [scanNavigationPending, startScanNavigation] = useTransition();
   const [pendingServerNavigation, setPendingServerNavigation] = useState<PendingServerStationNavigation | null>(null);
   const pendingServerNavigationRef = useRef<PendingServerStationNavigation | null>(null);
   const activeStationRef = useRef(activeStation);
   const dashboardModeRef = useRef(dashboardMode);
   activeStationRef.current = activeStation;
   dashboardModeRef.current = dashboardMode;
-  const [radarSnapshot, setRadarSnapshot] = useState(businessRadar);
+  const [radarSnapshotState, setRadarSnapshot] = useState(businessRadar);
   const previousServerRadarRef = useRef(businessRadar);
   const previousServerScanPausedRef = useRef(scanPaused);
-  const [intelligenceState, setIntelligenceState] = useState(intelligenceSnapshot);
+  const [intelligenceSnapshotState, setIntelligenceState] = useState(intelligenceSnapshot);
   const previousServerIntelligenceRef = useRef(intelligenceSnapshot);
   const previousServerIntelligenceScanPausedRef = useRef(scanPaused);
-  const [completedServerScan, setCompletedServerScan] = useState(!scanPaused);
-  // `!scanPaused` makes a newly arrived full RSC payload effective in this
-  // render; state then remembers it after the one-shot query is stripped.
-  const fullServerScanLoaded = completedServerScan || !scanPaused;
+  const attemptedScanHandleRef = useRef<string | null>(null);
   const [inspectorTarget, setInspectorTarget] = useState<RadarInspectorTarget>({ ...initialRadarTarget, version: 0 });
   const workspaceBodyRef = useRef<HTMLDivElement>(null);
   const clockOutReviewRequestHandledRef = useRef(false);
+
+  // An invalid/expired result is authoritative paused state. Select the new
+  // server placeholders synchronously, before effects, so a previous full
+  // snapshot cannot flash under contradictory "paused" chrome.
+  const radarSnapshot = scanPaused ? businessRadar : radarSnapshotState;
+  const intelligenceState = scanPaused ? intelligenceSnapshot : intelligenceSnapshotState;
 
   useEffect(() => {
     const previousServer = previousServerRadarRef.current;
@@ -365,7 +365,7 @@ export function DashboardCommandCenter({
   // When a full RSC payload first arrives, state reconciliation happens in the
   // effect below. Keep the previous paused placeholder labelled unknown during
   // that one render too, so the UI cannot flash a false green/clear zero.
-  const displayedRadarIsPaused = scanPaused && radarSnapshot === businessRadar
+  const displayedRadarIsPaused = scanPaused
     || !scanPaused && previousServerScanPausedRef.current && radarSnapshot === previousServerRadarRef.current;
 
   useEffect(() => {
@@ -380,11 +380,68 @@ export function DashboardCommandCenter({
       previousServerWasPaused,
       scanPaused,
     ));
-    if (!scanPaused) setCompletedServerScan(true);
   }, [intelligenceSnapshot, scanPaused]);
-  const displayedIntelligenceIsPaused = scanPaused && intelligenceState === intelligenceSnapshot
+  const displayedIntelligenceIsPaused = scanPaused
     || !scanPaused && previousServerIntelligenceScanPausedRef.current && intelligenceState === previousServerIntelligenceRef.current;
   const displayedScanIsPaused = displayedRadarIsPaused || displayedIntelligenceIsPaused;
+
+  useEffect(() => {
+    const attempted = attemptedScanHandleRef.current;
+    if (!attempted || searchParams.get("scanResult") !== attempted) return;
+    attemptedScanHandleRef.current = null;
+    if (scanResultHandle === attempted && !scanPaused) {
+      setScanError("");
+      setStatusMessage("Radar and KPI intelligence scan complete.");
+      return;
+    }
+    setScanError("The completed scan could not be resumed. Run it again to create a fresh result.");
+  }, [scanPaused, scanResultHandle, searchParams]);
+
+  async function runCommandScan() {
+    if (scanRequestBusy || scanNavigationPending) return;
+    setScanRequestBusy(true);
+    setScanError("");
+    try {
+      const csrfResponse = await fetch("/api/auth/csrf", { cache: "no-store" });
+      const csrf = await csrfResponse.json().catch(() => null) as { token?: string } | null;
+      if (!csrfResponse.ok || !csrf?.token) throw new Error("The secure scan token could not be created.");
+      const response = await fetch("/api/portal/agency/command-scan", {
+        method: "POST",
+        cache: "no-store",
+        headers: {
+          "content-type": "application/json",
+          "x-csrf-token": csrf.token,
+        },
+        body: "{}",
+      });
+      const result = await response.json().catch(() => null) as {
+        ok?: boolean;
+        handle?: string;
+        expiresAt?: number;
+        error?: string;
+      } | null;
+      if (!response.ok || !result?.ok || !result.handle) {
+        if (response.status === 403) {
+          throw new Error("Use access to Workspace overview is required to run this scan.");
+        }
+        throw new Error(result?.error || "The Command Centre scan could not complete.");
+      }
+      attemptedScanHandleRef.current = result.handle;
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("scan"); // discard legacy bookmarks; GET never executes it
+      params.set("scanResult", result.handle);
+      const query = params.toString();
+      const href = query ? `${pathname}?${query}` : pathname;
+      // Next owns and preserves its history payload. The RSC read must consume
+      // the shared handle; the POST intentionally returned no snapshot body.
+      startScanNavigation(() => router.replace(href, { scroll: false }));
+    } catch (error) {
+      attemptedScanHandleRef.current = null;
+      setScanError(error instanceof Error ? error.message : "The Command Centre scan could not complete.");
+    } finally {
+      setScanRequestBusy(false);
+    }
+  }
 
   const clearServerStationQuery = useCallback(() => {
     if (!requestedServerStation) return;
@@ -403,10 +460,9 @@ export function DashboardCommandCenter({
     const optimisticView = pendingServerStationView(station);
     setActiveStation(optimisticView.activeStation);
     setDashboardMode(optimisticView.dashboardMode);
-    // Once Radar + KPI intelligence have completed together, every
-    // server-backed station navigation must request that same truthful payload.
-    // The visible one-shot query is still stripped after settlement.
-    const href = serverCommandStationHref(pathname, searchParams.toString(), station, fullServerScanLoaded);
+    // A completed Radar + KPI payload crosses this RSC navigation by its exact
+    // bounded result handle. GET navigation has no scan command to replay.
+    const href = serverCommandStationHref(pathname, searchParams.toString(), station, scanResultHandle);
     try {
       startServerStationTransition(() => router.replace(href, { scroll: false }));
     } catch {
@@ -415,7 +471,7 @@ export function DashboardCommandCenter({
       setActiveStation(pending.previous.activeStation);
       setDashboardMode(pending.previous.dashboardMode);
     }
-  }, [fullServerScanLoaded, pathname, requestedServerStation, router, searchParams]);
+  }, [pathname, requestedServerStation, router, scanResultHandle, searchParams]);
 
   useEffect(() => {
     if (!pendingServerNavigation || serverStationTransitionPending) return;
@@ -1246,8 +1302,16 @@ export function DashboardCommandCenter({
       />
       {displayedScanIsPaused ? (
         <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-[#e5c479]/30 bg-[#e5c479]/[0.06] px-4 py-3 text-sm text-[#f0dcae]" data-testid="command-scan-paused">
-          <span className="flex items-center gap-2"><Gauge size={15} /> Performance mode is on — Radar and KPI intelligence are paused for a faster Command Centre. Run a scan to load live business signals.</span>
-          <Link href={runScanHref} prefetch={false} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-[#e5c479]/40 bg-[#e5c479]/[0.12] px-3 font-semibold text-[#f6e8c6] hover:bg-[#e5c479]/20"><RefreshCw size={14} /> Run scan</Link>
+          <span className="flex items-center gap-2"><Gauge size={15} /> {scanResultAccessDenied
+            ? "Radar and KPI intelligence are unavailable under your current Workspace overview access."
+            : scanResultUnavailable
+              ? "The completed scan store is temporarily unavailable. Radar and KPI intelligence remain safely paused; retry the scan when the provider recovers."
+              : "Radar and KPI intelligence are paused for a faster Command Centre. Run a secure scan to load live business signals."}</span>
+          {!scanResultAccessDenied ? <button type="button" onClick={() => void runCommandScan()} disabled={scanRequestBusy || scanNavigationPending} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-[#e5c479]/40 bg-[#e5c479]/[0.12] px-3 font-semibold text-[#f6e8c6] hover:bg-[#e5c479]/20 disabled:cursor-wait disabled:opacity-60">
+            <RefreshCw size={14} className={scanRequestBusy || scanNavigationPending ? "animate-spin" : ""} />
+            {scanRequestBusy || scanNavigationPending ? "Running scan…" : scanResultUnavailable ? "Retry scan" : "Run scan"}
+          </button> : null}
+          {scanError ? <span className="basis-full text-xs text-rose-200" data-testid="command-scan-error">{scanError}</span> : null}
         </div>
       ) : null}
       {activeStation === "devteam" ? <div className="grid min-w-0 gap-0" data-testid="dev-team-station">{pendingServerStation === "devteam" ? <StationLoading label="Dev Team" /> : devTeamWorkspace ?? <StationLoading label="Dev Team" />}</div> : activeStation === "executive" ? <div className="grid min-w-0 gap-0" data-testid="unified-command-centre">{pendingServerStation === "executive" ? <StationLoading label="Command Centre" /> : <>{executiveWorkspace ?? <StationLoading label="Command Centre" />}<CommandInstrumentDock alertCount={radarSnapshot.summary.critical + radarSnapshot.summary.warning} checkCount={radarSnapshot.summary.totalChecks} onOpenIntelligence={openIntelligenceOverview} onOpenRadar={openRadarWorkspace} /><CommandCentreKpiTrajectory intelligence={intelligenceState} onOpen={openIntelligence} /></>}</div> : activeStation === "battle" ? pendingServerStation === "battle" ? <StationLoading label="Battle Table" /> : battleTablePayload ? <BattleTableWorkspace payload={battleTablePayload} intelligence={intelligenceState} onOpenIntelligence={openIntelligence} radarIncidents={warRoomIncidents} initialSection={requestedBattleSection} initialScopeId={requestedScopeId} /> : <StationLoading label="Battle Table" /> : <fieldset disabled={!canManage} className="contents"><section id="command-workspace" role="region" aria-label={`${activeStation === "day" ? "Day Command" : activeStation === "intelligence" ? "KPI Intelligence" : "Radar"} station`} data-command-mode={dashboardMode === "inspector" ? "workspace" : dashboardMode} className="mm-command-workspace-shell mm-command-workspace-inline relative flex min-h-[42rem] min-w-0 flex-col overflow-hidden rounded-md border border-[#62e8ff]/30 bg-[#020b11]">

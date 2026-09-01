@@ -81,6 +81,14 @@ describe("email-sender foundation registration — source markers", () => {
     assert.match(src, /events:\s*eventBusPort/);
     assert.match(src, /pluginInstalls:\s*pluginInstallStorePort/);
   });
+
+  it("production foundation injects the real Node SMTP transport", () => {
+    const src = readFileSync(ADAPTER, "utf-8");
+    assert.match(src, /nodemailer\.createTransport/);
+    assert.match(src, /defaultDriverRegistry\(fetch, nodeSmtpTransport\)/);
+    assert.match(src, /drivers:\s*productionEmailDrivers/);
+    assert.doesNotMatch(src, /Drivers are intentionally NOT injected/);
+  });
 });
 
 describe("email-sender foundation registration — runtime", () => {

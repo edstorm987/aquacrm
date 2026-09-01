@@ -4,6 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, FileSearch, LoaderCircle } from "lucide-react";
 
+import {
+  attentionScopeKey,
+  isAttentionPlanReads,
+  unavailableAttentionPlanReads,
+} from "@/lib/inbox/attentionPlanRead";
+import type { ReadResult } from "@/lib/readAvailability";
 import type { ResolutionEvidence } from "@/lib/inbox/resolutionEvidence";
 import { MetricSparkline } from "@/components/attention/MetricSparkline";
 import { stepsFor } from "@/lib/inbox/evidenceSteps";
@@ -33,24 +39,57 @@ export function EvidenceCard({
    */
   fallback?: { title: string; detail: string; href?: string };
 }) {
+  return (
+    <EvidenceCardForAlert
+      key={attentionScopeKey("evidence", alertId)}
+      alertId={alertId}
+      fallback={fallback}
+    />
+  );
+}
+
+function EvidenceCardForAlert({
+  alertId,
+  fallback,
+}: {
+  alertId: string;
+  fallback?: { title: string; detail: string; href?: string };
+}) {
   const [evidence, setEvidence] = useState<ResolutionEvidence | null>(null);
-  const [state, setState] = useState<"loading" | "ready" | "none" | "error">("loading");
+  const [read, setRead] = useState<ReadResult<ResolutionEvidence | null> | null>(null);
+  const [retryAttempt, setRetryAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/portal/attention/plan?alert=${encodeURIComponent(alertId)}`, { cache: "no-store" })
-      .then(response => response.json())
-      .then((payload: { evidence?: ResolutionEvidence | null }) => {
+    const load = async () => {
+      try {
+        const response = await fetch(
+          `/api/portal/attention/plan?alert=${encodeURIComponent(alertId)}`,
+          { cache: "no-store" },
+        );
+        const payload = await response.json() as { ok?: boolean; reads?: unknown; error?: string };
+        if (!response.ok || payload.ok !== true || !isAttentionPlanReads(payload.reads)) {
+          throw new Error(payload.error || "Alert records could not be read.");
+        }
         if (cancelled) return;
-        if (!payload.evidence) { setState("none"); return; }
-        setEvidence(payload.evidence);
-        setState("ready");
-      })
-      .catch(() => { if (!cancelled) setState("error"); });
+        const next = payload.reads.evidence;
+        setRead(next);
+        // A failed retry changes availability only. The last confirmed record
+        // remains visible and is explicitly labelled as retained below.
+        if (next.available) setEvidence(next.data);
+      } catch {
+        if (!cancelled) {
+          setRead(unavailableAttentionPlanReads(
+            "The records behind this alert could not be read. Retry before treating the evidence as empty.",
+          ).evidence);
+        }
+      }
+    };
+    void load();
     return () => { cancelled = true; };
-  }, [alertId]);
+  }, [alertId, retryAttempt]);
 
-  if (state === "loading") {
+  if (!read) {
     return (
       <p className="flex items-center gap-2 px-4 py-3 text-xs text-black/45">
         <LoaderCircle size={13} className="animate-spin" aria-hidden />Loading the records…
@@ -58,20 +97,30 @@ export function EvidenceCard({
     );
   }
 
-  if (state === "error") {
-    return (
-      <p className="px-4 py-3 text-xs text-red-700">
-        The records could not be loaded. Use the Evidence link to open them directly.
-      </p>
-    );
-  }
+  const unavailableNotice = !read.available ? (
+    <div role="alert" className="flex flex-wrap items-center justify-between gap-2 border-l-2 border-amber-600 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+      <span>
+        {evidence
+          ? "The records were not refreshed. The last confirmed evidence remains below and may be stale."
+          : read.reason ?? "The records behind this alert were not read."}
+      </span>
+      <button
+        type="button"
+        onClick={() => setRetryAttempt(value => value + 1)}
+        className="shrink-0 font-semibold underline underline-offset-2"
+      >
+        Retry records
+      </button>
+    </div>
+  ) : null;
 
   // Nothing came back for this id. Show what the row itself knows rather than
   // an empty panel — "no records" reads as "nothing is wrong", which is the
   // opposite of what an action means.
-  if ((state === "none" || !evidence) && fallback) {
+  if (!evidence && fallback) {
     return (
       <div className="grid gap-2 px-4 py-3">
+        {unavailableNotice}
         <p className="text-xs font-semibold text-black/60">{fallback.title}</p>
         <p className="text-xs leading-5 text-black/60">{fallback.detail}</p>
         <ol className="grid gap-1.5">
@@ -91,7 +140,11 @@ export function EvidenceCard({
     );
   }
 
-  if (state === "none" || !evidence) {
+  if (!evidence && !read.available) {
+    return <div className="px-4 py-3">{unavailableNotice}</div>;
+  }
+
+  if (!evidence) {
     return (
       <p className="px-4 py-3 text-xs text-black/45">
         No inline records for this one yet — open Evidence to inspect it at source.
@@ -101,7 +154,8 @@ export function EvidenceCard({
 
   if (evidence.unavailable) {
     return (
-      <div className="px-4 py-3">
+      <div className="grid gap-2 px-4 py-3">
+        {unavailableNotice}
         <p className="text-xs font-semibold text-amber-900">{evidence.summary}</p>
         <p className="mt-1 text-xs text-black/50">{evidence.unavailable}</p>
       </div>
@@ -110,6 +164,7 @@ export function EvidenceCard({
 
   return (
     <div className="grid gap-3 px-4 py-3" data-testid="evidence-card">
+      {unavailableNotice}
       <p className="flex items-center gap-1.5 text-xs font-semibold text-black/60">
         <FileSearch size={13} className="text-black/35" aria-hidden />
         {evidence.summary}

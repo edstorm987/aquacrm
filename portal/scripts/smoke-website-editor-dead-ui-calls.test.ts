@@ -2,7 +2,7 @@
 //
 // ── What this is, and what it is NOT ─────────────────────────────────────
 //
-// It is a RATCHET, not a clean bill of health. Sixteen distinct endpoints
+// It is a RATCHET, not a clean bill of health. Fourteen distinct endpoints
 // (thirty-one when this was written; two were repointed on 2026-08-30 and the
 // thirteen-call browser-local Sites island was retired on 2026-09-01)
 // are fetched by website-editor pages and blocks and resolve to nothing: no
@@ -28,10 +28,10 @@
 //     them and `lib/blockBackends.ts` explains why. They appear here too
 //     because the fetch is still in the component.
 //   * **AI Builder** — issue #28. The image modals call routes that only exist
-//     when the AI Builder plugin is installed. As of 2026-08-30 the controls
-//     that open them are gated on the same status probe that already hid the
-//     top bar's ✨ Generate, so an absent plugin no longer offers them; the
-//     fetches stay in the components, which is why they stay listed here.
+//     when the AI Builder plugin is installed. The controls use the exact-scope
+//     enabled-install set supplied by the server entry, so an absent plugin
+//     does not generate a probe 404 or offer them; the optional fetches stay in
+//     the components, which is why they stay listed here.
 
 import { readdirSync, readFileSync, existsSync } from "node:fs";
 import path from "node:path";
@@ -51,8 +51,6 @@ const KNOWN_DEAD = [
   "/api/portal/ai-builder/image",
   "/api/portal/ai-builder/image/inpaint",
   "/api/portal/ai-builder/image/variations",
-  "/api/portal/ai-builder/status",
-  "/api/portal/ecommerce/products/*/variants",
   "/api/portal/forms/public/form/*",
   "/api/portal/forms/public/submit/*",
   "/api/portal/forms/submit",
@@ -65,8 +63,7 @@ const KNOWN_DEAD = [
   // `/api/portal/website-editor/promote/*` LEFT this list on 2026-08-30.
   // `lib/promote.ts` invented a `/promote/<siteId>` path; the module declares
   // `/promote` and `handlePromote` reads siteId from the body. The siteId now
-  // travels in the body. `/api/portal/promote/*` — the Sites page's own,
-  // separate legacy call — is still above and still dead.
+  // travels in the body. The separate legacy Sites surface is now retired.
 ].sort();
 
 function declaredRoutes(): Map<string, string[]> {
@@ -234,13 +231,13 @@ test("a publish that raised no pull request does not say it did", () => {
   assert.doesNotMatch(jsx, /Ship \{site\.name\} to GitHub/, "the modal must not promise a ship it cannot perform");
 });
 
-test("the image AI controls are gated on the same probe as the top bar", () => {
+test("the image AI controls use the tenant's authoritative plugin install set", () => {
   // `EditorPropertiesSidebar` showed "Generate variations" and "Edit with mask"
   // for every image, and those modals POST to `/api/portal/ai-builder/image/*`
   // — routes that exist only when the AI Builder plugin is installed. The
-  // editor already probes `/api/portal/ai-builder/status` and hides the top
-  // bar's ✨ Generate on the answer; the sidebar ignored it, so with the plugin
-  // absent the operator got a modal that spun and then failed.
+  // The server entry already resolves exact-scope enabled installs for the
+  // block palette. The AI controls must use that same authority: probing an
+  // optional status route creates a guaranteed 404 when the plugin is absent.
   const sidebar = readFileSync(path.join(WEBSITE_EDITOR, "components/editor/EditorPropertiesSidebar.tsx"), "utf8");
   const code = sidebar.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 
@@ -257,7 +254,11 @@ test("the image AI controls are gated on the same probe as the top bar", () => {
   }
 
   const editor = readFileSync(path.join(WEBSITE_EDITOR, "pages/EditorPage.tsx"), "utf8");
-  assert.match(editor, /aiAvailable=\{aiAvailable\}/, "and the page must pass the probe's answer down");
+  assert.match(editor, /enabledPluginIds\.includes\("ai-builder"\)/,
+    "the page must derive availability from the exact-scope install set");
+  assert.doesNotMatch(editor, /\/api\/portal\/ai-builder\/status/,
+    "an absent optional plugin must not create a status-probe 404");
+  assert.match(editor, /aiAvailable=\{aiAvailable\}/, "and the page must pass that answer down");
 });
 
 test("the site export is reachable — it was the button that proved this class real", () => {

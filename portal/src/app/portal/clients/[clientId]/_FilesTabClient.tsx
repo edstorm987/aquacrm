@@ -15,6 +15,8 @@ interface ClientFileRef {
   uploadedBy?: string;
   uploadedAt: number;
   customerVisible?: boolean;
+  deleteState?: "deleting" | "delete-failed";
+  deleteError?: string;
 }
 
 const CATEGORY_META: Record<FileCategory, { label: string; emoji: string }> = {
@@ -128,7 +130,8 @@ export function FilesTabClient({
   }
 
   async function remove(id: string) {
-    if (!confirm("Remove this file reference?")) return;
+    const file = files.find(item => item.id === id);
+    if (!confirm(file?.deleteState ? "Retry removing this stored file?" : "Remove this stored file?")) return;
     setBusy(true);
     setError(null);
     try {
@@ -138,11 +141,13 @@ export function FilesTabClient({
         body: JSON.stringify({ clientId, action: "delete", fileId: id }),
       });
       const data = await res.json() as { ok: boolean; error?: string; files?: ClientFileRef[] };
+      // A refused provider delete returns the retained, explicitly failed row.
+      // Render that durable truth even though the HTTP operation failed.
+      if (data.files) setFiles(data.files);
       if (!data.ok) {
         setError(data.error ?? "Delete failed.");
         return;
       }
-      if (data.files) setFiles(data.files);
       router.refresh();
     } finally {
       setBusy(false);
@@ -298,14 +303,18 @@ export function FilesTabClient({
                 className="flex items-start justify-between gap-3 rounded-lg border border-black/10 bg-white p-3 shadow-sm"
               >
                 <div className="min-w-0 flex-1">
-                  <a
-                    href={f.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block truncate text-sm font-medium text-brand hover:underline"
-                  >
-                    {CATEGORY_META[f.category].emoji} {f.name} ↗
-                  </a>
+                  {f.deleteState === "deleting" ? (
+                    <span className="block truncate text-sm font-medium text-black/50">{CATEGORY_META[f.category].emoji} {f.name}</span>
+                  ) : (
+                    <a
+                      href={f.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block truncate text-sm font-medium text-brand hover:underline"
+                    >
+                      {CATEGORY_META[f.category].emoji} {f.name} ↗
+                    </a>
+                  )}
                   <div className="mt-0.5 flex flex-wrap gap-1.5 text-[11px] text-black/50">
                     <span className="rounded-full bg-black/5 px-1.5 py-px">
                       {CATEGORY_META[f.category].label}
@@ -316,32 +325,34 @@ export function FilesTabClient({
                       {f.customerVisible === true ? <Eye size={10} /> : <EyeOff size={10} />}
                       {f.customerVisible === true ? "Shared with client" : "Private"}
                     </span>
+                    {f.deleteState ? <span className={`rounded-full px-1.5 py-px ${f.deleteState === "delete-failed" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>{f.deleteState === "delete-failed" ? "Delete failed — retry available" : "Deletion pending"}</span> : null}
                   </div>
+                  {f.deleteState === "delete-failed" && f.deleteError ? <p className="mt-1 text-[11px] text-red-700">Storage said: {f.deleteError}</p> : null}
                 </div>
                 <div className="flex shrink-0 flex-col gap-1">
                   {canManage ? <button
                     type="button"
                     onClick={() => void setVisibility(f, f.customerVisible !== true)}
-                    disabled={busy}
+                    disabled={busy || Boolean(f.deleteState)}
                     className="rounded-md border border-black/15 px-2 py-1 text-[11px] hover:bg-black/5 disabled:opacity-50"
                   >
                     {f.customerVisible === true ? "Make private" : "Share"}
                   </button> : null}
-                  <a
+                  {f.deleteState !== "deleting" ? <a
                     href={f.url}
                     target="_blank"
                     rel="noreferrer"
                     className="rounded-md border border-black/15 px-2 py-1 text-[11px] hover:bg-black/5"
                   >
                     Open
-                  </a>
+                  </a> : null}
                   {canManage ? <button
                     type="button"
                     onClick={() => remove(f.id)}
                     disabled={busy}
                     className="rounded-md border border-red-200 px-2 py-1 text-[11px] text-red-700 hover:bg-red-50 disabled:opacity-50"
                   >
-                    Delete
+                    {f.deleteState ? "Retry delete" : "Delete"}
                   </button> : null}
                 </div>
               </li>

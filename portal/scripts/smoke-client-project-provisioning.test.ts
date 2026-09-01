@@ -117,6 +117,8 @@ describe("client project provisioning", () => {
       projectName: "Main website",
     };
     const plan = planClientProject(identity);
+    const requestHash = "resume_request_hash";
+    const recoveryToken = "resume-recovery-token";
     assert.equal(plan.adopted, false);
     const created = provisionClientProject({
       clientId: "cli_resume",
@@ -124,7 +126,11 @@ describe("client project provisioning", () => {
       starterId: "luxury-service-site",
       aquaOrigin: "http://localhost:3030",
       propertyId: plan.propertyId,
+      requestHash,
+      recoveryToken,
     }, plan);
+    const userEdit = path.join(created.localPath, "user-edit.txt");
+    writeFileSync(userEdit, "preserve this uncommitted edit\n");
 
     // The client record save is lost here. The durable operation still owns the
     // slug, folder and property id, so the retry must re-enter them. Without
@@ -143,13 +149,72 @@ describe("client project provisioning", () => {
       starterId: "luxury-service-site",
       aquaOrigin: "http://localhost:3030",
       propertyId: retryPlan.propertyId,
+      requestHash,
+      recoveryToken,
     }, retryPlan);
 
     assert.equal(retried.localPath, created.localPath);
     assert.equal(retried.propertyId, created.propertyId);
     assert.equal(retried.projectSlug, created.projectSlug);
     assert.match(retried.initialCommit, /^[a-f0-9]{40}$/);
+    assert.equal(readFileSync(userEdit, "utf8"), "preserve this uncommitted edit\n");
+    assert.match(
+      execFileSync("git", ["status", "--porcelain"], { cwd: retried.localPath, encoding: "utf8" }),
+      /\?\? user-edit\.txt/,
+      "retry adopts the complete repository without cleaning user work",
+    );
     assert.deepEqual(readdirSync(clientProjectDirectory(identity)), [plan.projectSlug]);
+  });
+
+  it("cleans and retries the same provision after folder-copy and initial-commit crashes", async () => {
+    const {
+      clientProjectDirectory,
+      planClientProject,
+      provisionClientProject,
+    } = await import("../src/lib/server/clients/clientProjectProvisioner");
+
+    for (const failurePoint of ["folder", "commit"] as const) {
+      const identity = {
+        clientName: `Fault ${failurePoint} Studio`,
+        clientSlug: `fault-${failurePoint}-studio`,
+        projectName: "Main website",
+      };
+      const plan = planClientProject(identity);
+      const input = {
+        clientId: `cli_fault_${failurePoint}`,
+        ...identity,
+        starterId: "luxury-service-site" as const,
+        aquaOrigin: "http://localhost:3030",
+        propertyId: plan.propertyId,
+        requestHash: `fault_${failurePoint}_request`,
+        recoveryToken: `fault-${failurePoint}-recovery`,
+      };
+      assert.throws(() => provisionClientProject(input, plan, {
+        afterFolderCreated: failurePoint === "folder"
+          ? () => { throw new Error("crash after folder creation"); }
+          : undefined,
+        afterInitialCommit: failurePoint === "commit"
+          ? () => { throw new Error("crash after initial commit"); }
+          : undefined,
+      }), new RegExp(`crash after ${failurePoint === "folder" ? "folder creation" : "initial commit"}`));
+      assert.equal(existsSync(plan.localPath), false, `${failurePoint} failure must clean the partial folder`);
+      assert.equal(
+        readdirSync(clientProjectDirectory(identity)).some(entry => entry.startsWith(".aqua-staging-")),
+        false,
+        `${failurePoint} failure must clean only its owned staging artifacts`,
+      );
+
+      // The durable intent remains stable; retrying it recreates exactly one
+      // folder/property at the original name instead of minting a sibling.
+      const retryPlan = planClientProject({
+        ...identity,
+        adopt: { propertyId: plan.propertyId, projectSlug: plan.projectSlug, localPath: plan.localPath },
+      });
+      const recovered = provisionClientProject(input, retryPlan);
+      assert.equal(recovered.localPath, plan.localPath);
+      assert.equal(recovered.propertyId, plan.propertyId);
+      assert.deepEqual(readdirSync(clientProjectDirectory(identity)), ["main-website"]);
+    }
   });
 
   it("steps aside instead of writing over a folder a concurrent provision claimed", async () => {
@@ -205,14 +270,86 @@ describe("client project provisioning", () => {
     );
   });
 
-  it("does not adopt — and so does not delete — a folder the operation only intended", async () => {
+  it("atomically steps aside when a folder is claimed after the preflight check", async () => {
+    const {
+      clientProjectDirectory,
+      planClientProject,
+      provisionClientProject,
+    } = await import("../src/lib/server/clients/clientProjectProvisioner");
+    const identity = {
+      clientName: "Atomic Race Studio",
+      clientSlug: "atomic-race-studio",
+      projectName: "Main website",
+    };
+    const plan = planClientProject(identity);
+    const sentinel = path.join(plan.localPath, "claimed-by-other-operation.txt");
+    const recovered = provisionClientProject({
+      clientId: "cli_atomic_race",
+      ...identity,
+      starterId: "luxury-service-site",
+      aquaOrigin: "http://localhost:3030",
+      propertyId: plan.propertyId,
+    }, plan, {
+      beforeFolderClaim: localPath => {
+        mkdirSync(localPath);
+        writeFileSync(sentinel, "preserve me");
+      },
+    });
+
+    assert.equal(readFileSync(sentinel, "utf8"), "preserve me");
+    assert.equal(recovered.projectSlug, "main-website-2");
+    assert.notEqual(recovered.localPath, plan.localPath);
+    assert.deepEqual(
+      readdirSync(clientProjectDirectory(identity)).sort(),
+      ["main-website", "main-website-2"],
+    );
+  });
+
+  it("reuses durable provision intent without deleting a folder another operation claimed", async () => {
+    const {
+      clientProjectDirectory,
+      planClientProject,
+      provisionClientProject,
+    } = await import("../src/lib/server/clients/clientProjectProvisioner");
+    const identity = {
+      clientName: "Intent Race Studio",
+      clientSlug: "intent-race-studio",
+      projectName: "Main website",
+    };
+    const intended = planClientProject(identity);
+    const claimant = provisionClientProject({
+      clientId: "cli_claimant",
+      ...identity,
+      starterId: "luxury-service-site",
+      aquaOrigin: "http://localhost:3030",
+      propertyId: "prop_claimant",
+    }, { ...intended, propertyId: "prop_claimant" });
+    const claimantHtml = readFileSync(path.join(claimant.localPath, "index.html"), "utf8");
+
+    // The durable intent survived but its milestone did not. Route-level retry
+    // adopts that intent; the provisioner must inspect the generated identity
+    // before deleting anything and step aside when another operation owns it.
+    const recovered = provisionClientProject({
+      clientId: "cli_intended",
+      ...identity,
+      starterId: "luxury-service-site",
+      aquaOrigin: "http://localhost:3030",
+      propertyId: intended.propertyId,
+    }, { ...intended, adopted: true });
+
+    assert.equal(recovered.projectSlug, "main-website-2");
+    assert.notEqual(recovered.localPath, claimant.localPath);
+    assert.equal(readFileSync(path.join(claimant.localPath, "index.html"), "utf8"), claimantHtml);
+    assert.deepEqual(
+      readdirSync(clientProjectDirectory(identity)).sort(),
+      ["main-website", "main-website-2"],
+    );
+
     const route = readFileSync(
       path.join(process.cwd(), "src/app/api/tenants/client-projects/provision/route.ts"),
       "utf8",
     );
-    // Adoption deletes and rebuilds what it adopts, so only a milestone that
-    // actually landed ("external-created") may be adopted.
-    assert.match(route, /resumable\?\.status === "external-created"/);
+    assert.match(route, /resumable\?\.propertyId && resumable\.projectSlug && resumable\.localPath/);
     assert.match(route, /adopt: adoptable\s*\n?\s*\?/);
     // And the milestone records the folder that was really built, not the plan.
     assert.match(route, /await operation\.record\(\{[\s\S]*localPath: workspace\.localPath,/);
@@ -235,8 +372,11 @@ describe("client project provisioning", () => {
       kind: "deploy",
       agencyId: "agc_ops",
       clientId: "cli_ops",
+      requestHash: "deploy_request_hash",
       intent: { propertyId: "prop_ops" },
     });
+    const recoveryToken = first.operation.recoveryToken;
+    assert.match(recoveryToken ?? "", /^[a-f0-9-]{36}$/);
     // The intent is durable BEFORE anything external happens.
     assert.equal(getClientProjectOperation(key)?.status, "pending");
     await first.record({ deploymentId: "dpl_ops", previewUrl: "https://ops.vercel.app" });
@@ -252,10 +392,12 @@ describe("client project provisioning", () => {
       kind: "deploy",
       agencyId: "agc_ops",
       clientId: "cli_ops",
+      requestHash: "deploy_request_hash",
       intent: { propertyId: "prop_ops" },
     });
     assert.equal(retry.operation.deploymentId, "dpl_ops");
     assert.equal(retry.operation.attempts, 2);
+    assert.equal(retry.operation.recoveryToken, recoveryToken);
     await retry.succeed();
 
     // A finished operation is never adopted again: deploying once more is a new
@@ -266,10 +408,113 @@ describe("client project provisioning", () => {
       kind: "deploy",
       agencyId: "agc_ops",
       clientId: "cli_ops",
+      requestHash: "deploy_request_hash",
       intent: { propertyId: "prop_ops" },
     });
     assert.equal(fresh.operation.deploymentId, undefined);
     assert.equal(fresh.operation.status, "pending");
+    assert.equal(fresh.operation.attempts, 1);
+    assert.notEqual(fresh.operation.recoveryToken, recoveryToken);
+  });
+
+  it("binds an unfinished operation to one immutable request body", async () => {
+    const {
+      beginClientProjectOperation,
+      ClientProjectOperationConflictError,
+      clientProjectRequestHash,
+      createPortalClientProjectOperationRuntime,
+    } = await import("../src/server/clientProjectOperations");
+    const operations = new Map<string, import("../src/server/types").ClientProjectOperation>();
+    const runtime = createPortalClientProjectOperationRuntime({
+      readOperation: key => operations.get(key),
+      writeOperation: (key, operation) => { operations.set(key, operation); },
+      flush: async () => undefined,
+      now: () => 1_700_000_000_000,
+    });
+    const firstHash = clientProjectRequestHash({
+      kind: "provision",
+      agencyId: "agc_hash",
+      clientId: "cli_hash",
+      request: { projectName: "Main website", starterId: "luxury-service-site" },
+    });
+    const changedBodyHash = clientProjectRequestHash({
+      kind: "provision",
+      agencyId: "agc_hash",
+      clientId: "cli_hash",
+      request: { projectName: "Main website", starterId: "different-starter" },
+    });
+    const first = await beginClientProjectOperation({
+      key: "same-operation-key",
+      kind: "provision",
+      agencyId: "agc_hash",
+      clientId: "cli_hash",
+      requestHash: firstHash,
+      intent: { propertyId: "prop_hash" },
+    }, runtime);
+    await first.fail(new Error("simulated crash"));
+
+    await assert.rejects(
+      beginClientProjectOperation({
+        key: "same-operation-key",
+        kind: "provision",
+        agencyId: "agc_hash",
+        clientId: "cli_hash",
+        requestHash: changedBodyHash,
+        intent: { propertyId: "prop_changed" },
+      }, runtime),
+      (error: unknown) => error instanceof ClientProjectOperationConflictError && error.status === 409,
+    );
+    assert.equal(operations.get("same-operation-key")?.requestHash, firstHash);
+    assert.equal(operations.get("same-operation-key")?.propertyId, "prop_hash");
+    assert.equal(operations.get("same-operation-key")?.attempts, 1, "conflicting retry did not mutate the operation");
+  });
+
+  it("serialises project rows and merges each status by id after slow work", async () => {
+    const { createAgency, createClient, getClientForAgency, updateClient } = await import("../src/server/tenants");
+    const { flushPendingWrites } = await import("../src/server/storage");
+    const { withClientProjectTransaction } = await import("../src/server/productWorkspaceCoordinator");
+    const agency = createAgency({ name: `Project lock ${Date.now()}` });
+    const client = createClient(agency.id, {
+      name: "Concurrent Projects",
+      metadata: {
+        properties: [
+          { id: "prop_publish", repositoryStatus: "local" },
+          { id: "prop_deploy", deploymentStatus: "not-deployed" },
+        ],
+      },
+    });
+    await flushPendingWrites();
+
+    let firstEntered!: () => void;
+    const entered = new Promise<void>(resolve => { firstEntered = resolve; });
+    let releaseFirst!: () => void;
+    const pause = new Promise<void>(resolve => { releaseFirst = resolve; });
+    const change = async (propertyId: string, patch: Record<string, unknown>, wait = false) => (
+      withClientProjectTransaction({ agencyId: agency.id, clientId: client.id }, async () => {
+        if (wait) {
+          firstEntered();
+          await pause;
+        }
+        const fresh = getClientForAgency(agency.id, client.id);
+        assert.ok(fresh);
+        const properties = ((fresh.metadata?.properties ?? []) as Array<Record<string, unknown>>)
+          .map(property => property.id === propertyId ? { ...property, ...patch } : property);
+        assert.ok(updateClient(agency.id, client.id, { metadata: { properties } }));
+      })
+    );
+
+    const publish = change("prop_publish", { repositoryStatus: "connected", repoUrl: "https://example.test/repo" }, true);
+    await entered;
+    const deploy = change("prop_deploy", { deploymentStatus: "preview", previewUrl: "https://example.test/preview" });
+    releaseFirst();
+    await Promise.all([publish, deploy]);
+
+    const properties = (getClientForAgency(agency.id, client.id)?.metadata?.properties ?? []) as Array<Record<string, unknown>>;
+    assert.equal(properties.find(property => property.id === "prop_publish")?.repositoryStatus, "connected");
+    assert.equal(properties.find(property => property.id === "prop_publish")?.repoUrl, "https://example.test/repo");
+    assert.equal(properties.find(property => property.id === "prop_deploy")?.deploymentStatus, "preview");
+    assert.equal(properties.find(property => property.id === "prop_deploy")?.previewUrl, "https://example.test/preview");
+    assert.equal(properties.length, 2, "neither concurrent status row was lost");
   });
 
   it("keeps previews tenant-scoped while allowing the assigned customer", () => {
@@ -307,10 +552,17 @@ describe("client project provisioning", () => {
     const deploy = readFileSync(path.join(routeRoot, "deploy/route.ts"), "utf8");
 
     for (const [name, source] of Object.entries({ provision, publish, deploy })) {
+      assert.match(source, /withClientProjectTransaction\(\{ agencyId: session\.agencyId, clientId \}/, `${name} must use the shared per-client project lane`);
       assert.match(source, /resumableClientProjectOperation\(operationKey\)/, `${name} must consult the recorded operation`);
       assert.match(source, /await beginClientProjectOperation\(/, `${name} must record intent before acting`);
+      assert.match(source, /requestHash,/, `${name} must bind the durable operation to its request`);
       assert.match(source, /await operation\.fail\(/, `${name} must record the failure, keeping its milestones`);
       assert.match(source, /await operation\.succeed\(\)/, `${name} must close the operation`);
+      assert.ok(
+        source.indexOf("await ensureHydrated({ fresh: true })") > source.indexOf(name === "provision" ? "provisionClientProject({" : name === "publish" ? "publishProjectToGitHub({" : "deployProjectPreviewToVercel({"),
+        `${name} must reload durable client state after slow external work`,
+      );
+      assert.match(source, /freshProperties|existingProperties/, `${name} must merge from the reloaded property array`);
       // The lost-save path is exactly the one that used to orphan the external thing.
       assert.match(
         source,
@@ -323,8 +575,11 @@ describe("client project provisioning", () => {
     assert.ok(publish.indexOf("beginClientProjectOperation({") < publish.indexOf("publishProjectToGitHub({"));
     assert.ok(deploy.indexOf("beginClientProjectOperation({") < deploy.indexOf("deployProjectPreviewToVercel({"));
     assert.match(publish, /adoptRepository: resumable\?\.repoFullName/);
+    assert.match(publish, /recoveryToken: operation\.operation\.recoveryToken/);
     assert.match(publish, /onRepositoryCreated: created => operation\.record\(/);
     assert.match(deploy, /adoptDeploymentId: resumable\?\.deploymentId/);
+    assert.match(deploy, /reconcileKey: operation\.operation\.recoveryToken/);
+    assert.match(deploy, /reconcileExisting: Boolean\(resumable\)/);
     assert.match(deploy, /onDeploymentCreated: created => operation\.record\(/);
   });
 
@@ -441,7 +696,7 @@ describe("client project provisioning", () => {
     assert.equal(published.repoUrl, "https://github.com/edstorm987/resume-site");
   });
 
-  it("reconciles a colliding repository name rather than failing the publish", async () => {
+  it("refuses to reconcile an arbitrary colliding GitHub repository", async () => {
     const { publishProjectToGitHub } = await import("../src/lib/server/integrations/githubProjectPublisher");
     const localPath = path.join(tempRoot, "collide-publish-client", "collide-site");
     mkdirSync(localPath, { recursive: true });
@@ -462,26 +717,101 @@ describe("client project provisioning", () => {
           html_url: "https://github.com/edstorm987/collide-site",
           owner: { login: "edstorm987" },
           private: true,
+          size: 0,
+          created_at: new Date().toISOString(),
+          description: "Private client site",
         }), { status: 200 });
       }
       throw new Error(`unexpected GitHub call ${url}`);
     };
 
-    const published = await publishProjectToGitHub({
+    await assert.rejects(publishProjectToGitHub({
       localPath,
       projectSlug: "collide-site",
       description: "Private client site",
       config: { token: "collide-token", owner: "edstorm987" },
+      recoveryToken: "exact_operation_marker",
     }, {
       fetchImpl: fetchImpl as typeof fetch,
       runGit: (args: string[]) => {
         if (args.join(" ") === "remote get-url origin") throw new Error("no origin");
         return "";
       },
-    });
+    }), /GitHub request failed \(422\)/);
     assert.equal(creates, 1);
     assert.equal(lookups, 1);
-    assert.equal(published.fullName, "edstorm987/collide-site");
+  });
+
+  it("reconciles a repository whose create checkpoint failed before push", async () => {
+    const { publishProjectToGitHub } = await import("../src/lib/server/integrations/githubProjectPublisher");
+    const localPath = path.join(tempRoot, "checkpoint-publish-client", "checkpoint-site");
+    mkdirSync(localPath, { recursive: true });
+    let repository = {
+      clone_url: "https://github.com/edstorm987/checkpoint-site.git",
+      description: "Private client site",
+      full_name: "edstorm987/checkpoint-site",
+      html_url: "https://github.com/edstorm987/checkpoint-site",
+      owner: { login: "edstorm987" },
+      private: true,
+    };
+    let creates = 0;
+    let lookups = 0;
+    let restores = 0;
+    let pushes = 0;
+    const fetchImpl = async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/user")) return new Response(JSON.stringify({ login: "edstorm987" }), { status: 200 });
+      if (url.endsWith("/user/repos")) {
+        creates += 1;
+        if (creates === 1) {
+          repository = { ...repository, description: JSON.parse(String(init?.body)).description };
+        }
+        return creates === 1
+          ? new Response(JSON.stringify(repository), { status: 201 })
+          : new Response(JSON.stringify({ message: "name already exists on this account" }), { status: 422 });
+      }
+      if (url.endsWith("/repos/edstorm987/checkpoint-site")) {
+        if (init?.method === "PATCH") {
+          restores += 1;
+          repository = { ...repository, description: JSON.parse(String(init.body)).description };
+          return new Response(JSON.stringify(repository), { status: 200 });
+        }
+        lookups += 1;
+        return new Response(JSON.stringify(repository), { status: 200 });
+      }
+      throw new Error(`unexpected GitHub call ${url}`);
+    };
+    const runGit = (args: string[]) => {
+      if (args.join(" ") === "remote get-url origin") throw new Error("no origin");
+      if (args[0] === "push") pushes += 1;
+      return "";
+    };
+    const baseInput = {
+      localPath,
+      projectSlug: "checkpoint-site",
+      description: "Private client site",
+      config: { token: "checkpoint-token", owner: "edstorm987" },
+      recoveryToken: "checkpoint_operation_marker",
+    };
+
+    await assert.rejects(publishProjectToGitHub({
+      ...baseInput,
+      onRepositoryCreated: async () => { throw new Error("checkpoint flush failed"); },
+    }, { fetchImpl: fetchImpl as typeof fetch, runGit }), /checkpoint flush failed/);
+    assert.equal(pushes, 0, "push waits for the durable repository checkpoint");
+    assert.equal(restores, 0, "marker remains until the repository checkpoint is durable");
+    assert.match(repository.description ?? "", /aqua-recovery:checkpoint_operation_marker/);
+
+    const recovered = await publishProjectToGitHub({
+      ...baseInput,
+      onRepositoryCreated: async () => undefined,
+    }, { fetchImpl: fetchImpl as typeof fetch, runGit });
+    assert.equal(recovered.fullName, repository.full_name);
+    assert.equal(creates, 2);
+    assert.equal(lookups, 1);
+    assert.equal(restores, 1);
+    assert.equal(repository.description, "Private client site");
+    assert.equal(pushes, 1);
   });
 
   it("uploads project files and creates a Vercel review deployment", async () => {
@@ -585,5 +915,71 @@ describe("client project provisioning", () => {
     assert.equal(retried.deploymentId, first.deploymentId);
     assert.equal(retried.previewUrl, first.previewUrl);
     assert.deepEqual(recorded, ["dpl_resume", "dpl_resume"]);
+  });
+
+  it("reconciles a deployment whose id checkpoint failed instead of creating a duplicate", async () => {
+    const { deployProjectPreviewToVercel } = await import("../src/lib/server/integrations/vercelProjectDeployer");
+    const localPath = path.join(tempRoot, "checkpoint-deploy-client", "checkpoint-deploy-site");
+    mkdirSync(localPath, { recursive: true });
+    writeFileSync(path.join(localPath, "index.html"), "<h1>Ready</h1>");
+    const recoveryToken = "op_checkpoint_123";
+    let creates = 0;
+    let uploads = 0;
+    let lists = 0;
+    let deploymentMeta: Record<string, string> | undefined;
+    const providerDeployment = {
+      created: 1_700_000_000_000,
+      uid: "dpl_checkpoint",
+      name: "checkpoint-deploy-site",
+      readyState: "QUEUED",
+      url: "checkpoint-deploy-site.vercel.app",
+    };
+    const fetchImpl = async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/v6/deployments")) {
+        lists += 1;
+        return new Response(JSON.stringify({
+          deployments: creates ? [{ ...providerDeployment, meta: deploymentMeta }] : [],
+        }), { status: 200 });
+      }
+      if (url.includes("/v2/files")) {
+        uploads += 1;
+        return new Response("{}", { status: 200 });
+      }
+      if (url.includes("/v13/deployments") && init?.method === "POST") {
+        creates += 1;
+        deploymentMeta = JSON.parse(String(init.body)).meta;
+        return new Response(JSON.stringify({ ...providerDeployment, id: providerDeployment.uid }), { status: 201 });
+      }
+      throw new Error(`unexpected Vercel call ${url}`);
+    };
+    const input = {
+      localPath,
+      projectSlug: "checkpoint-deploy-site",
+      config: { token: "vercel-checkpoint-token", teamId: "team_checkpoint" },
+      reconcileKey: recoveryToken,
+    };
+
+    // Vercel accepted the deployment, then the durable id checkpoint failed.
+    await assert.rejects(deployProjectPreviewToVercel({
+      ...input,
+      onDeploymentCreated: async () => { throw new Error("checkpoint flush failed"); },
+    }, { fetchImpl: fetchImpl as typeof fetch }), /checkpoint flush failed/);
+    assert.equal(creates, 1);
+    assert.equal(uploads, 1);
+    assert.deepEqual(deploymentMeta, { aquaOperationId: recoveryToken });
+
+    // The retry has no deployment id to adopt. Its stable metadata token finds
+    // the provider object, so neither files nor a second deployment are sent.
+    const recovered = await deployProjectPreviewToVercel({
+      ...input,
+      reconcileExisting: true,
+    }, { fetchImpl: fetchImpl as typeof fetch });
+    assert.equal(recovered.deploymentId, "dpl_checkpoint");
+    assert.equal(recovered.previewUrl, "https://checkpoint-deploy-site.vercel.app");
+    assert.equal(recovered.fileCount, 0);
+    assert.equal(creates, 1);
+    assert.equal(uploads, 1);
+    assert.equal(lists, 1);
   });
 });

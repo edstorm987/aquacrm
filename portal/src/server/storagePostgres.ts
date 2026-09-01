@@ -33,6 +33,11 @@ export function stateKeyForRealm(realmId = "live"): string {
   return clean === "live" ? STATE_KEY : `${STATE_KEY}:realm:${clean}`;
 }
 
+/** Keep transient/sidecar documents out of the monolithic PortalState row. */
+export function sidecarKeyForRealm(slug: string, realmId = "live"): string {
+  return `${stateKeyForRealm(realmId)}:${slug}`;
+}
+
 let pool: Pool | null = null;
 
 function buildPool(connectionString: string): Pool {
@@ -106,6 +111,28 @@ export async function saveBlob(content: string, realmId = "live"): Promise<void>
        SET value = EXCLUDED.value,
            updated_at = EXCLUDED.updated_at`,
     [stateKey, content],
+  );
+}
+
+export async function loadSidecarBlob(slug: string, realmId = "live"): Promise<string | null> {
+  const result = await getPool().query<{ value: unknown }>(
+    "SELECT value FROM portal_kv WHERE key = $1 LIMIT 1",
+    [sidecarKeyForRealm(slug, realmId)],
+  );
+  if (result.rowCount === 0) return null;
+  const value = result.rows[0]?.value;
+  if (value === null || value === undefined) return null;
+  return typeof value === "string" ? value : JSON.stringify(value);
+}
+
+export async function saveSidecarBlob(slug: string, content: string, realmId = "live"): Promise<void> {
+  await getPool().query(
+    `INSERT INTO portal_kv (key, value, updated_at)
+     VALUES ($1, $2::jsonb, NOW())
+     ON CONFLICT (key) DO UPDATE
+       SET value = EXCLUDED.value,
+           updated_at = EXCLUDED.updated_at`,
+    [sidecarKeyForRealm(slug, realmId), content],
   );
 }
 

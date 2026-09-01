@@ -26,12 +26,15 @@ export function serverCommandStationHref(
   pathname: string,
   currentQuery: string,
   station: ServerCommandStation | null,
-  continueCompletedScan = false,
+  scanResultHandle?: string | null,
 ): string {
   const params = new URLSearchParams(currentQuery);
-  // A completed Radar + KPI build must survive later server-station moves,
-  // even after its visible one-shot query has been removed from the address.
-  if (continueCompletedScan) params.set("scan", "1");
+  // Legacy `scan=1` bookmarks are inert and stripped. A completed Radar + KPI
+  // payload crosses RSC station moves only through the bounded server-issued
+  // handle; GET navigation has no execution path to replay.
+  params.delete("scan");
+  if (scanResultHandle === null) params.delete("scanResult");
+  else if (scanResultHandle) params.set("scanResult", scanResultHandle);
   if (station) params.set("station", station);
   else params.delete("station");
   const query = params.toString();

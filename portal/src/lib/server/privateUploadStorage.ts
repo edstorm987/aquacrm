@@ -189,6 +189,15 @@ export interface PrivateUploadDeleteProviders {
   local?: (absolutePath: string) => Promise<void>;
 }
 
+function isAlreadyDeletedProviderError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const value = error as { code?: unknown; name?: unknown; message?: unknown };
+  const code = typeof value.code === "string" ? value.code : typeof value.name === "string" ? value.name : "";
+  if (["BlobNotFound", "BLOB_NOT_FOUND", "NoSuchKey", "ObjectNotFound"].includes(code)) return true;
+  const message = typeof value.message === "string" ? value.message.trim() : "";
+  return /^(?:the )?(?:blob|object|file)(?: at [^ ]+)? (?:was )?(?:not found|does not exist|has already been (?:deleted|removed))\.?$/i.test(message);
+}
+
 /**
  * The one place a private upload's binary is removed. It reports what actually
  * happened instead of swallowing the provider error: a caller must not delete
@@ -223,6 +232,11 @@ export async function deletePrivateUpload(
     }
     return { ok: true, outcome: "deleted" };
   } catch (error) {
+    // A request can die after the provider removed the object but before the
+    // owning record was cleared. Provider-specific "object already absent"
+    // answers are therefore convergence, not a fresh deletion failure. Do not
+    // generalise every 404 (for example, a missing bucket can mean bad config).
+    if (isAlreadyDeletedProviderError(error)) return { ok: true, outcome: "deleted" };
     return { ok: false, outcome: "failed", error: error instanceof Error ? error.message : String(error) };
   }
 }
@@ -255,6 +269,13 @@ export interface UnattachedPrivateUpload {
 
 export type AttachPrivateUploadResult<T> = AttachedPrivateUpload<T> | UnattachedPrivateUpload;
 
+export interface AttachStoredPrivateUploadOptions {
+  /** Persist the owner mutation before the route may acknowledge the upload. */
+  persist?: () => Promise<void>;
+  /** Restore the exact pre-attach owner state after attach/persist refusal. */
+  rollbackOwner?: () => void | Promise<void>;
+}
+
 /**
  * Writes the record that owns a just-stored binary. If the record cannot be
  * written the binary is compensated away, and the caller is told which of the
@@ -265,11 +286,30 @@ export async function attachStoredPrivateUpload<T>(
   stored: StoredPrivateUpload,
   localDirectory: string,
   attach: () => T | Promise<T>,
+  options: AttachStoredPrivateUploadOptions = {},
 ): Promise<AttachPrivateUploadResult<T>> {
   let value: T;
   try {
     value = await attach();
+    await options.persist?.();
   } catch (error) {
+    if (options.rollbackOwner) {
+      try {
+        await options.rollbackOwner();
+        // The binary must not be compensated until the rollback itself is
+        // durable. If this flush fails, keeping the object is safer than
+        // persisting an owner row whose file has just been deleted.
+        await options.persist?.();
+      } catch (rollbackError) {
+        return {
+          ok: false,
+          compensated: false,
+          storageKey: stored.storageKey,
+          message: "The upload could not be confirmed and its owner record could not be safely rolled back. The stored copy was kept to avoid leaving a saved record that points to a missing file; report this before retrying.",
+          detail: `${error instanceof Error ? error.message : String(error)}; rollback: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`,
+        };
+      }
+    }
     const compensation = await compensatePrivateUpload(stored, localDirectory);
     return {
       ok: false,

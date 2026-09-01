@@ -7,7 +7,7 @@
 // `metadata` jsonb and the Supabase auth user's metadata are all typed
 // `Record<string, unknown>`. That was the right call for schema stability —
 // "anything that doesn't need a typed field of its own goes here" — but by
-// 2026-09-01 the bags carry **124 distinct keys**, several of which are whole
+// 2026-09-01 the bags carry **129 distinct keys**, several of which are whole
 // subsystems (payment plans, telemetry event logs, portal provisioning state,
 // invoice fields). An uncatalogued key has no owner, no type, no sensitivity
 // class and no deletion behaviour, which is exactly what a data-erasure or
@@ -90,7 +90,7 @@ const plain = (
 /**
  * Every metadata key the source tree reads or writes, catalogued.
  *
- * Sourced from a whole-tree scan, re-counted 2026-09-01 (124 keys), and classified by
+ * Sourced from a whole-tree scan, re-counted 2026-09-01 (129 keys), and classified by
  * owning concern. The smoke test keeps this list honest in BOTH directions:
  * an uncatalogued key used in source fails, and a catalogued key that no
  * source touches any more is reported so the entry can be retired.
@@ -116,6 +116,7 @@ export const METADATA_KEY_CONTRACTS: readonly MetadataKeyContract[] = [
   plain("leadId", "crm-lineage", "string — the pipeline card this client was promoted from", "server/leadConversionCoordinator"),
   plain("promotedFromLeadId", "crm-lineage", "string — same lineage, earlier writer", "server/leadConversionCoordinator"),
   plain("contactId", "crm-lineage", "string — originating CRM contact id", "server/tenants"),
+  plain("applicationId", "crm-lineage", "string — People application linked from an activity", "server/people", "activity"),
   plain("submissionId", "crm-lineage", "string — originating enquiry submission id", "lib/enquiries", "enquiry"),
   plain("leadSource", "crm-lineage", "string — free-text acquisition source", "server/tenants"),
   plain("source", "crm-lineage", "string — enquiry source label", "lib/enquiries", "enquiry"),
@@ -236,7 +237,10 @@ export const METADATA_KEY_CONTRACTS: readonly MetadataKeyContract[] = [
   // ── client requests / records / files ───────────────────────────────────
   plain("clientRequests", "delivery", "array — requests raised by the client", "server/clientRelationships", "client", "personal"),
   plain("clientRecordEntries", "delivery", "array — ledger entries kept on the record", "server/clientRelationships", "client", "personal"),
+  plain("jobId", "delivery", "string — freelancer job linked from an activity", "server/people", "activity", "commercial"),
+  plain("sopId", "delivery", "string — SOP linked from an activity", "engines/sop/server/sops", "activity"),
   plain("files", "files", "array — file attachments", "server/clientRelationships", "client", "personal"),
+  plain("documentId", "files", "string — legal document linked from an activity", "server/legalDocuments", "activity", "commercial"),
   plain("customFields", "bespoke", "object — operator-defined fields", "server/tenants", "client", "personal"),
   plain("whatsappLink", "contact", "string — WhatsApp deep link", "server/tenants", "client", "personal"),
 
@@ -246,6 +250,7 @@ export const METADATA_KEY_CONTRACTS: readonly MetadataKeyContract[] = [
   plain("aqua_provisioning_operation_id", "system", "string — idempotency key for staff provisioning", "server/staffProvisioning", "auth-user"),
   plain("ingestionState", "system", "string — import ingestion state", "server/tenants"),
   plain("ingestionCompletedAt", "system", "number epoch ms", "server/tenants"),
+  plain("resourceId", "system", "string — Development Toolkit resource linked from an activity", "server/developmentToolkit", "activity"),
   plain("status", "system", "string — generic status slot on activity metadata", "server/activity", "activity"),
 ] as const;
 

@@ -405,6 +405,24 @@ export function createPeopleApplication(input: {
   return { application, statusToken };
 }
 
+/** Roll back a CV-backed application whose owner flush was refused. */
+export function rollbackPeopleApplicationUpload(agencyId: string, storageKey: string): boolean {
+  let removedId: string | undefined;
+  mutate(state => {
+    const application = Object.values(state.peopleApplications).find(item =>
+      item.agencyId === agencyId && item.cv?.storageKey === storageKey);
+    if (!application) return;
+    removedId = application.id;
+    delete state.peopleApplications[application.id];
+    state.activity = state.activity.filter(entry => !(
+      entry.agencyId === agencyId
+      && entry.action === "people.application_received"
+      && entry.metadata?.applicationId === application.id
+    ));
+  });
+  return Boolean(removedId);
+}
+
 export function updatePeopleApplication(input: {
   agencyId: string;
   applicationId: string;
@@ -1012,6 +1030,26 @@ export function recordPeopleFreelancerSubmission(input: {
     metadata: { jobId: updated.id, submissionId: input.submission.id, size: input.submission.size },
   });
   return updated;
+}
+
+/** Remove one failed-upload submission without overwriting concurrent work. */
+export function rollbackPeopleFreelancerSubmission(agencyId: string, jobId: string, submissionId: string): boolean {
+  let removed = false;
+  mutate(state => {
+    const job = state.peopleFreelancerJobs[jobId];
+    if (!job || job.agencyId !== agencyId) return;
+    const submissions = (job.submissions ?? []).filter(item => item.id !== submissionId);
+    if (submissions.length === (job.submissions ?? []).length) return;
+    state.peopleFreelancerJobs[jobId] = { ...job, submissions, updatedAt: Date.now() };
+    state.activity = state.activity.filter(entry => !(
+      entry.agencyId === agencyId
+      && entry.action === "people.freelancer_work_uploaded"
+      && entry.metadata?.jobId === jobId
+      && entry.metadata?.submissionId === submissionId
+    ));
+    removed = true;
+  });
+  return removed;
 }
 
 // ─── Recognition (employee of the month + shoutouts) ──────────────────────────

@@ -23,6 +23,9 @@ import { formatUkDate } from "../lib/safeDate";
 import type { ShippingRate, ShippingZone } from "../lib/admin/shipping";
 import type { ProductCollection } from "../lib/admin/collections";
 import { installConfigWithSecrets } from "@/lib/server/plugins/pluginSecretConfig";
+import { clientIpFromHeaders } from "@/lib/server/rateLimit";
+import { toPublicProduct } from "../lib/publicProducts";
+import { takeStorefrontRateLimit } from "../server/storefrontRateLimit";
 
 // Stripe keys are declared in the manifest but stored in the encrypted
 // integrations vault, NOT on `install.config` (that record is handed to page
@@ -46,6 +49,17 @@ function serverError(err: unknown): Response {
   const m = err instanceof Error ? err.message : String(err);
   return json({ ok: false, error: m }, 500);
 }
+function storefrontServerError(area: string, err: unknown): Response {
+  console.error(
+    `[ecommerce-storefront] ${area} failed:`,
+    err instanceof Error ? err.message : err,
+  );
+  return json(
+    { ok: false, error: "Storefront is temporarily unavailable. Please try again." },
+    503,
+    { "cache-control": "no-store" },
+  );
+}
 function methodGuard(req: Request, expected: string): Response | null {
   if (req.method !== expected) {
     return new Response(JSON.stringify({ ok: false, error: `Use ${expected}` }), {
@@ -64,6 +78,51 @@ function requireClientScope(ctx: PluginCtx): string | Response {
     return badRequest("Ecommerce is client-scoped — clientId required.");
   }
   return ctx.clientId;
+}
+
+async function storefrontThrottle(
+  req: Request,
+  ctx: PluginCtx,
+  action: "catalogue" | "quote" | "checkout" | "order",
+  max: number,
+): Promise<Response | null> {
+  try {
+    const result = await takeStorefrontRateLimit(ctx.storage, {
+      action,
+      clientIp: clientIpFromHeaders(req.headers),
+      max,
+      windowMs: 60_000,
+    });
+    if (result.allowed) return null;
+    return json(
+      { ok: false, error: "Too many storefront requests. Please try again shortly." },
+      429,
+      { "retry-after": String(result.retryAfterSec), "cache-control": "no-store" },
+    );
+  } catch (error) {
+    // A checkout limiter that silently falls back to one process is not a
+    // production control. Fail closed and keep provider/storage details out of
+    // the anonymous response.
+    return storefrontServerError("rate limit", error);
+  }
+}
+
+function checkoutIdentityGuard(value: unknown): Response | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  if (Object.prototype.hasOwnProperty.call(value, "endCustomerUserId")) {
+    return badRequest("endCustomerUserId is server-owned and cannot be supplied by a checkout request.");
+  }
+  return null;
+}
+
+function withAuthenticatedCheckoutIdentity(value: unknown, ctx: PluginCtx): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  // The mounted runtime always supplies `actor`; ecommerce's vendored context
+  // type intentionally remains compatible with its standalone harnesses.
+  const actor = (ctx as PluginCtx & { actor?: unknown }).actor;
+  return typeof actor === "string" && actor && actor !== "anonymous"
+    ? { ...(value as Record<string, unknown>), endCustomerUserId: actor }
+    : value;
 }
 
 // ─── Products ──────────────────────────────────────────────────────────────
@@ -100,6 +159,45 @@ export async function getProductHandler(req: Request, ctx: PluginCtx): Promise<R
     return json({ ok: true, product: p });
   } catch (err) {
     return serverError(err);
+  }
+}
+
+/** Published catalogue only: hidden and archived products never cross this facade. */
+export async function storefrontListProductsHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const throttled = await storefrontThrottle(req, ctx, "catalogue", 120); if (throttled) return throttled;
+  const url = new URL(req.url);
+  try {
+    const products = await containerFor(ctx.storage).products.listProducts({
+      includeHidden: false,
+      includeArchived: false,
+    });
+    const query = (url.searchParams.get("q") ?? "").trim().toLowerCase();
+    const requestedLimit = Number(url.searchParams.get("limit") ?? products.length);
+    const limit = Number.isSafeInteger(requestedLimit) ? Math.max(1, Math.min(100, requestedLimit)) : products.length;
+    const filtered = (query
+      ? products.filter(product => [product.name, product.slug, product.tagline, product.range]
+          .some(value => value?.toLowerCase().includes(query)))
+      : products).slice(0, limit);
+    return json(
+      { ok: true, count: filtered.length, products: filtered.map(toPublicProduct) },
+      200,
+      { "cache-control": "no-store" },
+    );
+  } catch (err) {
+    return storefrontServerError("catalogue", err);
+  }
+}
+
+export async function storefrontGetProductHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const throttled = await storefrontThrottle(req, ctx, "catalogue", 120); if (throttled) return throttled;
+  const slug = new URL(req.url).searchParams.get("slug");
+  if (!slug) return badRequest("slug required.");
+  try {
+    const product = await containerFor(ctx.storage).products.getProduct(slug);
+    if (!product || product.hidden || product.archived) return notFound("Product not found.");
+    return json({ ok: true, product: toPublicProduct(product) }, 200, { "cache-control": "no-store" });
+  } catch (err) {
+    return storefrontServerError("product", err);
   }
 }
 
@@ -345,10 +443,14 @@ function money(cents: number, currency: string): string {
 
 // ─── Stripe — checkout ────────────────────────────────────────────────────
 
-export async function stripeCheckoutHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+async function executeStripeCheckout(
+  req: Request,
+  ctx: PluginCtx,
+  rawBody: unknown,
+  publicRequest = false,
+): Promise<Response> {
   const guard = methodGuard(req, "POST"); if (guard) return guard;
   const scope = requireClientScope(ctx); if (typeof scope !== "string") return scope;
-  const rawBody = await safeJson<unknown>(req);
   try {
     const body = parseCheckoutRequest(rawBody);
     const c = containerFor(ctx.storage);
@@ -423,20 +525,101 @@ export async function stripeCheckoutHandler(req: Request, ctx: PluginCtx): Promi
     return json({ ok: true, id: recorded.providerSessionId, url: recorded.providerUrl });
   } catch (err) {
     if (err instanceof CheckoutValidationError) return badRequest(err.message);
-    return serverError(err);
+    return publicRequest ? storefrontServerError("checkout", err) : serverError(err);
   }
+}
+
+export async function stripeCheckoutHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const body = await safeJson<unknown>(req);
+  const identityRefusal = checkoutIdentityGuard(body); if (identityRefusal) return identityRefusal;
+  return executeStripeCheckout(req, ctx, withAuthenticatedCheckoutIdentity(body, ctx));
+}
+
+export async function storefrontCheckoutHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const throttled = await storefrontThrottle(req, ctx, "checkout", 20); if (throttled) return throttled;
+  const body = await safeJson<unknown>(req);
+  const identityRefusal = checkoutIdentityGuard(body); if (identityRefusal) return identityRefusal;
+  return executeStripeCheckout(req, ctx, body, true);
 }
 
 export async function checkoutQuoteHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   const guard = methodGuard(req, "POST"); if (guard) return guard;
   const scope = requireClientScope(ctx); if (typeof scope !== "string") return scope;
+  const body = await safeJson<unknown>(req);
+  const identityRefusal = checkoutIdentityGuard(body); if (identityRefusal) return identityRefusal;
   try {
-    const body = parseCheckoutRequest(await safeJson<unknown>(req));
-    const quote = await containerFor(ctx.storage).checkout.quote(body, checkoutServiceConfig(ctx, scope));
+    const parsed = parseCheckoutRequest(withAuthenticatedCheckoutIdentity(body, ctx));
+    const quote = await containerFor(ctx.storage).checkout.quote(parsed, checkoutServiceConfig(ctx, scope));
     return json({ ok: true, quote });
   } catch (err) {
     if (err instanceof CheckoutValidationError) return badRequest(err.message);
     return serverError(err);
+  }
+}
+
+export async function storefrontCheckoutQuoteHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const throttled = await storefrontThrottle(req, ctx, "quote", 90); if (throttled) return throttled;
+  const guard = methodGuard(req, "POST"); if (guard) return guard;
+  const scope = requireClientScope(ctx); if (typeof scope !== "string") return scope;
+  const body = await safeJson<unknown>(req);
+  const identityRefusal = checkoutIdentityGuard(body); if (identityRefusal) return identityRefusal;
+  try {
+    const parsed = parseCheckoutRequest(body);
+    const quote = await containerFor(ctx.storage).checkout.quote(parsed, checkoutServiceConfig(ctx, scope));
+    return json({ ok: true, quote }, 200, { "cache-control": "no-store" });
+  } catch (err) {
+    if (err instanceof CheckoutValidationError) return badRequest(err.message);
+    return storefrontServerError("quote", err);
+  }
+}
+
+export async function storefrontGetOrderBySessionHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const throttled = await storefrontThrottle(req, ctx, "order", 90); if (throttled) return throttled;
+  const scope = requireClientScope(ctx); if (typeof scope !== "string") return scope;
+  const sessionId = new URL(req.url).searchParams.get("sessionId")?.trim();
+  if (!sessionId) return badRequest("sessionId required.");
+  try {
+    const c = containerFor(ctx.storage);
+    const order = await c.orders.getOrderByStripeSession(sessionId);
+    if (order) {
+      if (order.clientId !== scope) return notFound("Order not found.");
+      // The provider session id is an opaque capability used by the success
+      // page. Return only that page's receipt DTO: never leak operator notes,
+      // provider/payment ids, discount/referral metadata or fulfilment data.
+      return json({
+        ok: true,
+        state: "ready",
+        order: {
+          id: order.id,
+          status: order.status,
+          amountTotal: order.amountTotal,
+          currency: order.currency,
+          customerEmail: order.customerEmail,
+          items: order.items.map(item => ({
+            name: item.name,
+            quantity: item.quantity,
+            unitAmount: item.unitAmount,
+            currency: item.currency,
+          })),
+          createdAt: order.createdAt,
+        },
+      }, 200, { "cache-control": "no-store" });
+    }
+    const operation = await c.checkout.getOperationBySession(sessionId);
+    if (operation) {
+      return json(
+        { ok: true, state: "pending" },
+        202,
+        { "retry-after": "1", "cache-control": "no-store" },
+      );
+    }
+    return json(
+      { ok: false, error: "Checkout session not found." },
+      404,
+      { "cache-control": "no-store" },
+    );
+  } catch (err) {
+    return storefrontServerError("order", err);
   }
 }
 

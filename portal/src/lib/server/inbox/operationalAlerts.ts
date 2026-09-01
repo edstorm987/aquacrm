@@ -31,6 +31,7 @@ import { cleanClientMarketingService } from "@/lib/clients/clientMarketingServic
 import { formatUkDate } from "@/lib/shared/formatDateTime";
 import { cleanClientPaymentPlans } from "@/lib/clients/clientPaymentPlans";
 import { clientWorkspaceDisplayName } from "@/lib/clients/clientWorkspace";
+import { readOrUnavailable, type ReadResult } from "@/lib/readAvailability";
 
 export type { OperationalAlert, OperationalAlertSeverity } from "@/lib/intelligence/operationalAttention";
 
@@ -54,7 +55,16 @@ export const getRequestOperationalAlerts = cache(
   (agencyId: string): Promise<OperationalAlert[]> => listOperationalAlerts(agencyId, getRequestNow()),
 );
 
-export async function listOperationalAlerts(agencyId: string, now = Date.now()): Promise<OperationalAlert[]> {
+export interface OperationalAlertReadOptions {
+  /** A caller may supply one already-confirmed source read to avoid re-reading it. */
+  websiteEnquiries?: ReadResult<WebsiteEnquiry[]>;
+}
+
+export async function listOperationalAlerts(
+  agencyId: string,
+  now = Date.now(),
+  readOptions: OperationalAlertReadOptions = {},
+): Promise<OperationalAlert[]> {
   const clients = listClients(agencyId);
   const alerts: OperationalAlert[] = [];
   const workspaceSettings = getAgencyWorkspaceSettings(agencyId);
@@ -457,12 +467,33 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
   if (leadsInstall?.enabled) {
     ensureLeadsPipelineFoundationRegistered();
     const { campaigns, leads, prospects } = containerFor({ agencyId, storage: makePluginStorage(leadsInstall.id) as never });
-    const [campaignRows, leadRows, prospectRows, websiteEnquiries] = await Promise.all([
+    const [campaignRows, leadRows, prospectRows, websiteEnquiryRead] = await Promise.all([
       campaigns.list(),
       leads.list(),
       prospects.list(),
-      getRequestWebsiteEnquiries(agencyId).catch(() => []),
+      readOptions.websiteEnquiries
+        ? Promise.resolve(readOptions.websiteEnquiries)
+        : readOrUnavailable(
+            () => getRequestWebsiteEnquiries(agencyId),
+            [],
+            "Website enquiries could not be checked. Retry before treating the enquiry queue as clear.",
+          ),
     ]);
+    const websiteEnquiries = websiteEnquiryRead.data;
+    if (!websiteEnquiryRead.available) {
+      // Keep the rest of the operational feed usable, but put the missing
+      // measurement in the feed itself. An omitted source is not a zero-count
+      // source and must never look like an all-clear.
+      alerts.push({
+        id: "source-unavailable:website-enquiries",
+        severity: "warning",
+        category: "client",
+        title: "Website enquiries could not be checked",
+        detail: websiteEnquiryRead.reason ?? "The enquiry source is temporarily unavailable. Retry before treating the queue as clear.",
+        href: "/portal/agency/inbox?view=forms",
+        occurredAt: now,
+      });
+    }
     const websiteEnquiryById = new Map(websiteEnquiries.map(enquiry => [enquiry.id, enquiry]));
     const alertedEnquiryIds = new Set<string>();
 

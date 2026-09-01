@@ -2,7 +2,7 @@
 
 > Source maps, subsystem dossiers, components, routes, state and built-in module notes.
 >
-> Consolidated 2026-09-01 from **23** source documents / **57,071 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-01 from **23** source documents / **57,073 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -27,7 +27,7 @@
 - [`src/archive/multi-agency/README.md`](#source-src-archive-multi-agency-readme-md) — 43 words · `8655235589a0`
 - [`src/built-ins/modules/ecommerce/README.md`](#source-src-built-ins-modules-ecommerce-readme-md) — 1,118 words · `7725ceb40027`
 - [`src/built-ins/modules/fulfillment/README.md`](#source-src-built-ins-modules-fulfillment-readme-md) — 913 words · `f472689dde20`
-- [`src/built-ins/modules/website-editor/README.md`](#source-src-built-ins-modules-website-editor-readme-md) — 514 words · `173e28950af4`
+- [`src/built-ins/modules/website-editor/README.md`](#source-src-built-ins-modules-website-editor-readme-md) — 516 words · `8ba4ff6dfe4e`
 - [`src/built-ins/runtime/milesymedia/README.md`](#source-src-built-ins-runtime-milesymedia-readme-md) — 159 words · `5c5839e189b2`
 
 ---
@@ -5110,7 +5110,7 @@ expects to receive at call time.
 
 ## Source document — `src/built-ins/modules/website-editor/README.md`
 
-<!-- AQUACRM_SOURCE_START path="src/built-ins/modules/website-editor/README.md" sha256="173e28950af41e88df93f3381e59507a05c230fa834b2c5027f2063fad35f281" -->
+<!-- AQUACRM_SOURCE_START path="src/built-ins/modules/website-editor/README.md" sha256="8ba4ff6dfe4e545d4f532b9a3d6fe503b5c87f59e4d007e66ed99c52f38b9855" -->
 # @aqua/plugin-website-editor
 
 Visual page builder + 70-block library + portal-variant admin for the
@@ -5124,8 +5124,8 @@ Aqua portal. Owned by Terminal 3 of the Round-1 mesh.
 | `category` | `content` |
 | `core` | (no — every client gets it auto-installed by foundation) |
 | `requires` | none |
-| `navItems` | 8 (Editor / Pages / Portals / Customise / Themes / Assets / Sections / Popups) |
-| `pages` | 11 admin routes (full list in `01 development/context/prior research/04-plugin-website-editor.md`) |
+| `navItems` | 7 (Editor / Pages / Portals / Editor settings / Themes / Assets / Git status) |
+| `pages` | 9 canonical admin routes; retired local-only bookmarks redirect to these surfaces |
 | `api` | ~30 handlers under `/api/portal/website-editor/*` |
 | `storefront.blocks` | 70 blocks across 6 categories |
 | `features` | 8 toggles (simpleEditor, advancedEditor, codeView, templates, versionHistory, customCSS, headInjection, customDomain) |

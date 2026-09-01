@@ -124,29 +124,23 @@ describe("editor features with no backend", () => {
   });
 });
 
-describe("client-scoped browser state", () => {
-  it("login customisation is stored per client, not once per browser", () => {
-    // Found in the 2026-08-28 route sweep. `CustomisePage` is mounted per
-    // client at `/portal/clients/[clientId]/customise`, but the customisation
-    // was written to a single global localStorage key. Customising one client
-    // and opening another showed the FIRST client's settings — and saving
-    // there overwrote them. One browser, every client, one slot.
-    const source = read(`${MODULE}/lib/loginCustomisation.ts`);
-
-    assert.match(source, /function storageKey\(\)/, "the key must be derived, not a constant");
-    assert.match(source, /\$\{KEY_PREFIX\}:\$\{clientId\}/, "and derived from the client currently being edited");
-    // No bare use of the prefix as a whole key — that is the bug returning.
-    assert.doesNotMatch(
-      source,
-      /localStorage\.(get|set|remove)Item\(\s*KEY_PREFIX\s*[,)]/,
-      "writing to the unscoped prefix is the cross-client bleed this fixed",
-    );
-    // `[^,)]+` would stop at the first `)` and capture "storageKey(" — the
-    // kind of near-miss that makes an assertion look strict while testing
-    // nothing. Match the call form directly instead.
-    for (const call of source.matchAll(/localStorage\.(?:get|set|remove)Item\(\s*([A-Za-z_$][\w$]*(?:\(\))?)/g)) {
-      assert.equal(call[1], "storageKey()", `storage must go through storageKey(), saw ${call[1]}`);
+describe("retired browser-only editor state", () => {
+  it("does not expose unconsumed panel, login, sidebar, section or popup controls", () => {
+    const retired = [
+      "lib/customise.ts",
+      "lib/loginCustomisation.ts",
+      "lib/sidebarLayout.ts",
+      "lib/sections.ts",
+      "lib/popup.ts",
+    ];
+    for (const file of retired) {
+      assert.equal(existsSync(`${MODULE}/${file}`), false, `${file} must stay retired`);
     }
+
+    const settings = read(`${MODULE}/pages/CustomisePage.tsx`);
+    assert.doesNotMatch(settings, /localStorage/, "shared website settings must not be represented by a browser-only store");
+    assert.match(settings, /\/api\/portal\/website-editor\/sites/, "site selection must read the tenant-scoped API");
+    assert.match(settings, /\/api\/portal\/website-editor\/export\?siteId=/, "export must name the selected shared site");
   });
 
   it("the domain helpers do not claim success they cannot deliver", () => {

@@ -1223,14 +1223,14 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     type checking and **268/268** static-generation entries. A checked-in CI gate is
     still a process improvement, not a current source build failure.
 
-28. **P1 PARTLY RESOLVED 2026-09-01 — the thirteen-call legacy Sites island is
-    retired; sixteen known dead visitor/editor calls remain guarded by a ratchet.**
-    `/portal/clients/[clientId]/sites` now redirects to the canonical Editor, its manifest
-    entry and Git-status breadcrumb are gone, and the 1,500-line browser-local screen plus
-    `lk_sites_v1` store were deleted. Git status now scopes itself from the real route client
-    id. The route/navigation/dead-call regressions pass in the focused **78/78** set. The
-    remaining Funnels, split-test, visitor-backend and optional AI routes below are still real
-    work; the ratchet explicitly prevents calling their known absence a clean bill of health.
+28. **P1 PARTLY RESOLVED 2026-09-01 — exact-scope install state now gates optional
+    AI controls without the guaranteed `/ai-builder/status` 404, the Ecommerce
+    variants contract is present and every retired local admin route redirects.** The
+    prior Sites island and its thirteen calls are gone; this pass removes two more dead
+    endpoint expectations and lowers the explicit ratchet from sixteen to **fourteen**.
+    Focused contract/navigation coverage passes **32/32** and the Website Editor suite
+    passes **49/49 files**. Funnels, split tests, visitor backends and optional AI action
+    routes remain real work; the ratchet prevents their absence being called green.
 
     _Original finding, retained for context:_ The website-editor surfaces advertised operations whose API routes did
     not exist at the paths they called. `EditorPage` mounts a visible Funnels
@@ -1266,7 +1266,25 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     unfinished controls, and add a test that resolves every literal editor API call
     through the actual plugin/app route table.
 
-29. **P1 — several published website blocks have no working visitor-side backend.**
+29. **P1 PARTLY REPAIRED 2026-09-01 — Ecommerce has a narrow, tenant-scoped
+    anonymous storefront facade; the other visitor backends remain open.** Published
+    sites now carry their exact agency/client scope into separate public catalogue,
+    product-detail, quote, checkout and opaque-session receipt routes. Operator routes
+    stay session-gated, hidden/archived catalogue rows stay private, prices are
+    server-authoritative, browser-supplied customer identity is refused, provider
+    failures are generic and retryable, and the public Stripe webhook remains
+    signature-authorised. Product Search now uses that facade and is no longer falsely
+    disabled as “Not connected yet”. The dispatcher-level storefront proof passes
+    **6/6**, the visitor-backend ratchet passes **11/11**, and the wider checkout/order/
+    tenancy slice passes **51/51**.
+
+    This does **not** close the issue. Consent-aware tenant contact capture, Forms,
+    Bookings, Newsletter, Theme and Blog visitor routes and the Donation contract are
+    still absent or deliberately labelled unavailable; they are tracked here and in
+    **#184/#185**. Mounted published-site search → quote → checkout → receipt acceptance,
+    plus a real Stripe/custom-domain run, also remains.
+
+    _Original finding, retained for the still-open block classes:_
     The built-in **Contact** page template and generic `form` block default to a
     native POST at `/api/contact`; that route does not exist (the real public ingest
     is `/api/public/contact`). The separate `contact-form` block fetches
@@ -1303,8 +1321,26 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     functional block a real public, tenant-aware endpoint or label/remove it from
     publishable surfaces; then test the actual anonymous request and stored result.
 
-30. **P1 — website export is unreachable and silently drops most first-party
-    page content.** The visible Customise → Export & repo control requests
+30. **✅ RESOLVED 2026-09-01 — website export is reachable, honest and mounted.**
+    Editor settings selects a tenant-scoped site and downloads through the
+    registered `/api/portal/website-editor/export` handler; the dead admin route is
+    gone. The exporter faithfully renders the representative first-party Homepage
+    vocabulary, refuses empty-shell output, marks unsupported dynamic blocks in both
+    HTML and README, reports their count/types in safe response headers, preserves
+    connected forms and visibly disables unconnected ones, and never exports the
+    private half of a Supabase connection. Focused route/UI/export proof passes
+    **18/18** plus the static-export behavioural script at **68/68**. Mounted demo-owner
+    acceptance selected and published the representative `Client website` homepage,
+    downloaded the canonical **4,020-byte ZIP** with HTML, brand CSS, sitemap, robots
+    and README, and compared its hero, CTA, three testimonials and final CTA with the
+    published route. The one dynamic `product-grid` difference is visible in exported
+    HTML and named in the README. Settings and published output had no horizontal
+    overflow at **375×812, 768×1024, 812×375 and 1440×900**; a cream-on-white settings
+    contrast defect found during that pass was repaired and visually rechecked. The
+    Website Editor gate passes **49/49 files**. Production-host and repository-promotion
+    acceptance remain release gates, not a missing local export contract.
+
+    _Original finding, retained for context:_ The visible Customise → Export & repo control requests
     `/api/admin/export-code`, but no app or plugin route implements that path.
     A separate `handleExportSite()` exists, yet `api/routes.ts` neither imports nor
     registers it, so `/api/portal/website-editor/export` is absent too. Even if that
@@ -1323,72 +1359,43 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     blocks visibly), and compare a representative published page with its exported
     HTML before calling export usable.
 
-31. **P1 PARTLY RESOLVED 2026-09-01 — the main browser-local Sites station is
-    retired; the remaining local Sections, Popup, Customise and Page Detail islands
-    still need integration or removal.** Old Sites bookmarks redirect to the canonical
-    `/edit-website` workspace, the plugin no longer registers or links the station, Git status
-    derives the real route client id, and both `SitesPage.tsx` and `sitesAdmin.ts` are deleted.
-    No `lk_sites_v1` authority remains. Focused navigation/route proof passes **78/78**.
+31. **✅ RESOLVED 2026-09-01 — every visible browser-only Website Editor admin
+    island is retired or replaced.** Sections, Popups and legacy Page Detail are gone
+    from the manifest, navigation, tabs and source; old bookmarks execute redirects to
+    the canonical Editor/Pages routes. Customise is now an honest Editor settings page:
+    browser-local editor-mode preference plus tenant-scoped site selection and export,
+    with unsupported blocks named before export. The unconsumed branding, login,
+    sidebar, section and popup stores are deleted. Focused proof passes **32/32**, the
+    Website Editor suite passes **49/49 files**, and the change removes roughly 2,789
+    lines of unreachable local-authority code rather than preserving a second model.
 
-    _Original finding, retained for context:_ Several Website Editor admin stations were disconnected browser-local
-    islands. The main Sites station was one of them: `SitesPage` imported
-    `lib/sitesAdmin.ts`, whose create/update/delete, live/draft, domain, primary-site,
-    branding and custom-code operations write only browser-global
-    `localStorage["lk_sites_v1"]`. Server host routing and rendering use the separate
-    tenant-scoped `server/sites.ts` store, and no source bridges the two. A site can
-    therefore look live, primary and domain-connected in one browser without becoming
-    a shared or host-routable site; its “Add + attach to Vercel” action also calls the
-    absent `/api/portal/domains` path tracked with the route-contract failure in #28.
-    Sections says “Changes apply live,” but `lib/sections.ts` only writes
-    `lk_admin_sections_v1` in localStorage and no storefront source reads it.
-    Discount Popup likewise stores `lk_popup_config_v1`; outside its admin page,
-    neither `getPopupConfig()` nor `shouldShowOnPath()` has a consumer, so enabling,
-    copy, trigger and targeting changes do not produce a storefront popup.
-    Customise's branding, custom tabs, sidebar and login controls use browser-global
-    localStorage shims; source outside `CustomisePage` does not read those values,
-    despite copy promising panel/login changes and new embedded sidebar tabs. The
-    registered Page Detail route is another separate local page system: the manifest
-    declares `[pageId]`, the component reads `params.id`, the real server-backed
-    Pages list links only to Editor, no source creates or links these local pages,
-    and the promised `/p/[slug]` storefront route is absent. These controls can show
-    an immediate saved-looking state on one browser without changing shared or
-    published behaviour. Retire the legacy surfaces or connect them to the canonical
-    site/page/portal model with tenant persistence and browser proof across reload,
-    a second session and real hostname routing.
+32. **✅ RESOLVED 2026-09-01 — Campaign delivery state follows the provider, not the queue.**
+    `CampaignService.send()` now uses the delivery-capable port, counts and stamps a
+    lead only after confirmed provider delivery, and records queued, failed and
+    partially-sent outcomes without inventing a sent date. Unfinished lead ids remain
+    retryable and already-delivered recipients are not sent twice. The foundation
+    adapter performs enqueue → deliver, resets terminal failed rows through the same
+    retry path as Outbox, and carries the provider result back to Campaigns. Provider
+    readiness now checks an active configured provider plus an active sender identity;
+    merely installing/enabling email-sender no longer hides the warning. The UI says
+    “delivered” and exposes queued/failed counts and retry state. Focused behavioural
+    proof passes **73/73** across the campaign domain (**64/64**) and email-sender
+    foundation (**9/9**), including happy delivery, unconfigured provider, enqueue-only
+    adapter, partial refusal, retry, empty audience and duplicate-recipient protection.
 
-32. **P1 — Campaigns reports queued email as sent without running delivery.**
-    `CampaignService.send()` calls `EmailEnqueuePort.enqueue()` for each lead,
-    stamps the lead as last emailed, increments `sent`, and finalises the campaign
-    as `status:"sent"`. The foundation adapter's `enqueue()` only creates an
-    email-sender outbox row; it never calls `DeliveryService.deliver()`. The
-    Campaigns UI then says `Sent X/Y emails`. No background worker drains queued
-    messages: outside tests, delivery is invoked only by the email-sender test-send
-    handler, manual retry, and the separate adapter `send()` method that Campaigns
-    does not use. Readiness compounds the false success: `CampaignsPage` automatically
-    installs/enables email-sender and passes `Boolean(install.enabled)`, so the
-    “needs attention” banner disappears even when the provider remains the default
-    `none`/unconfigured. Send must either synchronously deliver and count confirmed
-    outcomes, or explicitly report “queued” and run a durable retrying dispatcher;
-    campaign/lead contact state must follow the chosen delivery milestone. Prove the
-    full draft → enqueue → provider attempt → sent/failed/retry path, including an
-    unconfigured provider.
-
-33. **P1 — paid Memberships always uses a throwing Stripe stub while reporting
-    Stripe available and healthy.** The foundation adapter's `stripeFor()` always
-    returns `NOOP_STRIPE`, whose paid methods throw “Stripe not configured
-    (foundation pending)” and whose webhook verifier returns null. Because the
-    factory returns an object rather than null, `isStripeAvailable()` returns true;
-    the paid-plan API passes its explicit availability guard and only fails later
-    during `createPrice()`. Installation attempts Bronze/Silver/Gold, but
-    `seedDefaults()` catches each creation error, so the free Bronze row survives
-    while paid Silver and Gold disappear silently. Checkout, customer portal,
-    paid cancellation/change/pause/resume, price creation and webhook reconciliation
-    cannot work regardless of ecommerce Stripe configuration. The plugin healthcheck
-    still returns `ok:true` from plan/subscriber counts and never assesses the Stripe
-    port. Wire the existing scoped ecommerce credentials into a real Memberships
-    Stripe adapter, make availability/health truthful, surface partial seed failure,
-    and prove paid create → checkout → signed webhook → self-service lifecycle with
-    a real test-mode account.
+33. **P1 — paid Memberships is code/behaviour repaired; live Stripe acceptance
+    remains.** The foundation now resolves the enabled Ecommerce install in the same
+    agency/client scope, reads its vaulted Stripe credentials and creates a real SDK
+    adapter for every Memberships Stripe operation. Missing credentials return null,
+    so availability and health are false before a paid flow starts. Partial default
+    seeding now names Silver/Gold failures instead of silently leaving only Bronze.
+    Provider commands carry durable identities, Stripe metadata is scope-complete,
+    concurrent delivery has one owner and the mounted signed-webhook route returns
+    503 for retryable processing failures. Focused lifecycle, webhook-inbox and module
+    proof passes **21/21** on 2026-09-01. Remaining acceptance needs a real Stripe
+    test account: paid plan creation → hosted checkout → signed webhook → portal
+    change/pause/resume/cancel → reload/reconciliation. Do not close this from an
+    injected SDK client alone.
 
 34. **✅ RESOLVED 2026-08-26 — Email Sender's no-provider contract is truthful.**
     Provider `none` now returns `provider_unconfigured` before the queued row enters
@@ -1404,21 +1411,17 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     milestone defects remain separately tracked in **#32** and **#39** rather than
     being hidden by this engine-level resolution.
 
-35. **P1 — plugin healthchecks are never run, but Radar reports module health as
-    measured and healthy.** Eleven built-in manifests declare `healthcheck()` hooks,
-    yet no runtime, route or job invokes them. `PluginInstall` has `health` and
-    `healthCheckedAt` fields, but `PluginInstallPatch` cannot write either and the
-    only non-type source references read them. Radar calculates failures as installs
-    whose stored `health?.ok === false`; because nothing populates that state, the
-    count is zero. It then calls `zeroTargetMetric(..., connected=true, ...)`, which
-    turns that absence into a healthy measured zero and substitutes `installedAt`
-    when `healthCheckedAt` is absent. Thus the “Recent health state for every enabled
-    module” signal can be green even for Memberships' throwing Stripe adapter,
-    Email Sender's disabled provider, or any hook that would return false if called.
-    Add a real lifecycle/periodic runner with timeouts and per-install persistence,
-    represent never-run/stale/error separately, and make Radar blind or warning
-    until every enabled install has a recent result. Test one failing, one throwing,
-    one stale and one never-checked install end to end.
+35. **✅ RESOLVED 2026-09-01 — plugin health is periodically measured, persisted and
+    interpreted honestly by Radar.** The shared runner bounds every hook, isolates
+    throws, runs enabled installs concurrently and hands module checks read-only
+    storage. The Radar cadence calls a persistent agency-wide sweep, recording the
+    module's own verdict and check time through a host-only writer; module-facing
+    patches cannot forge health. Unsupported, never-run and stale checks remain
+    absent evidence rather than green, while current failures remain visible even
+    beside an unchecked install. The live GET route uses the same runner without
+    mutating state. Focused route/sweep/Radar/read-path proof passes **65/65**, covering
+    healthy, failing, throwing, unsupported, never-checked, stale, cadence, force-run,
+    tenant scope, timeout/concurrency contract and read-only enforcement.
 
 36. **P1 CODE/PATH RESOLVED 2026-09-01; mounted provision/reload acceptance remains.**
     The client header no longer mounts the unregistered `portal-export` wizard. “Build custom
@@ -1444,8 +1447,29 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     honour the selected systems/templates, and browser-prove submit → durable portal
     → reload → “Open live experience.”
 
-37. **P1 — client project provision/publish/deploy actions are not recoverable
-    across partial success.** Local provisioning copies and tokenises a starter,
+37. **✅ RESOLVED 2026-09-01 — client project provision, GitHub publish and Vercel
+    preview deploy recover across the recorded partial-success boundaries without
+    duplicates or stale-array loss.** Every request carries an immutable request hash;
+    retrying the same operation key with changed intent is a **409**, never an excuse
+    to adopt earlier side effects. Provisioning uses a recovery-token staging folder
+    and atomic final rename, cleans only its own failed staging work, and can adopt an
+    exact matching Git checkout byte-for-byte without deleting the directory or its
+    uncommitted edits. It validates `aqua.config.json` ownership before reuse and
+    preserves a concurrent claimant by stepping aside.
+
+    GitHub records the repository before push and bridges the create-to-checkpoint
+    window with an exact provider-visible recovery token; arbitrary same-name repos are
+    refused and the clean description is restored after checkpoint. Vercel similarly
+    tags and records the exact preview so retry finds it rather than stacking another.
+    Provision, publish and deploy all share one per-client transaction, keep its remote
+    lease alive during slow provider I/O, rehydrate durable state afterwards and merge
+    only the target property id. Focused provisioning/recovery passes **20/20** and the
+    cross-process coordinator set passes **4/4**; app-route/Next contracts pass
+    **30/30**, with TypeScript and diff checks clean. These are mocked-provider and
+    service proofs: configured GitHub/Vercel plus mounted provision → publish → deploy
+    acceptance remains under **#36**, and has not been claimed here.
+
+    _Original finding, retained for context:_ Local provisioning copies and tokenises a starter,
     creates a Git repository and commits it before saving the client property. If
     that save fails, the folder remains untracked; retry's `uniqueProjectPath()`
     deliberately creates a `-2` sibling, and the existing test proves only that it
@@ -1462,8 +1486,44 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     Prove failures after folder creation, initial commit, repository creation, push,
     deployment creation and client persistence, then retry without duplicates.
 
-38. **P1 — the platform-wide private-upload lifecycle can orphan binaries and
-    falsely report deletion.** All nine private-upload routes write Supabase,
+38. **P1 PARTLY REPAIRED 2026-09-01 — final owner writes, client-file deletion
+    and mounted batch retry now preserve explicit recoverable truth; the wider
+    object lifecycle remains open.** State-backed final uploads flush their owner
+    row inside a shared attach boundary, roll the exact row/audit back on a refused
+    flush, durably confirm that rollback before compensating the binary, and keep
+    the binary when rollback cannot be proved. Call recordings use the same boundary
+    around their scoped database update.
+
+    Client upload correctness now lives after binary storage inside a fresh durable
+    per-client `files` transaction. That transaction rehydrates current state,
+    rechecks the operation key against exact workspace scope and server SHA-256, and
+    merges the new row by immutable id. A concurrent matching replay returns the
+    durable winner and compensates only this request's uniquely keyed losing binary;
+    a changed-body retry conflicts. If persistence fails, rollback takes another
+    fresh lock and subtracts only its id rather than restoring a request-start array,
+    so concurrent uploads, renames and deletion-recovery fields survive.
+
+    Client-file deletion persists `deleting` before provider I/O, retains refusal as
+    `delete-failed`, treats an already-absent object as converged and merges its result
+    into the latest collection. Product-workspace retries retain exact accepted/
+    completed counts across reload and reset attachment completion when an asset is
+    removed. Anonymous Careers failures log provider/database detail server-side under
+    an opaque incident id but expose only one stable generic DTO—never `storageKey`,
+    `attached.detail` or raw failure text. The focused private-upload/workspace set
+    passes **31/31**, with TypeScript and diff checks clean.
+
+    This issue is **not closed**. Inbox media, expense attachments and campaign
+    assets are still staged browser references without an `uploading`/`ready`
+    lease, abandonment expiry or cleanup worker. SOP and development deletion are
+    still provider-first without a durable intent/checkpoint, while legal deletion
+    mutates the owner/dependencies first and restores only in process; none is a
+    crash-coherent two-phase lifecycle yet. The direct call-recording database
+    update also needs an ambiguity-safe reconcile/rollback contract. Provider-real,
+    mounted failure/retry/reload acceptance and distributed concurrent replay/delete
+    proof remain required. The focused concurrency proof is not a substitute for a
+    deployed multi-instance/provider failure exercise.
+
+    _Original finding, retained for the remaining scope:_ All nine private-upload routes write Supabase,
     Vercel Blob or local storage before the durable record or final user action.
     Client files, careers CVs, legal documents, SOPs, development resources and call
     recordings can therefore leave an untracked object if the following CRM/database
@@ -1488,94 +1548,81 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     completed counts, and report deletion only after both record and binary converge.
     Test every provider and mounted batch boundary plus retry/reload.
 
-39. **P1 — “Close the deal” creates an accept-able empty agreement and reports
-    undelivered work as sent.** Both close-deal forms collect a title, amount and an
-    optional summary; neither supplies contract terms or a document. The orchestrator
-    nevertheless creates the contract directly with `status:"sent"`, unlike the
-    normal contract route, which refuses to send when both `body` and `documentUrl`
-    are absent. The customer portal offers **Accept** for every sent contract without
-    requiring terms, a document or even the optional summary, so a title-only record
-    can become an accepted agreement. The close-deal route also never calls the
-    transactional email path, but both success surfaces say “Contract sent” and its
-    activity says “contract sent + invoice issued.” Current tests explicitly assert
-    the sent status and one invoice but do not assert reviewable terms, delivery or
-    the customer acceptance surface. Reuse the canonical contract-send contract (or
-    label portal publication distinctly), require reviewable terms/document before
-    acceptance, expose delivery outcome, and browser-prove close → customer review →
-    accept with the exact version the customer saw.
+39. **P1 — “Close the deal” is code/behaviour repaired; mounted journey acceptance
+    remains.** A close without written terms or a reviewable document now creates an
+    honest draft that cannot be accepted. A reviewable agreement uses the canonical
+    delivery path and distinguishes portal publication from provider-confirmed email;
+    refusal is retained and never described as sent. Acceptance revalidates terms and
+    binds the exact version shown. Route/service proof covers draft, body, document,
+    refused delivery, customer acceptance, concurrency, idempotency, tenancy and
+    authorization. Complete the mounted agency close → customer review → exact-version
+    accept/reload journey, including a refused email, before closing.
 
-40. **P1 — commercial proposals and receipts ignore explicit email-delivery
-    failure.** The Leads Pipeline email adapter enqueues then calls the delivery
-    service and returns `{messageId, delivered, error}`. `CommercialService.send()`
-    never checks `delivered`; even when it is `false`, the service marks both invoice
-    and agreement `sent`, stamps `sentAt`, logs `commercial.sent` and returns success.
-    `recordPayment()` has the same defect: any resolved adapter result, including
-    `delivered:false`, stamps `receiptSentAt`; only a thrown exception avoids it.
-    This is independent of issue #34's disabled provider—the same false success
-    occurs after a real SMTP/provider refusal. Current tests use an enqueue recorder
-    that returns only a message id and assert the sent state; they do not supply an
-    explicit failed delivery. Model queued/delivered/failed separately, advance sent
-    and receipt milestones only on confirmed delivery, retain retryable message ids
-    and errors, and test provider refusal plus retry in the proposal and receipt UI.
+40. **P1 — commercial proposal/receipt delivery is code/behaviour repaired; live
+    provider acceptance remains.** Proposal send and payment receipts now record the
+    durable message id, queued/failed outcome and provider reason separately. Neither
+    invoice/agreement sent milestones nor `receiptSentAt` advance until delivery is
+    confirmed; stable references make retries reuse the same message and preserve
+    already-delivered work. The UI names queued/refused state instead of claiming
+    success. Complete one mounted refusal → retry → provider delivery for both a
+    proposal and receipt with a configured Email Sender before closing.
 
-41. **P1 — commercial proposal acceptance is not bound to an immutable sent
-    version.** `CommercialService.save()` mints the stable public token while the
-    pack is still draft. The agency UI immediately exposes “Preview / download
-    copy,” and the public page/API offers acceptance for any token-backed pack;
-    `accept()` does not require `agreementStatus:"sent"`. After acceptance, the
-    modal remains fully editable and every action calls `save()` first. Save replaces
-    line items, totals, cadence and agreement text while preserving the existing
-    `accepted` status and `acceptedAt`, so the public page can display materially new
-    terms as already accepted with no revision or content hash. The same save also
-    preserves `stripeCheckoutId`/`stripeCheckoutUrl`; changing price or cadence can
-    therefore show one amount/contract while “Pay securely” opens an older Checkout
-    session. Current tests amend only before send and never exercise draft acceptance,
-    post-acceptance editing or stale Checkout. Version commercial packs immutably,
-    require a sent version for public acceptance, record exactly which version/hash
-    was accepted, create a new draft for amendments, and invalidate/recreate payment
-    sessions whenever financial terms change. Browser-prove draft refusal and
-    accepted-version stability.
+41. **P1 — commercial proposal versioning is code/behaviour repaired; mounted public
+    acceptance remains.** Acceptance now requires the current sent version and records
+    its version/hash. Identical saves keep the accepted pack stable; material edits
+    create a new unsent draft while retaining the prior acceptance evidence. Financial
+    changes detach the old Stripe Checkout session, so a stale price cannot survive an
+    amendment. Draft acceptance, exact-version acceptance, replay, post-acceptance
+    amendment and stale-session invalidation are covered. Browser-prove draft refusal,
+    sent acceptance, agency amendment and the public page showing the new draft rather
+    than inheriting the old acceptance.
 
-42. **P1 — installment Checkout can continue billing after its promised payment
-    count.** Leads Pipeline implements installments as a fixed-price Stripe
-    subscription. After the recorded Stripe-payment count reaches `installmentCount`,
-    the webhook posts `cancel_at_period_end:true`, but it never checks the response,
-    persists no cancellation-pending/failed/confirmed state and returns `{ok:true}`
-    to Stripe regardless. A transient or permanent cancellation refusal therefore
-    receives no webhook retry and can renew again. The stop condition counts every
-    stored payment whose method is `stripe`, including manually recorded Stripe rows,
-    rather than a durable set of subscription invoice ids; that can cancel early.
-    Conversely, each installment uses `ceil(total/count)`, so repeating the same
-    amount can exceed the displayed proposal total by up to `count-1` cents. No test
-    calls the commercial Stripe webhook or cancellation endpoint. Model the payment
-    schedule explicitly, deduplicate and count the intended subscription invoices,
-    allocate the final remainder exactly, persist cancellation state, fail/retry or
-    reconcile provider cancellation, and prove no further invoice is collectible
-    after the advertised count.
+42. **P1 — installment Checkout is code/behaviour repaired; live Stripe acceptance
+    remains.** The schedule allocates the promised total exactly, including the final
+    remainder. Only canonical subscription invoice ids count, redelivery deduplicates,
+    manual Stripe rows cannot advance the plan and a foreign subscription cannot stop
+    it. Cancellation requests persist requested/refused/confirmed state; refusal makes
+    the webhook retryable and only Stripe confirmation closes the stop condition.
+    The 2026-09-01 focused commercial/contract/close-deal gate passes **92/92** across
+    #39–#42. Finish a test-mode subscription through every advertised installment,
+    force one cancellation refusal/retry, then prove no further invoice is collectible.
 
-43. **P1 — Email Sender has no truthful, user-reachable production setup path.**
-    The only provider its default registry can actually send through is Postmark;
-    SendGrid, Resend and SMTP are explicit throwing stubs. Yet the mounted Sender
-    Settings page is a read-only report with no provider, API-key, identity or test
-    controls. The manifest tells the operator to “supply API key” but declares no
-    `apiKey` settings field, and Postmark is absent from the shared integrations
-    catalogue. The generic manifest-settings form cannot rescue this: only Finance
-    mounts `PluginSettingsPanel`, and even a direct write would update install config
-    rather than Email Sender's separate `provider/config` and `provider/api-key`
-    records. The default identity seeded on install is pending
-    `no-reply@example.com`; no application UI calls the identity create/update/
-    verify or provider PATCH APIs. Worse, `IdentityService.verifyDomain()` performs
-    no DNS/provider check and immediately records any identity active/verified,
-    while tests call that stub directly to unlock sending. This is distinct from
-    #34's no-send driver false success: after fixing that sink, an operator still
-    cannot configure the one real driver or establish a genuine sender identity.
-    Build one mounted setup flow backed by one canonical config store and encrypted
-    secret source, implement provider-backed identity verification, expose explicit
-    unconfigured/test/active/error states, and browser-prove fresh install → real
-    provider credentials → verified identity → test delivery → webhook outcome.
+43. **P1 — Email Sender's code and behaviour are repaired; live-provider browser
+    acceptance remains.** The mounted Settings page now writes provider credentials,
+    private webhook secrets, SMTP configuration and sender identities to the same
+    private store the delivery path reads. Secrets are write-only and returned only
+    as masked tails. Postmark sender verification calls the provider's account API
+    and records its evidence/refusal instead of locally stamping an address active;
+    test sends and webhooks preserve and display the provider outcome. SMTP is now a
+    real production path too: the server-only foundation injects Nodemailer with TLS,
+    STARTTLS, authentication and bounded connection/greeting/socket deadlines, while
+    keeping Node socket dependencies out of the browser graph. SendGrid and Resend
+    remain deliberately non-operational and are labelled “no driver yet” in the
+    selector rather than claiming support. `scripts/smoke-email-sender-foundation`
+    plus the module smoke suite pass **47/47**, and TypeScript is clean on 2026-09-01.
+    Remaining acceptance needs real Postmark or SMTP credentials: fresh install →
+    save provider → provider-confirmed identity → accepted test message → signed
+    delivery webhook visible in Logs. Do not mark this complete from mocks alone.
 
-44. **P2 — most manifest-declared plugin settings are not an operable product
-    surface.** Twelve built-ins declare **51** fields in `settings.groups`, and the
+44. **P2 PARTLY REPAIRED 2026-09-01 — the shared settings product is reachable
+    across eight registered families, and Agency Marketing is now coherent.** The
+    agency hub exposes Finance, HR, Marketing and Email settings; the client settings
+    surface exposes CRM, Affiliates, Ecommerce and Memberships. Marketing's own
+    Settings page also mounts the canonical panel, retains only `defaultCurrency`,
+    and proves save → reload → campaign creation uses the changed GBP value. Its
+    persisted-but-unused lead-assignee and auto-send declarations are removed.
+    Focused settings/Marketing proof passes **53/53** and TypeScript is clean.
+
+    The source-derived inventory is now **12 registered manifests / 47 fields**:
+    **20 have runtime consumers and 27 do not**. Remaining unconsumed declarations
+    are Fulfillment (4), Website Editor (4), HR (3), Memberships (4), Leads Pipeline
+    (3), Public Funnel (2), Ecommerce (2), Affiliates (2), Client CRM (2) and Finance
+    (1). Fulfillment, Website Editor, Leads Pipeline and Public Funnel are dead-only
+    families with no settings mount. Wire or remove every remaining declaration and
+    behaviour-prove each retained field; `bos-auth-gate/loginPath` is separately
+    dormant and outside the registered 47-field surface.
+
+    _Original finding, retained for context:_ Twelve built-ins declare **51** fields in `settings.groups`, and the
     generic `PluginSettingsPanel` plus validated `/api/portal/plugins/settings`
     endpoint exist, but only Agency Finance imports and mounts that panel. HR,
     Marketing, Client CRM, Email Sender, Memberships and Affiliates expose custom
@@ -1597,22 +1644,19 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     runtime behavior, remove dead declarations, and regression/browser-prove save →
     reload → changed behavior for each plugin/scope.
 
-45. **P1 — Affiliate Stripe Connect is fully modelled but never wired into the
-    live foundation.** The plugin implements connected-account onboarding, status
-    refresh, signed webhook handling and idempotent transfers, and its customer page
-    visibly offers “Set up payouts via Stripe.” Production registration in
-    `runtime/foundation-adapters/affiliatesFoundation.ts`, however, supplies tenant,
-    user, activity, event, install and ecommerce-order ports only—never the optional
-    `stripeConnect` port. The resulting container always has `onboarding:null`;
-    `/me/stripe/onboard` and `/me/stripe/refresh` return “Stripe Connect not
-    configured,” no affiliate can obtain the account/status required by the admin
-    transfer button, and the public webhook also refuses processing. Tests inject a
-    complete fake port directly, so they prove the isolated state machine rather
-    than the product's adapter. Manual mark-paid remains usable, but the mounted
-    automated-payout flow is not. Resolve client-scoped Stripe configuration into a
-    real Connect port (or remove/label the unavailable controls), expose capability
-    before offering onboarding, and run test mode through account creation → hosted
-    onboarding → status/webhook → transfer → completion.
+45. **P1 — Affiliate Stripe Connect is code/behaviour wired; live Stripe acceptance
+    remains.** The live foundation now resolves the enabled Ecommerce install and its
+    vaulted Stripe keys in the exact agency/client scope, then supplies a real Connect
+    SDK adapter for account creation, Account Links, account reads, transfers and
+    signed webhooks. Missing keys return null, so onboarding is hidden/refused rather
+    than advertised falsely. Money-moving controls separately require a webhook
+    secret: a secret key can enable onboarding, but cannot start a transfer that the
+    application would be unable to reconcile to completed; manual mark-paid remains
+    available. Focused payout ownership, currency/refund and module coverage passes
+    **26/26** on 2026-09-01, including scope isolation, capability gating, SDK method
+    mapping, webhook completion and idempotent ownership. Remaining acceptance needs
+    a real Stripe test account: account creation → hosted onboarding → account status
+    webhook → transfer → transfer webhook → completed payout and reload.
 
 46. **Code/behaviour resolved 2026-08-26; mounted browser acceptance remains —
     client creation now materialises the selected agency lifecycle.**
@@ -1852,17 +1896,25 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     the nested suite. The focused lifecycle/navigation set passes **43/43** and the
     wider client-creation gate passes **75/75**.
 
-57. **P1 PARTLY RESOLVED 2026-09-01 — Portal Editor configuration now preserves
-    unavailable reads, while the other empty-fallback families remain open.** Its form
-    editor, contact-field and expense-category sources now run as independent checked
-    reads, so one rejection, HTTP error or malformed payload cannot erase sources that
-    answered. The panel distinguishes loading, confirmed empty and `Not read`, exposes
-    retry, keeps previously confirmed snapshots when a retry fails, and withholds the
-    corresponding add/edit/delete or category add/archive/restore mutations until that
-    source succeeds. Focused rejected-read and UI-contract proof passes **4/4**. Still
-    required: mounted browser rejection/retry proof for this slice, then equivalent
-    first-class availability, retry and mutation locking for the consequential families
-    below.
+57. **P1 PARTLY RESOLVED 2026-09-01 — consequential checked-read coverage now
+    includes Portal Editor configuration, attention plan/explanation/evidence,
+    Finance expense fields, KPI custom/shared views, completed history and both
+    Fulfillment phase catalogues.** Independent checked reads distinguish confirmed
+    absence from failure, retain last-confirmed snapshots, expose retry and lock writes
+    whose source is unavailable. Alert-local state cannot cross alert ids; exact
+    enquiry-source failures reach plan, explanation and evidence; stale phase targets
+    re-resolve through the newest confirmed catalogue. Completed-register deletes use
+    stable operation ids and safely replay a lost success without resurrecting rows;
+    custom-KPI creation is likewise deterministic, conflict-checked and duplicate-safe
+    after an ambiguous response. Focused proof passes **22/22**, the selected widened
+    attention/KPI/lifecycle/operational run passes **61/61**, and TypeScript plus diff
+    checks are clean.
+
+    This remains a partial class, not a closure. Website-source, customer and sibling
+    Finance, communications/contact, Meta, commercial/manual-detail, workspace and
+    Development search, Identity queue and governance-scope fallbacks still require the
+    same treatment where named below. Mounted forced rejection → retry, lost-response,
+    multi-tab and live persistence-provider recovery also remain acceptance work.
 
     _Original finding, retained to identify the remaining scope:_ The original audit found
     at least twenty-eight product paths that caught a rejected read and
@@ -2164,19 +2216,31 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     shared records, record creation, reload, failed reload (#57) and the erasure target
     list without cross-scope carry-over.
 
-69. **🟠 NON-SECURITY CORE RESOLVED 2026-08-26; storefront authorization and mounted/
-    live-provider acceptance remain.** Checkout now accepts a strict versioned request containing
-    stable product/variant ids, quantities, code and bounded customer/shipping/return metadata;
-    browser-authored money and unknown fields are refused. `CheckoutService` resolves the current
-    unarchived product/variant, minor-unit price, currency, stock, discount, shipping and tax, then
-    persists one idempotent operation with an immutable quote before provider creation. Operation-
-    owned stock/value reservations survive partial work, provider pointers replay safely, return
-    URLs are same-origin or configured HTTPS, and paid settlement consumes the stored line/totals
-    snapshot rather than provider/browser copy. Tampering, stale product, stock conflict, partial
-    multi-SKU failure, quote immutability, expiry and replay are covered in the focused **39/39**
-    Ecommerce set. The intentionally deferred security work is still material: the intended guest/
-    end-customer audience must be authorised and then browser-driven through real Stripe success,
-    cancel, reload and duplicate/out-of-order delivery. This item is therefore partial, not closed.
+69. **🟠 PUBLIC AUTHORITY + LOCAL END-TO-END RESOLVED 2026-09-01; real Stripe and
+    custom-domain acceptance remain.** Checkout retains its strict server-authoritative
+    versioned quote, reservation and settlement model. Ecommerce exposes a deliberately
+    narrow anonymous facade for published catalogue/detail, quote, checkout and receipt-
+    by-opaque-session only; operator list/detail and mutations stay session-gated. The
+    mounted storefront carries the exact enabled agency/client install scope.
+
+    Public products cross an explicit recursive allowlist rather than a subtractive
+    spread. It removes digital download URLs and licence keys, stock and variant SKUs,
+    weight, hidden/archive flags, timestamps/version, Shopify/provider ids and unknown
+    nested admin fields, while authenticated internal product reads retain their full
+    model. Hidden/archived products are denied. Public receipts similarly omit provider,
+    operator, referral, fulfilment and payment-only order fields. Browser identity fields
+    are refused; authenticated operator checkout derives identity from its server actor,
+    while public-facade requests remain identity-free even if a session cookie is present.
+
+    Catalogue, quote, checkout and receipt use a shared durable per-install/IP limiter
+    that fails closed when exclusive storage is unavailable, and public provider/storage
+    errors return generic responses. The real catch-all dispatcher proves anonymous
+    catalogue → authoritative quote → exact-zero checkout → replay → confirmed redacted
+    receipt without Stripe credentials; the public Stripe webhook remains signature-
+    authorised. The combined public-checkout/rate-limit/tenancy/internal-product run
+    passes **52/52**. This P0 remains **partial**: custom-domain E2E, real Stripe hosted
+    checkout/webhook/settlement and digital-delivery acceptance, plus deployed multi-
+    instance proof against the production DB lease function, are still required.
 
 70. **🟠 CODE + BEHAVIOUR RESOLVED 2026-08-26; mounted/live-provider acceptance remains.**
     Discount lookup is quote-only. Gift-card redemption, custom-code capacity and pending gift-card
@@ -3633,17 +3697,25 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     titles/counts/findings/blockers; access revocation changes the Search key immediately. Every
     new module-global data cache must preserve this realm/access rule.
 
-186. **Open P2 performance tradeoff — completed Radar station navigation can replay a scan.**
-    Keeping `scan=1` on completed-result links preserves the current snapshot across RSC station
-    navigation, but it can also request another full scan. Replace the replayable boolean with a
-    short-lived server-issued result/snapshot handle (or equivalent non-replay contract), then
-    prove one completed result survives station changes without rerunning. The adjacent paused-
-    state correction is already source/behaviour-green **49/49 + TypeScript**: Radar, KPI, Advisor
-    and client attention remain unknown/not scanned until a completed result exists, while a real
-    completed zero remains zero. Mounted desktop and 390×844 Day showed paused/not-scanned/unknown
-    truth with no false-clear labels, no loading/overflow and no browser warning/error; Battle then
-    settled with content. Deployed geography/CDN/provider latency is also intentionally open; the
-    local fresh-process production benchmark does not measure it.
+186. **✅ RESOLVED 2026-09-01 — Radar station navigation carries one bounded,
+    non-replayable result.** The expensive Radar/KPI graph has one authenticated,
+    same-origin, CSRF-protected POST execution door; legacy `scan=1` GETs are inert.
+    Issuance requires `workspace.overview.use` and consumption separately requires
+    `.view`. The POST returns only an opaque UUID. Supabase/Postgres persist one
+    short-lived sidecar row per hashed realm/agency/user principal, with a matching
+    local/test repository; realm, agency, user, session revision and access revision
+    must all match. A newer result replaces the old handle without capacity eviction,
+    and the two-minute TTL starts only after heavy computation finishes.
+
+    GET/RSC reads never rerun the graph. Missing, expired, mismatched and provider-
+    unavailable results render one consistent paused state, so stale full Radar/KPI
+    evidence cannot remain under paused chrome. Day→Battle retains the same handle and
+    Next history state. Focused behavior passes **24/24**, widened command/app-route/
+    Next coverage passes **54/54**, and TypeScript is clean. Mounted desktop and
+    **375×812** acceptance observed exactly one scan POST, the same handle across
+    Day→Battle, a bogus-handle fail-closed state with no stale critical totals, and an
+    empty browser warning/error log. Deployed geography/CDN/provider timing remains a
+    separate operational measurement, not unfinished result-handle behavior.
 
 ## 🔴 Website editor — dead visitor surfaces (2026-08-27)
 

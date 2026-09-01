@@ -35,9 +35,16 @@ interface DeploymentFile {
 interface VercelDeploymentResponse {
   created?: number;
   id?: string;
+  uid?: string;
   name?: string;
   readyState?: string;
+  state?: string;
   url?: string;
+  meta?: Record<string, string>;
+}
+
+interface VercelDeploymentListResponse {
+  deployments?: VercelDeploymentResponse[];
 }
 
 interface DeployDependencies {
@@ -58,8 +65,9 @@ export function vercelDeploymentConfigFromEnv(env: NodeJS.ProcessEnv = process.e
   return { token, teamId: env.VERCEL_TEAM_ID?.trim() || undefined };
 }
 
-function teamQuery(teamId?: string): string {
-  return teamId ? `?teamId=${encodeURIComponent(teamId)}` : "";
+function appendTeamQuery(endpoint: string, teamId?: string): string {
+  if (!teamId) return endpoint;
+  return `${endpoint}${endpoint.includes("?") ? "&" : "?"}teamId=${encodeURIComponent(teamId)}`;
 }
 
 function collectFiles(localPath: string): DeploymentFile[] {
@@ -97,7 +105,7 @@ async function vercelRequest(
   endpoint: string,
   init: RequestInit,
 ): Promise<Response> {
-  return fetchImpl(`${VERCEL_API}${endpoint}${teamQuery(config.teamId)}`, {
+  return fetchImpl(`${VERCEL_API}${appendTeamQuery(endpoint, config.teamId)}`, {
     ...init,
     headers: {
       authorization: `Bearer ${config.token}`,
@@ -112,6 +120,14 @@ export async function deployProjectPreviewToVercel(input: {
   localPath: string;
   projectSlug: string;
   config?: VercelDeploymentConfig;
+  /**
+   * Stable token for one logical deploy and all of its retries. It is attached
+   * as Vercel metadata, allowing a retry to find a deployment even if the
+   * provider response arrived but persisting its deployment id failed.
+   */
+  reconcileKey?: string;
+  /** Only retries need the provider lookup; fresh deploys avoid that latency. */
+  reconcileExisting?: boolean;
   /**
    * A deployment an unfinished deploy operation already created. It is read back
    * and reused, so a retry after a lost save does not stack a second preview.
@@ -161,6 +177,40 @@ export async function deployProjectPreviewToVercel(input: {
     }
   }
 
+  if (input.reconcileKey && input.reconcileExisting) {
+    const existing = await vercelRequest(
+      fetchImpl,
+      config,
+      `/v6/deployments?app=${encodeURIComponent(input.projectSlug)}&limit=20`,
+      { method: "GET" },
+    );
+    if (!existing.ok) {
+      throw new Error(`Vercel deployment reconciliation failed (${existing.status}).`);
+    }
+    const body = await existing.json().catch(() => ({})) as VercelDeploymentListResponse;
+    const match = body.deployments?.find(candidate => (
+      candidate.meta?.aquaOperationId === input.reconcileKey
+      && candidate.readyState !== "CANCELED"
+      && candidate.readyState !== "DELETED"
+      && candidate.state !== "CANCELED"
+      && candidate.state !== "DELETED"
+      && candidate.url
+      && (candidate.id || candidate.uid)
+    ));
+    if (match?.url) {
+      const reconciled: VercelPreviewDeployment = {
+        deploymentId: match.id ?? match.uid!,
+        projectName: match.name ?? input.projectSlug,
+        previewUrl: `https://${match.url}`,
+        readyState: match.readyState ?? match.state ?? "QUEUED",
+        createdAt: match.created ?? Date.now(),
+        fileCount: 0,
+      };
+      await input.onDeploymentCreated?.(reconciled);
+      return reconciled;
+    }
+  }
+
   const files = collectFiles(input.localPath);
 
   for (const file of files) {
@@ -186,6 +236,7 @@ export async function deployProjectPreviewToVercel(input: {
       files: files.map(file => ({ file: file.file, sha: file.sha, size: file.size })),
       projectSettings: { framework: null },
       target: "preview",
+      ...(input.reconcileKey ? { meta: { aquaOperationId: input.reconcileKey } } : {}),
     }),
     headers: { "content-type": "application/json" },
   });

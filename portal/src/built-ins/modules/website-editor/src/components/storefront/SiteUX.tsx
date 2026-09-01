@@ -41,6 +41,8 @@ export function SiteUX({
           page={page}
           theme={theme ?? null}
           preview={previewMode === "draft"}
+          agencyId={site.agencyId}
+          clientId={site.clientId}
         />
       </PortalEditOverlay>
     </>

@@ -53,7 +53,15 @@ import {
   type KpiPlanOverride,
   type KpiPlanOverrides,
 } from "@/lib/performance/kpiTargetClient";
-import type { CustomKpiDefinition, CustomKpiOp, KpiTargetsConfig } from "@/server/types";
+import {
+  canMutateKpiConfiguration,
+  customKpiDefinitionsFromPayload,
+  readCustomKpiDefinitions,
+  readSharedKpiViews,
+  sharedKpiViewsFromPayload,
+  type KpiConfigurationReadState,
+} from "@/lib/performance/kpiConfigurationRead";
+import type { CustomKpiDefinition, CustomKpiOp, KpiTargetsConfig, SharedKpiComparisonView } from "@/server/types";
 import { applyIntelligenceScope } from "./commandIntelligenceScope";
 import { PortalViewportLoading } from "@/components/ui/PortalViewportLoading";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
@@ -311,7 +319,7 @@ type KpiChartType = "line" | "area" | "bar";
 export type ComparisonRange = "24h" | "7d" | "30d" | "90d" | "quarter" | "ytd" | "12m" | "all" | "custom";
 type SavedComparisonView = { id: string; name: string; kpiIds: string[]; mode: ComparisonMode; range: ComparisonRange; start: string; end: string };
 /** The shared half of saved views — agency-scoped rows from `/api/portal/kpi-registry/views`. */
-type SharedKpiViewRow = { id: string; name: string; kpiIds: string[]; mode: ComparisonMode; range: ComparisonRange; start?: string; end?: string };
+type SharedKpiViewRow = SharedKpiComparisonView;
 type KpiPlanDraft = {
   operationId: string;
   expectedUpdatedAt: number;
@@ -329,11 +337,22 @@ function kpiPlanOperationId(kpiId: string): string {
   return `kpi-plan:${kpiId}:${nonce}`;
 }
 
+function customKpiCreateOperationId(): string {
+  const nonce = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `custom-kpi:${nonce}`;
+}
+
 export function KpiComparisonWorkspace({ snapshot, initialKpiIds = [], initialRange = "30d", context = "operational", onInspect }: { snapshot: CommandIntelligenceSnapshot; initialKpiIds?: string[]; initialRange?: ComparisonRange; context?: "operational" | "strategic"; onInspect: (kpi: CommandKpi) => void }) {
   const [evidenceDescriptors, setEvidenceDescriptors] = useState<KpiDescriptor[]>([]);
   const [evidenceState, setEvidenceState] = useState<"idle" | "loading" | "loaded" | "error">("idle");
   const [customDefinitions, setCustomDefinitions] = useState<CustomKpiDefinition[]>([]);
+  const [customReadState, setCustomReadState] = useState<KpiConfigurationReadState>("loading");
+  const [customReloadToken, setCustomReloadToken] = useState(0);
+  const [customMessage, setCustomMessage] = useState("");
+  const [customMutationPending, setCustomMutationPending] = useState(false);
   const [customForm, setCustomForm] = useState<{ label: string; numeratorId: string; denominatorId: string; op: CustomKpiOp }>({ label: "", numeratorId: "", denominatorId: "", op: "rate" });
+  const customCreateOperationRef = useRef<string | null>(null);
+  const customMutationInFlightRef = useRef(false);
   const baseDescriptors = useMemo(() => [...describeCommandKpis(snapshot), ...describeCommercialFormulas(snapshot), ...evidenceDescriptors], [snapshot, evidenceDescriptors]);
   const descriptors = useMemo(() => [...baseDescriptors, ...describeCustomKpis(customDefinitions, baseDescriptors)], [baseDescriptors, customDefinitions]);
   const defaultIds = migrateLegacyKpiReferenceIds(initialKpiIds).filter(id => descriptors.some(descriptor => descriptor.canonicalId === id));
@@ -349,6 +368,9 @@ export function KpiComparisonWorkspace({ snapshot, initialKpiIds = [], initialRa
   // Saved views are private AND shared by decision: private stays in this
   // browser's localStorage; shared persists agency-wide via kpi-registry/views.
   const [sharedViews, setSharedViews] = useState<SharedKpiViewRow[]>([]);
+  const [sharedReadState, setSharedReadState] = useState<KpiConfigurationReadState>("loading");
+  const [sharedReloadToken, setSharedReloadToken] = useState(0);
+  const [sharedMutationPending, setSharedMutationPending] = useState(false);
   const [savedScope, setSavedScope] = useState<"private" | "shared">("private");
   const [planOverrides, setPlanOverrides] = useState<KpiPlanOverrides>({});
   const [planConfigUpdatedAt, setPlanConfigUpdatedAt] = useState(0);
@@ -428,35 +450,92 @@ export function KpiComparisonWorkspace({ snapshot, initialKpiIds = [], initialRa
   }
   useEffect(() => {
     let cancelled = false;
-    void fetch("/api/portal/kpi-registry/custom").then(response => response.json()).then((data: { ok?: boolean; definitions?: CustomKpiDefinition[] }) => {
-      if (!cancelled && data.ok && Array.isArray(data.definitions)) setCustomDefinitions(data.definitions);
-    }).catch(() => {});
+    setCustomReadState("loading");
+    setCustomMessage("");
+    void readCustomKpiDefinitions().then(read => {
+      if (cancelled) return;
+      if (read.available) {
+        setCustomDefinitions(read.data);
+        setCustomReadState("ready");
+      } else {
+        // Keep the previous confirmed definitions; they may be displayed, but
+        // create/delete remains locked until a retry proves the catalogue.
+        setCustomReadState("error");
+      }
+    });
     return () => { cancelled = true; };
-  }, []);
+  }, [customReloadToken]);
 
   useEffect(() => {
     let cancelled = false;
-    void fetch("/api/portal/kpi-registry/views").then(response => response.json()).then((data: { ok?: boolean; views?: SharedKpiViewRow[] }) => {
-      if (!cancelled && data.ok && Array.isArray(data.views)) setSharedViews(data.views);
-    }).catch(() => {});
+    setSharedReadState("loading");
+    void readSharedKpiViews().then(read => {
+      if (cancelled) return;
+      if (read.available) {
+        setSharedViews(read.data);
+        setSharedReadState("ready");
+      } else {
+        setSharedReadState("error");
+      }
+    });
     return () => { cancelled = true; };
-  }, []);
+  }, [sharedReloadToken]);
+
+  function updateCustomForm(patch: Partial<typeof customForm>) {
+    if (customMutationInFlightRef.current) return;
+    // Editing is a new intent. An unchanged form keeps its previous operation
+    // identity across an ambiguous response and the required checked reload.
+    customCreateOperationRef.current = null;
+    setCustomForm(form => ({ ...form, ...patch }));
+  }
 
   async function createCustom() {
-    if (!customForm.label.trim() || !customForm.numeratorId) return;
+    if (customMutationInFlightRef.current || !canMutateKpiConfiguration(customReadState, customMutationPending) || !customForm.label.trim() || !customForm.numeratorId) return;
+    customMutationInFlightRef.current = true;
+    const operationId = customCreateOperationRef.current ?? customKpiCreateOperationId();
+    customCreateOperationRef.current = operationId;
+    setCustomMessage("");
+    setCustomMutationPending(true);
     try {
-      const response = await fetch("/api/portal/kpi-registry/custom", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ label: customForm.label, numeratorId: customForm.numeratorId, denominatorId: customForm.denominatorId || undefined, op: customForm.op }) });
-      const data = await response.json() as { ok?: boolean; definitions?: CustomKpiDefinition[] };
-      if (data.ok && Array.isArray(data.definitions)) { setCustomDefinitions(data.definitions); setCustomForm({ label: "", numeratorId: "", denominatorId: "", op: "rate" }); }
-    } catch { /* keep the form open */ }
+      const response = await fetch("/api/portal/kpi-registry/custom", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ operationId, label: customForm.label, numeratorId: customForm.numeratorId, denominatorId: customForm.denominatorId || undefined, op: customForm.op }) });
+      const data = await response.json() as unknown;
+      const definitions = customKpiDefinitionsFromPayload(data);
+      if (!response.ok || !definitions) throw new Error("Custom KPI creation failed.");
+      setCustomDefinitions(definitions);
+      setCustomForm({ label: "", numeratorId: "", denominatorId: "", op: "rate" });
+      customCreateOperationRef.current = null;
+      setCustomMessage("Custom KPI created.");
+    } catch {
+      // The request may have reached the server even when its response was
+      // lost. Lock the now-ambiguous catalogue until GET confirms the result;
+      // the retained operation identity then makes an unchanged retry safe.
+      setCustomReadState("error");
+      setCustomMessage("The custom KPI result could not be confirmed. Your form has been kept; retry definitions before writing again.");
+    } finally {
+      customMutationInFlightRef.current = false;
+      setCustomMutationPending(false);
+    }
   }
 
   async function deleteCustom(id: string) {
+    if (customMutationInFlightRef.current || !canMutateKpiConfiguration(customReadState, customMutationPending)) return;
+    customMutationInFlightRef.current = true;
+    setCustomMessage("");
+    setCustomMutationPending(true);
     try {
       const response = await fetch(`/api/portal/kpi-registry/custom?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-      const data = await response.json() as { ok?: boolean; definitions?: CustomKpiDefinition[] };
-      if (data.ok && Array.isArray(data.definitions)) setCustomDefinitions(data.definitions);
-    } catch { /* ignore */ }
+      const data = await response.json() as unknown;
+      const definitions = customKpiDefinitionsFromPayload(data);
+      if (!response.ok || !definitions) throw new Error("Custom KPI deletion failed.");
+      setCustomDefinitions(definitions);
+      setCustomMessage("Custom KPI deleted.");
+    } catch {
+      setCustomReadState("error");
+      setCustomMessage("The custom KPI deletion could not be confirmed. The last confirmed row remains visible; retry definitions before writing again.");
+    } finally {
+      customMutationInFlightRef.current = false;
+      setCustomMutationPending(false);
+    }
   }
 
   const bounds = comparisonBounds(snapshot, range, customStart, customEnd, mode);
@@ -472,15 +551,25 @@ export function KpiComparisonWorkspace({ snapshot, initialKpiIds = [], initialRa
       return;
     }
     if (savedScope === "shared") {
+      if (!canMutateKpiConfiguration(sharedReadState, sharedMutationPending)) {
+        setSaveMessage("Retry shared views before changing the agency-wide collection.");
+        return;
+      }
+      setSharedMutationPending(true);
       try {
         const response = await fetch("/api/portal/kpi-registry/views", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, kpiIds: selectedIds, mode, range, start: customStart, end: customEnd }) });
-        const data = await response.json() as { ok?: boolean; views?: SharedKpiViewRow[] };
-        if (!response.ok || !data.ok || !Array.isArray(data.views)) throw new Error("save failed");
-        setSharedViews(data.views);
+        const data = await response.json() as unknown;
+        const views = sharedKpiViewsFromPayload(data);
+        if (!response.ok || !views) throw new Error("save failed");
+        setSharedViews(views);
+        setSharedReadState("ready");
         setViewName("");
         setSaveMessage("Comparison view shared with the whole agency workspace.");
       } catch {
-        setSaveMessage("The shared view could not be saved. Try again.");
+        setSharedReadState("error");
+        setSaveMessage("The shared view result could not be confirmed. Retry shared views before writing again.");
+      } finally {
+        setSharedMutationPending(false);
       }
       return;
     }
@@ -501,11 +590,21 @@ export function KpiComparisonWorkspace({ snapshot, initialKpiIds = [], initialRa
   }
 
   async function deleteSharedView(id: string) {
+    if (!canMutateKpiConfiguration(sharedReadState, sharedMutationPending)) return;
+    setSharedMutationPending(true);
     try {
       const response = await fetch(`/api/portal/kpi-registry/views?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-      const data = await response.json() as { ok?: boolean; views?: SharedKpiViewRow[] };
-      if (data.ok && Array.isArray(data.views)) setSharedViews(data.views);
-    } catch { /* keep the row; nothing was deleted */ }
+      const data = await response.json() as unknown;
+      const views = sharedKpiViewsFromPayload(data);
+      if (!response.ok || !views) throw new Error("Shared view deletion failed.");
+      setSharedViews(views);
+      setSaveMessage("Shared comparison view deleted.");
+    } catch {
+      setSharedReadState("error");
+      setSaveMessage("The shared-view deletion could not be confirmed. The last confirmed row remains visible; retry shared views before writing again.");
+    } finally {
+      setSharedMutationPending(false);
+    }
   }
 
   function deleteView(id: string) {
@@ -640,17 +739,50 @@ export function KpiComparisonWorkspace({ snapshot, initialKpiIds = [], initialRa
       </div>
     </div>
 
-    <section className="border-t border-[#62e8ff]/16 bg-[#031018]/55 p-4 sm:p-5"><div className="grid gap-4 xl:grid-cols-[minmax(250px,.65fr)_minmax(320px,1.35fr)]"><div><p className="text-[8px] font-semibold uppercase text-[#76dff1]/50">SAVED COMPARISON VIEWS</p><h3 className="mt-1 text-xs font-semibold">Return to a monitoring configuration</h3><div className="mt-3 flex"><input value={viewName} onChange={event => setViewName(event.target.value)} placeholder="View name" className="min-h-9 min-w-0 flex-1 border border-[#62e8ff]/14 bg-[#020b11] px-3 text-[10px] text-white outline-none focus:border-[#62e8ff]/45" /><button type="button" onClick={() => void saveView()} title="Save KPI comparison view" className="grid size-9 place-items-center border border-l-0 border-[#62e8ff]/20 bg-[#62e8ff]/[0.07] text-[#8ef1ff]"><Save size={13} /></button></div><div className="mt-2 grid grid-cols-2 border border-[#62e8ff]/14" role="group" aria-label="Where this view is saved"><button type="button" aria-pressed={savedScope === "private"} onClick={() => setSavedScope("private")} className={`min-h-8 px-2 text-[8px] font-semibold uppercase transition ${savedScope === "private" ? "bg-[#62e8ff]/[0.12] text-[#8ef1ff]" : "text-white/35 hover:text-white/60"}`}>Only me · this browser</button><button type="button" aria-pressed={savedScope === "shared"} onClick={() => setSavedScope("shared")} className={`min-h-8 border-l border-[#62e8ff]/14 px-2 text-[8px] font-semibold uppercase transition ${savedScope === "shared" ? "bg-[#68f5d0]/[0.1] text-[#68f5d0]" : "text-white/35 hover:text-white/60"}`}>Shared · whole agency</button></div>{saveMessage ? <p className="mt-2 text-[8px] text-[#68f5d0]/70">{saveMessage}</p> : null}</div><div className="grid gap-px border border-[#62e8ff]/12 bg-[#62e8ff]/12 sm:grid-cols-2">{sharedViews.map(view => <div key={view.id} className="flex min-w-0 items-center gap-2 bg-[#020b11] p-3"><button type="button" onClick={() => loadView(view)} className="min-w-0 flex-1 text-left"><span className="flex items-center gap-1.5"><span className="block truncate text-[10px] font-semibold text-white/62">{view.name}</span><span className="shrink-0 border border-[#68f5d0]/25 bg-[#68f5d0]/[0.07] px-1.5 py-0.5 text-[6px] font-semibold uppercase text-[#68f5d0]">Shared</span></span><span className="mt-1 block truncate text-[7px] uppercase text-white/24">{view.kpiIds.length} KPIs · {view.range} · {view.mode} · whole agency</span></button><button type="button" onClick={() => void deleteSharedView(view.id)} title={`Delete the shared view ${view.name} for everyone`} className="grid size-7 shrink-0 place-items-center text-white/25 hover:bg-red-400/10 hover:text-red-300"><Trash2 size={11} /></button></div>)}{savedViews.map(view => <div key={view.id} className="flex min-w-0 items-center gap-2 bg-[#020b11] p-3"><button type="button" onClick={() => loadView(view)} className="min-w-0 flex-1 text-left"><span className="block truncate text-[10px] font-semibold text-white/62">{view.name}</span><span className="mt-1 block truncate text-[7px] uppercase text-white/24">{view.kpiIds.length} KPIs · {view.range} · {view.mode}</span></button><button type="button" onClick={() => deleteView(view.id)} title={`Delete ${view.name}`} className="grid size-7 shrink-0 place-items-center text-white/25 hover:bg-red-400/10 hover:text-red-300"><Trash2 size={11} /></button></div>)}{!savedViews.length && !sharedViews.length ? <p className="p-5 text-center text-[10px] text-white/28 sm:col-span-2">Private views stay in this browser; shared views are stored with the agency workspace and visible to everyone in it.</p> : null}</div></div></section>
+    <section className="border-t border-[#62e8ff]/16 bg-[#031018]/55 p-4 sm:p-5">
+      <div className="grid gap-4 xl:grid-cols-[minmax(250px,.65fr)_minmax(320px,1.35fr)]">
+        <div>
+          <p className="text-[8px] font-semibold uppercase text-[#76dff1]/50">SAVED COMPARISON VIEWS</p>
+          <h3 className="mt-1 text-xs font-semibold">Return to a monitoring configuration</h3>
+          <div className="mt-3 flex">
+            <input value={viewName} onChange={event => setViewName(event.target.value)} placeholder="View name" className="min-h-9 min-w-0 flex-1 border border-[#62e8ff]/14 bg-[#020b11] px-3 text-[10px] text-white outline-none focus:border-[#62e8ff]/45" />
+            <button type="button" onClick={() => void saveView()} disabled={savedScope === "shared" && !canMutateKpiConfiguration(sharedReadState, sharedMutationPending)} title={savedScope === "shared" && !canMutateKpiConfiguration(sharedReadState, sharedMutationPending) ? "Retry shared views before saving" : "Save KPI comparison view"} className="grid size-9 place-items-center border border-l-0 border-[#62e8ff]/20 bg-[#62e8ff]/[0.07] text-[#8ef1ff] disabled:cursor-not-allowed disabled:opacity-35"><Save size={13} /></button>
+          </div>
+          <div className="mt-2 grid grid-cols-2 border border-[#62e8ff]/14" role="group" aria-label="Where this view is saved">
+            <button type="button" aria-pressed={savedScope === "private"} onClick={() => setSavedScope("private")} className={`min-h-8 px-2 text-[8px] font-semibold uppercase transition ${savedScope === "private" ? "bg-[#62e8ff]/[0.12] text-[#8ef1ff]" : "text-white/35 hover:text-white/60"}`}>Only me · this browser</button>
+            <button type="button" aria-pressed={savedScope === "shared"} onClick={() => setSavedScope("shared")} className={`min-h-8 border-l border-[#62e8ff]/14 px-2 text-[8px] font-semibold uppercase transition ${savedScope === "shared" ? "bg-[#68f5d0]/[0.1] text-[#68f5d0]" : "text-white/35 hover:text-white/60"}`}>Shared · whole agency</button>
+          </div>
+          {saveMessage ? <p role="status" className="mt-2 text-[8px] text-[#68f5d0]/70">{saveMessage}</p> : null}
+        </div>
+        <div className="grid gap-px border border-[#62e8ff]/12 bg-[#62e8ff]/12 sm:grid-cols-2">
+          {sharedReadState !== "ready" ? <div role={sharedReadState === "error" ? "alert" : "status"} className="flex flex-wrap items-center justify-between gap-2 bg-[#07141b] p-3 text-[9px] leading-4 text-amber-100/70 sm:col-span-2">
+            <span>{sharedReadState === "error" ? "Shared views could not be read. Last confirmed shared views remain below and may be stale; agency-wide changes are locked." : sharedViews.length ? "Refreshing shared views. Last confirmed rows remain visible until the read answers." : "Loading agency-shared views…"}</span>
+            {sharedReadState === "error" ? <button type="button" onClick={() => setSharedReloadToken(value => value + 1)} className="min-h-8 border border-amber-200/20 bg-amber-100/[0.05] px-3 text-[8px] font-semibold uppercase text-amber-100 hover:bg-amber-100/[0.1]">Retry shared views</button> : null}
+          </div> : null}
+          {sharedViews.map(view => <div key={view.id} className="flex min-w-0 items-center gap-2 bg-[#020b11] p-3">
+            <button type="button" disabled={sharedReadState !== "ready"} onClick={() => loadView(view)} className="min-w-0 flex-1 text-left disabled:cursor-not-allowed disabled:opacity-50"><span className="flex items-center gap-1.5"><span className="block truncate text-[10px] font-semibold text-white/62">{view.name}</span><span className="shrink-0 border border-[#68f5d0]/25 bg-[#68f5d0]/[0.07] px-1.5 py-0.5 text-[6px] font-semibold uppercase text-[#68f5d0]">Shared</span></span><span className="mt-1 block truncate text-[7px] uppercase text-white/24">{view.kpiIds.length} KPIs · {view.range} · {view.mode} · whole agency</span></button>
+            <button type="button" disabled={!canMutateKpiConfiguration(sharedReadState, sharedMutationPending)} onClick={() => void deleteSharedView(view.id)} title={`Delete the shared view ${view.name} for everyone`} className="grid size-7 shrink-0 place-items-center text-white/25 hover:bg-red-400/10 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-30"><Trash2 size={11} /></button>
+          </div>)}
+          {savedViews.map(view => <div key={view.id} className="flex min-w-0 items-center gap-2 bg-[#020b11] p-3"><button type="button" onClick={() => loadView(view)} className="min-w-0 flex-1 text-left"><span className="block truncate text-[10px] font-semibold text-white/62">{view.name}</span><span className="mt-1 block truncate text-[7px] uppercase text-white/24">{view.kpiIds.length} KPIs · {view.range} · {view.mode}</span></button><button type="button" onClick={() => deleteView(view.id)} title={`Delete ${view.name}`} className="grid size-7 shrink-0 place-items-center text-white/25 hover:bg-red-400/10 hover:text-red-300"><Trash2 size={11} /></button></div>)}
+          {!savedViews.length && !sharedViews.length && sharedReadState === "ready" ? <p className="p-5 text-center text-[10px] text-white/28 sm:col-span-2">Private views stay in this browser; shared views are stored with the agency workspace and visible to everyone in it.</p> : null}
+        </div>
+      </div>
+    </section>
 
     <section className="border-t border-[#62e8ff]/16 p-4 sm:p-5" aria-labelledby="custom-kpi-heading"><div><p className="text-[8px] font-semibold uppercase text-[#76dff1]/50">CUSTOM KPIS</p><h3 id="custom-kpi-heading" className="mt-1 text-xs font-semibold">Build a KPI from two metrics</h3><p className="mt-1 max-w-2xl text-[10px] leading-4 text-white/32">Pick a numerator and, optionally, a denominator and an operation. Guided — not a formula language — so it only wires existing registry metrics together. New custom KPIs plot in the bank like any other.</p></div>
+      {customReadState !== "ready" ? <div role={customReadState === "error" ? "alert" : "status"} className="mt-3 flex flex-wrap items-center justify-between gap-2 border border-amber-200/15 bg-amber-100/[0.04] px-3 py-2 text-[9px] leading-4 text-amber-100/70">
+        <span>{customReadState === "error" ? "Custom KPI definitions could not be read. Last confirmed definitions remain visible and may be stale; create and delete are locked." : customDefinitions.length ? "Refreshing custom KPI definitions. Last confirmed rows remain visible until the read answers." : "Loading custom KPI definitions…"}</span>
+        {customReadState === "error" ? <button type="button" onClick={() => setCustomReloadToken(value => value + 1)} className="min-h-8 border border-amber-200/20 bg-amber-100/[0.05] px-3 text-[8px] font-semibold uppercase text-amber-100 hover:bg-amber-100/[0.1]">Retry definitions</button> : null}
+      </div> : null}
       <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(140px,1fr)_minmax(140px,1fr)_92px_minmax(140px,1fr)_auto] lg:items-end">
-        <label className="text-[7px] font-semibold uppercase text-white/28">Name<input value={customForm.label} onChange={event => setCustomForm(form => ({ ...form, label: event.target.value }))} placeholder="e.g. Form to lead" className="mt-1 min-h-8 w-full border border-[#62e8ff]/14 bg-[#020b11] px-2 text-[9px] normal-case text-white outline-none focus:border-[#62e8ff]/45" /></label>
-        <label className="text-[7px] font-semibold uppercase text-white/28">Numerator<select value={customForm.numeratorId} onChange={event => setCustomForm(form => ({ ...form, numeratorId: event.target.value }))} className="mt-1 min-h-8 w-full border border-[#62e8ff]/14 bg-[#020b11] px-2 text-[9px] text-white"><option value="">Select…</option>{baseDescriptors.map(descriptor => <option key={descriptor.canonicalId} value={descriptor.canonicalId}>{descriptor.shortLabel} · {descriptor.kind}</option>)}</select></label>
-        <label className="text-[7px] font-semibold uppercase text-white/28">Op<select value={customForm.op} onChange={event => setCustomForm(form => ({ ...form, op: event.target.value as CustomKpiOp }))} className="mt-1 min-h-8 w-full border border-[#62e8ff]/14 bg-[#020b11] px-2 text-[9px] text-white">{(["rate", "ratio", "sum", "diff"] as const).map(op => <option key={op} value={op}>{op}</option>)}</select></label>
-        <label className="text-[7px] font-semibold uppercase text-white/28">Denominator<select value={customForm.denominatorId} onChange={event => setCustomForm(form => ({ ...form, denominatorId: event.target.value }))} className="mt-1 min-h-8 w-full border border-[#62e8ff]/14 bg-[#020b11] px-2 text-[9px] text-white"><option value="">None</option>{baseDescriptors.map(descriptor => <option key={descriptor.canonicalId} value={descriptor.canonicalId}>{descriptor.shortLabel} · {descriptor.kind}</option>)}</select></label>
-        <button type="button" onClick={createCustom} disabled={!customForm.label.trim() || !customForm.numeratorId} className="inline-flex min-h-8 items-center justify-center gap-1.5 border border-[#68f5d0]/25 bg-[#68f5d0]/[0.07] px-3 text-[8px] font-semibold uppercase text-[#68f5d0] enabled:hover:bg-[#68f5d0]/[0.13] disabled:opacity-40">Create</button>
+        <label className="text-[7px] font-semibold uppercase text-white/28">Name<input value={customForm.label} disabled={customMutationPending} onChange={event => updateCustomForm({ label: event.target.value })} placeholder="e.g. Form to lead" className="mt-1 min-h-8 w-full border border-[#62e8ff]/14 bg-[#020b11] px-2 text-[9px] normal-case text-white outline-none focus:border-[#62e8ff]/45 disabled:opacity-50" /></label>
+        <label className="text-[7px] font-semibold uppercase text-white/28">Numerator<select value={customForm.numeratorId} disabled={customMutationPending} onChange={event => updateCustomForm({ numeratorId: event.target.value })} className="mt-1 min-h-8 w-full border border-[#62e8ff]/14 bg-[#020b11] px-2 text-[9px] text-white disabled:opacity-50"><option value="">Select…</option>{baseDescriptors.map(descriptor => <option key={descriptor.canonicalId} value={descriptor.canonicalId}>{descriptor.shortLabel} · {descriptor.kind}</option>)}</select></label>
+        <label className="text-[7px] font-semibold uppercase text-white/28">Op<select value={customForm.op} disabled={customMutationPending} onChange={event => updateCustomForm({ op: event.target.value as CustomKpiOp })} className="mt-1 min-h-8 w-full border border-[#62e8ff]/14 bg-[#020b11] px-2 text-[9px] text-white disabled:opacity-50">{(["rate", "ratio", "sum", "diff"] as const).map(op => <option key={op} value={op}>{op}</option>)}</select></label>
+        <label className="text-[7px] font-semibold uppercase text-white/28">Denominator<select value={customForm.denominatorId} disabled={customMutationPending} onChange={event => updateCustomForm({ denominatorId: event.target.value })} className="mt-1 min-h-8 w-full border border-[#62e8ff]/14 bg-[#020b11] px-2 text-[9px] text-white disabled:opacity-50"><option value="">None</option>{baseDescriptors.map(descriptor => <option key={descriptor.canonicalId} value={descriptor.canonicalId}>{descriptor.shortLabel} · {descriptor.kind}</option>)}</select></label>
+        <button type="button" onClick={createCustom} disabled={!canMutateKpiConfiguration(customReadState, customMutationPending) || !customForm.label.trim() || !customForm.numeratorId} className="inline-flex min-h-8 items-center justify-center gap-1.5 border border-[#68f5d0]/25 bg-[#68f5d0]/[0.07] px-3 text-[8px] font-semibold uppercase text-[#68f5d0] enabled:hover:bg-[#68f5d0]/[0.13] disabled:opacity-40">Create</button>
       </div>
-      {customDefinitions.length ? <div className="mt-3 flex flex-wrap gap-2">{customDefinitions.map(definition => <span key={definition.id} className="inline-flex items-center gap-2 border border-[#62e8ff]/14 bg-[#020b11] px-2.5 py-1.5 text-[9px] text-white/55"><Sparkles size={10} className="text-[#8ef1ff]/70" />{definition.label}<button type="button" onClick={() => deleteCustom(definition.id)} title={`Delete ${definition.label}`} className="text-white/30 hover:text-red-300"><X size={10} /></button></span>)}</div> : null}
+      {customMessage ? <p role="status" className="mt-2 text-[9px] text-[#8ef1ff]/70">{customMessage}</p> : null}
+      {customDefinitions.length ? <div className="mt-3 flex flex-wrap gap-2">{customDefinitions.map(definition => <span key={definition.id} className="inline-flex items-center gap-2 border border-[#62e8ff]/14 bg-[#020b11] px-2.5 py-1.5 text-[9px] text-white/55"><Sparkles size={10} className="text-[#8ef1ff]/70" />{definition.label}<button type="button" disabled={!canMutateKpiConfiguration(customReadState, customMutationPending)} onClick={() => deleteCustom(definition.id)} title={`Delete ${definition.label}`} className="text-white/30 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-30"><X size={10} /></button></span>)}</div> : null}
     </section>
   </div>;
 }

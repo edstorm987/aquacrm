@@ -59,6 +59,11 @@ import {
   stripeBillingPortalHandler,
   stripeCheckoutHandler,
   stripeWebhookHandler,
+  storefrontCheckoutHandler,
+  storefrontCheckoutQuoteHandler,
+  storefrontGetOrderBySessionHandler,
+  storefrontGetProductHandler,
+  storefrontListProductsHandler,
   updateOrderStatusHandler,
   updateOrderHandler,
   upsertDiscountHandler,
@@ -83,8 +88,21 @@ export const apiRoutes: readonly PluginApiRoute[] = [
   // Stripe
   { path: "stripe/checkout", methods: ["POST"], handler: stripeCheckoutHandler },
   { path: "checkout/quote", methods: ["POST"], handler: checkoutQuoteHandler },
-  { path: "stripe/webhook", methods: ["POST"], handler: stripeWebhookHandler },
+  // Stripe calls this without an Aqua session. Signature verification in the
+  // handler is the authority; the exact agency/client install still comes
+  // from the dispatcher scope.
+  { path: "stripe/webhook", methods: ["POST"], handler: stripeWebhookHandler, public: true },
   { path: "stripe/billing-portal", methods: ["POST"], handler: stripeBillingPortalHandler },
+
+  // Public storefront facade. These are intentionally separate from the
+  // operator routes above: a guest may browse published products, obtain a
+  // server quote, start checkout and read the order named by their opaque
+  // provider session id. No catalogue/admin/order-list mutation is public.
+  { path: "storefront/products", methods: ["GET"], handler: storefrontListProductsHandler, public: true },
+  { path: "storefront/products/get", methods: ["GET"], handler: storefrontGetProductHandler, public: true },
+  { path: "storefront/checkout/quote", methods: ["POST"], handler: storefrontCheckoutQuoteHandler, public: true },
+  { path: "storefront/stripe/checkout", methods: ["POST"], handler: storefrontCheckoutHandler, public: true },
+  { path: "storefront/orders/by-session", methods: ["GET"], handler: storefrontGetOrderBySessionHandler, public: true },
 
   // Discounts
   { path: "discounts", methods: ["GET"], handler: listDiscountsHandler },

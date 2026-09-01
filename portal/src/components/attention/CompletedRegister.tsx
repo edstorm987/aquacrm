@@ -1,8 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, LoaderCircle, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { CheckCircle2, LoaderCircle, RefreshCw, Trash2 } from "lucide-react";
 
+import {
+  completedActionDeleteOperationId,
+  completedActionsFromDeletePayload,
+  readCompletedActions,
+} from "@/lib/inbox/completedActionRead";
 import type { CompletedAction } from "@/server/types";
 
 const OUTCOME_LABELS: Record<CompletedAction["outcome"], string> = {
@@ -27,33 +32,70 @@ export function CompletedRegister() {
   const [entries, setEntries] = useState<CompletedAction[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [removing, setRemoving] = useState<string | null>(null);
+  const [removeError, setRemoveError] = useState<{ id: string; message: string } | null>(null);
+  const removeInFlightRef = useRef(false);
+  const deleteOperationsRef = useRef(new Map<string, string>());
 
   const load = useCallback(() => {
-    fetch("/api/portal/attention/completed", { cache: "no-store" })
-      .then(response => response.json())
-      .then((payload: { completed?: CompletedAction[] }) => {
-        setEntries(payload.completed ?? []);
+    setState("loading");
+    void readCompletedActions().then(read => {
+      if (read.available) {
+        setEntries(read.data);
         setState("ready");
-      })
-      .catch(() => setState("error"));
+      } else {
+        // Keep the last confirmed entries. A refused refresh is not an empty
+        // completed-work register and must not replace one with `[]`.
+        setState("error");
+      }
+    });
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
   async function remove(id: string) {
+    // The ref closes the same-render double-click gap before React has painted
+    // the disabled state. Serialising deletes means an older whole-register
+    // response can never arrive after a newer one and resurrect a removed row.
+    const isRetryingAmbiguousDelete = state === "error" && removeError?.id === id;
+    if ((!isRetryingAmbiguousDelete && state !== "ready") || removeInFlightRef.current) return;
+    removeInFlightRef.current = true;
+    const operationId = deleteOperationsRef.current.get(id)
+      ?? completedActionDeleteOperationId(id);
+    deleteOperationsRef.current.set(id, operationId);
     setRemoving(id);
+    if (!isRetryingAmbiguousDelete) setRemoveError(null);
     try {
-      const response = await fetch(`/api/portal/attention/completed?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-      const payload = await response.json() as { ok: boolean; completed?: CompletedAction[] };
+      const response = await fetch(
+        `/api/portal/attention/completed?id=${encodeURIComponent(id)}&operationId=${encodeURIComponent(operationId)}`,
+        { method: "DELETE" },
+      );
+      const payload = await response.json() as { ok?: boolean; operationId?: unknown; completed?: unknown; error?: string };
       // Only drop it locally once the server confirms, so a failed delete does
       // not look like success and reappear on the next load.
-      if (payload.ok) setEntries(payload.completed ?? []);
+      const completed = completedActionsFromDeletePayload(payload, operationId);
+      if (!response.ok || !completed) {
+        throw new Error(payload.error || "The register entry could not be removed.");
+      }
+      setEntries(completed);
+      setState("ready");
+      setRemoveError(null);
+      deleteOperationsRef.current.delete(id);
+    } catch (error) {
+      // The server may have committed before the acknowledgement was lost.
+      // Lock all writes and repeat this exact operation. A deterministic replay
+      // both confirms the current list and retries the durability flush.
+      setState("error");
+      setRemoveError({
+        id,
+        message: `${error instanceof Error ? error.message : "The register entry could not be removed."} Retry the same removal to confirm its durable result before changing the register again.`,
+      });
     } finally {
+      removeInFlightRef.current = false;
       setRemoving(null);
     }
   }
 
-  if (state === "loading") {
+  if (state === "loading" && !entries.length) {
     return (
       <p className="flex items-center gap-2 px-4 py-6 text-sm text-black/45">
         <LoaderCircle size={14} className="animate-spin" aria-hidden />Loading what you have finished…
@@ -61,11 +103,16 @@ export function CompletedRegister() {
     );
   }
 
-  if (state === "error") {
-    return <p className="px-4 py-6 text-sm text-red-700">The completed register could not be loaded.</p>;
+  if (state === "error" && !entries.length) {
+    return <div role="alert" className="flex flex-wrap items-center justify-between gap-3 px-4 py-6 text-sm text-red-700">
+      <span>The completed register could not be read. No empty-history conclusion has been made.</span>
+      <button type="button" onClick={load} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 text-xs font-semibold hover:bg-red-100">
+        <RefreshCw size={13} aria-hidden /> Retry history
+      </button>
+    </div>;
   }
 
-  if (!entries.length) {
+  if (state === "ready" && !entries.length) {
     return (
       <div className="px-4 py-10 text-center">
         <CheckCircle2 className="mx-auto text-emerald-600" size={22} aria-hidden />
@@ -78,7 +125,15 @@ export function CompletedRegister() {
   }
 
   return (
-    <ol className="divide-y divide-black/[0.07]" data-testid="completed-register">
+    <div>
+      {state !== "ready" ? <div role="status" className={`flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 text-xs ${state === "error" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-black/10 bg-black/[0.02] text-black/55"}`}>
+        <span>{removeError ? removeError.message : state === "error" ? "Completed history is unavailable. The last confirmed entries remain below and may be stale; changes are locked." : "Refreshing completed history. The last confirmed entries remain visible until the read answers."}</span>
+        {state === "error" ? removeError
+          ? <button type="button" disabled={removing !== null} onClick={() => void remove(removeError.id)} className="inline-flex min-h-8 items-center gap-2 rounded-md border border-amber-300 bg-white px-3 font-semibold hover:bg-amber-100 disabled:opacity-50"><RefreshCw size={12} className={removing ? "animate-spin" : undefined} aria-hidden /> Retry removal</button>
+          : <button type="button" onClick={load} className="inline-flex min-h-8 items-center gap-2 rounded-md border border-amber-300 bg-white px-3 font-semibold hover:bg-amber-100"><RefreshCw size={12} aria-hidden /> Retry history</button>
+          : null}
+      </div> : null}
+      <ol className="divide-y divide-black/[0.07]" data-testid="completed-register">
       {entries.map(entry => (
         <li key={entry.id} className="flex flex-wrap items-start gap-3 px-4 py-3">
           <CheckCircle2
@@ -109,7 +164,7 @@ export function CompletedRegister() {
           </span>
           <button
             type="button"
-            disabled={removing === entry.id}
+            disabled={state !== "ready" || removing !== null}
             onClick={() => void remove(entry.id)}
             aria-label={`Remove ${entry.title} from the register`}
             title="Remove from the register"
@@ -121,6 +176,7 @@ export function CompletedRegister() {
           </button>
         </li>
       ))}
-    </ol>
+      </ol>
+    </div>
   );
 }

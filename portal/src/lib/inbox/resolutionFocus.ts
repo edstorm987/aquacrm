@@ -15,6 +15,7 @@ import { clearanceFor } from "@/lib/inbox/resolutionExplain";
  * A missing ring is honest; a ring pointing at the wrong control is not.
  */
 const FOCUS_BY_PREFIX: Array<[string, ResolutionFocus]> = [
+  ["source-unavailable:website-enquiries", "details"],
   ["enquiry-classification:", "classification"],
   ["person-organisation:", "company"],
   ["invoice:", "payment"],

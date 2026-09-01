@@ -9,20 +9,18 @@
 
 import type { AdminTab } from "../components/AdminTabs";
 
-// Settings hub.
+// Settings hub. The retired browser-local Sites link is deliberately absent;
+// old bookmarks redirect to the shared editor instead.
 export const SETTINGS_TABS: AdminTab[] = [
-  { label: "Customise", href: "../customise" },
-  { label: "Sites",     href: "../sites" },
-  { label: "Themes",    href: "../themes" },
+  { label: "Editor settings", href: "../customise" },
+  { label: "Themes",          href: "../themes" },
 ];
 
-// Content workbench. Every authoring surface that produces something
-// the public site renders — pages, sections, popups, themes, assets.
+// Content workbench. Every listed authoring surface reads or writes the shared
+// tenant model. Browser-only Sections and Popups controls were retired.
 export const CONTENT_TABS: AdminTab[] = [
   { label: "Editor",   href: "../editor" },
   { label: "Pages",    href: "../pages" },
-  { label: "Sections", href: "../sections" },
-  { label: "Popups",   href: "../popups" },
   { label: "Themes",   href: "../themes" },
   { label: "Assets",   href: "../assets" },
 ];

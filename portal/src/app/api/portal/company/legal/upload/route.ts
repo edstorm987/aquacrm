@@ -4,8 +4,8 @@ import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { attachStoredPrivateUpload, PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
-import { createLegalDocument } from "@/server/legalDocuments";
-import { ensureHydrated } from "@/server/storage";
+import { createLegalDocument, rollbackLegalDocumentUpload } from "@/server/legalDocuments";
+import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import type { LegalDocumentCategory, LegalDocumentStatus } from "@/server/types";
 import { getActiveTradingCompanyId } from "@/lib/server/tradingCompanyContext";
 
@@ -39,26 +39,34 @@ export async function POST(request: Request) {
       const value = String(form?.get(key) ?? "");
       return value ? Date.parse(value) || undefined : undefined;
     };
-    const attached = await attachStoredPrivateUpload(stored, "legal-uploads", () => createLegalDocument({
-      id,
-      agencyId: session.agencyId,
-      companyIds: companyId ? [companyId] : [],
-      title: String(form?.get("title") ?? "").trim() || file.name.replace(/\.[^.]+$/, ""),
-      category: String(form?.get("category") ?? "other") as LegalDocumentCategory,
-      status: String(form?.get("status") ?? "active") as LegalDocumentStatus,
-      counterparty: String(form?.get("counterparty") ?? ""),
-      reference: String(form?.get("reference") ?? ""),
-      effectiveAt: date("effectiveAt"),
-      expiresAt: date("expiresAt"),
-      reminderAt: date("reminderAt"),
-      notes: String(form?.get("notes") ?? ""),
-      fileName: file.name.trim().slice(0, 200),
-      contentType: file.type,
-      size: file.size,
-      storageProvider: stored.storageProvider,
-      storageKey: stored.storageKey,
-      createdBy: session.userId,
-    }));
+    const attached = await attachStoredPrivateUpload(
+      stored,
+      "legal-uploads",
+      () => createLegalDocument({
+        id,
+        agencyId: session.agencyId,
+        companyIds: companyId ? [companyId] : [],
+        title: String(form?.get("title") ?? "").trim() || file.name.replace(/\.[^.]+$/, ""),
+        category: String(form?.get("category") ?? "other") as LegalDocumentCategory,
+        status: String(form?.get("status") ?? "active") as LegalDocumentStatus,
+        counterparty: String(form?.get("counterparty") ?? ""),
+        reference: String(form?.get("reference") ?? ""),
+        effectiveAt: date("effectiveAt"),
+        expiresAt: date("expiresAt"),
+        reminderAt: date("reminderAt"),
+        notes: String(form?.get("notes") ?? ""),
+        fileName: file.name.trim().slice(0, 200),
+        contentType: file.type,
+        size: file.size,
+        storageProvider: stored.storageProvider,
+        storageKey: stored.storageKey,
+        createdBy: session.userId,
+      }),
+      {
+        persist: flushPendingWrites,
+        rollbackOwner: () => { rollbackLegalDocumentUpload(session.agencyId, id); },
+      },
+    );
     if (!attached.ok) {
       return NextResponse.json({
         ok: false,

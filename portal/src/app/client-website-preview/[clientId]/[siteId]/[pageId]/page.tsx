@@ -32,7 +32,13 @@ export default async function ClientWebsitePreview({ params }: PreviewProps) {
   return (
     <main className="min-h-screen bg-white text-slate-950" data-client-website-preview>
       {page.customHead ? <div className="contents" dangerouslySetInnerHTML={{ __html: page.customHead }} /> : null}
-      <PortalPageRenderer page={page} theme={theme} preview />
+      <PortalPageRenderer
+        page={page}
+        theme={theme}
+        preview
+        agencyId={session.agencyId}
+        clientId={clientId}
+      />
       {page.customFoot ? <div className="contents" dangerouslySetInnerHTML={{ __html: page.customFoot }} /> : null}
     </main>
   );

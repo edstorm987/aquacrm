@@ -4360,6 +4360,10 @@ export type ClientProjectOperationStatus = "pending" | "external-created" | "suc
  */
 export interface ClientProjectOperation {
   id: string;
+  /** Immutable hash of the normalised request this operation was opened for. */
+  requestHash?: string;
+  /** Stable for one logical run, including every retry; replaced after success. */
+  recoveryToken?: string;
   agencyId: string;
   clientId: string;
   kind: ClientProjectOperationKind;

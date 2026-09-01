@@ -43,6 +43,8 @@ export interface CustomerFile {
   productId?: string;
   workspacePageId?: string;
   collectionId?: string;
+  uploadKey?: string;
+  workspaceAttachmentState?: "pending" | "attached";
   recordEntryId?: string;
   customerVisible?: boolean;
 }
@@ -414,6 +416,8 @@ export async function loadCustomerPortalData(
     productId: file.productId,
     workspacePageId: file.workspacePageId,
     collectionId: file.collectionId,
+    uploadKey: file.uploadKey,
+    workspaceAttachmentState: file.workspaceAttachmentState,
     recordEntryId: file.recordEntryId,
     customerVisible: file.customerVisible,
   }));

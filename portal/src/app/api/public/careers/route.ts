@@ -2,12 +2,13 @@ import crypto from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { FOUNDER_AGENCY_SLUG, seedFounder } from "@/lib/server/seeds/founderSeed";
-import { storePrivateUpload, PrivateUploadStorageError } from "@/lib/server/privateUploadStorage";
+import { attachStoredPrivateUpload, storePrivateUpload, PrivateUploadStorageError } from "@/lib/server/privateUploadStorage";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
-import { createPeopleApplication } from "@/server/people";
+import { createPeopleApplication, rollbackPeopleApplicationUpload } from "@/server/people";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getAgencyBySlug } from "@/server/tenants";
 import type { PeopleEmploymentType } from "@/server/types";
+import { careerApplicationFailurePayload } from "@/lib/public/careerApplicationFailure";
 
 export const runtime = "nodejs";
 
@@ -29,6 +30,28 @@ function responseError(error: string, status: number, retryAfter?: number) {
   return NextResponse.json({ ok: false, error }, {
     status,
     headers: retryAfter ? { "retry-after": String(retryAfter) } : undefined,
+  });
+}
+
+function privateFailure(
+  stage: string,
+  cause: unknown,
+  status: 500 | 503,
+  context?: Record<string, unknown>,
+) {
+  const incidentId = `career_${crypto.randomBytes(12).toString("hex")}`;
+  // Full diagnostics stay server-side. The public DTO below has a fixed shape
+  // and cannot accidentally spread `attached.detail`, storage keys, provider
+  // responses, database errors, or stack traces into an anonymous response.
+  console.error("[careers] application failure", {
+    incidentId,
+    stage,
+    error: cause instanceof Error ? cause.message : String(cause),
+    ...context,
+  });
+  return NextResponse.json(careerApplicationFailurePayload(incidentId), {
+    status,
+    headers: { "cache-control": "no-store" },
   });
 }
 
@@ -68,7 +91,7 @@ export async function POST(req: NextRequest) {
     await ensureHydrated();
     await seedFounder();
     const agency = getAgencyBySlug(FOUNDER_AGENCY_SLUG);
-    if (!agency) return responseError("Applications are temporarily unavailable.", 503);
+    if (!agency) return privateFailure("agency_lookup", new Error("founder agency missing"), 503);
 
     const fileKey = `${Date.now()}-${crypto.randomBytes(8).toString("hex")}`;
     const extension = cv.name.toLowerCase().endsWith(".pdf") ? "pdf" : cv.name.toLowerCase().endsWith(".docx") ? "docx" : "doc";
@@ -80,35 +103,48 @@ export async function POST(req: NextRequest) {
       localKey: `${fileKey}.${extension}`,
     });
     const employment = field(form, "employmentPreference", 40) as PeopleEmploymentType;
-    const { application, statusToken } = createPeopleApplication({
-      agencyId: agency.id,
-      name,
-      email,
-      phone: field(form, "phone", 50),
-      roleInterest,
-      employmentPreference: EMPLOYMENT_TYPES.has(employment) ? employment : undefined,
-      location: field(form, "location", 160),
-      portfolioUrl: field(form, "portfolioUrl", 500),
-      linkedInUrl: field(form, "linkedInUrl", 500),
-      coverNote: field(form, "coverNote", 6_000),
-      availabilityNote: field(form, "availabilityNote", 1_000),
-      cv: {
-        fileName: cv.name.slice(0, 240),
-        contentType: cv.type,
-        size: cv.size,
-        storageProvider: stored.storageProvider,
-        storageKey: stored.storageKey,
-      },
+    const attached = await attachStoredPrivateUpload(stored, "people-cvs", () => {
+      return createPeopleApplication({
+        agencyId: agency.id,
+        name,
+        email,
+        phone: field(form, "phone", 50),
+        roleInterest,
+        employmentPreference: EMPLOYMENT_TYPES.has(employment) ? employment : undefined,
+        location: field(form, "location", 160),
+        portfolioUrl: field(form, "portfolioUrl", 500),
+        linkedInUrl: field(form, "linkedInUrl", 500),
+        coverNote: field(form, "coverNote", 6_000),
+        availabilityNote: field(form, "availabilityNote", 1_000),
+        cv: {
+          fileName: cv.name.slice(0, 240),
+          contentType: cv.type,
+          size: cv.size,
+          storageProvider: stored.storageProvider,
+          storageKey: stored.storageKey,
+        },
+      });
+    }, {
+      persist: flushPendingWrites,
+      rollbackOwner: () => { rollbackPeopleApplicationUpload(agency.id, stored.storageKey); },
     });
-    await flushPendingWrites();
+    if (!attached.ok) {
+      return privateFailure("attach_owner", new Error(attached.detail ?? attached.message), 500, {
+        compensated: attached.compensated,
+        storageKey: attached.storageKey,
+      });
+    }
+    const { application, statusToken } = attached.value;
     return NextResponse.json({
       ok: true,
       applicationId: application.id,
       statusUrl: new URL(`/careers/status/${statusToken}`, req.nextUrl.origin).toString(),
     }, { status: 201 });
   } catch (cause) {
-    if (cause instanceof PrivateUploadStorageError) return responseError(cause.message, 503);
-    console.error("[careers] application failed", cause);
-    return responseError(cause instanceof Error ? cause.message : "The application could not be saved.", 500);
+    return privateFailure(
+      cause instanceof PrivateUploadStorageError ? "storage_unavailable" : "application_write",
+      cause,
+      cause instanceof PrivateUploadStorageError ? 503 : 500,
+    );
   }
 }

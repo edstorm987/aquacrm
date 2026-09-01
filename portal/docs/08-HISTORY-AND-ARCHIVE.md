@@ -2,7 +2,7 @@
 
 > The append-only change record, dated handoffs and superseded historical summaries.
 >
-> Consolidated 2026-09-01 from **18** source documents / **129,283 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-01 from **18** source documents / **129,623 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -23,7 +23,7 @@
 - [`docs/context/archive/website-editor-and-migration.md`](#source-docs-context-archive-website-editor-and-migration-md) — 1,159 words · `235e8af731b6`
 - [`docs/context/archive/WHERE-WE-ARE-2026-08-18.md`](#source-docs-context-archive-where-we-are-2026-08-18-md) — 2,192 words · `4056e9a347cb`
 - [`docs/context/archive/WHERE-WE-STAND-2026-08-20.md`](#source-docs-context-archive-where-we-stand-2026-08-20-md) — 2,482 words · `26bf4442580e`
-- [`docs/development/updates.md`](#source-docs-development-updates-md) — 99,127 words · `747aaf4bf07f`
+- [`docs/development/updates.md`](#source-docs-development-updates-md) — 99,467 words · `464d5c39bdbb`
 
 ---
 
@@ -3318,7 +3318,7 @@ Being straight with you about the edges.
 
 ## Source document — `docs/development/updates.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="747aaf4bf07f1346feb15d1ec81033220cf69ca35c10c0bcac48933ebe510755" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="464d5c39bdbbff2807ffaad418f0a38796e3b6b557d18f4fb35a9ed66076fbee" -->
 # Updates log
 
 ← Back to [development.md](../development.md) (the law)
@@ -3354,6 +3354,41 @@ map stays trustworthy.
 > If you ship something, log it.
 
 ---
+
+## 2026-09-01 — Release checklist: recoverable projects/uploads and a narrow public storefront
+
+- **#37 project lifecycle:** provision, GitHub publish and Vercel preview deploy now
+  bind immutable operation intent, recover only exact token-marked side effects and
+  serialize/rehydrate/merge the target property around slow I/O. Existing matching Git
+  worktrees, including uncommitted edits, are adopted rather than recursively removed.
+  Focused recovery/concurrency is **24/24** and route/Next contracts are **30/30**.
+  GitHub/Vercel were mocked: mounted live-provider acceptance remains under #36.
+- **#38 uploads:** the client binary lands before an authoritative per-client replay/
+  conflict transaction; only a losing request's object is compensated, and rollback
+  subtracts its id from fresh state rather than restoring stale arrays. Deletion retry
+  truth is preserved. Anonymous Careers failures now return one generic DTO with an
+  opaque incident id while diagnostics remain server-side. The private-upload/workspace
+  set is **31/31**. Staged-abandonment cleanup, remaining delete lifecycles and deployed
+  provider/concurrency acceptance remain open.
+- **#69 Ecommerce:** anonymous catalogue/detail and receipt data now cross explicit
+  allowlists; identity is server-owned or absent, provider failures are redacted, and a
+  durable scoped rate limit fails closed. The real dispatcher covers public catalogue →
+  quote → exact-zero checkout/replay → redacted receipt locally; focused public/internal
+  Ecommerce coverage is **52/52**. Custom-domain and live Stripe/provider/multi-instance
+  acceptance remain P0 work.
+- **Release gates:** the whole-tree smoke run finished **6,151 passed / 0 failed / 2
+  explicit skips**, including Website Editor **49/49**; TypeScript and diff checks are
+  clean. The production webpack build compiled in **75s** and generated all **245**
+  static routes. The isolated production benchmark built in **151,746ms**; fresh
+  processes were ready in **304.8–309.0ms**. Fresh-process first responses were public
+  **678.5ms**, Agency **885.9ms**, Dev Team **970.7ms**, Library **828.3ms** and Logs
+  **897.5ms**; repeat maxima were **6.7ms**, **58.0ms**, **40.0ms**, **34.8ms** and
+  **29.9ms** respectively. Every response was 200 and inside the harness time/payload
+  budgets. Deployed geography/CDN and live-provider timings remain operational evidence,
+  not something this isolated file-backed benchmark can claim.
+- Updated the one task list without moving #38/#69 to Done or changing any backlog
+  count, and strengthened [issues #37, #38 and #69](issues.md). Regenerated authored
+  documentation volumes and ran their consolidation/single-list gates.
 
 
 

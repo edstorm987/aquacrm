@@ -112,16 +112,6 @@ export const BLOCK_BACKEND_GAPS: Readonly<Record<string, BlockBackendGap>> = {
     endpoints: ["/api/portal/website-editor/blog/posts/by-slug"],
     needs: "website-editor blog routes",
   },
-  "product-search": {
-    // Caught by the test rather than by me: `product-search` sits in the native
-    // palette AND declares `requiresPlugin: "ecommerce"`. That declaration is
-    // inert — nothing in the app enforces `requiresPlugin` — so the block is
-    // offered whether or not Ecommerce is installed, and its endpoint wants a
-    // session either way.
-    reason: "Product search needs the Ecommerce plugin, and its search requires a signed-in customer.",
-    endpoints: ["/api/portal/ecommerce/products"],
-    needs: "ecommerce",
-  },
   "donation-button": {
     // Two gaps, not one. The session gap is the one this list was built for.
     // The second was found on 2026-08-31 by reading the handler instead of

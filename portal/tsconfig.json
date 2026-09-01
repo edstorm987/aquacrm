@@ -234,7 +234,9 @@
     ".next-looploop-turbo/types/**/*.ts",
     ".next-looploop-turbo/dev/types/**/*.ts",
     ".next-gate-turbo/types/**/*.ts",
-    ".next-gate-turbo/dev/types/**/*.ts"
+    ".next-gate-turbo/dev/types/**/*.ts",
+    ".next-export-acceptance-turbo/types/**/*.ts",
+    ".next-export-acceptance-turbo/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

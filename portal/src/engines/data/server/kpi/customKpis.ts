@@ -1,6 +1,6 @@
 import "server-only";
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import { canonicalKpiReference, tryCanonicalKpiReference } from "@/lib/data/metricRegistry";
 import { logActivity } from "@/server/activity";
@@ -41,8 +41,48 @@ export interface CreateCustomKpiInput {
   direction?: "higher" | "lower";
 }
 
+export class CustomKpiOperationError extends Error {
+  readonly status: 400 | 409;
+
+  constructor(message: string, status: 400 | 409) {
+    super(message);
+    this.name = "CustomKpiOperationError";
+    this.status = status;
+  }
+}
+
+function cleanOperationId(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  const operationId = value.trim();
+  if (!/^[A-Za-z0-9:_-]{8,180}$/.test(operationId)) {
+    throw new CustomKpiOperationError("A valid custom KPI operation id is required.", 400);
+  }
+  return operationId;
+}
+
+function operationDefinitionId(agencyId: string, operationId: string): string {
+  return `ck_${createHash("sha256").update(`${agencyId}\u0000${operationId}`).digest("hex").slice(0, 32)}`;
+}
+
+function sameDefinitionIntent(
+  existing: CustomKpiDefinition,
+  candidate: Omit<CustomKpiDefinition, "createdAt" | "createdBy">,
+): boolean {
+  return existing.id === candidate.id
+    && existing.label === candidate.label
+    && existing.numeratorId === candidate.numeratorId
+    && existing.denominatorId === candidate.denominatorId
+    && existing.op === candidate.op
+    && existing.category === candidate.category
+    && existing.direction === candidate.direction;
+}
+
 /** Create a custom KPI. Throws on an unknown op or a missing numerator id. */
-export function createCustomKpi(agencyId: string, input: CreateCustomKpiInput, opts: { actorUserId: string; now?: number }): CustomKpiDefinition {
+export function createCustomKpi(
+  agencyId: string,
+  input: CreateCustomKpiInput,
+  opts: { actorUserId: string; now?: number; operationId?: string },
+): CustomKpiDefinition {
   const label = input.label.trim().slice(0, 80);
   if (!label) throw new Error("custom KPI label is required");
   if (!input.numeratorId) throw new Error("custom KPI numerator is required");
@@ -51,14 +91,30 @@ export function createCustomKpi(agencyId: string, input: CreateCustomKpiInput, o
   const denominatorId = input.denominatorId?.trim()
     ? canonicalKpiReference(input.denominatorId, { allowDynamicKinds: ["evidence"] })
     : undefined;
-  const definition: CustomKpiDefinition = {
-    id: `ck_${randomUUID()}`,
+  const operationId = cleanOperationId(opts.operationId);
+  const candidate: Omit<CustomKpiDefinition, "createdAt" | "createdBy"> = {
+    id: operationId ? operationDefinitionId(agencyId, operationId) : `ck_${randomUUID()}`,
     label,
     numeratorId,
     denominatorId,
     op: input.op,
     category: input.category?.trim().slice(0, 40) || undefined,
     direction: input.direction,
+  };
+
+  if (operationId) {
+    const existing = listCustomKpis(agencyId).find(definition => definition.id === candidate.id);
+    if (existing) {
+      if (sameDefinitionIntent(existing, candidate)) return existing;
+      throw new CustomKpiOperationError(
+        "That custom KPI operation id is already bound to a different definition.",
+        409,
+      );
+    }
+  }
+
+  const definition: CustomKpiDefinition = {
+    ...candidate,
     createdAt: opts.now ?? Date.now(),
     createdBy: opts.actorUserId,
   };

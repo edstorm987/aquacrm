@@ -209,8 +209,12 @@ describe("the non-plugin app API routes — the class with no class-level guard"
     // optional `companyId` is checked against `listTradingCompanies(agencyId)`
     // and 404s otherwise. `assess` and `close` re-gate to owner-only, because
     // deciding a breach is not notifiable is a legal judgement.
-    assert.equal(routes.length, 159,
-      `there are now ${routes.length} non-plugin routes under src/app/api/portal, not 159.`
+    // 159 → 160 on 2026-09-01: `agency/command-scan`, the explicit heavy
+    // Radar/KPI execution door. It accepts no tenant input: the agency comes
+    // only from a fresh, current-member signed session and the result is bound
+    // to that realm/agency/user/revision principal before provider persistence.
+    assert.equal(routes.length, 160,
+      `there are now ${routes.length} non-plugin routes under src/app/api/portal, not 160.`
       + " A new one has appeared: decide where IT gets its tenant from, then update this count.");
   });
 

@@ -1,8 +1,11 @@
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
+import { PluginSettingsPanel } from "@/components/workspaces/PluginSettingsPanel";
+import { describePluginSettings } from "@/lib/server/plugins/pluginSettingsSurface";
 
 export default async function SettingsPage(props: PluginPageProps) {
   const c = containerFor({ agencyId: props.agencyId, storage: props.storage, install: props.install });
+  const settings = describePluginSettings(props.install.pluginId, { agencyId: props.agencyId });
   const [campaigns, leads, templates] = await Promise.all([
     c.campaigns.list(),
     c.leads.list(),
@@ -25,6 +28,7 @@ export default async function SettingsPage(props: PluginPageProps) {
         <div><dt>Plugin id</dt><dd>{props.install.pluginId}</dd></div>
         <div><dt>Enabled</dt><dd>{props.install.enabled ? "Yes" : "No"}</dd></div>
       </dl>
+      {settings ? <PluginSettingsPanel initial={settings} /> : null}
     </section>
   );
 }

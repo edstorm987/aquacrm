@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
-import { deleteCompletedAction, listCompletedActions, recordCompletedAction } from "@/server/completedActions";
+import {
+  CompletedActionDeleteOperationError,
+  deleteCompletedActionForOperation,
+  listCompletedActions,
+  recordCompletedAction,
+} from "@/server/completedActions";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 
@@ -70,14 +75,25 @@ export async function DELETE(request: Request) {
   try {
     await ensureHydrated();
     const session = await requireRole([...AGENCY_ROLES]);
-    const id = new URL(request.url).searchParams.get("id")?.trim();
-    if (!id) return NextResponse.json({ ok: false, error: "An entry id is required." }, { status: 400 });
+    const params = new URL(request.url).searchParams;
+    const id = params.get("id")?.trim();
+    const operationId = params.get("operationId")?.trim();
+    if (!id || !operationId) {
+      return NextResponse.json(
+        { ok: false, error: "An entry id and delete operation id are required." },
+        { status: 400 },
+      );
+    }
 
-    const removed = deleteCompletedAction(session.agencyId, id);
-    if (!removed) return NextResponse.json({ ok: false, error: "Entry not found." }, { status: 404 });
+    const result = deleteCompletedActionForOperation(session.agencyId, id, operationId);
+    // Flush even on replay: the first request may have changed memory and then
+    // lost its persistence acknowledgement. The retry is the recovery path.
     await flushPendingWrites();
-    return NextResponse.json({ ok: true, completed: listCompletedActions(session.agencyId) });
+    return NextResponse.json({ ok: true, ...result });
   } catch (error) {
+    if (error instanceof CompletedActionDeleteOperationError) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 409 });
+    }
     return authErrorResponse(error);
   }
 }

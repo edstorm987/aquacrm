@@ -121,7 +121,10 @@ function VisualEditorPageInner({ enabledPluginIds }: { enabledPluginIds: readonl
   const [selected, setSelected] = useState<SelectedElement | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
   const [generateOpen, setGenerateOpen] = useState(false);
-  const [aiAvailable, setAiAvailable] = useState(false);
+  // The server entry resolves this exact tenant's enabled install set. Using
+  // it here keeps capability gating authoritative and avoids probing an
+  // optional route that is absent when the plugin is not installed.
+  const aiAvailable = enabledPluginIds.includes("ai-builder");
   // R003 — per-page open-state persisted in localStorage; `lastSaveAt`
   // bumps trigger iframe auto-refresh on save.
   const [lastSaveAt, setLastSaveAt] = useState(0);
@@ -148,18 +151,6 @@ function VisualEditorPageInner({ enabledPluginIds }: { enabledPluginIds: readonl
     // the operator switches to Simple while sitting on Block / Code.
     if (c === "simple" && mode !== "live") setMode("live");
   }
-  // Probe whether the @aqua/plugin-ai-builder API is mounted. Used to
-  // toggle the ✨ Generate button — invisible when the plugin isn't
-  // installed or the operator's role can't reach it.
-  useEffect(() => {
-    let cancelled = false;
-    void fetch("/api/portal/ai-builder/status", { cache: "no-store", credentials: "include" })
-      .then(r => (r.ok ? r.json() as Promise<{ ok?: boolean; ready?: boolean }> : Promise.resolve({ ok: false } as { ok?: boolean; ready?: boolean })))
-      .then(d => { if (!cancelled) setAiAvailable(Boolean(d.ok && d.ready)); })
-      .catch(() => { if (!cancelled) setAiAvailable(false); });
-    return () => { cancelled = true; };
-  }, []);
-
   // History controls registered by EditorBlockStage so the topbar's
   // ↶/↷ buttons can drive its internal undo/redo stacks.
   const historyApiRef = useRef<{

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { requireClientAssociation } from "@/lib/server/access/clientAssociationElement";
+import { unavailableAttentionPlanReads } from "@/lib/inbox/attentionPlanRead";
+import { loadAttentionPlanReads } from "@/lib/server/attentionPlanReads";
 import {
   resolutionEvidenceFor,
   resolutionExplainFor,
@@ -34,25 +36,36 @@ export async function GET(request: Request) {
     // `GET /api/portal/tasks` filters its list on, so it answers to the same
     // association — otherwise the row the list withholds comes back by asking
     // for the alert about it instead. Refused HERE rather than inside the
-    // evidence builder: the three calls below swallow their errors into
-    // `null`, and a refusal must be a 403, never a silently empty panel.
+    // evidence builder: a refusal must be a 403, never an unavailable read or
+    // a silently empty panel.
     if (alertId.startsWith("task:")) {
       const taskId = alertId.slice("task:".length);
       const task = listAgencyTasks(session.agencyId).find(entry => entry.id === taskId);
       await requireClientAssociation("agency-task", task?.clientId, "view");
     }
 
-    // A null plan is the normal case, not an error — most resolutions are one
-    // step and need no checklist.
-    const plan = await resolutionPlanFor(session.agencyId, alertId).catch(() => null);
-    // The explanation matters most when there is nothing to press: it is the
-    // difference between "this alert is broken" and "here is what will clear
-    // it". Built even when a plan exists, so the panel is always available.
-    const explain = await resolutionExplainFor(session.agencyId, alertId).catch(() => null);
-    // The records themselves, so the operator can judge without navigating.
-    const evidence = await resolutionEvidenceFor(session.agencyId, alertId).catch(() => null);
+    const reads = await loadAttentionPlanReads({
+      // A null plan is the normal case, not an error — most resolutions are
+      // one step and need no checklist. Availability distinguishes that valid
+      // absence from a builder that rejected.
+      plan: () => resolutionPlanFor(session.agencyId, alertId),
+      // The explanation matters most when there is nothing to press: it is the
+      // difference between "this alert is broken" and "here is what will clear
+      // it". Built even when a plan exists, so the panel is always useful.
+      explain: () => resolutionExplainFor(session.agencyId, alertId),
+      // The records themselves, so the operator can judge without navigating.
+      evidence: () => resolutionEvidenceFor(session.agencyId, alertId),
+    });
     return NextResponse.json(
-      { ok: true, plan, explain, evidence },
+      {
+        ok: true,
+        reads,
+        // Preserve the original response fields for older internal consumers;
+        // truthful clients use `reads.*.available` before stating a fact.
+        plan: reads.plan.data,
+        explain: reads.explain.data,
+        evidence: reads.evidence.data,
+      },
       { headers: { "cache-control": "no-store" } },
     );
   } catch (error) {
@@ -60,9 +73,13 @@ export async function GET(request: Request) {
       return authErrorResponse(error);
     } catch {
       console.error("[attention] plan lookup failed", error);
-      // Never fail the banner because a plan could not be built — the page
-      // still works, it just shows no checklist.
-      return NextResponse.json({ ok: true, plan: null, explain: null, evidence: null });
+      const reads = unavailableAttentionPlanReads(
+        "Resolution details could not be read. The page is still available; retry the details before acting on an empty result.",
+      );
+      return NextResponse.json(
+        { ok: false, error: "Resolution details could not be read.", reads },
+        { status: 503, headers: { "cache-control": "no-store" } },
+      );
     }
   }
 }

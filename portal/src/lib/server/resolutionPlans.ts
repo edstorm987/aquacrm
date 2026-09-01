@@ -14,6 +14,9 @@ import "server-only";
 // An alert with no plan here is a single-step resolution — the announcement
 // bar just names the task. That is the common case and needs no ceremony.
 
+import { containerFor } from "@aqua/plugin-leads-pipeline/server";
+
+import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
 import { getClientForAgency } from "@/server/tenants";
 import type { ClientContract } from "@/lib/clients/clientContracts";
 import { cleanClientPaymentPlans } from "@/lib/clients/clientPaymentPlans";
@@ -40,8 +43,14 @@ import {
   type ResolutionExplain,
   type ResolutionRecordLink,
 } from "@/lib/inbox/resolutionExplain";
-import { listOperationalAlerts } from "@/lib/server/inbox/operationalAlerts";
 import { getRequestWebsiteEnquiries } from "@/lib/server/websiteEnquiries";
+import { makePluginStorage } from "@/lib/server/pluginStorage";
+import { getInstall } from "@/server/pluginInstalls";
+import {
+  listOperationalAlertsForResolution,
+  websiteEnquiryIdsForResolutionLead,
+  websiteEnquiryForResolutionAlert,
+} from "@/lib/server/resolutionAlertReads";
 
 /**
  * Build the plan for an alert, or null when it is a single-step job.
@@ -234,7 +243,7 @@ export async function resolutionExplainFor(
   alertId: string,
   now = Date.now(),
 ): Promise<ResolutionExplain | null> {
-  const alerts = await listOperationalAlerts(agencyId, now);
+  const alerts = await listOperationalAlertsForResolution(agencyId, alertId, now);
   const alert = alerts.find(entry => entry.id === alertId);
   if (!alert) return null;
 
@@ -507,8 +516,10 @@ export async function radarEvidenceFor(
   agencyId: string,
   alertId: string,
 ): Promise<ResolutionEvidence | null> {
-  const radar = await getCachedBusinessIssueRadar(agencyId).catch(() => null);
-  if (!radar) return null;
+  // Let the checked attention read boundary preserve this as unavailable.
+  // `null` is reserved for a confirmed missing incident, not a failed Radar
+  // provider read.
+  const radar = await getCachedBusinessIssueRadar(agencyId);
 
   // The alert id carries the incident it came from, however it was wrapped.
   const incidentId = alertId
@@ -610,7 +621,7 @@ async function genericEvidenceFor(
   alertId: string,
   now: number,
 ): Promise<ResolutionEvidence | null> {
-  const alerts = await listOperationalAlerts(agencyId, now);
+  const alerts = await listOperationalAlertsForResolution(agencyId, alertId, now);
   const alert = alerts.find(entry => entry.id === alertId);
   if (!alert) return null;
 
@@ -688,9 +699,28 @@ async function genericEvidenceFor(
  * the person who sent it.
  */
 async function enquiryReplyPlan(agencyId: string, alertId: string): Promise<ResolutionPlan | null> {
-  const enquiryId = alertId.slice(alertId.indexOf(":") + 1);
-  const enquiries = await getRequestWebsiteEnquiries(agencyId).catch(() => []);
-  const enquiry = enquiries.find(entry => entry.id === enquiryId);
+  // The attention route wraps this builder as a checked read. Propagating a
+  // refusal distinguishes unavailable enquiry data from a confirmed missing
+  // enquiry, so a failed refresh cannot auto-complete or remove this plan.
+  const enquiries = await getRequestWebsiteEnquiries(agencyId);
+  let enquiry = websiteEnquiryForResolutionAlert(enquiries, alertId);
+  if (!enquiry && alertId.startsWith("enquiry:")) {
+    const leadId = alertId.slice("enquiry:".length);
+    const install = getInstall({ agencyId }, "leads-pipeline");
+    if (install?.enabled && leadId) {
+      ensureLeadsPipelineFoundationRegistered();
+      const { leads } = containerFor({
+        agencyId,
+        storage: makePluginStorage(install.id) as never,
+      });
+      const lead = await leads.get(leadId);
+      enquiry = websiteEnquiryForResolutionAlert(
+        enquiries,
+        alertId,
+        websiteEnquiryIdsForResolutionLead(alertId, lead),
+      );
+    }
+  }
   if (!enquiry) return null;
 
   const href = `/portal/agency/inbox?view=all&form=${encodeURIComponent(enquiry.id)}`;

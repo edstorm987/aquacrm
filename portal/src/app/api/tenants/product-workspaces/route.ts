@@ -132,7 +132,7 @@ export async function POST(req: Request) {
     if (!existing) return NextResponse.json({ ok: false, error: "product is not part of this portal" }, { status: 404 });
     const now = Date.now();
     let workspace: PortalProductWorkspace = structuredClone(existing);
-    let fileVisibility: { fileIds: string[]; visible: boolean } | null = null;
+    let fileVisibility: { fileIds: string[]; visible: boolean; attachmentState?: "pending" | "attached" } | null = null;
     const pageId = cleanText(body?.pageId, 120);
 
     if (action === "set-stage") {
@@ -276,7 +276,11 @@ export async function POST(req: Request) {
         collection.assets.push(asset);
         collection.updatedAt = now;
       }
-      fileVisibility = { fileIds: [file.id], visible: collection.status !== "draft" && collection.status !== "archived" };
+      fileVisibility = {
+        fileIds: [file.id],
+        visible: collection.status !== "draft" && collection.status !== "archived",
+        attachmentState: "attached",
+      };
     } else if (action === "remove-asset") {
       if (!management) return NextResponse.json({ ok: false, error: "only the delivery team can remove assets" }, { status: 403 });
       const collectionId = cleanText(body?.collectionId, 120);
@@ -286,7 +290,10 @@ export async function POST(req: Request) {
       if (!collection || !asset) return NextResponse.json({ ok: false, error: "asset not found" }, { status: 404 });
       collection.assets = collection.assets.filter(item => item.id !== assetId);
       collection.updatedAt = now;
-      fileVisibility = { fileIds: [asset.fileId], visible: false };
+      // The file remains available in the file room, but it is no longer a
+      // converged collection upload. Reset the durable marker so a reload does
+      // not silently skip it when the delivery team chooses it again.
+      fileVisibility = { fileIds: [asset.fileId], visible: false, attachmentState: "pending" };
     } else if (action === "asset-response") {
       const collectionId = cleanText(body?.collectionId, 120);
       const assetId = cleanText(body?.assetId, 120);
@@ -377,7 +384,11 @@ export async function POST(req: Request) {
               ? current.client.metadata.files as ClientFileRef[]
               : [];
             files = currentFiles.map(file => ids.has(file.id)
-              ? { ...file, customerVisible: fileVisibility!.visible }
+              ? {
+                  ...file,
+                  customerVisible: fileVisibility!.visible,
+                  ...(fileVisibility!.attachmentState ? { workspaceAttachmentState: fileVisibility!.attachmentState } : {}),
+                }
               : file);
           }
           return {

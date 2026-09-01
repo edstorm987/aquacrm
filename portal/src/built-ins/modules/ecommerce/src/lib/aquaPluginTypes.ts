@@ -160,6 +160,13 @@ export interface PluginApiRoute {
   handler: (req: Request, ctx: PluginCtx) => Promise<Response>;
   requiresFeature?: string;
   roles?: PluginRoleVisibility[];
+  /**
+   * Anonymous route. The host dispatcher still resolves an exact enabled
+   * install from the URL scope; only the session/role gate is skipped.
+   * Keep this off admin routes and expose a deliberately narrow storefront
+   * facade instead.
+   */
+  public?: boolean;
 }
 
 // ─── Storefront contributions ─────────────────────────────────────────────

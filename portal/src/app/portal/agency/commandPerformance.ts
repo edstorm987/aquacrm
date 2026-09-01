@@ -6,8 +6,8 @@
 // cache) and `buildCommandIntelligenceSnapshot` (which itself rebuilds company
 // health, brand portfolio, marketing intelligence and 20 KPIs). This module is
 // the switch: under Performance mode we skip those two builds, hand the client
-// lightweight *paused* placeholders, and let a one-shot `?scan=1` render (the
-// "Run scan" control) do the full build on demand.
+// lightweight *paused* placeholders, and let the authenticated POST scan
+// endpoint do the full build on demand.
 //
 // Default is ON. A new session gets the lightweight shell and a visible Run
 // scan action. An operator can explicitly disable Performance mode to restore
@@ -22,19 +22,34 @@ import { buildCommercialIntelligence } from "@/lib/intelligence/commercialIntell
 /**
  * Whether to build the heavy radar + KPI-intelligence panels for this render.
  *
- * - Performance mode OFF → always `true` (behaviour is byte-for-byte today).
- * - Performance mode ON  → `false` (paused: cached-or-on-button), UNLESS this
- *   render carries the one-shot `?scan=1` flag, which forces a single fresh
- *   build.
+ * - Performance mode OFF → eager unless a completed result is being reused.
+ * - Performance mode ON  → paused unless a completed result is being reused.
+ * - A requested-but-missing handle → paused in either mode, never a fallback
+ *   execution. Only the authenticated POST endpoint may trigger a scan.
  */
-export function shouldRunHeavyPanels(perfMode: boolean, scanRequested: boolean): boolean {
-  return !perfMode || scanRequested;
+export function shouldRunHeavyPanels(
+  perfMode: boolean,
+  hasPreservedResult = false,
+  requestedResultMissing = false,
+): boolean {
+  return !perfMode && !hasPreservedResult && !requestedResultMissing;
 }
 
-/** Parse the one-shot `?scan=1` search param (string | string[] | undefined). */
-export function normalizeScanFlag(value: string | string[] | undefined): boolean {
-  if (Array.isArray(value)) return value.includes("1");
-  return value === "1";
+/**
+ * Decide whether this request executes the heavy graph and whether the client
+ * must show the paused state. A preserved result clears the paused label but
+ * never turns execution back on — the invariant issue #186 exists to protect.
+ */
+export function commandScanLoadPlan(
+  lightweightMode: boolean,
+  hasPreservedResult: boolean,
+  requestedResultMissing: boolean,
+): { runHeavyPanels: boolean; scanPaused: boolean } {
+  const runHeavyPanels = shouldRunHeavyPanels(lightweightMode, hasPreservedResult, requestedResultMissing);
+  return {
+    runHeavyPanels,
+    scanPaused: requestedResultMissing || (!runHeavyPanels && !hasPreservedResult),
+  };
 }
 
 /**
@@ -51,10 +66,9 @@ export function reconcileBusinessRadarSnapshot(
   previousServerWasPaused: boolean,
   nextServerIsPaused: boolean,
 ): BusinessIssueRadar {
-  // A placeholder is intentionally timestamped at render time, so it may look
-  // newer than a real scan. It must never erase a full server/local sweep just
-  // because another lightweight RSC navigation happened later.
-  if (nextServerIsPaused && (!previousServerWasPaused || current !== previousServer)) return current;
+  // A missing/expired/revision-mismatched shared handle is authoritative. An
+  // older full snapshot must not survive behind contradictory paused chrome.
+  if (nextServerIsPaused) return nextServer;
   if (current === previousServer) return nextServer;
   return nextServer.generatedAt >= current.generatedAt ? nextServer : current;
 }
@@ -75,7 +89,7 @@ export function reconcileCommandIntelligenceSnapshot(
   previousServerWasPaused: boolean,
   nextServerIsPaused: boolean,
 ): CommandIntelligenceSnapshot {
-  if (nextServerIsPaused && (!previousServerWasPaused || current !== previousServer)) return current;
+  if (nextServerIsPaused) return nextServer;
   if (current === previousServer) return nextServer;
   return nextServer.generatedAt >= current.generatedAt ? nextServer : current;
 }

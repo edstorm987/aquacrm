@@ -23,6 +23,7 @@
 // host app that wants to inject a server-rendered cart snapshot.
 
 import { useEffect, useState } from "react";
+import { ecommerceApiUrl } from "./storefrontCommerceScope";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -69,7 +70,6 @@ export interface Product {
   image?: string;
   onSale?: boolean;
   currency?: string;
-  stockSku?: string;
   options?: Array<{
     id: string;
     name: string;
@@ -350,7 +350,7 @@ export async function quoteCheckout(
 ): Promise<{ quote?: CheckoutQuoteRecord; error?: string }> {
   if (typeof window === "undefined") return { error: "SSR" };
   try {
-    const response = await fetch("/api/portal/ecommerce/checkout/quote", {
+    const response = await fetch(ecommerceApiUrl("/api/portal/ecommerce/checkout/quote"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       credentials: "include",
@@ -377,7 +377,7 @@ export async function goToStripeCheckout(input: StripeCheckoutInput = {}): Promi
   const cartFingerprint = JSON.stringify(lineItems);
   const operationId = input.operationId ?? checkoutOperationId(cartFingerprint);
   try {
-    const res = await fetch("/api/portal/ecommerce/stripe/checkout", {
+    const res = await fetch(ecommerceApiUrl("/api/portal/ecommerce/stripe/checkout"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       credentials: "include",
@@ -432,7 +432,7 @@ export async function fetchOrderBySessionId(sessionId: string, attempts = 8): Pr
   if (typeof window === "undefined" || !sessionId) return null;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      const res = await fetch(`/api/portal/ecommerce/orders/by-session?sessionId=${encodeURIComponent(sessionId)}`, {
+      const res = await fetch(ecommerceApiUrl(`/api/portal/ecommerce/orders/by-session?sessionId=${encodeURIComponent(sessionId)}`), {
         cache: "no-store",
         credentials: "include",
       });
@@ -454,7 +454,7 @@ export async function fetchOrderBySessionId(sessionId: string, attempts = 8): Pr
 export async function fetchProductVariants(productId: string): Promise<ProductVariant[]> {
   if (typeof window === "undefined" || !productId) return [];
   try {
-    const res = await fetch(`/api/portal/ecommerce/products/${encodeURIComponent(productId)}/variants`, {
+    const res = await fetch(ecommerceApiUrl(`/api/portal/ecommerce/products/${encodeURIComponent(productId)}/variants`), {
       cache: "no-store",
       credentials: "include",
     });
@@ -469,7 +469,7 @@ export async function fetchProductVariants(productId: string): Promise<ProductVa
 export async function searchProducts(query: string, limit = 12): Promise<Product[]> {
   if (typeof window === "undefined") return [];
   try {
-    const url = new URL("/api/portal/ecommerce/products", window.location.origin);
+    const url = new URL(ecommerceApiUrl("/api/portal/ecommerce/products"), window.location.origin);
     if (query) url.searchParams.set("q", query);
     url.searchParams.set("limit", String(limit));
     const res = await fetch(url.toString(), { cache: "no-store", credentials: "include" });

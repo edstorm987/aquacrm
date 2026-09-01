@@ -12,9 +12,16 @@ import {
   resolutionCopy,
   resolutionProgress,
   withResolutionContext,
-  type ResolutionPlan,
 } from "@/lib/inbox/resolutionContext";
-import type { ResolutionExplain } from "@/lib/inbox/resolutionExplain";
+import {
+  adoptAttentionPlanSnapshot,
+  attentionScopeKey,
+  EMPTY_ATTENTION_PLAN_SNAPSHOT,
+  isAttentionPlanReads,
+  unavailableAttentionPlanReads,
+  type AttentionPlanReads,
+  type AttentionPlanSnapshot,
+} from "@/lib/inbox/attentionPlanRead";
 
 /**
  * The "what am I doing here?" bar, shown app-wide.
@@ -33,21 +40,47 @@ import type { ResolutionExplain } from "@/lib/inbox/resolutionExplain";
  */
 export function ResolutionBanner({ subject, done }: { subject?: string; done?: boolean }) {
   const params = useSearchParams();
+  const alertId = params.get(RESOLUTION_PARAM);
+  if (!alertId) return null;
+
+  return (
+    <ResolutionBannerForAlert
+      key={attentionScopeKey("banner", alertId)}
+      alertId={alertId}
+      rawFocus={params.get(RESOLUTION_FOCUS_PARAM)}
+      subject={subject}
+      done={done}
+    />
+  );
+}
+
+function ResolutionBannerForAlert({
+  alertId,
+  rawFocus,
+  subject,
+  done,
+}: {
+  alertId: string;
+  rawFocus: string | null;
+  subject?: string;
+  done?: boolean;
+}) {
+  const params = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
-  const alertId = params.get(RESOLUTION_PARAM);
-  const rawFocus = params.get(RESOLUTION_FOCUS_PARAM);
   const focus = isResolutionFocus(rawFocus) ? rawFocus : undefined;
 
   const [dismissed, setDismissed] = useState(false);
   const [showDone, setShowDone] = useState(false);
-  const [plan, setPlan] = useState<ResolutionPlan | null>(null);
-  const [explain, setExplain] = useState<ResolutionExplain | null>(null);
+  const [snapshot, setSnapshot] = useState<AttentionPlanSnapshot>(EMPTY_ATTENTION_PLAN_SNAPSHOT);
+  const [resolutionReads, setResolutionReads] = useState<AttentionPlanReads | null>(null);
+  const [retryAttempt, setRetryAttempt] = useState(0);
   // Whether this page actually has the control the focus promised. Checked in
   // the DOM because only the page knows, and it may render late.
   const [hasTarget, setHasTarget] = useState<boolean | null>(null);
   const [showDetail, setShowDetail] = useState(false);
   const [autoOpened, setAutoOpened] = useState(false);
+  const { plan, explain } = snapshot;
 
   const clear = useCallback(() => {
     setDismissed(true);
@@ -69,23 +102,41 @@ export function ResolutionBanner({ subject, done }: { subject?: string; done?: b
     if (!alertId || dismissed) return;
     let cancelled = false;
 
-    const load = () => fetch(
-      `/api/portal/attention/plan?alert=${encodeURIComponent(alertId)}`,
-      { cache: "no-store" },
-    )
-      .then(response => response.json())
-      .then((payload: { plan?: ResolutionPlan | null; explain?: ResolutionExplain | null }) => {
+    let inFlight = false;
+
+    const load = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const response = await fetch(
+          `/api/portal/attention/plan?alert=${encodeURIComponent(alertId)}`,
+          { cache: "no-store" },
+        );
+        const payload = await response.json() as { ok?: boolean; reads?: unknown; error?: string };
+        const reads = payload.reads;
+        if (!response.ok || payload.ok !== true || !isAttentionPlanReads(reads)) {
+          throw new Error(payload.error || "Resolution details could not be read.");
+        }
         if (cancelled) return;
-        setPlan(payload.plan ?? null);
-        setExplain(payload.explain ?? null);
-      })
-      // A missing plan is not an error — the bar still names the task.
-      .catch(() => { if (!cancelled) setPlan(null); });
+        setSnapshot(current => adoptAttentionPlanSnapshot(current, reads));
+        setResolutionReads(reads);
+      } catch {
+        if (!cancelled) {
+          // Keep the last confirmed snapshot. Only availability changes, so a
+          // transient poll failure cannot erase the checklist already shown.
+          setResolutionReads(unavailableAttentionPlanReads(
+            "Resolution details could not be read. Retry to refresh the last confirmed checklist.",
+          ));
+        }
+      } finally {
+        inFlight = false;
+      }
+    };
 
     void load();
     const poll = setInterval(() => { void load(); }, 3000);
     return () => { cancelled = true; clearInterval(poll); };
-  }, [alertId, dismissed, done]);
+  }, [alertId, dismissed, done, retryAttempt]);
 
   // Give streamed content a moment before concluding there is nothing to
   // press — declaring "no control here" against a half-rendered page would be
@@ -112,8 +163,16 @@ export function ResolutionBanner({ subject, done }: { subject?: string; done?: b
 
   const progress = resolutionProgress(plan);
   // A multi-step job is finished only when every step is; a single-step one
-  // when the page says so.
-  const finished = plan ? progress.allDone : Boolean(done);
+  // when the page says so. An unavailable checklist never auto-completes from
+  // a stale snapshot or from the page's narrower local signal.
+  const finished = resolutionReads?.plan.available === true
+    ? plan ? progress.allDone : Boolean(done)
+    : false;
+  const resolutionDetailsUnavailable = Boolean(
+    resolutionReads
+    && (!resolutionReads.plan.available || !resolutionReads.explain.available),
+  );
+  const retainedDetails = Boolean(plan || explain);
 
   useEffect(() => {
     if (!finished || !alertId || dismissed) return;
@@ -122,7 +181,7 @@ export function ResolutionBanner({ subject, done }: { subject?: string; done?: b
     return () => clearTimeout(timer);
   }, [finished, alertId, dismissed, clear]);
 
-  if (!alertId || dismissed) return null;
+  if (dismissed) return null;
 
   const copy = resolutionCopy(focus, subject);
   const heading = showDone
@@ -203,6 +262,23 @@ export function ResolutionBanner({ subject, done }: { subject?: string; done?: b
           <X size={16} aria-hidden />
         </button>
       </div>
+
+      {!showDone && resolutionDetailsUnavailable ? (
+        <div role="alert" className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-l-2 border-amber-700 bg-amber-50/80 px-3 py-2 text-xs text-amber-950 sm:ml-7">
+          <span>
+            {retainedDetails
+              ? "Resolution details were not refreshed. The last confirmed checklist remains visible, but completion will not be assumed."
+              : "Resolution details were not read. This page remains available, but no empty checklist has been assumed."}
+          </span>
+          <button
+            type="button"
+            onClick={() => setRetryAttempt(value => value + 1)}
+            className="shrink-0 font-semibold underline underline-offset-2"
+          >
+            Retry details
+          </button>
+        </div>
+      ) : null}
 
       {/* When there is nothing to press, give the operator what they need to
           act away from the screen — above all, what will make it stop firing.

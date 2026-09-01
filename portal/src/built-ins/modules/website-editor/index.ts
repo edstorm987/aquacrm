@@ -25,11 +25,9 @@ const websiteEditorPlugin: AquaPlugin = {
     { id: "editor", label: "Editor", href: "/portal/clients/[clientId]/editor", panelId: "content" },
     { id: "pages", label: "Pages", href: "/portal/clients/[clientId]/pages", panelId: "content" },
     { id: "portals", label: "Portals", href: "/portal/clients/[clientId]/portals", panelId: "content" },
-    { id: "customise", label: "Customise", href: "/portal/clients/[clientId]/customise", panelId: "settings" },
+    { id: "customise", label: "Editor settings", href: "/portal/clients/[clientId]/customise", panelId: "settings" },
     { id: "themes", label: "Themes", href: "/portal/clients/[clientId]/themes", panelId: "settings" },
     { id: "assets", label: "Assets", href: "/portal/clients/[clientId]/assets", panelId: "content" },
-    { id: "sections", label: "Sections", href: "/portal/clients/[clientId]/sections", panelId: "content" },
-    { id: "popups", label: "Popups", href: "/portal/clients/[clientId]/popups", panelId: "content" },
     { id: "git-status", label: "Git status", href: "/portal/clients/[clientId]/git-status", panelId: "growth" },
   ],
 
@@ -53,12 +51,6 @@ const websiteEditorPlugin: AquaPlugin = {
       component: () => import("./src/pages/PagesPage"),
     },
     {
-      path: "/portal/clients/[clientId]/pages/[pageId]",
-      title: "Page detail",
-      clientComponent: true,
-      component: () => import("./src/pages/PageDetailPage"),
-    },
-    {
       path: "/portal/clients/[clientId]/portals",
       title: "Portals",
       clientComponent: true,
@@ -66,7 +58,7 @@ const websiteEditorPlugin: AquaPlugin = {
     },
     {
       path: "/portal/clients/[clientId]/customise",
-      title: "Customise",
+      title: "Editor settings",
       clientComponent: true,
       component: () => import("./src/pages/CustomisePage"),
     },
@@ -83,22 +75,10 @@ const websiteEditorPlugin: AquaPlugin = {
       component: () => import("./src/pages/ThemeDetailPage"),
     },
     {
-      path: "/portal/clients/[clientId]/sections",
-      title: "Sections",
-      clientComponent: true,
-      component: () => import("./src/pages/SectionsPage"),
-    },
-    {
       path: "/portal/clients/[clientId]/assets",
       title: "Assets",
       clientComponent: true,
       component: () => import("./src/pages/AssetsPage"),
-    },
-    {
-      path: "/portal/clients/[clientId]/popups",
-      title: "Popups",
-      clientComponent: true,
-      component: () => import("./src/pages/PopupsPage"),
     },
     {
       path: "/portal/clients/[clientId]/git-status",

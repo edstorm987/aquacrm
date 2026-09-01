@@ -208,6 +208,23 @@ export function createLegalDocument(input: Omit<LegalDocument, "createdAt" | "up
   return document;
 }
 
+/** Roll back only the row/audit written by a failed private-upload attach. */
+export function rollbackLegalDocumentUpload(agencyId: string, id: string): boolean {
+  let removed = false;
+  mutate(state => {
+    const document = state.legalDocuments[id];
+    if (!document || document.agencyId !== agencyId) return;
+    delete state.legalDocuments[id];
+    state.activity = state.activity.filter(entry => !(
+      entry.agencyId === agencyId
+      && entry.action === "legal.document_added"
+      && entry.metadata?.documentId === id
+    ));
+    removed = true;
+  });
+  return removed;
+}
+
 export function updateLegalDocument(
   agencyId: string,
   id: string,

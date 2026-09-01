@@ -5,7 +5,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
 import { attachStoredPrivateUpload, PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { freelancerJobForAction } from "@/server/freelancerWorkspace";
-import { recordPeopleFreelancerSubmission } from "@/server/people";
+import { recordPeopleFreelancerSubmission, rollbackPeopleFreelancerSubmission } from "@/server/people";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 
 export const runtime = "nodejs";
@@ -70,10 +70,18 @@ export async function POST(request: NextRequest) {
       storageProvider: stored.storageProvider,
       storageKey: stored.storageKey,
     };
-    const attached = await attachStoredPrivateUpload(stored, "freelancer-work", () => {
-      recordPeopleFreelancerSubmission({ agencyId: session.agencyId, jobId: job.id, actorUserId: session.userId, submission });
-      return submission;
-    });
+    const attached = await attachStoredPrivateUpload(
+      stored,
+      "freelancer-work",
+      () => {
+        recordPeopleFreelancerSubmission({ agencyId: session.agencyId, jobId: job.id, actorUserId: session.userId, submission });
+        return submission;
+      },
+      {
+        persist: flushPendingWrites,
+        rollbackOwner: () => { rollbackPeopleFreelancerSubmission(session.agencyId, job.id, submission.id); },
+      },
+    );
     if (!attached.ok) {
       return NextResponse.json({
         ok: false,
@@ -83,7 +91,6 @@ export async function POST(request: NextRequest) {
         storageKey: attached.compensated ? undefined : attached.storageKey,
       }, { status: 500 });
     }
-    await flushPendingWrites();
     return NextResponse.json({ ok: true, submission: { id, name: submission.name, url: submission.url, uploadedAt: submission.uploadedAt, size: submission.size } }, { status: 201 });
   } catch (error) {
     return authErrorResponse(error);

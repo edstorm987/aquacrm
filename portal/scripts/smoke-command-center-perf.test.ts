@@ -3,13 +3,26 @@ import { readFileSync, statSync } from "node:fs";
 import { test } from "node:test";
 
 import {
+  commandScanLoadPlan,
   shouldRunHeavyPanels,
-  normalizeScanFlag,
   buildPausedBusinessRadar,
   buildPausedIntelligenceSnapshot,
   reconcileBusinessRadarSnapshot,
   reconcileCommandIntelligenceSnapshot,
 } from "../src/app/portal/agency/commandPerformance";
+import {
+  COMMAND_SCAN_RESULT_TTL_MS,
+  commandScanResultStorageKey,
+  createCommandScanResultRepository,
+  createMemoryCommandScanResultStorage,
+  normalizeCommandScanResultHandle,
+  readCommandScanResultOutcome,
+  type CommandScanPrincipal,
+} from "../src/lib/server/commandScanResults";
+import {
+  requireCommandScanIssueAccess,
+  requireCommandScanReadAccess,
+} from "../src/lib/server/commandScanAccess";
 import {
   devTeamStationAttention,
   radarStationAttention,
@@ -31,25 +44,215 @@ const read = (path: string) => readFileSync(path, "utf8");
 // placeholder radar, so a minimal cast is enough to exercise the builder.
 const POLICY = { operatingStage: "setup" } as unknown as RadarPolicyConfiguration;
 
-test("Performance mode gates the heavy panels: off = always build, on = paused unless a one-shot scan", () => {
-  // Performance mode OFF → the eager build path is intact on every render.
-  assert.equal(shouldRunHeavyPanels(false, false), true);
-  assert.equal(shouldRunHeavyPanels(false, true), true);
-  // Performance mode ON → paused by default (cached-or-on-button, not every
-  // navigation), but a one-shot ?scan=1 render forces a fresh build.
-  assert.equal(shouldRunHeavyPanels(true, false), false);
-  assert.equal(shouldRunHeavyPanels(true, true), true);
+test("GET load planning never turns a result handle into a scan trigger", () => {
+  assert.equal(shouldRunHeavyPanels(false), true, "Performance mode OFF keeps its ordinary eager landing");
+  assert.equal(shouldRunHeavyPanels(true), false, "Performance mode ON keeps the ordinary landing paused");
+  assert.equal(shouldRunHeavyPanels(false, true), false, "a completed result is reused rather than rebuilt");
+  assert.equal(shouldRunHeavyPanels(false, false, true), false, "a missing handle may not fall through to an eager rebuild");
 });
 
-test("normalizeScanFlag reads the one-shot ?scan=1 flag", () => {
-  assert.equal(normalizeScanFlag("1"), true);
-  assert.equal(normalizeScanFlag(["1"]), true);
-  assert.equal(normalizeScanFlag(undefined), false);
-  assert.equal(normalizeScanFlag("0"), false);
-  assert.equal(normalizeScanFlag("scan"), false);
+test("a preserved result clears the paused view without rerunning the heavy graph", () => {
+  assert.deepEqual(commandScanLoadPlan(true, false, false), { runHeavyPanels: false, scanPaused: true });
+  assert.deepEqual(
+    commandScanLoadPlan(true, true, false),
+    { runHeavyPanels: false, scanPaused: false },
+    "continuing a completed result must not replay the scan",
+  );
+  assert.deepEqual(commandScanLoadPlan(false, false, false), { runHeavyPanels: true, scanPaused: false });
+  assert.deepEqual(
+    commandScanLoadPlan(false, false, true),
+    { runHeavyPanels: false, scanPaused: true },
+    "expiry/miss is internally paused even when Performance mode is disabled",
+  );
 });
 
-test("an RSC scan replaces the untouched placeholder but preserves a newer local scan", () => {
+const PRINCIPAL: CommandScanPrincipal = {
+  realmId: "live",
+  agencyId: "agency-one",
+  userId: "user-one",
+  sessionRev: 7,
+  accessRev: 11,
+};
+const HANDLE_ONE = "10000000-0000-4000-8000-000000000001";
+const HANDLE_TWO = "20000000-0000-4000-8000-000000000002";
+
+test("an independently-created repository reads a completed result from the shared store", async () => {
+  const shared = new Map();
+  const writer = createCommandScanResultRepository(createMemoryCommandScanResultStorage(shared), () => HANDLE_ONE);
+  const reader = createCommandScanResultRepository(createMemoryCommandScanResultStorage(shared));
+  const now = 10_000;
+  const radar = buildPausedBusinessRadar(POLICY, now);
+  const intelligence = buildPausedIntelligenceSnapshot("GBP", now);
+  const issued = await writer.issue({
+    principal: PRINCIPAL,
+    radar,
+    intelligence,
+    now,
+  });
+
+  assert.equal(normalizeCommandScanResultHandle(issued.handle), HANDLE_ONE);
+  assert.equal(normalizeCommandScanResultHandle("scan=1"), null);
+  const first = await reader.read({ handle: HANDLE_ONE, principal: PRINCIPAL, now: now + 1 });
+  const stationChange = await reader.read({ handle: HANDLE_ONE, principal: PRINCIPAL, now: now + 2 });
+  assert.deepEqual(first?.radar, radar);
+  assert.deepEqual(stationChange, first, "one provider payload survives a station change without being rebuilt");
+  assert.equal(shared.size, 1, "one identity gets one bounded provider row");
+
+  const providerKey = commandScanResultStorageKey(PRINCIPAL);
+  assert.match(providerKey, /^[0-9a-f]{64}$/);
+  assert.doesNotMatch(providerKey, /agency-one|user-one|@/, "provider-visible keys must not leak raw principal data");
+});
+
+test("the access-kernel seams require Use to issue and View to consume, and denial propagates", async () => {
+  const calls: Array<[string, string | undefined]> = [];
+  const actor = { user: { id: "user-one" } } as Awaited<ReturnType<typeof requireCommandScanIssueAccess>>;
+  const allowingGate: NonNullable<Parameters<typeof requireCommandScanIssueAccess>[0]> = async (element, action) => {
+    calls.push([element, action]);
+    return actor;
+  };
+
+  assert.equal(await requireCommandScanIssueAccess(allowingGate), actor);
+  assert.equal(await requireCommandScanReadAccess(allowingGate), actor);
+  assert.deepEqual(calls, [
+    ["workspace.overview", "use"],
+    ["workspace.overview", "view"],
+  ]);
+
+  const denial = Object.assign(new Error("access_capability_required"), { status: 403 });
+  await assert.rejects(
+    requireCommandScanIssueAccess(async () => { throw denial; }),
+    error => error === denial,
+    "the route seam must not turn an access-kernel refusal into role-based access",
+  );
+  await assert.rejects(
+    requireCommandScanReadAccess(async () => { throw denial; }),
+    error => error === denial,
+    "the RSC seam must not disclose result bytes after a view denial",
+  );
+});
+
+test("a rejecting result provider is unavailable, while an empty provider is a distinct miss", async () => {
+  const providerFailure = new Error("provider offline");
+  const rejectingRepository = createCommandScanResultRepository({
+    async load() { throw providerFailure; },
+    async save() { throw providerFailure; },
+  });
+  let reported: unknown = null;
+  const unavailable = await readCommandScanResultOutcome(
+    { handle: HANDLE_ONE, principal: PRINCIPAL, now: 15_000 },
+    { repository: rejectingRepository, onUnavailable: error => { reported = error; } },
+  );
+  assert.deepEqual(unavailable, { status: "unavailable", result: null });
+  assert.equal(reported, providerFailure);
+
+  const emptyRepository = createCommandScanResultRepository(createMemoryCommandScanResultStorage(new Map()));
+  assert.deepEqual(
+    await readCommandScanResultOutcome(
+      { handle: HANDLE_ONE, principal: PRINCIPAL, now: 15_000 },
+      { repository: emptyRepository },
+    ),
+    { status: "missing", result: null },
+  );
+});
+
+test("the continuation TTL starts at persistence after a slow scan, not at scan start", async () => {
+  const scanStartedAt = 50_000;
+  const persistedAt = scanStartedAt + COMMAND_SCAN_RESULT_TTL_MS + 30_000;
+  const repository = createCommandScanResultRepository(
+    createMemoryCommandScanResultStorage(new Map()),
+    () => HANDLE_ONE,
+  );
+  const result = await repository.issue({
+    principal: PRINCIPAL,
+    radar: buildPausedBusinessRadar(POLICY, scanStartedAt),
+    intelligence: buildPausedIntelligenceSnapshot("GBP", scanStartedAt),
+    now: persistedAt,
+  });
+
+  assert.equal(result.radar.generatedAt, scanStartedAt, "scan evidence keeps its common as-of time");
+  assert.equal(result.intelligence.generatedAt, scanStartedAt);
+  assert.equal(result.createdAt, persistedAt);
+  assert.equal(result.expiresAt, persistedAt + COMMAND_SCAN_RESULT_TTL_MS);
+  assert.ok(result.expiresAt > scanStartedAt + 2 * COMMAND_SCAN_RESULT_TTL_MS);
+});
+
+test("realm, agency, user, session revision, access revision, and expiry all fail closed", async () => {
+  const shared = new Map();
+  const repository = createCommandScanResultRepository(createMemoryCommandScanResultStorage(shared), () => HANDLE_ONE);
+  const now = 20_000;
+  await repository.issue({
+    principal: PRINCIPAL,
+    radar: buildPausedBusinessRadar(POLICY, now),
+    intelligence: buildPausedIntelligenceSnapshot("GBP", now),
+    now,
+  });
+
+  for (const changed of [
+    { ...PRINCIPAL, realmId: "sandbox-one" },
+    { ...PRINCIPAL, agencyId: "agency-two" },
+    { ...PRINCIPAL, userId: "user-two" },
+    { ...PRINCIPAL, sessionRev: PRINCIPAL.sessionRev + 1 },
+    { ...PRINCIPAL, accessRev: PRINCIPAL.accessRev + 1 },
+  ]) {
+    assert.equal(await repository.read({ handle: HANDLE_ONE, principal: changed, now: now + 1 }), null);
+  }
+  assert.equal(
+    await repository.read({ handle: HANDLE_ONE, principal: PRINCIPAL, now: now + COMMAND_SCAN_RESULT_TTL_MS }),
+    null,
+    "the continuation handle became a permanent bookmark",
+  );
+});
+
+test("issuing a newer result invalidates the old handle without capacity eviction", async () => {
+  const shared = new Map();
+  const handles = [HANDLE_ONE, HANDLE_TWO];
+  const repository = createCommandScanResultRepository(
+    createMemoryCommandScanResultStorage(shared),
+    () => handles.shift()!,
+  );
+  const radar = buildPausedBusinessRadar(POLICY, 30_000);
+  const intelligence = buildPausedIntelligenceSnapshot("GBP", 30_000);
+  await repository.issue({ principal: PRINCIPAL, radar, intelligence, now: 30_000 });
+  await repository.issue({ principal: PRINCIPAL, radar, intelligence, now: 30_001 });
+
+  assert.equal(await repository.read({ handle: HANDLE_ONE, principal: PRINCIPAL, now: 30_002 }), null);
+  assert.equal((await repository.read({ handle: HANDLE_TWO, principal: PRINCIPAL, now: 30_002 }))?.handle, HANDLE_TWO);
+  assert.equal(shared.size, 1, "new results overwrite rather than growing or evicting unrelated principals");
+});
+
+test("an unrelated principal is never evicted merely because more principals completed scans", async () => {
+  const shared = new Map();
+  let sequence = 0;
+  const repository = createCommandScanResultRepository(
+    createMemoryCommandScanResultStorage(shared),
+    () => `30000000-0000-4000-8000-${(++sequence).toString(16).padStart(12, "0")}`,
+  );
+  const radar = buildPausedBusinessRadar(POLICY, 40_000);
+  const intelligence = buildPausedIntelligenceSnapshot("GBP", 40_000);
+  let firstHandle = "";
+  for (let index = 0; index < 80; index += 1) {
+    const issued = await repository.issue({
+      principal: { ...PRINCIPAL, userId: `user-${index}` },
+      radar,
+      intelligence,
+      now: 40_000,
+    });
+    if (index === 0) firstHandle = issued.handle;
+  }
+
+  assert.equal(shared.size, 80);
+  assert.equal(
+    (await repository.read({
+      handle: firstHandle,
+      principal: { ...PRINCIPAL, userId: "user-0" },
+      now: 40_001,
+    }))?.handle,
+    firstHandle,
+    "a process-wide capacity cap prematurely evicted a still-live principal",
+  );
+});
+
+test("a full RSC result reconciles by freshness, but an authoritative miss clears stale full Radar state", () => {
   const previousServer = buildPausedBusinessRadar(POLICY, 300);
   const fullServer = { ...buildPausedBusinessRadar(POLICY, 200), summary: { ...previousServer.summary, totalChecks: 42 } };
   assert.equal(
@@ -66,17 +269,17 @@ test("an RSC scan replaces the untouched placeholder but preserves a newer local
   const newerPausedServer = buildPausedBusinessRadar(POLICY, 600);
   assert.equal(
     reconcileBusinessRadarSnapshot(fullServer, fullServer, newerPausedServer, false, true),
-    fullServer,
-    "a newer placeholder cannot erase an untouched full server sweep",
+    newerPausedServer,
+    "an expired/missing handle must erase an older full server sweep",
   );
   assert.equal(
     reconcileBusinessRadarSnapshot(newerLocal, fullServer, newerPausedServer, false, true),
-    newerLocal,
-    "a newer placeholder cannot erase a local scan",
+    newerPausedServer,
+    "paused chrome may not retain contradictory local full data",
   );
 });
 
-test("a completed KPI-intelligence build cannot be downgraded by a later paused RSC payload", () => {
+test("a missing shared result clears completed KPI intelligence as one consistent paused state", () => {
   const previousPaused = buildPausedIntelligenceSnapshot("GBP", 300);
   const completed = { ...previousPaused, generatedAt: 200, currency: "USD" };
   assert.equal(
@@ -88,8 +291,8 @@ test("a completed KPI-intelligence build cannot be downgraded by a later paused 
   const laterPaused = buildPausedIntelligenceSnapshot("GBP", 600);
   assert.equal(
     reconcileCommandIntelligenceSnapshot(completed, completed, laterPaused, false, true),
-    completed,
-    "a freshly timestamped empty placeholder cannot erase completed KPI evidence",
+    laterPaused,
+    "expired continuation state must not leave stale KPI evidence on screen",
   );
 });
 
@@ -151,9 +354,16 @@ test("the Command Centre page gates radar + intelligence behind runHeavyPanels a
   const page = read("src/app/portal/agency/page.tsx");
 
   // The switch exists and drives a paused flag handed to the client.
-  assert.match(page, /shouldRunHeavyPanels\(lightweightMode, scanRequested\)/);
-  assert.match(page, /const scanPaused = !runHeavyPanels/);
+  assert.match(page, /commandScanLoadPlan\([\s\S]*lightweightMode,[\s\S]*Boolean\(preservedScanResult\),[\s\S]*requestedScanResultMissing/);
   assert.match(page, /scanPaused=\{scanPaused\}/);
+  assert.match(page, /await requireCommandScanReadAccess\(\)/);
+  assert.match(page, /commandScanPrincipalForSession\(session, agency\.id, scanAuthorityUser\)/);
+  assert.match(page, /await readCommandScanResultOutcome\([\s\S]*principal: scanPrincipal/);
+  assert.match(page, /scanResultRead\?\.status === "unavailable"/);
+  assert.match(page, /if \(preservedScanResult\) \{[\s\S]*businessRadar = preservedScanResult\.radar;[\s\S]*\} else if \(runHeavyPanels\)/);
+  assert.match(page, /intelligenceSnapshot = preservedScanResult\.intelligence/);
+  assert.doesNotMatch(page, /issueCommandScanResult|normalizeScanFlag|scanRequested/);
+  assert.match(page, /scanResultHandle=\{activeScanResultHandle\}/);
   assert.match(page, /let devTeamAttentionLoaded = false/);
   assert.match(page, /devTeamAttentionLoaded = true/);
   assert.match(page, /devTeamAttentionLoaded=\{devTeamAttentionLoaded\}/);
@@ -172,18 +382,22 @@ test("the Command Centre page gates radar + intelligence behind runHeavyPanels a
   assert.doesNotMatch(page, /^import \{ buildCommandIntelligenceSnapshot \}/m);
 });
 
-test("the Command Centre client surfaces a Run scan control while paused", () => {
+test("the Command Centre client executes POST-only and keeps missed results internally paused", () => {
   const client = read("src/app/portal/agency/_DashboardCommandCenter.tsx");
   assert.match(client, /scanPaused\?: boolean/);
   assert.match(client, /scanPaused = false/);
   assert.match(client, /data-testid="command-scan-paused"/);
-  assert.match(client, /displayedRadarIsPaused = scanPaused && radarSnapshot === businessRadar/);
-  assert.match(client, /displayedIntelligenceIsPaused = scanPaused && intelligenceState === intelligenceSnapshot/);
+  assert.match(client, /radarSnapshot = scanPaused \? businessRadar : radarSnapshotState/);
+  assert.match(client, /intelligenceState = scanPaused \? intelligenceSnapshot : intelligenceSnapshotState/);
+  assert.match(client, /displayedRadarIsPaused = scanPaused/);
+  assert.match(client, /displayedIntelligenceIsPaused = scanPaused/);
   assert.match(client, /displayedScanIsPaused = displayedRadarIsPaused \|\| displayedIntelligenceIsPaused/);
   assert.match(client, /\{displayedScanIsPaused \? \(/, "a preserved complete scan must not be labelled paused after a lightweight RSC navigation");
   assert.match(client, /reconcileCommandIntelligenceSnapshot\(/);
-  assert.match(client, /if \(!scanPaused\) setCompletedServerScan\(true\)/);
-  assert.match(client, /serverCommandStationHref\(pathname, searchParams\.toString\(\), station, fullServerScanLoaded\)/);
+  assert.match(client, /scanResultHandle\?: string \| null/);
+  assert.match(client, /scanResultUnavailable\?: boolean/);
+  assert.match(client, /scanResultAccessDenied\?: boolean/);
+  assert.match(client, /serverCommandStationHref\(pathname, searchParams\.toString\(\), station, scanResultHandle\)/);
   assert.match(client, /<CommandCentreKpiTrajectory intelligence=\{intelligenceState\}/);
   assert.match(client, /<BattleTableWorkspace payload=\{battleTablePayload\} intelligence=\{intelligenceState\}/);
   assert.match(client, /snapshot=\{intelligenceState\}/);
@@ -191,9 +405,53 @@ test("the Command Centre client surfaces a Run scan control while paused", () =>
   assert.match(client, /<DayCommandSensorPanel radar=\{radarSnapshot\} intelligence=\{intelligenceState\}/);
   assert.doesNotMatch(client, /intelligence=\{intelligenceSnapshot\}/, "rendered stations must consume the reconciled intelligence evidence");
   assert.match(client, /Run scan/);
-  // The one-shot flag is stripped after the heavy render so a later refresh
-  // returns to the fast paused view rather than rebuilding again.
+  assert.match(client, /fetch\("\/api\/auth\/csrf", \{ cache: "no-store" \}\)/);
+  assert.match(client, /fetch\("\/api\/portal\/agency\/command-scan", \{[\s\S]*method: "POST"[\s\S]*"x-csrf-token": csrf\.token/);
+  assert.match(client, /startScanNavigation\(\(\) => router\.replace\(href, \{ scroll: false \}\)\)/);
+  assert.doesNotMatch(client, /runScanHref|params\.set\("scan", "1"\)|<Link[^>]+Run scan/);
+
+  // The opaque result identity is the only state carried into station links.
   assert.match(client, /params\.delete\("scan"\)/);
+  assert.match(client, /params\.set\("scanResult", result\.handle\)/);
+  assert.match(client, /serverCommandStationHref\(pathname, searchParams\.toString\(\), station, scanResultHandle\)/);
+  assert.doesNotMatch(client, /window\.history\.replaceState\(null,/, "URL rewrites must not erase Next router history state");
+});
+
+test("the scan execution route is authenticated POST-only and returns no snapshot body", () => {
+  const route = read("src/app/api/portal/agency/command-scan/route.ts");
+  const resultStore = read("src/lib/server/commandScanResults.ts");
+  const resultAccess = read("src/lib/server/commandScanAccess.ts");
+  const postgres = read("src/server/storagePostgres.ts");
+  const supabase = read("src/server/storageSupabase.ts");
+
+  assert.match(route, /export async function POST\(request: NextRequest\)/);
+  assert.doesNotMatch(route, /export async function GET|export function GET/);
+  assert.match(route, /requestIsSameOrigin\(request\)/);
+  assert.match(route, /requireCsrf\(request\)/);
+  assert.match(route, /getSessionFromRequest\(request\)/);
+  assert.match(route, /resolveFreshSessionUser\(session\)/);
+  assert.match(route, /isSessionFresh\(session, currentUser\)/);
+  assert.match(route, /currentMemberships\.includes\(authorityAgencyId\)/);
+  assert.match(route, /AGENCY_ROLES\.includes\(session\.role\)/);
+  assert.match(route, /await requireCommandScanIssueAccess\(\)/);
+  assert.match(route, /issueCommandScanResult\([\s\S]*commandScanPrincipalForSession\(session, agency\.id, accessActor\.user\)/);
+  const issueInput = route.match(/issueCommandScanResult\(\{([\s\S]*?)\n    \}\);/)?.[1] ?? "";
+  assert.ok(issueInput, "the route must persist the completed scan result");
+  assert.doesNotMatch(issueInput, /\bnow\s*:/, "a pre-compute timestamp shortened the result TTL");
+  assert.match(route, /\{ ok: true, handle: result\.handle, expiresAt: result\.expiresAt \}/);
+  assert.doesNotMatch(route, /ok: true, radar|ok: true, intelligence|snapshot:/);
+
+  assert.match(resultStore, /backend === "supabase"[\s\S]*loadSidecarBlob/);
+  assert.match(resultStore, /backend === "postgres"[\s\S]*loadSidecarBlob/);
+  assert.match(resultStore, /backend === "supabase"[\s\S]*saveSidecarBlob/);
+  assert.match(resultStore, /backend === "postgres"[\s\S]*saveSidecarBlob/);
+  assert.match(postgres, /export async function loadSidecarBlob/);
+  assert.match(postgres, /export async function saveSidecarBlob/);
+  assert.match(supabase, /export async function loadSidecarBlob/);
+  assert.match(supabase, /export async function saveSidecarBlob/);
+  assert.match(resultAccess, /gate\("workspace\.overview", "use"\)/);
+  assert.match(resultAccess, /gate\("workspace\.overview", "view"\)/);
+  assert.match(resultStore, /status: "unavailable"/);
 });
 
 test("only the server-backed stations resolve, Battle defers its payload, legacy Executive links survive, and Dev Team stays gated", () => {
@@ -211,22 +469,28 @@ test("only the server-backed stations resolve, Battle defers its payload, legacy
 });
 
 test("server-station navigation preserves unrelated query parameters", () => {
+  const handle = "10000000-0000-4000-8000-000000000001";
   assert.equal(
     serverCommandStationHref("/portal/agency", "scan=1&scope=company%3Aalpha", "advisor"),
-    "/portal/agency?scan=1&scope=company%3Aalpha&station=advisor",
+    "/portal/agency?scope=company%3Aalpha&station=advisor",
   );
   assert.equal(
     serverCommandStationHref("/portal/agency", "scan=1&station=calendar&scope=ecosystem", "actions"),
-    "/portal/agency?scan=1&station=actions&scope=ecosystem",
+    "/portal/agency?station=actions&scope=ecosystem",
   );
   assert.equal(
     serverCommandStationHref("/portal/agency", "scan=1&station=devteam&scope=ecosystem", null),
-    "/portal/agency?scan=1&scope=ecosystem",
+    "/portal/agency?scope=ecosystem",
   );
   assert.equal(
-    serverCommandStationHref("/portal/agency", "scope=company%3Aalpha", "battle", true),
-    "/portal/agency?scope=company%3Aalpha&scan=1&station=battle",
-    "a completed scan is explicitly continued after its visible one-shot query was stripped",
+    serverCommandStationHref("/portal/agency", "scope=company%3Aalpha", "battle", handle),
+    `/portal/agency?scope=company%3Aalpha&scanResult=${handle}&station=battle`,
+    "a completed result is continued by handle after its one-shot command was stripped",
+  );
+  assert.doesNotMatch(
+    serverCommandStationHref("/portal/agency", "scan=1", "battle", handle),
+    /(?:\?|&)scan=1(?:&|$)/,
+    "station navigation replayed the heavy scan command",
   );
 });
 
@@ -352,7 +616,7 @@ test("the pristine Day server graph excludes Battle and full-scan providers unti
     assert.doesNotMatch(page, new RegExp(`^import .*${eagerImport}`, "m"), `${eagerImport} must stay outside pristine Day's eager graph`);
     assert.match(battlePayload, new RegExp(eagerImport), `${eagerImport} remains available inside the requested Battle boundary`);
   }
-  assert.match(page, /buildPausedIntelligenceSnapshot\(workspaceSettings\.defaultCurrency/);
+  assert.match(page, /buildPausedIntelligenceSnapshot\([\s\S]*workspaceSettings\.defaultCurrency/);
 });
 
 test("optional client chunks stay behind explicit station or disclosure boundaries", () => {

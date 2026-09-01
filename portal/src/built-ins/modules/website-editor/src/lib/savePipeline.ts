@@ -3,7 +3,7 @@
 // Save pipeline — dispatch on the active save target (shared portal
 // vs client repo). Round-6.
 //
-// Callers (EditorPage, ThemeDetailPage, PortalsPage, PageDetailPage)
+// Callers (EditorPage, ThemeDetailPage, PortalsPage)
 // hand the pipeline a typed "save intent" and an active save target;
 // the pipeline either:
 //   - "shared-portal"  → routes to the existing lib/editorPages.ts /

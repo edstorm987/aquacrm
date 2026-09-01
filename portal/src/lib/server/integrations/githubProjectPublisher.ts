@@ -23,6 +23,7 @@ export interface PublishedGitHubProject {
 
 interface GitHubRepositoryResponse {
   clone_url?: string;
+  description?: string | null;
   full_name?: string;
   html_url?: string;
   name?: string;
@@ -118,6 +119,18 @@ function toPublished(repository: GitHubRepositoryResponse, owner: string): Publi
   };
 }
 
+const GITHUB_DESCRIPTION_LIMIT = 350;
+
+function repositoryDescriptions(description: string, recoveryToken?: string) {
+  const clean = description.slice(0, GITHUB_DESCRIPTION_LIMIT);
+  if (!recoveryToken) return { clean, marked: clean };
+  const suffix = ` [aqua-recovery:${recoveryToken}]`;
+  return {
+    clean,
+    marked: `${clean.slice(0, Math.max(0, GITHUB_DESCRIPTION_LIMIT - suffix.length))}${suffix}`,
+  };
+}
+
 export async function publishProjectToGitHub(input: {
   agencyId?: string;
   clientId?: string;
@@ -131,6 +144,12 @@ export async function publishProjectToGitHub(input: {
    * it is read back and reused instead of creating a second repository.
    */
   adoptRepository?: { fullName: string };
+  /**
+   * Exact provider-visible marker for one logical publish and all of its retries.
+   * It is written temporarily into the create description, required when an
+   * unrecorded repository is reconciled, then removed after the durable checkpoint.
+   */
+  recoveryToken?: string;
   /**
    * Durable checkpoint, awaited the moment GitHub reports the repository and
    * BEFORE the remote is configured or anything is pushed. A publish that dies
@@ -155,13 +174,18 @@ export async function publishProjectToGitHub(input: {
   if (!authenticatedOwner) throw new Error("GitHub did not return an authenticated account.");
 
   const owner = config.owner ?? authenticatedOwner;
+  const descriptions = repositoryDescriptions(input.description, input.recoveryToken);
   const lookupName = input.adoptRepository?.fullName ?? `${owner}/${input.projectSlug}`;
   const lookupPath = `/repos/${lookupName.split("/").map(encodeURIComponent).join("/")}`;
 
   let published: PublishedGitHubProject | null = null;
+  let recoveryMarkerPresent = false;
   if (input.adoptRepository?.fullName) {
     const existing = await githubRequest<GitHubRepositoryResponse>(fetchImpl, config, lookupPath);
-    if (existing.ok) published = toPublished(existing.body, owner);
+    if (existing.ok) {
+      recoveryMarkerPresent = Boolean(input.recoveryToken && existing.body.description === descriptions.marked);
+      published = toPublished(existing.body, owner);
+    }
   }
 
   if (!published) {
@@ -172,7 +196,7 @@ export async function publishProjectToGitHub(input: {
       method: "POST",
       body: JSON.stringify({
         name: input.projectSlug,
-        description: input.description,
+        description: descriptions.marked,
         private: input.private !== false,
         has_issues: true,
         has_projects: false,
@@ -180,15 +204,25 @@ export async function publishProjectToGitHub(input: {
       }),
     });
     if (created.ok) {
+      // We supplied the marked description in this request; the response need
+      // not echo every repository field for us to know it is now present.
+      recoveryMarkerPresent = Boolean(input.recoveryToken);
       published = toPublished(created.body, owner);
     } else if (created.status === 422) {
       // The name is taken — most often by this operation's own earlier attempt
-      // whose record never became durable. Reconcile rather than fail.
+      // whose record never became durable. An exact marker is ownership proof;
+      // time, emptiness and name alone are deliberately insufficient.
       const reconciled = await githubRequest<GitHubRepositoryResponse>(fetchImpl, config, lookupPath);
-      if (!reconciled.ok) {
+      const ownedUnrecordedCreate = Boolean(
+        reconciled.ok
+        && input.recoveryToken
+        && reconciled.body.description === descriptions.marked,
+      );
+      if (!ownedUnrecordedCreate) {
         const detail = created.body.message ? ` ${created.body.message}` : "";
         throw new Error(`GitHub request failed (422).${detail}`.trim());
       }
+      recoveryMarkerPresent = true;
       published = toPublished(reconciled.body, owner);
     } else {
       const detail = created.body.message ? ` ${created.body.message}` : "";
@@ -198,6 +232,20 @@ export async function publishProjectToGitHub(input: {
 
   // Durable before the push: a failure below must not lose the repository.
   await input.onRepositoryCreated?.(published);
+
+  // The recovery marker only bridges provider creation to the durable local
+  // checkpoint. Once that checkpoint exists, restore the operator-facing
+  // description before configuring or pushing the Git remote.
+  if (input.recoveryToken && recoveryMarkerPresent) {
+    const restored = await githubRequest<GitHubRepositoryResponse>(fetchImpl, config, lookupPath, {
+      method: "PATCH",
+      body: JSON.stringify({ description: descriptions.clean }),
+    });
+    if (!restored.ok) {
+      const detail = restored.body.message ? ` ${restored.body.message}` : "";
+      throw new Error(`GitHub description restore failed (${restored.status}).${detail}`.trim());
+    }
+  }
 
   try {
     runGit(["remote", "get-url", "origin"]);

@@ -2,7 +2,7 @@
 
 // SaveResultBanner — surfaces the most recent save's outcome at the
 // top of the editor canvas. Round-6 — used by EditorPage,
-// PageDetailPage, ThemeDetailPage, PortalsPage when they go through
+// ThemeDetailPage and PortalsPage when they go through
 // the save pipeline.
 //
 // Three states:

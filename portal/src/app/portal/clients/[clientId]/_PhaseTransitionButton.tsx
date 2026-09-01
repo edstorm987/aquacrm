@@ -17,16 +17,13 @@ import {
   phaseTransitionFailureMessage,
   type PhaseTransitionApiResult,
 } from "@/built-ins/modules/fulfillment/src/lib/transitionFeedback";
+import {
+  readFulfillmentPhases,
+  resolveFulfillmentPhaseTarget,
+  type FulfillmentPhase as Phase,
+} from "@/lib/clients/fulfillmentPhaseRead";
 import { useMenuKeys } from "@/lib/a11y/useMenuKeys";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
-
-interface Phase {
-  id: string;        // PhaseDefinition.id (per-agency)
-  stage: string;     // ClientStage enum
-  label: string;
-  order: number;
-  pluginPreset: string[];
-}
 
 const AQUA_ORDER = [
   "aqua-epic-intro",
@@ -61,11 +58,13 @@ export function PhaseTransitionButton({
 }) {
   const router = useRouter();
   const [phases, setPhases] = useState<Phase[] | null>(null);
-  const [target, setTarget] = useState<Phase | null>(null);
+  const [targetId, setTargetId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  const [phaseReadState, setPhaseReadState] = useState<"loading" | "ready" | "error">("loading");
+  const [phaseReloadToken, setPhaseReloadToken] = useState(0);
   const [, startTransition] = useTransition();
   const operationIdRef = useRef<string | null>(null);
   const menuWrapRef = useRef<HTMLDivElement | null>(null);
@@ -73,26 +72,32 @@ export function PhaseTransitionButton({
 
   useEffect(() => {
     operationIdRef.current = null;
-  }, [target?.id]);
+  }, [clientId, currentStage, targetId]);
 
   useEffect(() => {
     if (!isFounder) return;
     let cancelled = false;
-    fetch("/api/portal/fulfillment/phases", { method: "GET" })
-      .then(r => r.ok ? r.json() as Promise<{ ok: boolean; phases?: Phase[] }> : null)
-      .then(data => {
-        if (cancelled || !data?.phases) return;
-        const ordered = [...data.phases].sort((a, b) => {
+    setPhaseReadState("loading");
+    setMenuOpen(false);
+    void readFulfillmentPhases().then(read => {
+      if (cancelled) return;
+      if (!read.available) {
+        // Do not erase the last confirmed phase catalogue. It remains visible
+        // but locked until a retry proves it is still current.
+        setPhaseReadState("error");
+        return;
+      }
+      const ordered = [...read.data].sort((a, b) => {
           const ai = AQUA_ORDER.indexOf(a.stage);
           const bi = AQUA_ORDER.indexOf(b.stage);
           if (ai >= 0 && bi >= 0) return ai - bi;
           return a.order - b.order;
-        });
-        setPhases(ordered);
-      })
-      .catch(() => { /* fulfillment not available — degrade silently */ });
+      });
+      setPhases(ordered);
+      setPhaseReadState("ready");
+    });
     return () => { cancelled = true; };
-  }, [isFounder]);
+  }, [isFounder, phaseReloadToken]);
 
   // Modal keyboard contract: focus enters the confirmation, Tab stays inside it,
   // Escape backs out, focus returns to the phase menu. Declared here with the
@@ -100,12 +105,13 @@ export function PhaseTransitionButton({
   // on the first render and not on later ones; a hook after them would change
   // the hook count between renders and crash the component.
   const dialogRef = useRef<HTMLDivElement>(null);
-  const confirmOpen = Boolean(target && phases?.some(phase => phase.stage === currentStage));
+  const target = resolveFulfillmentPhaseTarget(phases, targetId);
+  const confirmOpen = phaseReadState === "ready" && Boolean(target && phases?.some(phase => phase.stage === currentStage));
   // Escape backs out on exactly the terms the backdrop click already used:
   // refused while the advance POST is in flight, and it clears the typed reason
   // so a reopened dialog does not carry the abandoned one.
   useFocusTrap(dialogRef, confirmOpen, {
-    onEscape: busy ? undefined : () => { setTarget(null); setReason(""); },
+    onEscape: busy ? undefined : () => { setTargetId(null); setReason(""); },
   });
 
   if (!isFounder) return null;
@@ -125,7 +131,7 @@ export function PhaseTransitionButton({
   }
 
   async function commit() {
-    if (!current || !target) return;
+    if (phaseReadState !== "ready" || !current || !target) return;
     setBusy(true);
     setError(null);
     try {
@@ -147,7 +153,7 @@ export function PhaseTransitionButton({
         return;
       }
       operationIdRef.current = null;
-      setTarget(null);
+      setTargetId(null);
       setReason("");
       startTransition(() => router.refresh());
     } catch (error) {
@@ -158,7 +164,17 @@ export function PhaseTransitionButton({
   }
 
   if (!phases || phases.length === 0 || !current) {
-    return null;
+    const message = phaseReadState === "loading"
+      ? "Loading lifecycle stages…"
+      : phaseReadState === "error"
+        ? "Lifecycle stages could not be read. Stage controls are locked; no empty catalogue has been assumed."
+        : phases?.length === 0
+          ? "No lifecycle stages are configured. Add one in Fulfilment settings before changing this client."
+          : "This client's current stage is not present in the confirmed lifecycle catalogue.";
+    return <div role={phaseReadState === "error" ? "alert" : "status"} className="flex flex-wrap items-center gap-2 text-xs text-black/55">
+      <span>{message}</span>
+      {phaseReadState === "error" ? <button type="button" onClick={() => setPhaseReloadToken(value => value + 1)} className="rounded-md border border-black/15 bg-white px-2.5 py-1 font-semibold text-black/70 hover:bg-black/5">Retry stages</button> : null}
+    </div>;
   }
 
   const delta = target ? diff(current, target) : null;
@@ -168,13 +184,20 @@ export function PhaseTransitionButton({
   const isDirectJump = jumpDistance > 1;
   const skippedCount = Math.max(0, jumpDistance - 1);
 
+  const phaseCatalogueAvailable = phaseReadState === "ready";
+
   return (
-    <div ref={menuWrapRef} data-testid="phase-transition-button" className="relative inline-flex items-center gap-1">
+    <div className="flex flex-col items-end gap-1">
+      {!phaseCatalogueAvailable ? <div role={phaseReadState === "error" ? "alert" : "status"} className="flex flex-wrap items-center justify-end gap-2 text-[11px] text-amber-800">
+        <span>{phaseReadState === "error" ? "Lifecycle stages are unavailable. Last confirmed stages remain visible but locked." : "Refreshing lifecycle stages; stage changes are temporarily locked."}</span>
+        {phaseReadState === "error" ? <button type="button" onClick={() => setPhaseReloadToken(value => value + 1)} className="rounded border border-amber-300 bg-white px-2 py-1 font-semibold hover:bg-amber-50">Retry stages</button> : null}
+      </div> : null}
+      <div ref={menuWrapRef} data-testid="phase-transition-button" className="relative inline-flex items-center gap-1">
       {next && (
         <button
           type="button"
-          onClick={() => setTarget(next)}
-          disabled={busy}
+          onClick={() => setTargetId(next.id)}
+          disabled={busy || !phaseCatalogueAvailable}
           className="rounded-md bg-brand px-3 py-1 text-xs font-semibold text-white shadow hover:opacity-90 disabled:opacity-50"
         >
           Advance to {displayLabel(next)} →
@@ -185,12 +208,12 @@ export function PhaseTransitionButton({
         onClick={() => setMenuOpen(o => !o)}
         aria-haspopup="menu"
         aria-expanded={menuOpen}
-        disabled={busy}
+        disabled={busy || !phaseCatalogueAvailable}
         className="rounded-md border border-black/15 px-3 py-1 text-xs font-medium hover:bg-black/5 disabled:opacity-50"
       >
         Change stage
       </button>
-      {menuOpen && (
+      {menuOpen && phaseCatalogueAvailable && (
         <div
           role="menu"
           className="absolute right-0 top-full z-20 mt-1 w-56 rounded-md border border-black/10 bg-white p-1 shadow-lg"
@@ -199,7 +222,7 @@ export function PhaseTransitionButton({
             <button
               type="button"
               role="menuitem"
-              onClick={() => { setMenuOpen(false); setTarget(prev); }}
+              onClick={() => { setMenuOpen(false); setTargetId(prev.id); }}
               className="block w-full rounded-md px-2 py-1.5 text-left text-xs text-black/85 hover:bg-black/5"
             >
               ← Regress to {displayLabel(prev)}
@@ -212,7 +235,7 @@ export function PhaseTransitionButton({
                 key={p.id}
                 type="button"
                 role="menuitem"
-                onClick={() => { setMenuOpen(false); setTarget(p); }}
+                onClick={() => { setMenuOpen(false); setTargetId(p.id); }}
                 className="block w-full rounded-md px-2 py-1 text-left text-xs text-black/75 hover:bg-black/5"
               >
                 {displayLabel(p)}
@@ -222,7 +245,7 @@ export function PhaseTransitionButton({
         </div>
       )}
 
-      {target && delta && (
+      {phaseCatalogueAvailable && target && delta && (
         <div
           role="dialog"
           ref={dialogRef} aria-modal="true"
@@ -230,7 +253,7 @@ export function PhaseTransitionButton({
           className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-6"
           onClick={e => {
             if (e.target === e.currentTarget && !busy) {
-              setTarget(null);
+              setTargetId(null);
               setReason("");
             }
           }}
@@ -244,7 +267,7 @@ export function PhaseTransitionButton({
                 type="button"
                 onClick={() => {
                   if (!busy) {
-                    setTarget(null);
+                    setTargetId(null);
                     setReason("");
                   }
                 }}
@@ -312,8 +335,8 @@ export function PhaseTransitionButton({
             <footer className="flex items-center justify-end gap-2 border-t border-black/10 bg-black/[0.02] px-5 py-3">
               <button
                 type="button"
-                disabled={busy}
-                onClick={() => { if (!busy) { setTarget(null); setReason(""); } }}
+                disabled={busy || !phaseCatalogueAvailable}
+                onClick={() => { if (!busy) { setTargetId(null); setReason(""); } }}
                 className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 disabled:opacity-50"
               >
                 Cancel
@@ -321,7 +344,7 @@ export function PhaseTransitionButton({
               <button
                 type="button"
                 onClick={commit}
-                disabled={busy}
+                disabled={busy || !phaseCatalogueAvailable}
                 className="rounded-md bg-brand px-3 py-1.5 text-sm font-semibold text-white shadow hover:opacity-90 disabled:opacity-50"
               >
                 {busy ? "Moving…" : isDirectJump ? `Move directly to ${displayLabel(target)}` : `Confirm ${direction.toLowerCase()}`}
@@ -330,6 +353,7 @@ export function PhaseTransitionButton({
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
