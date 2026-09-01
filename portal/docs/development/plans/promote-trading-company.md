@@ -1,6 +1,6 @@
 # Plan — Give a trading company a portal of its own
 
-← [todo.md](../todo.md) · [development.md](../../development.md) · related: [rls-enable.md](./rls-enable.md) · [plugin-data-erasure.md](./plugin-data-erasure.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md) · related: [rls-enable.md](./rls-enable.md) · [plugin-data-erasure.md](./plugin-data-erasure.md)
 
 **Status: BUILDING — phases 1–3 landed 2026-08-20 and were re-framed the same day onto the founder's settled model; phases 4–10 open.**
 

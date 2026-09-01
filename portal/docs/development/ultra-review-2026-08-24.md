@@ -4,7 +4,7 @@ This is the evidence ledger for the current comprehensive review. It deliberatel
 excludes authentication, session, MFA and other security findings. It does not
 replace [checklist.md](checklist.md), which remains the one current answer to
 “where do we stand”. Findings graduate into [issues.md](issues.md) and work into
-[todo.md](todo.md); this file records what was actually inspected and what was not.
+[todo.md](TODO.md); this file records what was actually inspected and what was not.
 
 > **Current override — 2026-08-25:** this dated ledger remains accurate history,
 > but several findings below are now closed. The production build passes **268/268**;

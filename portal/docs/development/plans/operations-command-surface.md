@@ -1,6 +1,6 @@
 # Plan — "Operations / System" surface (governance: compliance + security)
 
-← [todo.md](../todo.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md)
 
 **Status: PLAN — UNBLOCKED 2026-08-20.** Both open decisions are made: the sidebar surface is called **Operations** (Ed: "call it operations simple"), and compliance is **GDPR always on with HIPAA as a per-instance toggle** — see [compliance-legal.md](compliance-legal.md).
 A dedicated **Operations** surface housing the whole governance blindspot —

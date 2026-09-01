@@ -1,6 +1,6 @@
 # Plan — Dev Team hub: one Inspection surface for Dev Mode ⭐
 
-← [todo.md](../todo.md) · [development.md](../../development.md) · reshapes [dev-mode-demo-profiles.md](dev-mode-demo-profiles.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md) · reshapes [dev-mode-demo-profiles.md](dev-mode-demo-profiles.md)
 
 **Status: ⤳ SUPERSEDED by [dev-team-portal.md](dev-team-portal.md)** (which expanded this hub into the full internal portal and was BUILT 2026-08-19). Kept for its reuse audit. **Nothing here is open** — the three browser bugs it carried are all fixed (verified in source 2026-08-20, see below), so this doc is a record, not a lane.
 

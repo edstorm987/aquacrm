@@ -1,6 +1,6 @@
 # Plan — Dev Mode: demo-profile POV switcher (local/dev only) ⭐
 
-← [todo.md](../todo.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md)
 
 > ⭐ **EVOLVED → [dev-team-hub.md](dev-team-hub.md) (2026-08-19, Ed).** This plan's substrate
 > (entry route, `canUseDevMode()` gate, per-persona mint, cinematic load-in, demo seed) is now
@@ -145,7 +145,7 @@ plan in flight._
   `CLIENT_ROLE`) has **no dedicated landing** — it falls through to `/portal/clients/<id>`, the
   agency-side client workspace, which isn't right for a freelancer either. Freelancers need
   their **own limited workspace** (just their assigned one-time job / deliverables) before a
-  demo POV makes sense. Tracked as a build in [todo.md](../todo.md) (Staff/people domain — ties
+  demo POV makes sense. Tracked as a build in [todo.md](../TODO.md) (Staff/people domain — ties
   to `PeopleFreelancerJob`). Add the Freelancer POV to the switcher once that view exists.
 
 ## Done when (runtime-verified)

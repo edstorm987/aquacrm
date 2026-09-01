@@ -1,6 +1,6 @@
 # Plan — Compliance & Legal (GDPR, HIPAA track, evidence, breach defence)
 
-← [todo.md](../todo.md) · [operations-command-surface.md](operations-command-surface.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [operations-command-surface.md](operations-command-surface.md) · [development.md](../../development.md)
 
 **Status: PHASE 1 BUILT (posture + HIPAA track toggle), phases 2–5 open.**
 **KNOW-first** (Ed's steer): the goal is

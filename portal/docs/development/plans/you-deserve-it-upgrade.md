@@ -1,6 +1,6 @@
 # Plan — "You Deserve It" upgrade (recognition, gifting & experiences)
 
-← [todo.md](../todo.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md)
 
 **Status: PLAN — one slice of Phase 3 already landed under the Finance plan (P5, 2026-08-19); see the File map before starting.**
 gifting tracker into a **recognition & experiences hub**: who deserves something

@@ -7,7 +7,7 @@
 > of truth and starts a supervised local preview without requiring Aqua Tag.
 > This plan remains authoritative for the Tag capabilities it actually owns.
 
-← [todo.md](../todo.md) · [development.md](../../development.md) · reference: [aqua-tag dossier](../../workspace/aqua-tag.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md) · reference: [aqua-tag dossier](../../workspace/aqua-tag.md)
 
 > **📋 Current state / handoff record: [aqua-tag-handoff.md](aqua-tag-handoff.md)** — what's built across all 6 phases, verification levels, problems, decisions, coordination, and what's next. Read that for "where are we now."
 

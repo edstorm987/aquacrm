@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-31T20:15:04.567Z",
+  "generatedAt": "2026-09-01T06:09:15.867Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -79,9 +79,9 @@
       "path": "CLAUDE.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-claude-md",
-      "sha256": "c51633c3fefa642eb9ff8a51fe4a37120ed3bc3ca7396250f179c5b9600e207b",
+      "sha256": "c6abffdcbb5d4b09363e669bda5b0e2bb72d541a799b23ba86c45aa5ef5e0753",
       "words": 3553,
-      "bytes": 26118
+      "bytes": 26126
     },
     {
       "path": "docs/architecture-noobie.md",
@@ -399,9 +399,9 @@
       "path": "docs/development.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-md",
-      "sha256": "72103f4efcae121a710c65356bdf6078b4e47b2ae98a5c96a89fbc1f5aebf3a5",
+      "sha256": "9f2c4da449cb26283cce46a90ec030e72ec4942cf623422488fabd960f293227",
       "words": 3285,
-      "bytes": 24935
+      "bytes": 24959
     },
     {
       "path": "docs/development/AUDIT-2026-08-30.md",
@@ -519,7 +519,7 @@
       "path": "docs/development/plans/advisor-omega-upgrade.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-advisor-omega-upgrade-md",
-      "sha256": "fcbc2bc9848b27c6685119c5e6c9d28dc39cac5ad821dde511ea4939f30c79c0",
+      "sha256": "8acb96eb6497ce3a1a87d5d7b0cb25065ad0520cb884425913e4692352e9be5b",
       "words": 434,
       "bytes": 3603
     },
@@ -551,7 +551,7 @@
       "path": "docs/development/plans/aqua-tag-system.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-aqua-tag-system-md",
-      "sha256": "1f183c8fb49357a3dc98ccb2af09cba353a8cb1ec889d45cad3fde5a64f867a4",
+      "sha256": "ea0e5f1f60190301828935f7f24fa29b681d9a1f197def916e88ad6da0aebe31",
       "words": 2097,
       "bytes": 14990
     },
@@ -559,7 +559,7 @@
       "path": "docs/development/plans/archive/dev-console-topbar.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-archive-dev-console-topbar-md",
-      "sha256": "c94523eaf66e5ecaca87a272b9ae269e8a71ecf462750edf5dcb0a103471e5a6",
+      "sha256": "a2bb65e235b7eab93c01fb03b6f9faf323369b4437fba01d10bea407e5ba12d7",
       "words": 1157,
       "bytes": 8839
     },
@@ -575,7 +575,7 @@
       "path": "docs/development/plans/battle-table-overhaul.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-battle-table-overhaul-md",
-      "sha256": "6f88568cdd07ea906a6531beef56f372bfd99af17f659c5910275a8c50b1f8fa",
+      "sha256": "f061cccbf7e3a918576a9162a549521aced9e29a073e8d1eae605e674d9186de",
       "words": 1281,
       "bytes": 8889
     },
@@ -583,7 +583,7 @@
       "path": "docs/development/plans/client-health.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-client-health-md",
-      "sha256": "340b63d1ac0d401d37bb987a3e16a0cff3134b73579132b09ce4e3173e74f5fa",
+      "sha256": "051c7d4dc72dfad444b3065e18265b927310a50fe47fa7d486dc20c1a738fdd1",
       "words": 1471,
       "bytes": 11178
     },
@@ -599,7 +599,7 @@
       "path": "docs/development/plans/compliance-legal.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-compliance-legal-md",
-      "sha256": "6de22eae94ad46477f3274e7b1f213b29ea651d80fd51b19bf60938f933bd78a",
+      "sha256": "0085cdca2ac2d2bccc9affc7e9dc446b6605d178586118b335e1463d65d1c90c",
       "words": 2046,
       "bytes": 14750
     },
@@ -615,7 +615,7 @@
       "path": "docs/development/plans/connect-flow-real-codes.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-connect-flow-real-codes-md",
-      "sha256": "6ca3989c969288cf606a26e31803e03aa13d073cbfbfa3553f9cb659a9352050",
+      "sha256": "8f245e78dd8e0763bcc8a7adc43fcdde56b7c7f640e0655e4abd0d71363b042a",
       "words": 889,
       "bytes": 6633
     },
@@ -639,7 +639,7 @@
       "path": "docs/development/plans/dev-docs.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-dev-docs-md",
-      "sha256": "f7335b26cc3ee441b7b8702e25bb2a4c500e77f50edfb344316d4438181b47a3",
+      "sha256": "c638ae635a10602c7baebc72208b48ffe1517c18754aee54db38d81f1bf07ef7",
       "words": 875,
       "bytes": 6572
     },
@@ -679,7 +679,7 @@
       "path": "docs/development/plans/dev-mode-demo-profiles.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-dev-mode-demo-profiles-md",
-      "sha256": "0f260daa17df9cf992498408e2d8c0d053a49b7b4a13bc24f82331ef352bdd3b",
+      "sha256": "1e488b7c56d7c90c2af467902a90b52e23b36a446221b6ca76d0e7a88693d24d",
       "words": 1435,
       "bytes": 11033
     },
@@ -687,7 +687,7 @@
       "path": "docs/development/plans/dev-team-finish.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-dev-team-finish-md",
-      "sha256": "b3a25b54c0709386cb2a0654d1e076fd24add55836a52e0d62b83dcf6d20d334",
+      "sha256": "f11907a68752460ef7aa76b76ce2d5817c93d59f729811f1e383568b11a7c33c",
       "words": 1967,
       "bytes": 14215
     },
@@ -695,7 +695,7 @@
       "path": "docs/development/plans/dev-team-hub.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-dev-team-hub-md",
-      "sha256": "65a2ed401444441ca4ffa16aa613785d177a235fbd1d799165d95e0a061ff330",
+      "sha256": "d1904bce4c23638152a376cb1cf06fc6bffab669144337d13a83638b4a2ade5d",
       "words": 1358,
       "bytes": 9835
     },
@@ -711,7 +711,7 @@
       "path": "docs/development/plans/dev-team-portal.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-dev-team-portal-md",
-      "sha256": "679e21c1285c0beabf3ae5d09ce77b65167feca3a1d66cb92b59aa0b1f9cad34",
+      "sha256": "e19a5f53d1d0c6e9e08493da32b1f5d0ede56e6b9e1e9d2306bf079418fc1913",
       "words": 4666,
       "bytes": 37033
     },
@@ -735,7 +735,7 @@
       "path": "docs/development/plans/enquiry-detail-card.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-enquiry-detail-card-md",
-      "sha256": "e4a7c738f477f1b6fd286646575b41556353bee0e74b680d2eccce81b6203843",
+      "sha256": "65c8484af1e5fa4b136ec4fe74cb9e0da85218266d27e4f073bedf64caee5421",
       "words": 898,
       "bytes": 6663
     },
@@ -743,7 +743,7 @@
       "path": "docs/development/plans/finance-command-surface.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-finance-command-surface-md",
-      "sha256": "3feac064311052ddb1a65c6c5ffd76f56604e8172512fc06ed4950ef31d46077",
+      "sha256": "4aa768e2e1a538e23e248c6ab2f17b5867f4b1b5ca384feb557ddffe0b078483",
       "words": 1197,
       "bytes": 9797
     },
@@ -751,7 +751,7 @@
       "path": "docs/development/plans/freelancer-workspace-HANDOFF.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-freelancer-workspace-handoff-md",
-      "sha256": "53f164362fdb7ab228cee39b14cd653ce23878c29fe9856a9667b5e09c949587",
+      "sha256": "36b7f6bd660c57affc11bb094a0fd320b443ce5f8b48654538db9a19534a8cc7",
       "words": 2314,
       "bytes": 18051
     },
@@ -759,7 +759,7 @@
       "path": "docs/development/plans/freelancer-workspace.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-freelancer-workspace-md",
-      "sha256": "bb875920ffcf8f48167d9e6609a91935c8f5427b487a9604fc5de2683aa67ee2",
+      "sha256": "5606024cd4c25dcf632734c52cdac7e5af061e853be8926caec976fd832ea82c",
       "words": 1466,
       "bytes": 13241
     },
@@ -791,7 +791,7 @@
       "path": "docs/development/plans/internal-chat-attention.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-internal-chat-attention-md",
-      "sha256": "9122b0c133ea9b17892fbba6b131854f7915858934631a4300ae6d63c8bcbfdd",
+      "sha256": "5f94a11ee09b7a978fd9d8041713a2156a728379bee8c961cc2a0b1266674676",
       "words": 434,
       "bytes": 3394
     },
@@ -799,7 +799,7 @@
       "path": "docs/development/plans/kpi-intelligence-overhaul.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-kpi-intelligence-overhaul-md",
-      "sha256": "73829e039f8645fe88055f89ea04f279c97d3010f940ff04fe0b6b09afeed751",
+      "sha256": "166a3cc9b521d838aa97a809a0a43c23ab00a89c689220395f77ae27d55b19c9",
       "words": 1995,
       "bytes": 15467
     },
@@ -815,7 +815,7 @@
       "path": "docs/development/plans/marketing-workspace-overhaul.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-marketing-workspace-overhaul-md",
-      "sha256": "bd9978c633e900bbc9308a39c02541c55b37aba383033d154c62dfc3c22f83e9",
+      "sha256": "c42bb1c185edcea0927278109e6ac6c56b451994376a8f8e5116c30c307abe35",
       "words": 1849,
       "bytes": 14351
     },
@@ -823,7 +823,7 @@
       "path": "docs/development/plans/meta-inbox-connect.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-meta-inbox-connect-md",
-      "sha256": "d6cced05adb94e8f7cc2c3c8f77cab924dedd36c048bf8472ccfa093e8b549c1",
+      "sha256": "48c3b40b0764327d07b518f475879a5f50a2b075fe25a4adc0d94120ab5f9e41",
       "words": 1197,
       "bytes": 9229
     },
@@ -831,7 +831,7 @@
       "path": "docs/development/plans/mfa-login.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-mfa-login-md",
-      "sha256": "0fd93f64238782034e1d16ce8c8662ed78477f15a2e69ea584aefdb321488392",
+      "sha256": "b48b0cc1945dbd6fba2bbeb1205e878f0e0ba157401a1de02067e2450a0193da",
       "words": 1513,
       "bytes": 10857
     },
@@ -847,7 +847,7 @@
       "path": "docs/development/plans/operations-command-surface.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-operations-command-surface-md",
-      "sha256": "12b5eadfe027e5f8b7abed4ecca3aa9afef79cf5ad0d7fe16aa3cbf2842b90f1",
+      "sha256": "89d4c7af83faebb95d6269d2076429fba50d612e6d1b6714cdce1b671668bfa7",
       "words": 823,
       "bytes": 6176
     },
@@ -855,7 +855,7 @@
       "path": "docs/development/plans/plugin-data-erasure.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-plugin-data-erasure-md",
-      "sha256": "c3c5118204c01a054d7cb9f4a71b6e089c456c05559498641dab145d38de4551",
+      "sha256": "890e117cab2c28fbbc7f0f9e9f216b7ce49663ab5a2c4bbdfc3c06370199995e",
       "words": 3211,
       "bytes": 24381
     },
@@ -863,7 +863,7 @@
       "path": "docs/development/plans/promote-trading-company.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-promote-trading-company-md",
-      "sha256": "c989e63654eba46d94283f7ce29db8dbff00fcb7abce7c80e1ca40190f4a4f10",
+      "sha256": "2f9dd8a1af3223cfc0bfd6996c6e6f138c7b61f7f647fc79f7890b278247dc4f",
       "words": 4457,
       "bytes": 34034
     },
@@ -879,7 +879,7 @@
       "path": "docs/development/plans/public-bucket.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-public-bucket-md",
-      "sha256": "3f33cbe50480103e24999e4b88b3b9cc7abf7003a7b541cc2bb5eac4c3709b4e",
+      "sha256": "c13e9ce003324e418789701170cb335f2330e5fcbd3886d2cb43167181edcc76",
       "words": 764,
       "bytes": 6252
     },
@@ -895,7 +895,7 @@
       "path": "docs/development/plans/rls-enable.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-rls-enable-md",
-      "sha256": "b805e52e8625b9b11c716ea7566b250b877ffd9825cb52cd5dddbb5d5f8d4a54",
+      "sha256": "3c04e50fde41f3c7e238d51a56388de3c84b404e99c0d4b404a68902dea56301",
       "words": 1645,
       "bytes": 13038
     },
@@ -903,7 +903,7 @@
       "path": "docs/development/plans/runtime-verification.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-runtime-verification-md",
-      "sha256": "f5df534faefb3b4f9458d98c7619e3a6f47a07c5d767e5b713365814d01a1d65",
+      "sha256": "53ab858928823758de27eaa972823b247220c4ddc11d61b99c2bb3ffcdfb6c98",
       "words": 1390,
       "bytes": 10636
     },
@@ -911,7 +911,7 @@
       "path": "docs/development/plans/security-hardening.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-security-hardening-md",
-      "sha256": "473530125c791d026bd5761f855a4359803a65697da52e262c9b662a493595c4",
+      "sha256": "0d7aed04ef8ce6ddde39d02901bacd95abf484a32cad697a2f8e12fd67af230a",
       "words": 1001,
       "bytes": 7892
     },
@@ -935,7 +935,7 @@
       "path": "docs/development/plans/staff-team-system.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-staff-team-system-md",
-      "sha256": "7931339ee018fbf2c7cbdaaa904313d46a6a64469fe0303f0d2206b413170d29",
+      "sha256": "f580c2c43c6ea11a23ecfbe5e69daceb1b2939145869ae3c6eee4af52646c7f6",
       "words": 2305,
       "bytes": 17720
     },
@@ -959,7 +959,7 @@
       "path": "docs/development/plans/you-deserve-it-upgrade.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-you-deserve-it-upgrade-md",
-      "sha256": "b6fb7d73e876d6311417101c24f8ea85a534fb15a2e86b4d042c5927d1f1571e",
+      "sha256": "110d90851c7fac6928430e8afa322b23ba494a6495c2c3c5881bce4a8c4f532f",
       "words": 1191,
       "bytes": 9009
     },
@@ -967,7 +967,7 @@
       "path": "docs/development/roadmap.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-roadmap-md",
-      "sha256": "da05e0e5ba0fe7621b9ccee562ab05af4ed90706cfee82fe8205634744b4785d",
+      "sha256": "62a81eec41f23a32e6914194d5a3d7f6d5928c74bc7e7d985803497ed3a2f99b",
       "words": 21160,
       "bytes": 217851
     },
@@ -996,26 +996,26 @@
       "bytes": 101116
     },
     {
-      "path": "docs/development/todo.md",
+      "path": "docs/development/todo-retired.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
-      "anchor": "source-docs-development-todo-md",
-      "sha256": "0041865bc30d79ff574524e4072d2484821a37934c5360adf9056a778aea14d5",
+      "anchor": "source-docs-development-todo-retired-md",
+      "sha256": "4bde57e97f03f6a571dabe6931f33a2c8e651291a8f8e49fd0a0d099890b64e8",
       "words": 15920,
-      "bytes": 127288
+      "bytes": 127286
     },
     {
       "path": "docs/development/TODO.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-todo-md",
-      "sha256": "79e5f988c98256eda4d9bb0f9c9e2480c5a062eef42437ed55f69bc9c4be2ae6",
+      "sha256": "3c8551b5586791af44777645bed7291e9fa5e9cb9668d8566b3667b28d6e002e",
       "words": 1971,
-      "bytes": 13749
+      "bytes": 13837
     },
     {
       "path": "docs/development/ultra-review-2026-08-24.md",
       "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
       "anchor": "source-docs-development-ultra-review-2026-08-24-md",
-      "sha256": "15cc2bde09ad6a6d2209c3e61b1a78e6a7e1f1c091ec69dd93469945edb97ba2",
+      "sha256": "6725e738af21210dcf9cff8b60060ddbf1a1a7810b63b889fa7f32ef262ddaf5",
       "words": 15503,
       "bytes": 119428
     },
@@ -1023,7 +1023,7 @@
       "path": "docs/development/updates.md",
       "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
       "anchor": "source-docs-development-updates-md",
-      "sha256": "1a6cedaafa2fe59285400a6be1aa03b1375dc70b72d5b2a00a65b6fd39303a4d",
+      "sha256": "747aaf4bf07f1346feb15d1ec81033220cf69ca35c10c0bcac48933ebe510755",
       "words": 99127,
       "bytes": 740824
     },

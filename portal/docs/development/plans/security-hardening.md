@@ -1,6 +1,6 @@
 # Plan — Security hardening + a security operations surface
 
-← [todo.md](../todo.md) · [operations-command-surface.md](operations-command-surface.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [operations-command-surface.md](operations-command-surface.md) · [development.md](../../development.md)
 
 **Status: Phase 0 DONE 2026-08-27 — central session revocation is enforced (`resolveFreshSessionUser()` in `auth.ts`, pinned by `smoke-session-revocation` 16/16); the dedicated posture surface is unbuilt; MFA and in-repo RLS implementation exist.** _(The 2026-08-24 exploit — a stale owner cookie creating a working external-AI token after owner→staff downgrade — is behaviourally dead: the same replay now returns 403 with no token.)_ Tighten security to the maximum and give it a **dedicated
 surface** — posture at a glance, attack monitoring/prevention, access management,

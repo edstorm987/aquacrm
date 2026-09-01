@@ -1,6 +1,6 @@
 # Plan — Marketing workspace overhaul
 
-← [todo.md](../todo.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md)
 
 **Status: PHASES 1–4 + 6 SHIPPED; only Phase 5's people-map is open (waiting on a PostHog read-back — a dependency, not a decision).** _(Was labelled "BLOCKED … collapse the 10 views to ~5? — is Ed's" after Ed made that call and the cut shipped.)_ **Phase 6 is DONE:** two consolidations landed — the five channel tabs → one Channels view (2026-08-19), then **ten views → five** (2026-08-20, Ed's call): `pulse` · `demand` · `customers` · `channels` · `automations`, with `client-services` demoted to a header link that `?view=` still resolves. Every retired `?view=` still lands on its new home — `RETIRED_MARKETING_VIEWS` ([`_marketingViews.ts:88`](../../../src/app/portal/agency/marketing/_marketingViews.ts)) and `resolveMarketingView` ([`:132`](../../../src/app/portal/agency/marketing/_marketingViews.ts)).
 

@@ -5,7 +5,7 @@
 // `docs/development.md` used to say, of "where do we stand?": *"Three files
 // used to answer this. Two are now archived."* So this consolidation had
 // already been done once — and by 2026-08-31 there were two live lists again,
-// `checklist.md` and `todo.md`, which had drifted into disagreeing:
+// `checklist.md` and `todo-retired.md`, which had drifted into disagreeing:
 //
 //   · 130 of ~145 issue ids appeared in BOTH files, worded differently enough
 //     that no title matched between them;
@@ -48,7 +48,7 @@ describe("one task list", () => {
     // They stay on disk for their written reasoning, which TODO.md deliberately
     // does not duplicate — but nothing may be added to them, and the banner is
     // what tells the next session (human or agent) which file to open.
-    for (const name of ["checklist.md", "todo.md"]) {
+    for (const name of ["checklist.md", "todo-retired.md"]) {
       const source = read("docs", "development", name);
       assert.match(source, RETIRED, `${name} lost its retirement banner`);
       assert.match(source, /The one task list is \[`TODO\.md`\]/, `${name} must name its replacement`);

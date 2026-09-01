@@ -1,6 +1,6 @@
 # Plan — Freelancer-facing workspace (the freelancer's own limited view)
 
-← [todo.md](../todo.md) · [issues.md](../issues.md) #8 · [dev-mode-demo-profiles.md](dev-mode-demo-profiles.md)
+← [todo.md](../TODO.md) · [issues.md](../issues.md) #8 · [dev-mode-demo-profiles.md](dev-mode-demo-profiles.md)
 
 **Status: P1–P6 ✅ shipped; issue #112 resolved 2026-08-25.** P5 is agency-side management
 and preview. P6 adds resumable Supabase/local/People provisioning, password-setup invitation,

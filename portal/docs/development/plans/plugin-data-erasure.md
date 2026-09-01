@@ -1,6 +1,6 @@
 # Plan — Plugin-data erasure hooks
 
-← [todo.md](../todo.md) · [development.md](../../development.md) · **[DPO review pack »](../../compliance/erasure-dpo-pack.md)**
+← [todo.md](../TODO.md) · [development.md](../../development.md) · **[DPO review pack »](../../compliance/erasure-dpo-pack.md)**
 
 **Status: P1 REWORK — local/plugin disposition coverage shipped; end-to-end completion is unsafe.** The local/fake-client suite covers the intended sweep, but live failures can still return success after the local client is deleted, the route then cannot normally retry, and the permanent activity message includes `clientName`. See [issues #24](../issues.md). A staged live run and DPO sign-off also remain.
 *bigger* than reported: `leads-pipeline`'s `onEraseClient` filtered `contact.clientId`,

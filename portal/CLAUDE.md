@@ -8,7 +8,7 @@
 current operational handoff and supersedes the stale status sentences at the
 bottom of this file. It does not supersede source code or
 `docs/development/TODO.md`: source is the final authority and **`TODO.md` is the one
-current task list** (`checklist.md` and `todo.md` were retired into it on 2026-08-31).
+current task list** (`checklist.md` and `todo-retired.md` were retired into it on 2026-08-31).
 
 ### First five minutes: preserve the working state
 

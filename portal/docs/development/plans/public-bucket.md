@@ -1,6 +1,6 @@
 # Plan — Wire the public storage bucket
 
-← [todo.md](../todo.md) · [development.md](../../development.md) · reference: [database dossier](../../workspace/database.md) · **[HANDOFF »](public-bucket-HANDOFF.md)** (state + the one remaining live verification)
+← [todo.md](../TODO.md) · [development.md](../../development.md) · reference: [database dossier](../../workspace/database.md) · **[HANDOFF »](public-bucket-HANDOFF.md)** (state + the one remaining live verification)
 
 **Status: ✅ DONE (2026-08-19, all phases; runtime-verified in memory, not yet
 browser/live-bucket).** `aquacrm-public` is wired end-to-end: approved

@@ -4,7 +4,7 @@
 >
 > *It stays in `plans/` rather than moving to [archive/](archive/README.md) for two reasons: `smoke-dev-tasks-parse.test.ts` pins it by name in the set of plans that parse to zero phases, and `archive/README.md` says not to archive a handoff another plan still points at as its brief.*
 
-← [freelancer-workspace.md](freelancer-workspace.md) (the plan) · [todo.md](../todo.md) ·
+← [freelancer-workspace.md](freelancer-workspace.md) (the plan) · [todo.md](../TODO.md) ·
 [status.md](../status.md) · [issues.md](../issues.md) #8 · [updates.md](../updates.md)
 
 > **Current supersession — 2026-08-25:** the “remote login NOT built” and “upload/message NOT

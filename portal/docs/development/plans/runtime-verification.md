@@ -1,6 +1,6 @@
 # Plan — Runtime verification of the critical flows  🔴 blocker
 
-← [todo.md](../todo.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md)
 
 **Status: BUILDING — access/Dev Workspace scope refreshed 2026-08-26.** Phase 1 is
 complete (isolated sandboxes). The route sweep was 60/60 at its checkpoint and

@@ -2,7 +2,7 @@
 
 > Verified findings, independent reviews, browser audits and the testing record.
 >
-> Consolidated 2026-08-31 from **11** source documents / **111,162 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-01 from **11** source documents / **111,162 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -15,7 +15,7 @@
 - [`docs/development/findings/2026-08-22-surfaces-that-state-a-falsehood.md`](#source-docs-development-findings-2026-08-22-surfaces-that-state-a-falsehood-md) — 892 words · `dfeb4a6302c1`
 - [`docs/development/issues.md`](#source-docs-development-issues-md) — 37,097 words · `53000cbcfbda`
 - [`docs/development/tests.md`](#source-docs-development-tests-md) — 12,972 words · `b99af1dace66`
-- [`docs/development/ultra-review-2026-08-24.md`](#source-docs-development-ultra-review-2026-08-24-md) — 15,503 words · `15cc2bde09ad`
+- [`docs/development/ultra-review-2026-08-24.md`](#source-docs-development-ultra-review-2026-08-24-md) — 15,503 words · `6725e738af21`
 - [`docs/development/visual-browser-audit-2026-08-23.md`](#source-docs-development-visual-browser-audit-2026-08-23-md) — 3,582 words · `3ee9b61d74e3`
 
 ---
@@ -6835,14 +6835,14 @@ _The doc-generators (`generate-symbol-reference.mjs`,
 
 ## Source document — `docs/development/ultra-review-2026-08-24.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/ultra-review-2026-08-24.md" sha256="15cc2bde09ad6a6d2209c3e61b1a78e6a7e1f1c091ec69dd93469945edb97ba2" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/ultra-review-2026-08-24.md" sha256="6725e738af21210dcf9cff8b60060ddbf1a1a7810b63b889fa7f32ef262ddaf5" -->
 # Ultra review — 2026-08-24 non-security acceptance checkpoint
 
 This is the evidence ledger for the current comprehensive review. It deliberately
 excludes authentication, session, MFA and other security findings. It does not
 replace [checklist.md](checklist.md), which remains the one current answer to
 “where do we stand”. Findings graduate into [issues.md](issues.md) and work into
-[todo.md](todo.md); this file records what was actually inspected and what was not.
+[todo.md](TODO.md); this file records what was actually inspected and what was not.
 
 > **Current override — 2026-08-25:** this dated ledger remains accurate history,
 > but several findings below are now closed. The production build passes **268/268**;

@@ -1,6 +1,6 @@
 # Plan — Finance: multi-channel money visibility + one-button close ⭐
 
-← [todo.md](../todo.md) · [development.md](../../development.md) · **[HANDOFF »](../../context/archive/finance-command-surface-handoff.md)** (build record — problems, tests, decisions, what's left)
+← [todo.md](../TODO.md) · [development.md](../../development.md) · **[HANDOFF »](../../context/archive/finance-command-surface-handoff.md)** (build record — problems, tests, decisions, what's left)
 
 > **Current correction — updated 2026-08-26:** this is the dated delivery plan for the
 > 2026-08-19 P1–P5 batch, not a statement that Finance is production-complete.

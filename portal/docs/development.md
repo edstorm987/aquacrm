@@ -51,7 +51,7 @@ development.md  ← the catalogue (you are here) — the law, tying it all toget
 │   ├── roadmap.md ....... the roadmap — what's next, in order
 │   ├── TODO.md ......... ★ THE ONE TASK LIST — "where do we stand", the only one
 │   ├── checklist.md ..... RETIRED 2026-08-31 → merged into TODO.md (kept for history)
-│   ├── todo.md .......... RETIRED 2026-08-31 → merged into TODO.md (kept for history)
+│   ├── todo-retired.md .. RETIRED 2026-08-31 → merged into TODO.md (kept for history)
 │   ├── issues.md ........ known issues, verified findings, risks
 │   ├── status.md ........ does it actually WORK / can it be USED (≠ "is it coded")
 │   ├── notes.md ......... decisions & context (the "why")
@@ -88,7 +88,7 @@ you find a second file answering one of them, it is stale and belongs on the
 | Question | The one file | Not anywhere else |
 |---|---|---|
 | **What changed, and when?** | **[updates.md](development/updates.md)** | It is the log. Append a dated entry after every meaningful change; **never edit an existing entry** — that is the point of a changelog, and the file says so in its own banner. It is also parsed by the Dev Console, so a second log would be invisible as well as redundant. |
-| **Where do we stand?** | **[TODO.md](development/TODO.md)** | Five files have answered this over time. `TODO.md` is the only one now — `checklist.md` and `todo.md` were merged into it on 2026-08-31 after they drifted into disagreeing about which issues were done. `scripts/smoke-one-task-list.test.ts` fails if a second list appears. |
+| **Where do we stand?** | **[TODO.md](development/TODO.md)** | Five files have answered this over time. `TODO.md` is the only one now — `checklist.md` and `todo-retired.md` were merged into it on 2026-08-31 after they drifted into disagreeing about which issues were done. `scripts/smoke-one-task-list.test.ts` fails if a second list appears. |
 | **What systems exist?** | **[CURRENT-IMPLEMENTATION.md](CURRENT-IMPLEMENTATION.md)** | An inventory, not a status report. Status lives in TODO.md. |
 | **How do I run it locally?** | **[DEVELOPMENT-HANDOFF.md](DEVELOPMENT-HANDOFF.md)** | Despite the name it is the environment runbook, **not** a session handoff. Session handoffs are dated and archived. |
 
@@ -110,7 +110,7 @@ Everything dated — old summaries, session records, worker debriefs — lives o
 | **[context/archive/](context/archive/README.md)** | 🗄 **The history shelf.** Dated records — superseded summaries, session handoffs, worker debriefs — kept because they are the only place some facts survive, and **never current**. `phases.md` (the old roadmap) lives here now. Nothing on this shelf should brief a worker. |
 | **[plans/](development/plans/)** | One **phased plan per substantial item** (e.g. [radar-upgrade.md](development/plans/radar-upgrade.md), [mfa-login.md](development/plans/mfa-login.md)). Each plan's own `**Status:**` line is the authority on that item. Shipped plans may be moved to [plans/archive/](development/plans/archive/). |
 | **[audits.md](development/audits.md)** | The **independent auditor's verdicts** — the record of what has been *verified*, not just claimed. A 🔴 finding gets a loud banner at the top of that file. Read before trusting a "complete" claim. |
-| ~~checklist.md~~ · ~~todo.md~~ | **Retired 2026-08-31** into `TODO.md`. Kept for their written reasoning, which `TODO.md` deliberately does not duplicate. Do not add to them. |
+| ~~checklist.md~~ · ~~todo-retired.md~~ | **Retired 2026-08-31** into `TODO.md`. Kept for their written reasoning, which `TODO.md` deliberately does not duplicate. Do not add to them. |
 | **[issues.md](development/issues.md)** | Known issues, **verified security/compliance findings** (DB RLS not in repo, Aqua Tag consent, …), duplication, and the live-data hazard. Check before assuming you found a new bug. |
 | **[status.md](development/status.md)** | The honest **"does it actually work / can it be used?"** register — kept separate from "is it coded" and "do tests pass". **A passing test ≠ working ≠ usable.** Read before trusting a green suite. |
 | **[notes.md](development/notes.md)** | Durable decisions and non-obvious context — the "why", so nothing is re-litigated or re-tripped-over. |
@@ -263,7 +263,7 @@ documentation, because updating the docs *is* part of finishing the work.
   in, imports rewritten, suite-guarded — see [STRUCTURE](development/STRUCTURE.md).
 - **IA v2**: Operations and Tools are single flat sidebar rows onto hub pages;
   pinned pages (topbar or sidebar) ship as chrome.
-- Full current-state detail: **[TODO.md](development/TODO.md)** — the *only* live task list. `checklist.md` and `todo.md` were merged into it on 2026-08-31; older competitors are on the [history shelf](context/archive/README.md).
+- Full current-state detail: **[TODO.md](development/TODO.md)** — the *only* live task list. `checklist.md` and `todo-retired.md` were merged into it on 2026-08-31; older competitors are on the [history shelf](context/archive/README.md).
 
 ---
 

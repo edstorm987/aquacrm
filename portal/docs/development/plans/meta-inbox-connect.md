@@ -1,6 +1,6 @@
 # Plan — Meta social inbox: self-serve "Connect now"
 
-← [todo.md](../todo.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md)
 
 **Status: CODE-COMPLETE — all phases + webhook shipped 2026-08-19.** The
 Connect-now UI and notice states were browser-verified on port 3032. The remaining

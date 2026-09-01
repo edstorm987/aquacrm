@@ -1,6 +1,6 @@
 # TODO — the one list
 
-**This is the only task list.** `checklist.md` and `todo.md` are retired; they held the
+**This is the only task list.** `checklist.md` and `todo-retired.md` are retired; they held the
 same work in two wordings, **130 of ~145 issue ids appeared in both**, and **7 issues were
 marked done in one file while still open in the other** — so neither could be trusted on
 its own. Nothing was dropped: every open row from both files is here, and a script
@@ -98,7 +98,7 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Relative countdown deadline code/service behaviour is repaired; mounted acceptance remains → [#146](issues.md)
 - [~] Team Chat and notification response-order code is repaired; mounted acceptance remains → [#147](issues.md)
 - [~] Named core storage/provider waits are bounded; finish mounted/live acceptance → [#148](issues.md)
-- [ ] Free a server + verify the critical flows for real  <sub>from todo.md, no issue number</sub>
+- [ ] Free a server + verify the critical flows for real  <sub>from todo-retired.md, no issue number</sub>
 
 ## P2 — quality and correctness — 19
 
@@ -120,7 +120,7 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [ ] Remove render-time `window` from published current-page blocks → [#143](issues.md)
 - [ ] Stream private audio/video with a real byte-range contract → [#144](issues.md)
 - [~] Finish production-durable Dev Team authoring and live signals  <sub>from checklist.md, no issue number</sub>
-- [~] Finish production-durable Dev Team authoring/signals  <sub>from todo.md, no issue number</sub>
+- [~] Finish production-durable Dev Team authoring/signals  <sub>from todo-retired.md, no issue number</sub>
 
 ## Unprioritised — 36
 
@@ -152,14 +152,14 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [ ] Env-only audit  <sub>from checklist.md, no issue number</sub>
 - [ ] Backfill phase ticks  <sub>from checklist.md, no issue number</sub>
 - [ ] Re-enter the Aqua Tag routing config  <sub>from checklist.md, no issue number</sub>
-- [~] Complete behavioural browser acceptance  <sub>from todo.md, no issue number</sub>
-- [ ] Battle Table overhaul → live war-room  <sub>from todo.md, no issue number</sub>
-- [ ] Operations / System surface — the KNOW side (governance)  <sub>from todo.md, no issue number</sub>
-- [ ] Advisor omega upgrade  <sub>from todo.md, no issue number</sub>
-- [~] Marketing workspace overhaul  <sub>from todo.md, no issue number</sub>
-- [ ] "You Deserve It" upgrade  <sub>from todo.md, no issue number</sub>
-- [ ] Two inbox surfaces  <sub>from todo.md, no issue number</sub>
-- [ ] The rest  <sub>from todo.md, no issue number</sub>
+- [~] Complete behavioural browser acceptance  <sub>from todo-retired.md, no issue number</sub>
+- [ ] Battle Table overhaul → live war-room  <sub>from todo-retired.md, no issue number</sub>
+- [ ] Operations / System surface — the KNOW side (governance)  <sub>from todo-retired.md, no issue number</sub>
+- [ ] Advisor omega upgrade  <sub>from todo-retired.md, no issue number</sub>
+- [~] Marketing workspace overhaul  <sub>from todo-retired.md, no issue number</sub>
+- [ ] "You Deserve It" upgrade  <sub>from todo-retired.md, no issue number</sub>
+- [ ] Two inbox surfaces  <sub>from todo-retired.md, no issue number</sub>
+- [ ] The rest  <sub>from todo-retired.md, no issue number</sub>
 
 ---
 

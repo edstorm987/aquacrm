@@ -1,6 +1,6 @@
 # Plan — Finish + connect Client Health (Aqua Health)
 
-← [todo.md](../todo.md) · [development.md](../../development.md) · ties to [aqua-tag-system](aqua-tag-system.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md) · ties to [aqua-tag-system](aqua-tag-system.md)
 
 **Status: ✅ SHIPPED — all 4 phases + browser-verified on `:3032` (2026-08-19); auditor PASSED the thin-data honesty contract. Every Ed decision resolved — nothing here is open.**
 

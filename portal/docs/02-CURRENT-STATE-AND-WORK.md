@@ -2,7 +2,7 @@
 
 > The current checklist, status, roadmap, goals, decisions and working queue.
 >
-> Consolidated 2026-08-31 from **7** source documents / **85,495 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-01 from **7** source documents / **85,495 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -10,9 +10,9 @@
 - [`docs/development/checklist.md`](#source-docs-development-checklist-md) — 21,032 words · `8bb0518e3ee0`
 - [`docs/development/goals.md`](#source-docs-development-goals-md) — 506 words · `28009372c4ab`
 - [`docs/development/notes.md`](#source-docs-development-notes-md) — 1,730 words · `f68ea59936dd`
-- [`docs/development/roadmap.md`](#source-docs-development-roadmap-md) — 21,160 words · `da05e0e5ba0f`
+- [`docs/development/roadmap.md`](#source-docs-development-roadmap-md) — 21,160 words · `62a81eec41f2`
 - [`docs/development/status.md`](#source-docs-development-status-md) — 20,474 words · `7644b20d51a7`
-- [`docs/development/todo.md`](#source-docs-development-todo-md) — 15,920 words · `0041865bc30d`
+- [`docs/development/todo-retired.md`](#source-docs-development-todo-retired-md) — 15,920 words · `4bde57e97f03`
 
 ---
 
@@ -2899,10 +2899,10 @@ the [file map](../WORKSPACE-FILE-TREE.md); issues/risks live in
 
 ## Source document — `docs/development/roadmap.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/roadmap.md" sha256="da05e0e5ba0fe7621b9ccee562ab05af4ed90706cfee82fe8205634744b4785d" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/roadmap.md" sha256="62a81eec41f23a32e6914194d5a3d7f6d5928c74bc7e7d985803497ed3a2f99b" -->
 # Roadmap
 
-← [state.md](../context/state.md) · [todo.md](todo.md) · **The outer view — what is coming, and when.**
+← [state.md](../context/state.md) · [todo.md](TODO.md) · **The outer view — what is coming, and when.**
 
 _Written and edited from the Dev Console (`/portal/dev-team/roadmap`). Each item is an
 OUTCOME; the plans under it are how it gets built, and their phases are the tasks. Progress
@@ -4734,19 +4734,19 @@ verified" rather than implying something works._
 
 ---
 
-<a id="source-docs-development-todo-md"></a>
+<a id="source-docs-development-todo-retired-md"></a>
 
-## Source document — `docs/development/todo.md`
+## Source document — `docs/development/todo-retired.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/todo.md" sha256="0041865bc30d79ff574524e4072d2484821a37934c5360adf9056a778aea14d5" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/todo-retired.md" sha256="4bde57e97f03f6a571dabe6931f33a2c8e651291a8f8e49fd0a0d099890b64e8" -->
 > # ⛔ RETIRED — do not add to this file
-> 
+>
 > **The one task list is [`TODO.md`](TODO.md).** This file and its counterpart held
 > the same work in two different wordings: 130 of ~145 issue ids appeared in both, and
 > 7 issues were marked done in one while still open in the other, so neither could be
 > trusted. Every open row was merged into `TODO.md` on 2026-08-31 and the merge was
 > checked for drops.
-> 
+>
 > Kept for its history and its written reasoning, which `TODO.md` deliberately does not
 > duplicate. Detail for every `#N` lives in [`issues.md`](issues.md).
 
@@ -5753,6 +5753,6 @@ It used to say the launch blockers were DB RLS, the connect flow, plugin-data er
 **The first git commit was completed and pushed on 2026-08-21.** Merging to `main` is Ed's deployment decision, not an unbuilt code blocker. See [checklist.md](checklist.md) for the current, authoritative yours-vs-mine split.
 
 Cleanup (§2) is real debt but not launch-gating — do it before it bites twice. §4's honest gap is now *doing* the walks, not *being able to*.
-<!-- AQUACRM_SOURCE_END path="docs/development/todo.md" -->
+<!-- AQUACRM_SOURCE_END path="docs/development/todo-retired.md" -->
 
 ---

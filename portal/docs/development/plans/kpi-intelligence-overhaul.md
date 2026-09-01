@@ -1,6 +1,6 @@
 # Plan — KPI Intelligence overhaul (full)
 
-← [todo.md](../todo.md) · [development.md](../../development.md) · reference: [KPI dossier](../../workspace/kpi-intelligence.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md) · reference: [KPI dossier](../../workspace/kpi-intelligence.md)
 
 **Status: ✅ ALL 7 PHASES SHIPPED (2026-08-19); auditor PASSED (no eval surface, targets agency-scoped). ONE recorded decision is still unbuilt — see below — so this is not "100% complete".** _(Corrected 2026-08-20. Two things were wrong here: the status enumerated "phases 1/3/4/5A/5B/6/7" and silently dropped **Phase 2**, which did ship — the plan/target/forecast mode and the line/area/bar switch are in `_CommandIntelligenceWorkspace.tsx:348`, `:368`, `:619`, `:667`. And "100% complete" did not survive a source check.)_
 

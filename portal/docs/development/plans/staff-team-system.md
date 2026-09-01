@@ -1,6 +1,6 @@
 # Plan — Staff & Team system (multi-omega)
 
-← [todo.md](../todo.md) · [development.md](../../development.md) · reference: [Advisor](../../workspace/advisor.md), [Radar](../../workspace/radar.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md) · reference: [Advisor](../../workspace/advisor.md), [Radar](../../workspace/radar.md)
 
 **Status: ✅ COMPLETE — all 10 original phases shipped 2026-08-19** (logic-tested
 throughout, full suite green and typecheck-clean at that checkpoint). A later

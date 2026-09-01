@@ -1,6 +1,6 @@
 # Plan — Dev Console in the topbar (a mini console you never leave the app for)
 
-← [todo.md](../../todo.md) · [development.md](../../../development.md) · builds on [dev-team-portal.md](../dev-team-portal.md)
+← [todo.md](../../TODO.md) · [development.md](../../../development.md) · builds on [dev-team-portal.md](../dev-team-portal.md)
 
 **Status: ✅ BUILT — all 4 phases shipped + browser-verified on an isolated sandbox (`:3047`), 2026-08-20.**
 Suite 1894 pass / 1 pre-existing fail (`smoke-dev-team-portal` sidebar ids — unrelated, proved by reverting).

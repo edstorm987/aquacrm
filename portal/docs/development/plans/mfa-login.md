@@ -1,6 +1,6 @@
 # Plan — Wire MFA into login
 
-← [todo.md](../todo.md) · [development.md](../../development.md) · reference: [database dossier](../../workspace/database.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md) · reference: [database dossier](../../workspace/database.md)
 
 **Status: ALL FOUR PHASES BUILT (phases 3 + 4 on 2026-08-20, same day, second lane). Sessions carry the proven `aal`; magic-link + Google OAuth refuse MFA-enrolled accounts (fail-closed — they now REQUIRE `SUPABASE_SERVICE_ROLE_KEY` to mint anything); ten single-use scrypt-hashed recovery codes generate on the first TOTP-gated JSON sign-in, shown once, spendable in the login `code` field. Runtime-verified: `smoke-mfa.test.ts` (83 with `smoke-mfa-doors`) drives the real handlers. Leftovers, honestly: (1) both signup routes still mint sessions with no MFA check — low exposure (they refuse existing portal emails) but outside this lane's map; (2) recovery codes generate at first gated sign-in, not on the enrolment screen — the enrol/verify routes belong to the other lane; (3) recovery method built as backup codes (Ed's "backup codes vs owner-reset" decision was still open — guess made, confirm with Ed).**
 

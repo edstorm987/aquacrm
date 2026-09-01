@@ -1,6 +1,6 @@
 # Plan — Database Row-Level Security  🟠 mostly done, three real gaps left
 
-← [todo.md](../todo.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md)
 
 **Status: BUILDING — phases 1, 2 and 5 done; phase 3 written and waiting on Ed's `db push`; phase 4 first reduction landed 2026-08-20 (23→13 call sites, pinned). App-level `brand_enquiries` tenant isolation landed 2026-08-20 as defence-in-depth (see below). The headline premise of this plan was wrong and has been corrected.**
 

@@ -1,6 +1,6 @@
 # Plan — Battle Table overhaul
 
-← [todo.md](../todo.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md)
 
 **Status: BUILT (phases 1–5) — war room is the front door; the drill-in layer wears the same command chrome (P5 done 2026-08-20).**
 

@@ -1,6 +1,6 @@
 # Plan — Enquiry detail card (mirror the real form) + Import forms
 
-← [todo.md](../todo.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md)
 
 **Status: ✅ COMPLETE (P1–P5), 2026-08-19 — see [handoff](enquiry-detail-card-handoff.md).** Built, tested (29 dedicated tests; full suite green), and browser-verified end-to-end. Two enhancements left as commander-coordinated follow-ups (manual details → canonical `Person`; inline lead/contact/client re-linking). Nothing committed. Original plan below.
 

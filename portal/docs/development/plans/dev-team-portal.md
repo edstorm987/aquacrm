@@ -1,6 +1,6 @@
 # Plan — Dev Team portal (our own internal workspace) ⭐⭐
 
-← [todo.md](../todo.md) · [development.md](../../development.md) · supersedes/absorbs [dev-team-hub.md](dev-team-hub.md) + [dev-mode-demo-profiles.md](dev-mode-demo-profiles.md) + the built dev-docs work
+← [todo.md](../TODO.md) · [development.md](../../development.md) · supersedes/absorbs [dev-team-hub.md](dev-team-hub.md) + [dev-mode-demo-profiles.md](dev-mode-demo-profiles.md) + the built dev-docs work
 
 **Status: ✅ BUILT — core shipped + browser-verified (2026-08-19), then RESHAPED to six sections (2026-08-20). Finishing work tracked in [dev-team-finish.md](dev-team-finish.md); the topbar entry point in [dev-console-topbar.md](archive/dev-console-topbar.md).**
 

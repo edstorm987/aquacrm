@@ -2,66 +2,66 @@
 
 > Every active, completed and archived phased implementation plan and handoff.
 >
-> Consolidated 2026-08-31 from **57** source documents / **116,313 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-01 from **57** source documents / **116,313 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
-- [`docs/development/plans/advisor-omega-upgrade.md`](#source-docs-development-plans-advisor-omega-upgrade-md) — 434 words · `fcbc2bc9848b`
+- [`docs/development/plans/advisor-omega-upgrade.md`](#source-docs-development-plans-advisor-omega-upgrade-md) — 434 words · `8acb96eb6497`
 - [`docs/development/plans/aqua-engine-and-dev-team-plugin.md`](#source-docs-development-plans-aqua-engine-and-dev-team-plugin-md) — 587 words · `e75595be128a`
 - [`docs/development/plans/aqua-explorer-guided-help.md`](#source-docs-development-plans-aqua-explorer-guided-help-md) — 698 words · `594c1a8edcab`
 - [`docs/development/plans/aqua-tag-handoff.md`](#source-docs-development-plans-aqua-tag-handoff-md) — 2,708 words · `f13dd11ee6f3`
-- [`docs/development/plans/aqua-tag-system.md`](#source-docs-development-plans-aqua-tag-system-md) — 2,097 words · `1f183c8fb493`
-- [`docs/development/plans/archive/dev-console-topbar.md`](#source-docs-development-plans-archive-dev-console-topbar-md) — 1,157 words · `c94523eaf66e`
+- [`docs/development/plans/aqua-tag-system.md`](#source-docs-development-plans-aqua-tag-system-md) — 2,097 words · `ea0e5f1f6019`
+- [`docs/development/plans/archive/dev-console-topbar.md`](#source-docs-development-plans-archive-dev-console-topbar-md) — 1,157 words · `a2bb65e235b7`
 - [`docs/development/plans/archive/README.md`](#source-docs-development-plans-archive-readme-md) — 219 words · `74ead064f650`
-- [`docs/development/plans/battle-table-overhaul.md`](#source-docs-development-plans-battle-table-overhaul-md) — 1,281 words · `6f88568cdd07`
-- [`docs/development/plans/client-health.md`](#source-docs-development-plans-client-health-md) — 1,471 words · `340b63d1ac0d`
+- [`docs/development/plans/battle-table-overhaul.md`](#source-docs-development-plans-battle-table-overhaul-md) — 1,281 words · `f061cccbf7e3`
+- [`docs/development/plans/client-health.md`](#source-docs-development-plans-client-health-md) — 1,471 words · `051c7d4dc72d`
 - [`docs/development/plans/client-owned-form-data.md`](#source-docs-development-plans-client-owned-form-data-md) — 4,950 words · `fb884cee1005`
-- [`docs/development/plans/compliance-legal.md`](#source-docs-development-plans-compliance-legal-md) — 2,046 words · `6de22eae94ad`
+- [`docs/development/plans/compliance-legal.md`](#source-docs-development-plans-compliance-legal-md) — 2,046 words · `0085cdca2ac2`
 - [`docs/development/plans/configurable-access-and-workspace-parity.md`](#source-docs-development-plans-configurable-access-and-workspace-parity-md) — 2,675 words · `b1bb328b9156`
-- [`docs/development/plans/connect-flow-real-codes.md`](#source-docs-development-plans-connect-flow-real-codes-md) — 889 words · `6ca3989c9692`
+- [`docs/development/plans/connect-flow-real-codes.md`](#source-docs-development-plans-connect-flow-real-codes-md) — 889 words · `8f245e78dd8e`
 - [`docs/development/plans/database-separation.md`](#source-docs-development-plans-database-separation-md) — 2,312 words · `dacec6a22461`
 - [`docs/development/plans/dev-docs-handoff.md`](#source-docs-development-plans-dev-docs-handoff-md) — 1,619 words · `18658db39cef`
-- [`docs/development/plans/dev-docs.md`](#source-docs-development-plans-dev-docs-md) — 875 words · `f7335b26cc3e`
+- [`docs/development/plans/dev-docs.md`](#source-docs-development-plans-dev-docs-md) — 875 words · `c638ae635a10`
 - [`docs/development/plans/dev-editor-checklist.md`](#source-docs-development-plans-dev-editor-checklist-md) — 678 words · `5dc0638a8c7d`
 - [`docs/development/plans/dev-editor-engine.md`](#source-docs-development-plans-dev-editor-engine-md) — 1,220 words · `795fdad70637`
 - [`docs/development/plans/dev-editor-finish.md`](#source-docs-development-plans-dev-editor-finish-md) — 9,420 words · `56732b69c9ba`
 - [`docs/development/plans/dev-editor-inspector.md`](#source-docs-development-plans-dev-editor-inspector-md) — 547 words · `fc679ad8d5c2`
-- [`docs/development/plans/dev-mode-demo-profiles.md`](#source-docs-development-plans-dev-mode-demo-profiles-md) — 1,435 words · `0f260daa17df`
-- [`docs/development/plans/dev-team-finish.md`](#source-docs-development-plans-dev-team-finish-md) — 1,967 words · `b3a25b54c070`
-- [`docs/development/plans/dev-team-hub.md`](#source-docs-development-plans-dev-team-hub-md) — 1,358 words · `65a2ed401444`
+- [`docs/development/plans/dev-mode-demo-profiles.md`](#source-docs-development-plans-dev-mode-demo-profiles-md) — 1,435 words · `1e488b7c56d7`
+- [`docs/development/plans/dev-team-finish.md`](#source-docs-development-plans-dev-team-finish-md) — 1,967 words · `f11907a68752`
+- [`docs/development/plans/dev-team-hub.md`](#source-docs-development-plans-dev-team-hub-md) — 1,358 words · `d1904bce4c23`
 - [`docs/development/plans/dev-team-librarian-and-assistants.md`](#source-docs-development-plans-dev-team-librarian-and-assistants-md) — 1,104 words · `153ec94b50d7`
-- [`docs/development/plans/dev-team-portal.md`](#source-docs-development-plans-dev-team-portal-md) — 4,666 words · `679e21c1285c`
+- [`docs/development/plans/dev-team-portal.md`](#source-docs-development-plans-dev-team-portal-md) — 4,666 words · `e19a5f53d1d0`
 - [`docs/development/plans/dev-team-ui-polish.md`](#source-docs-development-plans-dev-team-ui-polish-md) — 712 words · `1b6fbba4578b`
 - [`docs/development/plans/enquiry-detail-card-handoff.md`](#source-docs-development-plans-enquiry-detail-card-handoff-md) — 1,100 words · `2588dbdb72f2`
-- [`docs/development/plans/enquiry-detail-card.md`](#source-docs-development-plans-enquiry-detail-card-md) — 898 words · `e4a7c738f477`
-- [`docs/development/plans/finance-command-surface.md`](#source-docs-development-plans-finance-command-surface-md) — 1,197 words · `3feac0643110`
-- [`docs/development/plans/freelancer-workspace-HANDOFF.md`](#source-docs-development-plans-freelancer-workspace-handoff-md) — 2,314 words · `53f164362fdb`
-- [`docs/development/plans/freelancer-workspace.md`](#source-docs-development-plans-freelancer-workspace-md) — 1,466 words · `bb875920ffcf`
+- [`docs/development/plans/enquiry-detail-card.md`](#source-docs-development-plans-enquiry-detail-card-md) — 898 words · `65c8484af1e5`
+- [`docs/development/plans/finance-command-surface.md`](#source-docs-development-plans-finance-command-surface-md) — 1,197 words · `4aa768e2e1a5`
+- [`docs/development/plans/freelancer-workspace-HANDOFF.md`](#source-docs-development-plans-freelancer-workspace-handoff-md) — 2,314 words · `36b7f6bd660c`
+- [`docs/development/plans/freelancer-workspace.md`](#source-docs-development-plans-freelancer-workspace-md) — 1,466 words · `5606024cd4c2`
 - [`docs/development/plans/fulfilment-template-system.md`](#source-docs-development-plans-fulfilment-template-system-md) — 2,642 words · `e0eb52399017`
 - [`docs/development/plans/inbox-actions-unification.md`](#source-docs-development-plans-inbox-actions-unification-md) — 698 words · `893c95da60d0`
 - [`docs/development/plans/information-architecture-v2.md`](#source-docs-development-plans-information-architecture-v2-md) — 893 words · `d2d34f2ce729`
-- [`docs/development/plans/internal-chat-attention.md`](#source-docs-development-plans-internal-chat-attention-md) — 434 words · `9122b0c133ea`
-- [`docs/development/plans/kpi-intelligence-overhaul.md`](#source-docs-development-plans-kpi-intelligence-overhaul-md) — 1,995 words · `73829e039f86`
+- [`docs/development/plans/internal-chat-attention.md`](#source-docs-development-plans-internal-chat-attention-md) — 434 words · `5f94a11ee09b`
+- [`docs/development/plans/kpi-intelligence-overhaul.md`](#source-docs-development-plans-kpi-intelligence-overhaul-md) — 1,995 words · `166a3cc9b521`
 - [`docs/development/plans/launch-order-and-blockers.md`](#source-docs-development-plans-launch-order-and-blockers-md) — 21,117 words · `e78a3cdc480d`
-- [`docs/development/plans/marketing-workspace-overhaul.md`](#source-docs-development-plans-marketing-workspace-overhaul-md) — 1,849 words · `bd9978c633e9`
-- [`docs/development/plans/meta-inbox-connect.md`](#source-docs-development-plans-meta-inbox-connect-md) — 1,197 words · `d6cced05adb9`
-- [`docs/development/plans/mfa-login.md`](#source-docs-development-plans-mfa-login-md) — 1,513 words · `0fd93f642387`
+- [`docs/development/plans/marketing-workspace-overhaul.md`](#source-docs-development-plans-marketing-workspace-overhaul-md) — 1,849 words · `c42bb1c185ed`
+- [`docs/development/plans/meta-inbox-connect.md`](#source-docs-development-plans-meta-inbox-connect-md) — 1,197 words · `48c3b40b0764`
+- [`docs/development/plans/mfa-login.md`](#source-docs-development-plans-mfa-login-md) — 1,513 words · `b48b0cc1945d`
 - [`docs/development/plans/my-tools-palette.md`](#source-docs-development-plans-my-tools-palette-md) — 721 words · `2c0e92ade761`
-- [`docs/development/plans/operations-command-surface.md`](#source-docs-development-plans-operations-command-surface-md) — 823 words · `12b5eadfe027`
-- [`docs/development/plans/plugin-data-erasure.md`](#source-docs-development-plans-plugin-data-erasure-md) — 3,211 words · `c3c5118204c0`
-- [`docs/development/plans/promote-trading-company.md`](#source-docs-development-plans-promote-trading-company-md) — 4,457 words · `c989e63654eb`
+- [`docs/development/plans/operations-command-surface.md`](#source-docs-development-plans-operations-command-surface-md) — 823 words · `89d4c7af83fa`
+- [`docs/development/plans/plugin-data-erasure.md`](#source-docs-development-plans-plugin-data-erasure-md) — 3,211 words · `890e117cab2c`
+- [`docs/development/plans/promote-trading-company.md`](#source-docs-development-plans-promote-trading-company-md) — 4,457 words · `2f9dd8a1af32`
 - [`docs/development/plans/public-bucket-HANDOFF.md`](#source-docs-development-plans-public-bucket-handoff-md) — 1,244 words · `2b7dca7e3698`
-- [`docs/development/plans/public-bucket.md`](#source-docs-development-plans-public-bucket-md) — 764 words · `3f33cbe50480`
+- [`docs/development/plans/public-bucket.md`](#source-docs-development-plans-public-bucket-md) — 764 words · `c13e9ce00332`
 - [`docs/development/plans/radar-upgrade.md`](#source-docs-development-plans-radar-upgrade-md) — 2,802 words · `76e0c777345b`
-- [`docs/development/plans/rls-enable.md`](#source-docs-development-plans-rls-enable-md) — 1,645 words · `b805e52e8625`
-- [`docs/development/plans/runtime-verification.md`](#source-docs-development-plans-runtime-verification-md) — 1,390 words · `f5df534faefb`
-- [`docs/development/plans/security-hardening.md`](#source-docs-development-plans-security-hardening-md) — 1,001 words · `473530125c79`
+- [`docs/development/plans/rls-enable.md`](#source-docs-development-plans-rls-enable-md) — 1,645 words · `3c04e50fde41`
+- [`docs/development/plans/runtime-verification.md`](#source-docs-development-plans-runtime-verification-md) — 1,390 words · `53ab85892882`
+- [`docs/development/plans/security-hardening.md`](#source-docs-development-plans-security-hardening-md) — 1,001 words · `0d7aed04ef8c`
 - [`docs/development/plans/settings-consolidation.md`](#source-docs-development-plans-settings-consolidation-md) — 561 words · `eb976f93f4af`
 - [`docs/development/plans/sop-engine.md`](#source-docs-development-plans-sop-engine-md) — 607 words · `6db77e50137b`
-- [`docs/development/plans/staff-team-system.md`](#source-docs-development-plans-staff-team-system-md) — 2,305 words · `7931339ee018`
+- [`docs/development/plans/staff-team-system.md`](#source-docs-development-plans-staff-team-system-md) — 2,305 words · `f580c2c43c6e`
 - [`docs/development/plans/storage-and-remaining-build.md`](#source-docs-development-plans-storage-and-remaining-build-md) — 1,535 words · `e64b344f91ca`
 - [`docs/development/plans/supabase-cutover-and-policy-drafts.md`](#source-docs-development-plans-supabase-cutover-and-policy-drafts-md) — 2,976 words · `31f7d543ae10`
-- [`docs/development/plans/you-deserve-it-upgrade.md`](#source-docs-development-plans-you-deserve-it-upgrade-md) — 1,191 words · `b6fb7d73e876`
+- [`docs/development/plans/you-deserve-it-upgrade.md`](#source-docs-development-plans-you-deserve-it-upgrade-md) — 1,191 words · `110d90851c7f`
 - [`public/health-check/DELIVERY-PLAN.md`](#source-public-health-check-delivery-plan-md) — 642 words · `623e142b3266`
 
 ---
@@ -70,10 +70,10 @@
 
 ## Source document — `docs/development/plans/advisor-omega-upgrade.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/advisor-omega-upgrade.md" sha256="fcbc2bc9848b27c6685119c5e6c9d28dc39cac5ad821dde511ea4939f30c79c0" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/advisor-omega-upgrade.md" sha256="8acb96eb6497ce3a1a87d5d7b0cb25065ad0520cb884425913e4692352e9be5b" -->
 # Plan — Advisor omega upgrade
 
-← [todo.md](../todo.md) · [development.md](../../development.md) · reference: [Advisor dossier](../../workspace/advisor.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md) · reference: [Advisor dossier](../../workspace/advisor.md)
 
 **Status: PLAN — awaiting Ed's vision.** Ed: *"advisor needs omega level upgrade,
 we've got too much to do with it."* Big, known, not-yet-specced — this captures
@@ -491,7 +491,7 @@ plan in flight._
 
 ## Source document — `docs/development/plans/aqua-tag-system.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/aqua-tag-system.md" sha256="1f183c8fb49357a3dc98ccb2af09cba353a8cb1ec889d45cad3fde5a64f867a4" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/aqua-tag-system.md" sha256="ea0e5f1f60190301828935f7f24fa29b681d9a1f197def916e88ad6da0aebe31" -->
 # Plan — The Aqua Tag as the backbone (the full system)
 
 > **Scope superseded in part on 2026-08-26:** “backbone” means consented
@@ -501,7 +501,7 @@ plan in flight._
 > of truth and starts a supervised local preview without requiring Aqua Tag.
 > This plan remains authoritative for the Tag capabilities it actually owns.
 
-← [todo.md](../todo.md) · [development.md](../../development.md) · reference: [aqua-tag dossier](../../workspace/aqua-tag.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md) · reference: [aqua-tag dossier](../../workspace/aqua-tag.md)
 
 > **📋 Current state / handoff record: [aqua-tag-handoff.md](aqua-tag-handoff.md)** — what's built across all 6 phases, verification levels, problems, decisions, coordination, and what's next. Read that for "where are we now."
 
@@ -685,10 +685,10 @@ plan in flight._
 
 ## Source document — `docs/development/plans/archive/dev-console-topbar.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/archive/dev-console-topbar.md" sha256="c94523eaf66e5ecaca87a272b9ae269e8a71ecf462750edf5dcb0a103471e5a6" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/archive/dev-console-topbar.md" sha256="a2bb65e235b7eab93c01fb03b6f9faf323369b4437fba01d10bea407e5ba12d7" -->
 # Plan — Dev Console in the topbar (a mini console you never leave the app for)
 
-← [todo.md](../../todo.md) · [development.md](../../../development.md) · builds on [dev-team-portal.md](../dev-team-portal.md)
+← [todo.md](../../TODO.md) · [development.md](../../../development.md) · builds on [dev-team-portal.md](../dev-team-portal.md)
 
 **Status: ✅ BUILT — all 4 phases shipped + browser-verified on an isolated sandbox (`:3047`), 2026-08-20.**
 Suite 1894 pass / 1 pre-existing fail (`smoke-dev-team-portal` sidebar ids — unrelated, proved by reverting).
@@ -867,10 +867,10 @@ Nothing else needs updating: the roadmap resolves plan names in both places.
 
 ## Source document — `docs/development/plans/battle-table-overhaul.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/battle-table-overhaul.md" sha256="6f88568cdd07ea906a6531beef56f372bfd99af17f659c5910275a8c50b1f8fa" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/battle-table-overhaul.md" sha256="f061cccbf7e3a918576a9162a549521aced9e29a073e8d1eae605e674d9186de" -->
 # Plan — Battle Table overhaul
 
-← [todo.md](../todo.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md)
 
 **Status: BUILT (phases 1–5) — war room is the front door; the drill-in layer wears the same command chrome (P5 done 2026-08-20).**
 
@@ -1012,10 +1012,10 @@ plan in flight._
 
 ## Source document — `docs/development/plans/client-health.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/client-health.md" sha256="340b63d1ac0d401d37bb987a3e16a0cff3134b73579132b09ce4e3173e74f5fa" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/client-health.md" sha256="051c7d4dc72dfad444b3065e18265b927310a50fe47fa7d486dc20c1a738fdd1" -->
 # Plan — Finish + connect Client Health (Aqua Health)
 
-← [todo.md](../todo.md) · [development.md](../../development.md) · ties to [aqua-tag-system](aqua-tag-system.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md) · ties to [aqua-tag-system](aqua-tag-system.md)
 
 **Status: ✅ SHIPPED — all 4 phases + browser-verified on `:3032` (2026-08-19); auditor PASSED the thin-data honesty contract. Every Ed decision resolved — nothing here is open.**
 
@@ -1694,10 +1694,10 @@ demonstrated. Delete it whenever.
 
 ## Source document — `docs/development/plans/compliance-legal.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/compliance-legal.md" sha256="6de22eae94ad46477f3274e7b1f213b29ea651d80fd51b19bf60938f933bd78a" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/compliance-legal.md" sha256="0085cdca2ac2d2bccc9affc7e9dc446b6605d178586118b335e1463d65d1c90c" -->
 # Plan — Compliance & Legal (GDPR, HIPAA track, evidence, breach defence)
 
-← [todo.md](../todo.md) · [operations-command-surface.md](operations-command-surface.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [operations-command-surface.md](operations-command-surface.md) · [development.md](../../development.md)
 
 **Status: PHASE 1 BUILT (posture + HIPAA track toggle), phases 2–5 open.**
 **KNOW-first** (Ed's steer): the goal is
@@ -2230,10 +2230,10 @@ combined automated and browser evidence without relying on source-shape tests.
 
 ## Source document — `docs/development/plans/connect-flow-real-codes.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/connect-flow-real-codes.md" sha256="6ca3989c969288cf606a26e31803e03aa13d073cbfbfa3553f9cb659a9352050" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/connect-flow-real-codes.md" sha256="8f245e78dd8e0763bcc8a7adc43fcdde56b7c7f640e0655e4abd0d71363b042a" -->
 # Plan — Connect flow: real emailed codes  ✅ shipped
 
-← [todo.md](../todo.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md)
 
 **Status: ✅ SHIPPED — all four phases (2026-08-19), code-complete and server-runtime-verified.** A mail sender is now connected (RESEND_API_KEY + MILESYMEDIA_FROM_EMAIL are set) — the one gate left is the code-step browser walk, tracked on the roadmap under `verify-sweep` and unblocked by `npm run sandbox:fork`.
 The dev bypass is replaced by a real emailed confirmation code.
@@ -2718,10 +2718,10 @@ plan in flight._
 
 ## Source document — `docs/development/plans/dev-docs.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/dev-docs.md" sha256="f7335b26cc3ee441b7b8702e25bb2a4c500e77f50edfb344316d4438181b47a3" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/dev-docs.md" sha256="c638ae635a10602c7baebc72208b48ffe1517c18754aee54db38d81f1bf07ef7" -->
 # Plan — Dev Docs: in-app docs browser (internal founder) ⚡
 
-← [todo.md](../todo.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md)
 
 **Status: ✅ SHIPPED — all 3 phases (2026-08-19), browser- and bundle-verified.**
 
@@ -4113,10 +4113,10 @@ Each step ships on its own and is suite-guarded.
 
 ## Source document — `docs/development/plans/dev-mode-demo-profiles.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/dev-mode-demo-profiles.md" sha256="0f260daa17df9cf992498408e2d8c0d053a49b7b4a13bc24f82331ef352bdd3b" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/dev-mode-demo-profiles.md" sha256="1e488b7c56d7c90c2af467902a90b52e23b36a446221b6ca76d0e7a88693d24d" -->
 # Plan — Dev Mode: demo-profile POV switcher (local/dev only) ⭐
 
-← [todo.md](../todo.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md)
 
 > ⭐ **EVOLVED → [dev-team-hub.md](dev-team-hub.md) (2026-08-19, Ed).** This plan's substrate
 > (entry route, `canUseDevMode()` gate, per-persona mint, cinematic load-in, demo seed) is now
@@ -4261,7 +4261,7 @@ plan in flight._
   `CLIENT_ROLE`) has **no dedicated landing** — it falls through to `/portal/clients/<id>`, the
   agency-side client workspace, which isn't right for a freelancer either. Freelancers need
   their **own limited workspace** (just their assigned one-time job / deliverables) before a
-  demo POV makes sense. Tracked as a build in [todo.md](../todo.md) (Staff/people domain — ties
+  demo POV makes sense. Tracked as a build in [todo.md](../TODO.md) (Staff/people domain — ties
   to `PeopleFreelancerJob`). Add the Freelancer POV to the switcher once that view exists.
 
 ## Done when (runtime-verified)
@@ -4278,10 +4278,10 @@ persona-fencing + return-to-real.
 
 ## Source document — `docs/development/plans/dev-team-finish.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/dev-team-finish.md" sha256="b3a25b54c0709386cb2a0654d1e076fd24add55836a52e0d62b83dcf6d20d334" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/dev-team-finish.md" sha256="f11907a68752460ef7aa76b76ce2d5817c93d59f729811f1e383568b11a7c33c" -->
 # Plan — Dev Team: finish it (icons · accuracy · Command Centre wiring)
 
-← [todo.md](../todo.md) · [development.md](../../development.md) · builds on [dev-team-portal.md](dev-team-portal.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md) · builds on [dev-team-portal.md](dev-team-portal.md)
 
 **Status: ✅ ALL 3 PHASES SHIPPED (2026-08-19) — NOT browser-verified.** Icons,
 accuracy and the Command Centre wiring are all in; full suite green (1816 pass /
@@ -4503,10 +4503,10 @@ still accepted.
 
 ## Source document — `docs/development/plans/dev-team-hub.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/dev-team-hub.md" sha256="65a2ed401444441ca4ffa16aa613785d177a235fbd1d799165d95e0a061ff330" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/dev-team-hub.md" sha256="d1904bce4c23638152a376cb1cf06fc6bffab669144337d13a83638b4a2ade5d" -->
 # Plan — Dev Team hub: one Inspection surface for Dev Mode ⭐
 
-← [todo.md](../todo.md) · [development.md](../../development.md) · reshapes [dev-mode-demo-profiles.md](dev-mode-demo-profiles.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md) · reshapes [dev-mode-demo-profiles.md](dev-mode-demo-profiles.md)
 
 **Status: ⤳ SUPERSEDED by [dev-team-portal.md](dev-team-portal.md)** (which expanded this hub into the full internal portal and was BUILT 2026-08-19). Kept for its reuse audit. **Nothing here is open** — the three browser bugs it carried are all fixed (verified in source 2026-08-20, see below), so this doc is a record, not a lane.
 
@@ -4760,10 +4760,10 @@ The Dev Team shell lane now delivers together, all in dev-team/layout.tsx + the 
 
 ## Source document — `docs/development/plans/dev-team-portal.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/dev-team-portal.md" sha256="679e21c1285c0beabf3ae5d09ce77b65167feca3a1d66cb92b59aa0b1f9cad34" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/dev-team-portal.md" sha256="e19a5f53d1d0c6e9e08493da32b1f5d0ede56e6b9e1e9d2306bf079418fc1913" -->
 # Plan — Dev Team portal (our own internal workspace) ⭐⭐
 
-← [todo.md](../todo.md) · [development.md](../../development.md) · supersedes/absorbs [dev-team-hub.md](dev-team-hub.md) + [dev-mode-demo-profiles.md](dev-mode-demo-profiles.md) + the built dev-docs work
+← [todo.md](../TODO.md) · [development.md](../../development.md) · supersedes/absorbs [dev-team-hub.md](dev-team-hub.md) + [dev-mode-demo-profiles.md](dev-mode-demo-profiles.md) + the built dev-docs work
 
 **Status: ✅ BUILT — core shipped + browser-verified (2026-08-19), then RESHAPED to six sections (2026-08-20). Finishing work tracked in [dev-team-finish.md](dev-team-finish.md); the topbar entry point in [dev-console-topbar.md](archive/dev-console-topbar.md).**
 
@@ -5203,10 +5203,10 @@ plan in flight._
 
 ## Source document — `docs/development/plans/enquiry-detail-card.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/enquiry-detail-card.md" sha256="e4a7c738f477f1b6fd286646575b41556353bee0e74b680d2eccce81b6203843" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/enquiry-detail-card.md" sha256="65c8484af1e5fa4b136ec4fe74cb9e0da85218266d27e4f073bedf64caee5421" -->
 # Plan — Enquiry detail card (mirror the real form) + Import forms
 
-← [todo.md](../todo.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md)
 
 **Status: ✅ COMPLETE (P1–P5), 2026-08-19 — see [handoff](enquiry-detail-card-handoff.md).** Built, tested (29 dedicated tests; full suite green), and browser-verified end-to-end. Two enhancements left as commander-coordinated follow-ups (manual details → canonical `Person`; inline lead/contact/client re-linking). Nothing committed. Original plan below.
 
@@ -5298,10 +5298,10 @@ plan in flight._
 
 ## Source document — `docs/development/plans/finance-command-surface.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/finance-command-surface.md" sha256="3feac064311052ddb1a65c6c5ffd76f56604e8172512fc06ed4950ef31d46077" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/finance-command-surface.md" sha256="4aa768e2e1a538e23e248c6ab2f17b5867f4b1b5ca384feb557ddffe0b078483" -->
 # Plan — Finance: multi-channel money visibility + one-button close ⭐
 
-← [todo.md](../todo.md) · [development.md](../../development.md) · **[HANDOFF »](../../context/archive/finance-command-surface-handoff.md)** (build record — problems, tests, decisions, what's left)
+← [todo.md](../TODO.md) · [development.md](../../development.md) · **[HANDOFF »](../../context/archive/finance-command-surface-handoff.md)** (build record — problems, tests, decisions, what's left)
 
 > **Current correction — updated 2026-08-26:** this is the dated delivery plan for the
 > 2026-08-19 P1–P5 batch, not a statement that Finance is production-complete.
@@ -5450,14 +5450,14 @@ plan in flight._
 
 ## Source document — `docs/development/plans/freelancer-workspace-HANDOFF.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/freelancer-workspace-HANDOFF.md" sha256="53f164362fdb7ab228cee39b14cd653ce23878c29fe9856a9667b5e09c949587" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/freelancer-workspace-HANDOFF.md" sha256="36b7f6bd660c57affc11bb094a0fd320b443ce5f8b48654538db9a19534a8cc7" -->
 # Freelancer Workspace + Management — Handoff & Current-State Record
 
 > 🗄 **Dated worker debrief — the PLAN is the authority on status.** For where `freelancer-workspace` stands, read [freelancer-workspace.md](freelancer-workspace.md) and its Status line; for where the project stands, [checklist.md](../checklist.md); for what changed, the one log [updates.md](../updates.md). This file is the story — what was built, what broke, what is left — and is kept for that, not as a second status page.
 >
 > *It stays in `plans/` rather than moving to [archive/](archive/README.md) for two reasons: `smoke-dev-tasks-parse.test.ts` pins it by name in the set of plans that parse to zero phases, and `archive/README.md` says not to archive a handoff another plan still points at as its brief.*
 
-← [freelancer-workspace.md](freelancer-workspace.md) (the plan) · [todo.md](../todo.md) ·
+← [freelancer-workspace.md](freelancer-workspace.md) (the plan) · [todo.md](../TODO.md) ·
 [status.md](../status.md) · [issues.md](../issues.md) #8 · [updates.md](../updates.md)
 
 > **Current supersession — 2026-08-25:** the “remote login NOT built” and “upload/message NOT
@@ -5732,10 +5732,10 @@ plan in flight._
 
 ## Source document — `docs/development/plans/freelancer-workspace.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/freelancer-workspace.md" sha256="bb875920ffcf8f48167d9e6609a91935c8f5427b487a9604fc5de2683aa67ee2" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/freelancer-workspace.md" sha256="5606024cd4c25dcf632734c52cdac7e5af061e853be8926caec976fd832ea82c" -->
 # Plan — Freelancer-facing workspace (the freelancer's own limited view)
 
-← [todo.md](../todo.md) · [issues.md](../issues.md) #8 · [dev-mode-demo-profiles.md](dev-mode-demo-profiles.md)
+← [todo.md](../TODO.md) · [issues.md](../issues.md) #8 · [dev-mode-demo-profiles.md](dev-mode-demo-profiles.md)
 
 **Status: P1–P6 ✅ shipped; issue #112 resolved 2026-08-25.** P5 is agency-side management
 and preview. P6 adds resumable Supabase/local/People provisioning, password-setup invitation,
@@ -6406,10 +6406,10 @@ a time, never all at once.
 
 ## Source document — `docs/development/plans/internal-chat-attention.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/internal-chat-attention.md" sha256="9122b0c133ea9b17892fbba6b131854f7915858934631a4300ae6d63c8bcbfdd" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/internal-chat-attention.md" sha256="5f94a11ee09b7a978fd9d8041713a2156a728379bee8c961cc2a0b1266674676" -->
 # Plan — Internal chat → owner's "Needs attention"
 
-← [todo.md](../todo.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md)
 
 **Status: CODE-COMPLETE (2026-08-19)** — all phases shipped; behavioural +
 end-to-end (alert-list) tests green; visual browser walk pending → Commander.
@@ -6479,10 +6479,10 @@ plan in flight._
 
 ## Source document — `docs/development/plans/kpi-intelligence-overhaul.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/kpi-intelligence-overhaul.md" sha256="73829e039f8645fe88055f89ea04f279c97d3010f940ff04fe0b6b09afeed751" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/kpi-intelligence-overhaul.md" sha256="166a3cc9b521d838aa97a809a0a43c23ab00a89c689220395f77ae27d55b19c9" -->
 # Plan — KPI Intelligence overhaul (full)
 
-← [todo.md](../todo.md) · [development.md](../../development.md) · reference: [KPI dossier](../../workspace/kpi-intelligence.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md) · reference: [KPI dossier](../../workspace/kpi-intelligence.md)
 
 **Status: ✅ ALL 7 PHASES SHIPPED (2026-08-19); auditor PASSED (no eval surface, targets agency-scoped). ONE recorded decision is still unbuilt — see below — so this is not "100% complete".** _(Corrected 2026-08-20. Two things were wrong here: the status enumerated "phases 1/3/4/5A/5B/6/7" and silently dropped **Phase 2**, which did ship — the plan/target/forecast mode and the line/area/bar switch are in `_CommandIntelligenceWorkspace.tsx:348`, `:368`, `:619`, `:667`. And "100% complete" did not survive a source check.)_
 
@@ -9175,10 +9175,10 @@ things I cannot move.
 
 ## Source document — `docs/development/plans/marketing-workspace-overhaul.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/marketing-workspace-overhaul.md" sha256="bd9978c633e900bbc9308a39c02541c55b37aba383033d154c62dfc3c22f83e9" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/marketing-workspace-overhaul.md" sha256="c42bb1c185edcea0927278109e6ac6c56b451994376a8f8e5116c30c307abe35" -->
 # Plan — Marketing workspace overhaul
 
-← [todo.md](../todo.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md)
 
 **Status: PHASES 1–4 + 6 SHIPPED; only Phase 5's people-map is open (waiting on a PostHog read-back — a dependency, not a decision).** _(Was labelled "BLOCKED … collapse the 10 views to ~5? — is Ed's" after Ed made that call and the cut shipped.)_ **Phase 6 is DONE:** two consolidations landed — the five channel tabs → one Channels view (2026-08-19), then **ten views → five** (2026-08-20, Ed's call): `pulse` · `demand` · `customers` · `channels` · `automations`, with `client-services` demoted to a header link that `?view=` still resolves. Every retired `?view=` still lands on its new home — `RETIRED_MARKETING_VIEWS` ([`_marketingViews.ts:88`](../../../src/app/portal/agency/marketing/_marketingViews.ts)) and `resolveMarketingView` ([`:132`](../../../src/app/portal/agency/marketing/_marketingViews.ts)).
 
@@ -9282,10 +9282,10 @@ plan in flight._
 
 ## Source document — `docs/development/plans/meta-inbox-connect.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/meta-inbox-connect.md" sha256="d6cced05adb94e8f7cc2c3c8f77cab924dedd36c048bf8472ccfa093e8b549c1" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/meta-inbox-connect.md" sha256="48c3b40b0764327d07b518f475879a5f50a2b075fe25a4adc0d94120ab5f9e41" -->
 # Plan — Meta social inbox: self-serve "Connect now"
 
-← [todo.md](../todo.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md)
 
 **Status: CODE-COMPLETE — all phases + webhook shipped 2026-08-19.** The
 Connect-now UI and notice states were browser-verified on port 3032. The remaining
@@ -9412,10 +9412,10 @@ plan in flight._
 
 ## Source document — `docs/development/plans/mfa-login.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/mfa-login.md" sha256="0fd93f64238782034e1d16ce8c8662ed78477f15a2e69ea584aefdb321488392" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/mfa-login.md" sha256="b48b0cc1945dbd6fba2bbeb1205e878f0e0ba157401a1de02067e2450a0193da" -->
 # Plan — Wire MFA into login
 
-← [todo.md](../todo.md) · [development.md](../../development.md) · reference: [database dossier](../../workspace/database.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md) · reference: [database dossier](../../workspace/database.md)
 
 **Status: ALL FOUR PHASES BUILT (phases 3 + 4 on 2026-08-20, same day, second lane). Sessions carry the proven `aal`; magic-link + Google OAuth refuse MFA-enrolled accounts (fail-closed — they now REQUIRE `SUPABASE_SERVICE_ROLE_KEY` to mint anything); ten single-use scrypt-hashed recovery codes generate on the first TOTP-gated JSON sign-in, shown once, spendable in the login `code` field. Runtime-verified: `smoke-mfa.test.ts` (83 with `smoke-mfa-doors`) drives the real handlers. Leftovers, honestly: (1) both signup routes still mint sessions with no MFA check — low exposure (they refuse existing portal emails) but outside this lane's map; (2) recovery codes generate at first gated sign-in, not on the enrolment screen — the enrol/verify routes belong to the other lane; (3) recovery method built as backup codes (Ed's "backup codes vs owner-reset" decision was still open — guess made, confirm with Ed).**
 
@@ -9660,10 +9660,10 @@ realm must not see live tools.
 
 ## Source document — `docs/development/plans/operations-command-surface.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/operations-command-surface.md" sha256="12b5eadfe027e5f8b7abed4ecca3aa9afef79cf5ad0d7fe16aa3cbf2842b90f1" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/operations-command-surface.md" sha256="89d4c7af83faebb95d6269d2076429fba50d612e6d1b6714cdce1b671668bfa7" -->
 # Plan — "Operations / System" surface (governance: compliance + security)
 
-← [todo.md](../todo.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md)
 
 **Status: PLAN — UNBLOCKED 2026-08-20.** Both open decisions are made: the sidebar surface is called **Operations** (Ed: "call it operations simple"), and compliance is **GDPR always on with HIPAA as a per-instance toggle** — see [compliance-legal.md](compliance-legal.md).
 A dedicated **Operations** surface housing the whole governance blindspot —
@@ -9767,10 +9767,10 @@ plan in flight._
 
 ## Source document — `docs/development/plans/plugin-data-erasure.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/plugin-data-erasure.md" sha256="c3c5118204c01a054d7cb9f4a71b6e089c456c05559498641dab145d38de4551" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/plugin-data-erasure.md" sha256="890e117cab2c28fbbc7f0f9e9f216b7ce49663ab5a2c4bbdfc3c06370199995e" -->
 # Plan — Plugin-data erasure hooks
 
-← [todo.md](../todo.md) · [development.md](../../development.md) · **[DPO review pack »](../../compliance/erasure-dpo-pack.md)**
+← [todo.md](../TODO.md) · [development.md](../../development.md) · **[DPO review pack »](../../compliance/erasure-dpo-pack.md)**
 
 **Status: P1 REWORK — local/plugin disposition coverage shipped; end-to-end completion is unsafe.** The local/fake-client suite covers the intended sweep, but live failures can still return success after the local client is deleted, the route then cannot normally retry, and the permanent activity message includes `clientName`. See [issues #24](../issues.md). A staged live run and DPO sign-off also remain.
 *bigger* than reported: `leads-pipeline`'s `onEraseClient` filtered `contact.clientId`,
@@ -10092,10 +10092,10 @@ plan in flight._
 
 ## Source document — `docs/development/plans/promote-trading-company.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/promote-trading-company.md" sha256="c989e63654eba46d94283f7ce29db8dbff00fcb7abce7c80e1ca40190f4a4f10" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/promote-trading-company.md" sha256="2f9dd8a1af3223cfc0bfd6996c6e6f138c7b61f7f647fc79f7890b278247dc4f" -->
 # Plan — Give a trading company a portal of its own
 
-← [todo.md](../todo.md) · [development.md](../../development.md) · related: [rls-enable.md](./rls-enable.md) · [plugin-data-erasure.md](./plugin-data-erasure.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md) · related: [rls-enable.md](./rls-enable.md) · [plugin-data-erasure.md](./plugin-data-erasure.md)
 
 **Status: BUILDING — phases 1–3 landed 2026-08-20 and were re-framed the same day onto the founder's settled model; phases 4–10 open.**
 
@@ -10474,10 +10474,10 @@ plan in flight._
 
 ## Source document — `docs/development/plans/public-bucket.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/public-bucket.md" sha256="3f33cbe50480103e24999e4b88b3b9cc7abf7003a7b541cc2bb5eac4c3709b4e" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/public-bucket.md" sha256="c13e9ce003324e418789701170cb335f2330e5fcbd3886d2cb43167181edcc76" -->
 # Plan — Wire the public storage bucket
 
-← [todo.md](../todo.md) · [development.md](../../development.md) · reference: [database dossier](../../workspace/database.md) · **[HANDOFF »](public-bucket-HANDOFF.md)** (state + the one remaining live verification)
+← [todo.md](../TODO.md) · [development.md](../../development.md) · reference: [database dossier](../../workspace/database.md) · **[HANDOFF »](public-bucket-HANDOFF.md)** (state + the one remaining live verification)
 
 **Status: ✅ DONE (2026-08-19, all phases; runtime-verified in memory, not yet
 browser/live-bucket).** `aquacrm-public` is wired end-to-end: approved
@@ -10745,10 +10745,10 @@ plan in flight._
 
 ## Source document — `docs/development/plans/rls-enable.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/rls-enable.md" sha256="b805e52e8625b9b11c716ea7566b250b877ffd9825cb52cd5dddbb5d5f8d4a54" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/rls-enable.md" sha256="3c04e50fde41f3c7e238d51a56388de3c84b404e99c0d4b404a68902dea56301" -->
 # Plan — Database Row-Level Security  🟠 mostly done, three real gaps left
 
-← [todo.md](../todo.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md)
 
 **Status: BUILDING — phases 1, 2 and 5 done; phase 3 written and waiting on Ed's `db push`; phase 4 first reduction landed 2026-08-20 (23→13 call sites, pinned). App-level `brand_enquiries` tenant isolation landed 2026-08-20 as defence-in-depth (see below). The headline premise of this plan was wrong and has been corrected.**
 
@@ -10960,10 +10960,10 @@ against every other plan in flight._
 
 ## Source document — `docs/development/plans/runtime-verification.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/runtime-verification.md" sha256="f5df534faefb3b4f9458d98c7619e3a6f47a07c5d767e5b713365814d01a1d65" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/runtime-verification.md" sha256="53ab858928823758de27eaa972823b247220c4ddc11d61b99c2bb3ffcdfb6c98" -->
 # Plan — Runtime verification of the critical flows  🔴 blocker
 
-← [todo.md](../todo.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md)
 
 **Status: BUILDING — access/Dev Workspace scope refreshed 2026-08-26.** Phase 1 is
 complete (isolated sandboxes). The route sweep was 60/60 at its checkpoint and
@@ -11114,10 +11114,10 @@ plan in flight._
 
 ## Source document — `docs/development/plans/security-hardening.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/security-hardening.md" sha256="473530125c791d026bd5761f855a4359803a65697da52e262c9b662a493595c4" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/security-hardening.md" sha256="0d7aed04ef8ce6ddde39d02901bacd95abf484a32cad697a2f8e12fd67af230a" -->
 # Plan — Security hardening + a security operations surface
 
-← [todo.md](../todo.md) · [operations-command-surface.md](operations-command-surface.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [operations-command-surface.md](operations-command-surface.md) · [development.md](../../development.md)
 
 **Status: Phase 0 DONE 2026-08-27 — central session revocation is enforced (`resolveFreshSessionUser()` in `auth.ts`, pinned by `smoke-session-revocation` 16/16); the dedicated posture surface is unbuilt; MFA and in-repo RLS implementation exist.** _(The 2026-08-24 exploit — a stale owner cookie creating a working external-AI token after owner→staff downgrade — is behaviourally dead: the same replay now returns 403 with no token.)_ Tighten security to the maximum and give it a **dedicated
 surface** — posture at a glance, attack monitoring/prevention, access management,
@@ -11376,10 +11376,10 @@ Overlaps `src/server/types.ts` (SHARED — take the lock).
 
 ## Source document — `docs/development/plans/staff-team-system.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/staff-team-system.md" sha256="7931339ee018fbf2c7cbdaaa904313d46a6a64469fe0303f0d2206b413170d29" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/staff-team-system.md" sha256="f580c2c43c6ea11a23ecfbe5e69daceb1b2939145869ae3c6eee4af52646c7f6" -->
 # Plan — Staff & Team system (multi-omega)
 
-← [todo.md](../todo.md) · [development.md](../../development.md) · reference: [Advisor](../../workspace/advisor.md), [Radar](../../workspace/radar.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md) · reference: [Advisor](../../workspace/advisor.md), [Radar](../../workspace/radar.md)
 
 **Status: ✅ COMPLETE — all 10 original phases shipped 2026-08-19** (logic-tested
 throughout, full suite green and typecheck-clean at that checkpoint). A later
@@ -12179,10 +12179,10 @@ a per-event database read to the collector is a performance decision.
 
 ## Source document — `docs/development/plans/you-deserve-it-upgrade.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/you-deserve-it-upgrade.md" sha256="b6fb7d73e876d6311417101c24f8ea85a534fb15a2e86b4d042c5927d1f1571e" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/you-deserve-it-upgrade.md" sha256="110d90851c7fac6928430e8afa322b23ba494a6495c2c3c5881bce4a8c4f532f" -->
 # Plan — "You Deserve It" upgrade (recognition, gifting & experiences)
 
-← [todo.md](../todo.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md)
 
 **Status: PLAN — one slice of Phase 3 already landed under the Finance plan (P5, 2026-08-19); see the File map before starting.**
 gifting tracker into a **recognition & experiences hub**: who deserves something

@@ -1,6 +1,6 @@
 # Plan — Internal chat → owner's "Needs attention"
 
-← [todo.md](../todo.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md)
 
 **Status: CODE-COMPLETE (2026-08-19)** — all phases shipped; behavioural +
 end-to-end (alert-list) tests green; visual browser walk pending → Commander.

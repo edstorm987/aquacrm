@@ -1,6 +1,6 @@
 # Plan — Dev Team: finish it (icons · accuracy · Command Centre wiring)
 
-← [todo.md](../todo.md) · [development.md](../../development.md) · builds on [dev-team-portal.md](dev-team-portal.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md) · builds on [dev-team-portal.md](dev-team-portal.md)
 
 **Status: ✅ ALL 3 PHASES SHIPPED (2026-08-19) — NOT browser-verified.** Icons,
 accuracy and the Command Centre wiring are all in; full suite green (1816 pass /

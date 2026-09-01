@@ -154,7 +154,7 @@ export function renderPlanMarkdown(input: NewPlanInput, now = Date.now()): strin
 
   return `# Plan — ${title}
 
-← [todo.md](../todo.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md)
 
 **Status: PLAN (not built).** Written by Ed from the Dev Team portal on ${todayIso(now)}. Priority: **${priority}**.
 

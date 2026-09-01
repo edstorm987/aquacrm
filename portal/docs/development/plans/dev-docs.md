@@ -1,6 +1,6 @@
 # Plan — Dev Docs: in-app docs browser (internal founder) ⚡
 
-← [todo.md](../todo.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md)
 
 **Status: ✅ SHIPPED — all 3 phases (2026-08-19), browser- and bundle-verified.**
 

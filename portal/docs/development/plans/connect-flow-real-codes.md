@@ -1,6 +1,6 @@
 # Plan — Connect flow: real emailed codes  ✅ shipped
 
-← [todo.md](../todo.md) · [development.md](../../development.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md)
 
 **Status: ✅ SHIPPED — all four phases (2026-08-19), code-complete and server-runtime-verified.** A mail sender is now connected (RESEND_API_KEY + MILESYMEDIA_FROM_EMAIL are set) — the one gate left is the code-step browser walk, tracked on the roadmap under `verify-sweep` and unblocked by `npm run sandbox:fork`.
 The dev bypass is replaced by a real emailed confirmation code.

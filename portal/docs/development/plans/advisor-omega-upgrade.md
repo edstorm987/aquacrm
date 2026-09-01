@@ -1,6 +1,6 @@
 # Plan — Advisor omega upgrade
 
-← [todo.md](../todo.md) · [development.md](../../development.md) · reference: [Advisor dossier](../../workspace/advisor.md)
+← [todo.md](../TODO.md) · [development.md](../../development.md) · reference: [Advisor dossier](../../workspace/advisor.md)
 
 **Status: PLAN — awaiting Ed's vision.** Ed: *"advisor needs omega level upgrade,
 we've got too much to do with it."* Big, known, not-yet-specced — this captures

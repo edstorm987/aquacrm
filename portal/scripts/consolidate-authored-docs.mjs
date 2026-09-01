@@ -108,7 +108,7 @@ function volumeFor(path) {
     path === "docs/development/checklist.md"
     || path === "docs/development/status.md"
     || path === "docs/development/roadmap.md"
-    || path === "docs/development/todo.md"
+    || path === "docs/development/todo-retired.md"
     || path === "docs/development/goals.md"
     || path === "docs/development/notes.md"
     || path === "docs/CURRENT-IMPLEMENTATION.md"
