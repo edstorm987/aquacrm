@@ -2,7 +2,7 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-09-01 from **21** source documents / **34,838 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-01 from **21** source documents / **34,896 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -25,7 +25,7 @@
 - [`docs/development/CLOUD-RESUME.md`](#source-docs-development-cloud-resume-md) — 500 words · `03458cdf18bf`
 - [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 2,209 words · `f8dfdfa9cfad`
 - [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,643 words · `38954d1ad66e`
-- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 1,884 words · `92bd16646ff9`
+- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 1,942 words · `ea307078c24b`
 - [`README.md`](#source-readme-md) — 437 words · `78865db66238`
 
 ---
@@ -3731,7 +3731,7 @@ Path prefix: /private/tmp/claude-501/.../scratchpad/
 
 ## Source document — `docs/development/TODO.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="92bd16646ff9c18525aea8158cb9a3e31bbf7f37cd548c50faca9959d454b70b" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="ea307078c24bb61fbfe44a2553c3cb82ab10e0fbbe12c61c0f7702c3eea3fd4b" -->
 # TODO — the one list
 
 **This is the only task list.** `checklist.md` and `todo-retired.md` are retired; they held the
@@ -3778,10 +3778,10 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Complete Editor dirty-state browser acceptance → [#19](issues.md) `⚠ disputed`
 - [~] Public showcase capability boundary and shared fixture are repaired → [#21](issues.md) `⚠ disputed`
 - [~] Continue repairing Website Editor API contracts; exact-scope AI gating is fixed and the dead-call ratchet is 14 → [#28](issues.md)
-- [~] Website Editor now has a narrow anonymous Ecommerce facade and Product Search is publishable; finish the remaining visitor backends and browser acceptance → [#29](issues.md) `⚠ disputed`
+- [~] Website Editor now has consent-aware Contact capture, published Blog summaries and a narrow anonymous Ecommerce facade; finish the remaining visitor backends, operator handoff and live-browser acceptance → [#29](issues.md) `⚠ disputed`
 - [~] Paid Memberships foundation is real; finish live Stripe lifecycle acceptance → [#33](issues.md)
 - [~] Build custom portal now reaches the canonical provisioner; mounted provision/reload acceptance remains → [#36](issues.md)
-- [~] Private-upload attach, post-storage replay/concurrency, rollback, anonymous failure redaction and client-file delete recovery are repaired; finish staged abandonment and legal/SOP/development delete finalisation → [#38](issues.md)
+- [~] Private-upload attach, staged-abandonment cleanup and recoverable client/legal/SOP/development deletion are implemented locally; finish payload-bound replay/claim rollback plus mounted, distributed and live Supabase/Blob acceptance → [#38](issues.md)
 - [~] Close the deal is reviewable and truthful; finish mounted agency/customer acceptance → [#39](issues.md)
 - [~] Proposal/receipt delivery is truthful; finish live-provider refusal/retry acceptance → [#40](issues.md)
 - [~] Proposal acceptance is version-bound; finish mounted public acceptance → [#41](issues.md)
@@ -3790,7 +3790,7 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Affiliate Stripe Connect is wired and gated; finish live Stripe payout acceptance → [#45](issues.md)
 - [~] Code/behaviour resolved — browser-accept the canonical client lifecycle → [#46](issues.md)
 - [~] Finish live visual acceptance for convergent client phase transitions → [#55](issues.md)
-- [~] Portal Editor, attention, expense-field, KPI, completed-history and phase-catalogue reads are truthful; finish the remaining communications/Finance/search/governance fallbacks and mounted fault acceptance → [#57](issues.md)
+- [~] Portal Editor, attention, expense-field, KPI, history, phase, website-routing, search, sender and combined-inbox reads are truthful; finish the remaining customer/Finance/Meta/governance fallbacks and mounted fault acceptance → [#57](issues.md)
 - [~] Membership/Affiliate dependency inventories exist; choose and enforce safe deletion policy → [#63](issues.md)
 - [~] SOP dependency inventory exists; choose and enforce safe deletion policy → [#64](issues.md)
 - [~] Company capital/governance invariants are guarded; finish mounted acceptance → [#65](issues.md)
@@ -3808,7 +3808,7 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Agency Marketing lead identity is canonical and race-safe in one process; distributed uniqueness remains → [#83](issues.md)
 - [~] Aqua Tags stop-routing is non-destructive; mounted click acceptance remains → [#85](issues.md)
 - [~] Make Aqua Tag form ingestion durable and order-independent → [#87](issues.md)
-- [~] Finish crash-coherent Dev Team truth writes → [#88](issues.md)
+- [~] Dev Team document bytes and attribution now recover together after process death; constrain the final non-cooperating direct-writer check/rename window → [#88](issues.md)
 - [~] Client schedules and Finance Plans are converged; mounted browser acceptance remains → [#121](issues.md)
 - [~] Membership changes now share one durable provider-backed command; mounted/live acceptance remains → [#122](issues.md)
 - [~] Membership webhooks now use a retryable scoped inbox; live-provider acceptance remains → [#123](issues.md)
@@ -3828,8 +3828,8 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Named core storage/provider waits are bounded; finish mounted/live acceptance → [#148](issues.md)
 - [~] Execute relational extraction, backfill, RLS and atomic-outbox phases; semantic Phase 0 and durable KPI identities are shipped, while outbox consumer acknowledgement/retry/dead-letter remains open → [data migration plan](../data/MIGRATION-PLAN.md)
 - [~] Editor `requiresPlugin` gating is code/behaviour-complete and an enabled tenant palette is browser-proven; compare disabled state and disable/reload preservation → [#183](issues.md)
-- [~] Build missing visitor backends, starting with consent-aware tenant contact capture → [#184](issues.md)
-- [ ] Classify and expose visitor-safe public module operations one route at a time → [#185](issues.md)
+- [~] Consent-aware tenant contact capture and published blog summaries are built; connect submissions to the operator inbox and implement/remove the remaining Forms/Reservations/Newsletter/Themes promises → [#184](issues.md)
+- [~] Fifteen exact public routes are now classified, including allowlisted Ecommerce and Website Editor visitor facades; continue one operation at a time → [#185](issues.md)
 - [~] Isolated server/browser lane is restored; finish the remaining critical-flow acceptance  <sub>from todo-retired.md, no issue number</sub>
 
 ## P2 — quality and correctness — 15
@@ -3837,7 +3837,7 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Reference validation remains a broad open class; the audited client-route slice is fixed → [#20](issues.md)
 - [~] Reconcile staff capability policy → [#25](issues.md)
 - [~] Shared plugin settings is operable across eight families and Marketing is truthful; wire/remove the remaining 27 unconsumed fields → [#44](issues.md)
-- [~] Stop mutation controls swallowing non-success responses → [#47](issues.md)
+- [~] Finance and Dev Team mutation controls now use checked response contracts; finish the remaining non-Finance/non-Dev mounted cohorts and literal forced-failure browser acceptance → [#47](issues.md)
 - [~] Finish Notepad autosave browser acceptance → [#54](issues.md)
 - [~] Mounted acceptance remains for settled utility controls → [#61](issues.md)
 - [~] Agency Marketing campaign writes and reports are truthful in one process; distributed mutation safety remains → [#84](issues.md)

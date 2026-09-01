@@ -11,7 +11,7 @@ import {
 import type {
   Horizon, ItemStatus, Roadmap, RoadmapItemView,
 } from "@/lib/server/dev/devTeamRoadmap";
-import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
+import { checkedDevTeamMutation } from "../_checkedMutation";
 
 // The roadmap, made touchable.
 //
@@ -55,27 +55,46 @@ function dueLabel(days: number | undefined): { text: string; overdue: boolean } 
   return { text: `in ${Math.round(days / 7)} weeks`, overdue: false };
 }
 
-type SavedItem = { status?: ItemStatus; horizon?: Horizon; target?: string };
+type SavedItem = { status: ItemStatus; horizon: Horizon; target?: string };
+type RoadmapWritePayload = {
+  ok?: boolean;
+  item?: SavedItem;
+  removed?: unknown;
+};
+
+function isSavedItem(value: unknown): value is SavedItem {
+  if (!value || typeof value !== "object") return false;
+  const item = value as Partial<SavedItem>;
+  return Boolean(
+    item.status && Object.hasOwn(STATUS_TONE, item.status)
+    && item.horizon && HORIZON_LANES.some(lane => lane.value === item.horizon)
+    && (item.target === undefined || typeof item.target === "string"),
+  );
+}
+
+function isRoadmapWriteSuccess(method: "POST" | "PATCH" | "DELETE", value: RoadmapWritePayload): boolean {
+  if (value.ok !== true) return false;
+  if (method === "DELETE") return Boolean(value.removed && typeof value.removed === "object");
+  return isSavedItem(value.item);
+}
 
 async function send(
   method: "POST" | "PATCH" | "DELETE", body: unknown,
 ): Promise<{ ok: boolean; error?: string; item?: SavedItem }> {
-  try {
-    const result = await checkedJsonMutation<{ ok?: boolean; item?: SavedItem }>("/api/portal/dev-team/roadmap", {
-      method,
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    }, {
-      fallback: "That didn't save.",
-      validate: value => value.ok === true,
-    });
-    // The server has the last word — it coerces the horizon to match the status.
-    // Handing that back lets the form show what was actually stored instead of
-    // sitting on a value that was overruled.
-    return { ok: true, item: result.item };
-  } catch (error) {
-    return { ok: false, error: mutationErrorMessage(error, "That didn't save.") };
-  }
+  const result = await checkedDevTeamMutation<RoadmapWritePayload>("/api/portal/dev-team/roadmap", {
+    method,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  }, {
+    fallback: method === "DELETE" ? "That couldn't be removed." : "That didn't save.",
+    validate: value => isRoadmapWriteSuccess(method, value),
+  });
+  if (!result.ok) return result;
+
+  // The server has the last word — it coerces the horizon to match the status.
+  // Handing that back lets the form show what was actually stored instead of
+  // sitting on a value that was overruled.
+  return { ok: true, item: result.value.item };
 }
 
 function TaskDot({ state }: { state: string }) {
@@ -124,8 +143,8 @@ function ItemCard({ item, hue }: { item: RoadmapItemView; hue: string }) {
     setBusy(true); setError("");
     const result = await send("DELETE", { id: item.id });
     setBusy(false);
-    setConfirming(false);
     if (!result.ok) { setError(result.error ?? ""); return; }
+    setConfirming(false);
     router.refresh();
   }
 

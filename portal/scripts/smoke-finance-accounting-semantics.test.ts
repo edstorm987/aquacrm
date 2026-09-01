@@ -198,4 +198,13 @@ test("Finance cash/accrual semantics stay selected-currency and agree across mou
     for (const page of [overview, reports, planning, budgetWorkspace]) assert.match(page, /FinanceCurrencyNav/);
     assert.match(budgets, /availableCurrencies=/);
   });
+
+  await t.test("Overview metric definition-list groups keep dt and dd as direct children", () => {
+    const overview = readFileSync(new URL("../src/built-ins/modules/agency-finance/src/pages/FounderDashboardPage.tsx", import.meta.url), "utf8");
+    const metric = overview.slice(overview.indexOf("function Metric("), overview.indexOf("function Row("));
+    assert.match(metric, /data-finance-tone=\{tone \?\? "income"\}>\s*<dt\b/);
+    assert.match(metric, /<\/dt>\s*<dd\b/);
+    assert.doesNotMatch(metric, /data-finance-tone=\{tone \?\? "income"\}>\s*<div\b/);
+    assert.match(metric, /<span aria-hidden="true" className="mm-finance-metric-icon/);
+  });
 });

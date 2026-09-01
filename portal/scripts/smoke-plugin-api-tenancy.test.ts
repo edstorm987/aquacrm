@@ -473,7 +473,7 @@ describe("reads never see the other tenant", () => {
 // ─── ARM 4: the public routes the peek exists for ─────────────────────────
 
 describe("public routes — the reason the peek exists — still work", () => {
-  it("the shipped public routes are exactly the thirteen, and each names its own module", () => {
+  it("the shipped public routes are exactly the fifteen, and each names its own module", () => {
     const publics = listPlugins()
       .filter(plugin => !plugin.id.startsWith("zz-"))
       .flatMap(plugin => plugin.api.filter(route => route.public === true).map(r => `${plugin.id}/${r.path}`))
@@ -492,6 +492,8 @@ describe("public routes — the reason the peek exists — still work", () => {
       "memberships/stripe/webhook",
       "public-funnel/hc-complete",
       "public-funnel/tool-complete",
+      "website-editor/public/blog/posts",
+      "website-editor/visitor/contact",
     ], "the public-route set changed — re-read the tenancy rule before shipping it");
   });
 

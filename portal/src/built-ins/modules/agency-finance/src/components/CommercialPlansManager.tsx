@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 import { addBusinessCalendarDays } from "@/lib/shared/formatDateTime";
 import type { CommercialPlanAssignment, Plan } from "../lib/domain";
 import { SUPPORTED_CURRENCIES } from "../lib/currencies";
+import { isFinanceMutationAck, isFinanceMutationEntity } from "../lib/mutationPayloads";
 
 interface ClientOption {
   id: string;
@@ -44,7 +46,7 @@ export function CommercialPlansManager({
     setBusy(plan.id);
     setNotice(null);
     try {
-      const response = await fetch(`${apiBase}/plans/update?id=${encodeURIComponent(plan.id)}`, {
+      const payload = await checkedJsonMutation<{ ok: boolean; plan?: Plan }>(`${apiBase}/plans/update?id=${encodeURIComponent(plan.id)}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -55,13 +57,15 @@ export function CommercialPlansManager({
           lockInFeeCents: plan.lockInFeeCents,
           active: plan.active,
         }),
+      }, {
+        fallback: "Plan could not be updated.",
+        validate: result => isFinanceMutationEntity(result, "plan"),
       });
-      const payload = await response.json().catch(() => null) as { ok?: boolean; error?: string; plan?: Plan } | null;
-      if (!response.ok || !payload?.ok || !payload.plan) throw new Error(payload?.error ?? "Plan could not be updated.");
-      setPlans(current => current.map(item => item.id === payload.plan?.id ? payload.plan : item));
+      const savedPlan = payload.plan as Plan;
+      setPlans(current => current.map(item => item.id === savedPlan.id ? savedPlan : item));
       setNotice("Plan template saved. Existing client schedules keep their snapshotted terms.");
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Plan could not be updated.");
+    } catch (requestError) {
+      setNotice(mutationErrorMessage(requestError, "Plan could not be updated."));
     } finally {
       setBusy(null);
     }
@@ -75,7 +79,7 @@ export function CommercialPlansManager({
     setBusy(`assign:${targetClientId}`);
     setNotice(null);
     try {
-      const response = await fetch("/api/tenants/client-payment-plans", {
+      await checkedJsonMutation<{ ok: boolean }>("/api/tenants/client-payment-plans", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -86,12 +90,14 @@ export function CommercialPlansManager({
           customerVisible: true,
           operationId: operationId("commercial-plan-assign"),
         }),
+      }, {
+        fallback: "Plan could not be assigned.",
+        validate: isFinanceMutationAck,
       });
-      const payload = await response.json().catch(() => null) as { ok?: boolean; error?: string } | null;
-      if (!response.ok || !payload?.ok) throw new Error(payload?.error ?? "Plan could not be assigned.");
       window.location.reload();
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Plan could not be assigned.");
+    } catch (requestError) {
+      setNotice(mutationErrorMessage(requestError, "Plan could not be assigned."));
+    } finally {
       setBusy(null);
     }
   }
@@ -100,7 +106,7 @@ export function CommercialPlansManager({
     setBusy(`cancel:${assignment.clientId}`);
     setNotice(null);
     try {
-      const response = await fetch("/api/tenants/client-payment-plans", {
+      await checkedJsonMutation<{ ok: boolean }>("/api/tenants/client-payment-plans", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -108,12 +114,14 @@ export function CommercialPlansManager({
           action: "cancel-finance-plan",
           operationId: operationId("commercial-plan-cancel"),
         }),
+      }, {
+        fallback: "Plan could not be cancelled.",
+        validate: isFinanceMutationAck,
       });
-      const payload = await response.json().catch(() => null) as { ok?: boolean; error?: string } | null;
-      if (!response.ok || !payload?.ok) throw new Error(payload?.error ?? "Plan could not be cancelled.");
       window.location.reload();
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Plan could not be cancelled.");
+    } catch (requestError) {
+      setNotice(mutationErrorMessage(requestError, "Plan could not be cancelled."));
+    } finally {
       setBusy(null);
     }
   }

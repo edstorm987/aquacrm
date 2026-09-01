@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 import { SUPPORTED_CURRENCIES } from "../lib/currencies";
+import { isFinanceMutationAck } from "../lib/mutationPayloads";
 
 // The Plans create form, as a client component.
 //
@@ -38,23 +40,29 @@ export function NewPlanForm({ apiBase, defaultCurrency }: { apiBase: string; def
         const data = new FormData(event.currentTarget);
         setBusy(true);
         setError("");
-        const response = await fetch(`${apiBase}/plans/create`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            tier: data.get("tier"),
-            label: String(data.get("label") ?? "").trim(),
-            monthlyAmountCents: Number(data.get("monthlyAmountCents") ?? 0),
-            currency: String(data.get("currency") ?? defaultCurrency),
-            lockInMonths: Number(data.get("lockInMonths") ?? 0),
-            lockInFeeCents: Number(data.get("lockInFeeCents") ?? 0),
-            idempotencyKey,
-          }),
-        });
-        const result = await response.json().catch(() => null);
-        setBusy(false);
-        if (!response.ok || !result?.ok) return setError(result?.error ?? "Plan could not be created.");
-        window.location.reload();
+        try {
+          await checkedJsonMutation<{ ok: boolean }>(`${apiBase}/plans/create`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              tier: data.get("tier"),
+              label: String(data.get("label") ?? "").trim(),
+              monthlyAmountCents: Number(data.get("monthlyAmountCents") ?? 0),
+              currency: String(data.get("currency") ?? defaultCurrency),
+              lockInMonths: Number(data.get("lockInMonths") ?? 0),
+              lockInFeeCents: Number(data.get("lockInFeeCents") ?? 0),
+              idempotencyKey,
+            }),
+          }, {
+            fallback: "Plan could not be created.",
+            validate: isFinanceMutationAck,
+          });
+          window.location.reload();
+        } catch (requestError) {
+          setError(mutationErrorMessage(requestError, "Plan could not be created."));
+        } finally {
+          setBusy(false);
+        }
       }}
     >
       <label>Tier

@@ -193,6 +193,15 @@ export interface ElementVisibility {
 export interface ElementContext {
   agencyId: string;
   clientId?: string;
+  /** Published website identity used by visitor-safe server facades. */
+  siteId?: string;
+  pageId?: string;
+  /**
+   * True only when the host is rendering an actually published website.
+   * Editor canvases and draft previews carry the same ids for fidelity but
+   * must not turn visitor blocks into live mutation surfaces.
+   */
+  publishedWebsite?: boolean;
   productId?: string;
   stageId?: string;
   records?: Record<string, unknown>;

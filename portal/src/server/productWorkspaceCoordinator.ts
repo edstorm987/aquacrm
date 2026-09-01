@@ -1,5 +1,6 @@
 import "server-only";
 
+import { AsyncLocalStorage } from "node:async_hooks";
 import crypto from "node:crypto";
 
 import { withDevFileTransaction } from "@/lib/server/dev/devFileTransaction";
@@ -19,6 +20,13 @@ interface RemoteLease {
   state: "claimed" | "held";
   leaseExpiresAt: number;
 }
+
+interface RemoteLockScope {
+  active: boolean;
+  pending: Set<Promise<unknown>>;
+}
+
+const heldRemoteLocks = new AsyncLocalStorage<ReadonlyMap<string, RemoteLockScope>>();
 
 export class ProductWorkspaceBusyError extends Error {
   constructor() {
@@ -71,6 +79,24 @@ async function withRemoteLock<T>(
   operation: () => Promise<T>,
 ): Promise<T> {
   const realmId = getActiveDataRealmId();
+  const lockIdentity = JSON.stringify([backend, realmId, key]);
+  const inheritedLocks = heldRemoteLocks.getStore();
+  const inheritedScope = inheritedLocks?.get(lockIdentity);
+  // PortalState transactions legitimately compose. In particular, a private
+  // object lifecycle transaction can call a client metadata transaction while
+  // the generic Postgres backend maps both logical lanes onto its one whole-
+  // blob lock. Only the active lock-owning async call chain may bypass the
+  // second acquisition; unrelated requests still acquire the durable lease.
+  if (inheritedScope?.active) {
+    const nested = Promise.resolve().then(operation);
+    inheritedScope.pending.add(nested);
+    void nested.then(
+      () => { inheritedScope.pending.delete(nested); },
+      () => { inheritedScope.pending.delete(nested); },
+    );
+    return nested;
+  }
+
   const holder = holderId();
   const deadline = Date.now() + WAIT_MS;
   let delayMs = 30;
@@ -113,9 +139,20 @@ async function withRemoteLock<T>(
   };
   scheduleRefresh();
 
+  const scope: RemoteLockScope = { active: true, pending: new Set() };
+  const nextHeldLocks = new Map(inheritedLocks);
+  nextHeldLocks.set(lockIdentity, scope);
   try {
-    return await operation();
+    return await heldRemoteLocks.run(nextHeldLocks, operation);
   } finally {
+    // AsyncLocalStorage is also inherited by work that escaped without being
+    // awaited. Drain any reentrant work that started while this lease was
+    // active, then invalidate the scope before releasing so later work cannot
+    // mistake a stale context for ownership of this lease.
+    while (scope.pending.size) {
+      await Promise.allSettled([...scope.pending]);
+    }
+    scope.active = false;
     stopped = true;
     if (refreshTimer) clearTimeout(refreshTimer);
     await refreshInFlight.catch(() => undefined);

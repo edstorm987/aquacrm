@@ -16,6 +16,7 @@ import { useState } from "react";
 
 import { DEV_MODE_LOADIN_KEY } from "@/lib/chrome/devModeLoadIn";
 
+import { checkedDevTeamMutation } from "../_checkedMutation";
 import { ACCENT, ACCENT_SOFT, Pill } from "../_ui";
 
 // Client half of Dev Team → Inspector. Renders the seeded demo POVs as cards and
@@ -78,23 +79,25 @@ const PROFILES: Profile[] = [
   },
 ];
 
+function isLocalRedirect(value: unknown): value is string {
+  // A double slash is protocol-relative, while `/\\host` is normalised to the
+  // same thing by WHATWG URL parsing in HTTP(S). Accept one leading slash and
+  // no backslash so a checked success payload cannot navigate off-origin.
+  return typeof value === "string" && /^\/(?!\/)/.test(value) && !value.includes("\\");
+}
+
 async function postDevMode(
   body: Record<string, unknown>,
-): Promise<{ ok?: boolean; redirect?: string; error?: string }> {
-  const response = await fetch("/api/auth/dev-mode", {
+) {
+  return checkedDevTeamMutation<{ ok?: boolean; redirect?: string }>("/api/auth/dev-mode", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
+  }, {
+    fallback: "Dev Mode could not be changed.",
+    validate: value => value.ok === true
+      && isLocalRedirect(value.redirect),
   });
-  const result = (await response.json().catch(() => ({}))) as {
-    ok?: boolean;
-    redirect?: string;
-    error?: string;
-  };
-  if (!response.ok || !result.ok) {
-    throw new Error(result.error || "Dev Mode could not be changed.");
-  }
-  return result;
 }
 
 export function InspectorClient({
@@ -116,7 +119,11 @@ export function InspectorClient({
       // `enter` re-mints as the demo owner and stashes the signed return path
       // that `switch` (and Exit Dev Mode) rely on.
       if (!active) {
-        await postDevMode({ action: "enter" });
+        const entered = await postDevMode({ action: "enter" });
+        if (!entered.ok) {
+          setError(entered.error);
+          return;
+        }
       }
       // Hand the shared cinematic the persona so it plays on arrival (the same
       // one-shot sessionStorage handoff DevModeSwitcher uses).
@@ -126,15 +133,18 @@ export function InspectorClient({
         /* private mode — no cinematic, still switches */
       }
       const result = await postDevMode({ action: "switch", persona });
-      window.location.assign(result.redirect || "/portal/agency");
-    } catch (err) {
-      try {
-        window.sessionStorage.removeItem(DEV_MODE_LOADIN_KEY);
-      } catch {
-        /* ignore */
+      if (!result.ok) {
+        try {
+          window.sessionStorage.removeItem(DEV_MODE_LOADIN_KEY);
+        } catch {
+          /* ignore */
+        }
+        setError(result.error);
+        return;
       }
+      window.location.assign(result.value.redirect!);
+    } finally {
       setBusy(null);
-      setError(err instanceof Error ? err.message : "Could not switch profile.");
     }
   }
 

@@ -314,6 +314,20 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
       : null);
   }
 
+  async function retryPendingDeletion(sop: SopDocument) {
+    setError("");
+    const response = await fetch(`/api/portal/sops?id=${encodeURIComponent(sop.id)}`, { method: "DELETE" }).catch(() => null);
+    const result = await response?.json().catch(() => null) as { ok?: boolean; error?: string; detail?: string } | null;
+    if (response?.ok && result?.ok) {
+      setSops(current => current.filter(item => item.id !== sop.id));
+      return;
+    }
+    setSops(current => current.map(item => item.id === sop.id
+      ? { ...item, deleteState: "delete-failed", deleteError: result?.detail ?? result?.error ?? "Storage deletion is still unavailable." }
+      : item));
+    setError(result?.error ?? "Deletion is still queued for recovery.");
+  }
+
   async function deleteCategory() {
     if (!deletingCategory) return;
     setError("");
@@ -509,7 +523,7 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
                 <span className="mm-area-icon grid size-10 shrink-0 place-items-center rounded-md">
                   {resourceIcon(sop)}
                 </span>
-                <button type="button" disabled={!canManageGuides} onClick={() => sop.kind === "interactive" ? editComposer(sop) : sop.kind === "written" ? setEditor({
+                <button type="button" disabled={!canManageGuides || Boolean(sop.deleteState)} onClick={() => sop.kind === "interactive" ? editComposer(sop) : sop.kind === "written" ? setEditor({
                   id: sop.id,
                   title: sop.title,
                   category: sop.category ?? "",
@@ -519,16 +533,16 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
                 }) : setEditingFile(sop)} className="min-w-0 flex-1 text-left">
                   <span className="block truncate text-sm font-semibold text-black/80">{sop.title}</span>
                   <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-black/40">
-                    <span>{resourceLabel(sop)}{sop.fileName ? ` · ${sop.fileName}` : ""}</span>
+                    <span>{sop.deleteState ? "Sensitive details hidden during deletion recovery" : `${resourceLabel(sop)}${sop.fileName ? ` · ${sop.fileName}` : ""}`}</span>
                     {sopCategories(sop).length ? <span>{sopCategories(sop).join(" · ")}</span> : null}
                     <span>Updated {formatDate(sop.updatedAt)}</span>
                   </span>
                   {sop.tags.length ? <span className="mt-2 flex flex-wrap gap-1">{sop.tags.slice(0, 5).map(tag => <span key={tag} className="rounded bg-black/[0.045] px-1.5 py-0.5 text-[10px] font-medium text-black/50">{tag}</span>)}</span> : null}
                 </button>
                 <div className="flex shrink-0 items-center gap-1 self-end sm:self-auto">
-                  {sop.kind === "file" ? <a href={`/api/portal/sops/content?id=${encodeURIComponent(sop.id)}`} target="_blank" rel="noreferrer" title="Open file" className="grid size-9 place-items-center rounded-md text-black/45 hover:bg-black/[0.04] hover:text-black"><Download size={16} /></a> : null}
+                  {sop.deleteState ? <><span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${sop.deleteState === "delete-failed" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-800"}`}>{sop.deleteState === "delete-failed" ? "Delete failed" : "Deleting"}</span>{canManageGuides ? <button type="button" onClick={() => void retryPendingDeletion(sop)} className="min-h-9 rounded-md border border-red-200 px-3 text-xs font-semibold text-red-700">Retry delete</button> : null}</> : <>{sop.kind === "file" ? <a href={`/api/portal/sops/content?id=${encodeURIComponent(sop.id)}`} target="_blank" rel="noreferrer" title="Open file" className="grid size-9 place-items-center rounded-md text-black/45 hover:bg-black/[0.04] hover:text-black"><Download size={16} /></a> : null}
                   {canManageGuides ? <><button type="button" title="Move, categorise or tag SOP" onClick={() => setOrganisingSop(sop)} className="grid size-9 place-items-center rounded-md text-black/40 hover:bg-black/[0.04] hover:text-black"><FolderInput size={16} /></button>
-                  <button type="button" title="Delete SOP" onClick={() => void openRetirement(sop)} className="grid size-9 place-items-center rounded-md text-black/35 hover:bg-red-50 hover:text-red-700"><Trash2 size={16} /></button></> : null}
+                  <button type="button" title="Delete SOP" onClick={() => void openRetirement(sop)} className="grid size-9 place-items-center rounded-md text-black/35 hover:bg-red-50 hover:text-red-700"><Trash2 size={16} /></button></> : null}</>}
                 </div>
               </article>
             )) : <div className="mm-surface-card rounded-lg border border-dashed border-black/15 px-4 py-12 text-center text-sm text-black/45">

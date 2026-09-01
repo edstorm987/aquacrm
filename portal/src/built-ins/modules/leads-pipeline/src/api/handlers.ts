@@ -5,6 +5,7 @@
 // rule violation.
 
 import type { PluginCtx } from "../lib/aquaPluginTypes";
+import { claimStagedPrivateUploadsForOwnership, commitStagedPrivateUploadOwnership } from "@/lib/server/privateObjectLifecycle";
 import { containerFor } from "../server/foundationAdapter";
 import { addCard, getPipelineBySlug, listCardsByAgency, moveCard } from "@/server/pipelines";
 import { createClient, getClientForAgency, listClients, updateClient } from "@/server/tenants";
@@ -2195,7 +2196,25 @@ export async function createCampaignHandler(req: Request, ctx: PluginCtx): Promi
     return badRequest("audienceFilter required (at minimum {}).");
   }
   try {
-    const c = await buildContainer(ctx).campaigns.create(body, ctx.actor);
+    const campaigns = buildContainer(ctx).campaigns;
+    const stagedAsset = body.creative?.asset;
+    if (stagedAsset?.storageKey) await claimStagedPrivateUploadsForOwnership({
+      agencyId: ctx.agencyId,
+      purpose: "campaign-asset",
+      ...(stagedAsset.id ? { objectIds: [stagedAsset.id] } : { storageKeys: [stagedAsset.storageKey] }),
+    });
+    const create = () => campaigns.create(body, ctx.actor);
+    const c = stagedAsset?.storageKey
+      ? await commitStagedPrivateUploadOwnership({
+        agencyId: ctx.agencyId,
+        purpose: "campaign-asset",
+        ...(stagedAsset.id ? { objectIds: [stagedAsset.id] } : { storageKeys: [stagedAsset.storageKey] }),
+        commit: async () => {
+          const value = await create();
+          return { ownerId: value.id, value };
+        },
+      })
+      : await create();
     return json({ ok: true, campaign: c }, 201);
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
@@ -2210,7 +2229,29 @@ export async function updateCampaignHandler(req: Request, ctx: PluginCtx): Promi
   const body = await safeJson<UpdateCampaignPatch>(req);
   if (!body) return badRequest("body required.");
   try {
-    const c = await buildContainer(ctx).campaigns.update(id, body, ctx.actor);
+    const campaigns = buildContainer(ctx).campaigns;
+    const existing = await campaigns.get(id);
+    if (!existing) return notFound("campaign_not_found");
+    const stagedAsset = body.creative?.asset;
+    const isNewAsset = Boolean(stagedAsset?.storageKey && stagedAsset.storageKey !== existing.creative?.asset?.storageKey);
+    if (stagedAsset?.storageKey && isNewAsset) await claimStagedPrivateUploadsForOwnership({
+      agencyId: ctx.agencyId,
+      purpose: "campaign-asset",
+      ...(stagedAsset.id ? { objectIds: [stagedAsset.id] } : { storageKeys: [stagedAsset.storageKey] }),
+    });
+    const update = () => campaigns.update(id, body, ctx.actor);
+    const c = stagedAsset?.storageKey && isNewAsset
+      ? await commitStagedPrivateUploadOwnership({
+        agencyId: ctx.agencyId,
+        purpose: "campaign-asset",
+        ...(stagedAsset.id ? { objectIds: [stagedAsset.id] } : { storageKeys: [stagedAsset.storageKey] }),
+        commit: async () => {
+          const value = await update();
+          if (!value) throw new Error("campaign_not_found");
+          return { ownerId: value.id, value };
+        },
+      })
+      : await update();
     if (!c) return notFound("campaign_not_found");
     return json({ ok: true, campaign: c });
   } catch (err) {

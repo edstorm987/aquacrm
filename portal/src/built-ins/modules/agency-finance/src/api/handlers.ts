@@ -20,6 +20,7 @@ import { assertKnownFields, assertNonEmptyText, assertTimestamp } from "../lib/r
 import { resolveFinanceDefaultCurrency } from "@/lib/server/finance/financeCurrency";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/auth";
 import { requireCurrentClientWorkspaceElementAccess, type ClientWorkspaceElementLevel } from "@/lib/server/access/clientWorkspaceElementAccess";
+import { claimStagedPrivateUploadsForOwnership, commitStagedPrivateUploadOwnership } from "@/lib/server/privateObjectLifecycle";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -270,10 +271,27 @@ export async function createExpenseHandler(req: Request, ctx: PluginCtx): Promis
   const denied = await clientCommercialGate(body.clientId, "use");
   if (denied) return denied;
   try {
+    const expenses = buildContainer(ctx).expenses;
+    if (body.attachments?.length) await claimStagedPrivateUploadsForOwnership({
+      agencyId: ctx.agencyId,
+      purpose: "expense-attachment",
+      objectIds: body.attachments.map(attachment => attachment.id),
+    });
     // `body.idempotencyKey` (typed on CreateExpenseInput) forwards straight
     // through: a double-clicked "Add expense" resubmits the same key and gets
     // the first expense back rather than a second row. See lib/idempotency.ts.
-    const { expense, deduped } = await buildContainer(ctx).expenses.createDetailed({ ...body, customFields: body.customFields ?? {} }, ctx.actor, defaultCurrency(ctx));
+    const create = () => expenses.createDetailed({ ...body, customFields: body.customFields ?? {} }, ctx.actor, defaultCurrency(ctx));
+    const { expense, deduped } = body.attachments?.length
+      ? await commitStagedPrivateUploadOwnership({
+        agencyId: ctx.agencyId,
+        purpose: "expense-attachment",
+        objectIds: body.attachments.map(attachment => attachment.id),
+        commit: async () => {
+          const value = await create();
+          return { ownerId: value.expense.id, value };
+        },
+      })
+      : await create();
     return json({ ok: true, expense, deduped }, 201);
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
@@ -292,7 +310,26 @@ export async function updateExpenseHandler(req: Request, ctx: PluginCtx): Promis
     const denied = await clientCommercialGate(existing.clientId, "use")
       ?? await clientCommercialGate(body.patch?.clientId, "use");
     if (denied) return denied;
-    const exp = await expenses.update(body.id, { ...(body.patch ?? {}), customFields: body.patch?.customFields ?? existing.customFields ?? {} }, ctx.actor);
+    const existingAttachmentIds = new Set(existing.attachments?.map(attachment => attachment.id) ?? []);
+    const newAttachments = (body.patch?.attachments ?? []).filter(attachment => !existingAttachmentIds.has(attachment.id));
+    if (newAttachments.length) await claimStagedPrivateUploadsForOwnership({
+      agencyId: ctx.agencyId,
+      purpose: "expense-attachment",
+      objectIds: newAttachments.map(attachment => attachment.id),
+    });
+    const update = () => expenses.update(body.id, { ...(body.patch ?? {}), customFields: body.patch?.customFields ?? existing.customFields ?? {} }, ctx.actor);
+    const exp = newAttachments.length
+      ? await commitStagedPrivateUploadOwnership({
+        agencyId: ctx.agencyId,
+        purpose: "expense-attachment",
+        objectIds: newAttachments.map(attachment => attachment.id),
+        commit: async () => {
+          const value = await update();
+          if (!value) throw new Error("expense not found");
+          return { ownerId: value.id, value };
+        },
+      })
+      : await update();
     return exp ? json({ ok: true, expense: exp }) : notFound("expense not found");
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));

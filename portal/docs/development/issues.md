@@ -7,7 +7,7 @@ when you find something out of scope; check here before assuming something is a
 new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ known/by-design.
 
 > **The register was refreshed against source on 2026-08-24, continued in the browser on
-> 2026-08-25 and reconciled through the 2026-08-27 implementation checkpoints.** Fixed items
+> 2026-08-25 and reconciled through the 2026-09-01 implementation checkpoints.** Fixed items
 > are marked **✅ RESOLVED** with the file:line that proves it, and **kept, not
 > deleted** — history is useful, a false open item costs a worker a day. Item
 > numbers are **permanent** (other docs link to `issues #N`); a resolved item
@@ -1266,8 +1266,9 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     unfinished controls, and add a test that resolves every literal editor API call
     through the actual plugin/app route table.
 
-29. **P1 PARTLY REPAIRED 2026-09-01 — Ecommerce has a narrow, tenant-scoped
-    anonymous storefront facade; the other visitor backends remain open.** Published
+29. **P1 PARTLY REPAIRED 2026-09-01 — Contact capture, Blog summaries and
+    Ecommerce now have narrow tenant-scoped visitor facades; the other visitor
+    backends remain open.** Published
     sites now carry their exact agency/client scope into separate public catalogue,
     product-detail, quote, checkout and opaque-session receipt routes. Operator routes
     stay session-gated, hidden/archived catalogue rows stay private, prices are
@@ -1276,15 +1277,23 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     signature-authorised. Product Search now uses that facade and is no longer falsely
     disabled as “Not connected yet”. The dispatcher-level storefront proof passes
     **6/6**, the visitor-backend ratchet passes **11/11**, and the wider checkout/order/
-    tenancy slice passes **51/51**.
+    tenancy slice passes **51/51**. Website Editor also exposes a strict exact-install
+    Contact command and a published-summary-only Blog read. Contact requires affirmative
+    versioned consent whose exact displayed statement is digest-bound to the submission;
+    it persists one atomic receipt/submission record without returning operator data.
+    Focused visitor/backend proof passes **27/27**.
 
-    This does **not** close the issue. Consent-aware tenant contact capture, Forms,
-    Bookings, Newsletter, Theme and Blog visitor routes and the Donation contract are
-    still absent or deliberately labelled unavailable; they are tracked here and in
-    **#184/#185**. Mounted published-site search → quote → checkout → receipt acceptance,
-    plus a real Stripe/custom-domain run, also remains.
+    This does **not** close the issue. Contact submissions still need their intended
+    operator inbox/notification workflow. Forms, Bookings/Reservations, Newsletter and
+    Theme remain absent or deliberately labelled unavailable; Blog Post's host-renderer
+    path, the Affiliate promises and the Donation recurrence contract remain incomplete.
+    They are tracked here and in **#184/#185**. Mounted anonymous Contact/Blog/Ecommerce
+    acceptance, published-site search → quote → checkout → receipt and a real
+    Stripe/custom-domain run also remain.
 
-    _Original finding, retained for the still-open block classes:_
+    _Historical pre-repair finding, retained to identify the still-open block classes;
+    its Contact, Blog Feed and Ecommerce route statements are superseded by the current
+    evidence above:_
     The built-in **Contact** page template and generic `form` block default to a
     native POST at `/api/contact`; that route does not exist (the real public ingest
     is `/api/public/contact`). The separate `contact-form` block fetches
@@ -1486,9 +1495,9 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     Prove failures after folder creation, initial commit, repository creation, push,
     deployment creation and client persistence, then retry without duplicates.
 
-38. **P1 PARTLY REPAIRED 2026-09-01 — final owner writes, client-file deletion
-    and mounted batch retry now preserve explicit recoverable truth; the wider
-    object lifecycle remains open.** State-backed final uploads flush their owner
+38. **P1 PARTLY REPAIRED 2026-09-01 — final owner writes, staged abandonment,
+    recoverable deletion and mounted batch retry now preserve explicit truth;
+    live/distributed acceptance remains.** State-backed final uploads flush their owner
     row inside a shared attach boundary, roll the exact row/audit back on a refused
     flush, durably confirm that rollback before compensating the binary, and keep
     the binary when rollback cannot be proved. Call recordings use the same boundary
@@ -1512,16 +1521,41 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     `attached.detail` or raw failure text. The focused private-upload/workspace set
     passes **31/31**, with TypeScript and diff checks clean.
 
-    This issue is **not closed**. Inbox media, expense attachments and campaign
-    assets are still staged browser references without an `uploading`/`ready`
-    lease, abandonment expiry or cleanup worker. SOP and development deletion are
-    still provider-first without a durable intent/checkpoint, while legal deletion
-    mutates the owner/dependencies first and restores only in process; none is a
-    crash-coherent two-phase lifecycle yet. The direct call-recording database
-    update also needs an ambiguity-safe reconcile/rollback contract. Provider-real,
-    mounted failure/retry/reload acceptance and distributed concurrent replay/delete
-    proof remain required. The focused concurrency proof is not a substitute for a
-    deployed multi-instance/provider failure exercise.
+    Inbox, expense and campaign staging now persist lifecycle intent before provider
+    I/O and confirm the exact returned key. Inbox replies, enquiry replies, client
+    requests, expense create/update and campaign create/update claim staged objects
+    before owner commit and complete ownership inside the shared lifecycle lane. The
+    scheduled sweep serialises with adoption, persists `sweeping` before destructive
+    provider I/O, adopts already-persisted PortalState owners and retains ambiguous
+    `claiming` checkpoints instead of guessing that they are abandoned. Legal, SOP
+    and Development deletion use durable sanitised recovery checkpoints; ordinary
+    readers hide pending deletes and dedicated retry-only UI exposes failures. The
+    authoritative Legal/SOP/Development update and bulk-rewrite siblings now share
+    the same agency deletion lane, including SOP category retirement and Development
+    workflow/reference migration. Focused gates pass **31/31 private lifecycle,
+    21/21 Legal and 18/18 SOP**.
+
+    Finance obligation create/update and Company governance PUT now perform their final
+    legal-document availability checks and complete persistence in the same agency
+    lifecycle lane used by legal deletion. A purge therefore cannot cross an accepted-
+    but-not-yet-persisted citation or be followed by a stale governance resurrection.
+    The earlier widened Finance/legal checkpoint passes **167/167** and the final
+    legal-dependency suite, including the governance and update/delete races, passes
+    **21/21**. Generic Postgres whole-state transactions are now reentrant only inside
+    the active backend/realm/key-owning async scope; the authenticated attachment
+    path, unrelated-caller exclusion and escaped-work drain pass **7/7**.
+
+    This issue is **not closed**. No live Supabase/Vercel Blob/local-production provider
+    exercise, real process-kill/multi-process database-lease run or mounted forced-
+    failure/retry walk has been completed. Retained cross-store claims still need
+    automatic owner reconciliation and operator UI, the direct call-recording database
+    update still needs an ambiguity-safe reconcile/rollback contract, and the separate
+    SOP-retirement policy can strand references. Payload binding also remains: a retry-
+    only social reply or expense command can claim newly supplied staged objects while
+    replaying an older owner, failed owner writes can retain `claiming` rows without an
+    explicit rollback identity, and Finance/campaign claims do not yet prove that the
+    owner persisted the same provider/key metadata that was staged. The focused
+    lifecycle proof is not a substitute for deployed multi-instance/provider acceptance.
 
     _Original finding, retained for the remaining scope:_ All nine private-upload routes write Supabase,
     Vercel Blob or local storage before the durable record or final user action.
@@ -1679,8 +1713,9 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     force failure/retry/reload, and confirm the reloaded installs/checklist/variant and
     incomplete UI on the mounted server.
 
-47. **P2 — mounted mutation controls discard server failures and leave users with
-    silent no-ops.** A focused UI scan found **13** direct `await fetch(...)` calls
+47. **P2 PARTLY REPAIRED 2026-09-01 — checked response contracts now cover the
+    first broad cohort plus all mounted Finance and Dev Team writes; other cohorts
+    and literal browser failure acceptance remain.** A focused UI scan found **13** direct `await fetch(...)` calls
     whose response is never inspected. These are not harmless telemetry calls: they
     include HR leave approval/rejection, Membership admin and customer cancellation,
     Affiliate approval/attribution/manual-payout/referral-code actions, Ecommerce
@@ -1780,6 +1815,26 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     **88/88**, Master Inbox **20/20**, TypeScript and diff pass. The issue remains
     open: the rest of the 148-family inventory and literal forced-failure mounted
     browser coverage are not yet complete.
+
+    **Second implementation cohort — 2026-09-01.** Every mounted Agency Finance
+    mutation now uses the shared checked JSON contract: plans, income, invoices,
+    templates, pay links, expenses/uploads/categories, recurring expenses, budgets,
+    obligations and compensation all reject transport, unreadable JSON, non-2xx,
+    `{ok:false}` and invalid-success responses without performing their success
+    continuation. No raw Finance-component mutation fetch remains. All 22 checked
+    calls across the ten mounted Finance components require strict acknowledgement,
+    nonblank-id entity, multi-entity or absolute-HTTPS success shapes. Every mounted
+    Dev Team write is likewise checked across
+    Roadmap, document editing, plan creation, Findings, Updates, thoughts, app config,
+    Editor project/integration setup and Inspector Dev Mode. Exactly four raw Dev Team
+    fetches remain and are inventory-pinned as GET reads. Project save, delete, map and
+    connect-tag success is action-specific and expected-id aware. The hardened shared
+    helper makes 5xx response bodies opaque and unretained while bounding and filtering
+    rendered 4xx/domain copy. The focused checked-mutation gate passes **25/25**, and the
+    independent combined behaviour rerun passes **267/267**. These cohorts settle busy state in `finally`, keep
+    drafts/cards/selections/tokens on refusal and gate refresh/reset/navigation/events
+    behind validated success. The wider mounted inventory and literal browser-forced
+    failure/recovery matrix still keep #47 partial rather than resolved.
 
 48. **✅ RESOLVED 2026-08-26 — Health Check result sharing carries the completed
     state.** Progress-save and final result actions now use one testable seven-day
@@ -1910,11 +1965,23 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     attention/KPI/lifecycle/operational run passes **61/61**, and TypeScript plus diff
     checks are clean.
 
-    This remains a partial class, not a closure. Website-source, customer and sibling
-    Finance, communications/contact, Meta, commercial/manual-detail, workspace and
-    Development search, Identity queue and governance-scope fallbacks still require the
-    same treatment where named below. Mounted forced rejection → retry, lost-response,
-    multi-tab and live persistence-provider recovery also remain acceptance work.
+    **Second checked-read cohort — 2026-09-01.** Agency and exact-client website routing
+    now share one strict complete-payload reader, retain a labelled last-confirmed
+    snapshot, expose retry and lock every dependent mutation until a current read
+    succeeds. Portal Search and Development resource search treat debounce/loading/
+    failure as pending or unavailable rather than empty; retained Development rows and
+    counts are explicitly stale and cannot be edited, uploaded to, catalogued or deleted.
+    Email/call sender catalogues distinguish confirmed-empty from failure, clear removed
+    persisted identities before becoming ready and keep outreach locked until current.
+    Unified Inbox withholds combined counts and ordinary empty copy when a source failed.
+    The focused availability/failure regression passes **9/9** and the final
+    interactive-read/utility gate passes **14/14**.
+
+    This remains a partial class, not a closure. Customer and sibling Finance,
+    contact-interaction, Meta, commercial/manual-detail, Identity queue and governance-
+    scope fallbacks still require the same treatment where named below. Mounted forced
+    rejection → retry, lost-response, multi-tab and live persistence-provider recovery
+    also remain acceptance work.
 
     _Original finding, retained to identify the remaining scope:_ The original audit found
     at least twenty-eight product paths that caught a rejected read and
@@ -2167,7 +2234,13 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     One dependency inventory powers preview and deletion. Cited documents refuse permanent
     removal with 409; archive preserves references; explicit detach clears all citations and
     the row transactionally; provider deletion failure restores the row. The combined focused
-    gate passes **103/103**. Browser- and provider-prove the full refusal/archive/detach path.
+    gate passes **103/103**. Finance obligation create/update and Company governance PUT
+    now share the same agency lifecycle lane as deletion for their final availability
+    checks and persistence, closing accepted-but-not-yet-persisted and stale-resurrection
+    citation races. The earlier widened related checkpoint passes **167/167**; the final
+    legal-dependency suite including governance and update/delete races passes
+    **21/21**.
+    Browser- and provider-prove the full refusal/archive/detach path.
 
     _Original finding, retained for context:_ Permanent legal-document deletion broke retained obligations and
     governance evidence without a dependency decision. Legal & Compliance describes
@@ -2497,8 +2570,9 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     database-native submission claim and crash-safe idempotent consumers, then race separate
     instances and faults at every side-effect boundary before calling it exactly-once.
 
-88. **PARTIALLY RESOLVED 2026-08-25 — Dev Team cross-process accepted writes now survive;
-    document/ledger crash coherence remains.** A shared `devFileTransaction` uses a
+88. **PARTIALLY RESOLVED 2026-09-01 — Dev Team cross-process accepted writes and
+    document/ledger process-death recovery now survive; one direct-writer race remains.**
+    A shared `devFileTransaction` uses a
     filesystem-visible lock directory and same-directory temp+fsync+rename replacement.
     Roadmap, Updates, thoughts and Findings re-read while holding that lock; the standalone
     thoughts worker honours the same lock, and same-title finding creation finishes with
@@ -2518,11 +2592,22 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     path; the reaper coordinator uses atomic empty `rmdir`. Repeated concurrent Inbox writes
     and the Dev cross-process suite **7/7** pass, with a source assertion pinning the detach-
     before-remove contract.
-    Remaining: document bytes and the whole attribution ledger are two separate renames, so
-    process death between them can leave new bytes without their authorship row; and a
-    non-cooperating direct writer can still land inside the final version-check/rename
-    interval. Add a recoverable intent journal or one transactional source, fault every
-    crash boundary, recover stale locks and prove cache reload before calling #88 resolved.
+    Local document saves now persist a recoverable batch journal containing the intended
+    document and attribution bytes, checksums and exact expected versions before either
+    rename. Recovery accepts only the already-committed desired bytes or the exact expected
+    predecessor; an outside edit is never overwritten and leaves the journal for explicit
+    resolution. Recovery also requires the caller's exact ordered canonical target set,
+    so a forged schema-valid journal cannot write outside its document/ledger pair.
+    Fault injection covers death between the two renames, death after both renames but
+    before cleanup, an outside edit before recovery and a forged outside target. The
+    widened Dev doc/cross-process gate passes **29/29**. An unreadable, malformed or
+    shape-invalid local or durable attribution ledger now fails closed and remains
+    untouched rather than being silently replaced with an empty history.
+
+    Remaining: a non-cooperating direct writer can still land inside the final per-file
+    version-check/rename interval. Production's durable workspace uses one database batch
+    transaction, but the local file boundary must close or explicitly constrain that final
+    direct-writer window before #88 is called fully resolved.
 
 89. **P1 — RESOLVED 2026-08-25: managed integration activation is explicit, stable and
     scope-correct.** Connections now carry active state selected by provider plus exact
@@ -3349,6 +3434,16 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     so modal containment and composite-widget keyboard models are untouched — that is #138. Keyboard
     ACTIVATION is not provable this way either. Evidence label: **local-browser**, not deployed-live.
 
+    **Final production-target rerun — 2026-09-01.** Chromium **151.0.7922.34**
+    completed every required check across the same 13 pages × 17 viewports:
+    **1,326 required = 1,175 passed / 0 failed / 151 observations / 0 missing**.
+    Every observation was an explicitly proven aborted speculative Next RSC prefetch:
+    null status, `net::ERR_ABORTED`, same-origin non-navigation GET, exact `_rsc` query,
+    `rsc: 1` and an explicit Next/purpose prefetch signal. Ordinary request failures
+    remain failures. The separate Settings six-primary slice is **36/36** with none.
+    Dialog/menu activation, screen-reader output, installability, forced errors, date
+    boundaries and mutation journeys remain separate acceptance work.
+
 138. **P2 CODE/BEHAVIOUR RESOLVED 2026-09-01; representative mounted keyboard acceptance
     remains.** Specialised roles now either implement the promised shared keyboard model or were
     replaced with honest native navigation carrying `aria-current`. Every current tab, menu and
@@ -3748,8 +3843,30 @@ creation surface ignored it while its endpoint required a session the visitor di
 have. `BLOCK_BACKEND_GAPS` treated that symptom; the tenant install gate now fixes the
 palette contract itself.
 
-**#184 — `/api/portal/forms/*`, `/reservations/*`, `/newsletter/*` and
-`/themes/*` have no module behind them.**
+**#184 — PARTLY RESOLVED 2026-09-01: consent-aware contact capture and published
+blog summaries now have narrow visitor backends; the wider absent-module class remains.**
+
+Website Editor now exposes an exact enabled-install `visitor/contact` command and
+allowlisted published-blog summary read. Contact capture requires a versioned DTO,
+affirmative versioned consent, a registered origin and a live site/published page/contact
+block. The exact displayed consent statement is digest-bound to the accepted version and
+submission, preventing valid-version replay against changed wording. It stores one atomic
+operation/receipt record, keeps contact PII single-copy, hashes
+replay and abuse-control identities, rate-limits per visitor and install, and returns no
+operator data. The authenticated contact-submission read remains private. The contact UI
+accepts only a parsed success receipt and neither it nor Blog Feed calls a live facade from
+the editor or a draft preview. Blog output contains summaries only—no body, internal ids,
+draft state or tenant metadata. Focused public-boundary/backend/dead-call proof passes
+**27/27**, TypeScript and diff checks are clean.
+
+This is not full visitor-module closure. Contact submissions still need their intended
+operator inbox/notification workflow and a real anonymous custom-domain/live-backend walk.
+Forms, Reservations, Newsletter and Themes remain absent product modules; they must be
+implemented with their own public DTOs or removed/labelled rather than routed through an
+operator endpoint.
+
+_Original finding, retained for the remaining scope:_ `/api/portal/forms/*`,
+`/reservations/*`, `/newsletter/*` and `/themes/*` had no module behind them.
 
 Not "absent paths" in the sense of a typo — there is no `forms`, `reservations`,
 `newsletter` or `themes` module in `src/built-ins/modules` at all, so nothing can
@@ -3758,17 +3875,30 @@ owner session**, which is the tell — the 401 is the dispatcher's auth gate fir
 before the 404, so an anonymous probe alone would have made these look like a
 permissions problem.
 
-Handled for now by `lib/blockBackends.ts` + `smoke-website-editor-block-backends`
-(6/6), which stops the affected blocks being added or seeded by a template. The
-modules themselves remain unbuilt, and the contact form is the one that matters:
-**there is still no anonymous, tenant-aware way for a visitor to send a client a
-message.** Building it also inherits the consent decision in #2.
+The still-absent modules are fenced by `lib/blockBackends.ts` plus its smoke so a
+template cannot silently seed an unusable control. Contact and Blog Feed have now been
+removed from that dead-backend inventory because their dedicated visitor facades exist.
 
-**#185 — only NINE routes across all thirteen modules are declared `public`.**
+**#185 — PARTLY RESOLVED 2026-09-01: fifteen routes are deliberately public, but
+visitor-safe operations still need classification one command at a time.**
+
+The seven original webhook/funnel routes were later joined by Ecommerce's public Stripe
+webhook, five allowlisted storefront operations and now two Website Editor visitor
+facades. Public catalogue/detail,
+quote/checkout/receipt, contact capture and blog summaries therefore no longer depend on a
+portal session. Each route is an explicit public declaration with a narrow DTO; no generic
+operator route was widened; the Contact facade additionally binds the accepted consent
+version to the digest of the exact displayed statement. The executable registry now pins **341 total / 144
+undeclared / 15 public routes**, and the host/tenancy gates pass **50/50**. The
+rest of the inventory remains intentionally closed until it
+has the same scope, rate-limit, redaction, consent and durable-side-effect proof.
+
+_Original finding, retained for context:_ the earlier prose audit reported nine routes,
+but the later executable registry baseline corrected the pre-storefront set to seven.
 
 `[module]/[...rest]/route.ts` calls `requireSession()` unless the resolved route
-sets `public: true`. Nine routes do — seven Stripe/Postmark webhooks and the two
-public-funnel completions. Every other module route therefore requires a
+sets `public: true`. The current fifteen are the exact webhook/funnel/storefront/
+visitor allowlist above. Every other module route therefore requires a
 session, which is correct for the portal and is the whole problem for a
 published website, where the visitor has none. Worth knowing before anybody
 "fixes" a visitor-facing 401 by widening a route: `plans` is arguably fine
@@ -3803,7 +3933,7 @@ something *is* a problem:
 - **#12 dev/demo sessions still load zero website enquiries** — `agency/inbox/page.tsx:60,67` (`session.isDemo ? Promise.resolve([])`). By design.
 - **#13 the live-data hazard still applies in full.**
 - **#16–#162 is the numbered reliability/correctness ledger, not a claim that every item remains
-  open.** Current status lives on each issue and in checklist.md. #69/#72 retain P0 public-route/
+  open.** Current status lives on each issue and in TODO.md. #69/#72 retain P0 public-route/
   browser acceptance after their non-security core repair; #78 is resolved. The earlier full-suite
   result by itself closed none of the findings.
 

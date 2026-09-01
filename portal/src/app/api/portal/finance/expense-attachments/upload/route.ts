@@ -3,7 +3,8 @@ import { join } from "node:path";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
-import { PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
+import { beginStagedPrivateUpload, confirmStagedPrivateUpload, privateObjectRequestHash } from "@/lib/server/privateObjectLifecycle";
+import { planPrivateUpload, PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 import type { ExpenseAttachment } from "@/built-ins/modules/agency-finance/src/lib/domain";
@@ -51,6 +52,16 @@ export async function POST(request: NextRequest) {
     const filename = safeName(file.name);
     const pathname = `expenses/${session.agencyId}/${id}-${filename}`;
     const relativeKey = join(session.agencyId, `${id}-${filename}`);
+    const requestHash = privateObjectRequestHash([session.agencyId, id, file.name, file.size, file.type, pathname]);
+    const planned = planPrivateUpload({ pathname, localKey: relativeKey });
+    await beginStagedPrivateUpload({
+      agencyId: session.agencyId,
+      purpose: "expense-attachment",
+      objectId: id,
+      requestHash,
+      planned,
+      localDirectory: "expense-uploads",
+    });
     const stored = await storePrivateUpload({
       pathname,
       file,
@@ -58,6 +69,7 @@ export async function POST(request: NextRequest) {
       localDirectory: "expense-uploads",
       localKey: relativeKey,
     });
+    await confirmStagedPrivateUpload({ agencyId: session.agencyId, purpose: "expense-attachment", objectId: id, requestHash, stored });
 
     const params = new URLSearchParams({
       id,

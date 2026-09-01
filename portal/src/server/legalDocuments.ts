@@ -11,6 +11,7 @@ import {
 } from "./legalDocumentDependencies";
 import { getState, mutate } from "./storage";
 import type { LegalDocument, LegalDocumentCategory, LegalDocumentStatus } from "./types";
+import { pendingPrivateObjectDeletionSnapshots } from "@/lib/server/privateObjectLifecycle";
 
 /**
  * A permanent delete that was refused because records still cite the document.
@@ -62,7 +63,37 @@ function isComplianceDeclaration(document: LegalDocument): boolean {
 export function listLegalDocuments(agencyId: string): LegalDocument[] {
   return Object.values(getState().legalDocuments)
     .filter(document => document.agencyId === agencyId && !isComplianceDeclaration(document))
-    .sort((a, b) => Number(a.status === "archived") - Number(b.status === "archived") || (a.reminderAt ?? a.expiresAt ?? Number.MAX_SAFE_INTEGER) - (b.reminderAt ?? b.expiresAt ?? Number.MAX_SAFE_INTEGER) || b.updatedAt - a.updatedAt);
+    .sort(sortLegalDocuments);
+}
+
+/** The legal-register recovery surface only; other consumers see live owners. */
+export function listLegalDocumentsWithPendingDeletion(agencyId: string): LegalDocument[] {
+  const stored = listLegalDocuments(agencyId);
+  const existingIds = new Set(stored.map(document => document.id));
+  const pending = pendingPrivateObjectDeletionSnapshots<LegalDocument>(agencyId, "legal-document")
+    .filter(item => !existingIds.has(item.snapshot.id))
+    .map(item => ({
+      ...item.snapshot,
+      counterparty: undefined,
+      reference: undefined,
+      notes: undefined,
+      fileName: "",
+      contentType: "application/octet-stream",
+      size: 0,
+      storageKey: "",
+      deleteState: item.record.state === "delete-failed" ? "delete-failed" as const : "deleting" as const,
+      deleteError: item.record.error,
+      deleteStartedAt: item.record.createdAt,
+      deleteDetach: item.record.metadata?.detach === true,
+    }));
+  return [...stored, ...pending]
+    .sort(sortLegalDocuments);
+}
+
+function sortLegalDocuments(a: LegalDocument, b: LegalDocument): number {
+  return Number(a.status === "archived") - Number(b.status === "archived")
+    || (a.reminderAt ?? a.expiresAt ?? Number.MAX_SAFE_INTEGER) - (b.reminderAt ?? b.expiresAt ?? Number.MAX_SAFE_INTEGER)
+    || b.updatedAt - a.updatedAt;
 }
 
 /** Declarations only — the compliance posture's view of which tracks are on. */
@@ -78,6 +109,12 @@ export function getLegalDocument(agencyId: string, id: string): LegalDocument | 
   // A declaration has no file behind it, so it must never be reachable from the
   // document-content or delete paths that assume one.
   return isComplianceDeclaration(document) ? null : document;
+}
+
+/** A deleting snapshot remains visible for recovery, but cannot accept a new citation. */
+export function legalDocumentAcceptsReferences(agencyId: string, id: string): boolean {
+  const document = getState().legalDocuments[id];
+  return Boolean(document && document.agencyId === agencyId && !isComplianceDeclaration(document));
 }
 
 /**
@@ -231,6 +268,7 @@ export function updateLegalDocument(
   patch: Partial<Pick<LegalDocument, "title" | "category" | "status" | "counterparty" | "reference" | "effectiveAt" | "expiresAt" | "reminderAt" | "notes" | "companyIds">>,
   actorUserId: string,
 ): LegalDocument | null {
+  if (!getState().legalDocuments[id]) return null;
   const existing = getLegalDocument(agencyId, id);
   if (!existing) return null;
   const updated: LegalDocument = {

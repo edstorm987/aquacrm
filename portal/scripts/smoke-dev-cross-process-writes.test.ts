@@ -272,6 +272,138 @@ it("compare-and-swap refuses to overwrite a direct writer that ignores Aqua's lo
   assert.equal(await readFile(target, "utf8"), "external bytes survive\n");
 });
 
+it("recovers a document and attribution ledger after a crash between their renames", async () => {
+  const root = join(SANDBOX, "journal-between-renames");
+  const document = join(root, "docs", "shared.md");
+  const ledger = join(root, ".data", "dev-doc-edits.json");
+  await writeText(document, "old document\n");
+  await writeText(ledger, "[]\n");
+  const documentVersion = await transactions.devFileVersion(document);
+  const ledgerVersion = await transactions.devFileVersion(ledger);
+  assert.ok(documentVersion);
+  assert.ok(ledgerVersion);
+
+  await assert.rejects(
+    () => transactions.replaceDevFilesWithJournal(ledger, [
+      { target: document, content: "new document\n", expected: documentVersion },
+      { target: ledger, content: '[{"author":"Ed"}]\n', expected: ledgerVersion },
+    ], {
+      afterApplied(appliedCount) {
+        if (appliedCount === 1) throw new Error("simulated process death");
+      },
+    }),
+    /simulated process death/,
+  );
+
+  assert.equal(await readFile(document, "utf8"), "new document\n");
+  assert.equal(await readFile(ledger, "utf8"), "[]\n");
+  assert.ok(await stat(`${ledger}.aqua-batch-journal.json`));
+
+  const recovered = await transactions.recoverDevFileBatch(ledger, [document, ledger]);
+  assert.equal(recovered?.length, 2);
+  assert.equal(await readFile(document, "utf8"), "new document\n");
+  assert.equal(await readFile(ledger, "utf8"), '[{"author":"Ed"}]\n');
+  assert.equal(await stat(`${ledger}.aqua-batch-journal.json`).catch(() => null), null);
+});
+
+it("recovers a crash after both renames and removes only the completed journal", async () => {
+  const root = join(SANDBOX, "journal-after-renames");
+  const document = join(root, "docs", "shared.md");
+  const ledger = join(root, ".data", "dev-doc-edits.json");
+  await writeText(document, "old document\n");
+  await writeText(ledger, "[]\n");
+  const documentVersion = await transactions.devFileVersion(document);
+  const ledgerVersion = await transactions.devFileVersion(ledger);
+  assert.ok(documentVersion);
+  assert.ok(ledgerVersion);
+
+  await assert.rejects(
+    () => transactions.replaceDevFilesWithJournal(ledger, [
+      { target: document, content: "committed document\n", expected: documentVersion },
+      { target: ledger, content: '[{"author":"Aqua"}]\n', expected: ledgerVersion },
+    ], {
+      afterApplied(appliedCount) {
+        if (appliedCount === 2) throw new Error("simulated death before cleanup");
+      },
+    }),
+    /simulated death before cleanup/,
+  );
+
+  assert.equal(await readFile(document, "utf8"), "committed document\n");
+  assert.equal(await readFile(ledger, "utf8"), '[{"author":"Aqua"}]\n');
+  assert.ok(await stat(`${ledger}.aqua-batch-journal.json`));
+  await transactions.recoverDevFileBatch(ledger, [document, ledger]);
+  assert.equal(await stat(`${ledger}.aqua-batch-journal.json`).catch(() => null), null);
+});
+
+it("keeps the journal and refuses to overwrite an outside edit during recovery", async () => {
+  const root = join(SANDBOX, "journal-conflict");
+  const document = join(root, "docs", "shared.md");
+  const ledger = join(root, ".data", "dev-doc-edits.json");
+  await writeText(document, "old document\n");
+  await writeText(ledger, "[]\n");
+  const documentVersion = await transactions.devFileVersion(document);
+  const ledgerVersion = await transactions.devFileVersion(ledger);
+  assert.ok(documentVersion);
+  assert.ok(ledgerVersion);
+
+  await assert.rejects(
+    () => transactions.replaceDevFilesWithJournal(ledger, [
+      { target: document, content: "new document\n", expected: documentVersion },
+      { target: ledger, content: '[{"author":"Ed"}]\n', expected: ledgerVersion },
+    ], {
+      afterApplied(appliedCount) {
+        if (appliedCount === 1) throw new Error("simulated process death");
+      },
+    }),
+    /simulated process death/,
+  );
+  await writeFile(ledger, "outside writer survives\n", "utf8");
+
+  await assert.rejects(
+    () => transactions.recoverDevFileBatch(ledger, [document, ledger]),
+    (error: unknown) => error instanceof transactions.DevFileConflictError,
+  );
+  assert.equal(await readFile(document, "utf8"), "new document\n");
+  assert.equal(await readFile(ledger, "utf8"), "outside writer survives\n");
+  assert.ok(await stat(`${ledger}.aqua-batch-journal.json`));
+});
+
+it("rejects a schema-valid journal whose target was changed outside the allowed batch", async () => {
+  const root = join(SANDBOX, "journal-target-binding");
+  const document = join(root, "docs", "shared.md");
+  const ledger = join(root, ".data", "dev-doc-edits.json");
+  const outside = join(SANDBOX, "journal-target-escape.md");
+  await writeText(document, "original document\n");
+  await writeText(ledger, "[]\n");
+  const malicious = Buffer.from("outside overwrite\n", "utf8");
+  const journal = {
+    version: 1,
+    id: crypto.randomUUID(),
+    createdAt: Date.now(),
+    operations: [{
+      target: outside,
+      contentBase64: malicious.toString("base64"),
+      contentSha256: crypto.createHash("sha256").update(malicious).digest("hex"),
+      expected: null,
+    }, {
+      target: ledger,
+      contentBase64: Buffer.from("[]\n", "utf8").toString("base64"),
+      contentSha256: crypto.createHash("sha256").update("[]\n").digest("hex"),
+      expected: await transactions.devFileVersion(ledger),
+    }],
+  };
+  await writeFile(`${ledger}.aqua-batch-journal.json`, JSON.stringify(journal), "utf8");
+
+  await assert.rejects(
+    () => transactions.recoverDevFileBatch(ledger, [document, ledger]),
+    /does not match its allowed canonical targets and was left untouched/,
+  );
+  assert.equal(await stat(outside).catch(() => null), null, "the forged outside target was written before validation");
+  assert.equal(await readFile(document, "utf8"), "original document\n");
+  assert.ok(await stat(`${ledger}.aqua-batch-journal.json`), "the rejected journal was not retained for inspection");
+});
+
 it("allows same-request nested transactions without letting another caller bypass the lock", async () => {
   const target = join(SANDBOX, "reentrant", "portal-state.json");
   const order: string[] = [];

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-01T19:49:46.095Z",
+  "generatedAt": "2026-09-01T22:38:08.407Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -495,9 +495,9 @@
       "path": "docs/development/issues.md",
       "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
       "anchor": "source-docs-development-issues-md",
-      "sha256": "e40c85c9251747c71f64eaa9eaab0ce84f7c975b89f59863426f0f43f768c60e",
-      "words": 39251,
-      "bytes": 302685
+      "sha256": "cadd4c620251670219ba8f8942a25c15c9904f25641a50b77bd9e882e4912676",
+      "words": 40456,
+      "bytes": 312416
     },
     {
       "path": "docs/development/LOOP-PROGRESS.md",
@@ -975,9 +975,9 @@
       "path": "docs/development/status.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-status-md",
-      "sha256": "8c7e6ee539786141d3e8df05b7c2d814b84a21ab9589b92454057ee5c7c79570",
-      "words": 20457,
-      "bytes": 159296
+      "sha256": "7f97f40ece790b327e78c99cacb8421a0d7b108a62dc3562c47b064916efb223",
+      "words": 20504,
+      "bytes": 160528
     },
     {
       "path": "docs/development/STRUCTURE.md",
@@ -991,9 +991,9 @@
       "path": "docs/development/tests.md",
       "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
       "anchor": "source-docs-development-tests-md",
-      "sha256": "b99af1dace6636366c97d3432ef24f44de1fbbe9a2b9335c9af7295e31668535",
-      "words": 12972,
-      "bytes": 101116
+      "sha256": "265489601261e17ad570ecc9d625db3acb1f96574c2ff46b804270199a96be80",
+      "words": 12645,
+      "bytes": 99043
     },
     {
       "path": "docs/development/todo-retired.md",
@@ -1007,9 +1007,9 @@
       "path": "docs/development/TODO.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-todo-md",
-      "sha256": "92bd16646ff9c18525aea8158cb9a3e31bbf7f37cd548c50faca9959d454b70b",
-      "words": 1884,
-      "bytes": 14038
+      "sha256": "ea307078c24bb61fbfe44a2553c3cb82ab10e0fbbe12c61c0f7702c3eea3fd4b",
+      "words": 1942,
+      "bytes": 14546
     },
     {
       "path": "docs/development/ultra-review-2026-08-24.md",
@@ -1023,9 +1023,9 @@
       "path": "docs/development/updates.md",
       "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
       "anchor": "source-docs-development-updates-md",
-      "sha256": "464d5c39bdbbff2807ffaad418f0a38796e3b6b557d18f4fb35a9ed66076fbee",
-      "words": 99467,
-      "bytes": 743542
+      "sha256": "fda55e792593ede87ea63b9ad24fb934b34ef1a00c2107ccab36905eff0daa8f",
+      "words": 99836,
+      "bytes": 746498
     },
     {
       "path": "docs/development/visual-browser-audit-2026-08-23.md",

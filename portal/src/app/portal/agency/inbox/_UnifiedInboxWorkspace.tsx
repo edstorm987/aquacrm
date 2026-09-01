@@ -121,6 +121,17 @@ export function UnifiedInboxWorkspace({
   const selected = allThreads.find(thread => thread.key === selectedKey) ?? visible[0] ?? null;
   const unread = allThreads.reduce((sum, thread) => sum + thread.unread, 0);
   const openCount = allThreads.filter(item => item.kind !== "profile" && !item.closed).length;
+  const websiteFormsAvailable = !websiteFormsError;
+  const socialInboxAvailable = !socialInboxError;
+  const sourceReadUnavailable = !websiteFormsAvailable || !socialInboxAvailable;
+  const queueReadUnavailable = queue === "clients"
+    ? false
+    : queue === "website"
+      ? !websiteFormsAvailable
+      : queue === "social"
+        ? !socialInboxAvailable
+        : sourceReadUnavailable;
+  const sourceReadMessage = [websiteFormsError, socialInboxError].filter(Boolean).join(" ");
 
   useEffect(() => {
     if (!focusThreadKey || !allThreads.some(thread => thread.key === focusThreadKey)) return;
@@ -158,24 +169,24 @@ export function UnifiedInboxWorkspace({
         <p className="mt-1 text-xs text-black/45">Reply through the right account, call when a number is available, and keep every interaction on the same timeline.</p>
       </div>
       <div className="flex items-center gap-2 text-xs">
-        <span className="rounded-full bg-black px-2.5 py-1.5 font-semibold text-white">{openCount} open</span>
-        <span className="rounded-full bg-red-50 px-2.5 py-1.5 font-semibold text-red-700">{unread} unread</span>
+        <span className="rounded-full bg-black px-2.5 py-1.5 font-semibold text-white">{sourceReadUnavailable ? "— open" : `${openCount} open`}</span>
+        <span className="rounded-full bg-red-50 px-2.5 py-1.5 font-semibold text-red-700">{sourceReadUnavailable ? "— unread" : `${unread} unread`}</span>
       </div>
     </div>
 
-    {websiteFormsError || socialInboxError ? <p role="alert" className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">{websiteFormsError || socialInboxError}</p> : null}
+    {sourceReadUnavailable ? <div role="alert" className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"><span className="min-w-0 flex-1">Some conversation sources could not be read. Counts and combined queues are incomplete, not confirmed empty. {sourceReadMessage}</span><button type="button" onClick={() => router.refresh()} className="min-h-8 rounded-md border border-amber-300 bg-white px-2.5 font-semibold text-amber-900">Retry conversations</button></div> : null}
 
     <div className="mt-4 grid min-h-[680px] overflow-hidden rounded-lg border border-black/10 bg-white lg:grid-cols-[minmax(300px,380px)_minmax(0,1fr)]">
       {/* LIST PANE — the queue rail folded into a chip strip so the desk reads
           as two panes: conversations, and the conversation. */}
       <div className={`flex min-h-0 flex-col lg:border-r lg:border-black/10 ${mobileThreadOpen ? "hidden lg:flex" : ""}`}>
         <div role="group" aria-label="Inbox queues" className="flex gap-1.5 overflow-x-auto border-b border-black/[0.07] px-3 py-2.5">
-          <QueueChip active={queue === "all"} label="All" count={openCount} icon={<Inbox size={13} />} onClick={() => setQueue("all")} />
-          <QueueChip active={queue === "unread"} label="Unread" count={unread} icon={<MessageCircle size={13} />} onClick={() => setQueue("unread")} />
-          <QueueChip active={queue === "website"} label="Web" count={allThreads.filter(item => item.kind === "website" && !item.closed).length} icon={<FileText size={13} />} onClick={() => setQueue("website")} />
-          <QueueChip active={queue === "social"} label="Social" count={allThreads.filter(item => item.kind === "social" && !item.closed).length} icon={<Radio size={13} />} onClick={() => setQueue("social")} />
+          <QueueChip active={queue === "all"} label="All" count={sourceReadUnavailable ? null : openCount} icon={<Inbox size={13} />} onClick={() => setQueue("all")} />
+          <QueueChip active={queue === "unread"} label="Unread" count={sourceReadUnavailable ? null : unread} icon={<MessageCircle size={13} />} onClick={() => setQueue("unread")} />
+          <QueueChip active={queue === "website"} label="Web" count={websiteFormsAvailable ? allThreads.filter(item => item.kind === "website" && !item.closed).length : null} icon={<FileText size={13} />} onClick={() => setQueue("website")} />
+          <QueueChip active={queue === "social"} label="Social" count={socialInboxAvailable ? allThreads.filter(item => item.kind === "social" && !item.closed).length : null} icon={<Radio size={13} />} onClick={() => setQueue("social")} />
           <QueueChip active={queue === "clients"} label="Clients" count={clientProfiles.length} icon={<Users size={13} />} onClick={() => setQueue("clients")} />
-          <QueueChip active={queue === "closed"} label="Resolved" count={allThreads.filter(item => item.closed).length} icon={<Archive size={13} />} onClick={() => setQueue("closed")} />
+          <QueueChip active={queue === "closed"} label="Resolved" count={sourceReadUnavailable ? null : allThreads.filter(item => item.closed).length} icon={<Archive size={13} />} onClick={() => setQueue("closed")} />
         </div>
         <label className="m-3 flex min-h-10 items-center gap-2 rounded-full border border-black/10 bg-black/[0.02] px-3.5 text-black/40 focus-within:border-black/25 focus-within:bg-white"><Search size={15} /><input value={query} onChange={event => setQuery(event.target.value)} className="min-w-0 flex-1 bg-transparent text-xs text-black/75 outline-none" placeholder="Search every conversation" /></label>
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -187,8 +198,8 @@ export function UnifiedInboxWorkspace({
               <circle cx="52" cy="28" r="9" className="fill-white" />
               <path d="M48.5 28h7M52 24.5v7" strokeLinecap="round" />
             </svg>
-            <p className="mt-4 text-sm font-semibold text-black/65">Nothing in this queue</p>
-            <p className="mt-1 text-xs leading-5 text-black/40">Try another queue, or search across every connected source.</p>
+            <p className="mt-4 text-sm font-semibold text-black/65">{queueReadUnavailable ? "This queue is unavailable" : "Nothing in this queue"}</p>
+            <p className="mt-1 text-xs leading-5 text-black/40">{queueReadUnavailable ? "Nothing is shown because a conversation source failed, not because the queue is empty. Retry above." : "Try another queue, or search across every connected source."}</p>
           </div> : null}
         </div>
       </div>
@@ -562,10 +573,10 @@ function ThreadRow({ thread, active, onClick }: { thread: UnifiedThread; active:
   </button>;
 }
 
-function QueueChip({ active, label, count, icon, onClick }: { active: boolean; label: string; count: number; icon: React.ReactNode; onClick: () => void }) {
+function QueueChip({ active, label, count, icon, onClick }: { active: boolean; label: string; count: number | null; icon: React.ReactNode; onClick: () => void }) {
   return <button type="button" onClick={onClick} aria-pressed={active} className={active
     ? "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-black/25 bg-black/[0.06] px-3 text-xs font-semibold text-black/80"
-    : "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-black/10 px-3 text-xs text-black/55 hover:bg-black/[0.02]"}>{icon}{label}<span className="tabular-nums text-black/40">{count}</span></button>;
+    : "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-black/10 px-3 text-xs text-black/55 hover:bg-black/[0.02]"}>{icon}{label}<span className="tabular-nums text-black/40">{count ?? "—"}</span></button>;
 }
 
 function DayDivider({ at }: { at: number }) {

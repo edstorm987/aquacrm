@@ -284,7 +284,7 @@ test("public showcase agency workspaces cannot expose owner mutation controls", 
   const sopLibrary = read("src/app/portal/agency/sop-library/_SopLibrary.tsx");
   assert.match(sopPage, /const canManageGuides = !session\.publicShowcase/);
   assert.match(sopLibrary, /canManageGuides && folder\.id !== "uncategorised"/);
-  assert.match(sopLibrary, /disabled=\{!canManageGuides\}/);
+  assert.match(sopLibrary, /disabled=\{!canManageGuides \|\| Boolean\(sop\.deleteState\)\}/);
 });
 
 test("public showcase cannot read internal development or settings surfaces", () => {

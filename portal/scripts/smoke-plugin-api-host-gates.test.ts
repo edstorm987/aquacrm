@@ -558,9 +558,18 @@ describe("plugin API routes — surface invariants no manifest can break", () =>
     // routes (136 → 141), while public rises by six (7 → 13).
     // The ceiling loop below was re-run and still reports zero open non-public
     // routes; enumeration gives total 338, undeclared 141, public 13.
-    assert.equal(total, 338, `the registry now ships ${total} API routes, not 338 — re-run the enumeration`);
-    assert.equal(undeclared, 141, `${undeclared} routes declare no roles, not 141 — re-run the enumeration`);
-    assert.equal(publicRoutes, 13, `${publicRoutes} routes are public, not 13`);
+    //
+    // 2026-09-01, later: 338 → 341. Website Editor adds one private operator
+    // contact-submission read plus two deliberately public visitor facades:
+    // consent-bearing contact capture and allowlisted published blog summaries.
+    // None declares a separate role list—the private route inherits the module
+    // ceiling while anonymous visitors sit outside the role system—so undeclared
+    // rises 141 → 144 and public rises 13 → 15. The exact public set is pinned in
+    // smoke-plugin-api-tenancy.test.ts and the loop below still reports zero
+    // open non-public routes.
+    assert.equal(total, 341, `the registry now ships ${total} API routes, not 341 — re-run the enumeration`);
+    assert.equal(undeclared, 144, `${undeclared} routes declare no roles, not 144 — re-run the enumeration`);
+    assert.equal(publicRoutes, 15, `${publicRoutes} routes are public, not 15`);
 
     // …and none of them is open. This is the whole point: the count can stay
     // wherever it lands for ever, because the fallback is the ceiling and not

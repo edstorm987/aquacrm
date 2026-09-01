@@ -9,6 +9,28 @@ import {
 } from "lucide-react";
 
 import type { Finding, FindingSeverity } from "@/lib/server/dev/devTeamFindings";
+import { checkedDevTeamMutation } from "../_checkedMutation";
+
+type FindingPayload = { ok?: boolean; finding?: Finding };
+type FindingPlanPayload = {
+  ok?: boolean;
+  plan?: { relPath?: string };
+  count?: number;
+};
+
+function isFinding(value: unknown): value is Finding {
+  if (!value || typeof value !== "object") return false;
+  const finding = value as Partial<Finding>;
+  return typeof finding.slug === "string"
+    && typeof finding.relPath === "string"
+    && typeof finding.title === "string"
+    && typeof finding.note === "string"
+    && (finding.severity === "blocker" || finding.severity === "bug" || finding.severity === "polish" || finding.severity === "idea")
+    && (finding.status === "open" || finding.status === "planned" || finding.status === "fixed")
+    && Array.isArray(finding.images)
+    && finding.images.every(image => typeof image === "string")
+    && typeof finding.createdAt === "number";
+}
 
 const SEVERITIES: { value: FindingSeverity; label: string; hint: string }[] = [
   { value: "blocker", label: "Blocker", hint: "Can't ship" },
@@ -86,19 +108,22 @@ export function FindingsWorkspace({ initial }: { initial: Finding[] }) {
     if (busy || !title.trim()) return;
     setBusy(true); setError(""); setJustSaved("");
     try {
-      const response = await fetch("/api/portal/dev-team/findings", {
+      const result = await checkedDevTeamMutation<FindingPayload>("/api/portal/dev-team/findings", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: "create", title, note, where, severity, images: shots }),
+      }, {
+        fallback: "Could not save the finding.",
+        validate: value => value.ok === true && isFinding(value.finding),
       });
-      const result = await response.json() as { ok?: boolean; error?: string; finding?: Finding };
-      if (!response.ok || !result.ok || !result.finding) throw new Error(result.error || "Could not save.");
-      setFindings(prev => [result.finding!, ...prev]);
-      setJustSaved(result.finding.title);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setFindings(prev => [result.value.finding!, ...prev]);
+      setJustSaved(result.value.finding!.title);
       setTitle(""); setNote(""); setWhere(""); setSeverity("bug"); setShots([]);
       router.refresh();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not save.");
     } finally {
       setBusy(false);
     }
@@ -108,20 +133,26 @@ export function FindingsWorkspace({ initial }: { initial: Finding[] }) {
     if (planning || picked.size === 0) return;
     setPlanning(true); setError(""); setPlanned(null);
     try {
-      const response = await fetch("/api/portal/dev-team/findings", {
+      const result = await checkedDevTeamMutation<FindingPlanPayload>("/api/portal/dev-team/findings", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: "plan", slugs: [...picked] }),
+      }, {
+        fallback: "Could not create the plan.",
+        validate: value => value.ok === true
+          && typeof value.plan?.relPath === "string"
+          && value.plan.relPath.length > 0
+          && (value.count === undefined || (typeof value.count === "number" && Number.isFinite(value.count))),
       });
-      const result = await response.json() as { ok?: boolean; error?: string; plan?: { relPath: string }; count?: number };
-      if (!response.ok || !result.ok || !result.plan) throw new Error(result.error || "Could not create the plan.");
-      setPlanned({ relPath: result.plan.relPath, count: result.count ?? picked.size });
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setPlanned({ relPath: result.value.plan!.relPath!, count: result.value.count ?? picked.size });
       setPicked(new Set());
       const refreshed = await fetch("/api/portal/dev-team/findings").then(r => r.json()).catch(() => null);
       if (refreshed?.ok) setFindings(refreshed.findings);
       router.refresh();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not create the plan.");
     } finally {
       setPlanning(false);
     }
@@ -135,14 +166,19 @@ export function FindingsWorkspace({ initial }: { initial: Finding[] }) {
     if (statusBusy) return;
     setStatusBusy(slug); setError("");
     try {
-      const response = await fetch("/api/portal/dev-team/findings", {
+      const result = await checkedDevTeamMutation<FindingPayload>("/api/portal/dev-team/findings", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: "status", slug, status }),
+      }, {
+        fallback: "Could not update that finding.",
+        validate: value => value.ok === true && isFinding(value.finding),
       });
-      const result = await response.json() as { ok?: boolean; error?: string; finding?: Finding };
-      if (!response.ok || !result.ok || !result.finding) throw new Error(result.error || "Could not update that finding.");
-      setFindings(prev => prev.map(f => (f.slug === slug ? result.finding! : f)));
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setFindings(prev => prev.map(f => (f.slug === slug ? result.value.finding! : f)));
       setPicked(prev => {
         if (!prev.has(slug)) return prev;
         const next = new Set(prev);
@@ -150,8 +186,6 @@ export function FindingsWorkspace({ initial }: { initial: Finding[] }) {
         return next;
       });
       router.refresh();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not update that finding.");
     } finally {
       setStatusBusy("");
     }

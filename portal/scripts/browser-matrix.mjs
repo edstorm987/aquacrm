@@ -203,6 +203,38 @@ export function isDevOnlyAsset(url) {
   return typeof url === "string" && (url.includes("/_next/static/") || url.includes("/__nextjs_font/"));
 }
 
+/**
+ * Next link prefetches issue RSC fetches in the background. Replacing the page
+ * can legitimately cancel that speculative work; Chromium reports the cancel
+ * through `requestfailed` even though the destination document and its API
+ * requests are healthy. `_rsc=` alone is not proof of speculation: real App
+ * Router navigations use it too. Require Next/browser prefetch evidence, GET,
+ * the RSC header and a target on the page's own origin so an
+ * aborted navigation, action or ordinary fetch stays red.
+ */
+export function isAbortedRscPrefetch(request) {
+  if (!request || (request.status !== null && request.status !== undefined)) return false;
+  if (request.errorText !== "net::ERR_ABORTED") return false;
+  if (request.resourceType !== "fetch" || request.isNavigationRequest !== false) return false;
+  if (request.method !== "GET" || request.rsc !== "1") return false;
+  const purpose = [request.purpose, request.secPurpose]
+    .filter(value => typeof value === "string")
+    .flatMap(value => value.toLowerCase().split(/[;,\s]+/));
+  if (request.nextRouterPrefetch !== "1" && !purpose.includes("prefetch")) return false;
+  if (typeof request.url !== "string") return false;
+  if (typeof request.pageUrlAtFailure !== "string") return false;
+  try {
+    const parsed = new URL(request.url, "http://browser-matrix.invalid");
+    const page = new URL(request.pageUrlAtFailure, parsed.origin);
+    if (parsed.pathname === "/api" || parsed.pathname.startsWith("/api/")) return false;
+    if (parsed.origin !== page.origin) return false;
+    const query = parsed.search.slice(1);
+    return /(?:^|&)_rsc=/.test(query);
+  } catch {
+    return false;
+  }
+}
+
 export function consoleVerdict({ consoleErrors = [], pageErrors = [], navigated = true, devServer = false } = {}) {
   // A page that never loaded emits no console errors. Scoring that empty log as
   // "clean" is the same lie as `axeVerdict(null)` returning a pass, and it was
@@ -235,14 +267,19 @@ export function consoleVerdict({ consoleErrors = [], pageErrors = [], navigated 
 /**
  * Failed requests.
  *
- * One caveat, and it is a caveat rather than an allowlist. Turbopack cancels
+ * Two narrow caveats, neither of them a broad allowlist. Page replacement can
+ * abort a speculative non-navigation Next RSC fetch; only the exact Chromium
+ * abort + GET + RSC + explicit prefetch + same-origin signature is recorded as
+ * an observation. Turbopack cancels
  * in-flight `/_next/static/**` chunk requests whenever it recompiles, so a dev
  * server produces a stream of failed asset requests that do not exist in a
  * built app. Those are downgraded to observations ONLY when the target has been
  * identified as a dev server from its own HMR socket — not from a flag anyone
  * can set — and the reason is printed on every one. Against a production
- * target (`npm run build && npm start`, which is the release lane) every failed
- * request fails the gate, `/_next/` included.
+ * target (`npm run build && npm start`, which is the release lane) every other
+ * failed request fails the gate, `/_next/` included. The exact speculative RSC
+ * abort is a page-replacement lifecycle event in either lane, not a dev-server
+ * exception.
  */
 export function networkVerdict({ failedRequests = [], devServer = false, navigated = true } = {}) {
   // Same rule as the console: no navigation means no observation. A `goto` that
@@ -251,17 +288,26 @@ export function networkVerdict({ failedRequests = [], devServer = false, navigat
   if (!navigated) {
     return { status: "fail", detail: "the page never loaded — an empty request log is not a clean one" };
   }
-  const noise = devServer ? failedRequests.filter(r => isDevOnlyAsset(r.url)) : [];
-  const real = failedRequests.filter(r => !noise.includes(r));
+  const rscPrefetches = failedRequests.filter(isAbortedRscPrefetch);
+  const afterRscPrefetches = failedRequests.filter(r => !rscPrefetches.includes(r));
+  const noise = devServer ? afterRscPrefetches.filter(r => isDevOnlyAsset(r.url)) : [];
+  const real = afterRscPrefetches.filter(r => !noise.includes(r));
   if (real.length > 0) {
-    const shown = real.slice(0, 3).map(r => `${r.status ?? "failed"} ${r.url}`).join(" | ");
+    const shown = real.slice(0, 3).map(r => `${r.status ?? r.errorText ?? "failed"} ${r.url}`).join(" | ");
     return { status: "fail", detail: `${real.length} failed request(s): ${shown}` };
   }
-  if (noise.length > 0) {
+  if (rscPrefetches.length > 0 || noise.length > 0) {
+    const observations = [];
+    if (rscPrefetches.length > 0) {
+      observations.push(`${rscPrefetches.length} aborted speculative Next RSC fetch(es) during page replacement`);
+    }
+    if (noise.length > 0) {
+      observations.push(`${noise.length} cancelled dev-server asset request(s) — dev-server recompilation, `
+        + "not proof of anything; re-run against a production build for a release gate");
+    }
     return {
       status: "observation",
-      detail: `${noise.length} cancelled dev-server asset request(s) — dev-server recompilation, `
-        + "not proof of anything; re-run against a production build for a release gate",
+      detail: observations.join(" | "),
     };
   }
   return { status: "pass", detail: "clean network log" };
@@ -841,7 +887,23 @@ async function main() {
         };
         const onPageError = err => pageErrors.push(err.message);
         const onResponse = res => { if (res.status() >= 400) failedRequests.push({ url: res.url(), status: res.status() }); };
-        const onRequestFailed = req => failedRequests.push({ url: req.url(), status: null });
+        const onRequestFailed = req => {
+          const failure = req.failure();
+          const headers = req.headers();
+          failedRequests.push({
+            url: req.url(),
+            status: null,
+            errorText: failure?.errorText ?? null,
+            resourceType: req.resourceType(),
+            isNavigationRequest: req.isNavigationRequest(),
+            method: req.method(),
+            rsc: headers.rsc ?? null,
+            nextRouterPrefetch: headers["next-router-prefetch"] ?? null,
+            purpose: headers.purpose ?? null,
+            secPurpose: headers["sec-purpose"] ?? null,
+            pageUrlAtFailure: session.url(),
+          });
+        };
         session.on("console", onConsole);
         session.on("pageerror", onPageError);
         session.on("response", onResponse);

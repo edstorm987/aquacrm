@@ -13,11 +13,12 @@ import { sendTransactionalEmail } from "@/lib/server/email/transactionalEmail";
 import { recordWebsiteEnquiryLeadContact } from "@/lib/server/websiteEnquiryLeadSync";
 import type { InboxOutboundAttachment } from "@/lib/inbox/media";
 import { inboxMediaUrl, readInboxMediaBytes, verifyInboxMediaToken } from "@/lib/server/inbox/inboxMedia";
+import { claimStagedPrivateUploadsForOwnership, commitStagedPrivateUploadOwnership, PrivateObjectLifecycleClaimError } from "@/lib/server/privateObjectLifecycle";
 import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
 import { loadOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
 import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/brands/tradingBrands";
 import { logActivity } from "@/server/activity";
-import { ensureHydrated } from "@/server/storage";
+import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getClientForAgency } from "@/server/tenants";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -100,6 +101,7 @@ export async function POST(request: Request) {
     if (channel === "email" ? !EMAIL.test(recipient) : !recipient) {
       return NextResponse.json({ ok: false, error: `This enquiry has no valid ${channel === "email" ? "email address" : "phone number"}.` }, { status: 400 });
     }
+    if (attachments.length) await claimStagedPrivateUploadsForOwnership({ agencyId: session.agencyId, purpose: "inbox-media", objectIds: attachments.map(item => item.id) });
 
     const brandName = isTradingBrandSlug(enquiry.brand_slug)
       ? tradingBrandDefinition(enquiry.brand_slug).name
@@ -113,7 +115,16 @@ export async function POST(request: Request) {
       ? enquiry.metadata.inboxReplies.filter(item => item && typeof item === "object") as StoredReply[]
       : [];
     const replay = existingReplies.find(reply => reply.id === replyId && reply.status === "sent");
-    if (replay) return NextResponse.json({ ok: true, reply: replay, replayed: true });
+    if (replay) {
+      if (attachments.length) await commitStagedPrivateUploadOwnership({
+        agencyId: session.agencyId,
+        purpose: "inbox-media",
+        objectIds: attachments.map(item => item.id),
+        commit: async () => ({ ownerId: replay.id, value: undefined }),
+      });
+      await flushPendingWrites();
+      return NextResponse.json({ ok: true, reply: replay, replayed: true });
+    }
 
     const result = channel === "email"
       ? await sendTransactionalEmail({
@@ -159,8 +170,23 @@ export async function POST(request: Request) {
         inboxStatus: metadata.inboxStatus === "resolved" ? "resolved" : "reviewed",
       } : {}),
     };
-    const { error: updateError } = await supabase.from("brand_enquiries").update({ metadata: nextMetadata }).eq("id", enquiry.id);
-    if (updateError) throw new Error(`Could not record the communication: ${updateError.message}`);
+    const persistReply = async () => {
+      const { error: updateError } = await supabase.from("brand_enquiries").update({ metadata: nextMetadata }).eq("id", enquiry.id);
+      if (updateError) throw new Error(`Could not record the communication: ${updateError.message}`);
+    };
+    if (attachments.length) {
+      await commitStagedPrivateUploadOwnership({
+        agencyId: session.agencyId,
+        purpose: "inbox-media",
+        objectIds: attachments.map(item => item.id),
+        commit: async () => {
+          await persistReply();
+          return { ownerId: reply.id, value: undefined };
+        },
+      });
+    } else {
+      await persistReply();
+    }
     if (result.delivered) await recordWebsiteEnquiryLeadContact({
       agencyId: session.agencyId,
       leadId: typeof metadata.leadId === "string" ? metadata.leadId : undefined,
@@ -180,9 +206,13 @@ export async function POST(request: Request) {
       message: result.delivered ? `Sent ${channel} to ${enquiry.name} as ${sender.label}.` : `${channel} to ${enquiry.name} failed from ${sender.label}.`,
       metadata: { enquiryId: enquiry.id, replyId, channel, senderId: sender.id, recipient, error: result.reason },
     });
+    await flushPendingWrites();
     if (!result.delivered) return NextResponse.json({ ok: false, error: result.reason || "The message could not be delivered.", reply }, { status: result.via === "unconfigured" ? 503 : 502 });
     return NextResponse.json({ ok: true, reply });
   } catch (error) {
+    if (error instanceof PrivateObjectLifecycleClaimError) {
+      return NextResponse.json({ ok: false, code: error.code, error: error.message }, { status: 409 });
+    }
     try { return authErrorResponse(error); } catch {
       console.error("[website-enquiries] communication failed", error);
       return NextResponse.json({ ok: false, error: "The message could not be sent." }, { status: 500 });

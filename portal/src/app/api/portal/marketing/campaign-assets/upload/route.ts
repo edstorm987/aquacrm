@@ -3,7 +3,8 @@ import { join } from "node:path";
 import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
-import { PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
+import { beginStagedPrivateUpload, confirmStagedPrivateUpload, privateObjectRequestHash } from "@/lib/server/privateObjectLifecycle";
+import { planPrivateUpload, PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { ensureHydrated } from "@/server/storage";
 
 export const runtime = "nodejs";
@@ -36,6 +37,16 @@ export async function POST(request: Request) {
       .slice(0, 160) || "campaign-image";
     const pathname = `campaigns/${session.agencyId}/${id}-${safeName}`;
     const localKey = join(session.agencyId, `${id}-${safeName}`);
+    const requestHash = privateObjectRequestHash([session.agencyId, id, file.name, file.size, file.type, pathname]);
+    const planned = planPrivateUpload({ pathname, localKey });
+    await beginStagedPrivateUpload({
+      agencyId: session.agencyId,
+      purpose: "campaign-asset",
+      objectId: id,
+      requestHash,
+      planned,
+      localDirectory: "campaign-assets",
+    });
     const stored = await storePrivateUpload({
       pathname,
       file,
@@ -43,10 +54,12 @@ export async function POST(request: Request) {
       localDirectory: "campaign-assets",
       localKey,
     });
+    await confirmStagedPrivateUpload({ agencyId: session.agencyId, purpose: "campaign-asset", objectId: id, requestHash, stored });
 
     return NextResponse.json({
       ok: true,
       asset: {
+        id,
         fileName: file.name,
         contentType: file.type,
         size: file.size,

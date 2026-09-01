@@ -6,6 +6,8 @@ import { ensureHydrated } from "@/server/storage";
 import type { CompanyProfile } from "@/server/types";
 import { getActiveTradingCompanyId } from "@/lib/server/tradingCompanyContext";
 import { getTradingCompany } from "@/server/tradingCompanies";
+import { privateObjectLifecycleLockKey } from "@/lib/server/privateObjectLifecycle";
+import { withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
 
 export async function GET(request: Request) {
   try {
@@ -32,7 +34,15 @@ export async function PUT(request: Request) {
       return NextResponse.json({ ok: false, error: "The plan revision being edited is required." }, { status: 400 });
     }
     const companyId = await requestedCompanyId(request, session.agencyId);
-    return NextResponse.json({ ok: true, company: updateCompanyProfile(session.agencyId, body, session.userId, companyId, { expectedRevision }) });
+    // Capital-plan decisions can cite legal documents. Keep their final
+    // existence check and whole-profile mutation in the same agency lifecycle
+    // lane as a legal purge/detach, otherwise a concurrent PUT can validate the
+    // old row and reintroduce its id after deletion has committed.
+    const company = await withPortalStateTransaction(
+      privateObjectLifecycleLockKey(session.agencyId),
+      () => updateCompanyProfile(session.agencyId, body, session.userId, companyId, { expectedRevision }),
+    );
+    return NextResponse.json({ ok: true, company });
   } catch (error) {
     if (error instanceof CompanyProfileConflictError) {
       return NextResponse.json({ ok: false, error: error.message, conflict: "stale-revision", company: error.current }, { status: 409 });

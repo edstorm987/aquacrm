@@ -6,6 +6,13 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, Check, LoaderCircle, Save, UserRound, Bot } from "lucide-react";
 
 import type { DocEdit } from "@/lib/server/dev/devDocEdits";
+import { checkedDevTeamMutation } from "../_checkedMutation";
+
+type SavedDocumentPayload = {
+  ok?: boolean;
+  mtimeMs?: number;
+  contentSha256?: string;
+};
 
 function ago(ms: number, now: number): string {
   if (!ms) return "—";
@@ -53,25 +60,27 @@ export function DocEditor({
     setError("");
     setSaved(false);
     try {
-      const response = await fetch("/api/portal/dev-team/docs", {
+      const result = await checkedDevTeamMutation<SavedDocumentPayload>("/api/portal/dev-team/docs", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ relPath, content, note, expectedMtimeMs: baseMtime, expectedSha256: baseSha256 }),
+      }, {
+        fallback: "Could not save the document.",
+        validate: value => value.ok === true
+          && typeof value.mtimeMs === "number"
+          && Number.isFinite(value.mtimeMs)
+          && typeof value.contentSha256 === "string"
+          && /^[a-f0-9]{64}$/i.test(value.contentSha256),
       });
-      const result = await response.json() as {
-        ok?: boolean;
-        error?: string;
-        mtimeMs?: number;
-        contentSha256?: string;
-      };
-      if (!response.ok || !result.ok) throw new Error(result.error || "Could not save.");
-      setBaseMtime(result.mtimeMs ?? baseMtime);
-      setBaseSha256(result.contentSha256 ?? baseSha256);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setBaseMtime(result.value.mtimeMs!);
+      setBaseSha256(result.value.contentSha256!);
       setSaved(true);
       setNote("");
       router.refresh();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not save.");
     } finally {
       setBusy(false);
     }

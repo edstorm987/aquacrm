@@ -3,7 +3,9 @@
 import { FileImage, RotateCcw, Upload, X } from "lucide-react";
 import { useRef, useState } from "react";
 
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 import type { InvoiceTemplate } from "../lib/domain";
+import { isFinanceMutationAck } from "../lib/mutationPayloads";
 
 const control = "min-h-10 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black outline-none focus:border-black/35";
 
@@ -45,7 +47,7 @@ export function InvoiceTemplateEditor({
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch(`${apiBase}/invoices/template`, {
+      await checkedJsonMutation<{ ok: boolean }>(`${apiBase}/invoices/template`, {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -57,13 +59,13 @@ export function InvoiceTemplateEditor({
           footerText: template.footerText,
           letterheadDataUrl: template.letterheadDataUrl,
         }),
+      }, {
+        fallback: "Could not save the invoice template.",
+        validate: isFinanceMutationAck,
       });
-      const result = await response.json() as { ok?: boolean; error?: string };
-      if (!response.ok || !result.ok) {
-        setError(result.error ?? "Could not save the invoice template.");
-        return;
-      }
       window.location.reload();
+    } catch (requestError) {
+      setError(mutationErrorMessage(requestError, "Could not save the invoice template."));
     } finally {
       setBusy(false);
     }

@@ -28,9 +28,12 @@ describe("connect GitHub without leaving the projects screen", () => {
   });
 
   it("tests the token immediately after saving — auth proven on the spot", () => {
-    assert.match(setup, /action: "test", connectionId: saved\.connection\.id/);
+    assert.match(setup, /const connectionId = saved\.value\.connection!\.id!/);
+    assert.match(setup, /action: "test", connectionId/);
+    assert.match(setup, /checkedDevTeamMutation/);
     // A failed test is reported as saved-but-not-authenticating, never success.
     assert.match(setup, /Saved, but the token did not authenticate/);
+    assert.match(setup, /Saved, but the authentication check could not finish/);
   });
 
   it("treats the token as a secret: password input, never echoed, cleared on success", () => {

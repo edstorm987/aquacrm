@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 
 import { issueSession, sessionCookie } from "@/lib/server/auth/auth";
+import { localDevDestination } from "@/lib/server/dev/localDevDestination";
 import {
   DEV_AGENCY_NAME,
   DEV_AGENCY_SLUG,
@@ -148,9 +149,7 @@ async function enterLocalDev(request: Request) {
     } as never);
 
     const clientTarget = new URL(request.url).searchParams.get("to");
-    const clientDestination = clientTarget?.startsWith("/") && !clientTarget.startsWith("//")
-      ? clientTarget
-      : "/portal/customer";
+    const clientDestination = localDevDestination(clientTarget, "/portal/customer", request.url);
     const clientResponse = NextResponse.redirect(new URL(clientDestination, request.url), 303);
     const cookie = sessionCookie(clientToken);
     clientResponse.cookies.set(cookie.name, cookie.value, cookie.options);
@@ -214,7 +213,7 @@ async function enterLocalDev(request: Request) {
     : selectedUser.role === "freelancer"
       ? "/portal/freelancer"
       : "/portal/agency/contacts";
-  const destination = target?.startsWith("/") && !target.startsWith("//") ? target : defaultDestination;
+  const destination = localDevDestination(target, defaultDestination, request.url);
 
   const response = NextResponse.redirect(new URL(destination, request.url), 303);
   const cookie = sessionCookie(token);

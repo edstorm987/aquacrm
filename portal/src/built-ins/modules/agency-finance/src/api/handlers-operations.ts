@@ -9,7 +9,10 @@ import type {
   UpdateFinanceObligationPatch,
 } from "../lib/domain";
 import { containerFor } from "../server/foundationAdapter";
+import { privateObjectLifecycleLockKey } from "@/lib/server/privateObjectLifecycle";
 import { resolveFinanceDefaultCurrency } from "@/lib/server/finance/financeCurrency";
+import { withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
+import { legalDocumentAcceptsReferences } from "@/server/legalDocuments";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -27,6 +30,30 @@ function defaultCurrency(ctx: PluginCtx): Currency {
   return resolveFinanceDefaultCurrency(ctx.agencyId, ctx.install.config.defaultCurrency);
 }
 
+/**
+ * A legal-document citation is a cross-model write: the Finance row and the
+ * legal register must agree about whether the document still exists. The
+ * legal purge path already owns this agency lifecycle lane. Keep the final
+ * existence check and the complete Finance persistence inside that same lane
+ * so neither a normal purge nor an explicit detach can slip between them.
+ *
+ * `work` must use the raw plugin storage passed by the mounted runtime. It must
+ * not take this lifecycle lock again; `withPortalStateTransaction` is not
+ * re-entrant, and nesting the same key would deadlock.
+ */
+async function withLegalDocumentReferenceTransaction<T>(
+  ctx: PluginCtx,
+  linkedLegalDocumentId: string | null | undefined,
+  work: () => Promise<T>,
+): Promise<{ accepted: true; value: T } | { accepted: false }> {
+  return withPortalStateTransaction(privateObjectLifecycleLockKey(ctx.agencyId), async () => {
+    if (linkedLegalDocumentId && !legalDocumentAcceptsReferences(ctx.agencyId, linkedLegalDocumentId)) {
+      return { accepted: false };
+    }
+    return { accepted: true, value: await work() };
+  });
+}
+
 export async function obligationsHandler(request: Request, ctx: PluginCtx): Promise<Response> {
   const service = operations(ctx);
   if (request.method === "GET") {
@@ -36,7 +63,11 @@ export async function obligationsHandler(request: Request, ctx: PluginCtx): Prom
     const body = await safeJson<CreateFinanceObligationInput>(request);
     if (!body?.name?.trim() || !body.type) return json({ ok: false, error: "name and type required" }, 400);
     try {
-      return json({ ok: true, obligation: await service.createObligation(ctx.actor, body, defaultCurrency(ctx)) }, 201);
+      const saved = await withLegalDocumentReferenceTransaction(ctx, body.linkedLegalDocumentId, () =>
+        service.createObligation(ctx.actor, body, defaultCurrency(ctx)));
+      return saved.accepted
+        ? json({ ok: true, obligation: saved.value }, 201)
+        : json({ ok: false, error: "The linked legal document is unavailable or being deleted." }, 409);
     } catch (error) {
       return json({ ok: false, error: message(error, "Obligation could not be created.") }, 422);
     }
@@ -46,7 +77,15 @@ export async function obligationsHandler(request: Request, ctx: PluginCtx): Prom
     const patch = await safeJson<UpdateFinanceObligationPatch>(request);
     if (!id || !patch) return json({ ok: false, error: "id and body required" }, 400);
     try {
-      const obligation = await service.updateObligation(ctx.actor, id, patch);
+      // Even when this patch does not mention the citation, updateObligation
+      // reads and rewrites the whole row. Holding the lifecycle lane prevents
+      // that stale snapshot from re-attaching an id a detach purge just cleared.
+      const saved = await withLegalDocumentReferenceTransaction(ctx, patch.linkedLegalDocumentId, () =>
+        service.updateObligation(ctx.actor, id, patch));
+      if (!saved.accepted) {
+        return json({ ok: false, error: "The linked legal document is unavailable or being deleted." }, 409);
+      }
+      const obligation = saved.value;
       return obligation ? json({ ok: true, obligation }) : json({ ok: false, error: "Obligation not found." }, 404);
     } catch (error) {
       return json({ ok: false, error: message(error, "Obligation could not be updated.") }, 422);

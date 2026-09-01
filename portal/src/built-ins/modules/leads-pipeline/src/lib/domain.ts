@@ -808,6 +808,8 @@ export type CampaignPlacement =
   | "google-display";
 
 export interface CampaignCreativeAsset {
+  /** Staged-upload lifecycle id; retained so owner adoption can be claimed. */
+  id?: string;
   fileName: string;
   contentType: string;
   size: number;

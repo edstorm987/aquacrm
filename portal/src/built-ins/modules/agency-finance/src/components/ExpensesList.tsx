@@ -4,9 +4,11 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowUpDown, CalendarDays, ChartPie, Download, Eye, FileUp, Paperclip, Pencil, Plus, ReceiptText, Search, Settings2, Trash2, X } from "lucide-react";
 
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 import type { Client } from "../lib/tenancy";
 import type { BudgetPot, Expense, ExpenseAttachment, ExpenseCategory, ExpenseStatus } from "../lib/domain";
 import { SUPPORTED_CURRENCIES, formatMoney } from "../lib/currencies";
+import { isFinanceMutationEntities, isFinanceMutationEntity } from "../lib/mutationPayloads";
 import { FinanceNav } from "./FinanceNav";
 import { dateInputValue, formatUkDate } from "../lib/safeDate";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
@@ -80,6 +82,7 @@ export function ExpensesList({ expenses, categories, clients, budgetPots, apiBas
   const addDialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(addDialogRef, adding, { onEscape: () => setAdding(false) });
   const [postingId, setPostingId] = useState("");
+  const [postingError, setPostingError] = useState("");
   const [customFields, setCustomFields] = useState<ExpenseCustomFieldDefinition[]>([]);
   const [customFieldRead, setCustomFieldRead] = useState<ReadResult<ExpenseCustomFieldDefinition[]> | null>(null);
   const [customFieldRetry, setCustomFieldRetry] = useState(0);
@@ -211,21 +214,20 @@ export function ExpensesList({ expenses, categories, clients, budgetPots, apiBas
 
   async function postNextExpense(expense: Expense) {
     if (!expense.nextDueAt) {
-      window.alert("Set the next due date before posting this recurring expense.");
+      setPostingError("Set the next due date before posting this recurring expense.");
       return;
     }
     setPostingId(expense.id);
+    setPostingError("");
     try {
-      const response = await fetch(`${apiBase}/expenses/post-recurring`, {
+      const result = await checkedJsonMutation<{ ok: boolean; expense?: Expense; source?: Expense }>(`${apiBase}/expenses/post-recurring`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ id: expense.id, occurrenceAt: expense.nextDueAt }),
+      }, {
+        fallback: "Could not post the next expense.",
+        validate: payload => isFinanceMutationEntities(payload, ["expense", "source"]),
       });
-      const result = await response.json();
-      if (!response.ok || !result.ok) {
-        window.alert(result?.error ?? "Could not post the next expense.");
-        return;
-      }
       const posted = result.expense as Expense;
       const source = result.source as Expense;
       setRecords(current => [
@@ -235,6 +237,8 @@ export function ExpensesList({ expenses, categories, clients, budgetPots, apiBas
           .map(row => row.id === source.id ? source : row),
       ]);
       router.refresh();
+    } catch (requestError) {
+      setPostingError(mutationErrorMessage(requestError, "Could not post the next expense."));
     } finally {
       setPostingId("");
     }
@@ -309,6 +313,8 @@ export function ExpensesList({ expenses, categories, clients, budgetPots, apiBas
           </button>
         </div>
       ) : null}
+
+      {postingError ? <p role="alert" className="border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm text-red-800">{postingError}</p> : null}
 
       <dl className="grid grid-cols-2 border-y border-black/10 [&>*:last-child]:col-span-2 sm:grid-cols-5 sm:[&>*:last-child]:col-span-1">
         <Summary label="Paid costs" value={money(totalPaid)} />
@@ -775,9 +781,10 @@ function ExpenseForm({ expense, apiBase, categories, clients, budgetPots, custom
       for (const file of Array.from(files)) {
         const form = new FormData();
         form.set("file", file);
-        const response = await fetch("/api/portal/finance/expense-attachments/upload", { method: "POST", body: form });
-        const result = await response.json().catch(() => null);
-        if (!response.ok || !result?.ok) throw new Error(result?.error ?? `Could not upload ${file.name}.`);
+        const result = await checkedJsonMutation<{ ok: boolean; attachment?: ExpenseAttachment }>("/api/portal/finance/expense-attachments/upload", { method: "POST", body: form }, {
+          fallback: `Could not upload ${file.name}.`,
+          validate: payload => isFinanceMutationEntity(payload, "attachment"),
+        });
         uploaded.push(result.attachment as ExpenseAttachment);
       }
       setAttachments(current => [...current, ...uploaded]);
@@ -816,16 +823,14 @@ function ExpenseForm({ expense, apiBase, categories, clients, budgetPots, custom
         try {
           let categoryId = categories.find(category => category.name.localeCompare(categoryName, undefined, { sensitivity: "accent" }) === 0)?.id;
           if (!categoryId) {
-            const categoryResponse = await fetch(`${apiBase}/categories`, {
+            const categoryResult = await checkedJsonMutation<{ ok: boolean; category?: ExpenseCategory }>(`${apiBase}/categories`, {
               method: "POST",
               headers: { "content-type": "application/json" },
               body: JSON.stringify({ name: categoryName }),
+            }, {
+              fallback: "Could not save the expense category.",
+              validate: payload => isFinanceMutationEntity(payload, "category"),
             });
-            const categoryResult = await categoryResponse.json().catch(() => null);
-            if (!categoryResponse.ok || !categoryResult?.ok || !categoryResult.category) {
-              setError(categoryResult?.error ?? `Could not save category (${categoryResponse.status}).`);
-              return;
-            }
             const createdCategory = categoryResult.category as ExpenseCategory;
             categoryId = createdCategory.id;
             onCategoryCreated(createdCategory);
@@ -854,25 +859,23 @@ function ExpenseForm({ expense, apiBase, categories, clients, budgetPots, custom
             recurringActive: Boolean(recurrence),
             customFields: customFieldValues,
           };
-          const response = await fetch(`${apiBase}/expenses`, {
+          const result = await checkedJsonMutation<{ ok: boolean; expense?: Expense }>(`${apiBase}/expenses`, {
             method: editing ? "PATCH" : "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify(editing
               ? { id: expense!.id, patch: fields }
               : { ...fields, recordAsPaid: data.get("recordAsPaid") === "on", idempotencyKey }),
+          }, {
+            fallback: "The expense could not be saved.",
+            validate: payload => isFinanceMutationEntity(payload, "expense"),
           });
-          const result = await response.json();
-          if (!response.ok || !result.ok) {
-            setError(result?.error ?? `Could not save expense (${response.status}).`);
-            return;
-          }
           if (!editing) {
             form.reset();
             setIdempotencyKey(freshIdempotencyKey());   // the next expense is a new intent
           }
           onSaved(result.expense as Expense);
         } catch (saveError) {
-          setError(saveError instanceof Error ? saveError.message : "The expense could not be saved.");
+          setError(mutationErrorMessage(saveError, "The expense could not be saved."));
         } finally {
           setBusy(false);
         }

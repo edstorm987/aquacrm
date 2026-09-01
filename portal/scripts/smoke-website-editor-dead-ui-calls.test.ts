@@ -53,7 +53,6 @@ const KNOWN_DEAD = [
   "/api/portal/ai-builder/image/variations",
   "/api/portal/forms/public/form/*",
   "/api/portal/forms/public/submit/*",
-  "/api/portal/forms/submit",
   "/api/portal/newsletter/subscribe",
   "/api/portal/reservations",
   "/api/portal/reservations/resources",

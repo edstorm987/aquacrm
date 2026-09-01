@@ -57,6 +57,8 @@ export interface PluginCtx {
 export interface PluginStorage {
   get<T = unknown>(key: string): Promise<T | undefined>;
   set<T = unknown>(key: string, value: T): Promise<void>;
+  /** Refresh, serialize and durably flush one logical mutation across processes. */
+  runExclusive?<T>(key: string, operation: () => Promise<T>): Promise<T>;
   del(key: string): Promise<void>;
   list(prefix?: string): Promise<string[]>;
 }
@@ -175,6 +177,8 @@ export interface PluginApiRoute {
   methods: ("GET" | "POST" | "PATCH" | "PUT" | "DELETE")[];
   handler: (req: Request, ctx: PluginCtx) => Promise<Response>;
   requiresFeature?: string;
+  /** Anonymous visitor facade; never use this to widen an operator route. */
+  public?: boolean;
 }
 
 // ─── Settings schema ───────────────────────────────────────────────────────

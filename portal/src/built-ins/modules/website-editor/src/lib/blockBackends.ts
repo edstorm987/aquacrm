@@ -33,10 +33,9 @@
 // an enquiry there "would double every count in the inbox". Pointing a client's
 // contact form at either would be a worse bug than the one being fixed.
 //
-// Building the real thing means tenant resolution from the published site,
-// spam/rate limiting, notification and inbox integration — and it inherits the
-// consent question in issue #2, which is Ed's decision and not mine. So the
-// blocks are labelled honestly until that exists.
+// Building each real visitor facade means tenant/install resolution, explicit
+// public DTOs, durable throttling and consent where personal data is captured.
+// Blocks stay labelled until their own facade meets that boundary.
 //
 // Deleting them was the other option and is worse: a client whose page already
 // contains one would silently lose content on next load. Labelling keeps what
@@ -60,23 +59,6 @@ export interface BlockBackendGap {
 }
 
 export const BLOCK_BACKEND_GAPS: Readonly<Record<string, BlockBackendGap>> = {
-  "contact-form": {
-    // Half-true now, and the wording has to say which half (2026-08-27).
-    //
-    // In an EXPORTED site this block works: `staticExport` renders a real form
-    // that posts straight to the client's own Supabase table, with the anon key
-    // baked in. What still does not work is submitting from inside the editor's
-    // own preview, because the React component posts to `/api/portal/forms/submit`
-    // and there is no forms module behind it.
-    //
-    // It stays listed because that endpoint is still unreachable, which is what
-    // the ratchet measures — but "nowhere to go" would now be wrong, and a
-    // label that overstates the problem gets ignored just as fast as one that
-    // understates it.
-    reason: "Works on an exported site once this client's Supabase is connected — but it cannot be submitted from the editor preview.",
-    endpoints: ["/api/portal/forms/submit"],
-    needs: "forms",
-  },
   "form-embed": {
     reason: "The form service this loads from does not exist yet.",
     endpoints: ["/api/portal/forms/public/form/:id", "/api/portal/forms/public/submit/:id"],
@@ -101,11 +83,6 @@ export const BLOCK_BACKEND_GAPS: Readonly<Record<string, BlockBackendGap>> = {
     reason: "Visitor theme switching has no backend yet.",
     endpoints: ["/api/portal/themes/:siteId"],
     needs: "themes",
-  },
-  "blog-feed": {
-    reason: "Posts cannot be listed on a published page yet.",
-    endpoints: ["/api/portal/website-editor/blog/posts"],
-    needs: "website-editor blog routes",
   },
   "blog-post": {
     reason: "A single post cannot be loaded on a published page yet.",

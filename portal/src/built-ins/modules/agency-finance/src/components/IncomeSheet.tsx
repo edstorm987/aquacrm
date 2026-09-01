@@ -3,9 +3,11 @@
 import { useMemo, useState, useRef } from "react";
 import { Banknote, CreditCard, Download, Eye, Landmark, Plus, Search, Wallet, X, type LucideIcon } from "lucide-react";
 
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 import type { Currency, IncomeEntry, Invoice, Payment, PaymentMethod, Refund } from "../lib/domain";
 import type { Client } from "../lib/tenancy";
 import { SUPPORTED_CURRENCIES, formatMoney } from "../lib/currencies";
+import { isFinanceMutationAck } from "../lib/mutationPayloads";
 import { PAYMENT_CHANNELS, channelMeta, normaliseChannel, type PaymentChannel } from "../lib/channels";
 import { summariseMoneyInByChannel } from "../lib/moneyIn";
 import { FinanceNav } from "./FinanceNav";
@@ -205,7 +207,7 @@ function RecordIncome({ invoices, payments, refunds, apiBase, onClose }: { invoi
   const [idempotencyKey] = useState(freshIdempotencyKey);
   const invoice = invoices.find(item => item.id === invoiceId);
   const remaining = invoice ? invoiceOutstandingCents(invoice, payments, refunds) : 0;
-  return <Modal title="Record income" onClose={onClose}><form className="grid gap-4" onSubmit={async event => { event.preventDefault(); const data = new FormData(event.currentTarget); setBusy(true); setError(""); const response = await fetch(`${apiBase}/payments/create`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ invoiceId, amountCents: Math.round(Number(data.get("amount")) * 100), currency: invoice?.currency ?? "gbp", method: data.get("method"), paidAt: Date.parse(String(data.get("paidAt"))), externalRef: String(data.get("externalRef") ?? "").trim() || undefined, notes: String(data.get("notes") ?? "").trim() || undefined, idempotencyKey }) }); const result = await response.json().catch(() => null); setBusy(false); if (!response.ok || !result?.ok) return setError(result?.error ?? "Income could not be recorded."); window.location.reload(); }}>
+  return <Modal title="Record income" onClose={onClose}><form className="grid gap-4" onSubmit={async event => { event.preventDefault(); const data = new FormData(event.currentTarget); setBusy(true); setError(""); try { await checkedJsonMutation<{ ok: boolean }>(`${apiBase}/payments/create`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ invoiceId, amountCents: Math.round(Number(data.get("amount")) * 100), currency: invoice?.currency ?? "gbp", method: data.get("method"), paidAt: Date.parse(String(data.get("paidAt"))), externalRef: String(data.get("externalRef") ?? "").trim() || undefined, notes: String(data.get("notes") ?? "").trim() || undefined, idempotencyKey }) }, { fallback: "Income could not be recorded.", validate: isFinanceMutationAck }); window.location.reload(); } catch (requestError) { setError(mutationErrorMessage(requestError, "Income could not be recorded.")); } finally { setBusy(false); } }}>
     {available.length ? <><label className={labelClass}>Invoice<select value={invoiceId} onChange={event => setInvoiceId(event.target.value)} className={inputClass}>{available.map(item => <option key={item.id} value={item.id}>{item.number} · {money(invoiceOutstandingCents(item, payments, refunds), item.currency)} outstanding</option>)}</select></label><div className="grid gap-3 sm:grid-cols-2"><label className={labelClass}>Amount received<input required name="amount" type="number" min="0.01" max={(remaining / 100).toFixed(2)} step="0.01" defaultValue={(remaining / 100).toFixed(2)} key={invoiceId} className={inputClass} /></label><label className={labelClass}>Date received<input required name="paidAt" type="date" defaultValue={businessCalendarDate()} className={inputClass} /></label><label className={labelClass}>Channel<select name="method" value={channel} onChange={event => setChannel(event.target.value as PaymentChannel)} className={inputClass}>{PAYMENT_CHANNELS.map(option => <option key={option.channel} value={option.channel}>{option.label}</option>)}</select></label><label className={labelClass}>{channelMeta(channel).referenceLabel}<input name="externalRef" className={inputClass} /></label></div><label className={labelClass}>Notes<textarea name="notes" rows={3} className={`${inputClass} py-2`} /></label>{error ? <p role="alert" className="text-sm text-red-700">{error}</p> : null}<button disabled={busy} className="ml-auto min-h-10 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Recording..." : "Record income"}</button></> : <Empty text="No collectible invoice has an outstanding balance." />}
   </form></Modal>;
 }
@@ -221,27 +223,33 @@ function RecordOtherIncome({ clients, apiBase, onClose }: { clients: Client[]; a
     const data = new FormData(event.currentTarget);
     setBusy(true);
     setError("");
-    const response = await fetch(`${apiBase}/income`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        title: String(data.get("title") ?? "").trim(),
-        amountCents: Math.round(Number(data.get("amount")) * 100),
-        receivedAt: Date.parse(String(data.get("receivedAt"))),
-        method: data.get("method"),
-        clientId: String(data.get("clientId") ?? "").trim() || undefined,
-        category: String(data.get("category") ?? "").trim() || undefined,
-        reference: String(data.get("reference") ?? "").trim() || undefined,
-        description: String(data.get("description") ?? "").trim() || undefined,
-        notes: String(data.get("notes") ?? "").trim() || undefined,
-        currency: String(data.get("currency") ?? "gbp"),
-        idempotencyKey,
-      }),
-    });
-    const result = await response.json().catch(() => null);
-    setBusy(false);
-    if (!response.ok || !result?.ok) return setError(result?.error ?? "Income could not be added.");
-    window.location.reload();
+    try {
+      await checkedJsonMutation<{ ok: boolean }>(`${apiBase}/income`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          title: String(data.get("title") ?? "").trim(),
+          amountCents: Math.round(Number(data.get("amount")) * 100),
+          receivedAt: Date.parse(String(data.get("receivedAt"))),
+          method: data.get("method"),
+          clientId: String(data.get("clientId") ?? "").trim() || undefined,
+          category: String(data.get("category") ?? "").trim() || undefined,
+          reference: String(data.get("reference") ?? "").trim() || undefined,
+          description: String(data.get("description") ?? "").trim() || undefined,
+          notes: String(data.get("notes") ?? "").trim() || undefined,
+          currency: String(data.get("currency") ?? "gbp"),
+          idempotencyKey,
+        }),
+      }, {
+        fallback: "Income could not be added.",
+        validate: isFinanceMutationAck,
+      });
+      window.location.reload();
+    } catch (requestError) {
+      setError(mutationErrorMessage(requestError, "Income could not be added."));
+    } finally {
+      setBusy(false);
+    }
   }}>
     <label className={labelClass}>What is this income?<input required name="title" autoFocus placeholder="For example, referral fee" className={inputClass} /></label>
     <div className="grid gap-3 sm:grid-cols-2">

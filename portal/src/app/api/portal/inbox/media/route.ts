@@ -6,7 +6,8 @@ import type { InboxOutboundAttachment, InboxOutboundAttachmentKind } from "@/lib
 import { authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
 import { getInboxConversation } from "@/lib/server/inbox/inboxStore";
 import { inboxMediaUrl, signInboxMediaToken, type InboxMediaTargetKind } from "@/lib/server/inbox/inboxMedia";
-import { PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
+import { beginStagedPrivateUpload, confirmStagedPrivateUpload, privateObjectRequestHash } from "@/lib/server/privateObjectLifecycle";
+import { planPrivateUpload, PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
@@ -34,13 +35,25 @@ export async function POST(request: NextRequest) {
     const id = `ima_${crypto.randomBytes(10).toString("hex")}`;
     const name = safeName(file.name);
     const localKey = join(session.agencyId, targetKind, targetId, `${id}-${name}`);
+    const pathname = `inbox-media/${session.agencyId}/${targetKind}/${targetId}/${id}-${name}`;
+    const requestHash = privateObjectRequestHash([session.agencyId, targetKind, targetId, id, file.name, file.size, file.type, pathname]);
+    const planned = planPrivateUpload({ pathname, localKey });
+    await beginStagedPrivateUpload({
+      agencyId: session.agencyId,
+      purpose: "inbox-media",
+      objectId: id,
+      requestHash,
+      planned,
+      localDirectory: "inbox-media",
+    });
     const stored = await storePrivateUpload({
-      pathname: `inbox-media/${session.agencyId}/${targetKind}/${targetId}/${id}-${name}`,
+      pathname,
       file,
       contentType: file.type,
       localDirectory: "inbox-media",
       localKey,
     });
+    await confirmStagedPrivateUpload({ agencyId: session.agencyId, purpose: "inbox-media", objectId: id, requestHash, stored });
     const kind = attachmentKind(file.type);
     const token = signInboxMediaToken({ agencyId: session.agencyId, targetKind, targetId, id, name: file.name.slice(0, 180), size: file.size, contentType: file.type, kind, storageProvider: stored.storageProvider, storageKey: stored.storageKey });
     const attachment: InboxOutboundAttachment = { id, name: file.name.slice(0, 180), size: file.size, contentType: file.type, kind, token, url: inboxMediaUrl(request.nextUrl.origin, token) };

@@ -1,12 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
-import { deletePrivateUpload } from "@/lib/server/privateUploadStorage";
-import { createInteractiveSop, createWrittenSop, deleteSopRecord, getSop, listSops, updateSop } from "@/engines/sop/server/sops";
+import { deletePrivateObjectWithRecovery, privateObjectDeletionCheckpoint, privateObjectLifecycleLockKey, privateObjectRequestHash, PrivateObjectLifecycleConflictError } from "@/lib/server/privateObjectLifecycle";
+import { createInteractiveSop, createWrittenSop, getSop, listSopsWithPendingDeletion, updateSop } from "@/engines/sop/server/sops";
 import { sopDependencyInventory } from "@/engines/sop/server/sopDependencies";
 import { ensureHydrated } from "@/server/storage";
-import { AGENCY_ROLES } from "@/server/types";
+import { AGENCY_ROLES, type SopDocument } from "@/server/types";
 import type { BlockTreeJSON } from "@/engines/editor/elements";
+import { withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
 
 export const runtime = "nodejs";
 
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
       }
       return NextResponse.json({ ok: true, dependencies: sopDependencyInventory(session.agencyId, dependenciesFor) });
     }
-    return NextResponse.json({ ok: true, sops: listSops(session.agencyId) });
+    return NextResponse.json({ ok: true, sops: listSopsWithPendingDeletion(session.agencyId) });
   } catch (error) {
     return authErrorResponse(error);
   }
@@ -105,7 +106,13 @@ export async function PATCH(request: NextRequest) {
     // `updateSop` only honours `blocks` for an existing interactive SOP, and
     // validates the tree against the element schema (throws on an invalid one).
     try {
-      const sop = updateSop(session.agencyId, id, patch, session.userId);
+      // The authoritative read and write share the permanent-deletion lane;
+      // otherwise a stale process can recreate the owner after its uploaded
+      // binary has already been removed from the provider.
+      const sop = await withPortalStateTransaction(
+        privateObjectLifecycleLockKey(session.agencyId),
+        () => updateSop(session.agencyId, id, patch, session.userId),
+      );
       return sop
         ? NextResponse.json({ ok: true, sop })
         : NextResponse.json({ ok: false, error: "SOP not found" }, { status: 404 });
@@ -122,33 +129,47 @@ export async function DELETE(request: NextRequest) {
     const session = await agencySession(request);
     const id = new URL(request.url).searchParams.get("id")?.trim();
     if (!id) return NextResponse.json({ ok: false, error: "id required" }, { status: 400 });
-    const sop = getSop(session.agencyId, id);
+    const sop = getSop(session.agencyId, id)
+      ?? privateObjectDeletionCheckpoint<SopDocument>(session.agencyId, "sop", id)?.snapshot;
     if (!sop) return NextResponse.json({ ok: false, error: "SOP not found" }, { status: 404 });
 
-    // Taken BEFORE anything is removed, so it describes the state the deletion
-    // actually acted on. Deletion does not detach these — no retirement policy
-    // has been decided (issues #176) — so the response says what it stranded
-    // rather than implying a reconciliation that did not happen.
     const stranded = sopDependencyInventory(session.agencyId, id);
-
-    // Storage first: the record is the only handle on the stored object, so it
-    // must survive a provider refusal instead of being deleted regardless.
-    const removal = await deletePrivateUpload({
-      storageProvider: sop.storageProvider,
-      storageKey: sop.storageKey,
+    const result = await deletePrivateObjectWithRecovery<SopDocument>({
+      agencyId: session.agencyId,
+      purpose: "sop",
+      objectId: id,
+      requestHash: privateObjectRequestHash([session.agencyId, id, "permanent-delete"]),
       localDirectory: "sop-uploads",
+      checkpointSnapshot: snapshot => ({
+        ...snapshot,
+        tags: [],
+        content: undefined,
+        blocks: undefined,
+        fileName: undefined,
+        contentType: undefined,
+        size: undefined,
+        storageKey: undefined,
+      }),
+      completedSnapshot: snapshot => ({ id: snapshot.id, agencyId: snapshot.agencyId, title: snapshot.title, createdBy: snapshot.createdBy }),
+      prepare(state) {
+        const current = state.sops[id];
+        if (!current || current.agencyId !== session.agencyId) throw new Error("SOP not found");
+        delete state.sops[id];
+        return { snapshot: current, storageProvider: current.storageProvider, storageKey: current.storageKey, metadata: { stranded } };
+      },
     });
-    if (!removal.ok) {
+    if (!result.ok) {
       return NextResponse.json({
         ok: false,
         code: "storage_delete_failed",
-        error: `“${sop.title}” is still stored — the storage provider refused to remove its file, so the SOP has been kept to retry.`,
-        detail: removal.error,
+        error: `“${sop.title}” is queued for recovery — retry the delete after the storage provider is available.`,
+        detail: result.error,
+        sop: getSop(session.agencyId, id),
       }, { status: 502 });
     }
-    if (!deleteSopRecord(session.agencyId, id)) return NextResponse.json({ ok: false, error: "SOP not found" }, { status: 404 });
-    return NextResponse.json({ ok: true, stranded });
+    return NextResponse.json({ ok: true, stranded: result.metadata?.stranded ?? stranded });
   } catch (error) {
+    if (error instanceof PrivateObjectLifecycleConflictError) return NextResponse.json({ ok: false, code: error.code, error: error.message }, { status: 409 });
     return authErrorResponse(error);
   }
 }

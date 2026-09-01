@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import type { SessionPayload } from "../src/server/types";
 
 // Select the same virtual-workspace branch Vercel uses, but keep the test
 // process isolated from every real datastore and from the checked-out files.
@@ -75,6 +76,32 @@ test("a multi-file production commit is all-or-nothing", async () => {
   );
   assert.equal(await workspace.readDevWorkspaceFile(left, "utf8"), "left-v1");
   assert.equal(await workspace.readDevWorkspaceFile(right, "utf8"), "right-v2");
+});
+
+test("a structurally corrupt durable attribution ledger fails closed", async () => {
+  const { storage, workspace } = await runtime();
+  await storage.reset();
+  const document = target("corrupt-ledger.md");
+  const ledger = resolve(process.cwd(), ".data", "dev-doc-edits.json");
+  const originalDocument = "durable document before save\n";
+  const corruptLedger = JSON.stringify({ entries: "not-an-array" }) + "\n";
+  await workspace.replaceDurableDevWorkspaceFiles([
+    { target: document, content: originalDocument, expected: await workspace.devWorkspaceFileVersion(document) },
+    { target: ledger, content: corruptLedger, expected: await workspace.devWorkspaceFileVersion(ledger) },
+  ]);
+
+  const { saveDevDoc } = await import("../src/lib/server/dev/devDocEdits");
+  const session = { email: "ed@aquacrm.test", role: "agency-owner" } as unknown as SessionPayload;
+  await assert.rejects(
+    () => saveDevDoc({
+      session,
+      relPath: document.slice(process.cwd().length + 1),
+      content: "must not replace corrupt durable history\n",
+    }),
+    /attribution ledger is invalid and was left untouched/,
+  );
+  assert.equal(await workspace.readDevWorkspaceFile(document, "utf8"), originalDocument);
+  assert.equal(await workspace.readDevWorkspaceFile(ledger, "utf8"), corruptLedger);
 });
 
 test("a production tombstone keeps a bundled/local baseline hidden", async () => {

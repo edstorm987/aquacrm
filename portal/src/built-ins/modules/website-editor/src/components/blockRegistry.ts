@@ -602,6 +602,8 @@ export const BLOCK_REGISTRY: Record<string, BlockDefinition> = {
       heading: "Get in touch",
       subheading: "We'll get back to you within 1 business day.",
       submitLabel: "Send message", showPhone: true, formName: "contact",
+      consentLabel: "I agree that this business may use these details to respond to my request.",
+      consentVersion: 1,
     },
     fields: [
       { key: "heading", label: "Heading", type: "text" },
@@ -609,6 +611,8 @@ export const BLOCK_REGISTRY: Record<string, BlockDefinition> = {
       { key: "submitLabel", label: "Submit label", type: "text" },
       { key: "showPhone", label: "Show phone field", type: "boolean" },
       { key: "formName", label: "Form name (admin)", type: "text" },
+      { key: "consentLabel", label: "Consent wording", type: "textarea" },
+      { key: "consentVersion", label: "Consent version", type: "number", default: 1 },
     ],
   },
 

@@ -4,9 +4,11 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Banknote, CircleGauge, Landmark, Pencil, PiggyBank, Plus, ShieldCheck, Target, WalletCards, X } from "lucide-react";
 
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 import type { BudgetPot, BudgetPotPeriod, BudgetPotPurpose, BudgetPotStatus, Currency } from "../lib/domain";
 import type { BudgetPotSnapshot, BudgetPotSignal } from "../lib/budgetHealth";
 import { SUPPORTED_CURRENCIES, formatMoney } from "../lib/currencies";
+import { isFinanceMutationEntity } from "../lib/mutationPayloads";
 import { dateInputValue } from "../lib/safeDate";
 import { FinanceNav } from "./FinanceNav";
 import { FinanceCurrencyNav } from "./FinanceCurrencyNav";
@@ -187,10 +189,13 @@ function BudgetPotModal({ pot, companies, defaultCurrency, apiBase, onClose, onS
     };
     setBusy(true);
     try {
-      const response = await fetch(`${apiBase}/budgets${pot ? `?id=${encodeURIComponent(pot.id)}` : ""}`, { method: pot ? "PATCH" : "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
-      const result = await response.json().catch(() => null) as { ok?: boolean; pot?: BudgetPot; error?: string } | null;
-      if (!response.ok || !result?.pot) return setError(result?.error ?? "The budget pot could not be saved.");
-      onSaved(result.pot);
+      const result = await checkedJsonMutation<{ ok: boolean; pot?: BudgetPot }>(`${apiBase}/budgets${pot ? `?id=${encodeURIComponent(pot.id)}` : ""}`, { method: pot ? "PATCH" : "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) }, {
+        fallback: "The budget pot could not be saved.",
+        validate: response => isFinanceMutationEntity(response, "pot"),
+      });
+      onSaved(result.pot as BudgetPot);
+    } catch (requestError) {
+      setError(mutationErrorMessage(requestError, "The budget pot could not be saved."));
     } finally { setBusy(false); }
   }}>
     <header className="mb-5 flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wide text-black/40">Budget control</p><h2 className="mt-1 text-xl font-semibold text-black/85">{pot ? "Edit funding pot" : "Create funding pot"}</h2></div><button type="button" onClick={onClose} title="Close" className="grid size-9 place-items-center rounded-md border border-black/10 text-black/50"><X size={16} /></button></header>

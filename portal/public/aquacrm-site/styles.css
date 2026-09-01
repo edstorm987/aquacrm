@@ -775,6 +775,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
     padding-inline: 12px;
     text-align: center;
   }
+  .project-invite .primary { white-space: normal; }
 }
 
 .cookie-reopen { position: fixed; left: 14px; bottom: 14px; z-index: 69; min-height: 40px; border: 1px solid rgba(255,255,255,.24); border-radius: 999px; background: var(--night); color: #fff; padding: 0 15px; font: inherit; font-size: .72rem; font-weight: 800; box-shadow: var(--shadow); cursor: pointer; }

@@ -200,6 +200,26 @@ describe("saveDevDoc — worker-edit guard", () => {
 // ─── 3. attribution: ONE file, ONE history ──────────────────────────────────
 
 describe("doc edit ledger — canonical keys", () => {
+  it("refuses to replace a corrupt attribution ledger", async () => {
+    mkdirSync(join(SANDBOX, ".data"), { recursive: true });
+    const corrupt = "{not valid json\n";
+    writeFileSync(LEDGER, corrupt, "utf8");
+
+    await assert.rejects(
+      () => saveDevDoc({ session, relPath: "docs/a.md", content: "must not land\n" }),
+      /attribution ledger is invalid and was left untouched/,
+    );
+    assert.equal(readFileSync(LEDGER, "utf8"), corrupt, "a corrupt ledger must remain available for recovery");
+    assert.notEqual(readFileSync(join(SANDBOX, "docs", "a.md"), "utf8"), "must not land\n");
+
+    writeFileSync(LEDGER, JSON.stringify([{ relPath: "docs/a.md", author: 42 }]), "utf8");
+    await assert.rejects(
+      () => recentDocEdits(),
+      /attribution ledger is invalid and was left untouched/,
+    );
+    clearLedger();
+  });
+
   it("records the resolved repo-relative path, not the caller's spelling", async () => {
     clearLedger();
     await saveDevDoc({ session, relPath: "./docs/a.md", content: "# A\n\nvia dot slash\n" });

@@ -2,7 +2,7 @@
 
 > Verified findings, independent reviews, browser audits and the testing record.
 >
-> Consolidated 2026-09-01 from **11** source documents / **113,316 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-01 from **11** source documents / **114,194 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -13,8 +13,8 @@
 - [`docs/development/findings/2026-08-22-app-audit-salvage.md`](#source-docs-development-findings-2026-08-22-app-audit-salvage-md) — 1,294 words · `16f6f10e5bc4`
 - [`docs/development/findings/2026-08-22-stripe-can-never-be-configured.md`](#source-docs-development-findings-2026-08-22-stripe-can-never-be-configured-md) — 466 words · `e91f13c8620f`
 - [`docs/development/findings/2026-08-22-surfaces-that-state-a-falsehood.md`](#source-docs-development-findings-2026-08-22-surfaces-that-state-a-falsehood-md) — 892 words · `dfeb4a6302c1`
-- [`docs/development/issues.md`](#source-docs-development-issues-md) — 39,251 words · `e40c85c92517`
-- [`docs/development/tests.md`](#source-docs-development-tests-md) — 12,972 words · `b99af1dace66`
+- [`docs/development/issues.md`](#source-docs-development-issues-md) — 40,456 words · `cadd4c620251`
+- [`docs/development/tests.md`](#source-docs-development-tests-md) — 12,645 words · `265489601261`
 - [`docs/development/ultra-review-2026-08-24.md`](#source-docs-development-ultra-review-2026-08-24-md) — 15,503 words · `6725e738af21`
 - [`docs/development/visual-browser-audit-2026-08-23.md`](#source-docs-development-visual-browser-audit-2026-08-23-md) — 3,582 words · `3ee9b61d74e3`
 
@@ -2001,7 +2001,7 @@ _Captured from the Dev Team portal. Findings are the input side: review them, tu
 
 ## Source document — `docs/development/issues.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/issues.md" sha256="e40c85c9251747c71f64eaa9eaab0ce84f7c975b89f59863426f0f43f768c60e" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/issues.md" sha256="cadd4c620251670219ba8f8942a25c15c9904f25641a50b77bd9e882e4912676" -->
 # Issues & risks
 
 ← Back to [development.md](../development.md) (the law)
@@ -2011,7 +2011,7 @@ when you find something out of scope; check here before assuming something is a
 new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ known/by-design.
 
 > **The register was refreshed against source on 2026-08-24, continued in the browser on
-> 2026-08-25 and reconciled through the 2026-08-27 implementation checkpoints.** Fixed items
+> 2026-08-25 and reconciled through the 2026-09-01 implementation checkpoints.** Fixed items
 > are marked **✅ RESOLVED** with the file:line that proves it, and **kept, not
 > deleted** — history is useful, a false open item costs a worker a day. Item
 > numbers are **permanent** (other docs link to `issues #N`); a resolved item
@@ -3270,8 +3270,9 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     unfinished controls, and add a test that resolves every literal editor API call
     through the actual plugin/app route table.
 
-29. **P1 PARTLY REPAIRED 2026-09-01 — Ecommerce has a narrow, tenant-scoped
-    anonymous storefront facade; the other visitor backends remain open.** Published
+29. **P1 PARTLY REPAIRED 2026-09-01 — Contact capture, Blog summaries and
+    Ecommerce now have narrow tenant-scoped visitor facades; the other visitor
+    backends remain open.** Published
     sites now carry their exact agency/client scope into separate public catalogue,
     product-detail, quote, checkout and opaque-session receipt routes. Operator routes
     stay session-gated, hidden/archived catalogue rows stay private, prices are
@@ -3280,15 +3281,23 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     signature-authorised. Product Search now uses that facade and is no longer falsely
     disabled as “Not connected yet”. The dispatcher-level storefront proof passes
     **6/6**, the visitor-backend ratchet passes **11/11**, and the wider checkout/order/
-    tenancy slice passes **51/51**.
+    tenancy slice passes **51/51**. Website Editor also exposes a strict exact-install
+    Contact command and a published-summary-only Blog read. Contact requires affirmative
+    versioned consent whose exact displayed statement is digest-bound to the submission;
+    it persists one atomic receipt/submission record without returning operator data.
+    Focused visitor/backend proof passes **27/27**.
 
-    This does **not** close the issue. Consent-aware tenant contact capture, Forms,
-    Bookings, Newsletter, Theme and Blog visitor routes and the Donation contract are
-    still absent or deliberately labelled unavailable; they are tracked here and in
-    **#184/#185**. Mounted published-site search → quote → checkout → receipt acceptance,
-    plus a real Stripe/custom-domain run, also remains.
+    This does **not** close the issue. Contact submissions still need their intended
+    operator inbox/notification workflow. Forms, Bookings/Reservations, Newsletter and
+    Theme remain absent or deliberately labelled unavailable; Blog Post's host-renderer
+    path, the Affiliate promises and the Donation recurrence contract remain incomplete.
+    They are tracked here and in **#184/#185**. Mounted anonymous Contact/Blog/Ecommerce
+    acceptance, published-site search → quote → checkout → receipt and a real
+    Stripe/custom-domain run also remain.
 
-    _Original finding, retained for the still-open block classes:_
+    _Historical pre-repair finding, retained to identify the still-open block classes;
+    its Contact, Blog Feed and Ecommerce route statements are superseded by the current
+    evidence above:_
     The built-in **Contact** page template and generic `form` block default to a
     native POST at `/api/contact`; that route does not exist (the real public ingest
     is `/api/public/contact`). The separate `contact-form` block fetches
@@ -3490,9 +3499,9 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     Prove failures after folder creation, initial commit, repository creation, push,
     deployment creation and client persistence, then retry without duplicates.
 
-38. **P1 PARTLY REPAIRED 2026-09-01 — final owner writes, client-file deletion
-    and mounted batch retry now preserve explicit recoverable truth; the wider
-    object lifecycle remains open.** State-backed final uploads flush their owner
+38. **P1 PARTLY REPAIRED 2026-09-01 — final owner writes, staged abandonment,
+    recoverable deletion and mounted batch retry now preserve explicit truth;
+    live/distributed acceptance remains.** State-backed final uploads flush their owner
     row inside a shared attach boundary, roll the exact row/audit back on a refused
     flush, durably confirm that rollback before compensating the binary, and keep
     the binary when rollback cannot be proved. Call recordings use the same boundary
@@ -3516,16 +3525,41 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     `attached.detail` or raw failure text. The focused private-upload/workspace set
     passes **31/31**, with TypeScript and diff checks clean.
 
-    This issue is **not closed**. Inbox media, expense attachments and campaign
-    assets are still staged browser references without an `uploading`/`ready`
-    lease, abandonment expiry or cleanup worker. SOP and development deletion are
-    still provider-first without a durable intent/checkpoint, while legal deletion
-    mutates the owner/dependencies first and restores only in process; none is a
-    crash-coherent two-phase lifecycle yet. The direct call-recording database
-    update also needs an ambiguity-safe reconcile/rollback contract. Provider-real,
-    mounted failure/retry/reload acceptance and distributed concurrent replay/delete
-    proof remain required. The focused concurrency proof is not a substitute for a
-    deployed multi-instance/provider failure exercise.
+    Inbox, expense and campaign staging now persist lifecycle intent before provider
+    I/O and confirm the exact returned key. Inbox replies, enquiry replies, client
+    requests, expense create/update and campaign create/update claim staged objects
+    before owner commit and complete ownership inside the shared lifecycle lane. The
+    scheduled sweep serialises with adoption, persists `sweeping` before destructive
+    provider I/O, adopts already-persisted PortalState owners and retains ambiguous
+    `claiming` checkpoints instead of guessing that they are abandoned. Legal, SOP
+    and Development deletion use durable sanitised recovery checkpoints; ordinary
+    readers hide pending deletes and dedicated retry-only UI exposes failures. The
+    authoritative Legal/SOP/Development update and bulk-rewrite siblings now share
+    the same agency deletion lane, including SOP category retirement and Development
+    workflow/reference migration. Focused gates pass **31/31 private lifecycle,
+    21/21 Legal and 18/18 SOP**.
+
+    Finance obligation create/update and Company governance PUT now perform their final
+    legal-document availability checks and complete persistence in the same agency
+    lifecycle lane used by legal deletion. A purge therefore cannot cross an accepted-
+    but-not-yet-persisted citation or be followed by a stale governance resurrection.
+    The earlier widened Finance/legal checkpoint passes **167/167** and the final
+    legal-dependency suite, including the governance and update/delete races, passes
+    **21/21**. Generic Postgres whole-state transactions are now reentrant only inside
+    the active backend/realm/key-owning async scope; the authenticated attachment
+    path, unrelated-caller exclusion and escaped-work drain pass **7/7**.
+
+    This issue is **not closed**. No live Supabase/Vercel Blob/local-production provider
+    exercise, real process-kill/multi-process database-lease run or mounted forced-
+    failure/retry walk has been completed. Retained cross-store claims still need
+    automatic owner reconciliation and operator UI, the direct call-recording database
+    update still needs an ambiguity-safe reconcile/rollback contract, and the separate
+    SOP-retirement policy can strand references. Payload binding also remains: a retry-
+    only social reply or expense command can claim newly supplied staged objects while
+    replaying an older owner, failed owner writes can retain `claiming` rows without an
+    explicit rollback identity, and Finance/campaign claims do not yet prove that the
+    owner persisted the same provider/key metadata that was staged. The focused
+    lifecycle proof is not a substitute for deployed multi-instance/provider acceptance.
 
     _Original finding, retained for the remaining scope:_ All nine private-upload routes write Supabase,
     Vercel Blob or local storage before the durable record or final user action.
@@ -3683,8 +3717,9 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     force failure/retry/reload, and confirm the reloaded installs/checklist/variant and
     incomplete UI on the mounted server.
 
-47. **P2 — mounted mutation controls discard server failures and leave users with
-    silent no-ops.** A focused UI scan found **13** direct `await fetch(...)` calls
+47. **P2 PARTLY REPAIRED 2026-09-01 — checked response contracts now cover the
+    first broad cohort plus all mounted Finance and Dev Team writes; other cohorts
+    and literal browser failure acceptance remain.** A focused UI scan found **13** direct `await fetch(...)` calls
     whose response is never inspected. These are not harmless telemetry calls: they
     include HR leave approval/rejection, Membership admin and customer cancellation,
     Affiliate approval/attribution/manual-payout/referral-code actions, Ecommerce
@@ -3784,6 +3819,26 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     **88/88**, Master Inbox **20/20**, TypeScript and diff pass. The issue remains
     open: the rest of the 148-family inventory and literal forced-failure mounted
     browser coverage are not yet complete.
+
+    **Second implementation cohort — 2026-09-01.** Every mounted Agency Finance
+    mutation now uses the shared checked JSON contract: plans, income, invoices,
+    templates, pay links, expenses/uploads/categories, recurring expenses, budgets,
+    obligations and compensation all reject transport, unreadable JSON, non-2xx,
+    `{ok:false}` and invalid-success responses without performing their success
+    continuation. No raw Finance-component mutation fetch remains. All 22 checked
+    calls across the ten mounted Finance components require strict acknowledgement,
+    nonblank-id entity, multi-entity or absolute-HTTPS success shapes. Every mounted
+    Dev Team write is likewise checked across
+    Roadmap, document editing, plan creation, Findings, Updates, thoughts, app config,
+    Editor project/integration setup and Inspector Dev Mode. Exactly four raw Dev Team
+    fetches remain and are inventory-pinned as GET reads. Project save, delete, map and
+    connect-tag success is action-specific and expected-id aware. The hardened shared
+    helper makes 5xx response bodies opaque and unretained while bounding and filtering
+    rendered 4xx/domain copy. The focused checked-mutation gate passes **25/25**, and the
+    independent combined behaviour rerun passes **267/267**. These cohorts settle busy state in `finally`, keep
+    drafts/cards/selections/tokens on refusal and gate refresh/reset/navigation/events
+    behind validated success. The wider mounted inventory and literal browser-forced
+    failure/recovery matrix still keep #47 partial rather than resolved.
 
 48. **✅ RESOLVED 2026-08-26 — Health Check result sharing carries the completed
     state.** Progress-save and final result actions now use one testable seven-day
@@ -3914,11 +3969,23 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     attention/KPI/lifecycle/operational run passes **61/61**, and TypeScript plus diff
     checks are clean.
 
-    This remains a partial class, not a closure. Website-source, customer and sibling
-    Finance, communications/contact, Meta, commercial/manual-detail, workspace and
-    Development search, Identity queue and governance-scope fallbacks still require the
-    same treatment where named below. Mounted forced rejection → retry, lost-response,
-    multi-tab and live persistence-provider recovery also remain acceptance work.
+    **Second checked-read cohort — 2026-09-01.** Agency and exact-client website routing
+    now share one strict complete-payload reader, retain a labelled last-confirmed
+    snapshot, expose retry and lock every dependent mutation until a current read
+    succeeds. Portal Search and Development resource search treat debounce/loading/
+    failure as pending or unavailable rather than empty; retained Development rows and
+    counts are explicitly stale and cannot be edited, uploaded to, catalogued or deleted.
+    Email/call sender catalogues distinguish confirmed-empty from failure, clear removed
+    persisted identities before becoming ready and keep outreach locked until current.
+    Unified Inbox withholds combined counts and ordinary empty copy when a source failed.
+    The focused availability/failure regression passes **9/9** and the final
+    interactive-read/utility gate passes **14/14**.
+
+    This remains a partial class, not a closure. Customer and sibling Finance,
+    contact-interaction, Meta, commercial/manual-detail, Identity queue and governance-
+    scope fallbacks still require the same treatment where named below. Mounted forced
+    rejection → retry, lost-response, multi-tab and live persistence-provider recovery
+    also remain acceptance work.
 
     _Original finding, retained to identify the remaining scope:_ The original audit found
     at least twenty-eight product paths that caught a rejected read and
@@ -4171,7 +4238,13 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     One dependency inventory powers preview and deletion. Cited documents refuse permanent
     removal with 409; archive preserves references; explicit detach clears all citations and
     the row transactionally; provider deletion failure restores the row. The combined focused
-    gate passes **103/103**. Browser- and provider-prove the full refusal/archive/detach path.
+    gate passes **103/103**. Finance obligation create/update and Company governance PUT
+    now share the same agency lifecycle lane as deletion for their final availability
+    checks and persistence, closing accepted-but-not-yet-persisted and stale-resurrection
+    citation races. The earlier widened related checkpoint passes **167/167**; the final
+    legal-dependency suite including governance and update/delete races passes
+    **21/21**.
+    Browser- and provider-prove the full refusal/archive/detach path.
 
     _Original finding, retained for context:_ Permanent legal-document deletion broke retained obligations and
     governance evidence without a dependency decision. Legal & Compliance describes
@@ -4501,8 +4574,9 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     database-native submission claim and crash-safe idempotent consumers, then race separate
     instances and faults at every side-effect boundary before calling it exactly-once.
 
-88. **PARTIALLY RESOLVED 2026-08-25 — Dev Team cross-process accepted writes now survive;
-    document/ledger crash coherence remains.** A shared `devFileTransaction` uses a
+88. **PARTIALLY RESOLVED 2026-09-01 — Dev Team cross-process accepted writes and
+    document/ledger process-death recovery now survive; one direct-writer race remains.**
+    A shared `devFileTransaction` uses a
     filesystem-visible lock directory and same-directory temp+fsync+rename replacement.
     Roadmap, Updates, thoughts and Findings re-read while holding that lock; the standalone
     thoughts worker honours the same lock, and same-title finding creation finishes with
@@ -4522,11 +4596,22 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     path; the reaper coordinator uses atomic empty `rmdir`. Repeated concurrent Inbox writes
     and the Dev cross-process suite **7/7** pass, with a source assertion pinning the detach-
     before-remove contract.
-    Remaining: document bytes and the whole attribution ledger are two separate renames, so
-    process death between them can leave new bytes without their authorship row; and a
-    non-cooperating direct writer can still land inside the final version-check/rename
-    interval. Add a recoverable intent journal or one transactional source, fault every
-    crash boundary, recover stale locks and prove cache reload before calling #88 resolved.
+    Local document saves now persist a recoverable batch journal containing the intended
+    document and attribution bytes, checksums and exact expected versions before either
+    rename. Recovery accepts only the already-committed desired bytes or the exact expected
+    predecessor; an outside edit is never overwritten and leaves the journal for explicit
+    resolution. Recovery also requires the caller's exact ordered canonical target set,
+    so a forged schema-valid journal cannot write outside its document/ledger pair.
+    Fault injection covers death between the two renames, death after both renames but
+    before cleanup, an outside edit before recovery and a forged outside target. The
+    widened Dev doc/cross-process gate passes **29/29**. An unreadable, malformed or
+    shape-invalid local or durable attribution ledger now fails closed and remains
+    untouched rather than being silently replaced with an empty history.
+
+    Remaining: a non-cooperating direct writer can still land inside the final per-file
+    version-check/rename interval. Production's durable workspace uses one database batch
+    transaction, but the local file boundary must close or explicitly constrain that final
+    direct-writer window before #88 is called fully resolved.
 
 89. **P1 — RESOLVED 2026-08-25: managed integration activation is explicit, stable and
     scope-correct.** Connections now carry active state selected by provider plus exact
@@ -5353,6 +5438,16 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     so modal containment and composite-widget keyboard models are untouched — that is #138. Keyboard
     ACTIVATION is not provable this way either. Evidence label: **local-browser**, not deployed-live.
 
+    **Final production-target rerun — 2026-09-01.** Chromium **151.0.7922.34**
+    completed every required check across the same 13 pages × 17 viewports:
+    **1,326 required = 1,175 passed / 0 failed / 151 observations / 0 missing**.
+    Every observation was an explicitly proven aborted speculative Next RSC prefetch:
+    null status, `net::ERR_ABORTED`, same-origin non-navigation GET, exact `_rsc` query,
+    `rsc: 1` and an explicit Next/purpose prefetch signal. Ordinary request failures
+    remain failures. The separate Settings six-primary slice is **36/36** with none.
+    Dialog/menu activation, screen-reader output, installability, forced errors, date
+    boundaries and mutation journeys remain separate acceptance work.
+
 138. **P2 CODE/BEHAVIOUR RESOLVED 2026-09-01; representative mounted keyboard acceptance
     remains.** Specialised roles now either implement the promised shared keyboard model or were
     replaced with honest native navigation carrying `aria-current`. Every current tab, menu and
@@ -5752,8 +5847,30 @@ creation surface ignored it while its endpoint required a session the visitor di
 have. `BLOCK_BACKEND_GAPS` treated that symptom; the tenant install gate now fixes the
 palette contract itself.
 
-**#184 — `/api/portal/forms/*`, `/reservations/*`, `/newsletter/*` and
-`/themes/*` have no module behind them.**
+**#184 — PARTLY RESOLVED 2026-09-01: consent-aware contact capture and published
+blog summaries now have narrow visitor backends; the wider absent-module class remains.**
+
+Website Editor now exposes an exact enabled-install `visitor/contact` command and
+allowlisted published-blog summary read. Contact capture requires a versioned DTO,
+affirmative versioned consent, a registered origin and a live site/published page/contact
+block. The exact displayed consent statement is digest-bound to the accepted version and
+submission, preventing valid-version replay against changed wording. It stores one atomic
+operation/receipt record, keeps contact PII single-copy, hashes
+replay and abuse-control identities, rate-limits per visitor and install, and returns no
+operator data. The authenticated contact-submission read remains private. The contact UI
+accepts only a parsed success receipt and neither it nor Blog Feed calls a live facade from
+the editor or a draft preview. Blog output contains summaries only—no body, internal ids,
+draft state or tenant metadata. Focused public-boundary/backend/dead-call proof passes
+**27/27**, TypeScript and diff checks are clean.
+
+This is not full visitor-module closure. Contact submissions still need their intended
+operator inbox/notification workflow and a real anonymous custom-domain/live-backend walk.
+Forms, Reservations, Newsletter and Themes remain absent product modules; they must be
+implemented with their own public DTOs or removed/labelled rather than routed through an
+operator endpoint.
+
+_Original finding, retained for the remaining scope:_ `/api/portal/forms/*`,
+`/reservations/*`, `/newsletter/*` and `/themes/*` had no module behind them.
 
 Not "absent paths" in the sense of a typo — there is no `forms`, `reservations`,
 `newsletter` or `themes` module in `src/built-ins/modules` at all, so nothing can
@@ -5762,17 +5879,30 @@ owner session**, which is the tell — the 401 is the dispatcher's auth gate fir
 before the 404, so an anonymous probe alone would have made these look like a
 permissions problem.
 
-Handled for now by `lib/blockBackends.ts` + `smoke-website-editor-block-backends`
-(6/6), which stops the affected blocks being added or seeded by a template. The
-modules themselves remain unbuilt, and the contact form is the one that matters:
-**there is still no anonymous, tenant-aware way for a visitor to send a client a
-message.** Building it also inherits the consent decision in #2.
+The still-absent modules are fenced by `lib/blockBackends.ts` plus its smoke so a
+template cannot silently seed an unusable control. Contact and Blog Feed have now been
+removed from that dead-backend inventory because their dedicated visitor facades exist.
 
-**#185 — only NINE routes across all thirteen modules are declared `public`.**
+**#185 — PARTLY RESOLVED 2026-09-01: fifteen routes are deliberately public, but
+visitor-safe operations still need classification one command at a time.**
+
+The seven original webhook/funnel routes were later joined by Ecommerce's public Stripe
+webhook, five allowlisted storefront operations and now two Website Editor visitor
+facades. Public catalogue/detail,
+quote/checkout/receipt, contact capture and blog summaries therefore no longer depend on a
+portal session. Each route is an explicit public declaration with a narrow DTO; no generic
+operator route was widened; the Contact facade additionally binds the accepted consent
+version to the digest of the exact displayed statement. The executable registry now pins **341 total / 144
+undeclared / 15 public routes**, and the host/tenancy gates pass **50/50**. The
+rest of the inventory remains intentionally closed until it
+has the same scope, rate-limit, redaction, consent and durable-side-effect proof.
+
+_Original finding, retained for context:_ the earlier prose audit reported nine routes,
+but the later executable registry baseline corrected the pre-storefront set to seven.
 
 `[module]/[...rest]/route.ts` calls `requireSession()` unless the resolved route
-sets `public: true`. Nine routes do — seven Stripe/Postmark webhooks and the two
-public-funnel completions. Every other module route therefore requires a
+sets `public: true`. The current fifteen are the exact webhook/funnel/storefront/
+visitor allowlist above. Every other module route therefore requires a
 session, which is correct for the portal and is the whole problem for a
 published website, where the visitor has none. Worth knowing before anybody
 "fixes" a visitor-facing 401 by widening a route: `plans` is arguably fine
@@ -5807,7 +5937,7 @@ something *is* a problem:
 - **#12 dev/demo sessions still load zero website enquiries** — `agency/inbox/page.tsx:60,67` (`session.isDemo ? Promise.resolve([])`). By design.
 - **#13 the live-data hazard still applies in full.**
 - **#16–#162 is the numbered reliability/correctness ledger, not a claim that every item remains
-  open.** Current status lives on each issue and in checklist.md. #69/#72 retain P0 public-route/
+  open.** Current status lives on each issue and in TODO.md. #69/#72 retain P0 public-route/
   browser acceptance after their non-security core repair; #78 is resolved. The earlier full-suite
   result by itself closed none of the findings.
 
@@ -5823,7 +5953,7 @@ Keep the item's number, other docs link to it._
 
 ## Source document — `docs/development/tests.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/tests.md" sha256="b99af1dace6636366c97d3432ef24f44de1fbbe9a2b9335c9af7295e31668535" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/tests.md" sha256="265489601261e17ad570ecc9d625db3acb1f96574c2ff46b804270199a96be80" -->
 # Tests
 
 ← Back to [development.md](../development.md) (the law)
@@ -5838,22 +5968,37 @@ PORTAL_BACKEND=memory NODE_OPTIONS='--conditions react-server' npx tsx --test sc
 ```
 `PORTAL_BACKEND=memory` keeps stateful tests off the live sandbox.
 
-> **⚠ Current whole-suite state (2026-08-27): NOT green.** Canonical runs today:
-> **4,356 tests: 4,278 pass / 76 fail / 2 skip** before the central
-> session-revocation change, **4,372: 4,295 / 75 / 2** after it, and
-> **4,393: 4,317 / 74 / 2** after the phase-17 isolated-worktree and
-> dependency-readiness work. The same baseline failure set throughout: this
-> session introduced no new failures and fixed two. (`smoke-local-inbox-persistence` flakes on a cross-process file
-> lock under full-suite load; it is 3/3 green isolated.)
-> ~74 failures pre-date 2026-08-27 and accumulated between 23–27 August while
-> only focused gates were run. The clusters are listed in
-> [checklist.md](checklist.md)'s truth note. Fixing them is queued work — do
-> not brief the suite as green.
+> **Final whole-suite checkpoint: 6,225 Node tests across 1,072 suites — 6,223
+> passed / 0 failed / 0 cancelled / 2 skipped.** The separate Website Editor gate
+> passed **49/49 files**; combined accounting is **6,274 executed units / 6,272
+> passed / 0 failed / 2 skipped**. The production-browser matrix and local production build are
+> complete below. These gates establish repository behaviour/source/browser contracts,
+> not deployed-provider or mounted human acceptance.
 
-Last known whole-suite green: **3,621 passing / 0 failing / 1 skipped across
-663 suites, typecheck clean** (2026-08-23 07:03 BST) — now history, superseded
-by the 2026-08-27 runs above. The skip is the live Postgres check when
-`DATABASE_URL` is absent.
+## 2026-09-01 final hardening evidence
+
+- Final focused gates are green: private-object lifecycle **31/31**, Legal
+  dependencies **21/21**, SOP dependencies **18/18**, checked mutations **25/25**,
+  Dev document/cross-process recovery **29/29**, durable Dev production workspace
+  **7/7**, client/workspace/Postgres composition **7/7**, interactive reads **14/14**,
+  Website Editor visitor proof **27/27**, and public-route host/tenancy proof
+  **50/50**.
+- The shared checked-mutation helper makes 5xx bodies opaque, filters unsafe
+  client-facing diagnostics and requires strict action-specific Finance/Dev
+  success payloads. Lifecycle tests cover sweep/adoption exclusion, persisted
+  destructive intent, claim-before-owner ordering, unflushed owner survival,
+  sanitised delete checkpoints and retry-only reads.
+- A fresh Agency Settings pass across the six primary viewports is **36/36**
+  with zero failures or observations: no overflow, clean console/network,
+  visible keyboard focus and no serious/critical axe finding. This is a visual
+  slice, not the outstanding cross-persona mutation/failure/screen-reader walk.
+- The final production matrix used Chromium **151.0.7922.34** across 13 pages ×
+  17 viewports and accounted for all **1,326** required checks: **1,175 passed,
+  0 failed, 151 observations and 0 missing**. Every observation was an explicitly
+  proven aborted speculative Next RSC prefetch, not an ordinary request failure.
+- The final deterministic local production build compiled in **51s**, completed
+  TypeScript in **17.3s**, generated **245/245** static pages and took **96.47s**
+  wall time. This is local build evidence, not a Vercel deployment.
 
 New preview suite (2026-08-27): `scripts/smoke-local-preview-worktree.test.ts`
 (`npm run smoke:preview-worktree`, **21/21**) — drives real `git` and real
@@ -5949,8 +6094,8 @@ replace deployed OpenAI or Postgres acceptance.
 
 The final combined code release gate passes **335 / 0 fail / 1 expected live-database skip** and
 the full TypeScript check passes. It is the closing selected gate for this speed/reliability wave,
-not a rerun of every repository test; the 2026-08-23 result above remains the last whole-suite
-snapshot.
+not a rerun of every repository test. At that speed checkpoint, the prior complete-suite record
+was 2026-08-23; see the top of this file for the current whole-suite result.
 
 **Mounted browser.** At 1280px, a fresh Agency Day settled with no loading/overflow and visibly
 showed `RADAR PAUSED`, `NOT SCANNED` and two `UNKNOWN` values; `BUSINESS WATCH CLEAR`, `ALL CLEAR`
@@ -5963,7 +6108,8 @@ Radar/KPI/Advisor/client-attention correction: no completed scan stays unknown/n
 completed loaded zero remains zero. Deployed geo/CDN/provider latency, full roles and accessibility
 remain separate acceptance. Completed station links currently retain `scan=1`, which can rerun
 until a safe server-issued result token replaces it. The 2026-08-23 whole-suite result above
-remains the last complete-suite proof.
+was the prior complete-suite proof at that speed checkpoint; see the top of this file for the
+current whole-suite result.
 
 **Portal loading presentation.** The Agency boundary and major streamed dashboard, Library/Logs,
 Actions, Advisor and Automations fallbacks now use one accessible `role="status"`, polite-live
@@ -6067,8 +6213,10 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   [ultra-review-2026-08-24.md](ultra-review-2026-08-24.md).
 - Production build is now an independently passing gate. The Dev Projects `GET`
   requires `NextRequest`, direct callers supply one, the route-contract smoke pins
-  the signature, and `npm run build` completes **268/268** static-generation entries.
-  Keep this gate separate from ordinary `tsc`/smoke checks. → issue #27.
+  the signature, and the final deterministic local build compiled in **51s**,
+  completed TypeScript in **17.3s** and generated **245/245** static pages in
+  **96.47s** wall time. Keep this local-only gate separate from ordinary
+  `tsc`/smoke checks and from deployment acceptance. → issue #27.
 - Staff Team Chat now passes `src/proxy.ts`, and selection/poll/send results are
   bound to the latest operator intent. The broader independently maintained staff
   capability policy still needs a systematic regression. → issues #25 and #147.
@@ -6153,13 +6301,18 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   class-level route-resolution/capability test plus durable
   handler outcomes, then browser-prove create/save/publish/promote/reload. → issues
   #28.
-- Published functional-block coverage is structural. It proves palette entries,
-  props and SSR markup while Contact/Forms/Booking/Newsletter/Theme use absent
-  paths and Blog/ecommerce use authenticated portal APIs from visitor surfaces.
-  It also does not resolve Affiliate Leaderboard's absent endpoint, detect that
-  Affiliate Signup creates no promised code/email, distinguish membership API
-  failure from a genuinely empty plan list, or prove Donation's monthly choice
-  creates a subscription rather than the same one-off checkout.
+- Published functional-block coverage now includes narrow anonymous backend proof
+  for Contact, Blog Feed and Ecommerce. Contact requires affirmative versioned
+  consent bound to the digest of the exact displayed statement and persists one
+  exact-install receipt/submission; Blog Feed returns allowlisted published
+  summaries only; Ecommerce exposes allowlisted catalogue/detail/quote/checkout/
+  receipt operations. Focused visitor proof is **27/27**, the executable registry
+  pins **341 total / 144 undeclared / 15 public routes**, and host/tenancy proof is
+  **50/50**. This still does not provide Forms, Booking/Reservations, Newsletter or
+  Theme backends, connect Contact submissions to their intended operator workflow,
+  resolve Affiliate Leaderboard/Signup promises, distinguish Membership API failure
+  from a genuinely empty plan list, or prove Donation's monthly choice creates a
+  subscription rather than the same one-off checkout.
   The suite also never proves the promised host globals: neither
   `__aquaRenderBlocks` nor `__PORTAL_SITE_ID__` is assigned anywhere, leaving Blog
   Post on its JSON debug fallback and Theme Selector without a site id.
@@ -6212,43 +6365,22 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   lead/relationship **75/75**. Remaining acceptance is literal mounted-browser submit/
   reload for every built-in/custom stage and forced install/variant/portal refusal.
   → issue #46 code/behaviour resolved; browser acceptance remains.
-- Checked-mutation unit/source coverage now protects the first migrated cohort. It
-  forces transport, malformed JSON, HTTP and `{ok:false}` refusal and rejects raw
-  mutation `await fetch` in 16 fully migrated components; Task Templates separately
-  pins its three mutations while retaining one read fetch. This covers **46 mutation
-  calls across 17 mounted components**. The dedicated helper/guard passes **5/5**;
-  affected Team/People/Task/Notepad/Dashboard passes **109/109**, earlier HR/
-  Membership/Affiliate **49/49**, Ecommerce/Finance **88/88** and Master Inbox
-  **20/20**; TypeScript/diff pass. The wider audit originally found 13 direct
-  mutation fetches with no inspected response; Actions/Calendar
-  added task patch/delete and follow-up dismissal failures, and Team workspace,
-  Products, Performance, Client Delight and legal-register review added 18 more,
-  taking the known class to at least 34. Five additional customer Membership/
-  Affiliate paths hide a refused/malformed billing response or leave transport/JSON
-  failures unhandled, taking the lower bound to 39; freelancer preview exit then
-  navigates without checking restoration, bringing it to 40. Three KPI custom-
-  definition/shared-view operations hide refusal, bringing it to 43. Task template/
-  completed register, portal field, freelancer override and Aqua Tag review adds
-  nine, bringing it to at least 52; freelancer preview entry then hides a detected
-  failure, bringing the class to 53. Development, phase, Identity Review, Company,
-  Performance, SOP and communications review adds at least 47 more handler families,
-  bringing the conservative class to at least 100. A later Finance component pass
-  adds 13 previously uncounted plan, income, invoice, recurring-expense, budget,
-  obligation and compensation handler families, bringing the lower bound to at
-  least 113. Client Centre file, direct-finance, onboarding, phase-transition and
-  property review adds 15 more, bringing it to at least 128. Commercial-pack/
-  People Hub and affiliate, ecommerce, fulfillment and Membership review adds twelve
-  more, bringing it to at least 140. Actions/Governance adds six; roadmap writing and
-  storefront discount apply add two, bringing the lower bound to at least 148, plus Finance's unchecked second
-  “Issue now” PATCH. Add a class-level guard and forced 400/422/500/503,
-  rejected-fetch and malformed-JSON browser/component cases for money status,
-  cancellation, approval
-  and ordinary edits; assert
-  the form/input remains available and the server message is visible, with no
-  success reload/refresh. Existing Client Centre source-smoke checks do not reject
-  these mounted requests; add representative failed file, invoice-delivery,
-  onboarding/transition, property, commercial, plugin create/delete and checklist
-  interactions. → issue #47.
+- Checked-mutation unit/source coverage now protects the first broad cohort, every
+  mounted Agency Finance mutation and every mounted Dev Team write. The original
+  cohort covers **46 calls across 17 mounted components**. All **22** Finance calls
+  across ten mounted components now require strict acknowledgement, entity,
+  multi-entity or absolute-HTTPS success shapes, and Dev project save/delete/map/
+  connect success is action- and expected-id-specific; exactly four remaining raw
+  Dev fetches are inventory-pinned GET reads. The shared helper rejects transport,
+  unreadable/malformed JSON, non-2xx, `{ok:false}` and invalid success, makes 5xx
+  bodies opaque, bounds rendered domain diagnostics and gates refresh/reset/
+  navigation behind validated success. Focused proof is **25/25** and the independent
+  combined behaviour rerun is **267/267**.
+  The wider 148-family non-Finance/non-Dev inventory remains open. Add a class-level
+  guard plus forced 400/422/500/503, rejected-fetch and malformed-response mounted
+  cases for Client Centre, Actions/Governance, phase, SOP, Company, Performance and
+  related controls; assert retained input/context, visible safe failure and no success
+  continuation. → issue #47.
 - Health Check coverage proves question/scoring structure and the progress-save
   resume serializer, but not the three visible final-result controls. Add a browser
   case that completes a check, obtains the final share link, opens it in a clean
@@ -6326,16 +6458,20 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   after repository/deployment creation, during push, or during client metadata
   persistence. Add deterministic fault injection at every boundary and assert
   reconciliation/idempotent recovery rather than an orphan or duplicate. → issue #37.
-- Private-upload coverage checks durable-provider configuration and source wiring,
-  but does not run the nine upload surfaces through stored-binary/failed-record or
-  abandoned-staging cases, nor client-file/legal/SOP/development deletion through
-  provider/record failure. The product-workspace test only matches upload/attach
-  strings; it does not submit 31 files or force a later upload/attach refusal after
-  earlier success. Add fault-injected route tests for Supabase, Blob and local
-  backends, plus staged-upload expiry and mounted batch failure; assert exact counts,
-  retained partial/pending state and a convergent retry after reload, never success
-  with an unreachable or duplicated binary.
-  → issue #38.
+- Private-object lifecycle coverage is now behavioural rather than source-only.
+  **31/31** proves persisted staging/destructive intent, claim-before-owner ordering,
+  sweep/adoption serialization, already-persisted owner adoption, ambiguous-claim
+  retention, sanitised Legal/SOP/Development delete checkpoints and retry-only reads;
+  authoritative owner updates and bulk rewrites share the deletion lane. Finance
+  obligation citation creation/update and Company governance PUT also share the legal-
+  delete agency lane, closing accepted-but-not-persisted and stale-resurrection races.
+  The earlier widened Finance/legal checkpoint is **167/167**; final Legal and SOP
+  dependency suites are **21/21** and **18/18**, and Postgres/client transaction
+  composition is **7/7**. Still add payload-bound replay/claim rollback,
+  live Supabase/Blob/local-production providers, real process-kill/multi-process DB
+  leases, mounted batch/delete failure and reload, automatic retained-claim
+  reconciliation, direct call-recording ambiguity recovery and the chosen SOP
+  retirement policy. → issue #38.
 - Close-deal route/orchestrator tests prove idempotent contract/invoice creation and
   intentionally assert `status:"sent"`; they do not require terms/document, inspect
   a delivery result or drive customer acceptance. Add a title-only refusal, canonical
@@ -6380,17 +6516,16 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   partial creation retry have focused companion tests, and `smoke:all` explicitly
   includes the nested suite. Focused lifecycle/navigation **43/43** and wider
   creation **75/75** pass. → issue #56 resolved.
-- No class-level test rejects read loaders that catch failure as `[]` or an empty
-  snapshot. At least twenty-eight mounted product paths do so, including direct-customer and
-  sibling-workspace invoice reads. Their zero substitutes can respectively claim
-  billing is up to date or feed “Operations clear.” Add forced read failures for
-  website routing, customer/staff communications, both relationship-finance paths,
-  contact history, Meta connections, KPI custom/shared registries, completed/evidence
-  history, form/expense configuration, commercial pack/catalogue, manual enquiry
-  contact details, resolution plan/explanation, record/Development search, Identity
-  queues and phase catalogues; assert unavailable/retry, no healthy/clear/false-match/
-  editable-default/wrong-governance-scope claim, and no blank save can replace unseen contact details.
-  → issue #57.
+- Checked-read coverage now distinguishes unavailable from confirmed empty for Portal
+  Editor configuration, attention plan/explanation/evidence, expense fields, KPI
+  custom/shared views, completed history, both Fulfilment phase catalogues, agency/
+  exact-client website routing, Portal Search, Development search/resources, sender
+  catalogues and Unified Inbox. It retains labelled confirmed snapshots where safe,
+  exposes retry, locks dependent writes and withholds combined counts/ordinary empty
+  copy over partial evidence. The final interactive-read/utility gate is **14/14**.
+  Customer/sibling Finance, contact-interaction, Meta, commercial/manual-
+  detail, Identity and governance-scope families plus mounted rejection/lost-response/
+  multi-tab/provider recovery remain. → issue #57.
 - Client-contract smoke coverage is source-pattern only. It does not force the
   optional template request to fail after a random-id contract create, retry the
   retained editor or count drafts/templates after reload. Add that composite failure
@@ -6428,34 +6563,30 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   record; require an explicit archive/reassign/detach outcome and fault-test it. The
   isolated probe currently observes the SOP absent while guide/task/product ids remain,
   and current task/product/client renderers silently filter the link. → issue #64.
-- Company capital/governance has no adversarial graph-level coverage. Add mounted API
-  and browser cases for duplicate ids, missing class/owner/approval links, over-issue,
-  paid value above declaration, allocation mismatch, combined votes above 100%, and
-  referenced owner/decision retirement. Assert an actionable rejection or explicit
-  migration, stable summaries and one converged result after reload. The fresh memory
-  probe currently persists every contradiction and
-  leaves movement/dividend ids after mounted-equivalent deletion. → issue #65.
-- Battle Table tests cover successful bounded storage and source-presence controls,
-  not conflicting whole-profile writers or the “Lock review” lifecycle. Add two-tab
-  and deliberately reordered PUTs with different stations, require an explicit
-  version conflict/merge, then complete a review, attempt ordinary mutation and prove
-  the retained snapshot is unchanged while an explicit amendment creates history.
-  The isolated probes currently show a stale successful save erasing the first change
-  and a completed review returning to draft with rewritten evidence. → issue #66.
-- Legal-register tests need a dependency-aware retirement case separate from binary
-  cleanup. Link one document to a Finance obligation and Company governance decision,
-  drive the mounted Delete/archive choice, and assert an explicit block, reassignment,
-  tombstone or transactional detach across every consumer, search/posture/alerts,
-  reload and injected record/provider failure. The fresh probe currently observes the
-  legal row absent while both dependant ids remain; Finance hides its action and
-  governance continues claiming a document id. → issues #38 and #67.
-- Governance tests cover posture honesty and successful scope reads, but need a
-  cross-brand snapshot/browser matrix. Seed Alpha/Beta plus shared/Alpha/Beta legal
-  rows, declarations and clients; in each scope assert the legal table, vendor-match
-  titles and erasure candidates are exactly intended. Create a scoped row, reload,
-  reject the next scope read and verify label/data consistency, then ensure no other-
-  brand destructive target appears. The fresh Alpha probe currently returns Beta's
-  DPA, both clients and Beta-derived Supabase agreement evidence. → issues #57 and #68.
+- Company capital/governance adversarial coverage now refuses duplicate/missing graph
+  identities and references, over-allocation/paid values, voting contradictions and
+  hard deletes that would strand ledger links. Company governance legal citations also
+  share the legal-delete lifecycle lane. Combined capital/Battle/legal/governance/role
+  proof is **103/103** and the final legal-dependency suite is **21/21**. Still browser-
+  prove representative create/edit/refusal/delete/reload flows. → issue #65.
+- Battle Table writes now require a revision, stale saves return the current plan with
+  409, locked reviews are immutable and numbered amendments preserve their original
+  evidence; conflict rebase uses the last server-confirmed plan. Combined focused proof
+  is **103/103**. Still browser-prove two tabs, conflict recovery, lock, amendment,
+  history and reload. → issue #66.
+- Legal-register dependency retirement now has one inventory for preview and deletion:
+  cited purge refuses, archive retains references, explicit detach clears all citations
+  with the row, and provider refusal restores it. Finance obligation create/update and
+  Company governance PUT also serialise their final document checks and persistence with
+  deletion. Existing dependency proof is **103/103**, the earlier widened Finance/legal
+  checkpoint is **167/167**, and the final legal-dependency suite is **21/21**. Still drive the
+  mounted Delete/archive/detach choice and inject live provider/reload failures across
+  Finance, governance, search/posture and alerts. → issues #38 and #67.
+- Governance cross-company isolation now covers selected/shared legal evidence,
+  declarations, vendor agreement matches, breach rows and erasure targets; deliberately
+  group-wide sections are labelled. Destructive-target coverage passes in the combined
+  **103/103** gate. Still browser-prove agency/Alpha/Beta switching, a scoped create,
+  rejected-read retry and reload without cross-scope carry-over. → issues #57 and #68.
 - Ecommerce issues #69–#77 now have a focused **39/39** source/service/package gate:
   `smoke-ecommerce-authoritative-checkout.test.ts` (9),
   `smoke-ecommerce-order-lifecycle.test.ts` (8),
@@ -6549,14 +6680,16 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   the wider focused gate passes **120/120**, TypeScript and diff checks are clean. Add a
   real database unique claim, separate-instance races and crash/outbox fault injection for
   distributed exactly-once acceptance. → issue #87.
-- Dev Team source-of-truth mutation passes **104/104** focused checks. The new gate launches
-  separate Node processes and preserves two accepted roadmap items, Updates entries and
-  thoughts, allocates distinct same-title finding files, rejects one of two same-SHA doc
-  saves and verifies the winning author/hash against final bytes. A direct-writer CAS keeps
-  external bytes and lock/reaper/temp cleanup is asserted; the standalone thoughts worker
-  shares the protocol. Add process-death injection between document and ledger renames,
-  stale-lock recovery and cache reload before resolving issue #88; retain the existing
-  atomic `wx` plan-create regression.
+- Dev Team source-of-truth mutation retains the earlier **104/104** cross-process
+  coverage and now passes a widened **29/29** document/cross-process gate. A fsynced
+  batch journal recovers document and attribution bytes after death between renames or
+  after both renames before cleanup, but refuses and retains the journal over an outside
+  edit. Recovery is bound to the caller's exact ordered canonical target set, so a
+  forged schema-valid journal cannot write outside the intended document/ledger pair.
+  Unreadable, malformed or shape-invalid local and durable attribution ledgers fail
+  closed and remain untouched. The remaining #88 boundary is the final check/rename interval for a
+  non-cooperating direct writer; production's durable workspace uses one database batch
+  transaction and plan creation retains its atomic `wx` path.
 - Managed integration activation and scope pass **160/160** across the widened provider and
   consumer gate. The matrix saves good then bad credentials, fails the replacement, retests
   without reordering, explicitly activates a passing alternative and verifies exact-client
@@ -6907,80 +7040,55 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   `beforeinstallprompt`/`userChoice`; require the promised Support/account destination to expose
   the same help until explicitly completed or dismissed. The current setup smoke source-matches
   iPhone copy but never follows “do this later.” → issue #134.
-- Add one reusable dialog keyboard contract and an inventory guard for true modals. Open a
-  representative ordinary form, destructive confirmation and nested dialog; require deliberate
-  initial focus, forward and reverse Tab containment, safe Escape behavior, background
-  inoperability and restoration to the opener. The source currently declares 64 true modals in
-  50 files, but only three files use `useFocusTrap`; 47 remain untrapped. → issue #135.
-- Add an assistive loading-boundary test for `/portal/agency`. Require the decorative skeleton
-  to stay hidden, one visible-to-accessibility-tree polite status to announce during suspension,
-  its removal when content resolves and stable navigation focus. The only current status is
-  nested inside an `aria-hidden` root. → issue #136.
-- Keep `smoke-ux.mjs` in the HTTP/SSR smoke layer, but add an automated real-browser acceptance
-  job after configurable access/workspace parity lands. Its primary matrix is 375x812 mobile
-  portrait, 812x375 mobile landscape, 768x1024 tablet portrait, 1024x768 tablet landscape,
-  1280x800 desktop and 1920x1080 wide, plus 320x568, 200% zoom and real breakpoint-boundary
-  probes. A manual 2026-08-25 pass supplies useful representative visual/body-overflow/console
-  evidence. A later 2026-08-26 pass adds access-manager overflow checks at seven widths,
-  Overview-only Staff/Fulfilment direct-route refusal, missing exact-client refusal,
-  responsive editor panes and preview Start/Restart/Stop. A clean follow-up proves exact
-  Staff/Fulfilment element sets, the 390px 2×2/44px control geometry, mobile People Capacity,
-  all 28 role-template element groups and a reversible `staff.pay` control interaction without
-  submit; Dev Team Home was visible in 3.897s fresh and 367ms warm with no overflow or browser
-  warnings/errors. It is still not repeatable and did not
-  browser-drive role-template changes, positive client/project access, request pending/approved/
-  denied/expired/revoked states, Use/Manage mutations, rotation, keyboard/focus, screen-reader
-  output, forced failures or axe. Preserve
-  screenshots, accessibility trees, console/network summaries, mutation reload evidence and
-  cross-project negative proof for every release-facing checkpoint. → issue #137.
-- Add shared tabs/menu/listbox component contracts. For tabs, require only the selected tab in
-  the page Tab order, arrow/Home/End focus movement, deliberate automatic/manual activation and
-  matching labelled panels. For menus/listboxes, require opener state, item focus/active-
-  descendant navigation, Escape and focus restoration. Browser-walk Settings, People, Editor
-  file tabs, Profile/Company menus and page picker. Current source has 12 tablist files and nine
-  production menus with no role-specific key model; `useArrowNav` has no production caller.
-  → issue #138.
-- Add an accessible-name inventory/lint check that understands visible labels, `htmlFor`,
-  `aria-label`/`aria-labelledby`, repeated-row context and hidden controls; then render and inspect
-  representative accessibility trees. Cover Team task/add-note buttons, People reorder,
-  Development reveal/copy, modal close actions and published Contact, Booking, Newsletter,
-  Product Search and Donation fields; assert every literal region reference resolves, including
-  the three currently missing Command Intelligence heading ids, and keyboard-open an Automation
-  Run History detail instead of depending on its mouse-only row. Require useful state-aware names after typing (when a
-  placeholder disappears) and announced validation/status. → issue #139.
+- The modal contract and inventory now pass **18/18** within the combined **29/29**
+  accessibility gate: every declared modal uses the shared stacked focus/restore model. Still
+  browser-tab representative ordinary, destructive and nested dialogs. → issue #135.
+- The shared themed loader now exposes one polite atomic status outside its hidden decorative
+  geometry; focused proof is **7/7** and mounted Editor boot is visually clean. Still verify
+  actual screen-reader announcement/removal and focus continuity. → issue #136.
+- Keep `smoke-ux.mjs` in the HTTP/SSR layer. The repeatable real-browser gate now exists:
+  `browser-matrix.mjs` drives 13 pages at 17 viewports—the six primaries, 320×568, 200% zoom
+  and both sides of every Tailwind breakpoint—and requires render, overflow, console, network,
+  keyboard-focus and axe evidence. Chromium **151.0.7922.34** completed every final production
+  check: **1,326 required = 1,175 passed / 0 failed / 151 observations / 0 missing**. Every
+  observation is an explicitly proven aborted speculative Next RSC prefetch, not an ordinary
+  request failure. The fresh Settings six-primary slice is separately **36/36** with none.
+  Dialog/menu activation, screen-reader output, cross-persona role mutations, forced failures,
+  date boundaries and installability remain separate acceptance work. → issue #137.
+- Shared tab/menu/listbox contracts now inventory every specialised role and pass **23/23** for
+  arrow/Home/End, activation, Escape/return focus and reachable options; other surfaces use honest
+  native navigation. Still browser-walk Settings, People, file tabs, Profile/Company menus and
+  the page picker. → issue #138.
+- The accessible-name inventory now covers internal actions, modal closes, Automation rows,
+  Command regions and published forms; placeholders do not count as labels and status/error copy
+  announces. It passes **11/11**. Still inspect representative mounted accessibility trees. →
+  issue #139.
 - Date-only source/domain proof now passes **5/5**: London summer midnight, both DST transitions,
   remote browser zones, calendar-day payment terms, impossible input and lossless date-only
   save/reload/export values. Mounted New Client/conversion, expense, Finance, HR, People and Leads
   defaults use the shared contract while UTC provider/export stamps remain explicit. Affected
   People/Finance/HR coverage passes **56/56**, adjacent client-plan/Leads **61/61** and TypeScript
   passes. Retain a controlled-boundary browser form save/reload/export matrix. → issue #140.
-- Add production-browser error-boundary fixtures for a child route render and root-layout/App
-  Router initialization. Require the segment error screen for the first and the custom global
-  screen for the second, one event at the proven capture sink, valid `html`/`body`, and successful
-  reset/reload/back recovery. Source-marker coverage of `app/error.tsx` cannot prove the absent
-  `app/global-error.tsx` path. → issues #132 and #141.
-- Strengthen `smoke-customer-setup.test.ts` from source words to the served manifest contract:
-  require real 192×192 and 512×512 assets, validate maskable safe-zone output and then use Chromium
-  to prove `beforeinstallprompt` eligibility after engagement/HTTPS. Exercise prompt accept,
-  dismissal, repeat click, `appinstalled`, already-installed and ineligible fallback states; the
-  current smoke passes a manifest with no 512 asset. → issues #134 and #142.
-- Extend R017 beyond explicit props with server→hydrate behavior. Render Share Buttons with its
-  documented blank/current-page URL and Breadcrumb in auto mode; provide a real browser location,
-  hydrate, navigate and require complete current-page social/copy links plus breadcrumb structure
-  with zero recoverable hydration errors. The current test injects an explicit URL/items and masks
-  both divergent defaults. → issue #143.
-- Add executable private-media range tests rather than more source markers. For local, Supabase
-  and Vercel-backed inbox media, call recordings and SOP video/audio, request start, middle, end,
+- The self-contained root `global-error.tsx` and segment boundary are source/observability-pinned.
+  Still production-browser fault child and root-layout paths through capture/recovery. → issues
+  #132 and #141.
+- Customer setup now proves genuine 192×192/512×512 any + maskable assets and prompt lifecycle
+  source behaviour **18/18**. Still run the installable Chromium eligibility/accept/dismiss/
+  installed/ineligible matrix. → issues #134 and #142.
+- Share Buttons and automatic Breadcrumb now have hydration-stable default and explicit modes;
+  block-library proof is **50/50**. Still browser-navigate and exercise social/copy/current-path
+  behaviour with zero recoverable hydration errors. → issue #143.
+- Executable private-media range proof now covers local, Supabase and Vercel adapters with exact
+  `200`/`206`/`416` contracts **8/8**. For inbox media, calls and SOP video/audio, still browser
+  request start, middle, end,
   suffix, open-ended and unsatisfiable ranges; require exact bytes, `206`, `Content-Range`,
   `Accept-Ranges`, honest lengths and `416` where appropriate. Browser-prove `<audio
   preload="metadata">`, immediate play and seeking do not transfer the full 20/100/250 MB object.
-  Current inbox/call smokes only grep upload, token and content-route presence. → issue #144.
-- Add executable MediaRecorder lifecycle coverage, not `isTypeSupported` source matching. Stub
-  Opus-WebM, plain-WebM, MP4, browser-default and unsupported environments; force constructor,
-  `start`, call-API, upload and `stop` failures. Require correct MIME/extension, differentiated
-  permission/capability errors, stopped tracks, cleared busy/recording state and no invisible
-  active-call record. Repeat through website, social and client voice notes plus recorded calls,
-  then run real Safari/Chromium browser capture. → issue #145.
+  → issue #144.
+- Shared MediaRecorder lifecycle coverage now passes **10/10** across Opus-WebM, WebM, MP4,
+  browser-default, unsupported and failure cleanup/compensation. Website, social/client voice and
+  recorded calls use the same contract. Still run real Safari/Chromium capture and navigation/
+  upload fault acceptance. → issue #145.
 - Countdown deadline/page-store proof now covers all documented units, decrement/expiry math,
   absolute/blank/malformed behavior, recursive/idempotent anchoring, edit reset, create/publish and
   deterministic legacy reload: **5/5**. Draft/publish compatibility remains **25/25**. Still mount
@@ -7024,7 +7132,8 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   settled relevant gate is **130/130**: **86/86** core access/Dev/workspace/client/People,
   **11/11** exact Access UI, **21/21** Dev Team performance and **12/12** Sandbox environment/
   protection. Full TypeScript and diff checks pass. This is a focused combined gate; the complete
-  repository suite was not rerun and the 2026-08-23 snapshot remains the last documented full run.
+  access wave itself did not rerun the repository suite; use the current whole-suite result at
+  the top of this file rather than that wave's historical scope note.
 - The Dev live-index regression still passes **16/16** and the earlier wider Dev Docs/edit/worker/
   performance gate passed **73/73**. The later 120.006-second zero-byte Dev Team request was caused
   by filesystem exhaustion—Next build outputs left 1.3 GiB free on a 100%-used volume and the

@@ -2,7 +2,7 @@
 
 > The append-only change record, dated handoffs and superseded historical summaries.
 >
-> Consolidated 2026-09-01 from **18** source documents / **129,623 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-01 from **18** source documents / **129,992 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -23,7 +23,7 @@
 - [`docs/context/archive/website-editor-and-migration.md`](#source-docs-context-archive-website-editor-and-migration-md) — 1,159 words · `235e8af731b6`
 - [`docs/context/archive/WHERE-WE-ARE-2026-08-18.md`](#source-docs-context-archive-where-we-are-2026-08-18-md) — 2,192 words · `4056e9a347cb`
 - [`docs/context/archive/WHERE-WE-STAND-2026-08-20.md`](#source-docs-context-archive-where-we-stand-2026-08-20-md) — 2,482 words · `26bf4442580e`
-- [`docs/development/updates.md`](#source-docs-development-updates-md) — 99,467 words · `464d5c39bdbb`
+- [`docs/development/updates.md`](#source-docs-development-updates-md) — 99,836 words · `fda55e792593`
 
 ---
 
@@ -3318,7 +3318,7 @@ Being straight with you about the edges.
 
 ## Source document — `docs/development/updates.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="464d5c39bdbbff2807ffaad418f0a38796e3b6b557d18f4fb35a9ed66076fbee" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="fda55e792593ede87ea63b9ad24fb934b34ef1a00c2107ccab36905eff0daa8f" -->
 # Updates log
 
 ← Back to [development.md](../development.md) (the law)
@@ -3336,7 +3336,7 @@ map stays trustworthy.
 > it is also the trap: an entry saying "X is not built yet" stays on the page long
 > after X ships. **Do not read an old entry as a current status.**
 >
-> For where we stand *now*: **[checklist.md](checklist.md)** first, then
+> For where we stand *now*: **[TODO.md](TODO.md)** first, then
 > [roadmap.md](roadmap.md), the item's own plan `**Status:**` line in
 > [plans/](plans/), and [issues.md](issues.md) (whose items are marked RESOLVED
 > with evidence). **Above all: read the source.**
@@ -3354,6 +3354,45 @@ map stays trustworthy.
 > If you ship something, log it.
 
 ---
+
+## 2026-09-01 — Final hardening and production-browser release gate
+
+- **Lifecycle and truth boundaries:** private-object lifecycle is **31/31**, Legal is
+  **21/21**, SOP is **18/18**, checked mutations are **25/25**, interactive reads are
+  **14/14**, Dev document/cross-process recovery is **29/29**, durable Dev production
+  workspace is **7/7**, and client/workspace/Postgres composition is **7/7**. Staged intent, claim/adoption/sweep,
+  sanitised durable delete checkpoints, strict Finance/Dev mutation acknowledgements,
+  truthful read-unavailable states and document/ledger crash recovery are now pinned.
+  Finance obligation and Company governance citations share the legal-delete lifecycle
+  lane; Legal, SOP and Development owner/bulk-rewrite paths now share the deletion
+  lane, and nested whole-state Postgres transactions reuse one scoped durable lease.
+  Live providers, distributed process-kill/lease proof and mounted forced-failure
+  acceptance remain.
+- **Visitor boundary:** Contact capture now binds affirmative consent version to the
+  digest of the exact displayed statement and stores one exact-install receipt/
+  submission; Blog Feed returns published allowlisted summaries; Ecommerce retains its
+  narrow storefront facade. The registry is **341 total / 144 undeclared / 15 public
+  routes**, with visitor proof **27/27** and host/tenancy proof **50/50**. Operator inbox
+  handoff, absent Forms/Reservations/Newsletter/Themes and real custom-domain/provider
+  acceptance remain open.
+- **Independent audit fixes:** local Dev destinations now accept only same-origin,
+  single-leading-slash paths; production browser observations require exact evidence of
+  an aborted speculative Next RSC prefetch; Finance and governance legal-document
+  citation writes serialize with deletion; Dev recovery journals bind exact canonical
+  targets and durable ledgers fail closed; Contact consent is statement-digest-bound.
+- **Release evidence:** **6,225 Node tests across 1,072 suites: 6,223 passed / 0 failed /
+  0 cancelled / 2 skipped**. Website Editor is **49/49 files**; combined accounting is
+  **6,274 executed units / 6,272 passed / 0 failed / 2 skipped**.
+  Chromium **151.0.7922.34** completed all **1,326** required production checks as
+  **1,175 passed / 0 failed / 151 observations / 0 missing**; every observation was an
+  explicitly proven aborted speculative Next RSC prefetch. The separate Settings
+  six-primary slice is **36/36** with none. The deterministic local production build
+  compiled in **51s**, completed TypeScript in **17.3s**, generated **245/245** static
+  pages and took **96.47s** wall time.
+- **Honest boundary:** this is repository, local-browser and local-build evidence, not
+  a new Vercel deployment or live-provider/migration/user acceptance. The one task list,
+  status, tests and issue records keep #38/#47/#57/#88/#184/#185 partial and retain
+  every provider, policy, mounted and user-decision blocker.
 
 ## 2026-09-01 — Release checklist: recoverable projects/uploads and a narrow public storefront
 

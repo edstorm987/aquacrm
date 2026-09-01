@@ -5,6 +5,7 @@ import { pruneProcessedInboxWebhookEvents } from "@/lib/server/inbox/inboxStore"
 import { runRadarInfraSweep, runRadarScheduledSweep, type RadarScheduledSweepResult } from "@/engines/data/server/radar/radarSweeps";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { listAgencies } from "@/server/tenants";
+import { processPrivateObjectLifecycleSweep } from "@/lib/server/privateObjectLifecycle";
 
 export const runtime = "nodejs";
 
@@ -33,6 +34,10 @@ export async function GET(request: NextRequest) {
   for (const agency of listAgencies().filter(item => item.status === "active")) {
     radarSweeps.push(await runRadarScheduledSweep(agency.id));
   }
+  // The lifecycle coordinator rehydrates under its cross-process lock. Flush
+  // this tick's queue/radar work first so that fresh read cannot replace it.
   await flushPendingWrites();
-  return NextResponse.json({ ok: true, ...queue, pruned, radarInfra, radarSweeps });
+  const privateUploads = await processPrivateObjectLifecycleSweep();
+  await flushPendingWrites();
+  return NextResponse.json({ ok: true, ...queue, pruned, radarInfra, radarSweeps, privateUploads });
 }

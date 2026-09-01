@@ -14,8 +14,9 @@
 //
 // `context` (P2) rides all the way down the tree, including through
 // `renderChildren`, so a container element does not have to know it is
-// forwarding live records. Undefined on website surfaces, which is why all 78
-// existing components needed no change.
+// forwarding live records. Public website hosts may provide only their
+// agency/client/site/page identity so visitor-safe facades can derive scope;
+// private records remain portal-only.
 
 import { Fragment, useEffect } from "react";
 import type { Block, ElementContext, SplitTestGroup } from "./block";

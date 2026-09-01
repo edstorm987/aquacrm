@@ -83,6 +83,11 @@ import {
   handleListFormWebhookLog,
 } from "./handlers/formSubmissionHost";
 import {
+  handleListVisitorContacts,
+  handleVisitorBlogPosts,
+  handleVisitorContact,
+} from "./handlers/visitor";
+import {
   handleSaveVersion,
   handleListVersions,
   handleGetVersion,
@@ -236,6 +241,14 @@ export const apiRoutes: PluginApiRoute[] = [
   // R047 — Form submission host route + webhook-log listing.
   { path: "/forms/submit", methods: ["POST"], handler: handleFormSubmit },
   { path: "/forms/webhook-log", methods: ["GET"], handler: handleListFormWebhookLog },
+  { path: "/forms/contact-submissions", methods: ["GET"], handler: handleListVisitorContacts },
+
+  // Anonymous visitor facades. These stay separate from the operator routes:
+  // contact accepts one strict consent-bearing DTO and the blog feed returns
+  // published summaries only. The dispatcher still requires the exact enabled
+  // agency/client install named in the request scope.
+  { path: "visitor/contact", methods: ["POST"], handler: handleVisitorContact, public: true },
+  { path: "public/blog/posts", methods: ["GET"], handler: handleVisitorBlogPosts, public: true },
 
   // Page versions (R022) — auto-save + named checkpoints.
   { path: "/pages/versions", methods: ["GET"], handler: handleListVersions },

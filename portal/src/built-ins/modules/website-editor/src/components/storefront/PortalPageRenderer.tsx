@@ -29,7 +29,16 @@ export function PortalPageRenderer({ page, theme, preview, agencyId, clientId }:
       data-aqua-client-id={clientId}
     >
       <EditorThemeInjector theme={theme ?? null} customCSS={page.customCSS} />
-      <BlockTreeRenderer blocks={blocks} />
+      <BlockTreeRenderer
+        blocks={blocks}
+        context={{
+          agencyId: agencyId ?? page.agencyId,
+          clientId: clientId ?? page.clientId,
+          siteId: page.siteId,
+          pageId: page.id,
+          publishedWebsite: preview !== true && page.status === "published",
+        }}
+      />
     </div>
   );
 }

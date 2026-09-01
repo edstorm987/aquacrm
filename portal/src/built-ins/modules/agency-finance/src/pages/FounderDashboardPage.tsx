@@ -314,7 +314,15 @@ export default async function FounderDashboardPage(props: PluginPageProps) {
 }
 
 function Metric({ label, value, tone, icon: Icon }: { label: string; value: string; tone?: "good" | "bad" | "income" | "expense" | "outstanding" | "reserve"; icon: LucideIcon }) {
-  return <div className="mm-finance-metric mm-surface-card mm-hover-lift min-w-0 rounded-lg border p-3 sm:p-4" data-finance-tone={tone ?? "income"}><div className="flex items-start justify-between gap-2"><dt className="text-xs font-medium leading-4 text-black/50">{label}</dt><span className="mm-finance-metric-icon grid size-8 shrink-0 place-items-center rounded-md"><Icon size={15} /></span></div><dd className={`mt-3 break-words text-base font-semibold sm:text-lg ${tone === "good" ? "text-emerald-800" : tone === "bad" ? "text-red-700" : "text-black/85"}`}>{value}</dd></div>;
+  return (
+    <div className="mm-finance-metric mm-surface-card mm-hover-lift min-w-0 rounded-lg border p-3 sm:p-4" data-finance-tone={tone ?? "income"}>
+      <dt className="flex items-start justify-between gap-2 text-xs font-medium leading-4 text-black/50">
+        <span>{label}</span>
+        <span aria-hidden="true" className="mm-finance-metric-icon grid size-8 shrink-0 place-items-center rounded-md"><Icon size={15} /></span>
+      </dt>
+      <dd className={`mt-3 break-words text-base font-semibold sm:text-lg ${tone === "good" ? "text-emerald-800" : tone === "bad" ? "text-red-700" : "text-black/85"}`}>{value}</dd>
+    </div>
+  );
 }
 
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {

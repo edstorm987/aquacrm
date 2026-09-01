@@ -950,6 +950,12 @@ export const PORTAL_STATE_COVERAGE: Readonly<Record<string, CollectionClassifica
   contractTemplates: { entity: "financialEvent", plane: "config", note: "Contract shapes; agreements live on client metadata (finance namespace)." },
   legalDocuments: { plane: "operational", note: "Company legal documents." },
 
+  // Private object coordination
+  privateObjectLifecycles: {
+    plane: "operational",
+    note: "Agency-scoped recovery checkpoints for private provider objects: staged-upload ownership and retryable deletion state, not the authoritative business owner record.",
+  },
+
   // Providers & integrations
   integrationConnections: { entity: "provider", plane: "operational", note: "Connected external systems." },
   portalConnections: { entity: "provider", plane: "operational", note: "Portal-level provider connections." },

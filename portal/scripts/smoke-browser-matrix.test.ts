@@ -32,6 +32,7 @@ import {
   FOCUS_SETTLE_FLOOR_MS,
   focusIndicatorIsVisible,
   focusSettleDelayMs,
+  isAbortedRscPrefetch,
   isDevOnlyAsset,
   focusWalkVerdict,
   longestCssTimeMs,
@@ -233,6 +234,98 @@ test("one console error or one failed request is enough to fail", () => {
   assert.match(failed.detail, /500 \/api\/portal\/actions/);
   // A request that never completed carries no status and must still fail.
   assert.equal(networkVerdict({ failedRequests: [{ url: "/x", status: null }] }).status, "fail");
+});
+
+test("only aborted non-navigation Next RSC prefetches are transparent", () => {
+  const speculativeRsc = {
+    url: "http://localhost:3032/portal/agency/settings?_rsc=1a2b3",
+    status: null,
+    errorText: "net::ERR_ABORTED",
+    resourceType: "fetch",
+    isNavigationRequest: false,
+    method: "GET",
+    rsc: "1",
+    nextRouterPrefetch: "1",
+    purpose: null,
+    secPurpose: null,
+    pageUrlAtFailure: "http://localhost:3032/portal/agency",
+  };
+  assert.equal(isAbortedRscPrefetch(speculativeRsc), true);
+  const observed = networkVerdict({ failedRequests: [speculativeRsc] });
+  assert.equal(observed.status, "observation");
+  assert.match(observed.detail, /aborted speculative Next RSC fetch/);
+  assert.equal(isAbortedRscPrefetch({
+    ...speculativeRsc,
+    url: "http://localhost:3032/portal/agency?view=clients&_rsc=1a2b3",
+    pageUrlAtFailure: "http://localhost:3032/portal/agency",
+    nextRouterPrefetch: null,
+    purpose: "prefetch;prerender",
+  }), true, "an explicitly marked same-path query prefetch is still speculative");
+
+  const realFailures = [
+    {
+      ...speculativeRsc,
+      url: "http://localhost:3032/api/portal/settings?_rsc=1a2b3",
+    },
+    {
+      ...speculativeRsc,
+      resourceType: "document",
+      isNavigationRequest: true,
+    },
+    {
+      ...speculativeRsc,
+      errorText: "net::ERR_FAILED",
+    },
+    {
+      ...speculativeRsc,
+      resourceType: "xhr",
+    },
+    {
+      ...speculativeRsc,
+      url: "http://localhost:3032/portal/agency/settings?next=_rsc=1a2b3",
+    },
+    {
+      ...speculativeRsc,
+      status: 500,
+      errorText: null,
+    },
+    {
+      ...speculativeRsc,
+      method: "POST",
+    },
+    {
+      ...speculativeRsc,
+      rsc: null,
+    },
+    {
+      ...speculativeRsc,
+      nextRouterPrefetch: null,
+    },
+    {
+      ...speculativeRsc,
+      pageUrlAtFailure: "https://other.example/portal/agency",
+    },
+  ];
+  for (const failure of realFailures) {
+    assert.equal(isAbortedRscPrefetch(failure), false, JSON.stringify(failure));
+    assert.equal(networkVerdict({ failedRequests: [failure] }).status, "fail", JSON.stringify(failure));
+  }
+
+  const apiFailure = {
+    url: "http://localhost:3032/api/portal/settings",
+    status: 503,
+  };
+  assert.equal(
+    networkVerdict({ failedRequests: [speculativeRsc, apiFailure] }).status,
+    "fail",
+    "a transparent prefetch must not hide a real failure in the same page log",
+  );
+
+  assert.match(
+    SOURCE,
+    /const failure = req\.failure\(\);[\s\S]{0,120}?const headers = req\.headers\(\);[\s\S]{0,500}?method: req\.method\(\),[\s\S]{0,160}?nextRouterPrefetch: headers\["next-router-prefetch"\][\s\S]{0,220}?pageUrlAtFailure: session\.url\(\),/,
+    "the requestfailed listener must pass method, prefetch headers and current-page evidence to the verdict",
+  );
 });
 
 test("an empty log from a page that never loaded is not a clean log", () => {

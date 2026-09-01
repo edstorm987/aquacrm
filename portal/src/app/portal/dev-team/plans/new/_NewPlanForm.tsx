@@ -5,7 +5,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, LoaderCircle, AlertTriangle } from "lucide-react";
 
+import { checkedDevTeamMutation } from "../../_checkedMutation";
+
 type Priority = "high" | "med" | "low";
+type CreatedPlanPayload = {
+  ok?: boolean;
+  slug?: string;
+  relPath?: string;
+};
 
 const PRIORITIES: { value: Priority; label: string; hint: string }[] = [
   { value: "high", label: "High", hint: "Next up" },
@@ -30,7 +37,7 @@ export function NewPlanForm() {
     setBusy(true);
     setError("");
     try {
-      const response = await fetch("/api/portal/dev-team/plans", {
+      const result = await checkedDevTeamMutation<CreatedPlanPayload>("/api/portal/dev-team/plans", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -40,13 +47,20 @@ export function NewPlanForm() {
           notes,
           priority,
         }),
+      }, {
+        fallback: "Could not create the plan.",
+        validate: value => value.ok === true
+          && typeof value.slug === "string"
+          && value.slug.length > 0
+          && typeof value.relPath === "string"
+          && value.relPath.length > 0,
       });
-      const result = await response.json() as { ok?: boolean; error?: string; slug?: string; relPath?: string };
-      if (!response.ok || !result.ok) throw new Error(result.error || "Could not create the plan.");
-      setCreated({ slug: result.slug!, relPath: result.relPath! });
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setCreated({ slug: result.value.slug!, relPath: result.value.relPath! });
       router.refresh();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not create the plan.");
     } finally {
       setBusy(false);
     }

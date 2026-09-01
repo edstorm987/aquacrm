@@ -1,7 +1,7 @@
 import "server-only";
 
 import { logActivity } from "./activity";
-import { getLegalDocument } from "./legalDocuments";
+import { legalDocumentAcceptsReferences } from "./legalDocuments";
 import { getState, mutate } from "./storage";
 import { defaultCapacityAreas } from "@/lib/performance/hiringCapacity";
 import type { CompanyCapacityAreaId, CompanyCapacityAreaPlan, CompanyCapacityPlan, CompanyCapitalPlan, CompanyCapitalTransaction, CompanyDividendDistribution, CompanyGovernanceDecision, CompanyInvestmentHolding, CompanyObjective, CompanyPlan, CompanyProfile, CompanyProjectionPlan, CompanyQuarterlyReview, CompanyShareClass, CompanyShareholder } from "./types";
@@ -160,7 +160,7 @@ export function updateCompanyProfile(
       // `retained`, not the raw stored value: `normaliseProfile` does not clean
       // `capital`, so a profile written before a collection existed would hand
       // the delete-side diff an `undefined` array and turn a save into a 500.
-      const capitalConflicts = reconcileCapitalPlan(capital, retained, documentId => Boolean(getLegalDocument(agencyId, documentId)));
+      const capitalConflicts = reconcileCapitalPlan(capital, retained, documentId => legalDocumentAcceptsReferences(agencyId, documentId));
       if (capitalConflicts.length) throw new CompanyCapitalConflictError(capitalConflicts);
     }
     updated = {

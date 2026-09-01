@@ -12,6 +12,7 @@ import type {
   DevelopmentWorkflowStage,
   Role,
 } from "./types";
+import { pendingPrivateObjectDeletionSnapshots } from "@/lib/server/privateObjectLifecycle";
 
 const KINDS: DevelopmentResourceKind[] = [
   "tool", "app", "design-inspiration", "saved-page", "template", "git-template",
@@ -68,6 +69,32 @@ export function listDevelopmentResources(agencyId: string): DevelopmentResource[
     .sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
+/** Toolkit/vault recovery surface only; references and search stay live-only. */
+export function listDevelopmentResourcesWithPendingDeletion(agencyId: string): DevelopmentResource[] {
+  const stored = listDevelopmentResources(agencyId);
+  const existingIds = new Set(stored.map(resource => resource.id));
+  const pending = pendingPrivateObjectDeletionSnapshots<DevelopmentResource>(agencyId, "development-resource")
+    .filter(item => !existingIds.has(item.snapshot.id))
+    .map(item => ({
+      ...item.snapshot,
+      description: undefined,
+      url: undefined,
+      localPath: undefined,
+      framework: undefined,
+      codeSnippet: undefined,
+      tags: [],
+      workflowStageIds: [],
+      sopIds: [],
+      file: undefined,
+      credential: undefined,
+      deleteState: item.record.state === "delete-failed" ? "delete-failed" as const : "deleting" as const,
+      deleteError: item.record.error,
+      deleteStartedAt: item.record.createdAt,
+    }));
+  return [...stored, ...pending]
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
 export function getDevelopmentResource(agencyId: string, resourceId: string): DevelopmentResource | null {
   const resource = getState().developmentResources[resourceId];
   return resource?.agencyId === agencyId ? resource : null;
@@ -79,6 +106,16 @@ export function listVisibleDevelopmentResources(
   role: Role,
 ): DevelopmentResource[] {
   return listDevelopmentResources(agencyId).filter(resource =>
+    resource.visibility === "team" || resource.createdBy === userId || role === "agency-owner",
+  );
+}
+
+export function listVisibleDevelopmentResourcesWithPendingDeletion(
+  agencyId: string,
+  userId: string,
+  role: Role,
+): DevelopmentResource[] {
+  return listDevelopmentResourcesWithPendingDeletion(agencyId).filter(resource =>
     resource.visibility === "team" || resource.createdBy === userId || role === "agency-owner",
   );
 }
@@ -151,6 +188,7 @@ export function updateDevelopmentResource(
   input: DevelopmentResourceInput,
   actorUserId: string,
 ): DevelopmentResource | null {
+  if (!getState().developmentResources[resourceId]) return null;
   const existing = getDevelopmentResource(agencyId, resourceId);
   if (!existing) return null;
   const kind = input.kind === undefined ? existing.kind : cleanKind(input.kind);

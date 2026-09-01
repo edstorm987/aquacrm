@@ -7,6 +7,12 @@ import { Boxes, Check, Clipboard, ExternalLink, Github, Globe, KeyRound, LoaderC
 import type { DevProject, DevProjectMapStatus, DevProjectMasterTagView } from "@/server/types";
 import { formatUkDateTime } from "@/lib/shared/formatDateTime";
 import { groupDevProjects } from "@/lib/shared/devProjectGrouping";
+import { checkedDevTeamMutation } from "../../_checkedMutation";
+import {
+  isProjectMutationPayload,
+  type DevProjectMutationAction,
+  type ProjectMutationPayload,
+} from "../../_projectMutationPayload";
 
 // ─── DEV EDITOR — setup ──────────────────────────────────────────────────────
 //
@@ -36,6 +42,24 @@ import { groupDevProjects } from "@/lib/shared/devProjectGrouping";
 // wardrobe.
 
 interface ConnectionOption { id: string; label: string; provider: string; status?: string }
+
+function checkedProjectMutation(
+  body: Record<string, unknown> & { action: DevProjectMutationAction },
+  fallback: string,
+) {
+  return checkedDevTeamMutation<ProjectMutationPayload>("/api/portal/dev/projects", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  }, {
+    fallback,
+    validate: value => isProjectMutationPayload(
+      value,
+      body.action,
+      typeof body.id === "string" ? body.id : undefined,
+    ),
+  });
+}
 
 // ─── The wardrobe ────────────────────────────────────────────────────────────
 //
@@ -236,24 +260,17 @@ export function DevEditorSetup() {
 
   useEffect(load, []);
 
-  async function post(body: Record<string, unknown>, done: string) {
+  async function post(body: Record<string, unknown> & { action: DevProjectMutationAction }, done: string) {
     setBusy(true);
     setError(null);
     try {
-      const payload = await fetch("/api/portal/dev/projects", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      }).then(response => response.json());
-      if (!payload.ok) { setError(payload.error ?? "That could not be saved."); return false; }
+      const result = await checkedProjectMutation(body, "That could not be saved.");
+      if (!result.ok) { setError(result.error); return false; }
       setNotice(done);
       setDraft(null);
       announceProjectsChanged();
       load();
       return true;
-    } catch {
-      setError("That could not be saved.");
-      return false;
     } finally {
       setBusy(false);
     }
@@ -271,22 +288,14 @@ export function DevEditorSetup() {
     setError(null);
     setNotice(null);
     try {
-      const payload = await fetch("/api/portal/dev/projects", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "map", id: project.id }),
-      }).then(response => response.json()) as {
-        ok?: boolean;
-        error?: string;
-        project?: DevProject;
-        status?: DevProjectMapStatus;
-      };
-      if (!payload.ok || !payload.project) { setError(payload.error ?? "That project could not be mapped."); return; }
-      setNotice(`${project.name} mapped — ${summariseMap(payload.project, payload.status)}`);
+      const result = await checkedProjectMutation(
+        { action: "map", id: project.id },
+        "That project could not be mapped.",
+      );
+      if (!result.ok) { setError(result.error); return; }
+      setNotice(`${project.name} mapped — ${summariseMap(result.value.project!, result.value.status)}`);
       announceProjectsChanged();
       load();
-    } catch {
-      setError("That project could not be mapped.");
     } finally {
       setMapping(null);
     }
@@ -305,21 +314,13 @@ export function DevEditorSetup() {
     setError(null);
     setNotice(null);
     try {
-      const payload = await fetch("/api/portal/dev/projects", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          action: "connect-tag",
-          id: project.id,
-          siteUrl: addresses[project.id] ?? project.siteUrl ?? "",
-        }),
-      }).then(response => response.json()) as {
-        ok?: boolean;
-        error?: string;
-        project?: DevProject;
-        status?: DevProjectMapStatus;
-      };
-      if (!payload.ok || !payload.project) { setError(payload.error ?? "That address could not be checked."); return; }
+      const result = await checkedProjectMutation({
+        action: "connect-tag",
+        id: project.id,
+        siteUrl: addresses[project.id] ?? project.siteUrl ?? "",
+      }, "That address could not be checked.");
+      if (!result.ok) { setError(result.error); return; }
+      const payload = result.value;
       // Only a tag that ANSWERED gets the success line. Everything else is not
       // a failed request — it is a true answer with its own tone, and the panel
       // below states it in that tone; a green toast saying "the snippet is not
@@ -334,8 +335,6 @@ export function DevEditorSetup() {
       // changed, and the editor around this panel must re-derive its browser.
       announceProjectsChanged();
       load();
-    } catch {
-      setError("That address could not be checked.");
     } finally {
       setChecking(null);
     }
@@ -815,7 +814,10 @@ function GitHubConnectPanel({ onConnected, skin = "workspace" }: { onConnected: 
     setBusy(true);
     setNote({ tone: "info", text: "Saving the connection…" });
     try {
-      const saveResponse = await fetch("/api/portal/settings/integrations", {
+      const saved = await checkedDevTeamMutation<{
+        ok?: boolean;
+        connection?: { id?: string };
+      }>("/api/portal/settings/integrations", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -824,36 +826,53 @@ function GitHubConnectPanel({ onConnected, skin = "workspace" }: { onConnected: 
           label: label.trim() || "GitHub",
           values: { token: token.trim(), owner: owner.trim() },
         }),
+      }, {
+        fallback: "The connection could not be saved.",
+        validate: value => value.ok === true
+          && typeof value.connection?.id === "string"
+          && value.connection.id.length > 0,
       });
-      const saved = await saveResponse.json() as { ok?: boolean; error?: string; connection?: { id: string } };
-      if (!saveResponse.ok || !saved.ok || !saved.connection?.id) {
-        setNote({ tone: "bad", text: saved.error ?? "The connection could not be saved." });
+      if (!saved.ok) {
+        setNote({ tone: "bad", text: saved.error });
         return;
       }
+      const connectionId = saved.value.connection!.id!;
       // Auth check on the spot: a token that saves but cannot authenticate is
       // the failure Ed hit — surface it NOW, with GitHub's answer, not at the
       // first publish.
       setNote({ tone: "info", text: "Saved. Checking the token against GitHub…" });
-      const testResponse = await fetch("/api/portal/settings/integrations", {
+      const tested = await checkedDevTeamMutation<{
+        ok?: boolean;
+        connection?: { lastTestMessage?: string; status?: string };
+      }>("/api/portal/settings/integrations", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "test", connectionId: saved.connection.id }),
+        body: JSON.stringify({ action: "test", connectionId }),
+      }, {
+        fallback: "The saved connection could not be tested.",
+        validate: value => value.ok === true
+          && value.connection !== null
+          && typeof value.connection === "object"
+          && (value.connection?.status === undefined || typeof value.connection.status === "string")
+          && (value.connection?.lastTestMessage === undefined || typeof value.connection.lastTestMessage === "string"),
       });
-      const tested = await testResponse.json() as { ok?: boolean; error?: string; connection?: { lastTestMessage?: string; status?: string } };
-      const verdict = tested.connection?.lastTestMessage ?? tested.error ?? "";
-      if (tested.ok && tested.connection?.status !== "failed") {
+      if (!tested.ok) {
+        setNote({ tone: "bad", text: `Saved, but the authentication check could not finish: ${tested.error}` });
+        onConnected(connectionId);
+        return;
+      }
+      const verdict = tested.value.connection?.lastTestMessage ?? "";
+      if (tested.value.connection?.status !== "failed") {
         setNote({ tone: "ok", text: verdict || "GitHub accepted the token." });
         setToken("");
         setOpen(false);
-        onConnected(saved.connection.id);
+        onConnected(connectionId);
       } else {
         // Saved but NOT authenticating — say exactly that. The connection
         // exists (it can be fixed by editing it), the auth is what failed.
         setNote({ tone: "bad", text: `Saved, but the token did not authenticate: ${verdict || "GitHub refused it."}` });
-        onConnected(saved.connection.id);
+        onConnected(connectionId);
       }
-    } catch {
-      setNote({ tone: "bad", text: "The connection could not be saved." });
     } finally {
       setBusy(false);
     }
@@ -1132,23 +1151,16 @@ export function DevEditorProjectSettings({
     if (project && !draft) setDraft(draftFrom(project));
   }, [project, draft]);
 
-  async function post(body: Record<string, unknown>, done: string) {
+  async function post(body: Record<string, unknown> & { action: DevProjectMutationAction }, done: string) {
     setBusy(true);
     setError(null);
     try {
-      const payload = await fetch("/api/portal/dev/projects", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      }).then(response => response.json());
-      if (!payload.ok) { setError(payload.error ?? "That could not be saved."); return false; }
+      const result = await checkedProjectMutation(body, "That could not be saved.");
+      if (!result.ok) { setError(result.error); return false; }
       setNotice(done);
       announceProjectsChanged();
       load();
       return true;
-    } catch {
-      setError("That could not be saved.");
-      return false;
     } finally {
       setBusy(false);
     }
@@ -1210,19 +1222,14 @@ export function DevEditorProjectSettings({
     setError(null);
     setNotice(null);
     try {
-      const payload = await fetch("/api/portal/dev/projects", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "map", id: project.id }),
-      }).then(response => response.json()) as {
-        ok?: boolean; error?: string; project?: DevProject; status?: DevProjectMapStatus;
-      };
-      if (!payload.ok || !payload.project) { setError(payload.error ?? "The project could not be mapped."); return; }
-      setNotice(`Mapped — ${summariseMap(payload.project, payload.status)}`);
+      const result = await checkedProjectMutation(
+        { action: "map", id: project.id },
+        "The project could not be mapped.",
+      );
+      if (!result.ok) { setError(result.error); return; }
+      setNotice(`Mapped — ${summariseMap(result.value.project!, result.value.status)}`);
       announceProjectsChanged();
       load();
-    } catch {
-      setError("The project could not be mapped.");
     } finally {
       setMapping(false);
     }
@@ -1239,26 +1246,19 @@ export function DevEditorProjectSettings({
     setError(null);
     setNotice(null);
     try {
-      const payload = await fetch("/api/portal/dev/projects", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          action: "connect-tag",
-          id: project.id,
-          siteUrl: address ?? project.siteUrl ?? "",
-        }),
-      }).then(response => response.json()) as {
-        ok?: boolean; error?: string; project?: DevProject; status?: DevProjectMapStatus;
-      };
-      if (!payload.ok || !payload.project) { setError(payload.error ?? "That address could not be checked."); return; }
+      const result = await checkedProjectMutation({
+        action: "connect-tag",
+        id: project.id,
+        siteUrl: address ?? project.siteUrl ?? "",
+      }, "That address could not be checked.");
+      if (!result.ok) { setError(result.error); return; }
+      const payload = result.value;
       // Only a tag that ANSWERED gets the success line — anything else is a
       // true answer the tag panel states in its own tone.
       setNotice(payload.status?.tagVerified ? payload.status.tagSentence : null);
       setAddress(null);
       announceProjectsChanged();
       load();
-    } catch {
-      setError("That address could not be checked.");
     } finally {
       setChecking(false);
     }

@@ -504,8 +504,12 @@ describe("a failed read is preserved, not converted into emptiness", () => {
       !/leave the empty state/.test(sources),
       "a failed website-source read renders as 'No sites registered yet' again",
     );
-    assert.ok(sources.includes("setUnavailable(true)"));
-    assert.ok(sources.includes("not because no site is routed"));
+    assert.ok(sources.includes("readWebsiteSourceRegistry({ signal: controller.signal })"));
+    assert.ok(sources.includes('setReadState("unavailable")'));
+    assert.ok(sources.includes("presentation.showEmpty"));
+    assert.ok(sources.includes("not confirmation that no site is routed"));
+    assert.ok(sources.includes("Retry registered sites"));
+    assert.match(sources, /disabled=\{[^}]*!presentation\.canMutate/);
 
     const search = code(read("src/components/chrome/PortalSearch.tsx"));
     assert.ok(search.includes("setSearchUnavailable(true)"));

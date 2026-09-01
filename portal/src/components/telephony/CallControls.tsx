@@ -21,22 +21,24 @@
 // you mid-session.
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { Phone, PhoneOff, LoaderCircle, TriangleAlert, Check } from "lucide-react";
+import { Phone, PhoneOff, LoaderCircle, TriangleAlert, Check, RefreshCw } from "lucide-react";
 
 import { formatPhoneForDisplay } from "@/lib/telephony/phoneNumbers";
+import {
+  readSenderCatalogue,
+  type OutboundSenderOption,
+  type SenderCatalogueRead,
+} from "@/lib/client/senderCatalogueRead";
 
-interface CallSender {
-  id: string;
-  label: string;
-  address: string;
-  provider: string;
-}
+type CallSender = OutboundSenderOption;
+type SenderReadState = "loading" | "ready" | "unavailable";
 
 const STORAGE_KEY = "aquacrm.telephony.sender";
 
 // ─── the shared selection ─────────────────────────────────────────────────
 
 let selectedSenderId = "";
+let senderReadState: SenderReadState = "loading";
 const listeners = new Set<() => void>();
 
 function readStored(): string {
@@ -50,10 +52,16 @@ function readStored(): string {
 function setSelectedSender(id: string) {
   selectedSenderId = id;
   try {
-    window.localStorage.setItem(STORAGE_KEY, id);
+    if (id) window.localStorage.setItem(STORAGE_KEY, id);
+    else window.localStorage.removeItem(STORAGE_KEY);
   } catch {
     /* private mode — the choice still holds for this session */
   }
+  listeners.forEach(listener => listener());
+}
+
+function setSenderReadState(state: SenderReadState) {
+  senderReadState = state;
   listeners.forEach(listener => listener());
 }
 
@@ -66,9 +74,13 @@ function useSelectedSender(): string {
   return useSyncExternalStore(subscribe, () => selectedSenderId, () => "");
 }
 
+function useSenderReadState(): SenderReadState {
+  return useSyncExternalStore(subscribe, () => senderReadState, () => "loading");
+}
+
 // ─── senders, fetched once ────────────────────────────────────────────────
 
-let sendersPromise: Promise<CallSender[]> | null = null;
+let sendersPromise: Promise<SenderCatalogueRead> | null = null;
 
 /**
  * The voice identities this agency can call from.
@@ -76,40 +88,64 @@ let sendersPromise: Promise<CallSender[]> | null = null;
  * Fetched once per page load and shared. A hundred contact rows must not mean
  * a hundred identical requests — and the answer cannot change between rows.
  */
-function loadSenders(): Promise<CallSender[]> {
+function loadSenders(force = false): Promise<SenderCatalogueRead> {
+  if (force) sendersPromise = null;
   if (!sendersPromise) {
     // Any valid-looking number works; this request is asked for the senders
     // list, and the identity it also returns is ignored here.
-    sendersPromise = fetch("/api/portal/telephony/call?phone=%2B440000000000", { cache: "no-store" })
-      .then(response => response.json())
-      .then(result => (result?.ok && Array.isArray(result.senders) ? result.senders as CallSender[] : []))
-      .catch(() => []);
+    sendersPromise = readSenderCatalogue("/api/portal/telephony/call?phone=%2B440000000000");
   }
   return sendersPromise;
 }
 
 export function CallLinePicker() {
-  const [senders, setSenders] = useState<CallSender[] | null>(null);
+  const [read, setRead] = useState<SenderCatalogueRead | null>(null);
+  const [retryToken, setRetryToken] = useState(0);
   const selected = useSelectedSender();
 
   useEffect(() => {
     let live = true;
-    void loadSenders().then(list => {
+    setRead(null);
+    setSenderReadState("loading");
+    void loadSenders(retryToken > 0).then(result => {
       if (!live) return;
-      setSenders(list);
+      setRead(result);
+      if (!result.available) {
+        setSenderReadState("unavailable");
+        return;
+      }
+      const list = result.data as CallSender[];
       // Restore last session's choice if it still exists, else take the first
       // real line. A stored id for a deleted connection must not leave the
       // picker pointing at nothing.
       const stored = readStored();
       const valid = list.some(sender => sender.id === stored);
       if (valid) setSelectedSender(stored);
-      else if (list.length) setSelectedSender(list[0].id);
+      else {
+        // Revoke the stale module value and persisted choice before selecting
+        // a current fallback. A confirmed empty list must leave no identity
+        // behind for a row button to reuse.
+        setSelectedSender("");
+        if (list.length) setSelectedSender(list[0].id);
+      }
+      // Publish readiness only after the selected identity has been reconciled;
+      // otherwise a row could briefly become enabled with the stale module id.
+      setSenderReadState("ready");
     });
     return () => { live = false; };
-  }, []);
+  }, [retryToken]);
 
-  if (senders === null) {
+  if (read === null) {
     return <span className="inline-flex items-center gap-2 text-xs text-black/40"><LoaderCircle size={13} className="animate-spin" /> Checking calling lines…</span>;
+  }
+
+  if (!read.available) {
+    return <span role="alert" className="inline-flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900"><TriangleAlert size={13} aria-hidden="true" /><span>Calling lines could not be read. This is unavailable, not confirmation that no business line is connected. {read.message}</span><button type="button" onClick={() => setRetryToken(value => value + 1)} className="inline-flex min-h-7 items-center gap-1 rounded border border-amber-300 bg-white px-2 font-semibold"><RefreshCw size={11} />Retry lines</button></span>;
+  }
+
+  const senders = read.data as CallSender[];
+  if (!senders.length) {
+    return <span className="inline-flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900"><TriangleAlert size={13} aria-hidden="true" />No calling identity is configured.</span>;
   }
 
   // `outboundCommunicationReadiness` ALWAYS pushes a `device:call` sender, so
@@ -176,10 +212,11 @@ export function CallButton({
   onCalled?: () => void;
 }) {
   const senderId = useSelectedSender();
+  const catalogueState = useSenderReadState();
   const [state, setState] = useState<CallState>({ status: "idle" });
 
   const call = useCallback(async () => {
-    if (!phone || state.status === "calling") return;
+    if (!phone || !senderId || catalogueState !== "ready" || state.status === "calling") return;
     setState({ status: "calling" });
     try {
       const response = await fetch("/api/portal/telephony/call", {
@@ -215,7 +252,7 @@ export function CallButton({
     } catch {
       setState({ status: "failed", message: "The call could not be placed." });
     }
-  }, [phone, senderId, contactId, prospectId, state.status, onCalled]);
+  }, [phone, senderId, catalogueState, contactId, prospectId, state.status, onCalled]);
 
   if (!phone) {
     return (
@@ -230,7 +267,7 @@ export function CallButton({
       <button
         type="button"
         onClick={() => void call()}
-        disabled={state.status === "calling" || state.status === "blocked"}
+        disabled={catalogueState !== "ready" || !senderId || state.status === "calling" || state.status === "blocked"}
         aria-label={name ? `Call ${name}` : `Call ${phone}`}
         className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-[#0b6f6d] px-3 text-xs font-semibold text-white hover:bg-[#095b59] disabled:opacity-50"
       >

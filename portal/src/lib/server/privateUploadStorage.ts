@@ -35,6 +35,23 @@ export interface StoredPrivateUpload {
   storageKey: string;
 }
 
+/**
+ * Predict the exact key a staged upload will own before provider I/O starts.
+ * Vercel Blob accepts a pathname as well as a returned URL for deletion, so
+ * all three providers can be reconciled even if the process dies after the
+ * provider accepted bytes but before `put()` returned to the route.
+ */
+export function planPrivateUpload(input: Pick<StorePrivateUploadInput, "pathname" | "localKey">): StoredPrivateUpload {
+  if (supabasePrivateUploadsConfigured()) {
+    return { storageProvider: "supabase", storageKey: input.pathname };
+  }
+  if (privateUploadsConfigured()) {
+    return { storageProvider: "vercel-blob", storageKey: input.pathname };
+  }
+  if (durablePrivateUploadsRequired()) throw new PrivateUploadStorageError();
+  return { storageProvider: "local", storageKey: input.localKey };
+}
+
 export function supabasePrivateUploadsConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
   return Boolean(
     env.NEXT_PUBLIC_SUPABASE_URL?.trim()

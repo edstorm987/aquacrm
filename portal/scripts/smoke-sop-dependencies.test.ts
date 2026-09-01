@@ -41,16 +41,18 @@ require_.cache[serverOnly] = {
 
 import { ensureHydrated, flushPendingWrites, getState, mutate } from "../src/server/storage";
 import { createAgency, createClient } from "../src/server/tenants";
-import { createWrittenSop, deleteSopRecord } from "../src/engines/sop/server/sops";
+import { createSopCategory, createWrittenSop, deleteSopRecord } from "../src/engines/sop/server/sops";
 import {
   collectSopDependants,
   sopDependencyInventory,
   sopHasDependants,
 } from "../src/engines/sop/server/sopDependencies";
-import { DELETE as sopsDelete, GET as sopsGet } from "../src/app/api/portal/sops/route";
+import { DELETE as sopsDelete, GET as sopsGet, PATCH as sopsPatch } from "../src/app/api/portal/sops/route";
 import { SESSION_COOKIE_NAME, issueSession } from "../src/lib/server/auth/auth";
 import { createUser } from "../src/server/users";
 import type { SopDependencyInventory } from "../src/engines/sop/server/sopDependencies";
+import { deletePrivateObjectWithRecovery, privateObjectRequestHash } from "../src/lib/server/privateObjectLifecycle";
+import { DELETE as sopCategoriesDelete } from "../src/app/api/portal/sops/categories/route";
 
 let agencyId = "";
 let sopId = "";
@@ -330,6 +332,11 @@ describe("the delete path consults the inventory instead of guessing", () => {
     assert.equal(getState().tasks["task_route_dep"].sopIds?.includes(routeAgency.sopId), true,
       "deletion now detaches dependants — a retirement policy has landed, and this test plus the "
       + "strand-everything test above should be rewritten to assert it");
+
+    const replay = await sopsDelete(authed(`?id=${encodeURIComponent(routeAgency.sopId)}`, "DELETE"));
+    assert.equal(replay.status, 200, "an exact retry after response loss must replay the completed deletion checkpoint");
+    const replayBody = await replay.json() as { stranded?: SopDependencyInventory };
+    assert.equal(replayBody.stranded?.total, 3, "the replay lost the original dependency inventory");
   });
 
   it("an unreferenced SOP is deleted with an empty stranded inventory, not a missing one", async () => {
@@ -338,6 +345,136 @@ describe("the delete path consults the inventory instead of guessing", () => {
     const body = await response.json() as { ok: boolean; stranded?: SopDependencyInventory };
     assert.equal(body.stranded?.total, 0, "a clean deletion must still answer with the inventory it "
       + "checked — absent and empty are different claims");
+  });
+});
+
+describe("SOP updates share the permanent-deletion lifecycle transaction", () => {
+  it("cannot resurrect an SOP after its provider object was deleted", async () => {
+    const doomed = createWrittenSop({
+      agencyId: routeAgency.id,
+      title: "Update-race SOP",
+      content: "Original procedure",
+      actorUserId: "seed",
+    });
+    mutate(state => {
+      state.sops[doomed.id] = {
+        ...state.sops[doomed.id]!,
+        storageProvider: "local",
+        storageKey: `${routeAgency.id}/${doomed.id}.pdf`,
+      };
+    });
+    let checkpointResolve!: () => void;
+    let releaseResolve!: () => void;
+    const checkpointed = new Promise<void>(resolve => { checkpointResolve = resolve; });
+    const released = new Promise<void>(resolve => { releaseResolve = resolve; });
+    let providerCalls = 0;
+    const deletion = deletePrivateObjectWithRecovery({
+      agencyId: routeAgency.id,
+      purpose: "sop",
+      objectId: doomed.id,
+      requestHash: privateObjectRequestHash([routeAgency.id, doomed.id, "permanent-delete"]),
+      localDirectory: "sop-uploads",
+      prepare(state) {
+        const current = state.sops[doomed.id];
+        assert.ok(current, "the SOP update-race fixture disappeared before deletion started");
+        delete state.sops[doomed.id];
+        return { snapshot: current, storageProvider: current.storageProvider, storageKey: current.storageKey };
+      },
+      async afterCheckpoint() {
+        checkpointResolve();
+        await released;
+      },
+      providers: { local: async () => { providerCalls += 1; } },
+    });
+    await checkpointed;
+
+    let updateSettled = false;
+    const update = sopsPatch(new NextRequest("http://localhost/api/portal/sops", {
+      method: "PATCH",
+      headers: {
+        cookie: `${SESSION_COOKIE_NAME}=${routeAgency.token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ id: doomed.id, title: "Must not be resurrected" }),
+    }));
+    void update.then(() => { updateSettled = true; }, () => { updateSettled = true; });
+    await new Promise(resolve => setTimeout(resolve, 25));
+    const updateSettledBeforeDeleteCommit = updateSettled;
+    releaseResolve();
+
+    const [deletionResult, updateResponse] = await Promise.all([deletion, update]);
+    assert.equal(updateSettledBeforeDeleteCommit, false,
+      "the PATCH crossed the deletion checkpoint instead of waiting for the shared lifecycle lane");
+    assert.equal(deletionResult.ok, true);
+    assert.equal(providerCalls, 1, "the SOP binary was not deleted exactly once");
+    assert.equal(updateResponse.status, 404, "the queued PATCH did not re-read the deleted SOP store");
+    assert.equal(getState().sops[doomed.id], undefined,
+      "the queued PATCH resurrected an SOP whose binary was permanently deleted");
+  });
+
+  it("a category rewrite cannot resurrect an SOP after provider deletion", async () => {
+    const category = createSopCategory(routeAgency.id, `Retiring ${Date.now()}`, "seed");
+    const doomed = createWrittenSop({
+      agencyId: routeAgency.id,
+      title: "Category-race SOP",
+      content: "Original procedure",
+      category,
+      actorUserId: "seed",
+    });
+    mutate(state => {
+      state.sops[doomed.id] = {
+        ...state.sops[doomed.id]!,
+        storageProvider: "local",
+        storageKey: `${routeAgency.id}/${doomed.id}.pdf`,
+      };
+    });
+    let checkpointResolve!: () => void;
+    let releaseResolve!: () => void;
+    const checkpointed = new Promise<void>(resolve => { checkpointResolve = resolve; });
+    const released = new Promise<void>(resolve => { releaseResolve = resolve; });
+    let providerCalls = 0;
+    const deletion = deletePrivateObjectWithRecovery({
+      agencyId: routeAgency.id,
+      purpose: "sop",
+      objectId: doomed.id,
+      requestHash: privateObjectRequestHash([routeAgency.id, doomed.id, "permanent-delete"]),
+      localDirectory: "sop-uploads",
+      prepare(state) {
+        const current = state.sops[doomed.id];
+        assert.ok(current, "the category-race fixture disappeared before deletion started");
+        delete state.sops[doomed.id];
+        return { snapshot: current, storageProvider: current.storageProvider, storageKey: current.storageKey };
+      },
+      async afterCheckpoint() {
+        checkpointResolve();
+        await released;
+      },
+      providers: { local: async () => { providerCalls += 1; } },
+    });
+    await checkpointed;
+
+    let categorySettled = false;
+    const categoryDelete = sopCategoriesDelete(new NextRequest("http://localhost/api/portal/sops/categories", {
+      method: "DELETE",
+      headers: {
+        cookie: `${SESSION_COOKIE_NAME}=${routeAgency.token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ category }),
+    }));
+    void categoryDelete.then(() => { categorySettled = true; }, () => { categorySettled = true; });
+    await new Promise(resolve => setTimeout(resolve, 25));
+    const categorySettledBeforeDeleteCommit = categorySettled;
+    releaseResolve();
+
+    const [deletionResult, categoryResponse] = await Promise.all([deletion, categoryDelete]);
+    assert.equal(categorySettledBeforeDeleteCommit, false,
+      "the category rewrite crossed the deletion checkpoint instead of waiting for the shared lifecycle lane");
+    assert.equal(deletionResult.ok, true);
+    assert.equal(providerCalls, 1, "the SOP binary was not deleted exactly once");
+    assert.equal(categoryResponse.status, 200, "the queued category operation did not complete on its fresh snapshot");
+    assert.equal(getState().sops[doomed.id], undefined,
+      "the queued category rewrite resurrected an SOP whose binary was permanently deleted");
   });
 });
 

@@ -4,6 +4,14 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Building2, Code2, FileSearch, Globe2, LoaderCircle, Plus, Trash2 } from "lucide-react";
 import { mapScannedForm } from "@/lib/enquiries/clientFormMapping";
+import {
+  readWebsiteSourceRegistry,
+  websiteSourceRegistryPresentation,
+  type WebsiteSourceRegistryClient,
+  type WebsiteSourceRegistryCompany,
+  type WebsiteSourceRegistryReadState,
+  type WebsiteSourceRegistrySource,
+} from "@/lib/client/websiteSourceRegistryRead";
 
 /**
  * Where each tagged website's submissions land.
@@ -24,15 +32,9 @@ import { mapScannedForm } from "@/lib/enquiries/clientFormMapping";
  * inbox page having to carry it.
  */
 
-interface WebsiteSource {
-  id: string;
-  host: string;
-  label: string;
-  destinationClientId?: string;
-  destinationCompanyId?: string;
-}
-interface ClientOption { id: string; name: string }
-interface CompanyOption { id: string; name: string }
+type WebsiteSource = WebsiteSourceRegistrySource;
+type ClientOption = WebsiteSourceRegistryClient;
+type CompanyOption = WebsiteSourceRegistryCompany;
 interface ScannedField { name: string; label?: string }
 interface FormSummary { label: string; capturable: boolean; fieldCount: number; fields: ScannedField[] }
 
@@ -78,7 +80,7 @@ const ROLE_LABELS: Record<string, string> = {
  * listed beside it. A preview that quietly dropped three questions is how
  * somebody approves a mapping that loses them.
  */
-function FormMapping({ fields, clientId }: { fields: ScannedField[]; clientId?: string }) {
+function FormMapping({ fields, clientId, disabled }: { fields: ScannedField[]; clientId?: string; disabled: boolean }) {
   const [saving, setSaving] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const mapped = mapScannedForm(fields);
@@ -87,6 +89,7 @@ function FormMapping({ fields, clientId }: { fields: ScannedField[]; clientId?: 
 
   async function keep() {
     if (!clientId) return;
+    if (disabled) { setNote("Retry the routing read before saving this mapping."); return; }
     setSaving(true);
     setNote(null);
     try {
@@ -144,7 +147,7 @@ function FormMapping({ fields, clientId }: { fields: ScannedField[]; clientId?: 
           <button
             type="button"
             onClick={() => void keep()}
-            disabled={saving}
+            disabled={saving || disabled}
             className="inline-flex min-h-6 items-center gap-1 rounded border border-black/15 bg-white px-2 py-0.5 font-medium text-black/70 transition hover:bg-black/[0.04] disabled:opacity-50"
           >
             {saving ? <LoaderCircle size={11} className="animate-spin" aria-hidden="true" /> : null}
@@ -178,8 +181,10 @@ export function WebsiteSourcesConfig() {
   const [sources, setSources] = useState<WebsiteSource[]>([]);
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [unavailable, setUnavailable] = useState(false);
+  const [readState, setReadState] = useState<WebsiteSourceRegistryReadState>("loading");
+  const [readMessage, setReadMessage] = useState("");
+  const [hasConfirmedRead, setHasConfirmedRead] = useState(false);
+  const [retryToken, setRetryToken] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [host, setHost] = useState("");
   const [destination, setDestination] = useState(AGENCY);
@@ -187,26 +192,30 @@ export function WebsiteSourcesConfig() {
   const [formsBySource, setFormsBySource] = useState<Record<string, FormSummary[]>>({});
   const [importingId, setImportingId] = useState<string | null>(null);
   const [importNote, setImportNote] = useState<Record<string, string>>({});
+  const presentation = websiteSourceRegistryPresentation(readState, hasConfirmedRead, sources.length);
 
   useEffect(() => {
+    const controller = new AbortController();
+    setReadState("loading");
+    setReadMessage("");
     void (async () => {
-      try {
-        const data = await (await fetch("/api/portal/website-sources")).json() as { ok: boolean; sources?: WebsiteSource[]; clients?: ClientOption[]; companies?: CompanyOption[]; formSchemasBySource?: Record<string, unknown> };
-        if (!data.ok) throw new Error("read refused");
-        setSources(data.sources ?? []); setClients(data.clients ?? []); setCompanies(data.companies ?? []);
+      const read = await readWebsiteSourceRegistry({ signal: controller.signal });
+      if (controller.signal.aborted) return;
+      if (read.available) {
+        const data = read.data;
+        setSources(data.sources); setClients(data.clients); setCompanies(data.companies);
         const map: Record<string, FormSummary[]> = {};
-        for (const [id, schemas] of Object.entries(data.formSchemasBySource ?? {})) map[id] = toSummaries(schemas);
+        for (const [id, schemas] of Object.entries(data.formSchemasBySource)) map[id] = toSummaries(schemas);
         setFormsBySource(map);
-        setUnavailable(false);
-      } catch {
-        // NOT "leave the empty state" — the empty state says "No sites routed",
-        // which is a statement about the configuration, and nothing was read
-        // (issues #57).
-        setUnavailable(true);
+        setHasConfirmedRead(true);
+        setReadState("ready");
+        return;
       }
-      finally { setLoading(false); }
+      setReadMessage(read.message);
+      setReadState("unavailable");
     })();
-  }, []);
+    return () => controller.abort();
+  }, [retryToken]);
 
   const clientName = (id?: string) => clients.find(c => c.id === id)?.name;
   const companyName = (id?: string) => companies.find(c => c.id === id)?.name;
@@ -219,6 +228,7 @@ export function WebsiteSourcesConfig() {
 
   async function add(event: React.FormEvent) {
     event.preventDefault();
+    if (!presentation.canMutate) { setError("Retry the routing read before changing any sites."); return; }
     if (!host.trim()) { setError("Enter the website address."); return; }
     setBusy(true); setError(null);
     try {
@@ -235,6 +245,7 @@ export function WebsiteSourcesConfig() {
   }
 
   async function reroute(source: WebsiteSource, routing: Routing) {
+    if (!presentation.canMutate) { setError("Retry the routing read before changing any sites."); return; }
     setError(null);
     const previous = { destinationClientId: source.destinationClientId, destinationCompanyId: source.destinationCompanyId };
     // Clear both homes then set the chosen one, so the row never shows two for a beat.
@@ -252,6 +263,7 @@ export function WebsiteSourcesConfig() {
   }
 
   async function remove(source: WebsiteSource) {
+    if (!presentation.canMutate) { setError("Retry the routing read before changing any sites."); return; }
     const confirmed = window.confirm(
       `Permanently remove ${source.host}? This deletes its registration, tool injections and imported form schemas. This cannot be undone.`,
     );
@@ -273,6 +285,10 @@ export function WebsiteSourcesConfig() {
   // Import forms — read the site's real forms so enquiries mirror them (plan
   // Phase 2). Server-side, SSRF-safe; here we just show what came back.
   async function importForms(source: WebsiteSource) {
+    if (!presentation.canMutate) {
+      setImportNote(current => ({ ...current, [source.id]: "Retry the routing read before importing forms." }));
+      return;
+    }
     setImportingId(source.id);
     setImportNote(current => ({ ...current, [source.id]: "" }));
     try {
@@ -317,14 +333,16 @@ export function WebsiteSourcesConfig() {
         <input
           value={host}
           onChange={event => setHost(event.target.value)}
+          disabled={!presentation.canMutate}
           placeholder="cedar-dental.com"
-          className="min-h-10 rounded-md border border-black/12 bg-white px-3 text-sm outline-none focus:border-black/30"
+          className="min-h-10 rounded-md border border-black/12 bg-white px-3 text-sm outline-none focus:border-black/30 disabled:cursor-not-allowed disabled:bg-black/[0.03]"
         />
         <select
           value={destination}
           onChange={event => setDestination(event.target.value)}
+          disabled={!presentation.canMutate}
           aria-label="Where submissions from this site go"
-          className="min-h-10 rounded-md border border-black/12 bg-white px-3 text-sm"
+          className="min-h-10 rounded-md border border-black/12 bg-white px-3 text-sm disabled:cursor-not-allowed disabled:bg-black/[0.03]"
         >
           <option value={AGENCY}>→ Your inbox</option>
           {clients.length > 0 && (
@@ -340,7 +358,7 @@ export function WebsiteSourcesConfig() {
         </select>
         <button
           type="submit"
-          disabled={busy || !host.trim()}
+          disabled={busy || !host.trim() || !presentation.canMutate}
           className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85 disabled:opacity-45"
         >
           {busy ? <LoaderCircle size={14} className="animate-spin" aria-hidden /> : <Plus size={14} aria-hidden />}
@@ -349,19 +367,33 @@ export function WebsiteSourcesConfig() {
       </form>
       {error ? <p role="alert" className="mt-2 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p> : null}
 
-      {loading ? (
-        <p className="mt-4 text-xs text-black/40">Loading…</p>
-      ) : unavailable ? (
-        <p role="status" className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-4 text-xs leading-5 text-amber-900">
-          Your registered sites could not be read, so this list is empty because of a failure — not because no site is routed.
-          Reload before changing any routing.
-        </p>
-      ) : sources.length === 0 ? (
+      {presentation.showLoading ? (
+        <p className="mt-4 text-xs text-black/40">{hasConfirmedRead ? "Refreshing registered sites…" : "Loading registered sites…"}</p>
+      ) : null}
+      {presentation.showUnavailable ? (
+        <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-xs leading-5 text-amber-900">
+          <p className="min-w-0 flex-1">
+            {presentation.retainedSnapshotIsStale
+              ? "Registered sites could not be refreshed. The last confirmed routing remains visible but is locked."
+              : "Registered sites could not be read. This panel is unavailable, not confirmation that no site is routed."}
+            {readMessage ? <span className="block text-amber-800/75">{readMessage}</span> : null}
+          </p>
+          <button
+            type="button"
+            onClick={() => { setError(null); setRetryToken(value => value + 1); }}
+            className="min-h-8 rounded-md border border-amber-300 bg-white px-2.5 font-semibold text-amber-900 hover:bg-amber-100"
+          >
+            Retry registered sites
+          </button>
+        </div>
+      ) : null}
+      {presentation.showEmpty ? (
         <p className="mt-4 rounded-md border border-dashed border-black/12 bg-black/[0.015] px-3 py-4 text-xs leading-5 text-black/50">
           No sites registered yet — so everything routes to your inbox. Add a client&rsquo;s or company&rsquo;s
           tagged site above to send its enquiries straight there instead.
         </p>
-      ) : (
+      ) : null}
+      {presentation.showRows ? (
         <ul className="mt-4 grid gap-2">
           {sources.map(source => (
             <li key={source.id} className="rounded-md border border-black/10 bg-white px-3 py-2.5">
@@ -377,7 +409,7 @@ export function WebsiteSourcesConfig() {
                 <button
                   type="button"
                   onClick={() => void importForms(source)}
-                  disabled={importingId === source.id}
+                  disabled={importingId === source.id || !presentation.canMutate}
                   title="Read this site's forms so its enquiries mirror them field-for-field"
                   className="inline-flex min-h-9 items-center gap-1 rounded-md border border-black/12 px-2 text-xs font-semibold text-black/60 hover:border-black/25 hover:text-black disabled:opacity-50"
                 >
@@ -395,8 +427,9 @@ export function WebsiteSourcesConfig() {
                 <select
                   value={encodeDestination(source)}
                   onChange={event => void reroute(source, decodeDestination(event.target.value))}
+                  disabled={!presentation.canMutate}
                   aria-label={`Where ${source.host} routes`}
-                  className="min-h-9 rounded-md border border-black/12 bg-white px-2 text-xs"
+                  className="min-h-9 rounded-md border border-black/12 bg-white px-2 text-xs disabled:cursor-not-allowed disabled:bg-black/[0.03]"
                 >
                   <option value={AGENCY}>→ Your inbox</option>
                   {clients.length > 0 && (
@@ -413,9 +446,10 @@ export function WebsiteSourcesConfig() {
                 <button
                   type="button"
                   onClick={() => void remove(source)}
+                  disabled={!presentation.canMutate}
                   aria-label={`Permanently remove ${source.host}`}
                   title="Delete this registered site, its tool injections and imported form schemas"
-                  className="grid size-9 place-items-center rounded-md border border-black/10 text-black/35 hover:border-red-300 hover:bg-red-50 hover:text-red-600"
+                  className="grid size-9 place-items-center rounded-md border border-black/10 text-black/35 hover:border-red-300 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
                 ><Trash2 size={14} aria-hidden /></button>
               </div>
               </div>
@@ -437,12 +471,12 @@ export function WebsiteSourcesConfig() {
                   login or a search box is noise about something that will never
                   produce an enquiry. */}
               {formsBySource[source.id]?.filter(form => form.capturable && form.fields.length).map((form, index) => (
-                <FormMapping key={`map-${index}`} fields={form.fields} clientId={source.destinationClientId} />
+                <FormMapping key={`map-${index}`} fields={form.fields} clientId={source.destinationClientId} disabled={!presentation.canMutate} />
               ))}
             </li>
           ))}
         </ul>
-      )}
+      ) : null}
     </section>
   );
 }

@@ -1973,6 +1973,9 @@ export interface SopDocument {
   size?: number;
   storageProvider?: "supabase" | "vercel-blob" | "local";
   storageKey?: string;
+  deleteState?: "deleting" | "delete-failed";
+  deleteError?: string;
+  deleteStartedAt?: number;
   createdBy: string;
   updatedBy: string;
   createdAt: number;
@@ -2935,6 +2938,10 @@ export interface LegalDocument {
   size: number;
   storageProvider: "supabase" | "vercel-blob" | "local";
   storageKey: string;
+  deleteState?: "deleting" | "delete-failed";
+  deleteError?: string;
+  deleteStartedAt?: number;
+  deleteDetach?: boolean;
   createdBy: string;
   createdAt: number;
   updatedAt: number;
@@ -2992,11 +2999,40 @@ export interface DevelopmentResource {
   sopIds: string[];
   visibility: DevelopmentResourceVisibility;
   file?: DevelopmentResourceFile;
+  deleteState?: "deleting" | "delete-failed";
+  deleteError?: string;
+  deleteStartedAt?: number;
   credential?: DevelopmentCredential;
   createdBy: string;
   updatedBy: string;
   createdAt: number;
   updatedAt: number;
+}
+
+/**
+ * Durable sidecar for a private object while it has no settled owner, or while
+ * its owner is being permanently removed. `ready` is retained briefly as an
+ * audit/replay checkpoint; the business record remains the long-term owner.
+ */
+export interface PrivateObjectLifecycle {
+  id: string;
+  agencyId: string;
+  operation: "stage" | "delete";
+  purpose: string;
+  objectId: string;
+  requestHash: string;
+  state: "uploading" | "claiming" | "sweeping" | "ready" | "deleting" | "delete-failed";
+  storageProvider: "supabase" | "vercel-blob" | "local";
+  storageKey: string;
+  localDirectory: string;
+  ownerId?: string;
+  /** Snapshot needed to finish an owner deletion after a process crash. */
+  ownerSnapshot?: unknown;
+  metadata?: Record<string, unknown>;
+  error?: string;
+  createdAt: number;
+  updatedAt: number;
+  expiresAt: number;
 }
 
 export interface DevelopmentWorkflowStage {
@@ -4801,6 +4837,7 @@ export interface PortalState {
   clientPortalInstances: Record<string, ClientPortalInstanceRecord>;
   companyProfiles: Record<string, CompanyProfile>;
   legalDocuments: Record<string, LegalDocument>;
+  privateObjectLifecycles: Record<string, PrivateObjectLifecycle>;
   contractTemplates: Record<string, import("@/lib/clients/clientContracts").ClientContractTemplate>;
   developmentResources: Record<string, DevelopmentResource>;
   developmentWorkflows: Record<string, DevelopmentWorkflow>;

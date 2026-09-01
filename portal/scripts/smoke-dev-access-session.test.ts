@@ -4,6 +4,7 @@ import { beforeEach, describe, it } from "node:test";
 import { withSession } from "./dev-console-request-scope";
 
 import { GET as enterDev } from "../src/app/dev/route";
+import { localDevDestination } from "../src/lib/server/dev/localDevDestination";
 import { GET as getAccessGrants } from "../src/app/api/portal/access/grants/route";
 import { GET as getAccessRequests } from "../src/app/api/portal/access/requests/route";
 import { GET as getAccessTemplates } from "../src/app/api/portal/access/templates/route";
@@ -91,6 +92,33 @@ beforeEach(async () => {
 });
 
 describe("local /dev access-control session", () => {
+  it("allows one-leading-slash local paths and rejects cross-origin redirect forms", () => {
+    const requestUrl = "http://localhost/dev";
+    const fallback = "/portal/agency/contacts";
+
+    assert.equal(
+      localDevDestination("/portal/team?view=active#today", fallback, requestUrl),
+      "/portal/team?view=active#today",
+    );
+    assert.equal(localDevDestination("/", fallback, requestUrl), "/");
+
+    for (const target of [
+      "//evil.example/steal",
+      "///evil.example/steal",
+      "/\\evil.example/steal",
+      "/folder\\evil.example/steal",
+      "https://evil.example/steal",
+      "portal/team",
+      " /portal/team",
+    ]) {
+      assert.equal(
+        localDevDestination(target, fallback, requestUrl),
+        fallback,
+        `${target} must not become a dev-mode redirect`,
+      );
+    }
+  });
+
   it("mints from live authority even when the incoming browser cookie selects a sandbox realm", async () => {
     const incomingSandboxToken = issueSession({
       userId: OWNER_ID,

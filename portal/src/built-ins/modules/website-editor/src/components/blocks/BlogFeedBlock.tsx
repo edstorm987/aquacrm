@@ -9,7 +9,6 @@ import { useEffect, useState } from "react";
 import type { BlockRenderProps } from "../blockRegistry";
 
 interface FeedPost {
-  id: string;
   slug: string;
   title: string;
   excerpt?: string;
@@ -27,28 +26,43 @@ function readTime(post: FeedPost): string {
   return `${minutes} min read`;
 }
 
-export default function BlogFeedBlock({ block }: BlockRenderProps) {
+export default function BlogFeedBlock({ block, context }: BlockRenderProps) {
   const count = (block.props.count as number | undefined) ?? 6;
   const layout = (block.props.layout as "grid" | "list" | undefined) ?? "grid";
   const filterTag = block.props.filterTag as string | undefined;
-  const siteId = block.props.siteId as string | undefined;
+  const siteId = context?.siteId ?? block.props.siteId as string | undefined;
   const linkBase = (block.props.linkBase as string | undefined) ?? "/blog";
 
   const [posts, setPosts] = useState<FeedPost[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const params = new URLSearchParams({ status: "published", limit: String(count) });
-    if (siteId) params.set("siteId", siteId);
+    if (!siteId || !context?.agencyId || !context.clientId || context.publishedWebsite !== true) {
+      setError("This feed is available on the published page.");
+      return;
+    }
+    const controller = new AbortController();
+    setError(null);
+    setPosts(null);
+    const params = new URLSearchParams({
+      agencyId: context.agencyId,
+      clientId: context.clientId,
+      siteId,
+      limit: String(count),
+    });
     if (filterTag) params.set("tag", filterTag);
-    fetch(`/api/portal/website-editor/blog/posts?${params.toString()}`)
+    fetch("/api/portal/website-editor/public/blog/posts?" + params.toString(), { signal: controller.signal })
       .then(r => r.json() as Promise<{ ok: boolean; posts?: FeedPost[]; error?: string }>)
       .then(data => {
         if (!data.ok) { setError(data.error ?? "request failed"); return; }
         setPosts(data.posts ?? []);
       })
-      .catch(e => setError(e instanceof Error ? e.message : String(e)));
-  }, [count, filterTag, siteId]);
+      .catch(e => {
+        if (e instanceof DOMException && e.name === "AbortError") return;
+        setError(e instanceof Error ? e.message : String(e));
+      });
+    return () => controller.abort();
+  }, [context?.agencyId, context?.clientId, context?.publishedWebsite, count, filterTag, siteId]);
 
   if (error) return <div data-block-type="blog-feed" style={{ padding: 24, color: "#fca5a5" }}>{error}</div>;
   if (!posts) return <div data-block-type="blog-feed" style={{ padding: 24, color: "#94a3b8" }}>Loading posts…</div>;
@@ -62,7 +76,7 @@ export default function BlogFeedBlock({ block }: BlockRenderProps) {
     <div data-block-type="blog-feed" data-layout={layout} style={containerStyle}>
       {posts.map(p => (
         <a
-          key={p.id}
+          key={p.slug}
           href={`${linkBase}/${p.slug}`}
           style={{
             display: "block",

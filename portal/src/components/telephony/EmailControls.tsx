@@ -18,23 +18,33 @@
 // exactly the kind of irreversible action that should cost one more.
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { Mail, LoaderCircle, Check, TriangleAlert, X } from "lucide-react";
+import { Mail, LoaderCircle, Check, TriangleAlert, X, RefreshCw } from "lucide-react";
+import {
+  readSenderCatalogue,
+  type OutboundSenderOption,
+  type SenderCatalogueRead,
+} from "@/lib/client/senderCatalogueRead";
 
-interface EmailSender {
-  id: string;
-  label: string;
-  address: string;
-  provider: string;
-}
+type EmailSender = OutboundSenderOption;
+type SenderReadState = "loading" | "ready" | "unavailable";
 
 const STORAGE_KEY = "aquacrm.outreach.emailSender";
 
 let selectedId = "";
+let senderReadState: SenderReadState = "loading";
 const listeners = new Set<() => void>();
 
 function setSelected(id: string) {
   selectedId = id;
-  try { window.localStorage.setItem(STORAGE_KEY, id); } catch { /* private mode */ }
+  try {
+    if (id) window.localStorage.setItem(STORAGE_KEY, id);
+    else window.localStorage.removeItem(STORAGE_KEY);
+  } catch { /* private mode */ }
+  listeners.forEach(listener => listener());
+}
+
+function setSenderReadState(state: SenderReadState) {
+  senderReadState = state;
   listeners.forEach(listener => listener());
 }
 
@@ -47,42 +57,61 @@ function useSelected(): string {
   return useSyncExternalStore(subscribe, () => selectedId, () => "");
 }
 
-let sendersPromise: Promise<EmailSender[]> | null = null;
+function useSenderReadState(): SenderReadState {
+  return useSyncExternalStore(subscribe, () => senderReadState, () => "loading");
+}
+
+let sendersPromise: Promise<SenderCatalogueRead> | null = null;
 
 /** Fetched once and shared — a hundred rows must not mean a hundred requests. */
-function loadSenders(): Promise<EmailSender[]> {
+function loadSenders(force = false): Promise<SenderCatalogueRead> {
+  if (force) sendersPromise = null;
   if (!sendersPromise) {
-    sendersPromise = fetch("/api/portal/telephony/email", { cache: "no-store" })
-      .then(response => response.json())
-      .then(result => (result?.ok && Array.isArray(result.senders) ? result.senders as EmailSender[] : []))
-      .catch(() => []);
+    sendersPromise = readSenderCatalogue("/api/portal/telephony/email");
   }
   return sendersPromise;
 }
 
 export function EmailLinePicker() {
-  const [senders, setSenders] = useState<EmailSender[] | null>(null);
+  const [read, setRead] = useState<SenderCatalogueRead | null>(null);
+  const [retryToken, setRetryToken] = useState(0);
   const selected = useSelected();
 
   useEffect(() => {
     let live = true;
-    void loadSenders().then(list => {
+    setRead(null);
+    setSenderReadState("loading");
+    void loadSenders(retryToken > 0).then(result => {
       if (!live) return;
-      setSenders(list);
+      setRead(result);
+      if (!result.available) {
+        setSenderReadState("unavailable");
+        return;
+      }
+      const list = result.data as EmailSender[];
       let stored = "";
       try { stored = window.localStorage.getItem(STORAGE_KEY) ?? ""; } catch { /* private mode */ }
       // A stored id for a connection since deleted must not leave the picker
       // pointing at an address that no longer exists.
       if (list.some(sender => sender.id === stored)) setSelected(stored);
-      else if (list.length) setSelected(list[0].id);
+      else {
+        setSelected("");
+        if (list.length) setSelected(list[0].id);
+      }
+      setSenderReadState("ready");
     });
     return () => { live = false; };
-  }, []);
+  }, [retryToken]);
 
-  if (senders === null) {
+  if (read === null) {
     return <span className="inline-flex items-center gap-2 text-xs text-black/40"><LoaderCircle size={13} className="animate-spin" /> Checking sending addresses…</span>;
   }
 
+  if (!read.available) {
+    return <span role="alert" className="inline-flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900"><TriangleAlert size={13} aria-hidden="true" /><span>Sending addresses could not be read. This is unavailable, not confirmation that none are connected. {read.message}</span><button type="button" onClick={() => setRetryToken(value => value + 1)} className="inline-flex min-h-7 items-center gap-1 rounded border border-amber-300 bg-white px-2 font-semibold"><RefreshCw size={11} />Retry addresses</button></span>;
+  }
+
+  const senders = read.data as EmailSender[];
   if (!senders.length) {
     return (
       <span className="inline-flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900">
@@ -127,6 +156,7 @@ export function EmailButton({
   onSent?: () => void;
 }) {
   const senderId = useSelected();
+  const catalogueState = useSenderReadState();
   const [open, setOpen] = useState(false);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
@@ -148,7 +178,7 @@ export function EmailButton({
   }
 
   const send = useCallback(async () => {
-    if (busy || !email) return;
+    if (busy || !email || !senderId || catalogueState !== "ready") return;
     setBusy(true);
     setNote(null);
     try {
@@ -172,7 +202,7 @@ export function EmailButton({
     } finally {
       setBusy(false);
     }
-  }, [busy, email, subject, body, senderId, phone, contactId, onSent]);
+  }, [busy, email, subject, body, senderId, catalogueState, phone, contactId, onSent]);
 
   if (!email) return null;
 
@@ -181,9 +211,10 @@ export function EmailButton({
       <button
         type="button"
         onClick={() => setOpen(value => !value)}
+        disabled={catalogueState !== "ready" || !senderId}
         aria-label={name ? `Email ${name}` : `Email ${email}`}
         aria-expanded={open}
-        className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/15 bg-white px-3 text-xs font-semibold text-black/70 hover:bg-black/[0.03]"
+        className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/15 bg-white px-3 text-xs font-semibold text-black/70 hover:bg-black/[0.03] disabled:cursor-not-allowed disabled:opacity-45"
       >
         <Mail size={13} aria-hidden="true" /> Email
       </button>
@@ -212,7 +243,7 @@ export function EmailButton({
           <button
             type="button"
             onClick={() => void send()}
-            disabled={busy || !subject.trim() || !body.trim()}
+            disabled={busy || catalogueState !== "ready" || !senderId || !subject.trim() || !body.trim()}
             className="inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-md bg-[#0b6f6d] px-3 text-xs font-semibold text-white hover:bg-[#095b59] disabled:opacity-50"
           >
             {busy ? <LoaderCircle size={13} className="animate-spin" aria-hidden="true" /> : <Check size={13} aria-hidden="true" />}

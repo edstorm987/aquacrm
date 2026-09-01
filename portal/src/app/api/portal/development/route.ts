@@ -3,17 +3,19 @@ import { join, relative, resolve } from "node:path";
 import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
-import { deletePrivateUpload } from "@/lib/server/privateUploadStorage";
+import { deletePrivateObjectWithRecovery, privateObjectDeletionCheckpoint, privateObjectLifecycleLockKey, privateObjectRequestHash, PrivateObjectLifecycleConflictError } from "@/lib/server/privateObjectLifecycle";
+import { withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
 import {
   createDevelopmentResource,
   createDevelopmentWorkflow,
-  deleteDevelopmentResource,
   deleteDevelopmentWorkflow,
   developmentStageRef,
   ensureDefaultDevelopmentWorkflow,
   getDevelopmentResource,
   listDevelopmentWorkflows,
+  listDevelopmentResourcesWithPendingDeletion,
   listVisibleDevelopmentResources,
+  listVisibleDevelopmentResourcesWithPendingDeletion,
   publicDevelopmentResource,
   revealDevelopmentPassword,
   updateDevelopmentResource,
@@ -22,7 +24,7 @@ import {
   type DevelopmentWorkflowInput,
 } from "@/server/developmentToolkit";
 import { ensureHydrated } from "@/server/storage";
-import type { DevelopmentResourceKind, Role } from "@/server/types";
+import type { DevelopmentResource, DevelopmentResourceKind, Role } from "@/server/types";
 import { logActivity } from "@/server/activity";
 
 export const runtime = "nodejs";
@@ -64,7 +66,7 @@ export async function GET(request: Request) {
     const category = params.get("category");
     const offset = Math.max(0, Number(params.get("offset")) || 0);
     const limit = Math.min(100, Math.max(1, Number(params.get("limit")) || 50));
-    const allResources = listVisibleDevelopmentResources(session.agencyId, session.userId, session.role)
+    const allResources = listVisibleDevelopmentResourcesWithPendingDeletion(session.agencyId, session.userId, session.role)
       .filter(resource => mode === "vault"
         ? ["course", "knowledge", "credential", "sop"].includes(resource.kind)
         : mode === "toolkit"
@@ -100,41 +102,76 @@ export async function POST(request: Request) {
     }
 
     if (body.action === "resource:update") {
-      const existing = getDevelopmentResource(session.agencyId, body.resourceId);
-      if (!existing) return NextResponse.json({ ok: false, error: "Resource not found." }, { status: 404 });
-      if (!ADMINS.includes(session.role) && existing.createdBy !== session.userId) {
-        return NextResponse.json({ ok: false, error: "You cannot edit this resource." }, { status: 403 });
+      // The resource may own a private upload. Keep the authoritative read,
+      // authorization decision and update in the same lifecycle lane as
+      // permanent deletion, so a writer that saw the old row cannot recreate
+      // it after the provider has deleted its binary.
+      const outcome = await withPortalStateTransaction(
+        privateObjectLifecycleLockKey(session.agencyId),
+        () => {
+          const existing = getDevelopmentResource(session.agencyId, body.resourceId);
+          if (!existing) return { error: "Resource not found.", status: 404 } as const;
+          if (!ADMINS.includes(session.role) && existing.createdBy !== session.userId) {
+            return { error: "You cannot edit this resource.", status: 403 } as const;
+          }
+          if ((existing.kind === "credential" || Boolean(existing.credential) || hasSharedLogin(body.input)) && !ADMINS.includes(session.role)) {
+            return { error: "Only owners and managers can edit shared logins.", status: 403 } as const;
+          }
+          return {
+            resource: updateDevelopmentResource(session.agencyId, body.resourceId, body.input, session.userId),
+          };
+        },
+      );
+      if ("error" in outcome) {
+        return NextResponse.json({ ok: false, error: outcome.error }, { status: outcome.status });
       }
-      if ((existing.kind === "credential" || Boolean(existing.credential) || hasSharedLogin(body.input)) && !ADMINS.includes(session.role)) {
-        return NextResponse.json({ ok: false, error: "Only owners and managers can edit shared logins." }, { status: 403 });
-      }
-      const resource = updateDevelopmentResource(session.agencyId, body.resourceId, body.input, session.userId);
-      return NextResponse.json({ ok: true, resource: resource ? publicDevelopmentResource(resource) : null });
+      return NextResponse.json({ ok: true, resource: outcome.resource ? publicDevelopmentResource(outcome.resource) : null });
     }
 
     if (body.action === "resource:delete") {
-      const existing = getDevelopmentResource(session.agencyId, body.resourceId);
+      const existing = getDevelopmentResource(session.agencyId, body.resourceId)
+        ?? privateObjectDeletionCheckpoint<DevelopmentResource>(session.agencyId, "development-resource", body.resourceId)?.snapshot;
       if (!existing) return NextResponse.json({ ok: false, error: "Resource not found." }, { status: 404 });
       if (!ADMINS.includes(session.role) && existing.createdBy !== session.userId) {
         return NextResponse.json({ ok: false, error: "You cannot delete this resource." }, { status: 403 });
       }
-      // Storage first: the record carries the only storage key, so a refused
-      // provider delete must leave the resource in place to retry.
-      const removal = await deletePrivateUpload({
-        storageProvider: existing.file?.storageProvider,
-        storageKey: existing.file?.storageKey,
+      const result = await deletePrivateObjectWithRecovery<DevelopmentResource>({
+        agencyId: session.agencyId,
+        purpose: "development-resource",
+        objectId: body.resourceId,
+        requestHash: privateObjectRequestHash([session.agencyId, body.resourceId, "permanent-delete"]),
         localDirectory: "development-uploads",
+        checkpointSnapshot: snapshot => ({
+          ...snapshot,
+          description: undefined,
+          url: undefined,
+          localPath: undefined,
+          framework: undefined,
+          codeSnippet: undefined,
+          tags: [],
+          workflowStageIds: [],
+          sopIds: [],
+          file: undefined,
+          credential: undefined,
+        }),
+        completedSnapshot: snapshot => ({ id: snapshot.id, agencyId: snapshot.agencyId, title: snapshot.title, createdBy: snapshot.createdBy }),
+        prepare(state) {
+          const current = state.developmentResources[body.resourceId];
+          if (!current || current.agencyId !== session.agencyId) throw new Error("Resource not found.");
+          delete state.developmentResources[body.resourceId];
+          return { snapshot: current, storageProvider: current.file?.storageProvider, storageKey: current.file?.storageKey };
+        },
       });
-      if (!removal.ok) {
+      if (!result.ok) {
+        const recoveryResource = listDevelopmentResourcesWithPendingDeletion(session.agencyId)
+          .find(resource => resource.id === body.resourceId);
         return NextResponse.json({
           ok: false,
           code: "storage_delete_failed",
-          error: `“${existing.title}” is still stored — the storage provider refused to remove its file, so the resource has been kept to retry.`,
-          detail: removal.error,
+          error: `“${existing.title}” is queued for recovery — retry the delete after the storage provider is available.`,
+          detail: result.error,
+          resource: recoveryResource ? publicDevelopmentResource(recoveryResource) : undefined,
         }, { status: 502 });
-      }
-      if (!deleteDevelopmentResource(session.agencyId, body.resourceId)) {
-        return NextResponse.json({ ok: false, error: "Resource not found." }, { status: 404 });
       }
       return NextResponse.json({ ok: true });
     }
@@ -163,31 +200,42 @@ export async function POST(request: Request) {
 
     if (body.action === "workflow:create" || body.action === "workflow:update" || body.action === "workflow:delete") {
       if (!ADMINS.includes(session.role)) return NextResponse.json({ ok: false, error: "Owner or manager access required." }, { status: 403 });
-      if (body.action === "workflow:create") {
-        const workflow = createDevelopmentWorkflow(session.agencyId, body.input, session.userId);
-        return NextResponse.json({ ok: true, workflow }, { status: 201 });
-      }
-      if (body.action === "workflow:update") {
-        const workflow = updateDevelopmentWorkflow(session.agencyId, body.workflowId, body.input);
-        return workflow ? NextResponse.json({ ok: true, workflow }) : NextResponse.json({ ok: false, error: "Workflow not found." }, { status: 404 });
-      }
-      const deleted = deleteDevelopmentWorkflow(session.agencyId, body.workflowId);
-      return NextResponse.json({ ok: deleted }, { status: deleted ? 200 : 404 });
+      // Updating/deleting a workflow rewrites resource stage references, and
+      // creating the first/default workflow may run the legacy reference
+      // migration. Serialize the complete branch with resource deletion.
+      return withPortalStateTransaction(privateObjectLifecycleLockKey(session.agencyId), () => {
+        if (body.action === "workflow:create") {
+          const workflow = createDevelopmentWorkflow(session.agencyId, body.input, session.userId);
+          return NextResponse.json({ ok: true, workflow }, { status: 201 });
+        }
+        if (body.action === "workflow:update") {
+          const workflow = updateDevelopmentWorkflow(session.agencyId, body.workflowId, body.input);
+          return workflow ? NextResponse.json({ ok: true, workflow }) : NextResponse.json({ ok: false, error: "Workflow not found." }, { status: 404 });
+        }
+        const deleted = deleteDevelopmentWorkflow(session.agencyId, body.workflowId);
+        return NextResponse.json({ ok: deleted }, { status: deleted ? 200 : 404 });
+      });
     }
 
     if (body.action === "catalogue:workspace") {
       if (!ADMINS.includes(session.role)) return NextResponse.json({ ok: false, error: "Owner or manager access required." }, { status: 403 });
-      const defaultWorkflow = ensureDefaultDevelopmentWorkflow(session.agencyId, session.userId);
-      const candidates = await scanWorkspace(defaultWorkflow.id);
-      const existingPaths = new Set(listVisibleDevelopmentResources(session.agencyId, session.userId, session.role).map(resource => resource.localPath).filter(Boolean));
-      const imported = candidates
-        .filter(candidate => !existingPaths.has(candidate.localPath))
-        .map(candidate => publicDevelopmentResource(createDevelopmentResource(session.agencyId, candidate, session.userId)));
-      return NextResponse.json({ ok: true, imported, skipped: candidates.length - imported.length });
+      // `ensureDefaultDevelopmentWorkflow` can migrate every resource's stage
+      // refs. Keep migration, workspace scan and imports on one snapshot so a
+      // concurrent resource delete cannot be overwritten by the bulk rewrite.
+      return withPortalStateTransaction(privateObjectLifecycleLockKey(session.agencyId), async () => {
+        const defaultWorkflow = ensureDefaultDevelopmentWorkflow(session.agencyId, session.userId);
+        const candidates = await scanWorkspace(defaultWorkflow.id);
+        const existingPaths = new Set(listVisibleDevelopmentResources(session.agencyId, session.userId, session.role).map(resource => resource.localPath).filter(Boolean));
+        const imported = candidates
+          .filter(candidate => !existingPaths.has(candidate.localPath))
+          .map(candidate => publicDevelopmentResource(createDevelopmentResource(session.agencyId, candidate, session.userId)));
+        return NextResponse.json({ ok: true, imported, skipped: candidates.length - imported.length });
+      });
     }
 
     return NextResponse.json({ ok: false, error: "Unknown action." }, { status: 400 });
   } catch (error) {
+    if (error instanceof PrivateObjectLifecycleConflictError) return NextResponse.json({ ok: false, code: error.code, error: error.message }, { status: 409 });
     return authErrorResponse(error);
   }
 }

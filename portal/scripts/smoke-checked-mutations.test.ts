@@ -39,6 +39,77 @@ describe("checked client mutations", () => {
     );
   });
 
+  it("never surfaces or retains a 5xx response body", async () => {
+    await assert.rejects(
+      checkedJsonMutation("/mutation", { method: "POST" }, {
+        fallback: "Could not save.",
+        fetcher: fetcher(Response.json({ error: "Upstream database connection failed." }, { status: 503 })),
+      }),
+      (error: unknown) => error instanceof CheckedMutationError
+        && error.kind === "http"
+        && error.status === 503
+        && error.message === "Could not save. (HTTP 503)."
+        && error.payload === undefined,
+    );
+
+    await assert.rejects(
+      checkedJsonMutation("/mutation", { method: "POST" }, {
+        fallback: "Could not save.",
+        fetcher: fetcher(new Response("upstream stack detail", { status: 502 })),
+      }),
+      (error: unknown) => error instanceof CheckedMutationError
+        && error.kind === "http"
+        && error.status === 502
+        && error.message === "Could not save. (HTTP 502)."
+        && error.payload === undefined,
+    );
+  });
+
+  it("normalizes a bounded single-line 4xx diagnostic", async () => {
+    const payload = { error: "  That   record changed.  Reload and retry.  " };
+    await assert.rejects(
+      checkedJsonMutation("/mutation", { method: "POST" }, {
+        fallback: "Could not save.",
+        fetcher: fetcher(Response.json(payload, { status: 409 })),
+      }),
+      (error: unknown) => error instanceof CheckedMutationError
+        && error.kind === "http"
+        && error.message === "That record changed. Reload and retry."
+        && JSON.stringify(error.payload) === JSON.stringify(payload),
+    );
+  });
+
+  it("falls back for control, secret-bearing and oversized 4xx diagnostics", async () => {
+    const unsafeMessages = [
+      "That changed.\nAuthorization: Bearer abcdefghijklmnop",
+      "Provider token=abcdef1234567890",
+      "x".repeat(241),
+    ];
+    for (const message of unsafeMessages) {
+      await assert.rejects(
+        checkedJsonMutation("/mutation", { method: "POST" }, {
+          fallback: "Could not save.",
+          fetcher: fetcher(Response.json({ error: message }, { status: 409 })),
+        }),
+        (error: unknown) => error instanceof CheckedMutationError
+          && error.kind === "http"
+          && error.message === "Could not save. (HTTP 409).",
+      );
+    }
+  });
+
+  it("falls back for a secret-bearing 2xx domain diagnostic", async () => {
+    await assert.rejects(
+      checkedJsonMutation("/mutation", { method: "POST" }, {
+        fallback: "Could not save.",
+        fetcher: fetcher(Response.json({ ok: false, error: "Bearer abcdefghijklmnop" })),
+      }),
+      (error: unknown) => error instanceof CheckedMutationError
+        && error.kind === "domain"
+        && error.message === "Could not save.",
+    );
+  });
+
   it("rejects a 2xx domain refusal", async () => {
     await assert.rejects(
       checkedJsonMutation("/mutation", { method: "POST" }, {

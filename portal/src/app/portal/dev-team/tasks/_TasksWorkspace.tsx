@@ -10,8 +10,18 @@ import {
 
 import type { PlanTasks, DevTask, TaskState } from "@/lib/server/dev/devTeamTasks";
 import type { Thought } from "@/lib/server/dev/devTeamThoughts";
+import { checkedDevTeamMutation } from "../_checkedMutation";
 
 import { dropLanded, mergeThoughts } from "./_thoughtMerge";
+
+function isThought(value: unknown): value is Thought {
+  if (!value || typeof value !== "object") return false;
+  const thought = value as Partial<Thought>;
+  return typeof thought.id === "string"
+    && typeof thought.at === "number"
+    && typeof thought.author === "string"
+    && typeof thought.text === "string";
+}
 
 const STATE_STYLE: Record<TaskState, { chip: string; label: string }> = {
   done:  { chip: "bg-[color:var(--dev-success-soft)] text-[color:var(--dev-success)]", label: "done" },
@@ -60,7 +70,7 @@ function TaskRow({
     if (busy || !text.trim()) return;
     setBusy(true); setError("");
     try {
-      const response = await fetch("/api/portal/dev-team/thoughts", {
+      const result = await checkedDevTeamMutation<{ ok?: boolean; thought?: Thought }>("/api/portal/dev-team/thoughts", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -69,14 +79,17 @@ function TaskRow({
           planName: task.planName,
           worker: task.worker,
         }),
+      }, {
+        fallback: "Could not send that thought.",
+        validate: value => value.ok === true && isThought(value.thought),
       });
-      const result = await response.json() as { ok?: boolean; error?: string; thought?: Thought };
-      if (!response.ok || !result.ok || !result.thought) throw new Error(result.error || "Could not send.");
-      onPosted(result.thought);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      onPosted(result.value.thought!);
       setText(""); setOpen(false);
       router.refresh();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not send.");
     } finally {
       setBusy(false);
     }

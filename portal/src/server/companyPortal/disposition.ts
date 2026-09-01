@@ -654,6 +654,12 @@ export const PROMOTION_DISPOSITION = {
     keying: "own-id",
     reason: "Moves only when `companyIds` is exactly `[thisCompany]`; shared or unset is ambiguous, defaulting to LEAVE.",
   },
+  privateObjectLifecycles: {
+    disposition: "leave",
+    ownership: "agency-scoped",
+    keying: "own-id",
+    reason: "Recovery checkpoints own provider operations in the origin tenant; moving one mid-upload or mid-delete could make the promoted tenant delete the origin tenant's object.",
+  },
   contractTemplates: {
     disposition: "closure",
     ownership: "agency-scoped",
@@ -903,7 +909,7 @@ type _NoStaleCollections = AssertNever<StaleCollections>;
 // 94 → 95 on 2026-08-31: `websiteDemoSignups`, the public AquaCRM demo gate's
 // consent records. Classified `na` before the number moved — they carry no
 // tenant key and live outside the live data realm entirely.
-export const PROMOTION_COLLECTION_COUNT = 95;
+export const PROMOTION_COLLECTION_COUNT = 96;
 
 /** Every classified collection name, in `PortalState` order. */
 export const PROMOTION_COLLECTIONS = Object.keys(PROMOTION_DISPOSITION) as Array<

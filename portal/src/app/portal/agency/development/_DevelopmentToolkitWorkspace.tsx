@@ -7,39 +7,18 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState, useRef } from "react";
 import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
+import {
+  validDevelopmentResourcePage,
+  validPublicDevelopmentResource,
+  type DevelopmentResourcePage,
+  type PublicDevelopmentResource as PublicResource,
+} from "@/lib/client/developmentResourceRead";
 import type {
   DevelopmentResourceKind,
   DevelopmentWorkflow,
   Role,
 } from "@/server/types";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
-
-type PublicResource = {
-  id: string;
-  kind: DevelopmentResourceKind;
-  title: string;
-  description?: string;
-  category?: string;
-  url?: string;
-  localPath?: string;
-  framework?: string;
-  codeSnippet?: string;
-  tags: string[];
-  workflowStageIds: string[];
-  sopIds: string[];
-  visibility: "team" | "private";
-  file?: { fileName: string; contentType: string; size: number };
-  credential?: {
-    loginUrl?: string;
-    username?: string;
-    passwordManagerUrl?: string;
-    accessRoles: Role[];
-    notes?: string;
-    hasPassword: boolean;
-  };
-  createdBy: string;
-  updatedAt: number;
-};
 
 type SopOption = { id: string; title: string; category?: string };
 type Mode = "toolkit" | "workflow" | "vault";
@@ -114,11 +93,13 @@ export function DevelopmentToolkitWorkspace({
   const [workflowDraft, setWorkflowDraft] = useState<DevelopmentWorkflow | "new" | null>(null);
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
-  const [loadingResources, setLoadingResources] = useState(false);
+  const [loadingResources, setLoadingResources] = useState(mode !== "workflow");
   const [resourceError, setResourceError] = useState("");
   const [resourceRetry, setResourceRetry] = useState<"search" | "more">("search");
   const [resourceReloadToken, setResourceReloadToken] = useState(0);
   const canManage = role === "agency-owner" || role === "agency-manager";
+  const resourceSnapshotIsStale = mode !== "workflow" && (loadingResources || Boolean(resourceError));
+  const canMutateResources = !resourceSnapshotIsStale;
 
   const modeKinds = KINDS.filter(item => mode === "vault" ? item.group === "vault" : item.group === "toolkit").map(item => item.id);
   const baseResources = mode === "vault"
@@ -147,27 +128,30 @@ export function DevelopmentToolkitWorkspace({
   useEffect(() => {
     if (mode === "workflow") return;
     const controller = new AbortController();
+    // The debounce is part of the read, not a confirmed empty interval. Mark
+    // it busy immediately so a new query cannot flash "Nothing matches"
+    // before the request has even started (issue #57).
+    setLoadingResources(true);
+    setResourceError("");
+    setResourceRetry("search");
     const timer = window.setTimeout(async () => {
-      setLoadingResources(true);
-      setResourceError("");
-      setResourceRetry("search");
       const params = new URLSearchParams({ mode, limit: "36", offset: "0" });
       if (query.trim()) params.set("q", query.trim());
       if (kind !== "all") params.set("kind", kind);
       if (category !== "all") params.set("category", category);
       try {
-        const result = await checkedJsonMutation<{ ok?: boolean; resources?: PublicResource[]; total?: number }>(
+        const result = await checkedJsonMutation<DevelopmentResourcePage>(
           `/api/portal/development?${params}`,
           { method: "GET", signal: controller.signal },
           {
             fallback: "Development resources could not be loaded.",
-            validate: payload => Array.isArray(payload.resources),
+            validate: validDevelopmentResourcePage,
           },
         );
         if (controller.signal.aborted) return;
-        const nextResources = result.resources ?? [];
+        const nextResources = result.resources;
         setResources(nextResources);
-        setTotal(result.total ?? nextResources.length);
+        setTotal(result.total);
       } catch (nextError) {
         if (!controller.signal.aborted) {
           setResourceError(mutationErrorMessage(nextError, "Development resources could not be loaded."));
@@ -188,17 +172,17 @@ export function DevelopmentToolkitWorkspace({
       if (query.trim()) params.set("q", query.trim());
       if (kind !== "all") params.set("kind", kind);
       if (category !== "all") params.set("category", category);
-      const result = await checkedJsonMutation<{ ok?: boolean; resources?: PublicResource[]; total?: number }>(
+      const result = await checkedJsonMutation<DevelopmentResourcePage>(
         `/api/portal/development?${params}`,
         { method: "GET" },
         {
           fallback: "More development resources could not be loaded.",
-          validate: payload => Array.isArray(payload.resources),
+          validate: validDevelopmentResourcePage,
         },
       );
-      const nextResources = result.resources ?? [];
+      const nextResources = result.resources;
       setResources(current => [...current, ...nextResources.filter((item: PublicResource) => !current.some(existing => existing.id === item.id))]);
-      setTotal(result.total ?? total);
+      setTotal(result.total);
     } catch (nextError) {
       setResourceError(mutationErrorMessage(nextError, "More development resources could not be loaded."));
     } finally {
@@ -207,6 +191,14 @@ export function DevelopmentToolkitWorkspace({
   }
 
   function editResource(resource: PublicResource) {
+    if (!canMutateResources) {
+      setNotice("The retained resource snapshot is stale. Retry the read before editing.");
+      return;
+    }
+    if (resource.deleteState) {
+      setNotice("This resource is pending permanent deletion. Only retrying the delete is available.");
+      return;
+    }
     setDraft({
       ...EMPTY,
       id: resource.id,
@@ -234,6 +226,15 @@ export function DevelopmentToolkitWorkspace({
   async function saveResource(event: React.FormEvent) {
     event.preventDefault();
     if (!draft) return;
+    if (!canMutateResources) {
+      setNotice("The retained resource snapshot is stale. Retry the read before saving.");
+      return;
+    }
+    const currentResource = draft.id ? resources.find(resource => resource.id === draft.id) : null;
+    if (currentResource?.deleteState) {
+      setNotice("This resource is pending permanent deletion. Retry the delete instead of editing it.");
+      return;
+    }
     setBusy("resource");
     const input = {
       kind: draft.kind,
@@ -266,7 +267,7 @@ export function DevelopmentToolkitWorkspace({
     });
     const result = await response.json().catch(() => null);
     setBusy("");
-    if (!response.ok || !result?.resource) return setNotice(result?.error ?? "Resource could not be saved.");
+    if (!response.ok || !validPublicDevelopmentResource(result?.resource)) return setNotice(result?.error ?? "Resource could not be saved because the response was incomplete.");
     setResources(current => current.some(item => item.id === result.resource.id)
       ? current.map(item => item.id === result.resource.id ? result.resource : item)
       : [result.resource, ...current]);
@@ -279,16 +280,26 @@ export function DevelopmentToolkitWorkspace({
   }
 
   async function removeResource(resource: PublicResource) {
-    if (!window.confirm(`Delete "${resource.title}" from the technical delivery library?`)) return;
+    if (!canMutateResources) {
+      setNotice("The retained resource snapshot is stale. Retry the read before deleting.");
+      return;
+    }
+    const confirmation = resource.deleteState
+      ? `Retry permanent deletion for "${resource.title}" and finish its storage cleanup?`
+      : `Delete "${resource.title}" from the technical delivery library?`;
+    if (!window.confirm(confirmation)) return;
     const response = await fetch("/api/portal/development", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ action: "resource:delete", resourceId: resource.id }),
     });
-    const result = await response.json().catch(() => null) as { ok?: boolean; error?: string } | null;
+    const result = await response.json().catch(() => null) as { ok?: boolean; error?: string; resource?: unknown } | null;
     if (!response.ok || !result?.ok) {
       // A refused storage delete keeps the resource on purpose. Saying nothing
       // would read as "nothing happened" while the file is still stored.
+      if (validPublicDevelopmentResource(result?.resource)) {
+        setResources(current => current.map(item => item.id === resource.id ? result.resource as PublicResource : item));
+      }
       setNotice(result?.error ?? "The resource could not be deleted.");
       return;
     }
@@ -298,6 +309,10 @@ export function DevelopmentToolkitWorkspace({
   }
 
   async function importWorkspace() {
+    if (!canMutateResources) {
+      setNotice("The retained resource snapshot is stale. Retry the read before cataloguing.");
+      return;
+    }
     setBusy("catalogue"); setNotice("");
     const response = await fetch("/api/portal/development", {
       method: "POST",
@@ -306,14 +321,17 @@ export function DevelopmentToolkitWorkspace({
     });
     const result = await response.json().catch(() => null);
     setBusy("");
-    if (!response.ok) return setNotice(result?.error ?? "Workspace could not be catalogued.");
-    setResources(current => [...(result.imported ?? []), ...current]);
-    setTotal(value => value + (result.imported?.length ?? 0));
+    const imported = Array.isArray(result?.imported) && result.imported.every(validPublicDevelopmentResource)
+      ? result.imported as PublicResource[]
+      : null;
+    if (!response.ok || !imported) return setNotice(result?.error ?? "Workspace could not be catalogued because the response was incomplete.");
+    setResources(current => [...imported, ...current]);
+    setTotal(value => value + imported.length);
     setCategories(current => Array.from(new Set([
       ...current,
-      ...(result.imported ?? []).map((resource: PublicResource) => resource.category).filter(Boolean),
+      ...imported.map(resource => resource.category).filter((value): value is string => Boolean(value)),
     ])).sort());
-    setNotice(`${result.imported?.length ?? 0} useful items catalogued${result.skipped ? ` · ${result.skipped} already present` : ""}.`);
+    setNotice(`${imported.length} useful items catalogued${result.skipped ? ` · ${result.skipped} already present` : ""}.`);
   }
 
   async function saveWorkflow(input: { id?: string; name: string; description: string; productCategory: string; stageLines: string }) {
@@ -377,7 +395,7 @@ export function DevelopmentToolkitWorkspace({
         detail={mode === "vault"
           ? "Courses, notes, procedures and controlled shared logins. Passwords are encrypted and only revealed to permitted roles."
           : "Apps, SEO tools, saved pages, Canva designs, reusable code, components and inspiration without hunting through folders."}
-        actions={<>{mode === "toolkit" && canManage ? <button onClick={() => void importWorkspace()} disabled={busy === "catalogue"} className={secondary}><FolderGit2 size={15} />{busy === "catalogue" ? "Cataloguing..." : "Catalogue workspace"}</button> : null}<button onClick={() => setUploading(true)} className={secondary}><Upload size={15} />Upload</button><button onClick={() => setDraft({ ...EMPTY, kind: mode === "vault" ? "knowledge" : "tool" })} className={primary}><Plus size={15} />Add {mode === "vault" ? "vault item" : "resource"}</button></>}
+        actions={<>{mode === "toolkit" && canManage ? <button onClick={() => void importWorkspace()} disabled={busy === "catalogue" || !canMutateResources} className={secondary}><FolderGit2 size={15} />{busy === "catalogue" ? "Cataloguing..." : "Catalogue workspace"}</button> : null}<button onClick={() => setUploading(true)} disabled={!canMutateResources} className={secondary}><Upload size={15} />Upload</button><button onClick={() => setDraft({ ...EMPTY, kind: mode === "vault" ? "knowledge" : "tool" })} disabled={!canMutateResources} className={primary}><Plus size={15} />Add {mode === "vault" ? "vault item" : "resource"}</button></>}
       />
 
       <div className="grid gap-3 border-y border-black/10 py-4 lg:grid-cols-[minmax(240px,1fr)_190px_190px]">
@@ -387,13 +405,13 @@ export function DevelopmentToolkitWorkspace({
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-black/50">{total} item{total === 1 ? "" : "s"} · {categories.length} categor{categories.length === 1 ? "y" : "ies"}{loadingResources ? " · Searching..." : ""}</p>
+        <p className="text-sm text-black/50">{resourceSnapshotIsStale ? "Last confirmed: " : ""}{total} item{total === 1 ? "" : "s"} · {categories.length} categor{categories.length === 1 ? "y" : "ies"}{loadingResources ? " · Searching; retained rows and counts are stale and locked" : resourceError ? " · Retained rows and counts are stale and locked" : ""}</p>
         {notice ? <Status text={notice} /> : null}
       </div>
 
       {resourceError ? (
         <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-          <span>{resourceError}</span>
+          <span>{resourceError} Retained rows and counts are stale and all resource changes are locked until retry succeeds.</span>
           <button
             type="button"
             disabled={loadingResources}
@@ -406,12 +424,18 @@ export function DevelopmentToolkitWorkspace({
       ) : null}
 
       {filtered.length ? <>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{displayed.map(resource => <ResourceCard key={resource.id} resource={resource} onEdit={() => editResource(resource)} onDelete={() => void removeResource(resource)} />)}</div>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{displayed.map(resource => <ResourceCard key={resource.id} resource={resource} mutationLocked={!canMutateResources} onEdit={() => editResource(resource)} onDelete={() => void removeResource(resource)} />)}</div>
         {displayed.length < total ? <div className="flex justify-center border-t border-black/10 pt-5"><button onClick={() => void loadMore()} disabled={loadingResources} className={secondary}>{loadingResources ? "Loading..." : `Show 36 more · ${total - displayed.length} remaining`}</button></div> : null}
-      </> : <Empty title={query || kind !== "all" || category !== "all" ? "Nothing matches" : "Start your library"} detail={mode === "vault" ? "Add a course, useful note, SOP connection or controlled shared login." : "Save the first tool, link, component, template or inspiration pack you want ready next time."} />}
+      </> : resourceError ? (
+        <Empty title="Resources unavailable" detail="This search did not complete, so an empty result cannot be confirmed. Retry the resource read above." />
+      ) : loadingResources ? (
+        <Empty title="Searching resources" detail="The current filters are still being checked." />
+      ) : (
+        <Empty title={query || kind !== "all" || category !== "all" ? "Nothing matches" : "Start your library"} detail={mode === "vault" ? "Add a course, useful note, SOP connection or controlled shared login." : "Save the first tool, link, component, template or inspiration pack you want ready next time."} />
+      )}
 
-      {draft ? <ResourceDialog draft={draft} setDraft={setDraft} workflows={workflows} sops={sops} busy={busy === "resource"} onClose={() => setDraft(null)} onSubmit={saveResource} /> : null}
-      {uploading ? <UploadDialog mode={mode} workflows={workflows} onClose={() => setUploading(false)} onUploaded={resource => {
+      {draft ? <ResourceDialog draft={draft} setDraft={setDraft} workflows={workflows} sops={sops} busy={busy === "resource"} mutationLocked={!canMutateResources} onClose={() => setDraft(null)} onSubmit={saveResource} /> : null}
+      {uploading ? <UploadDialog mode={mode} workflows={workflows} mutationLocked={!canMutateResources} onClose={() => setUploading(false)} onUploaded={resource => {
         setResources(current => [resource, ...current]);
         setTotal(value => value + 1);
         if (resource.category) setCategories(current => Array.from(new Set([...current, resource.category!])).sort());
@@ -421,12 +445,17 @@ export function DevelopmentToolkitWorkspace({
   );
 }
 
-function ResourceCard({ resource, onEdit, onDelete }: { resource: PublicResource; onEdit: () => void; onDelete: () => void }) {
+function ResourceCard({ resource, mutationLocked = false, onEdit, onDelete }: { resource: PublicResource; mutationLocked?: boolean; onEdit: () => void; onDelete: () => void }) {
   const [password, setPassword] = useState("");
   const [revealing, setRevealing] = useState(false);
   const [revealError, setRevealError] = useState("");
+  const deletionPending = Boolean(resource.deleteState);
   const Icon = resource.kind === "credential" ? KeyRound : resource.kind === "course" || resource.kind === "knowledge" ? BookOpen : resource.kind.includes("template") || resource.kind === "component" ? PackageOpen : resource.kind.includes("inspiration") ? Sparkles : Wrench;
   async function reveal() {
+    if (deletionPending) {
+      setRevealError("This resource is pending permanent deletion. Credential access is locked.");
+      return;
+    }
     if (password) {
       setPassword("");
       setRevealError("");
@@ -450,25 +479,28 @@ function ResourceCard({ resource, onEdit, onDelete }: { resource: PublicResource
       setRevealing(false);
     }
   }
-  const openUrl = resource.kind === "credential" ? resource.credential?.loginUrl : resource.url;
+  const openUrl = deletionPending ? undefined : resource.kind === "credential" ? resource.credential?.loginUrl : resource.url;
   const hasImagePreview = Boolean(
-    resource.file?.contentType.startsWith("image/") ||
-    (resource.kind === "design-inspiration" && resource.localPath?.match(/\.(png|jpe?g|webp|gif)$/i)),
+    !deletionPending && (
+      resource.file?.contentType.startsWith("image/") ||
+      (resource.kind === "design-inspiration" && resource.localPath?.match(/\.(png|jpe?g|webp|gif)$/i))
+    ),
   );
   return (
     <article className="group flex min-h-56 flex-col border border-black/10 bg-white p-4 shadow-sm">
       {hasImagePreview ? <a href={`/api/portal/development/content?id=${encodeURIComponent(resource.id)}`} target="_blank" className="-m-4 mb-4 block aspect-[16/9] overflow-hidden border-b border-black/10 bg-black/[0.025]"><img src={`/api/portal/development/content?id=${encodeURIComponent(resource.id)}`} alt={resource.title} className="h-full w-full object-cover" loading="lazy" /></a> : null}
       <div className="flex items-start justify-between gap-3">
         <span className="grid size-9 shrink-0 place-items-center rounded-md bg-black/[0.045] text-black/55"><Icon size={17} /></span>
-        <div className="flex opacity-60 transition group-hover:opacity-100"><button onClick={onEdit} aria-label={`Edit ${resource.title}`} className="grid size-8 place-items-center rounded-md hover:bg-black/[0.04]"><Pencil size={14} /></button><button onClick={onDelete} aria-label={`Delete ${resource.title}`} className="grid size-8 place-items-center rounded-md text-black/40 hover:bg-red-50 hover:text-red-700"><Trash2 size={14} /></button></div>
+        <div className="flex opacity-60 transition group-hover:opacity-100"><button type="button" onClick={onEdit} disabled={mutationLocked || deletionPending} aria-label={`Edit ${resource.title}`} className="grid size-8 place-items-center rounded-md hover:bg-black/[0.04] disabled:cursor-not-allowed disabled:opacity-35"><Pencil size={14} /></button><button type="button" onClick={onDelete} disabled={mutationLocked} aria-label={`${deletionPending ? "Retry deleting" : "Delete"} ${resource.title}`} className="grid size-8 place-items-center rounded-md text-black/40 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-35"><Trash2 size={14} /></button></div>
       </div>
       <div className="mt-4 flex-1">
-        <div className="flex flex-wrap items-center gap-2"><span className="text-[10px] font-semibold uppercase text-brand">{kindLabel(resource.kind)}</span>{resource.visibility === "private" ? <LockKeyhole size={12} className="text-black/35" /> : null}</div>
+        <div className="flex flex-wrap items-center gap-2"><span className="text-[10px] font-semibold uppercase text-brand">{kindLabel(resource.kind)}</span>{resource.visibility === "private" ? <LockKeyhole size={12} className="text-black/35" /> : null}{deletionPending ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900">{resource.deleteState === "delete-failed" ? "Delete failed · retry only" : "Deleting · retry only"}</span> : null}</div>
         <h3 className="mt-1 font-semibold text-black/85">{resource.title}</h3>
+        {deletionPending ? <p role="status" className="mt-2 text-xs leading-5 text-amber-800">Permanent deletion is incomplete. Editing, opening and credential access are locked; retry delete to finish cleanup.{resource.deleteError ? ` ${resource.deleteError}` : ""}</p> : null}
         {resource.description ? <p className="mt-2 line-clamp-3 text-xs leading-5 text-black/50">{resource.description}</p> : null}
         {resource.kind === "component" && resource.framework ? <p className="mt-2 text-[10px] font-semibold uppercase text-black/40">{resource.framework}</p> : null}
         {resource.kind === "component" && resource.codeSnippet ? <pre className="mt-3 max-h-24 overflow-hidden rounded-md bg-black/[0.035] p-2 font-mono text-[10px] leading-4 text-black/55"><code>{resource.codeSnippet}</code></pre> : null}
-        {resource.credential?.username ? (
+        {!deletionPending && resource.credential?.username ? (
           <div className="mt-3 rounded-md bg-black/[0.025] p-2.5 text-xs">
             <p className="text-black/40">Username</p>
             <p className="mt-0.5 break-all font-medium text-black/70">{resource.credential.username}</p>
@@ -499,16 +531,16 @@ function ResourceCard({ resource, onEdit, onDelete }: { resource: PublicResource
         {resource.category ? <span className="rounded-full bg-black/[0.045] px-2 py-1 text-[10px] text-black/50">{resource.category}</span> : null}
         {resource.tags.slice(0, 3).map(tag => <span key={tag} className="text-[10px] text-black/35">#{tag}</span>)}
         <span className="flex-1" />
-        {resource.file ? <a href={`/api/portal/development/content?id=${encodeURIComponent(resource.id)}`} target="_blank" className="grid size-8 place-items-center rounded-md border border-black/10 text-black/50" aria-label={`Open ${resource.file.fileName}`}><FileUp size={14} /></a> : null}
-        {resource.codeSnippet ? <button onClick={() => void navigator.clipboard.writeText(resource.codeSnippet ?? "")} className="grid size-8 place-items-center rounded-md border border-black/10 text-black/50" aria-label={`Copy ${resource.title} code`}><Copy size={14} /></button> : null}
-        {resource.credential?.passwordManagerUrl ? <a href={resource.credential.passwordManagerUrl} target="_blank" rel="noreferrer" className="grid size-8 place-items-center rounded-md border border-black/10 text-black/50" aria-label="Open password manager"><LockKeyhole size={14} /></a> : null}
+        {!deletionPending && resource.file ? <a href={`/api/portal/development/content?id=${encodeURIComponent(resource.id)}`} target="_blank" className="grid size-8 place-items-center rounded-md border border-black/10 text-black/50" aria-label={`Open ${resource.file.fileName}`}><FileUp size={14} /></a> : null}
+        {!deletionPending && resource.codeSnippet ? <button onClick={() => void navigator.clipboard.writeText(resource.codeSnippet ?? "")} className="grid size-8 place-items-center rounded-md border border-black/10 text-black/50" aria-label={`Copy ${resource.title} code`}><Copy size={14} /></button> : null}
+        {!deletionPending && resource.credential?.passwordManagerUrl ? <a href={resource.credential.passwordManagerUrl} target="_blank" rel="noreferrer" className="grid size-8 place-items-center rounded-md border border-black/10 text-black/50" aria-label="Open password manager"><LockKeyhole size={14} /></a> : null}
         {openUrl ? <a href={openUrl} target="_blank" rel="noreferrer" className="grid size-8 place-items-center rounded-md bg-black text-white" aria-label={`Open ${resource.title}`}><ExternalLink size={14} /></a> : null}
       </div>
     </article>
   );
 }
 
-function ResourceDialog({ draft, setDraft, workflows, sops, busy, onClose, onSubmit }: { draft: typeof EMPTY; setDraft: React.Dispatch<React.SetStateAction<typeof EMPTY | null>>; workflows: DevelopmentWorkflow[]; sops: SopOption[]; busy: boolean; onClose: () => void; onSubmit: (event: React.FormEvent) => void }) {
+function ResourceDialog({ draft, setDraft, workflows, sops, busy, mutationLocked = false, onClose, onSubmit }: { draft: typeof EMPTY; setDraft: React.Dispatch<React.SetStateAction<typeof EMPTY | null>>; workflows: DevelopmentWorkflow[]; sops: SopOption[]; busy: boolean; mutationLocked?: boolean; onClose: () => void; onSubmit: (event: React.FormEvent) => void }) {
   const stages = workflows.flatMap(workflow => workflow.stages.map(stage => ({ ...stage, workflowId: workflow.id, workflowName: workflow.name, ref: stageRef(workflow.id, stage.id) })));
   const toggle = (field: "workflowStageIds" | "sopIds" | "accessRoles", value: string) => setDraft(current => current ? ({ ...current, [field]: current[field].includes(value as never) ? current[field].filter(item => item !== value) : [...current[field], value] }) : current);
   const toggleStage = (workflowId: string, stageId: string) => setDraft(current => {
@@ -534,21 +566,23 @@ function ResourceDialog({ draft, setDraft, workflows, sops, busy, onClose, onSub
     {stages.length ? <details className="border-t border-black/10 pt-3"><summary className="cursor-pointer text-sm font-semibold text-black/70">Build-flow stages · {draft.workflowStageIds.length} selected</summary><div className="mt-3 grid gap-2 sm:grid-cols-2">{stages.map(stage => <label key={stage.ref} className="flex items-start gap-2 text-xs text-black/60"><input className="mt-0.5" type="checkbox" checked={draft.workflowStageIds.includes(stage.ref) || (stage.workflowId === workflows[0]?.id && draft.workflowStageIds.includes(stage.id))} onChange={() => toggleStage(stage.workflowId, stage.id)} /><span><strong className="block font-medium text-black/70">{stage.name}</strong>{stage.workflowName}</span></label>)}</div></details> : null}
     {sops.length ? <details className="border-t border-black/10 pt-3"><summary className="cursor-pointer text-sm font-semibold text-black/70">Related SOPs · {draft.sopIds.length} selected</summary><div className="mt-3 grid max-h-44 gap-2 overflow-y-auto sm:grid-cols-2">{sops.map(sop => <label key={sop.id} className="flex items-start gap-2 text-xs text-black/60"><input className="mt-0.5" type="checkbox" checked={draft.sopIds.includes(sop.id)} onChange={() => toggle("sopIds", sop.id)} /><span>{sop.title}<small className="block text-black/35">{sop.category}</small></span></label>)}</div></details> : null}
     <Field label="Visibility"><select value={draft.visibility} onChange={event => setDraft(current => current ? { ...current, visibility: event.target.value as "team" | "private" } : current)} className={control}><option value="team">Team</option><option value="private">Private to me</option></select></Field>
-    <div className="flex justify-end gap-2"><button type="button" onClick={onClose} className="min-h-10 px-3 text-sm">Cancel</button><button disabled={busy} className={primary}><Check size={15} />{busy ? "Saving..." : "Save resource"}</button></div>
+    {mutationLocked ? <p role="alert" className="text-sm text-amber-800">This resource snapshot is stale. Retry the resource read before saving.</p> : null}
+    <div className="flex justify-end gap-2"><button type="button" onClick={onClose} className="min-h-10 px-3 text-sm">Cancel</button><button disabled={busy || mutationLocked} className={primary}><Check size={15} />{busy ? "Saving..." : "Save resource"}</button></div>
   </form></Modal>;
 }
 
-function UploadDialog({ mode, workflows, onClose, onUploaded }: { mode: Mode; workflows: DevelopmentWorkflow[]; onClose: () => void; onUploaded: (resource: PublicResource) => void }) {
+function UploadDialog({ mode, workflows, mutationLocked = false, onClose, onUploaded }: { mode: Mode; workflows: DevelopmentWorkflow[]; mutationLocked?: boolean; onClose: () => void; onUploaded: (resource: PublicResource) => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  return <Modal title="Upload to technical delivery" onClose={onClose}><form className="grid gap-4" onSubmit={async event => { event.preventDefault(); setBusy(true); setError(""); const response = await fetch("/api/portal/development/upload", { method: "POST", body: new FormData(event.currentTarget) }); const result = await response.json().catch(() => null); setBusy(false); if (!response.ok || !result?.resource) return setError(result?.error ?? "Upload failed."); onUploaded(result.resource); }}>
+  return <Modal title="Upload to technical delivery" onClose={onClose}><form className="grid gap-4" onSubmit={async event => { event.preventDefault(); if (mutationLocked) return setError("The retained resource snapshot is stale. Retry the read before uploading."); setBusy(true); setError(""); const response = await fetch("/api/portal/development/upload", { method: "POST", body: new FormData(event.currentTarget) }); const result = await response.json().catch(() => null); setBusy(false); if (!response.ok || !validPublicDevelopmentResource(result?.resource)) return setError(result?.error ?? "Upload failed because the response was incomplete."); onUploaded(result.resource); }}>
     <label className="grid min-h-32 cursor-pointer place-items-center rounded-md border border-dashed border-black/20 bg-black/[0.015] text-center"><span><Upload size={22} className="mx-auto text-black/35" /><strong className="mt-2 block text-sm text-black/70">Choose a file</strong><small className="mt-1 block text-black/40">Images, PDF, presentation, document, text, JSON or ZIP · 25 MB</small></span><input required type="file" name="file" className="sr-only" /></label>
     <div className="grid gap-4 sm:grid-cols-2"><Field label="Title"><input name="title" className={control} /></Field><Field label="Type"><select name="kind" defaultValue={mode === "vault" ? "knowledge" : "inspiration-pack"} className={control}>{KINDS.filter(item => item.group === mode && item.id !== "credential").map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></Field></div>
     <Field label="Description"><textarea name="description" rows={3} className={`${control} py-2`} /></Field>
     <div className="grid gap-4 sm:grid-cols-2"><Field label="Category"><input name="category" className={control} /></Field><Field label="Tags"><input name="tags" className={control} placeholder="comma, separated" /></Field></div>
     <Field label="Build stage"><select name="workflowStageIds" className={control}><option value="">Not tied to a stage</option>{workflows.flatMap(workflow => workflow.stages.map(stage => <option key={`${workflow.id}:${stage.id}`} value={stageRef(workflow.id, stage.id)}>{workflow.name} · {stage.name}</option>))}</select></Field>
     <Field label="Visibility"><select name="visibility" className={control}><option value="team">Team</option><option value="private">Private to me</option></select></Field>
-    {error ? <p className="text-sm text-red-700">{error}</p> : null}<div className="flex justify-end"><button disabled={busy} className={primary}><Upload size={15} />{busy ? "Uploading..." : "Upload resource"}</button></div>
+    {mutationLocked ? <p role="alert" className="text-sm text-amber-800">This resource snapshot is stale. Retry the resource read before uploading.</p> : null}
+    {error ? <p className="text-sm text-red-700">{error}</p> : null}<div className="flex justify-end"><button disabled={busy || mutationLocked} className={primary}><Upload size={15} />{busy ? "Uploading..." : "Upload resource"}</button></div>
   </form></Modal>;
 }
 

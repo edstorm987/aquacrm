@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { before, test } from "node:test";
+import { withSession } from "./dev-console-request-scope";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -22,6 +23,8 @@ req.cache[serverOnlyPath] = {
 
 type Storage = typeof import("../src/lib/server/privateUploadStorage");
 let storage: Storage;
+type Lifecycle = typeof import("../src/lib/server/privateObjectLifecycle");
+let lifecycle: Lifecycle;
 type PortalStorage = typeof import("../src/server/storage");
 type LegalDocuments = typeof import("../src/server/legalDocuments");
 let portalStorage: PortalStorage;
@@ -39,6 +42,7 @@ const localRoot = join(process.cwd(), ".data", LOCAL_DIR);
 before(async () => {
   process.env.PORTAL_BACKEND = "memory";
   storage = await import("../src/lib/server/privateUploadStorage");
+  lifecycle = await import("../src/lib/server/privateObjectLifecycle");
   portalStorage = await import("../src/server/storage");
   legalDocuments = await import("../src/server/legalDocuments");
   clientFileDeletion = await import("../src/lib/clients/clientFileDeletion");
@@ -76,6 +80,69 @@ test("every business upload route fails closed through the shared boundary", () 
     assert.match(source, /503/);
     assert.doesNotMatch(source, /from "@vercel\/blob"/);
   }
+});
+
+test("browser-staged uploads checkpoint before storage, confirm the returned key, and have a scheduled sweeper", () => {
+  for (const route of [
+    "src/app/api/portal/inbox/media/route.ts",
+    "src/app/api/portal/finance/expense-attachments/upload/route.ts",
+    "src/app/api/portal/marketing/campaign-assets/upload/route.ts",
+  ]) {
+    const source = read(route);
+    const begin = source.indexOf("await beginStagedPrivateUpload");
+    const store = source.indexOf("await storePrivateUpload", begin);
+    const confirm = source.indexOf("await confirmStagedPrivateUpload", store);
+    assert.ok(begin >= 0 && store > begin && confirm > store, `${route} must persist intent before provider I/O and the exact key afterwards`);
+    assert.match(source, /privateObjectRequestHash/);
+  }
+  const cron = read("src/app/api/cron/inbox/route.ts");
+  assert.match(cron, /processPrivateObjectLifecycleSweep/);
+  assert.ok(cron.indexOf("await flushPendingWrites();") < cron.indexOf("await processPrivateObjectLifecycleSweep()"),
+    "the cron must flush its earlier work before the lifecycle coordinator rehydrates");
+});
+
+test("every staged owner claims before its durable write and commits ownership in the lifecycle lane", () => {
+  const paths = [
+    "src/app/api/portal/inbox/messages/route.ts",
+    "src/app/api/portal/website-enquiries/communications/route.ts",
+    "src/app/api/tenants/client-requests/route.ts",
+  ];
+  for (const path of paths) {
+    const source = read(path);
+    const claim = source.indexOf("await claimStagedPrivateUploadsForOwnership");
+    const commit = source.indexOf("await commitStagedPrivateUploadOwnership", claim);
+    assert.ok(claim >= 0 && commit > claim, `${path} must claim before entering the owner/finalisation lane`);
+  }
+
+  const finance = read("src/built-ins/modules/agency-finance/src/api/handlers.ts");
+  for (const [startMarker, ownerMarker] of [
+    ["export async function createExpenseHandler", "const value = await create()"],
+    ["export async function updateExpenseHandler", "const value = await update()"],
+  ]) {
+    const start = finance.indexOf(startMarker);
+    const end = finance.indexOf("\nexport async function ", start + startMarker.length);
+    const source = finance.slice(start, end < 0 ? undefined : end);
+    const claim = source.indexOf("await claimStagedPrivateUploadsForOwnership");
+    const commit = source.indexOf("await commitStagedPrivateUploadOwnership", claim);
+    const owner = source.indexOf(ownerMarker, commit);
+    assert.ok(claim >= 0 && commit > claim && owner > commit, `${startMarker} must claim before the combined owner/finalisation transaction`);
+  }
+
+  const campaigns = read("src/built-ins/modules/leads-pipeline/src/api/handlers.ts");
+  for (const [startMarker, ownerMarker] of [
+    ["export async function createCampaignHandler", "const value = await create()"],
+    ["export async function updateCampaignHandler", "const value = await update()"],
+  ]) {
+    const start = campaigns.indexOf(startMarker);
+    const end = campaigns.indexOf("\nexport async function ", start + startMarker.length);
+    const source = campaigns.slice(start, end < 0 ? undefined : end);
+    const claim = source.indexOf("await claimStagedPrivateUploadsForOwnership");
+    const commit = source.indexOf("await commitStagedPrivateUploadOwnership", claim);
+    const owner = source.indexOf(ownerMarker, commit);
+    assert.ok(claim >= 0 && commit > claim && owner > commit, `${startMarker} must claim before the combined owner/finalisation transaction`);
+  }
+  assert.match(read("src/app/api/portal/marketing/campaign-assets/upload/route.ts"), /asset:\s*{\s*id,/,
+    "campaign upload responses must carry the lifecycle object id to their owner");
 });
 
 test("every upload that is final in one request compensates a failed owner write", () => {
@@ -132,12 +199,495 @@ test("every delete path removes the binary through the shared boundary, not its 
     "src/app/api/portal/development/route.ts",
   ]) {
     const source = read(route);
-    assert.match(source, /deletePrivateUpload/, `${route} must delete through the shared boundary`);
+    assert.match(source, /deletePrivate(?:Upload|ObjectWithRecovery)/, `${route} must delete through the shared boundary`);
     // The swallowed-provider-error pattern that reported a phantom deletion.
     assert.doesNotMatch(source, /\.catch\(\(\) => (?:false|undefined)\)/, `${route} must not swallow a provider delete error`);
     assert.doesNotMatch(source, /from "@vercel\/blob"/, `${route} must not hold a second provider copy`);
     assert.match(source, /storage_delete_failed/, `${route} must report a refused deletion instead of ok`);
   }
+});
+
+test("legal, SOP and Development deletion use durable recovery checkpoints", () => {
+  for (const route of [
+    "src/app/api/portal/sops/route.ts",
+    "src/app/api/portal/company/legal/route.ts",
+    "src/app/api/portal/development/route.ts",
+  ]) {
+    const source = read(route);
+    assert.match(source, /deletePrivateObjectWithRecovery/, `${route} bypasses the durable deletion coordinator`);
+    assert.match(source, /privateObjectRequestHash/, `${route} has no immutable retry intent`);
+    assert.match(source, /storage_delete_failed/, `${route} does not expose a retryable provider refusal`);
+  }
+});
+
+test("expired staged uploads are deleted from their durable predicted key", async () => {
+  const agencyId = `agency_stage_${Date.now()}`;
+  const objectId = "stage_one";
+  const storageKey = `${agencyId}/stage-one.pdf`;
+  const requestHash = lifecycle.privateObjectRequestHash([agencyId, objectId, storageKey]);
+  await lifecycle.beginStagedPrivateUpload({
+    agencyId,
+    purpose: "expense-attachment",
+    objectId,
+    requestHash,
+    planned: { storageProvider: "local", storageKey },
+    localDirectory: LOCAL_DIR,
+    now: 100,
+    leaseMs: 10,
+  });
+  await lifecycle.confirmStagedPrivateUpload({
+    agencyId,
+    purpose: "expense-attachment",
+    objectId,
+    requestHash,
+    stored: { storageProvider: "local", storageKey },
+    now: 101,
+  });
+  let removed = "";
+  const swept = await lifecycle.processPrivateObjectLifecycleSweep({
+    now: 111,
+    providers: { local: async path => { removed = path; } },
+  });
+  assert.equal(swept.cleaned, 1);
+  assert.match(removed, /stage-one\.pdf$/);
+  assert.equal(Object.values(portalStorage.getState().privateObjectLifecycles).some(record => record.objectId === objectId), false);
+});
+
+test("the abandonment sweep adopts an owner that committed before readiness acknowledgement", async () => {
+  const agencyId = `agency_adopt_${Date.now()}`;
+  const objectId = "creative_one";
+  const storageKey = `campaigns/${agencyId}/creative-one.png`;
+  const requestHash = lifecycle.privateObjectRequestHash([agencyId, objectId, storageKey]);
+  await lifecycle.beginStagedPrivateUpload({
+    agencyId,
+    purpose: "campaign-asset",
+    objectId,
+    requestHash,
+    planned: { storageProvider: "supabase", storageKey },
+    localDirectory: "campaign-assets",
+    now: 200,
+    leaseMs: 10,
+  });
+  portalStorage.mutate(state => {
+    state.pluginData.lifecycle_owner = { "campaign:one": { agencyId, creative: { asset: { storageKey } } } };
+  });
+  let providerTouched = false;
+  const swept = await lifecycle.processPrivateObjectLifecycleSweep({
+    now: 211,
+    providers: { supabase: async () => { providerTouched = true; } },
+  });
+  assert.equal(swept.recoveredReady, 1);
+  assert.equal(providerTouched, false, "a durable owner must win over abandonment cleanup");
+  const record = Object.values(portalStorage.getState().privateObjectLifecycles).find(item => item.objectId === objectId);
+  assert.equal(record?.state, "ready");
+  portalStorage.mutate(state => {
+    delete state.pluginData.lifecycle_owner;
+    if (record) delete state.privateObjectLifecycles[record.id];
+  });
+});
+
+test("an expired ownership claim is retained and never sent to the provider", async () => {
+  const agencyId = `agency_claim_${Date.now()}`;
+  const objectId = "claimed_message_attachment";
+  const storageKey = `${agencyId}/claimed-message.pdf`;
+  const requestHash = lifecycle.privateObjectRequestHash([agencyId, objectId, storageKey]);
+  await lifecycle.beginStagedPrivateUpload({
+    agencyId,
+    purpose: "inbox-media",
+    objectId,
+    requestHash,
+    planned: { storageProvider: "local", storageKey },
+    localDirectory: LOCAL_DIR,
+    now: 300,
+    leaseMs: 1,
+  });
+  await lifecycle.claimStagedPrivateUploadsForOwnership({
+    agencyId,
+    purpose: "inbox-media",
+    objectIds: [objectId],
+    now: 301,
+    leaseMs: 1,
+  });
+  let providerTouched = false;
+  const swept = await lifecycle.processPrivateObjectLifecycleSweep({
+    now: 303,
+    providers: { local: async () => { providerTouched = true; } },
+  });
+  assert.equal(providerTouched, false, "a cross-store owner checkpoint must fail safe by retaining bytes");
+  assert.equal(swept.retainedClaims, 1);
+  const record = Object.values(portalStorage.getState().privateObjectLifecycles).find(item => item.objectId === objectId);
+  assert.equal(record?.state, "claiming");
+  assert.match(record?.error ?? "", /recovery/);
+});
+
+test("PortalState owner persistence and readiness commit without a rehydrate gap", async () => {
+  const agencyId = `agency_owner_commit_${Date.now()}`;
+  const objectId = "expense_commit";
+  const storageKey = `${agencyId}/expense.pdf`;
+  const requestHash = lifecycle.privateObjectRequestHash([agencyId, objectId, storageKey]);
+  await lifecycle.beginStagedPrivateUpload({
+    agencyId,
+    purpose: "expense-attachment",
+    objectId,
+    requestHash,
+    planned: { storageProvider: "local", storageKey },
+    localDirectory: LOCAL_DIR,
+  });
+  await lifecycle.claimStagedPrivateUploadsForOwnership({
+    agencyId,
+    purpose: "expense-attachment",
+    objectIds: [objectId],
+  });
+  const value = await lifecycle.commitStagedPrivateUploadOwnership({
+    agencyId,
+    purpose: "expense-attachment",
+    objectIds: [objectId],
+    commit: async () => {
+      portalStorage.mutate(state => {
+        state.pluginData.lifecycle_commit_owner = { expense: { id: "expense_one", agencyId, attachments: [{ id: objectId, storageKey }] } };
+      });
+      return { ownerId: "expense_one", value: "committed" };
+    },
+  });
+  assert.equal(value, "committed");
+  assert.deepEqual(portalStorage.getState().pluginData.lifecycle_commit_owner, {
+    expense: { id: "expense_one", agencyId, attachments: [{ id: objectId, storageKey }] },
+  }, "finalisation must not fresh-reload away the just-written plugin owner");
+  const record = Object.values(portalStorage.getState().privateObjectLifecycles).find(item => item.objectId === objectId);
+  assert.equal(record?.state, "ready");
+  assert.equal(record?.ownerId, "expense_one");
+});
+
+test("sweep and owner adoption serialize on one lock, so a deleted object cannot gain an owner", async () => {
+  const agencyId = `agency_sweep_race_${Date.now()}`;
+  const objectId = "racing_attachment";
+  const storageKey = `${agencyId}/racing.pdf`;
+  const requestHash = lifecycle.privateObjectRequestHash([agencyId, objectId, storageKey]);
+  await lifecycle.beginStagedPrivateUpload({
+    agencyId,
+    purpose: "expense-attachment",
+    objectId,
+    requestHash,
+    planned: { storageProvider: "local", storageKey },
+    localDirectory: LOCAL_DIR,
+    now: 400,
+    leaseMs: 1,
+  });
+  let releaseProvider!: () => void;
+  let providerStarted!: () => void;
+  const providerGate = new Promise<void>(resolve => { releaseProvider = resolve; });
+  const providerEntered = new Promise<void>(resolve => { providerStarted = resolve; });
+  const sweep = lifecycle.processPrivateObjectLifecycleSweep({
+    now: 402,
+    providers: { local: async () => { providerStarted(); await providerGate; } },
+  });
+  await providerEntered;
+  let claimSettled = false;
+  const claim = lifecycle.claimStagedPrivateUploadsForOwnership({
+    agencyId,
+    purpose: "expense-attachment",
+    objectIds: [objectId],
+  }).then(
+    value => ({ ok: true as const, value }),
+    error => ({ ok: false as const, error }),
+  ).finally(() => { claimSettled = true; });
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(claimSettled, false, "owner adoption must wait while destructive provider I/O owns the lifecycle lock");
+  releaseProvider();
+  const swept = await sweep;
+  const claimed = await claim;
+  assert.equal(swept.cleaned, 1);
+  assert.equal(claimed.ok, false);
+  if (!claimed.ok) assert.ok(claimed.error instanceof lifecycle.PrivateObjectLifecycleClaimError);
+  assert.equal(Object.values(portalStorage.getState().privateObjectLifecycles).some(item => item.objectId === objectId), false);
+});
+
+test("pending deletion checkpoints strip content and credentials before recovery persistence", () => {
+  for (const route of [
+    "src/app/api/portal/company/legal/route.ts",
+    "src/app/api/portal/sops/route.ts",
+    "src/app/api/portal/development/route.ts",
+  ]) {
+    assert.match(read(route), /checkpointSnapshot:/, `${route} must sanitise the durable retry snapshot`);
+  }
+  assert.match(read("src/app/api/portal/company/legal/route.ts"), /notes: undefined[\s\S]*storageKey: ""/);
+  assert.match(read("src/app/api/portal/sops/route.ts"), /content: undefined[\s\S]*blocks: undefined[\s\S]*storageKey: undefined/);
+  assert.match(read("src/app/api/portal/development/route.ts"), /codeSnippet: undefined[\s\S]*file: undefined[\s\S]*credential: undefined/);
+  assert.doesNotMatch(read("src/server/legalDocuments.ts"), /getLegalDocument[\s\S]{0,500}pendingPrivateObjectDeletion</);
+  assert.doesNotMatch(read("src/engines/sop/server/sops.ts"), /getSop[\s\S]{0,300}pendingPrivateObjectDeletion/);
+  assert.doesNotMatch(read("src/server/developmentToolkit.ts"), /getDevelopmentResource[\s\S]{0,300}pendingPrivateObjectDeletion/);
+});
+
+test("a retry surface reads only the sanitised checkpoint while ordinary readers see no deleted owner", async () => {
+  const agencyId = `agency_sanitised_delete_${Date.now()}`;
+  const objectId = "legal_sensitive";
+  const secret = "private legal advice that must not survive in a recovery row";
+  portalStorage.mutate(state => {
+    state.legalDocuments[objectId] = {
+      id: objectId,
+      agencyId,
+      title: "Sensitive agreement",
+      category: "contract",
+      status: "active",
+      notes: secret,
+      counterparty: "Confidential counterparty",
+      fileName: "secret.pdf",
+      contentType: "application/pdf",
+      size: 42,
+      storageProvider: "local",
+      storageKey: `${agencyId}/secret.pdf`,
+      createdBy: "owner",
+      createdAt: 1,
+      updatedAt: 1,
+    };
+  });
+  const result = await lifecycle.deletePrivateObjectWithRecovery({
+    agencyId,
+    purpose: "legal-document",
+    objectId,
+    requestHash: lifecycle.privateObjectRequestHash([agencyId, objectId, false]),
+    localDirectory: "legal-uploads",
+    prepare(state) {
+      const snapshot = state.legalDocuments[objectId];
+      if (!snapshot) throw new Error("owner missing");
+      delete state.legalDocuments[objectId];
+      return { snapshot, storageProvider: snapshot.storageProvider, storageKey: snapshot.storageKey };
+    },
+    checkpointSnapshot: snapshot => ({
+      ...snapshot,
+      notes: undefined,
+      counterparty: undefined,
+      fileName: "",
+      storageKey: "",
+    }),
+    providers: { local: async () => { throw new Error("provider unavailable"); } },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(legalDocuments.getLegalDocument(agencyId, objectId), null, "ordinary content/update readers must not receive recovery snapshots");
+  assert.equal(legalDocuments.listLegalDocuments(agencyId).some(item => item.id === objectId), false);
+  const retryRow = legalDocuments.listLegalDocumentsWithPendingDeletion(agencyId).find(item => item.id === objectId);
+  assert.equal(retryRow?.deleteState, "delete-failed");
+  assert.equal(retryRow?.notes, undefined);
+  assert.equal(retryRow?.counterparty, undefined);
+  assert.equal(JSON.stringify(portalStorage.getState().privateObjectLifecycles).includes(secret), false,
+    "the durable checkpoint itself must not retain sensitive content");
+});
+
+test("owner deletion survives a crash after its checkpoint and replays without rerunning prepare", async () => {
+  const agencyId = `agency_delete_crash_${Date.now()}`;
+  const objectId = "resource_crash";
+  const requestHash = lifecycle.privateObjectRequestHash([agencyId, objectId, "delete"]);
+  portalStorage.mutate(state => {
+    state.developmentResources[objectId] = {
+      id: objectId,
+      agencyId,
+      kind: "knowledge",
+      title: "Crash recovery",
+      tags: [],
+      workflowStageIds: [],
+      sopIds: [],
+      visibility: "team",
+      file: { fileName: "proof.pdf", contentType: "application/pdf", size: 2, storageProvider: "local", storageKey: `${agencyId}/proof.pdf` },
+      createdBy: "owner",
+      updatedBy: "owner",
+      createdAt: 1,
+      updatedAt: 1,
+    };
+  });
+  let prepares = 0;
+  const prepare = (state: Parameters<Parameters<typeof lifecycle.deletePrivateObjectWithRecovery>[0]["prepare"]>[0]) => {
+    prepares += 1;
+    const snapshot = state.developmentResources[objectId];
+    if (!snapshot) throw new Error("owner missing");
+    delete state.developmentResources[objectId];
+    return { snapshot, storageProvider: snapshot.file?.storageProvider, storageKey: snapshot.file?.storageKey };
+  };
+  await assert.rejects(() => lifecycle.deletePrivateObjectWithRecovery({
+    agencyId,
+    purpose: "development-resource",
+    objectId,
+    requestHash,
+    localDirectory: "development-uploads",
+    prepare,
+    afterCheckpoint: () => { throw new Error("simulated process death"); },
+  }), /simulated process death/);
+  assert.equal(portalStorage.getState().developmentResources[objectId], undefined);
+  assert.equal(Object.values(portalStorage.getState().privateObjectLifecycles).find(item => item.objectId === objectId)?.state, "deleting");
+
+  let providerCalls = 0;
+  const retried = await lifecycle.deletePrivateObjectWithRecovery({
+    agencyId,
+    purpose: "development-resource",
+    objectId,
+    requestHash,
+    localDirectory: "development-uploads",
+    prepare,
+    providers: { local: async () => { providerCalls += 1; } },
+  });
+  assert.equal(retried.ok, true);
+  assert.equal(prepares, 1, "retry must use the checkpoint snapshot, not rerun owner deletion");
+  assert.equal(providerCalls, 1);
+  assert.equal(Object.values(portalStorage.getState().privateObjectLifecycles).find(item => item.objectId === objectId)?.state, "ready");
+
+  await assert.rejects(() => lifecycle.deletePrivateObjectWithRecovery({
+    agencyId,
+    purpose: "development-resource",
+    objectId,
+    requestHash: lifecycle.privateObjectRequestHash([agencyId, objectId, "changed-delete"]),
+    localDirectory: "development-uploads",
+    prepare,
+  }), lifecycle.PrivateObjectLifecycleConflictError);
+});
+
+test("development-resource updates cannot resurrect an owner after provider deletion", async () => {
+  const { createAgency } = await import("../src/server/tenants");
+  const { createUser } = await import("../src/server/users");
+  const { issueSession } = await import("../src/lib/server/auth/auth");
+  const { POST } = await import("../src/app/api/portal/development/route");
+  const agency = createAgency({ name: "Development lifecycle", slug: `development-lifecycle-${Date.now()}` });
+  const owner = createUser({
+    agencyId: agency.id,
+    email: `development-lifecycle-${Date.now()}@example.test`,
+    name: "Lifecycle owner",
+    role: "agency-owner",
+    password: "correct horse battery staple",
+  });
+  const token = issueSession({
+    userId: owner.id,
+    email: owner.email,
+    role: owner.role,
+    agencyId: agency.id,
+  });
+  const objectId = `resource_update_race_${Date.now()}`;
+  const workflowId = `workflow_update_race_${Date.now()}`;
+  const storageKey = `${agency.id}/${objectId}.pdf`;
+  portalStorage.mutate(state => {
+    state.developmentWorkflows[workflowId] = {
+      id: workflowId,
+      agencyId: agency.id,
+      name: "Lifecycle workflow",
+      stages: [{ id: "build", name: "Build", order: 0 }],
+      active: true,
+      createdBy: owner.id,
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    state.developmentResources[objectId] = {
+      id: objectId,
+      agencyId: agency.id,
+      kind: "knowledge",
+      title: "Lifecycle source",
+      tags: [],
+      workflowStageIds: [`${workflowId}:build`],
+      sopIds: [],
+      visibility: "team",
+      file: { fileName: "source.pdf", contentType: "application/pdf", size: 2, storageProvider: "local", storageKey },
+      createdBy: owner.id,
+      updatedBy: owner.id,
+      createdAt: 1,
+      updatedAt: 1,
+    };
+  });
+
+  let enteredCheckpoint!: () => void;
+  const checkpointEntered = new Promise<void>(resolve => { enteredCheckpoint = resolve; });
+  let releaseDeletion!: () => void;
+  const deletionReleased = new Promise<void>(resolve => { releaseDeletion = resolve; });
+  let providerCalls = 0;
+  const deletion = lifecycle.deletePrivateObjectWithRecovery({
+    agencyId: agency.id,
+    purpose: "development-resource",
+    objectId,
+    requestHash: lifecycle.privateObjectRequestHash([agency.id, objectId, "permanent-delete"]),
+    localDirectory: "development-uploads",
+    prepare(state) {
+      const snapshot = state.developmentResources[objectId];
+      if (!snapshot) throw new Error("owner missing");
+      delete state.developmentResources[objectId];
+      return { snapshot, storageProvider: snapshot.file?.storageProvider, storageKey: snapshot.file?.storageKey };
+    },
+    afterCheckpoint: async () => {
+      enteredCheckpoint();
+      await deletionReleased;
+    },
+    providers: { local: async () => { providerCalls += 1; } },
+  });
+  await checkpointEntered;
+
+  let updateSettled = false;
+  const update = withSession(token, () => POST(new Request("http://localhost/api/portal/development", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      action: "resource:update",
+      resourceId: objectId,
+      input: { title: "Must not be resurrected" },
+    }),
+  })));
+  let workflowSettled = false;
+  const workflowUpdate = withSession(token, () => POST(new Request("http://localhost/api/portal/development", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      action: "workflow:update",
+      workflowId,
+      input: { stages: [{ id: "build", name: "Build revised", order: 0 }] },
+    }),
+  })));
+  void update.then(() => { updateSettled = true; }, () => { updateSettled = true; });
+  void workflowUpdate.then(() => { workflowSettled = true; }, () => { workflowSettled = true; });
+  await new Promise(resolve => setTimeout(resolve, 25));
+  assert.equal(updateSettled, false,
+    "the update crossed the deletion checkpoint instead of waiting for the shared lifecycle lane");
+  assert.equal(workflowSettled, false,
+    "the workflow rewrite crossed the deletion checkpoint instead of waiting for the shared lifecycle lane");
+
+  releaseDeletion();
+  const [deleted, response, workflowResponse] = await Promise.all([deletion, update, workflowUpdate]);
+  assert.equal(deleted.ok, true);
+  assert.equal(providerCalls, 1, "the private binary was not deleted exactly once");
+  assert.equal(response.status, 404, "the queued update did not re-read and refuse the deleted owner");
+  assert.equal(workflowResponse.status, 200, "the queued workflow update did not finish on its fresh snapshot");
+  assert.equal(portalStorage.getState().developmentResources[objectId], undefined,
+    "the queued update resurrected an owner whose binary was permanently deleted");
+});
+
+test("provider refusal remains delete-failed and concurrent identical retries converge once", async () => {
+  const agencyId = `agency_delete_retry_${Date.now()}`;
+  const objectId = "resource_retry";
+  const requestHash = lifecycle.privateObjectRequestHash([agencyId, objectId, "delete"]);
+  portalStorage.mutate(state => {
+    state.developmentResources[objectId] = {
+      id: objectId, agencyId, kind: "knowledge", title: "Retry recovery", tags: [], workflowStageIds: [], sopIds: [], visibility: "team",
+      file: { fileName: "retry.pdf", contentType: "application/pdf", size: 2, storageProvider: "local", storageKey: `${agencyId}/retry.pdf` },
+      createdBy: "owner", updatedBy: "owner", createdAt: 1, updatedAt: 1,
+    };
+  });
+  let prepares = 0;
+  const prepare = (state: Parameters<Parameters<typeof lifecycle.deletePrivateObjectWithRecovery>[0]["prepare"]>[0]) => {
+    prepares += 1;
+    const snapshot = state.developmentResources[objectId];
+    if (!snapshot) throw new Error("owner missing");
+    delete state.developmentResources[objectId];
+    return { snapshot, storageProvider: snapshot.file?.storageProvider, storageKey: snapshot.file?.storageKey };
+  };
+  const refused = await lifecycle.deletePrivateObjectWithRecovery({
+    agencyId, purpose: "development-resource", objectId, requestHash, localDirectory: "development-uploads", prepare,
+    providers: { local: async () => { throw new Error("provider unavailable"); } },
+  });
+  assert.equal(refused.ok, false);
+  assert.equal(Object.values(portalStorage.getState().privateObjectLifecycles).find(item => item.objectId === objectId)?.state, "delete-failed");
+
+  let providerCalls = 0;
+  const retry = () => lifecycle.deletePrivateObjectWithRecovery({
+    agencyId, purpose: "development-resource", objectId, requestHash, localDirectory: "development-uploads", prepare,
+    providers: { local: async () => { providerCalls += 1; } },
+  });
+  const [first, second] = await Promise.all([retry(), retry()]);
+  assert.equal(first.ok, true);
+  assert.equal(second.ok, true);
+  assert.equal(prepares, 1, "the owner mutation must run once across refusal and concurrent retries");
+  assert.equal(providerCalls, 1, "the completed checkpoint must replay without a second provider delete");
 });
 
 test("client-file deletion persists intent before touching the provider and renders retry truth", () => {

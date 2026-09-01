@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import { getState, mutate } from "@/server/storage";
 import { logActivity } from "@/server/activity";
 import type { SopDocument } from "@/server/types";
+import { pendingPrivateObjectDeletionSnapshots } from "@/lib/server/privateObjectLifecycle";
 // Keep the server SOP store on the element engine's leaf modules. Importing the
 // public barrel also exposes `websiteElements`, whose on-demand vocabulary
 // reaches the website editor's 78 client block renderers. Next registers those
@@ -17,6 +18,29 @@ export function listSops(agencyId: string): SopDocument[] {
   return Object.values(getState().sops)
     .filter(sop => sop.agencyId === agencyId)
     .map(normalizeSop)
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+/** The SOP library's retry surface only; assignment/search consumers stay live-only. */
+export function listSopsWithPendingDeletion(agencyId: string): SopDocument[] {
+  const stored = listSops(agencyId);
+  const existingIds = new Set(stored.map(sop => sop.id));
+  const pending = pendingPrivateObjectDeletionSnapshots<SopDocument>(agencyId, "sop")
+    .filter(item => !existingIds.has(item.snapshot.id))
+    .map(item => normalizeSop({
+      ...item.snapshot,
+      tags: [],
+      content: undefined,
+      blocks: undefined,
+      fileName: undefined,
+      contentType: undefined,
+      size: undefined,
+      storageKey: undefined,
+      deleteState: item.record.state === "delete-failed" ? "delete-failed" : "deleting",
+      deleteError: item.record.error,
+      deleteStartedAt: item.record.createdAt,
+    }));
+  return [...stored, ...pending]
     .sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
@@ -232,6 +256,7 @@ export function rollbackFileSopUpload(agencyId: string, id: string): boolean {
 }
 
 export function updateSop(agencyId: string, id: string, patch: { title?: string; content?: string; blocks?: BlockTreeJSON; category?: string; categories?: string[]; tags?: string[] }, actorUserId: string): SopDocument | null {
+  if (!getState().sops[id]) return null;
   const existing = getSop(agencyId, id);
   if (!existing) return null;
   const assignment = patch.category !== undefined || patch.categories !== undefined

@@ -9,6 +9,7 @@ import { triageWebsiteEnquiry, type WebsiteEnquiryPriority } from "@/lib/server/
 import { triggerAutomations } from "@/server/automations";
 import type { InboxOutboundAttachment } from "@/lib/inbox/media";
 import { inboxMediaUrl, verifyInboxMediaToken } from "@/lib/server/inbox/inboxMedia";
+import { claimStagedPrivateUploadsForOwnership, commitStagedPrivateUploadOwnership, PrivateObjectLifecycleClaimError } from "@/lib/server/privateObjectLifecycle";
 import { cleanClientRequests } from "@/lib/clients/clientRequests";
 import { synchroniseClientRequestLedgerEvents } from "@/lib/server/clients/clientRecordLedger";
 import { ProductWorkspaceBusyError, withClientMetadataLedgerTransaction } from "@/server/productWorkspaceCoordinator";
@@ -165,6 +166,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, request: item, requests });
     });
   } catch (error) {
+    if (error instanceof PrivateObjectLifecycleClaimError) {
+      return NextResponse.json({ ok: false, code: error.code, error: error.message }, { status: 409 });
+    }
     if (error instanceof ProductWorkspaceBusyError) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 409 });
     }
@@ -210,7 +214,9 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
     }
     await requireCurrentClientWorkspaceElementAccess(clientId, "client.communications", "use");
-    return await withClientMetadataLedgerTransaction({
+    if (attachments.length) await claimStagedPrivateUploadsForOwnership({ agencyId: session.agencyId, purpose: "inbox-media", objectIds: attachments.map(attachment => attachment.id) });
+    let attachmentOwnerId = body.requestId;
+    const persistRequest = () => withClientMetadataLedgerTransaction({
       agencyId: session.agencyId,
       clientId,
       ledger: "requests",
@@ -229,13 +235,15 @@ export async function PATCH(req: Request) {
     const nextStatus = body.status ?? (fromMilesymedia ? "reviewed" : "open");
     const replies = Array.isArray(existing.replies) ? [...existing.replies] : [];
     if (reply) {
+      const replyId = makeId().replace(/^req_/, "rep_");
       replies.push({
-        id: makeId().replace(/^req_/, "rep_"),
+        id: replyId,
         message: reply,
         from: fromMilesymedia ? "milesymedia" : "customer",
         createdAt: now,
         attachments,
       });
+      attachmentOwnerId = replyId;
     }
     const changed: ClientRequest = {
       ...existing,
@@ -266,7 +274,30 @@ export async function PATCH(req: Request) {
 
     return NextResponse.json({ ok: true, request: changed, requests: next });
     });
+    if (!attachments.length) return await persistRequest();
+    let ownerRefusal: Response | null = null;
+    try {
+      return await commitStagedPrivateUploadOwnership({
+        agencyId: session.agencyId,
+        purpose: "inbox-media",
+        objectIds: attachments.map(attachment => attachment.id),
+        commit: async () => {
+          const value = await persistRequest();
+          if (!value.ok) {
+            ownerRefusal = value;
+            throw new Error("client_request_owner_not_committed");
+          }
+          return { ownerId: attachmentOwnerId, value };
+        },
+      });
+    } catch (error) {
+      if (ownerRefusal) return ownerRefusal;
+      throw error;
+    }
   } catch (error) {
+    if (error instanceof PrivateObjectLifecycleClaimError) {
+      return NextResponse.json({ ok: false, code: error.code, error: error.message }, { status: 409 });
+    }
     if (error instanceof ProductWorkspaceBusyError) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 409 });
     }

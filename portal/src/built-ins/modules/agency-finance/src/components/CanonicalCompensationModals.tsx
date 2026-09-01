@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useRef } from "react";
 import { X } from "lucide-react";
 
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 import type { FinanceDepartmentOption, FinanceStaffOption } from "@/lib/server/finance/financeWorkforce";
 import type {
   BudgetPot,
@@ -17,6 +18,7 @@ import type {
   PayeeType,
 } from "../lib/domain";
 import { SUPPORTED_CURRENCIES } from "../lib/currencies";
+import { isFinanceMutationEntity } from "../lib/mutationPayloads";
 import { dateInputValue } from "../lib/safeDate";
 import { compensationPaymentDraftAmounts } from "../lib/workforceCosts";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
@@ -117,17 +119,17 @@ export function CanonicalCompensationProfileModal({
       notes: String(data.get("notes") ?? ""),
     };
     try {
-      const response = await fetch(`${apiBase}/profiles${profile ? `?id=${encodeURIComponent(profile.id)}` : ""}`, {
+      const result = await checkedJsonMutation<{ ok: boolean; profile?: CompensationProfile }>(`${apiBase}/profiles${profile ? `?id=${encodeURIComponent(profile.id)}` : ""}`, {
         method: profile ? "PATCH" : "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
+      }, {
+        fallback: "Could not save compensation profile.",
+        validate: response => isFinanceMutationEntity(response, "profile"),
       });
-      const result = await response.json() as { profile?: CompensationProfile; error?: string };
-      if (!response.ok || !result.profile) {
-        setError(result.error ?? "Could not save compensation profile.");
-        return;
-      }
-      onSaved(result.profile);
+      onSaved(result.profile as CompensationProfile);
+    } catch (requestError) {
+      setError(mutationErrorMessage(requestError, "Could not save compensation profile."));
     } finally {
       setBusy(false);
     }
@@ -231,17 +233,17 @@ export function CanonicalCompensationPaymentModal({
       ...(editing ? {} : { idempotencyKey }),
     };
     try {
-      const response = await fetch(`${apiBase}/payments${payment ? `?id=${encodeURIComponent(payment.id)}` : ""}`, {
+      const result = await checkedJsonMutation<{ ok: boolean; payment?: CompensationPayment }>(`${apiBase}/payments${payment ? `?id=${encodeURIComponent(payment.id)}` : ""}`, {
         method: editing ? "PATCH" : "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
+      }, {
+        fallback: "Could not save payment.",
+        validate: response => isFinanceMutationEntity(response, "payment"),
       });
-      const result = await response.json() as { payment?: CompensationPayment; error?: string };
-      if (!response.ok || !result.payment) {
-        setError(result.error ?? "Could not save payment.");
-        return;
-      }
-      onSaved(result.payment);
+      onSaved(result.payment as CompensationPayment);
+    } catch (requestError) {
+      setError(mutationErrorMessage(requestError, "Could not save payment."));
     } finally {
       setBusy(false);
     }

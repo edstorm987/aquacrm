@@ -9,6 +9,7 @@ import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedM
 import type { Invoice, InvoiceStatus, InvoiceTemplate } from "../lib/domain";
 import type { Client } from "../lib/tenancy";
 import { SUPPORTED_CURRENCIES } from "../lib/currencies";
+import { isFinanceMutationAck, isFinanceMutationEntity } from "../lib/mutationPayloads";
 import { InvoiceTemplateEditor } from "./InvoiceTemplateEditor";
 import { FinanceNav } from "./FinanceNav";
 import { addBusinessCalendarDays, dateInputValue, formatUkDate } from "../lib/safeDate";
@@ -183,7 +184,7 @@ function IssueButton({ apiBase, invoiceId }: { apiBase: string; invoiceId: strin
           body: JSON.stringify({ id: invoiceId, patch: { status: "sent" } }),
         }, {
           fallback: "The invoice could not be issued.",
-          validate: payload => payload.ok === true,
+          validate: isFinanceMutationAck,
         });
         window.location.reload();
       } catch (requestError) {
@@ -239,7 +240,7 @@ function NewInvoiceForm({ apiBase, clients, busy, defaultCurrency, defaultPaymen
           }),
         }, {
           fallback: "The invoice could not be created.",
-          validate: payload => payload.ok === true && Boolean(payload.invoice),
+          validate: payload => isFinanceMutationEntity(payload, "invoice"),
         });
         if (data.get("issueNow") === "on" && result.invoice) {
           try {
@@ -249,7 +250,7 @@ function NewInvoiceForm({ apiBase, clients, busy, defaultCurrency, defaultPaymen
               body: JSON.stringify({ id: result.invoice.id, patch: { status: "sent" } }),
             }, {
               fallback: "The invoice was created as a draft but could not be issued. Retry Save to issue the same invoice.",
-              validate: payload => payload.ok === true,
+              validate: isFinanceMutationAck,
             });
           } catch (requestError) {
             onError(mutationErrorMessage(
@@ -305,7 +306,7 @@ function MarkPaidButton({ apiBase, invoiceId }: { apiBase: string; invoiceId: st
               body: JSON.stringify({ id: invoiceId, externalRef: ref }),
             }, {
               fallback: "The invoice could not be marked paid.",
-              validate: payload => payload.ok === true,
+              validate: isFinanceMutationAck,
             });
             window.location.reload();
           } catch (requestError) {

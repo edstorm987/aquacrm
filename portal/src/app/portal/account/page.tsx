@@ -138,9 +138,13 @@ export default async function AccountPage() {
           </div>
         </form>
 
-        {/* Decided on the server: the panel must not ask a question whose answer
-            is fixed by deployment configuration. See TwoFactorPanel. */}
-        <TwoFactorPanel available={getSupabasePublicConfig() !== null} />
+        {/* Decided on the server: the panel must not ask Supabase about a local
+            or demo identity that deliberately has no Supabase session, even
+            when this machine also has live Supabase configuration. */}
+        <TwoFactorPanel
+          available={getSupabasePublicConfig() !== null && !session.isDemo && !session.publicShowcase}
+          unavailableReason={session.isDemo || session.publicShowcase ? "sandbox-session" : "not-configured"}
+        />
 
         <details className="mm-surface-card group mt-5 rounded-lg border p-4 text-sm sm:p-5">
           <summary className="flex cursor-pointer list-none items-center gap-3 text-black/75">

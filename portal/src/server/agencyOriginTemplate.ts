@@ -13,7 +13,7 @@ import "server-only";
 //
 // ── The rule: nothing is contributed unless it is named ─────────────────────
 //
-// `PortalState` carries 88 collections. An allowlist that silently accepts
+// `PortalState` carries dozens of collections. An allowlist that silently accepts
 // whatever is added next is how a client record, a person, or an API key ends
 // up inside somebody else's tenant. So every collection is classified into
 // exactly one of two lists below, and `assertOriginClassificationIsComplete()`
@@ -119,6 +119,11 @@ export const ORIGIN_NEVER_CONTRIBUTES: Readonly<Record<string, readonly Collecti
     "customKpis", "operationalAlertPreferences", "userChromeLayouts",
     "assistant", "editorAiConversations",
     "notepadFolders", "notepadNotes", "automationRuns",
+    // Private provider-object lifecycle checkpoints are tenant-bound recovery
+    // state. They can carry the origin agency's storage keys and pending
+    // ownership/deletion intent, so copying them could let the target tenant
+    // operate on an object that still belongs to the origin.
+    "privateObjectLifecycles",
     // Real people who asked to see AquaCRM — the founder's own funnel, and
     // named contact details. Seeding it into a new agency would hand one
     // tenant another tenant's enquirers, which is the exact leak this

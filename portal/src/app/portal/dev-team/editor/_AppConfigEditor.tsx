@@ -19,6 +19,7 @@ import { ArrowRight, Check, Eye, RotateCcw, TriangleAlert } from "lucide-react";
 
 import type { PublishOutcome } from "@/engines/editor/editing/engine";
 import type { AppConfigFieldView } from "@/lib/server/editing/appConfigAdapter";
+import { checkedDevTeamMutation } from "../_checkedMutation";
 import { Panel, Pill } from "../_ui";
 
 const ENDPOINT = "/api/portal/dev-team/editor";
@@ -35,11 +36,53 @@ interface SkippedValue {
 }
 
 interface EditorResponse {
-  ok: boolean;
+  ok?: boolean;
   error?: string;
   invalid?: InvalidValue[];
   skipped?: SkippedValue[];
   outcome?: PublishOutcome;
+}
+
+function record(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function validInvalidValues(value: unknown): InvalidValue[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is InvalidValue => {
+    const item = record(entry);
+    return typeof item?.targetId === "string"
+      && typeof item.label === "string"
+      && typeof item.message === "string";
+  });
+}
+
+function validSkippedValues(value: unknown): SkippedValue[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is SkippedValue => {
+    const item = record(entry);
+    return typeof item?.targetId === "string" && typeof item.label === "string";
+  });
+}
+
+function validOutcome(value: unknown): value is PublishOutcome {
+  const outcome = record(value);
+  return typeof outcome?.published === "boolean"
+    && Array.isArray(outcome.changes) && outcome.changes.every(change => {
+      const item = record(change);
+      const target = record(item?.target);
+      return typeof target?.id === "string"
+        && typeof target.label === "string"
+        && typeof item?.before === "string"
+        && typeof item.after === "string";
+    })
+    && Array.isArray(outcome.rejected) && outcome.rejected.every(rejection => {
+      const item = record(rejection);
+      return typeof item?.targetId === "string" && typeof item.detail === "string";
+    })
+    && typeof outcome.summary === "string";
 }
 
 function initialValues(fields: AppConfigFieldView[]): Record<string, string> {
@@ -152,7 +195,7 @@ export function AppConfigEditor({
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch(ENDPOINT, {
+      const result = await checkedDevTeamMutation<EditorResponse>(ENDPOINT, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -163,25 +206,37 @@ export function AppConfigEditor({
             value: values[field.id] ?? "",
           })),
         }),
+      }, {
+        fallback: "The editor could not be reached.",
+        validate: value => value.ok === true && validOutcome(value.outcome),
       });
-      const body = await response.json().catch(() => null) as EditorResponse | null;
 
-      if (body?.invalid?.length) {
-        setInvalid(body.invalid);
-        setSkipped([]);
+      if (!result.ok) {
+        const invalidValues = validInvalidValues(record(result.payload)?.invalid);
+        if (invalidValues.length > 0) {
+          setInvalid(invalidValues);
+          setSkipped([]);
+          setPreview(null);
+          return;
+        }
+        setError(result.error);
         setPreview(null);
         return;
       }
-      if (!response.ok || !body?.ok || !body.outcome) {
-        setError(body?.error ?? `The editor could not be reached (${response.status}).`);
+
+      const body = result.value;
+      const outcome = body.outcome!;
+      if (body.invalid?.length) {
+        setInvalid(validInvalidValues(body.invalid));
+        setSkipped([]);
         setPreview(null);
         return;
       }
 
       setInvalid([]);
-      setSkipped(body.skipped ?? []);
-      if (body.outcome.published) {
-        setApplied(body.outcome);
+      setSkipped(validSkippedValues(body.skipped));
+      if (outcome.published) {
+        setApplied(outcome);
         setPreview(null);
         // Pulls fresh values + fingerprints; the sync above resets the form.
         router.refresh();
@@ -189,13 +244,10 @@ export function AppConfigEditor({
         // Asked to publish and it did not: something moved underneath. Hold the
         // explanation on screen — refreshing here would swap the document out
         // and take the reason with it. "Back to editing" does the reload.
-        setPreview(body.outcome);
+        setPreview(outcome);
       } else {
-        setPreview(body.outcome);
+        setPreview(outcome);
       }
-    } catch {
-      setError("The editor could not be reached. Check the dev server and try again.");
-      setPreview(null);
     } finally {
       setBusy(false);
     }

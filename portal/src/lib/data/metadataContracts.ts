@@ -7,7 +7,7 @@
 // `metadata` jsonb and the Supabase auth user's metadata are all typed
 // `Record<string, unknown>`. That was the right call for schema stability —
 // "anything that doesn't need a typed field of its own goes here" — but by
-// 2026-09-01 the bags carry **129 distinct keys**, several of which are whole
+// 2026-09-01 the bags carry **132 distinct keys**, several of which are whole
 // subsystems (payment plans, telemetry event logs, portal provisioning state,
 // invoice fields). An uncatalogued key has no owner, no type, no sensitivity
 // class and no deletion behaviour, which is exactly what a data-erasure or
@@ -35,7 +35,8 @@ export type MetadataCarrier =
   | "enquiry" // brand_enquiries.metadata jsonb (Supabase)
   | "activity" // ActivityEntry.metadata (src/server/types.ts:782)
   | "auth-user" // Supabase auth user app metadata (aqua_* keys)
-  | "consent"; // website_consent_events.metadata jsonb
+  | "consent" // website_consent_events.metadata jsonb
+  | "private-object-lifecycle"; // PrivateObjectLifecycle.metadata deletion-recovery checkpoint
 
 /**
  * The governed namespaces. A namespace is the unit later migrations move —
@@ -90,7 +91,7 @@ const plain = (
 /**
  * Every metadata key the source tree reads or writes, catalogued.
  *
- * Sourced from a whole-tree scan, re-counted 2026-09-01 (129 keys), and classified by
+ * Sourced from a whole-tree scan, re-counted 2026-09-01 (132 keys), and classified by
  * owning concern. The smoke test keeps this list honest in BOTH directions:
  * an uncatalogued key used in source fails, and a catalogued key that no
  * source touches any more is reported so the entry can be retired.
@@ -237,10 +238,13 @@ export const METADATA_KEY_CONTRACTS: readonly MetadataKeyContract[] = [
   // ── client requests / records / files ───────────────────────────────────
   plain("clientRequests", "delivery", "array — requests raised by the client", "server/clientRelationships", "client", "personal"),
   plain("clientRecordEntries", "delivery", "array — ledger entries kept on the record", "server/clientRelationships", "client", "personal"),
+  plain("stranded", "delivery", "SopDependencyInventory — exact operational references deliberately left pointing at a permanently deleted SOP", "engines/sop/server/sopDependencies", "private-object-lifecycle", "commercial"),
   plain("jobId", "delivery", "string — freelancer job linked from an activity", "server/people", "activity", "commercial"),
   plain("sopId", "delivery", "string — SOP linked from an activity", "engines/sop/server/sops", "activity"),
   plain("files", "files", "array — file attachments", "server/clientRelationships", "client", "personal"),
   plain("documentId", "files", "string — legal document linked from an activity", "server/legalDocuments", "activity", "commercial"),
+  plain("detach", "files", "boolean — the legal-document delete was explicitly authorised to clear every live citation", "server/legalDocuments", "private-object-lifecycle"),
+  plain("detached", "files", "LegalDocumentDependant[] — exact finance and governance citations cleared atomically with the legal-document delete", "server/legalDocuments", "private-object-lifecycle", "commercial"),
   plain("customFields", "bespoke", "object — operator-defined fields", "server/tenants", "client", "personal"),
   plain("whatsappLink", "contact", "string — WhatsApp deep link", "server/tenants", "client", "personal"),
 

@@ -4,7 +4,7 @@ import { requireRole } from "@/lib/server/auth/auth";
 import {
   ensureDefaultDevelopmentWorkflow,
   listDevelopmentWorkflows,
-  listVisibleDevelopmentResources,
+  listVisibleDevelopmentResourcesWithPendingDeletion,
   publicDevelopmentResource,
 } from "@/server/developmentToolkit";
 import { listSops } from "@/engines/sop/server/sops";
@@ -20,7 +20,7 @@ export async function loadDevelopmentData(mode?: "toolkit" | "vault" | "workflow
   // default workflow and runs `migrateLegacyStageRefs`, a data migration, while
   // rendering. The seed moved to `bootstrapAgency`; the migration is
   // self-extinguishing and still runs from the write paths.
-  const visible = listVisibleDevelopmentResources(session.agencyId, session.userId, session.role);
+  const visible = listVisibleDevelopmentResourcesWithPendingDeletion(session.agencyId, session.userId, session.role);
   const resources = mode === "vault"
     ? visible.filter(resource => ["course", "knowledge", "credential", "sop"].includes(resource.kind))
     : mode === "toolkit"

@@ -231,6 +231,206 @@ export async function atomicReplaceDevFile(
   return version;
 }
 
+export interface DevFileBatchReplacement {
+  target: string;
+  content: string | Buffer;
+  expected: DevFileVersion | null;
+}
+
+interface DevFileBatchJournalOperation {
+  target: string;
+  contentBase64: string;
+  contentSha256: string;
+  expected: DevFileVersion | null;
+}
+
+interface DevFileBatchJournal {
+  version: 1;
+  id: string;
+  createdAt: number;
+  operations: DevFileBatchJournalOperation[];
+}
+
+function batchJournalPath(lockTarget: string): string {
+  return `${resolve(lockTarget)}.aqua-batch-journal.json`;
+}
+
+function isBatchJournal(value: unknown): value is DevFileBatchJournal {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const row = value as Partial<DevFileBatchJournal>;
+  return row.version === 1
+    && typeof row.id === "string"
+    && Number.isFinite(row.createdAt)
+    && Array.isArray(row.operations)
+    && row.operations.length > 0
+    && row.operations.every(operation => {
+      if (!operation || typeof operation !== "object") return false;
+      return typeof operation.target === "string"
+        && typeof operation.contentBase64 === "string"
+        && /^[0-9a-f]{64}$/.test(operation.contentSha256)
+        && (operation.expected === null || (
+          typeof operation.expected === "object"
+          && Number.isFinite(operation.expected.mtimeMs)
+          && Number.isFinite(operation.expected.size)
+          && /^[0-9a-f]{64}$/.test(operation.expected.sha256)
+        ));
+    });
+}
+
+function assertBatchJournalTargets(
+  lockTarget: string,
+  allowedTargets: readonly string[],
+  journal: DevFileBatchJournal,
+): void {
+  const canonicalLockTarget = resolve(lockTarget);
+  const canonicalAllowedTargets = allowedTargets.map(target => resolve(target));
+  if (!canonicalAllowedTargets.includes(canonicalLockTarget)) {
+    throw new Error("The recovery journal target policy must include its lock target.");
+  }
+  if (new Set(canonicalAllowedTargets).size !== canonicalAllowedTargets.length) {
+    throw new Error("The recovery journal target policy cannot contain the same target twice.");
+  }
+  const journalTargets = journal.operations.map(operation => operation.target);
+  const canonicalJournalTargets = journalTargets.map(target => resolve(target));
+  const targetsAreCanonical = journalTargets.every((target, index) => target === canonicalJournalTargets[index]);
+  const targetsMatch = targetsAreCanonical
+    && canonicalJournalTargets.length === canonicalAllowedTargets.length
+    && canonicalJournalTargets.every((target, index) => target === canonicalAllowedTargets[index]);
+  if (!targetsMatch) {
+    throw new Error(
+      `The recovery journal at ${batchJournalPath(lockTarget)} does not match its allowed canonical targets and was left untouched.`,
+    );
+  }
+}
+
+async function readBatchJournal(
+  lockTarget: string,
+  allowedTargets: readonly string[],
+): Promise<DevFileBatchJournal | null> {
+  const path = batchJournalPath(lockTarget);
+  try {
+    const parsed = JSON.parse(await readFile(path, "utf8")) as unknown;
+    if (!isBatchJournal(parsed)) {
+      throw new Error(`The recovery journal at ${path} is invalid and was left untouched.`);
+    }
+    assertBatchJournalTargets(lockTarget, allowedTargets, parsed);
+    return parsed;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+async function completeBatchJournal(
+  lockTarget: string,
+  journal: DevFileBatchJournal,
+  afterApplied?: (appliedCount: number) => void | Promise<void>,
+): Promise<DevFileVersion[]> {
+  const versions: DevFileVersion[] = [];
+  let appliedCount = 0;
+
+  for (const operation of journal.operations) {
+    const bytes = Buffer.from(operation.contentBase64, "base64");
+    const desiredSha256 = crypto.createHash("sha256").update(bytes).digest("hex");
+    if (desiredSha256 !== operation.contentSha256) {
+      throw new Error(`The recovery journal for ${operation.target} failed its content checksum.`);
+    }
+
+    const current = await devFileVersion(operation.target);
+    if (current?.sha256 === operation.contentSha256 && current.size === bytes.byteLength) {
+      versions.push(current);
+      continue;
+    }
+    if (!sameVersion(operation.expected, current)) {
+      throw new DevFileConflictError(
+        `A recoverable Dev Team save could not finish because ${operation.target} changed outside the transaction. The journal was retained.`,
+      );
+    }
+
+    versions.push(await atomicReplaceDevFile(operation.target, bytes, operation.expected));
+    appliedCount += 1;
+    await afterApplied?.(appliedCount);
+  }
+
+  await unlink(batchJournalPath(lockTarget));
+  return versions;
+}
+
+/**
+ * Finish a previously prepared local multi-file save.
+ *
+ * The journal is retained on every failure. Recovery accepts only an exact
+ * expected version or the already-committed desired bytes, so it can resume a
+ * crash without overwriting a direct editor/worker change.
+ */
+export async function recoverDevFileBatch(
+  lockTarget: string,
+  allowedTargets: readonly string[],
+): Promise<DevFileVersion[] | null> {
+  if (usesDurableDevTeamWorkspace()) return null;
+  return withDevFileTransaction(lockTarget, async () => {
+    const journal = await readBatchJournal(lockTarget, allowedTargets);
+    return journal ? completeBatchJournal(lockTarget, journal) : null;
+  });
+}
+
+/**
+ * Journaled multi-file replacement for the local/file Dev Team workspace.
+ *
+ * Durable production workspaces already use one database transaction. Local
+ * worktrees cannot atomically rename two files, so the durable journal makes
+ * the intended document+ledger pair recoverable after every crash boundary.
+ */
+export async function replaceDevFilesWithJournal(
+  lockTarget: string,
+  replacements: readonly DevFileBatchReplacement[],
+  options: { afterApplied?: (appliedCount: number) => void | Promise<void> } = {},
+): Promise<DevFileVersion[]> {
+  if (usesDurableDevTeamWorkspace()) {
+    throw new Error("Durable Dev Team workspaces must use their database batch transaction.");
+  }
+  if (replacements.length === 0) return [];
+
+  return withDevFileTransaction(lockTarget, async () => {
+    const targets = replacements.map(replacement => resolve(replacement.target));
+    if (new Set(targets).size !== targets.length) {
+      throw new Error("A Dev Team file batch cannot contain the same target twice.");
+    }
+    if (!targets.includes(resolve(lockTarget))) {
+      throw new Error("A Dev Team file batch must include its lock target.");
+    }
+
+    const stale = await readBatchJournal(lockTarget, targets);
+    if (stale) await completeBatchJournal(lockTarget, stale);
+
+    for (let index = 0; index < replacements.length; index += 1) {
+      const current = await devFileVersion(targets[index]);
+      if (!sameVersion(replacements[index].expected, current)) throw new DevFileConflictError();
+    }
+
+    const journal: DevFileBatchJournal = {
+      version: 1,
+      id: crypto.randomUUID(),
+      createdAt: Date.now(),
+      operations: replacements.map((replacement, index) => {
+        const bytes = Buffer.isBuffer(replacement.content)
+          ? replacement.content
+          : Buffer.from(replacement.content, "utf8");
+        return {
+          target: targets[index],
+          contentBase64: bytes.toString("base64"),
+          contentSha256: crypto.createHash("sha256").update(bytes).digest("hex"),
+          expected: replacement.expected,
+        };
+      }),
+    };
+
+    const path = batchJournalPath(lockTarget);
+    await atomicReplaceDevFile(path, JSON.stringify(journal) + "\n", null);
+    return completeBatchJournal(lockTarget, journal, options.afterApplied);
+  });
+}
+
 /** Create a file exactly once on either the real working tree or durable overlay. */
 export async function createDevFileExclusive(
   target: string,

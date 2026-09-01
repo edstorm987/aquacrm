@@ -1,5 +1,5 @@
 import { requireRole } from "@/lib/server/auth/auth";
-import { listSopCategories, listSops } from "@/engines/sop/server/sops";
+import { listSopCategories, listSopsWithPendingDeletion } from "@/engines/sop/server/sops";
 import { listSopGuides } from "@/engines/sop/server/sopGuides";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
@@ -13,7 +13,7 @@ export default async function SopLibraryPage() {
     && (session.role === "agency-owner" || session.role === "agency-manager");
   return (
     <SopLibrary
-      initialSops={listSops(session.agencyId)}
+      initialSops={listSopsWithPendingDeletion(session.agencyId)}
       initialCategories={listSopCategories(session.agencyId)}
       initialGuides={listSopGuides(session.agencyId)}
       canManageGuides={canManageGuides}

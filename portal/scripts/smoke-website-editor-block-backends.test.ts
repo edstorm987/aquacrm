@@ -155,16 +155,12 @@ test("the palette refuses to add a block with no visitor backend", () => {
   assert.match(gapBranch, /Not connected yet/, "the palette must say why the block is unavailable");
 });
 
-test("contact-form is covered — the block most likely to be published", async () => {
-  // Named on its own because it is the one a client will actually reach for,
-  // and because its failure is silent: the visitor sees "Couldn't send. Please
-  // email us directly." with no email address anywhere on the page.
+test("contact-form is no longer declared dead after its visitor facade shipped", async () => {
   const { blockBackendGap } = await import(
     "../src/built-ins/modules/website-editor/src/lib/blockBackends.ts"
   );
   const gap = blockBackendGap("contact-form");
-  assert.ok(gap, "contact-form must be declared as having no visitor backend");
-  assert.ok(gap.reason.length > 20, "the reason must be a sentence a person can act on");
+  assert.equal(gap, undefined, "contact-form still claims it has no visitor backend");
 });
 
 test("no page template seeds a block that cannot serve a visitor", async () => {

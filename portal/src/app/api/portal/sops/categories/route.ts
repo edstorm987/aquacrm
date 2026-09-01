@@ -2,8 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
 import { createSopCategory, deleteSopCategory, listSopCategories } from "@/engines/sop/server/sops";
+import { privateObjectLifecycleLockKey } from "@/lib/server/privateObjectLifecycle";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
+import { withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
 
 export const runtime = "nodejs";
 
@@ -41,11 +43,17 @@ export async function DELETE(request: NextRequest) {
     const body = await request.json().catch(() => null) as { category?: string; replacementCategory?: string } | null;
     if (!body?.category?.trim()) return NextResponse.json({ ok: false, error: "category required" }, { status: 400 });
     try {
-      const result = deleteSopCategory(
-        session.agencyId,
-        body.category,
-        body.replacementCategory?.trim() || undefined,
-        session.userId,
+      // Category retirement rewrites every matching SOP. Keep that bulk read
+      // and rewrite in the same lane as permanent SOP deletion so a stale
+      // category request cannot restore a row after its file was removed.
+      const result = await withPortalStateTransaction(
+        privateObjectLifecycleLockKey(session.agencyId),
+        () => deleteSopCategory(
+          session.agencyId,
+          body.category!,
+          body.replacementCategory?.trim() || undefined,
+          session.userId,
+        ),
       );
       return result
         ? NextResponse.json({ ok: true, ...result, categories: listSopCategories(session.agencyId) })

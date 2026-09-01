@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/server/auth/auth";
 import { buildCompanyHealthSnapshot } from "@/engines/data/server/kpi/companyHealthSnapshot";
-import { listLegalDocuments } from "@/server/legalDocuments";
+import { listLegalDocumentsWithPendingDeletion } from "@/server/legalDocuments";
 import { ensureHydrated } from "@/server/storage";
 import { listClients } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
@@ -93,7 +93,7 @@ export default async function CompanyPage({ searchParams }: { searchParams: Comp
         actuals={companyHealth.actuals}
         staffCount={users.length}
         canEdit={canEdit}
-        legalDocuments={listLegalDocuments(session.agencyId)}
+        legalDocuments={listLegalDocumentsWithPendingDeletion(session.agencyId)}
         initialProducts={products}
         sops={listSops(session.agencyId)}
         tradingCompanies={tradingCompanies}

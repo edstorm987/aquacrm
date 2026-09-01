@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
+import { checkedJsonMutation } from "@/lib/client/checkedMutation";
 import { dateFromValue, formatUkDate, isoDateTimeValue } from "@/lib/shared/formatDateTime";
 
 export interface PortalSearchItem {
@@ -62,6 +63,34 @@ interface SearchIndexMeta {
   categories: Record<string, number>;
 }
 
+interface RecordSearchPayload {
+  ok: true;
+  results: RecordResult[];
+  total: number;
+  indexed: number;
+  categories: Record<string, number>;
+}
+
+function validRecordResult(value: unknown): value is RecordResult {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const result = value as Record<string, unknown>;
+  return typeof result.id === "string"
+    && typeof result.category === "string"
+    && typeof result.title === "string"
+    && typeof result.href === "string";
+}
+
+function validRecordSearch(value: RecordSearchPayload): boolean {
+  return value?.ok === true
+    && Array.isArray(value.results)
+    && value.results.every(validRecordResult)
+    && Number.isFinite(value.total)
+    && Number.isFinite(value.indexed)
+    && value.categories !== null
+    && typeof value.categories === "object"
+    && !Array.isArray(value.categories);
+}
+
 export function PortalSearch({ items, recordsEnabled = false, initiallyOpen = false }: { items: PortalSearchItem[]; recordsEnabled?: boolean; initiallyOpen?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -74,6 +103,7 @@ export function PortalSearch({ items, recordsEnabled = false, initiallyOpen = fa
   // A refused record search is not "No matches" — one says the index answered
   // and held nothing, the other says nobody asked it (issues #57).
   const [searchUnavailable, setSearchUnavailable] = useState(false);
+  const [searchRetryToken, setSearchRetryToken] = useState(0);
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -122,20 +152,22 @@ export function PortalSearch({ items, recordsEnabled = false, initiallyOpen = fa
       return;
     }
     const controller = new AbortController();
+    // Debouncing is still a pending read. Without this, a new query can flash
+    // "No matches" for 150 ms before the request has even started.
+    setLoading(true);
     const timer = window.setTimeout(async () => {
-      setLoading(true);
       try {
-        const response = await fetch(`/api/portal/search?q=${encodeURIComponent(normalised)}`, { signal: controller.signal });
-        const json = await response.json().catch(() => null) as { results?: RecordResult[]; total?: number; indexed?: number; categories?: Record<string, number> } | null;
-        if (response.ok) {
-          setRecordResults(json?.results ?? []);
-          setTotalMatches(json?.total ?? json?.results?.length ?? 0);
-          setSearchUnavailable(false);
-          if (json?.indexed) setIndexMeta({ indexed: json.indexed, categories: json.categories ?? {} });
-        }
-        else { setRecordResults([]); setTotalMatches(0); setSearchUnavailable(true); }
-      } catch (error) {
-        if (!(error instanceof DOMException && error.name === "AbortError")) {
+        const json = await checkedJsonMutation<RecordSearchPayload>(
+          `/api/portal/search?q=${encodeURIComponent(normalised)}`,
+          { method: "GET", signal: controller.signal, cache: "no-store" },
+          { fallback: "Workspace records could not be searched.", validate: validRecordSearch },
+        );
+        setRecordResults(json.results);
+        setTotalMatches(json.total);
+        setSearchUnavailable(false);
+        setIndexMeta({ indexed: json.indexed, categories: json.categories });
+      } catch {
+        if (!controller.signal.aborted) {
           setRecordResults([]);
           setTotalMatches(0);
           setSearchUnavailable(true);
@@ -148,7 +180,7 @@ export function PortalSearch({ items, recordsEnabled = false, initiallyOpen = fa
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [open, query, recordsEnabled]);
+  }, [open, query, recordsEnabled, searchRetryToken]);
 
   useEffect(() => {
     setCategoryFilter("All");
@@ -335,7 +367,7 @@ export function PortalSearch({ items, recordsEnabled = false, initiallyOpen = fa
                 </div>
               ) : null}
               {!loading && normalised.length === 1 ? <SearchMessage title="Keep typing" detail="Enter at least two characters." /> : null}
-              {!loading && normalised.length > 1 && searchUnavailable ? <SearchMessage title="Records could not be searched" detail="This is a failed search, not an empty result. Try again — pages above are still listed." /> : null}
+              {!loading && normalised.length > 1 && searchUnavailable ? <SearchMessage title="Records could not be searched" detail="This is a failed search, not an empty result. Pages above are still listed." action={<button type="button" onClick={() => setSearchRetryToken(value => value + 1)} className="mt-3 min-h-8 rounded-md border border-black/15 bg-white px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.03]">Retry search</button>} /> : null}
               {!loading && !searchUnavailable && normalised.length > 1 && !recordResults.length && !pageResults.length ? <SearchMessage title="No matches" detail={`Nothing found for “${query.trim()}”.`} /> : null}
             </div>
 
@@ -400,13 +432,14 @@ function SearchResultRow({ result, query, optionIndex, active, onActive, onChoos
   );
 }
 
-function SearchMessage({ title, detail }: { title: string; detail: string }) {
+function SearchMessage({ title, detail, action }: { title: string; detail: string; action?: ReactNode }) {
   return (
     <div className="grid min-h-36 place-items-center px-5 text-center">
       <div>
         <span className="mx-auto grid size-9 place-items-center rounded-md bg-black/[0.045] text-black/35"><Search size={16} /></span>
         <p className="mt-3 text-sm font-semibold text-black/70">{title}</p>
         <p className="mt-1 text-xs text-black/40">{detail}</p>
+        {action}
       </div>
     </div>
   );

@@ -29,6 +29,7 @@ export type CampaignPlacement =
   | "google-display";
 
 export interface CampaignCreativeAsset {
+  id?: string;
   fileName: string;
   contentType: string;
   size: number;

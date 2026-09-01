@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { CreditCard, Download, FilePenLine, Plus, Printer, Trash2, X } from "lucide-react";
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 import type { Invoice, InvoiceTemplate } from "../lib/domain";
+import { isFinanceMutationAck, isFinanceMutationHttpsUrl } from "../lib/mutationPayloads";
 import { dateInputValue, formatUkDate } from "../lib/safeDate";
 
 const API_BASE = "/api/portal/agency-finance";
@@ -62,17 +64,18 @@ export function InvoiceDetailClient({
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE}/invoices`, {
+      await checkedJsonMutation<{ ok: boolean }>(`${API_BASE}/invoices`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ id: invoice.id, patch: body }),
+      }, {
+        fallback: "Invoice update failed.",
+        validate: isFinanceMutationAck,
       });
-      const result = await response.json() as { ok?: boolean; error?: string };
-      if (!response.ok || !result.ok) {
-        setError(result.error ?? "Invoice update failed.");
-        return false;
-      }
       return true;
+    } catch (requestError) {
+      setError(mutationErrorMessage(requestError, "Invoice update failed."));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -107,19 +110,20 @@ export function InvoiceDetailClient({
     setPayBusy(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE}/invoices/checkout`, {
+      const result = await checkedJsonMutation<{ ok: boolean; url?: string }>(`${API_BASE}/invoices/checkout`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ invoiceId: invoice.id }),
+      }, {
+        fallback: "Could not create a pay-link.",
+        validate: payload => isFinanceMutationHttpsUrl(payload),
       });
-      const result = await response.json() as { ok?: boolean; url?: string; error?: string };
-      if (!response.ok || !result.ok || !result.url) {
-        setError(result.error === "stripe_not_configured"
-          ? "Set up Stripe in Finance settings to take card payments."
-          : (result.error ?? "Could not create a pay-link."));
-        return;
-      }
-      setPayLink(result.url);
+      setPayLink(result.url ?? null);
+    } catch (requestError) {
+      const message = mutationErrorMessage(requestError, "Could not create a pay-link.");
+      setError(message === "stripe_not_configured"
+        ? "Set up Stripe in Finance settings to take card payments."
+        : message);
     } finally {
       setPayBusy(false);
     }

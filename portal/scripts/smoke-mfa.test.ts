@@ -1098,10 +1098,10 @@ describe("what the account page shows", () => {
 
   it("is reachable from the account page at all", () => {
     // The endpoints existed for two months with nowhere to reach them from.
-    assert.match(read("src", "app", "portal", "account", "page.tsx"), /<TwoFactorPanel available=\{/);
+    assert.match(read("src", "app", "portal", "account", "page.tsx"), /<TwoFactorPanel\s+available=\{/);
   });
 
-  it("does not ask a question the deployment has already answered", () => {
+  it("does not ask a question the deployment or sandbox session has already answered", () => {
     // Two-factor here is Supabase TOTP. On a deployment with no Supabase auth
     // the route answers an honest 503 — but the panel used to fire the request
     // anyway, on every load, producing a console error and a failed request
@@ -1113,9 +1113,13 @@ describe("what the account page shows", () => {
     // is, and passed in. A client-side probe would reintroduce the request.
     const page = read("src", "app", "portal", "account", "page.tsx");
     assert.match(page, /getSupabasePublicConfig\(\) !== null/, "the server decides, from the real environment");
+    assert.match(page, /!session\.isDemo/, "a local or demo identity must not probe Supabase with unrelated cookies");
+    assert.match(page, /unavailableReason=.*sandbox-session/s,
+      "a deliberately sandboxed session must explain why MFA is not used instead of claiming configuration is missing");
     assert.match(panel(), /if \(available\) void refresh\(\)/, "no request when it cannot succeed");
     assert.match(panel(), /if \(!available\) \{/, "and a stated reason in place of the control");
     assert.match(panel(), /Unavailable/, "…labelled Unavailable, never as merely Off");
+    assert.match(panel(), /local or demo session/, "the unavailable copy must be truthful for the browser/dev lane");
   });
 
   it("still says Off — not Unavailable — when the deployment CAN do it", () => {
@@ -1123,7 +1127,7 @@ describe("what the account page shows", () => {
     // "Unavailable" on a working deployment would talk a user out of turning
     // on two-factor they are perfectly able to turn on. `available` defaults
     // to true, and the unavailable branch is reached only by an explicit false.
-    assert.match(panel(), /\{ available = true \}/, "available defaults to true");
+    assert.match(panel(), /\{[\s\S]{0,80}available = true,/, "available defaults to true");
   });
 
   it("reuses the existing setup component rather than a second one", () => {

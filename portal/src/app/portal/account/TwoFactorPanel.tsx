@@ -26,7 +26,13 @@ import { TwoFactorSetup } from "@/components/auth/TwoFactorSetup";
  * exactly what the browser matrix found, on all seventeen viewports. Asking a
  * question whose answer is already known is not caution.
  */
-export function TwoFactorPanel({ available = true }: { available?: boolean }) {
+export function TwoFactorPanel({
+  available = true,
+  unavailableReason = "not-configured",
+}: {
+  available?: boolean;
+  unavailableReason?: "not-configured" | "sandbox-session";
+}) {
   const [enrolled, setEnrolled] = useState<boolean | null>(null);
   const [failed, setFailed] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
@@ -66,9 +72,9 @@ export function TwoFactorPanel({ available = true }: { available?: boolean }) {
           </span>
         </div>
         <p className="text-xs leading-5 text-black/55">
-          Two-factor sign-in needs Supabase authentication, which is not configured on this
-          deployment. Your workspace owner can switch it on by configuring Supabase auth; until
-          then, sign-in here is password-only.
+          {unavailableReason === "sandbox-session"
+            ? "Two-factor authentication belongs to live account sign-in and is not used by this local or demo session. Open your live account to view or change it."
+            : "Two-factor sign-in needs Supabase authentication, which is not configured on this deployment. Your workspace owner can switch it on by configuring Supabase auth; until then, sign-in here is password-only."}
         </p>
       </section>
     );

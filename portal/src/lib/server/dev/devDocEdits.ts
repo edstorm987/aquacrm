@@ -7,9 +7,10 @@ import { invalidateDevDocsIndex, PROJECT_ROOT } from "@/lib/server/dev/devDocs";
 import { invalidatePath } from "@/lib/server/dev/devMarkdownCache";
 import type { SessionPayload } from "@/server/types";
 import {
-  atomicReplaceDevFile,
   DevFileConflictError,
   devFileVersion,
+  recoverDevFileBatch,
+  replaceDevFilesWithJournal,
   withDevFileTransaction,
 } from "@/lib/server/dev/devFileTransaction";
 import {
@@ -100,20 +101,37 @@ function resolveWritablePath(relPath: string): string {
   return abs;
 }
 
-async function readLedger(): Promise<DocEdit[]> {
+function parseLedger(raw: string): DocEdit[] {
+  let parsed: unknown;
   try {
-    const raw = await readDevWorkspaceFile(LEDGER_PATH, "utf8");
-    const parsed = JSON.parse(raw) as unknown;
-    return Array.isArray(parsed) ? parsed as DocEdit[] : [];
-  } catch {
-    return [];
+    parsed = JSON.parse(raw) as unknown;
+  } catch (error) {
+    throw new Error("The Dev Team document attribution ledger is invalid and was left untouched.", { cause: error });
   }
+  if (!Array.isArray(parsed) || !parsed.every(value => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+    const entry = value as Record<string, unknown>;
+    return typeof entry.relPath === "string"
+      && typeof entry.author === "string"
+      && (entry.authorEmail === undefined || typeof entry.authorEmail === "string")
+      && typeof entry.at === "number" && Number.isSafeInteger(entry.at) && entry.at >= 0
+      && typeof entry.sizeBytes === "number" && Number.isSafeInteger(entry.sizeBytes) && entry.sizeBytes >= 0
+      && (entry.contentSha256 === undefined || (typeof entry.contentSha256 === "string" && /^[0-9a-f]{64}$/.test(entry.contentSha256)))
+      && (entry.note === undefined || typeof entry.note === "string");
+  })) {
+    throw new Error("The Dev Team document attribution ledger is invalid and was left untouched.");
+  }
+  return parsed as DocEdit[];
 }
 
-async function writeLedger(entries: DocEdit[]): Promise<void> {
-  // Newest first, bounded — this is a working record, not an audit archive.
-  const bounded = entries.slice(0, MAX_ENTRIES);
-  await atomicReplaceDevFile(LEDGER_PATH, JSON.stringify(bounded, null, 2) + "\n");
+async function readLedger(): Promise<DocEdit[]> {
+  try {
+    return parseLedger(await readDevWorkspaceFile(LEDGER_PATH, "utf8"));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    if (error instanceof Error && error.message.includes("attribution ledger is invalid")) throw error;
+    throw new Error("The Dev Team document attribution ledger could not be read and was left untouched.", { cause: error });
+  }
 }
 
 /**
@@ -143,6 +161,11 @@ export async function saveDevDoc(input: {
   // the content hash makes an attribution meaningful only for the bytes that
   // actually survived.
   return withDevFileTransaction(LEDGER_PATH, async () => {
+    // A previous process may have stopped after committing the document but
+    // before its attribution row (or vice versa). Finish that exact journaled
+    // pair before taking a new version snapshot.
+    await recoverDevFileBatch(LEDGER_PATH, [abs, LEDGER_PATH]);
+
     const current = await devFileVersion(abs);
     if (!current) throw new Error("That document no longer exists.");
     const hashConflict = Boolean(input.expectedSha256 && current.sha256 !== input.expectedSha256);
@@ -170,8 +193,7 @@ export async function saveDevDoc(input: {
       let ledgerVersion: DevWorkspaceFileVersion | null = null;
       try {
         const snapshot = await readDevWorkspaceSnapshot(LEDGER_PATH);
-        const parsed = JSON.parse(snapshot.bytes.toString("utf8")) as unknown;
-        ledgerEntries = Array.isArray(parsed) ? parsed as DocEdit[] : [];
+        ledgerEntries = parseLedger(snapshot.bytes.toString("utf8"));
         ledgerVersion = snapshot.version;
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
@@ -193,15 +215,22 @@ export async function saveDevDoc(input: {
 
     // Compare the exact bytes again immediately before atomic rename. This
     // catches a direct editor/worker that does not participate in Aqua's lock.
-    const after = await atomicReplaceDevFile(abs, input.content, current);
+    const ledgerVersion = await devFileVersion(LEDGER_PATH);
+    const ledger = await readLedger();
+    const ledgerContent = JSON.stringify(
+      [entryBase, ...ledger].slice(0, MAX_ENTRIES),
+      null,
+      2,
+    ) + "\n";
+    const [after] = await replaceDevFilesWithJournal(LEDGER_PATH, [
+      { target: abs, content: input.content, expected: current },
+      { target: LEDGER_PATH, content: ledgerContent, expected: ledgerVersion },
+    ]);
     // A Library edit can rewrite a plan, state.md, the roadmap, audits.md or a
     // finding — any of which a dev reader has memoised. Bust every namespace that
     // cached THIS file so the edit is visible on the next read, mtime tick or not.
     invalidatePath(abs);
     invalidateDevDocsIndex();
-
-    const ledger = await readLedger();
-    await writeLedger([{ ...entryBase, sizeBytes: after.size, contentSha256: after.sha256 }, ...ledger]);
 
     return { mtimeMs: after.mtimeMs, sizeBytes: after.size, contentSha256: after.sha256 };
   });

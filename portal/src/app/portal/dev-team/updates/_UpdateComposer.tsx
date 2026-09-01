@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { ACCENT, ACCENT_SOFT } from "../_ui";
+import { checkedDevTeamMutation } from "../_checkedMutation";
 
 // Client half of Dev Team → Updates: "check in" without opening an editor.
 // Collapsed it's a single quiet button; open it's a title + a textarea where
@@ -38,25 +39,26 @@ export function UpdateComposer({ today }: { today: string }) {
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch("/api/portal/dev-team/updates", {
+      const result = await checkedDevTeamMutation<{ ok?: boolean }>("/api/portal/dev-team/updates", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           title,
           bullets: body.split(/\r?\n/).map(line => line.trim()).filter(Boolean),
         }),
+      }, {
+        fallback: "The entry could not be saved.",
+        validate: value => value.ok === true,
       });
-      const result = (await response.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-      if (!response.ok || !result.ok) {
-        throw new Error(result.error || "The entry could not be saved.");
+      if (!result.ok) {
+        setError(result.error);
+        return;
       }
       setTitle("");
       setBody("");
       setOpen(false);
       // Re-read the doc so the new entry appears exactly as it was written.
       router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "The entry could not be saved.");
     } finally {
       setBusy(false);
     }
