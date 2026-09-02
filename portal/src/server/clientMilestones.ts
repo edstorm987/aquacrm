@@ -12,6 +12,17 @@ import {
   upsertClientMilestoneLedgerEvent,
 } from "@/lib/server/clients/clientRecordLedger";
 
+/**
+ * A caller-correctable refusal (blank title). Routes answer it 400 with the
+ * message; any other failure is unexpected and must not leak its text.
+ */
+export class ClientMilestoneValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ClientMilestoneValidationError";
+  }
+}
+
 export interface ClientMilestoneInput {
   title: string;
   description?: string;
@@ -34,7 +45,7 @@ export function createClientMilestone(agencyId: string, clientId: string, input:
   const client = getClientForAgency(agencyId, clientId);
   if (!client) throw new Error("Client not found.");
   const title = clean(input.title, 160);
-  if (!title) throw new Error("Milestone title required.");
+  if (!title) throw new ClientMilestoneValidationError("Milestone title required.");
   const now = Date.now();
   const status = validStatus(input.status);
   const progress = status === "complete" ? 100 : cleanProgress(input.progress);

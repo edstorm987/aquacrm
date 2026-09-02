@@ -14,7 +14,8 @@ import {
   type MonthlyPerformanceReport,
   withdrawMonthlyPerformanceReport,
 } from "@/lib/performance/performanceReports";
-import { authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
+import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
+import { captureError, type ObservabilityBreadcrumb } from "@/lib/server/observability";
 import { routeTenantScope } from "@/lib/server/portal/apiTenantScope";
 import { logActivity } from "@/server/activity";
 import { withClientMetadataLedgerTransaction } from "@/server/productWorkspaceCoordinator";
@@ -23,6 +24,19 @@ import { getClientForAgency, updateClient } from "@/server/tenants";
 import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 
 const ROLES = new Set(["agency-owner", "agency-manager", "agency-staff"]);
+const GENERIC_REPORT_MUTATION_ERROR = "Report could not be updated.";
+const REPORT_MUTATION_DOMAIN_STATUSES = new Map<string, number>([
+  ["Choose a valid report month.", 400],
+  ["A report cannot be generated for a future month.", 400],
+  ["Add a reason for withdrawing this report.", 400],
+  ["Client not found.", 404],
+  ["Property not found.", 404],
+  ["Report not found.", 404],
+  ["Report ID already exists.", 409],
+  ["Only a draft report can be published.", 409],
+  ["Only a published report can be withdrawn.", 409],
+  ["Published report history cannot be deleted. Withdraw the live report instead.", 409],
+]);
 
 interface Body {
   action?: "generate" | "publish" | "withdraw" | "delete";
@@ -48,11 +62,34 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  try {
+    return await handleReportMutation(request);
+  } catch (error) {
+    return reportMutationErrorResponse(error);
+  }
+}
+
+async function handleReportMutation(request: NextRequest) {
   await ensureHydrated();
   const session = await getSessionFromRequest(request);
   if (!session || !ROLES.has(session.role)) return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   const body = await request.json().catch(() => null) as Body | null;
-  if (!body?.action || !isReportAction(body.action) || !body.clientId) return NextResponse.json({ ok: false, error: "Choose a client and report action." }, { status: 400 });
+  if (!body?.action || !isReportAction(body.action) || typeof body.clientId !== "string" || !body.clientId.trim()) {
+    return NextResponse.json({ ok: false, error: "Choose a client and report action." }, { status: 400 });
+  }
+  const reportMonth = typeof body.month === "string" ? body.month.trim() : "";
+  if (body.action === "generate" && !reportMonth) {
+    return NextResponse.json({ ok: false, error: "Choose a valid report month." }, { status: 400 });
+  }
+  if (body.action === "generate" && body.propertyId !== undefined && typeof body.propertyId !== "string") {
+    return NextResponse.json({ ok: false, error: "Choose a valid property." }, { status: 400 });
+  }
+  if (body.action !== "generate" && (typeof body.reportId !== "string" || !body.reportId.trim())) {
+    return NextResponse.json({ ok: false, error: "Choose a report." }, { status: 400 });
+  }
+  const withdrawalReason = typeof body.withdrawalReason === "string"
+    ? body.withdrawalReason.trim().slice(0, 500).trim()
+    : "";
   let scope;
   try {
     scope = routeTenantScope(session, { clientId: body.clientId });
@@ -81,7 +118,7 @@ export async function POST(request: NextRequest) {
       const reports = cleanMonthlyPerformanceReports(client.metadata?.monthlyPerformanceReports);
       let outcome: { report: MonthlyPerformanceReport; reports: MonthlyPerformanceReport[] };
       if (body.action === "generate") {
-        const month = body.month || previousMonth();
+        const month = reportMonth;
         const range = reportMonthRange(month);
         const propertyId = body.propertyId?.trim() || undefined;
         if (propertyId && !metadataProperties(client.metadata).some(property => property.id === propertyId)) {
@@ -103,7 +140,7 @@ export async function POST(request: NextRequest) {
       } else if (body.action === "publish") {
         outcome = publishMonthlyPerformanceReport(reports, body.reportId || "", session.userId);
       } else if (body.action === "withdraw") {
-        outcome = withdrawMonthlyPerformanceReport(reports, body.reportId || "", session.userId, body.withdrawalReason || "");
+        outcome = withdrawMonthlyPerformanceReport(reports, body.reportId || "", session.userId, withdrawalReason);
       } else {
         outcome = deleteMonthlyPerformanceReportDraft(reports, body.reportId || "");
       }
@@ -132,8 +169,12 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json({ ok: true, report: result.report, reports: result.reports });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Report could not be updated.";
-    return NextResponse.json({ ok: false, error: message }, { status: message === "Report not found." || message === "Client not found." ? 404 : 400 });
+    return reportMutationErrorResponse(error, {
+      agencyId: scope.agencyId,
+      clientId: scope.client.id,
+      userId: session.userId,
+      extra: { route: "performance/reports", method: "POST", action: body.action, reportId: body.reportId },
+    });
   }
 }
 
@@ -151,9 +192,17 @@ function isReportAction(value: unknown): value is NonNullable<Body["action"]> {
   return value === "generate" || value === "publish" || value === "withdraw" || value === "delete";
 }
 
-function previousMonth(): string {
-  const value = new Date();
-  value.setUTCDate(1);
-  value.setUTCMonth(value.getUTCMonth() - 1);
-  return value.toISOString().slice(0, 7);
+/**
+ * Known domain refusals answer with their authored message and status; every
+ * other failure is an unexpected storage/transaction error, captured for the
+ * deployment log and Sentry (issue #132) and answered with a generic 500 so
+ * no internal text reaches the browser.
+ */
+function reportMutationErrorResponse(error: unknown, breadcrumb?: ObservabilityBreadcrumb): Response {
+  if (error instanceof AuthError) return authErrorResponse(error);
+  const message = error instanceof Error ? error.message : "";
+  const status = REPORT_MUTATION_DOMAIN_STATUSES.get(message);
+  if (status) return NextResponse.json({ ok: false, error: message }, { status });
+  captureError(error, breadcrumb);
+  return NextResponse.json({ ok: false, error: GENERIC_REPORT_MUTATION_ERROR }, { status: 500 });
 }

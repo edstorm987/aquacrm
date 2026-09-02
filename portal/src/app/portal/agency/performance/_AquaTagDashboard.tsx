@@ -26,6 +26,12 @@ import {
 } from "lucide-react";
 
 import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
+import {
+  isValidPerformanceReportMonth,
+  isReportMutationPayload,
+  normalizeReportWithdrawalReason,
+  type ReportMutationPayload,
+} from "@/lib/client/performanceReportMutationPayload";
 import type { PublicIntegrationConnection } from "@/lib/integrations/types";
 import type { MonthlyPerformanceReport } from "@/lib/performance/performanceReports";
 import { GrowthPerformance, type PerformanceClient } from "./_PerformanceWorkspace";
@@ -33,17 +39,21 @@ import { formatUkDate } from "@/lib/shared/formatDateTime";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 type Period = 7 | 28 | 90;
+type ReportMutationAction = "generate" | "publish" | "withdraw" | "delete";
+type ReportMutationBusyState = { action: ReportMutationAction; reportId?: string };
 
 export function AquaTagDashboard({
   client,
   period,
   canManageSearchConsole,
+  beginReportMutation,
   onReportsChange,
 }: {
   client: PerformanceClient;
   period: Period;
   canManageSearchConsole: boolean;
-  onReportsChange: (reports: MonthlyPerformanceReport[]) => void;
+  beginReportMutation: () => number;
+  onReportsChange: (reports: MonthlyPerformanceReport[], sequence: number) => void;
 }) {
   const [propertyId, setPropertyId] = useState("all");
   const selectedProperty = client.properties.find(property => property.id === propertyId);
@@ -83,6 +93,7 @@ export function AquaTagDashboard({
         <MonthlyReportsPanel
           client={client}
           selectedPropertyId={propertyId === "all" ? undefined : propertyId}
+          beginReportMutation={beginReportMutation}
           onReportsChange={onReportsChange}
         />
       ) : (
@@ -243,24 +254,85 @@ function SearchConsoleModal({ client, onClose, onSaved }: { client: PerformanceC
   return <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4" role="presentation"><form onSubmit={submit} role="dialog" ref={dialogRef} aria-modal="true" aria-labelledby="search-console-title" className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-lg border border-black/10 bg-white p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase text-brand">Organic search</p><h2 id="search-console-title" className="mt-1 text-xl font-semibold">Connect Search Console</h2><p className="mt-2 text-sm leading-6 text-black/50">Create a Google service account, add its email as a user on the Search Console property, then paste the downloaded JSON key below.</p></div><button type="button" onClick={onClose} aria-label="Close" className="grid size-9 shrink-0 place-items-center rounded-md hover:bg-black/[0.04]"><X size={17} /></button></div><div className="mt-5 grid gap-4"><Field label="Connection name"><input name="label" required defaultValue={`${client.name} Search Console`} className="min-h-11 rounded-md border border-black/15 px-3 text-sm" /></Field><Field label="Exact Search Console property" help="For a domain property use sc-domain:example.com"><input name="siteUrl" required className="min-h-11 rounded-md border border-black/15 px-3 text-sm" placeholder="sc-domain:example.com" /></Field><Field label="Matching Aqua property"><select name="propertyId" required className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm"><option value="">Choose property</option>{client.properties.map(property => <option key={property.id} value={property.id}>{property.label} · {property.id}</option>)}</select></Field><Field label="Service account JSON" help="Stored encrypted in the integration vault and never returned to the browser."><textarea name="serviceAccountJson" required rows={7} spellCheck={false} className="rounded-md border border-black/15 px-3 py-2 font-mono text-xs" placeholder={'{"type":"service_account", ...}'} /></Field>{error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}</div><div className="mt-6 flex justify-end gap-2"><button type="button" onClick={onClose} className="min-h-10 px-3 text-sm font-medium">Cancel</button><button disabled={busy} className="min-h-10 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving..." : "Save connection"}</button></div></form></div>;
 }
 
-function MonthlyReportsPanel({ client, selectedPropertyId, onReportsChange }: { client: PerformanceClient; selectedPropertyId?: string; onReportsChange: (reports: MonthlyPerformanceReport[]) => void }) {
-  const [reports, setReports] = useState(client.reports);
+function MonthlyReportsPanel({
+  client,
+  selectedPropertyId,
+  beginReportMutation,
+  onReportsChange,
+}: {
+  client: PerformanceClient;
+  selectedPropertyId?: string;
+  beginReportMutation: () => number;
+  onReportsChange: (reports: MonthlyPerformanceReport[], sequence: number) => void;
+}) {
   const [month, setMonth] = useState(previousMonth());
-  const [busy, setBusy] = useState<string>();
-  const [message, setMessage] = useState<string>();
+  const [busy, setBusy] = useState<ReportMutationBusyState>();
+  const busyRef = useRef(false);
+  const [feedback, setFeedback] = useState<{ tone: "error" | "success"; message: string }>();
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const reportMonthValid = isValidPerformanceReportMonth(month, currentMonth);
+  const isGenerating = busy?.action === "generate";
 
-  async function action(actionName: "generate" | "publish" | "withdraw" | "delete", reportId?: string, withdrawalReason?: string) {
-    setBusy(reportId || actionName);
-    setMessage(undefined);
-    const response = await fetch("/api/portal/performance/reports", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: actionName, clientId: client.id, reportId, propertyId: actionName === "generate" ? selectedPropertyId : undefined, month, withdrawalReason }) });
-    const payload = await response.json().catch(() => null) as { reports?: MonthlyPerformanceReport[]; error?: string } | null;
-    if (response.ok) {
-      const next = payload?.reports ?? [];
-      setReports(next);
-      onReportsChange(next);
-      setMessage(actionName === "generate" ? "A new draft revision was generated from the selected month." : actionName === "publish" ? "Report published in the client portal." : actionName === "withdraw" ? "Report withdrawn from the client portal; its history was retained." : "Draft deleted.");
-    } else setMessage(payload?.error || "The report could not be updated.");
-    setBusy(undefined);
+  async function action(actionName: ReportMutationAction, reportId?: string, withdrawalReason?: string) {
+    if (busyRef.current) return;
+    const normalizedWithdrawalReason = actionName === "withdraw"
+      ? normalizeReportWithdrawalReason(withdrawalReason)
+      : undefined;
+    if (actionName === "generate" && !isValidPerformanceReportMonth(month, currentMonth)) {
+      setFeedback({ tone: "error", message: "Choose a valid current or past report month." });
+      return;
+    }
+    if (actionName === "withdraw" && !normalizedWithdrawalReason) {
+      setFeedback({ tone: "error", message: "Add a reason for withdrawing this report." });
+      return;
+    }
+    busyRef.current = true;
+    setBusy({ action: actionName, reportId });
+    setFeedback(undefined);
+    const fallback = actionName === "generate" ? "The report draft could not be generated."
+      : actionName === "publish" ? "The report could not be published."
+        : actionName === "withdraw" ? "The report could not be withdrawn."
+          : "The report draft could not be deleted.";
+    try {
+      const sequence = beginReportMutation();
+      const payload = await checkedJsonMutation<ReportMutationPayload>(
+        "/api/portal/performance/reports",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            action: actionName,
+            clientId: client.id,
+            reportId,
+            propertyId: actionName === "generate" ? selectedPropertyId : undefined,
+            month,
+            withdrawalReason: normalizedWithdrawalReason,
+          }),
+        },
+        {
+          fallback,
+          validate: value => isReportMutationPayload(value, {
+            action: actionName,
+            clientId: client.id,
+            reportId,
+            month,
+            propertyId: actionName === "generate" ? selectedPropertyId : undefined,
+            withdrawalReason: normalizedWithdrawalReason,
+          }),
+        },
+      );
+      const next = payload.reports;
+      onReportsChange(next, sequence);
+      setFeedback({
+        tone: "success",
+        message: actionName === "generate" ? "A new draft revision was generated from the selected month." : actionName === "publish" ? "Report published in the client portal." : actionName === "withdraw" ? "Report withdrawn from the client portal; its history was retained." : "Draft deleted.",
+      });
+    } catch (error) {
+      setFeedback({ tone: "error", message: mutationErrorMessage(error, fallback) });
+    } finally {
+      busyRef.current = false;
+      setBusy(undefined);
+    }
   }
 
   function deleteDraft(report: MonthlyPerformanceReport) {
@@ -272,13 +344,72 @@ function MonthlyReportsPanel({ client, selectedPropertyId, onReportsChange }: { 
     if (reason?.trim()) void action("withdraw", report.id, reason);
   }
 
-  return <section className="rounded-lg border border-black/10 bg-white"><div className="flex flex-col gap-4 border-b border-black/10 p-5 lg:flex-row lg:items-end lg:justify-between sm:p-6"><div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-md bg-[#f6f1e8] text-[#7c6032]"><FileBarChart size={18} /></span><div><h2 className="font-semibold text-black/85">Monthly client reports</h2><p className="mt-1 max-w-2xl text-sm leading-6 text-black/50">Generate a factual draft, check it, then publish it into {client.name}&apos;s Results area. Published revisions stay in the audit history.</p></div></div><div className="flex flex-col gap-2 sm:flex-row"><label className="grid gap-1 text-[10px] font-semibold uppercase text-black/45">Report month<input type="month" value={month} max={new Date().toISOString().slice(0, 7)} onChange={event => setMonth(event.target.value)} className="min-h-10 rounded-md border border-black/15 px-3 text-sm font-medium normal-case" /></label><button type="button" onClick={() => void action("generate")} disabled={Boolean(busy)} className="mt-auto inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50"><CalendarDays size={15} />{busy === "generate" ? "Generating..." : "Generate draft"}</button></div></div>{message ? <p className="border-b border-black/10 bg-black/[0.025] px-5 py-3 text-sm text-black/60 sm:px-6">{message}</p> : null}{reports.length ? <div className="divide-y divide-black/10">{reports.map(report => <ReportRow key={report.id} report={report} propertyLabel={client.properties.find(item => item.id === report.propertyId)?.label} busy={busy === report.id} onPublish={() => void action("publish", report.id)} onWithdraw={() => withdraw(report)} onDelete={() => deleteDraft(report)} />)}</div> : <div className="p-9 text-center"><FileBarChart className="mx-auto text-black/20" /><p className="mt-3 font-semibold text-black/70">No monthly reports yet</p><p className="mt-1 text-sm text-black/45">Generate the first draft when the reporting month is ready.</p></div>}</section>;
+  return (
+    <section className="rounded-lg border border-black/10 bg-white">
+      <div className="flex flex-col gap-4 border-b border-black/10 p-5 lg:flex-row lg:items-end lg:justify-between sm:p-6">
+        <div className="flex items-start gap-3">
+          <span className="grid size-10 shrink-0 place-items-center rounded-md bg-[#f6f1e8] text-[#7c6032]"><FileBarChart size={18} /></span>
+          <div>
+            <h2 className="font-semibold text-black/85">Monthly client reports</h2>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-black/50">Generate a factual draft, check it, then publish it into {client.name}&apos;s Results area. Published revisions stay in the audit history.</p>
+          </div>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <label className="grid gap-1 text-[10px] font-semibold uppercase text-black/45">
+            Report month
+            <input
+              type="month"
+              value={month}
+              max={currentMonth}
+              required
+              aria-invalid={!reportMonthValid}
+              onChange={event => setMonth(event.target.value)}
+              disabled={Boolean(busy)}
+              className="min-h-10 rounded-md border border-black/15 px-3 text-sm font-medium normal-case disabled:cursor-not-allowed disabled:opacity-50"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => void action("generate")}
+            disabled={Boolean(busy) || !reportMonthValid}
+            aria-busy={isGenerating}
+            className="mt-auto inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isGenerating ? <MutationSpinner size={15} /> : <CalendarDays size={15} aria-hidden="true" />}
+            {isGenerating ? "Generating..." : "Generate draft"}
+          </button>
+        </div>
+      </div>
+      {feedback ? <p role={feedback.tone === "error" ? "alert" : "status"} className={`border-b border-black/10 px-5 py-3 text-sm sm:px-6 ${feedback.tone === "error" ? "bg-red-50 text-red-700" : "bg-black/[0.025] text-black/60"}`}>{feedback.message}</p> : null}
+      {client.reports.length ? (
+        <div className="divide-y divide-black/10">
+          {client.reports.map(report => (
+            <ReportRow
+              key={report.id}
+              report={report}
+              propertyLabel={client.properties.find(item => item.id === report.propertyId)?.label}
+              busy={Boolean(busy)}
+              busyAction={busy?.reportId === report.id && busy.action !== "generate" ? busy.action : undefined}
+              onPublish={() => void action("publish", report.id)}
+              onWithdraw={() => withdraw(report)}
+              onDelete={() => deleteDraft(report)}
+            />
+          ))}
+        </div>
+      ) : <div className="p-9 text-center"><FileBarChart className="mx-auto text-black/20" /><p className="mt-3 font-semibold text-black/70">No monthly reports yet</p><p className="mt-1 text-sm text-black/45">Generate the first draft when the reporting month is ready.</p></div>}
+    </section>
+  );
 }
 
-function ReportRow({ report, propertyLabel, busy, onPublish, onWithdraw, onDelete }: { report: MonthlyPerformanceReport; propertyLabel?: string; busy: boolean; onPublish: () => void; onWithdraw: () => void; onDelete: () => void }) {
+function ReportRow({ report, propertyLabel, busy, busyAction, onPublish, onWithdraw, onDelete }: { report: MonthlyPerformanceReport; propertyLabel?: string; busy: boolean; busyAction?: Exclude<ReportMutationAction, "generate">; onPublish: () => void; onWithdraw: () => void; onDelete: () => void }) {
   const statusTone = report.status === "published" ? "bg-emerald-50 text-emerald-700" : report.status === "draft" ? "bg-amber-50 text-amber-700" : "bg-black/[0.05] text-black/45";
-  return <div className="p-5 sm:p-6"><div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div><div className="flex flex-wrap items-center gap-2"><p className="font-semibold text-black/80">{report.label}</p><span className={`rounded px-2 py-0.5 text-[10px] font-semibold uppercase ${statusTone}`}>{report.status}</span><span className="text-[10px] font-medium text-black/35">revision {report.revision}</span></div><p className="mt-1 text-xs text-black/42">{propertyLabel || "All properties"} · generated {formatUkDate(report.generatedAt, { dateStyle: "medium" })}</p></div><div className="grid grid-cols-3 gap-4 text-center lg:min-w-80"><ReportMetric label="Views" value={report.analytics.current.views} /><ReportMetric label="Enquiries" value={report.analytics.current.conversions} /><ReportMetric label="Search clicks" value={report.analytics.current.searchClicks} /></div><div className="flex gap-2">{report.status === "draft" ? <><button type="button" onClick={onPublish} disabled={busy} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white"><Send size={14} />Publish</button><button type="button" onClick={onDelete} disabled={busy} className="min-h-10 rounded-md border border-black/10 px-3 text-sm text-black/50 hover:text-red-700">Delete draft</button></> : report.status === "published" ? <><span className="inline-flex min-h-10 items-center gap-2 px-2 text-sm font-semibold text-emerald-700"><Check size={14} />In portal</span><button type="button" onClick={onWithdraw} disabled={busy} className="min-h-10 rounded-md border border-black/10 px-3 text-sm text-black/50 hover:text-red-700">Withdraw</button></> : <span className="inline-flex min-h-10 items-center px-2 text-sm font-semibold text-black/40">History retained</span>}</div></div><details className="mt-4 border-t border-black/8 pt-4"><summary className="cursor-pointer text-sm font-semibold text-black/60">Preview report summary</summary><div className="mt-4 grid gap-5 md:grid-cols-2"><ReportList title="Highlights" rows={report.highlights} /><ReportList title="Next steps" rows={report.nextSteps} /></div></details></div>;
+  const isPublishing = busyAction === "publish";
+  const isWithdrawing = busyAction === "withdraw";
+  const isDeleting = busyAction === "delete";
+  return <div className="p-5 sm:p-6" aria-busy={Boolean(busyAction)}><div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div><div className="flex flex-wrap items-center gap-2"><p className="font-semibold text-black/80">{report.label}</p><span className={`rounded px-2 py-0.5 text-[10px] font-semibold uppercase ${statusTone}`}>{report.status}</span><span className="text-[10px] font-medium text-black/35">revision {report.revision}</span></div><p className="mt-1 text-xs text-black/42">{propertyLabel || "All properties"} · generated {formatUkDate(report.generatedAt, { dateStyle: "medium" })}</p></div><div className="grid grid-cols-3 gap-4 text-center lg:min-w-80"><ReportMetric label="Views" value={report.analytics.current.views} /><ReportMetric label="Enquiries" value={report.analytics.current.conversions} /><ReportMetric label="Search clicks" value={report.analytics.current.searchClicks} /></div><div className="flex gap-2">{report.status === "draft" ? <><button type="button" onClick={onPublish} disabled={busy} aria-busy={isPublishing} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{isPublishing ? <MutationSpinner /> : <Send size={14} aria-hidden="true" />}{isPublishing ? "Publishing..." : "Publish"}</button><button type="button" onClick={onDelete} disabled={busy} aria-busy={isDeleting} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/10 px-3 text-sm text-black/50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50">{isDeleting ? <MutationSpinner /> : null}{isDeleting ? "Deleting..." : "Delete draft"}</button></> : report.status === "published" ? <><span className="inline-flex min-h-10 items-center gap-2 px-2 text-sm font-semibold text-emerald-700"><Check size={14} />In portal</span><button type="button" onClick={onWithdraw} disabled={busy} aria-busy={isWithdrawing} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/10 px-3 text-sm text-black/50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50">{isWithdrawing ? <MutationSpinner /> : null}{isWithdrawing ? "Withdrawing..." : "Withdraw"}</button></> : <span className="inline-flex min-h-10 items-center px-2 text-sm font-semibold text-black/40">History retained</span>}</div></div><details className="mt-4 border-t border-black/8 pt-4"><summary className="cursor-pointer text-sm font-semibold text-black/60">Preview report summary</summary><div className="mt-4 grid gap-5 md:grid-cols-2"><ReportList title="Highlights" rows={report.highlights} /><ReportList title="Next steps" rows={report.nextSteps} /></div></details></div>;
 }
+
+function MutationSpinner({ size = 14 }: { size?: number }) { return <span className="inline-flex animate-spin" aria-hidden="true"><RefreshCw size={size} /></span>; }
 
 function StatusMetric({ label, value, detail, good }: { label: string; value: string; detail: string; good?: boolean }) { return <div className="min-h-24 p-4 sm:p-5"><p className="text-[10px] font-semibold uppercase text-black/40">{label}</p><p className={`mt-2 text-lg font-semibold ${good ? "text-emerald-700" : "text-black/75"}`}>{value}</p><p className="mt-1 text-xs text-black/40">{detail}</p></div>; }
 function ConnectionStatus({ connection }: { connection: PublicIntegrationConnection }) { const connected = connection.status === "connected"; return <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-semibold uppercase ${connected ? "bg-emerald-50 text-emerald-700" : connection.status === "needs-attention" ? "bg-red-50 text-red-700" : "bg-black/[0.05] text-black/50"}`}>{connected ? <Check size={10} /> : null}{connection.status.replace("-", " ")}</span>; }

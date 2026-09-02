@@ -2,7 +2,7 @@
 
 > The current checklist, status, roadmap, goals, decisions and working queue.
 >
-> Consolidated 2026-09-02 from **7** source documents / **86,428 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-02 from **7** source documents / **86,669 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -10,8 +10,8 @@
 - [`docs/development/checklist.md`](#source-docs-development-checklist-md) — 21,042 words · `85a61c134385`
 - [`docs/development/goals.md`](#source-docs-development-goals-md) — 506 words · `28009372c4ab`
 - [`docs/development/notes.md`](#source-docs-development-notes-md) — 1,730 words · `f68ea59936dd`
-- [`docs/development/roadmap.md`](#source-docs-development-roadmap-md) — 21,563 words · `dcf04f8d045a`
-- [`docs/development/status.md`](#source-docs-development-status-md) — 20,994 words · `58163d75aff8`
+- [`docs/development/roadmap.md`](#source-docs-development-roadmap-md) — 21,627 words · `6fdc87932849`
+- [`docs/development/status.md`](#source-docs-development-status-md) — 21,171 words · `b67028c8778e`
 - [`docs/development/todo-retired.md`](#source-docs-development-todo-retired-md) — 15,920 words · `4bde57e97f03`
 
 ---
@@ -2902,7 +2902,7 @@ the [file map](../WORKSPACE-FILE-TREE.md); issues/risks live in
 
 ## Source document — `docs/development/roadmap.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/roadmap.md" sha256="dcf04f8d045ade3fd76b09825f3941a99530b8082c33c5cf1ace06e68bc939aa" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/roadmap.md" sha256="6fdc8793284926cd9898c89822167ead2f57adea6dee183c5c5e0b2cdd89dda8" -->
 # Roadmap
 
 ← [state.md](../context/state.md) · [todo.md](TODO.md) · **The outer view — what is coming, and when.**
@@ -3409,20 +3409,6 @@ Mixed GBP/USD, pending-order exclusion, pre-payout cancellation, post-payout par
 **Why:** Complete service candidates now validate allowlisted fields, identity, enum/currency, bounded money/rates/dates, references, category/provider relationships and payout composition before mutation.
 
 Blank/unknown/NaN/negative/out-of-range plan, benefit, subscription, affiliate, code, order and payout inputs return field errors while the complete plugin store remains byte-identical. Focused proof passes 3/3 and widened Membership/Affiliate/Ecommerce passes 82/82. Finish literal mounted invalid-submit/error/reload acceptance before moving this item to Shipped.
-
-### Preserve immutable published Performance reports
-**Id:** immutable-performance-report-history · **Status:** building · **Size:** M · **Added:** 2026-08-25 · **Source:** ultra-review
-**Files:** src/app/api/portal/performance/reports/route.ts, src/lib/performance/performanceReports.ts, src/app/portal/agency/performance/_AquaTagDashboard.tsx, src/app/portal/customer/_CustomerPortalViews.tsx, src/server/productWorkspaceCoordinator.ts, scripts/smoke-performance-reports.test.ts
-**Why:** The mutable-row defect is repaired: every generation creates a numbered draft, publish retains and explicitly supersedes an immutable snapshot, withdrawal records actor/reason, only confirmed drafts delete, and the complete report ledger mutates under a durable fresh-state transaction. Dedicated proof passes 4/4.
-
-Browser-prove publish, regenerate, compare/re-publish, withdraw/delete, two-tab conflict and reload in both portals before marking Shipped.
-
-### Enforce Performance experiment evidence integrity
-**Id:** valid-versioned-performance-experiments · **Status:** building · **Size:** M · **Added:** 2026-08-25 · **Source:** ultra-review
-**Files:** src/server/performanceExperiments.ts, src/server/types.ts, src/app/api/portal/performance/experiments/route.ts, src/app/portal/agency/performance/_ExperimentsPanel.tsx, src/lib/performance/performanceAnalytics.ts, scripts/smoke-performance-experiment-integrity.test.ts
-**Why:** The invalid-evidence defect is repaired: stable ids are unique, conversions cannot exceed whole-number visitors, lifecycle updates are timestamped/versioned, completion is immutable, amendment creates a numbered draft, and only drafts delete. Dedicated proof passes 2/2.
-
-Browser-prove API/live-event joins, completion/amendment/delete and reload before marking Shipped.
 
 ### Make Aqua Advisor turns durable and retry-idempotent
 **Id:** durable-advisor-turn-operations · **Status:** building · **Size:** M · **Added:** 2026-08-25 · **Source:** ultra-review
@@ -4380,6 +4366,20 @@ This remains a truthful record of the first pass, **not a current performance cl
 **Why:** Every page paid for every block type.
 
 347KB → 59KB, both routes browser-verified.
+
+### Preserve immutable published Performance reports
+**Id:** immutable-performance-report-history · **Status:** shipped · **Size:** M · **Added:** 2026-08-25 · **Shipped:** 2026-09-02 · **Source:** ultra-review
+**Files:** src/app/api/portal/performance/reports/route.ts, src/lib/performance/performanceReports.ts, src/app/portal/agency/performance/_AquaTagDashboard.tsx, src/app/portal/customer/_CustomerPortalViews.tsx, src/server/productWorkspaceCoordinator.ts, scripts/smoke-performance-reports.test.ts
+**Why:** The mutable-row defect is repaired: every generation creates a numbered draft, publish retains and explicitly supersedes an immutable snapshot, withdrawal records actor/reason, only confirmed drafts delete, and the complete report ledger mutates under a durable fresh-state transaction. Dedicated proof passes 4/4.
+
+**Shipped 2026-09-02:** browser-proven on exact isolated build `H-vbnKm_hrkDkN8fgxwqF` — publish, regenerate, republish/supersede, two-tab stale publish 409, withdraw and delete in both portals with two tabs and reload, plus forced-failure receipts, clean at 375×812, 390×844, 812×375, 768×1024, 1024×768, 1280×800 and 1920×1080.
+
+### Enforce Performance experiment evidence integrity
+**Id:** valid-versioned-performance-experiments · **Status:** shipped · **Size:** M · **Added:** 2026-08-25 · **Shipped:** 2026-09-02 · **Source:** ultra-review
+**Files:** src/server/performanceExperiments.ts, src/server/types.ts, src/app/api/portal/performance/experiments/route.ts, src/app/portal/agency/performance/_ExperimentsPanel.tsx, src/lib/performance/performanceAnalytics.ts, scripts/smoke-performance-experiment-integrity.test.ts
+**Why:** The invalid-evidence defect is repaired: stable ids are unique, conversions cannot exceed whole-number visitors, lifecycle updates are timestamped/versioned, completion is immutable, amendment creates a numbered draft, and only drafts delete. Dedicated proof passes 2/2.
+
+**Shipped 2026-09-02:** browser-proven on exact isolated build `H-vbnKm_hrkDkN8fgxwqF` — live tagged-event joins by experiment id and stable variant id, completion, amendment, delete, two-tab stale 409, lost-response replay and reload, plus forced-failure receipts, clean at 375×812, 390×844, 812×375, 768×1024, 1024×768, 1280×800 and 1920×1080.
 <!-- AQUACRM_SOURCE_END path="docs/development/roadmap.md" -->
 
 ---
@@ -4388,7 +4388,7 @@ This remains a truthful record of the first pass, **not a current performance cl
 
 ## Source document — `docs/development/status.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/status.md" sha256="58163d75aff8e83fb5427897f391ff3d649fa231dcd406c6ab8a47978db712d1" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/status.md" sha256="b67028c8778ed20ade159fcc6de285cd0f6394c1beb58ce6ef2949e035a6dcfb" -->
 # Status & verification register
 
 ← Back to [development.md](../development.md) (the law)
@@ -4421,6 +4421,13 @@ This remains a truthful record of the first pass, **not a current performance cl
 > are green. The final browser evidence above supersedes the browser-pending wording
 > recorded earlier in the day's append-only update entry; the final repository suite
 > and post-fix build are green with the exact accounting above.
+>
+> **Performance checked-mutation checkpoint (2026-09-02):** focused Performance gate
+> **38/38**, adjacent **74/74**; exact production build `H-vbnKm_hrkDkN8fgxwqF` (245/245 pages)
+> passed **119/119** Playwright stories at 375×812, 390×844, 812×375, 768×1024, 1024×768, 1280×800 and 1920×1080 with zero unexpected console,
+> page, request or HTTP failures and zero overflow. Issues #128 and #129 are closed on
+> that evidence; #47 gains its fifth cohort and stays partial. Canonical suite figures
+> for this checkpoint are in the update log entry of the same date.
 >
 > **Final Actions + Memberships checkpoint (2026-09-02):** Actions **54/54**,
 > focused Memberships **65/65**, adjacent Memberships/company/Ecommerce **90/90**
@@ -4645,8 +4652,8 @@ not rerun.
 | Affiliate accounting truth | **Code/behaviour resolved; mounted/live-provider acceptance pending.** Eligible orders snapshot currency/settlement facts; payouts are currency-bound with gross/reversal/net composition, and cumulative cancellation/refund state is reconciled before transfer or as a same-currency future offset after settlement. | Mixed GBP/USD, pending-order exclusion, pre-payout cancellation, post-payout partial/full refund, replay and admin/affiliate source proof **3/3**; package+focused **20/20**, widened **79/79**, TypeScript/diff pass. Literal browser/live-provider proof remains. |
 | Membership/Affiliate record validity | **Code/behaviour resolved; mounted browser acceptance pending.** Allowlisted create/patch inputs and complete service candidates validate nonblank identities, enums/currencies, bounded integer money/rates/dates, references, category fields, provider projections and payout composition before mutation. | Full-store byte-identical refusal matrix **3/3**, widened Membership/Affiliate/Ecommerce **82/82**, TypeScript/diff pass. Complete literal mounted invalid-submit/error/reload proof. |
 | Affiliate identity uniqueness | **Resolved.** Durable install-scoped claims choose the complete Affiliate/code/attribution row before secondary writes; identical retries adopt and repair it, conflicts reject, collection locks preserve shared indexes and stable operation markers make referral counters exact. | Delayed multi-container user/code/order/payout races plus interrupted-write/fresh-container recovery pass **4/4**; focused **27/27**, widened Membership/Affiliate/Ecommerce **86/86**, TypeScript/diff pass. |
-| Performance report history | **Code/behaviour repaired; mounted acceptance pending.** Generation creates a numbered draft, publication retains/supersedes the immutable prior snapshot, withdrawal is explicit/reasoned/audited and only confirmed drafts delete. The entire client ledger is fresh-read under one durable mutation lock. | Dedicated lifecycle/coordination proof **4/4**, widened Performance/showcase **23/23**. Browser-prove both portals, two tabs and reload before full closure. |
-| Performance experiment integrity | **Code/behaviour repaired; mounted acceptance pending.** Unique stable ids, coherent whole-number results, optimistic versions and allowed timestamped transitions are enforced. Completed evidence is immutable; Amend creates a numbered draft and only drafts delete. | Dedicated lifecycle proof **2/2**, widened Performance/showcase **23/23**. Browser-prove API/live-event joins, amend/delete and reload before full closure. |
+| Performance report history | **Resolved and browser-accepted (2026-09-02).** Generation creates a numbered draft, publication retains/supersedes the immutable prior snapshot, withdrawal is explicit/reasoned/audited and only confirmed drafts delete; the mounted panel uses checked receipts sequenced through the parent, and the route classifies request/state refusals and captures unexpected failures. | Exact build `H-vbnKm_hrkDkN8fgxwqF`: generate/publish/regenerate/supersede/two-tab stale publish 409/withdraw/delete with agency + customer history, two tabs and reload, plus forced 503/409/malformed/wrong-identity/rejected receipts, clean at 375×812, 390×844, 812×375, 768×1024, 1024×768, 1280×800 and 1920×1080. Focused Performance gate **38/38**. |
+| Performance experiment integrity | **Resolved and browser-accepted (2026-09-02).** Unique stable ids, coherent whole-number results, optimistic versions and allowed timestamped transitions are enforced; completed evidence is immutable, Amend creates a numbered draft and only drafts delete; the mounted panel validates every variant in the receipt and the route classifies validation 400 / conflict 409 / not-found 404 / generic 500 with the lookup and client gate inside the refreshed transaction. | Exact build `H-vbnKm_hrkDkN8fgxwqF`: create/edit/complete/amend/delete, live tagged-event join after reload, two-tab stale 409, lost-response replay and forced 500/400/rejected/malformed/wrong-identity receipts, clean at 375×812, 390×844, 812×375, 768×1024, 1024×768, 1280×800 and 1920×1080. |
 | File backend | **Repaired and failure-path verified.** Writes commit through a same-directory temp file, fsync and rename; a failure is surfaced, marks the backend unwritable and cannot advance persistence state. Malformed JSON is preserved as recovery-required instead of hydrating an empty CRM. | Keep the dedicated recovery smoke in the release gate; cross-process collection coordination is a separate architecture concern. |
 | Aqua Editor AI | **Implementation complete; deployment acceptance partial.** Stored replay, realm-scoped in-process dedup/local claims, durable claim functions/adapters and fresh post-provider state checks are coded/tested. Generation uses the shared fenced/deadlined OpenAI adapter. Ambiguous provider/persistence/completion outcomes retain their bounded claim; Sandbox traffic makes zero network calls; identical live/Sandbox ids do not coalesce; a warm reply after flush failure is not called durable. | Focused proof is **35 passed / 1 optional live-Postgres skip**, plus TypeScript/diff. Apply the migration/DDL and run the included independent-process claim test against the actual database before production acceptance. |
 | Editor lifecycle | **Project-bound dirty state and source-level AI remount/prefill clearing exist; runtime isolation remains open** | Route browser hide, surface, lifecycle and refresh through one policy, reproduce/close reported cross-project prefill bleed, then drive the full matrix in a browser. |
@@ -4659,7 +4666,7 @@ not rerun.
 | Paid Memberships | **Code/behaviour repaired; live Stripe acceptance pending.** The exact-client foundation is real and truthfully unavailable without scoped credentials. Durable operation history, immutable Checkout/provider terms, every retired provider generation, provider-lane adoption, authoritative webhook reconciliation, a paid-dominant payment ledger and one terminal cancellation transition protect the local lifecycle. Partial default seeding is reported rather than hidden. | Plan-price **11/11**, focused Memberships **65/65**, adjacent **90/90** and changed-surface **145/145** pass with clean independent review. Run paid plan → Checkout → signed webhook → switch/pause/resume/cancel → reload/reconciliation with a real Stripe test account. |
 | Affiliate automated payouts | **Code/behaviour repaired; live Stripe Connect acceptance pending.** The foundation supplies a real exact-client Connect adapter only from scoped Ecommerce credentials; unavailable onboarding/transfer controls are gated. Onboarding owns a durable stable-key intent, final target validation, sequence-fenced status and current-provider webhook refresh. Money movement also requires a webhook secret so an unreconcilable transfer cannot start. | Current module plus onboarding/dependency proof is **32/32**; earlier payout/currency proof remains green. Run account → hosted onboarding → status webhook → transfer → completion/reload in Stripe test mode. |
 | Client creation phase setup | **Code/behaviour resolved; mounted browser acceptance pending.** Agency phase rows now drive one durable operation used by New Client, lead/contact/person conversion and linked workspaces. It persists before effects, checkpoints the client, replays safely, resumes failed steps only and exposes retryable incomplete state. Epic Intro uses Website Editor plus `aqua-incubator`; exact clients GET is restored and mounted hard-coded presets are gone. | Dedicated **4/4**, wider lifecycle/navigation/lead/relationship **75/75**, TypeScript clean. Browser-submit all built-in/custom stages, deleted-row refusal and forced install/variant/portal failure → retry → reload while inspecting installs/checklist/starter and incomplete UI. |
-| Mutation error feedback | **Partial — the checked boundary, first broad cohort and mounted Finance, Dev Team, Governance, Fulfilment and audited Actions writes are implemented.** `checkedJsonMutation()` rejects transport, unreadable/malformed JSON, non-2xx, `{ok:false}` and invalid success payloads; 5xx bodies are opaque and unsafe/bloated 4xx/domain diagnostics fall back. Actions task completion/delete and alert decisions additionally bind revisions or semantic occurrences to deterministic receipts, return authoritative snapshots and keep refused work visible with settled busy state. | Actions **54/54** and complete changed-surface **145/145** pass with clean independent review; exact build `bcNH7NEvlzmp6z1VXtmch` passes the responsive failure/replay matrix **40/40** jointly with Memberships. The broader 148-family audit remains open: migrate Client Centre, phase, SOP, Company, Performance and related controls, then complete forced 4xx/5xx/503, rejected-fetch and malformed-response browser flows before closing #47. |
+| Mutation error feedback | **Partial — the checked boundary, first broad cohort and mounted Finance, Dev Team, Governance, Fulfilment, audited Actions and Performance writes are implemented.** `checkedJsonMutation()` rejects transport, unreadable/malformed JSON, non-2xx, `{ok:false}` and invalid success payloads; 5xx bodies are opaque and unsafe/bloated 4xx/domain diagnostics fall back. Actions task completion/delete and alert decisions additionally bind revisions or semantic occurrences to deterministic receipts, return authoritative snapshots and keep refused work visible with settled busy state. | Actions **54/54** and complete changed-surface **145/145** pass with clean independent review; exact build `bcNH7NEvlzmp6z1VXtmch` passes the responsive failure/replay matrix **40/40** jointly with Memberships. Performance (experiments, reports, milestones) adds parent-sequenced receipts and one shared route classifier; exact build `H-vbnKm_hrkDkN8fgxwqF` passes **119/119** stories at seven viewports including forced 5xx/4xx, rejected-fetch, malformed and wrong-identity receipts. The broader 148-family audit remains open: migrate Client Centre, phase, SOP, Company and related controls, then complete their forced-failure browser flows before closing #47. |
 | Health Check result handoff | **P2 — the assessment is honest, but its visible email/link controls do not carry the result.** Email opens an untargeted draft with `[results URL placeholder]`; link copies the unchanged page URL while answers remain in memory/localStorage, so a clean browser starts over. The separate progress-save flow already has a working seven-day resume serializer; PDF correctly opens print. | Reuse the state-bearing resume URL for final link/email actions, describe draft-vs-send truthfully, handle clipboard refusal and prove the same completed result opens in a clean session. |
 | Automation manual-run feedback | **P2 — execution state is accurate but the immediate notice is not.** Failed email/webhook/task actions produce a durable `failed` run and diagnostic, yet the endpoint wraps it in `ok:true` and “Run now” labels every non-waiting outcome “Live flow completed.” | Branch on failed/skipped/succeeded, display the final run error immediately and add forced action-failure browser/component coverage. |
 | Business OS destinations | **P2 — the assistant is honestly labelled scripted, but its current action chips are stale.** The mounted reply catalogue links phase, company, bridge and recommendation prompts to seven retired/missing HTML files; human prompts/footer use bare `https://wa.me/` without a recipient. After Health Check, the Toolbox also unlocks five cards whose `/resources/*` routes do not exist. | Retarget every emitted action/card to the current BOS, implemented tools, Health Check or configured support; reject missing rendered links in tests and click representative cards/prompts in browser acceptance. |

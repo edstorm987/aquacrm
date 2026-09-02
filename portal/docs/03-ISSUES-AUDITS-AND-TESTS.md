@@ -2,7 +2,7 @@
 
 > Verified findings, independent reviews, browser audits and the testing record.
 >
-> Consolidated 2026-09-02 from **11** source documents / **117,208 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-02 from **11** source documents / **117,622 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -13,8 +13,8 @@
 - [`docs/development/findings/2026-08-22-app-audit-salvage.md`](#source-docs-development-findings-2026-08-22-app-audit-salvage-md) — 1,294 words · `16f6f10e5bc4`
 - [`docs/development/findings/2026-08-22-stripe-can-never-be-configured.md`](#source-docs-development-findings-2026-08-22-stripe-can-never-be-configured-md) — 466 words · `e91f13c8620f`
 - [`docs/development/findings/2026-08-22-surfaces-that-state-a-falsehood.md`](#source-docs-development-findings-2026-08-22-surfaces-that-state-a-falsehood-md) — 892 words · `dfeb4a6302c1`
-- [`docs/development/issues.md`](#source-docs-development-issues-md) — 41,706 words · `b6e04d39059c`
-- [`docs/development/tests.md`](#source-docs-development-tests-md) — 14,409 words · `2243203b4f52`
+- [`docs/development/issues.md`](#source-docs-development-issues-md) — 42,059 words · `6378e18532ac`
+- [`docs/development/tests.md`](#source-docs-development-tests-md) — 14,470 words · `ff95a4f0ff65`
 - [`docs/development/ultra-review-2026-08-24.md`](#source-docs-development-ultra-review-2026-08-24-md) — 15,503 words · `6725e738af21`
 - [`docs/development/visual-browser-audit-2026-08-23.md`](#source-docs-development-visual-browser-audit-2026-08-23-md) — 3,582 words · `3ee9b61d74e3`
 
@@ -2001,7 +2001,7 @@ _Captured from the Dev Team portal. Findings are the input side: review them, tu
 
 ## Source document — `docs/development/issues.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/issues.md" sha256="b6e04d39059ca7ea9f909536fa8a541738f34c2a4cb679ceca5cb2d592faca6b" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/issues.md" sha256="6378e18532ac7d26f2f910307eb01dc2233d86b0012411014c907b0849e16f85" -->
 # Issues & risks
 
 ← Back to [development.md](../development.md) (the law)
@@ -3905,9 +3905,21 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     **390×844, 768×1024, 1024×768 and 1280×800**, including malformed/lost-success/
     stale retry and settled-busy paths, with zero unexpected console, page, network,
     HTTP or overflow failures. The wider issue remains partial.
-    Issue #47 remains partial because Client Centre, phase, SOP, Company, Performance
-    and other unconverted families still need the same source and complete forced-
-    failure/transport/malformed-response browser treatment.
+    **Fifth implementation cohort — 2026-09-02 (Performance).** Split-test experiments,
+    monthly client reports and client milestones now use the checked contract with
+    parent-owned authoritative collections applied in per-client sequence order, exact
+    receipt validators (identity, expected version, every variant, month/property/
+    status, withdrawal reason), retained work on refusal, settled action-specific busy
+    state and one shared route classifier (auth 401/403, not-found 404, typed
+    validation 400, conflict 409, captured generic 500). Focused gate **38/38**,
+    adjacent gate **74/74**. Exact production build `H-vbnKm_hrkDkN8fgxwqF` passed **119/119**
+    Playwright stories at **375×812, 390×844, 812×375, 768×1024, 1024×768, 1280×800 and 1920×1080** — forced 500/503/400/409, rejected fetch,
+    malformed JSON and wrong-identity 200 receipts on every family, two-tab stale
+    conflicts, lost-response replay and reload — with zero unexpected console, page,
+    request or HTTP failures and zero overflow.
+    Issue #47 remains partial because Client Centre, phase, SOP, Company and other
+    unconverted families still need the same source and complete forced-failure/
+    transport/malformed-response browser treatment.
 
 48. **✅ RESOLVED 2026-08-26 — Health Check result sharing carries the completed
     state.** Progress-save and final result actions now use one testable seven-day
@@ -5328,27 +5340,45 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     orphan and exact counters: **4/4**. Focused Affiliate proof passes **27/27** and the widened
     Membership/Affiliate/Ecommerce gate passes **86/86**; TypeScript/diff pass.
 
-128. **Code/behaviour repaired 2026-08-26; mounted browser acceptance remains — published
-    Performance report history is immutable and explicitly retired.** Generation now always creates
+128. **✅ RESOLVED 2026-09-02 — published Performance report history is immutable,
+    explicitly retired and browser-accepted on an exact isolated build.** *(Originally:
+    code/behaviour repaired 2026-08-26; mounted browser acceptance remained.)* Generation now always creates
     a fresh id and monotonic revision. Publishing a newer draft retains the earlier analytics
     snapshot as `superseded`; an explicit reasoned `withdraw` retains its audit fields, and Delete
     refuses every non-draft. The agency UI confirms draft deletion and requires a withdrawal reason.
     The complete metadata array is re-read and written under the durable per-client
     `performance-reports` transaction, removing the stale whole-array replacement path. The focused
     publish→regenerate→republish→withdraw/delete regression plus route coordination assertions pass
-    **4/4**. Still required before full closure: literal two-tab/reload and both agency/customer
-    browser acceptance on an isolated server.
+    **4/4**. **Closed 2026-09-02:** on exact production build `H-vbnKm_hrkDkN8fgxwqF` served in
+    isolation, Playwright Chromium drove generate → publish → regenerate → republish
+    (superseded) → a second tab's publish racing a stale first-tab publish (409) → withdraw
+    with a reason → draft delete, checked the agency history and the customer portal's
+    Results page in a separate client-owner session after each step, reloaded both, and
+    forced 503/409/malformed-JSON/wrong-identity-200 and rejected-fetch receipts that kept
+    the draft and settled busy state, at 375×812, 390×844, 812×375, 768×1024, 1024×768, 1280×800 and 1920×1080 — 7/7 viewports clean. The route now
+    validates the report id and property type up front and captures unexpected failures
+    server-side behind the generic 500.
 
-129. **Code/behaviour repaired 2026-08-26; mounted browser acceptance remains — Performance
-    experiment evidence is validated and versioned.** Creation is draft-only; variants require
+129. **✅ RESOLVED 2026-09-02 — Performance experiment evidence is validated, versioned and
+    browser-accepted on an exact isolated build.** *(Originally: code/behaviour repaired
+    2026-08-26; mounted browser acceptance remained.)* Creation is draft-only; variants require
     unique stable ids, safe whole-number counts and conversions no greater than visitors. Updates
     require the current optimistic version and follow draft→running→paused/complete transitions
     with coherent start/end timestamps. Completed counts are immutable; explicit Amend creates a
     new numbered draft with preserved ids and reset evidence, while only drafts can be deleted.
     Live-event aggregation now joins only the stable variant id. Direct invalid creation, stale
     update, complete/reopen refusal, amendment, retained evidence and delete proof pass **2/2**.
-    Still required before full closure: mounted API/browser live-event, completion/amendment and
-    reload acceptance.
+    **Closed 2026-09-02:** on exact production build `H-vbnKm_hrkDkN8fgxwqF` served in isolation,
+    Playwright Chromium created a draft, edited it to running with manual evidence, posted
+    live Aqua Tag events through `/api/telemetry/collect` and saw them join by experiment
+    id and stable variant id after reload (11 of 102 → 10.8%), raced a stale second-tab
+    edit into a 409, completed and amended (numbered revision-2 draft, source marked
+    Amended), refused a forced delete and then deleted the amendment (source regained
+    Amend), replayed a lost response after reload, and forced 500/400/rejected/malformed/
+    wrong-identity receipts on save — at 375×812, 390×844, 812×375, 768×1024, 1024×768, 1280×800 and 1920×1080, 7/7 clean. The route classifies
+    validation 400 / conflict 409 / not-found 404 / generic 500 through the shared
+    Performance classifier, and the lookup plus client element gate run inside the
+    refreshed transaction.
 
 130. **Code/domain-behaviour repaired 2026-08-26; mounted provider acceptance remains — Aqua
     Advisor turns have a durable retry identity and atomic visible commit.** The composer creates
@@ -6069,7 +6099,7 @@ Keep the item's number, other docs link to it._
 
 ## Source document — `docs/development/tests.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/tests.md" sha256="2243203b4f527580917b87dc4b2ffbb97d8f311b8f8a5e3181103366bde55d2b" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/tests.md" sha256="ff95a4f0ff655a45acc4cf855e971cd4f106b6deb711d4d92c74c273bc8c93d0" -->
 # Tests
 
 ← Back to [development.md](../development.md) (the law)
@@ -6660,9 +6690,16 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   failure/replay result is recorded in the current release checkpoint.
   The wider 148-family non-Finance/non-Dev/non-Actions inventory remains open. Add a class-level
   guard plus forced 400/422/500/503, rejected-fetch and malformed-response mounted
-  cases for Client Centre, phase, SOP, Company, Performance and
-  related controls; assert retained input/context, visible safe failure and no success
-  continuation. → issue #47.
+  cases for Client Centre, phase, SOP, Company and related controls; assert retained
+  input/context, visible safe failure and no success continuation. → issue #47.
+- Performance (2026-09-02, fifth #47 cohort): `smoke-performance-experiments-checked-mutations`,
+  `smoke-performance-milestone-mutations` and `smoke-performance-report-checked-mutations`
+  (**38/38**) pin exact receipt validators, parent-sequenced apply order, the shared route
+  classifier (400/404/409/generic 500, no echoed exception text), client-scoped element
+  gating inside the refreshed transaction, cap-on-space normalisation and real-route
+  receipts through the browser validators. Exact build `H-vbnKm_hrkDkN8fgxwqF` browser evidence
+  (**119/119** stories, seven viewports) is recorded in the update log and issues
+  #47/#128/#129.
 - Health Check coverage proves question/scoring structure and the progress-save
   resume serializer, but not the three visible final-result controls. Add a browser
   case that completes a check, obtains the final share link, opens it in a clean

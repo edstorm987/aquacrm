@@ -505,20 +505,6 @@ Mixed GBP/USD, pending-order exclusion, pre-payout cancellation, post-payout par
 
 Blank/unknown/NaN/negative/out-of-range plan, benefit, subscription, affiliate, code, order and payout inputs return field errors while the complete plugin store remains byte-identical. Focused proof passes 3/3 and widened Membership/Affiliate/Ecommerce passes 82/82. Finish literal mounted invalid-submit/error/reload acceptance before moving this item to Shipped.
 
-### Preserve immutable published Performance reports
-**Id:** immutable-performance-report-history · **Status:** building · **Size:** M · **Added:** 2026-08-25 · **Source:** ultra-review
-**Files:** src/app/api/portal/performance/reports/route.ts, src/lib/performance/performanceReports.ts, src/app/portal/agency/performance/_AquaTagDashboard.tsx, src/app/portal/customer/_CustomerPortalViews.tsx, src/server/productWorkspaceCoordinator.ts, scripts/smoke-performance-reports.test.ts
-**Why:** The mutable-row defect is repaired: every generation creates a numbered draft, publish retains and explicitly supersedes an immutable snapshot, withdrawal records actor/reason, only confirmed drafts delete, and the complete report ledger mutates under a durable fresh-state transaction. Dedicated proof passes 4/4.
-
-Browser-prove publish, regenerate, compare/re-publish, withdraw/delete, two-tab conflict and reload in both portals before marking Shipped.
-
-### Enforce Performance experiment evidence integrity
-**Id:** valid-versioned-performance-experiments · **Status:** building · **Size:** M · **Added:** 2026-08-25 · **Source:** ultra-review
-**Files:** src/server/performanceExperiments.ts, src/server/types.ts, src/app/api/portal/performance/experiments/route.ts, src/app/portal/agency/performance/_ExperimentsPanel.tsx, src/lib/performance/performanceAnalytics.ts, scripts/smoke-performance-experiment-integrity.test.ts
-**Why:** The invalid-evidence defect is repaired: stable ids are unique, conversions cannot exceed whole-number visitors, lifecycle updates are timestamped/versioned, completion is immutable, amendment creates a numbered draft, and only drafts delete. Dedicated proof passes 2/2.
-
-Browser-prove API/live-event joins, completion/amendment/delete and reload before marking Shipped.
-
 ### Make Aqua Advisor turns durable and retry-idempotent
 **Id:** durable-advisor-turn-operations · **Status:** building · **Size:** M · **Added:** 2026-08-25 · **Source:** ultra-review
 **Files:** src/app/api/assistant/route.ts, src/app/portal/agency/assistant/AssistantWorkspace.tsx, src/lib/server/assistants/assistantStore.ts, src/server/productWorkspaceCoordinator.ts, src/server/types.ts, scripts/smoke-assistant.test.ts, scripts/smoke-assistant-turn-operations.test.ts
@@ -1475,3 +1461,17 @@ This remains a truthful record of the first pass, **not a current performance cl
 **Why:** Every page paid for every block type.
 
 347KB → 59KB, both routes browser-verified.
+
+### Preserve immutable published Performance reports
+**Id:** immutable-performance-report-history · **Status:** shipped · **Size:** M · **Added:** 2026-08-25 · **Shipped:** 2026-09-02 · **Source:** ultra-review
+**Files:** src/app/api/portal/performance/reports/route.ts, src/lib/performance/performanceReports.ts, src/app/portal/agency/performance/_AquaTagDashboard.tsx, src/app/portal/customer/_CustomerPortalViews.tsx, src/server/productWorkspaceCoordinator.ts, scripts/smoke-performance-reports.test.ts
+**Why:** The mutable-row defect is repaired: every generation creates a numbered draft, publish retains and explicitly supersedes an immutable snapshot, withdrawal records actor/reason, only confirmed drafts delete, and the complete report ledger mutates under a durable fresh-state transaction. Dedicated proof passes 4/4.
+
+**Shipped 2026-09-02:** browser-proven on exact isolated build `H-vbnKm_hrkDkN8fgxwqF` — publish, regenerate, republish/supersede, two-tab stale publish 409, withdraw and delete in both portals with two tabs and reload, plus forced-failure receipts, clean at 375×812, 390×844, 812×375, 768×1024, 1024×768, 1280×800 and 1920×1080.
+
+### Enforce Performance experiment evidence integrity
+**Id:** valid-versioned-performance-experiments · **Status:** shipped · **Size:** M · **Added:** 2026-08-25 · **Shipped:** 2026-09-02 · **Source:** ultra-review
+**Files:** src/server/performanceExperiments.ts, src/server/types.ts, src/app/api/portal/performance/experiments/route.ts, src/app/portal/agency/performance/_ExperimentsPanel.tsx, src/lib/performance/performanceAnalytics.ts, scripts/smoke-performance-experiment-integrity.test.ts
+**Why:** The invalid-evidence defect is repaired: stable ids are unique, conversions cannot exceed whole-number visitors, lifecycle updates are timestamped/versioned, completion is immutable, amendment creates a numbered draft, and only drafts delete. Dedicated proof passes 2/2.
+
+**Shipped 2026-09-02:** browser-proven on exact isolated build `H-vbnKm_hrkDkN8fgxwqF` — live tagged-event joins by experiment id and stable variant id, completion, amendment, delete, two-tab stale 409, lost-response replay and reload, plus forced-failure receipts, clean at 375×812, 390×844, 812×375, 768×1024, 1024×768, 1280×800 and 1920×1080.

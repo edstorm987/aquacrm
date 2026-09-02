@@ -107,10 +107,11 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (2):**
+**Exports (3):**
 
-- `AttentionControls({ title, kind = "in-app", resolveHref, evidenceHref, busy = false, onToggleEvidence, evidenceOpen, onResolve, onPark, onDismiss, onMarkDone, }: { title: string; /** * What kind of job this is, which de…` — Resolve / Evidence / Remind later / Dismiss — the controls an attention item carries, wherever it appears. Extracted from Master Inbox so Actions uses the same component rather th…
-- `RemindLaterMenu({ disabled, title, onPark, }: { disabled: boolean; title: string; onPark: (until: number) => void; })`
+- `AttentionControls({ title, kind = "in-app", resolveHref, evidenceHref, busy = false, busyAction, onToggleEvidence, evidenceOpen, onResolve, onPark, onDismiss, onMarkDone, }: { title: string; /** * What kind of job this …` — Resolve / Evidence / Remind later / Dismiss — the controls an attention item carries, wherever it appears. Extracted from Master Inbox so Actions uses the same component rather th…
+- `RemindLaterMenu({ disabled, saving = false, title, onPark, }: { disabled: boolean; saving?: boolean; title: string; onPark: (until: number) => void; })`
+- `type AttentionBusyAction = "mark-done" | "park" | "dismiss" | "saving"`
 
 **Depends on (1):** [`src/lib/inbox/resolutionExplain.ts`](lib.md#file-src-lib-inbox-resolutionexplain-ts-66c88b777a)
 
@@ -126,7 +127,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `CompletedRegister()` — What you have actually finished. Resolving something used to leave no trace — the alert stopped firing and that was that. So "did I already deal with this?" had no answer, and a d…
 
-**Depends on (1):** [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (2):** [`src/lib/inbox/completedActionRead.ts`](lib.md#file-src-lib-inbox-completedactionread-ts-b1507e4185) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (1):** [`src/app/portal/agency/actions/_ActionsWorkspace.tsx`](app.md#file-src-app-portal-agency-actions-actionsworkspace-tsx-3feedac0a1)
 
@@ -154,7 +155,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `EvidenceCard({ alertId, fallback, }: { alertId: string; /** * What the row already knows, used when the id does not resolve to a live * alert — pipeline signals are generated from leads and invoices, not from * the aler…` — The records behind an alert, shown where the alert is. Built as a panel rather than a destination on purpose. Sending somebody to a list to "see the evidence" costs them the queue…
 
-**Depends on (3):** [`src/components/attention/MetricSparkline.tsx`](#file-src-components-attention-metricsparkline-tsx-c12d244144) · [`src/lib/inbox/evidenceSteps.ts`](lib.md#file-src-lib-inbox-evidencesteps-ts-b5a8aa9227) · [`src/lib/inbox/resolutionEvidence.ts`](lib.md#file-src-lib-inbox-resolutionevidence-ts-06653fc0dc)
+**Depends on (5):** [`src/components/attention/MetricSparkline.tsx`](#file-src-components-attention-metricsparkline-tsx-c12d244144) · [`src/lib/inbox/attentionPlanRead.ts`](lib.md#file-src-lib-inbox-attentionplanread-ts-546cbf0e86) · [`src/lib/inbox/evidenceSteps.ts`](lib.md#file-src-lib-inbox-evidencesteps-ts-b5a8aa9227) · [`src/lib/inbox/resolutionEvidence.ts`](lib.md#file-src-lib-inbox-resolutionevidence-ts-06653fc0dc) · [`src/lib/readAvailability.ts`](lib.md#file-src-lib-readavailability-ts-35b000b352)
 
 **Used by (1):** [`src/app/portal/agency/actions/_ActionsWorkspace.tsx`](app.md#file-src-app-portal-agency-actions-actionsworkspace-tsx-3feedac0a1)
 
@@ -182,7 +183,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `ResolutionBanner({ subject, done }: { subject?: string; done?: boolean })` — The "what am I doing here?" bar, shown app-wide. Appears on any page opened from a Resolve click and states the task in plain words. Pressing Resolve navigates you away from the a…
 
-**Depends on (2):** [`src/lib/inbox/resolutionContext.ts`](lib.md#file-src-lib-inbox-resolutioncontext-ts-f21513ba4f) · [`src/lib/inbox/resolutionExplain.ts`](lib.md#file-src-lib-inbox-resolutionexplain-ts-66c88b777a)
+**Depends on (2):** [`src/lib/inbox/attentionPlanRead.ts`](lib.md#file-src-lib-inbox-attentionplanread-ts-546cbf0e86) · [`src/lib/inbox/resolutionContext.ts`](lib.md#file-src-lib-inbox-resolutioncontext-ts-f21513ba4f)
 
 **Used by (1):** [`src/app/portal/agency/layout.tsx`](app.md#file-src-app-portal-agency-layout-tsx-47dd48700a)
 
@@ -273,7 +274,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `ClientRadarQuickLookButton({ initialRadar }: { initialRadar: ClientRadarSnapshot })`
 
-**Depends on (2):** [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/lib/clients/clientWorkspace.ts`](lib.md#file-src-lib-clients-clientworkspace-ts-90fa37f756)
+**Depends on (3):** [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/lib/client/clientRadarRead.ts`](lib.md#file-src-lib-client-clientradarread-ts-e066309791) · [`src/lib/clients/clientWorkspace.ts`](lib.md#file-src-lib-clients-clientworkspace-ts-90fa37f756)
 
 **Used by (1):** [`src/components/chrome/ClientRadarQuickLookControl.tsx`](#file-src-components-chrome-clientradarquicklookcontrol-tsx-b94e6ee3a6)
 
@@ -612,16 +613,17 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (6):**
+**Exports (7):**
 
-- `NotificationAttentionProvider({ initialAlerts, children, clientId, }: { initialAlerts: OperationalAlertView[]; children: ReactNode; clientId?: string; })`
+- `NotificationAttentionProvider({ initialAlerts, children, clientId, enabled = true, }: { initialAlerts: OperationalAlertView[]; children: ReactNode; clientId?: string; enabled?: boolean; })`
 - `useNotificationAttention(): AttentionContextValue | null`
 - `useAttentionMatches({ hrefs = [], prefixHrefs = [], categories = [], clientCategories = [], destinations = [], clientId, allForClient = false, navId, all = false, pool = "focus", }: { hrefs?: string[]; prefixHrefs?: str…`
 - `useUnresolvedAttentionMatches({ navId, clientId, }: { navId: string; clientId?: string; }): OperationalAlertView[]`
 - `AttentionDot({ href, hrefs, prefixHref, prefixHrefs, categories, all, className = "", }: { href?: string; hrefs?: string[]; prefixHref?: string; prefixHrefs?: string[]; categories?: OperationalAlertCategory[]; all?: boo…`
 - `attentionTitle(alerts: OperationalAlertView[]): string`
+- `interface OperationalAlertMutationExpectation (2 members)`
 
-**Depends on (3):** [`src/lib/intelligence/attentionProtection.ts`](lib.md#file-src-lib-intelligence-attentionprotection-ts-ee09220b9a) · [`src/lib/intelligence/notificationAttentionCoordination.ts`](lib.md#file-src-lib-intelligence-notificationattentioncoordination-ts-fe6a3855f7) · [`src/lib/intelligence/operationalAttention.ts`](lib.md#file-src-lib-intelligence-operationalattention-ts-0aaf482906)
+**Depends on (5):** [`src/lib/client/actionsMutationTruth.ts`](lib.md#file-src-lib-client-actionsmutationtruth-ts-ec96f29b69) · [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1) · [`src/lib/intelligence/attentionProtection.ts`](lib.md#file-src-lib-intelligence-attentionprotection-ts-ee09220b9a) · [`src/lib/intelligence/notificationAttentionCoordination.ts`](lib.md#file-src-lib-intelligence-notificationattentioncoordination-ts-fe6a3855f7) · [`src/lib/intelligence/operationalAttention.ts`](lib.md#file-src-lib-intelligence-operationalattention-ts-0aaf482906)
 
 **Used by (15):** [`src/app/portal/agency/actions/_ActionsWorkspace.tsx`](app.md#file-src-app-portal-agency-actions-actionsworkspace-tsx-3feedac0a1) · [`src/app/portal/agency/company/_CompanyWorkspace.tsx`](app.md#file-src-app-portal-agency-company-companyworkspace-tsx-73c889999d) · [`src/app/portal/agency/development/_DevelopmentNav.tsx`](app.md#file-src-app-portal-agency-development-developmentnav-tsx-8a95fb0f4e) · [`src/app/portal/agency/fulfilment/_FulfilmentWorkspace.tsx`](app.md#file-src-app-portal-agency-fulfilment-fulfilmentworkspace-tsx-efb66537d4) · [`src/app/portal/agency/inbox/_MasterInbox.tsx`](app.md#file-src-app-portal-agency-inbox-masterinbox-tsx-2323adcb4b) · [`src/app/portal/agency/layout.tsx`](app.md#file-src-app-portal-agency-layout-tsx-47dd48700a) · [`src/app/portal/agency/marketing/page.tsx`](app.md#file-src-app-portal-agency-marketing-page-tsx-e2b361f4ba) · [`src/app/portal/clients/[clientId]/_OverviewTabs.tsx`](app.md#file-src-app-portal-clients-clientid-overviewtabs-tsx-7218574de0) · [`src/app/portal/clients/[clientId]/layout.tsx`](app.md#file-src-app-portal-clients-clientid-layout-tsx-2e7f1d7ce2) · [`src/app/portal/clients/_PeopleHub.tsx`](app.md#file-src-app-portal-clients-peoplehub-tsx-62c6426811) · [`src/app/portal/clients/page.tsx`](app.md#file-src-app-portal-clients-page-tsx-bffc1e671f) · [`src/built-ins/modules/agency-finance/src/components/FinanceNav.tsx`](built-ins.md#file-src-built-ins-modules-agency-finance-src-components-financenav-tsx-c960f4ab54) · [`src/components/chrome/NotificationCentreButton.tsx`](#file-src-components-chrome-notificationcentrebutton-tsx-aafe1b47bf) · [`src/components/chrome/ProfileMenu.tsx`](#file-src-components-chrome-profilemenu-tsx-539a3c435a) · [`src/components/chrome/SidebarNavLink.tsx`](#file-src-components-chrome-sidebarnavlink-tsx-f85c0a7a8a)
 
@@ -708,7 +710,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `PortalSearch({ items, recordsEnabled = false, initiallyOpen = false }: { items: PortalSearchItem[]; recordsEnabled?: boolean; initiallyOpen?: boolean })`
 - `interface PortalSearchItem (2 members)`
 
-**Depends on (1):** [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
+**Depends on (2):** [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 
 **Used by (1):** [`src/components/chrome/DeferredPortalSearch.tsx`](#file-src-components-chrome-deferredportalsearch-tsx-9f037d8751)
 
@@ -1800,7 +1802,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `CallLinePicker()`
 - `CallButton({ phone, name, contactId, prospectId, onCalled, }: { phone?: string; name?: string; contactId?: string; /** When set, the server gates on the prospect's inspection + opt-out and records the attempt itself. */…`
 
-**Depends on (1):** [`src/lib/telephony/phoneNumbers.ts`](lib.md#file-src-lib-telephony-phonenumbers-ts-b7be228e55)
+**Depends on (2):** [`src/lib/client/senderCatalogueRead.ts`](lib.md#file-src-lib-client-sendercatalogueread-ts-e7ebc13e6f) · [`src/lib/telephony/phoneNumbers.ts`](lib.md#file-src-lib-telephony-phonenumbers-ts-b7be228e55)
 
 **Used by (2):** [`src/app/portal/agency/leads-pipeline/contacts/_ContactsWorkspace.tsx`](app.md#file-src-app-portal-agency-leads-pipeline-contacts-contactsworkspace-tsx-9e6c6879f9) · [`src/app/portal/agency/pipelines/[slug]/_ScoutingCommand.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-scoutingcommand-tsx-15bc8216b1)
 
@@ -1815,7 +1817,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `EmailLinePicker()`
 - `EmailButton({ email, phone, name, contactId, prospectId, onSent, }: { email?: string; /** Passed so the server can apply the same opt-out suppression the dialler does. */ phone?: string; name?: string; contactId?: strin…`
 
-**Depends on:** _No internal imports._
+**Depends on (1):** [`src/lib/client/senderCatalogueRead.ts`](lib.md#file-src-lib-client-sendercatalogueread-ts-e7ebc13e6f)
 
 **Used by (2):** [`src/app/portal/agency/leads-pipeline/contacts/_ContactsWorkspace.tsx`](app.md#file-src-app-portal-agency-leads-pipeline-contacts-contactsworkspace-tsx-9e6c6879f9) · [`src/app/portal/agency/pipelines/[slug]/_ScoutingCommand.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-scoutingcommand-tsx-15bc8216b1)
 
@@ -1985,13 +1987,13 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports (4):**
 
 - `PluginSettingsPanel({ initial, clientId, canEdit = true }: { initial: PluginSettingsView; clientId?: string; canEdit?: boolean; })` — `canEdit` is the CALLER's answer to "can this viewer actually save?", and it must match `POST /api/portal/plugins/settings`, which requires an agency owner or manager. A client-sc…
-- `interface PluginSettingsFieldView (10 members)`
+- `interface PluginSettingsFieldView (13 members)`
 - `interface PluginSettingsGroupView (4 members)`
 - `interface PluginSettingsView (5 members)`
 
 **Depends on (2):** [`src/lib/plugins/pluginSetupStatus.ts`](lib.md#file-src-lib-plugins-pluginsetupstatus-ts-82a3c6194e) · [`src/lib/plugins/unwiredSettings.ts`](lib.md#file-src-lib-plugins-unwiredsettings-ts-2bbb67e7f7)
 
-**Used by (6):** [`src/app/portal/agency/settings/SettingsTabs.tsx`](app.md#file-src-app-portal-agency-settings-settingstabs-tsx-e999a7955b) · [`src/built-ins/modules/affiliates/src/pages/SettingsPage.tsx`](built-ins.md#file-src-built-ins-modules-affiliates-src-pages-settingspage-tsx-df417c4c18) · [`src/built-ins/modules/agency-finance/src/pages/SettingsPage.tsx`](built-ins.md#file-src-built-ins-modules-agency-finance-src-pages-settingspage-tsx-37294c59ec) · [`src/built-ins/modules/client-crm/src/pages/SettingsPage.tsx`](built-ins.md#file-src-built-ins-modules-client-crm-src-pages-settingspage-tsx-25d1cd87b4) · [`src/built-ins/modules/ecommerce/src/pages/SettingsPage.tsx`](built-ins.md#file-src-built-ins-modules-ecommerce-src-pages-settingspage-tsx-97f4e23c22) · [`src/built-ins/modules/memberships/src/pages/SettingsPage.tsx`](built-ins.md#file-src-built-ins-modules-memberships-src-pages-settingspage-tsx-01cadc606b)
+**Used by (8):** [`src/app/portal/agency/settings/SettingsTabs.tsx`](app.md#file-src-app-portal-agency-settings-settingstabs-tsx-e999a7955b) · [`src/built-ins/modules/affiliates/src/pages/SettingsPage.tsx`](built-ins.md#file-src-built-ins-modules-affiliates-src-pages-settingspage-tsx-df417c4c18) · [`src/built-ins/modules/agency-finance/src/pages/SettingsPage.tsx`](built-ins.md#file-src-built-ins-modules-agency-finance-src-pages-settingspage-tsx-37294c59ec) · [`src/built-ins/modules/agency-marketing/src/pages/SettingsPage.tsx`](built-ins.md#file-src-built-ins-modules-agency-marketing-src-pages-settingspage-tsx-919d368f0c) · [`src/built-ins/modules/client-crm/src/pages/SettingsPage.tsx`](built-ins.md#file-src-built-ins-modules-client-crm-src-pages-settingspage-tsx-25d1cd87b4) · [`src/built-ins/modules/ecommerce/src/pages/SettingsPage.tsx`](built-ins.md#file-src-built-ins-modules-ecommerce-src-pages-settingspage-tsx-97f4e23c22) · [`src/built-ins/modules/memberships/src/pages/SettingsPage.tsx`](built-ins.md#file-src-built-ins-modules-memberships-src-pages-settingspage-tsx-01cadc606b) · [`src/built-ins/modules/website-editor/src/pages/CustomisePage.tsx`](built-ins.md#file-src-built-ins-modules-website-editor-src-pages-customisepage-tsx-5c45dfead2)
 
 <a id="file-src-components-workspaces-pluginworkspacenav-tsx-34bb1220e7"></a>
 

@@ -588,9 +588,16 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   failure/replay result is recorded in the current release checkpoint.
   The wider 148-family non-Finance/non-Dev/non-Actions inventory remains open. Add a class-level
   guard plus forced 400/422/500/503, rejected-fetch and malformed-response mounted
-  cases for Client Centre, phase, SOP, Company, Performance and
-  related controls; assert retained input/context, visible safe failure and no success
-  continuation. → issue #47.
+  cases for Client Centre, phase, SOP, Company and related controls; assert retained
+  input/context, visible safe failure and no success continuation. → issue #47.
+- Performance (2026-09-02, fifth #47 cohort): `smoke-performance-experiments-checked-mutations`,
+  `smoke-performance-milestone-mutations` and `smoke-performance-report-checked-mutations`
+  (**38/38**) pin exact receipt validators, parent-sequenced apply order, the shared route
+  classifier (400/404/409/generic 500, no echoed exception text), client-scoped element
+  gating inside the refreshed transaction, cap-on-space normalisation and real-route
+  receipts through the browser validators. Exact build `H-vbnKm_hrkDkN8fgxwqF` browser evidence
+  (**119/119** stories, seven viewports) is recorded in the update log and issues
+  #47/#128/#129.
 - Health Check coverage proves question/scoring structure and the progress-save
   resume serializer, but not the three visible final-result controls. Add a browser
   case that completes a check, obtains the final share link, opens it in a clean

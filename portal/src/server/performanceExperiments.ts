@@ -27,6 +27,19 @@ export class PerformanceExperimentConflictError extends Error {
   }
 }
 
+/**
+ * A caller-correctable refusal: the request itself is malformed or breaks a
+ * business rule (blank name, impossible counts, bad status). Routes answer it
+ * 400 with the message; anything that is not one of the typed refusals is an
+ * unexpected failure and must not leak its text to the browser.
+ */
+export class PerformanceExperimentValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PerformanceExperimentValidationError";
+  }
+}
+
 export function listPerformanceExperiments(agencyId: string, clientId?: string): PerformanceExperiment[] {
   return Object.values(getState().performanceExperiments)
     .filter(item => item.agencyId === agencyId && (clientId === undefined || item.clientId === clientId))
@@ -40,10 +53,10 @@ export function createPerformanceExperiment(
   actorUserId: string,
 ): PerformanceExperiment {
   const name = clean(input.name, 160);
-  if (!name) throw new Error("Experiment name required.");
+  if (!name) throw new PerformanceExperimentValidationError("Experiment name required.");
   const now = Date.now();
   if (input.status !== undefined && input.status !== "draft") {
-    throw new Error("New experiments must start as a draft.");
+    throw new PerformanceExperimentValidationError("New experiments must start as a draft.");
   }
   const experiment: PerformanceExperiment = {
     id: `exp_${crypto.randomBytes(8).toString("hex")}`,
@@ -90,7 +103,7 @@ export function updatePerformanceExperiment(
   const status = patch.status === undefined ? normalised.status : validStatus(patch.status);
   requireTransition(normalised.status, status);
   const name = patch.name === undefined ? normalised.name : clean(patch.name, 160);
-  if (!name) throw new Error("Experiment name required.");
+  if (!name) throw new PerformanceExperimentValidationError("Experiment name required.");
   const now = Date.now();
   const variants = cleanVariants(patch.variants ?? normalised.variants);
   const updated: PerformanceExperiment = {
@@ -129,7 +142,7 @@ export function amendPerformanceExperiment(
   if (!current || current.agencyId !== agencyId) return null;
   const normalised = normaliseStoredExperiment(current);
   requireExpectedVersion(normalised, expectedVersion);
-  if (normalised.status !== "complete") throw new Error("Only a completed experiment can be amended.");
+  if (normalised.status !== "complete") throw new PerformanceExperimentConflictError("Only a completed experiment can be amended.");
   if (normalised.amendedByExperimentId) {
     throw new PerformanceExperimentConflictError("This completed experiment already has an amendment.");
   }
@@ -211,17 +224,17 @@ export function deletePerformanceExperiment(
 function cleanVariants(value?: Array<Partial<PerformanceExperimentVariant>>): PerformanceExperimentVariant[] {
   const defaults: Array<Partial<PerformanceExperimentVariant>> = [{ id: "a", name: "Version A" }, { id: "b", name: "Version B" }];
   const rows = value === undefined ? defaults : value;
-  if (rows.length < 2 || rows.length > 6) throw new Error("An experiment needs between two and six variants.");
+  if (rows.length < 2 || rows.length > 6) throw new PerformanceExperimentValidationError("An experiment needs between two and six variants.");
   const ids = new Set<string>();
   return rows.map((row, index) => {
     const id = clean(row.id, 60);
-    if (!id) throw new Error(`Variant ${index + 1} needs a stable ID.`);
+    if (!id) throw new PerformanceExperimentValidationError(`Variant ${index + 1} needs a stable ID.`);
     const key = id.toLocaleLowerCase("en-GB");
-    if (ids.has(key)) throw new Error("Variant IDs must be unique.");
+    if (ids.has(key)) throw new PerformanceExperimentValidationError("Variant IDs must be unique.");
     ids.add(key);
     const visitors = count(row.visitors, `Visitors for ${id}`);
     const conversions = count(row.conversions, `Conversions for ${id}`);
-    if (conversions > visitors) throw new Error(`Conversions cannot exceed visitors for ${id}.`);
+    if (conversions > visitors) throw new PerformanceExperimentValidationError(`Conversions cannot exceed visitors for ${id}.`);
     return {
       id,
       name: clean(row.name, 120) || `Version ${String.fromCharCode(65 + index)}`,
@@ -234,7 +247,8 @@ function cleanVariants(value?: Array<Partial<PerformanceExperimentVariant>>): Pe
 function amendmentVariants(variants: PerformanceExperimentVariant[]): PerformanceExperimentVariant[] {
   const used = new Set<string>();
   return variants.map((variant, index) => {
-    const base = clean(variant.id, 50) || `variant-${index + 1}`;
+    // Same cap as cleanVariants, so an amendment never renames a stable id.
+    const base = clean(variant.id, 60) || `variant-${index + 1}`;
     let id = base;
     let suffix = 2;
     while (used.has(id.toLocaleLowerCase("en-GB"))) id = `${base}-${suffix++}`;
@@ -250,7 +264,7 @@ function amendmentVariants(variants: PerformanceExperimentVariant[]): Performanc
 
 function validStatus(value: PerformanceExperimentStatus): PerformanceExperimentStatus {
   if (value === "draft" || value === "running" || value === "paused" || value === "complete") return value;
-  throw new Error("Choose a valid experiment status.");
+  throw new PerformanceExperimentValidationError("Choose a valid experiment status.");
 }
 
 function requireTransition(from: PerformanceExperimentStatus, to: PerformanceExperimentStatus): void {
@@ -286,7 +300,7 @@ function clean(value: unknown, max: number): string {
 function count(value: unknown, label: string): number {
   if (value === undefined) return 0;
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
-    throw new Error(`${label} must be a whole number of zero or more.`);
+    throw new PerformanceExperimentValidationError(`${label} must be a whole number of zero or more.`);
   }
   return value;
 }

@@ -34,6 +34,59 @@ map stays trustworthy.
 
 ---
 
+## 2026-09-02 — Performance checked-mutation cohort (fifth #47 cohort; #128 and #129 browser-accepted)
+
+- **Experiments, reports and milestones now use the checked mutation contract.** Every
+  mounted Performance write validates the exact success receipt (identity, expected
+  version, every variant, month/property/status, withdrawal reason) against a
+  parent-owned authoritative collection, retains the typed work on refusal, settles
+  busy state in `finally` and shows an action-specific busy label. The parent applies
+  each family's receipts in per-client sequence order, so a response that lands after
+  an A→B→A client switch or a view remount still updates the right client and an
+  older response can never overwrite a newer applied snapshot.
+- **Routes classify instead of echoing.** `performanceMutationErrorResponse()` answers
+  AuthError 401/403, not-found 404, typed validation 400 and conflict 409 with authored
+  messages, and captures anything else server-side (issue #132 sink) behind a generic
+  500. The experiments route no longer returns arbitrary exception text as a 400; the
+  milestones route validates every field after authentication instead of re-throwing a
+  blank title as an unhandled 500 and writes under the client-milestones transaction;
+  the experiment lookup and client element gate run inside the refreshed transaction,
+  so a warm multi-instance snapshot cannot skip the gate or scope a stale list.
+- **Review-found defects fixed before acceptance** (48-agent adversarial review, every
+  confirmed finding fixed and re-verified): clearing a hypothesis was silently ignored
+  while the version advanced (receipt refused, retry 409); a value cut at a length cap
+  on a space was trimmed again by the server (a successful create reported as refused,
+  retry duplicated); amendment variant ids used a 50-character cap against the
+  60-character creation cap; a null variant entry was an unexpected 500.
+- **Evidence.** Focused Performance gate **38/38** across the three new suites, adjacent
+  Performance/route-contract/tenancy gate **74/74**, TypeScript and `git diff --check`
+  clean. Exact production build `H-vbnKm_hrkDkN8fgxwqF` (webpack, compiled in 3.3min, 245/245 pages
+  in 623ms, 4:48 wall) served in isolation on a private state copy; Playwright Chromium
+  passed **119/119** stories (17 per viewport) at **375×812, 390×844, 812×375, 768×1024, 1024×768, 1280×800 and 1920×1080**: experiment
+  create/edit/complete/amend/delete, live tagged-event join by experiment id and stable
+  variant id, two-tab stale 409 and reload, lost-response replay; report generate/
+  publish/regenerate/supersede, two-tab stale publish 409, withdraw and delete with
+  agency and customer history, two tabs and reload; milestone create/update/delete;
+  forced 500/503/400/409, rejected fetch, malformed JSON and wrong-identity 200
+  receipts on every family — zero unexpected console, page, request or HTTP failures
+  and zero horizontal overflow at every viewport.
+- **Canonical suite:** the final uncontended `npm run smoke:all` on this source executed
+  **6,512 tests across 1,110 suites: 6,510 passed / 0 failed / 2 skipped in
+  111,432.029041ms**, then the Website Editor gate passed **49/49 files in 13.0s**. An
+  earlier run of the same source, taken while the production build was compiling on the
+  same machine, tripped one wall-clock assertion in the remote-lease fencing suite
+  ("a fresh lease does not need an unnecessary renewal"); that suite passes 3/3 in
+  isolation and its modules are untouched by this cohort, so the contended result is
+  recorded as load-induced, not as a regression.
+- **Honest residuals.** Cross-tenant client refusals on these routes still answer 403
+  (#168). The wider #47 inventory remains partial: Client Centre, phase, SOP, Company
+  and other families still need conversion and their forced-failure browser matrix.
+  Live-provider, two-instance remote-backend and deployed evidence are not claimed.
+  Retained `.data` (37 files) unchanged.
+- Reconciled [TODO](TODO.md), [issues #47/#128/#129](issues.md), [status](status.md),
+  [tests](tests.md) and [roadmap](roadmap.md); regenerated the symbol reference and
+  the consolidated volumes.
+
 ## 2026-09-02 — Final Actions and Memberships reliability checkpoint
 
 - **Actions completion:** task completion/delete, alert Mark Done and notification

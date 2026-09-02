@@ -1,12 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
+import { getSessionFromRequest } from "@/lib/server/auth/auth";
 import { routeTenantScope } from "@/lib/server/portal/apiTenantScope";
 import {
   amendPerformanceExperiment,
   createPerformanceExperiment,
   deletePerformanceExperiment,
   listPerformanceExperiments,
-  PerformanceExperimentConflictError,
   updatePerformanceExperiment,
   type PerformanceExperimentInput,
 } from "@/server/performanceExperiments";
@@ -14,8 +13,18 @@ import { withPortalStateTransaction } from "@/server/productWorkspaceCoordinator
 import { ensureHydrated } from "@/server/storage";
 import { getClientForAgency } from "@/server/tenants";
 import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
+import {
+  PerformanceMutationNotFoundError,
+  PerformanceMutationRequestError,
+  isJsonRecord,
+  performanceMutationErrorResponse,
+} from "@/lib/server/performance/performanceMutationErrors";
 
 const ROLES = new Set(["agency-owner", "agency-manager", "agency-staff"]);
+const SAVE_FALLBACK = "Could not save experiment.";
+const DELETE_FALLBACK = "Could not delete experiment.";
+
+type ExperimentBody = PerformanceExperimentInput & { id?: string; action?: "save" | "amend" };
 
 export async function GET(req: NextRequest) {
   await ensureHydrated();
@@ -37,52 +46,96 @@ export async function GET(req: NextRequest) {
       experiments: listPerformanceExperiments(scope.agencyId, scope.clientId),
     });
   } catch (error) {
-    return authErrorResponse(error);
+    return performanceMutationErrorResponse(error, {
+      fallback: "Could not load experiments.",
+      breadcrumb: { agencyId: session.agencyId, userId: session.userId, extra: { route: "performance/experiments", method: "GET" } },
+    });
   }
+}
+
+/**
+ * Refuse a malformed request before any tenancy or permission work. Everything
+ * here is a caller mistake the browser can correct, so it is a safe 400. The
+ * domain module validates the business rules (name, variants, counts, status).
+ */
+function parseExperimentBody(value: unknown): ExperimentBody {
+  if (!isJsonRecord(value)) throw new PerformanceMutationRequestError("experiment required");
+  const { action, id } = value;
+  if (action !== undefined && action !== "save" && action !== "amend") {
+    throw new PerformanceMutationRequestError("Choose a valid experiment action.");
+  }
+  if (id !== undefined && (typeof id !== "string" || !id.trim())) {
+    throw new PerformanceMutationRequestError("Choose a valid experiment.");
+  }
+  if (action === "amend" && !id) throw new PerformanceMutationRequestError("Choose an experiment to amend.");
+  if (id && !Number.isSafeInteger(value.expectedVersion)) {
+    throw new PerformanceMutationRequestError("expectedVersion is required to change an existing experiment.");
+  }
+  if (value.clientId !== undefined && typeof value.clientId !== "string") {
+    throw new PerformanceMutationRequestError("Choose a valid client.");
+  }
+  if (value.variants !== undefined && (!Array.isArray(value.variants) || !value.variants.every(isJsonRecord))) {
+    throw new PerformanceMutationRequestError("Variants must be a list.");
+  }
+  if (!id && typeof value.name !== "string") throw new PerformanceMutationRequestError("Experiment name required.");
+  return value as unknown as ExperimentBody;
 }
 
 export async function POST(req: NextRequest) {
   await ensureHydrated();
   const session = await getSessionFromRequest(req);
   if (!session || !ROLES.has(session.role)) return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  const body = await req.json().catch(() => null) as (PerformanceExperimentInput & { id?: string; action?: "save" | "amend" }) | null;
-  if (!body) return NextResponse.json({ ok: false, error: "experiment required" }, { status: 400 });
+  let body: ExperimentBody;
+  try {
+    body = parseExperimentBody(await req.json().catch(() => null));
+  } catch (error) {
+    return performanceMutationErrorResponse(error, { fallback: SAVE_FALLBACK });
+  }
   try {
     const scope = routeTenantScope(session, { clientId: body.clientId });
+    // Tenancy first, then permission (404, not 403) — see api/tenants/close-deal/route.ts.
     if (body.clientId?.trim() && !scope.client) {
       return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
     }
-    const existing = body.id
-      ? listPerformanceExperiments(scope.agencyId).find(experiment => experiment.id === body.id)
-      : undefined;
-    const targetClientId = existing?.clientId ?? scope.clientId;
-    if (targetClientId) {
-      try {
-        await requireCurrentClientWorkspaceElementAccess(targetClientId, "client.marketing", "use");
-      } catch (error) {
-        return authErrorResponse(error);
-      }
-    }
     const input = { ...body, clientId: scope.clientId };
-    const experiment = await withPortalStateTransaction(`performance-experiments:${scope.agencyId}`, () => {
+    // The existing-record lookup and the client element gate run INSIDE the
+    // transaction, after it has refreshed the snapshot. On a warm multi-instance
+    // backend a record created elsewhere is otherwise invisible to the lookup,
+    // which would skip the gate for a client-scoped experiment addressed by id.
+    // An AuthError thrown here rolls the transaction back and answers 401/403.
+    const result = await withPortalStateTransaction(`performance-experiments:${scope.agencyId}`, async () => {
       if (scope.clientId && !getClientForAgency(scope.agencyId, scope.clientId)) {
-        throw new Error("client not found");
+        throw new PerformanceMutationNotFoundError("client not found");
       }
-      if (body.action === "amend") {
-        if (!body.id) throw new Error("Choose an experiment to amend.");
-        return amendPerformanceExperiment(scope.agencyId, body.id, body.expectedVersion, session.userId);
+      const existing = body.id
+        ? listPerformanceExperiments(scope.agencyId).find(experiment => experiment.id === body.id)
+        : undefined;
+      if (body.id && !existing) throw new PerformanceMutationNotFoundError("experiment not found");
+      const targetClientId = existing?.clientId ?? scope.clientId;
+      if (targetClientId) {
+        await requireCurrentClientWorkspaceElementAccess(targetClientId, "client.marketing", "use");
       }
-      return body.id
-        ? updatePerformanceExperiment(scope.agencyId, body.id, input, session.userId)
-        : createPerformanceExperiment(scope.agencyId, input, session.userId);
+      const experiment = body.action === "amend"
+        ? amendPerformanceExperiment(scope.agencyId, body.id!, body.expectedVersion, session.userId)
+        : body.id
+          ? updatePerformanceExperiment(scope.agencyId, body.id, input, session.userId)
+          : createPerformanceExperiment(scope.agencyId, input, session.userId);
+      if (!experiment) throw new PerformanceMutationNotFoundError("experiment not found");
+      return {
+        experiment,
+        experiments: listAuthoritativeExperiments(scope.agencyId, experiment.clientId),
+      };
     });
-    if (!experiment) return NextResponse.json({ ok: false, error: "experiment not found" }, { status: 404 });
-    return NextResponse.json({ ok: true, experiment }, { status: body.id && body.action !== "amend" ? 200 : 201 });
+    return NextResponse.json({ ok: true, experiment: result.experiment, experiments: result.experiments }, { status: body.id && body.action !== "amend" ? 200 : 201 });
   } catch (error) {
-    return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : "Could not save experiment." },
-      { status: error instanceof PerformanceExperimentConflictError ? 409 : 400 },
-    );
+    return performanceMutationErrorResponse(error, {
+      fallback: SAVE_FALLBACK,
+      breadcrumb: {
+        agencyId: session.agencyId,
+        userId: session.userId,
+        extra: { route: "performance/experiments", method: "POST", action: body.action ?? "save", experimentId: body.id },
+      },
+    });
   }
 }
 
@@ -90,27 +143,43 @@ export async function DELETE(req: NextRequest) {
   await ensureHydrated();
   const session = await getSessionFromRequest(req);
   if (!session || !ROLES.has(session.role)) return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  const id = req.nextUrl.searchParams.get("id") || "";
-  const expectedVersion = Number(req.nextUrl.searchParams.get("expectedVersion"));
-  const existing = id
-    ? listPerformanceExperiments(session.agencyId).find(experiment => experiment.id === id)
-    : undefined;
-  if (existing?.clientId) {
-    try {
-      await requireCurrentClientWorkspaceElementAccess(existing.clientId, "client.marketing", "manage");
-    } catch (error) {
-      return authErrorResponse(error);
-    }
+  const id = req.nextUrl.searchParams.get("id")?.trim() || "";
+  const rawVersion = req.nextUrl.searchParams.get("expectedVersion");
+  const expectedVersion = rawVersion === null || rawVersion.trim() === "" ? Number.NaN : Number(rawVersion);
+  if (!id) return NextResponse.json({ ok: false, error: "Choose an experiment to delete." }, { status: 400 });
+  if (!Number.isSafeInteger(expectedVersion)) {
+    return NextResponse.json({ ok: false, error: "expectedVersion is required to delete an experiment." }, { status: 400 });
   }
   try {
-    const ok = id ? await withPortalStateTransaction(`performance-experiments:${session.agencyId}`, () => (
-      deletePerformanceExperiment(session.agencyId, id, expectedVersion, session.userId)
-    )) : false;
-    return NextResponse.json({ ok }, { status: ok ? 200 : 404 });
+    // Lookup and gate inside the transaction for the same reason as POST: the
+    // fresh snapshot decides which client the record belongs to, and the
+    // authoritative list is scoped from that record, never a stale copy.
+    const result = await withPortalStateTransaction(`performance-experiments:${session.agencyId}`, async () => {
+      const existing = listPerformanceExperiments(session.agencyId).find(experiment => experiment.id === id);
+      if (!existing) throw new PerformanceMutationNotFoundError("experiment not found");
+      if (existing.clientId) {
+        await requireCurrentClientWorkspaceElementAccess(existing.clientId, "client.marketing", "manage");
+      }
+      const ok = deletePerformanceExperiment(session.agencyId, id, expectedVersion, session.userId);
+      if (!ok) throw new PerformanceMutationNotFoundError("experiment not found");
+      return {
+        experimentId: id,
+        experiments: listAuthoritativeExperiments(session.agencyId, existing.clientId),
+      };
+    });
+    return NextResponse.json({ ok: true, experimentId: result.experimentId, experiments: result.experiments });
   } catch (error) {
-    return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : "Could not delete experiment." },
-      { status: error instanceof PerformanceExperimentConflictError ? 409 : 400 },
-    );
+    return performanceMutationErrorResponse(error, {
+      fallback: DELETE_FALLBACK,
+      breadcrumb: {
+        agencyId: session.agencyId,
+        userId: session.userId,
+        extra: { route: "performance/experiments", method: "DELETE", experimentId: id },
+      },
+    });
   }
+}
+
+function listAuthoritativeExperiments(agencyId: string, clientId: string | undefined) {
+  return listPerformanceExperiments(agencyId).filter(experiment => experiment.clientId === clientId);
 }
